@@ -1,8 +1,12 @@
 //! The bridge transport and the writes addressed to its fixtures.
 
+use super::pinned_tls::PinnedTlsConnector;
 use super::{clear_body, grouped_light_ids_for_rooms, inventory};
+use pns_domain::CertificatePin;
 use pns_domain::lamps::{Fixture, Routing, fixture_path, resolve};
 use std::time::Duration;
+use ureq::unversioned::resolver::DefaultResolver;
+use ureq::unversioned::transport::{Connector, TcpConnector};
 
 /// The bridge seam: authenticated GETs and PUTs against the CLIP paths.
 pub trait Bridge {
@@ -136,23 +140,35 @@ pub struct UreqBridge {
     /// doctor can spend the full transport deadline, and a human standing at a
     /// terminal typing a mute cannot.
     pub deadline: Duration,
+    /// The one certificate this bridge accepts.
+    pub pin: CertificatePin,
 }
 
 impl UreqBridge {
+    /// The bridge the settings name.
+    ///
+    /// ONE CONSTRUCTOR RATHER THAN A STRUCT LITERAL PER CALLER. Seven callers
+    /// each formatted the CLIP base themselves, so the URL shape and the pin
+    /// were seven decisions; now the settings decide both once and a caller
+    /// states only how long it is willing to wait.
+    pub fn new(hue: &super::HueSettings, deadline: Duration) -> Self {
+        Self {
+            base: format!("https://{}/clip/v2/resource", hue.bridge),
+            key: hue.key.clone(),
+            deadline,
+            pin: hue.certificate,
+        }
+    }
+
     fn agent(&self) -> ureq::Agent {
-        ureq::Agent::config_builder()
-            .timeout_global(Some(self.deadline))
-            .max_redirects(0)
-            // The bridge serves a self-signed certificate for its own LAN
-            // address, so verification is disabled here exactly as openhue
-            // does it; there is no CA that could vouch for a Hue bridge.
-            .tls_config(
-                ureq::tls::TlsConfig::builder()
-                    .disable_verification(true)
-                    .build(),
-            )
-            .build()
-            .new_agent()
+        ureq::Agent::with_parts(
+            ureq::Agent::config_builder()
+                .timeout_global(Some(self.deadline))
+                .max_redirects(0)
+                .build(),
+            TcpConnector::default().chain(PinnedTlsConnector { pin: self.pin }),
+            DefaultResolver::default(),
+        )
     }
 }
 

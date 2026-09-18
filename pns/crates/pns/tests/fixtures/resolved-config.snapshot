@@ -99,6 +99,9 @@ Config {
                 "bridge": String(
                     "from-the-vault:OpenHue :: API Key (hue-bridge-pro):UserName",
                 ),
+                "certificate": String(
+                    "from-the-vault:OpenHue :: API Key (hue-bridge-pro):attribute:certificate-pin",
+                ),
                 "key": String(
                     "from-the-vault:OpenHue :: API Key (hue-bridge-pro):Password",
                 ),

@@ -52,20 +52,17 @@ pub(crate) fn fire_pulse(
     hue_table: Option<toml::Table>,
     behaviour: pns_domain::lamps::config::Behaviour,
 ) -> usize {
-    let Some(hue) = hue_table.and_then(|settings| {
-        hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())
-    }) else {
+    let Some(hue) = hue_table.and_then(|settings| armed_hue_settings(&settings)) else {
         return 0;
     };
-    HuePulse {
-        bridge: UreqBridge {
-            base: format!("https://{}/clip/v2/resource", hue.bridge),
-            key: hue.key,
-            deadline: BRIDGE_DEADLINE,
-        },
+    let bridge = UreqBridge::new(&hue, BRIDGE_DEADLINE);
+    let signalled = HuePulse {
+        bridge,
         rooms: hue.rooms,
     }
-    .run(behaviour)
+    .run(behaviour);
+    crate::certificate_notice::announce_mismatch();
+    signalled
 }
 /// The ROUTED lights signal: resolve the map on the bridge, then flash every
 /// lamp routed for this pulse that nothing is currently holding.
@@ -85,19 +82,17 @@ fn fire_lights(
     held: Option<&[String]>,
     presence: Option<&pns_domain::Snapshot>,
 ) -> Vec<String> {
-    let Some(hue) = hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) else {
+    let Some(hue) = armed_hue_settings(settings) else {
         return Vec::new();
     };
-    let bridge = UreqBridge {
-        base: format!("https://{}/clip/v2/resource", hue.bridge),
-        key: hue.key,
-        deadline: BRIDGE_DEADLINE,
-    };
-    pns_application::SignalLamps {
+    let bridge = UreqBridge::new(&hue, BRIDGE_DEADLINE);
+    let written = pns_application::SignalLamps {
         bridge: &pns_adapters::TypedLampBridge(&bridge),
         presence: &pns_adapters::SqliteStore::for_records(state_dir()),
     }
-    .run(lights, flash, reading, held, presence)
+    .run(lights, flash, reading, held, presence);
+    crate::certificate_notice::announce_mismatch();
+    written
 }
 #[cfg(test)]
 fn run_pulse_writes<B: pns_adapters::Bridge>(

@@ -278,6 +278,7 @@ pub(crate) fn doctor_mode() -> i32 {
                     pns_adapters::doctor_bridge(hue_table.as_ref(), hue_declared)
                 })
             },
+            certificate: || pns_domain::doctor::certificate_row(&pin_state(hue_table.as_ref())),
         },
         |item| print_lines(report.item(&item)),
     );
@@ -301,3 +302,27 @@ const DOCTOR_USAGE: &str = "pns: usage: pns doctor [--raw]";
 /// The one argument the doctor takes: every input behind each recorded
 /// decision, instead of the sentence the report says them in.
 const RAW_FLAG: &str = "--raw";
+
+/// What this run learned about the bridge's pinned certificate.
+///
+/// THE OBSERVER IS THE SOURCE, not a second dial. The lamps section has already
+/// been through the pinned transport by the time this is read, so a refused
+/// handshake is on the record and a second connection would only be a second
+/// chance to disagree with the first.
+fn pin_state(hue_table: Option<&toml::Table>) -> pns_domain::doctor::PinState {
+    if let Some(mismatch) = pns_adapters::refused_mismatch() {
+        return pns_domain::doctor::PinState::Mismatched {
+            address: mismatch.address,
+            expected: mismatch.expected,
+            presented: mismatch.presented,
+        };
+    }
+    let Some(table) = hue_table else {
+        return pns_domain::doctor::PinState::Unconfigured;
+    };
+    match pns_adapters::hue_settings(table, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) {
+        Ok(Some(_)) => pns_domain::doctor::PinState::Held,
+        Ok(None) => pns_domain::doctor::PinState::Unconfigured,
+        Err(reason) => pns_domain::doctor::PinState::Refused(reason),
+    }
+}

@@ -11,6 +11,7 @@
 //! predicate this project keeps re-finding.
 
 mod census;
+mod certificate;
 mod daemon;
 mod lights;
 mod outcome;
@@ -19,6 +20,7 @@ mod presence;
 mod report;
 mod routes;
 pub use census::checks;
+pub use certificate::{PinState, certificate_row};
 pub use daemon::{daemon_line, nag_line};
 pub use lights::{LightsReport, lights_lines};
 pub use outcome::{Check, CheckKind, ConfigState, Outcome, exit_code, line, outcome_mark, summary};

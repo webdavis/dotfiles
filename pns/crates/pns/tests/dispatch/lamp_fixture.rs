@@ -69,7 +69,7 @@ pub(super) fn window_around(centre: u16, radius: u16) -> String {
 /// The `[plugins.hue]` config the two halves below share, quiet hours apart.
 pub(super) fn hue_config(port: u16, quiet_hours: &str) -> String {
     format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"{quiet_hours}\"\n[plugins.hermes]\nenabled = true\n"
     )
 }
@@ -120,7 +120,7 @@ pub(super) fn lamp_run(
     // table was opened last: appending `quiet_hours` to the end of this put it
     // in `[plugins.hermes]`, where nothing reads it and nothing complains.
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.hermes]\nenabled = true\n{config}"
     ));
@@ -211,7 +211,7 @@ pub(super) fn lamp_submit(name: &str, config: &str, request: &str) -> (bool, Opt
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\n{config}"
     ));
     let mut command = sandbox.pns();

@@ -40,6 +40,21 @@ fn secret(entry: &str, field: &str) -> toml::Value {
     toml::Value::Table(table)
 }
 
+/// A secret marker for a CUSTOM ATTRIBUTE on one keepassxc entry, which is a
+/// different chezmoi function rather than a third field name.
+fn attribute_secret(entry: &str, attribute: &str) -> toml::Value {
+    let mut table = toml::Table::new();
+    table.insert(
+        "keepassxc".to_string(),
+        toml::Value::String(entry.to_string()),
+    );
+    table.insert(
+        "attribute".to_string(),
+        toml::Value::String(attribute.to_string()),
+    );
+    toml::Value::Table(table)
+}
+
 mod defaults;
 mod layout;
 mod literals;

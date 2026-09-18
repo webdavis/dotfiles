@@ -83,7 +83,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     // row in the matrix, so it is the one worth silencing.
     let away_and_long = |sandbox: &Sandbox, port: u16| {
         sandbox.write_config(&format!(
-            "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+            "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
              [plugins.macos-banner]\nenabled = true\n"
         ));

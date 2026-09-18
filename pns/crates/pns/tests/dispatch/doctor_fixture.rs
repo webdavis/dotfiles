@@ -144,6 +144,11 @@ pub(super) const NAG_OFF_LINE: &str = "the nag is off (no `[nag] after_secs`)";
 pub(super) const LIGHTS_OFF_LINE: &str =
     "lights: off in the config, so the pulse uses the [plugins.hue] rooms";
 
+/// And what it says about the pinned certificate on a machine whose config
+/// names no bridge: there is no address to pin one against.
+pub(super) const NO_CERTIFICATE_LINE: &str =
+    "certificate: no [plugins.hue] bridge, so no certificate is pinned";
+
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
 pub(super) const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\

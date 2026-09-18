@@ -20,7 +20,7 @@ pub struct RunDoctor<'a, R, C> {
     pub decisions: pns_domain::doctor::Detail,
 }
 
-pub struct DoctorActions<D, P, PR, PA, T, F, DA, L, I, H, RO> {
+pub struct DoctorActions<D, P, PR, PA, T, F, DA, L, CE, I, H, RO> {
     pub deliver: D,
     pub pulse: P,
     pub presence: PR,
@@ -29,6 +29,9 @@ pub struct DoctorActions<D, P, PR, PA, T, F, DA, L, I, H, RO> {
     pub focus: F,
     pub daemon: DA,
     pub lamps: L,
+    /// The bridge's pinned certificate, read AFTER the lamps section has
+    /// dialled: the pin state is what that dial found out.
+    pub certificate: CE,
     pub imports: I,
     pub delivery_health: H,
     /// Whether the gateway serves each route pns has posted to. A closure
@@ -38,9 +41,9 @@ pub struct DoctorActions<D, P, PR, PA, T, F, DA, L, I, H, RO> {
 }
 
 impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
-    pub fn run<D, P, PR, PA, T, F, DA, L, I, H, RO>(
+    pub fn run<D, P, PR, PA, T, F, DA, L, CE, I, H, RO>(
         &self,
-        mut actions: DoctorActions<D, P, PR, PA, T, F, DA, L, I, H, RO>,
+        mut actions: DoctorActions<D, P, PR, PA, T, F, DA, L, CE, I, H, RO>,
         mut emit: impl FnMut(pns_domain::doctor::Item),
     ) -> i32
     where
@@ -52,6 +55,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         F: FnOnce() -> String,
         DA: FnOnce() -> String,
         L: FnOnce() -> LightsReport,
+        CE: FnOnce() -> pns_domain::doctor::Item,
         I: FnOnce() -> Result<Vec<ImportFailure>, String>,
         H: FnOnce() -> Result<crate::DeliveryHealth, String>,
         RO: FnOnce() -> Vec<(String, pns_domain::doctor::RouteVerdict)>,
@@ -191,6 +195,10 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         for line in pns_domain::doctor::lights_lines(&(actions.lamps)()) {
             emit(Item::note(line));
         }
+        // AFTER THE LISTING DIAL, because that dial is what a refused handshake
+        // is recorded by. Read before it, the row would report a pin nothing
+        // had exercised yet.
+        emit((actions.certificate)());
         // APPENDED AFTER THE SUMMARY, which is what lets it be added at all: the
         // census plus its summary is one complete thought whose line order the
         // suite already pins, and nothing below can disturb it.
