@@ -7,7 +7,7 @@ use crate::*;
 /// `decide()` is never called, so the presence verdict, the viewed-pane rule
 /// and the two phone overrides have nothing to say here; the mute is read in
 /// `run_event`, which this is not on; and the pulse goes through `fire_pulse`,
-/// the hand-run path `pns pulse` uses, so the lights' quiet window never sees
+/// the hand-run path `pns lights pulse` uses, so the lights' quiet window never sees
 /// it either. A check that can be suppressed proves nothing about the channel
 /// it was checking, and every one of those gates exists to stop a destination
 /// receiving.

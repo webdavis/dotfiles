@@ -163,7 +163,7 @@ fn handed_card(arguments: Vec<String>) -> (Vec<String>, Option<pns_adapters::Han
 /// The durable destinations' credentials and the recap's own settings, or the fail-closed reading.
 ///
 /// FAIL CLOSED ON THE SUMMARIZER AND OPEN ON THE POST, which is
-/// `pulse_mode`'s split: a config nobody can read named no command, so the
+/// `lights_pulse`'s split: a config nobody can read named no command, so the
 /// recap posts the plain mechanical lists rather than running a program the
 /// operator never named.
 fn recap_settings(
