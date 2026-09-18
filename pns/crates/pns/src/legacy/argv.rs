@@ -6,7 +6,7 @@
 //! contract: a value-taking flag whose next token is missing or is itself a
 //! RECOGNIZED flag is warned about and ignored WITHOUT consuming that token
 //! (consuming it would silently drop the real flag, e.g. leak an event a
-//! caller narrowed with `--pane --local-only`); an unrecognized next token
+//! caller narrowed with `--pane --scope local_only`); an unrecognized next token
 //! IS taken as the value, the leniency the bash deliberately retained; any
 //! other unknown argument is skipped silently; and `--help`/`-h` sitting in
 //! FLAG position wins over all three and turns the event into a usage print,
@@ -20,7 +20,7 @@ use pns_protocol::State;
 /// predicates in this module. It used to be `pub` so a test could assert the
 /// hand-typed usage text mentioned every flag, a declaration-parity check
 /// rather than one about this parser's behavior; that test is gone.
-const VALUE_FLAGS: [&str; 11] = [
+const VALUE_FLAGS: [&str; 12] = [
     "--producer",
     "--state",
     "--project",
@@ -32,24 +32,28 @@ const VALUE_FLAGS: [&str; 11] = [
     "--request-id",
     "--session",
     "--kind",
+    "--scope",
 ];
 
 /// Every flag that takes no value. It is a LIST rather than a chain of
 /// comparisons because the chain is what went stale: `--long-running` was
 /// handled below and never added here, so a value flag in front of it ate it as
 /// its value and the tier vanished without a warning.
-const BARE_FLAGS: [&str; 4] = [
-    "--long-running",
-    "--local-only",
-    "--remote-only",
-    "--require-delivery",
-];
+const BARE_FLAGS: [&str; 2] = ["--long-running", "--require-delivery"];
 
-/// Every flag pns used to take, paired with the one that replaced it. A
-/// retired flag is REFUSED and the refusal names its replacement, so a caller
-/// still typing the old spelling is told the new one instead of watching its
-/// producer name vanish into the lenient skip.
-const RETIRED_FLAGS: [(&str, &str); 2] = [("--agent", "--producer"), ("--channel", "--route")];
+/// Every flag pns used to take, paired with the one that replaced it and by
+/// whether it took a value. A retired flag is REFUSED and the refusal names its
+/// replacement, so a caller still typing the old spelling is told the new one
+/// instead of watching its producer name vanish into the lenient skip. The flag
+/// that took a value consumes it too, so `--channel priority` does not leave
+/// `priority` behind as a stray word; a bare one consumes nothing, so
+/// `--local-only --help` still prints the usage it asked for.
+const RETIRED_FLAGS: [(&str, &str, bool); 4] = [
+    ("--agent", "--producer", true),
+    ("--channel", "--route", true),
+    ("--local-only", "--scope", false),
+    ("--remote-only", "--scope", false),
+];
 
 /// Whether a token is a producer flag. A retired flag counts, so a flag whose
 /// value is missing (`--detail --agent x`) is warned about rather than eating
@@ -57,7 +61,7 @@ const RETIRED_FLAGS: [(&str, &str); 2] = [("--agent", "--producer"), ("--channel
 fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token)
         || BARE_FLAGS.contains(&token)
-        || RETIRED_FLAGS.iter().any(|(retired, _)| *retired == token)
+        || RETIRED_FLAGS.iter().any(|(retired, ..)| *retired == token)
 }
 
 /// Whether a token is `--help`/`-h`.
@@ -103,26 +107,25 @@ pub(super) struct ParsedArgs {
     /// named none. A word that is neither kind refuses the event rather than
     /// falling back to the default, the same way a bad `--elapsed` does.
     kind: Result<Kind, String>,
-    scope: Option<DeliveryScope>,
-}
-
-pub(super) enum Refusal {
-    Scope,
-    /// A flag value pns refuses: said on stderr, and nothing is delivered.
-    Value(String),
+    /// `--scope`: how wide this delivery may reach, in one of three words. One
+    /// flag cannot contradict itself, which is why the pair it replaced needed
+    /// a refusal for being given together and this does not.
+    scope: Result<DeliveryScope, String>,
 }
 
 impl ParsedArgs {
-    pub fn into_event(self) -> Result<Option<EventArgs>, Refusal> {
+    /// The event, or the first refusal argv earned: said on stderr, and nothing
+    /// is delivered.
+    pub fn into_event(self) -> Result<Option<EventArgs>, String> {
         if let Some(retired) = self.retired {
-            return Err(Refusal::Value(retired));
+            return Err(retired);
         }
         if let Some(refusal) = self.state {
-            return Err(Refusal::Value(refusal));
+            return Err(refusal);
         }
-        self.identifiers.map_err(Refusal::Value)?;
-        let elapsed = self.elapsed.map_err(Refusal::Value)?;
-        let kind = self.kind.map_err(Refusal::Value)?;
+        self.identifiers?;
+        let elapsed = self.elapsed?;
+        let kind = self.kind?;
         let event = match elapsed {
             Some(seconds) => pns_domain::elapsed_event(self.event, seconds),
             None => Some(self.event),
@@ -135,7 +138,7 @@ impl ParsedArgs {
         // route's NAME is the operator's (`[routes] urgent`) and this parse
         // runs before any file is opened.
         event.kind = kind;
-        event.scope = self.scope.ok_or(Refusal::Scope)?;
+        event.scope = self.scope?;
         Ok(Some(event))
     }
 }
@@ -147,8 +150,6 @@ where
 {
     let mut parsed = EventArgs::default();
     let mut help = false;
-    let mut local_only = false;
-    let mut remote_only = false;
     let mut require_delivery = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
@@ -157,12 +158,11 @@ where
     let mut retired = None;
     let mut state = None;
     let mut kind = Ok(Kind::default());
+    let mut scope = Ok(DeliveryScope::default());
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
             "--long-running" => parsed.long_running = true,
-            "--local-only" => local_only = true,
-            "--remote-only" => remote_only = true,
             "--require-delivery" => require_delivery = true,
             // HELP IN FLAG POSITION WINS: this arm only ever sees a token
             // that reached the top of the loop unconsumed, so `--state
@@ -176,6 +176,20 @@ where
                     kind = word.as_deref().and_then(Kind::from_word).ok_or_else(|| {
                         format!("--kind requires one of: {}", Kind::WORDS.join(", "))
                     });
+                }
+            }
+            "--scope" => {
+                let word = tokens.next_if(|next| !is_producer_flag(next));
+                if scope.is_ok() {
+                    scope = word
+                        .as_deref()
+                        .and_then(DeliveryScope::from_word)
+                        .ok_or_else(|| {
+                            format!(
+                                "--scope requires one of: {}",
+                                DeliveryScope::WORDS.join(", ")
+                            )
+                        });
                 }
             }
             // A DURATION, NEVER A BARE NUMBER, through the parser every other
@@ -251,12 +265,14 @@ where
                 }
             }
             _ => {
-                if let Some((flag, replacement)) =
-                    RETIRED_FLAGS.iter().find(|(flag, _)| *flag == token)
+                if let Some((flag, replacement, takes_value)) =
+                    RETIRED_FLAGS.iter().find(|(flag, ..)| *flag == token)
                 {
                     // ITS VALUE GOES WITH IT: leaving `codex` behind would
                     // make the next unknown-token rule read it as a stray word.
-                    tokens.next_if(|next| !is_producer_flag(next));
+                    if *takes_value {
+                        tokens.next_if(|next| !is_producer_flag(next));
+                    }
                     retired.get_or_insert_with(|| format!("{flag} was replaced by {replacement}"));
                 }
             }
@@ -276,12 +292,7 @@ where
         identifiers,
         session,
         kind,
-        scope: match (local_only, remote_only) {
-            (false, false) => Some(DeliveryScope::Automatic),
-            (true, false) => Some(DeliveryScope::LocalOnly),
-            (false, true) => Some(DeliveryScope::RemoteOnly),
-            (true, true) => None,
-        },
+        scope,
     }
 }
 

@@ -60,7 +60,8 @@ pns: usage:
 producer flags: --producer <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --route <name> --elapsed <duration>
                 --request-id <id> --session <id> --kind <agent|health>
-                --local-only --remote-only --long-running --require-delivery
+                --scope <automatic|local_only|remote_only> --long-running
+                --require-delivery
 
 durations:      a count and a unit, `30s`, `5m`, `2h`. A bare number is
                 refused: one reader takes it as seconds and the next as
@@ -70,6 +71,10 @@ states:         done, failed, blocked, resolved, observation, progress. The
                 same six words the JSON request's `state` takes; any other
                 word is refused. observation and progress are quiet updates
                 on both paths.
+
+scopes:         automatic, the default, lets presence decide; local_only keeps
+                the event on this machine; remote_only sends it off the machine
+                alone.
 
 kinds:          agent, the default, is a session event and takes the route
                 `[routes] default` names; health is a machine's own health and

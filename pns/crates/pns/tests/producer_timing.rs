@@ -81,7 +81,7 @@ fn version_is_one_bare_semver_line_without_config_or_probes() {
 #[test]
 fn elapsed_below_thirty_is_silent_before_state_or_delivery() {
     for seconds in [0, 10, 29] {
-        for scope in [&[][..], &["--local-only", "--remote-only"][..]] {
+        for scope in [&[][..], &["--scope", "local_only"][..]] {
             let sandbox = Sandbox::new(&format!("elapsed-quiet-{seconds}"));
             let output = run(command(&sandbox)
                 .args([
@@ -169,7 +169,7 @@ fn elapsed_rejects_a_bare_number_and_every_other_non_duration() {
         "30x",
         "721h",
         "18446744073709551616",
-        "--local-only",
+        "--scope",
     ] {
         let sandbox = Sandbox::new(&format!("elapsed-invalid-{}", value.replace('/', "_")));
         let mut cmd = command(&sandbox);

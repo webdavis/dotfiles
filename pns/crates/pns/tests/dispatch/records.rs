@@ -47,7 +47,7 @@ fn an_event_that_reached_no_channel_at_all_still_records_its_decision() {
     let output = run(logged_event(&sandbox)
         .args(["send", "--producer", "claude", "--state", "done"])
         .env("PNS_IDLE_SECS", "9000")
-        .arg("--local-only"));
+        .args(["--scope", "local_only"]));
     assert!(
         !sandbox.fired("hermes"),
         "the local scope has no visible surface"

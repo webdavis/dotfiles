@@ -47,7 +47,7 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
                 "--detail",
                 "ran",
             ])
-            .arg("--remote-only"));
+            .args(["--scope", "remote_only"]));
         assert_eq!(stdout(&output), expected, "case: {case}");
     }
 }

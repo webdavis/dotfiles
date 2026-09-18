@@ -241,7 +241,7 @@ fn a_present_event_narrowed_to_the_log_leaves_the_queue_for_a_surface_that_shows
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
     let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
 
-    run(present_event(&sandbox).arg("--remote-only"));
+    run(present_event(&sandbox).args(["--scope", "remote_only"]));
 
     let logged = events(&sandbox, "hermes");
     assert_eq!(
