@@ -6,23 +6,14 @@
 
 use morning_domain::{Section, SectionBody};
 
-/// What one source had to say.
-pub enum SourceOutcome {
-    /// The rows the source reported, already one line each.
-    Lines(Vec<String>),
-    /// Why the source could not be reported: absent, unconfigured, failed or
-    /// too slow. A brief prints this; it never drops the section.
-    Unavailable(String),
-}
-
 /// One titled source of the brief.
 pub struct Source<'a> {
     pub title: &'a str,
-    pub read: Box<dyn Fn() -> SourceOutcome + Send + Sync + 'a>,
+    pub read: Box<dyn Fn() -> SectionBody + Send + Sync + 'a>,
 }
 
 impl<'a> Source<'a> {
-    pub fn new(title: &'a str, read: impl Fn() -> SourceOutcome + Send + Sync + 'a) -> Self {
+    pub fn new(title: &'a str, read: impl Fn() -> SectionBody + Send + Sync + 'a) -> Self {
         Self {
             title,
             read: Box::new(read),
@@ -49,11 +40,9 @@ pub fn gather(sources: Vec<Source<'_>>) -> Vec<Section> {
             .zip(readers)
             .map(|(source, reader)| Section {
                 title: source.title.to_string(),
-                body: match reader.join() {
-                    Ok(SourceOutcome::Lines(lines)) => SectionBody::Lines(lines),
-                    Ok(SourceOutcome::Unavailable(reason)) => SectionBody::Unavailable(reason),
-                    Err(_) => SectionBody::Unavailable("the reader panicked".to_string()),
-                },
+                body: reader.join().unwrap_or_else(|_| {
+                    SectionBody::Unavailable("the reader panicked".to_string())
+                }),
             })
             .collect()
     })

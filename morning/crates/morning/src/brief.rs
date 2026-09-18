@@ -2,8 +2,8 @@
 //! read.
 
 use morning_adapters::{CommandSource, Config, LedgerSource, capture, files};
-use morning_application::{Source, SourceOutcome, gather};
-use morning_domain::{apply_log, ledger, page};
+use morning_application::{Source, gather};
+use morning_domain::{SectionBody, apply_log, ledger, page};
 use std::path::Path;
 use std::time::Duration;
 
@@ -31,11 +31,11 @@ pub fn compose(config: &Config, home: &Path) -> String {
 }
 
 /// What the source was not given.
-fn unconfigured() -> SourceOutcome {
-    SourceOutcome::Unavailable("not configured".to_string())
+fn unconfigured() -> SectionBody {
+    SectionBody::Unavailable("not configured".to_string())
 }
 
-fn last_apply(config: &Config, home: &Path) -> SourceOutcome {
+fn last_apply(config: &Config, home: &Path) -> SectionBody {
     let Some(path) = config
         .apply_log
         .as_ref()
@@ -44,10 +44,10 @@ fn last_apply(config: &Config, home: &Path) -> SourceOutcome {
         return unconfigured();
     };
     match files::read(&path) {
-        Err(reason) => SourceOutcome::Unavailable(reason),
+        Err(reason) => SectionBody::Unavailable(reason),
         Ok(transcript) => match apply_log::parse(&transcript) {
-            Some(apply) => SourceOutcome::Lines(vec![apply.summary()]),
-            None => SourceOutcome::Unavailable(format!(
+            Some(apply) => SectionBody::Lines(vec![apply.summary()]),
+            None => SectionBody::Unavailable(format!(
                 "{} records no result, so an apply may still be running",
                 path.display()
             )),
@@ -61,7 +61,7 @@ enum Owed {
     Operator,
 }
 
-fn ledger_section(source: Option<&LedgerSource>, home: &Path, owed: Owed) -> SourceOutcome {
+fn ledger_section(source: Option<&LedgerSource>, home: &Path, owed: Owed) -> SectionBody {
     let Some(source) = source else {
         return unconfigured();
     };
@@ -69,10 +69,10 @@ fn ledger_section(source: Option<&LedgerSource>, home: &Path, owed: Owed) -> Sou
         return unconfigured();
     };
     match files::read(&path) {
-        Err(reason) => SourceOutcome::Unavailable(reason),
+        Err(reason) => SectionBody::Unavailable(reason),
         Ok(text) => {
             let found = ledger::parse(&text, &source.apply_markers, &source.operator_markers);
-            SourceOutcome::Lines(match owed {
+            SectionBody::Lines(match owed {
                 Owed::Applies => found.owed_applies,
                 Owed::Operator => found.operator_items,
             })
@@ -80,7 +80,7 @@ fn ledger_section(source: Option<&LedgerSource>, home: &Path, owed: Owed) -> Sou
     }
 }
 
-fn recap(config: &Config, home: &Path) -> SourceOutcome {
+fn recap(config: &Config, home: &Path) -> SectionBody {
     let Some(source) = config.recap.as_ref() else {
         return unconfigured();
     };
@@ -88,17 +88,17 @@ fn recap(config: &Config, home: &Path) -> SourceOutcome {
         return unconfigured();
     };
     match files::newest(&directory).and_then(|path| files::read(&path)) {
-        Err(reason) => SourceOutcome::Unavailable(reason),
-        Ok(text) => SourceOutcome::Lines(files::head(&text, source.lines)),
+        Err(reason) => SectionBody::Unavailable(reason),
+        Ok(text) => SectionBody::Lines(files::head(&text, source.lines)),
     }
 }
 
-fn command(source: Option<&CommandSource>, timeout: Duration) -> SourceOutcome {
+fn command(source: Option<&CommandSource>, timeout: Duration) -> SectionBody {
     let Some(argv) = source.and_then(CommandSource::resolve) else {
         return unconfigured();
     };
     match capture(argv, timeout) {
-        Ok(output) => SourceOutcome::Lines(output.lines().map(str::to_string).collect()),
-        Err(error) => SourceOutcome::Unavailable(error.to_string()),
+        Ok(output) => SectionBody::Lines(output.lines().map(str::to_string).collect()),
+        Err(error) => SectionBody::Unavailable(error.to_string()),
     }
 }

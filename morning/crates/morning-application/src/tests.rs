@@ -10,9 +10,9 @@ fn body(section: &Section) -> String {
 #[test]
 fn every_source_gets_a_section_in_the_order_it_was_given() {
     let sections = gather(vec![
-        Source::new("First", || SourceOutcome::Lines(vec!["a".into()])),
+        Source::new("First", || SectionBody::Lines(vec!["a".into()])),
         Source::new("Second", || {
-            SourceOutcome::Unavailable("not configured".into())
+            SectionBody::Unavailable("not configured".into())
         }),
     ]);
     let titles: Vec<_> = sections.iter().map(|s| s.title.as_str()).collect();
@@ -30,7 +30,7 @@ fn sources_are_read_at_the_same_time_rather_than_one_after_another() {
         while peak.load(std::sync::atomic::Ordering::SeqCst) < 3 {
             std::hint::spin_loop();
         }
-        SourceOutcome::Lines(vec!["seen".into()])
+        SectionBody::Lines(vec!["seen".into()])
     };
     gather(vec![
         Source::new("One", watch),
