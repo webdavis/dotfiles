@@ -44,6 +44,12 @@ pub fn parse_duration(
 /// duration goes back out on the wire.
 pub fn spelled(duration: Duration) -> String {
     let millis = duration.as_millis();
+    // ZERO SPELLS AS "0s", the smallest unit the parser accepts: the `ms`
+    // fallback below exists for sub-second values it cannot produce, and
+    // zero is not one of those.
+    if millis == 0 {
+        return "0s".to_string();
+    }
     for (unit, step) in UNITS.iter().rev() {
         let step = u128::from(*step);
         if millis >= step && millis.is_multiple_of(step) {

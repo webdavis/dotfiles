@@ -83,6 +83,21 @@ fn a_range_is_spelled_in_the_largest_unit_that_holds_it_whole() {
     );
 }
 
+#[test]
+fn zero_spells_as_a_unit_the_parser_accepts_back() {
+    // A ZERO-FLOORED RANGE must refuse in the same grammar it parses, or the
+    // refusal names a lower bound the operator cannot type.
+    let zero_floored = Duration::ZERO..=Duration::from_secs(86_400);
+    assert_eq!(
+        parse_duration("elapsed", "9223372036854775807h", zero_floored.clone()),
+        Err("pns: elapsed \"9223372036854775807h\" is outside 0s to 24h".to_string())
+    );
+    assert_eq!(
+        parse_duration("elapsed", "0s", zero_floored),
+        Ok(Duration::ZERO)
+    );
+}
+
 /// A stand-in range for these tests: the parser's own tests pin its
 /// behavior, not one caller's policy bound.
 const RANGE: RangeInclusive<Duration> = Duration::from_secs(1)..=Duration::from_secs(86_400);
