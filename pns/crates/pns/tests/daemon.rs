@@ -81,7 +81,7 @@ const ONE_CHANNEL: &str =
 /// An ordinary event for a scheduled job to deliver.
 const EVENT: [&str; 7] = [
     "send",
-    "--agent",
+    "--producer",
     "pns",
     "--state",
     "done",

@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn both_input_forms_are_read_off_the_one_send_subcommand() {
         assert_eq!(
-            SendForm::of(&strings(&["--agent", "lights", "--state", "done"])),
+            SendForm::of(&strings(&["--producer", "lights", "--state", "done"])),
             SendForm::Flags
         );
         assert_eq!(SendForm::of(&strings(&["--json"])), SendForm::Envelope);
@@ -405,7 +405,12 @@ mod tests {
         // leading token names the form.
         assert_eq!(
             SendForm::of(&strings(&[
-                "--agent", "x", "--state", "done", "--detail", "--json"
+                "--producer",
+                "x",
+                "--state",
+                "done",
+                "--detail",
+                "--json"
             ])),
             SendForm::Flags
         );
@@ -427,7 +432,7 @@ mod tests {
     fn the_bare_event_path_is_refused_rather_than_delivered_empty() {
         // The whole point of the subcommand: argv that used to render an empty
         // event and notify about it now earns the usage text and exit 2.
-        for first in ["--state", "--agent", "stpo", ""] {
+        for first in ["--state", "--producer", "stpo", ""] {
             let usage = Usage::of(first);
             assert_eq!(usage, Usage::Refused, "{first:?}");
             assert_eq!(usage.exit_code(), 2, "{first:?}");

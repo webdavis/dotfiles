@@ -27,7 +27,7 @@ fn pns_arguments_are_local_only() {
                 "2s",
                 "/owned/home/.cargo/bin/pns",
                 "send",
-                "--agent",
+                "--producer",
                 "lights",
                 "--state",
                 "done",

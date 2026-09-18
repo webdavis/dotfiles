@@ -43,7 +43,13 @@ fn a_hung_child_does_not_stall_the_tick_and_is_killed() {
             &sandbox,
             &["--id", "hangs", "--in", "0"],
             &[
-                "send", "--agent", "pns", "--state", "done", "--detail", "hangs"
+                "send",
+                "--producer",
+                "pns",
+                "--state",
+                "done",
+                "--detail",
+                "hangs"
             ],
         )
         .status

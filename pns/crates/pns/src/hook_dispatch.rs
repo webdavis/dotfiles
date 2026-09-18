@@ -20,7 +20,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         return 0;
     };
     let payload = parse_payload(&payload_json);
-    let agent = std::env::var("PNS_AGENT").unwrap_or_else(|_| "claude".to_string());
+    let agent = std::env::var("PNS_PRODUCER").unwrap_or_else(|_| "claude".to_string());
 
     match event {
         // AND THE WAIT ENDS HERE TOO, beside the turn marker. A prompt is the

@@ -174,7 +174,7 @@ def check(case, result, fixture, legacy=False, capture_notifications=True):
             "2s",
             result["home"] + "/.cargo/bin/pns",
             "send",
-            "--agent",
+            "--producer",
             "lights",
             "--state",
             "done",

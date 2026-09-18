@@ -22,7 +22,7 @@ function test_pns_hook_migration_collapses_owned_duplicates_and_preserves_other_
   fixture="$(pns_hook_migration_fixture)"
   before="$(jq -nc --arg root "$fixture" '
     ("PNS_AGENT=codex " + $root + "/.local/libexec/pns/pns hook stop") as $old |
-    ("PNS_AGENT=codex " + $root + "/.cargo/bin/pns hook stop") as $new |
+    ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop") as $new |
     {custom:{preserve:true},hooks:{SessionStart:[{hooks:[{type:"command",command:"herdr session"}]}],
       Stop:[{matcher:"*",custom:"group",hooks:[{type:"command",command:$old,timeout:12,custom:"handler"},
         {type:"command",command:("echo " + $old)},
@@ -39,8 +39,8 @@ function test_pns_hook_migration_collapses_owned_duplicates_and_preserves_other_
       CustomEvent:[{hooks:[{type:"command",command:$old}]}]}}')"
   printf '%s\n' "$before" >"$fixture/.codex/hooks.json"
   expected="$(jq -Sc --arg root "$fixture" '
-    .hooks.Stop[0].hooks[0].command = ("PNS_AGENT=codex " + $root + "/.cargo/bin/pns hook stop") |
-    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_AGENT=codex " + $root + "/.cargo/bin/pns hook blocked") |
+    .hooks.Stop[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop") |
+    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked") |
     del(.hooks.Stop[1], .hooks.PermissionRequest[1])' <<<"$before")"
   warning="$(pns_hook_migration_run "$fixture" 2>&1)"
   actual="$(jq -Sc . "$fixture/.codex/hooks.json")"
@@ -61,8 +61,8 @@ function test_pns_hook_migration_retains_legacy_handler_metadata_without_a_curre
       command:("PNS_AGENT=codex " + $root + "/.local/libexec/pns/pns hook blocked")}]}]}}' \
     >"$fixture/.codex/hooks.json"
   expected="$(jq -Sc --arg root "$fixture" '
-    .hooks.Stop[0].hooks[0].command = ("PNS_AGENT=codex " + $root + "/.cargo/bin/pns hook stop") |
-    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_AGENT=codex " + $root + "/.cargo/bin/pns hook blocked")' "$fixture/.codex/hooks.json")"
+    .hooks.Stop[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop") |
+    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked")' "$fixture/.codex/hooks.json")"
   pns_hook_migration_run "$fixture" 2>/dev/null
   assert_same "$expected" "$(jq -Sc . "$fixture/.codex/hooks.json")"
 }
@@ -76,9 +76,9 @@ function assert_pns_hook_generation() {
       PermissionRequest:[{hooks:[{type:"command",command:($prefix + "=codex " + $root + "/" + $executable + " " + $blocked)}]}]}}' \
     >"$fixture/.codex/hooks.json"
   pns_hook_migration_run "$fixture" 2>/dev/null
-  assert_same "PNS_AGENT=codex $fixture/.cargo/bin/pns hook stop" \
+  assert_same "PNS_PRODUCER=codex $fixture/.cargo/bin/pns hook stop" \
     "$(jq -r '.hooks.Stop[].hooks[].command' "$fixture/.codex/hooks.json")"
-  assert_same "PNS_AGENT=codex $fixture/.cargo/bin/pns hook blocked" \
+  assert_same "PNS_PRODUCER=codex $fixture/.cargo/bin/pns hook blocked" \
     "$(jq -r '.hooks.PermissionRequest[].hooks[].command' "$fixture/.codex/hooks.json")"
 }
 
@@ -106,8 +106,16 @@ function test_pns_hook_migration_recognizes_the_legacy_pns_engine_command() {
   assert_pns_hook_generation PNS_AGENT .local/libexec/pns/pns 'hook stop' 'hook blocked'
 }
 
-function test_pns_hook_migration_retains_the_current_cargo_command() {
+function test_pns_hook_migration_rewrites_the_deployed_agent_variable() {
+  # THE GUARD ON THE RENAME: every Codex hook already on this machine carries
+  # PNS_AGENT at the current path, so an installer that only wrote new rows
+  # would leave Codex events with no producer name until they were edited by
+  # hand.
   assert_pns_hook_generation PNS_AGENT .cargo/bin/pns 'hook stop' 'hook blocked'
+}
+
+function test_pns_hook_migration_retains_the_current_cargo_command() {
+  assert_pns_hook_generation PNS_PRODUCER .cargo/bin/pns 'hook stop' 'hook blocked'
 }
 
 function test_pns_hook_migration_preserves_conflicting_duplicate_metadata_for_review() {
@@ -116,7 +124,7 @@ function test_pns_hook_migration_preserves_conflicting_duplicate_metadata_for_re
   for conflict in handler group; do
     jq -n --arg root "$fixture" --arg conflict "$conflict" '{hooks:{Stop:[
       {hooks:[{type:"command",timeout:12,command:("PNS_AGENT=codex " + $root + "/.local/libexec/pns/pns hook stop")}]},
-      {hooks:[{type:"command",timeout:12,command:("PNS_AGENT=codex " + $root + "/.cargo/bin/pns hook stop")}]}]}} |
+      {hooks:[{type:"command",timeout:12,command:("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop")}]}]}} |
       if $conflict == "handler" then .hooks.Stop[1].hooks[0].timeout = 30
       else .hooks.Stop[1].custom = "second group" end' >"$fixture/.codex/hooks.json"
     before="$(cat "$fixture/.codex/hooks.json")"

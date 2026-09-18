@@ -1,9 +1,14 @@
 # Producer submission
 
+Historical snapshot, not the live contract: this file predates the retirement ladder. `--agent`/
+`PNS_AGENT` is REFUSED on the current parser (`src/legacy/argv.rs:RETIRED_FLAGS`), not warned and
+dropped as section 4 below still says; `--producer`/`PNS_PRODUCER` is the live spelling. Not rewritten
+pending the ladder's closing docs pass.
+
 ## Scope
 
 This document specifies the producer submission path: everything that happens between a producer stating
-an event in argv (`pns --agent claude --state done ...`) and the delivery attempts that event earns. It
+an event in argv (`pns --producer claude --state done ...`) and the delivery attempts that event earns. It
 covers the single argv read at the composition root, the refusal of a word that names no command, the
 lenient producer flag parser, the help arm, the config load and plugin selection, the one clock read, the
 overrides the environment and the operator's own state contribute, the delivery decision, the legs that

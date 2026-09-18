@@ -92,7 +92,7 @@ S006. Every producer event path exits 0, whatever a channel, a config, a probe o
       also `a_non_unicode_argument_never_breaks_the_exit_zero_edge`
            at tests/dispatch.rs:413
 
-S007. A subcommand word wins over producer flags that follow it (`pns pulse --agent x` is a pulse
+S007. A subcommand word wins over producer flags that follow it (`pns pulse --producer x` is a pulse
       invocation refused with exit 2, not an event).
       Source: `src/main.rs:63-144 main` (order), `src/main.rs:4172-4213 pulse_mode`.
       Pin: UNPINNED. No test drives a subcommand word carrying producer flags; the nearest is the
@@ -100,7 +100,7 @@ S007. A subcommand word wins over producer flags that follow it (`pns pulse --ag
 
 ### 1.2 The producer flags
 
-S008. Seven flags take a value (`--agent`, `--state`, `--project`, `--branch`, `--detail`, `--pane`,
+S008. Seven flags take a value (`--producer`, `--state`, `--project`, `--branch`, `--detail`, `--pane`,
       `--channel`) and three are bare (`--long-running`, `--local-only`, `--remote-only`); `--help`
       and `-h` are in neither list on purpose.
       Source: `src/args.rs:44-52 VALUE_FLAGS`, `src/args.rs:58 BARE_FLAGS`, `src/args.rs:77
@@ -129,7 +129,7 @@ S010. The exact warning sentence is printed as `pns: <flag> given without a valu
       sentence.
 
 S011. An unrecognized token in value position is taken as the value verbatim, with no warning
-      (`--agent --bogus` names an agent `--bogus`).
+      (`--producer --bogus` names a producer `--bogus`).
       Source: `src/args.rs:83-123 parse_args`.
       Pin: `an_unrecognized_token_is_still_taken_as_a_value`
            at src/args.rs:212
@@ -762,7 +762,7 @@ S072. An `Observation` or a `Nudge` writes its decision ring line and then retur
       also `a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`
            at tests/hooks.rs:1733
 
-S073. The default agent is `claude`; `PNS_AGENT=codex` is the Codex hook installer's spelling and
+S073. The default producer is `claude`; `PNS_PRODUCER=codex` is the Codex hook installer's spelling and
       changes the moshi subcommand (`codex-hook`) and switches the nag off.
       Source: `src/main.rs:488-679 hook_mode`, `src/hooks.rs:362-364 moshi_subcommand`,
       `src/main.rs:4871-4970 arm_nag`, `src/main.rs:4973 CLAUDE_AGENT`.
@@ -799,7 +799,7 @@ S074. `blocking_event` runs in this order: start the moshi forward, set `PNS_SKI
       also `a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it`
            at tests/hooks.rs:423
 
-S075. Only `claude` and `codex` map to a moshi subcommand on the hook path; any other `PNS_AGENT`
+S075. Only `claude` and `codex` map to a moshi subcommand on the hook path; any other `PNS_PRODUCER`
       forwards nothing and exits 0 while the notification still goes out.
       Source: `src/hooks.rs:362-364 moshi_subcommand`, `src/main.rs:2325-2369 blocking_event`.
       Pin: `a_harness_pns_does_not_register_for_is_never_handed_to_moshi`
@@ -2361,7 +2361,7 @@ S209. `preexec` writes `$EPOCHSECONDS` to `${PNS_STATE_DIR:-$HOME/.local/state/p
       Source: `dot_bashrc.tmpl:481-482`, `dot_bashrc.tmpl:502-539`, `dot_bashrc.tmpl:557`.
       Pin: `test/unit/pns-shell-lights-marker.bats:97,104,109,115,127,135,187,194,212`.
 
-S210. `precmd` computes the elapsed seconds and calls `~/.local/libexec/pns/pns` with `--agent shell
+S210. `precmd` computes the elapsed seconds and calls `~/.local/libexec/pns/pns` with `--producer shell
       --state done|failed --project <cwd basename> --detail "<cmd> (<dur>)" --pane "$HERDR_PANE_ID"`:
       at 300 s or longer it adds `--long-running`, from 30 s it calls without, under 30 s it calls
       nothing; both calls are backgrounded with output discarded.
@@ -2384,7 +2384,7 @@ S212. The other in-repo producers all call the same binary with the producer fla
       Pin: `test/unit/pns-weekly-engine-resolution.sh` (the engine path resolution in the weekly
       jobs).
 
-S213. The Codex hook installer writes exactly `PNS_AGENT=codex <home>/.local/libexec/pns/pns hook stop`
+S213. The Codex hook installer writes exactly `PNS_PRODUCER=codex <home>/.local/libexec/pns/pns hook stop`
       and `... hook blocked` into `~/.codex/hooks.json`, pruning the retired relay spellings and
       touching no other entry; it exits 0 when the engine is not deployed.
       Source: `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh:9-51`.

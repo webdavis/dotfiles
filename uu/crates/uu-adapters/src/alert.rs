@@ -20,7 +20,7 @@
 pub fn alert_argv(host: &str, lane: &str, summary: &str) -> Vec<String> {
     [
         "send",
-        "--agent",
+        "--producer",
         uu_protocol::AGENT,
         "--state",
         "failed",
@@ -52,7 +52,7 @@ mod tests {
             argv,
             vec![
                 "send",
-                "--agent",
+                "--producer",
                 "uu",
                 "--state",
                 "failed",

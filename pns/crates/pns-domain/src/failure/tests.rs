@@ -7,7 +7,7 @@ fn hermes_404() -> Failure {
         route: "testpath".to_string(),
         address: "127.0.0.1:8644".to_string(),
         agent: "posture heartbeat".to_string(),
-        command: "pns --agent posture --channel testpath".to_string(),
+        command: "pns --producer posture --channel testpath".to_string(),
         outcome: DeliveryOutcome::Status(404),
         retries: 1,
         max_attempts: 20,
@@ -72,7 +72,7 @@ fn the_notification_form_drops_only_sent_by_and_keeps_the_rest_in_order() {
         !rendered.contains("sent by"),
         "the agent is already in the command"
     );
-    assert!(rendered.contains("--agent posture"));
+    assert!(rendered.contains("--producer posture"));
 }
 
 /// The measured budget, counting newlines, against inputs no producer is
@@ -81,11 +81,11 @@ fn the_notification_form_drops_only_sent_by_and_keeps_the_rest_in_order() {
 #[test]
 fn a_notification_holds_the_measured_budget_however_long_the_route_and_command_are() {
     for (route, command) in [
-        ("testpath".to_string(), "pns --agent posture".to_string()),
-        ("a".repeat(200), "pns --agent posture".to_string()),
+        ("testpath".to_string(), "pns --producer posture".to_string()),
+        ("a".repeat(200), "pns --producer posture".to_string()),
         (
             "testpath".to_string(),
-            "pns --agent x".to_string() + &"y".repeat(300),
+            "pns --producer x".to_string() + &"y".repeat(300),
         ),
         ("a".repeat(200), "b".repeat(300)),
     ] {

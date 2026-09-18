@@ -7,8 +7,14 @@ fn an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer() {
     ordinary.write_config(&format!(
         "{config}\n[plugins.macos-banner]\nenabled = true\n"
     ));
-    run(acknowledged_banner(&ordinary)
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    run(acknowledged_banner(&ordinary).args([
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
+    ]));
     assert!(
         ordinary.path("notifier.args").exists(),
         "the native send was acknowledged"
@@ -31,7 +37,13 @@ fn an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer() {
     let away = registering_event("lights-tick-lease-journalled");
     mute(&away);
     run(logged_event(&away).args([
-        "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "blocked",
+        "--detail",
+        "x",
     ]));
     assert_eq!(journal(&away).len(), 1, "the event really was journalled");
     let long = lights_job(&away);
@@ -72,7 +84,13 @@ fn a_registration_that_cannot_be_written_costs_the_event_nothing() {
         }
         let output = logged_event(&sandbox)
             .args([
-                "send", "--agent", "claude", "--state", "done", "--detail", "x",
+                "send",
+                "--producer",
+                "claude",
+                "--state",
+                "done",
+                "--detail",
+                "x",
             ])
             .output()
             .expect("the engine runs");

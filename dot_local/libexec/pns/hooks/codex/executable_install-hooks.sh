@@ -9,8 +9,8 @@ hooks="$HOME/.codex/hooks.json"
 agent="$HOME/.cargo/bin/pns"
 [[ -x $agent ]] || exit 0 # the engine is not deployed yet; nothing to wire
 
-done_cmd="PNS_AGENT=codex $agent hook stop"
-blocked_cmd="PNS_AGENT=codex $agent hook blocked"
+done_cmd="PNS_PRODUCER=codex $agent hook stop"
+blocked_cmd="PNS_PRODUCER=codex $agent hook blocked"
 
 # Read the existing config. Require EXACTLY one object root whose "hooks" is an object; heal an
 # empty/whitespace/absent file from the {"hooks":{}} default; on any OTHER malformed input (multiple
@@ -31,6 +31,9 @@ if [[ -f $hooks ]]; then
 fi
 
 # Migrate only complete commands this installer generated for this home/event.
+# That list includes the retired PNS_AGENT spelling of the current command, so a
+# deployed row is rewritten in place to PNS_PRODUCER rather than left beside the
+# new one.
 # Keep handler and group metadata; collapse duplicates only when both agree.
 # Conflicting customizations leave the original file untouched for review.
 merged="$(printf '%s' "$base" | jq \
@@ -38,7 +41,8 @@ merged="$(printf '%s' "$base" | jq \
   def migrate($event; $cmd; $action):
     (if $action == "stop" then "done" else $action end) as $legacy_action |
     [$cmd,
-      (("PNS_AGENT", "RELAY_AGENT") + "=codex " + $root + "/.local/libexec/pns/pns hook " + $action),
+      (("PNS_PRODUCER", "PNS_AGENT", "RELAY_AGENT") + "=codex " + $root +
+        ("/.cargo/bin/pns", "/.local/libexec/pns/pns") + " hook " + $action),
       ("RELAY_AGENT=codex " + $root + "/" +
         (".local/bin/relay-agent.sh", ".local/libexec/pns/codex-hooks/relay-agent.sh",
          ".local/libexec/pns/hooks/relay-agent.sh") + " " + $legacy_action),
