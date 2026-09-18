@@ -37,12 +37,12 @@ set -euo pipefail
 # real command that runs at apply time). A non-numeric or empty marker renders as
 # nothing here (still a safe comment) and is normalized at run time by
 # bump_retry_marker below.
-#   retry-attempts: {{ $rm := printf "%s/.cache/herdr-plugin-build/herdr-process.retry" (env "HOME") }}{{ if stat $rm }}{{ (output "cat" $rm) | regexFind "^[0-9]+" }}{{ else }}0{{ end }}
+#   retry-attempts: {{ $rm := printf "%s/.cache/herdr-plugin-build/%s.retry" (env "HOME") .packages.herdr_linked_plugin.id }}{{ if stat $rm }}{{ (output "cat" $rm) | regexFind "^[0-9]+" }}{{ else }}0{{ end }}
 #
 # G2 section headers.
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-plugin_id="herdr-process"
+plugin_id={{ .packages.herdr_linked_plugin.id | quote }}
 pinned_ref={{ .packages.herdr_linked_plugin.ref | quote }}
 repo_url="https://github.com/{{ .packages.herdr_linked_plugin.repo }}.git"
 
