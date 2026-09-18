@@ -51,7 +51,7 @@ fn every_waiting_state_says_blocked_and_a_failure_says_failed() {
     // `missed_notifications::NEEDS_YOU`: that list holds `failed`, which
     // must read RED here. A lamp that held a dead turn blocked would tell
     // the operator to come and answer a question nobody asked.
-    for state in ["blocked", "asked", "plan-ready", "denied"] {
+    for state in ["blocked", "asked"] {
         assert_eq!(
             state_behaviour(state, true),
             Behaviour::Blocked,
@@ -60,6 +60,18 @@ fn every_waiting_state_says_blocked_and_a_failure_says_failed() {
     }
     assert_eq!(state_behaviour("failed", true), Behaviour::Failed);
     assert_eq!(state_behaviour("done", true), Behaviour::Done);
+    // NEITHER OF THESE WAITS ON ANYBODY. `plan-ready` is no longer a state
+    // word at all: nothing declares it, so an event carrying it is refused as
+    // an unknown hook event. `denied` fires after the classifier refused a
+    // call on its own, which is a decision already taken rather than a
+    // question, so it reads as an observation and colours no lamp.
+    for state in ["plan-ready", "denied"] {
+        assert_eq!(
+            state_behaviour(state, true),
+            Behaviour::Done,
+            "state {state:?} holds no lamp blocked"
+        );
+    }
 }
 
 #[test]
