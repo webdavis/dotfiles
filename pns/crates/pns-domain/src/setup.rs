@@ -40,11 +40,9 @@ pub struct Answers {
 /// Whether the walk armed the light pulse. THE ROOMS COUNT AS A CREDENTIAL:
 /// with none named the plugin falls back to a compiled-in room list that names
 /// nobody else's rooms, so a bridge and key alone are a pulse that reaches no
-/// lamp and reports nothing.
-/// Whether the walk armed the light pulse. THE CERTIFICATE COUNTS AS A
-/// CREDENTIAL: a table with a bridge and key and no pin refuses at load, so a
-/// wizard that wrote one would compose a config that never pulses and says so
-/// only later.
+/// lamp and reports nothing. THE CERTIFICATE COUNTS AS A CREDENTIAL TOO: a
+/// table with a bridge and key and no pin refuses at load, so a wizard that
+/// wrote one would compose a config that never pulses and says so only later.
 pub fn hue_is_armed(answers: &Answers) -> bool {
     !answers.hue_bridge.is_empty()
         && !answers.hue_key.is_empty()
