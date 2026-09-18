@@ -16,7 +16,7 @@ pub(super) fn present_event(sandbox: &Sandbox) -> std::process::Command {
     // Executable stubs report no acknowledgement and cannot establish perception.
     sandbox.stub_herdr(&mut command, false);
     command
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--detail", "the live turn", "--pane", "t1:p2"]);
     command
 }

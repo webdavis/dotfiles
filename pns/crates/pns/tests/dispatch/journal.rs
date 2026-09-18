@@ -15,7 +15,7 @@ fn the_shared_append_prunes_each_ring_to_its_own_callers_depth() {
     std::fs::write(sandbox.path("state/decisions"), ring).expect("the ring");
 
     run(logged_event(&sandbox)
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--detail", "this event's own summary"]));
 
     let waiting = journal(&sandbox);
@@ -47,7 +47,7 @@ fn a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_show
     let sandbox = Sandbox::new("journal-append");
     mute(&sandbox);
     run(logged_event(&sandbox)
-        .args(["send", "--agent", "claude", "--state", "blocked"])
+        .args(["send", "--producer", "claude", "--state", "blocked"])
         .args(["--project", "dotfiles", "--branch", "main"])
         .args(["--detail", "a private summary"]));
     assert!(
@@ -80,8 +80,14 @@ fn a_delivered_event_journals_nothing_at_all() {
     // journal's presence meaningful. The native banner acknowledges its send,
     // so there is nothing to replay.
     let sandbox = Sandbox::new("journal-delivered");
-    run(acknowledged_banner(&sandbox)
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    run(acknowledged_banner(&sandbox).args([
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
+    ]));
     assert!(
         sandbox.path("notifier.args").exists(),
         "the native banner ran"
@@ -102,7 +108,7 @@ fn the_journal_keeps_only_the_most_recent_misses_with_the_oldest_gone() {
     std::fs::write(journal_path(&sandbox), planted_journal(JOURNAL_KEPT)).expect("the journal");
 
     run(logged_event(&sandbox)
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--detail", "the newest miss"]));
 
     let waiting = journal(&sandbox);
@@ -138,7 +144,13 @@ fn a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_event() 
     );
 
     let output = output_before_the_deadline(logged_event(&sandbox).args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
     ]));
     assert_eq!(
         output.status.code(),
@@ -188,7 +200,13 @@ fn a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing() {
         .unwrap();
     let output = logged_event(&sandbox)
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .output()
         .expect("the engine runs");
@@ -212,7 +230,13 @@ fn the_journal_is_created_readable_and_writable_by_its_owner_alone() {
     let sandbox = Sandbox::new("journal-mode");
     mute(&sandbox);
     run(logged_event(&sandbox).args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
     ]));
     assert_eq!(journal_mode(&sandbox), 0o600, "the append created it");
 
@@ -235,7 +259,13 @@ fn the_journal_is_created_readable_and_writable_by_its_owner_alone() {
             .expect("seed through the real journal writer");
     }
     run(logged_event(&sandbox).args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "y",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "y",
     ]));
     assert_eq!(
         journal(&sandbox).len(),

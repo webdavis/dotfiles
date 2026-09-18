@@ -68,7 +68,7 @@ impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> PnsNotifier<F> {
             .args(["--foreground", "--signal=KILL"])
             .arg(format!("{}s", self.duration.as_secs_f64()))
             .arg(&self.pns)
-            .args(["send", "--agent", "lights"])
+            .args(["send", "--producer", "lights"])
             .args(what)
             .arg("--local-only")
             .stdin(Stdio::null())

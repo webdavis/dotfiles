@@ -3,13 +3,26 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT: AtomicU64 = AtomicU64::new(0);
+/// A path no other test and no other RUN can build.
+///
+/// MEASURED: a process id is recycled and these directories are never
+/// removed, so a counter alone rebuilt paths an earlier run of a recycled
+/// id had already populated. Replaying one run's 160 leftover databases
+/// into the next run's paths failed 84 rows, 22 of them AlreadyExists on
+/// the directory itself and the rest reading the earlier run's records.
+/// The epoch nanosecond is the same component `state_fixtures::scratch`
+/// uses, which cannot be reused here because it creates the directory and
+/// two rows below need to create it themselves.
 fn state() -> PathBuf {
     std::env::temp_dir()
         .canonicalize()
         .expect("the canonical temp directory")
         .join(format!(
-            "pns-sql-{}-{}",
+            "pns-sql-{}-{}-{}",
             std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |since| since.as_nanos()),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ))
 }

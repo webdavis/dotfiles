@@ -43,7 +43,7 @@ fn job(id: &str, due: u64) -> Job {
         until: due + 300,
         every: Some(30),
         unless_marker: None,
-        args: vec!["--agent".to_string(), "pns".to_string()],
+        args: vec!["--producer".to_string(), "pns".to_string()],
     }
 }
 
@@ -64,7 +64,7 @@ fn a_refresh_published_while_a_job_is_claimed_survives_the_daemons_re_arm() {
     let scratch = Scratch::new("refresh-beats-rearm");
     let spool = scratch.spool();
     let refreshed = Job {
-        args: vec!["--agent".to_string(), "refreshed".to_string()],
+        args: vec!["--producer".to_string(), "refreshed".to_string()],
         ..job("upkeep", NOW + 5)
     };
     publish_job(&spool, &refreshed).expect("the client's refresh");
@@ -110,7 +110,7 @@ fn a_registration_landing_while_the_old_record_is_claimed_is_not_deleted_by_the_
 
     // The client registers again while the daemon holds the old record.
     let fresh = Job {
-        args: vec!["--agent".to_string(), "fresh".to_string()],
+        args: vec!["--producer".to_string(), "fresh".to_string()],
         ..job("nag", NOW + 60)
     };
     publish_job(&spool, &fresh).expect("the new registration");

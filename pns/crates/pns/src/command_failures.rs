@@ -195,7 +195,7 @@ pub(crate) fn compose(stored: &StoredFailure) -> Failure {
 }
 
 fn command(stored: &StoredFailure) -> String {
-    let mut command = format!("pns send --agent {}", stored.agent);
+    let mut command = format!("pns send --producer {}", stored.agent);
     if !stored.state.is_empty() {
         command.push_str(&format!(" --state {}", stored.state));
     }

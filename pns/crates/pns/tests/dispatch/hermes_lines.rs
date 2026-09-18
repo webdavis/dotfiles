@@ -39,7 +39,13 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
         command.env("PNS_HERMES_URL", url);
         let output = run(command
             .args([
-                "send", "--agent", "weekly", "--state", "done", "--detail", "ran",
+                "send",
+                "--producer",
+                "weekly",
+                "--state",
+                "done",
+                "--detail",
+                "ran",
             ])
             .arg("--remote-only"));
         assert_eq!(stdout(&output), expected, "case: {case}");

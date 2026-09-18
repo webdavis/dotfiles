@@ -2,9 +2,10 @@
 
 ## Tap result version 1
 
-`pns tap [--info | --install] [--json]` accepts one operation and an optional JSON output selector. Bare
-tap records attention; info observes it; install prints a guide. Other arguments, including conflicting
-operations, exit 2 before mutation. The tool-wide color flag still applies.
+`pns tap [info | install] [--json]` accepts one operation and an optional JSON output selector. The
+operation, when given, is the first argument; `--json` follows it. Bare tap records attention; info
+observes it; install prints a guide. Other arguments, including conflicting operations, exit 2 before
+mutation. The tool-wide color flag still applies.
 
 JSON (JavaScript Object Notation) output is one object with `schema: "pns.tap/1"` and a trailing newline,
 without terminal decoration. It uses the existing envelope bounds. Its required fields are:

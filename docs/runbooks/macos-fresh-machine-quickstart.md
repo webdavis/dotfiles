@@ -237,7 +237,7 @@ no second device is needed:
    `ssh -o BatchMode=yes stephen@"$(ifconfig en0 | awk '/inet6 fe80/{print $2}')" true` is refused. en0
    carries no routable IPv6 on this network, so the refused address is the link-local one and it needs
    its `%en0` scope suffix, which that command keeps.
-1. A real phone tap: one Back Tap, then `pns tap --info` reports a "Last tap" of a few seconds and
+1. A real phone tap: one Back Tap, then `pns tap info` reports a "Last tap" of a few seconds and
    `Fresh: yes`. The tap arrives over whatever the Shortcut's `Hostname` global variable holds, so a
    Shortcut pointed at `192.168.1.26` or at a `.local` name stops working here and nowhere else. Move it
    to `100.77.192.92` or the MagicDNS name before deploying, and confirm a tap over the tailnet first, so

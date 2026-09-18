@@ -86,7 +86,7 @@ fn elapsed_below_thirty_is_silent_before_state_or_delivery() {
             let output = run(command(&sandbox)
                 .args([
                     "send",
-                    "--agent",
+                    "--producer",
                     "nvim",
                     "--state",
                     "done",
@@ -108,7 +108,7 @@ fn assert_elapsed_tiers(seconds: &[u64]) {
         let sandbox = Sandbox::new(&format!("elapsed-tier-{seconds}"));
         let output = run(command(&sandbox).args([
             "send",
-            "--agent",
+            "--producer",
             "nvim",
             "--state",
             "failed",
@@ -166,7 +166,7 @@ fn elapsed_rejects_malformed_missing_and_overflowing_seconds() {
     ] {
         let sandbox = Sandbox::new(&format!("elapsed-invalid-{}", value.replace('/', "_")));
         let mut cmd = command(&sandbox);
-        cmd.args(["send", "--agent", "nvim", "--elapsed"]);
+        cmd.args(["send", "--producer", "nvim", "--elapsed"]);
         if !value.is_empty() {
             cmd.arg(value);
         }
@@ -218,7 +218,7 @@ fn legacy_events_keep_their_detail_and_explicit_long_running_tier() {
     let sandbox = Sandbox::new("elapsed-legacy");
     let output = run(command(&sandbox).args([
         "send",
-        "--agent",
+        "--producer",
         "shell",
         "--state",
         "done",
@@ -238,7 +238,7 @@ fn elapsed_still_obeys_the_presence_gate() {
     sandbox.stub_herdr(&mut command, true);
     let output = run(command.args([
         "send",
-        "--agent",
+        "--producer",
         "nvim",
         "--state",
         "done",

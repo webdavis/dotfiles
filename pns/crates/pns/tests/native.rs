@@ -59,7 +59,13 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
     sandbox.stub_notifier(&mut command);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .arg("--local-only"));
 
@@ -86,7 +92,13 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
         .env("PNS_MOSHI_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
     ]));
 
     let raw = capture.finish();
@@ -121,7 +133,13 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
         .env("PNS_MOSHI_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
     ]));
     assert!(
         stderr(&output).is_empty(),
@@ -142,7 +160,13 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     sandbox.stub_notifier(&mut command);
     let output = run(command
         .args([
-            "send", "--agent", "weekly", "--state", "done", "--detail", "ran",
+            "send",
+            "--producer",
+            "weekly",
+            "--state",
+            "done",
+            "--detail",
+            "ran",
         ])
         .arg("--remote-only"));
 
@@ -172,7 +196,13 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     sandbox.stub_notifier(&mut command);
     let output = run(command
         .args([
-            "send", "--agent", "weekly", "--state", "done", "--detail", "ran",
+            "send",
+            "--producer",
+            "weekly",
+            "--state",
+            "done",
+            "--detail",
+            "ran",
         ])
         .arg("--remote-only"));
     capture.finish();
@@ -194,7 +224,13 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
         .env("PNS_HERMES_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
     ]));
     assert!(
         stdout(&output).is_empty(),
@@ -379,7 +415,13 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
     sandbox.stub_notifier(&mut command);
     run(command
         .args([
-            "send", "--agent", "upgrades", "--state", "failed", "--detail", "ran",
+            "send",
+            "--producer",
+            "upgrades",
+            "--state",
+            "failed",
+            "--detail",
+            "ran",
         ])
         .args(["--kind", "health"])
         .arg("--remote-only"));
@@ -427,7 +469,13 @@ fn an_unrouted_event_takes_the_default_route_the_config_invented() {
     sandbox.stub_notifier(&mut command);
     run(command
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .arg("--remote-only"));
 

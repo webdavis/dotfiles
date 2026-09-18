@@ -15,7 +15,7 @@ pub(crate) fn render(result: &TapResult) -> Vec<String> {
     if let Some(guide) = &result.install {
         lines = style::header(
             paint,
-            "pns tap --install",
+            "pns tap install",
             &[
                 HeaderLine {
                     label: "1. This Mac",
@@ -46,7 +46,7 @@ pub(crate) fn render(result: &TapResult) -> Vec<String> {
     } else {
         lines = style::header(
             paint,
-            "pns tap --info",
+            "pns tap info",
             &[HeaderLine {
                 label: "About",
                 text: "a tap supplies the phone's attention signal",
@@ -100,9 +100,9 @@ pub(crate) fn render(result: &TapResult) -> Vec<String> {
     lines.push(format!(
         "  {}",
         if result.operation == TapOperation::Install {
-            "Check the result with pns tap --info, then test from the phone."
+            "Check the result with pns tap info, then test from the phone."
         } else {
-            "Setup guide: pns tap --install"
+            "Setup guide: pns tap install"
         }
     ));
     lines

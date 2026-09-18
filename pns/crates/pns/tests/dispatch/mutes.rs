@@ -67,7 +67,13 @@ fn off_removes_the_state_file_and_the_next_event_decorates_again() {
     sandbox.stub_herdr(&mut event, false);
     run(event
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(
@@ -91,7 +97,13 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         event.env("PNS_STATE_DIR", sandbox.path("state"));
         event
             .args([
-                "send", "--agent", "claude", "--state", "done", "--detail", "x",
+                "send",
+                "--producer",
+                "claude",
+                "--state",
+                "done",
+                "--detail",
+                "x",
             ])
             .args(["--pane", "t1:p2", "--long-running"]);
         event
@@ -159,7 +171,13 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
 
@@ -196,7 +214,13 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
         .args([
-            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
         ])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("macos-banner"));

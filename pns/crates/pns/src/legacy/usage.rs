@@ -25,12 +25,12 @@ pns: usage:
   pns recap --since <epoch> --until <epoch>
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
-  pns tap [--info|--install] [--json]  record phone attention or inspect its setup
+  pns tap [info|install] [--json]  record phone attention or inspect its setup
   pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
   pns --version, -V                the package version
 
-producer flags: --agent <name> --state <word> --project <name> --branch <name>
+producer flags: --producer <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --channel <route> --elapsed <secs>
                 --kind <agent|health> --local-only --remote-only --long-running
                 --require-delivery

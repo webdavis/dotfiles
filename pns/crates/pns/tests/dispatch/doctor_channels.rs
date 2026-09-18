@@ -65,7 +65,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             "3 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
             &format!(
-                "phone tap: never tapped (default, {:?}); run `pns tap --info`",
+                "phone tap: never tapped (default, {:?}); run `pns tap info`",
                 sandbox.path(".local/state/pns/phone-attention.marker")
             ),
             FOCUS_OFF_LINE,
@@ -101,7 +101,7 @@ fn a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_se
     );
     let output = run(sandbox
         .pns()
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
 
     assert!(
@@ -208,7 +208,7 @@ fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does
 
     let fired = run(sandbox
         .pns()
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
     assert!(
         !stderr(&fired).contains("switched off"),

@@ -9,7 +9,7 @@ fn an_event_appends_exactly_one_decision_carrying_what_it_decided_and_what_the_l
     run(logged_event(&sandbox)
         .args([
             "send",
-            "--agent",
+            "--producer",
             "claude",
             "--state",
             "done",
@@ -45,7 +45,7 @@ fn an_event_that_reached_no_channel_at_all_still_records_its_decision() {
     // opens the report to ask about, so the empty-plan branch records too.
     let sandbox = Sandbox::new("decision-log-empty-plan");
     let output = run(logged_event(&sandbox)
-        .args(["send", "--agent", "claude", "--state", "done"])
+        .args(["send", "--producer", "claude", "--state", "done"])
         .env("PNS_IDLE_SECS", "9000")
         .arg("--local-only"));
     assert!(
@@ -80,7 +80,7 @@ fn a_state_directory_that_cannot_be_written_costs_the_event_nothing() {
     std::fs::write(&blocked, "not a directory\n").expect("a file where the state dir would go");
     let mut command = sandbox.pns();
     command.env("PNS_STATE_DIR", &blocked);
-    let output = run(command.args(["send", "--agent", "claude", "--state", "done"]));
+    let output = run(command.args(["send", "--producer", "claude", "--state", "done"]));
 
     assert!(sandbox.fired("mobile"), "every channel still fires");
     assert!(sandbox.fired("hermes"));
@@ -110,9 +110,13 @@ fn a_fifo_at_the_rings_path_is_never_opened_and_never_parks_the_event() {
         "the fixture has to be a real FIFO"
     );
 
-    let status = run_before_the_deadline(
-        logged_event(&sandbox).args(["send", "--agent", "claude", "--state", "done"]),
-    );
+    let status = run_before_the_deadline(logged_event(&sandbox).args([
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+    ]));
     assert_eq!(
         status.code(),
         Some(0),
@@ -144,14 +148,14 @@ fn a_ring_holding_bytes_that_are_not_text_heals_to_a_bounded_readable_one() {
     let ring = ring_path(&sandbox);
     std::fs::write(&ring, b"\xff\xfe not a decision\n").expect("the corrupt ring");
 
-    run(logged_event(&sandbox).args(["send", "--agent", "claude", "--state", "done"]));
+    run(logged_event(&sandbox).args(["send", "--producer", "claude", "--state", "done"]));
     let healed = stored_records::text(&sandbox, "decisions");
     assert_eq!(healed.lines().count(), 1, "got {healed:?}");
     assert!(healed.contains(" claude/done "), "got {healed:?}");
 
     // AND THE HEAL LEAVES AN ORDINARY RING: the next event appends to it
     // rather than healing a second time.
-    run(logged_event(&sandbox).args(["send", "--agent", "codex", "--state", "done"]));
+    run(logged_event(&sandbox).args(["send", "--producer", "codex", "--state", "done"]));
     let after = stored_records::text(&sandbox, "decisions");
     assert_eq!(after.lines().count(), 2, "got {after:?}");
     assert!(
@@ -169,7 +173,7 @@ fn a_ring_that_ends_mid_line_never_fuses_the_next_record_onto_it() {
     let ring = ring_path(&sandbox);
     std::fs::write(&ring, "1756499000 a/one surface=Desk").expect("the truncated ring");
 
-    run(logged_event(&sandbox).args(["send", "--agent", "claude", "--state", "done"]));
+    run(logged_event(&sandbox).args(["send", "--producer", "claude", "--state", "done"]));
     let contents = stored_records::text(&sandbox, "decisions");
     let lines: Vec<&str> = contents.lines().collect();
     assert_eq!(lines.len(), 2, "got {lines:?}");
@@ -193,7 +197,7 @@ fn a_ring_too_large_to_read_back_is_replaced_rather_than_slurped() {
     let bloated = format!("{}\n", "z".repeat(400_000));
     std::fs::write(&ring, &bloated).expect("the bloated ring");
 
-    run(logged_event(&sandbox).args(["send", "--agent", "claude", "--state", "done"]));
+    run(logged_event(&sandbox).args(["send", "--producer", "claude", "--state", "done"]));
     let healed = stored_records::text(&sandbox, "decisions");
     assert!(
         healed.len() < bloated.len() / 100,
@@ -221,7 +225,7 @@ fn events_racing_each_other_lose_no_line_and_leave_no_pending_file() {
     let racing: Vec<std::process::Child> = (1..=5)
         .map(|turn| {
             logged_event(&sandbox)
-                .args(["send", "--agent", &format!("c{turn}"), "--state", "done"])
+                .args(["send", "--producer", &format!("c{turn}"), "--state", "done"])
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn()

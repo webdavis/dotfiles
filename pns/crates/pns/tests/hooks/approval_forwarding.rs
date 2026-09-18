@@ -67,7 +67,9 @@ fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
 fn a_harness_pns_does_not_register_for_is_never_handed_to_moshi() {
     let sandbox = Sandbox::new("hook-blocked-unknown-agent");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999").env("PNS_AGENT", "pi");
+    command
+        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_PRODUCER", "pi");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(0));
@@ -263,7 +265,7 @@ fn a_two_from_moshi_comes_back_as_two_and_is_never_normalized() {
 #[test]
 fn a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_run() {
     // THE ONLY END-TO-END COVERAGE OF THE SECOND HARNESS. Codex reaches this
-    // exact path (`PNS_AGENT=codex $agent hook blocked`, from the Codex hook
+    // exact path (`PNS_PRODUCER=codex $agent hook blocked`, from the Codex hook
     // installer), and until now the crate proved only the negative half:
     // `a_harness_pns_does_not_register_for_is_never_handed_to_moshi` shows an
     // unknown word is refused, and `moshi_subcommand`'s own unit test shows
@@ -277,7 +279,7 @@ fn a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_
     // fallthrough the Claude fixture exercises above.
     let sandbox = Sandbox::new("hook-blocked-codex");
     let mut command = approval(&sandbox, 42);
-    command.env("PNS_AGENT", "codex");
+    command.env("PNS_PRODUCER", "codex");
     let output = hook_with(command, &sandbox, "blocked", CODEX_APPROVAL);
     assert_eq!(output.status.code(), Some(42), "the operator's own answer");
     assert_eq!(

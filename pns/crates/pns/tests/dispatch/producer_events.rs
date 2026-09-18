@@ -9,7 +9,7 @@ fn a_producer_invocation_led_by_a_stray_word_still_delivers() {
     let sandbox = Sandbox::new("stray-leading-word");
     run(sandbox
         .pns()
-        .args(["send", "stray", "--agent", "claude", "--state", "done"])
+        .args(["send", "stray", "--producer", "claude", "--state", "done"])
         .args(["--detail", "a summary"]));
     assert!(sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
@@ -51,7 +51,13 @@ fn the_delivered_event_is_newline_terminated_for_line_oriented_channels() {
         ),
     );
     run(sandbox.pns().args([
-        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "done",
+        "--detail",
+        "x",
     ]));
     let line = std::fs::read_to_string(sandbox.path("line.event")).expect("one whole line");
     let parsed: serde_json::Value = serde_json::from_str(&line).expect("a whole JSON line");

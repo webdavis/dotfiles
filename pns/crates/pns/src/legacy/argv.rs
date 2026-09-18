@@ -20,7 +20,7 @@ use pns_domain::{DeliveryScope, EventArgs, routes::Kind};
 /// hand-typed usage text mentioned every flag, a declaration-parity check
 /// rather than one about this parser's behavior; that test is gone.
 const VALUE_FLAGS: [&str; 9] = [
-    "--agent",
+    "--producer",
     "--state",
     "--project",
     "--branch",
@@ -42,9 +42,19 @@ const BARE_FLAGS: [&str; 4] = [
     "--require-delivery",
 ];
 
-/// Whether a token is a producer flag.
+/// Every flag pns used to take, paired with the one that replaced it. A
+/// retired flag is REFUSED and the refusal names its replacement, so a caller
+/// still typing the old spelling is told the new one instead of watching its
+/// producer name vanish into the lenient skip.
+const RETIRED_FLAGS: [(&str, &str); 1] = [("--agent", "--producer")];
+
+/// Whether a token is a producer flag. A retired flag counts, so a flag whose
+/// value is missing (`--detail --agent x`) is warned about rather than eating
+/// the retired flag as its value.
 fn is_producer_flag(token: &str) -> bool {
-    VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token)
+    VALUE_FLAGS.contains(&token)
+        || BARE_FLAGS.contains(&token)
+        || RETIRED_FLAGS.iter().any(|(retired, _)| *retired == token)
 }
 
 /// Whether a token is `--help`/`-h`.
@@ -70,6 +80,8 @@ pub(super) struct ParsedArgs {
     /// for the answer is a caller that can take it; every other one keeps the
     /// exit-0 contract untouched.
     pub require_delivery: bool,
+    /// The first retired flag argv carried, already worded as its refusal.
+    retired: Option<String>,
     elapsed: Result<Option<u64>, String>,
     /// `--kind`: what the event IS, which decides its route when the producer
     /// named none. A word that is neither kind refuses the event rather than
@@ -86,6 +98,9 @@ pub(super) enum Refusal {
 
 impl ParsedArgs {
     pub fn into_event(self) -> Result<Option<EventArgs>, Refusal> {
+        if let Some(retired) = self.retired {
+            return Err(Refusal::Value(retired));
+        }
         let elapsed = self.elapsed.map_err(Refusal::Value)?;
         let kind = self.kind.map_err(Refusal::Value)?;
         let event = match elapsed {
@@ -117,6 +132,7 @@ where
     let mut require_delivery = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
+    let mut retired = None;
     let mut kind = Ok(Kind::default());
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
@@ -162,7 +178,7 @@ where
                 }
                 let Some(value) = tokens.next() else { continue };
                 match flag {
-                    "--agent" => parsed.agent = value,
+                    "--producer" => parsed.agent = value,
                     "--state" => parsed.state = value,
                     "--project" => parsed.project = value,
                     "--branch" => parsed.branch = value,
@@ -171,7 +187,16 @@ where
                     _ => parsed.pane = value,
                 }
             }
-            _ => {}
+            _ => {
+                if let Some((flag, replacement)) =
+                    RETIRED_FLAGS.iter().find(|(flag, _)| *flag == token)
+                {
+                    // ITS VALUE GOES WITH IT: leaving `codex` behind would
+                    // make the next unknown-token rule read it as a stray word.
+                    tokens.next_if(|next| !is_producer_flag(next));
+                    retired.get_or_insert_with(|| format!("{flag} was replaced by {replacement}"));
+                }
+            }
         }
     }
     if elapsed != Ok(None) && parsed.long_running {
@@ -182,6 +207,7 @@ where
         event: parsed,
         warnings,
         require_delivery,
+        retired,
         elapsed,
         kind,
         scope: match (local_only, remote_only) {
