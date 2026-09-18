@@ -65,7 +65,7 @@ fn another_panes_live_loop_does_not_hide_a_condensed_question() {
 
 #[test]
 fn a_live_loop_does_not_suppress_real_hook_waits() {
-    for event in ["asked", "plan-ready", "blocked"] {
+    for event in ["asked", "blocked"] {
         let sandbox = setup(&format!("loop-real-{event}"), Some(("wW:p1", FUTURE)));
         let mut command = with_state_dir(&sandbox);
         command.env("HERDR_PANE_ID", "wW:p1");

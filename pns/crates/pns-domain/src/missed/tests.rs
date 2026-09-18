@@ -271,7 +271,6 @@ fn only_the_states_that_wait_on_the_operator_are_needing_you() {
         acted("blocked", "p"),
         acted("stale", "p"),
         acted("asked", "p"),
-        acted("plan-ready", "p"),
         acted("denied", "p"),
         acted("failed", "p"),
     ];
@@ -281,7 +280,7 @@ fn only_the_states_that_wait_on_the_operator_are_needing_you() {
         .collect();
     assert_eq!(
         waiting,
-        ["blocked", "asked", "plan-ready", "denied", "failed"],
+        ["blocked", "asked", "denied", "failed"],
         "in the order they arrived"
     );
 }

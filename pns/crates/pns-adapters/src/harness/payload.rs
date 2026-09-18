@@ -6,6 +6,12 @@ use super::message::{elicitation_request, reported_error, tool_request};
 /// state, never an error: this runs on a path that must exit 0.
 #[derive(Debug, Default, PartialEq)]
 pub struct HookPayload {
+    /// The harness's own name for the event behind this payload. READ BY ONE
+    /// ARM, and only to tell `SubagentStop` from the other clearing signals
+    /// that share its hook word: every one of them carries `agent_id`, but a
+    /// subagent ENDING reports the holder of a wait finishing while a
+    /// subagent's tool batch resolving reports nothing about the wait at all.
+    pub hook_event_name: String,
     pub session_id: String,
     pub cwd: String,
     pub transcript_path: String,
@@ -93,6 +99,7 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
             .to_string()
     };
     HookPayload {
+        hook_event_name: text("hook_event_name"),
         session_id: text("session_id"),
         cwd: text("cwd"),
         transcript_path: text("transcript_path"),
