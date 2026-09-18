@@ -65,7 +65,7 @@ pub(crate) fn announce(store: &SqliteStore, since: u64) {
     if speaking_for.is_empty() {
         return;
     }
-    let pns = crate::command_click::pns_path();
+    let pns = crate::command_failures::pns_path();
     let phone = phone_card();
     for stored in speaking_for {
         raise(&crate::command_failures::compose(stored), &pns, &phone);

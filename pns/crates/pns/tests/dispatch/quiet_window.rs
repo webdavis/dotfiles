@@ -183,7 +183,7 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
 
 #[test]
 fn the_hand_run_pulse_reaches_the_bridge_inside_the_quiet_window() {
-    // The drill is EXEMPT, structurally: `pns pulse` never passes the event
+    // The drill is EXEMPT, structurally: `pns lights pulse` never passes the event
     // path's gate, because gating it would make the quiet window impossible to
     // check by hand exactly while it is on.
     let (listener, port) = bridge_spy();
@@ -196,7 +196,7 @@ fn the_hand_run_pulse_reaches_the_bridge_inside_the_quiet_window() {
     let mut command = sandbox.bare();
     command.env("TZ", "UTC");
     let child = command
-        .args(["pulse", "0"])
+        .args(["lights", "pulse", "0"])
         .spawn()
         .expect("the engine starts");
     assert!(

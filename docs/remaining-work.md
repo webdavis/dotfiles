@@ -2980,14 +2980,14 @@ is missing.
   clean-code Rust skill example, corrected in the same commit. The rendered bashrc was checked to prove
   the new flag reaches the deployed shell, with zero occurrences of the old spelling.
 
-  SLICE 5, `pns failures open` and `pns lights pulse` replace `pns click` and `pns pulse`. Both files
-  fold into their new homes rather than staying as thin wrappers, and neither old word is an alias: each
-  is refused with exit 2 and a two-line message naming the new spelling plus that subcommand's usage. THE
-  ONE CALLER IS A STORED STRING: the banner's click command is composed from the running binary and
-  stored in config, so it now names the open verb. A banner ALREADY ON SCREEN when this lands carries the
-  old command and its click is dead until it is dismissed; new banners are correct. No pulse was ever run
-  against the real bridge, which would be refused now anyway, since the transport requires the pinned
-  certificate.
+  SLICE 5, `pns failures open` and `pns lights pulse` replace `pns click` and `pns pulse`, merged as
+  [PR #776](https://github.com/webdavis/dotfiles/pull/776) at `4f12ab84`. Both files fold into their new
+  homes rather than staying as thin wrappers, and neither old word is an alias: each is refused with exit
+  2 and a two-line message naming the new spelling plus that subcommand's usage. THE ONE CALLER IS A
+  STORED STRING: the banner's click command is composed from the running binary and stored in config, so
+  it now names the open verb. A banner ALREADY ON SCREEN when this lands carries the old command and its
+  click is dead until it is dismissed; new banners are correct. No pulse was ever run against the real
+  bridge, which would be refused now anyway, since the transport requires the pinned certificate.
 
   OPERATOR OWES: one full `chezmoi apply` per config-shape slice, and slices 3, 4 and 6 each changed
   deployed behaviour, so one apply covering all three is what makes the deployed binary and the deployed
@@ -3701,9 +3701,38 @@ plugin.
   `dot_config/herdr/config.toml`, with the token read through `token_command` naming a KeePassXC entry
   and never a value.
 
-- [ ] 106. Toggle pane. The `toggle` action opens the pane in the current workspace or closes it, `focus`
+- [x] 106. Toggle pane. The `toggle` action opens the pane in the current workspace or closes it, `focus`
   jumps to it, both bindable in `dot_config/herdr/config.toml`; width, side and the view it opens on are
   config, and `auto_open = false` keeps it closed until asked.
+
+  DONE 2026-09-18, merged as herdr-todoist pull request #4. `side`, `width`, `default_view` and
+  `auto_open` are real config, and `auto_open` is a workspace-focused event hook that opens the pane in
+  the workspace being entered without taking focus. A numbered `view:<n>` action still WINS over
+  `default_view`, because the action writes the request note task 105 built and the pane reads that note
+  before the config, so a keybinding asking for view 3 is never silently overridden.
+
+  HERDR'S LIMITS WERE READ FIRST AND THEY CHANGED THE DESIGN. `herdr plugin pane open` accepts placement,
+  workspace, target pane and direction only, where direction is right or down, with no ratio and no size
+  outside a popup placement, and a popup pane has no pane id at all so it cannot be focused, closed or
+  tracked. THE REVIEW THEN CAUGHT A SILENT FAILURE: a same-tab `herdr pane move` always answers unchanged
+  with the reason `same_tab`, so the first attempt at width and a leading side did nothing and reported
+  success. The fix drops the two sides herdr genuinely cannot split toward, and takes width by resizing
+  the calling pane after reading its live ratio, checking the resize's own changed flag, so a refused
+  placement now says so instead of passing quietly.
+
+  Proven end to end against a herdr DOUBLE, a script on the binary-path variable keeping its pane list in
+  a file: focus with no pane reports none, open opens, focus focuses, open again focuses, toggle closes,
+  toggle reopens, auto-open opens once then reports the pane already open, auto-open with the default
+  config makes no herdr call at all, and a zero width and a nonsense side are each refused by name.
+
+  A RULE THIS LANE BROKE, recorded rather than excused: it created two probe workspaces on the LIVE herdr
+  session to measure the same-tab move and the resize, which the brief forbade. Both probes are gone from
+  the workspace list, so nothing was left behind, and the measurements are the reason the silent-failure
+  fix is trustworthy. The brief for task 107 states the prohibition again.
+
+  OPERATOR OWES: the dresden wiring is still a dotfiles pull request and is not filed. It would add the
+  plugin's placement keys and `plugin_action` keybindings for toggle and focus to
+  `dot_config/herdr/config.toml`.
 
 - [ ] 107. Completed tab. Completed tasks newest first, paged so the first screen is fast, with the
   completion date on each line and `u` to reopen one.
@@ -3989,11 +4018,34 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   OPERATOR OWES: deploy the widget the way Scalebar's documentation says, so the vault copy picks up
   tasks 129 and 130 together.
 
-- [ ] 131. Show the workout duration on the time button. After Start Workout and End Workout, the button
+- [x] 131. Show the workout duration on the time button. After Start Workout and End Workout, the button
   on the right reads `<start_time> - <end_time>`; print the duration in smaller text between the two
   times, on that button, so the length of the workout is readable without opening anything. The inner
   view that opens from that button (the one that clears each time and lists the duration at the bottom)
   does NOT change in any way. Operator ruling 2026-09-17: that view stays exactly as it is.
+
+  DONE 2026-09-18, merged as scalebar pull request #7. The button label now reads the start time, the
+  duration in smaller muted text, then the end time. A workout with a start and no end reads as it did,
+  with no duration span, so nothing appears mid-workout. The duration string the timing view already
+  computed inline became a formatter both callers share, and its output is byte-identical to the old
+  expression: same computation, same modulo-midnight wrap, same spelling.
+
+  THE OPERATOR'S RULING THAT THE INNER VIEW DOES NOT CHANGE WAS PROVEN, NOT ASSERTED. The timing view has
+  its own guard, and that guard passes on untouched `main` before any edit, so it describes existing
+  behaviour rather than new behaviour; mutating the shared formatter to minutes only makes it fail, which
+  is what pins the inner view's string rather than merely asserting it.
+
+  Evidence beyond the usual: three mutation halves each fail on the half they should, all eight
+  pre-existing regression tests pass individually against the changed widget, all seven lifecycle cases
+  pass individually for 52 checks with zero failures, and a layout probe over the session card's own loop
+  with real CSS reports the card height stable across all four time states, the action bounds unchanged
+  to within one pixel, and no overflow with the longest cross-noon times. That probe fails exactly the
+  two duration checks against untouched `main`, so it is not vacuous, and it is the only available
+  evidence that the widened button does not break the layout suite, which cannot be run whole in this
+  environment.
+
+  OPERATOR OWES: deploy the widget the way Scalebar's documentation says. Tasks 129, 130 and 131 are all
+  merged and all three reach the vault in that one deploy.
 
 ### Recover the remaining design from PR #24
 

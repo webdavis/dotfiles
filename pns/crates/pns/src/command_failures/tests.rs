@@ -90,3 +90,40 @@ fn the_address_follows_the_gateway_override_the_channel_itself_reads() {
         unsafe { std::env::set_var("PNS_HERMES_URL", previous) };
     }
 }
+
+/// This binary's own path, never a bare name: a click has no PATH to resolve
+/// with, and a machine mid-upgrade can have two pns on disk.
+#[test]
+fn the_view_runs_this_binary_rather_than_whatever_a_path_would_find() {
+    let path = pns_path();
+    assert!(path.starts_with('/'), "{path}");
+    assert_ne!(path, "pns");
+}
+
+/// The whole of what a banner click is for, end to end through the domain: the
+/// argv opens THIS binary's detail view for the id the banner carried.
+#[test]
+fn the_inferred_view_opens_this_binarys_detail_view_for_that_id() {
+    let argv = ClickView::inferred(false)
+        .argv(47, "/bin/herdr", &pns_path())
+        .unwrap();
+    assert_eq!(argv[0], "/usr/bin/open");
+    assert_eq!(argv.last().unwrap(), &format!("{} failures 47", pns_path()));
+}
+
+/// The stored click command names the verb that opens the view, so a banner
+/// raised now is clickable by the binary that raised it.
+#[test]
+fn the_banners_stored_click_command_names_the_open_verb() {
+    assert_eq!(
+        failure::click_command(&pns_path(), 47),
+        format!("{} failures {OPEN_VERB} 47", pns_path())
+    );
+}
+
+/// A usage line names both spellings of the id argument, so an operator
+/// diagnosing a click that did nothing is told what it wanted.
+#[test]
+fn the_usage_line_names_the_open_verb_and_its_argument() {
+    assert!(FAILURES_USAGE.contains("open <id>"), "{FAILURES_USAGE}");
+}

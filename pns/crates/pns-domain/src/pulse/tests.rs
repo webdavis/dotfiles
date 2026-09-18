@@ -135,7 +135,7 @@ fn a_non_zero_exit_code_is_failed() {
 #[test]
 fn an_exit_code_that_is_not_a_number_is_refused_rather_than_guessed_at() {
     // H-C: garbage used to take the failure branch, which flashed the
-    // room red on a code nobody proved. `pulse_mode` reads this `None` as
+    // room red on a code nobody proved. `lights_pulse` reads this `None` as
     // a refusal with usage instead.
     assert_eq!(exit_behaviour("oops"), None);
 }
@@ -163,7 +163,7 @@ fn a_signed_zero_is_refused_rather_than_read_as_a_failure() {
 #[test]
 fn a_zero_with_whitespace_around_it_is_refused_the_same_way() {
     // H-C: padding is not a digit either, so both read as `None` and
-    // `pulse_mode` refuses them instead of pulsing red on unproven input.
+    // `lights_pulse` refuses them instead of pulsing red on unproven input.
     assert_eq!(exit_behaviour(" 0"), None);
     assert_eq!(exit_behaviour("0\n"), None);
 }

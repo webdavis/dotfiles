@@ -126,13 +126,13 @@ Then `src/pulse.rs:state_behaviour` answers exactly once: `failed` is `Behaviour
 
 ### 2. An exit code is a success, a failure, or a refusal
 
-Given `pns pulse [<exit-code>]` or the long-command notifier,
+Given `pns lights pulse [<exit-code>]` or the long-command notifier,
 
 When `src/pulse.rs:exit_behaviour` reads the word,
 
 Then empty is `Done`, all ASCII zeroes is `Done`, any other run of ASCII digits is `Failed`, and anything else is `None`.
 
-- Success: `pns pulse` exits 0 having signalled the configured rooms.
+- Success: `pns lights pulse` exits 0 having signalled the configured rooms.
 - Failure sources: a non-digit code (`"oops"`, `"-0"`, `" 0"`, `"0\n"`, the Arabic-Indic digit `"١"`)
   answers `None`, and `src/main.rs:pulse_mode` prints `PULSE_USAGE` to stderr and exits 2.
 - Fail direction: an unreachable bridge does not fail the caller. `src/channels/hue.rs:UreqBridge::put`
@@ -142,9 +142,9 @@ Then empty is `Done`, all ASCII zeroes is `Done`, any other run of ASCII digits 
 - Thresholds: `src/pulse.rs:DEFAULT_LONG_SESSION_SECS` = 300. `src/pulse.rs:session_was_long` is closed
   at the threshold: 299 is not long, 300 is long, 400 is long. An unreadable elapsed time or threshold is
   NOT long (fails closed, because a missed pulse costs nothing).
-- Required side effects: `pns pulse` reads the config only after the argument word, so `--help` and a bad
+- Required side effects: `pns lights pulse` reads the config only after the argument word, so `--help` and a bad
   code both answer with no machine read at all.
-- Forbidden side effects: `pns pulse` never consults `hue.quiet_hours`. The gate lives at the event
+- Forbidden side effects: `pns lights pulse` never consults `hue.quiet_hours`. The gate lives at the event
   path's call site so the window stays checkable by hand while it is on
   (`tests/dispatch.rs:the_hand_run_pulse_reaches_the_bridge_inside_the_quiet_window`).
 - Timeout and cancellation: each bridge call is bounded by `src/channels/hue.rs:BRIDGE_DEADLINE` = 10

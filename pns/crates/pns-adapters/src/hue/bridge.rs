@@ -88,7 +88,7 @@ impl<B: Bridge> HuePulse<B> {
 /// not cost another its signal, and a failed pulse still never fails the caller.
 ///
 /// AND IT STATES NO BRIGHTNESS, ever. This is the path of a machine with no
-/// `[lights]` table and of `pns pulse` on a machine with one: no routing is in
+/// `[lights]` table and of `pns lights pulse` on a machine with one: no routing is in
 /// reach to dim, so nothing here can have left a floor on a lamp. The duration
 /// stays fixed; the color follows wherever `SUCCESS_COLOR`/`FAILURE_COLOR` are
 /// locked to, so it is not byte-identical across a color relock.

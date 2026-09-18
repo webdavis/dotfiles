@@ -96,7 +96,7 @@ The lenient argv parser, missing-value warnings, recognized flags not consumed a
 behavior, typo refusal, notification paths not failing the work they report, hook stdout and stderr
 contracts, ordinary hooks exiting zero, blocking approval and gate exit-code translation, the bare
 gate spelling, `pns daemon run`, `pns loop begin|end`, the producer flags, and
-`pns pulse <exit-code>` (the operator's manual lamp check).
+`pns lights pulse <exit-code>` (the operator's manual lamp check).
 
 The legacy flags `--local-only` and `--remote-only` are independent booleans today and **passing both
 is a tested contract**: nothing is delivered and the refusal says so. That combination is refused at
@@ -113,7 +113,7 @@ already owns (nothing under 30 seconds, the presence gate from 30, the lights fr
 `dot_bashrc.tmpl:498-580` (the `__cmd_notify_*` functions) decides those tiers today, keeps the
 interactive-TUI skip list, and writes the lights marker under `~/.local/state/pns/lights-shell/<pid>`
 that `pns lights tick` reads back. Move the marker, the skip list and the tiers into pns behind a
-`pns shell begin` / `pns shell end --exit <code> --elapsed <secs>` pair, leaving the bashrc as two
+`pns shell begin` / `pns shell end --exit-code <code> --elapsed <secs>` pair, leaving the bashrc as two
 calls. `test/unit/pns-shell-lights-marker.bats` (11 tests) pins that bash today and is deleted in the
 same change in favour of Rust unit tests over the moved logic: pns tests should be in Rust now.
 

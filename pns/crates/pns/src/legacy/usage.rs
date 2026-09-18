@@ -10,15 +10,15 @@ pns: usage:
                                    model-switch, quota, config-change
   pns <harness>-hook               presence-gated pass-through to moshi-hook,
                                    spelled the way moshi's extension calls it
-  pns pulse <exit-code>            signal the lamps by hand
   pns quiet [<duration>|off]       the operator's mute
   pns daemon run|schedule|cancel   the clock
   pns lights tick|quiet            the lamps' upkeep
+  pns lights pulse <exit-code>     signal the lamps by hand
   pns presence poll                one bridge read, published for the sensor
   pns github poll                  one notifications read, submitted as events
   pns github receive               the push receiver: a delivery polls now
   pns shell begin --pid <pid> --command <line>
-  pns shell end --pid <pid> --command <line> --exit <code> --elapsed <secs>
+  pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <secs>
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
   pns stale                        page about every session stuck past the window
