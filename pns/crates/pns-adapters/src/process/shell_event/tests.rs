@@ -15,7 +15,16 @@ const PATIENT: Duration = Duration::from_secs(10);
 
 #[test]
 fn shell_delivery_detaches_before_the_destination_finishes() {
-    let root = std::env::temp_dir().join(format!("shell-launch-{}", std::process::id()));
+    // The epoch nanosecond keeps a RECYCLED process id off an earlier run's
+    // leftovers: nothing removes this root, and its `ready`, `argv` and
+    // `done` files are what every assertion below reads.
+    let root = std::env::temp_dir().join(format!(
+        "shell-launch-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos())
+    ));
     std::fs::create_dir(&root).unwrap();
     let binary = root.join("producer");
     std::fs::write(

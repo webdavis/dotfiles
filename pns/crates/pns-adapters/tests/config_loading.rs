@@ -65,7 +65,16 @@ fn a_fifo_at_the_config_path_is_refused_without_waiting_for_a_writer() {
 
 #[test]
 fn a_regular_config_and_its_symlink_still_load_the_selected_plugin() {
-    let dir = std::env::temp_dir().join(format!("pns-config-link-{}", std::process::id()));
+    // The epoch nanosecond keeps a RECYCLED process id off an earlier run's
+    // leftovers: nothing removes this root, and `create_dir` below refuses
+    // a name that is already taken.
+    let dir = std::env::temp_dir().join(format!(
+        "pns-config-link-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos())
+    ));
     std::fs::create_dir(&dir).unwrap();
     let path = dir.join("config.toml");
     std::fs::write(&path, "[plugins.hue]\nenabled = true\n").unwrap();
