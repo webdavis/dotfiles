@@ -403,10 +403,10 @@ classification and the event workflow are composed by the existing root callback
 The JSON command encodes the decoded request before reading configuration, probing or delivering. If
 canonical encoding exceeds a protocol bound, it returns a correlated rejection and causes no event side
 effects. Otherwise, the ledger retains those canonical bytes beside the original producer and request
-identifier. Source event names, occurrence time, session and extensions remain metadata. The stated
-state is the event state; observation and progress use the marker-neutral observation path, on the flag
-path and the JSON path alike. Scope and context enter the same decision workflow as legacy events. Elapsed time selects the
-existing 300-second long-running tier without suppressing a short JSON request.
+identifier. Source event names, occurrence time, session and extensions remain metadata. The stated state
+is the event state; observation and progress use the marker-neutral observation path, on the flag path
+and the JSON path alike. Scope and context enter the same decision workflow as legacy events. Elapsed
+time selects the existing 300-second long-running tier without suppressing a short JSON request.
 
 JSON stdout contains exactly one result line. Human delivery lines and executable-channel stdout go to
 stderr for that invocation, including its replay tail. Legacy stdout and the flat executable stdin body
