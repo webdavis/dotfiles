@@ -9,22 +9,23 @@
 //! answered the address, so enrollment compares the certificate's common name
 //! against the bridge id the same host reports and against the one the operator
 //! read off the device, when they pass it.
+//!
+//! `--bridge-id` IS REQUIRED, not merely offered: the omitted-id path only
+//! agrees the bridge with itself, which is exactly what an impostor answering
+//! the address would also do. Skipping the out-of-band check is a choice the
+//! operator states, `--allow-unverified`, not the silent default.
 
 use crate::*;
 
-pub(crate) const ENROLL_USAGE: &str = "pns: usage: pns lights enroll [--bridge-id <id>]; prints the certificate \
-line to save and writes nothing";
+pub(crate) const ENROLL_USAGE: &str = "pns: usage: pns lights enroll --bridge-id <id> | \
+--allow-unverified; prints the certificate line to save and writes nothing";
 
 /// Read the bridge's certificate, and print the line to save.
 pub(crate) fn lights_enroll() -> i32 {
     let arguments: Vec<String> = crate::arguments_after_verb();
-    let stated_id = match arguments.as_slice() {
-        [] => None,
-        [flag, id] if flag == "--bridge-id" => Some(id.clone()),
-        _ => {
-            eprintln!("{ENROLL_USAGE}");
-            return 2;
-        }
+    let Some(stated_id) = stated_id(&arguments) else {
+        eprintln!("{ENROLL_USAGE}");
+        return 2;
     };
     let home = std::env::var("HOME").unwrap_or_default();
     let Some(address) = bridge_address(&home) else {
@@ -131,6 +132,16 @@ afterwards would look correct. Read the bridge id off the device and rerun with 
 --bridge-id <id> to close that."
             .to_string(),
     ))
+}
+
+/// The out-of-band bridge id, or the explicit opt-out, or None when the
+/// arguments give neither and the command must refuse to guess.
+fn stated_id(arguments: &[String]) -> Option<Option<String>> {
+    match arguments {
+        [flag, id] if flag == "--bridge-id" => Some(Some(id.clone())),
+        [flag] if flag == "--allow-unverified" => Some(None),
+        _ => None,
+    }
 }
 
 /// The configured bridge address, or None when no table names one.

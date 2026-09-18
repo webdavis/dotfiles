@@ -18,7 +18,7 @@ pub(crate) fn lights_mode(verb: &str) -> i32 {
 
 const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
 pns lights quiet [<place> [<duration>|off]] | \
-pns lights enroll [--bridge-id <id>]";
+pns lights enroll --bridge-id <id> | --allow-unverified";
 /// The lamps' own mute: one place, quiet for a bounded while, by hand.
 ///
 /// LIGHTS ONLY, and that is the operator's own scope: cards, banners, the

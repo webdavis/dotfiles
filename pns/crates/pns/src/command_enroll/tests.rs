@@ -50,6 +50,17 @@ fn a_stated_id_the_certificate_does_not_carry_is_refused_even_when_the_host_agre
 }
 
 #[test]
+fn bridge_id_or_an_explicit_opt_out_is_required_and_anything_else_refuses() {
+    assert_eq!(stated_id(&[]), None);
+    assert_eq!(stated_id(&["--bogus".to_string()]), None);
+    assert_eq!(
+        stated_id(&["--bridge-id".to_string(), "ABC123".to_string()]),
+        Some(Some("ABC123".to_string()))
+    );
+    assert_eq!(stated_id(&["--allow-unverified".to_string()]), Some(None));
+}
+
+#[test]
 fn the_readings_name_every_field_the_operator_compares() {
     let lines = readings(&enrollment("ABC123", Some("ABC123"))).join("\n");
     assert!(lines.contains("ABC123"), "{lines}");
