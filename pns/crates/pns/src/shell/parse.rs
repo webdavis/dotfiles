@@ -25,7 +25,9 @@ pub(super) fn parse(argv: &[String]) -> Result<Action<'_>, &'static str> {
         let slot = match pair[0].as_str() {
             "--pid" => &mut pid,
             "--command" => &mut command,
-            "--exit" if verb == "end" => &mut exit,
+            // Matched as a pair so the retired flag's value is consumed with it.
+            "--exit" => return Err("--exit was replaced by --exit-code"),
+            "--exit-code" if verb == "end" => &mut exit,
             "--elapsed" if verb == "end" => &mut elapsed,
             _ => return Err("has an unknown argument"),
         };
@@ -46,7 +48,7 @@ pub(super) fn parse(argv: &[String]) -> Result<Action<'_>, &'static str> {
     }
     let exit_code = decimal(exit)
         .and_then(|n| u8::try_from(n).ok())
-        .ok_or("--exit requires a status from 0 to 255")?;
+        .ok_or("--exit-code requires a status from 0 to 255")?;
     let elapsed = decimal(elapsed).ok_or("--elapsed requires nonnegative whole seconds")?;
     Ok(Action::End {
         pid,

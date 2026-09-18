@@ -492,7 +492,7 @@ if [[ $- == *i* ]]; then
 
   # No notification on exit, only this shell's cleanup. The tick still sweeps
   # dead owners after SIGKILL, which an EXIT trap cannot observe.
-  trap '"$HOME/{{ .rust_tools.install_dir }}/pns" shell end --pid "$$" --command "" --exit 0 --elapsed 0 >/dev/null 2>&1' EXIT
+  trap '"$HOME/{{ .rust_tools.install_dir }}/pns" shell end --pid "$$" --command "" --exit-code 0 --elapsed 0 >/dev/null 2>&1' EXIT
 
   __cmd_notify_precmd() {
     local exit_code=$?
@@ -503,7 +503,7 @@ if [[ $- == *i* ]]; then
     # its name, exactly as before, and pns sends only the command word.
     [[ -z $__cmd_notify_name ]] && __cmd_notify_name="$(fc -ln -0 2>/dev/null | sed 's/^[[:space:]]*//')"
     "$HOME/{{ .rust_tools.install_dir }}/pns" shell end --pid "$$" --command "$__cmd_notify_name" \
-      --exit "$exit_code" --elapsed "$elapsed" >/dev/null 2>&1
+      --exit-code "$exit_code" --elapsed "$elapsed" >/dev/null 2>&1
     return 0
   }
 

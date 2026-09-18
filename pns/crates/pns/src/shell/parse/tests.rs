@@ -11,7 +11,7 @@ fn shell_arguments_refuse_missing_unknown_repeated_and_malformed_values() {
         vec!["wat"],
         vec!["begin"],
         vec!["begin", "--pid", "2", "--command"],
-        vec!["begin", "--pid", "2", "--command", "x", "--exit", "0"],
+        vec!["begin", "--pid", "2", "--command", "x", "--exit-code", "0"],
         vec!["begin", "--pid", "2", "--command", "x", "--pid", "3"],
         vec!["begin", "--pid", "0", "--command", "x"],
         vec!["begin", "--pid", "1", "--command", "x"],
@@ -27,7 +27,7 @@ fn shell_arguments_refuse_missing_unknown_repeated_and_malformed_values() {
             "2",
             "--command",
             "x",
-            "--exit",
+            "--exit-code",
             "0",
             "--elapsed",
             value,
@@ -42,7 +42,7 @@ fn shell_arguments_refuse_missing_unknown_repeated_and_malformed_values() {
                 "2",
                 "--command",
                 "x",
-                "--exit",
+                "--exit-code",
                 value,
                 "--elapsed",
                 "30"
@@ -68,7 +68,7 @@ fn the_command_is_a_literal_value_even_when_it_starts_with_a_flag() {
         "",
         "--elapsed",
         "18446744073709551615",
-        "--exit",
+        "--exit-code",
         "255",
     ]);
     let Action::End {
@@ -83,4 +83,28 @@ fn the_command_is_a_literal_value_even_when_it_starts_with_a_flag() {
     assert_eq!(command, "");
     assert_eq!(elapsed, u64::MAX);
     assert_eq!(exit_code, 255);
+}
+
+#[test]
+fn the_retired_exit_flag_is_refused_and_names_its_replacement() {
+    for args in [
+        vec![
+            "end",
+            "--pid",
+            "2",
+            "--command",
+            "x",
+            "--exit",
+            "0",
+            "--elapsed",
+            "30",
+        ],
+        vec!["begin", "--pid", "2", "--command", "x", "--exit", "0"],
+    ] {
+        assert_eq!(
+            parse(&words(&args)).err(),
+            Some("--exit was replaced by --exit-code"),
+            "{args:?}"
+        );
+    }
 }
