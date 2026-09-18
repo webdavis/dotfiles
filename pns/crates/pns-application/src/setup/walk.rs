@@ -1,6 +1,6 @@
 use crate::Terminal;
 use pns_domain::{
-    Answers, setup_affirmed as means_yes, setup_list as list,
+    Answers, CertificatePin, setup_affirmed as means_yes, setup_list as list,
     setup_router_backend as router_backend,
 };
 
@@ -72,7 +72,7 @@ pub(super) fn walk(terminal: &impl Terminal) -> Result<Answers, String> {
                 armed_secret(terminal, "the light pulse", "an API key the bridge issued")?;
         }
         if !answers.hue_key.is_empty() {
-            answers.hue_certificate = armed(
+            answers.hue_certificate = armed_pin(
                 terminal,
                 "the light pulse",
                 "the certificate the bridge presents, as `pns lights enroll` prints it \
@@ -159,6 +159,24 @@ fn armed_secret(terminal: &impl Terminal, feature: &str, wanted: &str) -> Result
         feature,
         terminal.ask_hidden(wanted)?,
     ))
+}
+
+/// The same shape as `armed`, for the one field the config layer would refuse
+/// on its own: a value `CertificatePin::parse` rejects is re-asked, quoting
+/// the refusal, rather than written into a config that fails to load. A
+/// mistyped pin is otherwise indistinguishable from a correct one until the
+/// operator runs `pns doctor`.
+fn armed_pin(terminal: &impl Terminal, feature: &str, wanted: &str) -> Result<String, String> {
+    loop {
+        let answer = armed(terminal, feature, wanted)?;
+        if answer.is_empty() {
+            return Ok(answer);
+        }
+        match CertificatePin::parse(&answer) {
+            Ok(_) => return Ok(answer),
+            Err(refusal) => terminal.say(&format!("  {refusal}; try again")),
+        }
+    }
 }
 
 /// What `armed` and `armed_secret` share: the line a blank answer costs.
