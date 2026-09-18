@@ -49,6 +49,14 @@ command = [
   '.[] | "#\(.number) \(.title) [\(.statusCheckRollup | map(.conclusion) | if length == 0 then "no checks" elif any(. != null and . != "SUCCESS" and . != "SKIPPED" and . != "NEUTRAL") then "failing" elif any(. == null) then "running" else "green" end)]"',
 ]
 
-# Today's tasks, through the Todoist CLI, which carries its own credentials too.
+# Today's tasks, through the Todoist CLI, which carries its own credentials
+# too. One line per task (priority plus its first line), so the row cap above
+# spends itself on tasks rather than on td's multi-line human format.
 [tasks]
-command = ["td", "--no-spinner", "today"]
+command = [
+  "bash",
+  "-c",
+  'td --no-spinner today --ndjson | jq -r "$1"',
+  "_",
+  '"p\(5 - .priority) " + (.content | split("\n")[0])',
+]
