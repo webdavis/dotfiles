@@ -154,7 +154,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 // a later answer clears, and an answer landing between the
                 // card and the arming would leave a record nothing clears.
                 arm_nag(&payload.session_id, &event);
-                run_event(&event, &system_probes(), &payload, Attempt::First);
+                let _ = run_event(&event, &system_probes(), &payload, Attempt::First);
             }
         }
         // `PostModelSwitch`, restricted to the one `source` that is news:
