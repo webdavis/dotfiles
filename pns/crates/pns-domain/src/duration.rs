@@ -40,8 +40,9 @@ pub fn parse_duration(
 }
 
 /// A duration written back in the largest unit that holds it whole, which is
-/// how a range reads in a refusal the operator has to act on.
-fn spelled(duration: Duration) -> String {
+/// how a range reads in a refusal the operator has to act on, and how a
+/// duration goes back out on the wire.
+pub fn spelled(duration: Duration) -> String {
     let millis = duration.as_millis();
     for (unit, step) in UNITS.iter().rev() {
         let step = u128::from(*step);

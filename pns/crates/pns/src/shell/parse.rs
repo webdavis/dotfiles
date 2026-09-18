@@ -49,7 +49,15 @@ pub(super) fn parse(argv: &[String]) -> Result<Action<'_>, &'static str> {
     let exit_code = decimal(exit)
         .and_then(|n| u8::try_from(n).ok())
         .ok_or("--exit-code requires a status from 0 to 255")?;
-    let elapsed = decimal(elapsed).ok_or("--elapsed requires nonnegative whole seconds")?;
+    // THE SAME DURATION THE PRODUCER FLAG TAKES, through the same parser: the
+    // notifier and a producer are saying one thing in one spelling.
+    let elapsed = pns_domain::duration::parse_duration(
+        "--elapsed",
+        elapsed.unwrap_or_default(),
+        pns_domain::elapsed::RANGE,
+    )
+    .map(|elapsed| elapsed.as_secs())
+    .map_err(|_| "--elapsed requires a duration, a count and a unit such as 30s")?;
     Ok(Action::End {
         pid,
         command,

@@ -191,6 +191,14 @@ pub(super) fn execute(
     let identity = producer
         .map(|producer| producer.identity.clone())
         .or_else(|| {
+            // THE CALLER'S OWN ID WINS OVER A FRESH ONE, which is what makes a
+            // retried call the same submission instead of a second page.
+            (!event.request_id.is_empty()).then(|| pns_application::SubmissionIdentity {
+                producer: "pns".into(),
+                request_id: event.request_id.clone(),
+            })
+        })
+        .or_else(|| {
             delivery_runtime::fresh_identity()
                 .map_err(|_| {
                     delivery_runtime::delivery_notice("identity unavailable");

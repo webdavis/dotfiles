@@ -1,7 +1,8 @@
-use super::{Context, DeliveryScope, Interaction, Kind, Request, Session, State, decode};
+use super::{DeliveryScope, Interaction, Kind, Request, State, decode};
 use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
+use std::time::Duration;
 
 mod classes;
 
@@ -22,18 +23,13 @@ fn golden_request() -> Request {
         name("BufWritePost"),
         State::Done,
     );
-    request.session = Some(Session {
-        id: name("s-2026-09-06-a"),
-        turn: Some(3),
-    });
+    request.session = Some(name("s-2026-09-06-a"));
     request.occurred_at = Some(1_788_782_400);
-    request.elapsed_secs = Some(42);
+    request.elapsed = Some(Duration::from_secs(42));
     request.detail = "wrote 3 files".to_string();
-    request.context = Context {
-        project: Some("dotfiles".to_string()),
-        branch: Some("main".to_string()),
-        pane: Some("wW:p21".to_string()),
-    };
+    request.project = Some("dotfiles".to_string());
+    request.branch = Some("main".to_string());
+    request.pane = Some("wW:p21".to_string());
     request.route = Some(name("alert"));
     let Value::Object(extensions) = json!({ "nvim": { "buffer": 12 } }) else {
         unreachable!("the literal above is an object");
@@ -144,12 +140,14 @@ fn absent_optional_fields_take_their_documented_defaults() {
     assert_eq!(request.scope, DeliveryScope::Automatic);
     assert_eq!(request.interaction, Interaction::None);
     assert_eq!(request.detail, "");
-    assert_eq!(request.context, Context::default());
+    assert_eq!(request.project, None);
+    assert_eq!(request.branch, None);
+    assert_eq!(request.pane, None);
     assert!(request.extensions.is_empty());
     assert_eq!(request.session, None);
     assert_eq!(request.route, None);
     assert_eq!(request.occurred_at, None);
-    assert_eq!(request.elapsed_secs, None);
+    assert_eq!(request.elapsed, None);
 }
 
 #[test]
@@ -261,12 +259,36 @@ fn a_negative_or_fractional_time_is_invalid() {
         decode_value(&value).unwrap_err().reason,
         Rejection::Invalid(_)
     ));
+}
+
+#[test]
+fn elapsed_is_a_duration_with_a_unit_and_a_bare_number_is_refused() {
+    for (text, duration) in [
+        ("0s", Duration::ZERO),
+        ("90s", Duration::from_secs(90)),
+        ("5m", Duration::from_secs(300)),
+        ("2h", Duration::from_secs(7_200)),
+    ] {
+        let mut value = minimal();
+        value["elapsed"] = json!(text);
+        let request = decode_value(&value).unwrap().request;
+        assert_eq!(request.elapsed, Some(duration), "{text}");
+    }
+    // A BARE NUMBER IS THE REFUSAL THIS FIELD EXISTS FOR: one reader takes
+    // `90` as seconds and the next as minutes.
+    for word in [json!("90"), json!(90), json!(1.5), json!("90 s"), json!("")] {
+        let mut value = minimal();
+        value["elapsed"] = word.clone();
+        let refused = decode_value(&value).expect_err("a bare number cannot be a duration");
+        assert_eq!(refused.reason.code(), "field_invalid", "{word}");
+    }
+    // Past the range rather than clamped into it.
     let mut value = minimal();
-    value["elapsed_secs"] = json!(1.5);
-    assert!(matches!(
-        decode_value(&value).unwrap_err().reason,
-        Rejection::Invalid(_)
-    ));
+    value["elapsed"] = json!("721h");
+    assert_eq!(
+        decode_value(&value).unwrap_err().reason.code(),
+        "field_invalid"
+    );
 }
 
 #[test]
@@ -306,7 +328,7 @@ fn a_request_naming_no_kind_keeps_the_original_version_one_bytes() {
     let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
     assert_eq!(
         original,
-        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","state":"failed","occurred_at":null,"elapsed_secs":null,"detail":"","context":{"project":null,"branch":null,"pane":null},"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#,
+        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","state":"failed","occurred_at":null,"elapsed":null,"detail":"","project":null,"branch":null,"pane":null,"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#,
         "an absent kind moved the canonical bytes"
     );
     assert_eq!(decode_value(&minimal()).unwrap().request.kind, None);

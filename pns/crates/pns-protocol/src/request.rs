@@ -4,8 +4,10 @@
 //! The source's own event name (`event`) is carried as metadata; the
 //! normalized [`State`] is what pns policy reads. Delivery scope is one
 //! typed word, so the legacy pair of independent flags cannot be spelled
-//! here (decision 0007). A producer states `elapsed_secs` and pns decides the
+//! here (decision 0007). A producer states `elapsed` and pns decides the
 //! tier from it; there is no field for a caller-decided tier.
+
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -21,7 +23,7 @@ const SCHEMA_MAJOR: u32 = 1;
 /// Every top-level field version 1 defines, `schema` included. A key not in
 /// this list is ignored and named, never refused: additive fields from a
 /// newer producer must not break an older pns.
-const KNOWN_FIELDS: [&str; 16] = [
+const KNOWN_FIELDS: [&str; 18] = [
     "schema",
     "request_id",
     "producer",
@@ -29,9 +31,11 @@ const KNOWN_FIELDS: [&str; 16] = [
     "event",
     "state",
     "occurred_at",
-    "elapsed_secs",
+    "elapsed",
     "detail",
-    "context",
+    "project",
+    "branch",
+    "pane",
     "scope",
     "route",
     "kind",
@@ -149,47 +153,36 @@ pub enum Interaction {
     AwaitDecision,
 }
 
-/// The producer's session, and the turn within it when the producer counts
-/// turns.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Session {
-    pub id: Name,
-    #[serde(default)]
-    pub turn: Option<u64>,
-}
-
-/// Where the work was happening. Every part is optional because not every
-/// producer has a project, a branch or a pane.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct Context {
-    #[serde(default)]
-    pub project: Option<String>,
-    #[serde(default)]
-    pub branch: Option<String>,
-    #[serde(default)]
-    pub pane: Option<String>,
-}
-
 /// One version 1 request. Construct with [`Request::new`] and set what the
 /// producer knows beyond the four required parts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Request {
     pub request_id: RequestId,
     pub producer: Name,
+    /// The producer's session, for correlation. A plain id: it is one name at
+    /// the top level, the same way the flag spells it, and the turn count
+    /// inside the old wrapper was stored and never read.
     #[serde(default)]
-    pub session: Option<Session>,
+    pub session: Option<Name>,
     pub event: Name,
     pub state: State,
     /// Epoch seconds, when the producer knows when it happened.
     #[serde(default)]
     pub occurred_at: Option<u64>,
-    /// How long the work ran. pns decides the tier from it.
-    #[serde(default)]
-    pub elapsed_secs: Option<u64>,
+    /// How long the work ran, written as `<count><s|m|h>`. pns decides the
+    /// tier from it.
+    #[serde(default, with = "elapsed")]
+    pub elapsed: Option<Duration>,
     #[serde(default)]
     pub detail: String,
+    /// Where the work was happening, at the top level and one field per part,
+    /// because not every producer has a project, a branch or a pane.
     #[serde(default)]
-    pub context: Context,
+    pub project: Option<String>,
+    #[serde(default)]
+    pub branch: Option<String>,
+    #[serde(default)]
+    pub pane: Option<String>,
     #[serde(default)]
     pub scope: DeliveryScope,
     #[serde(default)]
@@ -230,9 +223,11 @@ impl Request {
             event,
             state,
             occurred_at: None,
-            elapsed_secs: None,
+            elapsed: None,
             detail: String::new(),
-            context: Context::default(),
+            project: None,
+            branch: None,
+            pane: None,
             scope: DeliveryScope::default(),
             route: None,
             kind: None,
@@ -284,6 +279,34 @@ fn ignored_fields(value: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// `elapsed` on the wire: one duration spelling, the parser every other pns
+/// duration goes through, and the field naming itself in the refusal.
+mod elapsed {
+    use super::Duration;
+    use serde::{Deserialize, Deserializer, Serializer, de};
+
+    pub(super) fn serialize<S: Serializer>(
+        value: &Option<Duration>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match value {
+            Some(duration) => serializer.serialize_str(&pns_domain::duration::spelled(*duration)),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Duration>, D::Error> {
+        Option::<String>::deserialize(deserializer)?
+            .map(|text| {
+                pns_domain::duration::parse_duration("elapsed", &text, pns_domain::elapsed::RANGE)
+                    .map_err(de::Error::custom)
+            })
+            .transpose()
+    }
 }
 
 #[cfg(test)]

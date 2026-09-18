@@ -325,6 +325,7 @@ dependencies = [
 name = "pns-protocol"
 version = "0.1.0"
 dependencies = [
+ "pns-domain",
  "serde",
  "serde_json",
 ]

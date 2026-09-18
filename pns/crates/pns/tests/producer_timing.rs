@@ -91,7 +91,7 @@ fn elapsed_below_thirty_is_silent_before_state_or_delivery() {
                     "--state",
                     "done",
                     "--elapsed",
-                    &seconds.to_string(),
+                    &format!("{seconds}s"),
                 ])
                 .args(scope));
             assert_eq!(output.status.code(), Some(0));
@@ -115,7 +115,7 @@ fn assert_elapsed_tiers(seconds: &[u64]) {
             "--detail",
             "neotest: owned",
             "--elapsed",
-            &seconds.to_string(),
+            &format!("{seconds}s"),
         ]));
         assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
         assert_eq!(
@@ -154,13 +154,20 @@ fn elapsed_from_three_hundred_selects_the_long_running_tier() {
 }
 
 #[test]
-fn elapsed_rejects_malformed_missing_and_overflowing_seconds() {
+fn elapsed_rejects_a_bare_number_and_every_other_non_duration() {
+    // A BARE NUMBER IS THE ONE THAT MATTERS: `90` reads as seconds to one
+    // caller and minutes to the next, so it is refused rather than guessed.
     for value in [
         "",
+        "30",
+        "0",
         "-1",
         "+30",
         "1.5",
         "NaN",
+        "30 s",
+        "30x",
+        "721h",
         "18446744073709551616",
         "--local-only",
     ] {
@@ -178,7 +185,9 @@ fn elapsed_rejects_malformed_missing_and_overflowing_seconds() {
             stderr(&output)
         );
         assert!(
-            stderr(&output).contains("--elapsed requires a nonnegative whole number of seconds")
+            stderr(&output).contains("pns: --elapsed"),
+            "{value:?}: {}",
+            stderr(&output)
         );
         assert!(!sandbox.fired("hermes"));
         assert!(!sandbox.state().exists());
@@ -188,8 +197,8 @@ fn elapsed_rejects_malformed_missing_and_overflowing_seconds() {
 #[test]
 fn elapsed_rejects_an_explicit_tier_in_either_order() {
     for args in [
-        ["send", "--elapsed", "35", "--long-running"],
-        ["send", "--long-running", "--elapsed", "35"],
+        ["send", "--elapsed", "35s", "--long-running"],
+        ["send", "--long-running", "--elapsed", "35s"],
     ] {
         let sandbox = Sandbox::new(&format!("elapsed-conflict-{}", args[1]));
         let output = run(command(&sandbox).args(args));
@@ -208,7 +217,7 @@ fn help_still_wins_over_elapsed_refusal_without_delivery() {
     let sandbox = Sandbox::new("elapsed-help");
     let output = run(command(&sandbox).args(["send", "--elapsed", "bad", "--help"]));
     assert_eq!(output.status.code(), Some(0));
-    assert!(stdout(&output).contains("--elapsed <secs>"));
+    assert!(stdout(&output).contains("--elapsed <duration>"));
     assert!(output.stderr.is_empty());
     assert!(!sandbox.state().exists());
 }
@@ -243,7 +252,7 @@ fn elapsed_still_obeys_the_presence_gate() {
         "--state",
         "done",
         "--elapsed",
-        "35",
+        "35s",
         "--pane",
         "t1:p2",
     ]));
@@ -259,7 +268,7 @@ fn elapsed_still_obeys_the_presence_gate() {
 #[test]
 fn elapsed_flag_is_protected_and_empty_detail_is_rendered() {
     let sandbox = Sandbox::new("elapsed-protected");
-    let output = run(command(&sandbox).args(["send", "--detail", "--elapsed", "35"]));
+    let output = run(command(&sandbox).args(["send", "--detail", "--elapsed", "35s"]));
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         stderr(&output),
@@ -271,8 +280,123 @@ fn elapsed_flag_is_protected_and_empty_detail_is_rendered() {
 #[test]
 fn invalid_elapsed_is_not_erased_by_a_later_valid_value() {
     let sandbox = Sandbox::new("elapsed-invalid-then-valid");
-    let output = run(command(&sandbox).args(["send", "--elapsed", "bad", "--elapsed", "35"]));
+    let output = run(command(&sandbox).args(["send", "--elapsed", "bad", "--elapsed", "35s"]));
     assert_eq!(output.status.code(), Some(2));
     assert!(!sandbox.state().exists());
     assert!(!sandbox.fired("hermes"));
+}
+
+fn decision_line(sandbox: &Sandbox) -> String {
+    rusqlite::Connection::open_with_flags(
+        sandbox.path("state/pns.db"),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap()
+    .query_row(
+        "SELECT line FROM decisions ORDER BY seq DESC LIMIT 1",
+        [],
+        |row| row.get(0),
+    )
+    .unwrap()
+}
+
+fn send_json(sandbox: &Sandbox, request: &str) -> Output {
+    use std::io::Write;
+    let mut child = command(sandbox)
+        .args(["send", "--json"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(request.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+/// ONE DURATION, ONE TIER, WHICHEVER PATH SPELLED IT. `--elapsed 90s` and
+/// `"elapsed": "90s"` are the same statement, so the tier they earn cannot
+/// depend on which of the two a producer typed.
+#[test]
+fn one_duration_spelling_earns_one_tier_on_the_flag_path_and_the_json_path() {
+    for (elapsed, expected) in [("90s", "long_running=no"), ("300s", "long_running=yes")] {
+        let flags = Sandbox::new(&format!("duration-flags-{elapsed}"));
+        let output = run(command(&flags).args([
+            "send",
+            "--producer",
+            "nvim",
+            "--state",
+            "done",
+            "--detail",
+            "neotest: owned",
+            "--elapsed",
+            elapsed,
+        ]));
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        assert!(flags.fired("hermes"));
+        assert!(decision_line(&flags).contains(expected), "{elapsed}");
+
+        let json = Sandbox::new(&format!("duration-json-{elapsed}"));
+        let request = format!(
+            r#"{{"schema":"pns.request/1","request_id":"nvim-{elapsed}","producer":"nvim","event":"finished","state":"done","detail":"neotest: owned","elapsed":"{elapsed}"}}"#
+        );
+        let output = send_json(&json, &request);
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        assert!(json.fired("hermes"));
+        assert!(decision_line(&json).contains(expected), "{elapsed}");
+    }
+}
+
+/// A BARE NUMBER IS REFUSED ON BOTH PATHS, with nothing delivered.
+#[test]
+fn a_bare_elapsed_number_is_refused_on_the_flag_path_and_the_json_path() {
+    let flags = Sandbox::new("duration-bare-flags");
+    let output = run(command(&flags).args(["send", "--producer", "nvim", "--elapsed", "90"]));
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(!flags.fired("hermes"));
+
+    let json = Sandbox::new("duration-bare-json");
+    let output = send_json(
+        &json,
+        r#"{"schema":"pns.request/1","request_id":"nvim-bare","producer":"nvim","event":"finished","state":"done","elapsed":"90"}"#,
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(!json.fired("hermes"));
+}
+
+/// The id a caller names is the one the submission is recorded under, which is
+/// what makes a retried call the same page rather than a second one.
+#[test]
+fn the_request_id_a_caller_named_is_the_one_the_submission_is_recorded_under() {
+    let sandbox = Sandbox::new("request-id-flag");
+    let output = run(command(&sandbox).args([
+        "send",
+        "--producer",
+        "nvim",
+        "--state",
+        "done",
+        "--detail",
+        "owned",
+        "--request-id",
+        "nvim-slice-eleven",
+        "--session",
+        "s-2026-09-17-a",
+    ]));
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let recorded: String = rusqlite::Connection::open_with_flags(
+        sandbox.path("state/pns.db"),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap()
+    .query_row(
+        "SELECT request_id FROM ledger_events ORDER BY seq DESC LIMIT 1",
+        [],
+        |row| row.get(0),
+    )
+    .unwrap();
+    assert_eq!(recorded, "nvim-slice-eleven");
 }

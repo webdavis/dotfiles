@@ -18,7 +18,7 @@ fn the_marker_is_present_while_a_tracked_command_runs_and_gone_once_it_ends() {
         "--exit-code",
         "0",
         "--elapsed",
-        "3",
+        "3s",
     ]);
     assert!(output.status.success());
     assert!(!fixture.marker().exists());
@@ -35,7 +35,7 @@ fn shell_end_uses_the_existing_event_route_and_only_the_command_name() {
         "--exit-code",
         "7",
         "--elapsed",
-        "300",
+        "300s",
     ]);
     assert!(
         output.status.success(),
@@ -76,7 +76,7 @@ fn a_command_that_failed_still_clears_the_marker() {
             "--exit-code",
             "1",
             "--elapsed",
-            "3"
+            "3s"
         ])
         .status
         .success()
@@ -99,7 +99,7 @@ fn a_short_command_in_one_pane_leaves_another_panes_marker_alone() {
             "--exit-code",
             "0",
             "--elapsed",
-            "1"
+            "1s"
         ])
         .status
         .success()
@@ -175,7 +175,7 @@ fn invalid_or_unowned_shell_pids_never_touch_state_or_notify() {
             "--exit-code",
             "0",
             "--elapsed",
-            "300",
+            "300s",
         ]));
         assert!(!output.status.success(), "{pid}");
     }
@@ -194,7 +194,7 @@ fn invalid_or_unowned_shell_pids_never_touch_state_or_notify() {
         "--exit-code",
         "0",
         "--elapsed",
-        "300",
+        "300s",
     ]));
     assert!(!output.status.success());
     assert_eq!(std::fs::read(path).unwrap(), before);
@@ -217,7 +217,7 @@ fn end_clears_before_detached_delivery_and_cannot_erase_the_next_begin() {
             "--exit-code",
             "0",
             "--elapsed",
-            "30"
+            "30s"
         ])
         .status
         .success()
@@ -246,7 +246,7 @@ fn every_interactive_tui_is_skipped_by_both_real_commands() {
             "--exit-code",
             "0",
             "--elapsed",
-            "300",
+            "300s",
         ]);
         assert!(output.status.success());
     }
@@ -268,7 +268,7 @@ fn failed_marker_removal_does_not_suppress_the_command_report() {
         "--exit-code",
         "0",
         "--elapsed",
-        "30",
+        "30s",
     ]);
     std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
     assert!(output.status.success());

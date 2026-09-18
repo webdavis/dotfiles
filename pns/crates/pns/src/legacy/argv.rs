@@ -20,7 +20,7 @@ use pns_protocol::State;
 /// predicates in this module. It used to be `pub` so a test could assert the
 /// hand-typed usage text mentioned every flag, a declaration-parity check
 /// rather than one about this parser's behavior; that test is gone.
-const VALUE_FLAGS: [&str; 9] = [
+const VALUE_FLAGS: [&str; 11] = [
     "--producer",
     "--state",
     "--project",
@@ -29,6 +29,8 @@ const VALUE_FLAGS: [&str; 9] = [
     "--pane",
     "--route",
     "--elapsed",
+    "--request-id",
+    "--session",
     "--kind",
 ];
 
@@ -89,6 +91,14 @@ pub(super) struct ParsedArgs {
     /// them knows is a page nobody gets.
     state: Option<String>,
     elapsed: Result<Option<u64>, String>,
+    /// `--request-id` and `--session`: the two identifiers a JSON producer
+    /// already sends, now spelled as flags. Each is held to the identifier
+    /// rules the envelope holds its twin to, so one spelling cannot carry a
+    /// value the other refuses.
+    identifiers: Result<(), String>,
+    /// `--session`: the harness session this event belongs to, which lands in
+    /// the same payload field a JSON request's `session` does.
+    pub session: String,
     /// `--kind`: what the event IS, which decides its route when the producer
     /// named none. A word that is neither kind refuses the event rather than
     /// falling back to the default, the same way a bad `--elapsed` does.
@@ -110,6 +120,7 @@ impl ParsedArgs {
         if let Some(refusal) = self.state {
             return Err(Refusal::Value(refusal));
         }
+        self.identifiers.map_err(Refusal::Value)?;
         let elapsed = self.elapsed.map_err(Refusal::Value)?;
         let kind = self.kind.map_err(Refusal::Value)?;
         let event = match elapsed {
@@ -141,6 +152,8 @@ where
     let mut require_delivery = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
+    let mut identifiers = Ok(());
+    let mut session = String::new();
     let mut retired = None;
     let mut state = None;
     let mut kind = Ok(Kind::default());
@@ -165,18 +178,45 @@ where
                     });
                 }
             }
+            // A DURATION, NEVER A BARE NUMBER, through the parser every other
+            // pns duration goes through: `90` means seconds to one reader and
+            // minutes to the next, so it is refused rather than guessed.
             "--elapsed" => {
                 let value = tokens.next_if(|next| !is_producer_flag(next));
-                let seconds = value
-                    .as_deref()
-                    .filter(|value| {
-                        !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
-                    })
-                    .and_then(|value| value.parse::<u64>().ok());
                 if elapsed.is_ok() {
-                    elapsed = seconds.map(Some).ok_or_else(|| {
-                        "--elapsed requires a nonnegative whole number of seconds".to_owned()
-                    });
+                    elapsed = pns_domain::duration::parse_duration(
+                        "--elapsed",
+                        value.as_deref().unwrap_or_default(),
+                        pns_domain::elapsed::RANGE,
+                    )
+                    .map(|elapsed| Some(elapsed.as_secs()))
+                    // The shared parser words its own refusal with the pns
+                    // prefix; this path prints one of its own.
+                    .map_err(|refusal| refusal.trim_start_matches("pns: ").to_owned());
+                }
+            }
+            "--request-id" => {
+                let value = tokens
+                    .next_if(|next| !is_producer_flag(next))
+                    .unwrap_or_default();
+                match pns_protocol::RequestId::new(value.clone()) {
+                    Ok(_) => parsed.request_id = value,
+                    Err(error) => {
+                        identifiers = identifiers
+                            .and(Err(format!("--request-id is not a usable id: {error}")));
+                    }
+                }
+            }
+            "--session" => {
+                let value = tokens
+                    .next_if(|next| !is_producer_flag(next))
+                    .unwrap_or_default();
+                match pns_protocol::Name::new(value.clone()) {
+                    Ok(_) => session = value,
+                    Err(error) => {
+                        identifiers = identifiers
+                            .and(Err(format!("--session is not a usable name: {error}")));
+                    }
                 }
             }
             // ITS OWN ARM, like `--kind` and `--elapsed` above, rather than the
@@ -233,6 +273,8 @@ where
         retired,
         state,
         elapsed,
+        identifiers,
+        session,
         kind,
         scope: match (local_only, remote_only) {
             (false, false) => Some(DeliveryScope::Automatic),

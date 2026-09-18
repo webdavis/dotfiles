@@ -10,15 +10,19 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
             // A PRODUCER STATES ITS STATE, so this is never a guess: an
             // approval it asked for is a real wait even mid-loop.
             guessed: false,
-            project: request.context.project.clone().unwrap_or_default(),
-            branch: request.context.branch.clone().unwrap_or_default(),
-            pane: request.context.pane.clone().unwrap_or_default(),
+            project: request.project.clone().unwrap_or_default(),
+            branch: request.branch.clone().unwrap_or_default(),
+            pane: request.pane.clone().unwrap_or_default(),
             // THE ENVELOPE'S SESSION STAYS WHERE IT IS. A producer names one
             // for correlation, not for attribution: the header's second line
             // is about which of the operator's own agent sessions sent an
             // event, and `posture`, `uu` and `pns` each have exactly one.
             session: String::new(),
             session_title: String::new(),
+            // THE PRODUCER'S ID TRAVELS BESIDE THE EVENT on this path, in the
+            // submission identity the ledger is keyed on, so there is nothing
+            // to carry here.
+            request_id: String::new(),
             detail: request.detail.clone(),
             channel: request
                 .route
@@ -29,9 +33,9 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
                 DeliveryScope::LocalOnly => pns_domain::DeliveryScope::LocalOnly,
                 DeliveryScope::RemoteOnly => pns_domain::DeliveryScope::RemoteOnly,
             },
-            long_running: request
-                .elapsed_secs
-                .is_some_and(|seconds| seconds >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
+            long_running: request.elapsed.is_some_and(|elapsed| {
+                elapsed.as_secs() >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS
+            }),
             // WHAT THE EVENT IS, as its producer stated it, and a producer
             // that stated nothing gets the ordinary session default. The
             // route it lands on is decided from this and never named here:
