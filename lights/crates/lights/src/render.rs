@@ -16,22 +16,12 @@ pub(super) fn error(error: LightsError) -> (u8, String) {
     }
 }
 
-/// Which certificate the bridge is held to, and whether one was refused.
-///
-/// A REFUSED HANDSHAKE IS STILL WORTH SAYING HERE even though the call that hit
-/// it failed loudly: a later call in the same process reads the state rather
-/// than the failure.
+/// Which certificate the bridge is held to.
 pub(super) fn pin_state(controller: &HueSettings) -> String {
-    match lights_adapters::refused_mismatch() {
-        None => format!(
-            "certificate: pinned and matched {}\n",
-            controller.certificate
-        ),
-        Some(mismatch) => format!(
-            "certificate: MISMATCHED, expected {} and was shown {}\n",
-            mismatch.expected, mismatch.presented
-        ),
-    }
+    format!(
+        "certificate: pinned and matched {}\n",
+        controller.certificate
+    )
 }
 
 const NO_WINDOWS: &str = "no preset windows configured; add a [[preset_windows]] entry \
