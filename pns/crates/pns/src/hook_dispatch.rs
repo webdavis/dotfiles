@@ -270,3 +270,8 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
     }
     0
 }
+
+/// What `pns hook` takes, which is one harness event per run.
+pub(crate) const HOOK_USAGE: &str = "pns: usage: pns hook prompt | stop | \
+stop-failure | blocked | asked | denied | waiting | resolved | model-switch | \
+quota | config-change (the harness payload arrives on stdin)";

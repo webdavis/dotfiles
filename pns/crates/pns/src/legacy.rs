@@ -3,7 +3,7 @@ mod usage;
 
 pub use argv::is_help_flag;
 use argv::parse_args;
-pub use usage::USAGE;
+pub use usage::{SEND_USAGE, USAGE};
 
 /// One notification from argv, or a usage print when `--help`/`-h` reached
 /// the parse in FLAG position.
@@ -15,7 +15,7 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs) -> i32) -
     // titled "pns · done". Nothing about printing the commands needs the
     // machine read.
     if parsed.help {
-        print!("{USAGE}");
+        print!("{SEND_USAGE}");
         return 0;
     }
     for warning in &parsed.warnings {
