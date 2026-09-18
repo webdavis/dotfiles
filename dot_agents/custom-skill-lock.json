@@ -49,6 +49,7 @@
     "lobster": "on-demand",
     "media-use": "on-demand",
     "migrate-to-shoehorn": "on-demand",
+    "morning": "core",
     "moshi": "core",
     "motion-graphics": "on-demand",
     "obsidian-bases": "core",
@@ -90,6 +91,7 @@
     "clean-code-rust": "none",
     "clean-code-swift": "none",
     "last30days": "none",
+    "morning": "none",
     "pns-loop": "none",
     "pns-work-recap": "none"
   },
@@ -190,6 +192,9 @@
     "media-use": [],
     "migrate-to-shoehorn": [
       "nicodemus"
+    ],
+    "morning": [
+      "default"
     ],
     "moshi": [
       "default"
