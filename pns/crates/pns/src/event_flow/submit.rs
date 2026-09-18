@@ -1,8 +1,7 @@
 use super::*;
 use pns_application::{SubmissionIdentity, Submitted};
 use pns_protocol::{
-    DecodedRequest, DeliveryScope, Interaction, InteractionResult, Request, ResultEnvelope, Signal,
-    Status,
+    DecodedRequest, DeliveryScope, Interaction, InteractionResult, Request, ResultEnvelope, Status,
 };
 
 mod mapping;

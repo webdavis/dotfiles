@@ -38,7 +38,7 @@ than a delivery.
 | `request_id`  | `posture-<32 hex>`, derived from the finding's own occurrence seed |
 | `producer`    | `posture`                                                          |
 | `event`       | the source event, such as `alert` or `heartbeat`                   |
-| `signal`      | `needs_attention` for a page, `observation` otherwise              |
+| `state`       | `blocked` for a page, `observation` otherwise                      |
 | `occurred_at` | when the finding happened, where that is known                     |
 | `detail`      | the title, a newline, then the body                                |
 | `route`       | the route the page's own tier names (see below)                    |

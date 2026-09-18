@@ -23,11 +23,7 @@ fn request(class: Option<&str>, state: &str) -> String {
         pns_protocol::RequestId::new("page-123").unwrap(),
         pns_protocol::Name::new("posture").unwrap(),
         pns_protocol::Name::new("gap").unwrap(),
-        match state {
-            "observation" => pns_protocol::Signal::Observation,
-            "done" => pns_protocol::Signal::Succeeded,
-            _ => pns_protocol::Signal::NeedsAttention,
-        },
+        pns_protocol::State::from_word(state).expect("the tests state one of the six words"),
     );
     request.class = class.map(|name| pns_protocol::Name::new(name).unwrap());
     request.encode().unwrap()

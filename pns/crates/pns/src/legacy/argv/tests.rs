@@ -209,9 +209,55 @@ fn help_in_value_position_is_still_just_a_value() {
     assert!(!parsed.help);
     assert!(parsed.warnings.is_empty());
 
+    // The state is still read as a value rather than as help, and the closed
+    // set is what refuses it afterwards.
     let parsed = parse_args(["--producer", "claude", "--state", "--help"].map(str::to_owned));
     assert_eq!(parsed.event.state, "--help");
     assert!(!parsed.help);
+    assert!(matches!(
+        parsed.into_event(),
+        Err(super::Refusal::Value(message))
+            if message == "--state requires one of: done, failed, blocked, resolved, observation, progress"
+    ));
+}
+
+#[test]
+fn a_state_outside_the_six_words_refuses_the_event_and_names_them() {
+    for word in [
+        "succeeded",
+        "needs_attention",
+        "first-install-failed",
+        "Done",
+        "",
+    ] {
+        let parsed = parse_args(["--producer", "uu", "--state", word].map(str::to_owned));
+        assert!(
+            matches!(
+                parsed.into_event(),
+                Err(super::Refusal::Value(message))
+                    if message == "--state requires one of: done, failed, blocked, resolved, observation, progress"
+            ),
+            "{word} was not refused"
+        );
+    }
+    for word in super::State::WORDS {
+        let parsed = parse_args(["--producer", "uu", "--state", word].map(str::to_owned));
+        let event = parsed.into_event().ok().flatten().expect("a stated word");
+        assert_eq!(event.state, *word);
+    }
+}
+
+/// A trailing `--state` with no value at all refuses the same way `--state
+/// ""` does, rather than warning and delivering an event with no state.
+#[test]
+fn a_trailing_state_with_no_value_refuses_like_an_empty_one() {
+    let parsed = parse_args(["--producer", "uu", "--state"].map(str::to_owned));
+    assert!(parsed.warnings.is_empty());
+    assert!(matches!(
+        parsed.into_event(),
+        Err(super::Refusal::Value(message))
+            if message == "--state requires one of: done, failed, blocked, resolved, observation, progress"
+    ));
 }
 
 #[test]
@@ -219,7 +265,6 @@ fn the_last_value_wins_for_every_producer_field() {
     let mut tokens = Vec::new();
     for flag in [
         "--producer",
-        "--state",
         "--project",
         "--branch",
         "--detail",
@@ -228,18 +273,21 @@ fn the_last_value_wins_for_every_producer_field() {
     ] {
         tokens.extend([flag, "first", flag, "last"]);
     }
+    // The state is one of six words in either position, so its own pair is
+    // two legal words rather than the placeholder the others use.
+    tokens.extend(["--state", "done", "--state", "failed"]);
     let (event, warnings) = args(&tokens);
     assert_eq!(
         [
             event.agent,
-            event.state,
             event.project,
             event.branch,
             event.detail,
             event.pane,
             event.channel
         ],
-        ["last"; 7].map(str::to_owned),
+        ["last"; 6].map(str::to_owned),
     );
+    assert_eq!(event.state, "failed");
     assert!(warnings.is_empty());
 }

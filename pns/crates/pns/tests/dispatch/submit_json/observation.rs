@@ -53,17 +53,17 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
 }
 
 #[test]
-fn json_progress_and_attention_keep_presence_driven_phone_cards() {
-    use pns_protocol::Signal;
-    for signal in [Signal::Progress, Signal::NeedsAttention] {
+fn json_progress_and_blocked_keep_presence_driven_phone_cards() {
+    use pns_protocol::State;
+    for stated in [State::Progress, State::Blocked] {
         for (label, idle, visible, banner, phone) in [
             ("away", "99999", false, false, true),
             ("desk-hidden", "0", false, true, false),
             ("desk-visible", "0", true, false, false),
         ] {
-            let sandbox = Sandbox::new(&format!("ordinary-{signal:?}-{label}"));
+            let sandbox = Sandbox::new(&format!("ordinary-{stated:?}-{label}"));
             let mut request = request();
-            request.signal = signal;
+            request.state = stated;
             request.context.pane = Some("t1:p1".into());
             let mut command = sandbox.pns_stateful();
             command.env("PNS_IDLE_SECS", idle);
@@ -72,10 +72,10 @@ fn json_progress_and_attention_keep_presence_driven_phone_cards() {
             assert_eq!(
                 result(&output).status,
                 Status::Accepted,
-                "{signal:?}/{label}: {output:?}"
+                "{stated:?}/{label}: {output:?}"
             );
-            assert_eq!(sandbox.fired("macos-banner"), banner, "{signal:?}/{label}");
-            assert_eq!(sandbox.fired("mobile"), phone, "{signal:?}/{label}");
+            assert_eq!(sandbox.fired("macos-banner"), banner, "{stated:?}/{label}");
+            assert_eq!(sandbox.fired("mobile"), phone, "{stated:?}/{label}");
             assert!(sandbox.fired("hermes"));
         }
     }

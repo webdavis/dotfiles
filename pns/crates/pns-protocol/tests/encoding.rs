@@ -1,6 +1,6 @@
 use pns_protocol::{
     DeliveryOutcome, DestinationOutcome, Name, Rejected, Rejection, Request, RequestId,
-    ResultEnvelope, Signal, Violation, decode_request, decode_result,
+    ResultEnvelope, State, Violation, decode_request, decode_result,
 };
 use serde_json::{Value, json};
 
@@ -9,7 +9,7 @@ fn request() -> Request {
         RequestId::new("r-1").unwrap(),
         Name::new("shell").unwrap(),
         Name::new("finished").unwrap(),
-        Signal::Succeeded,
+        State::Done,
     )
 }
 

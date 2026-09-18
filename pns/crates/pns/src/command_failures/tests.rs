@@ -35,6 +35,16 @@ fn a_leg_with_no_state_or_route_leaves_those_flags_out_entirely() {
     assert_eq!(command(&bare), "pns send --producer posture");
 }
 
+/// An internal state word (one `pns send --state` refuses) is left out of the
+/// printed command entirely, so the suggestion the reader is shown always runs.
+#[test]
+fn an_internal_state_word_is_left_out_of_the_printed_command() {
+    let mut recap = stored(2, pns_domain::retry::DeliveryOutcome::NoResponse);
+    recap.state = "recap".to_string();
+    recap.route = String::new();
+    assert_eq!(command(&recap), "pns send --producer posture");
+}
+
 /// The listing column is scanned, so it carries the bare code; the registered
 /// name is what teaches and belongs in the full form.
 #[test]

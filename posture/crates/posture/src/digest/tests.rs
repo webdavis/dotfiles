@@ -185,7 +185,7 @@ fn a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy(
         "\"event\":\"digest\"",
         // AN OBSERVATION, NEVER A PAGE: the digest is by definition everything
         // that did not earn one.
-        "\"kind\":\"observation\"",
+        "\"state\":\"observation\"",
         "\"occurred_at\":10000",
         "\"route\":\"posture-pages\"",
         "2026-09-08",

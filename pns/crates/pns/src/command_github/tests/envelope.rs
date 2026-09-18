@@ -23,8 +23,8 @@ mod tests {
             "the ordinary route, not the urgent one"
         );
         assert_eq!(
-            request.signal,
-            pns_protocol::Signal::Observation,
+            request.state,
+            pns_protocol::State::Observation,
             "a polled notification is something that happened, not a turn waiting"
         );
         assert_eq!(

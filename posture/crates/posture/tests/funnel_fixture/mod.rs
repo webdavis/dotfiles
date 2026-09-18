@@ -211,7 +211,7 @@ exit {exit}
         assert_eq!(request["producer"], "posture");
         assert_eq!(request["class"], "security");
         assert_eq!(request["route"], "posture-pages");
-        assert_eq!(request["signal"]["kind"], "needs_attention");
+        assert_eq!(request["state"], "blocked");
         assert_eq!(
             request["detail"]
                 .as_str()

@@ -31,7 +31,7 @@ knows.
 | Flag             | Argument shape                           | Absent value                                                                                  | Unknown next token                                                             | Pinned by                                                                                                                                                 |
 | ---------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--agent`        | one following token, free text           | warn `--agent given without a value; ignoring`, field stays empty, token left for its own arm | taken as the value verbatim, no warning                                        | `src/args.rs:a_trailing_value_flag_is_warned_and_ignored`, `src/args.rs:an_unrecognized_token_is_still_taken_as_a_value`                                  |
-| `--state`        | one following token, free text           | warn `--state given without a value; ignoring`, field stays empty                             | taken as the value verbatim, no warning                                        | `src/args.rs:help_in_value_position_is_still_just_a_value`, `tests/dispatch.rs:help_in_value_position_is_still_just_a_value`                              |
+| `--state`        | one following token, one of six words    | warn `--state given without a value; ignoring`, field stays empty                             | taken as the value, then refused with exit 2 unless it is one of the six words | `tests/dispatch.rs:a_state_outside_the_closed_set_is_refused_and_nothing_is_delivered`, `tests/dispatch.rs:an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json` |
 | `--project`      | one following token, free text           | warn `--project given without a value; ignoring`, field stays empty                           | taken as the value verbatim, no warning                                        | `src/args.rs:every_value_flag_lands_in_its_field`                                                                                                         |
 | `--branch`       | one following token, free text           | warn `--branch given without a value; ignoring`, field stays empty                            | taken as the value verbatim, no warning                                        | `src/args.rs:every_value_flag_lands_in_its_field`                                                                                                         |
 | `--detail`       | one following token, free text           | warn `--detail given without a value; ignoring`, field stays empty                            | taken as the value verbatim, no warning                                        | `src/args.rs:a_trailing_value_flag_is_warned_and_ignored`, `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`         |
@@ -466,14 +466,15 @@ any probe, any warning print and any delivery.
 
 ### 12. `--help` in value position is still just a value
 
-Given `--agent --help --state done`, or `--agent claude --state --help`\\
+Given `--producer --help --state done`, or `--producer claude --state --help`\\
 
 When `parse_args` reaches the value arm before the help arm sees the token\\
 
-Then `--help` is the field's value, `parsed.help` stays false, no warning is produced, and the event is
-delivered normally.
+Then `--help` is the field's value and `parsed.help` stays false. A producer name is delivered verbatim;
+a state is then held to the closed set, so `--state --help` is refused with exit 2 rather than answered
+with the usage text.
 
-- Success: the delivered event carries `agent == "--help"` or `state == "--help"`.
+- Success: the delivered event carries `agent == "--help"`, or the refusal names the six state words.
 - Failure sources: adding `--help` to `is_producer_flag` would flip this into a warn-and-drop, which is
   named as the wrong fix in both the code comment and the test comment.
 - Fail direction: open, toward delivering the literal value.

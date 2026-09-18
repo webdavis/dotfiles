@@ -203,7 +203,9 @@ pub(crate) fn compose(stored: &StoredFailure) -> Failure {
 
 fn command(stored: &StoredFailure) -> String {
     let mut command = format!("pns send --producer {}", stored.agent);
-    if !stored.state.is_empty() {
+    // Only a word `pns send --state` accepts belongs in a runnable command;
+    // an internal word like "recap" would print a suggestion that refuses.
+    if pns_protocol::State::from_word(&stored.state).is_some() {
         command.push_str(&format!(" --state {}", stored.state));
     }
     if !stored.route.is_empty() {

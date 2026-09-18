@@ -14,6 +14,7 @@
 //! value, under the second rule.
 
 use pns_domain::{DeliveryScope, EventArgs, routes::Kind};
+use pns_protocol::State;
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the
@@ -82,6 +83,11 @@ pub(super) struct ParsedArgs {
     pub require_delivery: bool,
     /// The first retired flag argv carried, already worded as its refusal.
     retired: Option<String>,
+    /// `--state`: what happened, in one of six words. A seventh word refuses
+    /// the event rather than being delivered as itself, because the state is
+    /// what the lamps, the routes and the recap all read and a word none of
+    /// them knows is a page nobody gets.
+    state: Option<String>,
     elapsed: Result<Option<u64>, String>,
     /// `--kind`: what the event IS, which decides its route when the producer
     /// named none. A word that is neither kind refuses the event rather than
@@ -100,6 +106,9 @@ impl ParsedArgs {
     pub fn into_event(self) -> Result<Option<EventArgs>, Refusal> {
         if let Some(retired) = self.retired {
             return Err(Refusal::Value(retired));
+        }
+        if let Some(refusal) = self.state {
+            return Err(Refusal::Value(refusal));
         }
         let elapsed = self.elapsed.map_err(Refusal::Value)?;
         let kind = self.kind.map_err(Refusal::Value)?;
@@ -133,6 +142,7 @@ where
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
     let mut retired = None;
+    let mut state = None;
     let mut kind = Ok(Kind::default());
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
@@ -169,6 +179,20 @@ where
                     });
                 }
             }
+            // ITS OWN ARM, like `--kind` and `--elapsed` above, rather than the
+            // generic value flag below: a missing value refuses the same way an
+            // out-of-set word does, instead of warning and delivering an event
+            // with no state at all.
+            "--state" => {
+                let value = tokens.next_if(|next| !is_producer_flag(next));
+                if State::from_word(value.as_deref().unwrap_or_default()).is_none() {
+                    state.get_or_insert(format!(
+                        "--state requires one of: {}",
+                        State::WORDS.join(", ")
+                    ));
+                }
+                parsed.state = value.unwrap_or_default();
+            }
             flag if VALUE_FLAGS.contains(&flag) => {
                 // Missing, or a recognized flag standing where the value
                 // should be: warn and leave the token for its own arm.
@@ -179,7 +203,6 @@ where
                 let Some(value) = tokens.next() else { continue };
                 match flag {
                     "--producer" => parsed.agent = value,
-                    "--state" => parsed.state = value,
                     "--project" => parsed.project = value,
                     "--branch" => parsed.branch = value,
                     "--detail" => parsed.detail = value,
@@ -208,6 +231,7 @@ where
         warnings,
         require_delivery,
         retired,
+        state,
         elapsed,
         kind,
         scope: match (local_only, remote_only) {

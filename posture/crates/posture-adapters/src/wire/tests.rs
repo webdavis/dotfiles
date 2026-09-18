@@ -86,7 +86,7 @@ fn a_result_missing_its_status_is_malformed_rather_than_defaulted() {
 
 #[test]
 fn every_required_request_field_must_be_present() {
-    for field in ["request_id", "producer", "event", "signal"] {
+    for field in ["request_id", "producer", "event", "state"] {
         let mut without = value(REQUEST);
         without.as_object_mut().unwrap().remove(field);
         assert!(

@@ -243,14 +243,14 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
 fn a_submitted_github_event_lights_the_github_lamp_unless_its_outcome_is_neutral() {
     const GITHUB_MAP: &str = "[lights]\nrefresh_secs = 20\n\
          [lights.lamp.\"3F - Studio - HCL1\"]\nshows = [\"github\"]\n";
-    for (outcome, signal, dials) in [
+    for (outcome, state, dials) in [
         ("failed", "failed", true),
-        ("passed", "succeeded", true),
-        ("neutral", "succeeded", false),
+        ("passed", "done", true),
+        ("neutral", "done", false),
     ] {
         let request = format!(
             r#"{{"schema":"pns.request/1","request_id":"gh-{outcome}","producer":"github",
-                "event":"workflow_run","signal":{{"kind":"{signal}"}},
+                "event":"workflow_run","state":"{state}",
                 "extensions":{{"github":{{"repo":"webdavis/dotfiles","kind":"workflow_run",
                   "outcome":"{outcome}","title":"lint",
                   "url":"https://github.com/webdavis/dotfiles/actions/runs/1",

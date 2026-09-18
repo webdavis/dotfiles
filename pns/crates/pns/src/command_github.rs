@@ -288,7 +288,7 @@ fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
         // EVERY POLLED EVENT IS AN OBSERVATION: it is GitHub telling pns
         // that something happened, not a turn waiting on the operator, so
         // it changes no workflow or marker state and arms no nag.
-        pns_protocol::Signal::Observation,
+        pns_protocol::State::Observation,
     );
     // AN INSTANT THE PARSE COULD NOT READ FALLS BACK TO NOW rather than to
     // 1970, which every elapsed calculation downstream would read as work

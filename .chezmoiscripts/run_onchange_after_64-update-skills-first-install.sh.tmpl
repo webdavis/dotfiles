@@ -45,7 +45,7 @@ else
   count="$(bump_retry_marker)"
   printf 'uu skills bootstrap failed (attempt %s); it will retry on the next apply\n' "$count" >&2
   if [[ -x $ENGINE ]]; then
-    "$ENGINE" send --producer update-skills --state first-install-failed --project skills \
-      --detail "uu bootstrap skills failed on this machine (attempt $count); it re-fires on the next apply" || true
+    "$ENGINE" send --producer update-skills --state failed --project skills \
+      --detail "uu bootstrap skills first install failed on this machine (attempt $count); it re-fires on the next apply" || true
   fi
 fi

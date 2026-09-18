@@ -1,5 +1,5 @@
 use crate::request_id;
-use crate::wire::{Name, Oversized, Request, RequestId, Signal};
+use crate::wire::{Name, Oversized, Request, RequestId, State};
 use posture_application::{Alert, AlertSignal};
 
 pub(super) enum EncodeFailure {
@@ -28,15 +28,15 @@ pub(super) fn encode(
     // identity whether it was handed to a producer or posted to a route.
     let identity = RequestId::new(request_id::derive(&request_id::seed(alert)))
         .map_err(|_| EncodeFailure::Invalid)?;
-    let signal = match alert.signal {
-        AlertSignal::NeedsAttention => Signal::NeedsAttention,
-        AlertSignal::Observation => Signal::Observation,
+    let state = match alert.signal {
+        AlertSignal::NeedsAttention => State::Blocked,
+        AlertSignal::Observation => State::Observation,
     };
     let mut request = Request::new(
         identity.clone(),
         Name::new("posture").map_err(|_| EncodeFailure::Invalid)?,
         Name::new(alert.event).map_err(|_| EncodeFailure::Invalid)?,
-        signal,
+        state,
     );
     request.occurred_at = alert.occurred_at;
     request.detail = format!("{}\n{}", alert.title, alert.detail);
