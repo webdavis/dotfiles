@@ -177,15 +177,14 @@ Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` w
 
 ### 2. A subcommand word is dispatched before the producer check
 
-Given argv whose first token is one of `pulse`, `home`, `quiet`, `doctor`, `recap`, `daemon`, `lights`,
-`loop`, `nag`, `setup`, `gate`, `hook`, or a word `hooks::is_harness_subcommand` accepts\\
+Given argv whose first token is one of `pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`,
+`nag`, `setup`, `hook`, or a word ending in `-hook`\\
 
 When `main` runs its dispatch chain\\
 
 Then that subcommand's mode runs and the producer parser is never reached, whatever else argv carries.
 
-- Success: the mode's own exit code is returned via `std::process::exit`, except `home`, which returns
-  and therefore exits 0 (`src/main.rs:main`).
+- Success: the mode's own exit code is returned via `std::process::exit`.
 - Failure sources: a first token that is a subcommand word plus producer flags after it. The subcommand
   wins; the flags are then judged by that subcommand's own argument reader, not by `parse_args`.
 - Fail direction: toward the subcommand. `pns pulse --agent x` is a pulse invocation with a two-token
@@ -862,9 +861,9 @@ Then the exit code falls into exactly one of four classes.
 - Idempotency and duplicates: Not applicable.
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: the two known gaps are recorded in the `src/main.rs` module documentation:
-  `home` is a diagnostic that always exits 0, and a word trailing `lights tick` is dropped rather than
-  refused. Naming tests: `tests/support/mod.rs:run` (the exit-0 assertion every dispatch test inherits),
+- Compatibility contract: the one known gap is recorded in the `src/main.rs` module documentation: a word
+  trailing `lights tick` is dropped rather than refused. Naming tests: `tests/support/mod.rs:run` (the
+  exit-0 assertion every dispatch test inherits),
   `tests/dispatch.rs:a_word_that_names_no_command_is_refused_and_delivers_nothing`,
   `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision`.
 
