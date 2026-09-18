@@ -169,7 +169,8 @@ certificate = {{ keepassxcAttribute "OpenHue :: API Key (hue-bridge-pro)" "certi
 rooms = ["3F - Studio", "2F - Kitchen"]
 # The hours the room pulse stays dark: local wall clock, the start
 # inclusive and the end exclusive, and it may wrap midnight. A hand-run
-# `pns pulse` is exempt, so a bridge and key can be checked in-window.
+# `pns lights pulse` is exempt, so a bridge and key can be checked
+# in-window.
 # A bare `pns lights quiet <place>` mutes until this window ends and is
 # refused when none is set. With a `[lights]` table below, each place's
 # own `dim_window` decides the night instead and this window is the

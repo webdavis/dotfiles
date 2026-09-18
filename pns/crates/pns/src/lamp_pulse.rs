@@ -3,7 +3,7 @@ use crate::*;
 /// The event path's pulse, which the lights' own quiet window may mute.
 ///
 /// THE GATE LIVES HERE, at the call site, and not in `fire_pulse` below:
-/// `pns pulse` shares that function and is deliberately exempt, because the
+/// `pns lights pulse` shares that function and is deliberately exempt, because the
 /// hand-run pulse is how a bridge and key are checked and gating it would make
 /// the quiet window untestable exactly while it is on. Inside the `if` that
 /// already earned a pulse, so a refusal is printed only where a room would
@@ -45,7 +45,7 @@ pub(crate) fn fire_pulse_unless_quiet(
 /// room that was addressed is the last observable fact on this path.
 ///
 /// `[plugins.hue] rooms` IS THE PATH WITHOUT A `[lights]` TABLE, and it is also
-/// `pns pulse`'s path with one. That is deliberate: the hand-run pulse is the
+/// `pns lights pulse`'s path with one. That is deliberate: the hand-run pulse is the
 /// bridge-and-key check, not a feature, and keeping it room-based means it
 /// stays one write to one obvious place while the routing map grows.
 pub(crate) fn fire_pulse(

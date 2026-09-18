@@ -5,6 +5,7 @@ pub(crate) fn lights_mode(verb: &str) -> i32 {
         "tick" => lights_tick(),
         "quiet" => lights_quiet(),
         "enroll" => crate::command_enroll::lights_enroll(),
+        "pulse" => lights_pulse(),
         // UNKNOWN IS AN ERROR, never a silent fallthrough. Argv parsing on the
         // event path is deliberately lenient, so a bare `pns lights` reaching
         // it would skip the word it did not know and fire a notification about
@@ -18,6 +19,7 @@ pub(crate) fn lights_mode(verb: &str) -> i32 {
 
 const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
 pns lights quiet [<place> [<duration>|off]] | \
+pns lights pulse [<exit-code>] | \
 pns lights enroll --bridge-id <id> | --allow-unverified";
 /// The lamps' own mute: one place, quiet for a bounded while, by hand.
 ///
@@ -117,4 +119,70 @@ fn lights_quiet() -> i32 {
             1
         }
     }
+}
+
+/// `pns lights pulse <exit-code>`: read the hue table and signal the bridge
+/// with the exit code it was handed. Every absence is a silent exit 0.
+///
+/// NOTHING IN THIS REPO CALLS IT. The tiers that used to are part of the event
+/// plan now, which is what stopped the tier being decided twice; this stays as
+/// the operator's own command for signalling the lights by hand, and for
+/// checking that a bridge and key in the config actually work. It ignores
+/// `hue.quiet_hours` on purpose: the gate lives at the event path's call site
+/// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
+/// inside the window, which is what keeps the window checkable while it is on.
+///
+/// THE WORD IS READ BEFORE THE CONFIG LOADS. `lights pulse --help` used to load
+/// the config first: with none it silently exited 0 having printed nothing, and
+/// with one it pulsed the room red, because a non-numeric word was read as a
+/// failing exit code. Reading the word first means `--help` and a bad code
+/// both answer with no machine read at all.
+fn lights_pulse() -> i32 {
+    // THE WHOLE TAIL IS READ, not just the word right after `pulse`: H-B
+    // requires help to win in flag position anywhere, and an unknown extra
+    // word to be refused rather than silently dropped.
+    let tail: Vec<String> = crate::arguments_after_verb();
+    if tail.iter().any(|token| crate::legacy::is_help_flag(token)) {
+        println!("{PULSE_USAGE}");
+        return 0;
+    }
+    if tail.len() > 1 {
+        eprintln!("{PULSE_USAGE}");
+        return 2;
+    }
+    let word = tail.first().cloned().unwrap_or_default();
+    let Some(behaviour) = pns_domain::pulse::exit_behaviour(&word) else {
+        eprintln!("{PULSE_USAGE}");
+        return 2;
+    };
+    let home = std::env::var("HOME").unwrap_or_default();
+    // FAIL CLOSED, unlike an event. The roster fallback that keeps every
+    // notification working through a broken config is an EVENT-mode rule:
+    // applying it here would let an unrelated typo switch a deliberately
+    // disabled pulse back on. The pulse runs only when its own table says
+    // enabled, explicitly.
+    let config = match load_config(&config_path(&home)) {
+        Ok(LoadOutcome::Loaded(config)) => config,
+        // Absent is not a mistake; never opting in earns no warning.
+        Ok(LoadOutcome::Missing) => return 0,
+        Err(error) => {
+            // The sanitized detail event mode prints, with the outcome THIS
+            // mode had: there is no recoverable setting to fall back to, so
+            // nothing pulses.
+            eprintln!("pns: config error ({}); no pulse", error.detail());
+            return 0;
+        }
+    };
+    fire_pulse(enabled_hue_table(&config), behaviour);
+    0
+}
+
+const PULSE_USAGE: &str = "pns: usage: pns lights pulse [<exit-code>] | \
+pns lights pulse --help, -h (a bare `pulse` is a success pulse)";
+
+/// What `pns pulse` answers now: the verb that replaced it, and no pulse.
+pub(crate) fn retired_pulse() -> i32 {
+    eprintln!("pns: pulse is now a verb: run `pns lights pulse <exit-code>`");
+    eprintln!("{PULSE_USAGE}");
+    2
 }

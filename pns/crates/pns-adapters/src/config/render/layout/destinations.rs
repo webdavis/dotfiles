@@ -231,7 +231,8 @@ pub(super) const PLUGINS_HUE: Table = Table {
             name: "quiet_hours",
             prose: "# The hours the room pulse stays dark: local wall clock, the start\n\
                          # inclusive and the end exclusive, and it may wrap midnight. A hand-run\n\
-                         # `pns pulse` is exempt, so a bridge and key can be checked in-window.\n\
+                         # `pns lights pulse` is exempt, so a bridge and key can be checked\n\
+                         # in-window.\n\
                          # A bare `pns lights quiet <place>` mutes until this window ends and is\n\
                          # refused when none is set. With a `[lights]` table below, each place's\n\
                          # own `dim_window` decides the night instead and this window is the\n\

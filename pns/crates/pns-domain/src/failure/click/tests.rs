@@ -8,7 +8,7 @@ const PNS: &str = "/Users/o/.cargo/bin/pns";
 /// a path pns read off itself cross that line.
 #[test]
 fn the_click_command_is_a_literal_and_the_id() {
-    assert_eq!(click_command(PNS, 47), format!("{PNS} click 47"));
+    assert_eq!(click_command(PNS, 47), format!("{PNS} failures open 47"));
 }
 
 /// An operator running herdr wants the pane; one who is not has no session for

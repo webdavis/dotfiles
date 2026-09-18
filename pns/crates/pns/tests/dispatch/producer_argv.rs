@@ -220,3 +220,26 @@ fn a_missing_value_warning_keeps_its_exact_sentence() {
     assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("hermes"));
 }
+
+#[test]
+fn a_retired_subcommand_spelling_names_the_verb_that_replaced_it() {
+    // Both moved under the subcommand that owns what they do, and neither is
+    // an alias: the old word is refused the way a typo is, with the new
+    // spelling in the message so the reader does not have to look it up.
+    for (word, replacement) in [
+        ("click", "pns failures open"),
+        ("pulse", "pns lights pulse"),
+    ] {
+        let sandbox = Sandbox::new(&format!("retired-{word}"));
+        let output = sandbox
+            .pns()
+            .args([word, "1"])
+            .output()
+            .expect("the engine runs");
+        assert_eq!(output.status.code(), Some(2), "{word}: {output:?}");
+        let complaint = stderr(&output);
+        assert!(complaint.contains(replacement), "{word}: {complaint}");
+        assert!(!sandbox.fired("mobile"), "{word}: {output:?}");
+        assert!(!sandbox.fired("hermes"), "{word}: {output:?}");
+    }
+}

@@ -107,17 +107,17 @@ pub fn session_was_long(elapsed_secs: Option<u64>, threshold_secs: Option<u64>) 
 }
 
 /// What a lamp says about a given exit code, or `None` when the code is not
-/// one `pulse_mode` can trust.
+/// one `lights_pulse` can trust.
 ///
 /// ANYTHING ALL ZEROES IS A SUCCESS, and any other run of ASCII digits is a
 /// failure. An EMPTY code is the absent one: the shell version defaulted a
 /// missing argument to zero, so absent and empty both mean success and there
 /// is no third answer to give. GARBAGE IS NO LONGER A GUESS: a code that is
 /// neither empty nor all ASCII digits (`-0`, padding, a stray word) answers
-/// `None`, and `pulse_mode` refuses those with usage rather than painting the
+/// `None`, and `lights_pulse` refuses those with usage rather than painting the
 /// room red on unproven input.
 ///
-/// AN EXIT CODE HAS NO THIRD ANSWER, once it is a code at all. `pns pulse`
+/// AN EXIT CODE HAS NO THIRD ANSWER, once it is a code at all. `pns lights pulse`
 /// and the long-command notifier know a number and nothing else, so they
 /// reach two of the five behaviours; the event path knows a STATE and reaches
 /// three, through `state_behaviour`.

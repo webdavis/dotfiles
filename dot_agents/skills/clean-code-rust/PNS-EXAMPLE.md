@@ -96,7 +96,7 @@ The lenient argv parser, missing-value warnings, recognized flags not consumed a
 behavior, typo refusal, notification paths not failing the work they report, hook stdout and stderr
 contracts, ordinary hooks exiting zero, blocking approval and gate exit-code translation, the bare
 gate spelling, `pns daemon run`, `pns loop begin|end`, the producer flags, and
-`pns pulse <exit-code>` (the operator's manual lamp check).
+`pns lights pulse <exit-code>` (the operator's manual lamp check).
 
 The legacy flags `--local-only` and `--remote-only` are independent booleans today and **passing both
 is a tested contract**: nothing is delivered and the refusal says so. That combination is refused at
