@@ -1,4 +1,5 @@
 use crate::Response;
+use lights_adapters::settings::HueSettings;
 use lights_application::{LightsError, NoPresetNow};
 use lights_domain::{Action, Presets};
 
@@ -12,6 +13,24 @@ pub(super) fn error(error: LightsError) -> (u8, String) {
         | LightsError::Refused { detail }
         | LightsError::Malformed { detail } => (4, detail),
         LightsError::InvalidReference => (4, "invalid controller reference".into()),
+    }
+}
+
+/// Which certificate the bridge is held to, and whether one was refused.
+///
+/// A REFUSED HANDSHAKE IS STILL WORTH SAYING HERE even though the call that hit
+/// it failed loudly: a later call in the same process reads the state rather
+/// than the failure.
+pub(super) fn pin_state(controller: &HueSettings) -> String {
+    match lights_adapters::refused_mismatch() {
+        None => format!(
+            "certificate: pinned and matched {}\n",
+            controller.certificate
+        ),
+        Some(mismatch) => format!(
+            "certificate: MISMATCHED, expected {} and was shown {}\n",
+            mismatch.expected, mismatch.presented
+        ),
     }
 }
 

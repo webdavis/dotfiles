@@ -1,7 +1,8 @@
 use super::*;
 use lights_domain::{PresetStep, PresetTarget};
 
-const VALID: &str = "[controller]\ntype = 'hue'\naddress = '192.0.2.1'\nkey = 'synthetic-secret'\n";
+const VALID: &str = "[controller]\ntype = 'hue'\naddress = '192.0.2.1'\nkey = 'synthetic-secret'\n\
+certificate = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'\n";
 
 #[test]
 fn missing_config_returns_config_error() {
@@ -271,5 +272,57 @@ fn a_window_time_that_is_not_hh_colon_mm_is_refused() {
 fn preset_windows_that_are_not_a_list_of_tables_are_refused() {
     for table in ["preset_windows = 1", "preset_windows = []"] {
         assert!(parse(&format!("{VALID}{WINDOW_PRESETS}{table}\n")).is_err());
+    }
+}
+#[test]
+fn a_controller_without_a_certificate_is_refused_and_names_the_enrolling_command() {
+    let text = VALID
+        .lines()
+        .filter(|line| !line.starts_with("certificate"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let Err(refusal) = parse(&text) else {
+        panic!("accepted a config it should refuse");
+    };
+    let refusal = refusal.0;
+    assert!(refusal.contains("certificate"), "{refusal}");
+    assert!(refusal.contains("lights enroll"), "{refusal}");
+}
+#[test]
+fn a_malformed_certificate_is_refused_without_echoing_it() {
+    for value in ["''", "'nonsense'", "'sha256:abc'", "'sha1:00'"] {
+        let text = VALID.replace(
+            "certificate = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'",
+            &format!("certificate = {value}"),
+        );
+        let Err(refusal) = parse(&text) else {
+            panic!("accepted a config it should refuse");
+        };
+        let refusal = refusal.0;
+        assert!(!refusal.contains("nonsense"), "{refusal}");
+    }
+}
+#[test]
+fn the_endpoint_alone_reads_without_a_certificate_so_enrolling_is_possible_before_one_exists() {
+    let text = VALID
+        .lines()
+        .filter(|line| !line.starts_with("certificate"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let Ok(endpoint) = endpoint(&text) else {
+        panic!("refused an endpoint with no certificate");
+    };
+    assert_eq!(endpoint.address, "192.0.2.1");
+    assert_eq!(endpoint.timeout_secs, 2);
+    assert!(parse(&text).is_err(), "the full parse still refuses it");
+}
+#[test]
+fn the_endpoint_refuses_the_same_bad_address_type_and_timeout_the_full_parse_does() {
+    for text in [
+        VALID.replace("'hue'", "'other'"),
+        VALID.replace("192.0.2.1", "bridge/../etc"),
+        format!("{VALID}timeout_secs = 0\n"),
+    ] {
+        assert!(endpoint(&text).is_err(), "{text}");
     }
 }

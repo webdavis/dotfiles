@@ -57,9 +57,9 @@ impl Drop for Home {
 #[test]
 fn transport_timeout_exits_four_without_success() {
     if std::env::var_os("LIGHTS_TIMEOUT_CHILD").is_some() {
-        let settings = crate::settings::parse(
-            "[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'",
-        )
+        let settings = crate::settings::parse(&format!(
+            "[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'\n{CERTIFICATE_LINE}"
+        ))
         .unwrap();
         let agent = ureq::Agent::with_parts(
             config(Duration::from_millis(20)),

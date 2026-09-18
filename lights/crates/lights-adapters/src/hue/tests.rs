@@ -1,3 +1,4 @@
+mod pinning;
 mod reads;
 mod transport;
 mod writes;
@@ -6,6 +7,11 @@ use super::*;
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use transport::{ScriptedConnector, ScriptedResolver};
+
+/// A syntactically valid pin for the tests whose subject is not pinning. Every
+/// controller needs one, because a controller without one is refused.
+pub(super) const CERTIFICATE_LINE: &str =
+    "certificate='sha256:0000000000000000000000000000000000000000000000000000000000000000'\n";
 
 fn fixture() -> Value {
     let mut data = vec![
@@ -34,9 +40,10 @@ fn room() -> RoomName {
 fn setup(responses: Vec<(u16, Value)>) -> (HueLightController, Arc<Mutex<Vec<Vec<u8>>>>) {
     let connector = ScriptedConnector::new(responses);
     let requests = connector.requests.clone();
-    let settings =
-        crate::settings::parse("[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'")
-            .unwrap();
+    let settings = crate::settings::parse(&format!(
+        "[controller]\ntype='hue'\naddress='192.0.2.1'\nkey='test-secret'\n{CERTIFICATE_LINE}"
+    ))
+    .unwrap();
     (
         HueLightController::with_transport(&settings.controller, connector, ScriptedResolver),
         requests,

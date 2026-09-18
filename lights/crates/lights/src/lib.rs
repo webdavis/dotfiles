@@ -1,3 +1,4 @@
+mod enroll;
 mod render;
 
 use lights_adapters::settings::{self, HueSettings, Settings};
@@ -25,12 +26,39 @@ pub fn run<C: LightController>(
     notifier: &impl Notifier,
     controller: impl FnOnce(&HueSettings) -> C,
 ) -> Response {
+    let response = dispatch(args, config, state, notifier, controller);
+    // A REFUSED CERTIFICATE IS ANNOUNCED, not merely printed. Most invocations
+    // are a key press with no terminal attached, and lamps that quietly stop
+    // answering look like a dead key rather than like a bridge nobody can
+    // authenticate.
+    if let Some(mismatch) = lights_adapters::refused_mismatch() {
+        notifier.alarm(&lights_adapters::mismatch_report(&mismatch));
+    }
+    response
+}
+
+fn dispatch<C: LightController>(
+    args: &[String],
+    config: &Path,
+    state: &Path,
+    notifier: &impl Notifier,
+    controller: impl FnOnce(&HueSettings) -> C,
+) -> Response {
     let request = match lights_protocol::parse(args) {
         Ok(request) => request,
         Err(message) => return failure(1, &format!("{message}\n{}", lights_protocol::HELP)),
     };
     if request.command == Command::Help {
         return success(lights_protocol::HELP.into());
+    }
+    // ENROLLMENT READS ONLY THE ENDPOINT, and it comes first: the full parse
+    // refuses a controller with no pin, which is exactly the state the operator
+    // runs this command to leave.
+    if let Command::Enroll { stated_id } = &request.command {
+        return match settings::load_endpoint(config) {
+            Ok(endpoint) => enroll::run(&endpoint, stated_id.as_deref()),
+            Err(error) => failure(5, &error.0),
+        };
     }
     let settings = match settings::load(config) {
         Ok(settings) => settings,
@@ -124,7 +152,15 @@ pub fn run<C: LightController>(
             if notify && !matches!(action, Action::Reported { .. }) {
                 notifier.announce(&action);
             }
-            success(lights_adapters::render_action(&action))
+            let mut report = lights_adapters::render_action(&action);
+            // THE PIN STATE BELONGS WITH THE REPORT, and only with it: a read
+            // that came back at all came back through the pinned handshake, so
+            // `status` is where the operator can see which certificate the
+            // bridge is being held to.
+            if matches!(request.command, Command::Status) {
+                report.push_str(&render::pin_state(&settings.controller));
+            }
+            success(report)
         }
         Err(error) => {
             let (code, message) = render::error(error);
@@ -172,8 +208,8 @@ fn execute<C: LightController>(
             fade,
         ),
         Command::Status => ReportStatus::run(controller, room),
-        Command::Help | Command::Preset(_) | Command::PresetNow => {
-            unreachable!("help and presets return before single-room composition")
+        Command::Help | Command::Preset(_) | Command::PresetNow | Command::Enroll { .. } => {
+            unreachable!("help, presets and enrollment return before single-room composition")
         }
     }
 }
@@ -185,7 +221,7 @@ fn success(stdout: String) -> Response {
         stderr: String::new(),
     }
 }
-fn failure(exit: u8, message: &str) -> Response {
+pub(crate) fn failure(exit: u8, message: &str) -> Response {
     Response {
         exit,
         stdout: String::new(),

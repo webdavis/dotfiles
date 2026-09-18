@@ -1,4 +1,9 @@
+pub mod enroll;
+#[cfg(test)]
+mod fixture_server;
 mod http;
+pub mod mismatch;
+mod pinned_tls;
 mod snapshot;
 
 use crate::settings::HueSettings;
@@ -23,7 +28,15 @@ impl HueLightController {
     pub fn new(settings: &HueSettings) -> Self {
         Self::with_agent(
             settings,
-            config(std::time::Duration::from_secs(settings.timeout_secs)).new_agent(),
+            ureq::Agent::with_parts(
+                config(std::time::Duration::from_secs(settings.timeout_secs)),
+                ureq::unversioned::transport::TcpConnector::default().chain(
+                    pinned_tls::PinnedTlsConnector {
+                        pin: settings.certificate,
+                    },
+                ),
+                ureq::unversioned::resolver::DefaultResolver::default(),
+            ),
         )
     }
     pub fn with_transport(
@@ -56,13 +69,6 @@ fn config(timeout: std::time::Duration) -> ureq::config::Config {
         .max_redirects(0)
         .http_status_as_error(false)
         .https_only(true)
-        // Approved bridge-specific certificate exception. This disables server authentication;
-        // it does not establish that certificate verification is impossible for Hue.
-        .tls_config(
-            ureq::tls::TlsConfig::builder()
-                .disable_verification(true)
-                .build(),
-        )
         .build()
 }
 impl HueLightController {
