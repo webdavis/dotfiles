@@ -310,11 +310,36 @@ packages:
           - "gnhf@0.1.49"
           - hyperframes
           - mcporter
+  # The one herdr plugin this machine builds and LINKS rather than installing
+  # from GitHub. `herdr plugin install` requires a herdr-plugin.toml committed in
+  # the plugin repository, and herdr-process has none: its actions are one set per
+  # declared process profile, so the manifest is rendered from this machine's own
+  # config by `herdr-process generate`. Its builder,
+  # .chezmoiscripts/run_onchange_after_58, clones this revision, compiles it,
+  # generates the manifest and links the result.
+  herdr_linked_plugin:
+    id: herdr-process
+    repo: webdavis/herdr-process
+    ref: c587dda54e2fa71722630ae53974101cdf76989f
+
   herdr_plugins:
     # One roster, two consumers: run_after_53 installs missing plugins at apply,
     # and uu's config template renders it into the herdr lane that refreshes
-    # them weekly. Local plugins (smart-nav, last-workspace) are built from this
-    # repo by their own script, not listed.
+    # them weekly. Every plugin this machine wants is listed here except
+    # herdr-process, which is linked rather than installed (see
+    # herdr_linked_plugin above).
+    #
+    # The first two are ours, extracted into their own public repositories on
+    # 2026-09-17 so that they install by the same convention as everybody
+    # else's. Their `ref` is the revision herdr checks out and builds; herdr v1
+    # has no `plugin update`, so bumping one of these values is only half the
+    # job and the operator reinstalls, exactly as for a third-party pin.
+    - id: herdr-workspace-jump
+      repo: webdavis/herdr-workspace-jump
+      ref: a7c3fe40e22a81fe8abd6ee3542f782547b66fb1
+    - id: herdr-smart-nav
+      repo: webdavis/herdr-smart-nav
+      ref: b82c2cf94de97cd3c6746d93de5a8e8da9fd112f
     - id: worktrunk
       repo: devashish2203/herdr-worktrunk
     - id: tab-smart-rename

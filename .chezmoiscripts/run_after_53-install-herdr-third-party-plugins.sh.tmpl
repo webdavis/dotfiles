@@ -3,13 +3,17 @@
 
 set -euo pipefail
 
-# Installs the third-party herdr plugins this machine wants. `herdr plugin
-# install` writes into herdr's OWN store (~/.config/herdr/plugins/github/), which
-# is a different mechanism from the build-and-link lane this repo authors under
-# dot_local/share/herdr/plugins/ (run_onchange_after_55 and _57), so the plugin
-# content is never chezmoi-managed and never reaches the known-good manifest.
-# What this script makes reproducible is the DECLARATION: a fresh machine ends up
-# with the same plugin set without anyone remembering the command.
+# Installs the herdr plugins this machine wants. `herdr plugin install` writes
+# into herdr's OWN store (~/.config/herdr/plugins/github/), so the plugin content
+# is never chezmoi-managed and never reaches the known-good manifest. What this
+# script makes reproducible is the DECLARATION: a fresh machine ends up with the
+# same plugin set without anyone remembering the command.
+#
+# Two of the roster entries are ours (herdr-workspace-jump and herdr-smart-nav),
+# which is the point of extracting them into their own public repositories: they
+# arrive by the same convention as everybody else's. The one plugin that does not
+# is herdr-process, whose manifest is generated from this machine's config;
+# run_onchange_after_58 clones, builds and links that one.
 #
 # run_after, not run_onchange, on purpose. Both the probe and the install talk to
 # a running herdr server, which a scripted apply frequently does not have. A
