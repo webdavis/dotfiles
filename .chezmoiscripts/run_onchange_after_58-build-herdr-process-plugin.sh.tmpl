@@ -156,6 +156,16 @@ fi
 # apply must not abort it, and the next apply retries. Fetch every ref rather
 # than the pinned object, because fetching a bare object depends on a server
 # option this does not need.
+#
+# A stray non-git directory at $checkout (an interrupted clone, a manual mkdir)
+# makes `git clone` fail into it on every apply with no self-heal, since this
+# script owns no removal mechanism. Name it up front instead, so the message
+# tells the operator exactly what to trash by hand.
+if [[ -e $checkout && ! -d $checkout/.git ]]; then
+  bump_retry_marker
+  printf '%s exists and is not a git checkout; trash it by hand and the next apply reclones (trigger left retryable).\n' "$checkout" >&2
+  exit 0
+fi
 if [[ ! -d $checkout/.git ]]; then
   if ! git clone --quiet "$repo_url" "$checkout"; then
     bump_retry_marker
