@@ -20,6 +20,16 @@ use crate::*;
 pub(crate) fn rows() -> Vec<pns_domain::doctor::Item> {
     use crate::{home_report as report, home_setup_row as setup_row};
     use pns_adapters::SetupFailure;
+    // A DELIBERATE SECOND READ, not a missed reuse. `DoctorActions::home` is a
+    // bare `fn() -> Vec<Item>` rather than a captured closure (see that
+    // field's doc comment), and by the time it runs, `command_doctor.rs` has
+    // already moved its own loaded config into `select_plugins`, so there is
+    // no borrow left to hand this section. `$HOME` does not change within a
+    // process and `load_config` is a pure read of the file at the path it
+    // derives from it, so this section sees the same config the rest of the
+    // report did unless the file is edited between the two reads, which is
+    // the same race every doctor section already runs against the config on
+    // disk.
     let home_dir = std::env::var("HOME").unwrap_or_default();
     let config = match load_config(&config_path(&home_dir)) {
         Ok(LoadOutcome::Loaded(config)) => config,
