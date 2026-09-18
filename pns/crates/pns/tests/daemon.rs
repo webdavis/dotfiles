@@ -79,7 +79,8 @@ const ONE_CHANNEL: &str =
     "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"k\" }\n[failures]\nserve = false\n";
 
 /// An ordinary event for a scheduled job to deliver.
-const EVENT: [&str; 6] = [
+const EVENT: [&str; 7] = [
+    "send",
     "--agent",
     "pns",
     "--state",

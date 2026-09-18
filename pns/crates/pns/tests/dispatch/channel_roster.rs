@@ -19,9 +19,9 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
     sandbox.write_config(
         "[plugins.router]\nenabled = true\ntype = \"unifi\"\n[plugins.hermes]\nenabled = true\n",
     );
-    let output = run(sandbox
-        .pns()
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    let output = run(sandbox.pns().args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(
         !stderr(&output).contains("unknown plugin"),
         "the sensor is registered, not a typo: {output:?}"

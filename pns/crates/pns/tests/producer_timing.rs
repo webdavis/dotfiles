@@ -85,6 +85,7 @@ fn elapsed_below_thirty_is_silent_before_state_or_delivery() {
             let sandbox = Sandbox::new(&format!("elapsed-quiet-{seconds}"));
             let output = run(command(&sandbox)
                 .args([
+                    "send",
                     "--agent",
                     "nvim",
                     "--state",
@@ -106,6 +107,7 @@ fn assert_elapsed_tiers(seconds: &[u64]) {
     for &seconds in seconds {
         let sandbox = Sandbox::new(&format!("elapsed-tier-{seconds}"));
         let output = run(command(&sandbox).args([
+            "send",
             "--agent",
             "nvim",
             "--state",
@@ -164,7 +166,7 @@ fn elapsed_rejects_malformed_missing_and_overflowing_seconds() {
     ] {
         let sandbox = Sandbox::new(&format!("elapsed-invalid-{}", value.replace('/', "_")));
         let mut cmd = command(&sandbox);
-        cmd.args(["--agent", "nvim", "--elapsed"]);
+        cmd.args(["send", "--agent", "nvim", "--elapsed"]);
         if !value.is_empty() {
             cmd.arg(value);
         }
@@ -186,10 +188,10 @@ fn elapsed_rejects_malformed_missing_and_overflowing_seconds() {
 #[test]
 fn elapsed_rejects_an_explicit_tier_in_either_order() {
     for args in [
-        ["--elapsed", "35", "--long-running"],
-        ["--long-running", "--elapsed", "35"],
+        ["send", "--elapsed", "35", "--long-running"],
+        ["send", "--long-running", "--elapsed", "35"],
     ] {
-        let sandbox = Sandbox::new(&format!("elapsed-conflict-{}", args[0]));
+        let sandbox = Sandbox::new(&format!("elapsed-conflict-{}", args[1]));
         let output = run(command(&sandbox).args(args));
         assert_eq!(output.status.code(), Some(2));
         assert_eq!(
@@ -204,7 +206,7 @@ fn elapsed_rejects_an_explicit_tier_in_either_order() {
 #[test]
 fn help_still_wins_over_elapsed_refusal_without_delivery() {
     let sandbox = Sandbox::new("elapsed-help");
-    let output = run(command(&sandbox).args(["--elapsed", "bad", "--help"]));
+    let output = run(command(&sandbox).args(["send", "--elapsed", "bad", "--help"]));
     assert_eq!(output.status.code(), Some(0));
     assert!(stdout(&output).contains("--elapsed <secs>"));
     assert!(output.stderr.is_empty());
@@ -215,6 +217,7 @@ fn help_still_wins_over_elapsed_refusal_without_delivery() {
 fn legacy_events_keep_their_detail_and_explicit_long_running_tier() {
     let sandbox = Sandbox::new("elapsed-legacy");
     let output = run(command(&sandbox).args([
+        "send",
         "--agent",
         "shell",
         "--state",
@@ -234,6 +237,7 @@ fn elapsed_still_obeys_the_presence_gate() {
     command.env("PNS_PHONE_INPUT_AGE", "0");
     sandbox.stub_herdr(&mut command, true);
     let output = run(command.args([
+        "send",
         "--agent",
         "nvim",
         "--state",
@@ -255,7 +259,7 @@ fn elapsed_still_obeys_the_presence_gate() {
 #[test]
 fn elapsed_flag_is_protected_and_empty_detail_is_rendered() {
     let sandbox = Sandbox::new("elapsed-protected");
-    let output = run(command(&sandbox).args(["--detail", "--elapsed", "35"]));
+    let output = run(command(&sandbox).args(["send", "--detail", "--elapsed", "35"]));
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         stderr(&output),
@@ -267,7 +271,7 @@ fn elapsed_flag_is_protected_and_empty_detail_is_rendered() {
 #[test]
 fn invalid_elapsed_is_not_erased_by_a_later_valid_value() {
     let sandbox = Sandbox::new("elapsed-invalid-then-valid");
-    let output = run(command(&sandbox).args(["--elapsed", "bad", "--elapsed", "35"]));
+    let output = run(command(&sandbox).args(["send", "--elapsed", "bad", "--elapsed", "35"]));
     assert_eq!(output.status.code(), Some(2));
     assert!(!sandbox.state().exists());
     assert!(!sandbox.fired("hermes"));

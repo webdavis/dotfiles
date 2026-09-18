@@ -17,7 +17,7 @@ fn input(class: Option<&str>) -> String {
 fn invoke(sandbox: &Sandbox, input: &str) -> std::process::Output {
     let mut command = sandbox.pns();
     command
-        .args(["submit", "--json"])
+        .args(["send", "--json"])
         .env("PNS_STATE_DIR", sandbox.state())
         .env("PNS_IDLE_SECS", "0");
     for (key, leaf) in [

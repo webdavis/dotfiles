@@ -19,7 +19,7 @@ fn heartbeat_ignores_trailing_operands_and_invokes_the_private_installed_engine_
     deliver_through(&home, &engine);
     std::fs::write(&engine,br##"#!/bin/sh
 set -eu
-[ "$#" = 2 ] && [ "$1" = submit ] && [ "$2" = --json ] || exit 42
+[ "$#" = 2 ] && [ "$1" = send ] && [ "$2" = --json ] || exit 42
 IFS= read -r request
 printf '%s\n' "$request" >"$HOME/request"
 printf 'call\n' >>"$HOME/calls"
@@ -113,7 +113,7 @@ fn deliver_through(home: &std::path::Path, engine: &std::path::Path) {
     std::fs::write(
         &config,
         format!(
-            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"{}\"\narguments = [\"submit\", \"--json\"]\n",
+            "[notify]\nmode = \"command\"\n[notify.command]\npath = \"{}\"\narguments = [\"send\", \"--json\"]\n",
             engine.display()
         ),
     )

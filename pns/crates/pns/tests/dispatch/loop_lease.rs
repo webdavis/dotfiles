@@ -30,7 +30,9 @@ fn an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer() {
     // arrives to refresh the lease.
     let away = registering_event("lights-tick-lease-journalled");
     mute(&away);
-    run(logged_event(&away).args(["--agent", "claude", "--state", "blocked", "--detail", "x"]));
+    run(logged_event(&away).args([
+        "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+    ]));
     assert_eq!(journal(&away).len(), 1, "the event really was journalled");
     let long = lights_job(&away);
 
@@ -69,7 +71,9 @@ fn a_registration_that_cannot_be_written_costs_the_event_nothing() {
             std::fs::write(sandbox.path("state/daemon"), "not a directory").expect("the blockage");
         }
         let output = logged_event(&sandbox)
-            .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+            .args([
+                "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            ])
             .output()
             .expect("the engine runs");
         (

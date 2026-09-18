@@ -68,10 +68,9 @@ fn tap_and_the_event_reader_share_the_configured_marker() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(json(&out)["marker"]["source"], "config");
     assert!(path.is_file());
-    run(s
-        .pns()
-        .env("PNS_IDLE_SECS", "60")
-        .args(["--agent", "shell", "--state", "done", "--detail", "tap"]));
+    run(s.pns().env("PNS_IDLE_SECS", "60").args([
+        "send", "--agent", "shell", "--state", "done", "--detail", "tap",
+    ]));
     assert!(s.fired("mobile"));
     assert!(!s.fired("macos-banner"));
     assert!(!s.path(".local/state/pns/phone-attention.marker").exists());

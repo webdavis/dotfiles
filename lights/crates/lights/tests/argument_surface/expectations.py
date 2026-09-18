@@ -173,6 +173,7 @@ def check(case, result, fixture, legacy=False, capture_notifications=True):
             "--signal=KILL",
             "2s",
             result["home"] + "/.cargo/bin/pns",
+            "send",
             "--agent",
             "lights",
             "--state",
