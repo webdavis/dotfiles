@@ -298,7 +298,7 @@ fn print_lines(lines: Vec<String>) {
 /// and the report absorbs a new section without a new spelling. The one flag
 /// earns its place because a report that reaches a file or a pipe wants plain
 /// text and the automatic detection cannot see through a pty.
-const DOCTOR_USAGE: &str = "pns: usage: pns doctor [--raw]";
+pub(crate) const DOCTOR_USAGE: &str = "pns: usage: pns doctor [--raw]";
 
 /// The one argument the doctor takes: every input behind each recorded
 /// decision, instead of the sentence the report says them in.

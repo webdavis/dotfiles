@@ -207,7 +207,7 @@ fn command(stored: &StoredFailure) -> String {
         command.push_str(&format!(" --state {}", stored.state));
     }
     if !stored.route.is_empty() {
-        command.push_str(&format!(" --channel {}", stored.route));
+        command.push_str(&format!(" --route {}", stored.route));
     }
     command
 }
@@ -345,7 +345,7 @@ pub(crate) fn retired_click() -> i32 {
 /// The verb the banner's stored click command names.
 const OPEN_VERB: &str = "open";
 
-const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|open <id>|serve]";
+pub(crate) const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|open <id>|serve]";
 
 #[cfg(test)]
 #[path = "command_failures/tests.rs"]

@@ -50,7 +50,7 @@ pub(crate) fn rows() -> Vec<pns_domain::doctor::Item> {
         Err(failure) => return vec![setup_row(&failure)],
     };
     // WHERE THE ALERT GOES, settled at the config read rather than at the
-    // post. `hermes_target`'s own refusal names `--channel`, a flag nobody
+    // post. `hermes_target`'s own refusal names `--route`, a flag nobody
     // typed on this path; this one names the key in the file, and it is said
     // on every run of the report instead of only on the run that happens
     // to have something to deliver.

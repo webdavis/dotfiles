@@ -2,7 +2,7 @@ use pns_adapters::{MarkerReading, SystemCommandRunner, SystemProbes, TapFailure}
 use pns_protocol::{TapMarker, TapOperation, TapResult, TapWriteStatus};
 use std::io::Write;
 
-const USAGE: &str = "pns tap [info | install] [--json]";
+pub(crate) const TAP_USAGE: &str = "pns: usage: pns tap [info | install] [--json]";
 
 pub(crate) fn tap_mode() -> i32 {
     let args = crate::arguments_after_subcommand();
@@ -64,14 +64,22 @@ fn operation(args: &[String]) -> Result<TapOperation, String> {
             "install" if position == 0 => operation = TapOperation::Install,
             "--info" => return Err(retired("--info", "info")),
             "--install" => return Err(retired("--install", "install")),
-            _ => return Err(format!("usage: {USAGE}")),
+            _ => {
+                return Err(format!(
+                    "usage: {}",
+                    TAP_USAGE.trim_start_matches("pns: usage: ")
+                ));
+            }
         }
     }
     Ok(operation)
 }
 
 fn retired(flag: &str, verb: &str) -> String {
-    format!("{flag} is now a verb: run pns tap {verb}; usage: {USAGE}")
+    format!(
+        "{flag} is now a verb: run pns tap {verb}; usage: {}",
+        TAP_USAGE.trim_start_matches("pns: usage: ")
+    )
 }
 
 fn execute(result: &mut TapResult) -> Result<(), TapFailure> {

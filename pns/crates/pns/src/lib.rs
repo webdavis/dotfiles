@@ -84,6 +84,7 @@ mod hook_dispatch;
 mod hook_observations;
 mod hook_payload;
 mod invocation;
+mod subcommand_usage;
 mod tap_report;
 use invocation::{arguments_after_subcommand, arguments_after_verb};
 mod lamp_event_lease;

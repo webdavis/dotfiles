@@ -91,7 +91,7 @@ still deployed, because the string in the source is the only thing that names th
 | plugin kind         | `src/registry.rs:PluginKind`         | `Channel` or `Sensor`. A sensor can never become a leg                                           |
 | roster              | `src/registry.rs:ROSTER`             | The compiled-in registration table                                                               |
 | core                | `src/registry.rs:CORE`               | The destinations that run when configuration cannot be read                                      |
-| route               | `src/channels/hermes.rs:channel_url` | The named path a durable post is addressed to, selected by `--channel`                           |
+| route               | `src/channels/hermes.rs:channel_url` | The named path a durable post is addressed to, selected by `--route`                             |
 | delivery            | `src/channels/mod.rs:Delivery`       | The outcome of one leg: `Silent`, `Delivered`, `Failed` or `Unlaunched`                          |
 | dispatch precedence | `src/channels/mod.rs:native_first`   | Whether a compiled-in destination or an executable of the same name wins                         |
 
