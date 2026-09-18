@@ -220,3 +220,10 @@ fn the_routing_prose_is_always_written_and_the_example_only_when_nothing_is_decl
         );
     }
 }
+
+#[test]
+fn the_phone_marker_note_points_at_the_tap_install_subcommand() {
+    let text = render(&"".parse().unwrap()).expect("the shipped posture renders");
+    assert!(text.contains("Setup guide: pns tap install."), "{text}");
+    assert!(!text.contains("pns tap --install"), "{text}");
+}

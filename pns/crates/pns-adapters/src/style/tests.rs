@@ -140,7 +140,7 @@ fn header_labels_line_up_in_one_column_however_wide_the_widest_is() {
     // read as a table of facts about the same report.
     let lines = header(
         Paint::Plain,
-        "pns tap --info",
+        "pns tap info",
         &[
             HeaderLine {
                 label: "About",
@@ -158,10 +158,10 @@ fn header_labels_line_up_in_one_column_however_wide_the_widest_is() {
 
 #[test]
 fn a_header_carries_the_whole_invocation_so_the_reader_knows_which_flag_ran() {
-    // `pns tap` and `pns tap --info` print different reports. A header naming
+    // `pns tap` and `pns tap info` print different reports. A header naming
     // only the subcommand leaves the reader to work out which one they got.
-    let lines = header(Paint::Plain, "pns tap --info", &[]);
-    assert_eq!(lines[1], "pns tap --info");
+    let lines = header(Paint::Plain, "pns tap info", &[]);
+    assert_eq!(lines[1], "pns tap info");
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn a_header_draws_no_box_at_any_width() {
     // content mangles it. A rule has one side and cannot be mangled.
     let lines = header(
         Paint::Plain,
-        "pns tap --install",
+        "pns tap install",
         &[HeaderLine {
             label: "Steps",
             text: "1. This Mac    the authorized_keys line",
