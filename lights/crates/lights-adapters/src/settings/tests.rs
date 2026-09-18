@@ -299,7 +299,11 @@ fn a_malformed_certificate_is_refused_without_echoing_it() {
             panic!("accepted a config it should refuse");
         };
         let refusal = refusal.0;
-        assert!(!refusal.contains("nonsense"), "{refusal}");
+        assert!(refusal.contains("certificate"), "{refusal}");
+        let bare = value.trim_matches('\'');
+        if !bare.is_empty() {
+            assert!(!refusal.contains(bare), "{refusal}");
+        }
     }
 }
 #[test]
