@@ -59,9 +59,13 @@ fn open_items(ledger: &str) -> Vec<Item> {
             open = true;
         } else if closes_an_item(trimmed) {
             open = false;
-        } else if open && let Some(current) = items.last_mut() {
-            current.text.push(' ');
-            current.text.push_str(trimmed);
+        } else if open && is_continuation(line) {
+            if let Some(current) = items.last_mut() {
+                current.text.push(' ');
+                current.text.push_str(trimmed);
+            }
+        } else {
+            open = false;
         }
     }
     items
@@ -69,6 +73,12 @@ fn open_items(ledger: &str) -> Vec<Item> {
 
 fn closes_an_item(trimmed: &str) -> bool {
     trimmed.starts_with("- [x]") || trimmed.starts_with("- ") || trimmed.starts_with('#')
+}
+
+/// A continuation line is indented and non-blank; a blank line or unindented
+/// prose closes the item instead of joining it.
+fn is_continuation(line: &str) -> bool {
+    (line.starts_with(' ') || line.starts_with('\t')) && !line.trim().is_empty()
 }
 
 #[cfg(test)]

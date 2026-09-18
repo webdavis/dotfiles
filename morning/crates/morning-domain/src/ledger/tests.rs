@@ -76,6 +76,21 @@ fn a_ledger_with_no_open_items_classifies_nothing() {
 }
 
 #[test]
+fn unindented_prose_after_a_blank_line_does_not_join_the_item_above() {
+    let (applies, operators) = markers();
+    let ledger = "\
+- [ ] 1. Rename the widget.
+
+Unrelated prose: the operator must run `chezmoi apply` after the unrelated task below.
+
+- [ ] 2. Other thing.
+";
+    let found = parse(ledger, &applies, &operators);
+    assert!(found.owed_applies.is_empty());
+    assert!(found.operator_items.is_empty());
+}
+
+#[test]
 fn a_phrase_matches_whatever_case_the_ledger_wrote_it_in() {
     let (_, operators) = markers();
     let found = parse("- [ ] 9. The Operator confirms it.\n", &[], &operators);
