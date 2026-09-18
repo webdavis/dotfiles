@@ -33,6 +33,8 @@ filter = "today | overdue"
 name = "upcoming"
 filter = "7 days"
 
+# "dotfiles" names two Todoist projects; the parent qualifier picks the one
+# nested under webdavis, matching this repo's own path (webdavis/dotfiles).
 [[views]]
 name = "dotfiles"
-filter = "#dotfiles"
+filter = "##webdavis & #dotfiles"

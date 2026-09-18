@@ -27,7 +27,9 @@ return {
     views = {
       today = "today | overdue",
       upcoming = "7 days",
-      dotfiles = "#dotfiles",
+      -- "dotfiles" names two projects; the parent qualifier picks the one
+      -- nested under webdavis, matching this repo's own path.
+      dotfiles = "##webdavis & #dotfiles",
     },
   },
   keys = {
