@@ -86,6 +86,7 @@ fn no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans() {
         channel: "SECRETCHANNEL".to_string(),
         session: "SECRETSESSION".to_string(),
         session_title: "SECRETTITLE".to_string(),
+        request_id: "SECRETREQUESTID".to_string(),
         scope: pns_domain::DeliveryScope::LocalOnly,
         long_running: true,
         guessed: true,

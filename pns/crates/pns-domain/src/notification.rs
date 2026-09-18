@@ -52,6 +52,11 @@ pub struct EventArgs {
     /// Empty on every path with no session: argv, a producer submission, a
     /// job the daemon woke.
     pub session: String,
+    /// The producer's own id for this submission, when the caller passed one.
+    /// Empty means pns mints one: an id is how a replay is recognized as the
+    /// same page rather than a second one, so a caller that keeps its own
+    /// gets to keep it.
+    pub request_id: String,
     /// What that session was asked to do, already stored and read back.
     pub session_title: String,
     pub scope: crate::DeliveryScope,

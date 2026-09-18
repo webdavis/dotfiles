@@ -1,5 +1,5 @@
 use super::*;
-use pns_protocol::{Context, Name, RequestId, State};
+use pns_protocol::{Name, RequestId, State};
 
 #[test]
 fn normalized_state_scope_and_elapsed_choose_policy_without_using_source_event_name() {
@@ -9,11 +9,9 @@ fn normalized_state_scope_and_elapsed_choose_policy_without_using_source_event_n
         Name::new("failed").unwrap(),
         State::Done,
     );
-    request.context = Context {
-        project: Some("project".into()),
-        branch: Some("branch".into()),
-        pane: Some("w:p".into()),
-    };
+    request.project = Some("project".into());
+    request.branch = Some("branch".into());
+    request.pane = Some("w:p".into());
     request.route = Some(Name::new("priority").unwrap());
     for (stated, state, attempt) in [
         (State::Done, "done", Attempt::First),
@@ -62,7 +60,7 @@ fn normalized_state_scope_and_elapsed_choose_policy_without_using_source_event_n
         (Some(300), true),
         (Some(301), true),
     ] {
-        request.elapsed_secs = elapsed;
+        request.elapsed = elapsed.map(std::time::Duration::from_secs);
         assert_eq!(event(&request).0.long_running, long);
     }
 }

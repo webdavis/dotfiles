@@ -25,7 +25,7 @@ pub mod count;
 mod decision;
 mod decision_record;
 pub mod duration;
-mod elapsed;
+pub mod elapsed;
 pub mod github;
 pub mod home;
 pub mod jobs;

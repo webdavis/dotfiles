@@ -42,7 +42,7 @@ fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::
                 session_id: request
                     .session
                     .as_ref()
-                    .map_or_else(String::new, |session| session.id.as_str().into()),
+                    .map_or_else(String::new, |session| session.as_str().into()),
                 ..HookPayload::default()
             };
             execution::execute(

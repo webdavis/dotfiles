@@ -11,15 +11,12 @@ fn request() -> Request {
         State::Observation,
     );
     request.detail = "original detail".into();
-    request.context.project = Some("original project".into());
-    request.context.branch = Some("original branch".into());
+    request.project = Some("original project".into());
+    request.branch = Some("original branch".into());
     request.route = Some(Name::new("priority").unwrap());
-    request.session = Some(pns_protocol::Session {
-        id: Name::new("original-session").unwrap(),
-        turn: Some(7),
-    });
+    request.session = Some(Name::new("original-session").unwrap());
     request.occurred_at = Some(123);
-    request.elapsed_secs = Some(3);
+    request.elapsed = Some(std::time::Duration::from_secs(3));
     request.interaction = pns_protocol::Interaction::AwaitDecision;
     request
         .extensions
@@ -198,7 +195,7 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
     );
     let mut request = request();
     request.state = State::Done;
-    request.context.pane = Some("t1:p2".into());
+    request.pane = Some("t1:p2".into());
     let mut command = sandbox.pns_stateful();
     command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut command, false);

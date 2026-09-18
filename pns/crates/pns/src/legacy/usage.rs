@@ -26,7 +26,7 @@ pns: usage:
   pns github poll [--daemon]       one notifications read, submitted as events
   pns github receive               the push receiver: a delivery polls now
   pns shell begin --pid <pid> --command <line>
-  pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <secs>
+  pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <duration>
   pns loop begin|end               take the loop lamp by hand, and give it back
   pns nag                          card every outstanding approval
   pns stale                        page about every session stuck past the window
@@ -58,9 +58,13 @@ pns: usage:
   pns send --json                  one notification, as a JSON request on stdin
 
 producer flags: --producer <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --route <name> --elapsed <secs>
-                --kind <agent|health> --local-only --remote-only --long-running
-                --require-delivery
+                --detail <text> --pane <id> --route <name> --elapsed <duration>
+                --request-id <id> --session <id> --kind <agent|health>
+                --local-only --remote-only --long-running --require-delivery
+
+durations:      a count and a unit, `30s`, `5m`, `2h`. A bare number is
+                refused: one reader takes it as seconds and the next as
+                minutes.
 
 states:         done, failed, blocked, resolved, observation, progress. The
                 same six words the JSON request's `state` takes; any other
