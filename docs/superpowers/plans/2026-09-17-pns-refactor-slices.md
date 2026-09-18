@@ -860,7 +860,6 @@ TOTAL SLICES: 49
   different knob and would recreate the ambiguity item 85 exists to remove. `pns/docs/pns-refactor.md`
   has been corrected in place, so questions 1 and 2 below are both answered rather than open; questions
   3 and 4 remain.
-||||||| 7f6b6a8a
 
 - 2026-09-17: slicing question 4 is ANSWERED BY CORRECTION, not by a number. Item 105 claimed
   `lights.refresh_secs` was both the daemon re-arm interval and the breath-fade budget and should split
