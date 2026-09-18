@@ -303,7 +303,7 @@ fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
     // the key `channel_for` tries first: one repository resolves to one
     // channel whichever producer named it, and an unmapped one reaches the
     // catch-all rather than nowhere.
-    request.context.project = Some(event.repo.clone());
+    request.project = Some(event.repo.clone());
     request.extensions = pns_adapters::github_extensions(event);
     Some(request)
 }

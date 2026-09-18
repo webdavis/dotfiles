@@ -5,7 +5,7 @@ use pns_protocol::{
 };
 use std::cell::Cell;
 
-const REQUEST: &[u8] = br#"{"schema":"pns.request/1","request_id":"posture-occurrence","producer":"posture","event":"heartbeat","state":"observation","session":{"id":"session","turn":9},"occurred_at":42,"elapsed_secs":7,"detail":"private body","context":{"project":"repo","branch":"topic","pane":"pane"},"scope":"remote_only","route":"posture","interaction":{"kind":"none"},"extensions":{"posture":{"count":2}},"future":true}"#;
+const REQUEST: &[u8] = br#"{"schema":"pns.request/1","request_id":"posture-occurrence","producer":"posture","event":"heartbeat","state":"observation","session":"session","occurred_at":42,"elapsed":"7s","detail":"private body","project":"repo","branch":"topic","pane":"pane","scope":"remote_only","route":"posture","interaction":{"kind":"none"},"extensions":{"posture":{"count":2}},"future":true}"#;
 fn args() -> Vec<String> {
     vec!["--json".into()]
 }

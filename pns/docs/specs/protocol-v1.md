@@ -172,9 +172,10 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a version 1 request, when decoded, then request_id, producer, event and state are required and
 must have their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent
-optional session, times, route, kind and class become None; detail is empty, context fields are None,
-scope is automatic, interaction is none, and extensions is an empty object. Request::new supplies those
-same defaults.
+optional session, times, route, kind and class become None; detail is empty, project, branch and pane
+are None, scope is automatic, interaction is none, and extensions is an empty object. Request::new
+supplies those same defaults. The session is a plain name and the place of the work is three top-level
+fields, the same names the flags carry.
 
 `class` uses the same validated `Name` as the other short names: 1 through 64 Unicode characters, without
 controls. A wrong type or invalid name is refused before effects, retaining the correlated request
@@ -233,11 +234,14 @@ Source: [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L196),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107).
 
-## protocol-v1/S015: Unsigned request times
+## protocol-v1/S015: Request times
 
-Given occurred_at or elapsed_secs, when decoded, then supplied values must be unsigned integral epoch or
-duration seconds. Negative or fractional values are field_invalid, and omission remains None. The codec
-does not choose a notification tier from elapsed time.
+Given occurred_at, when decoded, then supplied values must be unsigned integral epoch seconds; negative
+or fractional values are field_invalid. Given elapsed, when decoded, then the value is a duration written
+as a count and a unit (`90s`, `5m`, `2h`), inside zero to thirty days. A bare number, any other
+text and any non-string are field_invalid, because one reader takes `90` as seconds and the next as
+minutes. Omission remains None for both. The codec does not choose a notification tier from elapsed
+time.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L8).
@@ -405,7 +409,8 @@ canonical encoding exceeds a protocol bound, it returns a correlated rejection a
 effects. Otherwise, the ledger retains those canonical bytes beside the original producer and request
 identifier. Source event names, occurrence time, session and extensions remain metadata. The stated state
 is the event state; observation and progress use the marker-neutral observation path, on the flag path
-and the JSON path alike. Scope and context enter the same decision workflow as legacy events. Elapsed
+and the JSON path alike. Scope and the place of the work enter the same decision workflow as legacy
+events. Elapsed
 time selects the existing 300-second long-running tier without suppressing a short JSON request.
 
 JSON stdout contains exactly one result line. Human delivery lines and executable-channel stdout go to

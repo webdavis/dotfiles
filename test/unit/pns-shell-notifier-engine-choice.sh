@@ -78,7 +78,7 @@ test_a_shell_that_exits_without_another_prompt_leaves_no_marker_of_its_own() {
     exit 7
   ' || status=$?
   [[ $status == 7 ]] || fail 'EXIT cleanup changed the shell status'
-  diff -u <(printf '%s\n' shell end --pid "$(cat "$CALLS_FILE.pid")" --command '' --exit-code 0 --elapsed 0) "$CALLS_FILE"
+  diff -u <(printf '%s\n' shell end --pid "$(cat "$CALLS_FILE.pid")" --command '' --exit-code 0 --elapsed 0s) "$CALLS_FILE"
 }
 
 # PS0 captures before preexec, including the first command. End receives the
@@ -98,7 +98,7 @@ test_prompt_captures_status_time_and_history_before_the_engine() {
     printf "%s\n" "$$" >"$CALLS_FILE.pid"
   ' >"$scratch/precmd.stdout" 2>"$scratch/precmd.stderr"
   [[ ! -s $scratch/precmd.stdout && ! -s $scratch/precmd.stderr && ! -s $CALLS_FILE.ps0 ]] || fail 'prompt callback leaked output'
-  diff -u <(printf '%s\n' shell end --pid "$(cat "$CALLS_FILE.pid")" --command 'cargo build --private arg' --exit-code 17 --elapsed 29) "$CALLS_FILE"
+  diff -u <(printf '%s\n' shell end --pid "$(cat "$CALLS_FILE.pid")" --command 'cargo build --private arg' --exit-code 17 --elapsed 29s) "$CALLS_FILE"
 }
 
 test_a_pane_reaching_its_first_prompt_leaves_another_panes_marker_alone
