@@ -243,7 +243,7 @@ impl Tone {
 /// meeting `pns doctor` over `every suppression gate is bypassed` cannot tell
 /// whether that is a description, a status or a failure.
 ///
-/// THE INVOCATION IS THE WHOLE COMMAND LINE, `pns tap --info` rather than
+/// THE INVOCATION IS THE WHOLE COMMAND LINE, `pns tap info` rather than
 /// `pns tap`, so a reader can tell which flag produced the output in front of
 /// them.
 ///

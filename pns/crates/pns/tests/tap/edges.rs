@@ -66,7 +66,7 @@ fn a_denied_marker_write_is_nonzero_and_preserves_existing_state() {
 #[test]
 fn remote_login_leads_the_mac_steps_and_info_says_what_the_phone_shows() {
     let s = Sandbox::without_config("tap-remote-login");
-    let guide = stdout(&tap(&s, &["--no-color", "tap", "--install"]));
+    let guide = stdout(&tap(&s, &["--no-color", "tap", "install"]));
     let lines: Vec<&str> = guide.lines().collect();
     let step = lines
         .iter()
@@ -76,7 +76,7 @@ fn remote_login_leads_the_mac_steps_and_info_says_what_the_phone_shows() {
     for expected in ["Remote Login", "System Settings", "General", "Sharing"] {
         assert!(first.contains(expected), "missing {expected}: {first}");
     }
-    let info = stdout(&tap(&s, &["--no-color", "tap", "--info"]));
+    let info = stdout(&tap(&s, &["--no-color", "tap", "info"]));
     let cannot_answer = info
         .lines()
         .find(|line| line.contains("SSH"))
@@ -89,7 +89,7 @@ fn remote_login_leads_the_mac_steps_and_info_says_what_the_phone_shows() {
 #[test]
 fn info_states_the_one_file_undo() {
     let s = Sandbox::without_config("tap-info-undo");
-    let text = stdout(&tap(&s, &["--no-color", "tap", "--info"]));
+    let text = stdout(&tap(&s, &["--no-color", "tap", "info"]));
     assert!(
         text.contains("delet") && text.contains("marker file"),
         "{text}"
@@ -124,7 +124,7 @@ fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
 #[test]
 fn install_reports_neither_a_marker_nor_a_surface() {
     let s = Sandbox::without_config("tap-install-nulls");
-    let out = tap(&s, &["tap", "--install", "--json"]);
+    let out = tap(&s, &["tap", "install", "--json"]);
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let answer = json(&out);
     assert!(answer["marker"].is_null(), "{answer}");
@@ -172,7 +172,7 @@ fn metadata_errors_remain_unknown_in_info_and_doctor() {
     let out = s
         .pns()
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["tap", "--info", "--json"])
+        .args(["tap", "info", "--json"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
@@ -191,7 +191,7 @@ fn metadata_errors_remain_unknown_in_info_and_doctor() {
     let plain = s
         .pns()
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["tap", "--info", "--no-color"])
+        .args(["tap", "info", "--no-color"])
         .output()
         .unwrap();
     let reported = support::stderr(&plain);
@@ -273,7 +273,7 @@ fn future_marker_is_fresh_but_an_invalid_window_is_unknown() {
             .pns()
             .env("PNS_PHONE_MARKER_FILE", &marker)
             .env("PNS_DESK_IDLE_SECS", window)
-            .args(["tap", "--info", "--json"])
+            .args(["tap", "info", "--json"])
             .output()
             .unwrap();
         assert_eq!(out.status.code(), Some(0), "{out:?}");

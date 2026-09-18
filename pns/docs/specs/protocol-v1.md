@@ -2,7 +2,7 @@
 
 ## Tap result version 1
 
-`pns tap [--info | --install] [--json]` accepts one operation and an optional JSON output selector. Bare
+`pns tap [info | install] [--json]` accepts one operation and an optional JSON output selector. Bare
 tap records attention; info observes it; install prints a guide. Other arguments, including conflicting
 operations, exit 2 before mutation. The tool-wide color flag still applies.
 

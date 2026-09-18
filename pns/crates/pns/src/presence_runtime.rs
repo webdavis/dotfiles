@@ -10,7 +10,7 @@ pub(crate) fn phone_tap_status() -> pns_domain::doctor::Item {
             Err(error) => {
                 return Item::row(
                     Mark::Warn,
-                    format!("phone tap: unknown ({}); run `pns tap --info`", error.code),
+                    format!("phone tap: unknown ({}); run `pns tap info`", error.code),
                 );
             }
         };
@@ -39,7 +39,7 @@ pub(crate) fn phone_tap_status() -> pns_domain::doctor::Item {
     Item::row(
         mark,
         format!(
-            "phone tap: {state} ({}, {:?}); run `pns tap --info`",
+            "phone tap: {state} ({}, {:?}); run `pns tap info`",
             resolved.source, resolved.path
         ),
     )
