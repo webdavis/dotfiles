@@ -7,7 +7,7 @@ use parse::{Action, parse};
 /// What `pns shell` takes, which is one end of one command the notifier timed.
 pub(crate) const SHELL_USAGE: &str = "pns: usage: \
 pns shell begin --pid <pid> --command <line> | \
-pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <secs>";
+pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <duration>";
 
 pub fn shell_mode(argv: &[String]) -> i32 {
     let action = match parse(argv) {

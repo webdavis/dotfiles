@@ -10,8 +10,8 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
     ] {
         let sandbox = Sandbox::new(&format!("observation-{label}"));
         let mut request = request();
-        request.elapsed_secs = Some(301);
-        request.context.pane = Some("t1:p1".into());
+        request.elapsed = Some(std::time::Duration::from_secs(301));
+        request.pane = Some("t1:p1".into());
         let mut command = sandbox.pns_stateful();
         command
             .env("PNS_IDLE_SECS", desk)
@@ -64,7 +64,7 @@ fn json_progress_and_blocked_keep_presence_driven_phone_cards() {
             let sandbox = Sandbox::new(&format!("ordinary-{stated:?}-{label}"));
             let mut request = request();
             request.state = stated;
-            request.context.pane = Some("t1:p1".into());
+            request.pane = Some("t1:p1".into());
             let mut command = sandbox.pns_stateful();
             command.env("PNS_IDLE_SECS", idle);
             sandbox.stub_herdr(&mut command, visible);

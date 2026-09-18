@@ -4,7 +4,7 @@
 //! The source's own event name (`event`) is carried as metadata; the
 //! normalized [`State`] is what engine policy reads. Delivery scope is one
 //! typed word, so a pair of independent flags cannot be spelled here. A
-//! producer states `elapsed_secs` and the engine decides the tier from it;
+//! producer states `elapsed` and the engine decides the tier from it;
 //! there is no field for a caller-decided tier.
 
 use serde::{Deserialize, Serialize};
@@ -55,47 +55,37 @@ pub enum Interaction {
     AwaitDecision,
 }
 
-/// The producer's session, and the turn within it when the producer counts
-/// turns.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Session {
-    pub id: Name,
-    #[serde(default)]
-    pub turn: Option<u64>,
-}
-
-/// Where the work was happening. Every part is optional because not every
-/// producer has a project, a branch or a pane.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct Context {
-    #[serde(default)]
-    pub project: Option<String>,
-    #[serde(default)]
-    pub branch: Option<String>,
-    #[serde(default)]
-    pub pane: Option<String>,
-}
-
 /// One version 1 request. Construct with [`Request::new`] and set what the
 /// producer knows beyond the four required parts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Request {
     pub request_id: RequestId,
     pub producer: Name,
+    /// The producer's session, for correlation: a plain id at the top level.
     #[serde(default)]
-    pub session: Option<Session>,
+    pub session: Option<Name>,
     pub event: Name,
     pub state: State,
     /// Epoch seconds, when the producer knows when it happened.
     #[serde(default)]
     pub occurred_at: Option<u64>,
-    /// How long the work ran. The engine decides the tier from it.
+    /// How long the work ran, written as `<count><s|m|h>`; the engine decides
+    /// the tier from it. CARRIED AS THE TEXT IT IS ON THE WIRE, because
+    /// posture measures no duration and never sends one: reading the spelling
+    /// is the engine's job, and a parser here would be a second opinion about
+    /// a value posture only ever writes as absent.
     #[serde(default)]
-    pub elapsed_secs: Option<u64>,
+    pub elapsed: Option<String>,
     #[serde(default)]
     pub detail: String,
+    /// Where the work was happening, at the top level and one field per part,
+    /// because not every producer has a project, a branch or a pane.
     #[serde(default)]
-    pub context: Context,
+    pub project: Option<String>,
+    #[serde(default)]
+    pub branch: Option<String>,
+    #[serde(default)]
+    pub pane: Option<String>,
     #[serde(default)]
     pub scope: DeliveryScope,
     #[serde(default)]
@@ -141,9 +131,11 @@ impl Request {
             event,
             state,
             occurred_at: None,
-            elapsed_secs: None,
+            elapsed: None,
             detail: String::new(),
-            context: Context::default(),
+            project: None,
+            branch: None,
+            pane: None,
             scope: DeliveryScope::default(),
             route: None,
             class: None,

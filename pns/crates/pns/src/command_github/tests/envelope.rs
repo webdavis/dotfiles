@@ -8,7 +8,7 @@ mod tests {
         let request =
             request_for(&event("webdavis/dotfiles", "id-1"), NOW).expect("it is spellable");
         assert_eq!(
-            request.context.project.as_deref(),
+            request.project.as_deref(),
             Some("webdavis/dotfiles"),
             "the FULL name, owner included, is what the channel map keys on"
         );
@@ -95,7 +95,7 @@ mod tests {
         .collect();
         let landed = |repo: &str| {
             let request = request_for(&event(repo, "id-1"), NOW).expect("it is spellable");
-            let project = request.context.project.clone().unwrap_or_default();
+            let project = request.project.clone().unwrap_or_default();
             channel_for(&channels, "", &project, "pns-events").map(str::to_string)
         };
         assert_eq!(

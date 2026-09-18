@@ -20,7 +20,18 @@ fn shell_arguments_refuse_missing_unknown_repeated_and_malformed_values() {
     ] {
         assert!(parse(&words(&args)).is_err(), "{args:?}");
     }
-    for value in ["", "-1", "+1", "1.5", "18446744073709551616"] {
+    // A BARE NUMBER IS REFUSED like every other duration pns reads.
+    for value in [
+        "",
+        "-1",
+        "+1",
+        "1.5",
+        "30",
+        "0",
+        "18446744073709551616",
+        "30x",
+        "721h",
+    ] {
         let argv = words(&[
             "end",
             "--pid",
@@ -45,7 +56,7 @@ fn shell_arguments_refuse_missing_unknown_repeated_and_malformed_values() {
                 "--exit-code",
                 value,
                 "--elapsed",
-                "30"
+                "30s"
             ]))
             .is_err()
         );
@@ -67,7 +78,7 @@ fn the_command_is_a_literal_value_even_when_it_starts_with_a_flag() {
         "--command",
         "",
         "--elapsed",
-        "18446744073709551615",
+        "24h",
         "--exit-code",
         "255",
     ]);
@@ -81,7 +92,7 @@ fn the_command_is_a_literal_value_even_when_it_starts_with_a_flag() {
         panic!("wrong verb")
     };
     assert_eq!(command, "");
-    assert_eq!(elapsed, u64::MAX);
+    assert_eq!(elapsed, 24 * 60 * 60);
     assert_eq!(exit_code, 255);
 }
 
@@ -97,7 +108,7 @@ fn the_retired_exit_flag_is_refused_and_names_its_replacement() {
             "--exit",
             "0",
             "--elapsed",
-            "30",
+            "30s",
         ],
         vec!["begin", "--pid", "2", "--command", "x", "--exit", "0"],
     ] {

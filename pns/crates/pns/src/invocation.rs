@@ -78,10 +78,14 @@ const EVENT_NOT_DELIVERED: i32 = 1;
 /// page is a different fact, and one a producer such as posture has no other way
 /// to learn.
 pub(crate) fn event_mode(argv: &[String]) -> i32 {
-    crate::legacy::run(argv, |event| {
-        // Legacy argv carries no harness payload.
+    crate::legacy::run(argv, |event, session_id| {
+        // Argv carries no harness payload beyond the session a caller named.
         let attempt = Attempt::of_state(&event.state);
-        match run_event(&event, &system_probes(), &HookPayload::default(), attempt) {
+        let payload = HookPayload {
+            session_id,
+            ..HookPayload::default()
+        };
+        match run_event(&event, &system_probes(), &payload, attempt) {
             event_flow::Landed::Yes => 0,
             event_flow::Landed::No => EVENT_NOT_DELIVERED,
         }
