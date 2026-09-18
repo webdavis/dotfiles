@@ -1,7 +1,7 @@
 use crate::style::{self, Paint, Tone};
 use pns_adapters::{DEFAULT_HERMES_URL, DEFAULT_MOSHI_URL, SqliteStore};
 use pns_application::StoredFailure;
-use pns_domain::failure::{self, Failure};
+use pns_domain::failure::{self, ClickView, Failure};
 
 /// How many a bare `pns failures` lists. Twenty covers a bad night without
 /// paging, and carrying the status and route on every line means most failures
@@ -28,6 +28,13 @@ pub(crate) fn failures_mode() -> i32 {
         // A VERB BEFORE THE NUMBER PARSE, and the two can never collide: an id
         // is a number and a verb is a word.
         [word] if word == "serve" => serve(),
+        [verb, word] if verb == OPEN_VERB => match word.parse::<u64>() {
+            Ok(id) => open(id),
+            Err(_) => {
+                eprintln!("{FAILURES_USAGE}");
+                2
+            }
+        },
         [word] => match word.parse::<u64>() {
             Ok(id) => show(&store, id),
             Err(_) => {
@@ -245,7 +252,100 @@ fn when(epoch: u64) -> String {
     format!("{}Z", minute.replace('T', " "))
 }
 
-const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|serve]";
+/// `pns failures open <id>`: what a click on a failure banner runs.
+///
+/// IT IS NOT TYPED BY THE OPERATOR, which is what shapes everything here. The
+/// banner's `-execute` string calls it from a bare launchd context with no
+/// PATH, no terminal and nobody watching stderr, so every path ends in
+/// something the operator can SEE: a window, or a log line naming what was
+/// tried.
+fn open(id: u64) -> i32 {
+    let herdr = crate::executable_in_path("herdr");
+    let view = match view(herdr.is_some()) {
+        Ok(view) => view,
+        // A REFUSED CONFIG STILL OPENS THE RECORD. The operator clicked a
+        // banner about a lost page; telling them their config is wrong and
+        // showing them nothing answers a question they did not ask. The
+        // complaint is printed and the fallback runs.
+        Err(complaint) => {
+            eprintln!("pns: {complaint}");
+            ClickView::Window
+        }
+    };
+    let outcome = pns_application::open_failure(
+        &pns_adapters::SystemCommandRunner,
+        &view,
+        id,
+        herdr.as_deref().unwrap_or("herdr"),
+        &pns_path(),
+    );
+    if outcome.opened {
+        return 0;
+    }
+    eprintln!("{}", pns_application::click_failure_line(id, &outcome));
+    raise_last_resort_banner(id);
+    1
+}
+
+/// The banner that reports a click nothing answered.
+///
+/// `":"` IS THE EXEC STRING, which is the no-op the channel already writes for
+/// an event with no pane: the banner raises the terminal and runs nothing.
+/// Clicking a failed click to be told the click failed is a loop, and this is
+/// where it stops.
+fn raise_last_resort_banner(id: u64) {
+    let (title, message) = pns_application::click_banner(id);
+    let args = pns_adapters::notifier_args(
+        &title,
+        &message,
+        Some("default"),
+        pns_adapters::DEFAULT_TERMINAL_BUNDLE_ID,
+        ":",
+    );
+    // The outcome is DROPPED, and there is nowhere left to report it: a banner
+    // that will not post is the third failure in a row, and the log line above
+    // has already said everything a reader could act on.
+    let _ = pns_application::CommandRunner::run(
+        &pns_adapters::SystemCommandRunner,
+        "terminal-notifier",
+        &args.iter().map(String::as_str).collect::<Vec<_>>(),
+    );
+}
+
+fn view(herdr_present: bool) -> Result<ClickView, String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let Ok(pns_adapters::LoadOutcome::Loaded(config)) =
+        pns_adapters::load_config(&pns_adapters::config_path(&home))
+    else {
+        return Ok(ClickView::inferred(herdr_present));
+    };
+    match crate::plugin_settings(&config, "macos-banner") {
+        Some(settings) => pns_adapters::banner_click(settings, herdr_present),
+        None => Ok(ClickView::inferred(herdr_present)),
+    }
+}
+
+/// This binary's own path, so the view it opens runs THIS pns rather than
+/// whatever a new shell's PATH resolves. A click has no PATH to resolve with,
+/// and a machine mid-upgrade can have two.
+pub(crate) fn pns_path() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.to_str().map(str::to_string))
+        .unwrap_or_else(|| "pns".to_string())
+}
+
+/// What `pns click` answers now: the verb that replaced it, and nothing done.
+pub(crate) fn retired_click() -> i32 {
+    eprintln!("pns: click is now a verb: run `pns failures open <id>`");
+    eprintln!("{FAILURES_USAGE}");
+    2
+}
+
+/// The verb the banner's stored click command names.
+const OPEN_VERB: &str = "open";
+
+const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|open <id>|serve]";
 
 #[cfg(test)]
 #[path = "command_failures/tests.rs"]

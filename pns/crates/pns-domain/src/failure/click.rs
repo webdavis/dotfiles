@@ -34,7 +34,7 @@ pub const ID_PLACEHOLDER: &str = "{id}";
 /// ABSOLUTE, because the notifier spawns it from a bare launchd context with
 /// nothing on PATH, and a machine mid-upgrade can have two pns binaries.
 pub fn click_command(pns_path: &str, id: u64) -> String {
-    format!("{pns_path} click {id}")
+    format!("{pns_path} failures open {id}")
 }
 
 impl ClickView {

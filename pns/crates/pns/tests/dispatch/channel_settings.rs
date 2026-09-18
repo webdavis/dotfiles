@@ -89,7 +89,7 @@ fn a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly() {
     .expect("config");
     let output = sandbox
         .bare()
-        .args(["pulse", "1"])
+        .args(["lights", "pulse", "1"])
         .output()
         .expect("the engine runs");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -107,7 +107,7 @@ fn an_absent_config_stays_silent_in_pulse_mode() {
     let sandbox = support::Sandbox::without_config("pulse-absent-config");
     let output = sandbox
         .bare()
-        .args(["pulse", "0"])
+        .args(["lights", "pulse", "0"])
         .output()
         .expect("the engine runs");
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");
@@ -137,13 +137,13 @@ fn pulse_help_prints_its_own_usage_before_any_config_load() {
     ] {
         let output = sandbox
             .bare()
-            .arg("pulse")
+            .args(["lights", "pulse"])
             .args(args)
             .output()
             .expect("the engine runs");
         assert_eq!(output.status.code(), Some(0), "{args:?}: {output:?}");
         // The phrase names PULSE_USAGE specifically, not the global USAGE
-        // text, which also mentions "pns pulse" in its subcommand list.
+        // text, which also mentions "pns lights pulse" in its subcommand list.
         assert!(
             stdout(&output).contains("success pulse"),
             "{args:?}: {output:?}"
@@ -174,13 +174,13 @@ fn pulse_refuses_a_code_it_cannot_read_instead_of_guessing_it_failed() {
     ] {
         let output = sandbox
             .bare()
-            .arg("pulse")
+            .args(["lights", "pulse"])
             .args(args)
             .output()
             .expect("the engine runs");
         assert_eq!(output.status.code(), Some(2), "{args:?}: {output:?}");
         // The phrase names PULSE_USAGE specifically, not the global USAGE
-        // text, which also mentions "pns pulse" in its subcommand list.
+        // text, which also mentions "pns lights pulse" in its subcommand list.
         assert!(
             stderr(&output).contains("success pulse"),
             "{args:?}: {output:?}"
@@ -213,7 +213,7 @@ fn an_unknown_plugin_never_resurrects_a_disabled_pulse() {
     .expect("config");
     let child = sandbox
         .bare()
-        .args(["pulse", "1"])
+        .args(["lights", "pulse", "1"])
         .spawn()
         .expect("the engine starts");
     assert_eq!(
@@ -240,7 +240,7 @@ fn the_pulse_config_warning_says_what_pulse_mode_actually_did() {
     .expect("config");
     let output = sandbox
         .bare()
-        .args(["pulse", "1"])
+        .args(["lights", "pulse", "1"])
         .output()
         .expect("the engine runs");
     assert_eq!(
