@@ -35,6 +35,18 @@ funnel = "com.webdavis.osquery-tailscale-monitor"
 digest = "com.webdavis.osquery-digest"
 heartbeat = "com.webdavis.osquery-heartbeat"
 
+# WHEN THE TWO DAILY JOBS FIRE, in this machine's own local time, written as
+# `HH:MM`. `posture jobs install` reads these; every other job runs on an
+# interval or on a write to the result log and needs no time of day.
+#
+# The values are rendered from the same data this repository's own plists are
+# rendered from, so the schedule posture would install and the schedule
+# deployed here cannot drift apart. A time that is not `HH:MM` is named in the
+# job's diagnostics and the shipped time is used.
+[jobs.daily]
+digest = "{{ printf "%02d:%02d" (int .osquery.digestHour) (int .osquery.digestMinute) }}"
+heartbeat = "{{ printf "%02d:%02d" (int .osquery.heartbeatHour) (int .osquery.heartbeatMinute) }}"
+
 [notify]
 # THIS MACHINE'S OWN CHOICE, not a requirement of the tool: posture signs each
 # page with the key for the route that page is going to, and posts it itself.
@@ -65,7 +77,7 @@ route = "posture-pages"
 # path however it likes.
 [notify.command]
 path = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
-arguments = ["submit", "--json"]
+arguments = ["send", "--json"]
 
 # The mode selected above. `url` is the gateway's webhook base, one path
 # segment above the route: a page for the `posture-pages` route is posted to

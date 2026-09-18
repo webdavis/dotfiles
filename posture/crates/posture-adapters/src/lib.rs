@@ -86,7 +86,10 @@ pub use hermes::{CriticalCopy, HermesWebhook};
 mod signed_post;
 pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, sign};
 mod notify;
-pub use notify::{DEFAULT_WEBHOOK_BASE, Notify, NotifyMode, agent_labels, alert_sink, config_path};
+pub use notify::{
+    DEFAULT_WEBHOOK_BASE, JobSettings, Notify, NotifyMode, agent_labels, alert_sink, config_path,
+    job_settings,
+};
 mod banner_only;
 mod last_resort_banner;
 pub use last_resort_banner::LastResortBanner;
@@ -143,7 +146,7 @@ mod ssh_signals;
 pub use ssh_commands::{SshFileInstaller, SshKeyscan, SshLaunchd, SshdCommand};
 pub use ssh_signals::{SshSignals, ssh_install_cancelled};
 mod ssh_user;
-pub use ssh_user::ssh_current_user;
+pub use ssh_user::{current_uid, ssh_current_user};
 
 #[cfg(test)]
 mod test_gateway;

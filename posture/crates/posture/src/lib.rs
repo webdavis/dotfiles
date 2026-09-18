@@ -5,6 +5,7 @@ mod digest;
 mod doctor;
 mod funnel;
 mod heartbeat;
+mod jobs;
 mod poll;
 mod ssh;
 mod watchdog;
@@ -20,7 +21,9 @@ const USAGE: &str = "usage: posture <subcommand> [args]
   allowlist add <label> | allowlist deny <label> | allowlist list
   enrich <path>
   ssh install|verify|reload|rollback|print-config|print-path
-only enrich, allowlist, converge, doctor, heartbeat, digest, alert, poll, funnel, ssh and watchdog are implemented; other subcommands exit 2
+  jobs install|verify|list|print <job>
+only enrich, allowlist, converge, doctor, heartbeat, digest, alert, poll, funnel, ssh, jobs and
+watchdog are implemented; other subcommands exit 2
 ";
 
 pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) -> u8 {
@@ -29,6 +32,9 @@ pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) 
     }
     if args.first().is_some_and(|word| word == "ssh") {
         return ssh::run(&args[1..], stdout, stderr);
+    }
+    if args.first().is_some_and(|word| word == "jobs") {
+        return jobs::run(&args[1..], stdout, stderr);
     }
     if args.first().is_some_and(|word| word == "converge") {
         return converge::run(&args[1..], stdout, stderr);
@@ -87,7 +93,7 @@ pub(crate) fn command_notify(command: &Path) -> posture_adapters::Notify {
     posture_adapters::Notify {
         mode: posture_adapters::NotifyMode::Command {
             path: command.to_path_buf(),
-            arguments: vec!["submit".to_string(), "--json".to_string()],
+            arguments: vec!["send".to_string(), "--json".to_string()],
         },
         ..Default::default()
     }

@@ -58,7 +58,9 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
     command.env("PNS_IDLE_SECS", "0");
     sandbox.stub_notifier(&mut command);
     run(command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .arg("--local-only"));
 
     let spawned = std::fs::read_to_string(sandbox.path("notifier.args"))
@@ -83,7 +85,9 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_MOSHI_URL", capture.url());
     sandbox.stub_notifier(&mut command);
-    let output = run(command.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    let output = run(command.args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
 
     let raw = capture.finish();
     assert!(
@@ -116,7 +120,9 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_MOSHI_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
-    let output = run(command.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    let output = run(command.args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(
         stderr(&output).is_empty(),
         "a failed post said something; the failure path must be silent: {output:?}"
@@ -135,7 +141,9 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     command.env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command
-        .args(["--agent", "weekly", "--state", "done", "--detail", "ran"])
+        .args([
+            "send", "--agent", "weekly", "--state", "done", "--detail", "ran",
+        ])
         .arg("--remote-only"));
 
     assert_eq!(stdout(&output), "pns: posted HTTP 200\n");
@@ -163,7 +171,9 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     command.env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command
-        .args(["--agent", "weekly", "--state", "done", "--detail", "ran"])
+        .args([
+            "send", "--agent", "weekly", "--state", "done", "--detail", "ran",
+        ])
         .arg("--remote-only"));
     capture.finish();
 
@@ -183,7 +193,9 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
         .env("PNS_IDLE_SECS", "99999")
         .env("PNS_HERMES_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
-    let output = run(command.args(["--agent", "claude", "--state", "done", "--detail", "x"]));
+    let output = run(command.args([
+        "send", "--agent", "claude", "--state", "done", "--detail", "x",
+    ]));
     assert!(
         stdout(&output).is_empty(),
         "an async delivery printed an outcome; async legs must be silent: {output:?}"
@@ -367,7 +379,7 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
     sandbox.stub_notifier(&mut command);
     run(command
         .args([
-            "--agent", "upgrades", "--state", "failed", "--detail", "ran",
+            "send", "--agent", "upgrades", "--state", "failed", "--detail", "ran",
         ])
         .args(["--kind", "health"])
         .arg("--remote-only"));
@@ -414,7 +426,9 @@ fn an_unrouted_event_takes_the_default_route_the_config_invented() {
         .env("http_proxy", capture.url());
     sandbox.stub_notifier(&mut command);
     run(command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .arg("--remote-only"));
 
     let raw = capture.finish();

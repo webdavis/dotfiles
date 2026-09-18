@@ -3,7 +3,8 @@
 /// operator who mistyped and an operator who asked have the same question.
 pub const USAGE: &str = "\
 pns: usage:
-  pns [<producer flags>]           one notification, stated in argv
+  pns send [<producer flags>]      one notification, stated in argv
+  pns send --json                  one notification, as a JSON request on stdin
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
                                    blocked, asked, denied, waiting, resolved,
                                    model-switch, quota, config-change

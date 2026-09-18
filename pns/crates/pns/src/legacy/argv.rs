@@ -42,18 +42,17 @@ const BARE_FLAGS: [&str; 4] = [
     "--require-delivery",
 ];
 
-/// Whether a token is a producer flag, shared by parsing and invocation classification.
+/// Whether a token is a producer flag.
 fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token) || BARE_FLAGS.contains(&token)
 }
 
 /// Whether a token is `--help`/`-h`.
 ///
-/// PUBLIC FOR THE SAME REASON `is_producer_flag` IS: the composition root's
-/// producer check counts it too (a producer invocation that only adds
-/// `--help` still has to reach this parser, which is where the help arm
-/// actually prints the usage), and a second copy of the two spellings in
-/// `main` is exactly the drift the `--long-running` bug above came from.
+/// PUBLIC BECAUSE THE COMPOSITION ROOT ASKS TOO: `pns --help` with no
+/// subcommand behind it prints instead of refusing, and a second copy of the
+/// two spellings in `main` is exactly the drift the `--long-running` bug above
+/// came from.
 pub fn is_help_flag(token: &str) -> bool {
     token == "--help" || token == "-h"
 }
@@ -192,30 +191,6 @@ where
             (true, true) => None,
         },
     }
-}
-
-/// Whether argv is a PRODUCER invocation rather than a mistyped subcommand.
-///
-/// IT READS THE WHOLE OF ARGV, not just the leading word, and that is the
-/// point. The parser deliberately accepts a stray token in front of the real
-/// flags, so a leading word alone does not make an invocation a typo: what does
-/// is argv carrying no producer flag, and no `--help`/`-h`, anywhere. Refusing
-/// on the first word alone would drop real notifications, which is the exact
-/// mirror of the bug this refusal exists to fix.
-///
-/// AN EMPTY ARGV is the bare invocation `args` calls a valid empty event.
-/// A DASH-LED FIRST WORD IS NO LONGER A FREE PASS: that used to make ANY
-/// dash-led `argv[1]` a producer invocation, so a mistyped flag (`--wat`,
-/// `-help`, `--agent=claude`) delivered an empty event in silence, the `pns
-/// stpo` bug reopened for a typo that happens to start with a dash.
-/// `--help`/`-h` ARE COUNTED, so a producer invocation that only adds
-/// `--help` still reaches the parser below, which is where the help arm
-/// actually prints the usage and returns.
-pub fn is_producer_argv(argv: &[String]) -> bool {
-    argv.is_empty()
-        || argv
-            .iter()
-            .any(|token| is_producer_flag(token) || is_help_flag(token))
 }
 
 #[cfg(test)]

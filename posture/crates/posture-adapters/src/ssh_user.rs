@@ -30,3 +30,10 @@ pub fn ssh_current_user() -> Option<String> {
         return (!name.is_empty()).then(|| name.to_owned());
     }
 }
+
+/// The calling process's own user identity, which is the launchd domain its
+/// per-user jobs live in (`gui/<uid>`).
+pub fn current_uid() -> u32 {
+    // getuid takes no pointers and always returns the calling process identity.
+    unsafe { libc::getuid() }
+}

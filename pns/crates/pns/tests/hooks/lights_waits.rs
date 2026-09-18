@@ -229,7 +229,9 @@ fn an_event_with_no_session_id_behind_it_holds_no_lamp() {
     let mut command = with_state_dir(&sandbox);
     sandbox.stub_herdr(&mut command, false);
     let output = command
-        .args(["--agent", "claude", "--state", "blocked", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "blocked", "--detail", "x",
+        ])
         .output()
         .expect("the engine runs");
     assert_eq!(output.status.code(), Some(0));

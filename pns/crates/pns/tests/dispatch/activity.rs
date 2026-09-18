@@ -56,7 +56,7 @@ fn a_full_activity_ring_prunes_to_its_own_depth_instead_of_collapsing_to_one_lin
     );
 
     run(logged_event(&sandbox)
-        .args(["--agent", "claude", "--state", "done"])
+        .args(["send", "--agent", "claude", "--state", "done"])
         .args(["--detail", "the newest event"]));
 
     let recorded = activity(&sandbox);

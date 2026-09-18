@@ -11,7 +11,7 @@
 use super::{COPY_WINDOW, DEFAULT_ROUTE, DEFAULT_WEBHOOK_BASE, NotifyMode};
 use crate::hermes::CriticalCopy;
 use crate::wire::Name;
-use posture_domain::{Agent, AgentLabels};
+use posture_domain::{Agent, AgentLabels, DailyTime, DailyTimes};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -39,6 +39,20 @@ pub(super) struct Jobs {
     funnel: Option<String>,
     digest: Option<String>,
     heartbeat: Option<String>,
+    /// When the two daily jobs fire. Absent is the shipped schedule.
+    #[serde(default)]
+    daily: Daily,
+    #[serde(flatten)]
+    unread: Unread,
+}
+
+/// THE TIME OF DAY OF EACH DAILY JOB, stated as `HH:MM` in the machine's own
+/// local time. A job that fires once a day has to be told when, and the
+/// installer of a product cannot read the data files of whoever packaged it.
+#[derive(Default, Deserialize)]
+pub(super) struct Daily {
+    digest: Option<String>,
+    heartbeat: Option<String>,
     #[serde(flatten)]
     unread: Unread,
 }
@@ -61,6 +75,28 @@ impl Jobs {
             }
         }
         labels
+    }
+
+    /// The daily times, with an unparsable one left at its default and named
+    /// as a warning. A time the operator wrote wrong is worth saying out loud;
+    /// voiding the file over it would take every label with it.
+    pub(super) fn times(&self) -> (DailyTimes, Vec<String>) {
+        let mut times = DailyTimes::default();
+        let mut warnings = Vec::new();
+        let mut read = |key: &str, stated: &Option<String>, field: &mut DailyTime| {
+            let Some(text) = stated.as_ref().filter(|text| !text.is_empty()) else {
+                return;
+            };
+            match DailyTime::parse(text) {
+                Ok(time) => *field = time,
+                Err(refusal) => warnings.push(format!(
+                    "`jobs.daily.{key}` is ignored and the shipped time is used: {refusal}"
+                )),
+            }
+        };
+        read("digest", &self.daily.digest, &mut times.digest);
+        read("heartbeat", &self.daily.heartbeat, &mut times.heartbeat);
+        (times, warnings)
     }
 }
 
@@ -143,6 +179,7 @@ impl File {
             named("notify.hermes.", &hermes.unread);
         }
         named("jobs.", &self.jobs.unread);
+        named("jobs.daily.", &self.jobs.daily.unread);
         lines
     }
 }

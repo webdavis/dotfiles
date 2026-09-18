@@ -96,7 +96,7 @@ mod tests {
     use crate::routes::{Kind, Routes};
 
     /// A failed upgrade, which is the health event this repository actually
-    /// raises: uu spawns `pns` with `--kind health --state failed`.
+    /// raises: uu spawns `pns send --kind health --state failed`.
     fn health() -> EventArgs {
         EventArgs {
             kind: Kind::Health,
