@@ -207,7 +207,7 @@ fn command(stored: &StoredFailure) -> String {
         command.push_str(&format!(" --state {}", stored.state));
     }
     if !stored.route.is_empty() {
-        command.push_str(&format!(" --channel {}", stored.route));
+        command.push_str(&format!(" --route {}", stored.route));
     }
     command
 }

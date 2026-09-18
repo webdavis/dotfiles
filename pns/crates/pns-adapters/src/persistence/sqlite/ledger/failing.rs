@@ -76,7 +76,7 @@ fn row(row: &Row<'_>) -> rusqlite::Result<StoredFailure> {
 /// Every distinct route the ledger has ever posted to, plus nothing else.
 ///
 /// THE LEDGER IS THE ONLY ROSTER pns has. Routes arrive from producers as
-/// `--channel <name>` at call time and are written down nowhere else: the
+/// `--route <name>` at call time and are written down nowhere else: the
 /// gateway's own route table lives in its config, which pns does not read and
 /// which holds that gateway's secrets. So the set worth checking is the set pns
 /// has actually used, which is also exactly the set that can already have lost

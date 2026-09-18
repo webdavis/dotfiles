@@ -7,6 +7,10 @@ fn hermes_404() -> Failure {
         route: "testpath".to_string(),
         address: "127.0.0.1:8644".to_string(),
         agent: "posture heartbeat".to_string(),
+        // THE OLD FLAG SPELLING ON PURPOSE. A record stored before `--channel`
+        // became `--route` replays the words it was written with, and the
+        // field is text a reader searches for rather than a command pns runs,
+        // so it renders unchanged.
         command: "pns --producer posture --channel testpath".to_string(),
         outcome: DeliveryOutcome::Status(404),
         retries: 1,

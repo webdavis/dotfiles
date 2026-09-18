@@ -528,7 +528,7 @@ Then the verdict and the full evidence print every time, and the one warning sen
 - Process ownership and cleanup: `src/doctor_home.rs:rows` builds `system_probes()` and hands it to
   `run_event`; whatever children that path starts are its own contract, not the probe's.
 - Compatibility contract: the alert goes to a hermes ROUTE, never a URL. `stale_alert_channel` names the
-  route; unset means the default route (`/webhooks/pns-events`), the same spelling `--channel` and
+  route; unset means the default route (`/webhooks/pns-events`), the same spelling `--route` and
   `hermes_url_for` use (`src/home.rs:stale_alert_channel`). A value that is not a usable route name (not
   a string, empty, or carrying anything but ASCII letters, digits, `-` and `_`, per
   `src/safety.rs:route_name_is_usable`) falls back to the default route with one complaint on stderr and
