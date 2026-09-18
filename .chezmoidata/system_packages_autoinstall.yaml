@@ -329,17 +329,24 @@ packages:
     # herdr-process, which is linked rather than installed (see
     # herdr_linked_plugin above).
     #
-    # The first two are ours, extracted into their own public repositories on
-    # 2026-09-17 so that they install by the same convention as everybody
-    # else's. Their `ref` is the revision herdr checks out and builds; herdr v1
-    # has no `plugin update`, so bumping one of these values is only half the
-    # job and the operator reinstalls, exactly as for a third-party pin.
+    # The first three are ours, each in its own public repository so that they
+    # install by the same convention as everybody else's. Their `ref` is the
+    # revision herdr checks out and builds; herdr v1 has no `plugin update`, so
+    # bumping one of these values is only half the job and the operator
+    # reinstalls, exactly as for a third-party pin.
     - id: herdr-workspace-jump
       repo: webdavis/herdr-workspace-jump
       ref: a7c3fe40e22a81fe8abd6ee3542f782547b66fb1
     - id: herdr-smart-nav
       repo: webdavis/herdr-smart-nav
       ref: b82c2cf94de97cd3c6746d93de5a8e8da9fd112f
+    # The Todoist pane. Its config lives at
+    # dot_config/herdr/plugins/config/herdr-todoist/config.toml and names the
+    # KeePassXC entry the token comes from; the plugin refuses to run until one
+    # of its two token indirections resolves.
+    - id: herdr-todoist
+      repo: webdavis/herdr-todoist
+      ref: bef263d7d86f5aabb6aba35c3be56bc619e4ee21
     - id: worktrunk
       repo: devashish2203/herdr-worktrunk
     - id: tab-smart-rename

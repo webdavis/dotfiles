@@ -1,0 +1,40 @@
+# herdr-todoist (webdavis/herdr-todoist), installed by run_after_53.
+#
+# The token is an indirection: this file names the source it comes from and
+# never holds the value, which the plugin enforces by refusing to parse a
+# literal token key.
+#
+# MEASURED 2026-09-18: both this plugin and todoist.nvim spawn token_command
+# with stdin closed, so keepassxc-cli (whose `show` reads the database
+# password from standard input) can never resolve, in any pane, including an
+# interactive one. The macOS keychain is read non-interactively instead;
+# KeePassXC stays the entry of record. One-time operator setup:
+#   security add-generic-password -a "$USER" -s 'Todoist API Token' -w
+token_command = [
+  "security",
+  "find-generic-password",
+  "-w",
+  "-s",
+  "Todoist API Token",
+]
+
+# A third of the tab: the list is one task per line and the pane it splits off
+# is the one being worked in.
+width = 0.3
+
+# The list worth having open, and the same word the Neovim sidebar opens on.
+default_view = "today"
+
+[[views]]
+name = "today"
+filter = "today | overdue"
+
+[[views]]
+name = "upcoming"
+filter = "7 days"
+
+# "dotfiles" names two Todoist projects; the parent qualifier picks the one
+# nested under webdavis, matching this repo's own path (webdavis/dotfiles).
+[[views]]
+name = "dotfiles"
+filter = "##webdavis & #dotfiles"
