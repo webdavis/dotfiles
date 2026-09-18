@@ -25,9 +25,7 @@ pub(super) fn parse(argv: &[String]) -> Result<Action<'_>, &'static str> {
         let slot = match pair[0].as_str() {
             "--pid" => &mut pid,
             "--command" => &mut command,
-            // The retired spelling is REFUSED with its replacement named, and it
-            // is matched as a pair so its value goes with it: a skipped flag
-            // would leave the exit code at a default and lose the refusal.
+            // Matched as a pair so the retired flag's value is consumed with it.
             "--exit" => return Err("--exit was replaced by --exit-code"),
             "--exit-code" if verb == "end" => &mut exit,
             "--elapsed" if verb == "end" => &mut elapsed,
