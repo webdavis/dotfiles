@@ -30,12 +30,12 @@ pns: usage:
   pns --version, -V                the package version
 
 producer flags: --producer <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route> --elapsed <secs>
+                --detail <text> --pane <id> --route <name> --elapsed <secs>
                 --kind <agent|health> --local-only --remote-only --long-running
                 --require-delivery
 
 kinds:          agent, the default, is a session event and takes the route
                 `[routes] default` names; health is a machine's own health and
                 takes `[routes] urgent` when its --state is one somebody has to
-                answer, unless --channel already named one.
+                answer, unless --route already named one.
 ";

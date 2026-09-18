@@ -26,7 +26,7 @@ const VALUE_FLAGS: [&str; 9] = [
     "--branch",
     "--detail",
     "--pane",
-    "--channel",
+    "--route",
     "--elapsed",
     "--kind",
 ];
@@ -46,7 +46,7 @@ const BARE_FLAGS: [&str; 4] = [
 /// retired flag is REFUSED and the refusal names its replacement, so a caller
 /// still typing the old spelling is told the new one instead of watching its
 /// producer name vanish into the lenient skip.
-const RETIRED_FLAGS: [(&str, &str); 1] = [("--agent", "--producer")];
+const RETIRED_FLAGS: [(&str, &str); 2] = [("--agent", "--producer"), ("--channel", "--route")];
 
 /// Whether a token is a producer flag. A retired flag counts, so a flag whose
 /// value is missing (`--detail --agent x`) is warned about rather than eating
@@ -183,7 +183,7 @@ where
                     "--project" => parsed.project = value,
                     "--branch" => parsed.branch = value,
                     "--detail" => parsed.detail = value,
-                    "--channel" => parsed.channel = value,
+                    "--route" => parsed.channel = value,
                     _ => parsed.pane = value,
                 }
             }

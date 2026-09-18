@@ -7,7 +7,7 @@
 //! 405 for every path, real or not, and so distinguish nothing.
 //!
 //! This is the check the whole failure-reporting design is for. The defect it
-//! catches is a `--channel` name that is a valid path segment and names no
+//! catches is a `--route` name that is a valid path segment and names no
 //! route: pns builds it into a URL, posts it, and the page is gone. Asking here
 //! finds that when the route is introduced rather than when a page is lost.
 

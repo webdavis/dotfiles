@@ -4,8 +4,9 @@ Historical snapshot, not the live contract: this file predates the retirement la
 `PNS_AGENT` is REFUSED on the current parser (`src/legacy/argv.rs:RETIRED_FLAGS`), not warned and
 dropped as the flag table below still says; `--producer`/`PNS_PRODUCER` is the live spelling. The
 typed spellings of two subcommands moved as well: the pulse is `pns lights pulse <exit-code>` and the
-banner's click is `pns failures open <id>`, and each old word is refused. Not rewritten pending the
-ladder's closing docs pass.
+banner's click is `pns failures open <id>`, and each old word is refused. `--channel` is likewise
+REFUSED in favor of `--route`, which is the flag that now names a hermes route in the table and the
+usage text below. Not rewritten pending the ladder's closing docs pass.
 
 ## Scope
 

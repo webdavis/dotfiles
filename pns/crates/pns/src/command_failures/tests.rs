@@ -21,7 +21,7 @@ fn the_shown_command_is_the_routing_flags_that_produced_this_leg() {
     let failure = compose(&stored(47, pns_domain::retry::DeliveryOutcome::Status(404)));
     assert_eq!(
         failure.command,
-        "pns send --producer posture --state failed --channel testpath"
+        "pns send --producer posture --state failed --route testpath"
     );
 }
 

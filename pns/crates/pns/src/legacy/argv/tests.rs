@@ -34,16 +34,28 @@ fn every_value_flag_lands_in_its_field() {
 }
 
 #[test]
-fn the_channel_flag_names_a_route_and_is_protected_like_every_value_flag() {
-    let (parsed, warnings) = args(&["--channel", "log", "--producer", "brew"]);
+fn the_route_flag_names_a_route_and_is_protected_like_every_value_flag() {
+    let (parsed, warnings) = args(&["--route", "log", "--producer", "brew"]);
     assert_eq!(parsed.channel, "log");
     assert_eq!(parsed.agent, "brew");
     assert!(warnings.is_empty());
     // And it is never eaten as another flag's value.
-    let (parsed, warnings) = args(&["--detail", "--channel", "log"]);
+    let (parsed, warnings) = args(&["--detail", "--route", "log"]);
     assert_eq!(parsed.detail, "");
     assert_eq!(parsed.channel, "log");
     assert_eq!(warnings.len(), 1);
+}
+
+#[test]
+fn the_retired_channel_flag_takes_its_value_with_it_and_carries_the_refusal() {
+    let parsed = parse_args(["--channel", "priority", "--state", "done"].map(str::to_owned));
+    // Its value goes with it: a lenient skip would read `priority` as a stray
+    // word and post to the default route while looking like it worked.
+    assert!(parsed.warnings.is_empty());
+    assert!(matches!(
+        parsed.into_event(),
+        Err(super::Refusal::Value(message)) if message == "--channel was replaced by --route"
+    ));
 }
 
 #[test]
@@ -90,11 +102,11 @@ fn a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
 }
 
 #[test]
-fn a_named_channel_beats_the_kind_in_either_order() {
+fn a_named_route_beats_the_kind_in_either_order() {
     let routes = pns_domain::routes::Routes::named("logbook", "sirens");
     for argv in [
-        vec!["--kind", "health", "--channel", "log"],
-        vec!["--channel", "log", "--kind", "health"],
+        vec!["--kind", "health", "--route", "log"],
+        vec!["--route", "log", "--kind", "health"],
     ] {
         let (parsed, _) = args(&argv);
         assert_eq!(
@@ -202,7 +214,7 @@ fn the_last_value_wins_for_every_producer_field() {
         "--branch",
         "--detail",
         "--pane",
-        "--channel",
+        "--route",
     ] {
         tokens.extend([flag, "first", flag, "last"]);
     }

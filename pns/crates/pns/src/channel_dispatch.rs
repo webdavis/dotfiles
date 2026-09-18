@@ -240,7 +240,7 @@ fn discord_channel(
 /// be chosen from a name the URL had already fallen away from.
 ///
 /// The env override wins for the URL (an explicit URL, the tests' escape
-/// hatch); the route is the `--channel` name, and the DEFAULT ROUTE THE CONFIG
+/// hatch); the route is the `--route` name, and the DEFAULT ROUTE THE CONFIG
 /// NAMED when nothing named one. The URL's final segment is swapped for that
 /// route, so renaming the default route moves the path and not the gateway.
 /// The gateway has no route named "alert"; the default is where an event
@@ -254,7 +254,7 @@ fn hermes_target(channel: &str, env_override: Option<&str>, routes: &Routes) -> 
         channel
     } else {
         eprintln!(
-            "pns: --channel {channel:?} is not a usable route name; posting to the default route"
+            "pns: --route {channel:?} is not a usable route name; posting to the default route"
         );
         routes.default_route()
     };
