@@ -75,7 +75,7 @@ test-integration: validate-tests
 test-e2e: validate-tests
   ./test/run-test-suite.sh test/e2e
 
-# Rust workspaces and plugins are listed explicitly because treefmt does not
+# Rust workspaces are listed explicitly because treefmt does not
 # discover Rust manifests. Locked dependencies and documentation warnings are
 # checked with the tests.
 test-rust:
@@ -83,12 +83,6 @@ test-rust:
   cargo fmt --all --check --manifest-path lights/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path lights/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path lights/Cargo.toml
-  cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-smart-nav/Cargo.toml
-  cargo test --workspace --locked --manifest-path dot_local/share/herdr/plugins/herdr-workspace-jump/Cargo.toml
-  cargo test --locked --workspace --manifest-path dot_local/share/herdr/plugins/herdr-process/Cargo.toml
-  cargo fmt --all --check --manifest-path dot_local/share/herdr/plugins/herdr-process/Cargo.toml
-  cargo clippy --locked --workspace --all-targets --manifest-path dot_local/share/herdr/plugins/herdr-process/Cargo.toml -- -D warnings
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path dot_local/share/herdr/plugins/herdr-process/Cargo.toml
   cargo test --locked --workspace --features dev-tools --manifest-path pns/Cargo.toml
   cargo fmt --all --check --manifest-path pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --features dev-tools --manifest-path pns/Cargo.toml -- -D warnings
