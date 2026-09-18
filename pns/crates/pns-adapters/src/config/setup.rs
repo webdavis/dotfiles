@@ -44,6 +44,10 @@ fn values(answers: &Answers) -> toml::Table {
             toml::Value::String(answers.hue_key.clone()),
         );
         hue.insert(
+            "certificate".to_string(),
+            toml::Value::String(answers.hue_certificate.clone()),
+        );
+        hue.insert(
             "rooms".to_string(),
             toml::Value::Array(
                 answers

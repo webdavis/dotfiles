@@ -92,6 +92,7 @@ impl ConfigRenderer for World {
             hermes_key: answers.hermes_key.clone(),
             hue_bridge: answers.hue_bridge.clone(),
             hue_key: answers.hue_key.clone(),
+            hue_certificate: answers.hue_certificate.clone(),
             hue_rooms: answers.hue_rooms.clone(),
             router_type: answers.router_type.clone(),
             router_url: answers.router_url.clone(),

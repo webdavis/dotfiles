@@ -198,6 +198,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.hermes", "enabled", "true"),
     ("plugins.hermes", "keys", "{ pns-events = \"secret\" }"),
     ("plugins.hue", "bridge", "\"192.168.1.10\""),
+    (
+        "plugins.hue",
+        "certificate",
+        "\"sha256:0000000000000000000000000000000000000000000000000000000000000001\"",
+    ),
     ("plugins.hue", "enabled", "true"),
     ("plugins.hue", "key", "\"secret\""),
     ("plugins.hue", "quiet_hours", "\"22:00-07:00\""),

@@ -48,12 +48,11 @@ pub(crate) fn lights_tick() -> i32 {
         config.lights.as_deref(),
         &probes,
         |refresh| {
-            let hue = hue_settings(&settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref())?;
-            Some(pns_adapters::TypedLampBridge(UreqBridge {
-                base: format!("https://{}/clip/v2/resource", hue.bridge),
-                key: hue.key,
-                deadline: refresh.map(tick_bridge_deadline).unwrap_or(BRIDGE_DEADLINE),
-            }))
+            let hue = crate::armed_hue_settings(&settings)?;
+            Some(pns_adapters::TypedLampBridge(UreqBridge::new(
+                &hue,
+                refresh.map(tick_bridge_deadline).unwrap_or(BRIDGE_DEADLINE),
+            )))
         },
         pns_application::LampReadings {
             silenced: |now| status_lights_silenced(&records, &home, &config.focus_silence, now),
@@ -81,6 +80,10 @@ pub(crate) fn lights_tick() -> i32 {
         },
         |line| eprintln!("{line}"),
     );
+    // THE UNATTENDED PATH IS WHERE A CHANGED CERTIFICATE IS ACTUALLY MET: the
+    // tick dials the bridge every refresh interval whether anybody typed
+    // anything or not.
+    crate::certificate_notice::announce_mismatch();
     0
 }
 

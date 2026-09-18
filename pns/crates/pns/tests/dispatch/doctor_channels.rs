@@ -72,6 +72,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,
             LIGHTS_OFF_LINE,
+            NO_CERTIFICATE_LINE,
             "the delivery record could not be read, so nothing here is known",
             // An empty ledger is an empty roster: pns learns a route only by
             // having posted to one, so this says nothing has been posted yet

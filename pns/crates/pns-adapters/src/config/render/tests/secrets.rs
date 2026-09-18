@@ -147,3 +147,98 @@ fn a_secrets_field_is_whitelisted_to_the_two_chezmoi_methods() {
     .expect_err("Notes is not a field keepassxc exposes to chezmoi");
     assert!(error.contains("Notes"), "{error}");
 }
+
+#[test]
+fn an_attribute_secret_marker_renders_keepassxc_attribute_and_round_trips_through_the_stub() {
+    // A CUSTOM ATTRIBUTE IS NOT ONE OF THE TWO FIELDS `keepassxc` exposes, so
+    // a value stored beside an entry's password reaches a template through
+    // `keepassxcAttribute` or not at all.
+    let mut hue = toml::Table::new();
+    hue.insert(
+        "bridge".to_string(),
+        toml::Value::String("192.168.1.9".to_string()),
+    );
+    hue.insert("key".to_string(), secret("Hue Bridge", "Password"));
+    hue.insert(
+        "certificate".to_string(),
+        attribute_secret("Hue Bridge", "certificate-pin"),
+    );
+    let mut plugins = toml::Table::new();
+    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    let mut values = toml::Table::new();
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+    let text = render(&values).expect("an attribute marker renders");
+    assert!(
+        text.contains(
+            "certificate = {{ keepassxcAttribute \"Hue Bridge\" \"certificate-pin\" | toToml }}"
+        ),
+        "{text}"
+    );
+    let rendered =
+        crate::config::strip_chezmoi_actions(&text, |_, _| "\"from-the-vault\"".to_string())
+            .expect("a chezmoi-stub round trip stands in for a well-formed attribute action");
+    let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
+    assert_eq!(
+        config.plugins["hue"].settings["certificate"].as_str(),
+        Some("from-the-vault")
+    );
+}
+
+#[test]
+fn a_marker_naming_both_a_field_and_an_attribute_is_refused_by_name() {
+    let mut table = toml::Table::new();
+    table.insert(
+        "keepassxc".to_string(),
+        toml::Value::String("Hue Bridge".to_string()),
+    );
+    table.insert(
+        "field".to_string(),
+        toml::Value::String("Password".to_string()),
+    );
+    table.insert(
+        "attribute".to_string(),
+        toml::Value::String("certificate-pin".to_string()),
+    );
+    let mut hue = toml::Table::new();
+    hue.insert("certificate".to_string(), toml::Value::Table(table));
+    let mut plugins = toml::Table::new();
+    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    let mut values = toml::Table::new();
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+    let refusal = render(&values).expect_err("three members is not a secret marker");
+    assert!(refusal.contains("keepassxc"), "{refusal}");
+}
+
+#[test]
+fn a_blank_attribute_name_is_refused_rather_than_written_through() {
+    let mut hue = toml::Table::new();
+    hue.insert(
+        "certificate".to_string(),
+        attribute_secret("Hue Bridge", "   "),
+    );
+    let mut plugins = toml::Table::new();
+    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    let mut values = toml::Table::new();
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+    let refusal = render(&values).expect_err("a blank attribute name is not a name");
+    assert!(refusal.contains("attribute"), "{refusal}");
+}
+
+#[test]
+fn an_attribute_name_that_could_close_the_action_early_is_refused() {
+    let mut hue = toml::Table::new();
+    hue.insert(
+        "certificate".to_string(),
+        attribute_secret("Hue Bridge", "pin\" }}"),
+    );
+    let mut plugins = toml::Table::new();
+    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    let mut values = toml::Table::new();
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+    let refusal = render(&values).expect_err("an attribute name carrying a quote is refused");
+    assert!(refusal.contains("chezmoi action"), "{refusal}");
+}
