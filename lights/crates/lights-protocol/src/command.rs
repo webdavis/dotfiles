@@ -11,6 +11,12 @@ pub enum Command {
     Preset(Option<String>),
     /// Applies the preset the configured clock windows give this minute.
     PresetNow,
+    /// Reads the certificate the bridge presents and prints the line to save.
+    /// `Some` carries the bridge id read off the device, which is the only
+    /// identity an impostor answering the address cannot also claim.
+    Enroll {
+        stated_id: Option<String>,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BrightnessRequest {
@@ -41,6 +47,7 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
     let mut all = false;
     let mut notify = false;
     let mut over = None;
+    let mut stated_id = None;
     let mut words = Vec::new();
     let mut args = args.iter();
     while let Some(arg) = args.next() {
@@ -64,6 +71,14 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
                 .ok_or("--over requires a duration")?;
             if over.replace(millis(value)?).is_some() {
                 return Err("duplicate --over".into());
+            }
+        } else if arg == "--bridge-id" {
+            let value = args
+                .next()
+                .filter(|s| !s.starts_with('-') && !s.trim().is_empty())
+                .ok_or("--bridge-id requires an id")?;
+            if stated_id.replace(value.clone()).is_some() {
+                return Err("duplicate --bridge-id".into());
             }
         } else if arg == "--notify" {
             if notify {
@@ -93,6 +108,9 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
             }
             _ => return Err("brightness requires up, down or a non-negative integer".into()),
         }),
+        ["enroll"] => Command::Enroll {
+            stated_id: stated_id.take(),
+        },
         ["preset"] => Command::Preset(None),
         // A LITERAL WORD, so a preset the operator named `now` is reached as
         // `preset now` would reach the clock instead. The help says so.
@@ -102,15 +120,23 @@ pub fn parse(args: &[String]) -> Result<Request, String> {
         }
         _ => return Err("unknown command, flag or extra argument".into()),
     };
-    // A PRESET NAMES ITS OWN ROOMS. Accepting `--room` here could only
-    // discard it silently.
+    // A PRESET NAMES ITS OWN ROOMS, and enrollment names no room at all.
+    // Accepting `--room` in either could only discard it silently.
     if room.is_some() && matches!(command, Command::Preset(_) | Command::PresetNow) {
         return Err("--room does not apply to a preset".into());
+    }
+    if room.is_some() && matches!(command, Command::Enroll { .. }) {
+        return Err("--room does not apply to enroll".into());
     }
     // ONE OF THEM HAS TO LOSE, so neither does: a pair that names one room and
     // every room is a mistake to report rather than a preference to guess at.
     if all && room.is_some() {
         return Err("--all and --room cannot be combined".into());
+    }
+    // AN ID BELONGS TO ONE COMMAND. Accepting it elsewhere could only discard
+    // it silently, and the one place it matters is the one place it is read.
+    if stated_id.is_some() {
+        return Err("--bridge-id applies to enroll only".into());
     }
     if all && !matches!(command, Command::Scene(_) | Command::Brightness(_)) {
         return Err("--all applies to scene and brightness only".into());

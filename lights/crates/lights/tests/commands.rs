@@ -73,7 +73,7 @@ fn status_uses_one_bulk_read() {
     assert_eq!(r.exit, 0);
     assert_eq!(
         r.stdout,
-        "3F - Studio: ON | brightness: 42.75% | scene: Read\n"
+        format!("3F - Studio: ON | brightness: 42.75% | scene: Read\n{PIN_STATE}")
     );
     assert_eq!(w.len(), 1);
 }

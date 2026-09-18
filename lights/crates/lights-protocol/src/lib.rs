@@ -14,7 +14,9 @@ pub const HELP: &str = "Usage: lights [--room <alias|name> | --all] [--notify] [
   preset <name>           apply a configured whole-house preset\n\
   preset now              apply the preset the current window names\n\
   preset                  list the configured presets\n\
+  enroll                  print the bridge certificate line to save\n\
   --all                   apply a scene or brightness to every configured room\n\
   --over <duration>       fade a scene or brightness over 750ms, 2s or 5m\n\
+  --bridge-id <id>        the id read off the bridge, checked by enroll\n\
   --notify                notify after an accepted write\n\
   --help                  print this help\n";
