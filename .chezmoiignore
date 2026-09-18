@@ -53,12 +53,12 @@ tmp.*
 # The quota plugin regenerates these on every apply.
 .config/herdr/plugins/config/herdr-agent-quota/
 
-# The five Rust tool workspaces sit at the repository root in monorepo layout,
+# The six Rust tool workspaces sit at the repository root in monorepo layout,
 # so lifting one out into its own repository later is a move rather than a
 # rewrite. They are SOURCE and never a deploy target: each builder script
 # compiles its workspace out of this checkout and installs only the binary.
 # Left unignored, a root directory reaches $HOME under its own name, so these
-# five entries are what keeps ~/pns and its siblings from being created. A
+# six entries are what keeps ~/pns and its siblings from being created. A
 # slashless pattern matches at the target ROOT only, so these do not also
 # swallow .config/pns and its siblings; that is the same reason .config/nvim/docs
 # needs its own entry above even though `docs/` is already listed. chezmoi
@@ -68,6 +68,7 @@ pns
 uu
 posture
 lights
+morning
 tailnet-pin
 
 # The committed input to `just pns-config-render`, never a deploy target:
@@ -76,7 +77,7 @@ tailnet-pin
 
 # The repository-root toolchain pin, which exists so `just test-rust` runs cargo
 # on stable from here. Slashless, so it matches at the target ROOT alone. The
-# five crate pins never reach $HOME either, but for the reason above, their whole
+# six crate pins never reach $HOME either, but for the reason above, their whole
 # workspace directory is ignored by name.
 rust-toolchain.toml
 

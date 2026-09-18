@@ -1,0 +1,13 @@
+[package]
+name = "morning"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "morning"
+path = "src/main.rs"
+
+[dependencies]
+morning-adapters = { path = "../morning-adapters" }
+morning-application = { path = "../morning-application" }
+morning-domain = { path = "../morning-domain" }
