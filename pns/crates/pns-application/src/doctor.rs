@@ -205,9 +205,7 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
             emit(item);
         }
         // AND THE LAMPS BELOW THE GATE, for the same reason: a dark lamp is not a
-        // broken notifier, so this section reports and never grades. It is the last
-        // thing that touches the network, so a bridge that hangs cannot delay a
-        // line above it.
+        // broken notifier, so this section reports and never grades.
         emit(Item::section("Lights", LIGHTS_BLURB));
         for line in pns_domain::doctor::lights_lines(&(actions.lamps)()) {
             emit(Item::note(line));
