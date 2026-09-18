@@ -268,7 +268,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "0 sent, 0 failed, 8 skipped",
             NO_MOSHI_HOOK_LINE,
             &format!(
-                "phone tap: never tapped (default, {:?}); run `pns tap --info`",
+                "phone tap: never tapped (default, {:?}); run `pns tap info`",
                 sandbox.path(".local/state/pns/phone-attention.marker")
             ),
             FOCUS_OFF_LINE,

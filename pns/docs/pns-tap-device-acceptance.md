@@ -1,7 +1,7 @@
 # PNS Tap device acceptance
 
 The tap is finished on the Mac and unfinished on the devices. `pns tap` records the phone's attention
-signal and `pns tap --install` prints the setup, but nothing has been run yet against a sleeping Mac, a
+signal and `pns tap install` prints the setup, but nothing has been run yet against a sleeping Mac, a
 Mac that is off, or a phone on somebody else's network. This file is that missing half: the drills the
 operator runs, written down so they are not re-derived at the moment of running them.
 
@@ -19,8 +19,8 @@ On the Mac:
 
 - Remote Login is on, in System Settings, General, Sharing, Remote Login. Without it nothing else here
   means anything.
-- The forced command from `pns tap --install` is in `~/.ssh/authorized_keys` for the key the phone holds.
-- `pns tap --info` runs and reports a marker path. It reads; it never writes.
+- The forced command from `pns tap install` is in `~/.ssh/authorized_keys` for the key the phone holds.
+- `pns tap info` runs and reports a marker path. It reads; it never writes.
 
 On the phone:
 
@@ -66,10 +66,10 @@ Four states, in this order, because each one leaves the Mac where the next one s
 
 ### State A: Mac awake
 
-1. On the Mac, run `pns tap --info` and note the `Last tap` line.
+1. On the Mac, run `pns tap info` and note the `Last tap` line.
 1. On the phone, run the shortcut with the trigger you actually use.
 1. Expect the shortcut to finish and show its confirmation.
-1. On the Mac, run `pns tap --info` again. `Last tap` is now seconds ago and `Fresh` reads yes.
+1. On the Mac, run `pns tap info` again. `Last tap` is now seconds ago and `Fresh` reads yes.
 
 Record the confirmation text verbatim and the two `Last tap` readings.
 
@@ -81,7 +81,7 @@ Record the confirmation text verbatim and the two `Last tap` readings.
 1. Run the shortcut on the phone and start timing.
 1. Expect one of two outcomes. Both are legitimate results of this drill: the Mac wakes and the shortcut
    confirms, or the SSH action gives up before the Mac finishes waking and the phone shows that error.
-1. Wake the Mac by hand and run `pns tap --info`.
+1. Wake the Mac by hand and run `pns tap info`.
 
 Record which outcome, how long it took, and whether the marker moved. A marker seconds old after the
 phone reported a failure is the split case from the section above, and it is the single most useful
@@ -94,7 +94,7 @@ observation in this drill.
 1. Run the shortcut on the phone.
 1. Expect the SSH action to fail. The shortcut stops at that action, so the phone shows the SSH error and
    never the confirmation.
-1. Wake the Mac by hand and run `pns tap --info`. `Last tap` is unchanged from state B.
+1. Wake the Mac by hand and run `pns tap info`. `Last tap` is unchanged from state B.
 
 Record the error text verbatim and how long the phone took to show it.
 
@@ -105,7 +105,7 @@ Record the error text verbatim and how long the phone took to show it.
 1. Expect the same shape of failure as state C, and possibly not the same text or the same delay: a
    machine that is off refuses or drops the connection where a sleeping one simply does not answer.
    Which of those two happens is part of what this state measures.
-1. Start the Mac and run `pns tap --info`. `Last tap` is unchanged from state B.
+1. Start the Mac and run `pns tap info`. `Last tap` is unchanged from state B.
 
 Record the error text verbatim and how long the phone took to show it.
 
@@ -162,7 +162,7 @@ changes anything.
 - **Failures, which are long.** Use the Clock app's Stopwatch, started with the same press that fires the
   shortcut and stopped when the error appears. Reaction time costs a couple of tenths of a second at each
   end, which is below the noise on an interval measured in seconds.
-- **Optional split, confirmations only.** On the Mac, `pns tap --info --json` reports
+- **Optional split, confirmations only.** On the Mac, `pns tap info --json` reports
   `marker.touched_at`, the tap instant in RFC 3339 (Request for Comments 3339) UTC (Coordinated Universal
   Time), and it reads without writing. Against the phone's clock it splits the interval into phone to Mac
   and Mac back to phone. It depends on both clocks being right, so treat it as a cross-check rather than

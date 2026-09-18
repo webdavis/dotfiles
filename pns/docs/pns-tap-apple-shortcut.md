@@ -61,12 +61,12 @@ That command will print the line you need to paste into the following SSH author
 Then PNS will walk you through the rest of the setup.
 ```
 
-**One defect still shipping, and one that fixed itself.** The line says "the three global variables"
-and four bullets follow, and the fourth (`SSH Key and type ed25519`) is a field on the SSH action
-rather than a global variable. That one is live. The text also points at `pns tap --install`, which
-did not exist when the text was written and does now, so that half needs no correction. The live one is
-recorded rather than corrected in place, because this file's job is to say what ships. The replacement
-is drafted below and becomes the record once the operator has edited the Shortcut.
+**Two defects still shipping.** The line says "the three global variables" and four bullets follow,
+and the fourth (`SSH Key and type ed25519`) is a field on the SSH action rather than a global
+variable. The Shortcut on the phone has not been edited, so the shipped text still names
+`pns tap --install`, the retired spelling the binary now refuses with exit 2. Both are recorded
+rather than corrected in place, because this file's job is to say what ships. The replacement is
+drafted below and becomes the record once the operator has edited the Shortcut.
 
 ## The notification, verbatim
 
@@ -112,7 +112,7 @@ Leave the script as a single colon; your Mac replaces it.
 
 Then run this command in a terminal on your Mac:
 
-  ⋅ pns tap --install
+  ⋅ pns tap install
 
 It prints the line to paste into your Mac’s SSH authorization file:
 
@@ -202,7 +202,7 @@ intention:
 - **A tap that cannot write.** Exit 1, and one line on stderr: `pns tap: ` followed by the marker path
   and the operating system error, errno included.
 - **An argument it does not know.** Exit 2, and one line on stderr:
-  `pns tap: usage: pns tap [--info | --install] [--json]`.
+  `pns tap: usage: pns tap [info | install] [--json]`.
 
 `--json` changes only the shape: one object on stdout either way, exit code following `ok`, failures
 inside the object rather than on stderr. The phone's forced command on this Mac decides which form it
@@ -210,5 +210,5 @@ gets, and the plain form is the one the notification above is wired for.
 
 The cost the fixed notification used to hide is now visible instead: a tap fired seconds after typing
 on the Mac loses to the desk under newest-signal-wins, and the phone says `Current surface: Desk.`
-rather than claiming success. `pns tap --info` on the Mac remains the fuller answer, with the marker
+rather than claiming success. `pns tap info` on the Mac remains the fuller answer, with the marker
 path, its age and where the path came from.

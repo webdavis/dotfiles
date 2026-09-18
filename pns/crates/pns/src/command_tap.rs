@@ -2,7 +2,7 @@ use pns_adapters::{MarkerReading, SystemCommandRunner, SystemProbes, TapFailure}
 use pns_protocol::{TapMarker, TapOperation, TapResult, TapWriteStatus};
 use std::io::Write;
 
-const USAGE: &str = "pns tap [--info | --install] [--json]";
+const USAGE: &str = "pns tap [info | install] [--json]";
 
 pub(crate) fn tap_mode() -> i32 {
     let args = crate::arguments_after_subcommand();
@@ -19,9 +19,9 @@ pub(crate) fn tap_mode() -> i32 {
             };
             (result, code)
         }
-        Err(()) => {
+        Err(refusal) => {
             let mut result = TapResult::new(TapOperation::Tap);
-            result.fail("invalid_arguments", &format!("usage: {USAGE}"));
+            result.fail("invalid_arguments", &refusal);
             (result, 2)
         }
     };
@@ -52,18 +52,26 @@ pub(crate) fn tap_mode() -> i32 {
     if written.is_err() { 1 } else { code }
 }
 
-fn operation(args: &[String]) -> Result<TapOperation, ()> {
+/// The operation is a leading verb, and the retired flag spelling of each verb
+/// is refused by name so a person who types the old form is told the new one.
+fn operation(args: &[String]) -> Result<TapOperation, String> {
     let mut operation = TapOperation::Tap;
     let mut json = false;
-    for arg in args {
+    for (position, arg) in args.iter().enumerate() {
         match arg.as_str() {
             "--json" if !json => json = true,
-            "--info" if operation == TapOperation::Tap => operation = TapOperation::Info,
-            "--install" if operation == TapOperation::Tap => operation = TapOperation::Install,
-            _ => return Err(()),
+            "info" if position == 0 => operation = TapOperation::Info,
+            "install" if position == 0 => operation = TapOperation::Install,
+            "--info" => return Err(retired("--info", "info")),
+            "--install" => return Err(retired("--install", "install")),
+            _ => return Err(format!("usage: {USAGE}")),
         }
     }
     Ok(operation)
+}
+
+fn retired(flag: &str, verb: &str) -> String {
+    format!("{flag} is now a verb: run pns tap {verb}; usage: {USAGE}")
 }
 
 fn execute(result: &mut TapResult) -> Result<(), TapFailure> {
