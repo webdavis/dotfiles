@@ -2788,7 +2788,7 @@ is missing.
   the load drill is recorded in `docs/research/2026-09-condenser-deadline-load-drill.md` and that Todoist
   task was closed the same day.
 
-- [ ] Split and reconcile [6hPJVf2FJc3RHxqM](https://app.todoist.com/app/task/6hPJVf2FJc3RHxqM). Ordinary
+- [x] Split and reconcile [6hPJVf2FJc3RHxqM](https://app.todoist.com/app/task/6hPJVf2FJc3RHxqM). Ordinary
   hook fixtures still inherit the five-second payload deadline and need bounded fixture inputs. The
   Hermes redirect fixture already consumes the complete request and keeps its socket until disconnect;
   commit `f3b5a21b` records that repair. Verify historical closure without rebuilding it. Keep production
@@ -2796,6 +2796,42 @@ is missing.
   include B105's approval-submission exit-code failure, historically `0` instead of `42` under load. The
   September 7 disposition leaves it unresolved after #383 and #441; #378 closed unmerged. A bounded
   fixture is not proof of closure, and this audit did not establish a current reproduction.
+
+  DONE 2026-09-17, merged as [PR #770](https://github.com/webdavis/dotfiles/pull/770) at `74c867b8`. Two
+  faces of one defect class, both fixed with evidence.
+
+  FACE ONE, the sqlite fixture collision, and the root cause is TIME rather than concurrency. `state()`
+  in both sqlite test helpers built its path from the process id plus a counter, nothing removes those
+  directories, and macOS recycles process ids, so a later run of a recycled id rebuilds paths an earlier
+  run already populated. Evidence: 39,150 leftover roots from only 495 distinct ids, and one run leaves
+  160\. REPRODUCED EXACTLY by replaying one run's 160 databases into the next run's paths under a
+  pid-controlled shell: 84 failures, 22 of them an already-exists refusal on the directory, and the
+  sessions row answering `left: "one"` against `right: "arm posture alert"`, which is the sibling lane's
+  report bit for bit including the failure count. Six more fixtures shared the shape, one of which failed
+  live in the lane's first `just ship`. Eight files fixed with idioms the repository already had. One
+  test file already carried this diagnosis verbatim in a comment, so the repository had diagnosed it once
+  and never swept it.
+
+  FACE TWO, B105. The hook-fixture half was ALREADY CLOSED by commit `e8f29551`, which raised the hook
+  limit to fifteen seconds, and was not rebuilt. What was still open is the exit-code half: the two
+  megabyte approval-payload rows injected no payload deadline, so they inherited the PRODUCTION five
+  seconds and raced the read they only mean to observe. Losing that race is invisible, because the read
+  answers nothing, the hook returns 0 having done nothing, and the row reports 0 where 42 was expected
+  with no timeout named anywhere, which is B105's exact historical signature.
+
+  B105 WAS NOT REPRODUCED SPONTANEOUSLY and is not claimed to be: 24 full-binary copies at load average
+  349 produced zero failures, as did 55 loops of the payload filter. What was established is stronger
+  than one reproduction. The at-cap sandbox lived 5615 to 9813 ms across 47 readings under that load,
+  every one past the 5000 ms deadline its own read races, so the margin that hid the bug is gone. The
+  coupling is proved by mutation in both directions. The fixture now states its own ten-second ceiling,
+  ten times the worst megabyte read measured and still under the hook limit, so a pipe that really hangs
+  stays bounded by production rather than by the test killing the child. The moshi submit leg was checked
+  as a second possible coupling and is not one.
+
+  OPERATOR OWES ONE DELETE: the code fix stops new collisions but removes no existing directory, so
+  `just test-rust` can still fail on a clean tree until the stale roots are gone. Run
+  `trash /var/folders/*/*/T/pns-sql-* /var/folders/*/*/T/pns-ledger-* /var/folders/*/*/T/posture-curation-*`
+  by hand.
 
 - [ ] 93. Implement `pns/docs/pns-refactor.md`, the agreed refactor plan the operator asked for alongside
   the numbered list. The plan merged as documentation in
@@ -2896,6 +2932,66 @@ is missing.
   `dot_config/nvim/lua/plugins/pns.lua` moved to match. OPERATOR RULING 2026-09-17, given when this was
   surfaced: a lane may change any repository the operator owns, `pns.nvim` and the herdr plugins
   included, so a caller in a sibling product is fixed there rather than left broken.
+
+  SIX OF FORTY-NINE SLICES MERGED as of 2026-09-17. Slice 1 promoted one duration parser out of the quiet
+  module. Slice 2 made `pns send` the one sending subcommand and proved apply atomicity rather than
+  assuming it. Slices 3, 4, 5 and 6 are recorded below.
+
+  SLICE 3, `--producer` and `PNS_PRODUCER` replace `--agent` and `PNS_AGENT`, merged as
+  [PR #772](https://github.com/webdavis/dotfiles/pull/772) at `b715698f`. `pns send --producer <name>`
+  names the sender, `--agent` is refused with exit 2 and a message naming the replacement, and the hook
+  path reads the new variable. WHY REFUSAL RATHER THAN A SILENT SKIP, which the slice found rather than
+  assumed: the parser's existing leniency would have read `--agent codex` as two stray words and sent the
+  event under the DEFAULT producer, so the retired flag takes its value with it and hands the refusal on.
+  Every caller moved in the same change, including `scripts/cutover-gate.sh`, WHICH THE SLICE PLAN DID
+  NOT LIST. lights and uu changed only the argv strings they build, so neither gained a dependency on
+  pns. The Codex installer's migration list gained the retired spelling at both engine paths, so an
+  existing row is rewritten in place, and the migration test pins that as its own case.
+
+  SLICE 4, `pns tap info` and `pns tap install` replace the two flags, merged as
+  [PR #773](https://github.com/webdavis/dotfiles/pull/773) at `8bdd805c`. Each retired flag spelling is
+  refused with exit 2 and a message naming its verb. Bare `pns tap` is unchanged. The verb must be the
+  first word after `tap`, which keeps the parser one pass and matches how `pns recap agent` and
+  `pns presence poll` read theirs. A LIVE DEFECT THE SLICE FOUND AND DID NOT HIDE:
+  `pns/docs/pns-tap-apple-shortcut.md` records the phone Shortcut's Comment field verbatim, and that
+  shipped Comment still names the retired spelling, so the document was left holding the true text and
+  its surrounding paragraph now names the defect.
+
+  SLICE 6, remove `pns gate` and fold `pns home` into `pns doctor`, merged as
+  [PR #775](https://github.com/webdavis/dotfiles/pull/775) at `fa0735b4`. The bare `pns <harness>-hook`
+  is now the only spelling, and the dispatcher routes every hook-shaped word straight to the gate rather
+  than keeping its own copy of the shape test. THE SILENT-EXIT BUG IS FIXED, and it was a real bug rather
+  than a rename: the gate's refusal used to be an exit 0 in silence, so a hook word it would not vouch
+  for looked wired when it was not; it now exits 2 with a sentence naming the word and what the gate
+  accepts, and exit 0 survives only where the gate genuinely declines. The home reading returns doctor
+  rows instead of painting, and its stale-identifier alert trigger moved with it so there is still one
+  memory and one decision. The one caller was VERIFIED rather than assumed: `run_after_62` writes the
+  bare binary pathname with no subcommand. The plan's file list missed eleven further references,
+  including CLAUDE.md, seven spec files and a config renderer whose change meant regenerating the shipped
+  template.
+
+  SLICE 8, `pns shell end --exit-code` replaces `--exit`, merged as
+  [PR #777](https://github.com/webdavis/dotfiles/pull/777) at `da1a5466`. The retired flag is matched as
+  a KEY AND VALUE PAIR, so it takes its value with it rather than leaving the status at a default, which
+  is the lesson slice 3 recorded. It is refused for both verbs, not only `end`, because naming the
+  replacement beats "unknown argument" for a caller who typed it on `begin`. Both `dot_bashrc.tmpl` call
+  sites moved in the same change, the exit trap and the precmd function, along with the usage text and
+  every test. A repository-wide grep found ONE place the plan did not list, a prose line in the vendored
+  clean-code Rust skill example, corrected in the same commit. The rendered bashrc was checked to prove
+  the new flag reaches the deployed shell, with zero occurrences of the old spelling.
+
+  SLICE 5, `pns failures open` and `pns lights pulse` replace `pns click` and `pns pulse`. Both files
+  fold into their new homes rather than staying as thin wrappers, and neither old word is an alias: each
+  is refused with exit 2 and a two-line message naming the new spelling plus that subcommand's usage. THE
+  ONE CALLER IS A STORED STRING: the banner's click command is composed from the running binary and
+  stored in config, so it now names the open verb. A banner ALREADY ON SCREEN when this lands carries the
+  old command and its click is dead until it is dismissed; new banners are correct. No pulse was ever run
+  against the real bridge, which would be refused now anyway, since the transport requires the pinned
+  certificate.
+
+  OPERATOR OWES: one full `chezmoi apply` per config-shape slice, and slices 3, 4 and 6 each changed
+  deployed behaviour, so one apply covering all three is what makes the deployed binary and the deployed
+  config agree.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -3071,7 +3167,7 @@ is missing.
   cannot be proven without the operator's own token, so arming one card type and watching for the image
   is theirs to do. Arming any type but `missed` gives up that type's deep link.
 
-- [ ] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
+- [x] Preserve the pns refactor plan's explicitly carried-forward behavior work (section 7). B1 needs a
   reviewed Hue bridge certificate/identity-pinning design; `pns/crates/pns-adapters/src/hue/bridge.rs`
   still disables certificate verification. Define enrollment, changed-certificate handling and recovery
   before changing that behavior. Designed on 2026-09-14 in
@@ -3117,6 +3213,38 @@ is missing.
   router client's unverified TLS becomes its own design task, task 89. (6) `pns lights enroll` stays the
   command name; doctor reports state, enrolling performs an action and hands back a value to save. (7)
   Moot: approach B was not chosen, so its third-party trust anchor question does not arise.
+
+  BOTH HALVES DONE 2026-09-17, merged as [PR #771](https://github.com/webdavis/dotfiles/pull/771) at
+  `5304b62c` for pns and [PR #774](https://github.com/webdavis/dotfiles/pull/774) at `b8875c75` for
+  lights. Approach A as approved. `certificate` is a required key whose absence or malformation is a
+  config refusal at parse time, fail closed with no warning path and no default. The pin is a KeePassXC
+  custom attribute on the existing "OpenHue :: API Key (hue-bridge-pro)" entry, which the pns config
+  renderer gained a secret marker for, so no fingerprint enters the repository. A custom rustls verifier
+  behind a connector supplied through ureq's agent parts completes the handshake inside connect, so a
+  wrong certificate is a refused connection rather than a later error, and the two signature callbacks
+  delegate to rustls rather than asserting. Enrolling prints the pastable line and writes nothing,
+  refusing when the certificate common name and the reported bridge id disagree and warning, with the
+  cost stated, when that check is skipped. A refused handshake is recorded once per process and announced
+  once, and each tool's health output carries a pin-state row where a mismatch counts as an issue.
+
+  The lights half is a DELIBERATE SECOND COPY, not a shared crate, because no cargo workspace may depend
+  on another; lights still builds with pns absent from the filesystem. `disable_verification` and its
+  "approved exception" comment are gone from both tools.
+
+  Proven over a loopback TLS fixture whose certificate has the bridge's shape, a synthetic bridge id as
+  common name with a `root-bridge` issuer and no subjectAltName: a matched pin reads and writes, a
+  one-bit-different pin is refused at the handshake with no request reaching the server, and enrolling
+  reads a real presented certificate plus the host's own config answer. THE LIVE HANDSHAKE AGAINST THE
+  REAL BRIDGE IS UNPROVEN and stays the operator's acceptance gate, which is what the design said.
+
+  OPERATOR OWES, in this order, and HUE DELIVERY IS REFUSED FOR BOTH TOOLS UNTIL STEP 2 IS DONE because
+  fail closed was the approved choice:
+
+  1. `pns lights enroll --bridge-id <the bridge id>` on dresden with the bridge reachable, then check the
+     printed certificate common name equals that bridge id.
+  1. Paste the printed `certificate = "sha256:..."` line as a custom attribute on the "OpenHue :: API Key
+     (hue-bridge-pro)" KeePassXC entry. One value serves both tools.
+  1. One full `chezmoi apply`.
 
 - [x] 89. DONE 2026-09-15 in [PR #693](https://github.com/webdavis/dotfiles/pull/693), merged `5257bf24`,
   which wrote `docs/superpowers/specs/2026-09-15-unifi-client-certificate-pinning-design.md` (416 lines)
@@ -3164,7 +3292,7 @@ is missing.
   `[notify]` table covers with no crate at all. Source:
   `docs/decisions/2026-09-15-vpt-architecture-decisions.md`, decision 13.
 
-- [ ] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
+- [x] Resolve the related B6/B20/B39 hook design: the answered-wait race, when `AskUserQuestion` should
   arm a waiting indicator and what its notification contains, and alerts for sandbox network approval
   requests. The `AskUserQuestion`-specific `asked` wiring runs after the tool completes, and network
   permission waits remain explicitly uncovered. Inspect current harness events and agree behavior before
@@ -3208,6 +3336,30 @@ is missing.
   `[lights]` gate on arming a wait marker still right? Not answered, not one of the four filed rows. It
   is the only reason the state-based discriminator for B39 cannot be the recommendation, because on a
   machine with no lamps configured the dedup read always finds nothing. Nothing needs changing today.
+
+  DONE 2026-09-17, merged as [PR #769](https://github.com/webdavis/dotfiles/pull/769) at `3bf72aca`. All
+  six approved pieces built, ten behaviours pinned, six of them red first. Both `PostToolUse` matchers, a
+  new asynchronous `ElicitationResult` entry and a new `SubagentStop` entry route to `pns hook resolved`;
+  a second `Notification` matcher on the permission-prompt text runs the new `pns hook waiting`.
+  `plan-ready` is deleted as an arm and as a state word. `denied` became an observation and left the
+  blocked lamp set, so it neither arms nor takes a wait. An End now carries the caller's own moment and
+  refuses to remove a marker armed after it, claimed by rename per decision record 0001. B39's
+  text-allowlisted sandbox-network arm arms the marker and the nag with no moshi forward.
+
+  ONE FINDING THE DESIGN DID NOT RECORD: `SubagentStop` carries `agent_id` in the installed 2.1.272
+  bundle, so routing it to `resolved` unchanged would have hit that arm's subagent guard and cleared
+  nothing, making the fifth declaration a no-op. The arm reads `hook_event_name` for that one case
+  instead. Residual, commented at the arm: a subagent ending while the parent waits clears the parent's
+  marker too, because one marker is keyed by the shared session.
+
+  The event vocabulary was verified against the INSTALLED Claude Code 2.1.272, which matches the design's
+  2.1.270 reading: the same thirty-four event names, the same `ElicitationResult` fields including its id
+  and action, and the same static sandbox notification text.
+
+  OPERATOR OWES: one full `chezmoi apply`. The declarations live in
+  `private_dot_claude/modify_settings.json`, a modify template over the live settings file, so the new
+  hook entries do not exist in `~/.claude/settings.json` until an apply runs, and until then the answered
+  wait keeps racing as before.
 
 - [x] Implement B18's decided behavior (2026-09-12): pause persistent agent-status lighting during
   `pns quiet` and macOS Focus. Pause the status effects, not ordinary room lighting. Preserve the settled
@@ -3522,11 +3674,32 @@ plugin.
   VANISHED, leaving a project heading with nothing under it; it now folds into the unfiled group. 43
   tests, every suite under a tenth of a second.
 
-- [ ] 105. Named filter views. `[[views]]` in the plugin config declares `name` and `filter` pairs
+- [x] 105. Named filter views. `[[views]]` in the plugin config declares `name` and `filter` pairs
   (`today = "today | overdue"`, `work = "#Work & !@waiting"`), the pane switches between them with a
   picker and number keys, and each view is also a plugin action (`view:today`) so a herdr keybinding can
   open the pane straight onto it. A rejected filter shows the API's own message rather than an empty
   list.
+
+  DONE 2026-09-17, merged as herdr-todoist pull request #3. `[[views]]` declares `name` and `filter`
+  pairs in the plugin config, read through Todoist's own filter query endpoint on task 104's existing
+  cursor walk rather than a second one. The pane switches with `v`, which draws a picker, and with number
+  keys; view 1 is always the unfiltered list, so the pane works with no views configured.
+
+  A PER-VIEW NAMED ACTION PROVED IMPOSSIBLE, established from herdr's own plugin documentation rather
+  than assumed: runtime action registration is not part of plugin v1, and `herdr plugin action invoke`
+  takes an action id with no trailing arguments. The manifest therefore carries nine numbered actions
+  `view:1` to `view:9` over the same numbering the number keys use.
+
+  A refused filter puts Todoist's own message in the status line and leaves the rows already on screen
+  alone; an empty result empties the list and says so, so the two outcomes look different. Both are
+  pinned against a loopback double at the client level and at the pane level. Config validation refuses a
+  duplicate name, an empty name, an empty filter, and the reserved name `all`, which the unfiltered list
+  already answers to. 100 tests pass, each suite under 0.12s, with no live API call.
+
+  OPERATOR OWES: the dresden wiring is still a dotfiles pull request and is not filed. It would add the
+  plugin's `[[views]]` table and `plugin_action` keybindings for the numbered views to
+  `dot_config/herdr/config.toml`, with the token read through `token_command` naming a KeePassXC entry
+  and never a value.
 
 - [ ] 106. Toggle pane. The `toggle` action opens the pane in the current workspace or closes it, `focus`
   jumps to it, both bindable in `dot_config/herdr/config.toml`; width, side and the view it opens on are
@@ -3770,14 +3943,52 @@ Three changes to the Obsidian workout views of the fitness tracking system, requ
 that repository, one per task, and this ledger only records them. The vault copy under `~/workspaces/Ivy`
 is what the operator sees; deploy it the way Scalebar's own docs say, never by hand-editing the vault.
 
-- [ ] 129. The rest timer turns red while it counts down and returns to its normal color the moment it
+- [x] 129. The rest timer turns red while it counts down and returns to its normal color the moment it
   reaches zero. Nothing else about the timer changes.
-- [ ] 130. Carry the previous set's weight forward. When a set is logged, the next set of the same
+
+  DONE 2026-09-17, merged as scalebar pull request #5. The countdown reads red while it counts and
+  returns to its normal color at zero, and nothing else about the timer changed. The countdown is a bare
+  span with no color of its own, and every color in the widget is a class in the injected style block
+  rather than an inline style, so the change is one rule beside the existing error rule plus one class
+  toggle appended to the existing tick, driven by the same remaining value the label reads. Returning to
+  normal is removing the class, so the span goes back to the inherited value rather than to a literal,
+  and red is the theme's own error variable the widget already used.
+
+  Three facts established from the code rather than assumed: there is no paused rest timer, because the
+  rest block offers only an extend control and a finish control; the timer cannot go negative, because it
+  is clamped at zero, so zero and past-zero are one state that already renders its completion text; and
+  extending a rest that had reached zero turns it red again.
+
+  PROVEN RED FIRST: the test failed against the committed widget, passed after, and failed against a copy
+  carrying the stylesheet rule but not the class toggle, so neither assertion can pass on half the
+  change.
+
+- [x] 130. Carry the previous set's weight forward. When a set is logged, the next set of the same
   exercise starts with that weight already filled in (bench at 135 lbs, log, the next set reads 135). The
   "Use previous" button stays and, when pressed, overrides the carried-over weight with the previous
   session's weight. The button is restyled as two lines inside one button: the first line reads
   `Use previous weight from <MM-DD-YYYY, Day>` in text smaller than the widget's normal button text, and
   the second line, smaller again, shows the weight that session used.
+
+  DONE 2026-09-17, merged as scalebar pull request #6. Each new set's weight input is seeded from this
+  session's last logged set of the same exercise, falling back to the template target when nothing has
+  been logged for that exercise yet. The carry is derived from the logged rows on every render rather
+  than stored, so leaving an exercise and returning shows that exercise's own last weight and never
+  another's. The "Use previous" button stayed and became two lines in one button, the session date over
+  the weight that session used, the first line smaller than normal button text and the second smaller
+  again. The two weights stay distinct, the carry being this session's last set and the button being the
+  previous session's, and pressing the button overrides the carried value.
+
+  THE REVIEW CAUGHT A REAL DEFECT: the carry ignored set type and template weight, so a WARMUP set's
+  weight seeded the next WORKING set and a drop set inherited the full working weight, which is a wrong
+  number in front of someone mid-lift. The filter now requires both to match, with its own red-first test
+  showing 95 seeded into a working set whose template said 185. A smaller find: the history disclosure
+  showed the raw date while the button beneath it showed the formatted one, so one card displayed the
+  same session two ways; both now use the formatter that already existed.
+
+  OPERATOR OWES: deploy the widget the way Scalebar's documentation says, so the vault copy picks up
+  tasks 129 and 130 together.
+
 - [ ] 131. Show the workout duration on the time button. After Start Workout and End Workout, the button
   on the right reads `<start_time> - <end_time>`; print the duration in smaller text between the two
   times, on that button, so the length of the workout is readable without opening anything. The inner
@@ -5161,6 +5372,34 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   IS THE OPERATOR'S CALL, since it is their ruleset and the reading above was inferred rather than
   stated: if they intend the rule to reach shipped products too, the seam at `github_cli.rs` is the one
   place that would change, and the capability loss above is the price.
+
+- [ ] 149. The test capture helper takes its request count positionally behind the status, filed
+  2026-09-17 from slice 6's evidence. `Capture::start` in the pns test support takes an optional status
+  first and an optional request count second, so a call meaning "no status, two requests" passed in the
+  other order makes the capture answer HTTP status 3 rather than refusing the call. It is silent: the
+  test then asserts against a status nobody chose, which is how slice 6 met it while moving a wire test
+  from the home command to doctor. Give the two a shape that cannot swap, a named argument or a builder,
+  and pin the refusal of a status that no caller asked for.
+
+- [ ] 150. One scalebar regression test hangs the whole suite, filed 2026-09-17 while building tasks 129
+  and 130. `node Tests/workflow-regressions.test.cjs` and `Tests/workflow-lifecycle.test.cjs` never
+  return. The cause was bisected and it is NOT the size of the argument payload, which an earlier reading
+  guessed: handing the identical payload to Obsidian from a file hangs the same way, and a 120 second
+  timeout does not help. Every test passes when run alone. The test covering replacement discarding the
+  original draft and its timers opens a modal dialog in its frame, and it hangs whenever it shares one
+  evaluation with any other test. So the bridge is sound and the suite has a test-isolation defect around
+  that modal. Until it is fixed, the suite's documented entry point cannot be used, and tasks 129, 130
+  and 131 were each verified through a filtered payload that runs one test at a time. Work lands as a
+  pull request on `~/workspaces/Ivy/webdavis/scalebar`.
+
+- [ ] 151. The scalebar Swift catalog helper aborts on a nil unwrap, filed 2026-09-17 while building task
+  129\. `node Tests/workflow-core.test.cjs` reports 36 pass and 1 fail on untouched `main`, and the
+  failure is the compiled helper `catalog-check` aborting with
+  `main/main.swift:16: Fatal error: Unexpectedly found nil while unwrapping an Optional value`, killed by
+  SIGTRAP. It is unrelated to the widget work and it means the one plain node test file in the suite
+  cannot go green, so no scalebar change can be gated on a clean run of it. Find what line 16 unwraps and
+  why it is empty here, and either give it a real value or a refusal that names what is missing. Work
+  lands as a pull request on `~/workspaces/Ivy/webdavis/scalebar`.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
