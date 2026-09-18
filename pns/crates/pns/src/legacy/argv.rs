@@ -179,6 +179,20 @@ where
                     });
                 }
             }
+            // ITS OWN ARM, like `--kind` and `--elapsed` above, rather than the
+            // generic value flag below: a missing value refuses the same way an
+            // out-of-set word does, instead of warning and delivering an event
+            // with no state at all.
+            "--state" => {
+                let value = tokens.next_if(|next| !is_producer_flag(next));
+                if State::from_word(value.as_deref().unwrap_or_default()).is_none() {
+                    state.get_or_insert(format!(
+                        "--state requires one of: {}",
+                        State::WORDS.join(", ")
+                    ));
+                }
+                parsed.state = value.unwrap_or_default();
+            }
             flag if VALUE_FLAGS.contains(&flag) => {
                 // Missing, or a recognized flag standing where the value
                 // should be: warn and leave the token for its own arm.
@@ -189,15 +203,6 @@ where
                 let Some(value) = tokens.next() else { continue };
                 match flag {
                     "--producer" => parsed.agent = value,
-                    "--state" => {
-                        if State::from_word(&value).is_none() {
-                            state.get_or_insert(format!(
-                                "--state requires one of: {}",
-                                State::WORDS.join(", ")
-                            ));
-                        }
-                        parsed.state = value;
-                    }
                     "--project" => parsed.project = value,
                     "--branch" => parsed.branch = value,
                     "--detail" => parsed.detail = value,

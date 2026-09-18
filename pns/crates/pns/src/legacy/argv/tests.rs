@@ -247,6 +247,19 @@ fn a_state_outside_the_six_words_refuses_the_event_and_names_them() {
     }
 }
 
+/// A trailing `--state` with no value at all refuses the same way `--state
+/// ""` does, rather than warning and delivering an event with no state.
+#[test]
+fn a_trailing_state_with_no_value_refuses_like_an_empty_one() {
+    let parsed = parse_args(["--producer", "uu", "--state"].map(str::to_owned));
+    assert!(parsed.warnings.is_empty());
+    assert!(matches!(
+        parsed.into_event(),
+        Err(super::Refusal::Value(message))
+            if message == "--state requires one of: done, failed, blocked, resolved, observation, progress"
+    ));
+}
+
 #[test]
 fn the_last_value_wins_for_every_producer_field() {
     let mut tokens = Vec::new();
