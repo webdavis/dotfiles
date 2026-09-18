@@ -116,8 +116,8 @@ pub fn parse(text: &str) -> Result<Settings, ConfigError> {
     let certificate =
         CertificatePin::parse(&required_string(controller, "certificate").map_err(|_| {
             error(
-                "missing controller certificate; run `lights enroll --bridge-id <id>` \
-and save the line it prints",
+                "controller certificate missing or not a string; run \
+`lights enroll --bridge-id <id>` and save the line it prints",
             )
         })?)
         .map_err(|why| error(why.0))?;

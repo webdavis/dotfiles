@@ -289,6 +289,19 @@ fn a_controller_without_a_certificate_is_refused_and_names_the_enrolling_command
     assert!(refusal.contains("lights enroll"), "{refusal}");
 }
 #[test]
+fn a_wrongly_typed_certificate_points_at_enrolling_rather_than_calling_it_missing() {
+    let text = VALID.replace(
+        "certificate = 'sha256:0000000000000000000000000000000000000000000000000000000000000000'",
+        "certificate = 42",
+    );
+    let Err(refusal) = parse(&text) else {
+        panic!("accepted a config it should refuse");
+    };
+    let refusal = refusal.0;
+    assert!(refusal.contains("certificate"), "{refusal}");
+    assert!(refusal.contains("lights enroll"), "{refusal}");
+}
+#[test]
 fn a_malformed_certificate_is_refused_without_echoing_it() {
     for value in ["''", "'nonsense'", "'sha256:abc'", "'sha1:00'"] {
         let text = VALID.replace(
