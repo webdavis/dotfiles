@@ -294,6 +294,7 @@ dependencies = [
  "pns-protocol",
  "rusqlite",
  "rustls",
+ "rustls-webpki",
  "serde_json",
  "sha2",
  "toml",

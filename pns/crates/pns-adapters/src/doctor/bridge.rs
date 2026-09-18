@@ -6,7 +6,10 @@ use pns_application::DoctorBridge;
 /// bridge that listed no room from a config that names no bridge at all.
 pub fn hue_resolves(hue_table: Option<&toml::Table>) -> bool {
     hue_table.is_some_and(|settings| {
-        hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()).is_some()
+        matches!(
+            hue_settings(settings, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()),
+            Ok(Some(_))
+        )
     })
 }
 pub fn doctor_bridge(
@@ -20,14 +23,14 @@ pub fn doctor_bridge(
             DoctorBridge::Missing
         };
     };
-    let Some(hue) = hue_settings(table, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) else {
+    let Some(hue) = crate::armed_hue(
+        table,
+        std::env::var("HUE_PULSE_ROOMS").ok().as_deref(),
+        |refusal| eprintln!("{refusal}"),
+    ) else {
         return DoctorBridge::Unconfigured;
     };
-    DoctorBridge::Ready(TypedLampBridge(UreqBridge {
-        base: format!("https://{}/clip/v2/resource", hue.bridge),
-        key: hue.key,
-        deadline: BRIDGE_DEADLINE,
-    }))
+    DoctorBridge::Ready(TypedLampBridge(UreqBridge::new(&hue, BRIDGE_DEADLINE)))
 }
 
 #[cfg(test)]

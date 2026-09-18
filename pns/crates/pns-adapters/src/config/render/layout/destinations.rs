@@ -212,6 +212,17 @@ pub(super) const PLUGINS_HUE: Table = Table {
             sample: Sample::Example("\"\""),
         },
         Key {
+            name: "certificate",
+            prose: "# The one certificate the bridge may present, as `sha256:<64 hex>`.\n\
+                         # REQUIRED, and a table with none refuses to pulse rather than\n\
+                         # trusting whatever answers the address: the bridge\u{27}s certificate\n\
+                         # carries no name any verifier can check, so its own fingerprint is\n\
+                         # the whole of what makes this address the device you meant. Get the\n\
+                         # value from `pns lights enroll`, which prints this line ready to\n\
+                         # paste; it changes only when the bridge hardware does.\n",
+            sample: Sample::Example("\"\""),
+        },
+        Key {
             name: "rooms",
             prose: "",
             sample: Sample::Example("[]"),

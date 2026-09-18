@@ -136,7 +136,14 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     (
         "plugins.hue",
-        &["bridge", "enabled", "key", "quiet_hours", "rooms"],
+        &[
+            "bridge",
+            "certificate",
+            "enabled",
+            "key",
+            "quiet_hours",
+            "rooms",
+        ],
     ),
     (
         "plugins.macos-banner",

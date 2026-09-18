@@ -60,20 +60,16 @@ fn presence_poll(launch: Launch) -> i32 {
     ) else {
         return 0;
     };
-    let Some(hue) = hue_settings(&settings, None) else {
+    let Some(hue) = pns_adapters::armed_hue(&settings, None, |refusal| eprintln!("{refusal}"))
+    else {
         return 0;
     };
+    // THE TRANSPORT'S OWN DEADLINE, twice, which is what keeps the whole poll
+    // inside the 30-second bound the daemon spawns it under. A wedged bridge is
+    // killed there, and the reading it never refreshed goes stale, which is the
+    // answer that was wanted anyway.
     let polled = write_presence_reading(
-        &UreqBridge {
-            base: format!("https://{}/clip/v2/resource", hue.bridge),
-            key: hue.key,
-            // THE TRANSPORT'S OWN DEADLINE, twice, which is what keeps the
-            // whole poll inside the 30-second bound the daemon spawns it
-            // under. A wedged bridge is killed there, and the reading it
-            // never refreshed goes stale, which is the answer that was
-            // wanted anyway.
-            deadline: pns_adapters::BRIDGE_DEADLINE,
-        },
+        &UreqBridge::new(&hue, pns_adapters::BRIDGE_DEADLINE),
         &state_dir(),
         &presence,
         now,

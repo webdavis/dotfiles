@@ -51,6 +51,9 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     pty.read_until("an API key the bridge issued: ", PTY_DEADLINE)
         .expect("the hue key prompt");
     pty.write_all(format!("{HUE_KEY}\n").as_bytes());
+    pty.read_until("the certificate the bridge presents", PTY_DEADLINE)
+        .expect("the hue certificate prompt");
+    pty.write_all(b"sha256:0000000000000000000000000000000000000000000000000000000000000001\n");
     pty.read_until("the rooms to flash, comma separated", PTY_DEADLINE)
         .expect("the hue rooms prompt");
     pty.write_all(b"Kitchen,Office\n");
