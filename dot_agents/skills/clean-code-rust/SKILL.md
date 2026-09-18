@@ -11,7 +11,8 @@ the delivery ladder, the sol review, and the completion report. This file states
 spelled and enforced in Rust, and it wins wherever the two disagree on a number or a mechanism.
 
 The Rust tools this repository owns today: `pns` (`pns`), `uu`
-(`uu`), and the two herdr plugins under `dot_local/share/herdr/plugins/`. The worked
+(`uu`), and the three herdr plugins, which live in their own repositories under
+`webdavis` since 2026-09-17. The worked
 example is [`PNS-EXAMPLE.md`](PNS-EXAMPLE.md).
 
 ## The workspace

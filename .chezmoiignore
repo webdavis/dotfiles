@@ -50,9 +50,6 @@ tmp.*
 .agents/skills/*/node_modules
 .agents/skills/*/node_modules/**
 
-# Rust build artifacts for vendored herdr projects (rebuilt in-place at apply; never deploy).
-.local/share/herdr/**/target
-
 # The quota plugin regenerates these on every apply.
 .config/herdr/plugins/config/herdr-agent-quota/
 
@@ -78,9 +75,8 @@ tailnet-pin
 .config/pns/config-values.toml
 
 # The repository-root toolchain pin, which exists so `just test-rust` runs cargo
-# on stable from here. Slashless, so it matches at the target ROOT alone: the two
-# herdr plugin pins still deploy beside their vendored sources. The other five
-# crate pins never reach $HOME either, but for the reason above, their whole
+# on stable from here. Slashless, so it matches at the target ROOT alone. The
+# five crate pins never reach $HOME either, but for the reason above, their whole
 # workspace directory is ignored by name.
 rust-toolchain.toml
 

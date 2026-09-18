@@ -274,7 +274,7 @@ banner.
 Each workspace's COMMAND crate is named for its tool (`crates/pns`, `crates/uu`, `crates/posture`,
 `crates/lights`), not `<tool>-cli`, so that
 `cargo install --git https://github.com/webdavis/dotfiles pns` names the package a person would guess.
-The `-cli` suffix survives on the two herdr plugins, which nobody installs that way.
+The `-cli` suffix survives in the three herdr plugin repositories, which nobody installs that way.
 
 `cargo install` installs EVERY binary a package declares, so pns's two development binaries
 (`http-capture`, a test double for the hermes transport, and `pns-config-render`, which regenerates this
@@ -648,15 +648,18 @@ keys, mostly `prefix+ctrl+<letter>`, but the dotfiles chord is `prefix+ctrl+.` (
 with a `prefix+.` fallback for terminals without CSI-u. The design spec at
 `docs/superpowers/specs/2026-06-18-tmux-to-herdr-migration-design.md` has the full mapping table.
 
-The jump itself is a herdr **plugin** (`dot_local/share/herdr/plugins/herdr-workspace-jump/`, a Rust
-binary), bound via nine `type = "plugin_action"` keybindings. herdr has no built-in create-or-focus:
-`workspace create` is not idempotent and `workspace focus` takes an id rather than a label, so the label
-is resolved against the live list first, exact match and first hit (labels are NOT unique on this
-machine). It sends two newline-delimited JSON requests per jump through `HERDR_SOCKET_PATH`, opening a
-fresh connection for each request. Every socket failure falls back to the `herdr` CLI through
-`HERDR_BIN_PATH`. A keybinding passes NO arguments, so the label and the working directory are baked into
-each action's argv in the manifest, one action per workspace; herdr does not run an action through a
-shell, so the manifest's `~` is expanded by the plugin. Built and linked by `run_onchange_after_56`.
+The jump itself is a herdr **plugin**
+([webdavis/herdr-workspace-jump](https://github.com/webdavis/herdr-workspace-jump), a Rust binary), bound
+via nine `type = "plugin_action"` keybindings. herdr has no built-in create-or-focus: `workspace create`
+is not idempotent and `workspace focus` takes an id rather than a label, so the label is resolved against
+the live list first, exact match and first hit (labels are NOT unique on this machine). It sends two
+newline-delimited JSON requests per jump through `HERDR_SOCKET_PATH`, opening a fresh connection for each
+request. Every socket failure falls back to the `herdr` CLI through `HERDR_BIN_PATH`. A keybinding passes
+NO arguments, so the label and the working directory are baked into each action's argv in the manifest,
+one action per workspace; herdr does not run an action through a shell, so the manifest's `~` is expanded
+by the plugin. Installed by `herdr plugin install` from the `packages.herdr_plugins` roster in
+`.chezmoidata/system_packages_autoinstall.yaml`, at the revision that roster pins; herdr clones the
+repository and runs the manifest's own `cargo build --release --locked`.
 
 The same plugin owns the workspace-level most-recently-used toggle on `prefix+ctrl+\\` (herdr ships
 `last_pane` but no workspace equivalent). Its `[[events]]` hook on `workspace.focused` fires for EVERY
@@ -671,11 +674,32 @@ launch-into-workspace flag. Jump to homelab anytime via the `h` alias (which inv
 action) or the `prefix+ctrl+h` chord.
 
 Ctrl-h/j/k/l "seamless nav across Neovim splits and herdr panes" is a herdr **plugin**
-(`dot_local/share/herdr/plugins/herdr-smart-nav/`, a Rust binary), bound via four
+([webdavis/herdr-smart-nav](https://github.com/webdavis/herdr-smart-nav), a Rust binary), bound via four
 `type = "plugin_action"` keybindings (`herdr-smart-nav.nav_<dir>`), so herdr execs it directly as argv
-with no `/bin/sh -lc` wrapper. It is built and linked by `run_onchange_after_57`, and it shells the
-`herdr` CLI rather than using a Rust SDK. Plugin actions get `HERDR_PANE_ID`, and the binary falls back
-to `HERDR_ACTIVE_PANE_ID` when that is absent.
+with no `/bin/sh -lc` wrapper. It arrives through the same roster install as the jump plugin, and it
+shells the `herdr` CLI rather than using a Rust SDK. Plugin actions get `HERDR_PANE_ID`, and the binary
+falls back to `HERDR_ACTIVE_PANE_ID` when that is absent.
+
+### The three herdr plugins we own
+
+`herdr-workspace-jump`, `herdr-smart-nav` and `herdr-process` live in their own public repositories under
+`webdavis` (extracted with `git subtree split` on 2026-09-17, so each carries its own history). Their
+source is no longer in this checkout, and `just test-rust` no longer tests them: each repository runs its
+own gates. **The manifest `id` is what herdr registers a plugin as**, verbatim, with no owner
+namespacing, so the `plugin_action` keybindings in `dot_config/herdr/config.toml` are unaffected by the
+move.
+
+Two arrive by `herdr plugin install` from the `packages.herdr_plugins` roster. herdr v1 has no
+`plugin update`, so bumping a `ref` there does not move a plugin that is already installed: uu's weekly
+herdr lane reports the install command for the revision it is not at, and the operator runs it.
+
+`herdr-process` is the exception and stays on the LINK path, driven by
+`.chezmoiscripts/run_onchange_after_58` and the `packages.herdr_linked_plugin` pin beside that roster. It
+ships no `herdr-plugin.toml`, because its actions are one set per declared process profile and the
+manifest is rendered from `dot_config/herdr/processes.toml` and `dot_config/herdr/config.toml` by
+`herdr-process generate`. herdr requires a committed manifest to install, and herdr plugin v1 registers
+no actions at runtime, so the builder clones the pinned revision into `~/.local/share/herdr-process`,
+compiles it, generates the manifest and links that directory.
 
 ### Herdr native status
 
