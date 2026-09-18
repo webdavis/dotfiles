@@ -76,7 +76,7 @@ pub(super) const PLUGINS_ROUTER: Table = Table {
     name: "plugins.router",
     prose: "# The home probe: whether the phone is on the home wifi, answered by the\n\
                  # router's own client list. A SENSOR rather than a destination, so no\n\
-                 # event ever routes to it; `pns home` is how it is read.\n",
+                 # event ever routes to it; `pns doctor` is how it is read.\n",
     opt_in: true,
     children: &[],
     keys: &[

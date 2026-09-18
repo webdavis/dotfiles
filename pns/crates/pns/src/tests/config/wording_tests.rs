@@ -10,7 +10,7 @@ fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
     // itself whatever the doctor actually says, which is the exact drift it
     // is named for: rename `router_url` to `url` in the sentence below and
     // nothing else, and a test written that way stays green.
-    use crate::home_setup_report as setup_report;
+    use crate::home_report::setup_report;
     use pns_adapters::SetupFailure;
     use pns_domain::home::DeviceKey;
     let serves = super::keys_of("plugins.router").expect("the router table is in the roster");

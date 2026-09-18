@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
-    // `home_mode` is the ONE place a cause becomes the line an operator
+    // `doctor_home` is the ONE place a cause becomes the line an operator
     // reads, and that wiring only runs through the binary: collapsing its two
     // failure arms onto a single message left every other test green, so a
     // disabled probe and a type nothing answers could both print "no
@@ -13,9 +13,21 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
     // reach a delivery; it still runs in the safe environment, because "this
     // path happens not to dispatch today" is not a property a test should be
     // relying on to stay off the operator's real gateway.
+    //
+    // THE EXIT CODE IS NOT ASSERTED. It belongs to the whole report, and a
+    // config naming one plugin and nothing else makes the report exit 1 on
+    // grounds that have nothing to do with the home probe.
     let home_line = || {
         let mut probe = home_probe(&sandbox);
-        stdout(&run(&mut probe)).trim_end().to_string()
+        let printed = probe.output().expect("the engine runs");
+        let rows = home_rows(&stdout(&printed));
+        assert_eq!(
+            rows.len(),
+            1,
+            "a probe that never dialled has one row: {}",
+            stdout(&printed)
+        );
+        rows.into_iter().next().expect("the one row")
     };
     // No config has been written yet, so this case has to come first.
     assert_eq!(home_line(), "home: not configured (no config file)");

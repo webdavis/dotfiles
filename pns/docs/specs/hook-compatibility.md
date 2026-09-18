@@ -10,7 +10,7 @@ properties hold across every event and are stated once rather than per row: the 
 bytes and in time before any arm sees it, a missing or malformed field is a state and never an error, and
 the process exits zero on every path except the forwarded blocking one. **Deferred to
 `docs/specs/blocking-approval.md`:** the whole forwarded round trip behind `blocked` and behind
-`pns gate <harness>-hook`, that is `blocking_event`, `gate_mode`, `moshi_decision` and `answer_within`,
+the bare `pns <harness>-hook`, that is `blocking_event`, `gate_mode`, `moshi_decision` and `answer_within`,
 including the phone suppression, the submit deadline and the pass-through exit code. What this file keeps
 of `blocked` is only what it shares with its siblings: the payload contract, the size cap that decides
 whether it may be forwarded at all, the turn marker it must not touch, and its standard output contract.
@@ -996,7 +996,7 @@ Then the surface reading is taken inside `run_event`, from one memoized probe se
 - Privacy: Not applicable.
 - Process ownership and cleanup: probe children are killed on their own deadlines.
 - Compatibility contract: this claim holds for the hook and blocking paths, where the forward decision
-  and the delivery plan share one probe set. `pns gate <harness>-hook` builds its own throwaway probe set
+  and the delivery plan share one probe set. The bare `pns <harness>-hook` builds its own throwaway probe set
   and runs no delivery plan at all, so the claim does not extend to it (`src/main.rs:forward_to_moshi`).
 
 ## 26. A session id that cannot be a filename reaches no file operation

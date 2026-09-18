@@ -82,8 +82,8 @@ fn only_a_home_reading_alerts_and_the_sensor_is_never_a_destination() {
 
 #[test]
 fn the_alert_carries_no_secret_and_no_raw_router_text() {
-    // TWO SECRETS ARE IN REACH on this path now: the router's own api_key,
-    // which `home_mode` reads, and the hermes signing key, which the dispatch
+    // TWO SECRETS ARE IN REACH on this path: the router's own api_key, which
+    // `doctor_home` reads, and the hermes signing key, which the dispatch
     // reads. Neither may ride an event to a channel or a line to a terminal.
     let sandbox = Sandbox::new("home-stale-alert-secrets");
     count_alerts(&sandbox);
@@ -116,10 +116,11 @@ fn the_alert_carries_no_secret_and_no_raw_router_text() {
     // reach the alert body not at all: the sentence is built from config KEY
     // NAMES, so a client label cannot ride it out to a channel.
     assert!(
-        stdout(&output).contains(concat!(
-            "device_ipv4       \"192.168.1.248\"   matched a different client ",
-            "\"mo\\\"use\\u{1b}[2J\"",
-        )),
+        home_rows(&stdout(&output)).iter().any(|row| row
+            == concat!(
+                "device_ipv4       \"192.168.1.248\"   matched a different client ",
+                "\"mo\\\"use\\u{1b}[2J\"",
+            )),
         "the evidence escapes the label: {}",
         stdout(&output)
     );
@@ -142,10 +143,12 @@ fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
     let mut probe = home_probe(&sandbox);
     let output = run(&mut probe);
 
-    assert_eq!(
-        stderr(&output).trim_end(),
-        "pns: config error (stale_alert_channel = \"../alert\" in [plugins.router] is not a \
-         usable route name); the stale alert posts to the default route"
+    assert!(
+        stderr(&output).lines().any(|line| line
+            == "pns: config error (stale_alert_channel = \"../alert\" in [plugins.router] is not a \
+                usable route name); the stale alert posts to the default route"),
+        "{}",
+        stderr(&output)
     );
     assert_eq!(
         alerts(&sandbox).len(),
@@ -153,8 +156,8 @@ fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
         "the alert is still delivered, on the default route"
     );
     assert_eq!(
-        stdout(&output),
-        format!("{STALE_EVIDENCE}\n{STALE_WARNING_ROW}\n"),
-        "and the diagnostic itself is untouched"
+        home_rows(&stdout(&output)),
+        stale_evidence_warned(),
+        "and the probe's own rows are untouched"
     );
 }

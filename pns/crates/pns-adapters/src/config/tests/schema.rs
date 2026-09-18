@@ -72,7 +72,7 @@ fn a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored() {
     // The probe's settings moved into `[plugins.router]`. A config still
     // carrying `[home]` must be refused NAMING it, so the operator is sent
     // to the one table they have to move; admitting it as a key nothing
-    // reads any more would leave `pns home` reporting "not configured"
+    // reads any more would leave the home probe reporting "not configured"
     // beside a file that plainly configures it.
     let err = parse_config("[home]\nrouter_url = \"https://192.168.1.1\"\n").unwrap_err();
     match err {

@@ -16,22 +16,6 @@ use support::{Sandbox, run, stderr, stdout};
 const FIXTURE_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
 #[test]
-fn home_keeps_its_diagnostic_with_extra_arguments() {
-    let sandbox = Sandbox::without_config("home-extra-arguments");
-    let bare = run(sandbox.pns_stateful().arg("home"));
-    let extra = run(sandbox.pns_stateful().args(["home", "extra", "--unknown"]));
-    assert_eq!(bare.status.code(), Some(0));
-    assert!(
-        stdout(&bare).starts_with("home: not configured (no config file)"),
-        "{}",
-        stdout(&bare)
-    );
-    assert_eq!(extra.status.code(), Some(0));
-    assert_eq!(extra.stdout, bare.stdout);
-    assert_eq!(extra.stderr, bare.stderr);
-}
-
-#[test]
 fn daemon_cancel_reports_the_removed_job_and_then_its_absence() {
     let sandbox = Sandbox::new("application-cancel-job");
     let scheduled = run(sandbox.pns_stateful().args([

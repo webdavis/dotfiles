@@ -1,10 +1,12 @@
-use super::{report, setup_report};
+use super::{rows, setup_report, setup_row};
 use pns_adapters::{
     SetupFailure, device_identity, enabled_router_table, parse_clients, router_api_key,
     router_settings,
 };
+use pns_domain::doctor::Mark;
 use pns_domain::home::{
-    DeviceIdentity, DeviceKey, HomePresence, HomeReading, home_reading, stale_identifiers,
+    DeviceIdentity, DeviceKey, HomePresence, HomeReading, Staleness, home_reading,
+    stale_identifiers,
 };
 
 mod presence;

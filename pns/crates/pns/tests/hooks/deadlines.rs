@@ -295,7 +295,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
 fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
     // THE SECOND CALLER, which is the whole reason the bound sits at the
     // function both of them route through rather than at the one the defect
-    // was found on. `pns gate <harness>-hook` is what pi and omp reach
+    // was found on. The bare `pns <harness>-hook` is what pi and omp reach
     // directly, with no pns hook in front of it, and it waited on exactly the
     // same unbounded `child.wait()`.
     //
@@ -309,7 +309,7 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
         GATE_SILENT_MOSHI_DEADLINE_MS,
     );
     stub_silent_moshi(&sandbox, &mut command);
-    command.args(["gate", "claude-hook"]);
+    command.arg("claude-hook");
     let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
     write_payload(&mut capture.child, b"{\"ask\":1}\n");
     let output = capture
