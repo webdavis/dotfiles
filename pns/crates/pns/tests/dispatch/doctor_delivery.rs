@@ -157,7 +157,7 @@ fn the_doctor_reaches_the_bridge_inside_the_lights_quiet_window() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("doctor-quiet-window");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n\
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"{}\"\n",
         window_around(utc_minute_now(), 120)
     ));
@@ -216,7 +216,7 @@ fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_cho
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("doctor-hue-listed-nothing");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\n"
+        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
     ));
     // SPAWNED, not run to completion: the spy has to accept while the engine
     // is still dialling, or the bridge deadline is what this test waits out.
@@ -275,6 +275,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             DAEMON_NEVER_RAN_LINE,
             NAG_OFF_LINE,
             LIGHTS_OFF_LINE,
+            NO_CERTIFICATE_LINE,
             "the delivery record could not be read, so nothing here is known",
             // An empty ledger is an empty roster: pns learns a route only by
             // having posted to one, so this says nothing has been posted yet

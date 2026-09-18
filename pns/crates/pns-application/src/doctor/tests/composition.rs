@@ -22,10 +22,13 @@ fn doctor_pairs_reordered_outcomes_by_name_and_prints_every_section_in_order() {
     assert_eq!(&lines[9..11], ["focus fixture", "daemon fixture"]);
     assert!(lines[11].starts_with("pns doctor: the nag "));
     assert!(lines[12].starts_with("pns doctor: lights:"));
+    // AND THE PIN ROW AT THE FOOT OF THAT SECTION, below the dial whose refusal
+    // it reports.
+    assert!(lines[13].contains("certificate:"));
     // The ledger, then the routes it would post to, then history. The fixture
     // has posted to no route, so the route section is its summary alone.
-    assert!(lines[14].contains("no routes to check"));
-    assert!(lines[15].contains("decision"));
+    assert!(lines[15].contains("no routes to check"));
+    assert!(lines[16].contains("decision"));
     assert!(lines.last().unwrap().contains("missed"));
     assert_eq!(&*history.reads.borrow(), &["decisions", "journal"]);
 }

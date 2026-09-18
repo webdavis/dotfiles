@@ -9,6 +9,7 @@ fn setup_keeps_every_credential_hidden_and_delivers_all_other_answers_to_the_ren
         "yes",
         "bridge",
         "hue secret",
+        "sha256:0000000000000000000000000000000000000000000000000000000000000001",
         "Studio, Kitchen",
         "yes",
         "UniFi",
@@ -39,6 +40,8 @@ fn setup_keeps_every_credential_hidden_and_delivers_all_other_answers_to_the_ren
             hermes_key: "hermes secret".into(),
             hue_bridge: "bridge".into(),
             hue_key: "hue secret".into(),
+            hue_certificate:
+                "sha256:0000000000000000000000000000000000000000000000000000000000000001".into(),
             hue_rooms: vec!["Studio".into(), "Kitchen".into()],
             router_type: "unifi".into(),
             router_url: "router url".into(),
@@ -77,4 +80,32 @@ fn setup_blank_hue_address_and_unknown_router_decline_without_unused_credentials
     assert!(output.contains("nothing given, so the light pulse stays off"));
     assert!(output.contains("nothing here reads that router, so the home probe stays off"));
     assert_eq!(*world.observed.borrow(), Some(Answers::default()));
+}
+
+#[test]
+fn a_certificate_parse_refuses_re_asks_instead_of_composing_a_config_that_fails_to_load() {
+    let world = World::new(&[
+        "",
+        "no",
+        "yes",
+        "bridge",
+        "hue secret",
+        "not-a-pin",
+        "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+        "Studio",
+        "no",
+        "no",
+        "no",
+    ]);
+    assert_eq!(world.run(false).0, 0);
+    assert!(world.answers.borrow().is_empty());
+    let output = world.output.borrow().join("\n");
+    assert!(output.contains("does not begin with"), "{output}");
+    assert!(output.contains("try again"), "{output}");
+    assert_eq!(
+        world.observed.borrow().as_ref().map(|a| &a.hue_certificate),
+        Some(
+            &"sha256:0000000000000000000000000000000000000000000000000000000000000001".to_string()
+        )
+    );
 }
