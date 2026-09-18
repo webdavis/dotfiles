@@ -37,10 +37,11 @@ fn the_daemon_reloads_on_the_thirtieth_tick_before_registering_or_draining() {
     // room sensor: both are the daemon's own jobs and both are re-registered
     // from one config read rather than two.
     assert_eq!(world.count("github"), 1);
+    assert_eq!(world.count("calendar"), 1);
     let log = world.log.borrow();
     let at = log.iter().position(|s| s == "presence").unwrap();
     assert_eq!(
-        &log[at - 2..at + 6],
+        &log[at - 2..at + 8],
         [
             "clock",
             "settings",
@@ -48,6 +49,8 @@ fn the_daemon_reloads_on_the_thirtieth_tick_before_registering_or_draining() {
             "schedule(100)",
             "github",
             "cancel(github)",
+            "calendar",
+            "cancel(quiet-calendar)",
             "reap",
             "heartbeat"
         ]

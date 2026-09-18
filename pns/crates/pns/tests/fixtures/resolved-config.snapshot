@@ -414,6 +414,12 @@ Config {
             zones: {},
         },
     ),
+    quiet_calendar: QuietCalendar {
+        enabled: false,
+        command: [],
+        poll_secs: 120,
+        deadline_secs: 20,
+    },
     failures: Failures {
         serve: true,
         port: 8646,

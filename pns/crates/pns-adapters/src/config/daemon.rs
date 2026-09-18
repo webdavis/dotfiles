@@ -58,6 +58,14 @@ impl pns_application::DaemonSettings for DaemonConfig {
         let asked_for = crate::read_poll_state(&crate::state_dir()).interval_secs;
         Some(job_interval(source.poll_secs, asked_for))
     }
+    /// How often the calendar poll runs, and `None` while the feature is off,
+    /// names no command, or sits in a config that will not load.
+    fn calendar_interval(&self) -> Option<u64> {
+        match load_config(&config_path(&self.home)) {
+            Ok(LoadOutcome::Loaded(config)) => config.quiet_calendar.armed(),
+            _ => None,
+        }
+    }
     fn presence_interval(&self) -> Option<u64> {
         match load_config(&config_path(&self.home)) {
             Ok(LoadOutcome::Loaded(config)) => parse_presence(&config)

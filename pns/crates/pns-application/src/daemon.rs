@@ -79,6 +79,9 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
                     // at startup would die with its lease on the first daemon
                     // that outran it.
                     crate::ensure_github_poll(&jobs, self.settings.github_interval(), now);
+                    // AND THE CALENDAR POLL, beside the other two and for the
+                    // same reason: nothing else asks what the calendar says.
+                    crate::ensure_calendar_poll(&jobs, self.settings.calendar_interval(), now);
                 }
             }
             crate::RunDaemonTick {

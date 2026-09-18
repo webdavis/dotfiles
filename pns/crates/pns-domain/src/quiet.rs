@@ -75,5 +75,7 @@ pub fn minutes_left(expiry: u64, now: Option<u64>) -> u64 {
 pub const MUTE_RANGE: RangeInclusive<Duration> =
     Duration::from_secs(1)..=Duration::from_secs(24 * 60 * 60);
 
+pub mod calendar;
+
 #[cfg(test)]
 mod tests;

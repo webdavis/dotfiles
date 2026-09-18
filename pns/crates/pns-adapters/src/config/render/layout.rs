@@ -104,6 +104,7 @@ pub(super) const LAYOUT: &[Table] = &[
     DELIVERY,
     RECAP,
     FOCUS,
+    QUIET,
     NAG,
     PHONE,
     FAILURES,

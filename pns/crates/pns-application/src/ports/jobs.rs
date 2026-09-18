@@ -42,4 +42,7 @@ pub trait DaemonSettings {
     /// It is the interval the SERVER last asked for, so this reads the poll's
     /// own state as well as the config.
     fn github_interval(&self) -> Option<u64>;
+    /// How often the calendar poll runs, or `None` for a feature that is off,
+    /// unconfigured or refused.
+    fn calendar_interval(&self) -> Option<u64>;
 }

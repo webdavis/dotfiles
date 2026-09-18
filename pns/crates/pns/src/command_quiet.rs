@@ -26,6 +26,12 @@ pub(crate) fn quiet_mode() -> i32 {
         // that has silently stopped working, and making this form the report
         // also means no invocation can mute by accident.
         [] => {}
+        // THE CLOCK'S OWN READ of the calendar the config names. It is here
+        // rather than under a subcommand of its own because it is the same
+        // switch: one word, one mute.
+        [word] if word == "calendar" => {
+            return crate::command_quiet_calendar::quiet_calendar_mode();
+        }
         // Clearing also replaces an imported record nothing could parse. The
         // standing-state report below still decides what actually happened.
         [word] if word == "off" => {
@@ -92,7 +98,7 @@ pub(crate) fn quiet_mode() -> i32 {
 /// What a mute typed wrong is told, once, on stderr. The refusal above it
 /// quotes what was typed; this says what the command takes.
 pub(crate) const QUIET_USAGE: &str =
-    "pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h";
+    "pns: usage: pns quiet [<duration>|off|calendar]; duration is <count><s|m|h>, from 1s to 24h";
 
 /// Whether the operator's mute is on, judged on THE RUN'S OWN clock reading:
 /// the same one the rest of the decision is taken against. An expiry crossed

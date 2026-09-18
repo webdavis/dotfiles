@@ -137,9 +137,11 @@ pub use build_return_recap::{BuildReturnRecap, RECAP_USAGE, recap_bounds, recap_
 pub use ports::recap::{Fetched, MergedPullRequestSource, ReviewNoteSource, Summarizer};
 pub use post_return_recap::post_return_recap;
 
+mod calendar_registration;
 mod daemon;
 mod github_registration;
 mod presence_registration;
+pub use calendar_registration::ensure_calendar_poll;
 pub use daemon::{RunDaemon, daemon_tick};
 pub use github_registration::{GITHUB_DAEMON_FLAG, ensure_github_poll};
 pub use ports::jobs::DaemonSettings;

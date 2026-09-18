@@ -233,8 +233,7 @@ fn a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state
     // BELIEVES IS ON. This is not the always-exit-0 contract's territory: that
     // covers the hook and notification paths, where a non-zero exit would fail
     // the turn being reported on, and `pns quiet` is hand typed.
-    const USAGE: &str =
-        "pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h";
+    const USAGE: &str = "pns: usage: pns quiet [<duration>|off|calendar]; duration is <count><s|m|h>, from 1s to 24h";
     for arguments in [
         vec!["tomorrow"],
         vec!["30"],

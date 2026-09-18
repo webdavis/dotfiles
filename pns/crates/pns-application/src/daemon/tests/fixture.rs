@@ -84,6 +84,10 @@ impl DaemonSettings for World {
         self.log.borrow_mut().push("presence".into());
         Some(7)
     }
+    fn calendar_interval(&self) -> Option<u64> {
+        self.log.borrow_mut().push("calendar".into());
+        None
+    }
 }
 impl Clock for World {
     fn now_secs(&self) -> Option<u64> {

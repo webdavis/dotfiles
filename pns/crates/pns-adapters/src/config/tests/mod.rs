@@ -124,6 +124,16 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("failures", "serve", "true"),
     (super::TOP_LEVEL, "focus", "{ silence = [\"Sleep\"] }"),
     (super::TOP_LEVEL, "lights", "{ refresh_secs = 12 }"),
+    (
+        super::TOP_LEVEL,
+        "quiet",
+        "{ calendar = { enabled = false } }",
+    ),
+    ("quiet", "calendar", "{ enabled = false }"),
+    ("quiet.calendar", "enabled", "false"),
+    ("quiet.calendar", "command", "[\"busy-window\"]"),
+    ("quiet.calendar", "poll_secs", "120"),
+    ("quiet.calendar", "deadline_secs", "20"),
     (super::TOP_LEVEL, "nag", "{ after_secs = 300 }"),
     (
         super::TOP_LEVEL,
