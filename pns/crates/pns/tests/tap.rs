@@ -50,7 +50,7 @@ fn the_json_marker_dates_the_recorded_tap() {
         "{recorded}"
     );
     let never = Sandbox::without_config("tap-never-touched");
-    let absent = json(&tap(&never, &["tap", "--info", "--json"]));
+    let absent = json(&tap(&never, &["tap", "info", "--json"]));
     assert_eq!(absent["marker"]["exists"], false);
     assert!(absent["marker"]["touched_at"].is_null(), "{absent}");
 }
@@ -101,7 +101,7 @@ fn environment_path_wins_even_when_configuration_cannot_load() {
 #[test]
 fn info_preserves_missing_state_and_install_preserves_existing_state() {
     let s = Sandbox::without_config("tap-read-only");
-    let out = tap(&s, &["tap", "--info", "--json"]);
+    let out = tap(&s, &["tap", "info", "--json"]);
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(json(&out)["marker"]["exists"], false);
     assert!(json(&out)["marker"]["age_secs"].is_null());
@@ -112,7 +112,7 @@ fn info_preserves_missing_state_and_install_preserves_existing_state() {
     let out = s
         .pns()
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["tap", "--install", "--json"])
+        .args(["tap", "install", "--json"])
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
@@ -208,7 +208,7 @@ fn forbidden_flags_and_conflicting_operations_fail_before_touch() {
         vec!["tap", "--clear", "--json"],
         vec!["tap", "--for", "5m", "--json"],
         vec!["tap", "--set-marker", "/tmp/no", "--json"],
-        vec!["tap", "--install", "--info", "--json"],
+        vec!["tap", "info", "install", "--json"],
     ] {
         let out = tap(&s, &words);
         assert_eq!(out.status.code(), Some(2), "{out:?}");
@@ -218,19 +218,36 @@ fn forbidden_flags_and_conflicting_operations_fail_before_touch() {
 }
 
 #[test]
+fn the_retired_flag_spelling_is_refused_and_names_the_subcommand() {
+    let s = Sandbox::without_config("tap-retired-flags");
+    for (words, verb) in [
+        (vec!["tap", "--install", "--json"], "pns tap install"),
+        (vec!["tap", "--info", "--json"], "pns tap info"),
+    ] {
+        let out = tap(&s, &words);
+        assert_eq!(out.status.code(), Some(2), "{out:?}");
+        let answer = json(&out);
+        assert_eq!(answer["error"]["code"], "invalid_arguments");
+        let message = answer["error"]["message"].as_str().expect("a message");
+        assert!(message.contains(verb), "{message}");
+    }
+    assert!(!s.path(".local/state/pns").exists());
+}
+
+#[test]
 fn the_guide_uses_the_shared_style_and_discloses_unverified_phone_setup() {
     let s = Sandbox::without_config("tap-guide");
-    let out = tap(&s, &["--no-color", "tap", "--install"]);
+    let out = tap(&s, &["--no-color", "tap", "install"]);
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let text = stdout(&out);
-    assert!(text.starts_with("\npns tap --install\n"), "{text}");
+    assert!(text.starts_with("\npns tap install\n"), "{text}");
     for text_part in [
         "◆ 1. This Mac",
         "◆ 2. Your phone",
         "◆ 3. Trigger methods",
         "Remote Login",
         "not included",
-        "pns tap --info",
+        "pns tap info",
         "restrict",
         "Port",
         "Undo",
@@ -319,7 +336,7 @@ fn doctor_reports_the_configured_tap_as_missing_fresh_or_stale_without_writing_i
             line.contains(state) && line.contains("config") && line.contains("attention"),
             "{line}"
         );
-        assert!(line.contains("pns tap --info"));
+        assert!(line.contains("pns tap info"));
         assert!(!printed.contains("private contents"));
         assert_eq!(
             fs::metadata(&path).ok().map(|m| m.modified().unwrap()),

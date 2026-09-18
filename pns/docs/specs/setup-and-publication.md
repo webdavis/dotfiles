@@ -1230,7 +1230,7 @@ configuration never silently redirects a write to the default. An explicit envir
 without reading configuration. These filesystem operations have no timeout on a hung filesystem; no
 background worker or new retry mechanism is introduced.
 
-`pns tap --install` is a guide only. It never reads or writes `authorized_keys`, publishes config,
+`pns tap install` is a guide only. It never reads or writes `authorized_keys`, publishes config,
 installs a daemon or sends a notification. It prints the running binary's absolute path in a forced
 `pns tap` command, with `restrict` and a public-key placeholder. It explains replacing an existing
 dedicated entry rather than adding a duplicate, Remote Login, machine-specific Host and User,
