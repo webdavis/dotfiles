@@ -46,7 +46,7 @@ command = [
   "--json",
   "number,title,statusCheckRollup",
   "--jq",
-  '.[] | "#\(.number) \(.title) [\(.statusCheckRollup | map(.conclusion) | if length == 0 then "no checks" elif any(. == "FAILURE") then "failing" elif any(. == null) then "running" else "green" end)]"',
+  '.[] | "#\(.number) \(.title) [\(.statusCheckRollup | map(.conclusion) | if length == 0 then "no checks" elif any(. != null and . != "SUCCESS" and . != "SKIPPED" and . != "NEUTRAL") then "failing" elif any(. == null) then "running" else "green" end)]"',
 ]
 
 # Today's tasks, through the Todoist CLI, which carries its own credentials too.
