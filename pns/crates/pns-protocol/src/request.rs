@@ -2,7 +2,7 @@
 //! one event, in version 1 of the `pns.request` envelope.
 //!
 //! The source's own event name (`event`) is carried as metadata; the
-//! normalized [`Signal`] is what pns policy reads. Delivery scope is one
+//! normalized [`State`] is what pns policy reads. Delivery scope is one
 //! typed word, so the legacy pair of independent flags cannot be spelled
 //! here (decision 0007). A producer states `elapsed_secs` and pns decides the
 //! tier from it; there is no field for a caller-decided tier.
@@ -27,7 +27,7 @@ const KNOWN_FIELDS: [&str; 16] = [
     "producer",
     "session",
     "event",
-    "signal",
+    "state",
     "occurred_at",
     "elapsed_secs",
     "detail",
@@ -49,16 +49,64 @@ fn schema() -> SchemaId {
 
 /// What happened, in pns's own terms. A producer's event name never controls
 /// routing, state or lighting directly; this does.
+///
+/// ONE CLOSED SET OF SIX WORDS, AND THE SAME SET THE FLAG PATH TAKES: a
+/// producer that spells `state` in JSON and one that types `--state` are
+/// saying the same thing, so a word either path refuses is a word both
+/// refuse. It is a plain word on the wire rather than a wrapper object,
+/// because there was never a second field inside the wrapper to name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Signal {
-    Succeeded,
+#[serde(rename_all = "snake_case")]
+pub enum State {
+    Done,
     Failed,
-    NeedsAttention,
-    ApprovalRequested,
+    Blocked,
     Resolved,
     Observation,
     Progress,
+}
+
+impl State {
+    /// The state a producer spelled, or `None` for a word outside the set.
+    pub fn from_word(word: &str) -> Option<Self> {
+        match word {
+            "done" => Some(Self::Done),
+            "failed" => Some(Self::Failed),
+            "blocked" => Some(Self::Blocked),
+            "resolved" => Some(Self::Resolved),
+            "observation" => Some(Self::Observation),
+            "progress" => Some(Self::Progress),
+            _ => None,
+        }
+    }
+
+    /// The word this state is spelled with, on either path.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Done => "done",
+            Self::Failed => "failed",
+            Self::Blocked => "blocked",
+            Self::Resolved => "resolved",
+            Self::Observation => "observation",
+            Self::Progress => "progress",
+        }
+    }
+
+    /// Whether this state is an update nobody is waiting on, which is what
+    /// makes it quiet on both paths.
+    pub fn quiet(self) -> bool {
+        matches!(self, Self::Observation | Self::Progress)
+    }
+
+    /// Every word `from_word` accepts, for a usage line and for a refusal.
+    pub const WORDS: &'static [&'static str] = &[
+        "done",
+        "failed",
+        "blocked",
+        "resolved",
+        "observation",
+        "progress",
+    ];
 }
 
 /// What the event IS, which is what pns maps to a route when the producer
@@ -67,9 +115,9 @@ pub enum Signal {
 /// one deployment's gateway and a producer is a tool other people install
 /// (operator ruling, 2026-09-15).
 ///
-/// NOT A SECOND SPELLING OF `signal`. The signal says how the work ended and
-/// this says whose work it was, and pns needs both: a health event that
-/// succeeded is not a page.
+/// NOT A SECOND SPELLING OF `state`. The state says how the work ended and
+/// this says whose work it was, and pns needs both: a health event that is
+/// done is not a page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
@@ -131,7 +179,7 @@ pub struct Request {
     #[serde(default)]
     pub session: Option<Session>,
     pub event: Name,
-    pub signal: Signal,
+    pub state: State,
     /// Epoch seconds, when the producer knows when it happened.
     #[serde(default)]
     pub occurred_at: Option<u64>,
@@ -174,13 +222,13 @@ struct Wire<'a> {
 impl Request {
     /// A request with the four required parts set and every optional part at
     /// its default.
-    pub fn new(request_id: RequestId, producer: Name, event: Name, signal: Signal) -> Self {
+    pub fn new(request_id: RequestId, producer: Name, event: Name, state: State) -> Self {
         Request {
             request_id,
             producer,
             session: None,
             event,
-            signal,
+            state,
             occurred_at: None,
             elapsed_secs: None,
             detail: String::new(),

@@ -1,5 +1,5 @@
 use super::*;
-use pns_protocol::{Name, Request, RequestId, Signal, Status};
+use pns_protocol::{Name, Request, RequestId, State, Status};
 use std::io::Write;
 use std::process::{Output, Stdio};
 
@@ -8,7 +8,7 @@ fn request() -> Request {
         RequestId::new("source-123").unwrap(),
         Name::new("posture").unwrap(),
         Name::new("failed").unwrap(),
-        Signal::Observation,
+        State::Observation,
     );
     request.detail = "original detail".into();
     request.context.project = Some("original project".into());
@@ -153,7 +153,7 @@ fn canonical_request_overflow_is_correlated_and_refused_before_effects() {
     let sandbox = Sandbox::new("json-canonical-overflow");
     let mut value = serde_json::json!({
         "schema":"pns.request/1", "request_id":"source-123", "producer":"posture",
-        "event":"page", "signal":{"kind":"observation"},
+        "event":"page", "state":"observation",
         "extensions":{"a":"x".repeat(8000),"b":"x".repeat(8000),"c":"x".repeat(8000),
             "d":"","e":"x".repeat(8000),"f":"x".repeat(8000),"g":"x".repeat(8000),
             "h":"x".repeat(8000),"i":"x".repeat(8000)}
@@ -197,7 +197,7 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
         ),
     );
     let mut request = request();
-    request.signal = Signal::Succeeded;
+    request.state = State::Done;
     request.context.pane = Some("t1:p2".into());
     let mut command = sandbox.pns_stateful();
     command.env("PNS_IDLE_SECS", "0");

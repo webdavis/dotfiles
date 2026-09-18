@@ -1,13 +1,13 @@
 use super::captured_child::CapturedChild;
 use super::*;
-use pns_protocol::{Name, Request, RequestId, Signal, Status};
+use pns_protocol::{Name, Request, RequestId, State, Status};
 
 fn input(class: Option<&str>) -> String {
     let mut request = Request::new(
         RequestId::new("class-case").unwrap(),
         Name::new("independent-tool").unwrap(),
         Name::new("page").unwrap(),
-        Signal::NeedsAttention,
+        State::Blocked,
     );
     request.detail = "same private detail".into();
     request.class = class.map(|name| Name::new(name).unwrap());

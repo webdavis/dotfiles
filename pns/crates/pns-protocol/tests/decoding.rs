@@ -96,7 +96,7 @@ fn unknown_fields_cannot_bypass_the_shared_decode_bounds() {
 
 #[test]
 fn every_required_request_field_must_be_present() {
-    for field in ["request_id", "producer", "event", "signal"] {
+    for field in ["request_id", "producer", "event", "state"] {
         let mut value: Value = serde_json::from_str(REQUEST).unwrap();
         value.as_object_mut().unwrap().remove(field);
         assert!(

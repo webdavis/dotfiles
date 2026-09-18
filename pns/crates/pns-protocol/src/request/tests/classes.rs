@@ -5,7 +5,7 @@ fn a_delivery_class_round_trips_but_absence_keeps_the_original_request_bytes() {
     let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
     assert_eq!(
         original,
-        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","signal":{"kind":"failed"},"occurred_at":null,"elapsed_secs":null,"detail":"","context":{"project":null,"branch":null,"pane":null},"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#
+        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","state":"failed","occurred_at":null,"elapsed_secs":null,"detail":"","context":{"project":null,"branch":null,"pane":null},"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#
     );
     for class in ["security".to_string(), "other-class".into(), "x".repeat(64)] {
         let mut value = minimal();

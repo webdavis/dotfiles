@@ -5,7 +5,7 @@ use pns_protocol::{
 };
 use std::cell::Cell;
 
-const REQUEST: &[u8] = br#"{"schema":"pns.request/1","request_id":"posture-occurrence","producer":"posture","event":"heartbeat","signal":{"kind":"observation"},"session":{"id":"session","turn":9},"occurred_at":42,"elapsed_secs":7,"detail":"private body","context":{"project":"repo","branch":"topic","pane":"pane"},"scope":"remote_only","route":"posture","interaction":{"kind":"none"},"extensions":{"posture":{"count":2}},"future":true}"#;
+const REQUEST: &[u8] = br#"{"schema":"pns.request/1","request_id":"posture-occurrence","producer":"posture","event":"heartbeat","state":"observation","session":{"id":"session","turn":9},"occurred_at":42,"elapsed_secs":7,"detail":"private body","context":{"project":"repo","branch":"topic","pane":"pane"},"scope":"remote_only","route":"posture","interaction":{"kind":"none"},"extensions":{"posture":{"count":2}},"future":true}"#;
 fn args() -> Vec<String> {
     vec!["--json".into()]
 }
@@ -42,7 +42,7 @@ fn one_valid_request_reaches_the_callback_with_every_decoded_field_intact() {
 fn decoder_refusals_remain_correlated_without_submitting_or_echoing_private_text() {
     let invalid = String::from_utf8(REQUEST.to_vec())
         .unwrap()
-        .replace("observation", "unknown_signal");
+        .replace("observation", "unknown_state");
     let mut output = Vec::new();
     let status = run(&args(), invalid.as_bytes(), &mut output, |_| {
         panic!("invalid input must not reach delivery")

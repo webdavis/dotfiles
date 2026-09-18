@@ -1,13 +1,13 @@
 use super::*;
-use pns_protocol::{Context, Name, RequestId};
+use pns_protocol::{Context, Name, RequestId, State};
 
 #[test]
-fn normalized_signal_scope_and_elapsed_choose_policy_without_using_source_event_name() {
+fn normalized_state_scope_and_elapsed_choose_policy_without_using_source_event_name() {
     let mut request = Request::new(
         RequestId::new("id").unwrap(),
         Name::new("source").unwrap(),
         Name::new("failed").unwrap(),
-        Signal::Succeeded,
+        State::Done,
     );
     request.context = Context {
         project: Some("project".into()),
@@ -15,16 +15,15 @@ fn normalized_signal_scope_and_elapsed_choose_policy_without_using_source_event_
         pane: Some("w:p".into()),
     };
     request.route = Some(Name::new("priority").unwrap());
-    for (signal, state, attempt) in [
-        (Signal::Succeeded, "done", Attempt::First),
-        (Signal::Failed, "failed", Attempt::First),
-        (Signal::NeedsAttention, "blocked", Attempt::First),
-        (Signal::ApprovalRequested, "blocked", Attempt::First),
-        (Signal::Resolved, "resolved", Attempt::First),
-        (Signal::Observation, "observation", Attempt::Observation),
-        (Signal::Progress, "progress", Attempt::Observation),
+    for (stated, state, attempt) in [
+        (State::Done, "done", Attempt::First),
+        (State::Failed, "failed", Attempt::First),
+        (State::Blocked, "blocked", Attempt::First),
+        (State::Resolved, "resolved", Attempt::First),
+        (State::Observation, "observation", Attempt::Observation),
+        (State::Progress, "progress", Attempt::Observation),
     ] {
-        request.signal = signal;
+        request.state = stated;
         let (event, actual) = event(&request);
         assert_eq!(event.state, state);
         assert_eq!(actual, attempt);
@@ -79,7 +78,7 @@ fn a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_sessi
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
         Name::new("lane-failed").unwrap(),
-        Signal::Failed,
+        State::Failed,
     );
     for (stated, kind) in [
         (None, pns_domain::routes::Kind::Agent),
@@ -101,7 +100,7 @@ fn a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_sessi
         "sirens",
         "a failed health submission stayed off the urgent route"
     );
-    request.signal = Signal::Succeeded;
+    request.state = State::Done;
     assert!(
         event(&request).0.routed(&routes).channel.is_empty(),
         "a health submission that succeeded paged the operator"
@@ -114,7 +113,7 @@ fn a_route_the_producer_named_still_outranks_the_kind_it_stated() {
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
         Name::new("lane-failed").unwrap(),
-        Signal::Failed,
+        State::Failed,
     );
     request.kind = Some(pns_protocol::Kind::Health);
     request.route = Some(Name::new("posture-pages").unwrap());

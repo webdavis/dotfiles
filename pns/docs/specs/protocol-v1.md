@@ -57,7 +57,7 @@ submission. Refusals are typed values, not process exit codes.
 
 Plan basis: row 7.1 of `2026-09-05-pns-refactor-plan.md`, lines 496-502 at main
 `50763deea9c48396d1d4356a5fee1cbf05992bd5`. The package requirements below remain usable after a
-repository move. The seven signals and five kinds of bounds come from that row. Fixed ceilings, duplicate
+repository move. The state words and five kinds of bounds come from that row. Fixed ceilings, duplicate
 rejection and advisory truncation are explicit version 1 policies recorded in the implementation and
 tests, rather than preserved legacy behavior.
 
@@ -170,7 +170,7 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 ## protocol-v1/S011: Request fields and defaults
 
-Given a version 1 request, when decoded, then request_id, producer, event and signal are required and
+Given a version 1 request, when decoded, then request_id, producer, event and state are required and
 must have their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent
 optional session, times, route, kind and class become None; detail is empty, context fields are None,
 scope is automatic, interaction is none, and extensions is an empty object. Request::new supplies those
@@ -199,11 +199,12 @@ event IS, and pns maps that to one of its own routes.
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L75),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L154).
 
-## protocol-v1/S012: Signal words
+## protocol-v1/S012: State words
 
-Given a request signal, when encoded or decoded, then kind is exactly one of succeeded, failed,
-needs_attention, approval_requested, resolved, observation or progress. Each word maps to its matching
-variant in both directions. An unknown word is field_invalid; a missing signal is not defaulted.
+Given a request state, when encoded or decoded, then it is one plain word, exactly one of done, failed,
+blocked, resolved, observation or progress. Each word maps to its matching variant in both directions,
+and it is the same closed set `--state` takes on the flag path. An unknown word is field_invalid; a
+missing state is not defaulted.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L52),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186).
@@ -402,9 +403,9 @@ classification and the event workflow are composed by the existing root callback
 The JSON command encodes the decoded request before reading configuration, probing or delivering. If
 canonical encoding exceeds a protocol bound, it returns a correlated rejection and causes no event side
 effects. Otherwise, the ledger retains those canonical bytes beside the original producer and request
-identifier. Source event names, occurrence time, session and extensions remain metadata. The normalized
-signal selects the existing event state; observation and progress use the marker-neutral observation
-path. Scope and context enter the same decision workflow as legacy events. Elapsed time selects the
+identifier. Source event names, occurrence time, session and extensions remain metadata. The stated
+state is the event state; observation and progress use the marker-neutral observation path, on the flag
+path and the JSON path alike. Scope and context enter the same decision workflow as legacy events. Elapsed time selects the
 existing 300-second long-running tier without suppressing a short JSON request.
 
 JSON stdout contains exactly one result line. Human delivery lines and executable-channel stdout go to
@@ -432,10 +433,10 @@ class exception follows the existing silence policy without adding a phone card 
 
 The retained `observation` state carries quiet presentation through delivery retries. `Progress` and
 legacy model-switch, quota and configuration-change events retain their existing presence-driven cards
-and normal banner sound. `NeedsAttention` retains ordinary presence and visibility gating.
+and normal banner sound. `Blocked` retains ordinary presence and visibility gating.
 
-A validated request with class `security` and signal `NeedsAttention` uses Sosumi for its native banner,
-preserving posture's ordinary critical-page sound. Other classes and signals keep the default sound;
+A validated request with class `security` and state `blocked` uses Sosumi for its native banner,
+preserving posture's ordinary critical-page sound. Other classes and states keep the default sound;
 observations remain silent. The same selection applies to initial delivery, unretained fallback and
 ledger retry. Missing or invalid retained metadata keeps the legacy default. This adds no sound option to
 the producer protocol and does not change delivery planning or the independent last-resort alarm.

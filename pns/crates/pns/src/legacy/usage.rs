@@ -62,6 +62,11 @@ producer flags: --producer <name> --state <word> --project <name> --branch <name
                 --kind <agent|health> --local-only --remote-only --long-running
                 --require-delivery
 
+states:         done, failed, blocked, resolved, observation, progress. The
+                same six words the JSON request's `state` takes; any other
+                word is refused. observation and progress are quiet updates
+                on both paths.
+
 kinds:          agent, the default, is a session event and takes the route
                 `[routes] default` names; health is a machine's own health and
                 takes `[routes] urgent` when its --state is one somebody has to

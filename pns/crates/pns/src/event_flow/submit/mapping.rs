@@ -1,23 +1,13 @@
 use super::*;
 
 pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
-    let state = match request.signal {
-        Signal::Succeeded => "done",
-        Signal::Failed => "failed",
-        Signal::NeedsAttention | Signal::ApprovalRequested => "blocked",
-        Signal::Resolved => "resolved",
-        Signal::Observation => "observation",
-        Signal::Progress => "progress",
-    };
-    let attempt = match request.signal {
-        Signal::Observation | Signal::Progress => Attempt::Observation,
-        _ => Attempt::First,
-    };
+    let state = request.state.as_str();
+    let attempt = Attempt::of_state(state);
     (
         pns_domain::EventArgs {
             agent: request.producer.as_str().into(),
             state: state.into(),
-            // A PRODUCER STATES ITS SIGNAL, so this is never a guess: an
+            // A PRODUCER STATES ITS STATE, so this is never a guess: an
             // approval it asked for is a real wait even mid-loop.
             guessed: false,
             project: request.context.project.clone().unwrap_or_default(),

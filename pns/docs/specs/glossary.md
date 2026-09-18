@@ -24,10 +24,9 @@ That is the type inventory. The prose terms below were then confirmed by greppin
 | held light                   | zero occurrences                                 | `held` (`src/lights.rs:Held`, `HeldEntry`), and the `unread` lamp for the state itself                                               |
 | plugin (as a universal role) | present, but as three distinct kinds             | `src/registry.rs:PluginKind` separates the kinds; a sensor is not a destination                                                      |
 
-`signal` deserves its own line. In `src/` today it names two unrelated things and no pns concept: the Hue
-bridge's own JSON field (`"signal": "on_off_color"` in `src/channels/hue.rs`) and the POSIX signal mask
-built in `src/main.rs`. It is free for the refactor to take as the name of the normalized producer
-concept, and taking it collides with nothing.
+`signal` deserves its own line. It names no pns concept: what a producer states is the `state`, one of
+six words on the flag path and in the JSON request alike. The word survives only where it belongs to
+somebody else, the Hue bridge's own JSON field (`"signal": "on_off_color"`) and the POSIX signal mask.
 
 ## `unread`, and where `glow` still lives
 

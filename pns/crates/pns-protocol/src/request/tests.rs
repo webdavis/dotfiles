@@ -1,4 +1,4 @@
-use super::{Context, DeliveryScope, Interaction, Kind, Request, Session, Signal, decode};
+use super::{Context, DeliveryScope, Interaction, Kind, Request, Session, State, decode};
 use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
@@ -20,7 +20,7 @@ fn golden_request() -> Request {
         id("nvim-7f3a9c2e-0001"),
         name("nvim"),
         name("BufWritePost"),
-        Signal::Succeeded,
+        State::Done,
     );
     request.session = Some(Session {
         id: name("s-2026-09-06-a"),
@@ -49,7 +49,7 @@ fn minimal() -> Value {
         "request_id": "r-1",
         "producer": "shell",
         "event": "command-finished",
-        "signal": { "kind": "failed" }
+        "state": "failed"
     })
 }
 
@@ -81,44 +81,60 @@ fn encode_writes_the_version_one_request_schema() {
 }
 
 #[test]
-fn every_signal_kind_is_tagged_and_no_other_word_is_a_signal() {
-    let kinds = [
-        ("succeeded", Signal::Succeeded),
-        ("failed", Signal::Failed),
-        ("needs_attention", Signal::NeedsAttention),
-        ("approval_requested", Signal::ApprovalRequested),
-        ("resolved", Signal::Resolved),
-        ("observation", Signal::Observation),
-        ("progress", Signal::Progress),
+fn the_state_is_one_plain_word_and_the_words_are_exactly_six() {
+    let words = [
+        ("done", State::Done),
+        ("failed", State::Failed),
+        ("blocked", State::Blocked),
+        ("resolved", State::Resolved),
+        ("observation", State::Observation),
+        ("progress", State::Progress),
     ];
-    for (word, signal) in kinds {
+    assert_eq!(words.len(), State::WORDS.len());
+    for (word, state) in words {
+        assert_eq!(State::from_word(word), Some(state));
+        assert_eq!(state.as_str(), word);
         let mut value = minimal();
-        value["signal"] = json!({ "kind": word });
+        value["state"] = json!(word);
         let request = decode_value(&value).unwrap().request;
-        assert_eq!(request.signal, signal, "{word}");
+        assert_eq!(request.state, state, "{word}");
         let encoded: Value = serde_json::from_str(&request.encode().unwrap()).unwrap();
-        assert_eq!(encoded["signal"], json!({ "kind": word }));
+        assert_eq!(encoded["state"], json!(word));
     }
-    let mut value = minimal();
-    value["signal"] = json!({ "kind": "done" });
-    let rejected = decode_value(&value).unwrap_err();
-    assert!(
-        matches!(rejected.reason, Rejection::Invalid(_)),
-        "{:?}",
-        rejected.reason
-    );
-    assert_eq!(rejected.reason.code(), "field_invalid");
-    assert_eq!(rejected.request_id, Some(id("r-1")));
+    // The wrapper's own words are gone with it, and so is the wrapper.
+    for retired in ["succeeded", "needs_attention", "approval_requested"] {
+        assert_eq!(State::from_word(retired), None, "{retired}");
+        let mut value = minimal();
+        value["state"] = json!(retired);
+        let rejected = decode_value(&value).unwrap_err();
+        assert!(
+            matches!(rejected.reason, Rejection::Invalid(_)),
+            "{:?}",
+            rejected.reason
+        );
+        assert_eq!(rejected.reason.code(), "field_invalid");
+        assert_eq!(rejected.request_id, Some(id("r-1")));
+    }
 }
 
 #[test]
-fn a_request_missing_its_signal_is_invalid_not_defaulted() {
+fn a_request_missing_its_state_is_invalid_not_defaulted() {
     let mut value = minimal();
-    value.as_object_mut().unwrap().remove("signal");
+    value.as_object_mut().unwrap().remove("state");
     let rejected = decode_value(&value).unwrap_err();
     match rejected.reason {
-        Rejection::Invalid(message) => assert!(message.contains("signal"), "{message}"),
+        Rejection::Invalid(message) => assert!(message.contains("state"), "{message}"),
         other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn observation_and_progress_are_the_quiet_states_and_nothing_else_is() {
+    for state in [State::Observation, State::Progress] {
+        assert!(state.quiet(), "{}", state.as_str());
+    }
+    for state in [State::Done, State::Failed, State::Blocked, State::Resolved] {
+        assert!(!state.quiet(), "{}", state.as_str());
     }
 }
 
@@ -290,7 +306,7 @@ fn a_request_naming_no_kind_keeps_the_original_version_one_bytes() {
     let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
     assert_eq!(
         original,
-        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","signal":{"kind":"failed"},"occurred_at":null,"elapsed_secs":null,"detail":"","context":{"project":null,"branch":null,"pane":null},"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#,
+        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","state":"failed","occurred_at":null,"elapsed_secs":null,"detail":"","context":{"project":null,"branch":null,"pane":null},"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#,
         "an absent kind moved the canonical bytes"
     );
     assert_eq!(decode_value(&minimal()).unwrap().request.kind, None);

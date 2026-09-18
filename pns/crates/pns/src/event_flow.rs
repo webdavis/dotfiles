@@ -31,6 +31,19 @@ pub(crate) enum Attempt {
     Nudge,
     Observation,
 }
+
+impl Attempt {
+    /// The attempt a producer's state earns. ONE ANSWER FOR BOTH PATHS: a
+    /// word typed as `--state` and the same word sent as JSON `state` are one
+    /// statement, so the quiet states are quiet however they arrived. A word
+    /// outside the closed set never reaches here, both paths refuse it first.
+    pub(crate) fn of_state(state: &str) -> Self {
+        match pns_protocol::State::from_word(state) {
+            Some(state) if state.quiet() => Self::Observation,
+            _ => Self::First,
+        }
+    }
+}
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
 ///

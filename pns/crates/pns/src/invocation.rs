@@ -80,12 +80,8 @@ const EVENT_NOT_DELIVERED: i32 = 1;
 pub(crate) fn event_mode(argv: &[String]) -> i32 {
     crate::legacy::run(argv, |event| {
         // Legacy argv carries no harness payload.
-        match run_event(
-            &event,
-            &system_probes(),
-            &HookPayload::default(),
-            Attempt::First,
-        ) {
+        let attempt = Attempt::of_state(&event.state);
+        match run_event(&event, &system_probes(), &HookPayload::default(), attempt) {
             event_flow::Landed::Yes => 0,
             event_flow::Landed::No => EVENT_NOT_DELIVERED,
         }

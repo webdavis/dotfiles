@@ -193,18 +193,27 @@ fn help_in_value_position_is_still_just_a_value() {
     // H-F, PINNED so nobody "fixes" this by adding `--help` to
     // `is_producer_flag`: doing that would flip the value rule and make
     // `--producer --help` warn-and-drop instead of delivering an agent whose
-    // name literally is "--help". States are free-form the same way.
+    // name literally is "--help".
     let sandbox = Sandbox::new("help-as-agent-value");
     run(sandbox
         .pns()
         .args(["send", "--producer", "--help", "--state", "done"]));
     assert_eq!(sandbox.event("mobile")["agent"], "--help");
 
+    // The same word in `--state`'s value position is a value too, and the
+    // closed set is what refuses it rather than the help text answering.
     let sandbox = Sandbox::new("help-as-state-value");
-    run(sandbox
+    let output = sandbox
         .pns()
-        .args(["send", "--producer", "claude", "--state", "--help"]));
-    assert_eq!(sandbox.event("mobile")["state"], "--help");
+        .args(["send", "--producer", "claude", "--state", "--help"])
+        .output()
+        .expect("spawn pns");
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "pns: --state requires one of: done, failed, blocked, resolved, observation, progress\n"
+    );
+    assert!(!sandbox.fired("mobile"));
 }
 
 #[test]
@@ -241,5 +250,69 @@ fn a_retired_subcommand_spelling_names_the_verb_that_replaced_it() {
         assert!(complaint.contains(replacement), "{word}: {complaint}");
         assert!(!sandbox.fired("mobile"), "{word}: {output:?}");
         assert!(!sandbox.fired("hermes"), "{word}: {output:?}");
+    }
+}
+
+#[test]
+fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
+    // THE POINT OF THE CLOSED SET: one word means one thing on both paths.
+    // `--state observation` used to be an ordinary message while the JSON
+    // `observation` was a quiet update, so the same event carded the phone or
+    // did not depending on how its producer spelled itself.
+    let sandbox = Sandbox::new("flag-observation");
+    run(sandbox
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_FORCE_PHONE", "1")
+        .args([
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "observation",
+            "--detail",
+            "x",
+        ]));
+    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("hermes"));
+    assert!(!sandbox.fired("mobile"), "an observation carded the phone");
+
+    let sandbox = Sandbox::new("flag-done");
+    run(sandbox
+        .pns()
+        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_FORCE_PHONE", "1")
+        .args([
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
+        ]));
+    assert!(
+        sandbox.fired("mobile"),
+        "an ordinary state stopped carding the phone"
+    );
+}
+
+#[test]
+fn a_state_outside_the_closed_set_is_refused_and_nothing_is_delivered() {
+    for word in ["first-install-failed", "succeeded", "waiting", "Done", ""] {
+        let sandbox = Sandbox::new(&format!("state-refused-{word}"));
+        let output = sandbox
+            .pns()
+            .args(["send", "--producer", "claude", "--state", word])
+            .output()
+            .expect("spawn pns");
+        assert_eq!(output.status.code(), Some(2), "{word}: {output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr),
+            "pns: --state requires one of: done, failed, blocked, resolved, observation, progress\n",
+            "{word}"
+        );
+        assert!(!sandbox.fired("macos-banner"), "{word}");
+        assert!(!sandbox.fired("hermes"), "{word}");
     }
 }
