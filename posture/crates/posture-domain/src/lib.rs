@@ -31,6 +31,7 @@ pub use finding::{Detector, EnrichmentPaths};
 mod cursor;
 mod digest;
 mod gate;
+mod jobs;
 mod page;
 mod records;
 mod sanitize;
@@ -44,6 +45,7 @@ pub use gate::{
     FileCategory, GateColumns, GateEvidence, GateFinding, GateOutcome, IntegrityVerdict,
     LaunchdIdentity, Signing, Triage, gate,
 };
+pub use jobs::{DailyTime, DailyTimes, JobPlan, Trigger, UnitDrift, unit_drift};
 pub use page::{BLOCK_LIMIT, BODY_LIMIT, Page, PageColumns, PageFinding, render_page};
 pub use records::{CompleteRecords, complete_records};
 pub use sanitize::FIELD_LIMIT;

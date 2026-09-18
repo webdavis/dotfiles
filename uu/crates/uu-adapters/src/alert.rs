@@ -19,6 +19,7 @@
 /// decided where it can be read rather than inside a spawn.
 pub fn alert_argv(host: &str, lane: &str, summary: &str) -> Vec<String> {
     [
+        "send",
         "--agent",
         uu_protocol::AGENT,
         "--state",
@@ -50,6 +51,7 @@ mod tests {
         assert_eq!(
             argv,
             vec![
+                "send",
                 "--agent",
                 "uu",
                 "--state",
@@ -104,8 +106,10 @@ mod tests {
         // pns drops a value flag whose next token is another recognized flag,
         // which would silently strip whatever the pair carried.
         let argv = alert_argv("dresden", "herdr", "2 failure(s)");
-        assert_eq!(argv.len() % 2, 0, "{argv:?}");
-        for pair in argv.chunks(2) {
+        let (subcommand, flags) = argv.split_first().expect("one alert");
+        assert!(!subcommand.starts_with("--"), "{argv:?}");
+        assert_eq!(flags.len() % 2, 0, "{argv:?}");
+        for pair in flags.chunks(2) {
             assert!(pair[0].starts_with("--"), "{argv:?}");
             assert!(!pair[1].starts_with("--"), "{argv:?}");
         }

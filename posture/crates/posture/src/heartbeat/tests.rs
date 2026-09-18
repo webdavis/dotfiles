@@ -49,7 +49,7 @@ impl CommandRunner for Runner {
                 .push(args.iter().map(|x| x.to_os_string()).collect());
             return Err(InspectionFailure::Failed);
         };
-        assert_eq!(args, [OsStr::new("submit"), OsStr::new("--json")]);
+        assert_eq!(args, [OsStr::new("send"), OsStr::new("--json")]);
         let CommandIo::Input(input) = io else {
             panic!("request must be stdin")
         };

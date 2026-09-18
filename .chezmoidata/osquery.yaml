@@ -1,4 +1,6 @@
-# osquery alerting configuration consumed by templates.
+# osquery alerting configuration consumed by templates: the two daily agents'
+# plists and the `[jobs.daily]` table of posture's own config, which is what
+# `posture jobs install` reads.
 # digestHour/digestMinute drive the daily digest agent's StartCalendarInterval
 # (local time). 18:00 is an end-of-day glance; empty days stay silent.
 # heartbeatHour/heartbeatMinute drive the daily heartbeat agent's

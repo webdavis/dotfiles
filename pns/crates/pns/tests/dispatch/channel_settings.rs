@@ -17,7 +17,9 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
     command.env("PNS_PHONE_INPUT_AGE", "0");
     sandbox.stub_herdr(&mut command, true);
     let output = run(command
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2", "--long-running"]));
     assert!(
         stderr(&output).contains("mobile_watch_card"),
@@ -45,7 +47,7 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
     );
     let output = run(sandbox
         .pns()
-        .args(["--agent", "claude", "--state", "done"])
+        .args(["send", "--agent", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
 
     assert!(sandbox.fired("mobile"), "stderr: {}", stderr(&output));

@@ -87,7 +87,7 @@ unread state, pulse behavior, leases, phases and quiet policy. **Router and home
 source**, not a destination.
 
 The normalized signal distinguishes successful outcome, failed outcome, attention required, approval
-requested, resolved attention, observation, and progress. The transport is `pns submit --json`
+requested, resolved attention, observation, and progress. The transport is `pns send --json`
 reading one JSON request from stdin.
 
 ## The legacy surface to preserve

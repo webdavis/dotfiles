@@ -4,8 +4,7 @@
 //! WHO READS IT. The osquery file-integrity page fires when a watched file
 //! leaves its known-good manifest, and a vendor update and a tamper used to
 //! render the same body. That page carries a correlation line built from this
-//! file, by the literal path in
-//! `~/.local/libexec/osquery/results-alerter/file-integrity-triage.sh`. The
+//! file, by whichever integrity monitor reads the `upgrade_record` path. The
 //! record is a LEAD there and is labelled as one: it lives in an
 //! operator-writable state directory, so it is not a trust input, and nothing
 //! about it can suppress or downgrade a page.

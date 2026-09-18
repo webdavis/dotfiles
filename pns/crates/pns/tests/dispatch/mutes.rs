@@ -66,7 +66,9 @@ fn off_removes_the_state_file_and_the_next_event_decorates_again() {
     event.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut event, false);
     run(event
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"]));
     assert!(
         sandbox.fired("macos-banner"),
@@ -88,7 +90,9 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         let mut event = sandbox.pns();
         event.env("PNS_STATE_DIR", sandbox.path("state"));
         event
-            .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+            .args([
+                "send", "--agent", "claude", "--state", "done", "--detail", "x",
+            ])
             .args(["--pane", "t1:p2", "--long-running"]);
         event
     };
@@ -154,7 +158,9 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
     event.env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"]));
 
     assert!(sandbox.fired("macos-banner"), "a broken mute mutes nothing");
@@ -189,7 +195,9 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
     event.env("PNS_IDLE_SECS", "0");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
-        .args(["--agent", "claude", "--state", "done", "--detail", "x"])
+        .args([
+            "send", "--agent", "claude", "--state", "done", "--detail", "x",
+        ])
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("macos-banner"));
     assert_eq!(stderr(&output), "", "no file, no news");

@@ -42,11 +42,11 @@ pub struct NotificationThread {
 /// notifications, and a kind that swallowed them would turn the lamp into a
 /// lamp that is always on. The caller counts the drops.
 ///
-/// THE OUTCOME IS ALWAYS `Neutral`, and that is a property of this transport
-/// rather than a placeholder: a notification thread carries no conclusion at
-/// all, so a poll that claimed `Passed` or `Failed` would be inventing one.
-/// Resolving a real outcome means a second request for the subject itself,
-/// which is a rate-limit decision nobody has taken.
+/// THE OUTCOME COMES OFF THE SUBJECT TITLE AND NOTHING ELSE, which is the
+/// only statement about a conclusion an inbox listing carries: no documented
+/// field of `GET /notifications` holds one, and resolving a real conclusion
+/// means a second request for the subject itself, which is a rate-limit
+/// decision nobody has taken.
 pub fn polled_event(thread: &NotificationThread) -> Option<GithubEvent> {
     if thread.repo_full_name.is_empty() {
         // A thread with no repository has no channel to resolve and no lamp to
@@ -57,7 +57,7 @@ pub fn polled_event(thread: &NotificationThread) -> Option<GithubEvent> {
     Some(GithubEvent {
         repo: thread.repo_full_name.clone(),
         kind,
-        outcome: GithubOutcome::Neutral,
+        outcome: polled_outcome(kind, &thread.subject_title),
         title: thread.subject_title.clone(),
         url: web_link(thread),
         identity: identity(
@@ -68,6 +68,41 @@ pub fn polled_event(thread: &NotificationThread) -> Option<GithubEvent> {
         ),
         occurred_at: thread.updated_at,
     })
+}
+
+/// How a CI thread turned out, read off the words of its subject title.
+///
+/// THE TITLE IS AN UNDOCUMENTED STRING, so this reads it FAIL-CLOSED: one of
+/// the two conclusion words, on its own, in a title of a workflow run or a
+/// check, is the only thing that reaches a colour. A title carrying both
+/// words, neither word, a cancelled or skipped run, or a kind a human asked
+/// for (a mention, a review request, a release, an alert) answers `Neutral`,
+/// which reaches no lamp at all. The day GitHub rewords the title the lamp
+/// goes quiet rather than orange.
+///
+/// THE WORDS ARE WHOLE WORDS, split on whitespace and trimmed of the
+/// punctuation a sentence puts around one, because a workflow named
+/// `failed-login-tests` would otherwise report every passing run as a
+/// failure.
+fn polled_outcome(kind: GithubKind, subject_title: &str) -> GithubOutcome {
+    if !matches!(kind, GithubKind::WorkflowRun | GithubKind::Check) {
+        return GithubOutcome::Neutral;
+    }
+    let mut said_failed = false;
+    let mut said_passed = false;
+    for word in subject_title.split_ascii_whitespace() {
+        let word = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
+        match word.to_ascii_lowercase().as_str() {
+            "failed" => said_failed = true,
+            "succeeded" => said_passed = true,
+            _ => {}
+        }
+    }
+    match (said_passed, said_failed) {
+        (true, false) => GithubOutcome::Passed,
+        (false, true) => GithubOutcome::Failed,
+        _ => GithubOutcome::Neutral,
+    }
 }
 
 /// Which kind this reason and subject type is, or nothing for one no variant

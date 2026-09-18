@@ -42,7 +42,9 @@ fn a_hung_child_does_not_stall_the_tick_and_is_killed() {
         schedule(
             &sandbox,
             &["--id", "hangs", "--in", "0"],
-            &["--agent", "pns", "--state", "done", "--detail", "hangs"],
+            &[
+                "send", "--agent", "pns", "--state", "done", "--detail", "hangs"
+            ],
         )
         .status
         .success()
