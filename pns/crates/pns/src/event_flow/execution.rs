@@ -192,9 +192,16 @@ pub(super) fn execute(
         .map(|producer| producer.identity.clone())
         .or_else(|| {
             // THE CALLER'S OWN ID WINS OVER A FRESH ONE, which is what makes a
-            // retried call the same submission instead of a second page.
+            // retried call the same submission instead of a second page. The
+            // ledger key is (producer, request_id), so the producer half has
+            // to be the caller's own name, not a shared "pns" namespace two
+            // callers would collide in.
             (!event.request_id.is_empty()).then(|| pns_application::SubmissionIdentity {
-                producer: "pns".into(),
+                producer: if event.agent.is_empty() {
+                    "pns".into()
+                } else {
+                    event.agent.clone()
+                },
                 request_id: event.request_id.clone(),
             })
         })

@@ -387,16 +387,19 @@ fn the_request_id_a_caller_named_is_the_one_the_submission_is_recorded_under() {
         "s-2026-09-17-a",
     ]));
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    let recorded: String = rusqlite::Connection::open_with_flags(
+    let (request_id, producer): (String, String) = rusqlite::Connection::open_with_flags(
         sandbox.path("state/pns.db"),
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
     )
     .unwrap()
     .query_row(
-        "SELECT request_id FROM ledger_events ORDER BY seq DESC LIMIT 1",
+        "SELECT request_id, producer FROM ledger_events ORDER BY seq DESC LIMIT 1",
         [],
-        |row| row.get(0),
+        |row| Ok((row.get(0)?, row.get(1)?)),
     )
     .unwrap();
-    assert_eq!(recorded, "nvim-slice-eleven");
+    assert_eq!(request_id, "nvim-slice-eleven");
+    // THE CALLER'S OWN NAMESPACE, not a shared "pns" every caller would
+    // collide in: the ledger key is (producer, request_id).
+    assert_eq!(producer, "nvim");
 }
