@@ -1,0 +1,39 @@
+# herdr-todoist (webdavis/herdr-todoist), installed by run_after_53.
+#
+# The token is an indirection: this file names the KeePassXC entry it comes
+# from and never holds the value, which the plugin enforces by refusing to
+# parse a literal token key. The database path is the one .chezmoi.toml.tmpl
+# gives chezmoi.
+#
+# MEASURED 2026-09-17 on keepassxc-cli 2.7.12: `show` reads the database
+# password from standard input and exits 1 on end of file, so this command
+# resolves only where the master password can be typed.
+token_command = [
+  "keepassxc-cli",
+  "show",
+  "--quiet",
+  "--show-protected",
+  "--attributes",
+  "Password",
+  "/Users/stephen/Library/Mobile Documents/iCloud~com~strongbox/Documents/keepass.kdbx",
+  "Todoist :: API Token",
+]
+
+# A third of the tab: the list is one task per line and the pane it splits off
+# is the one being worked in.
+width = 0.3
+
+# The list worth having open, and the same word the Neovim sidebar opens on.
+default_view = "today"
+
+[[views]]
+name = "today"
+filter = "today | overdue"
+
+[[views]]
+name = "upcoming"
+filter = "7 days"
+
+[[views]]
+name = "dotfiles"
+filter = "#dotfiles"
