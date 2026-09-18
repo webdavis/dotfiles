@@ -20,7 +20,7 @@ pub(super) fn acknowledged_banner(sandbox: &Sandbox) -> std::process::Command {
     command
         .env_remove("PNS_CHANNELS_DIR")
         .env("PNS_IDLE_SECS", "0")
-        .args(["send", "--local-only"]);
+        .args(["send", "--scope", "local_only"]);
     sandbox.stub_notifier(&mut command);
     sandbox.stub_herdr(&mut command, false);
     command

@@ -6,7 +6,10 @@ dropped as the flag table below still says; `--producer`/`PNS_PRODUCER` is the l
 typed spellings of two subcommands moved as well: the pulse is `pns lights pulse <exit-code>` and the
 banner's click is `pns failures open <id>`, and each old word is refused. `--channel` is likewise
 REFUSED in favor of `--route`, which is the flag that now names a hermes route in the table and the
-usage text below. Not rewritten pending the ladder's closing docs pass.
+usage text below. The narrowing pair `--local-only` and `--remote-only` is REFUSED too, replaced by
+one `--scope automatic|local_only|remote_only`; the refusal for giving both, behavior 15 below, went
+with them, because one flag cannot contradict itself. Not rewritten pending the ladder's closing docs
+pass.
 
 ## Scope
 

@@ -67,7 +67,7 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
             "--detail",
             "x",
         ])
-        .arg("--local-only"));
+        .args(["--scope", "local_only"]));
 
     let spawned = std::fs::read_to_string(sandbox.path("notifier.args"))
         .expect("the native banner spawns the notifier");
@@ -168,7 +168,7 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
             "--detail",
             "ran",
         ])
-        .arg("--remote-only"));
+        .args(["--scope", "remote_only"]));
 
     assert_eq!(stdout(&output), "pns: posted HTTP 200\n");
 
@@ -204,7 +204,7 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
             "--detail",
             "ran",
         ])
-        .arg("--remote-only"));
+        .args(["--scope", "remote_only"]));
     capture.finish();
 
     assert_eq!(stdout(&output), "pns: post FAILED HTTP 401\n");
@@ -433,7 +433,7 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
             "ran",
         ])
         .args(["--kind", "health"])
-        .arg("--remote-only"));
+        .args(["--scope", "remote_only"]));
 
     let raw = capture.finish();
     assert_eq!(
@@ -486,7 +486,7 @@ fn an_unrouted_event_takes_the_default_route_the_config_invented() {
             "--detail",
             "x",
         ])
-        .arg("--remote-only"));
+        .args(["--scope", "remote_only"]));
 
     let raw = capture.finish();
     assert_eq!(

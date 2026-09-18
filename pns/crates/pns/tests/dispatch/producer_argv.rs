@@ -31,7 +31,7 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
         .pns()
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--pane", "wW:p1; curl evil | sh"])
-        .args(["--local-only", "--remote-only"]));
+        .args(["--scope", "local_only"]));
     assert!(!stderr(&output).contains("dropped a pane id"), "{output:?}");
 }
 
@@ -44,8 +44,8 @@ fn a_non_unicode_argument_never_breaks_the_exit_zero_edge() {
         .pns()
         .arg("send")
         .arg(OsStr::from_bytes(&[0xff]))
-        .args(["--local-only", "--remote-only"]));
-    assert!(stdout(&output).contains("SKIPPED"), "{output:?}");
+        .args(["--scope", "local_only"]));
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
     // subcommand in front of them is what says this is a send at all.
     for argv in [
         &["--producer", "claude", "--help"][..],
-        &["--local-only", "--help"][..],
+        &["--scope", "local_only", "--help"][..],
         &["--", "--help"][..],
         &["stray", "--help"][..],
     ] {
@@ -221,7 +221,7 @@ fn a_missing_value_warning_keeps_its_exact_sentence() {
     let sandbox = Sandbox::new("missing-value-warning");
     let output = run(sandbox
         .pns()
-        .args(["send", "--detail", "--local-only", "--remote-only"]));
+        .args(["send", "--detail", "--scope", "local_only"]));
     assert_eq!(
         stderr(&output),
         "pns: --detail given without a value; ignoring\n"

@@ -92,7 +92,7 @@ fn a_narrowing_flag_still_beats_a_fresh_tap() {
         .pns()
         .env("PNS_IDLE_SECS", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["send", "--local-only"])
+        .args(["send", "--scope", "local_only"])
         .args([
             "--producer",
             "claude",

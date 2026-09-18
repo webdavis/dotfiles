@@ -70,7 +70,7 @@ impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> PnsNotifier<F> {
             .arg(&self.pns)
             .args(["send", "--producer", "lights"])
             .args(what)
-            .arg("--local-only")
+            .args(["--scope", "local_only"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
