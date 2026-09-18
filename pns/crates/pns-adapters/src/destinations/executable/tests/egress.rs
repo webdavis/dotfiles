@@ -6,17 +6,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 fn capture() -> (std::path::PathBuf, std::path::PathBuf) {
     static NEXT: AtomicU64 = AtomicU64::new(0);
+    // The epoch nanosecond keeps a RECYCLED process id off an earlier run's
+    // leftovers: nothing removes this root, and the `id`, `body` and
+    // `producer` files inside it are what every assertion below reads.
     let root = std::env::temp_dir().join(format!(
-        "pns-egress-{}-{}",
+        "pns-egress-{}-{}-{}",
         std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos()),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
-    // A PID IS NOT UNIQUE OVER TIME. macOS recycles them and this fixture
-    // leaves its directory behind, so a later run under a recycled id met its
-    // predecessor's: `create` failed with EEXIST, and a fixture that got past
-    // that would read a previous run's `id`, `body` and `producer` files.
-    // Clearing first is what makes the name reusable.
-    let _ = std::fs::remove_dir_all(&root);
     std::fs::DirBuilder::new()
         .mode(0o700)
         .create(&root)
