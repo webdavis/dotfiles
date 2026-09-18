@@ -198,8 +198,10 @@ const PERMISSION_PROMPT: &str = "permission_prompt";
 /// The sandbox network dialog's own notification text, EXACTLY, measured
 /// against Claude Code 2.1.272. It is the only thing that separates this
 /// dialog from a tool approval `PermissionRequest` has already reported, so a
-/// wording change upstream turns the alert OFF rather than misfiring it; the
-/// string is pinned by a test so a version bump has somewhere to fail.
+/// wording change upstream turns the alert OFF rather than misfiring it. The
+/// literal is duplicated in `tests/hooks/sandbox_network.rs`, which pins the
+/// same string rather than reading the bundle, so an upstream wording change
+/// is caught by neither side and must be re-measured by hand on upgrade.
 const SANDBOX_NETWORK_MESSAGE: &str = "A sandboxed command needs network access";
 /// A sandbox network approval card's detail, or `None` for every other
 /// permission prompt, in `quota_observation_detail`'s own style.
