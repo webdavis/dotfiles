@@ -31,17 +31,6 @@
 /// traded places). A caller that genuinely wants one fixed value back for
 /// every action (the round-trip tests below, each with exactly one secret)
 /// just ignores the two arguments.
-/// The entry and attribute a `keepassxcAttribute` action names, with the
-/// attribute marked so no attribute can stub to the same text as a field of the
-/// same name on the same entry.
-fn attribute_identity(action: &str) -> Option<(&str, String)> {
-    let rest = action.strip_prefix("{{ keepassxcAttribute \"")?;
-    let (entry, rest) = rest.split_once("\" \"")?;
-    let attribute = rest.strip_suffix("\" | toToml }}")?;
-    (!entry.contains('"') && !attribute.contains('"'))
-        .then(|| (entry, format!("attribute:{attribute}")))
-}
-
 pub fn strip_chezmoi_actions(
     text: &str,
     placeholder: impl Fn(&str, &str) -> String,
@@ -82,6 +71,17 @@ pub fn strip_chezmoi_actions(
         lines.push(rendered);
     }
     Ok(lines.join("\n"))
+}
+
+/// The entry and attribute a `keepassxcAttribute` action names, with the
+/// attribute marked so no attribute can stub to the same text as a field of the
+/// same name on the same entry.
+fn attribute_identity(action: &str) -> Option<(&str, String)> {
+    let rest = action.strip_prefix("{{ keepassxcAttribute \"")?;
+    let (entry, rest) = rest.split_once("\" \"")?;
+    let attribute = rest.strip_suffix("\" | toToml }}")?;
+    (!entry.contains('"') && !attribute.contains('"'))
+        .then(|| (entry, format!("attribute:{attribute}")))
 }
 
 /// A `strip_chezmoi_actions` placeholder that carries the action's own entry
