@@ -382,6 +382,30 @@ summarizer_deadline_secs = 240
 # [focus]
 # silence = ["Sleep"]
 
+# The mute, `pns quiet <duration>`, and what else may switch it.
+# [quiet]
+
+# Quiet that follows your calendar: while an event marked busy is on, the
+# mute is on, and it ends when the event does. WHAT YOU TYPE ALWAYS WINS:
+# a mute you set by hand is never shortened or cleared by this, and quiet
+# you switch off during a meeting stays off for the rest of it.
+# THE CALENDAR IS WHATEVER `command` READS. It is run read-only on the
+# interval below, handed no input, and must answer on stdout with
+# {"events": [{"start": <epoch>, "end": <epoch>, "busy": <true|false>}]},
+# every event in the next hour or so, busy or not: pns picks the busy ones.
+# A command that fails, answers something else or runs long changes
+# nothing at all, and a mute already set stands until its own expiry.
+# [quiet.calendar]
+# enabled = false
+# ARGV, NEVER A SHELL STRING. It is your own command: pns names no
+# calendar and holds no credential of one.
+# command = ["calendar-busy-window"]
+# How often it is asked, in seconds, from 30 to 1800.
+# poll_secs = 120
+# How long one run may take before it is killed and the poll leaves
+# everything as it was, in seconds, from 1 to 120.
+# deadline_secs = 20
+
 # The nag: one more card when an approval has been sitting unanswered. IT
 # IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the
 # prompt appeared is still the one carrying Allow and Deny. It needs the

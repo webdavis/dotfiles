@@ -19,16 +19,19 @@ mod config;
 #[cfg(test)]
 mod http_script;
 
+mod calendar;
+pub use calendar::{read_calendar, read_calendar_state, write_calendar_state};
+
 mod github;
 mod phone_marker;
 mod tap_install;
 pub use config::DaemonConfig;
 pub use config::{
     BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_SUBMIT_DEADLINE_SECS, Failures, LoadOutcome,
-    MAX_REFRESH_SECS, MIN_REFRESH_SECS, MOSHI_TYPE, PluginEntry, Presence, Recap, TABLE_KEYS,
-    TOP_LEVEL, armed_mobile, config_path, enabled_hue_table, identity_placeholder, load_config,
-    mobile_backend, moshi_image_cards, moshi_secret, parse_config, parse_presence, render,
-    strip_chezmoi_actions, submit_deadline,
+    MAX_REFRESH_SECS, MIN_REFRESH_SECS, MOSHI_TYPE, PluginEntry, Presence, QuietCalendar, Recap,
+    TABLE_KEYS, TOP_LEVEL, armed_mobile, config_path, enabled_hue_table, identity_placeholder,
+    load_config, mobile_backend, moshi_image_cards, moshi_secret, parse_config, parse_presence,
+    render, strip_chezmoi_actions, submit_deadline,
 };
 pub use config::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,

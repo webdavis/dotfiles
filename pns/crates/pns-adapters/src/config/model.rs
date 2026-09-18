@@ -73,6 +73,11 @@ pub struct Config {
     /// Boxed because this is the largest optional policy. Configurations
     /// without lamps do not reserve space for all its fields.
     pub lights: Option<Box<Lights>>,
+    /// `[quiet.calendar]`: the calendar that switches the mute on and off.
+    ///
+    /// NOT AN OPTION, like `failures` below it: every key is defaulted, so a
+    /// file with no table and a file writing the defaults are one statement.
+    pub quiet_calendar: QuietCalendar,
     /// `[failures]`: whether the failure record is served as a page, and where.
     ///
     /// NOT AN OPTION, unlike `lights` above it: both its keys are defaulted, so
@@ -96,6 +101,7 @@ impl Default for Config {
             nag_after_secs: NAG_OFF,
             stale_after_secs: DEFAULT_STALE_AFTER_SECS,
             lights: None,
+            quiet_calendar: QuietCalendar::default(),
             failures: Failures::default(),
         }
     }

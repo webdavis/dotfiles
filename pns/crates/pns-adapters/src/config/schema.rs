@@ -40,7 +40,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         TOP_LEVEL,
         &[
             "daemon", "delivery", "failures", "focus", "lights", "nag", "phone", "plugins",
-            "recap", "routes",
+            "quiet", "recap", "routes",
         ],
     ),
     (ROUTES, &["default", "urgent"]),
@@ -57,6 +57,11 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     ("focus", &["silence"]),
+    ("quiet", &["calendar"]),
+    (
+        "quiet.calendar",
+        &["command", "deadline_secs", "enabled", "poll_secs"],
+    ),
     (
         "delivery",
         &[

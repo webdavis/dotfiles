@@ -156,6 +156,60 @@ pub(super) const FOCUS: Table = Table {
         sample: Sample::Example("[\"Sleep\"]"),
     }],
 };
+/// The mute's own section. IT HOLDS NO KEYS: the mute itself is typed
+/// (`pns quiet 30m`) rather than configured, and the one thing there is to
+/// configure about it is the calendar below.
+pub(super) const QUIET: Table = Table {
+    name: "quiet",
+    prose: "# The mute, `pns quiet <duration>`, and what else may switch it.\n",
+    opt_in: true,
+    children: &[QUIET_CALENDAR],
+    keys: &[],
+};
+/// The calendar that switches the mute on and off.
+///
+/// OPT-IN, and the command is an EXAMPLE rather than a default, because there
+/// is no command every machine has: this is a feature nothing does until the
+/// operator names the one that reads their own calendar.
+pub(super) const QUIET_CALENDAR: Table = Table {
+    name: "quiet.calendar",
+    prose: "# Quiet that follows your calendar: while an event marked busy is on, the\n\
+            # mute is on, and it ends when the event does. WHAT YOU TYPE ALWAYS WINS:\n\
+            # a mute you set by hand is never shortened or cleared by this, and quiet\n\
+            # you switch off during a meeting stays off for the rest of it.\n\
+            # THE CALENDAR IS WHATEVER `command` READS. It is run read-only on the\n\
+            # interval below, handed no input, and must answer on stdout with\n\
+            # {\"events\": [{\"start\": <epoch>, \"end\": <epoch>, \"busy\": <true|false>}]},\n\
+            # every event in the next hour or so, busy or not: pns picks the busy ones.\n\
+            # A command that fails, answers something else or runs long changes\n\
+            # nothing at all, and a mute already set stands until its own expiry.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("false"),
+        },
+        Key {
+            name: "command",
+            prose: "# ARGV, NEVER A SHELL STRING. It is your own command: pns names no\n\
+                         # calendar and holds no credential of one.\n",
+            sample: Sample::Example("[\"calendar-busy-window\"]"),
+        },
+        Key {
+            name: "poll_secs",
+            prose: "# How often it is asked, in seconds, from 30 to 1800.\n",
+            sample: Sample::Default("120"),
+        },
+        Key {
+            name: "deadline_secs",
+            prose: "# How long one run may take before it is killed and the poll leaves\n\
+                         # everything as it was, in seconds, from 1 to 120.\n",
+            sample: Sample::Default("20"),
+        },
+    ],
+};
 pub(super) const NAG: Table = Table {
     name: "nag",
     prose: "# The nag: one more card when an approval has been sitting unanswered. IT\n\

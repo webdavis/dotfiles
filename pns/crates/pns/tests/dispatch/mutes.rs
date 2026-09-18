@@ -228,13 +228,64 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
 }
 
 #[test]
+fn quiet_calendar_arms_the_mute_through_the_argv_the_daemon_schedules() {
+    // THE DAEMON NEVER CALLS `quiet_calendar_mode` DIRECTLY: it schedules
+    // `["quiet", "calendar"]` (calendar_registration.rs) and the engine
+    // dispatches on argv like every other invocation. Running the binary
+    // with that exact argv is what pins the wiring between them, not a call
+    // into `poll()`.
+    let sandbox = Sandbox::new("quiet-calendar-dispatch");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    let script = bin.join("calendar-stub");
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock past 1970")
+        .as_secs();
+    let end = now + 600;
+    write_script(
+        &script,
+        &format!(
+            "printf '{{\"events\":[{{\"start\":{},\"end\":{end},\"busy\":true}}]}}'",
+            now.saturating_sub(60)
+        ),
+    );
+    sandbox.write_config(&format!(
+        "[quiet.calendar]\nenabled = true\ncommand = [\"{}\"]\n",
+        script.display()
+    ));
+
+    let mut armed = sandbox.pns();
+    armed.env("PNS_STATE_DIR", sandbox.state());
+    let output = run(armed.args(["quiet", "calendar"]));
+    assert_eq!(
+        stdout(&output).trim_end(),
+        "pns: quiet on for a calendar event"
+    );
+
+    let report = run(&mut quiet_command(&sandbox));
+    let reported = stdout(&report).trim_end().to_string();
+    assert!(
+        reported.starts_with("pns: quiet for another"),
+        "the calendar's own arm reads back as a standing mute: {reported}"
+    );
+
+    let state = std::fs::read_to_string(sandbox.state().join("quiet-calendar"))
+        .expect("the calendar state file");
+    assert_eq!(
+        state.trim_end(),
+        format!("{end} 0"),
+        "armed until the event's end"
+    );
+}
+
+#[test]
 fn a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state() {
     // A SUBCOMMAND THAT SILENTLY ACCEPTS A TYPO IS A MUTE THE OPERATOR
     // BELIEVES IS ON. This is not the always-exit-0 contract's territory: that
     // covers the hook and notification paths, where a non-zero exit would fail
     // the turn being reported on, and `pns quiet` is hand typed.
-    const USAGE: &str =
-        "pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h";
+    const USAGE: &str = "pns: usage: pns quiet [<duration>|off|calendar]; duration is <count><s|m|h>, from 1s to 24h";
     for arguments in [
         vec!["tomorrow"],
         vec!["30"],

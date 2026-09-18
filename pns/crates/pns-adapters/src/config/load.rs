@@ -30,6 +30,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             "phone" => config.phone_marker_file = phone::parse_phone(value)?,
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
+            "quiet" => config.quiet_calendar = parse_quiet(value)?,
             "daemon" => config.daemon_enabled = parse_daemon(value)?,
             "delivery" => {
                 let toml::Value::Table(mut table) = value else {

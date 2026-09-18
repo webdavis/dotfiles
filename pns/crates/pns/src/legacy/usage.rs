@@ -16,6 +16,7 @@ pns: usage:
   pns <harness>-hook               presence-gated pass-through to moshi-hook,
                                    spelled the way moshi's extension calls it
   pns quiet [<duration>|off]       the operator's mute
+  pns quiet calendar               one calendar read, run by the clock
   pns daemon run|schedule|cancel   the clock
   pns daemon retry                 one sweep of the retry queue, run by the clock
   pns lights tick                  the lamps' upkeep, run by the clock
@@ -43,7 +44,8 @@ pns: usage:
   pns --version, -V                the package version
 
 machine-called:  pns send, pns hook <event>, pns shell begin, pns shell end,
-                 pns daemon retry, pns lights tick, pns nag, pns stale,
+                 pns daemon retry, pns lights tick, pns quiet calendar,
+                 pns nag, pns stale,
                  pns failures serve, pns recap --since, pns recap agent,
                  pns recap git, pns presence poll [--daemon] and
                  pns github poll [--daemon] are called by hooks, by launchd, by

@@ -45,6 +45,9 @@ mod delivery;
 use delivery::parse_delivery;
 mod focus;
 use focus::parse_focus;
+mod quiet;
+pub use quiet::QuietCalendar;
+use quiet::parse_quiet;
 mod github;
 pub use github::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,
