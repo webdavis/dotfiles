@@ -54,10 +54,10 @@ const MAX_CALENDAR_POLL_SECS: u64 = 1_800;
 /// the mute it would have set is worth less than a child held open.
 pub(super) const DEFAULT_CALENDAR_DEADLINE_SECS: u64 = 20;
 const MIN_CALENDAR_DEADLINE_SECS: u64 = 1;
-/// TWO MINUTES, which is the shortest poll interval: a command allowed to run
-/// longer than the gap between polls would be started again while the first
-/// was still going.
-const MAX_CALENDAR_DEADLINE_SECS: u64 = 120;
+/// THIRTY SECONDS, the daemon's own child-kill bound (`CHILD_TICKS` at the
+/// production tick): a deadline past it is dead config, never reached before
+/// the daemon kills the job itself.
+const MAX_CALENDAR_DEADLINE_SECS: u64 = 30;
 
 /// `[quiet]`, whose only member is the calendar table.
 pub(super) fn parse_quiet(value: toml::Value) -> Result<QuietCalendar, ConfigError> {
