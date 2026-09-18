@@ -109,6 +109,9 @@ fn report(
             tap: || pns_domain::doctor::Item::row(pns_domain::doctor::Mark::Detail, "tap fixture"),
             focus: || "focus fixture".into(),
             daemon: || "daemon fixture".into(),
+            // The home probe reads nothing in a unit: its own rows are pinned
+            // beside the sentences they carry.
+            home: Vec::new,
             lamps: || LightsReport::Off,
             certificate: || {
                 pns_domain::doctor::certificate_row(&pns_domain::doctor::PinState::Unconfigured)

@@ -26,20 +26,57 @@ pub(super) fn stale_config(router_url: &str) -> String {
     )
 }
 
-/// The engine reading the home probe, in the ONLY environment these may run
-/// in.
+/// The engine reading the home probe, which is `pns doctor` now, in the ONLY
+/// environment these may run in.
 ///
-/// THE DIAGNOSTIC DELIVERS NOW, so `bare()` is no longer safe here: it reaches
-/// the native plugins, walks the developer's own presence probes and, with a
-/// hermes key in the config, posts to the operator's REAL gateway. `pns()`
-/// points every channel at a recording stub and pins the presence readings,
-/// and the URL is pinned at a port nothing listens on as well, so no path
-/// through this file can resolve hermes to the live gateway.
+/// THE REPORT DELIVERS, so `bare()` is not safe here: it reaches the native
+/// plugins, walks the developer's own presence probes and, with a hermes key
+/// in the config, posts to the operator's REAL gateway. `pns()` points every
+/// channel at a recording stub and pins the presence readings, and the URL is
+/// pinned at a port nothing listens on as well, so no path through this file
+/// can resolve hermes to the live gateway. The moshi-hook path is stubbed
+/// absent for the reason `doctor_command` states.
+///
+/// THE STATE DIRECTORY IS LEFT AT ITS DEFAULT, unlike `doctor_command`'s, so
+/// the staleness memory these cases read lands under the sandbox's own
+/// `.local/state/pns`.
 pub(super) fn home_probe(sandbox: &Sandbox) -> std::process::Command {
     let mut probe = sandbox.pns();
     probe.env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/nowhere");
-    probe.arg("home");
+    no_moshi_hook(sandbox, &mut probe);
+    probe.arg("doctor");
     probe
+}
+
+/// The home probe's own rows out of the whole report: the verdict row and
+/// everything printed under it before the next section.
+///
+/// THE WHOLE REPORT IS NOT WHAT THESE CASES ARE ABOUT. `pns doctor` prints a
+/// dozen rows about channels, pairing and the ledger that move on their own
+/// schedule, and asserting all of them here would make every home case a
+/// hostage to an unrelated section.
+pub(super) fn home_rows(reported: &str) -> Vec<String> {
+    let mut rows = Vec::new();
+    for line in reported.lines().map(str::trim_start) {
+        if line.starts_with('\u{25c6}') && !rows.is_empty() {
+            break;
+        }
+        let row = [
+            "\u{2713} ",
+            "\u{2717} ",
+            "\u{26a0} ",
+            "\u{b7} ",
+            "\u{2192} ",
+        ]
+        .iter()
+        .find_map(|glyph| line.strip_prefix(glyph));
+        match row {
+            Some(row) if row.starts_with("home: ") => rows.push(row.to_string()),
+            Some(row) if !rows.is_empty() => rows.push(row.to_string()),
+            _ => {}
+        }
+    }
+    rows
 }
 
 /// The hermes stub replaced by one that APPENDS a line per delivery.
@@ -55,58 +92,54 @@ pub(super) fn count_alerts(sandbox: &Sandbox) {
     );
 }
 
-/// Every alert delivered so far, parsed, in order. The engine terminates each
-/// event with a newline, so one delivery is one line.
+/// Every STALE ALERT delivered so far, parsed, in order. The engine terminates
+/// each event with a newline, so one delivery is one line.
+///
+/// THE DOCTOR'S OWN TEST SEND RIDES THE SAME STUB, so the state word is what
+/// tells the two apart: counting every line would count one test notification
+/// per run as an alert about the identifiers.
 pub(super) fn alerts(sandbox: &Sandbox) -> Vec<serde_json::Value> {
     std::fs::read_to_string(sandbox.path("hermes.events"))
         .unwrap_or_default()
         .lines()
         .filter(|line| !line.trim().is_empty())
-        .map(|line| serde_json::from_str(line).expect("one delivered event per line"))
+        .map(|line| {
+            serde_json::from_str::<serde_json::Value>(line).expect("one delivered event per line")
+        })
+        .filter(|event| event["state"] == "stale")
         .collect()
 }
 
-/// The whole diagnostic, in the house style, as `pns home` prints it to a pipe.
+/// The home probe's rows, as the report prints them for the operator's own
+/// stale case.
 ///
-/// ONE PLACE. Four cases assert the whole of stdout, because "the diagnostic is
-/// untouched" is what several of them are actually about, and four copies would
-/// be four things to edit whenever the format moves.
-///
-/// WRITTEN WITHOUT LINE CONTINUATIONS. A `\` at the end of a Rust string eats
-/// the leading whitespace of the next line, which is exactly the indentation
-/// these rows are being checked for.
-pub(super) const STALE_EVIDENCE: &str = concat!(
-    "\npns home\n",
-    "Looking for   the client [plugins.router] names, on the home network\n",
-    "\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\n",
-    "\n",
-    "\u{25c6} Verdict \u{2500}\u{2500} what the router's client list says\n",
-    "\n",
-    "  \u{2713} on the home network, matched by device_mac \"2e:11:ab:6d:b0:4f\"\n",
-    "\n",
-    "\u{25c6} Evidence \u{2500}\u{2500} what each configured identifier matched\n",
-    "\n",
-    "  \u{b7} device_mac        \"2e:11:ab:6d:b0:4f\"   matched the client the verdict names\n",
-    "  \u{b7} device_hostname   \"mister-2\"   matched no client\n",
-    "  \u{b7} device_ipv4       \"192.168.1.248\"   matched a different client \"mouse\"",
-);
+/// ONE PLACE. Several cases assert the whole block, because "the probe's rows
+/// are untouched" is what they are actually about, and four copies would be
+/// four things to edit whenever the wording moves.
+pub(super) fn stale_evidence() -> Vec<String> {
+    [
+        "home: on the home network, matched by device_mac \"2e:11:ab:6d:b0:4f\"",
+        "device_mac        \"2e:11:ab:6d:b0:4f\"   matched the client the verdict names",
+        "device_hostname   \"mister-2\"   matched no client",
+        "device_ipv4       \"192.168.1.248\"   matched a different client \"mouse\"",
+    ]
+    .iter()
+    .map(|row| (*row).to_string())
+    .collect()
+}
 
-/// The warning SENTENCE, which is what the alert body carries.
-///
-/// NO GLYPH AND NO INDENT. A notification is one sentence going to a channel,
-/// not a row in a terminal report, so the two are separate constants: sharing
-/// one made an alert-body assertion start expecting a terminal's decoration.
+/// The same rows with the staleness warning under them, which is what a run
+/// that has news to tell prints.
+pub(super) fn stale_evidence_warned() -> Vec<String> {
+    let mut rows = stale_evidence();
+    rows.push(STALE_WARNING.to_string());
+    rows
+}
+
+/// The warning SENTENCE, which is both the report's warning row and the alert
+/// body: `stale_warning` is the one place it is written.
 pub(super) const STALE_WARNING: &str = concat!(
     "an identifier looks stale: device_hostname, device_ipv4 ",
-    "disagree with device_mac",
-);
-
-/// The same sentence as the report's warning ROW, with the blank line above it.
-///
-/// THE BLANK IS PART OF IT so the stdout call sites can keep writing
-/// `format!("{STALE_EVIDENCE}\n{STALE_WARNING_ROW}\n")` unchanged.
-pub(super) const STALE_WARNING_ROW: &str = concat!(
-    "\n  \u{26a0} an identifier looks stale: device_hostname, device_ipv4 ",
     "disagree with device_mac",
 );
 
@@ -115,3 +148,15 @@ pub(super) const STALE_WARNING_ROW: &str = concat!(
 pub(super) const KEYS_DISAGREE_HOSTILE_LABEL: &str = r#"{"data":[
     {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
     {"name":"mo\"use\u001b[2J","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
+
+/// The same rows with each substitution applied, for a case that differs from
+/// the operator's own stale reading in one or two sentences.
+pub(super) fn rewritten(rows: &[String], edits: &[(&str, &str)]) -> Vec<String> {
+    rows.iter()
+        .map(|row| {
+            edits
+                .iter()
+                .fold(row.clone(), |row, (from, to)| row.replace(from, to))
+        })
+        .collect()
+}

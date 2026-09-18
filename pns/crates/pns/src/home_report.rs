@@ -1,5 +1,5 @@
-use crate::style::{self, Paint, Tone};
 use pns_adapters::SetupFailure;
+use pns_domain::doctor::{Item, Mark};
 use pns_domain::home::{
     DeviceKey, HomePresence, HomeReading, KeyOutcome, Staleness, UNIFI_TYPE, stale_warning,
 };
@@ -20,20 +20,30 @@ fn verdict_line(presence: &HomePresence) -> String {
         HomePresence::NotHome => {
             "NOT on the home network: no configured identifier matched a client".to_string()
         }
-        HomePresence::Unknown => {
-            "unknown: the router was unreachable or its answer unreadable".to_string()
-        }
+        // IT NAMES THE TWO SETTINGS TO CHECK, because this is the reading the
+        // operator actually meets: the probe cannot tell a router that refused
+        // the key from one that never answered, so "unknown" on its own leaves
+        // them nowhere to go. `clients()` reports one `None` for a rejected
+        // key, a timeout and an unparseable body alike.
+        HomePresence::Unknown => concat!(
+            "unknown: the router returned no readable client list, so nothing was established; ",
+            "check router_url and api_key in [plugins.router] ",
+            "(a rejected key reads the same here as an unreachable router)"
+        )
+        .to_string(),
     }
 }
 
-/// What `pns home` says for one reading: the verdict, then one EVIDENCE line
-/// per configured key, then the staleness warning for whatever the caller
+/// What `pns doctor` says about one reading: the verdict, then one EVIDENCE
+/// row per configured key, then the staleness warning for whatever the caller
 /// hands in as news. PURE, so the words and the reading cannot drift apart
 /// untested.
 ///
-/// THE EVIDENCE IS NEVER WITHHELD. A hand-run diagnostic answers "why did it
-/// read that" as much as "what did it read", so every configured key says
-/// what it found on every run, however many times it has said it before.
+/// THE EVIDENCE IS NEVER WITHHELD. A hand-run report answers "why did it read
+/// that" as much as "what did it read", so every configured key says what it
+/// found on every run, however many times it has said it before. The rows
+/// are `Detail`, which is what makes them read as the verdict's explanation
+/// rather than as four more findings.
 ///
 /// RENDERING ONLY: `news` arrives already decided, because the caller that
 /// decides it is also the one that REMEMBERS it. Deriving the episode here
@@ -41,49 +51,26 @@ fn verdict_line(presence: &HomePresence) -> String {
 /// day either grows a condition (a channel gate, a quiet window) the line
 /// the operator read and the episode the file recorded could disagree about
 /// what they were told.
-pub(crate) fn report(paint: Paint, reading: &HomeReading, news: Option<&Staleness>) -> String {
-    let mut lines = vec![
-        style::heading(paint, "Verdict", "what the router's client list says"),
-        String::new(),
-        style::row(
-            paint,
-            verdict_tone(&reading.presence),
-            verdict_glyph(&reading.presence),
-            2,
-            &verdict_line(&reading.presence),
-        ),
-    ];
-    if !reading.keys.is_empty() {
-        lines.push(String::new());
-        lines.push(style::heading(
-            paint,
-            "Evidence",
-            "what each configured identifier matched",
-        ));
-        lines.push(String::new());
-        // EVERY CONFIGURED KEY GETS A ROW, whatever it found, because the
-        // diagnostic's job is to show the disagreement rather than the winner.
-        lines.extend(
-            reading
-                .keys
-                .iter()
-                .map(|key| style::row(paint, Tone::Quiet, "\u{b7}", 2, &evidence_line(key))),
-        );
-    }
+pub(crate) fn rows(reading: &HomeReading, news: Option<&Staleness>) -> Vec<Item> {
+    let mut rows = vec![Item::row(
+        verdict_mark(&reading.presence),
+        format!("home: {}", verdict_line(&reading.presence)),
+    )];
+    // EVERY CONFIGURED KEY GETS A ROW, whatever it found, because the report's
+    // job is to show the disagreement rather than the winner.
+    rows.extend(
+        reading
+            .keys
+            .iter()
+            .map(|key| Item::row(Mark::Detail, evidence_line(key))),
+    );
     // ONLY THE ALERT-SHAPED LINE IS DEDUPED. The evidence above it says the
     // same thing in more words every single run; this one sentence is the
     // one a consumer would act on, so it is said once per state.
     if let Some(staleness) = news {
-        lines.push(String::new());
-        lines.push(style::row(
-            paint,
-            Tone::Warn,
-            "\u{26a0}",
-            2,
-            &stale_warning(staleness),
-        ));
+        rows.push(Item::row(Mark::Warn, stale_warning(staleness)));
     }
-    lines.join("\n")
+    rows
 }
 
 /// One evidence row's sentence: the key, what it was set to, and what the
@@ -112,26 +99,51 @@ fn evidence_line(key: &pns_domain::home::KeyReading) -> String {
     )
 }
 
-/// A verdict is good, bad or unknown, and the glyph says which without reading.
-fn verdict_tone(presence: &HomePresence) -> Tone {
+/// How a verdict reads at a glance.
+///
+/// NOTHING HERE IS `Bad`, and none of it moves the exit code. An unread
+/// router costs the away reading, which no notification path depends on; a
+/// doctor that graded it as broken would teach the operator that a red doctor
+/// does not mean their notifications are broken.
+fn verdict_mark(presence: &HomePresence) -> Mark {
     match presence {
-        HomePresence::Home { .. } => Tone::Good,
-        HomePresence::NotHome => Tone::Quiet,
+        HomePresence::Home { .. } => Mark::Good,
+        // OUT OF THE HOUSE IS NOT A FAULT, and it is the ordinary reading.
+        HomePresence::NotHome => Mark::Note,
         // UNKNOWN IS A WARNING, NOT A VERDICT. The router did not answer, so
-        // nothing was established either way, and reading it as "not home"
-        // is the mistake this arm exists to prevent.
-        HomePresence::Unknown => Tone::Warn,
+        // nothing was established either way, and reading it as "not home" is
+        // the mistake this arm exists to prevent. A warning withholds the
+        // report's all-clear, which is what makes it visible at all: this is
+        // the reading a machine with a rejected key gives on every run.
+        HomePresence::Unknown => Mark::Warn,
     }
 }
 
-fn verdict_glyph(presence: &HomePresence) -> &'static str {
-    match presence {
-        HomePresence::Home { .. } => "\u{2713}",
-        HomePresence::NotHome => "\u{b7}",
-        HomePresence::Unknown => "\u{26a0}",
-    }
+/// The row for a setup failure, which is every way the probe can be unread
+/// before a router is dialled at all.
+///
+/// A PROBE NOBODY SET UP IS A NOTE, and a probe somebody set up WRONG is a
+/// warning. The first three arms are an absence the operator chose, and
+/// grading a choice as a fault is how a reader learns to skim the marks; the
+/// rest are a `[plugins.router]` table that was written and does not work,
+/// which is an edit waiting to be made.
+pub(crate) fn setup_row(failure: &SetupFailure) -> Item {
+    let mark = match failure {
+        SetupFailure::NoConfigFile
+        | SetupFailure::NoRouterPlugin
+        | SetupFailure::RouterDisabled => Mark::Note,
+        SetupFailure::ConfigError(_)
+        | SetupFailure::NoType
+        | SetupFailure::UnknownType(_)
+        | SetupFailure::InvalidRouterTable
+        | SetupFailure::NoDeviceIdentifier
+        | SetupFailure::InvalidDeviceKey { .. }
+        | SetupFailure::NoApiKey => Mark::Warn,
+    };
+    Item::row(mark, setup_report(failure))
 }
-/// The one line for a setup failure. PURE for the same reason as `report`.
+
+/// The one line for a setup failure. PURE for the same reason as `rows`.
 pub fn setup_report(failure: &SetupFailure) -> String {
     match failure {
         SetupFailure::NoConfigFile => "home: not configured (no config file)".to_string(),

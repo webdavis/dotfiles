@@ -16,14 +16,14 @@ fall out of it, the pane scrub, the rendered event handed to each channel, the d
 between a compiled-in plugin and an executable channel, per-leg isolation, which delivery lines reach
 stdout, and the records the first delivery writes. It does not cover the harness hook arms
 (`pns hook <event>`), the moshi gate, or the modes that take no event (`pulse`, `quiet`, `doctor`,
-`recap`, `daemon`, `lights`, `loop`, `nag`, `setup`, `home`); those reach `run_event` by other routes or
+`recap`, `daemon`, `lights`, `loop`, `nag`, `setup`); those reach `run_event` by other routes or
 not at all. Every claim below cites the symbol or test that establishes it; anything a reader would
 expect and that no evidence supports is written as a `NOT ESTABLISHED:` line.
 
 Terms used here in the code's own sense: `decision ring` (the `decisions` state file), `journal` (the
 `missed-notifications` state file), `unread` (the lamp the news record arms), `dim window` and
 `quiet window` and `quiet hours` (the lights' own silences), `home probe` and `router` (the presence
-sensor `pns home` reads).
+sensor `pns doctor` reads).
 
 ## Behaviors
 
@@ -870,7 +870,7 @@ Then it exits 0, whatever any channel, config, probe or state write did.
 - Fail direction: fail-open, and the exit code is the strongest form of it.
 - Thresholds: exactly two producer-adjacent paths exit non-zero, and neither is an event: a word naming
   no command exits 2 (behavior 2), and the hand-typed verbs refuse a bad invocation with exit 2
-  (`src/main.rs` module doc, which also names two remaining gaps: `home` always exits 0, and a word
+  (`src/main.rs` module doc, which also names the one remaining gap: a word
   trailing `lights tick` is dropped rather than refused).
 - Required side effects: none.
 - Forbidden side effects: no path on the event side may abort. `build_registry` is the one panic, and it

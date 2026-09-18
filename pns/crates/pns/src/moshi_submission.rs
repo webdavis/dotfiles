@@ -3,15 +3,27 @@ use crate::*;
 /// A presence-gated pass-through to moshi-hook, for the harnesses that reach
 /// it directly rather than through a pns hook.
 ///
-/// EXIT 0 MEANS "NOT FORWARDED" on every path that declines (no moshi, the
-/// operator at the desk, a subcommand this will not vouch for), which is the
+/// EXIT 0 MEANS "NOT FORWARDED" on the paths that DECLINE (no moshi, the
+/// operator at the desk, a payload that did not arrive whole), which is the
 /// harness's "no opinion, prompt as usual". The forwarded path is the one
-/// place a non-zero exit is correct: there it is MOSHI'S OWN CODE, passed
+/// place moshi's own code is correct: there it is MOSHI'S OWN CODE, passed
 /// through for whatever reads it, and in production it is 0 whichever way the
 /// operator answered. See `moshi_decision` for why, and `answer_within` for
 /// why the wait on it is bounded.
+///
+/// A WORD THIS WILL NOT VOUCH FOR IS A REFUSAL, exit 2 and a sentence on
+/// stderr, and it is the one non-declining exit here. It used to be an exit 0
+/// like the declines, which is the worst answer available: a hook that
+/// silently succeeds looks wired for the life of the install while it forwards
+/// nothing. THIS IS THE ONLY PLACE THE WORD IS JUDGED, so the dispatcher hands
+/// every hook-shaped word straight here rather than keeping a second copy of
+/// the test that could disagree with this one.
 pub(crate) fn gate_mode(subcommand: &str) -> i32 {
-    if !pns_adapters::is_harness_subcommand(subcommand) || !forward_to_moshi(&system_probes()) {
+    if !pns_adapters::is_harness_subcommand(subcommand) {
+        eprintln!("{}", refusal(subcommand));
+        return 2;
+    }
+    if !forward_to_moshi(&system_probes()) {
         return 0;
     }
     let Some(payload) = read_payload().filter(|payload| payload_is_whole(payload)) else {
@@ -24,6 +36,14 @@ pub(crate) fn gate_mode(subcommand: &str) -> i32 {
         ports: &MoshiApprovalForwarder,
     }
     .forward_only(subcommand, &payload)
+}
+/// What a word the gate will not vouch for is told, naming the word and the
+/// shape that would have been accepted.
+fn refusal(subcommand: &str) -> String {
+    format!(
+        "pns: {subcommand:?} is not a harness word; \
+         the gate accepts <harness>-hook in lowercase (pi-hook, claude-hook)"
+    )
 }
 /// A blocking event: the round trip started, then the notification, then the
 /// operator's decision.

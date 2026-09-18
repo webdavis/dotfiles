@@ -8,8 +8,8 @@ pns: usage:
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
                                    blocked, asked, denied, waiting, resolved,
                                    model-switch, quota, config-change
-  pns gate <harness>-hook          presence-gated pass-through to moshi-hook
-  pns <harness>-hook               the same gate, spelled the way moshi calls it
+  pns <harness>-hook               presence-gated pass-through to moshi-hook,
+                                   spelled the way moshi's extension calls it
   pns quiet [<duration>|off]       the operator's mute
   pns daemon run|schedule|cancel   the clock
   pns lights tick|quiet            the lamps' upkeep
@@ -26,7 +26,6 @@ pns: usage:
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
   pns tap [info|install] [--json]  record phone attention or inspect its setup
-  pns home                         one reading of the router, said out loud
   pns --help, -h                   this text
   pns --version, -V                the package version
 

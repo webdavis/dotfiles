@@ -346,7 +346,7 @@ Then the moshi forward still happens, byte for byte, and moshi's own exit code i
 
 - Success: `src/main.rs:blocking_event` decides the forward through `src/main.rs:forward_to_moshi`, which
   reads ONLY the surface (`operator_surface(...) != Surface::Desk`) and never constructs a delivery plan.
-  Nothing on `Overrides` can reach it. `src/main.rs:gate_mode`, the `pns gate <harness>-hook`
+  Nothing on `Overrides` can reach it. `src/main.rs:gate_mode`, the bare `pns <harness>-hook`
   pass-through, is the same: it calls `forward_to_moshi` with a throwaway probe set and runs no delivery
   plan at all. Pinned by two deliberately near-duplicate tests,
   `tests/hooks.rs:a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer` and

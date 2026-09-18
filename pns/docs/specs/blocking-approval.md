@@ -3,7 +3,7 @@
 This is the one path where pns stands between a harness and its operator, and the one path where a
 non-zero exit code from pns means anything at all. A harness about to run something it needs permission
 for calls either `pns hook blocked` (the pns hook, which also raises pns's own notification) or the gate,
-spelled `pns gate <harness>-hook` or spelled as the bare word `pns <harness>-hook`, and pns decides
+spelled as the bare word `pns <harness>-hook`, and pns decides
 whether to hand that request to `moshi-hook` for a round trip to the operator's phone. Everything here
 turns on one rule: pns is a presence-gated pipe, never a decider. It forwards the harness's payload byte
 for byte, it waits a bounded time for moshi to acknowledge the submission, and it passes moshi's exit
@@ -17,23 +17,23 @@ Vocabulary note: throughout, "submission" is the `moshi-hook` child process pns 
 card" is what moshi raises on the phone from the forwarded payload. pns never sees that card and never
 mints its identifier.
 
-### 1. Both spellings of the gate reach one function
+### 1. One spelling of the gate, and it is the bare word
 
 Given moshi's own generated pi and omp extensions hold a single pathname in their `helperBinary` field,
 with no room for a subcommand
 
-When argv[1] is a harness word (`pns pi-hook`), or argv[1] is `gate` and argv[2] is a harness word
-(`pns gate pi-hook`)
+When argv[1] ends in `-hook` (`pns pi-hook`)
 
-Then both dispatch into the same `gate_mode` with that harness word, and behave identically from there.
+Then it dispatches into `gate_mode` with that word, which is the only entry point the gate has.
 
-- Success: `pns pi-hook` and `pns gate pi-hook` forward the same payload as the same argv to `moshi-hook`
-  and return the same code. Pinned by
-  `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision` and
-  `tests/hooks.rs:the_documented_gate_subcommand_reaches_the_same_gate_as_the_bare_word`, both asserting
-  exit 7 from a stub and `pi-hook` recorded as the child's argv.
-- Failure sources: argv[2] absent on the `gate` form yields the empty string
-  (`src/main.rs:second_argument`), which fails the shape check in behavior 2.
+- Success: `pns pi-hook` forwards the payload as the same argv to `moshi-hook` and returns its code.
+  Pinned by `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision`,
+  asserting exit 7 from a stub and `pi-hook` recorded as the child's argv.
+- Retired: `pns gate <harness>-hook` was a second spelling of the same gate. `gate` now names no
+  subcommand and takes the usage refusal with exit 2, pinned by
+  `tests/hooks.rs:the_retired_gate_subcommand_is_refused_rather_than_forwarded`.
+- Failure sources: none at dispatch; a hook-shaped word the gate will not vouch for is behavior 2's
+  refusal.
 - Fail direction: fail-open toward the harness. A gate that declines exits 0, which is "no opinion": the
   harness draws its own permission prompt and the operator answers at the pane. It never blocks and never
   denies.
@@ -48,9 +48,9 @@ Then both dispatch into the same `gate_mode` with that harness word, and behave 
 - Privacy: Not applicable at dispatch, the harness word is the only argument read.
 - Process ownership and cleanup: see behavior 5.
 - Compatibility contract: the bare-word spelling exists solely because moshi's generated extension cannot
-  express a subcommand. The operator-facing spelling is documented in `src/main.rs:USAGE` as
-  `pns gate <harness>-hook          presence-gated pass-through to moshi-hook` and
-  `pns <harness>-hook               the same gate, spelled the way moshi calls it`.
+  express a subcommand, and it is therefore the only spelling. It is documented in `src/main.rs:USAGE` as
+  `pns <harness>-hook               presence-gated pass-through to moshi-hook,`
+  `spelled the way moshi's extension calls it`.
 
 ### 2. The shape the gate will vouch for
 
@@ -70,13 +70,14 @@ before any child is spawned.
   name `a` and suffix `b-hook`, which is not `hook`, so it is refused too (derived from
   `src/hooks.rs:is_harness_subcommand`; NOT ESTABLISHED: no test drives a two-hyphen word, I grepped
   `tests/hooks.rs` and `src/hooks.rs` for one and found none).
-- Fail direction: fail-closed toward moshi (nothing is handed to a third-party binary) and fail-open
-  toward the harness (the caller still gets an exit code that means "prompt as usual"). The two spellings
-  differ in HOW they exit, see the exit-code table in behavior 7. `pns gate <bad word>` returns 0
-  silently, pinned by
-  `tests/hooks.rs:the_gate_subcommand_refuses_a_word_it_will_not_vouch_for_without_notifying`. A bare bad
-  word never reaches `gate_mode` at all and falls through the dispatch chain to the usage refusal, exit
-  2, pinned by `tests/hooks.rs:a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi`.
+- Fail direction: fail-closed toward moshi (nothing is handed to a third-party binary) and LOUD toward
+  the harness. A hook-shaped word `gate_mode` will not vouch for exits 2 with a sentence on stderr
+  naming it, pinned by
+  `tests/hooks.rs:a_hook_shaped_word_the_gate_will_not_vouch_for_says_so_instead_of_exiting_zero`; it
+  used to exit 0 in silence, which is a hook that looks wired while it forwards nothing. A word that is
+  not hook-shaped at all never reaches `gate_mode` and falls through the dispatch chain to the usage
+  refusal, also exit 2, pinned by
+  `tests/hooks.rs:a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi`.
 - Thresholds: Not applicable, this is a shape predicate with no numeric bound.
 - Required side effects: on the bare-word refusal only, `src/main.rs` prints `USAGE` to stderr.
 - Forbidden side effects: no child is spawned, no notification is raised, and stdin is never read. Both
@@ -355,7 +356,7 @@ killing and reaping the child on expiry.
 | 0, no opinion: payload was not UTF-8                 | the string read failed before any arm ran                                                                               | the harness prompts as usual, total silence                                                                                                                                                      | `tests/hooks.rs:a_payload_that_is_not_utf8_drops_the_approval_and_tells_the_operator_nothing`                                                                                                                                |
 | 0, no opinion: the submission died without answering | killed by a signal, so no exit code exists                                                                              | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_submission_that_dies_without_answering_is_not_a_decision`                                                                                                                                                  |
 | 0, no opinion: the deadline expired                  | moshi never answered; the child is killed and reaped                                                                    | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_moshi_that_never_answers_stops_holding_the_operators_prompt`, `tests/hooks.rs:the_gate_is_bounded_by_the_same_clock_as_the_hook`                                                                           |
-| 0, refusal: `pns gate <bad word>`                    | the shape check refused the word                                                                                        | silently, with no notification                                                                                                                                                                   | `tests/hooks.rs:the_gate_subcommand_refuses_a_word_it_will_not_vouch_for_without_notifying`                                                                                                                                  |
+| 2, refusal: `pns <hook-shaped bad word>`             | the shape check refused the word                                                                                        | a sentence on stderr naming the word, and no notification                                                                                                                                        | `tests/hooks.rs:a_hook_shaped_word_the_gate_will_not_vouch_for_says_so_instead_of_exiting_zero`                                                                                                                              |
 | 2, refusal: a bare `pns <bad word>`                  | argv[1] names no command and carries no producer flag, so it is an operator typo                                        | `USAGE` on stderr; this is not a hook path                                                                                                                                                       | `tests/hooks.rs:a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi`                                                                                                                                                |
 | 0, every other pns hook event                        | `stop`, `stop-failure`, `asked`, `plan-ready`, `denied`, `resolved`, `prompt`, `model-switch`, `quota`, `config-change` | a notification must never fail the turn it reports on                                                                                                                                            | `tests/hooks.rs:a_non_blocking_event_never_pays_for_the_round_trip`, `tests/hooks.rs:an_ordinary_stop_never_reaches_moshi`, `tests/hooks.rs:a_denial_never_pays_for_the_approval_round_trip_and_still_exits_zero`            |
 

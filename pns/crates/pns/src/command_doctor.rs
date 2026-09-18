@@ -273,6 +273,7 @@ pub(crate) fn doctor_mode() -> i32 {
                     .import_failures()
                     .map_err(|error| error.to_string())
             },
+            home: crate::doctor_home::rows,
             lamps: || {
                 pns_application::doctor_lamps(lights.as_deref(), || {
                     pns_adapters::doctor_bridge(hue_table.as_ref(), hue_declared)

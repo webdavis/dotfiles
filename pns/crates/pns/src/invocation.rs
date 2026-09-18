@@ -59,6 +59,9 @@ fn take_tool_wide_flags(argv: &[String]) -> (Vec<String>, bool) {
 
 /// The one flag every printing command answers to.
 const NO_COLOR_FLAG: &str = "--no-color";
+/// What a harness word moshi's extension spells ends in. SHAPE ONLY: whether
+/// the word itself is acceptable is `gate_mode`'s to say.
+const HARNESS_HOOK_SUFFIX: &str = "-hook";
 /// What a producer gets when its own page did not reach the durable log.
 ///
 /// ONE, NOT TWO. Two is what this mode already returns for argv it will not
@@ -125,13 +128,6 @@ pub(crate) fn run() {
     // The pulse is `pns lights pulse` now, since the lamps are all it touches.
     if first == "pulse" {
         std::process::exit(crate::command_lights::retired_pulse());
-    }
-    // The home diagnostic: one reading of the router, said out loud. The
-    // doctor mode (P3) will absorb it; until then this is how the probe is
-    // drilled and how a wrong config is diagnosed.
-    if first == "home" {
-        home_mode();
-        return;
     }
     // The operator's mute, typed and timed. Also a MODE: it writes the state
     // the event path reads, and delivers nothing itself.
@@ -217,18 +213,16 @@ pub(crate) fn run() {
     if first == "setup" {
         std::process::exit(setup_mode());
     }
-    // The gate moshi's OWN extension calls. pi and omp spawn
-    // `helperBinary pi-hook`, and that field holds one PATHNAME with no room
-    // for a subcommand, so the binary answers the bare harness word itself.
-    if pns_adapters::is_harness_subcommand(&first) {
+    // The gate moshi's OWN extension calls, and the ONLY spelling of it. pi
+    // and omp spawn `helperBinary pi-hook`, and that field holds one PATHNAME
+    // with no room for a subcommand, so the binary answers the bare harness
+    // word itself and `pns gate <word>` is refused like any other typo.
+    //
+    // EVERY HOOK-SHAPED WORD GOES TO THE GATE, which is the one place that
+    // judges whether the word is one it will vouch for. A second copy of that
+    // test here is how a refusal became an exit 0 that forwarded nothing.
+    if first.ends_with(HARNESS_HOOK_SUFFIX) {
         std::process::exit(gate_mode(&first));
-    }
-    // The same gate, spelled the way an operator reads it. Both forms end in
-    // gate_mode, which REFUSES a word it will not vouch for: falling through
-    // to the event path instead is how the documented spelling used to fire a
-    // notification about an empty event.
-    if first == "gate" {
-        std::process::exit(gate_mode(&second_argument(&flagless)));
     }
     if first == "hook" {
         std::process::exit(hook_mode(&second_argument(&flagless)));

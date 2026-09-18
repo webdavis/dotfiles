@@ -139,6 +139,12 @@ pub(super) const DAEMON_NEVER_RAN_LINE: &str = "the daemon is enabled and has no
 /// fires): the two read as one paragraph.
 pub(super) const NAG_OFF_LINE: &str = "the nag is off (no `[nag] after_secs`)";
 
+/// And what it says about the home probe on a machine whose config names no
+/// router. IT IS A NOTE, not a warning: nobody asked for a home reading here,
+/// and grading that choice as a fault would withhold the report's all-clear on
+/// every such machine forever.
+pub(super) const HOME_UNCONFIGURED_LINE: &str = "home: not configured (no [plugins.router] table)";
+
 /// And what it says about the lamps on a machine whose config has no `[lights]`
 /// table, which is every machine that never wrote one.
 pub(super) const LIGHTS_OFF_LINE: &str =
