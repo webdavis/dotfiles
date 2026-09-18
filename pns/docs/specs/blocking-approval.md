@@ -32,8 +32,8 @@ Then it dispatches into `gate_mode` with that word, which is the only entry poin
 - Retired: `pns gate <harness>-hook` was a second spelling of the same gate. `gate` now names no
   subcommand and takes the usage refusal with exit 2, pinned by
   `tests/hooks.rs:the_retired_gate_subcommand_is_refused_rather_than_forwarded`.
-- Failure sources: none at dispatch; a word that is hook-shaped but unacceptable is behavior 2's
-  (`src/main.rs:second_argument`), which fails the shape check in behavior 2.
+- Failure sources: none at dispatch; a hook-shaped word the gate will not vouch for is behavior 2's
+  refusal.
 - Fail direction: fail-open toward the harness. A gate that declines exits 0, which is "no opinion": the
   harness draws its own permission prompt and the operator answers at the pane. It never blocks and never
   denies.
