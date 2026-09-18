@@ -317,8 +317,12 @@ fn pin_state(hue_table: Option<&toml::Table>) -> pns_domain::doctor::PinState {
             presented: mismatch.presented,
         };
     }
-    if pns_adapters::hue_resolves(hue_table) {
-        return pns_domain::doctor::PinState::Held;
+    let Some(table) = hue_table else {
+        return pns_domain::doctor::PinState::Unconfigured;
+    };
+    match pns_adapters::hue_settings(table, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) {
+        Ok(Some(_)) => pns_domain::doctor::PinState::Held,
+        Ok(None) => pns_domain::doctor::PinState::Unconfigured,
+        Err(reason) => pns_domain::doctor::PinState::Refused(reason),
     }
-    pns_domain::doctor::PinState::Unconfigured
 }
