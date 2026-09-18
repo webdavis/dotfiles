@@ -5,22 +5,24 @@
 -- (dot_config/herdr/plugins/config/herdr-todoist/config.toml), so one word
 -- opens one list in both.
 --
--- The token is an indirection: this names the KeePassXC entry it comes from
--- and never holds the value. The plugin has no third way to reach one.
+-- The token is an indirection: this names the source it comes from and
+-- never holds the value. The plugin has no third way to reach one.
+--
+-- vim.system closes stdin, so an interactive vault CLI (keepassxc-cli) can
+-- never resolve here. The macOS keychain is read non-interactively instead;
+-- KeePassXC stays the entry of record (see the herdr-todoist config for the
+-- one-time operator setup).
 return {
   "webdavis/todoist.nvim",
   commit = "f52aee6002e9dadbab9c608f7747ba012ad8aa9d",
   cmd = "Todoist",
   opts = {
     token_command = {
-      "keepassxc-cli",
-      "show",
-      "--quiet",
-      "--show-protected",
-      "--attributes",
-      "Password",
-      "/Users/stephen/Library/Mobile Documents/iCloud~com~strongbox/Documents/keepass.kdbx",
-      "Todoist :: API Token",
+      "security",
+      "find-generic-password",
+      "-w",
+      "-s",
+      "Todoist API Token",
     },
     views = {
       today = "today | overdue",
