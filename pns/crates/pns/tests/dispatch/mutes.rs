@@ -272,7 +272,11 @@ fn quiet_calendar_arms_the_mute_through_the_argv_the_daemon_schedules() {
 
     let state = std::fs::read_to_string(sandbox.state().join("quiet-calendar"))
         .expect("the calendar state file");
-    assert_eq!(state.trim_end(), format!("{end} 0"), "armed until the event's end");
+    assert_eq!(
+        state.trim_end(),
+        format!("{end} 0"),
+        "armed until the event's end"
+    );
 }
 
 #[test]
