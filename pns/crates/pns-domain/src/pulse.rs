@@ -148,12 +148,20 @@ pub fn exit_behaviour(exit_code: &str) -> Option<crate::lamps::config::Behaviour
 /// tell them apart, since `failed` says it died and `blocked` says it is
 /// waiting, so reusing the shared list would hold every failure blocked.
 ///
+/// AND TWO WORDS THAT LOOK LIKE WAITS ARE NOT ON IT. `plan-ready` is gone
+/// entirely: `PostToolUse` for `ExitPlanMode` fires after the plan was
+/// answered, so the word armed a wait the operator had already ended, and
+/// nothing declares it any more. `denied` fires after the auto-mode
+/// classifier refused a call on its own, which is a decision already taken
+/// rather than a question, so it is routed as an observation and colours no
+/// lamp.
+///
 /// AND `asking` IS ON THIS LIST ALONE. The shared list is the harness's own
 /// state words, while a lamp also has to answer for what the CONDENSER writes:
 /// every condensed turn is classified done, asking or blocked
 /// (`hooks::condenser_prompt`), and `asking` is its word for a turn waiting on
 /// an answer. Left off, it read as `done` and flashed green over a question.
-pub const LAMP_BLOCKED: [&str; 5] = ["blocked", "asked", "plan-ready", "denied", "asking"];
+pub const LAMP_BLOCKED: [&str; 3] = ["blocked", "asked", "asking"];
 
 /// What a lamp says about an event's state, given whether this machine has a
 /// lamp map at all.

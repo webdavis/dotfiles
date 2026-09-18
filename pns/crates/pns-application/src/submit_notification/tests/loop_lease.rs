@@ -36,7 +36,7 @@ fn a_guessed_wait_with_no_loop_arms_the_marker() {
 
 #[test]
 fn a_hook_driven_wait_arms_the_marker_with_or_without_a_loop() {
-    for state in ["asked", "plan-ready", "denied", "blocked", "asking"] {
+    for state in ["asked", "blocked", "asking"] {
         assert!(armed(false, state, true), "{state}");
         assert!(armed(false, state, false), "{state}");
     }

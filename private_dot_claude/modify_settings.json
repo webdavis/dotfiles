@@ -393,12 +393,19 @@
         "type" "command"
         "async" true
         "command" (printf "%s hook stop-failure" $pns)))))
-    "Notification" (list (dict
-      "matcher" "quota_auto_resume_fired|quota_auto_resume_stale|quota_auto_resume_disabled"
-      "hooks" (list (dict
-        "type" "command"
-        "async" true
-        "command" (printf "%s hook quota" $pns)))))
+    "Notification" (list
+      (dict
+        "matcher" "quota_auto_resume_fired|quota_auto_resume_stale|quota_auto_resume_disabled"
+        "hooks" (list (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s hook quota" $pns))))
+      (dict
+        "matcher" "permission_prompt"
+        "hooks" (list (dict
+          "type" "command"
+          "async" true
+          "command" (printf "%s hook waiting" $pns)))))
     "ConfigChange" (list (dict
       "matcher" "user_settings|project_settings|local_settings|policy_settings|skills"
       "hooks" (list (dict
@@ -430,13 +437,23 @@
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s hook asked" $pns))))
+          "command" (printf "%s hook resolved" $pns))))
       (dict
         "matcher" "ExitPlanMode"
         "hooks" (list (dict
           "type" "command"
           "async" true
-          "command" (printf "%s hook plan-ready" $pns)))))
+          "command" (printf "%s hook resolved" $pns)))))
+    "ElicitationResult" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s hook resolved" $pns)))))
+    "SubagentStop" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "async" true
+        "command" (printf "%s hook resolved" $pns)))))
     "SessionStart" (list (dict
       "matcher" "*"
       "hooks" (list (dict

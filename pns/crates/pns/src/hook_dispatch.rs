@@ -37,15 +37,21 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // the session's next event.
         "prompt" => {
             start_of_turn(&payload);
-            end_blocked_wait(&payload.session_id);
+            end_blocked_wait(&payload.session_id, now_secs());
             name_session(&payload, &agent);
         }
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
         "blocked" => return blocking_event(&payload, &agent, &payload_json),
-        // The PostToolBatch clearing signal. The batch this session was blocked
-        // on has RESOLVED, whichever way the operator answered: a denial still
-        // produces a `tool_result` and so still resolves the batch.
+        // EVERY CLEARING SIGNAL THE HARNESS HAS, on one arm. Five
+        // declarations reach it: `PostToolBatch`, whichever way the operator
+        // answered (a denial still produces a `tool_result` and so still
+        // resolves the batch); `PostToolUse` for `AskUserQuestion` and for
+        // `ExitPlanMode`, where the tool IS the dialog and returns at the
+        // answer; `ElicitationResult`, which is an elicitation's own answer
+        // signal; and `SubagentStop`. NONE OF THEM CARDS THE OPERATOR,
+        // because none of them is news: the answer is the thing they just
+        // gave.
         //
         // IT LOADS NO CONFIG AND DELIVERS NOTHING. A record exists only because
         // the feature was on when the approval arrived, so clearing it is right
@@ -57,33 +63,38 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // value; a malformed one is not proof of the main thread) resolved a
         // SUBAGENT'S tool, not the parent session's own wait on the operator;
         // clearing on it anyway would go dark on a wait nobody has answered.
-        // RESIDUAL, STATED HONESTLY: the parent's marker then stays lit until
-        // its own Stop, same as before this fix.
-        // AND THIS ARM IS ASYNC (PostToolBatch, `async: true`), so it is
-        // UNORDERED against the next PermissionRequest and the batch's own
-        // `asked`: a late End can unlink a newer wait's marker, an early one
-        // can leave an answered `asked` lit. The same one-file-per-session
-        // limit `update_blocked_marker` states; bounded the same way, by the
-        // backstop and the session's next event.
+        // `SubagentStop` IS THE ONE EXCEPTION, and it needs one: it carries
+        // `agent_id` as well (measured in the 2.1.272 bundle), and it reports
+        // the subagent that was holding the wait FINISHING, which is what
+        // bounds a subagent's wait at its own end rather than at the parent's
+        // Stop. RESIDUAL, STATED HONESTLY: a subagent ending while the parent
+        // itself waits on the operator clears the parent's marker too, since
+        // one marker is keyed by the session the two share, and the parent's
+        // next event re-publishes it.
+        // AND THESE ARMS ARE ASYNC, so each is UNORDERED against the next
+        // PermissionRequest; `update_blocked_marker`'s End refuses to remove a
+        // wait armed after the moment being cleared for, which is what keeps a
+        // late clear from taking a newer wait's marker.
         "resolved" => {
             clear_nag(&payload.session_id);
-            if !payload.in_subagent {
-                end_blocked_wait(&payload.session_id);
+            if !payload.in_subagent || payload.hook_event_name == "SubagentStop" {
+                end_blocked_wait(&payload.session_id, now_secs());
             }
         }
-        // THE MID-TURN NOTIFICATIONS, which is what makes one arm right for
-        // all three. Each reports something that happened INSIDE a turn that
-        // is still running, so none of them touches the turn marker: the clock
-        // belongs to the Stop or the StopFailure that ends the turn, and
-        // restarting it here would make a long turn report itself short and
-        // lose the tier it earned. None of them forwards to moshi either:
-        // `asked` and `plan-ready` are answered at the pane the harness is
-        // already holding open, and a denial is a decision the harness has
-        // ALREADY taken, so a card offering Allow and Deny would be answering
-        // a closed question no prompt is listening to. `denied` states no
-        // message of its own, so its detail resolves through `parse_payload`'s
-        // existing chain to the tool request.
-        "asked" | "plan-ready" | "denied" => drop(run_event(
+        // MID-TURN NEWS FROM A SERVER THAT STOPPED TO ASK. It reports
+        // something that happened INSIDE a turn that is still running, so it
+        // does not touch the turn marker: the clock belongs to the Stop or the
+        // StopFailure that ends the turn, and restarting it here would make a
+        // long turn report itself short and lose the tier it earned. It does
+        // not forward to moshi either, because an elicitation is answered at
+        // the pane the harness is already holding open.
+        //
+        // IT SERVES `Elicitation` ALONE now. The two `PostToolUse` matchers
+        // that used to arrive here fire AFTER the dialog was answered, so they
+        // re-armed a wait the operator had just ended and carded them with
+        // their own choice read back to them; both are declared to `resolved`.
+        // `Elicitation` is the one genuine pre-answer wait of the three.
+        "asked" => drop(run_event(
             &pns_domain::EventArgs {
                 agent: agent.clone(),
                 state: event.to_string(),
@@ -95,6 +106,57 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
             &payload,
             Attempt::First,
         )),
+        // A CALL THE HARNESS REFUSED ON ITS OWN, as an OBSERVATION. Nobody is
+        // waiting on an answer: the decision has already been taken, which is
+        // why this never forwards to moshi either, and a marker-neutral
+        // routing is what stops it colouring a lamp that says a session is
+        // waiting and what stops it taking a wait a real question armed beside
+        // it. It states no message of its own, so its detail resolves through
+        // `parse_payload`'s existing chain to the tool request.
+        "denied" => drop(run_event(
+            &pns_domain::EventArgs {
+                agent: agent.clone(),
+                state: event.to_string(),
+                detail: payload.message.clone(),
+                pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                ..attribution(&payload, &agent)
+            },
+            &system_probes(),
+            &payload,
+            Attempt::Observation,
+        )),
+        // THE SANDBOX NETWORK APPROVAL DIALOG, behind an exact allowlist of
+        // the messages this binary has verified. It reaches the dialog host
+        // with no `PermissionRequest` at all, and the host defaults its
+        // typeless notification to `permission_prompt`, which is also every
+        // ordinary tool approval's type, so the declaration's matcher cannot
+        // separate the two and `sandbox_network_detail` is what does. Routed
+        // as a wait through `Attempt::First` with a `LAMP_BLOCKED` state word,
+        // so `run_event` arms the marker itself, plus the nag, which is
+        // `blocking_event`'s shape without the moshi forward: there is no
+        // permission-request payload to hand moshi, and Claude Code already
+        // carries this dialog to a phone over its own remote-control bridge.
+        // THE CARD CANNOT NAME THE HOST, because the registry text is static
+        // and the payload carries neither host nor port.
+        "waiting" => {
+            if let Some(detail) =
+                sandbox_network_detail(&payload.notification_type, &payload.message)
+            {
+                let event = pns_domain::EventArgs {
+                    agent: agent.clone(),
+                    state: "blocked".to_string(),
+                    detail,
+                    pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                    ..attribution(&payload, &agent)
+                };
+                // BEFORE THE NOTIFICATION, never after, which is
+                // `RequestApproval`'s own order: the record this arms is what
+                // a later answer clears, and an answer landing between the
+                // card and the arming would leave a record nothing clears.
+                arm_nag(&payload.session_id, &event);
+                let _ = run_event(&event, &system_probes(), &payload, Attempt::First);
+            }
+        }
         // `PostModelSwitch`, restricted to the one `source` that is news:
         // `command`, `picker` and `sdk` are the operator or the harness
         // choosing a model on purpose, and `resume`, which the harness also

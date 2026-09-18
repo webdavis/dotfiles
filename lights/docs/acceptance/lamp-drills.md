@@ -30,8 +30,8 @@ The other rooms are quieter, not quiet. All three carry pns routes:
 
 The three held states arm on: `loop`, an agent streak past the configured 360 seconds, a shell command
 running that long, or a live `pns loop` lease; `blocked`, an agent waiting on the operator (blocked,
-asked, plan-ready, denied, asking); `unread`, a failure the operator has not come back to. Between 22:00
-and 07:00 those three render dimmed rather than full, which changes the level again.
+asked, asking); `unread`, a failure the operator has not come back to. Between 22:00 and 07:00 those
+three render dimmed rather than full, which changes the level again.
 
 So a room is quiet for a reading when no agent session is working, no long shell command is in flight, no
 loop lease is out, no approval is outstanding and no failure is unread. What the lamps are holding right

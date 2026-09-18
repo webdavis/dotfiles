@@ -322,6 +322,8 @@ mod quota_messages;
 mod quota_state;
 #[path = "hooks/quota_waits.rs"]
 mod quota_waits;
+#[path = "hooks/sandbox_network.rs"]
+mod sandbox_network;
 #[path = "hooks/stale_arming.rs"]
 mod stale_arming;
 #[path = "hooks/turn_markers.rs"]
@@ -332,7 +334,7 @@ mod turn_reply;
 mod turn_tier;
 
 use config_change::config_change_payload;
-use lights_waits::{LAMPS_ON, waiting_sessions};
+use lights_waits::{LAMPS_ON, answered_dialog, elicitation_result, waiting_sessions};
 use model_switch::model_switch_payload;
 use nag_state::{
     carded_events, counted_channels, deliveries, epoch_now, nag, nag_config, nag_directory_names,

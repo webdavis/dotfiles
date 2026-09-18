@@ -5,10 +5,12 @@ use super::Entry;
 ///
 /// ONE LIST, TWO READERS. The phone card's needs-you line and the recap's own
 /// NEEDS YOU section are the same question asked at two sizes, and two copies
-/// of this list would drift the day a sixth state joins. The first four are the
-/// mid-turn arm's own words in the composition root; `failed` is a turn that
-/// died, which needs the operator every bit as much as one that asked.
-pub const NEEDS_YOU: [&str; 5] = ["asked", "blocked", "denied", "failed", "plan-ready"];
+/// of this list would drift the day a fifth state joins. Only `asked` is the
+/// mid-turn arm's own word now; `blocked` arrives through the separate
+/// approval path (`blocking_event`), `denied` through the classifier's own
+/// refusal, and `failed` through `failed_turn` for a turn that died, which
+/// needs the operator every bit as much as one that asked.
+pub const NEEDS_YOU: [&str; 4] = ["asked", "blocked", "denied", "failed"];
 
 /// The entries in a window that still need the operator, in the order they
 /// arrived.
