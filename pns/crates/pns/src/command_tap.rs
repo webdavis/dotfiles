@@ -64,14 +64,17 @@ fn operation(args: &[String]) -> Result<TapOperation, String> {
             "install" if position == 0 => operation = TapOperation::Install,
             "--info" => return Err(retired("--info", "info")),
             "--install" => return Err(retired("--install", "install")),
-            _ => return Err(TAP_USAGE.to_string()),
+            _ => return Err(format!("usage: {}", TAP_USAGE.trim_start_matches("pns: usage: "))),
         }
     }
     Ok(operation)
 }
 
 fn retired(flag: &str, verb: &str) -> String {
-    format!("{flag} is now a verb: run pns tap {verb}; {TAP_USAGE}")
+    format!(
+        "{flag} is now a verb: run pns tap {verb}; usage: {}",
+        TAP_USAGE.trim_start_matches("pns: usage: ")
+    )
 }
 
 fn execute(result: &mut TapResult) -> Result<(), TapFailure> {
