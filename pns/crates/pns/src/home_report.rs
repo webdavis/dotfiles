@@ -132,7 +132,13 @@ pub(crate) fn setup_row(failure: &SetupFailure) -> Item {
         SetupFailure::NoConfigFile
         | SetupFailure::NoRouterPlugin
         | SetupFailure::RouterDisabled => Mark::Note,
-        _ => Mark::Warn,
+        SetupFailure::ConfigError(_)
+        | SetupFailure::NoType
+        | SetupFailure::UnknownType(_)
+        | SetupFailure::InvalidRouterTable
+        | SetupFailure::NoDeviceIdentifier
+        | SetupFailure::InvalidDeviceKey { .. }
+        | SetupFailure::NoApiKey => Mark::Warn,
     };
     Item::row(mark, setup_report(failure))
 }
