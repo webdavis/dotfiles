@@ -31,7 +31,11 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
             "quiet" => config.quiet_calendar = parse_quiet(value)?,
-            "daemon" => config.daemon_enabled = parse_daemon(value)?,
+            "daemon" => {
+                let daemon = parse_daemon(value)?;
+                config.daemon_enabled = daemon.enabled;
+                config.daemon_service = daemon.service;
+            }
             "delivery" => {
                 let toml::Value::Table(mut table) = value else {
                     return Err(ConfigError::Invalid("`delivery` is not a table".into()));

@@ -157,6 +157,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("recap", "summarizer_deadline_secs", "240"),
     ("focus", "silence", "[\"Sleep\"]"),
     ("daemon", "enabled", "true"),
+    ("daemon", "service", "'com.example.pns-daemon'"),
     ("nag", "after_secs", "300"),
     ("nag", "stale_after_secs", "3600"),
     ("lights", "blocked", "{ duration_ms = 2000 }"),

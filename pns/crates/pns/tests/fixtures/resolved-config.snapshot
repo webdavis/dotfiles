@@ -212,6 +212,9 @@ Config {
         "security",
     ],
     daemon_enabled: true,
+    daemon_service: Some(
+        "com.webdavis.pns-daemon",
+    ),
     routes: Routes {
         default: "pns-events",
         urgent: "priority",
