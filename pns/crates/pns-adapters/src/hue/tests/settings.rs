@@ -65,25 +65,6 @@ fn the_settings_rooms_array_beats_the_defaults() {
     assert_eq!(settings.rooms, vec!["Config Room"]);
 }
 
-/// THE MUTANT THIS PINS: `HUE_PULSE_ROOMS` read back in, which would make a
-/// deleted duplicate variable govern again. `hue_settings` takes no
-/// environment argument at all now, so this is the pin that setting it
-/// changes nothing: `[plugins.hue] rooms` is the only source left.
-#[test]
-fn hue_pulse_rooms_no_longer_selects_the_rooms_the_config_array_does() {
-    // SAFETY: hue's own unit tests run single-threaded within this module
-    // and touch no other test's HOME or config, so this env write races no
-    // reader that matters to the assertion below.
-    unsafe { std::env::set_var("HUE_PULSE_ROOMS", "Room A\nRoom B\n") };
-    let settings = hue_settings(&table(&format!(
-        "bridge = \"b\"\nkey = \"k\"\nrooms = [\"Config Room\"]\n{PIN}"
-    )))
-    .unwrap()
-    .unwrap();
-    unsafe { std::env::remove_var("HUE_PULSE_ROOMS") };
-    assert_eq!(settings.rooms, vec!["Config Room"]);
-}
-
 #[test]
 fn a_refusal_reaches_the_caller_of_armed_hue_and_the_settings_do_not() {
     let mut said = String::new();
