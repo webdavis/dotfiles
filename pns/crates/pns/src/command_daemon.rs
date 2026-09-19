@@ -22,7 +22,7 @@ pub(crate) fn daemon_mode(verb: &str) -> i32 {
 }
 
 pub(crate) const DAEMON_USAGE: &str = "pns: usage: pns daemon run | \
-pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|--until-epoch <epoch>] \
+pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] \
 [--unless-marker <name>] -- <subcommand> [args] | \
 pns daemon cancel --id <id> | \
 pns daemon retry (one sweep of the retry queue, run by the clock)";

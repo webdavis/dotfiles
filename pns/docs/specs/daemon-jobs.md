@@ -155,7 +155,7 @@ Then the usage text goes to stderr and the process exits 2
   (`src/main.rs:daemon_mode` doc comment).
 - Thresholds: Not applicable. No number is compared.
 - Required side effects: exactly one line on stderr, verbatim:
-  `pns: usage: pns daemon run | pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|--until-epoch <epoch>] [--unless-marker <name>] -- <event args> | pns daemon cancel --id <id>`
+  `pns: usage: pns daemon run | pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <event args> | pns daemon cancel --id <id>`
 - Forbidden side effects: nothing is written, no config is read, no clock is read, and nothing is
   spawned.
 - Timeout and cancellation: Not applicable.
@@ -1088,7 +1088,7 @@ Then it writes nothing at all
 Given the operator or a rider registering a job
 
 When
-`pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|--until-epoch <epoch>] [--unless-marker <name>] -- <args>`
+`pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <args>`
 runs
 
 Then the record is validated and published by rename, with no daemon involved
