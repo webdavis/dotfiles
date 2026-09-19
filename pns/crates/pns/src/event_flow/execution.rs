@@ -22,7 +22,7 @@ pub(super) fn execute(
     // A CONFIG THAT IS ABSENT OR UNREADABLE DEFINES NONE AND REFUSES NONE,
     // which is `[routes]`'s own reading below: an event still has to land
     // somewhere on a machine whose config nobody could read.
-    let class = match &loaded {
+    let (class, silence_policy) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => {
             if config.refuses_delivery_class(&event.delivery_class) {
                 eprintln!(
@@ -33,13 +33,12 @@ pub(super) fn execute(
                     event.delivery_class.clone(),
                 ));
             }
-            config.delivery_class(&event.delivery_class).cloned()
+            (
+                config.delivery_class(&event.delivery_class).cloned(),
+                config.silence_policy(&event.delivery_class),
+            )
         }
-        _ => None,
-    };
-    let silence_policy = match &class {
-        Some(class) if class.bypass_mute => pns_domain::SilencePolicy::BypassBannerAndPhone,
-        _ => pns_domain::SilencePolicy::Respect,
+        _ => (None, pns_domain::SilencePolicy::Respect),
     };
     // Read off the config before selection consumes it: the pulse needs hue's
     // settings, the plan needs the mobile card toggle, the catch-up needs the
