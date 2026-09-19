@@ -89,10 +89,7 @@ fn execute(result: &mut TapResult) -> Result<(), TapFailure> {
         return Ok(());
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let resolved = pns_adapters::phone_marker_path(
-        &home,
-        std::env::var_os("PNS_PHONE_MARKER_FILE").as_deref(),
-    )?;
+    let resolved = pns_adapters::phone_marker_path(&home)?;
     result.marker = Some(TapMarker {
         path: resolved.path.to_string_lossy().into_owned(),
         source: resolved.source.into(),

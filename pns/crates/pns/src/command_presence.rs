@@ -60,8 +60,7 @@ fn presence_poll(launch: Launch) -> i32 {
     ) else {
         return 0;
     };
-    let Some(hue) = pns_adapters::armed_hue(&settings, None, |refusal| eprintln!("{refusal}"))
-    else {
+    let Some(hue) = pns_adapters::armed_hue(&settings, |refusal| eprintln!("{refusal}")) else {
         return 0;
     };
     // THE TRANSPORT'S OWN DEADLINE, twice, which is what keeps the whole poll

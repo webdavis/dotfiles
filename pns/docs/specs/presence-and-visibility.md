@@ -15,10 +15,9 @@ this area writes into them, or the `home probe` and `router` (`src/home.rs`). Ev
 from the crate's own source and tests; gaps are marked `NOT ESTABLISHED:`.
 
 The marker path is now resolved by `crates/pns-adapters/src/phone_marker.rs` for tap, doctor and
-every system probe caller: nonempty `PNS_PHONE_MARKER_FILE`, then `[phone] marker_file`, then
-`~/.local/state/pns/phone-attention.marker`. The config value expands `~/`; environment values remain
-literal. A missing config uses the default. An unusable config leaves the marker unread unless an
-environment path overrides it. This does not change the arbitration or delivery rules below.
+every system probe caller: `[phone] marker_file`, then `~/.local/state/pns/phone-attention.marker`. The
+config value expands `~/`. A missing config uses the default. An unusable config leaves the marker
+unread. This does not change the arbitration or delivery rules below.
 
 ## Glossary
 
@@ -423,9 +422,9 @@ Then the banner belongs to the desk with the pane out of sight, the card belongs
 - Thresholds: `long_running` is a caller-stated tier, not a threshold this function computes. It arrives
   either derived from `--elapsed`/JSON `elapsed` (`src/legacy/argv.rs`, `src/event_flow/submit/mapping.rs`)
   or, on the hook path, from
-  `pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs()))`, whose default is **300 seconds**
-  inclusive (`src/pulse.rs:DEFAULT_LONG_SESSION_SECS`, overridable with `PNS_PULSE_THRESHOLD_SECS` at
-  `src/main.rs:pulse_threshold_secs`): 300 is long, 299 is not (`src/pulse.rs` asserts both).
+  `pns::pulse::session_was_long(elapsed, Some(pulse::DEFAULT_LONG_SESSION_SECS))`, a fixed **300 seconds**
+  inclusive with no override, `[lights.loop] threshold_secs` arms the loop lamp on a separate clock: 300
+  is long, 299 is not (`src/pulse.rs` asserts both).
   `mobile_watch_card` defaults to false (`src/main.rs:watch_card`).
 - Required side effects: none. `plan` returns a value; `src/routing.rs:channel_plan` turns it into legs.
 - Forbidden side effects: no banner on Mobile, ever
@@ -654,7 +653,7 @@ Then the lock probe is never spawned; only an idle reading that really arrived e
 
 ### 16. The Back Tap marker is read as the link's own modification time
 
-Given a marker path from `PNS_PHONE_MARKER_FILE` or the default `$HOME/.local/state/pns/phone-attention.marker`
+Given a marker path from `[phone] marker_file` or the default `$HOME/.local/state/pns/phone-attention.marker`
 
 When `PhoneMarkerProbe::marker_mtime_secs` reads it
 
@@ -924,8 +923,9 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
   (`src/main.rs:overrides_from_env` collects `std::env::vars_os()` into one `BTreeMap`).
 - Privacy: Not applicable.
 - Process ownership and cleanup: fewer children, by design.
-- Compatibility contract: `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`, `PNS_PHONE_INPUT_AGE`, `PNS_SKIP_PHONE`,
-  `PNS_FORCE_PHONE` and `PNS_PHONE_MARKER_FILE` are the six presence-facing variables. `muted` and
+- Compatibility contract: `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`, `PNS_PHONE_INPUT_AGE`, `PNS_SKIP_PHONE` and
+  `PNS_FORCE_PHONE` are the five presence-facing variables (`PNS_PHONE_MARKER_FILE` is gone; `[phone]
+  marker_file` is the only source for that path now). `muted` and
   `focus_active` are unreachable from any of them (`src/engine.rs:Overrides::from_env`). The overrides
   steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_SCREEN_IDLE` and
   `PNS_PHONE_INPUT_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unread`

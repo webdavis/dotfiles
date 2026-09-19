@@ -34,14 +34,10 @@ pub(crate) use pns_adapters::select_plugins;
 pub(crate) use pns_adapters::{BOT_TYPE, DiscordSettings, discord_backend};
 pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge, quiet_window};
 
-/// The hue settings with the pin's own refusal said out loud, and the rooms
-/// override read the one way every lamp caller reads it.
+/// The hue settings with the pin's own refusal said out loud, the one way
+/// every lamp caller reads it.
 pub(crate) fn armed_hue_settings(settings: &toml::Table) -> Option<pns_adapters::HueSettings> {
-    pns_adapters::armed_hue(
-        settings,
-        std::env::var("HUE_PULSE_ROOMS").ok().as_deref(),
-        |refusal| eprintln!("{refusal}"),
-    )
+    pns_adapters::armed_hue(settings, |refusal| eprintln!("{refusal}"))
 }
 pub(crate) use pns_adapters::{HermesKeys, hermes_keys};
 pub(crate) use pns_adapters::{
