@@ -28,18 +28,7 @@ pub(crate) fn stale_mode() -> i32 {
     //
     // WHICH IS WHY THE CLOCK IS READ FIRST. A machine with no clock cannot ask
     // the fire anything, off or not, so it says so and stops.
-    let window = stale_after_secs();
-    // THE ROUTE'S NAME, for the unattended line alone: the page itself names
-    // a KIND, and the event path turns that into a route off this same table.
-    let urgent_route = || {
-        let home = std::env::var("HOME").unwrap_or_default();
-        match load_config(&config_path(&home)) {
-            Ok(LoadOutcome::Loaded(config)) => config.routes.urgent_route().to_string(),
-            _ => pns_domain::routes::Routes::default()
-                .urgent_route()
-                .to_string(),
-        }
-    };
+    let settings = stale_settings();
     // NO CLOCK IS NO PAGE. Every input this cannot read resolves to silence,
     // and a wait nothing can measure is one of them.
     let probes = system_probes();
@@ -55,10 +44,10 @@ pub(crate) fn stale_mode() -> i32 {
     match (pns_application::EscalateStaleBlocks {
         waits: &pns_adapters::SqliteStore::new(state_dir()),
         notifier: &StaleNotification {
-            urgent_route: urgent_route(),
+            route: settings.route.clone(),
         },
     })
-    .run(now, window, &reading)
+    .run(now, settings.window, &settings.route, &reading)
     {
         pns_application::StaleOutcome::Off => {
             println!("pns stale: the stale-block escalation is off")
@@ -73,7 +62,7 @@ pub(crate) fn stale_mode() -> i32 {
             );
         }
         pns_application::StaleOutcome::Paged(count) => {
-            // ATTEMPTED, NEVER SENT, which is the nag's own honesty: the row is
+            // ATTEMPTED, NEVER SENT, which is the reminder's own honesty: the row is
             // stamped before the page, so a mute or a Focus can suppress the
             // delivery of a page this run will not make twice.
             println!("pns stale: {count} stuck session(s); one page attempted each");
@@ -84,16 +73,15 @@ pub(crate) fn stale_mode() -> i32 {
 
 /// The page itself, through the ordinary event path.
 ///
-/// IT CARRIES THE ROUTE'S NAME ONLY TO SAY IT. The page names no route: it is
-/// a health event, and the event path resolves that against `[routes]`. This
-/// is the name that resolution will pick, read once at the top of the fire so
-/// the unattended line can print it.
+/// IT CARRIES THE ROUTE'S NAME TO SAY IT. The page is already addressed to
+/// this route by the fire that built it; this copy is here so the unattended
+/// line can name where a page that was not confirmed was headed.
 struct StaleNotification {
-    urgent_route: String,
+    route: String,
 }
 impl pns_application::RaiseNotification for StaleNotification {
     fn raise(&self, event: &pns_domain::EventArgs) {
-        // `Attempt::Nudge` FOR THE NAG'S REASON: this is a second card about
+        // `Attempt::Nudge` FOR THE REMINDER'S REASON: this is a second card about
         // an event already recorded, so it must not journal a miss, count as
         // activity, claim the return moment or pulse a lamp again.
         let landed = run_event(
@@ -104,7 +92,7 @@ impl pns_application::RaiseNotification for StaleNotification {
         );
         if landed == event_flow::Landed::No {
             // SAID RATHER THAN SWALLOWED, on the stream the daemon keeps. The
-            // urgent route is the one thing about this page that is not
+            // page's route is the one thing about it that is not
             // the ordinary event path's problem: a gateway that refuses it
             // answers 401 or 404, the ledger records the refusal for
             // `pns failures`, and this line is what puts it in front of an
@@ -118,7 +106,7 @@ impl pns_application::RaiseNotification for StaleNotification {
             // line claiming it never arrived would be the false half.
             eprintln!(
                 "pns stale: the page about {} is not confirmed on the {} route",
-                event.project, self.urgent_route
+                event.project, self.route
             );
         }
     }

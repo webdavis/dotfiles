@@ -8,7 +8,7 @@ const DECLINABLE_TABLES: [&str; 5] = [
     "[plugins.hue]",
     "[plugins.router]",
     "[focus]",
-    "[nag]",
+    "[remind]",
 ];
 
 /// A walk that armed everything it was offered.
@@ -26,7 +26,7 @@ fn every_feature_armed() -> Answers {
         router_api_key: "router-secret".to_string(),
         router_device_hostname: "phone".to_string(),
         focus_modes: vec!["Sleep".to_string()],
-        nag: true,
+        remind: true,
     }
 }
 

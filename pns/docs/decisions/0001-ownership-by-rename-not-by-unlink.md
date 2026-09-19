@@ -31,9 +31,9 @@ Two consequences that follow, and that the code depends on:
 
 | Site                                        | What it owns                                                         |
 | ------------------------------------------- | -------------------------------------------------------------------- |
-| `crates/pns-adapters/src/protocols/nag/mod.rs:claim_path`                     | One approval record, taken by a fire before it is read for anything  |
+| `crates/pns-adapters/src/protocols/remind/mod.rs:claim_path`                     | One approval record, taken by a fire before it is read for anything  |
 | `crates/pns-adapters/src/protocols/journal_claims/` | The missed-notification journal                                      |
-| `crates/pns-adapters/src/protocols/nag/claims.rs`    | A nag record and the fire lock                                       |
+| `crates/pns-adapters/src/protocols/remind/claims.rs`    | A reminder record and the fire lock                                       |
 | `crates/pns-adapters/src/protocols/markers/sweep.rs`                 | Expired wait and lease markers, taken before removal                 |
 | `crates/pns-adapters/src/persistence/ring.rs:claim_ring_lock`               | The ring append lock, taken by exclusive creation rather than rename |
 

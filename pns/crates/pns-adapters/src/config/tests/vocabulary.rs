@@ -67,7 +67,7 @@ fn a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does() {
     let said = refusal("[home]\nrouter_url = \"https://192.168.1.1\"\n");
     assert!(said.contains("`home`"), "the table is named: {said}");
     for serves in [
-        "daemon", "delivery", "focus", "lights", "nag", "plugins", "recap",
+        "daemon", "delivery", "focus", "lights", "plugins", "recap", "remind", "stale",
     ] {
         assert!(
             said.contains(serves),

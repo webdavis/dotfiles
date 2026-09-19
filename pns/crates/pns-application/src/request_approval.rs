@@ -4,13 +4,13 @@
 //! THE ORDER IS THE BEHAVIOR, and it is the whole reason this is a use case.
 //! The forward starts FIRST so the phone is already ringing while the rest
 //! runs; the phone leg is suppressed only where that forward really began; the
-//! nag is armed BEFORE the notification, so a prompt answered instantly still
+//! The reminder is armed BEFORE the notification, so a prompt answered instantly still
 //! has a record to clear; and the wait comes LAST, because everything above it
 //! must happen whether or not anybody ever answers.
 
 use crate::ports::delivery::ApprovalForwarder;
-use crate::ports::nag::NagSchedule;
 use crate::ports::notification::{PhoneSuppression, RaiseNotification};
+use crate::ports::remind::RemindSchedule;
 use pns_domain::EventArgs;
 
 /// The ports one approval request runs over.
@@ -28,7 +28,7 @@ impl<P: ApprovalForwarder> RequestApproval<'_, P> {
 
 impl<P> RequestApproval<'_, P>
 where
-    P: ApprovalForwarder + PhoneSuppression + NagSchedule + RaiseNotification,
+    P: ApprovalForwarder + PhoneSuppression + RemindSchedule + RaiseNotification,
 {
     /// Run the request and answer with the harness contract's exit code.
     ///
@@ -58,7 +58,7 @@ where
         // BEFORE THE NOTIFICATION, never after. The record this arms is what a
         // later answer clears, and a prompt answered between the notification
         // and the arming would leave a record nothing clears.
-        NagSchedule::arm(self.ports, session_id, event);
+        RemindSchedule::arm(self.ports, session_id, event);
         RaiseNotification::raise(self.ports, event);
 
         // LAST, because everything above happens whether or not anybody

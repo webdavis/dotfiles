@@ -100,8 +100,8 @@ fn values(answers: &Answers) -> toml::Table {
         );
         values.insert("focus".to_string(), toml::Value::Table(focus));
     }
-    if answers.nag {
-        values.insert("nag".to_string(), toml::Value::Table(toml::Table::new()));
+    if answers.remind {
+        values.insert("remind".to_string(), toml::Value::Table(toml::Table::new()));
     }
     values
 }

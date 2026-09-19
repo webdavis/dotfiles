@@ -64,16 +64,16 @@ fn assert_refusal_left_the_template_untouched(template_path: &std::path::Path) {
 }
 
 /// THE MUTANT THIS PINS: the self-parse step skipped. `render` alone never
-/// bounds an integer, so a values file naming an out-of-range `after_secs`
+/// bounds a duration, so a values file naming an out-of-range `delay`
 /// renders successfully and would reach disk if nothing parsed it back.
 #[test]
 fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_writing() {
     let scratch = Scratch::new("self-parse-refusal");
     let values_path = scratch.path("config-values.toml");
     let template_path = scratch.path("private_config.toml.tmpl");
-    // 3601 is one past the nag ceiling `parse_config` enforces (an hour);
-    // `render` itself has no notion of that ceiling and writes it live.
-    std::fs::write(&values_path, "[nag]\nafter_secs = 3601\n").expect("write values");
+    // "61m" is one past the reminder ceiling `parse_config` enforces (an
+    // hour); `render` itself has no notion of that ceiling and writes it live.
+    std::fs::write(&values_path, "[remind]\ndelay = \"61m\"\n").expect("write values");
     std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
     let output = run(&values_path, &template_path);
@@ -220,7 +220,7 @@ fn running_the_binary_twice_against_the_same_values_file_writes_identical_bytes(
     let second_path = scratch.path("second.tmpl");
     std::fs::write(
         &values_path,
-        "[plugins.hue]\nrooms = [\"Studio\", \"Kitchen\"]\n[nag]\n",
+        "[plugins.hue]\nrooms = [\"Studio\", \"Kitchen\"]\n[remind]\n",
     )
     .expect("write values");
 
@@ -276,7 +276,7 @@ fn a_third_argument_prints_usage_and_exit_2() {
 fn checking_a_changed_resolved_configuration_refuses_without_writing() {
     let scratch = Scratch::new("check-changed");
     let values_path = scratch.path("values.toml");
-    let values = "[nag]\nafter_secs = 30\n";
+    let values = "[remind]\ndelay = \"30s\"\n";
     std::fs::write(&values_path, values).unwrap();
     let output = Command::new(BINARY)
         .arg("--check")

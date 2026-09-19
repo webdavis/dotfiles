@@ -99,7 +99,7 @@ impl ConfigRenderer for World {
             router_api_key: answers.router_api_key.clone(),
             router_device_hostname: answers.router_device_hostname.clone(),
             focus_modes: answers.focus_modes.clone(),
-            nag: answers.nag,
+            remind: answers.remind,
         });
         "exact composed bytes".into()
     }

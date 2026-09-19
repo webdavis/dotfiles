@@ -1,6 +1,6 @@
 use super::*;
 
-// The id bound moved to `pns-domain`, because the nag derives its own name
+// The id bound moved to `pns-domain`, because the reminder derives its own name
 // cap from it and a member crate never reaches back into this package.
 /// The rules a job must satisfy WHEREVER it came from: the registration that
 /// wrote it and the loop that read it back.

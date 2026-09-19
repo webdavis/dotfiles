@@ -70,8 +70,9 @@ pub struct Config {
     pub routes: pns_domain::routes::Routes,
     pub retry_limits: pns_domain::retry::RetryLimits,
     pub retry_backoff: pns_domain::retry::RetryBackoff,
-    /// `[nag] after_secs`: how long an unanswered approval waits before it is
-    /// carded a second time, in seconds. ZERO IS THE FEATURE OFF.
+    /// `[remind] delay`: how long an unanswered approval waits before it is
+    /// carded a second time, in whole seconds off the key's duration. ZERO IS
+    /// THE FEATURE OFF.
     ///
     /// ONE KEY THAT IS THE SWITCH AND THE SCHEDULE, which is `[focus]
     /// silence`'s own precedent: naming no schedule and switching off are one
@@ -83,14 +84,17 @@ pub struct Config {
     /// it works (an apply for the hook declaration, the daemon running, and
     /// this key), and a default-on feature that silently does nothing until all
     /// three are done is a mystery rather than a default.
-    pub nag_after_secs: u64,
-    /// `[nag] stale_after_secs`: how long a session stays blocked before ONE
-    /// page about it reaches the priority route, in seconds. ZERO IS THE
-    /// FEATURE OFF.
+    pub remind_delay_secs: u64,
+    /// `[stale] escalate_after`: how long a session stays blocked before ONE
+    /// page about it is raised, in whole seconds off the key's duration. ZERO
+    /// IS THE FEATURE OFF.
     ///
-    /// DEFAULT ON AT AN HOUR, unlike `nag_after_secs` above it: see
-    /// `DEFAULT_STALE_AFTER_SECS`.
-    pub stale_after_secs: u64,
+    /// DEFAULT ON AT AN HOUR, unlike `remind_delay_secs` above it: see
+    /// `DEFAULT_ESCALATE_AFTER_SECS`.
+    pub stale_escalate_after_secs: u64,
+    /// `[stale] route`: the route that page takes, or None for the one the
+    /// health kind resolves to against `[routes]`.
+    pub stale_route: Option<String>,
     /// `[lights]`: the lamp policy, or None when no table was written.
     ///
     /// Boxed because this is the largest optional policy. Configurations
@@ -124,8 +128,9 @@ impl Default for Config {
             daemon_service: None,
             retry_limits: Default::default(),
             retry_backoff: Default::default(),
-            nag_after_secs: NAG_OFF,
-            stale_after_secs: DEFAULT_STALE_AFTER_SECS,
+            remind_delay_secs: REMIND_OFF,
+            stale_escalate_after_secs: DEFAULT_ESCALATE_AFTER_SECS,
+            stale_route: None,
             lights: None,
             quiet_calendar: QuietCalendar::default(),
             failures: Failures::default(),

@@ -129,7 +129,7 @@ still deployed, because the string in the source is the only thing that names th
 | job                         | `src/daemon.rs:Job`                             | A unit of work the clock runs between ticks                       |
 | spool                       | `src/daemon.rs` (see `src/main.rs:drain_spool`) | Where scheduled jobs wait for the clock                           |
 | tick                        | `src/main.rs:daemon_tick`                       | One pass of the clock                                             |
-| nag                         | `src/nag.rs:Record`, `src/main.rs:nag_mode`     | The repeat card about an approval nobody answered                 |
+| remind                         | `src/remind.rs:Record`, `src/main.rs:remind_mode`     | The repeat card about an approval nobody answered                 |
 | recap                       | `src/recap.rs`                                  | The composed account of what happened while the operator was away |
 | timeline, section, evidence | `src/recap.rs:Timeline`, `Section`, `Sourced`   | The recap's structure and where each line came from               |
 | doctor                      | `src/doctor.rs:Check`, `CheckKind`, `Outcome`   | The diagnostic census                                             |

@@ -30,7 +30,7 @@ fn writing_the_record_consults_no_probe_the_decision_had_not_already_read() {
                 decision: &decision,
                 overrides: &Overrides::default(),
                 legs: &[],
-                nag: false,
+                remind: false,
                 permission_mode: "",
                 agent_id: "",
                 tool_name: "",

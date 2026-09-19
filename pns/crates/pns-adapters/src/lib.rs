@@ -84,7 +84,7 @@ mod protocols;
 pub use persistence::{LIGHTS_HELD, held_lamps, read_held, read_news, record_news, remember_held};
 pub use protocols::markers as marker_files;
 pub use protocols::markers::FileLoopLeases;
-pub use protocols::{nag as nag_records, spool as job_spool};
+pub use protocols::{remind as remind_records, spool as job_spool};
 
 pub use persistence::LIGHTS_SAID;
 pub use protocols::return_window;
@@ -156,7 +156,7 @@ pub use herdr::workspace_agent_statuses;
 
 pub use presence::BridgePresencePoll;
 
-pub use protocols::nag::FileNagRecords;
+pub use protocols::remind::FileRemindRecords;
 pub use protocols::spool::FileJobSpool;
 
 mod daemon_children;

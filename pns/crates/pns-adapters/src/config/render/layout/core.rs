@@ -251,45 +251,59 @@ pub(super) const QUIET_CALENDAR: Table = Table {
         },
     ],
 };
-pub(super) const NAG: Table = Table {
-    name: "nag",
-    prose: "# The nag: one more card when an approval has been sitting unanswered. IT\n\
-                 # IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the\n\
+pub(super) const REMIND: Table = Table {
+    name: "remind",
+    prose: "# The reminder: one more card when an approval has been sitting unanswered.\n\
+                 # IT IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the\n\
                  # prompt appeared is still the one carrying Allow and Deny. It needs the\n\
                  # daemon running and the PostToolBatch hook entry that tells pns an\n\
                  # approval was dealt with; without that entry the only clearing signal\n\
                  # is the end of the turn. It respects every mute the first card respects,\n\
-                 # a `pns quiet`, a Focus, the quiet window, and a nag held back is LOST\n\
-                 # rather than queued. Several approvals waiting are one card rather than\n\
-                 # several, each approval is nagged at most once, and a card counts every\n\
-                 # approval outstanding at that moment, so a fresh one can be named early\n\
-                 # and is then done. The signal is the tool batch RESOLVING rather than\n\
-                 # your answer, so a tool approved at once that then runs longer than this\n\
-                 # is nagged about anyway; if that bites, raise the number. THIRTY SECONDS\n\
-                 # IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by\n\
-                 # name; no table at all, and after_secs of zero, are the same statement.\n",
+                 # a `pns quiet`, a Focus, the quiet window, and a reminder held back is\n\
+                 # LOST rather than queued. Several approvals waiting are one card rather\n\
+                 # than several, each approval is reminded about at most once, and a card\n\
+                 # counts every approval outstanding at that moment, so a fresh one can be\n\
+                 # named early and is then done. The signal is the tool batch RESOLVING\n\
+                 # rather than your answer, so a tool approved at once that then runs\n\
+                 # longer than this is reminded about anyway; if that bites, raise the\n\
+                 # number. THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING, anything\n\
+                 # outside is refused by name; no table at all, and a delay of \"0s\", are\n\
+                 # the same statement.\n",
     opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "delay",
+        prose: "",
+        sample: Sample::Default("\"5m\""),
+    }],
+};
+pub(super) const STALE: Table = Table {
+    name: "stale",
+    prose: "# The OTHER end of the same wait: how long a session stays blocked before\n\
+                 # ONE page about it goes out, to the route reserved for things that need\n\
+                 # a human. It fires once per block and then says nothing until that block\n\
+                 # resolves, and only when you could act on it: nothing is sent while you\n\
+                 # are away from both the desk and the phone, or while the screen has been\n\
+                 # locked for the whole window, because a page nobody can answer is how\n\
+                 # the route reserved for the ones you must answer stops being read. A\n\
+                 # screen locked for PART of the window still pages, which is the case\n\
+                 # this exists for: you were here, you stepped away, and a session is\n\
+                 # stuck. It needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE\n\
+                 # CEILING, anything outside is refused by name, and \"0s\" is the feature\n\
+                 # off.\n",
+    opt_in: false,
     children: &[],
     keys: &[
         Key {
-            name: "after_secs",
+            name: "escalate_after",
             prose: "",
-            sample: Sample::Default("300"),
+            sample: Sample::Default("\"1h\""),
         },
         Key {
-            name: "stale_after_secs",
-            prose: "# And the OTHER end of the same wait: how long a session stays blocked before\n\
-                         # ONE page about it goes to the priority route, the one reserved for things\n\
-                         # that need a human. It fires once per block and then says nothing until\n\
-                         # that block resolves, and only when you could act on it: nothing is sent\n\
-                         # while you are away from both the desk and the phone, or while the screen\n\
-                         # has been locked for the whole window, because a page nobody can answer is\n\
-                         # how the route reserved for the ones you must answer stops being read. A\n\
-                         # screen locked for PART of the window still pages, which is the case this\n\
-                         # exists for: you were here, you stepped away, and a session is stuck. It\n\
-                         # needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE CEILING,\n\
-                         # anything outside is refused by name, and zero is the feature off.\n",
-            sample: Sample::Default("3600"),
+            name: "route",
+            prose: "# Where that page goes. Unset sends it to `[routes] urgent`, which is\n\
+                         # what every other page pns raises for itself takes.\n",
+            sample: Sample::Example("\"priority\""),
         },
     ],
 };

@@ -157,7 +157,7 @@ fn decision_retention(records: &impl DecisionRing) {
             decision: &decision,
             overrides: &overrides,
             legs: &[],
-            nag: false,
+            remind: false,
             permission_mode: "",
             agent_id: "",
             tool_name: "",

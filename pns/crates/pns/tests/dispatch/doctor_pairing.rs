@@ -39,10 +39,10 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // daemon that is down is not a fault either, so it reports here rather
     // than moving the exit code.
     assert_eq!(lines[summary + 5], DAEMON_NEVER_RAN_LINE, "{printed}");
-    // AND THE NAG IMMEDIATELY UNDER THE CLOCK, which is the placement that
-    // carries the one fact its own sentence leaves out: a nag with a dead daemon
+    // AND THE REMINDER IMMEDIATELY UNDER THE CLOCK, which is the placement that
+    // carries the one fact its own sentence leaves out: a reminder with a dead daemon
     // never fires, and the line above already says whether the daemon is up.
-    assert_eq!(lines[summary + 6], NAG_OFF_LINE, "{printed}");
+    assert_eq!(lines[summary + 6], REMIND_OFF_LINE, "{printed}");
     assert_eq!(lines[summary + 7], HOME_UNCONFIGURED_LINE, "{printed}");
     assert_eq!(lines[summary + 8], LIGHTS_OFF_LINE, "{printed}");
     // AND THE PIN ROW AT THE FOOT OF THE LIGHTS SECTION, below the dial whose

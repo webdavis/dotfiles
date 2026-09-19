@@ -48,7 +48,7 @@ fn setup_keeps_every_credential_hidden_and_delivers_all_other_answers_to_the_ren
             router_api_key: "router secret".into(),
             router_device_hostname: "phone".into(),
             focus_modes: vec!["Sleep".into(), "Work".into()],
-            nag: true
+            remind: true
         })
     );
     for credential in [

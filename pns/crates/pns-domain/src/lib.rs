@@ -4,7 +4,7 @@
 //! notification and event types, the normalized signal, the delivery plan,
 //! surface, presence and visibility arbitration, quiet and dim windows, pulse
 //! and lighting precedence, home-probe identity and staleness, missed
-//! notification replay, recap timeline and budget, nag cadence, job
+//! notification replay, recap timeline and budget, reminder cadence, job
 //! scheduling, and the value types that make an invalid combination
 //! unrepresentable.
 //!
@@ -32,13 +32,13 @@ pub mod jobs;
 pub mod lamps;
 pub mod lights;
 pub mod missed;
-pub mod nag;
 mod notification;
 mod presence;
 pub mod pulse;
 pub mod quiet;
 pub mod recap;
 pub mod registry;
+pub mod remind;
 pub mod render;
 pub mod routes;
 pub mod routing;

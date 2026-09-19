@@ -45,7 +45,7 @@ fn the_tool_wide_help_lists_every_subcommand_and_exits_zero() {
         // help concludes they do not exist.
         for expected in [
             "send", "hook", "daemon", "failures", "recap", "presence", "github", "shell", "lights",
-            "nag", "stale",
+            "remind", "stale",
         ] {
             assert!(
                 listed.iter().any(|word| word == expected),

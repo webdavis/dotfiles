@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn quota_auto_resume_stale_arms_the_needs_marker_for_its_own_session() {
     let sandbox = Sandbox::new("quota-stale-arms-marker");
-    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    sandbox.write_config(&format!("{}{LAMPS_ON}", remind_config(300)));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -38,7 +38,7 @@ fn a_stale_wait_arms_the_needs_marker_before_the_card_is_delivered() {
     // Arming first cannot close the race, which is the harness's to close,
     // but it shrinks the window from a delivery plan to one file write.
     let sandbox = Sandbox::new("quota-stale-arms-before-delivery");
-    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    sandbox.write_config(&format!("{}{LAMPS_ON}", remind_config(300)));
     counted_channels(&sandbox);
     // The delivery itself reports what the state directory held WHILE it ran.
     sandbox.stub_channel(
@@ -77,7 +77,7 @@ fn quota_auto_resume_fired_and_disabled_arm_no_needs_marker() {
     // for every type would still pass a test that only checks stale.
     for notification_type in ["quota_auto_resume_fired", "quota_auto_resume_disabled"] {
         let sandbox = Sandbox::new(&format!("quota-no-arm-{notification_type}"));
-        sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+        sandbox.write_config(&format!("{}{LAMPS_ON}", remind_config(300)));
         counted_channels(&sandbox);
 
         let output = hook_with(
@@ -107,7 +107,7 @@ fn the_prompt_hook_clears_a_stale_quota_marker() {
     // the way any other prompt does. The guarantee that does not depend on a
     // prompt at all is the test below.
     let sandbox = Sandbox::new("quota-stale-cleared-by-prompt");
-    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    sandbox.write_config(&format!("{}{LAMPS_ON}", remind_config(300)));
     counted_channels(&sandbox);
 
     let armed = hook_with(
@@ -148,7 +148,7 @@ fn a_stale_quota_marker_clears_at_the_turns_stop_without_any_prompt_hook() {
     // ends one, so the continued turn's own Stop clears it with no prompt hook
     // in the sequence at all.
     let sandbox = Sandbox::new("quota-stale-cleared-by-stop");
-    sandbox.write_config(&format!("{}{LAMPS_ON}", nag_config(300)));
+    sandbox.write_config(&format!("{}{LAMPS_ON}", remind_config(300)));
     counted_channels(&sandbox);
 
     let armed = hook_with(

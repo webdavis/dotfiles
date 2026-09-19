@@ -128,7 +128,7 @@ fn the_walk_opens_with_a_labelled_header_and_names_every_section_it_asks_under()
             "section: Lights",
             "section: Home probe",
             "section: Focus",
-            "section: Nagging",
+            "section: Reminding",
         ]
     );
 }

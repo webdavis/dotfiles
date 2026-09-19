@@ -127,9 +127,9 @@ impl pns_application::PhoneSuppression for MoshiRaiseNotification<'_> {
     }
 }
 
-impl pns_application::NagSchedule for MoshiRaiseNotification<'_> {
+impl pns_application::RemindSchedule for MoshiRaiseNotification<'_> {
     fn arm(&self, session_id: &str, event: &pns_domain::EventArgs) {
-        arm_nag(session_id, event);
+        arm_remind(session_id, event);
     }
 }
 

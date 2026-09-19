@@ -16,15 +16,15 @@ use crate::{JobSpool, SessionWaits};
 /// copied: `asking` is a wait by the same definition, and a second list is a
 /// second thing to keep in step.
 ///
-/// NO `unless_marker`. The nag's answered marker is written by every Stop and
-/// StopFailure (`clear_nag`), so sharing it would cancel almost every
+/// NO `unless_marker`. The reminder's answered marker is written by every Stop and
+/// StopFailure (`clear_remind`), so sharing it would cancel almost every
 /// escalation before it fired; the row is the authority instead, and a fire
 /// that finds a wait already over says so and pages nothing. What that costs
 /// is one no-op spawn per answered block, an hour after it was answered.
 ///
 /// EVERY FAILURE IS A LINE ON STDERR, never on stdout, and none of them
 /// changes the exit code: this runs on a harness hook whose stdout the harness
-/// parses (see `ArmNag`).
+/// parses (see `ArmRemind`).
 pub fn track_wait(
     waits: &impl SessionWaits,
     jobs: &impl JobSpool,
@@ -34,7 +34,7 @@ pub fn track_wait(
     now: Option<u64>,
     mut warn: impl FnMut(&str),
 ) {
-    let Some(session_id) = pns_domain::nag::usable(session_id) else {
+    let Some(session_id) = pns_domain::remind::usable(session_id) else {
         return;
     };
     if pns_domain::lights::phase::blocked_marker_action(event_state)
@@ -73,7 +73,7 @@ pub fn track_wait(
     let job = pns_domain::jobs::Job {
         id,
         due,
-        // THE LEASE IS ONE MORE WINDOW PAST THE DUE SECOND, for `ArmNag`'s own
+        // THE LEASE IS ONE MORE WINDOW PAST THE DUE SECOND, for `ArmRemind`'s own
         // reason: a machine that slept through the window never spawns at all,
         // because an hour-old page about a block the operator has since seen
         // is history rather than news.
@@ -82,7 +82,7 @@ pub fn track_wait(
         unless_marker: None,
         // NO FREE TEXT REACHES THE SPOOL. The fire reads the row, so the
         // argv is the subcommand and nothing else; `pns stale` takes no
-        // session argument for the same reason `pns nag` takes none.
+        // session argument for the same reason `pns remind` takes none.
         args: vec![pns_domain::stale::FIRE_WORD.to_string()],
     };
     if let Err(refusal) = jobs.schedule(&job, now) {
@@ -104,7 +104,7 @@ pub fn track_wait(
 /// AN ID THIS ENGINE DOES NOT FOLLOW ENDS NOTHING, and that is success: it
 /// named no row to begin with.
 pub fn end_wait(waits: &impl SessionWaits, session_id: &str) -> Result<(), String> {
-    match pns_domain::nag::usable(session_id) {
+    match pns_domain::remind::usable(session_id) {
         Some(session_id) => waits.end(session_id),
         None => Ok(()),
     }

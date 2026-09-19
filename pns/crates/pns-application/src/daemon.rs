@@ -146,7 +146,7 @@ pub fn daemon_tick(raw: Option<&str>) -> Duration {
     Duration::from_millis(milliseconds)
 }
 
-/// One second: fast enough that a nag is on time and a light re-arms before it
+/// One second: fast enough that a reminder is on time and a light re-arms before it
 /// lapses, slow enough that the idle cost is one `read_dir` of an empty
 /// directory per second.
 const DEFAULT_TICK_MS: u64 = 1000;
