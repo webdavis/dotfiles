@@ -8,7 +8,6 @@ fn request() -> Request {
     Request::new(
         RequestId::new("r-1").unwrap(),
         Name::new("shell").unwrap(),
-        Name::new("finished").unwrap(),
         State::Done,
     )
 }
