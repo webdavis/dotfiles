@@ -72,7 +72,7 @@ remove would be unsafe: taking over a lock that aged out.
 
 ## State files
 
-Every path is relative to the state directory, which is `$PNS_STATE_DIR` or `~/.local/state/pns`
+Every path is relative to the state directory, which is `[paths] state_dir`, else `PNS_STATE_DIR`, else `~/.local/state/pns`
 (`src/main.rs:state_dir`). "0600" is `src/main.rs:STATE_FILE_MODE`, the mode "every other state file the
 crate publishes" carries (`src/daemon.rs`, same constant).
 
@@ -326,12 +326,21 @@ than the daemon's own registration cap names nothing, and the arm returns having
 
 ### 6. Nothing is armed when nothing should be, and a nudge that cannot be scheduled leaves no record
 
-Given three reasons not to arm: no `[remind]` table, `delay = "0s"`, and an agent that is not Claude Code
+Given three reasons not to arm: no `[remind]` table, `delay = "0s"`, and a producer nobody switched the
+reminder on for
 
 When `pns hook blocked` runs under each
 
 Then no record is written and no job is registered; and separately, when the registration itself is
 refused, the record that was already written is removed again.
+
+The switch is resolved MOST SPECIFIC FIRST and the producer's NAME decides nothing on its own:
+`--remind` on the call, then `--no-remind` on the call, each beating `[producer.<name>] remind`, which
+beats the built-in default of off. `--remind=<duration>` carries its own delay; `--remind` alone takes
+`[remind] delay` and is REFUSED with exit 2 when there is none, naming both fixes (set `delay`, or pass
+`--remind=<duration>`), because guessing a delay is the one answer a reminder must not give. A producer
+entry with no delay is the feature off rather than a refusal, since an unset `[remind] delay` is already
+how the file says "no reminder" (`crates/pns/src/remind_schedule_runtime.rs:remind_delay`).
 
 - Success: `tests/hooks.rs:nothing_is_armed_when_nothing_should_be` sweeps all three cases and asserts
   both `!remind_record(...).exists()` and `spool_entries(...).is_empty()`.
@@ -357,11 +366,17 @@ refused, the record that was already written is removed again.
 - Idempotency and duplicates: Not applicable.
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: the Codex refusal is a POSITIVE gate, `event.agent != CLAUDE_AGENT` returns,
-  "so an empty or unknown `PNS_PRODUCER` arms nothing either (bug class 16: set-but-empty is not unset)".
-  The reason is behavioral, not architectural: "Codex wires exactly Stop and PermissionRequest, so it has
-  a turn-end clear and no batch-level one, and agent turns in this repo routinely run tens of minutes: a
-  Codex remind would be wrong in the COMMON case rather than at an edge" (`src/main.rs:arm_remind`).
+- Compatibility contract: the resolution is pinned by
+  `tests/hooks.rs:the_call_switch_arms_a_reminder_the_producer_table_never_asked_for`,
+  `the_call_can_disarm_a_reminder_the_producer_table_asked_for`,
+  `the_calls_own_duration_beats_the_configured_delay`,
+  `a_space_separated_duration_is_never_read_as_the_delay` and
+  `a_switch_with_no_delay_to_run_at_is_refused_and_names_both_fixes`. An unset `PNS_PRODUCER` still reads
+  as `claude` in `hook_dispatch.rs`, and that name arms nothing by itself: only a `[producer.claude]`
+  entry or a `--remind` on the call does. Whether a producer should ask for one at all is BEHAVIORAL:
+  Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no batch-level one, and
+  agent turns in this repo routinely run tens of minutes, which makes a Codex reminder wrong in the
+  COMMON case rather than at an edge.
 
 ### 7. Clearing a reminder: one rule, two writes, three call sites
 

@@ -531,11 +531,13 @@ answered marker first.
   load bearing twice over. The marker name is constant per session, so one left by the previous approval
   would make the new job drop silently; and published first, the new record could be claimed by a
   concurrent fire that then finds the previous approval's marker and drops it as answered.
-- Forbidden side effects: NO REMIND ON CODEX, and the gate is positive (an agent that is not
-  `src/main.rs:CLAUDE_AGENT` returns immediately) so an empty or unknown `PNS_PRODUCER` arms nothing either.
-  Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no batch-level one, and
-  agent turns routinely run tens of minutes: a Codex remind would be wrong in the common case rather than at
-  an edge (`src/main.rs:arm_remind`).
+- Forbidden side effects: NO REMINDER FOR A PRODUCER NOBODY SWITCHED ONE ON FOR. The name is a label,
+  never a feature switch: the call's own `--remind` beats `[producer.<name>] remind`, which beats the
+  default of off, so an empty or unknown `PNS_PRODUCER` arms nothing either
+  (`crates/pns/src/remind_schedule_runtime.rs:remind_delay`). Whether a producer should ask is
+  behavioral: Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no
+  batch-level one, and agent turns routinely run tens of minutes, which makes a Codex reminder wrong in
+  the common case rather than at an edge.
 - Timeout and cancellation: the nudge is a separate process minutes later, see behavior 8's note on
   `PNS_SKIP_PHONE`.
 - Idempotency and duplicates: one card whatever the count. Three waiting approvals produce ONE nudge card
@@ -625,7 +627,7 @@ one that is suppressed.
   and never what it carried.
 - Process ownership and cleanup: Not applicable, the post is in-process.
 - Compatibility contract: yes. `src/channels/moshi.rs:DEFAULT_MOSHI_URL` is
-  `https://api.getmoshi.app/api/webhook`, overridable with `PNS_MOSHI_URL`; the body shape is moshi's;
+  `https://api.getmoshi.app/api/webhook`, set by `[plugins.mobile] url`, else `PNS_MOSHI_URL`; the body shape is moshi's;
   the deep-link scheme `moshi://herdr?workspace=&tab=&pane=&session=` is moshi's, with tab and pane
   available since moshi 3.13.0; and a tap resumes a card moshi ALREADY HOLDS. It looks for an active card
   matching server session and workspace, else resumes the most recently minimized card for that session,

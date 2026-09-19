@@ -29,9 +29,11 @@ fn header_for(table: &str) -> String {
         // it, so a sample writes whichever of them, and the refusal names
         // the path the operator wrote rather than this row.
         super::TARGET_KEYS => "lights.room.\"3F - Studio\"".to_string(),
-        // THE SECOND SUCH ROW: the name under `delivery_class` is the
-        // operator's own class word, so a sample picks one to write.
+        // THE SAME SHAPE ONE LEVEL SHALLOWER: each row is a prefix and the
+        // operator's own class or producer name is what a sample writes under
+        // it.
         super::DELIVERY_CLASS_KEYS => "delivery_class.security".to_string(),
+        super::PRODUCER_KEYS => "producer.claude".to_string(),
         other => other.to_string(),
     }
 }
@@ -81,6 +83,7 @@ fn refusal_names(table: &str) -> String {
     match table {
         super::TARGET_KEYS => "`lights.room.3F - Studio`".to_string(),
         super::DELIVERY_CLASS_KEYS => "`delivery_class.security`".to_string(),
+        super::PRODUCER_KEYS => "`producer.claude`".to_string(),
         other => shown_as(other),
     }
 }
@@ -113,6 +116,9 @@ fn presence_config(body: &str) -> Config {
 const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::TOP_LEVEL, "phone", "{ marker_file = '~/attention' }"),
     ("phone", "marker_file", "'~/attention'"),
+    (super::TOP_LEVEL, "paths", "{ state_dir = '~/state' }"),
+    ("paths", "state_dir", "'~/state'"),
+    ("paths", "channels_dir", "'/opt/pns/channels'"),
     (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
     (super::TOP_LEVEL, "delivery", "{ max_attempts = 3 }"),
     (
@@ -124,6 +130,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::DELIVERY_CLASS_KEYS, "bypass_mute", "true"),
     ("delivery", "max_attempts", "3"),
     ("delivery", "max_age_secs", "7"),
+    ("delivery", "remote_deadline", "5"),
     ("delivery", "retry_base_secs", "7"),
     (super::TOP_LEVEL, "failures", "{ serve = true }"),
     ("failures", "port", "8646"),
@@ -140,6 +147,12 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("quiet.calendar", "command", "[\"busy-window\"]"),
     ("quiet.calendar", "poll_secs", "120"),
     ("quiet.calendar", "deadline_secs", "20"),
+    (
+        super::TOP_LEVEL,
+        "producer",
+        "{ claude = { remind = true } }",
+    ),
+    (super::PRODUCER_KEYS, "remind", "true"),
     (super::TOP_LEVEL, "remind", "{ delay = \"5m\" }"),
     (super::TOP_LEVEL, "stale", "{ escalate_after = \"1h\" }"),
     (
@@ -216,6 +229,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.mobile.image_cards", "missed", "true"),
     ("plugins.hermes", "enabled", "true"),
     ("plugins.hermes", "keys", "{ pns-events = \"secret\" }"),
+    (
+        "plugins.hermes",
+        "url",
+        "\"http://127.0.0.1:8644/webhooks/pns-events\"",
+    ),
     ("plugins.hue", "bridge", "\"192.168.1.10\""),
     (
         "plugins.hue",
@@ -233,6 +251,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ),
     ("plugins.macos-banner", "click_type", "\"herdr\""),
     ("plugins.macos-banner", "enabled", "true"),
+    (
+        "plugins.macos-banner",
+        "terminal_bundle_id",
+        "\"com.mitchellh.ghostty\"",
+    ),
     ("plugins.presence", "enabled", "true"),
     ("plugins.presence", "desk_room", "\"3F - Studio\""),
     ("plugins.presence", "desk_stale_after_secs", "120"),
@@ -251,6 +274,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.mobile", "mobile_watch_card", "false"),
     ("plugins.mobile", "submit_deadline_secs", "5"),
     ("plugins.mobile", "token", "\"secret\""),
+    (
+        "plugins.mobile",
+        "url",
+        "\"https://api.getmoshi.app/api/webhook\"",
+    ),
     ("plugins.mobile", "type", "\"moshi\""),
     ("plugins.router", "api_key", "\"secret\""),
     ("plugins.router", "device_hostname", "\"mister\""),

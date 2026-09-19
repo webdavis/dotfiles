@@ -18,6 +18,7 @@
 //! "unconfigured" instead of guessing; unknown top-level keys are refused,
 //! so `[plugin.hue]` cannot silently disable what `[plugins.hue]` enables.
 
+use crate::DEFAULT_REMOTE_DEADLINE_SECS;
 use pns_domain::lamps::config::{
     Behaviour, Blocked, Breath, BreatheThenFlare, Github, Lights, Looping, Pulse, Target, Unread,
 };
@@ -26,8 +27,9 @@ use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 mod model;
+mod paths;
 mod phone;
-pub use model::{Config, ConfigError, LoadOutcome, PluginEntry};
+pub use model::{Config, ConfigError, LoadOutcome, Paths, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};
 mod plugins;
@@ -61,7 +63,10 @@ mod retry;
 pub use daemon::DaemonConfig;
 use daemon::{DEFAULT_DAEMON_ENABLED, parse_daemon};
 mod remind;
+pub use remind::remind_delay_range;
 use remind::{REMIND_OFF, backstop_outlasts_the_reminder, parse_remind};
+mod producer;
+use producer::parse_producer;
 mod stale;
 use stale::{DEFAULT_ESCALATE_AFTER_SECS, parse_stale};
 mod failures;
@@ -72,8 +77,8 @@ use values::{bounded, flag, strings, text};
 mod schema;
 #[cfg(test)]
 use schema::DELIVERY_CLASS_KEYS;
+use schema::{PRODUCER_KEYS, TARGET_KEYS, admits, admits_flat, duration_key, keys_of, unknown_key};
 pub use schema::{TABLE_KEYS, TOP_LEVEL};
-use schema::{TARGET_KEYS, admits, admits_flat, duration_key, keys_of, unknown_key};
 mod routes;
 use routes::parse_routes;
 mod lights_tables;
@@ -180,6 +185,7 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
             ["lights", "lamp" | "room" | "zone", ..] => TARGET_KEYS.to_string(),
             ["delivery_class", ..] => DELIVERY_CLASS_KEYS.to_string(),
+            ["producer", ..] => PRODUCER_KEYS.to_string(),
             _ => table.clone(),
         };
         let serves = keys_of(&roster_table)

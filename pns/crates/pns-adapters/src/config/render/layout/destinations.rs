@@ -32,6 +32,13 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
             sample: Sample::Default("false"),
         },
         Key {
+            name: "url",
+            prose: "# Where the card is pushed. Left out it is moshi\u{27}s own webhook endpoint,\n\
+                         # which is what a paired phone answers at; name one to point this\n\
+                         # install at a gateway of your own.\n",
+            sample: Sample::Example("\"https://api.getmoshi.app/api/webhook\""),
+        },
+        Key {
             name: "submit_deadline_secs",
             prose: "# How long pns waits for moshi to acknowledge a submitted permission\n\
                          # prompt, in seconds. The harness draws the prompt only once the hook\n\
@@ -134,11 +141,22 @@ pub(super) const PLUGINS_HERMES: Table = Table {
                  # with the key that route verifies.\n",
     opt_in: true,
     children: &[PLUGINS_HERMES_KEYS],
-    keys: &[Key {
-        name: "enabled",
-        prose: "",
-        sample: Sample::Default("true"),
-    }],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "url",
+            prose: "# The gateway endpoint. Left out, each route posts to the shipped\n\
+                         # address with that route as its last path segment, so renaming a route\n\
+                         # moves the path and not the gateway. NAMED, this one address carries\n\
+                         # EVERY route verbatim, which is why it is a whole-install override\n\
+                         # rather than the usual way to point at your own gateway.\n",
+            sample: Sample::Example("\"http://127.0.0.1:8644/webhooks/pns-events\""),
+        },
+    ],
 };
 /// One signing key per route, because one key for all of them means a key
 /// leaked from any route can post to every route.
@@ -168,6 +186,14 @@ pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
             name: "enabled",
             prose: "",
             sample: Sample::Default("true"),
+        },
+        Key {
+            name: "terminal_bundle_id",
+            prose: "# The terminal a banner click returns to, as a bundle id. Left out, the\n\
+                         # one this process was started from is used, which is right on a machine\n\
+                         # with one terminal; name it where a hook runs under launchd and\n\
+                         # inherits none.\n",
+            sample: Sample::Example("\"com.mitchellh.ghostty\""),
         },
         Key {
             name: "click_type",

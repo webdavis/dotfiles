@@ -1,23 +1,26 @@
 use super::*;
 
-/// THE DECISION `destinations_for_override` MAKES, driven by the override
-/// value rather than by the process environment: an absent or blank
-/// `PNS_CHANNELS_DIR` leaves the native backend in place, a set one forces the
-/// executable, and a refused backend precedes either. The `PNS_CHANNELS_DIR`
-/// read itself is the one line above that function.
+/// THE DECISION `destinations_for_override` MAKES, driven by the settings
+/// handed in rather than by the process environment: an unnamed channels
+/// directory leaves the native backend in place, a named one forces the
+/// executable, and a refused backend precedes either. Where the name comes
+/// from, and that a blank one names nothing, is `install_settings`' own test.
 ///
 /// THIS USED TO RE-EXEC THE TEST BINARY once per scenario with a scrubbed
 /// environment, bounded by a 500ms wall-clock deadline, and it reddened `main`
 /// on untouched code: a spawn that outran the budget was killed, and the kill
 /// read as the factory failing. Nothing here waits on a clock now.
 #[test]
-fn a_blank_channels_override_falls_through_and_a_refused_backend_precedes_dispatch() {
-    for scenario in ["unset", "blank", "forced", "refused"] {
+fn an_unnamed_channels_directory_falls_through_and_a_refused_backend_precedes_dispatch() {
+    for scenario in ["unset", "forced", "refused"] {
         let directory = fixture("mobile");
-        let override_dir = match scenario {
-            "unset" => None,
-            "blank" => Some(""),
-            _ => Some(directory.to_str().unwrap()),
+        let install = InstallSettings {
+            state_dir: None,
+            channels_dir: (scenario != "unset").then(|| directory.to_str().unwrap().to_string()),
+            hermes_url: None,
+            moshi_url: None,
+            terminal_bundle_id: None,
+            remote_deadline: None,
         };
         let mut declarations = Registry::new();
         declarations.register_channel("mobile", ROUTING).unwrap();
@@ -26,7 +29,7 @@ fn a_blank_channels_override_falls_through_and_a_refused_backend_precedes_dispat
             ..Mobile::default()
         };
         let selected = destinations_for_override(
-            override_dir,
+            &install,
             &declarations.all(),
             "priority",
             directory.to_str().unwrap(),
@@ -64,9 +67,8 @@ fn a_blank_channels_override_falls_through_and_a_refused_backend_precedes_dispat
                 );
                 assert!(!directory.join("body").exists());
             }
-            // A BLANK OVERRIDE IS NOT A DIRECTORY: both of these keep the
-            // native moshi backend, which names the config key to write
-            // instead of launching anything.
+            // NO DIRECTORY NAMED keeps the native moshi backend, which names
+            // the config key to write instead of launching anything.
             _ => {
                 assert!(
                     matches!(&outcome, Delivery::Failed(line) if line.contains("[plugins.mobile] token")),

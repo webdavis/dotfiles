@@ -39,7 +39,7 @@ const VALUE_FLAGS: [&str; 12] = [
 /// comparisons because the chain is what went stale before: a bare flag
 /// handled elsewhere and never added here let a value flag in front of it eat
 /// it as its value and the signal vanished without a warning.
-const BARE_FLAGS: [&str; 1] = ["--require-delivery"];
+const BARE_FLAGS: [&str; 3] = ["--require-delivery", "--remind", "--no-remind"];
 
 /// Every flag pns used to take, paired with the one that replaced it and by
 /// whether it took a value. A retired flag is REFUSED and the refusal names its
@@ -64,6 +64,50 @@ fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token)
         || BARE_FLAGS.contains(&token)
         || RETIRED_FLAGS.iter().any(|(retired, ..)| *retired == token)
+}
+
+/// What a call said about the reminder, which beats every config entry.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Remind {
+    /// `--remind`: armed, at the delay `[remind] delay` carries.
+    Configured,
+    /// `--remind=<duration>`: armed, at this many seconds.
+    After(u64),
+    /// `--no-remind`: disarmed, whatever config says.
+    Off,
+}
+
+/// The reminder switch a hook's own argv carried, or `None` when it named
+/// neither flag.
+///
+/// THE VALUE IS JOINED WITH `=`, the convention of `git log --color[=<when>]`:
+/// a value separated by a space is never read as the delay, so the token after
+/// `--remind` is never swallowed.
+///
+/// THE LAST ONE WINS, so a wrapper appending its own switch overrides the one
+/// it wrapped rather than being ignored by it.
+pub fn remind_switch(argv: &[String]) -> Result<Option<Remind>, String> {
+    let mut switch = None;
+    for token in argv {
+        let found = match token.as_str() {
+            "--remind" => Remind::Configured,
+            "--no-remind" => Remind::Off,
+            other => match other.strip_prefix("--remind=") {
+                Some(duration) => Remind::After(remind_after(duration)?),
+                None => continue,
+            },
+        };
+        switch = Some(found);
+    }
+    Ok(switch)
+}
+
+/// `--remind=<duration>`'s own value, read by the parser every other pns
+/// duration goes through and held to the range `[remind] delay` is held to.
+fn remind_after(duration: &str) -> Result<u64, String> {
+    pns_domain::duration::parse_duration("--remind", duration, pns_adapters::remind_delay_range())
+        .map(|delay| delay.as_secs())
+        .map_err(|refusal| refusal.trim_start_matches("pns: ").to_owned())
 }
 
 /// Whether a token is `--help`/`-h`.

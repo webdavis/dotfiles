@@ -18,6 +18,15 @@ pub(super) const DELIVERY: Table = Table {
             sample: Sample::Default("604800"),
         },
         Key {
+            name: "remote_deadline",
+            prose: "# How long ONE remote call may take, in seconds, before the caller stops\n\
+                         # waiting on it. Short because a hook or a shell prompt is blocked on it.\n\
+                         # Zero is no deadline at all, which is your instruction rather than a\n\
+                         # default: a wedged gateway then holds that caller for as long as it\n\
+                         # takes.\n",
+            sample: Sample::Default("5"),
+        },
+        Key {
             name: "retry_base_secs",
             prose: "# Queued retries wait this many seconds times their retry count. The wait is\n# exact: there is no random spread, because one local daemon draining one queue\n# has no herd to spread.\n",
             sample: Sample::Default("60"),

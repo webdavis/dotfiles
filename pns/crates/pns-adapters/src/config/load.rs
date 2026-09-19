@@ -27,6 +27,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
+            "paths" => config.paths = paths::parse_paths(value)?,
             "phone" => config.phone_marker_file = phone::parse_phone(value)?,
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
@@ -40,11 +41,13 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 let toml::Value::Table(mut table) = value else {
                     return Err(ConfigError::Invalid("`delivery` is not a table".into()));
                 };
+                config.remote_deadline_secs = delivery::parse_remote_deadline(&mut table)?;
                 config.retry_limits = retry::parse_retry(&mut table)?;
                 config.retry_backoff = retry::parse_backoff(&mut table)?;
                 parse_delivery(toml::Value::Table(table))?;
             }
             "delivery_class" => config.delivery_classes = parse_delivery_classes(value)?,
+            "producer" => config.producer_remind = parse_producer(value)?,
             "remind" => config.remind_delay_secs = parse_remind(value)?,
             "stale" => {
                 let escalation = parse_stale(value)?;

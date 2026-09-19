@@ -12,6 +12,36 @@ pub(super) const PHONE: Table = Table {
         sample: Sample::Default("\"~/.local/state/pns/phone-attention.marker\""),
     }],
 };
+/// Where this install keeps its state and looks for channel executables.
+///
+/// OPT-IN, and both keys are EXAMPLES rather than defaults, because neither
+/// has a value that means what leaving it out means: `state_dir` written is a
+/// directory pns will create and use as it stands, and `channels_dir` written
+/// at all forces every channel onto its executable.
+pub(super) const PATHS: Table = Table {
+    name: "paths",
+    prose: "# Where this install keeps its own files. Left out, state lives under\n\
+            # ~/.local/state/pns and the native channels are used directly. Each is\n\
+            # an absolute path or a ~/ path.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[
+        Key {
+            name: "state_dir",
+            prose: "# The ledger, the markers and the spooled jobs. Moving it leaves\n\
+                         # whatever is in the old directory where it is.\n",
+            sample: Sample::Example("\"~/.local/state/pns\""),
+        },
+        Key {
+            name: "channels_dir",
+            prose: "# A directory of channel executables. NAMING IT AT ALL FORCES every\n\
+                         # channel through an executable of its own name in here instead of the\n\
+                         # compiled-in one, which is what makes it a testing seam rather than a\n\
+                         # place to point at the usual location.\n",
+            sample: Sample::Example("\"~/.local/libexec/pns/channels\""),
+        },
+    ],
+};
 /// What the two routes pns picks for itself are called.
 ///
 /// A CORE TABLE WRITTEN LIVE AT ITS DEFAULTS, because there is no such thing
@@ -30,7 +60,7 @@ pub(super) const ROUTES: Table = Table {
             name: "default",
             prose: "# Where an event whose producer named no route lands, the return recap\n\
                          # included. It is also the last path segment of the gateway URL pns\n\
-                         # posts to unless PNS_HERMES_URL says otherwise.\n",
+                         # posts to unless [plugins.hermes] url names one outright.\n",
             sample: Sample::Default("\"pns-events\""),
         },
         Key {
@@ -246,6 +276,28 @@ pub(super) const REMIND: Table = Table {
         name: "delay",
         prose: "",
         sample: Sample::Default("\"5m\""),
+    }],
+};
+/// What one producer asked for, keyed by the name that producer sends.
+///
+/// WRITTEN AS THE PLACEHOLDER IT IS. The heading carries `<name>` rather than
+/// any producer this machine happens to run, because pns compiles in no roster
+/// of producers and naming one here would read as the only one that works.
+pub(super) const PRODUCER: Table = Table {
+    name: "producer.<name>",
+    prose: "# What one producer asked for, one table per producer, keyed by the name it\n\
+                 # sends (`--producer`, or PNS_PRODUCER). Replace <name> with that name.\n\
+                 # THE REMINDER IS SWITCHED ON BY THE CALL, NEVER BY THE NAME: a harness\n\
+                 # that sends an answered signal passes `--remind` on its own approval hook,\n\
+                 # and that flag beats whatever this table says. This is here for a producer\n\
+                 # you cannot pass a flag to. It needs `[remind] delay` above; with no delay\n\
+                 # set, `remind = true` is still the reminder off.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "remind",
+        prose: "",
+        sample: Sample::Example("true"),
     }],
 };
 pub(super) const STALE: Table = Table {

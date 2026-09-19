@@ -505,10 +505,10 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
   not move.
 - Fail direction: loud but non-fatal. `pns` exits 0 whatever the gateway answered, which is why the
   caller reads the stdout line rather than the status.
-- Thresholds: the sync deadline is `remote_deadline(PNS_REMOTE_TIMEOUT)`, default 5 seconds, clamped to
+- Thresholds: the sync deadline is `remote_deadline([delivery] remote_deadline)`, default 5 seconds, clamped to
   86400 seconds, and a literal `0` means no deadline at all (`src/channels/hermes.rs:remote_deadline`).
-  One step either side: `PNS_REMOTE_TIMEOUT=0` waits forever by caller intent; an unparseable value falls
-  back to 5 seconds rather than to zero or forever.
+  One step either side: `remote_deadline = 0` waits forever by operator intent; a value that is not a
+  nonnegative integer refuses the config by name, the way the other `[delivery]` counts do.
 - Required side effects: one printed outcome line per leg whose mode is `ReportOutcome`
   (`src/main.rs:run_event`).
 - Forbidden side effects: no banner, no phone card.
@@ -601,7 +601,7 @@ Given `--channel log`\\
 
 When `hermes_url_for` resolves the endpoint\\
 
-Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives
+Then `[plugins.hermes] url`, and `PNS_HERMES_URL` after it, win if set and non-empty; else an empty channel gives
 `DEFAULT_HERMES_URL` (`http://127.0.0.1:8644/webhooks/pns-events`); else `channel_url` swaps the final
 path segment for the route.
 

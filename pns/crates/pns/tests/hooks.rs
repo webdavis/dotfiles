@@ -18,12 +18,23 @@ fn hook(sandbox: &Sandbox, event: &str, payload: &str) -> std::process::Output {
 }
 
 fn hook_with(
-    mut command: Command,
+    command: Command,
     _sandbox: &Sandbox,
     event: &str,
     payload: &str,
 ) -> std::process::Output {
-    command.args(["hook", event]);
+    hook_flagged(command, event, &[], payload)
+}
+
+/// One hook run with flags after the event word, which is how a harness that
+/// sends an answered signal wires `--remind` on its own approval hook.
+fn hook_flagged(
+    mut command: Command,
+    event: &str,
+    flags: &[&str],
+    payload: &str,
+) -> std::process::Output {
+    command.arg("hook").arg(event).args(flags);
     captured_child::CapturedChild::spawn(&mut command)
         .expect("the engine runs")
         .input_output_within(payload.as_bytes(), HANG_LIMIT)
@@ -345,6 +356,8 @@ mod remind_observations;
 mod remind_refusals;
 #[path = "hooks/remind_state.rs"]
 mod remind_state;
+#[path = "hooks/remind_switch.rs"]
+mod remind_switch;
 #[path = "hooks/sandbox_network.rs"]
 mod sandbox_network;
 #[path = "hooks/stale_arming.rs"]

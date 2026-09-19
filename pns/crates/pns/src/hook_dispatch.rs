@@ -2,6 +2,13 @@ use crate::*;
 
 /// A harness event, from the payload on stdin.
 ///
+/// THE REMINDER IS SWITCHED ON BY THE CALL. `--remind`, `--remind=<duration>`
+/// and `--no-remind` sit after the event word, and a switch this binary cannot
+/// honour is REFUSED with exit 2 before anything is delivered: it is argv the
+/// caller typed wrong, which is the one thing this path treats as an error.
+/// The two arming arms resolve it and nothing else pays for the read, which
+/// keeps `resolved` to a payload read, a parse and two file operations.
+///
 /// THE EXIT CONTRACT AND ITS ONE EXCEPTION. Every path here is a notification,
 /// and a notification that cannot be delivered must never fail the turn it
 /// reports on, so every path returns 0. The forwarded blocking path is the
@@ -42,7 +49,12 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         }
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
-        "blocked" => return blocking_event(&payload, &agent, &payload_json),
+        "blocked" => {
+            return match remind_after(&agent) {
+                Ok(after_secs) => blocking_event(&payload, &agent, &payload_json, after_secs),
+                Err(code) => code,
+            };
+        }
         // EVERY CLEARING SIGNAL THE HARNESS HAS, on one arm. Five
         // declarations reach it: `PostToolBatch`, whichever way the operator
         // answered (a denial still produces a `tool_result` and so still
@@ -153,7 +165,11 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 // `RequestApproval`'s own order: the record this arms is what
                 // a later answer clears, and an answer landing between the
                 // card and the arming would leave a record nothing clears.
-                arm_remind(&payload.session_id, &event);
+                let after_secs = match remind_after(&agent) {
+                    Ok(after_secs) => after_secs,
+                    Err(code) => return code,
+                };
+                arm_remind(&payload.session_id, &event, after_secs);
                 let _ = run_event(&event, &system_probes(), &payload, Attempt::First);
             }
         }
@@ -271,7 +287,20 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
     0
 }
 
+/// This call's resolved reminder delay, or the exit code to answer with once
+/// the refusal has been said.
+///
+/// ON STDERR, NEVER STDOUT, like every other line this path writes: Claude
+/// Code reads this hook's stdout as moshi's decision object.
+fn remind_after(agent: &str) -> Result<u64, i32> {
+    remind_delay(&crate::arguments_after_verb(), agent).map_err(|refusal| {
+        eprintln!("pns: {refusal}");
+        2
+    })
+}
+
 /// What `pns hook` takes, which is one harness event per run.
 pub(crate) const HOOK_USAGE: &str = "pns: usage: pns hook prompt | stop | \
 stop-failure | blocked | asked | denied | waiting | resolved | model-switch | \
-quota | config-change (the harness payload arrives on stdin)";
+quota | config-change [--remind[=<duration>] | --no-remind] \
+(the harness payload arrives on stdin)";

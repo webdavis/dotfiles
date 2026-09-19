@@ -9,6 +9,18 @@ pub struct PluginEntry {
     pub settings: toml::Table,
 }
 
+/// `[paths]`: where this install keeps its state and looks for channel
+/// executables, or `None` for each key the file does not name.
+///
+/// `None` IS NOT A DEFAULT PATH. `channels_dir` NAMED forces every channel
+/// onto its executable, so "the file says nothing" and "the file says the
+/// usual place" are two different instructions and cannot share a value.
+#[derive(Debug, Default, PartialEq)]
+pub struct Paths {
+    pub state_dir: Option<String>,
+    pub channels_dir: Option<String>,
+}
+
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
 ///
 /// THE DEFAULT IS WRITTEN OUT rather than derived, for `Recap`'s own reason
@@ -18,6 +30,8 @@ pub struct PluginEntry {
 #[derive(Debug, PartialEq)]
 pub struct Config {
     pub phone_marker_file: Option<String>,
+    /// `[paths]`: the two install-wide directories.
+    pub paths: Paths,
     pub plugins: BTreeMap<String, PluginEntry>,
     pub recap: Recap,
     /// `[focus] silence`: the Focus MODE NAMES that mean it, each written
@@ -37,6 +51,10 @@ pub struct Config {
     /// table. Empty is a file that defined none, which is every message on
     /// the default route with the mute respected.
     pub delivery_classes: BTreeMap<String, DeliveryClass>,
+    /// `[delivery] remote_deadline`: how long ONE remote call may take, in
+    /// seconds, before the caller stops waiting on it. Zero is no deadline at
+    /// all, which is the caller's own instruction rather than a default.
+    pub remote_deadline_secs: u64,
     /// `[daemon] enabled`: whether `pns daemon run` stays up and ticks.
     ///
     /// DEFAULT ON, which is the opposite of `[focus]` and of every plugin, and
@@ -59,6 +77,15 @@ pub struct Config {
     pub routes: pns_domain::routes::Routes,
     pub retry_limits: pns_domain::retry::RetryLimits,
     pub retry_backoff: pns_domain::retry::RetryBackoff,
+    /// `[producer.<name>] remind`: which producers asked for the reminder,
+    /// keyed by the name the producer sends.
+    ///
+    /// A NAME THE OPERATOR WROTE ON PURPOSE, which is the whole point: the
+    /// reminder used to be switched on by pns matching the sender's name
+    /// against a compiled-in one, so a producer could not ask for it and could
+    /// not turn it off. A name with no entry here asks for nothing, and a
+    /// per-call `--remind` beats whatever this says.
+    pub producer_remind: BTreeMap<String, bool>,
     /// `[remind] delay`: how long an unanswered approval waits before it is
     /// carded a second time, in whole seconds off the key's duration. ZERO IS
     /// THE FEATURE OFF.
@@ -106,15 +133,18 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             phone_marker_file: None,
+            paths: Paths::default(),
             plugins: BTreeMap::new(),
             recap: Recap::default(),
             focus_silence: Vec::new(),
             delivery_classes: BTreeMap::new(),
+            remote_deadline_secs: DEFAULT_REMOTE_DEADLINE_SECS,
             routes: pns_domain::routes::Routes::default(),
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
             daemon_service: None,
             retry_limits: Default::default(),
             retry_backoff: Default::default(),
+            producer_remind: BTreeMap::new(),
             remind_delay_secs: REMIND_OFF,
             stale_escalate_after_secs: DEFAULT_ESCALATE_AFTER_SECS,
             stale_route: None,

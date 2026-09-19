@@ -1,8 +1,8 @@
 mod argv;
 mod usage;
 
-pub use argv::is_help_flag;
 use argv::parse_args;
+pub use argv::{Remind, is_help_flag, remind_switch};
 pub use usage::{SEND_USAGE, USAGE};
 
 /// The exit code for input pns will not honour, whoever asked: a retired flag,

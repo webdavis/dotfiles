@@ -73,10 +73,14 @@ fn a_pass_speaks_only_for_the_rows_it_recorded() {
 }
 
 fn composed(destination: &str) -> Failure {
-    crate::command_failures::compose(&StoredFailure {
-        destination: destination.into(),
-        ..stored(1, PASS_BEGAN, 0, false)
-    })
+    crate::command_failures::compose(
+        &StoredFailure {
+            destination: destination.into(),
+            ..stored(1, PASS_BEGAN, 0, false)
+        },
+        None,
+        None,
+    )
 }
 
 /// NEVER THROUGH THE DESTINATION THAT FAILED. A card about a push that was

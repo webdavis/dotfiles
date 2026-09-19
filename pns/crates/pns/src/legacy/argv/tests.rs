@@ -379,3 +379,29 @@ fn the_last_value_wins_for_every_producer_field() {
     assert_eq!(event.state, "failed");
     assert!(warnings.is_empty());
 }
+
+#[test]
+fn the_last_reminder_switch_argv_named_is_the_one_that_answers() {
+    // A WRAPPER APPENDS. A harness declaration that already carries a switch
+    // and a caller that adds its own must not leave the first one in charge,
+    // which is what a first-one-wins scan would do.
+    let switches = |tokens: &[&str]| {
+        super::remind_switch(&tokens.iter().map(|t| t.to_string()).collect::<Vec<_>>())
+    };
+    assert_eq!(switches(&[]), Ok(None));
+    assert_eq!(switches(&["--remind"]), Ok(Some(super::Remind::Configured)));
+    assert_eq!(
+        switches(&["--remind", "--no-remind"]),
+        Ok(Some(super::Remind::Off))
+    );
+    assert_eq!(
+        switches(&["--no-remind", "--remind=90s"]),
+        Ok(Some(super::Remind::After(90)))
+    );
+    // A WORD THAT MERELY STARTS THE SAME IS NOT THE FLAG.
+    assert_eq!(switches(&["--reminder", "--remind-me"]), Ok(None));
+    assert!(
+        switches(&["--remind=90"]).is_err(),
+        "a bare number is not a duration"
+    );
+}

@@ -555,7 +555,7 @@ Then the memory is left exactly as it was, and only a Home reading writes or cle
   `src/main.rs:remembered_staleness` reads the file, trims it, and treats an empty file as no memory. The
   file is `<state>/home-staleness` (`src/main.rs:STALENESS_MEMORY`), one line, published by rename at
   mode `0600` (`src/main.rs:publish_state_line`, `src/main.rs:STATE_FILE_MODE`). The state directory is
-  `$HOME/.local/state/pns` unless `PNS_STATE_DIR` overrides it (`src/main.rs:state_dir`). Pinned end to
+  `$HOME/.local/state/pns` unless `[paths] state_dir` or `PNS_STATE_DIR` names another (`src/main.rs:state_dir`). Pinned end to
   end by
   `tests/dispatch.rs:the_home_diagnostic_always_shows_the_evidence_and_warns_once_per_stale_state`, which
   asserts the file holds `device_mac device_hostname=none device_ipv4=other` after the first sighting,
@@ -585,7 +585,7 @@ Then the memory is left exactly as it was, and only a Home reading writes or cle
   machine because one config names one device (`src/main.rs:STALENESS_MEMORY`).
 - Process ownership and cleanup: the pending file is named for this process id so two runs publishing at
   once cannot share one, and it is removed on a failed rename.
-- Compatibility contract: `PNS_STATE_DIR` relocates the whole state directory, which is how the tests
+- Compatibility contract: `[paths] state_dir`, and `PNS_STATE_DIR` after it, relocate the whole state directory, which is how the tests
   drive it.
 
 ### 14. The device identity is validated once, at the config read
