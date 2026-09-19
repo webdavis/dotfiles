@@ -39,7 +39,7 @@ const VALUE_FLAGS: [&str; 12] = [
 /// comparisons because the chain is what went stale before: a bare flag
 /// handled elsewhere and never added here let a value flag in front of it eat
 /// it as its value and the signal vanished without a warning.
-const BARE_FLAGS: [&str; 1] = ["--require-delivery"];
+const BARE_FLAGS: [&str; 3] = ["--require-delivery", "--remind", "--no-remind"];
 
 /// Every flag pns used to take, paired with the one that replaced it and by
 /// whether it took a value. A retired flag is REFUSED and the refusal names its
