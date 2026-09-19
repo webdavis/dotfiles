@@ -155,7 +155,7 @@ that gives up on a wait before it has ever nudged about it.
 
 - Success: 600 and 600 load (equal is accepted), and 300 against 57600 loads (`src/config.rs`, the tests
   beside `backstop_outlasts_the_reminder`).
-- Failure sources: `[remind] delay = 600` with `[lights.blocked] give_up_after_secs = 60` is refused
+- Failure sources: `[remind] delay = "10m"` with `[lights.blocked] give_up_after_secs = 60` is refused
   with
   `` `lights.blocked` key `give_up_after_secs` is 60, below `remind` key `delay` 600, so the lamp would be given up on before the nudge it belongs to has ever fired ``
   (`src/config.rs:backstop_outlasts_the_reminder`).
@@ -944,7 +944,7 @@ anything when the marker is already there.
   waiting".
 - Thresholds: `due <= now <= until` fires. Both edges are closed: "a job whose lease is exactly its due
   second still runs; one second past `until` never does" (`src/daemon.rs:decide`). For the reminder,
-  `until - due == after_secs`, so with the shipped 300 the window is 300 seconds wide and the job is
+  `until - due == after_secs`, so with the shipped 5m the window is 300 seconds wide and the job is
   dropped at second 301 past due. The spawned child's own bound is `tick * CHILD_TICKS`
   (`src/main.rs:child_bound`, which special-cases only the lights job), after which the whole process
   GROUP is killed (`src/main.rs:reap`, `src/main.rs:kill_group`).
@@ -1026,12 +1026,12 @@ a timer.
   and the PostToolBatch hook entry that tells pns an approval was dealt with; without that entry the only
   clearing signal is the end of the turn. It respects every mute the first card respects, a `pns quiet`,
   a Focus, the quiet window, and a reminder held back is LOST rather than queued. Several approvals waiting
-  are one card rather than several, each approval is reminded at most once, and a card counts every
+  are one card rather than several, each approval is reminded about at most once, and a card counts every
   approval outstanding at that moment, so a fresh one can be named early and is then done. The signal is
   the tool batch RESOLVING rather than your answer, so a tool approved at once that then runs longer than
   this is reminded about anyway; if that bites, raise the number. THIRTY SECONDS IS THE FLOOR AND AN HOUR
-  THE CEILING, anything outside is refused by name; no table at all, and after_secs of zero, are the same
-  statement." (`src/config_text.rs`, the `[remind]` table's `prose`).
+  THE CEILING, anything outside is refused by name; no table at all, and a delay of "0s", are the same
+  statement." (`crates/pns-adapters/src/config/render/layout/core.rs`, the `[remind]` table's `prose`).
 
 ______________________________________________________________________
 
