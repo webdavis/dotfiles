@@ -101,7 +101,7 @@ accidental, so they are named here as accepted costs rather than as defects:
 | Minimum accepted | `src/main.rs:MIN_TICK_MS`     | 10           |
 | Maximum accepted | `src/main.rs:MAX_TICK_MS`     | 60000        |
 
-`src/main.rs:daemon_tick` reads `PNS_DAEMON_TICK_MS`, parses it with `pns::parse_count`, and keeps the
+`src/main.rs:daemon_tick` reads `PNS_DAEMON_TICK_INTERVAL`, parses it with `pns::parse_count`, and keeps the
 value only when `(MIN_TICK_MS..=MAX_TICK_MS).contains(&milliseconds)`. Anything else FALLS BACK to
 `DEFAULT_TICK_MS` and is never clamped towards it, because a stray `1` in a launchd environment would
 spin the loop a thousand times a second and clamping would honour a value nobody meant to write.
@@ -296,7 +296,7 @@ re-reads the switch, then runs one pass
 - Process ownership and cleanup: the `children` vector and the `reported` set live for the life of the
   loop and are passed by mutable reference into every pass.
 - Compatibility contract: the tick is a constant with a test hatch rather than a config key, following
-  `PNS_PAYLOAD_DEADLINE_MS`: the only party who has ever needed a different tick is a test, and a knob
+  `PNS_PAYLOAD_DEADLINE`: the only party who has ever needed a different tick is a test, and a knob
   nobody turns is a knob that only ever holds a wrong value (`src/main.rs:daemon_tick` doc comment).
 
 ### 6. The switch is re-read every thirtieth tick and stops a daemon that is already running

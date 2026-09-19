@@ -19,7 +19,7 @@
 /// it early.
 ///
 /// THE OVERRIDES ARE NOT CONSULTED HERE. `PNS_SCREEN_IDLE` and
-/// `PNS_PHONE_INPUT_AGE` steer the delivery decision in `engine::decide`, not
+/// `PNS_PHONE_INPUT_MAX_AGE` steer the delivery decision in `engine::decide`, not
 /// this reading: the unread lamp always sees the machine's own probes.
 pub fn last_lamp_interaction<
     P: crate::IdleProbe + crate::PhoneInputProbe + crate::PhoneMarkerProbe + crate::Clock,

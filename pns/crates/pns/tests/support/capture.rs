@@ -16,7 +16,7 @@ pub fn plugin_command(sandbox: &Sandbox) -> Command {
     // These tests exercise delivery, not the operator's live idle and mosh sessions.
     command
         .env("PNS_SCREEN_IDLE", "99999")
-        .env("PNS_PHONE_INPUT_AGE", "99999");
+        .env("PNS_PHONE_INPUT_MAX_AGE", "24h");
     command
 }
 

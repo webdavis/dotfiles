@@ -155,7 +155,7 @@ pub fn append_ring_line(
         // there is nothing to do.
         Err(_) => return Ok(()),
     };
-    // A TEST-ONLY STALL, in `env_deadline`'s own words: it exists so a test
+    // A TEST-ONLY STALL: it exists so a test
     // can prove this section is exclusive rather than hope a real race lands
     // in a window that is normally microseconds wide. Unset in every real
     // invocation, so production takes no delay here at all.
