@@ -435,7 +435,7 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
             "--detail",
             "ran",
         ])
-        .args(["--kind", "health"])
+        .args(["--delivery-class", "health"])
         .args(["--scope", "remote_only"]));
 
     let raw = capture.finish();

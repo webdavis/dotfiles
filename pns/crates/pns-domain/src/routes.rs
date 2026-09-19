@@ -64,61 +64,31 @@ impl Default for Routes {
     }
 }
 
-/// What an event IS, which is what decides where it lands when its producer
-/// named no route.
+/// The one delivery class pns routes for itself.
 ///
-/// A PRODUCER NAMES A KIND, NEVER A ROUTE (operator ruling, 2026-09-15). A
-/// producer knows its own work failed and nothing about the gateway's
-/// channels, so the word it sends is what the failure is; this mapping is
-/// what turns that into a route, and WHICH ROUTE A KIND TAKES is fixed even
-/// though the route's NAME is not: `health` is defined as a machine's own
-/// health, so a mapping that sent one to the routine route would contradict
-/// the definition.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum Kind {
-    /// A session event: a harness hook, the shell notifier, a daemon job.
-    #[default]
-    Agent,
-    /// A machine's own health, such as an unattended upgrade that failed while
-    /// nobody was watching. It pages.
-    Health,
-}
+/// A PRODUCER NAMES A DELIVERY CLASS, NEVER A ROUTE (operator ruling,
+/// 2026-09-15). A producer knows its own work failed and nothing about the
+/// gateway's channels, so the word it sends is what the failure is; the
+/// mapping below is what turns that into a route, and WHICH ROUTE THIS CLASS
+/// TAKES is fixed even though the route's NAME is not: `health` is defined as
+/// a machine's own health, so a mapping that sent one to the routine route
+/// would contradict the definition.
+pub const HEALTH: &str = "health";
 
-impl Kind {
-    /// The kind a producer spelled, or `None` for a word that is neither.
-    /// REFUSED RATHER THAN DEFAULTED: a typo that quietly became `agent` would
-    /// route a page nobody reads in time to the routine channel.
-    pub fn from_word(word: &str) -> Option<Self> {
-        match word {
-            "agent" => Some(Self::Agent),
-            "health" => Some(Self::Health),
-            _ => None,
-        }
-    }
-
-    /// The route this kind takes when the event named none, or `None` when it
-    /// takes the default route, which is the empty route every path already
-    /// reads as the default.
-    ///
-    /// THE STATE IS THE SECOND AXIS (operator ruling, 2026-09-14: the subject
-    /// picks the channel and severity overrides it). A health event pages only
-    /// when somebody is waiting on it: an upgrade that failed while nobody
-    /// watched is why the urgent route exists, and one that went fine is a
-    /// line in the weekly record. The list is `missed::NEEDS_YOU`, the one
-    /// place this crate says which states wait on the operator, so a page and
-    /// the recap's own NEEDS YOU section cannot disagree about what urgent is.
-    pub fn route<'a>(self, routes: &'a Routes, state: &str) -> Option<&'a str> {
-        match self {
-            Self::Agent => None,
-            Self::Health if crate::missed::NEEDS_YOU.contains(&state) => {
-                Some(routes.urgent_route())
-            }
-            Self::Health => None,
-        }
-    }
-
-    /// Every word `from_word` accepts, for a usage line and for the tests.
-    pub const WORDS: &'static [&'static str] = &["agent", "health"];
+/// The route a delivery class takes when the event named none, or `None` when
+/// it takes the default route, which is the empty route every path already
+/// reads as the default.
+///
+/// THE STATE IS THE SECOND AXIS (operator ruling, 2026-09-14: the subject
+/// picks the channel and severity overrides it). A health event pages only
+/// when somebody is waiting on it: an upgrade that failed while nobody
+/// watched is why the urgent route exists, and one that went fine is a
+/// line in the weekly record. The list is `missed::NEEDS_YOU`, the one
+/// place this crate says which states wait on the operator, so a page and
+/// the recap's own NEEDS YOU section cannot disagree about what urgent is.
+pub fn route_for<'a>(delivery_class: &str, routes: &'a Routes, state: &str) -> Option<&'a str> {
+    (delivery_class == HEALTH && crate::missed::NEEDS_YOU.contains(&state))
+        .then(|| routes.urgent_route())
 }
 
 #[cfg(test)]
@@ -128,13 +98,17 @@ mod tests {
     #[test]
     fn a_failed_health_event_takes_the_urgent_route_whatever_the_config_calls_it() {
         let named = Routes::named("logbook", "sirens");
-        assert_eq!(Kind::Health.route(&named, "failed"), Some("sirens"));
+        assert_eq!(route_for(HEALTH, &named, "failed"), Some("sirens"));
         assert_eq!(
-            Kind::Agent.route(&named, "failed"),
+            route_for("agent", &named, "failed"),
             None,
             "the default route is the empty route, not a second spelling of it"
         );
-        assert_eq!(Kind::default(), Kind::Agent);
+        assert_eq!(
+            route_for("", &named, "failed"),
+            None,
+            "an event that named no delivery class takes the default route"
+        );
     }
 
     #[test]
@@ -144,14 +118,14 @@ mod tests {
         let named = Routes::named("logbook", "sirens");
         for state in ["done", "resolved", "observation", "progress", ""] {
             assert_eq!(
-                Kind::Health.route(&named, state),
+                route_for(HEALTH, &named, state),
                 None,
                 "`{state}` is nobody waiting on the operator"
             );
         }
         for state in crate::missed::NEEDS_YOU {
             assert_eq!(
-                Kind::Health.route(&named, state),
+                route_for(HEALTH, &named, state),
                 Some("sirens"),
                 "`{state}` is the operator being waited on"
             );
@@ -177,12 +151,16 @@ mod tests {
     }
 
     #[test]
-    fn only_the_two_words_name_a_kind() {
-        for word in Kind::WORDS {
-            assert!(Kind::from_word(word).is_some(), "`{word}` names no kind");
-        }
-        for word in ["", "agents", "Health", "priority", "--kind"] {
-            assert_eq!(Kind::from_word(word), None, "`{word}` is not a kind");
+    fn only_the_exact_health_word_routes_for_itself() {
+        // A near miss must not page: every other delivery class is the
+        // operator's to define and takes the default route here.
+        let named = Routes::named("logbook", "sirens");
+        for word in ["", "agent", "Health", "health ", "security", "priority"] {
+            assert_eq!(
+                route_for(word, &named, "failed"),
+                None,
+                "`{word}` is not the health class"
+            );
         }
     }
 

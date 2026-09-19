@@ -69,7 +69,7 @@ fn an_exposure_is_stored_before_the_baseline_changes_and_refusal_retains_it() {
     let effects = effects.borrow();
     assert_eq!(effects.requests.len(), 1);
     assert_eq!(effects.baselines_at_submit, [Some(before.clone())]);
-    assert!(effects.requests[0].contains("\"class\":\"security\""));
+    assert!(effects.requests[0].contains("\"delivery_class\":\"security\""));
     assert!(effects.requests[0].contains("\"route\":\"posture-pages\""));
     assert_captured_detail(&effects.requests[0], "exposure:0");
     let (status, error, effects) = subject.run(EXPOSED, "FileVault is On.", true);

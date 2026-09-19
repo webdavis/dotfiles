@@ -703,16 +703,16 @@ posts to the default.
   `tests/native.rs:the_stale_alert_posts_to_the_hermes_route_the_config_named`, which asserts both
   `POST /webhooks/priority HTTP/1.1` AND that the `Host` header is still `127.0.0.1:8644`, so a swap that
   took the base with it would be a different defect passing the test. A producer that names no route may
-  still say what its event IS, on the argv (`--kind health`) or in a version 1 submission (the request's
-  own `kind` field): a health event whose state is one the operator has to answer resolves to the
-  `[routes] urgent` route, and `agent` (the default), or a health event that needs nobody, to the default
-  route. The mapping is `pns_domain::routes::Kind::route`
-  (`src/legacy/argv/tests.rs:a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route`,
+  still say what its event IS, on the argv (`--delivery-class health`) or in a version 1 submission (the
+  request's own `delivery_class` field, which is the same word): a health event whose state is one the
+  operator has to answer resolves to the `[routes] urgent` route, and an event naming no class, or a
+  health event that needs nobody, to the default route. The mapping is `pns_domain::routes::route_for`
+  (`src/legacy/argv/tests.rs:a_failed_health_class_pages_and_a_session_class_keeps_the_default_route`,
   `pns-domain/src/routes.rs:a_health_event_nobody_has_to_answer_stays_off_the_urgent_route`,
-  `src/event_flow/submit/mapping/tests.rs:a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_session_event`)
+  `src/event_flow/submit/mapping/tests.rs:a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_carries_nothing`)
   and an explicit `--channel`, or a route the submission named, still beats it in either order
-  (`:a_named_channel_beats_the_kind_in_either_order`,
-  `src/event_flow/submit/mapping/tests.rs:a_route_the_producer_named_still_outranks_the_kind_it_stated`).
+  (`:a_named_route_beats_the_delivery_class_in_either_order`,
+  `src/event_flow/submit/mapping/tests.rs:a_route_the_producer_named_still_outranks_the_delivery_class_it_stated`).
 - **Failure sources:** A route name that could not safely become a path segment. A base URL with no `/`
   at all (`:a_base_without_a_path_yields_nothing_rather_than_a_bogus_url`).
 - **Fail direction:** LOUD-WARD. An unusable name prints

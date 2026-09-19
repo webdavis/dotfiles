@@ -315,3 +315,51 @@ fn a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state
         );
     }
 }
+
+#[test]
+fn the_argv_delivery_class_crosses_the_same_mute_edge_json_does() {
+    // The mute-bypass check reads `event.delivery_class`, which both the
+    // `--delivery-class` flag and the JSON `delivery_class` field write into,
+    // but only the JSON path (`hooks/delivery_class.rs`) drove a bypass
+    // assertion. This is the argv twin, so a regression on either spelling is
+    // caught the same way.
+    let muted = |sandbox: &Sandbox, table: &str| {
+        sandbox.write_config(&format!("{}[delivery]\n{table}", support::STUB_CHANNELS));
+        std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+        pns_adapters::SqliteStore::for_records(sandbox.state())
+            .set_quiet_expiry(Some(i64::MAX as u64))
+            .expect("the mute");
+        let mut event = sandbox.pns();
+        event.env("PNS_STATE_DIR", sandbox.path("state"));
+        event.env("PNS_SCREEN_IDLE", "0");
+        event.args([
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "blocked",
+            "--detail",
+            "x",
+            "--delivery-class",
+            "security",
+        ]);
+        event
+    };
+
+    let sandbox = Sandbox::new("argv-class-bypass-allowed");
+    run(&mut muted(
+        &sandbox,
+        "bypass_silence_classes = [\"security\"]\n",
+    ));
+    assert!(
+        sandbox.fired("macos-banner"),
+        "a class the config lists crosses the mute on the argv path too"
+    );
+
+    let sandbox = Sandbox::new("argv-class-bypass-refused");
+    run(&mut muted(&sandbox, "bypass_silence_classes = []\n"));
+    assert!(
+        !sandbox.fired("macos-banner"),
+        "an unlisted class stays muted on the argv path too"
+    );
+}

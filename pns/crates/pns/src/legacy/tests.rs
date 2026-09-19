@@ -74,19 +74,27 @@ fn the_retired_agent_flag_is_refused_and_names_the_flag_that_replaced_it() {
     );
 }
 
-/// A kind pns does not know is refused whole: routing it by guess would put a
-/// page on the routine channel or a routine event on the one reserved for
-/// things that need a human.
+/// A delivery class that is not a usable name is refused whole, and so is the
+/// retired `--kind` spelling: either one delivered by guess would put a page
+/// on the routine channel or a routine event on the one reserved for things
+/// that need a human.
 #[test]
-fn an_unknown_kind_is_refused_before_anything_is_delivered() {
-    for word in ["", "critical", "--producer"] {
-        let argv = ["--kind".to_string(), word.to_string()];
+fn an_unusable_delivery_class_is_refused_before_anything_is_delivered() {
+    for word in ["", "bad\nclass", "--producer"] {
+        let argv = ["--delivery-class".to_string(), word.to_string()];
         assert_eq!(
-            super::run(&argv, |_, _| panic!("an unknown kind reached submission")),
+            super::run(&argv, |_, _| panic!(
+                "an unusable delivery class reached submission"
+            )),
             2,
-            "--kind {word:?}"
+            "--delivery-class {word:?}"
         );
     }
+    let retired = ["--kind".to_string(), "health".to_string()];
+    assert_eq!(
+        super::run(&retired, |_, _| panic!("a retired flag reached submission")),
+        2
+    );
 }
 
 /// The two identifiers a JSON producer has always sent are flags now, and they
