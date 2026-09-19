@@ -11,5 +11,6 @@
   "pane": "wW:p21",
   "scope": "automatic",
   "route": "alert",
+  "delivery_class": "health",
   "extensions": { "nvim": { "buffer": 12 } }
 }

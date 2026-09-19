@@ -8,7 +8,6 @@ mod receipt;
 pub(super) struct ProducerRequest {
     pub(super) identity: SubmissionIdentity,
     pub(super) encoded: String,
-    pub(super) class: Option<pns_protocol::Name>,
     /// The `github` extension this request carried, if any. A MALFORMED one
     /// is none of them: the refusal is printed and the event takes the
     /// ordinary path, because a colour nobody could read must not cost the
@@ -85,7 +84,6 @@ fn accept(
             request_id: request.request_id.as_str().into(),
         },
         encoded,
-        class: request.class.clone(),
         github,
     };
     let mut result = receipt::result(submit(&request, &producer));

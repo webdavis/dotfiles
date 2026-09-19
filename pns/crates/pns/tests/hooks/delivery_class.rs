@@ -9,7 +9,7 @@ fn input(class: Option<&str>) -> String {
         State::Blocked,
     );
     request.detail = "same private detail".into();
-    request.class = class.map(|name| Name::new(name).unwrap());
+    request.delivery_class = class.map(|name| Name::new(name).unwrap());
     request.encode().unwrap()
 }
 
@@ -114,7 +114,8 @@ fn json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_herme
 #[test]
 fn malformed_class_or_configuration_never_grants_a_mute_exception() {
     let sandbox = Sandbox::new("invalid-class");
-    let invalid = input(Some("security")).replace("\"class\":\"security\"", "\"class\":3");
+    let invalid =
+        input(Some("security")).replace("\"delivery_class\":\"security\"", "\"delivery_class\":3");
     let output = invoke(&sandbox, &invalid);
     let refused = pns_protocol::decode_result(&output.stdout).unwrap();
     assert_eq!(refused.status, Status::Rejected);

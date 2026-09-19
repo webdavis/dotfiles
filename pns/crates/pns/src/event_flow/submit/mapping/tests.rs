@@ -65,32 +65,26 @@ fn normalized_state_scope_and_elapsed_choose_policy_without_using_source_event_n
 }
 
 #[test]
-fn a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_session_event() {
-    // THE PRODUCER NAMES A KIND, NEVER A ROUTE. This is the submission half
-    // of the same rule the `--kind` flag carries on the argv half, so a
-    // failed upgrade posted as an envelope pages the way one spawned with
-    // flags does.
+fn a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_carries_nothing() {
+    // THE PRODUCER NAMES A DELIVERY CLASS, NEVER A ROUTE. This is the
+    // submission half of the same rule the `--delivery-class` flag carries on
+    // the argv half, so a failed upgrade posted as an envelope pages the way
+    // one spawned with flags does: both reach `sirens`.
     let routes = pns_domain::routes::Routes::named("logbook", "sirens");
     let mut request = Request::new(
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
         State::Failed,
     );
-    for (stated, kind) in [
-        (None, pns_domain::routes::Kind::Agent),
-        (
-            Some(pns_protocol::Kind::Agent),
-            pns_domain::routes::Kind::Agent,
-        ),
-        (
-            Some(pns_protocol::Kind::Health),
-            pns_domain::routes::Kind::Health,
-        ),
-    ] {
-        request.kind = stated;
-        assert_eq!(event(&request).0.kind, kind, "{stated:?}");
+    for stated in [None, Some("agent"), Some("health"), Some("security")] {
+        request.delivery_class = stated.map(|word| Name::new(word).unwrap());
+        assert_eq!(
+            event(&request).0.delivery_class,
+            stated.unwrap_or_default(),
+            "{stated:?}"
+        );
     }
-    request.kind = Some(pns_protocol::Kind::Health);
+    request.delivery_class = Some(Name::new("health").unwrap());
     assert_eq!(
         event(&request).0.routed(&routes).channel,
         "sirens",
@@ -104,13 +98,13 @@ fn a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_sessi
 }
 
 #[test]
-fn a_route_the_producer_named_still_outranks_the_kind_it_stated() {
+fn a_route_the_producer_named_still_outranks_the_delivery_class_it_stated() {
     let mut request = Request::new(
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
         State::Failed,
     );
-    request.kind = Some(pns_protocol::Kind::Health);
+    request.delivery_class = Some(Name::new("health").unwrap());
     request.route = Some(Name::new("posture-pages").unwrap());
     assert_eq!(
         event(&request)

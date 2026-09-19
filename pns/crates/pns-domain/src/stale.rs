@@ -12,9 +12,9 @@
 //! things that need a human, once per block.
 //!
 //! WHICH ROUTE THAT IS stays the operator's to name. The page carries the
-//! HEALTH kind rather than a route name, so the one statement that turns a
-//! kind into a route (`routes::Kind::route`) settles this page too and this
-//! module names no route at all.
+//! HEALTH delivery class rather than a route name, so the one statement that
+//! turns a class into a route (`routes::route_for`) settles this page too and
+//! this module names no route at all.
 
 use crate::surface::Surface;
 
@@ -133,9 +133,9 @@ pub fn page(blocked: &Blocked, now: u64) -> crate::EventArgs {
         project: blocked.project.clone(),
         branch: blocked.branch.clone(),
         detail: waited(now.saturating_sub(blocked.since)),
-        // NOT A ROUTE NAME: the kind is what puts this on the urgent route,
-        // whatever `[routes] urgent` calls it.
-        kind: crate::routes::Kind::Health,
+        // NOT A ROUTE NAME: the delivery class is what puts this on the
+        // urgent route, whatever `[routes] urgent` calls it.
+        delivery_class: crate::routes::HEALTH.to_string(),
         session: blocked.session.clone(),
         session_title: blocked.title.clone(),
         ..crate::EventArgs::default()

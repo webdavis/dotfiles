@@ -147,27 +147,34 @@ fn no_scope_flag_leaves_the_event_automatic() {
 }
 
 #[test]
-fn a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
+fn a_failed_health_class_pages_and_a_session_class_keeps_the_default_route() {
     // A PRODUCER NAMES WHAT ITS EVENT IS; the route it lands on is pns's to
     // decide, and the route's NAME is the operator's, so the parse carries
-    // the kind and nothing resolves a route here.
+    // the delivery class and nothing resolves a route here.
     let routes = pns_domain::routes::Routes::named("logbook", "sirens");
     let (parsed, warnings) = args(&[
-        "--kind",
+        "--delivery-class",
         "health",
         "--state",
         "failed",
         "--producer",
         "upgrades",
     ]);
-    assert_eq!(parsed.kind, pns_domain::routes::Kind::Health);
+    // THE SAME WORD THE JSON PATH CARRIES, and it earns the same route:
+    // `event_flow::submit::mapping` pins the JSON half of this pair.
+    assert_eq!(parsed.delivery_class, "health");
     assert_eq!(parsed.channel, "", "the parse pinned a route name");
     assert_eq!(parsed.routed(&routes).channel, "sirens");
     assert!(warnings.is_empty());
 
-    // The default kind is the behavior every producer already had: an empty
-    // route, which the hermes target reads as the default one.
-    for argv in [vec!["--producer", "claude"], vec!["--kind", "agent"]] {
+    // Naming no class is the behavior every producer already had: an empty
+    // route, which the hermes target reads as the default one. So is a class
+    // that is not `health`, which the operator's config gives its own meaning.
+    for argv in [
+        vec!["--producer", "claude"],
+        vec!["--delivery-class", "agent"],
+        vec!["--delivery-class", "security"],
+    ] {
         let (parsed, _) = args(&argv);
         assert_eq!(
             parsed.routed(&routes).channel,
@@ -178,11 +185,11 @@ fn a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
 }
 
 #[test]
-fn a_named_route_beats_the_kind_in_either_order() {
+fn a_named_route_beats_the_delivery_class_in_either_order() {
     let routes = pns_domain::routes::Routes::named("logbook", "sirens");
     for argv in [
-        vec!["--kind", "health", "--route", "log"],
-        vec!["--route", "log", "--kind", "health"],
+        vec!["--delivery-class", "health", "--route", "log"],
+        vec!["--route", "log", "--delivery-class", "health"],
     ] {
         let (parsed, _) = args(&argv);
         assert_eq!(
@@ -191,6 +198,18 @@ fn a_named_route_beats_the_kind_in_either_order() {
             "{argv:?}: a producer that said where already answered the question"
         );
     }
+}
+
+/// The flag `--delivery-class` replaced. It is refused rather than skipped,
+/// and the refusal names its replacement.
+#[test]
+fn the_retired_kind_flag_takes_its_value_with_it_and_names_the_flag_that_replaced_it() {
+    let parsed = parse_args(["--kind", "health", "--state", "done"].map(str::to_owned));
+    assert!(parsed.warnings.is_empty());
+    assert!(matches!(
+        parsed.into_event(),
+        Err(message) if message == "--kind was replaced by --delivery-class"
+    ));
 }
 
 #[test]

@@ -82,10 +82,11 @@ pub struct EventArgs {
     /// The >=300s tier: the lights signal rides on top of whatever else the
     /// plan decides.
     pub long_running: bool,
-    /// What this event IS, which is what picks its route when `channel` is
-    /// empty. Producers name a kind; nobody outside this crate names a route
-    /// it has not been told.
-    pub kind: crate::routes::Kind,
+    /// The delivery class this event carries, which is what picks its route
+    /// when `channel` is empty and what a configured bypass is matched
+    /// against. Empty means the producer named none. Producers name a class;
+    /// nobody outside this crate names a route it has not been told.
+    pub delivery_class: String,
     /// Whether this event's `state` was READ OFF THE TURN'S TEXT by the
     /// condenser rather than stated by a harness hook. A guess is the model's
     /// reading of prose, so it can call a turn a wait that is asking nobody
@@ -96,17 +97,17 @@ pub struct EventArgs {
 
 impl EventArgs {
     /// This event with its route settled: the one its producer named, else the
-    /// one its kind names, else the default.
+    /// one its delivery class names, else the default.
     ///
     /// THE NAMED ROUTE WINS. A producer that said where already answered the
-    /// question the kind is here to answer.
+    /// question the delivery class is here to answer.
     ///
     /// RESOLVED ONCE, AND EARLY. `channel` is what the ledger row, the retry
     /// that rebuilds off it and every destination read, so a route filled in
     /// later would leave a page recorded on one route and posted to another.
     pub fn routed(mut self, routes: &crate::routes::Routes) -> Self {
         if self.channel.is_empty()
-            && let Some(route) = self.kind.route(routes, &self.state)
+            && let Some(route) = crate::routes::route_for(&self.delivery_class, routes, &self.state)
         {
             self.channel = route.to_string();
         }
@@ -117,13 +118,13 @@ impl EventArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::routes::{Kind, Routes};
+    use crate::routes::{HEALTH, Routes};
 
     /// A failed upgrade, which is the health event this repository actually
-    /// raises: uu spawns `pns send --kind health --state failed`.
+    /// raises: uu spawns `pns send --delivery-class health --state failed`.
     fn health() -> EventArgs {
         EventArgs {
-            kind: Kind::Health,
+            delivery_class: HEALTH.to_string(),
             state: "failed".to_string(),
             ..EventArgs::default()
         }
@@ -150,7 +151,7 @@ mod tests {
     }
 
     #[test]
-    fn a_route_the_producer_named_survives_its_kind() {
+    fn a_route_the_producer_named_survives_its_delivery_class() {
         let named = EventArgs {
             channel: "posture-pages".to_string(),
             ..health()
@@ -158,7 +159,7 @@ mod tests {
         assert_eq!(
             named.routed(&Routes::named("logbook", "sirens")).channel,
             "posture-pages",
-            "the kind overrode a route the producer had already named"
+            "the delivery class overrode a route the producer had already named"
         );
     }
 

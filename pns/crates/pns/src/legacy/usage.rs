@@ -62,7 +62,7 @@ pns: usage:
 
 producer flags: --producer <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --route <name> --elapsed <duration>
-                --request-id <id> --session <id> --kind <agent|health>
+                --request-id <id> --session <id> --delivery-class <name>
                 --scope <automatic|local_only|remote_only> --require-delivery
 
 durations:      a count and a unit, `30s`, `5m`, `2h`. A bare number is
@@ -78,8 +78,9 @@ scopes:         automatic, the default, lets presence decide; local_only keeps
                 the event on this machine; remote_only sends it off the machine
                 alone.
 
-kinds:          agent, the default, is a session event and takes the route
+delivery class: naming none is a session event and takes the route
                 `[routes] default` names; health is a machine's own health and
                 takes `[routes] urgent` when its --state is one somebody has to
-                answer, unless --route already named one.
+                answer, unless --route already named one. The same word the
+                JSON request's `delivery_class` carries.
 ";

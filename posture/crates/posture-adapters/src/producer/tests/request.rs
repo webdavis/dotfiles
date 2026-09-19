@@ -8,7 +8,10 @@ fn attention_retains_occurrence_body_route_and_security_class() {
     assert_eq!(request.producer.as_str(), "posture");
     assert_eq!(request.state, crate::wire::State::Blocked);
     assert_eq!(request.route.as_ref().unwrap().as_str(), "assigned-route");
-    assert_eq!(request.class.as_ref().unwrap().as_str(), "security");
+    assert_eq!(
+        request.delivery_class.as_ref().unwrap().as_str(),
+        "security"
+    );
     assert_eq!(request.detail, "Security finding\nline one\nline two");
     assert_eq!(
         request.request_id.as_str(),
@@ -25,7 +28,7 @@ fn observations_stay_silent_and_do_not_invent_a_route() {
     assert_eq!(sut.submit(&event), Submission::Accepted);
     let request = &sut.runner.requests[0];
     assert_eq!(request.state, crate::wire::State::Observation);
-    assert_eq!(request.class, None);
+    assert_eq!(request.delivery_class, None);
     assert_eq!(request.route, None);
 }
 #[test]

@@ -91,7 +91,7 @@ fn a_stale_block_is_claimed_before_it_is_paged_about() {
     // `[routes] urgent` spells, resolved on the event path this fire raises
     // the page through.
     assert!(pages[0].channel.is_empty(), "{}", pages[0].channel);
-    assert_eq!(pages[0].kind, pns_domain::routes::Kind::Health);
+    assert_eq!(pages[0].delivery_class, pns_domain::routes::HEALTH);
     assert_eq!(pages[0].detail, "blocked 60 minutes, no answer");
     assert_eq!(pages[0].session, "s1");
 }

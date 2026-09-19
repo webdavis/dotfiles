@@ -172,34 +172,24 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a version 1 request, when decoded, then request_id, producer and state are required and must have
 their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent optional session,
-elapsed, route, kind and class become None; detail is empty, project, branch and pane are None, scope is
+elapsed, route and delivery_class become None; detail is empty, project, branch and pane are None, scope is
 automatic, and extensions is an empty object. Request::new supplies those same defaults. The session is a
 plain name and the place of the work is three top-level fields, the same names the flags carry. `event`,
 `occurred_at` and `interaction` are no longer fields of this envelope: a decoded value carrying any of
 them names it in DecodedRequest::ignored (S014), the same as any other unknown top-level field.
 
-`class` uses the same validated `Name` as the other short names: 1 through 64 Unicode characters, without
-controls. A wrong type or invalid name is refused before effects, retaining the correlated request
-identifier. An absent or null class is omitted when encoding, preserving the exact canonical bytes of
-unmarked version 1 requests. A present class survives canonical encoding and the original producer
-request retained by the ledger; changed class metadata under the same identity conflicts.
+`delivery_class` uses the same validated `Name` as the other short names: 1 through 64 Unicode
+characters, without controls. A wrong type or invalid name is refused before effects, retaining the
+correlated request identifier. An absent or null delivery class is omitted when encoding, preserving the
+exact canonical bytes of unmarked version 1 requests. A present delivery class survives canonical
+encoding and the original producer request retained by the ledger; changed delivery-class metadata under
+the same identity conflicts. `kind` and `class`, the two fields it replaced, are no longer fields of this
+envelope: a decoded value carrying either names it in `DecodedRequest::ignored` (S014).
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L147),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186).
-
-## protocol-v1/S011b: Kind words
-
-Given a request kind, when encoded or decoded, then it is exactly `agent` or `health`. Any other word,
-including an empty string or a differently cased one, is refused as field_invalid with the correlated
-request identifier, because a kind guessed from a typo is a misrouted page. An absent or null kind stays
-None and is omitted when encoding, preserving the exact canonical bytes of a version 1 request written
-before the field existed. What a kind means for delivery is not this codec's business: it states what the
-event IS, and pns maps that to one of its own routes.
-
-Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L75),
-[`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L154).
 
 ## protocol-v1/S012: State words
 
@@ -423,7 +413,7 @@ Destination results carry typed verdicts without echoing private transport text.
 names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
 entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
 migration. The encrypted Hermes formatter and operator route configuration remain a separate deployment
-gate. The configured class policy is specified in `quiet-behavior.md`, behavior 7.
+gate. The configured delivery-class policy is specified in `quiet-behavior.md`, behavior 7.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
 attempts the planned channels without inventing an identifier or lease time. Native transports omit the
@@ -437,13 +427,13 @@ A normalized `Observation` requests the local banner and durable Hermes log on D
 including a visible origin pane. The banner omits sound. It never requests a phone card or lamp pulse,
 even with a phone override or a long elapsed time, and its marker-neutral tail does not queue return
 replay. Explicit scope, disabled destinations, mute and named Focus still narrow delivery; an authorized
-class exception follows the existing silence policy without adding a phone card or pulse.
+delivery-class exception follows the existing silence policy without adding a phone card or pulse.
 
 The retained `observation` state carries quiet presentation through delivery retries. `Progress` and
 legacy model-switch, quota and configuration-change events retain their existing presence-driven cards
 and normal banner sound. `Blocked` retains ordinary presence and visibility gating.
 
-A validated request with class `security` and state `blocked` uses Sosumi for its native banner,
+A validated request with delivery class `security` and state `blocked` uses Sosumi for its native banner,
 preserving posture's ordinary critical-page sound. Other classes and states keep the default sound;
 observations remain silent. The same selection applies to initial delivery, unretained fallback and
 ledger retry. Missing or invalid retained metadata keeps the legacy default. This adds no sound option to

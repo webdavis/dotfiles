@@ -36,8 +36,9 @@ pub(super) const ROUTES: Table = Table {
         Key {
             name: "urgent",
             prose: "# The route reserved for what needs a human now: a machine-health event\n\
-                         # (`pns send --kind health`) whose --state is one somebody has to answer,\n\
-                         # and the stale-block escalation, both take it, whatever it is called.\n",
+                         # (`pns send --delivery-class health`) whose --state is one somebody has\n\
+                         # to answer, and the stale-block escalation, both take it, whatever it is\n\
+                         # called.\n",
             sample: Sample::Default("\"priority\""),
         },
     ],

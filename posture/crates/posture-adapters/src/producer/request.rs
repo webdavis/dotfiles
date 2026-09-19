@@ -40,7 +40,7 @@ pub(super) fn encode(
     request.detail = format!("{}\n{}", alert.title, alert.detail);
     request.route = route;
     if alert.signal == AlertSignal::NeedsAttention {
-        request.class = Some(Name::new("security").map_err(|_| EncodeFailure::Invalid)?);
+        request.delivery_class = Some(Name::new("security").map_err(|_| EncodeFailure::Invalid)?);
     }
     // Identifiers were validated above. Only the rendered detail is unbounded
     // here, so a cap is the one refusal left and it is the oversized one.
