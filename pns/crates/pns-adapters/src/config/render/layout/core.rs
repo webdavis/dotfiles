@@ -47,11 +47,22 @@ pub(super) const DAEMON: Table = Table {
     prose: DAEMON_PROSE,
     opt_in: false,
     children: &[],
-    keys: &[Key {
-        name: "enabled",
-        prose: "",
-        sample: Sample::Default("true"),
-    }],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "service",
+            prose: "# The launchd label this machine's clock runs under, which `pns gateway\n\
+                         # start|stop|restart|status` starts, stops, restarts and reports on. NO\n\
+                         # DEFAULT: pns compiles in no label of its own, since it does not know what\n\
+                         # your installation calls its own plist, and every gateway verb refuses\n\
+                         # while this is unset.\n",
+            sample: Sample::Example("\"\""),
+        },
+    ],
 };
 pub(super) const RECAP: Table = Table {
     name: "recap",

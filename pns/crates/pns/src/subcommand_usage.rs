@@ -15,6 +15,7 @@ pub(crate) const SUBCOMMAND_USAGE: &[(&str, &str)] = &[
     ("hook", crate::hook_dispatch::HOOK_USAGE),
     ("quiet", crate::command_quiet::QUIET_USAGE),
     ("daemon", crate::command_daemon::DAEMON_USAGE),
+    ("gateway", crate::command_gateway::GATEWAY_USAGE),
     ("lights", crate::command_lights::LIGHTS_USAGE),
     ("lights pulse", crate::command_lights::PULSE_USAGE),
     ("lights enroll", crate::command_enroll::ENROLL_USAGE),

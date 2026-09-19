@@ -4,31 +4,44 @@ use super::*;
 /// See `Config::daemon_enabled`.
 pub(super) const DEFAULT_DAEMON_ENABLED: bool = true;
 
-/// `[daemon]`'s one switch, in `parse_focus`'s shape: an unknown key inside
+/// `[daemon]`'s two keys: the clock switch, and the launchd label `pns
+/// gateway` acts on. IN `parse_nag`'s SHAPE, a named struct rather than a
+/// pair of same-typed values, and for the same reason: an unknown key inside
 /// the table and a value of the wrong type are each refused BY NAME, rather
-/// than half-read into a clock the operator believes they turned off.
-pub(super) fn parse_daemon(value: toml::Value) -> Result<bool, ConfigError> {
+/// than half-read into a clock or a gateway the operator believes they set.
+pub(super) struct DaemonTable {
+    pub enabled: bool,
+    pub service: Option<String>,
+}
+
+pub(super) fn parse_daemon(value: toml::Value) -> Result<DaemonTable, ConfigError> {
     let toml::Value::Table(table) = value else {
         return Err(ConfigError::Invalid("`daemon` is not a table".to_string()));
     };
-    let mut enabled = DEFAULT_DAEMON_ENABLED;
+    let mut daemon = DaemonTable {
+        enabled: DEFAULT_DAEMON_ENABLED,
+        service: None,
+    };
     for (key, setting) in table {
         admits_flat("daemon", &key)?;
         match key.as_str() {
             "enabled" => {
-                enabled = setting.as_bool().ok_or_else(|| {
+                daemon.enabled = setting.as_bool().ok_or_else(|| {
                     ConfigError::Invalid(format!(
                         "`daemon` key `enabled` has type `{}`, not boolean",
                         setting.type_str()
                     ))
                 })?;
             }
+            "service" => {
+                daemon.service = Some(text("daemon", "service", &setting)?);
+            }
             _ => {
                 return Err(unknown_key("daemon", "daemon", &key));
             }
         }
     }
-    Ok(enabled)
+    Ok(daemon)
 }
 
 pub struct DaemonConfig {
