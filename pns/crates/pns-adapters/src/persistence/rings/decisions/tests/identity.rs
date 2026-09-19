@@ -90,7 +90,7 @@ fn no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans() {
         scope: pns_domain::DeliveryScope::LocalOnly,
         long_running: true,
         guessed: true,
-        delivery_class: pns_domain::routes::HEALTH.to_string(),
+        delivery_class: pns_domain::stale::DELIVERY_CLASS.to_string(),
     };
     let decision = decision(GateInputs {
         pane_present: true,

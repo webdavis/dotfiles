@@ -398,10 +398,10 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
 /// THE ROUTE NAMES ARE THE OPERATOR'S, ON THE WIRE.
 ///
 /// THE ONE ASSERTION NO UNIT TEST CAN MAKE. That `[routes]` parses, that a
-/// health event takes the urgent route and that a key table grants a route its
-/// key are each pinned on their own; what nothing pinned is the ASSIGNMENT of
-/// all three onto one POST, and every compiled route name this change removed
-/// used to be what carried it. So the gateway is PROXIED rather than moved,
+/// delivery class takes the route its own table names and that a key table
+/// grants a route its key are each pinned on their own; what nothing pinned is
+/// the ASSIGNMENT of all three onto one POST, and every compiled route name
+/// this change removed used to be what carried it. So the gateway is PROXIED rather than moved,
 /// exactly as the stale alert's own route test does it and for its reason:
 /// `PNS_HERMES_URL` outranks the route, so an endpoint override cannot observe
 /// one.
@@ -416,7 +416,7 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
     let capture = Capture::start(&sandbox, "invented-routes", None, None);
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
-         [plugins.hermes]\nenabled = true\n\
+         [delivery_class.health]\nroute = \"sirens\"\n[plugins.hermes]\nenabled = true\n\
          keys = { logbook = \"logbook-key\", sirens = \"sirens-key\" }\n",
     );
 

@@ -289,12 +289,14 @@ Then the delivery plan becomes `banner: false, phone_card: false, pulse: false`
   below is the exception (`crates/pns-domain/src/decision/arbitration.rs`). Pinned by `src/engine.rs`
   (the forced-and-muted case) and by the `PNS_FORCE_PHONE=1` setup in `tests/dispatch.rs:focus_event`.
 
-For a request carrying a validated class, `[delivery] bypass_silence_classes` permits exact named matches
-through the timed mute and named Focus for the banner and phone already selected by policy. The shipped,
-uncommented default is `["security"]`; an empty list permits no exception. Names are case-sensitive, and
-each must contain 1 through 64 characters without controls. An invalid list, unknown key, missing file or
-unreadable config grants no exception. A valid config with no delivery table or no class key uses the
-default.
+For a request carrying a validated class, `[delivery_class.<name>] bypass_mute = true` permits that class
+through the timed mute and named Focus for the banner and phone already selected by policy. The shipped
+config defines `default`, `health` and `security`, and only `security` sets `bypass_mute`; pns compiles in
+no class of its own, so a file defining none permits no exception. Names are case-sensitive, and each
+must contain 1 through 64 characters without controls. A class NO table defines is refused with exit 2
+and named rather than delivered without its exception. A request naming no class reads
+`[delivery_class.default]`. An invalid table, unknown key, missing file or unreadable config grants no
+exception.
 
 Presence, visible-pane suppression, skip, narrowing flags and destination enablement still apply. Silence
 always suppresses the pulse. Hermes routing and payload stay unchanged. These are request metadata rules,

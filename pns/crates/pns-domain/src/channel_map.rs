@@ -126,13 +126,12 @@ mod tests {
     }
 
     #[test]
-    fn the_route_a_health_event_takes_is_the_key_that_wins() {
+    fn the_route_a_classed_event_takes_is_the_key_that_wins() {
         // SEVERITY AHEAD OF SUBJECT, read off the routing rule rather than
-        // restated here: whatever the `health` class routes to is the key
-        // this lookup consults first, so the two cannot disagree.
-        let routes = crate::routes::Routes::named(DEFAULT_ROUTE, URGENT_ROUTE);
-        let route = crate::routes::route_for(crate::routes::HEALTH, &routes, "failed")
-            .expect("health takes a route of its own");
+        // restated here: whatever a class routes to is the key this lookup
+        // consults first, so the two cannot disagree.
+        let route = crate::routes::route_for(Some(URGENT_ROUTE), "failed")
+            .expect("a class that names a route takes it");
         let channels = map(&[(DEFAULT_KEY, "catch-all"), (route, "pages")]);
         assert_eq!(looked_up(&channels, route, "dotfiles"), Some("pages"));
     }

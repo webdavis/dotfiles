@@ -74,8 +74,21 @@ fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
             sequence.is_some()
         );
     }
-    let refused = result(Err(LedgerFailure::ConflictingSubmission));
+    let refused = result(Err(NotSubmitted::Ledger(
+        LedgerFailure::ConflictingSubmission,
+    )));
     assert_eq!(refused.status, Status::Rejected);
     assert_eq!(refused.diagnostics, ["submission_conflict"]);
     assert!(refused.destinations.is_empty());
+
+    // THE CLASS IS NAMED IN THE REPLY, so a producer reading stdout alone
+    // learns which word it has to fix rather than only that something was
+    // refused.
+    let undefined = result(Err(NotSubmitted::UnknownDeliveryClass("security".into())));
+    assert_eq!(undefined.status, Status::Rejected);
+    assert_eq!(
+        undefined.diagnostics,
+        ["unknown_delivery_class", "security"]
+    );
+    assert!(undefined.destinations.is_empty());
 }

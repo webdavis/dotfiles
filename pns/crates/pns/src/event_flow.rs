@@ -5,6 +5,25 @@ mod submit;
 use records::EventRecords;
 pub(crate) use submit::{submit_encoded, submit_mode};
 
+/// Why an event produced no delivery: the ledger refused the submission, or
+/// the event named a delivery class this machine's config never defined.
+///
+/// TWO FACTS AND NOT ONE, because they are answered differently: a ledger
+/// that refused is the machine failing at the job, while an undefined class is
+/// BAD INPUT, which both entry points report as exit 2 the way they report
+/// every other refused field.
+#[derive(Debug)]
+pub(crate) enum NotSubmitted {
+    Ledger(pns_application::LedgerFailure),
+    UnknownDeliveryClass(String),
+}
+
+impl From<pns_application::LedgerFailure> for NotSubmitted {
+    fn from(failure: pns_application::LedgerFailure) -> Self {
+        NotSubmitted::Ledger(failure)
+    }
+}
+
 /// Whether this is the event's FIRST delivery, a NUDGE about one already
 /// recorded, or an OBSERVATION.
 ///
@@ -107,6 +126,10 @@ fn run_event_pulsing(
 pub(crate) enum Landed {
     Yes,
     No,
+    /// The event was REFUSED as bad input and nothing was attempted. It is a
+    /// third answer rather than a second spelling of `No`, because a caller's
+    /// own mistake and a delivery that did not land earn different exit codes.
+    Rejected,
 }
 
 /// DECORATIVE LEGS DO NOT DECIDE IT. `decorative` is `presence_gated || local`,
@@ -120,11 +143,10 @@ pub(crate) enum Landed {
 /// submission is a duplicate of one already answered, and answering it a second
 /// time with a failure would make a retried producer call report a page that did
 /// arrive.
-fn landed(
-    submitted: &Result<pns_application::Submitted, pns_application::LedgerFailure>,
-) -> Landed {
+fn landed(submitted: &Result<pns_application::Submitted, NotSubmitted>) -> Landed {
     match submitted {
-        Err(_) => Landed::No,
+        Err(NotSubmitted::UnknownDeliveryClass(_)) => Landed::Rejected,
+        Err(NotSubmitted::Ledger(_)) => Landed::No,
         Ok(pns_application::Submitted::Existing(_)) => Landed::Yes,
         Ok(pns_application::Submitted::Attempted { outcomes, .. }) => {
             let lost = outcomes.iter().any(|(leg, delivery)| {
