@@ -39,8 +39,21 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon", "delivery", "failures", "focus", "lights", "paths", "phone", "plugins",
-            "producer", "quiet", "recap", "remind", "routes", "stale",
+            "daemon",
+            "delivery",
+            "delivery_class",
+            "failures",
+            "focus",
+            "lights",
+            "paths",
+            "phone",
+            "plugins",
+            "producer",
+            "quiet",
+            "recap",
+            "remind",
+            "routes",
+            "stale",
         ],
     ),
     (ROUTES, &["default", "urgent"]),
@@ -65,13 +78,13 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "delivery",
         &[
-            "bypass_silence_classes",
             "max_attempts",
             "max_age_secs",
             "remote_deadline",
             "retry_base_secs",
         ],
     ),
+    (DELIVERY_CLASS_KEYS, &["bypass_mute", "route"]),
     ("daemon", &["enabled", "service"]),
     ("paths", &["channels_dir", "state_dir"]),
     ("phone", &["marker_file"]),
@@ -240,6 +253,13 @@ pub(super) const MOBILE_IMAGE_CARDS: &str = "plugins.mobile.image_cards";
 
 /// What the two routes pns selects for itself are called.
 pub(super) const ROUTES: &str = "routes";
+
+/// The roster row every `[delivery_class.<name>]` table shares.
+///
+/// A PREFIX, like `lights.<level>` above it: the second segment is the
+/// operator's own class name, so the roster holds the part that is the
+/// schema's and each refusal names the whole path the operator wrote.
+pub(super) const DELIVERY_CLASS_KEYS: &str = "delivery_class.<name>";
 
 /// Tables whose vocabulary is the OPERATOR'S rather than this schema's.
 ///

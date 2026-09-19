@@ -78,9 +78,12 @@ scopes:         automatic, the default, lets presence decide; local_only keeps
                 the event on this machine; remote_only sends it off the machine
                 alone.
 
-delivery class: naming none is a session event and takes the route
-                `[routes] default` names; health is a machine's own health and
-                takes `[routes] urgent` when its --state is one somebody has to
-                answer, unless --route already named one. The same word the
-                JSON request's `delivery_class` carries.
+delivery class: what the event IS for delivery. A
+                `[delivery_class.<name>]` table in your config says where each
+                class goes and whether it passes a mute; its route is taken
+                when --state is one somebody has to answer, unless --route
+                already named one. Naming none reads
+                `[delivery_class.default]`, and a class no table defines is
+                refused. The same word the JSON request's `delivery_class`
+                carries.
 ";

@@ -88,6 +88,10 @@ pub(crate) fn event_mode(argv: &[String]) -> i32 {
         match run_event(&event, &system_probes(), &payload, attempt) {
             event_flow::Landed::Yes => 0,
             event_flow::Landed::No => EVENT_NOT_DELIVERED,
+            // BAD INPUT, on the same exit code every other refused field
+            // earns, and the one case on this path that is the caller's own
+            // mistake rather than a delivery that did not land.
+            event_flow::Landed::Rejected => crate::legacy::REFUSED_INPUT,
         }
     })
 }

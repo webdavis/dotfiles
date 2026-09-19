@@ -102,12 +102,15 @@ impl EventArgs {
     /// THE NAMED ROUTE WINS. A producer that said where already answered the
     /// question the delivery class is here to answer.
     ///
+    /// `class_route` IS WHAT THE CONFIGURED CLASS SAYS, resolved by the caller
+    /// that holds the file: this crate reads no config and knows no class.
+    ///
     /// RESOLVED ONCE, AND EARLY. `channel` is what the ledger row, the retry
     /// that rebuilds off it and every destination read, so a route filled in
     /// later would leave a page recorded on one route and posted to another.
-    pub fn routed(mut self, routes: &crate::routes::Routes) -> Self {
+    pub fn routed(mut self, class_route: Option<&str>) -> Self {
         if self.channel.is_empty()
-            && let Some(route) = crate::routes::route_for(&self.delivery_class, routes, &self.state)
+            && let Some(route) = crate::routes::route_for(class_route, &self.state)
         {
             self.channel = route.to_string();
         }
@@ -118,21 +121,20 @@ impl EventArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::routes::{HEALTH, Routes};
 
     /// A failed upgrade, which is the health event this repository actually
     /// raises: uu spawns `pns send --delivery-class health --state failed`.
     fn health() -> EventArgs {
         EventArgs {
-            delivery_class: HEALTH.to_string(),
+            delivery_class: "health".to_string(),
             state: "failed".to_string(),
             ..EventArgs::default()
         }
     }
 
     #[test]
-    fn a_failed_health_event_is_routed_to_the_urgent_route_the_config_named() {
-        let routed = health().routed(&Routes::named("logbook", "sirens"));
+    fn a_failed_health_event_is_routed_to_the_route_its_class_names() {
+        let routed = health().routed(Some("sirens"));
         assert_eq!(routed.channel, "sirens");
     }
 
@@ -142,7 +144,7 @@ mod tests {
             state: "done".to_string(),
             ..health()
         }
-        .routed(&Routes::named("logbook", "sirens"));
+        .routed(Some("sirens"));
         assert!(
             routed.channel.is_empty(),
             "a healthy machine paged the operator: {}",
@@ -157,7 +159,7 @@ mod tests {
             ..health()
         };
         assert_eq!(
-            named.routed(&Routes::named("logbook", "sirens")).channel,
+            named.routed(Some("sirens")).channel,
             "posture-pages",
             "the delivery class overrode a route the producer had already named"
         );
@@ -165,7 +167,7 @@ mod tests {
 
     #[test]
     fn a_session_event_is_left_on_the_empty_route_every_path_reads_as_default() {
-        let routed = EventArgs::default().routed(&Routes::named("logbook", "sirens"));
+        let routed = EventArgs::default().routed(None);
         assert!(
             routed.channel.is_empty(),
             "an agent event was pinned to a route name: {}",

@@ -16,26 +16,22 @@ fn blocked() -> Blocked {
 }
 
 #[test]
-fn the_page_goes_to_the_route_it_was_given_or_to_the_urgent_one() {
-    // AN UNNAMED ROUTE LEAVES THE KIND TO ANSWER. The page carries the health
-    // kind, and the route that kind takes is the one `[routes] urgent` spells.
+fn the_page_goes_to_the_route_it_was_given_or_to_the_one_its_class_names() {
+    // AN UNNAMED ROUTE LEAVES THE CLASS TO ANSWER. The page carries a
+    // delivery class, and `[delivery_class.<name>] route` is what that word
+    // resolves to.
     let raised = page(&blocked(), 4_780, "");
     assert!(
         raised.channel.is_empty(),
         "the page pinned a route name: {}",
         raised.channel
     );
-    assert_eq!(
-        raised
-            .routed(&crate::routes::Routes::named("logbook", "sirens"))
-            .channel,
-        "sirens"
-    );
+    assert_eq!(raised.routed(Some("sirens")).channel, "sirens");
     // AND A NAMED ROUTE WINS, which is what `[stale] route` buys: the name
-    // survives the resolution the kind would otherwise decide.
+    // survives the resolution the class would otherwise decide.
     assert_eq!(
         page(&blocked(), 4_780, "priority")
-            .routed(&crate::routes::Routes::named("logbook", "sirens"))
+            .routed(Some("sirens"))
             .channel,
         "priority"
     );

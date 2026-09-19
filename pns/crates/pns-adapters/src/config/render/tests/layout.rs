@@ -15,6 +15,9 @@ fn render_walks_every_layout_table_and_writes_no_heading_outside_it() {
         if table.name.starts_with("lights.") {
             continue; // governed by the single [lights] presence flag
         }
+        if table.name == crate::config::schema::DELIVERY_CLASS_KEYS {
+            continue; // its headings carry the operator's own class names
+        }
         let live = format!("[{}]\n", table.name);
         let commented = format!("# [{}]\n", table.name);
         assert!(
@@ -31,6 +34,9 @@ fn render_walks_every_layout_table_and_writes_no_heading_outside_it() {
         };
         if heading.contains('"') {
             continue; // a lamp/room/zone target declaration, not a LAYOUT table
+        }
+        if heading.starts_with("delivery_class.") {
+            continue; // a delivery-class declaration, named by the operator
         }
         assert!(
             layout_names.contains(heading),

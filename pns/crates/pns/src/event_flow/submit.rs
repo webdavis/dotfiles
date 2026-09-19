@@ -61,7 +61,7 @@ fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::
 
 fn accept(
     decoded: DecodedRequest,
-    submit: impl FnOnce(&Request, &ProducerRequest) -> Result<Submitted, pns_application::LedgerFailure>,
+    submit: impl FnOnce(&Request, &ProducerRequest) -> Result<Submitted, NotSubmitted>,
 ) -> ResultEnvelope {
     let request = decoded.request;
     let encoded = match request.encode() {
