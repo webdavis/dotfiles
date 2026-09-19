@@ -25,10 +25,14 @@ use pns_domain::EventArgs;
 /// machine's own disk.
 ///
 /// MEASURED ON DRESDEN, 500 runs of the blocked hook each way, one HOME with
-/// `[remind] after_secs = 300` and one with no `[remind]` table and everything else
+/// `[remind] delay = "5m"` and one with no `[remind]` table and everything else
 /// identical: 134.7ms +/- 14.1ms armed against 134.8ms +/- 13.3ms unarmed. The
 /// arm is not separable from the hook's own run-to-run variation, which is the
 /// bound worth stating: it is smaller than the noise of the thing it sits in.
+///
+/// WHETHER TO ARM AT ALL IS THE CALLER'S, resolved from the call's own
+/// `--remind` switch and the producer's config entry before this runs. A
+/// delay of zero is the one statement this layer reads as off.
 pub struct ArmRemind<'a, R, J> {
     pub records: &'a R,
     pub jobs: &'a J,
@@ -39,20 +43,10 @@ impl<R: RemindRecords, J: JobSpool> ArmRemind<'_, R, J> {
         &self,
         session_id: &str,
         event: &EventArgs,
-        after_secs: impl FnOnce() -> u64,
+        after_secs: u64,
         clock: impl FnOnce() -> Option<u64>,
         mut warn: impl FnMut(&str),
     ) {
-        // NO REMINDER ON CODEX, and the gate is POSITIVE rather than a `!= "codex"`, so
-        // an empty or unknown `PNS_PRODUCER` arms nothing either (bug class 16:
-        // set-but-empty is not unset). Codex wires exactly Stop and
-        // PermissionRequest, so it has a turn-end clear and no batch-level one, and
-        // agent turns in this repo routinely run tens of minutes: a Codex reminder would
-        // be wrong in the COMMON case rather than at an edge.
-        if event.agent != CLAUDE_AGENT {
-            return;
-        }
-        let after_secs = after_secs();
         if after_secs == 0 {
             return;
         }
@@ -139,9 +133,6 @@ impl<R: RemindRecords, J: JobSpool> ArmRemind<'_, R, J> {
         }
     }
 }
-
-/// The one agent a reminder is armed for. See `arm_remind`.
-const CLAUDE_AGENT: &str = "claude";
 
 /// The word the daemon re-executes this binary with.
 const REMIND_MODE_WORD: &str = "remind";

@@ -60,7 +60,12 @@ fn refusal(subcommand: &str) -> String {
 /// a consumed-but-not-forwarded stream leaves moshi with an empty parse,
 /// after which it silently does nothing. A payload too large to have arrived
 /// whole is the one thing not forwarded: see `payload_is_whole`.
-pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32 {
+pub(crate) fn blocking_event(
+    payload: &HookPayload,
+    agent: &str,
+    payload_json: &str,
+    remind_after_secs: u64,
+) -> i32 {
     let event = pns_domain::EventArgs {
         agent: agent.to_string(),
         state: "blocked".to_string(),
@@ -82,6 +87,7 @@ pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &
     let approval = MoshiRaiseNotification {
         probes: &probes,
         payload,
+        remind_after_secs,
     };
     pns_application::RequestApproval { ports: &approval }.run(
         &event,
@@ -99,6 +105,9 @@ pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &
 struct MoshiRaiseNotification<'a> {
     probes: &'a SystemProbes<SystemCommandRunner>,
     payload: &'a HookPayload,
+    /// How long this call's reminder waits, already resolved from its own
+    /// `--remind` switch and the producer's config entry. ZERO ARMS NOTHING.
+    remind_after_secs: u64,
 }
 
 impl pns_application::ApprovalForwarder for MoshiRaiseNotification<'_> {
@@ -129,7 +138,7 @@ impl pns_application::PhoneSuppression for MoshiRaiseNotification<'_> {
 
 impl pns_application::RemindSchedule for MoshiRaiseNotification<'_> {
     fn arm(&self, session_id: &str, event: &pns_domain::EventArgs) {
-        arm_remind(session_id, event);
+        arm_remind(session_id, event, self.remind_after_secs);
     }
 }
 

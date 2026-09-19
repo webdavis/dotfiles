@@ -39,8 +39,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon", "delivery", "failures", "focus", "lights", "phone", "plugins", "quiet",
-            "recap", "remind", "routes", "stale",
+            "daemon", "delivery", "failures", "focus", "lights", "phone", "plugins", "producer",
+            "quiet", "recap", "remind", "routes", "stale",
         ],
     ),
     (ROUTES, &["default", "urgent"]),
@@ -74,6 +74,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("daemon", &["enabled", "service"]),
     ("phone", &["marker_file"]),
     ("remind", &["delay"]),
+    // THE NESTED ROW IS A PREFIX, as `lights.<level>` is: `[producer.<name>]`
+    // carries the producer's own name, so the roster holds the part that is
+    // the schema's and the refusal names the whole path.
+    (PRODUCER_KEYS, &["remind"]),
     ("stale", &["escalate_after", "route"]),
     ("failures", &["port", "serve"]),
     (
@@ -212,6 +216,10 @@ pub const TOP_LEVEL: &str = "";
 /// specific they are. Three rows would be one list to keep in agreement with
 /// two others, which is the drift this roster exists to prevent.
 pub(super) const TARGET_KEYS: &str = "lights.<level>";
+
+/// The roster row every `[producer.<name>]` table shares, whichever producer
+/// wrote it.
+pub(super) const PRODUCER_KEYS: &str = "producer.<name>";
 
 /// The channel map, whose keys are PROJECT NAMES.
 pub(super) const DISCORD_CHANNELS: &str = "plugins.discord.channels";

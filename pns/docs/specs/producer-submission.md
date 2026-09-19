@@ -132,6 +132,15 @@ delivery.
 
 ### 4. Producer flags are parsed leniently, and a recognized flag is never eaten
 
+The reminder switch is its own scan rather than part of that walk. `--remind`, `--remind=<duration>` and
+`--no-remind` are read off a hook's own argv by `legacy::remind_switch`; the LAST one named wins, so a
+wrapper appending its own switch overrides the one it wrapped, and the value is joined with `=`, so the
+token after `--remind` is never swallowed. The value goes through the one duration parser and is held to
+the range `[remind] delay` is held to, thirty seconds to an hour, refused by name outside it
+(`crates/pns/src/legacy/argv.rs:remind_switch`,
+`crates/pns/src/legacy/argv/tests.rs:the_last_reminder_switch_argv_named_is_the_one_that_answers`).
+
+
 Given argv containing producer flags
 
 When `parse_args` walks it

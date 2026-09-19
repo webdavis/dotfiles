@@ -31,7 +31,7 @@ pub use config::{
     MAX_REFRESH_SECS, MIN_REFRESH_SECS, MOSHI_TYPE, PluginEntry, Presence, QuietCalendar, Recap,
     TABLE_KEYS, TOP_LEVEL, armed_mobile, config_path, enabled_hue_table, identity_placeholder,
     load_config, mobile_backend, moshi_image_cards, moshi_secret, parse_config, parse_presence,
-    render, strip_chezmoi_actions, submit_deadline,
+    remind_delay_range, render, strip_chezmoi_actions, submit_deadline,
 };
 pub use config::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,

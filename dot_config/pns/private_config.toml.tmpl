@@ -432,6 +432,16 @@ summarizer_deadline_secs = 240
 [remind]
 delay = "5m"
 
+# What one producer asked for, one table per producer, keyed by the name it
+# sends (`--producer`, or PNS_PRODUCER). Replace <name> with that name.
+# THE REMINDER IS SWITCHED ON BY THE CALL, NEVER BY THE NAME: a harness
+# that sends an answered signal passes `--remind` on its own approval hook,
+# and that flag beats whatever this table says. This is here for a producer
+# you cannot pass a flag to. It needs `[remind] delay` above; with no delay
+# set, `remind = true` is still the reminder off.
+# [producer.<name>]
+# remind = true
+
 # The OTHER end of the same wait: how long a session stays blocked before
 # ONE page about it goes out, to the route reserved for things that need
 # a human. It fires once per block and then says nothing until that block
