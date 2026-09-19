@@ -321,7 +321,7 @@ fn pin_state(hue_table: Option<&toml::Table>) -> pns_domain::doctor::PinState {
     let Some(table) = hue_table else {
         return pns_domain::doctor::PinState::Unconfigured;
     };
-    match pns_adapters::hue_settings(table, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) {
+    match pns_adapters::hue_settings(table) {
         Ok(Some(_)) => pns_domain::doctor::PinState::Held,
         Ok(None) => pns_domain::doctor::PinState::Unconfigured,
         Err(reason) => pns_domain::doctor::PinState::Refused(reason),

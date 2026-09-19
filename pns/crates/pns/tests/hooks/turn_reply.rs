@@ -146,6 +146,10 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     let sandbox = Sandbox::new("hook-snapshot-timing");
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
+    sandbox.write_config(&format!(
+        "{}\n[phone]\nmarker_file = {marker:?}\n",
+        support::STUB_CHANNELS
+    ));
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("stub bin");
     // THE MARKER IS BACKDATED RATHER THAN WAITED PAST: the condenser stub
@@ -160,7 +164,6 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     command
         .env("PNS_SCREEN_IDLE", "2")
         .env("PNS_DESK_IDLE", "120")
-        .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     hook_with(

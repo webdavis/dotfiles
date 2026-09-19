@@ -118,11 +118,7 @@ fn children_of(entry: &serde_json::Value) -> Vec<&str> {
 /// with the bridge down at the cost of a narrower vocabulary.
 pub fn bridge_inventory(config: &crate::Config) -> Option<pns_domain::lamps::Inventory> {
     let settings = crate::enabled_hue_table(config)?;
-    let hue = super::armed_hue(
-        &settings,
-        std::env::var("HUE_PULSE_ROOMS").ok().as_deref(),
-        |refusal| eprintln!("{refusal}"),
-    )?;
+    let hue = super::armed_hue(&settings, |refusal| eprintln!("{refusal}"))?;
     // THE HUMAN'S OWN DEADLINE, not the transport's. Nothing else here dials a
     // bridge with somebody standing at a terminal waiting on the answer, and
     // three calls at the transport's ten seconds is half a minute before a mute

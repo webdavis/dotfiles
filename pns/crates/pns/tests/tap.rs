@@ -82,9 +82,13 @@ fn tap_and_the_event_reader_share_the_configured_marker() {
     assert!(!s.path(".local/state/pns/phone-attention.marker").exists());
 }
 
+/// THE MUTANT THIS PINS: `PNS_PHONE_MARKER_FILE` read back in, which would
+/// have this run silently succeed off the environment path even with a
+/// config that could not load. Config is the only source now, so a broken
+/// config refuses instead, and the deleted variable is never touched.
 #[test]
-fn environment_path_wins_even_when_configuration_cannot_load() {
-    let s = Sandbox::new("tap-env-wins");
+fn the_marker_environment_override_is_gone_a_broken_config_refuses_instead() {
+    let s = Sandbox::new("tap-env-ignored");
     s.write_config("[broken");
     let marker = s.path("override");
     let out = s
@@ -93,9 +97,9 @@ fn environment_path_wins_even_when_configuration_cannot_load() {
         .args(["tap", "--json"])
         .output()
         .unwrap();
-    assert_eq!(out.status.code(), Some(0), "{out:?}");
-    assert_eq!(json(&out)["marker"]["source"], "environment");
-    assert!(marker.is_file());
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert_eq!(json(&out)["error"]["code"], "config_error");
+    assert!(!marker.exists(), "the deleted override must not be touched");
 }
 
 #[test]
@@ -109,12 +113,8 @@ fn info_preserves_missing_state_and_install_preserves_existing_state() {
     let marker = s.path("marker");
     fs::write(&marker, "keep").unwrap();
     let before = fs::metadata(&marker).unwrap().modified().unwrap();
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["tap", "install", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
+    let out = s.pns().args(["tap", "install", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let answer = json(&out);
     assert_eq!(answer["write_status"], "not_requested");
@@ -136,12 +136,11 @@ fn info_preserves_missing_state_and_install_preserves_existing_state() {
 fn a_failed_directory_creation_is_an_operational_failure() {
     let s = Sandbox::without_config("tap-mkdir-fails");
     fs::write(s.path("blocked"), "keep").unwrap();
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", s.path("blocked/marker"))
-        .args(["tap", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!(
+        "[phone]\nmarker_file = {:?}\n",
+        s.path("blocked/marker")
+    ));
+    let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["ok"], false);
     assert_eq!(json(&out)["error"]["code"], "mkdir_failed");
@@ -153,12 +152,8 @@ fn a_failed_directory_creation_is_an_operational_failure() {
 #[test]
 fn a_directory_at_the_marker_is_refused_without_claiming_success() {
     let s = Sandbox::without_config("tap-directory-marker");
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", &s.root)
-        .args(["tap", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!("[phone]\nmarker_file = {:?}\n", s.root));
+    let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["write_status"], "failed");
     assert_eq!(json(&out)["error"]["code"], "touch_failed");
@@ -173,9 +168,9 @@ fn tap_preserves_contents_and_desk_wins_a_tie() {
         .unwrap()
         .set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(1))
         .unwrap();
+    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
     let out = s
         .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("PNS_SCREEN_IDLE", "0")
         .args(["tap", "--json"])
         .output()
@@ -283,12 +278,8 @@ fn tap_updates_a_dangling_link_itself_without_creating_its_target() {
         },
         0
     );
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["tap", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
+    let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(json(&out)["marker"]["mtime_epoch_secs"].as_u64().unwrap() > 1);
     assert!(
