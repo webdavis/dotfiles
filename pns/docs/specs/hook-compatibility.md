@@ -550,12 +550,13 @@ Then the transcript tail is read up to `1 + reread_attempts()` times, sleeping `
 - Fail direction: an empty string, reported the same as a turn that said nothing. "An expired window
   proves only that nothing readable arrived in time" (`src/main.rs:turn_reply`).
 - Thresholds: `DEFAULT_REREAD_ATTEMPTS` = 4 and `DEFAULT_REREAD_INTERVAL` = 150 ms, so the default is 5
-  reads across roughly 600 ms of sleeping. `MAX_REREAD_ATTEMPTS` = 10 and `MAX_REREAD_INTERVAL` = 5
-  seconds clamp the two environment knobs (`PNS_REPLY_REREAD_ATTEMPTS`, `PNS_REPLY_REREAD_INTERVAL`), so
-  the worst case is 11 reads across 50 seconds. A knob of `11` clamps to 10; a knob of `10` is taken as
-  10\. An interval of `6` clamps to 5 seconds; `5` is taken as 5. The caps exist because their PRODUCT is
-  how long a Stop can sit re-reading, so "a stray zero in either costs seconds, never hours"
-  (`src/main.rs:MAX_REREAD_ATTEMPTS`).
+  reads across roughly 600 ms of sleeping. `MAX_REREAD_ATTEMPTS` = 10 clamps `PNS_REPLY_REREAD_ATTEMPTS`,
+  and `MAX_REREAD_INTERVAL` = 5 seconds REFUSES `PNS_REPLY_REREAD_INTERVAL` rather than clamping it: an
+  out-of-range interval falls back to `DEFAULT_REREAD_INTERVAL` instead of to the ceiling, so the worst
+  case a bad knob produces is 11 reads across roughly 1.5 seconds of sleeping at the default. A knob of
+  `11` clamps to 10; a knob of `10` is taken as 10\. An interval of `6s` is refused and falls back to
+  150 ms; `5s` is taken as 5s. The caps exist so a stray or malformed value costs at most seconds, never
+  minutes (`src/main.rs:MAX_REREAD_ATTEMPTS`).
 - Required side effects: none, this is a read.
 - Forbidden side effects: a bad knob must not panic. `reread_attempts_from` falls back to the default
   rather than to no retries when the value does not parse. `reread_interval_from` uses
