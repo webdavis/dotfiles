@@ -40,7 +40,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
-                Some(pulse_threshold_secs()),
+                Some(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
             ),
             ..attribution(payload, agent)
         },
@@ -83,7 +83,7 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
-                Some(pulse_threshold_secs()),
+                Some(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
             ),
             ..attribution(payload, agent)
         },
@@ -118,20 +118,6 @@ pub(crate) fn named_project(repository: &str, cwd: &str) -> String {
     }
 }
 
-/// How long a turn must run to earn the lights, from `[lights.loop]
-/// threshold_secs`, the same knob the loop lamp arms on.
-fn pulse_threshold_secs() -> u64 {
-    let home = std::env::var("HOME").unwrap_or_default();
-    match load_config(&config_path(&home)) {
-        Ok(LoadOutcome::Loaded(config)) => config
-            .lights
-            .as_deref()
-            .map(|lights| lights.looping.threshold_secs)
-            .unwrap_or(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
-        _ => pns_domain::pulse::DEFAULT_LONG_SESSION_SECS,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,27 +133,5 @@ mod tests {
         );
         assert_eq!(named_project("", "/Users/x/workspaces/homelab/"), "homelab");
         assert_eq!(named_project("", ""), "");
-    }
-
-    /// THE MUTANT THIS PINS: `PNS_PULSE_THRESHOLD_SECS` read back in, which
-    /// would make a deleted duplicate variable govern again. `[lights.loop]
-    /// threshold_secs` is the only source now, so a stale export in a shell
-    /// profile is silently ignored rather than silently reverting the pulse.
-    #[test]
-    fn pulse_threshold_reads_config_and_ignores_the_deleted_environment_variable() {
-        if crate::runtime_test_support::in_private_process() {
-            return;
-        }
-        let home = std::env::var("HOME").expect("the private process HOME");
-        std::fs::create_dir_all(format!("{home}/.config/pns")).expect("a config directory");
-        std::fs::write(
-            format!("{home}/.config/pns/config.toml"),
-            "[lights.loop]\nthreshold_secs = 42\n",
-        )
-        .expect("a config file");
-        // SAFETY: this process was re-execed for exactly this one test, so no
-        // other thread reads or writes the environment concurrently.
-        unsafe { std::env::set_var("PNS_PULSE_THRESHOLD_SECS", "999") };
-        assert_eq!(pulse_threshold_secs(), 42);
     }
 }
