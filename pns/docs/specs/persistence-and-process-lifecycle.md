@@ -137,7 +137,7 @@ ______________________________________________________________________
 
 ## Table 1: State inventory
 
-Every path is relative to the state directory, which is `$PNS_STATE_DIR` when that is set and non-empty
+Every path is relative to the state directory, which is `[paths] state_dir`, else `PNS_STATE_DIR`, when either is set and non-empty
 and `$HOME/.local/state/pns` otherwise (`src/main.rs:state_dir`, `src/main.rs:resolve_path`). Mode `0600`
 means `src/main.rs:STATE_FILE_MODE`, applied at create and re-applied on the open handle by every
 publish. Directories are made with `std::fs::create_dir_all` and therefore carry the process umask; no
@@ -259,7 +259,7 @@ Given a process that has something to remember
 
 When it resolves where to put it
 
-Then `PNS_STATE_DIR` wins when it is set and non-empty, `$HOME/.local/state/pns` is the default, and an
+Then `[paths] state_dir` wins when the file names it, `PNS_STATE_DIR` next when it is set and non-empty, `$HOME/.local/state/pns` is the default, and an
 empty variable means the default rather than the current directory.
 
 `src/main.rs:state_dir` and `src/main.rs:resolve_path`: "EMPTY means the default as much as unset does,
@@ -1152,8 +1152,8 @@ producer dies. Neither bound depends on a live producer thread.
   answers `Delivery::Unlaunched` and takes down neither its siblings nor the caller.
 - Thresholds: the whole recap always has a fixed 30-second deadline, including repository reads before
   the summarizer's own episode clock starts. `the_whole_recap_deadline_includes_source_reads` exercises
-  that boundary with an injected short test duration. The inherited network-leg fallback still sets
-  `PNS_REMOTE_TIMEOUT` to 30 only when the environment named no deadline. The executable channel keeps
+  that boundary with an injected short test duration, and it is what bounds a child whose
+  `[delivery] remote_deadline` is zero. The executable channel keeps
   its five-second input/wait budget and no byte ceiling on inherited output.
 - Required side effects: the recap child gets `stdin`, `stdout` and `stderr` all null and its own process
   group; the channel gets the event on stdin, newline-terminated, "as the bash's `jq -cn` emitted it".

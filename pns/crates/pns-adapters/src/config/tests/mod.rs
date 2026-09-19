@@ -109,6 +109,9 @@ fn presence_config(body: &str) -> Config {
 const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::TOP_LEVEL, "phone", "{ marker_file = '~/attention' }"),
     ("phone", "marker_file", "'~/attention'"),
+    (super::TOP_LEVEL, "paths", "{ state_dir = '~/state' }"),
+    ("paths", "state_dir", "'~/state'"),
+    ("paths", "channels_dir", "'/opt/pns/channels'"),
     (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
     (
         super::TOP_LEVEL,
@@ -118,6 +121,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("delivery", "bypass_silence_classes", "[\"custom\"]"),
     ("delivery", "max_attempts", "3"),
     ("delivery", "max_age_secs", "7"),
+    ("delivery", "remote_deadline", "5"),
     ("delivery", "retry_base_secs", "7"),
     (super::TOP_LEVEL, "failures", "{ serve = true }"),
     ("failures", "port", "8646"),
@@ -208,6 +212,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.mobile.image_cards", "missed", "true"),
     ("plugins.hermes", "enabled", "true"),
     ("plugins.hermes", "keys", "{ pns-events = \"secret\" }"),
+    (
+        "plugins.hermes",
+        "url",
+        "\"http://127.0.0.1:8644/webhooks/pns-events\"",
+    ),
     ("plugins.hue", "bridge", "\"192.168.1.10\""),
     (
         "plugins.hue",
@@ -225,6 +234,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ),
     ("plugins.macos-banner", "click_type", "\"herdr\""),
     ("plugins.macos-banner", "enabled", "true"),
+    (
+        "plugins.macos-banner",
+        "terminal_bundle_id",
+        "\"com.mitchellh.ghostty\"",
+    ),
     ("plugins.presence", "enabled", "true"),
     ("plugins.presence", "desk_room", "\"3F - Studio\""),
     ("plugins.presence", "desk_stale_after_secs", "120"),
@@ -243,6 +257,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.mobile", "mobile_watch_card", "false"),
     ("plugins.mobile", "submit_deadline_secs", "5"),
     ("plugins.mobile", "token", "\"secret\""),
+    (
+        "plugins.mobile",
+        "url",
+        "\"https://api.getmoshi.app/api/webhook\"",
+    ),
     ("plugins.mobile", "type", "\"moshi\""),
     ("plugins.router", "api_key", "\"secret\""),
     ("plugins.router", "device_hostname", "\"mister\""),

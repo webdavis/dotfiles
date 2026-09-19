@@ -39,8 +39,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon", "delivery", "failures", "focus", "lights", "nag", "phone", "plugins",
-            "quiet", "recap", "routes",
+            "daemon", "delivery", "failures", "focus", "lights", "nag", "paths", "phone",
+            "plugins", "quiet", "recap", "routes",
         ],
     ),
     (ROUTES, &["default", "urgent"]),
@@ -68,10 +68,12 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "bypass_silence_classes",
             "max_attempts",
             "max_age_secs",
+            "remote_deadline",
             "retry_base_secs",
         ],
     ),
     ("daemon", &["enabled", "service"]),
+    ("paths", &["channels_dir", "state_dir"]),
     ("phone", &["marker_file"]),
     ("nag", &["after_secs", "stale_after_secs"]),
     ("failures", &["port", "serve"]),
@@ -124,7 +126,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // rest of its vocabulary is the operator's own project names, which no
     // roster can enumerate. See `OPEN_TABLES`.
     (DISCORD_CHANNELS, &["default"]),
-    ("plugins.hermes", &["enabled", "keys"]),
+    ("plugins.hermes", &["enabled", "keys", "url"]),
     // AN OPEN TABLE, and the one that decides which routes exist at all: its
     // keys are the ROUTE NAMES the operator's own gateway serves, which no
     // roster compiled into pns can enumerate. See `OPEN_TABLES`.
@@ -152,7 +154,12 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     (
         "plugins.macos-banner",
-        &["click_command", "click_type", "enabled"],
+        &[
+            "click_command",
+            "click_type",
+            "enabled",
+            "terminal_bundle_id",
+        ],
     ),
     (
         "plugins.presence",
@@ -176,6 +183,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "submit_deadline_secs",
             "token",
             "type",
+            "url",
         ],
     ),
     // AN OPEN TABLE: its keys are CARD TYPES, which is the state word an

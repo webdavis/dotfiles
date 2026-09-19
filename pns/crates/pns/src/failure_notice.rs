@@ -44,6 +44,10 @@ struct PhoneCard {
     /// the token is: the channel reads its own toggles and this module has no
     /// business second-guessing which card types the operator armed.
     image_cards: Vec<String>,
+    /// `[plugins.mobile] url`, else `PNS_MOSHI_URL`: where the push goes.
+    /// Carried for the token's reason, since the channel this builds is built
+    /// outside the composition root that already resolved it.
+    url: Option<String>,
 }
 
 /// Announce every failure this pass recorded that warrants it.
@@ -111,6 +115,7 @@ fn phone_card() -> Option<PhoneCard> {
     // fault, one complaint. The armed table is all this needs.
     let mobile = pns_adapters::armed_mobile(&config).ok().flatten();
     Some(PhoneCard {
+        url: pns_adapters::install_settings_of(Some(&config), &home).moshi_url,
         token: mobile.and_then(pns_adapters::moshi_secret),
         serve: config.failures.serve,
         image_cards: mobile
@@ -178,7 +183,11 @@ fn push(failure: &Failure, phone: &PhoneCard) {
     // happen in a pane, and a link to whichever pane the daemon happens to be
     // running in would open somewhere the operator was not working.
     let _ = pns_application::NotificationDestination::deliver(
-        &crate::channel_dispatch::moshi_channel(phone.token.clone(), phone.image_cards.clone()),
+        &crate::channel_dispatch::moshi_channel(
+            phone.token.clone(),
+            phone.image_cards.clone(),
+            phone.url.as_deref(),
+        ),
         &pns_application::DeliveryRequest {
             producer_request: None,
             producer: "pns",

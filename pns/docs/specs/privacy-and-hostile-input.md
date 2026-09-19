@@ -748,7 +748,7 @@ environment and no printed line
   rather than a value. "a 401 swallowed silently leaves the Discord channel empty, and an empty channel
   looks like the jobs stopped running".
 - Thresholds: `ASYNC_DEADLINE` = 10 s; sync default 5 s, clamped to `MAX_SYNC_DEADLINE_SECS` = 86,400.
-  `PNS_REMOTE_TIMEOUT` of `0` is curl's `-m 0`, no deadline, and is treated as explicit caller intent.
+  `[delivery] remote_deadline` of `0` is curl's `-m 0`, and is treated as explicit operator intent, no deadline, and is treated as explicit caller intent.
 - Required side effects: one POST carrying agent, state, project and the FULL message as `detail`,
   "because Discord has no length ceiling for the preview to serve".
 - Forbidden side effects: `max_redirects(0)`, because "following one would send the signed body to
@@ -773,11 +773,11 @@ When events, alerts and recaps are delivered
 Then exactly five outbound destinations exist and each carries a stated payload
 
 - Success: the destinations, from the code:
-  1. moshi, `https://api.getmoshi.app/api/webhook` or `PNS_MOSHI_URL`. Carries the token, the title
+  1. moshi, `https://api.getmoshi.app/api/webhook`, or `[plugins.mobile] url` or `PNS_MOSHI_URL`. Carries the token, the title
      (`agent · state · project`), the message (the PREVIEW, at most 260 characters, which is the reply or
      detail text), and an optional `moshi://herdr?pane=<pane>` deep link built only from a `pane_is_safe`
      pane. This is the one destination outside the local network by default.
-  1. hermes, `http://127.0.0.1:8644/webhooks/pns-events` or `PNS_HERMES_URL`, or the same base with its
+  1. hermes, `http://127.0.0.1:8644/webhooks/pns-events`, or `[plugins.hermes] url` or `PNS_HERMES_URL`, or the same base with its
      final path segment swapped for a `route_name_is_usable` route. Carries agent, state, project and the
      FULL message as `detail`, signed. Local by default.
   1. The hue bridge on the local network, `hue-application-key` header, carrying lamp state bodies only.
@@ -962,6 +962,7 @@ Then every value in it came from the test's own sandbox, never from the operator
   in `test/validate-tests.sh`'s remit either, which polices file placement rather than file access.
 - Process ownership and cleanup: a `Sandbox` prints a "test budget" line to stderr on drop when it lived
   past the review line.
-- Compatibility contract: `PNS_STATE_DIR`, `PNS_CHANNELS_DIR`, `PNS_MOSHI_URL`, `PNS_HERMES_URL`,
+- Compatibility contract: `PNS_STATE_DIR`, `PNS_CHANNELS_DIR`, `PNS_MOSHI_URL`, `PNS_HERMES_URL` (each
+  the fallback behind its own config key now),
   `PNS_MOSHI_HOOK_BIN`, `PNS_CODEX_BIN` and `PNS_SCREEN_IDLE` are the seams that make the sandbox possible. A new
   world-reading seam without an override is a test that cannot be sandboxed.

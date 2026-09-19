@@ -1107,7 +1107,7 @@ ______________________________________________________________________
 | --------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
 | `PNS_PRODUCER`                    | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
 | `HERDR_PANE_ID`                   | every delivering arm                       | the pane the card focuses on click, passed verbatim                                 |
-| `PNS_STATE_DIR`                   | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
+| `[paths] state_dir`, `PNS_STATE_DIR` | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
 | `PNS_PAYLOAD_DEADLINE_MS`         | `payload_deadline`                         | the standard-input wait; defaults to 5 s                                            |
 | `PNS_REPLY_REREAD_ATTEMPTS`       | `reread_attempts`                          | extra transcript reads; default 4, clamped to 10                                    |
 | `PNS_REPLY_REREAD_INTERVAL`       | `reread_interval`                          | seconds between reads; default 0.15, clamped to 5                                   |

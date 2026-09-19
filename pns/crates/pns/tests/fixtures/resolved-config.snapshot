@@ -1,5 +1,9 @@
 Config {
     phone_marker_file: None,
+    paths: Paths {
+        state_dir: None,
+        channels_dir: None,
+    },
     plugins: {
         "discord": PluginEntry {
             enabled: false,
@@ -211,6 +215,7 @@ Config {
     bypass_silence_classes: [
         "security",
     ],
+    remote_deadline_secs: 5,
     daemon_enabled: true,
     daemon_service: Some(
         "com.webdavis.pns-daemon",

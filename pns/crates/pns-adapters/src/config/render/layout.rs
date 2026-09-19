@@ -107,6 +107,7 @@ pub(super) const LAYOUT: &[Table] = &[
     QUIET,
     NAG,
     PHONE,
+    PATHS,
     FAILURES,
     LIGHTS,
     LIGHTS_DONE,

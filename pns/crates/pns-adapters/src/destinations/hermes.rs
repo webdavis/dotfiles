@@ -94,21 +94,18 @@ pub fn channel_url(base_url: &str, route: &str) -> Option<String> {
 const ASYNC_DEADLINE: Duration = Duration::from_secs(10);
 
 /// The default SYNC deadline, the one a caller waits out. Short because the
-/// caller is blocked on it, and configurable for the same reason.
-const DEFAULT_SYNC_DEADLINE_SECS: u64 = 5;
+/// caller is blocked on it, and configurable for the same reason: it is what
+/// `[delivery] remote_deadline` ships at.
+pub const DEFAULT_REMOTE_DEADLINE_SECS: u64 = 5;
 
 /// The ceiling a configured sync deadline is clamped to: a day is already
 /// longer than any notification can matter, and it keeps an absurd value out
 /// of ureq's deadline arithmetic.
 const MAX_SYNC_DEADLINE_SECS: u64 = 86_400;
 
-/// The sync deadline: `PNS_REMOTE_TIMEOUT` validated as a count, else 5
-/// seconds, because a garbled deadline must not become zero or forever.
-pub fn remote_deadline(env_value: Option<&str>) -> Option<Duration> {
-    let seconds = env_value
-        .and_then(pns_domain::count::parse_count)
-        .unwrap_or(DEFAULT_SYNC_DEADLINE_SECS);
-    // Zero is curl's `-m 0`: no deadline at all, and caller intent rather
+/// The sync deadline `[delivery] remote_deadline` asked for, clamped.
+pub fn remote_deadline(seconds: u64) -> Option<Duration> {
+    // Zero is curl's `-m 0`: no deadline at all, and operator intent rather
     // than a default.
     (seconds != 0).then(|| Duration::from_secs(seconds.min(MAX_SYNC_DEADLINE_SECS)))
 }

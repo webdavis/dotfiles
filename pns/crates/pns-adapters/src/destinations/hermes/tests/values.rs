@@ -54,27 +54,22 @@ fn the_two_composed_lines_ride_beside_the_bare_body() {
 // --- the deadline --------------------------------------------------------
 
 #[test]
-fn the_sync_deadline_validates_and_defaults_to_five() {
-    assert_eq!(remote_deadline(None), Some(Duration::from_secs(5)));
+fn the_sync_deadline_is_the_seconds_the_config_named() {
     assert_eq!(
-        remote_deadline(Some("garbage")),
+        remote_deadline(crate::DEFAULT_REMOTE_DEADLINE_SECS),
         Some(Duration::from_secs(5))
     );
-    assert_eq!(remote_deadline(Some("012")), Some(Duration::from_secs(5)));
-    assert_eq!(remote_deadline(Some("30")), Some(Duration::from_secs(30)));
+    assert_eq!(remote_deadline(30), Some(Duration::from_secs(30)));
 }
 
 #[test]
 fn an_explicit_zero_deadline_is_no_deadline_like_curls_dash_m_zero() {
-    assert_eq!(remote_deadline(Some("0")), None);
+    assert_eq!(remote_deadline(0), None);
 }
 
 #[test]
 fn an_absurd_deadline_clamps_to_a_day_instead_of_panicking_the_edge() {
-    assert_eq!(
-        remote_deadline(Some("9223372036854775807")),
-        Some(Duration::from_secs(86_400))
-    );
+    assert_eq!(remote_deadline(u64::MAX), Some(Duration::from_secs(86_400)));
 }
 
 #[test]

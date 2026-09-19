@@ -18,6 +18,7 @@
 //! "unconfigured" instead of guessing; unknown top-level keys are refused,
 //! so `[plugin.hue]` cannot silently disable what `[plugins.hue]` enables.
 
+use crate::DEFAULT_REMOTE_DEADLINE_SECS;
 use pns_domain::lamps::config::{
     Behaviour, Blocked, Breath, BreatheThenFlare, Github, Lights, Looping, Pulse, Target, Unread,
 };
@@ -25,8 +26,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 mod model;
+mod paths;
 mod phone;
-pub use model::{Config, ConfigError, LoadOutcome, PluginEntry};
+pub use model::{Config, ConfigError, LoadOutcome, Paths, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};
 mod plugins;

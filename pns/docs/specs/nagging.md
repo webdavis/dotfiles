@@ -72,7 +72,7 @@ remove would be unsafe: taking over a lock that aged out.
 
 ## State files
 
-Every path is relative to the state directory, which is `$PNS_STATE_DIR` or `~/.local/state/pns`
+Every path is relative to the state directory, which is `[paths] state_dir`, else `PNS_STATE_DIR`, else `~/.local/state/pns`
 (`src/main.rs:state_dir`). "0600" is `src/main.rs:STATE_FILE_MODE`, the mode "every other state file the
 crate publishes" carries (`src/daemon.rs`, same constant).
 

@@ -218,10 +218,15 @@ fn command(stored: &StoredFailure) -> String {
 /// honours `PNS_HERMES_URL`, so reading it here is what keeps the message
 /// pointing at the gateway this machine actually posts to.
 fn address(destination: &str, route: &str) -> String {
+    let install = pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
     if destination == failure::DESTINATION_MOBILE {
-        return std::env::var("PNS_MOSHI_URL").unwrap_or_else(|_| DEFAULT_MOSHI_URL.to_string());
+        return install
+            .moshi_url
+            .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string());
     }
-    let base = std::env::var("PNS_HERMES_URL").unwrap_or_else(|_| DEFAULT_HERMES_URL.to_string());
+    let base = install
+        .hermes_url
+        .unwrap_or_else(|| DEFAULT_HERMES_URL.to_string());
     pns_adapters::channel_url(&base, route).unwrap_or(base)
 }
 

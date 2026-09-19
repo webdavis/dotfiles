@@ -77,11 +77,11 @@ fn the_listing_clock_is_cut_at_the_minute_whatever_the_seconds_are() {
     assert_eq!(when(minute + 60), "2025-09-04 15:34Z");
 }
 
-/// The address is where the reader would type it, and it follows the override
-/// the gateway itself honours, so the message names the gateway THIS machine
+/// The address is where the reader would type it, and it follows the setting
+/// the gateway itself reads, so the message names the gateway THIS machine
 /// posts to rather than the shipped default.
 #[test]
-fn the_address_follows_the_gateway_override_the_channel_itself_reads() {
+fn the_address_follows_the_gateway_setting_the_channel_itself_reads() {
     // SAFETY: single-threaded test process; the variable is restored below.
     let previous = std::env::var("PNS_HERMES_URL").ok();
     unsafe {

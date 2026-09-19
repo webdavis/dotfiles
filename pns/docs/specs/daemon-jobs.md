@@ -258,7 +258,7 @@ Then it prints the refusal on stderr and exits 0 without ticking
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: `create_dir_all` on an existing directory is a no-op, so a normal start is
   silent.
-- Privacy: the refusal prints the spool PATH, which is derived from `PNS_STATE_DIR` or `$HOME`, and no
+- Privacy: the refusal prints the spool PATH, which is derived from `[paths] state_dir`, `PNS_STATE_DIR` or `$HOME`, and no
   record contents.
 - Process ownership and cleanup: no children exist yet.
 - Compatibility contract: the spool directory is `<state>/daemon` (`src/daemon.rs:spool_dir`), the marker
