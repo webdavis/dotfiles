@@ -246,11 +246,11 @@
      alerter held the slot for a local sound and was the last notification
      path on this machine that bypassed the presence engine, and for TOOL
      approvals the PermissionRequest hook above and the unanswered-approval
-     nag already raise what it raised, so it was deleted rather than kept
+     reminder already raise what it raised, so it was deleted rather than kept
      for a second opinion (5d30d362) and the slot sat empty until this one.
      Sandbox NETWORK approvals are covered by neither: Claude Code's
      PermissionRequest hooks do not run for them, so deleting alerter left
-     that class with no repository-managed alert and no nag. That gap is
+     that class with no repository-managed alert and no reminder. That gap is
      known and filed (backlog B39), not fixed here. alerter itself stays
      installed: the osquery pipeline is its real caller.
 
@@ -334,7 +334,8 @@
      than by the reason, which is the opposite of StopFailure's error text.
 
      PostToolBatch fires when an assistant tool batch RESOLVES, and it is the
-     nag's clearing signal: the record written when the operator was blocked on
+     reminder's clearing signal: the record written when the operator was blocked
+     on
      a permission prompt is removed here, and an answered marker is written in
      its place. It is the ONLY single declaration covering both operator verbs,
      because a DENIED tool call still produces a tool_result and so resolves the
@@ -345,7 +346,8 @@
      schedule is nudged about anyway, and an approval answered while another
      approval's card is being built can still be named on that card, because
      several waiting approvals coalesce into one. Both residuals are stated in
-     the [nag] block of the pns config as well. What this entry does buy is that
+     the [remind] block of the pns config as well. What this entry does buy is
+     that
      every approval is nudged at most once and that a batch which has resolved
      stops the nudge that has not gone out yet. Async, for the simplest reason on this list: it delivers nothing and
      nobody reads its answer, so the harness must not wait for it. Deliberately
