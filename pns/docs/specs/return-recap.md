@@ -2,7 +2,7 @@
 
 ## Scope
 
-Everything `pns recap --since <epoch> --until <epoch>` does: how it parses its two bounds, how it reads
+Everything `pns recap --since-epoch <epoch> --until-epoch <epoch>` does: how it parses its two bounds, how it reads
 one window off the activity ring, how it reaches the two sources it cannot find on its own (merged pull
 requests through `gh`, review notes matching a glob), how it spends one summarizer budget across up to
 three questions, how it composes a body under two budgets at once, how it renders a local wall clock, and
@@ -54,9 +54,9 @@ Given `pns recap` and the words after it
 
 When `recap_bounds` reads them
 
-Then both `--since` and `--until` must be present exactly once, each followed by a plain count, with `since <= until`, or the run prints `pns: usage: pns recap --since <epoch> --until <epoch>` to stderr and exits 2
+Then both `--since-epoch` and `--until-epoch` must be present exactly once, each followed by a plain count, with `since <= until`, or the run prints `pns: usage: pns recap --since-epoch <epoch> --until-epoch <epoch>` to stderr and exits 2
 
-- Success: `src/main.rs:recap_bounds` walks the tokens, mapping `--since` and `--until` to two slots and
+- Success: `src/main.rs:recap_bounds` walks the tokens, mapping `--since-epoch` and `--until-epoch` to two slots and
   returning `None` for any other word. `src/main.rs:recap_mode` exits 2 on `None`.
 - Failure sources: an unknown word; a flag with no value after it; a repeated flag; a value that is not a
   plain count; a window that runs backwards; either bound missing.
@@ -880,7 +880,7 @@ Given a return moment the event path has claimed, with a window and a count over
 
 When `replay_missed` decides
 
-Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since> --until <until>` with all three standard streams on `/dev/null` and `process_group(0)`, is never waited on, and the card promises a recap only if that spawn really started
+Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch <since> --until-epoch <until>` with all three standard streams on `/dev/null` and `process_group(0)`, is never waited on, and the card promises a recap only if that spawn really started
 
 - Success: `src/main.rs:spawn_recap` builds the child, sets
   `.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0)`, and returns

@@ -327,7 +327,7 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
         // test is about is the one it measures and not a deadline.
         .env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/pns-events");
     sandbox.stub_notifier(&mut command);
-    let output = run(command.args(["recap", "--since", "1756499000", "--until", "1756500000"]));
+    let output = run(command.args(["recap", "--since-epoch", "1000", "--until-epoch", "2000"]));
 
     let printed = stdout(&output);
     let said: Vec<&str> = printed
@@ -373,7 +373,7 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
     // RUN BY HAND, which is the mode's other caller and the one a test can
     // wait for: the event path spawns this same mode detached, and the window
     // it would pass is exactly these two bounds.
-    run(command.args(["recap", "--since", "1756499000", "--until", "1756500000"]));
+    run(command.args(["recap", "--since-epoch", "1000", "--until-epoch", "2000"]));
 
     let raw = capture.finish();
     let posted: Vec<&str> = raw

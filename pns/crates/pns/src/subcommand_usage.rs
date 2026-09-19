@@ -98,7 +98,7 @@ mod tests {
         "pns nag",
         "pns stale",
         "pns failures serve",
-        "pns recap --since",
+        "pns recap --since-epoch",
         "pns recap agent",
         "pns recap git",
         "pns presence poll [--daemon]",
