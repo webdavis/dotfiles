@@ -632,7 +632,7 @@ Then it spawns Codex against a private stripped home with a fixed prompt, bounde
   it then removes and re-creates `auth.json` as a symbolic link to `$HOME/.codex/auth.json`. The command
   is `codex exec --ephemeral --skip-git-repo-check -C <home> -s read-only -` with `PNS_SUMMARIZING=1` and
   `CODEX_HOME=<home>` in its environment (`src/main.rs:condense`, `src/main.rs:condenser_home`).
-  `CODEX_BIN` and `PNS_CODEX_HOME` override the binary and the home.
+  `PNS_CODEX_BIN` and `PNS_CODEX_HOME` override the binary and the home.
 - Forbidden side effects: no pns-to-Codex-to-pns loop. The stripped home installs no hooks or plugins at
   all, which is the hard guarantee; `PNS_SUMMARIZING` is the cheap one
   (`tests/hooks.rs:the_re_entry_guard_keeps_a_condenser_run_from_condensing_itself`). A dead turn never
@@ -1112,6 +1112,6 @@ ______________________________________________________________________
 | `PNS_REPLY_REREAD_INTERVAL`   | `reread_interval`                          | seconds between reads; default 0.15, clamped to 5                                   |
 | `PNS_CONDENSER_DEADLINE_MS`   | `condense`                                 | the condenser bound; defaults to 30 s                                               |
 | `PNS_SUMMARIZING`             | `condense`                                 | the cheap re-entry guard                                                            |
-| `CODEX_BIN`, `PNS_CODEX_HOME` | `condense`, `condenser_home`               | the condenser binary and its private home                                           |
+| `PNS_CODEX_BIN`, `PNS_CODEX_HOME` | `condense`, `condenser_home`               | the condenser binary and its private home                                           |
 | `PNS_PULSE_THRESHOLD_SECS`    | `pulse_threshold_secs`                     | the long-turn threshold; defaults to 300                                            |
 | `HOME`                        | `state_dir`, `condenser_home`, `run_event` | the configuration and state roots                                                   |
