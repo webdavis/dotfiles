@@ -106,6 +106,7 @@ pub(super) const LAYOUT: &[Table] = &[
     FOCUS,
     QUIET,
     REMIND,
+    PRODUCER,
     STALE,
     PHONE,
     PATHS,

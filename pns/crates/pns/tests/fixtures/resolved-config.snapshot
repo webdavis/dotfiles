@@ -231,6 +231,7 @@ Config {
     retry_backoff: RetryBackoff {
         base_secs: 60,
     },
+    producer_remind: {},
     remind_delay_secs: 300,
     stale_escalate_after_secs: 3600,
     stale_route: None,

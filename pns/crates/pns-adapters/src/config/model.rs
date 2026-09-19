@@ -70,6 +70,15 @@ pub struct Config {
     pub routes: pns_domain::routes::Routes,
     pub retry_limits: pns_domain::retry::RetryLimits,
     pub retry_backoff: pns_domain::retry::RetryBackoff,
+    /// `[producer.<name>] remind`: which producers asked for the reminder,
+    /// keyed by the name the producer sends.
+    ///
+    /// A NAME THE OPERATOR WROTE ON PURPOSE, which is the whole point: the
+    /// reminder used to be switched on by pns matching the sender's name
+    /// against a compiled-in one, so a producer could not ask for it and could
+    /// not turn it off. A name with no entry here asks for nothing, and a
+    /// per-call `--remind` beats whatever this says.
+    pub producer_remind: BTreeMap<String, bool>,
     /// `[remind] delay`: how long an unanswered approval waits before it is
     /// carded a second time, in whole seconds off the key's duration. ZERO IS
     /// THE FEATURE OFF.
@@ -128,6 +137,7 @@ impl Default for Config {
             daemon_service: None,
             retry_limits: Default::default(),
             retry_backoff: Default::default(),
+            producer_remind: BTreeMap::new(),
             remind_delay_secs: REMIND_OFF,
             stale_escalate_after_secs: DEFAULT_ESCALATE_AFTER_SECS,
             stale_route: None,

@@ -131,12 +131,15 @@ fn nothing_is_armed_when_nothing_should_be() {
             "claude",
         ),
         ("the schedule switched off", remind_config(0), "claude"),
-        // NO REMINDER ON CODEX. Codex wires exactly Stop and PermissionRequest, so
-        // it has a turn-end clear and no batch-level one, and a Codex reminder would
-        // fire on every approval whose turn outlives the schedule. Agent turns
-        // in this repo routinely run tens of minutes, so that is the common
-        // case rather than an edge.
-        ("the agent is codex", remind_config(300), "codex"),
+        // A PRODUCER NOBODY SWITCHED ON. The name is a label rather than a
+        // feature switch, so a producer with no `[producer.<name>]` entry and
+        // no `--remind` on the call arms nothing, whatever it is called and
+        // however complete the rest of the config is.
+        (
+            "the producer asked for nothing",
+            remind_config(300),
+            "codex",
+        ),
     ] {
         let sandbox = Sandbox::new(&format!("remind-unarmed-{}", case.replace(' ', "-")));
         sandbox.write_config(&config);

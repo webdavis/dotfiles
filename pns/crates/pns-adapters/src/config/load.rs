@@ -46,6 +46,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.retry_backoff = retry::parse_backoff(&mut table)?;
                 config.bypass_silence_classes = parse_delivery(toml::Value::Table(table))?;
             }
+            "producer" => config.producer_remind = parse_producer(value)?,
             "remind" => config.remind_delay_secs = parse_remind(value)?,
             "stale" => {
                 let escalation = parse_stale(value)?;

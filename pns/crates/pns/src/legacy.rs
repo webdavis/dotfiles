@@ -1,8 +1,8 @@
 mod argv;
 mod usage;
 
-pub use argv::is_help_flag;
 use argv::parse_args;
+pub use argv::{Remind, is_help_flag, remind_switch};
 pub use usage::{SEND_USAGE, USAGE};
 
 /// One notification from argv, or a usage print when `--help`/`-h` reached

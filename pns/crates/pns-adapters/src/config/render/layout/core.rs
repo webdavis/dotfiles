@@ -278,6 +278,28 @@ pub(super) const REMIND: Table = Table {
         sample: Sample::Default("\"5m\""),
     }],
 };
+/// What one producer asked for, keyed by the name that producer sends.
+///
+/// WRITTEN AS THE PLACEHOLDER IT IS. The heading carries `<name>` rather than
+/// any producer this machine happens to run, because pns compiles in no roster
+/// of producers and naming one here would read as the only one that works.
+pub(super) const PRODUCER: Table = Table {
+    name: "producer.<name>",
+    prose: "# What one producer asked for, one table per producer, keyed by the name it\n\
+                 # sends (`--producer`, or PNS_PRODUCER). Replace <name> with that name.\n\
+                 # THE REMINDER IS SWITCHED ON BY THE CALL, NEVER BY THE NAME: a harness\n\
+                 # that sends an answered signal passes `--remind` on its own approval hook,\n\
+                 # and that flag beats whatever this table says. This is here for a producer\n\
+                 # you cannot pass a flag to. It needs `[remind] delay` above; with no delay\n\
+                 # set, `remind = true` is still the reminder off.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "remind",
+        prose: "",
+        sample: Sample::Example("true"),
+    }],
+};
 pub(super) const STALE: Table = Table {
     name: "stale",
     prose: "# The OTHER end of the same wait: how long a session stays blocked before\n\

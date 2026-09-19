@@ -13,7 +13,7 @@ fn arming_clears_the_previous_answer_before_publication_and_schedules_no_private
     .run(
         "session",
         &event(),
-        || 60,
+        60,
         || Some(100),
         |_| panic!("unexpected warning"),
     );
@@ -48,7 +48,7 @@ fn a_failed_marker_clear_warns_but_preserves_the_existing_publication_attempt() 
     .run(
         "session",
         &event(),
-        || 60,
+        60,
         || Some(100),
         |line| warnings.push(line.to_string()),
     );
@@ -75,7 +75,7 @@ fn a_failed_remind_publication_never_registers_a_job() {
     .run(
         "session",
         &event(),
-        || 60,
+        60,
         || Some(100),
         |line| warnings.push(line.to_string()),
     );
@@ -109,7 +109,7 @@ fn a_refused_schedule_rolls_back_the_record_and_reports_both_rollback_outcomes()
         .run(
             "session",
             &event(),
-            || 60,
+            60,
             || Some(100),
             |line| warnings.push(line.to_string()),
         );
@@ -148,7 +148,10 @@ fn resolving_a_batch_marks_first_and_drops_even_when_marking_failed() {
 }
 
 #[test]
-fn unsupported_agents_disabled_reminds_and_invalid_sessions_never_read_the_clock() {
+fn a_disabled_remind_and_an_invalid_session_never_read_the_clock() {
+    // THE PRODUCER'S NAME DECIDES NOTHING HERE. Whether this call arms is
+    // resolved before the run, and a delay of zero is the whole of what this
+    // layer reads as off.
     let records = Recorder::default();
     for agent in ["codex", "", "other"] {
         let mut event = event();
@@ -160,7 +163,7 @@ fn unsupported_agents_disabled_reminds_and_invalid_sessions_never_read_the_clock
         .run(
             "session",
             &event,
-            || panic!("an unsupported agent must not load the schedule"),
+            0,
             || panic!("clock"),
             |_| panic!("warning"),
         );
@@ -173,7 +176,7 @@ fn unsupported_agents_disabled_reminds_and_invalid_sessions_never_read_the_clock
         .run(
             session,
             &event(),
-            || after,
+            after,
             || panic!("clock"),
             |_| panic!("warning"),
         );
@@ -182,7 +185,7 @@ fn unsupported_agents_disabled_reminds_and_invalid_sessions_never_read_the_clock
         records: &records,
         jobs: &records,
     }
-    .run("session", &event(), || 60, || None, |_| panic!("warning"));
+    .run("session", &event(), 60, || None, |_| panic!("warning"));
     clear_remind(&records, "../session", |_| panic!("warning"));
     assert!(records.steps.borrow().is_empty());
 }

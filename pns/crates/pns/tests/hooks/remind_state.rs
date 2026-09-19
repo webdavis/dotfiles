@@ -7,10 +7,15 @@ use super::*;
 // than the writer under test, and the channel stubs COUNT their invocations,
 // because "exactly one card" is the property most of these behaviors turn on.
 
-/// The three stub channels enabled, plus the reminder scheduled (or, at zero, off).
+/// The three stub channels enabled, plus the reminder scheduled (or, at zero,
+/// off) and switched on for the producer these fixtures send as.
+///
+/// THE PRODUCER'S ENTRY IS WHAT ARMS IT HERE. Nothing arms a reminder for a
+/// name alone any more, so a fixture that wants one either writes this table
+/// or passes `--remind` on the call.
 pub(crate) fn remind_config(delay_secs: u64) -> String {
     format!(
-        "{}[remind]\ndelay = \"{delay_secs}s\"\n",
+        "{}[producer.claude]\nremind = true\n[remind]\ndelay = \"{delay_secs}s\"\n",
         support::STUB_CHANNELS
     )
 }

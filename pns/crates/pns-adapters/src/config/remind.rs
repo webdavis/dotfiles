@@ -39,7 +39,7 @@ pub(super) fn parse_remind(value: toml::Value) -> Result<u64, ConfigError> {
 /// window (`daemon::DUE_WINDOW_SECS`, thirty days), which it does with room to
 /// spare, and it is what keeps `2 * delay` in the staleness cap far from any
 /// arithmetic edge.
-fn remind_delay_range() -> RangeInclusive<Duration> {
+pub fn remind_delay_range() -> RangeInclusive<Duration> {
     Duration::from_secs(MIN_REMIND_DELAY_SECS)..=Duration::from_secs(MAX_REMIND_DELAY_SECS)
 }
 

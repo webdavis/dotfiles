@@ -60,7 +60,10 @@ mod retry;
 pub use daemon::DaemonConfig;
 use daemon::{DEFAULT_DAEMON_ENABLED, parse_daemon};
 mod remind;
+pub use remind::remind_delay_range;
 use remind::{REMIND_OFF, backstop_outlasts_the_reminder, parse_remind};
+mod producer;
+use producer::parse_producer;
 mod stale;
 use stale::{DEFAULT_ESCALATE_AFTER_SECS, parse_stale};
 mod failures;
@@ -69,8 +72,8 @@ use failures::parse_failures;
 mod values;
 use values::{bounded, flag, strings, text};
 mod schema;
+use schema::{PRODUCER_KEYS, TARGET_KEYS, admits, admits_flat, duration_key, keys_of, unknown_key};
 pub use schema::{TABLE_KEYS, TOP_LEVEL};
-use schema::{TARGET_KEYS, admits, admits_flat, duration_key, keys_of, unknown_key};
 mod routes;
 use routes::parse_routes;
 mod lights_tables;
@@ -176,6 +179,7 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         // the prefix, the way the refusals do.
         let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
             ["lights", "lamp" | "room" | "zone", ..] => TARGET_KEYS.to_string(),
+            ["producer", ..] => PRODUCER_KEYS.to_string(),
             _ => table.clone(),
         };
         let serves = keys_of(&roster_table)

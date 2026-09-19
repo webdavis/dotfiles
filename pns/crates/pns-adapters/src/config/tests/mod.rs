@@ -29,6 +29,9 @@ fn header_for(table: &str) -> String {
         // it, so a sample writes whichever of them, and the refusal names
         // the path the operator wrote rather than this row.
         super::TARGET_KEYS => "lights.room.\"3F - Studio\"".to_string(),
+        // The same shape one level shallower: the row is the prefix and the
+        // producer's own name is what a sample writes under it.
+        super::PRODUCER_KEYS => "producer.claude".to_string(),
         other => other.to_string(),
     }
 }
@@ -77,6 +80,7 @@ fn shown_as(table: &str) -> String {
 fn refusal_names(table: &str) -> String {
     match table {
         super::TARGET_KEYS => "`lights.room.3F - Studio`".to_string(),
+        super::PRODUCER_KEYS => "`producer.claude`".to_string(),
         other => shown_as(other),
     }
 }
@@ -138,6 +142,12 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("quiet.calendar", "command", "[\"busy-window\"]"),
     ("quiet.calendar", "poll_secs", "120"),
     ("quiet.calendar", "deadline_secs", "20"),
+    (
+        super::TOP_LEVEL,
+        "producer",
+        "{ claude = { remind = true } }",
+    ),
+    (super::PRODUCER_KEYS, "remind", "true"),
     (super::TOP_LEVEL, "remind", "{ delay = \"5m\" }"),
     (super::TOP_LEVEL, "stale", "{ escalate_after = \"1h\" }"),
     (
