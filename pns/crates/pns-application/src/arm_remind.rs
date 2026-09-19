@@ -52,6 +52,12 @@ impl<R: RemindRecords, J: JobSpool> ArmRemind<'_, R, J> {
         if after_secs == 0 {
             return;
         }
+        let (Some(marker), Some(id)) = (
+            pns_domain::remind::marker_name(session_id),
+            pns_domain::remind::job_id(session_id),
+        ) else {
+            return;
+        };
         // NOTHING WILL SAY THIS WAS ANSWERED, so the nudge runs until the cap
         // judges the record stale. Said once, at the arming, because that is
         // the moment the operator can still act on it.
@@ -62,12 +68,6 @@ impl<R: RemindRecords, J: JobSpool> ArmRemind<'_, R, J> {
                 event.agent
             ));
         }
-        let (Some(marker), Some(id)) = (
-            pns_domain::remind::marker_name(session_id),
-            pns_domain::remind::job_id(session_id),
-        ) else {
-            return;
-        };
         // NO CLOCK IS NO ARM. A record whose `armed` nothing could read would be
         // judged stale on the first fire anyway; not writing it is the same answer
         // one step earlier.

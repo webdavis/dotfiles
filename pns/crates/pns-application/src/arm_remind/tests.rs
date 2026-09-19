@@ -230,3 +230,24 @@ fn a_disabled_remind_and_an_invalid_session_never_read_the_clock() {
     clear_remind(&records, "../session", |_| panic!("warning"));
     assert!(records.steps.borrow().is_empty());
 }
+
+#[test]
+fn an_invalid_session_with_no_answered_signal_never_warns() {
+    // THE SESSION GUARD RUNS FIRST. A session id the marker or job name
+    // rejects arms nothing, so the missing-answered-signal line must not
+    // describe a nudge that was never going to exist.
+    let records = Recorder::default();
+    ArmRemind {
+        records: &records,
+        jobs: &records,
+    }
+    .run(
+        "../session",
+        &event(),
+        60,
+        false,
+        || panic!("clock"),
+        |_| panic!("warning"),
+    );
+    assert!(records.steps.borrow().is_empty());
+}
