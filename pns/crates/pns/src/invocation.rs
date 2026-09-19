@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn a_word_that_merely_contains_the_flag_is_not_the_flag() {
-        let argv = strings(&["recap", "--since=--no-color"]);
+        let argv = strings(&["recap", "--since-epoch=--no-color"]);
         let (flagless, forced_plain) = take_tool_wide_flags(&argv);
         assert!(!forced_plain);
         assert_eq!(flagless, argv);
