@@ -6,10 +6,10 @@
 //! these rows is the persistence adapter's, the job that wakes the fire is the
 //! daemon's, and the surface reading the gate judges is taken by the caller.
 //!
-//! IT IS THE REMINDER'S SIBLING AND NOT A SETTING ON IT (design, 2026-09-14). The
-//! the reminder says "this approval is still waiting" minutes later on the ordinary
-//! route; this says "nobody is coming" an hour later on the route reserved for
-//! things that need a human, once per block.
+//! IT IS THE REMINDER'S SIBLING AND NOT A SETTING ON IT (design, 2026-09-14).
+//! The reminder says "this approval is still waiting" minutes later on the
+//! ordinary route; this says "nobody is coming" an hour later on the route
+//! reserved for things that need a human, once per block.
 //!
 //! WHICH ROUTE THAT IS stays the operator's to name. `[stale] route` names
 //! one outright and reaches `page` as an argument; with none named the page
