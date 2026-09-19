@@ -809,7 +809,7 @@ S075. Only `claude` and `codex` map to a moshi subcommand on the hook path; any 
 
 S076. The payload crosses to `moshi-hook <sub>` byte for byte on the child's stdin, written from a
       separate thread, whether or not pns could parse it; the child inherits the whole environment;
-      the binary is `MOSHI_HOOK_BIN` else `/opt/homebrew/bin/moshi-hook`.
+      the binary is `PNS_MOSHI_HOOK_BIN` else `/opt/homebrew/bin/moshi-hook`.
       Source: `src/main.rs:2564-2595 spawn_moshi_hook`, `src/main.rs:2596 DEFAULT_MOSHI_HOOK_BIN`.
       Pin: `a_payload_pns_cannot_parse_is_still_submitted_verbatim`
            at tests/hooks.rs:1034
@@ -973,7 +973,7 @@ S090. Every reading on one probe set is memoized, the empty answer included, and
       also `an_unreadable_clock_ages_no_marker_rather_than_treating_it_as_fresh`
            at src/engine.rs:1526
 
-S091. A stated override (`PNS_IDLE_SECS`, `PNS_PHONE_INPUT_AGE`) is trusted and its probe never runs;
+S091. A stated override (`PNS_SCREEN_IDLE`, `PNS_PHONE_INPUT_AGE`) is trusted and its probe never runs;
       a garbled one sets an `_invalid` flag and answers unknown outright rather than a fallback.
       Source: `src/engine.rs:101-129 Overrides::from_env`, `src/engine.rs:341-420 surface_reading`.
       Pin: `a_stated_phone_input_age_spares_the_process_walk_behind_it`
@@ -1013,7 +1013,7 @@ S093. `surface(desk_age, phone_age, marker_age, fresh_secs, locked)` answers `De
       phone 30 s reads `Desk`; desk 2 s locked with no phone reads `Away`; desk 600 s and phone 600 s
       reads `Away`; a 3600 s marker beside a 30 s pty still reads `Mobile`.
 
-S094. The freshness window is `DEFAULT_DESK_IDLE_SECS` = 120, overridable only by `PNS_DESK_IDLE_SECS`;
+S094. The freshness window is `DEFAULT_DESK_IDLE_SECS` = 120, overridable only by `PNS_DESK_IDLE`;
       119 is fresh, 120 is not. There is no config key for it.
       Source: `src/engine.rs:29 DEFAULT_DESK_IDLE_SECS`, `src/surface.rs:89 fresh_age`.
       Pin: `every_surface_case_in_the_matrix_arbitrates_correctly`

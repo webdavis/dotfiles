@@ -75,7 +75,7 @@ fn with_state_dir(sandbox: &Sandbox) -> Command {
 //
 // ONE BEHAVIOR IS DROPPED ON SCOPE AND IS PINNED NOWHERE END TO END: the
 // locked screen. `screen_locked` spawns `/usr/sbin/ioreg` by absolute path, so
-// no PATH stub reaches it, and it is read only where `PNS_IDLE_SECS` is
+// no PATH stub reaches it, and it is read only where `PNS_SCREEN_IDLE` is
 // unstated while every sandbox here states it. It has a unit pin on
 // `operator_surface` and buying the composition would need a production
 // override that exists for no other reason.
@@ -134,7 +134,7 @@ impl HookStubs for Sandbox {
             &format!("cat >/dev/null; printf '%s\\n' '{line}'"),
         );
         prepend_path(command, &bin);
-        command.env("CODEX_BIN", bin.join("codex"));
+        command.env("PNS_CODEX_BIN", bin.join("codex"));
         command.env("PNS_CODEX_HOME", self.path("codex-home"));
     }
 
@@ -155,7 +155,7 @@ impl HookStubs for Sandbox {
                 sandbox = self.display()
             ),
         );
-        command.env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+        command.env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     }
 }
 
@@ -190,7 +190,7 @@ fn submissions(sandbox: &Sandbox) -> Vec<String> {
 /// overrides afterwards.
 ///
 /// Every test in the approval section spawns the blocked path, and
-/// `Sandbox::pns` points `MOSHI_HOOK_BIN` nowhere, so a test that forgets to
+/// `Sandbox::pns` points `PNS_MOSHI_HOOK_BIN` nowhere, so a test that forgets to
 /// stub reaches the OPERATOR'S OWN moshi-hook and can raise a real card on
 /// their phone. That is not hypothetical: it happened during slice 11, seven
 /// tests deep. One helper is cheaper than remembering.

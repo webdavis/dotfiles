@@ -210,7 +210,7 @@ fn metadata_errors_remain_unknown_in_info_and_doctor() {
     let out = s
         .pns()
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .env("MOSHI_HOOK_BIN", s.path("absent-hook"))
+        .env("PNS_MOSHI_HOOK_BIN", s.path("absent-hook"))
         .args(["doctor", "--no-color"])
         .output()
         .unwrap();
@@ -272,7 +272,7 @@ fn future_marker_is_fresh_but_an_invalid_window_is_unknown() {
         let out = s
             .pns()
             .env("PNS_PHONE_MARKER_FILE", &marker)
-            .env("PNS_DESK_IDLE_SECS", window)
+            .env("PNS_DESK_IDLE", window)
             .args(["tap", "info", "--json"])
             .output()
             .unwrap();

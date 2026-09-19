@@ -58,6 +58,7 @@ pub use ports::records::{
     ActivityRing, BlockedMarker, Claim, DecisionRing, JobSpool, Journal, LampRecords, LightsTick,
     LoopLease, ReplayBatch, ReplayState, ReturnMoment, SessionWait,
 };
+pub use ports::service::{ServiceController, ServiceError, ServiceState};
 pub use replay_missed::{RecapPolicy, ReplayMissedNotifications};
 pub use request_approval::RequestApproval;
 pub use selection::{ConfigOutcome, select_plugins};

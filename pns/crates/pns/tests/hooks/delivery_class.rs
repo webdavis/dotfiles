@@ -18,7 +18,7 @@ fn invoke(sandbox: &Sandbox, input: &str) -> std::process::Output {
     command
         .args(["send", "--json"])
         .env("PNS_STATE_DIR", sandbox.state())
-        .env("PNS_IDLE_SECS", "0");
+        .env("PNS_SCREEN_IDLE", "0");
     for (key, leaf) in [
         ("XDG_CONFIG_HOME", ".config"),
         ("XDG_DATA_HOME", "d"),

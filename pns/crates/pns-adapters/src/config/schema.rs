@@ -71,7 +71,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "retry_base_secs",
         ],
     ),
-    ("daemon", &["enabled"]),
+    ("daemon", &["enabled", "service"]),
     ("phone", &["marker_file"]),
     ("nag", &["after_secs", "stale_after_secs"]),
     ("failures", &["port", "serve"]),

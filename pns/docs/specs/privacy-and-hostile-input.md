@@ -931,14 +931,14 @@ When that message interpolates a captured request, a process output, a transcrip
 Then every value in it came from the test's own sandbox, never from the operator's config or state
 
 - Success: `tests/support/mod.rs:Sandbox::bare` calls `env_clear()` and restores only `HOME` (pointed at
-  the sandbox root), `PATH`, and `MOSHI_HOOK_BIN` (pointed at a path inside the sandbox that nothing ever
-  creates). `Sandbox::pns` adds `CODEX_BIN=/nonexistent/codex`. Every secret that appears in a failure
+  the sandbox root), `PATH`, and `PNS_MOSHI_HOOK_BIN` (pointed at a path inside the sandbox that nothing ever
+  creates). `Sandbox::pns` adds `PNS_CODEX_BIN=/nonexistent/codex`. Every secret that appears in a failure
   message is a literal written in a test file: `tok-integration` (`tests/native.rs`), `k-123` and
   `hermes-signing-secret` (`tests/dispatch.rs`), `do-not-echo-this-token` and its three siblings
   (`tests/setup.rs`), `SUPERSECRET` (`src/config.rs`).
 - Failure sources: a test that forgets to stub. This happened: "a test that forgot to stub raised a real
   card on a real phone during slice 11, and a second one was found by review in the daemon suite", which
-  is why `MOSHI_HOOK_BIN` is fenced off BY DEFAULT rather than per test.
+  is why `PNS_MOSHI_HOOK_BIN` is fenced off BY DEFAULT rather than per test.
 - Fail direction: fail-closed by default. The old harness named the variables to REMOVE, "which meant
   every new override had to be added here too or it would leak in silently"; it now states what a test
   keeps, "and a new override is excluded by default".
@@ -963,5 +963,5 @@ Then every value in it came from the test's own sandbox, never from the operator
 - Process ownership and cleanup: a `Sandbox` prints a "test budget" line to stderr on drop when it lived
   past the review line.
 - Compatibility contract: `PNS_STATE_DIR`, `PNS_CHANNELS_DIR`, `PNS_MOSHI_URL`, `PNS_HERMES_URL`,
-  `MOSHI_HOOK_BIN`, `CODEX_BIN` and `PNS_IDLE_SECS` are the seams that make the sandbox possible. A new
+  `PNS_MOSHI_HOOK_BIN`, `PNS_CODEX_BIN` and `PNS_SCREEN_IDLE` are the seams that make the sandbox possible. A new
   world-reading seam without an override is a test that cannot be sandboxed.

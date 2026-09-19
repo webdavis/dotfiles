@@ -70,7 +70,7 @@ fn schedule(sandbox: &Sandbox, flags: &[&str], args: &[&str]) -> std::process::O
 /// A CONFIG IS NOT OPTIONAL here: with none, the re-executed child selects no
 /// plugin at all, so the daemon would report a job run and nothing would be
 /// delivered. HERMES rather than the banner, because the sandbox pins the
-/// operator AWAY (`PNS_IDLE_SECS` at a day), and a banner on a screen nobody is
+/// operator AWAY (`PNS_SCREEN_IDLE` at a day), and a banner on a screen nobody is
 /// sitting at is exactly what the engine declines to raise.
 /// `[failures] serve = false` because a DAEMON runs against this, and the page
 /// binds one fixed port: a sandbox that opened it would take that port away

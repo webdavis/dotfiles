@@ -158,10 +158,10 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     );
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "2")
-        .env("PNS_DESK_IDLE_SECS", "120")
+        .env("PNS_SCREEN_IDLE", "2")
+        .env("PNS_DESK_IDLE", "120")
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .env("CODEX_BIN", bin.join("codex"))
+        .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     hook_with(
         command,
@@ -177,6 +177,33 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
         !sandbox.fired("mobile"),
         "and the tap that started this turn is no longer where they are"
     );
+}
+
+#[test]
+fn the_condenser_ignores_the_unprefixed_codex_bin_name() {
+    // The engine reads `PNS_CODEX_BIN` only. `sandbox.pns()` already points
+    // it at a nonexistent binary by default, so a working stub reachable
+    // through the old, unprefixed `CODEX_BIN` must have no effect: the
+    // condenser still fails to spawn and the raw reply is what reaches the
+    // detail, not whatever the stub would have condensed it to.
+    let sandbox = Sandbox::new("hook-codex-bin-old-name-ignored");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    write_script(&bin.join("codex"), "printf 'state: failed\\nnot the reply'");
+    let mut command = sandbox.pns();
+    command.env("CODEX_BIN", bin.join("codex"));
+    hook_with(
+        command,
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
+    );
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"], "a turn",
+        "the old name must not reach a real stub"
+    );
+    assert_eq!(event["state"], "done");
 }
 
 #[test]

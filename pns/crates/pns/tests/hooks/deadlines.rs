@@ -13,8 +13,8 @@ fn a_moshi_that_never_reads_its_stdin_cannot_hold_the_notification() {
     write_script(&bin.join("moshi-hook"), "sleep 30");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
-        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+        .env("PNS_SCREEN_IDLE", "99999")
+        .env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     let mut child = spawn_hook(command, "blocked");
     // Past the 64KB pipe buffer, which is what turns a child that does not
     // read into a writer that never returns.
@@ -93,7 +93,7 @@ fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     write_script(&bin.join("codex"), "cat >/dev/null; exec 1>&-; sleep 30");
     let mut command = sandbox.pns();
     command
-        .env("CODEX_BIN", bin.join("codex"))
+        .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
         .env("PNS_CONDENSER_DEADLINE_MS", "300");
     let mut child = spawn_hook(command, "stop");
@@ -119,7 +119,7 @@ fn a_condenser_that_never_reads_its_stdin_is_bounded_too() {
     write_script(&bin.join("codex"), "sleep 30");
     let mut command = sandbox.pns();
     command
-        .env("CODEX_BIN", bin.join("codex"))
+        .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
         .env("PNS_CONDENSER_DEADLINE_MS", "300");
     let mut child = spawn_hook(command, "stop");
@@ -139,7 +139,7 @@ fn a_stuck_multiplexer_leaves_the_view_unreadable_rather_than_blocking() {
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("herdr"), "sleep 30");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let mut path = std::ffi::OsString::from(&bin);
     path.push(":");
     path.push(std::env::var_os("PATH").unwrap_or_default());
@@ -182,7 +182,7 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
             sandbox = sandbox.display()
         ),
     );
-    command.env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+    command.env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
 }
 
 /// The deadline each silent-moshi run injects.
@@ -240,7 +240,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     let sandbox = Sandbox::new("hook-blocked-silent-moshi");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_MOSHI_SUBMIT_DEADLINE_MS", SILENT_MOSHI_DEADLINE_MS);
     stub_silent_moshi(&sandbox, &mut command);
     command.args(["hook", "blocked"]);
@@ -304,7 +304,7 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
     // stub's shell inside the window.
     let sandbox = Sandbox::new("gate-silent-moshi");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999").env(
+    command.env("PNS_SCREEN_IDLE", "99999").env(
         "PNS_MOSHI_SUBMIT_DEADLINE_MS",
         GATE_SILENT_MOSHI_DEADLINE_MS,
     );

@@ -118,7 +118,9 @@ pub use macos::{FocusReading, focus_now};
 mod herdr;
 mod probes;
 mod process;
-pub use macos::{local_minutes_since_midnight, utc_timestamp};
+pub use macos::{
+    LaunchdServiceController, SystemLaunchctlRunner, local_minutes_since_midnight, utc_timestamp,
+};
 pub use probes::SystemProbes;
 pub use process::spawn_shell_event;
 pub use process::{PROBE_READ_MAX, SystemCommandRunner, finish_bounded, run_bounded};

@@ -331,7 +331,7 @@ Then it answers the MAXIMUM of `now - desk_idle`, `phone_input_at` and `phone_ma
   Hoisting the clock read above them would put `t_now` BEFORE the sample, the desk edge would land
   earlier than the true touch, and news the operator had already seen could arm the lamp. The order is
   load-bearing and is documented as not provable by a diff alone.
-- Forbidden side effects: `PNS_IDLE_SECS` and `PNS_PHONE_INPUT_AGE` are NOT consulted here. They steer
+- Forbidden side effects: `PNS_SCREEN_IDLE` and `PNS_PHONE_INPUT_AGE` are NOT consulted here. They steer
   the delivery decision in `engine::decide`; the `unread` state always sees the machine's own probes.
 - Timeout and cancellation: four bounded spawns (one `ioreg`, then `pgrep`, `pgrep -P`, `ps`), each
   capped at `PROBE_DEADLINE` (5 seconds, `src/system.rs`). The residual makes the desk touch read YOUNGER

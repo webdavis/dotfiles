@@ -63,7 +63,7 @@ fn off_removes_the_state_file_and_the_next_event_decorates_again() {
 
     let mut event = sandbox.pns();
     event.env("PNS_STATE_DIR", sandbox.path("state"));
-    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut event, false);
     run(event
         .args([
@@ -166,7 +166,7 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
     // At the desk with the pane out of sight, and the card forced: the one
     // event that earns BOTH decorations, so a mute reading true here would be
     // unmissable.
-    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_SCREEN_IDLE", "0");
     event.env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
@@ -210,7 +210,7 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
     let sandbox = Sandbox::new("quiet-absent");
     let mut event = sandbox.pns();
     event.env("PNS_STATE_DIR", sandbox.path("state"));
-    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
         .args([

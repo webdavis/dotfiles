@@ -169,7 +169,7 @@ fn a_quota_observation_replays_no_journal_entry() {
     std::fs::write(&journal, seeded).expect("the journal");
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -198,7 +198,7 @@ fn a_quota_observation_replays_no_journal_entry() {
     // `stop` event under this exact env DOES consume it, so the assertion
     // above is not vacuously true under every attempt.
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert!(
         stored_records::text(&sandbox, "journal").is_empty(),
@@ -302,7 +302,7 @@ fn no_quota_type_moves_the_presence_edge() {
         // seed, then running the control AFTER, avoids the race regardless
         // of timing.
         let mut command = with_state_dir(&sandbox);
-        command.env("PNS_IDLE_SECS", "0");
+        command.env("PNS_SCREEN_IDLE", "0");
         let output = hook_with(
             command,
             &sandbox,
@@ -326,7 +326,7 @@ fn no_quota_type_moves_the_presence_edge() {
         // `done` event under this exact env DOES advance the presence edge,
         // so the assertion above is not vacuously true under every attempt.
         let mut control = with_state_dir(&sandbox);
-        control.env("PNS_IDLE_SECS", "0");
+        control.env("PNS_SCREEN_IDLE", "0");
         hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
         assert_ne!(
             stored_records::present(&sandbox),

@@ -116,7 +116,7 @@ fn the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrid
 
     let mut command = doctor_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_SKIP_PHONE", "1")
         .env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut command, true);

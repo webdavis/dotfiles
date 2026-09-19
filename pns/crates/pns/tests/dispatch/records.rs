@@ -47,7 +47,7 @@ fn an_event_that_reached_no_channel_at_all_still_records_its_decision() {
     let sandbox = Sandbox::new("decision-log-empty-plan");
     let output = run(logged_event(&sandbox)
         .args(["send", "--producer", "claude", "--state", "done"])
-        .env("PNS_IDLE_SECS", "9000")
+        .env("PNS_SCREEN_IDLE", "9000")
         .args(["--scope", "local_only"]));
     assert!(
         !sandbox.fired("hermes"),

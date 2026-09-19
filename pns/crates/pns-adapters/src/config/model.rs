@@ -38,6 +38,11 @@ pub struct Config {
     /// that rides the clock behind TWO switches, so an operator who enabled the
     /// feature and saw nothing would have to discover a second, invisible one.
     pub daemon_enabled: bool,
+    /// `[daemon] service`: the launchd label `pns gateway` starts, stops,
+    /// restarts and reports on. NO DEFAULT: pns compiles in no label of its
+    /// own, since it does not know what a given installation's plist is
+    /// named. `None` is what every gateway verb refuses on.
+    pub daemon_service: Option<String>,
     /// `[routes]`: what the two routes pns selects for itself are called.
     ///
     /// NOT AN OPTION and not a list: both names are defaulted, so a file with
@@ -96,6 +101,7 @@ impl Default for Config {
             bypass_silence_classes: vec!["security".into()],
             routes: pns_domain::routes::Routes::default(),
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
+            daemon_service: None,
             retry_limits: Default::default(),
             retry_backoff: Default::default(),
             nag_after_secs: NAG_OFF,
