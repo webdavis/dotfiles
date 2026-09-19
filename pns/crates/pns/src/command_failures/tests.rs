@@ -18,7 +18,11 @@ fn stored(id: u64, outcome: pns_domain::retry::DeliveryOutcome) -> StoredFailure
 /// the reader searches for, so it has to be the one they would actually find.
 #[test]
 fn the_shown_command_is_the_routing_flags_that_produced_this_leg() {
-    let failure = compose(&stored(47, pns_domain::retry::DeliveryOutcome::Status(404)));
+    let failure = compose(
+        &stored(47, pns_domain::retry::DeliveryOutcome::Status(404)),
+        None,
+        None,
+    );
     assert_eq!(
         failure.command,
         "pns send --producer posture --state failed --route testpath"
@@ -77,28 +81,22 @@ fn the_listing_clock_is_cut_at_the_minute_whatever_the_seconds_are() {
     assert_eq!(when(minute + 60), "2025-09-04 15:34Z");
 }
 
-/// The address is where the reader would type it, and it follows the setting
-/// the gateway itself reads, so the message names the gateway THIS machine
-/// posts to rather than the shipped default.
+/// The address is where the reader would type it, and it follows the resolved
+/// setting the caller hands down rather than reading the live config, so the
+/// message names the gateway THIS machine posts to without the test touching
+/// whatever `~/.config/pns/config.toml` an operator happens to have.
 #[test]
-fn the_address_follows_the_gateway_setting_the_channel_itself_reads() {
-    // SAFETY: single-threaded test process; the variable is restored below.
-    let previous = std::env::var("PNS_HERMES_URL").ok();
-    unsafe {
-        std::env::set_var(
-            "PNS_HERMES_URL",
-            "http://127.0.0.1:9999/webhooks/pns-events",
-        )
-    };
+fn the_address_follows_the_gateway_setting_the_caller_resolved() {
     assert_eq!(
-        address(failure::DESTINATION_HERMES, "testpath"),
+        address(
+            failure::DESTINATION_HERMES,
+            "testpath",
+            None,
+            Some("http://127.0.0.1:9999/webhooks/pns-events"),
+        ),
         "http://127.0.0.1:9999/webhooks/testpath"
     );
-    unsafe { std::env::remove_var("PNS_HERMES_URL") };
-    assert!(address(failure::DESTINATION_HERMES, "testpath").ends_with("/testpath"));
-    if let Some(previous) = previous {
-        unsafe { std::env::set_var("PNS_HERMES_URL", previous) };
-    }
+    assert!(address(failure::DESTINATION_HERMES, "testpath", None, None).ends_with("/testpath"));
 }
 
 /// This binary's own path, never a bare name: a click has no PATH to resolve

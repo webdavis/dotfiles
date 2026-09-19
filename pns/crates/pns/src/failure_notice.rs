@@ -70,9 +70,15 @@ pub(crate) fn announce(store: &SqliteStore, since: u64) {
         return;
     }
     let pns = crate::command_failures::pns_path();
+    let install = pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
     let phone = phone_card();
     for stored in speaking_for {
-        raise(&crate::command_failures::compose(stored), &pns, &phone);
+        let failure = crate::command_failures::compose(
+            stored,
+            install.moshi_url.as_deref(),
+            install.hermes_url.as_deref(),
+        );
+        raise(&failure, &pns, &phone);
     }
 }
 

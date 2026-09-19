@@ -174,7 +174,16 @@ fn show(store: &SqliteStore, id: u64) -> i32 {
             1
         }
         Ok(Some(stored)) => {
-            print!("{}", failure::full(&compose(&stored)));
+            let install =
+                pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
+            print!(
+                "{}",
+                failure::full(&compose(
+                    &stored,
+                    install.moshi_url.as_deref(),
+                    install.hermes_url.as_deref()
+                ))
+            );
             0
         }
     }
@@ -183,12 +192,21 @@ fn show(store: &SqliteStore, id: u64) -> i32 {
 /// The ledger's row plus the two facts only this layer holds: where the
 /// destination lives, which comes from the config and the environment, and the
 /// command the reader is shown.
-pub(crate) fn compose(stored: &StoredFailure) -> Failure {
+///
+/// `moshi_url` AND `hermes_url` ARE RESOLVED BY THE CALLER, once, rather than
+/// read here: this runs once per failure row, and a caller looping over many
+/// rows (the failure notice) would otherwise reparse the config file on every
+/// one of them.
+pub(crate) fn compose(
+    stored: &StoredFailure,
+    moshi_url: Option<&str>,
+    hermes_url: Option<&str>,
+) -> Failure {
     Failure {
         id: stored.id,
         destination: stored.destination.clone(),
         route: stored.route.clone(),
-        address: address(&stored.destination, &stored.route),
+        address: address(&stored.destination, &stored.route, moshi_url, hermes_url),
         agent: stored.agent.clone(),
         // RECONSTRUCTED from the routing facts rather than stored. It is the
         // string the reader searches for, and pns knows exactly which flags
@@ -214,18 +232,23 @@ fn command(stored: &StoredFailure) -> String {
     command
 }
 
-/// Where the destination lives, as the reader would type it. The gateway
-/// honours `PNS_HERMES_URL`, so reading it here is what keeps the message
-/// pointing at the gateway this machine actually posts to.
-fn address(destination: &str, route: &str) -> String {
-    let install = pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
+/// Where the destination lives, as the reader would type it. Config
+/// (`[plugins.mobile] url` / `[plugins.hermes] url`) outranks the matching
+/// variable (`PNS_MOSHI_URL` / `PNS_HERMES_URL`), which is what keeps the
+/// message pointing at the gateway this machine actually posts to.
+fn address(
+    destination: &str,
+    route: &str,
+    moshi_url: Option<&str>,
+    hermes_url: Option<&str>,
+) -> String {
     if destination == failure::DESTINATION_MOBILE {
-        return install
-            .moshi_url
+        return moshi_url
+            .map(str::to_string)
             .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string());
     }
-    let base = install
-        .hermes_url
+    let base = hermes_url
+        .map(str::to_string)
         .unwrap_or_else(|| DEFAULT_HERMES_URL.to_string());
     pns_adapters::channel_url(&base, route).unwrap_or(base)
 }

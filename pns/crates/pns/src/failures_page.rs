@@ -130,7 +130,15 @@ fn one(store: &SqliteStore, id: u64) -> String {
     match store.failing_leg(id) {
         Err(_) => "pns: the delivery ledger could not be read\n".to_string(),
         Ok(None) => format!("pns: no failure {id}\n"),
-        Ok(Some(stored)) => pns_domain::failure::full(&crate::command_failures::compose(&stored)),
+        Ok(Some(stored)) => {
+            let install =
+                pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
+            pns_domain::failure::full(&crate::command_failures::compose(
+                &stored,
+                install.moshi_url.as_deref(),
+                install.hermes_url.as_deref(),
+            ))
+        }
     }
 }
 
