@@ -24,7 +24,7 @@ fn request(class: Option<&str>, state: &str) -> String {
         pns_protocol::Name::new("posture").unwrap(),
         pns_protocol::State::from_word(state).expect("the tests state one of the six words"),
     );
-    request.class = class.map(|name| pns_protocol::Name::new(name).unwrap());
+    request.delivery_class = class.map(|name| pns_protocol::Name::new(name).unwrap());
     request.encode().unwrap()
 }
 

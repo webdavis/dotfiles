@@ -73,26 +73,26 @@ webhook route may take one. `explain`, added 2026-09-17, is the one exception: i
 rather than a channel of its own, so it names `priority` as its `channel` and reads that channel's
 existing entry instead of getting a new one.
 
-| Route           | Who posts                                  | What                                                                                                                                                                                                                                |
-| --------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `general`       | nothing in this repo yet                   | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one.                                                                                                                          |
-| `pns-events`    | pns hook and daemon paths                  | Every routine agent event, the return recap included. The default route when nothing names one.                                                                                                                                     |
-| `priority`      | the alert drainer; pns on `--kind health`  | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`.                                                                                                                          |
-| `uu-runs`       | uu                                         | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`, then from `uu`.                                                                                                                                          |
-| `posture-pages` | posture                                    | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.                                                                                                                           |
-| `explain`       | posture, copying a delivered critical page | The one AGENT route on this gateway. It carries no `deliver_only` key, so the gateway hands the posted body to an agent and delivers the agent's reply instead of the body itself. See "The posture critical-page explainer" below. |
+| Route           | Who posts                                           | What                                                                                                                                                                                                                                |
+| --------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `general`       | nothing in this repo yet                            | The catch-all channel. Declared so an ad-hoc POST has a signed route of its own rather than borrowing one.                                                                                                                          |
+| `pns-events`    | pns hook and daemon paths                           | Every routine agent event, the return recap included. The default route when nothing names one.                                                                                                                                     |
+| `priority`      | the alert drainer; pns on `--delivery-class health` | Machine health and security ONLY (operator ruling 2026-09-14). Posture is held off it by `severity_route`.                                                                                                                          |
+| `uu-runs`       | uu                                                  | The weekly unattended-upgrades record. Renamed from `unattended-upgrades`, then from `uu`.                                                                                                                                          |
+| `posture-pages` | posture                                             | Every page it raises, including the critical ones, plus the daily digest, the heartbeat, poll and funnel.                                                                                                                           |
+| `explain`       | posture, copying a delivered critical page          | The one AGENT route on this gateway. It carries no `deliver_only` key, so the gateway hands the posted body to an agent and delivers the agent's reply instead of the body itself. See "The posture critical-page explainer" below. |
 
 Route names are not URLs: a producer names a route and the gateway's own table decides where it lands.
 posture picks its route from the finding's tier in one place (`severity_route`,
 `posture/crates/posture-domain/src/severity.rs`), and that one place holds EVERY tier on `posture-pages`,
 critical included, so `priority` is held out of posture's tier map by posture rather than by anything the
 gateway does; uu's default is `DEFAULT_RECORD_URL` (`uu/crates/uu-adapters/src/config/records.rs`) for
-the weekly record, while its ALERT names no route at all: it sends `--kind health` and pns maps that kind
-to `priority` (`pns_domain::routes::Kind`), so a failed unattended upgrade pages without uu knowing a
-channel exists; pns's recap takes `DEFAULT_ROUTE` like every other session event, because the `pns-recap`
-route and its channel retired on 2026-09-15. pns keeps a ROSTER of the routes it posts to,
-`pns_domain::routes::ROUTES`, because each one is signed with its own key and a route with no key is a
-post pns refuses rather than signs with somebody else's. So adding a route pns posts to is two
+the weekly record, while its ALERT names no route at all: it sends `--delivery-class health` and pns maps
+that class to `priority` (`pns_domain::routes::route_for`), so a failed unattended upgrade pages without
+uu knowing a channel exists; pns's recap takes `DEFAULT_ROUTE` like every other session event, because
+the `pns-recap` route and its channel retired on 2026-09-15. pns keeps a ROSTER of the routes it posts
+to, `pns_domain::routes::ROUTES`, because each one is signed with its own key and a route with no key is
+a post pns refuses rather than signs with somebody else's. So adding a route pns posts to is two
 registrations, the gateway and that roster, and a route only uu or posture posts to needs the gateway
 alone.
 

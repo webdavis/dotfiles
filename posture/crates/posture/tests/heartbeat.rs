@@ -95,7 +95,7 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     ] {
         assert!(request.contains(text), "{text}: {request}");
     }
-    assert!(!request.contains("\"class\""));
+    assert!(!request.contains("\"delivery_class\""));
     assert_eq!(std::fs::read_to_string(log).unwrap(), before);
     assert_eq!(
         std::fs::read_to_string(ignored_override).unwrap(),

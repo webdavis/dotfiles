@@ -6,10 +6,11 @@
 //!
 //! SEVERITY OUTRANKS SUBJECT (operator ruling, 2026-09-14), which is why the
 //! ROUTE is tried first: a producer that named `priority`, and a health event
-//! that `routes::Kind::Health` routed there, both arrive carrying that route,
-//! so one entry in this map sends every critical page to one channel whatever
-//! project it was about. The two mechanisms never argue: the kind decides the
-//! route before delivery, and this map only ever reads the route it was handed.
+//! that the `health` delivery class routed there, both arrive carrying that
+//! route, so one entry in this map sends every critical page to one channel
+//! whatever project it was about. The two mechanisms never argue: the delivery
+//! class decides the route before delivery, and this map only ever reads the
+//! route it was handed.
 
 use std::collections::BTreeMap;
 
@@ -127,11 +128,10 @@ mod tests {
     #[test]
     fn the_route_a_health_event_takes_is_the_key_that_wins() {
         // SEVERITY AHEAD OF SUBJECT, read off the routing rule rather than
-        // restated here: whatever `Kind::Health` routes to is the key this
-        // lookup consults first, so the two cannot disagree.
+        // restated here: whatever the `health` class routes to is the key
+        // this lookup consults first, so the two cannot disagree.
         let routes = crate::routes::Routes::named(DEFAULT_ROUTE, URGENT_ROUTE);
-        let route = crate::routes::Kind::Health
-            .route(&routes, "failed")
+        let route = crate::routes::route_for(crate::routes::HEALTH, &routes, "failed")
             .expect("health takes a route of its own");
         let channels = map(&[(DEFAULT_KEY, "catch-all"), (route, "pages")]);
         assert_eq!(looked_up(&channels, route, "dotfiles"), Some("pages"));

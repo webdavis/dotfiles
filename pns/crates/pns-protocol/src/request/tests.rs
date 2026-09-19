@@ -1,10 +1,10 @@
-use super::{DeliveryScope, Kind, Request, State, decode};
+use super::{DeliveryScope, Request, State, decode};
 use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
 use std::time::Duration;
 
-mod classes;
+mod delivery_class;
 
 const GOLDEN: &str = include_str!("../../fixtures/request-v1.json");
 
@@ -25,6 +25,7 @@ fn golden_request() -> Request {
     request.branch = Some("main".to_string());
     request.pane = Some("wW:p21".to_string());
     request.route = Some(name("alert"));
+    request.delivery_class = Some(name("health"));
     let Value::Object(extensions) = json!({ "nvim": { "buffer": 12 } }) else {
         unreachable!("the literal above is an object");
     };
@@ -273,51 +274,24 @@ fn elapsed_is_a_duration_with_a_unit_and_a_bare_number_is_refused() {
 }
 
 #[test]
-fn a_producer_states_what_its_event_is_and_a_word_pns_does_not_know_is_refused() {
-    for (word, kind) in [("agent", Kind::Agent), ("health", Kind::Health)] {
-        let mut value = minimal();
-        value["kind"] = json!(word);
-        let decoded = decode_value(&value).unwrap();
-        assert!(
-            decoded.ignored.is_empty(),
-            "kind is owned request metadata, not a field of somebody else's"
-        );
-        assert_eq!(decoded.request.kind, Some(kind), "{word}");
-        let encoded: Value = serde_json::from_str(&decoded.request.encode().unwrap()).unwrap();
-        assert_eq!(encoded["kind"], json!(word), "{word}");
-    }
-    // REFUSED, NEVER DEFAULTED: a typo silently read as `agent` would send a
-    // page to the routine route nobody watches in time.
-    for word in [
-        json!("health "),
-        json!("Health"),
-        json!("priority"),
-        json!(""),
-    ] {
-        let mut value = minimal();
-        value["kind"] = word.clone();
-        let refused = decode_value(&value).expect_err("an unknown kind cannot be ignored");
-        assert_eq!(refused.reason.code(), "field_invalid", "{word}");
-        assert_eq!(refused.request_id, Some(id("r-1")), "{word}");
-    }
-}
-
-#[test]
-fn a_request_naming_no_kind_keeps_the_original_version_one_bytes() {
+fn a_request_naming_no_delivery_class_keeps_the_original_version_one_bytes() {
     // THE FIXTURE BYTES ARE A CONTRACT posture's own copy of this envelope
     // pins too, so an additive field must not move them.
     let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
     assert_eq!(
         original,
         r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"state":"failed","elapsed":null,"detail":"","project":null,"branch":null,"pane":null,"scope":"automatic","route":null,"extensions":{}}"#,
-        "an absent kind moved the canonical bytes"
+        "an absent delivery class moved the canonical bytes"
     );
-    assert_eq!(decode_value(&minimal()).unwrap().request.kind, None);
+    assert_eq!(
+        decode_value(&minimal()).unwrap().request.delivery_class,
+        None
+    );
     let mut value = minimal();
-    value["kind"] = Value::Null;
+    value["delivery_class"] = Value::Null;
     assert_eq!(
         decode_value(&value).unwrap().request.encode().unwrap(),
         original,
-        "a null kind is an absent kind"
+        "a null delivery class is an absent delivery class"
     );
 }

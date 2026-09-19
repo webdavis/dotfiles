@@ -74,9 +74,11 @@ pub struct Request {
     pub scope: DeliveryScope,
     #[serde(default)]
     pub route: Option<Name>,
-    /// An operator-configured delivery class, independent of producer and route.
+    /// What this event is for delivery: which route it takes when it named
+    /// none, and whether it passes a mute. The engine takes the same word
+    /// from the `--delivery-class` flag.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub class: Option<Name>,
+    pub delivery_class: Option<Name>,
     /// Producer-specific data, carried verbatim and never read here.
     #[serde(default)]
     pub extensions: Map<String, Value>,
@@ -118,7 +120,7 @@ impl Request {
             pane: None,
             scope: DeliveryScope::default(),
             route: None,
-            class: None,
+            delivery_class: None,
             extensions: Map::new(),
         }
     }

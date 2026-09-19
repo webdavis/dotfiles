@@ -213,7 +213,10 @@ fn assembled_pns_outage_alarms_before_a_security_submission_even_when_accepted()
     assert!(state.is_file());
     let effects = r.0.borrow();
     assert_eq!(effects.calls, ["alarm", "submit"]);
-    for field in ["\"class\":\"security\"", "\"route\":\"posture-pages\""] {
+    for field in [
+        "\"delivery_class\":\"security\"",
+        "\"route\":\"posture-pages\"",
+    ] {
         assert!(effects.requests[0].contains(field));
     }
 }

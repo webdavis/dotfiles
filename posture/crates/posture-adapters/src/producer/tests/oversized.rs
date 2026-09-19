@@ -21,7 +21,7 @@ fn security_text_over_the_cap_submits_one_bounded_omission_but_refuses_the_origi
         let notice = &sut.runner.requests[0];
         assert_eq!(notice.detail, OMITTED);
         assert_eq!(notice.state, crate::wire::State::Blocked);
-        assert_eq!(notice.class.as_ref().unwrap().as_str(), "security");
+        assert_eq!(notice.delivery_class.as_ref().unwrap().as_str(), "security");
         assert_eq!(notice.route.as_ref().unwrap().as_str(), "assigned-route");
         assert!(sut.alarm.calls.is_empty());
     }

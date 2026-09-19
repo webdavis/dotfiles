@@ -153,7 +153,7 @@ fn sound(request: &DeliveryRequest<'_>) -> Option<&'static str> {
         .producer_request
         .and_then(|encoded| pns_protocol::decode_request(encoded.as_bytes()).ok())
         .filter(|decoded| decoded.request.state == pns_protocol::State::Blocked)
-        .and_then(|decoded| decoded.request.class)
+        .and_then(|decoded| decoded.request.delivery_class)
         .is_some_and(|class| class.as_str() == "security");
     Some(if security { "Sosumi" } else { "default" })
 }
