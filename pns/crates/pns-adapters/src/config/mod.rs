@@ -44,6 +44,9 @@ mod recap_sources;
 use recap_sources::{note_glob, repositories};
 mod delivery;
 use delivery::parse_delivery;
+mod delivery_class;
+use delivery_class::parse_delivery_classes;
+pub use delivery_class::{DEFAULT_DELIVERY_CLASS, DeliveryClass};
 mod focus;
 use focus::parse_focus;
 mod quiet;
@@ -67,6 +70,8 @@ use failures::parse_failures;
 mod values;
 use values::{bounded, flag, strings, text};
 mod schema;
+#[cfg(test)]
+use schema::DELIVERY_CLASS_KEYS;
 pub use schema::{TABLE_KEYS, TOP_LEVEL};
 use schema::{TARGET_KEYS, admits, admits_flat, duration_key, keys_of, unknown_key};
 mod routes;
@@ -174,6 +179,7 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         // the prefix, the way the refusals do.
         let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
             ["lights", "lamp" | "room" | "zone", ..] => TARGET_KEYS.to_string(),
+            ["delivery_class", ..] => DELIVERY_CLASS_KEYS.to_string(),
             _ => table.clone(),
         };
         let serves = keys_of(&roster_table)

@@ -2,19 +2,11 @@ use super::*;
 
 pub(super) const DELIVERY: Table = Table {
     name: "delivery",
-    prose: "# These request classes may pass your timed mute and named Focus for\n\
-            # banners and phone cards. Presence and delivery scope still decide\n\
-            # which surface receives them; muted lights stay off and hermes is\n\
-            # unchanged. Names match exactly. An empty list allows no bypass.\n\
-            # Exhausted delivery retries remain available for operator review.\n",
+    prose: "# How a delivery that did not land is retried. Exhausted delivery\n\
+            # retries remain available for operator review.\n",
     opt_in: false,
     children: &[],
     keys: &[
-        Key {
-            name: "bypass_silence_classes",
-            prose: "",
-            sample: Sample::Default("[\"security\"]"),
-        },
         Key {
             name: "max_attempts",
             prose: "# Retry claims after the initial send, including interrupted retries. Zero permits no retries.\n",
@@ -32,3 +24,43 @@ pub(super) const DELIVERY: Table = Table {
         },
     ],
 };
+
+/// One `[delivery_class.<name>]` declaration, whose name is the operator's
+/// own. WRITTEN BY THE HARDCODED BRANCH in `render_delivery_classes`, the way
+/// a lamp declaration is, because this layout cannot enumerate class names it
+/// does not compile in.
+pub(super) const DELIVERY_CLASS: Table = Table {
+    name: crate::config::schema::DELIVERY_CLASS_KEYS,
+    prose: "# What each delivery class DOES, one table per class, named by the word\n\
+            # a producer sends as `--delivery-class` or JSON `delivery_class`.\n\
+            # `route` is where a message of that class goes when its producer\n\
+            # named no route of its own, and it is taken only while somebody is\n\
+            # waiting on the event, so a weekly upgrade that went fine stays on\n\
+            # the routine route; empty is the routine route at every state.\n\
+            # `bypass_mute` lets it pass your timed mute and named Focus modes\n\
+            # for banners and phone cards, and presence and delivery scope still\n\
+            # decide which surface receives it; muted lights stay off and hermes\n\
+            # is unchanged. A message naming NO class reads [delivery_class.default],\n\
+            # and a class no table here defines is refused rather than delivered\n\
+            # somewhere you did not intend.\n",
+    opt_in: false,
+    children: &[],
+    keys: &[
+        Key {
+            name: "route",
+            prose: "",
+            sample: Sample::Default("\"\""),
+        },
+        Key {
+            name: "bypass_mute",
+            prose: "",
+            sample: Sample::Default("false"),
+        },
+    ],
+};
+
+/// Written commented, and only when the caller declared no class of its own:
+/// a real declaration is a better example than this one.
+pub(crate) const EXAMPLE_CLASS: &str = "# [delivery_class.default]\n\
+     # route = \"\"\n\
+     # bypass_mute = false\n\n";

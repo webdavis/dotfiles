@@ -5,6 +5,10 @@ pub use argv::is_help_flag;
 use argv::parse_args;
 pub use usage::{SEND_USAGE, USAGE};
 
+/// The exit code for input pns will not honour, whoever asked: a retired flag,
+/// an unusable name, or a delivery class no config defines.
+pub(crate) const REFUSED_INPUT: i32 = 2;
+
 /// One notification from argv, or a usage print when `--help`/`-h` reached
 /// the parse in FLAG position.
 pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs, String) -> i32) -> i32 {
@@ -31,14 +35,23 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs, String) -
         Ok(None) => return 0,
         Err(error) => {
             eprintln!("pns: {error}");
-            return 2;
+            return REFUSED_INPUT;
         }
     };
     let code = submit(event, session);
     // DECISION 0010: a notification never fails the work it reports on. A
     // caller that did not ask gets 0 whatever the gateway answered, which is
     // what every harness hook, the shell notifier and the daemon rely on.
-    if require_delivery { code } else { 0 }
+    //
+    // REFUSED INPUT IS THE EXCEPTION, on the same terms as the refusals above
+    // it: a gateway that would not take the page is pns's problem to report
+    // quietly, while a field pns will not honour is the caller's to fix, and
+    // one silently answered 0 is a page nobody learns is not being sent.
+    if require_delivery || code == REFUSED_INPUT {
+        code
+    } else {
+        0
+    }
 }
 
 #[cfg(test)]

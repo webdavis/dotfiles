@@ -39,6 +39,16 @@ const KNOWN_FIELDS: [&str; 14] = [
     "extensions",
 ];
 
+/// Every field version 1 RETIRED, paired with the one that replaced it.
+///
+/// REFUSED BY NAME, where an unknown field is merely ignored, and the split is
+/// the same one the flag path already makes for `--kind`: a field nobody ever
+/// defined is a newer producer pns does not have to understand, while one this
+/// envelope USED to honour is a producer still saying something pns would now
+/// silently drop. A page whose class went nowhere is the failure this refusal
+/// exists to prevent.
+const RETIRED_FIELDS: [(&str, &str); 2] = [("class", "delivery_class"), ("kind", "delivery_class")];
+
 fn schema() -> SchemaId {
     SchemaId {
         name: SCHEMA_NAME.to_string(),
@@ -214,12 +224,25 @@ pub struct Decoded {
 /// first.
 pub fn decode(bytes: &[u8]) -> Result<Decoded, Rejected> {
     let Opened { value, request_id } = open(bytes, &schema())?;
+    if let Some((retired, replacement)) = retired_field(&value) {
+        return Err(Rejected {
+            request_id,
+            reason: Rejection::Invalid(format!("`{retired}` was replaced by `{replacement}`")),
+        });
+    }
     let ignored = ignored_fields(&value);
     let request = serde_json::from_value(value).map_err(|error| Rejected {
         request_id,
         reason: Rejection::Invalid(error.to_string()),
     })?;
     Ok(Decoded { request, ignored })
+}
+
+fn retired_field(value: &Value) -> Option<(&'static str, &'static str)> {
+    let object = value.as_object()?;
+    RETIRED_FIELDS
+        .into_iter()
+        .find(|(retired, _)| object.contains_key(*retired))
 }
 
 fn ignored_fields(value: &Value) -> Vec<String> {

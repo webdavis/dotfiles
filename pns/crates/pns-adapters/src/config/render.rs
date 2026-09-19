@@ -1,6 +1,6 @@
 #[cfg(test)]
 use layout::every_table;
-use layout::{LAYOUT, Sample, Table};
+use layout::{EXAMPLE_CLASS, LAYOUT, Sample, Table};
 use prose::*;
 mod layout;
 mod prose;
@@ -10,6 +10,8 @@ mod write;
 use write::{render_block, render_core, render_opt_in, take_note, take_table, write_note};
 mod lights;
 use lights::render_lights;
+mod delivery_class;
+use delivery_class::render_delivery_classes;
 mod secret;
 use secret::{SECRET_FIELDS, secret_action};
 
@@ -34,7 +36,9 @@ pub fn render(values: &toml::Table) -> Result<String, String> {
     // one presence flag rather than each carrying its own; every
     // `lights.<x>` entry is written by that one call and skipped here.
     for table in LAYOUT {
-        if table.name == "lights" {
+        if table.name == crate::config::schema::DELIVERY_CLASS_KEYS {
+            render_delivery_classes(&mut out, table, &mut remaining)?;
+        } else if table.name == "lights" {
             render_lights(&mut out, &mut remaining)?;
         } else if table.name.starts_with("lights.") {
             continue;

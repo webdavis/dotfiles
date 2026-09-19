@@ -11,9 +11,10 @@
 //! with no key is refused rather than signed with somebody else's. The two
 //! routes pns SELECTS for itself are named in `[routes]`.
 //!
-//! WHAT IS STILL pns'S OWN, because it names no other tool: the producer
-//! words `agent` and `health`, the rule that a health event takes the urgent
-//! route rather than the routine one, and the refusal above.
+//! WHAT IS STILL pns'S OWN, because it names no other tool: the rule that a
+//! class's own route is taken only when somebody is waiting on the event, and
+//! the refusal above. WHICH classes exist, and which route each one takes, is
+//! `[delivery_class.<name>]` and nothing here.
 
 /// What the two routes pns selects for itself are called.
 ///
@@ -64,31 +65,23 @@ impl Default for Routes {
     }
 }
 
-/// The one delivery class pns routes for itself.
-///
-/// A PRODUCER NAMES A DELIVERY CLASS, NEVER A ROUTE (operator ruling,
-/// 2026-09-15). A producer knows its own work failed and nothing about the
-/// gateway's channels, so the word it sends is what the failure is; the
-/// mapping below is what turns that into a route, and WHICH ROUTE THIS CLASS
-/// TAKES is fixed even though the route's NAME is not: `health` is defined as
-/// a machine's own health, so a mapping that sent one to the routine route
-/// would contradict the definition.
-pub const HEALTH: &str = "health";
-
 /// The route a delivery class takes when the event named none, or `None` when
 /// it takes the default route, which is the empty route every path already
 /// reads as the default.
 ///
+/// THE CLASS NAMES THE ROUTE, IN CONFIG. `class_route` is what
+/// `[delivery_class.<name>] route` says, so no class word is written here and
+/// an operator who defines a class defines where it goes.
+///
 /// THE STATE IS THE SECOND AXIS (operator ruling, 2026-09-14: the subject
-/// picks the channel and severity overrides it). A health event pages only
-/// when somebody is waiting on it: an upgrade that failed while nobody
-/// watched is why the urgent route exists, and one that went fine is a
+/// picks the channel and severity overrides it). A class routes of its own
+/// only when somebody is waiting on the event: an upgrade that failed while
+/// nobody watched is why the urgent route exists, and one that went fine is a
 /// line in the weekly record. The list is `missed::NEEDS_YOU`, the one
 /// place this crate says which states wait on the operator, so a page and
 /// the recap's own NEEDS YOU section cannot disagree about what urgent is.
-pub fn route_for<'a>(delivery_class: &str, routes: &'a Routes, state: &str) -> Option<&'a str> {
-    (delivery_class == HEALTH && crate::missed::NEEDS_YOU.contains(&state))
-        .then(|| routes.urgent_route())
+pub fn route_for<'a>(class_route: Option<&'a str>, state: &str) -> Option<&'a str> {
+    class_route.filter(|route| !route.is_empty() && crate::missed::NEEDS_YOU.contains(&state))
 }
 
 #[cfg(test)]
@@ -96,36 +89,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_failed_health_event_takes_the_urgent_route_whatever_the_config_calls_it() {
-        let named = Routes::named("logbook", "sirens");
-        assert_eq!(route_for(HEALTH, &named, "failed"), Some("sirens"));
+    fn a_class_that_names_a_route_takes_it_when_somebody_is_waiting() {
+        assert_eq!(route_for(Some("sirens"), "failed"), Some("sirens"));
         assert_eq!(
-            route_for("agent", &named, "failed"),
+            route_for(None, "failed"),
             None,
             "the default route is the empty route, not a second spelling of it"
         );
         assert_eq!(
-            route_for("", &named, "failed"),
+            route_for(Some(""), "failed"),
             None,
-            "an event that named no delivery class takes the default route"
+            "a class that named no route of its own takes the default one"
         );
     }
 
     #[test]
-    fn a_health_event_nobody_has_to_answer_stays_off_the_urgent_route() {
+    fn a_class_route_stays_unused_while_nobody_has_to_answer() {
         // THE MUTANT THIS PINS: the state ignored, which would page the
         // operator for a weekly upgrade that went fine.
-        let named = Routes::named("logbook", "sirens");
         for state in ["done", "resolved", "observation", "progress", ""] {
             assert_eq!(
-                route_for(HEALTH, &named, state),
+                route_for(Some("sirens"), state),
                 None,
                 "`{state}` is nobody waiting on the operator"
             );
         }
         for state in crate::missed::NEEDS_YOU {
             assert_eq!(
-                route_for(HEALTH, &named, state),
+                route_for(Some("sirens"), state),
                 Some("sirens"),
                 "`{state}` is the operator being waited on"
             );
@@ -148,20 +139,6 @@ mod tests {
         assert_eq!(shipped.default_route(), "pns-events");
         assert_eq!(shipped.urgent_route(), "priority");
         assert_ne!(shipped, Routes::named("logbook", "sirens"));
-    }
-
-    #[test]
-    fn only_the_exact_health_word_routes_for_itself() {
-        // A near miss must not page: every other delivery class is the
-        // operator's to define and takes the default route here.
-        let named = Routes::named("logbook", "sirens");
-        for word in ["", "agent", "Health", "health ", "security", "priority"] {
-            assert_eq!(
-                route_for(word, &named, "failed"),
-                None,
-                "`{word}` is not the health class"
-            );
-        }
     }
 
     #[test]

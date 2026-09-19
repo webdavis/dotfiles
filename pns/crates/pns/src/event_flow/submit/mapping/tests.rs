@@ -70,7 +70,6 @@ fn a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_
     // submission half of the same rule the `--delivery-class` flag carries on
     // the argv half, so a failed upgrade posted as an envelope pages the way
     // one spawned with flags does: both reach `sirens`.
-    let routes = pns_domain::routes::Routes::named("logbook", "sirens");
     let mut request = Request::new(
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
@@ -86,13 +85,13 @@ fn a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_
     }
     request.delivery_class = Some(Name::new("health").unwrap());
     assert_eq!(
-        event(&request).0.routed(&routes).channel,
+        event(&request).0.routed(Some("sirens")).channel,
         "sirens",
         "a failed health submission stayed off the urgent route"
     );
     request.state = State::Done;
     assert!(
-        event(&request).0.routed(&routes).channel.is_empty(),
+        event(&request).0.routed(Some("sirens")).channel.is_empty(),
         "a health submission that succeeded paged the operator"
     );
 }
@@ -107,10 +106,7 @@ fn a_route_the_producer_named_still_outranks_the_delivery_class_it_stated() {
     request.delivery_class = Some(Name::new("health").unwrap());
     request.route = Some(Name::new("posture-pages").unwrap());
     assert_eq!(
-        event(&request)
-            .0
-            .routed(&pns_domain::routes::Routes::named("logbook", "sirens"))
-            .channel,
+        event(&request).0.routed(Some("sirens")).channel,
         "posture-pages"
     );
 }

@@ -62,7 +62,8 @@ pub(super) enum Sample {
 
 use super::prose::*;
 mod delivery;
-use delivery::DELIVERY;
+pub(super) use delivery::EXAMPLE_CLASS;
+use delivery::{DELIVERY, DELIVERY_CLASS};
 mod core;
 use core::*;
 mod destinations;
@@ -102,6 +103,7 @@ pub(super) const LAYOUT: &[Table] = &[
     PLUGINS_ROUTER,
     DAEMON,
     DELIVERY,
+    DELIVERY_CLASS,
     RECAP,
     FOCUS,
     QUIET,

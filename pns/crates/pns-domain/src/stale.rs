@@ -13,11 +13,15 @@
 //!
 //! WHICH ROUTE THAT IS stays the operator's to name. `[stale] route` names
 //! one outright and reaches `page` as an argument; with none named the page
-//! carries the HEALTH delivery class alone, so the one statement that turns a
-//! class into a route (`routes::route_for`) settles it. This module names no
-//! route of its own either way.
+//! carries its delivery class alone, and `[delivery_class.<name>] route`
+//! settles it. This module names no route of its own either way.
 
 use crate::surface::Surface;
+
+/// The delivery class this page carries. pns RAISING ITS OWN EVENT names a
+/// class the way uu and posture do, and the class is all it names: which route
+/// that reaches is `[delivery_class.<name>]`, which an operator writes.
+pub const DELIVERY_CLASS: &str = "health";
 
 /// One session whose wait is older than the window, as the row names it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -137,9 +141,9 @@ pub fn page(blocked: &Blocked, now: u64, route: &str) -> crate::EventArgs {
         // THE ROUTE THE OPERATOR NAMED, which `[stale] route` settles and the
         // caller has already resolved; empty leaves the class below to pick it.
         channel: route.to_string(),
-        // NOT A ROUTE NAME: the delivery class is what puts this on the
-        // urgent route, whatever `[routes] urgent` calls it.
-        delivery_class: crate::routes::HEALTH.to_string(),
+        // NOT A ROUTE NAME: the delivery class is what puts this somewhere,
+        // and `[delivery_class.<name>] route` is what says where.
+        delivery_class: DELIVERY_CLASS.to_string(),
         session: blocked.session.clone(),
         session_title: blocked.title.clone(),
         ..crate::EventArgs::default()

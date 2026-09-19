@@ -208,9 +208,20 @@ Config {
         review_notes: None,
     },
     focus_silence: [],
-    bypass_silence_classes: [
-        "security",
-    ],
+    delivery_classes: {
+        "default": DeliveryClass {
+            route: "",
+            bypass_mute: false,
+        },
+        "health": DeliveryClass {
+            route: "priority",
+            bypass_mute: false,
+        },
+        "security": DeliveryClass {
+            route: "",
+            bypass_mute: true,
+        },
+    },
     daemon_enabled: true,
     daemon_service: Some(
         "com.webdavis.pns-daemon",

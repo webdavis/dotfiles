@@ -151,7 +151,6 @@ fn a_failed_health_class_pages_and_a_session_class_keeps_the_default_route() {
     // A PRODUCER NAMES WHAT ITS EVENT IS; the route it lands on is pns's to
     // decide, and the route's NAME is the operator's, so the parse carries
     // the delivery class and nothing resolves a route here.
-    let routes = pns_domain::routes::Routes::named("logbook", "sirens");
     let (parsed, warnings) = args(&[
         "--delivery-class",
         "health",
@@ -164,12 +163,12 @@ fn a_failed_health_class_pages_and_a_session_class_keeps_the_default_route() {
     // `event_flow::submit::mapping` pins the JSON half of this pair.
     assert_eq!(parsed.delivery_class, "health");
     assert_eq!(parsed.channel, "", "the parse pinned a route name");
-    assert_eq!(parsed.routed(&routes).channel, "sirens");
+    assert_eq!(parsed.routed(Some("sirens")).channel, "sirens");
     assert!(warnings.is_empty());
 
-    // Naming no class is the behavior every producer already had: an empty
-    // route, which the hermes target reads as the default one. So is a class
-    // that is not `health`, which the operator's config gives its own meaning.
+    // A class whose table names no route of its own keeps the default route,
+    // and so does a message naming no class at all: which classes route where
+    // is `[delivery_class.<name>]`, never a word written here.
     for argv in [
         vec!["--producer", "claude"],
         vec!["--delivery-class", "agent"],
@@ -177,7 +176,7 @@ fn a_failed_health_class_pages_and_a_session_class_keeps_the_default_route() {
     ] {
         let (parsed, _) = args(&argv);
         assert_eq!(
-            parsed.routed(&routes).channel,
+            parsed.routed(Some("")).channel,
             "",
             "{argv:?} must keep the default route"
         );
@@ -186,14 +185,13 @@ fn a_failed_health_class_pages_and_a_session_class_keeps_the_default_route() {
 
 #[test]
 fn a_named_route_beats_the_delivery_class_in_either_order() {
-    let routes = pns_domain::routes::Routes::named("logbook", "sirens");
     for argv in [
         vec!["--delivery-class", "health", "--route", "log"],
         vec!["--route", "log", "--delivery-class", "health"],
     ] {
         let (parsed, _) = args(&argv);
         assert_eq!(
-            parsed.routed(&routes).channel,
+            parsed.routed(Some("sirens")).channel,
             "log",
             "{argv:?}: a producer that said where already answered the question"
         );

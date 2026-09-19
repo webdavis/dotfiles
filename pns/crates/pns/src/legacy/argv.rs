@@ -137,7 +137,7 @@ impl ParsedArgs {
         };
         // THE DELIVERY CLASS TRAVELS, NEVER THE ROUTE IT NAMES. Which route a
         // class takes is settled once the config is read (`EventArgs::routed`),
-        // because the route's NAME is the operator's (`[routes] urgent`) and
+        // because the class is the operator's (`[delivery_class.<name>]`) and
         // this parse runs before any file is opened.
         event.delivery_class = self.delivery_class;
         event.scope = self.scope?;
