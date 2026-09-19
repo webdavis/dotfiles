@@ -71,7 +71,7 @@ pns: usage:
   pns daemon run|schedule|cancel   the clock
   pns lights tick|quiet            the lamps' upkeep
   pns loop begin|end               take the loop lamp by hand, and give it back
-  pns nag                          card every outstanding approval
+  pns remind                          card every outstanding approval
   pns recap --since <epoch> --until <epoch>
   pns setup [--force]              write a first config, one question at a time
   pns doctor                       one test send through every channel
@@ -114,8 +114,8 @@ subcommand itself is mistyped:
 
 - `src/main.rs:RECAP_USAGE`: `pns: usage: pns recap --since <epoch> --until <epoch>`
 
-- `src/main.rs:NAG_USAGE`:
-  `pns: usage: pns nag (it takes no arguments: one fire cards every outstanding approval at once)`
+- `src/main.rs:REMIND_USAGE`:
+  `pns: usage: pns remind (it takes no arguments: one fire cards every outstanding approval at once)`
 
 `LIGHTS_USAGE` names a `<place>` argument; the vocabulary for that argument is the lamps' own and is out
 of scope here.
@@ -189,7 +189,7 @@ Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` w
 ### 2. A subcommand word is dispatched before the producer check
 
 Given argv whose first token is one of `pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`,
-`nag`, `setup`, `hook`, or a word ending in `-hook`\\
+`remind`, `setup`, `hook`, or a word ending in `-hook`\\
 
 When `main` runs its dispatch chain\\
 

@@ -25,9 +25,9 @@ about the HARNESS's own settings file and has nothing to do with this file; it i
 
 `NOT ESTABLISHED:` there is no version key and no schema-version concept anywhere in the config surface.
 Evidence, all negative and each checked: `src/config.rs:TABLE_KEYS` declares the top level as
-`&["daemon", "focus", "lights", "nag", "plugins", "recap"]` and nothing else, so a `version` key at the
+`&["daemon", "focus", "lights", "plugins", "recap", "remind", "stale"]` and nothing else, so a `version` key at the
 top level would be refused by `parse_config`'s `_` arm; `src/config.rs:Config` has six fields (`plugins`,
-`recap`, `focus_silence`, `daemon_enabled`, `nag_after_secs`, `lights`) and none of them is a version;
+`recap`, `focus_silence`, `daemon_enabled`, `remind_delay_secs`, `lights`) and none of them is a version;
 `src/config_text.rs:LAYOUT` declares sixteen tables and no version key; and a case-insensitive grep for
 `version` over `src/config.rs`, `src/config_text.rs`, `dot_config/pns/config-values.toml` and
 `dot_config/pns/private_config.toml.tmpl` returns nothing at all. There is therefore no migration
@@ -157,8 +157,8 @@ shape, the registry interprets the contents").
 
 | Key path                                               | Type  | Default | Bound             | Secret | Out of bounds or malformed                                                                                 | Judged by                  | Tests                                                                                                                                                                                                                                                                                                                             |
 | ------------------------------------------------------ | ----- | ------- | ----------------- | ------ | ---------------------------------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `daemon`, `focus`, `lights`, `nag`, `plugins`, `recap` | table | absent  | closed set of six | no     | `Invalid`: `` unknown top-level key `{key}`; the file serves daemon, focus, lights, nag, plugins, recap `` | `parse_config`             | `an_unknown_top_level_key_is_refused_so_a_typo_cannot_disable_a_channel`, `a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`, `a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`, `a_top_level_key_that_merely_looks_like_recap_is_still_refused_by_name`                                 |
-| any of the six written as a scalar                     | table | n/a     | must be a table   | no     | `Invalid`: `` `{name}` is not a table ``                                                                   | each table's own parse arm | `a_non_table_recap_value_is_refused_naming_the_key`, `a_non_table_focus_value_is_refused_naming_the_arm_rather_than_the_key`, `a_non_table_plugins_value_is_refused_naming_the_key`, `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, `a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name` |
+| `daemon`, `focus`, `lights`, `remind`, `plugins`, `recap` | table | absent  | closed set of six | no     | `Invalid`: `` unknown top-level key `{key}`; the file serves daemon, focus, lights, remind, plugins, recap `` | `parse_config`             | `an_unknown_top_level_key_is_refused_so_a_typo_cannot_disable_a_channel`, `a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`, `a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`, `a_top_level_key_that_merely_looks_like_recap_is_still_refused_by_name`                                 |
+| any of the six written as a scalar                     | table | n/a     | must be a table   | no     | `Invalid`: `` `{name}` is not a table ``                                                                   | each table's own parse arm | `a_non_table_recap_value_is_refused_naming_the_key`, `a_non_table_focus_value_is_refused_naming_the_arm_rather_than_the_key`, `a_non_table_plugins_value_is_refused_naming_the_key`, `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
 ### `[recap]`
 
@@ -198,13 +198,13 @@ Default ON, which is the opposite of `[focus]` and of every plugin. The reason g
 empty directory a second," and default OFF "would put every feature that rides the clock behind TWO
 switches."
 
-### `[nag]`
+### `[remind]`
 
 | Key path         | Type            | Default                          | Bound                                    | Secret | Out of bounds or malformed                                                                                                                                                                       | Judged by                    | Tests                                                                                                                                                |
 | ---------------- | --------------- | -------------------------------- | ---------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nag.after_secs` | integer (`u64`) | `0` (`NAG_OFF`, the feature off) | 0 is off; otherwise 30 to 3600 inclusive | no     | not a count: `` `nag` key `after_secs` has type `{type}`, not a count of seconds ``; outside: `` `nag` key `after_secs` is {count}, outside the 30 to 3600 second range; 0 is the feature off `` | `src/config.rs:nag_schedule` | `the_nag_table_reads_one_schedule_defaults_off_and_zero_is_off_rather_than_an_error`, `a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name` |
+| `remind.delay` | duration string | unset (`REMIND_OFF`, the feature off) | `"0s"` is off; otherwise 30s to 1h inclusive | no     | not a duration: `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``; outside: `` `remind` key `delay` "{text}" is outside 30 seconds to 1 hour `` | `src/config.rs:remind_delay_range` | `the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
-`MAX_NAG_AFTER_SECS` is defined as `MAX_SUMMARIZER_DEADLINE_SECS`, so the two ceilings are one number by
+`MAX_REMIND_DELAY_SECS` is defined as `MAX_SUMMARIZER_DEADLINE_SECS`, so the two ceilings are one number by
 construction rather than two that agree by accident.
 
 ### `[lights]`
@@ -224,7 +224,7 @@ named no lamp yet. Those are different states and the doctor says different thin
 | `lights.blocked.duration_ms`        | integer         | `2000`                                                   | 200 to 5000                                                                                                                  | no     | `bounded` refusal naming `lights.blocked`                                                                                                        | `src/config.rs:breath_key`                                               | `no_lights_table_is_none_and_an_empty_one_is_every_locked_default`                                                                                               |
 | `lights.blocked.high`               | integer         | `100`                                                    | 1 to 100, and `low <= high`                                                                                                  | no     | `bounded`, plus `ends_agree`                                                                                                                     | `breath_key`, `src/config.rs:ends_agree`                                 | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                               |
 | `lights.blocked.low`                | integer         | `30`                                                     | 1 to 100, and `low <= high`                                                                                                  | no     | same                                                                                                                                             | same                                                                     | same                                                                                                                                                             |
-| `lights.blocked.give_up_after_secs` | integer         | `57600` (`DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`, 16 hours) | 60 (`MIN_LEASE_TIMEOUT_SECS`) to 604800 (`MAX_GIVE_UP_AFTER_SECS`, a week), AND at least `nag.after_secs` when the nag is on | no     | `bounded` refusal; the cross-table one is quoted in behavior 19                                                                                  | `src/config.rs:parse_blocked`, `src/config.rs:backstop_outlasts_the_nag` | `the_blocked_backstop_reads_the_configured_number_rather_than_a_hardcoded_default`, `a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys` |
+| `lights.blocked.give_up_after_secs` | integer         | `57600` (`DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`, 16 hours) | 60 (`MIN_LEASE_TIMEOUT_SECS`) to 604800 (`MAX_GIVE_UP_AFTER_SECS`, a week), AND at least `remind.delay` when the reminder is on | no     | `bounded` refusal; the cross-table one is quoted in behavior 19                                                                                  | `src/config.rs:parse_blocked`, `src/config.rs:backstop_outlasts_the_reminder` | `the_blocked_backstop_reads_the_configured_number_rather_than_a_hardcoded_default`, `a_backstop_that_gives_up_before_the_reminder_nudges_is_refused_naming_both_keys` |
 | `lights.unread.duration_ms`         | integer         | `4000`                                                   | 200 to 5000                                                                                                                  | no     | `bounded` naming `lights.unread`                                                                                                                 | `breath_key`                                                             | `a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values`                                                                          |
 | `lights.unread.high`                | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                      | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                               | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                               |
 | `lights.unread.low`                 | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                      | no     | same                                                                                                                                             | same                                                                     | same                                                                                                                                                             |
@@ -304,8 +304,8 @@ marks an interpolation.
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | text that is not TOML, with a locatable span                      | `{cause} at line {line}`                                                                                                                                                                                                                                        | `Malformed`                                                | closed on the pulse path and on the lights tick; open to the CORE on the delivery path |
 | text that is not TOML, no span                                    | `{cause}`                                                                                                                                                                                                                                                       | `Malformed`                                                | same                                                                                   |
-| a top-level key outside the six                                   | `` unknown top-level key `{key}`; the file serves daemon, focus, lights, nag, plugins, recap ``                                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
-| `recap`, `focus`, `daemon`, `nag` or `lights` written as a scalar | `` `{name}` is not a table ``                                                                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
+| a top-level key outside the six                                   | `` unknown top-level key `{key}`; the file serves daemon, focus, lights, remind, plugins, recap ``                                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
+| `recap`, `focus`, `daemon`, `remind` or `lights` written as a scalar | `` `{name}` is not a table ``                                                                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
 | `plugins` written as a scalar                                     | `` `plugins` is not a table ``                                                                                                                                                                                                                                  | `Invalid`                                                  | same                                                                                   |
 | a plugin entry that is not a table                                | `` plugin `{name}` is not a table ``                                                                                                                                                                                                                            | `Invalid`                                                  | same                                                                                   |
 | a non-boolean `enabled` under a plugin                            | `` plugin `{name}` has a non-boolean `enabled` ``                                                                                                                                                                                                               | `Invalid`                                                  | same                                                                                   |
@@ -326,8 +326,8 @@ marks an interpolation.
 | `review_notes` with two `*` in the file name                      | `` `recap` key `review_notes` is `{pattern}`, and its file name may hold only one `*` ``                                                                                                                                                                        | `Invalid`                                                  | same                                                                                   |
 | a `silence` entry that is the empty string                        | `` `focus` key `silence` names a mode that is the empty string, which is no Focus at all ``                                                                                                                                                                     | `Invalid`                                                  | same                                                                                   |
 | a non-boolean `[daemon] enabled`                                  | `` `daemon` key `enabled` has type `{type}`, not boolean ``                                                                                                                                                                                                     | `Invalid`                                                  | open: the daemon carries on enabled (`src/main.rs:daemon_enabled`)                     |
-| `after_secs` not a count                                          | `` `nag` key `after_secs` has type `{type}`, not a count of seconds ``                                                                                                                                                                                          | `Invalid`                                                  | closed on the pulse path, open to the CORE on the delivery path                        |
-| `after_secs` outside its range                                    | `` `nag` key `after_secs` is {count}, outside the 30 to 3600 second range; 0 is the feature off ``                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
+| `delay` not a duration                                            | `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``                                                                                                                                                                                          | `Invalid`                                                  | closed on the pulse path, open to the CORE on the delivery path                        |
+| `delay` outside its range                                         | `` `remind` key `delay` "{text}" is outside 30 seconds to 1 hour ``                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
 | a `[lights]` scalar of the wrong type                             | `` `{table}` key `{key}` has type `{type}`, not a count between {low} and {high} ``                                                                                                                                                                             | `Invalid`                                                  | closed: the lights tick returns 0 and arms nothing                                     |
 | a `[lights]` scalar outside its bounds                            | `` `{table}` key `{key}` is {count}, outside the {low} to {high} range ``                                                                                                                                                                                       | `Invalid`                                                  | same                                                                                   |
 | a behaviour table that is not a table                             | `` `{table}` has type `{type}`, not a table of settings ``                                                                                                                                                                                                      | `Invalid`                                                  | same                                                                                   |
@@ -337,7 +337,7 @@ marks an interpolation.
 | a behaviour word outside the closed set                           | `` `{path}` key `{key}` names `{word}`, which is no behaviour; the lamps say done, failed, blocked, unread, loop ``                                                                                                                                             | `Invalid`                                                  | same                                                                                   |
 | `dim_window` that is not a string                                 | `` `{path}` key `dim_window` has type `{type}`, not a string ``                                                                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
 | `dim_behaviours` with no `dim_window`                             | `` `{path}` states `dim_behaviours` with no `dim_window` for them to run in, so nothing would ever read them ``                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
-| a backstop shorter than the nag                                   | `` `lights.blocked` key `give_up_after_secs` is {give_up}, below `nag` key `after_secs` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``                                                                              | `Invalid`                                                  | same                                                                                   |
+| a backstop shorter than the reminder                                   | `` `lights.blocked` key `give_up_after_secs` is {give_up}, below `remind` key `delay` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``                                                                              | `Invalid`                                                  | same                                                                                   |
 | a present but unreadable path                                     | `{path}: {io error}`                                                                                                                                                                                                                                            | `Unreadable`                                               | closed on the pulse path, open to the CORE on the delivery path                        |
 | `submit_deadline_secs` not a count                                | `` `mobile` key `submit_deadline_secs` has type `{type}`, not a count of seconds ``                                                                                                                                                                             | `Invalid` (returned by `submit_deadline`, not by the load) | open: the caller keeps the 5-second default and says so                                |
 | `submit_deadline_secs` zero                                       | `` `mobile` key `submit_deadline_secs` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``                                                                        | `Invalid`                                                  | same                                                                                   |
@@ -527,9 +527,9 @@ Then the refusal is `Malformed`, it names the cause and the line NUMBER, and it 
   `src/config.rs:a_malformed_line_is_reported_without_echoing_its_value` writes
   `[plugins.mobile]\ntoken = "SUPERSECRET" trailing\n` and asserts both that the cause is still named and
   that the message does NOT contain `SUPERSECRET`. Exhaustively, the paths on which a config VALUE can
-  reach a refusal string are: `review_notes` (echoes the glob pattern), `bounded` and `nag_schedule` and
+  reach a refusal string are: `review_notes` (echoes the glob pattern), `bounded` and `remind_delay_range` and
   `seconds` and `threshold` and `submit_deadline` (echo an integer), `behaviours` (echoes the offending
-  behaviour word), `ends_agree` (echoes two brightness percentages), and `backstop_outlasts_the_nag`
+  behaviour word), `ends_agree` (echoes two brightness percentages), and `backstop_outlasts_the_reminder`
   (echoes two second counts). None of those keys is secret-bearing. Every other refusal echoes a TYPE
   NAME (`setting.type_str()`) or a KEY NAME, never a value. A secret's key NAME can appear (for example
   \`\`unknown `plugins.mobile` key \`tokens\`\`\`), the value cannot.
@@ -539,7 +539,7 @@ Then the refusal is `Malformed`, it names the cause and the line NUMBER, and it 
 
 ### 4. The file's own top level serves six tables and refuses everything else by name
 
-Given a config whose outermost keys are not all of `daemon`, `focus`, `lights`, `nag`, `plugins`, `recap`\
+Given a config whose outermost keys are not all of `daemon`, `focus`, `lights`, `remind`, `plugins`, `recap`\
 
 When `parse_config` runs\
 
@@ -556,7 +556,7 @@ Then the file is refused whole, the offending name is quoted, and the six are li
   hermes, hue and the home probe stop. Pulse path, no pulse. The home probe's own diagnostic prints the
   refusal verbatim: `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`
   asserts the exact line
-  `` home: config error (unknown top-level key `home`; the file serves daemon, focus, lights, nag, plugins, recap) ``.
+  `` home: config error (unknown top-level key `home`; the file serves daemon, focus, lights, remind, plugins, recap) ``.
 - Thresholds: exactly six names. Adding a seventh is a two-place edit (the match arm and the roster row)
   and the walk test catches a mismatch in either direction.
 - Required side effects: none.
@@ -838,31 +838,31 @@ Then it runs
 - Compatibility contract: default ON is load-bearing for every clock-driven feature, and flipping it to
   default OFF would put both rider features behind two switches.
 
-### 12. `[nag] after_secs` is the switch AND the schedule, with zero carved out
+### 12. `[remind] delay` is the switch AND the schedule, with zero carved out
 
-Given `[nag] after_secs = 0`\
+Given `[remind] delay = "0s"`\
 
 When `parse_config` runs\
 
 Then the feature is off and it is not an error
 
-- Success: `src/config.rs:nag_schedule` returns `NAG_OFF` for zero before the range check runs, then
-  refuses anything outside 30 to 3600. Pinned by
-  `src/config.rs:the_nag_table_reads_one_schedule_defaults_off_and_zero_is_off_rather_than_an_error`,
-  which asserts no table is 0, `300` is 300, `0` is 0, and both `30` and `3600` are accepted at their own
-  edges.
+- Success: `schema.rs:duration_key` returns zero for a zero duration before the range check runs, then
+  refuses anything outside 30 seconds to an hour. Pinned by
+  `config/tests/remind.rs:the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`,
+  which asserts no table is 0, `"5m"` is 300, `"0s"` is 0, and both `"30s"` and `"1h"` are accepted at
+  their own edges.
 - Failure sources: eight, table-driven in
-  `src/config.rs:a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name`: `-1`, `"5m"`, `300.5`,
-  `[300]`, `29`, `3601`, the misspelled `after_seconds`, and `nag = 300` at the top level.
+  `config/tests/remind.rs:a_delay_that_is_not_a_duration_is_refused_by_name`: `300`, `"-1m"`, `"300"`,
+  `["5m"]`, `"29s"`, `"61m"`, the misspelled `delay_secs`, and `remind = 300` at the top level.
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path.
-- Thresholds: floor `MIN_NAG_AFTER_SECS` 30, ceiling `MAX_NAG_AFTER_SECS` 3600. One step either side is
+- Thresholds: floor `MIN_REMIND_DELAY_SECS` 30, ceiling `MAX_REMIND_DELAY_SECS` 3600. One step either side is
   pinned in both directions: 30 and 3600 are accepted, 29 and 3601 are refused. Zero is a third state,
   below the floor and accepted.
 - Required side effects: none.
 - Forbidden side effects: no `enabled` key, on `[focus] silence`'s own precedent.
 - Timeout and cancellation: the ceiling "must also sit inside the daemon's own registration window
   (`daemon::DUE_WINDOW_SECS`, thirty days), which it does with room to spare, and it is what keeps
-  `2 * after_secs` in the staleness cap far from any arithmetic edge" (`src/config.rs:nag_schedule`).
+  `2 * the delay` in the staleness cap far from any arithmetic edge" (`src/config.rs:remind_delay_range`).
 - Idempotency and duplicates: deterministic.
 - Privacy: an integer is echoed.
 - Process ownership and cleanup: Not applicable.
@@ -1066,20 +1066,20 @@ Then it is refused, whether the list is empty or not
 - Compatibility contract: the two keys resolve as ONE answer at the tick, which is why they must be
   stated together at load.
 
-### 19. The backstop must outlast the nag, and it is the one refusal that reads two tables
+### 19. The backstop must outlast the reminder, and it is the one refusal that reads two tables
 
-Given `[nag] after_secs = 600` and `[lights.blocked] give_up_after_secs = 60`\
+Given `[remind] delay = "10m"` and `[lights.blocked] give_up_after_secs = 60`\
 
 When `parse_config` finishes every table\
 
 Then the file is refused, naming both keys and both values
 
-- Success: `src/config.rs:backstop_outlasts_the_nag` runs after the whole document is walked, because
+- Success: `src/config.rs:backstop_outlasts_the_reminder` runs after the whole document is walked, because
   "each [is] a perfectly good number on their own and contradict each other only together, so the check
   belongs where the whole file is in hand." The refusal:
-  `` `lights.blocked` key `give_up_after_secs` is {give_up}, below `nag` key `after_secs` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``.
-  Pinned by `src/config.rs:a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys`,
-  which asserts all six tokens (`lights.blocked`, `give_up_after_secs`, `60`, `nag`, `after_secs`, `600`)
+  `` `lights.blocked` key `give_up_after_secs` is {give_up}, below `remind` key `delay` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``.
+  Pinned by `src/config.rs:a_backstop_that_gives_up_before_the_reminder_nudges_is_refused_naming_both_keys`,
+  which asserts all six tokens (`lights.blocked`, `give_up_after_secs`, `60`, `remind`, `delay`, `600`)
   are in the sentence.
 - Failure sources: only the strictly-shorter case.
 - Fail direction: closed and dark on the lamp paths, open to the CORE on the delivery path. Because the
@@ -1095,12 +1095,12 @@ Then the file is refused, naming both keys and both values
 - Privacy: two integers.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: two guards inside this function are documented as DEAD CODE TODAY, and the code
-  says so out loud rather than leaving a reader to discover it: `NAG_OFF` is zero and
-  `give_up_after_secs` has a floor of 60, so the comparison is already false for an off nag; and
-  `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16 hours) sits far above `MAX_NAG_AFTER_SECS` (one hour), so a
+  says so out loud rather than leaving a reader to discover it: `REMIND_OFF` is zero and
+  `give_up_after_secs` has a floor of 60, so the comparison is already false for an off reminder; and
+  `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16 hours) sits far above `MAX_REMIND_DELAY_SECS` (one hour), so a
   file with no `[lights]` table could not trip the check at its default. They stay "because what makes
   them dead is a coupling between two bounds that have nothing else to do with each other." The test
-  still exercises both spellings of an off nag as accepted configs.
+  still exercises both spellings of an off remind as accepted configs.
 
 ### 20. The mobile submission deadline is read off the ARMED mobile table and nowhere else
 
@@ -1387,7 +1387,7 @@ Then nothing reaches the template path until every earlier step has succeeded
 - Failure sources and their pins, each with an explicitly named mutant: the self-parse step skipped,
   pinned by
   `tests/config_render.rs:a_values_file_that_renders_something_the_parser_rejects_is_refused_without_writing`
-  using `[nag] after_secs = 3601` ("`render` alone never bounds an integer"); the literal-secret check
+  using `[remind] delay = "61m"` ("`render` alone never bounds a duration"); the literal-secret check
   removed OR NARROWED, pinned by
   `tests/config_render.rs:a_literal_value_at_any_secret_bearing_key_is_refused_without_writing`, which
   table-drives all five paths because "a single case covering only `plugins.hue.bridge` stays green if
@@ -1579,7 +1579,7 @@ Every `NOT ESTABLISHED:` line above, gathered.
 | dim window                              | `src/config.rs:Target::dim_window`                               |
 | target (lamp, room or zone declaration) | `src/config.rs:Target`                                           |
 | the blocked backstop                    | `src/config.rs:DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`               |
-| the backstop-versus-nag check           | `src/config.rs:backstop_outlasts_the_nag`                        |
+| the backstop-versus-remind check           | `src/config.rs:backstop_outlasts_the_reminder`                        |
 | the ends check                          | `src/config.rs:ends_agree`                                       |
 | bounded scalar                          | `src/config.rs:bounded`                                          |
 | percent                                 | `src/config.rs:percent`                                          |

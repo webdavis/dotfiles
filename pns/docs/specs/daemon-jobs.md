@@ -8,7 +8,7 @@ life of one `job` from the moment a client writes it into the `spool` to the mom
 fires it, bounds the child it started, kills that child's process group and reaps it. The record format,
 the validation, the `claim` and `lease` protocol, the marker cancellation, the heartbeat, the enable
 switch and the shutdown behavior are all in scope, along with the three jobs the crate registers for
-itself (the lights `tick`, the nag, and the room sensor's `presence` poll). Out of scope: what a fired
+itself (the lights `tick`, the reminder, and the room sensor's `presence` poll). Out of scope: what a fired
 job then does (that is the event path, covered by `routing-and-delivery.md`), the lamp policy the lights
 tick applies, and the `quiet window`, `dim window` and `quiet hours` the tick reads. Everything below is
 derived from the crate at `pns` and its tests only. Where the code does not settle a
@@ -33,13 +33,13 @@ second job, then verifies that the second job still runs.
 | Job identifier                                                           | What schedules it                                                                                                                                                                                                                                                                                                                                                             | Lease                                                                                                                                                                                                                                                                                                                                                                                                                                     | What it runs                                                                                                                                                                                                                                                                                                                                                                                                                                        | Bound on the child                                                                                                                                         | Tests that pin it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lights` (`src/main.rs:LIGHTS_JOB`)                                      | Three callers, all through `src/main.rs:schedule_lights_tick`: every event decision on a machine with a `[lights]` table (`src/main.rs:register_lights_tick`), `pns loop begin` (`src/main.rs:loop_mode`, `LoopCommand::Begin` arm), and the tick itself when work is still in flight (`src/main.rs`, the `!active.is_empty() \|\| standing.in_flight` tail of `lights_tick`) | `until = due.max(now + lease)`. The lease is 300s for an ordinary event (`src/main.rs:ORDINARY_LEASE_SECS`), 43200s (twelve hours) for a journalled one (`src/main.rs:JOURNALLED_LEASE_SECS`), `lights.looping.lease_timeout_secs` for `pns loop begin` (default 3900, accepted range 60 to 86400, `src/config.rs:DEFAULT_LEASE_TIMEOUT_SECS`, `MIN_LEASE_TIMEOUT_SECS`, `MAX_THRESHOLD_SECS`), and 300s again for the tick's own renewal | `pns lights tick`, argv `["lights", "tick"]`, repeating at `every = lights.refresh_secs` (default 12, accepted range 10 to 30, `src/config.rs:DEFAULT_REFRESH_SECS`, `MIN_REFRESH_SECS`, `MAX_REFRESH_SECS`)                                                                                                                                                                                                                                        | `max(tick * 30, MAX_REFRESH_SECS + tick_bridge_deadline(MAX_REFRESH_SECS) + tick)`, which is 37s at the production tick (`src/main.rs:child_bound`)        | `tests/dispatch.rs:an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer`; `tests/dispatch.rs:a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold`; `tests/dispatch.rs:a_tick_with_nothing_in_flight_lets_its_own_lease_lapse`; `tests/dispatch.rs:a_lease_taken_by_hand_schedules_the_tick_that_reads_it`; `src/main.rs:a_child_outlives_the_longest_interval_plus_the_write_and_the_reap_that_follow_it`; `src/main.rs:a_job_waits_while_its_own_child_lives_and_fires_once_that_child_has_gone` |
-| `nag:<session-id>` (`src/nag.rs:job_id`, prefix `src/nag.rs:JOB_PREFIX`) | `src/main.rs:arm_nag`, on a blocked approval from the `claude` agent when `[nag] after_secs` is non-zero                                                                                                                                                                                                                                                                      | `until = due + after_secs`, where `due = now + after_secs`. One whole schedule past the due second, deliberately: `until == due` is a zero-length lease and a busy tick loses the nudge                                                                                                                                                                                                                                                   | `pns nag`, argv `["nag"]` (`src/main.rs:NAG_MODE_WORD`), one-shot (`every: None`), cancelled by `unless_marker = "nag-<session-id>"` (`src/nag.rs:marker_name`, prefix `src/nag.rs:MARKER_PREFIX`)                                                                                                                                                                                                                                                  | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm)                                                                       | `tests/hooks.rs:the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there`; `tests/hooks.rs:arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first` (which asserts `id=nag:s1`, `marker=nag-s1` and `args=["nag"]` in the record)                                                                                                                                                                                                                                                                     |
+| `remind:<session-id>` (`src/remind.rs:job_id`, prefix `src/remind.rs:JOB_PREFIX`) | `src/main.rs:arm_remind`, on a blocked approval from the `claude` agent when `[remind] delay` is non-zero                                                                                                                                                                                                                                                                      | `until = due + after_secs`, where `due = now + after_secs`. One whole schedule past the due second, deliberately: `until == due` is a zero-length lease and a busy tick loses the nudge                                                                                                                                                                                                                                                   | `pns remind`, argv `["remind"]` (`src/main.rs:REMIND_MODE_WORD`), one-shot (`every: None`), cancelled by `unless_marker = "remind-<session-id>"` (`src/remind.rs:marker_name`, prefix `src/remind.rs:MARKER_PREFIX`)                                                                                                                                                                                                                                                  | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm)                                                                       | `tests/hooks.rs:the_daemon_really_fires_the_remind_and_really_drops_it_when_the_marker_is_there`; `tests/hooks.rs:arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first` (which asserts `id=remind:s1`, `marker=remind-s1` and `args=["remind"]` in the record)                                                                                                                                                                                                                                                                     |
 | `presence` (`src/main.rs:PRESENCE_JOB`)                                  | One caller, `src/main.rs:ensure_presence_poll`, from the `SWITCH_TICKS` block of `src/main.rs:daemon_run`: the daemon registers its own sensor, because no event asks for a room reading. `presence_settings()` returning `None` (the table absent, switched off, or refused) CANCELS it instead                                                                              | `until = due.max(now + 300)` (`src/main.rs:PRESENCE_LEASE_SECS`), refreshed by every sweep while the table is on. The pending `due` is kept, so a thirty-second sweep never pushes a five-second poll away from itself                                                                                                                                                                                                                    | `pns presence poll --daemon`, argv `["presence", "poll", "--daemon"]` (the flag is the daemon's own spelling, and it is what makes a poll that stood down for a live holder stay silent and exit 0: the same stand-down typed by hand says so and exits 1), repeating at `every = [plugins.presence] poll_secs` (default 5, accepted range 2 to 60, `src/config.rs:DEFAULT_PRESENCE_POLL_SECS`, `MIN_PRESENCE_POLL_SECS`, `MAX_PRESENCE_POLL_SECS`) | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm), which is past the two `hue::BRIDGE_DEADLINE` calls one poll can take | `src/main.rs:an_armed_sensor_registers_the_poll_at_its_own_interval`; `src/main.rs:a_sensor_that_is_off_cancels_the_poll_it_had_registered`; `src/main.rs:a_sweep_refreshes_the_lease_without_moving_a_poll_that_is_already_due`; `src/main.rs:a_poll_publishes_the_room_it_read_as_the_line_the_sensor_parses`; `src/main.rs:a_bridge_that_did_not_answer_leaves_the_last_reading_where_it_was`                                                                                                                                         |
 | Any id the operator types (`pns daemon schedule --id <id>`)              | `src/main.rs:daemon_schedule` through `src/main.rs:parse_schedule`                                                                                                                                                                                                                                                                                                            | `--until <epoch>` or `--until +<secs>` as typed, else `due + 60` (`src/main.rs:DEFAULT_LEASE_SLACK_SECS`)                                                                                                                                                                                                                                                                                                                                 | Everything after `--`, re-executed as `pns <args>`                                                                                                                                                                                                                                                                                                                                                                                                  | `tick * 30` (`src/main.rs:child_bound`, non-lights arm)                                                                                                    | `tests/daemon.rs:a_scheduled_job_runs_once_and_its_effect_is_observable`; `tests/daemon.rs:a_repeating_job_keeps_firing_until_its_lease_runs_out_then_stops`; `tests/daemon.rs:a_registration_succeeds_with_no_daemon_anywhere_and_blocks_on_nothing`; `tests/daemon.rs:a_marker_on_disk_cancels_a_scheduled_job_end_to_end`                                                                                                                                                                                                             |
 
 There is no registry of job ids. The daemon knows only what is in the spool directory, and any of the
 four routes above writes the same record shape (`src/daemon.rs:Job`, `src/daemon.rs:render`). The
-`lights`, `nag:<session-id>`, `presence` and `github` jobs are the only ids the crate itself ever
+`lights`, `remind:<session-id>`, `presence` and `github` jobs are the only ids the crate itself ever
 writes. The `github` poll is registered the way `presence` is, on the same `SWITCH_TICKS` sweep and by
 `ensure_github_poll`, and its `every` is the interval the notifications API's own `X-Poll-Interval`
 header last asked for rather than a config figure: `[plugins.github] poll_secs` is only the interval
@@ -430,7 +430,7 @@ Then the reap has already happened and the pass returns before the heartbeat and
 - Privacy: Not applicable.
 - Process ownership and cleanup: unchanged. The reap is the cleanup.
 - Compatibility contract: the same "no clock is no registration" rule holds on the writer side
-  (`src/main.rs:register_lights_tick`, `src/main.rs:arm_nag`, `src/main.rs:daemon_schedule`), so nothing
+  (`src/main.rs:register_lights_tick`, `src/main.rs:arm_remind`, `src/main.rs:daemon_schedule`), so nothing
   ever writes a job due at epoch zero.
 
 ### 10. The spool scan is sorted, skips the module's own working files, and survives an unreadable directory
@@ -523,7 +523,7 @@ Then it is dropped and the log names the record and the rule it broke
   loop would re-arm into the past on every pass, 86401 is refused as a lease-length repeat nobody meant
   to write. `args` may hold at most 32 words (`src/daemon.rs:ARGS_MAX`) totalling at most 4096 bytes
   (`src/daemon.rs:ARGS_BYTES_MAX`), and may not be empty. `until` may equal `due` (a zero-length lease is
-  legal and is the shape the nag registers) but may not be less.
+  legal and is the shape the reminder registers) but may not be less.
 - Required side effects: the claim is released, which unlinks the working file, so the record is gone.
 - Forbidden side effects: nothing is run, and no partial job is reconstructed.
 - Timeout and cancellation: Not applicable.
@@ -561,7 +561,7 @@ Then it is `Unusable` and the refusal names both ids
 - Forbidden side effects: nothing is re-published under either id.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: Not applicable.
-- Privacy: both ids are printed. A nag id carries a session id, which is already in the filename.
+- Privacy: both ids are printed. A reminder id carries a session id, which is already in the filename.
 - Process ownership and cleanup: the claim is released.
 - Compatibility contract: the id IS the spool filename, so re-registering the same id replaces the job by
   rename rather than stacking a second one (`src/daemon.rs:Job::id` doc comment). Every id-based
@@ -740,8 +740,8 @@ Then it prints one line naming the id and the reason, and the record is gone
   `tests/daemon.rs:a_marker_on_disk_cancels_a_scheduled_job_end_to_end` (which asserts the exact phrase
   `its marker was already there` and then runs an in-test control: the same daemon, the same tick, an
   identical job with no marker, which fires) and by
-  `tests/hooks.rs:the_daemon_really_fires_the_nag_and_really_drops_it_when_the_marker_is_there` (which
-  asserts `` dropped `nag:s1` because its marker was already there `` AND that no `pns nag` process was
+  `tests/hooks.rs:the_daemon_really_fires_the_remind_and_really_drops_it_when_the_marker_is_there` (which
+  asserts `` dropped `remind:s1` because its marker was already there `` AND that no `pns remind` process was
   spawned at all).
 - Failure sources: none of its own.
 - Fail direction: a DROP is still said out loud, even though a successful firing is not. Refusing a job
@@ -750,13 +750,13 @@ Then it prints one line naming the id and the reason, and the record is gone
 - Required side effects: the claim is released, so the job is gone from the spool. A repeating job that
   is dropped does NOT re-arm: only `fire` re-arms.
 - Forbidden side effects: the marker is NOT removed by the drop. Nothing in the crate sweeps
-  `<state>/daemon-markers`; the only remover is `src/main.rs:arm_nag`, which clears the previous
+  `<state>/daemon-markers`; the only remover is `src/main.rs:arm_remind`, which clears the previous
   approval's marker for that session before arming a new job. Markers therefore accumulate, one per
   session id that ever answered.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: the claim arbitrates, so only one daemon logs the drop.
-- Privacy: the id is printed. For a nag that is `nag:<session-id>`.
-- Process ownership and cleanup: nothing is spawned. The nag test asserts exactly that.
+- Privacy: the id is printed. For a reminder that is `remind:<session-id>`.
+- Process ownership and cleanup: nothing is spawned. The reminder test asserts exactly that.
 - Compatibility contract: `Reason::said` returns a half-sentence, so the log line reads as one sentence.
   Changing either half changes an operator-visible string that two tests match on.
 
@@ -788,13 +788,13 @@ Then it checks the directory first and refuses a symlink standing where it shoul
 - Timeout and cancellation: this IS the cancellation channel. Writers are `src/main.rs:write_marker`
   (empty file, mode 0600, present is the whole message), called from the resolved and answered paths.
 - Idempotency and duplicates: writing a marker twice is the same state. A marker left by a PREVIOUS
-  approval in the same session would make a new job drop silently, which is why `arm_nag` clears it
+  approval in the same session would make a new job drop silently, which is why `arm_remind` clears it
   first, and clears it BEFORE writing the record so a concurrent fire cannot find the new record beside
   the old marker.
-- Privacy: marker names embed a session id (`nag-<session-id>`), and the file body is empty.
+- Privacy: marker names embed a session id (`remind-<session-id>`), and the file body is empty.
 - Process ownership and cleanup: no sweeper exists. See behavior 18's forbidden side effects.
 - Compatibility contract: `name_is_safe` is deliberately its OWN rule rather than either of `safety`'s
-  two. `session_id_is_safe` refuses the colon, which a job id needs (`nag:sess-123`); `pane_is_safe`
+  two. `session_id_is_safe` refuses the colon, which a job id needs (`remind:sess-123`); `pane_is_safe`
   admits `..` and a leading dot, which a filename must not have. Sharing either would couple this rule to
   a change made for a different reason.
 
@@ -903,8 +903,8 @@ and `process_group(0)`
   with a negative process id.
 - Idempotency and duplicates: one spawn per fired occurrence. `decide`'s running-child arm is what stops
   a second one for the same id.
-- Privacy: the argv reaches the process table and the spool file. That is why the nag deliberately puts
-  NO free text in `args`: the operator's own question lives in the nag record and `pns nag` takes no
+- Privacy: the argv reaches the process table and the spool file. That is why the reminder deliberately puts
+  NO free text in `args`: the operator's own question lives in the reminder record and `pns remind` takes no
   argument. `pns daemon schedule` places whatever the operator typed after `--` into the record, so that
   route CAN put free text in the spool.
 - Process ownership and cleanup: this is the second row of the process table. The daemon owns the child
@@ -1001,7 +1001,7 @@ interval for `lights`
 - Thresholds, exact: `CHILD_TICKS` is 30. At a 1s tick, a non-lights child gets 30s and the lights child
   gets `max(30s, 30 + 6 + 1) = 37s` (the test asserts 37s exactly). At a 60s tick the lights child gets
   `max(1800s, 37s) = 1800s` (the test asserts 1800s exactly). At a 10ms tick a non-lights child gets
-  300ms exactly (the test asserts that for `nag:a-session`). `MAX_REFRESH_SECS` is 30
+  300ms exactly (the test asserts that for `remind:a-session`). `MAX_REFRESH_SECS` is 30
   (`src/config.rs:MAX_REFRESH_SECS`) and `tick_bridge_deadline(30)` is `max(30 / 5, 1)` = 6s
   (`src/main.rs:tick_bridge_deadline`).
 - Required side effects: none. The value is stored in `Bounded::expires_at` as
@@ -1081,7 +1081,7 @@ Then it writes nothing at all
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: everything the daemon DOES say is an exception listed in this document:
   behaviors 3, 4, 6, 11, 12, 13, 17, 18, 20, 26. A firing that WORKED is not among them, which is why the
-  nag's end-to-end test uses the delivered card as its probe rather than a log line.
+  reminder's end-to-end test uses the delivered card as its probe rather than a log line.
 
 ### 28. `pns daemon schedule` registers one job and waits on nothing
 
@@ -1164,7 +1164,7 @@ Then the three cases are exit 0, exit 0 and exit 1
   second time it ran.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: idempotent by construction, per the forbidden side effect above.
-- Privacy: the id is echoed. A nag id carries a session id.
+- Privacy: the id is echoed. A reminder id carries a session id.
 - Process ownership and cleanup: a cancel unlinks the id, so it does NOT reach a claim the daemon already
   holds. An occurrence already claimed still runs.
 - Compatibility contract: `cancel` returns `Result<bool, String>`, so the library caller can tell "there
@@ -1218,15 +1218,15 @@ Then the lease is refreshed and the due second already pending is KEPT
 - Compatibility contract: three callers and ONE registration function, because the tick's lease is what
   decides whether a lamp can EVER light and three spellings of it would be three answers.
 
-### 31. The nag registration is one job per session, cancelled by a marker
+### 31. The reminder registration is one job per session, cancelled by a marker
 
-Given a blocked approval with `[nag] after_secs` set
+Given a blocked approval with `[remind] delay` set
 
-When `arm_nag` runs
+When `arm_remind` runs
 
-Then the previous marker is cleared, the record is written, and one job `nag:<session-id>` is registered
+Then the previous marker is cleared, the record is written, and one job `remind:<session-id>` is registered
 
-- Success: `src/main.rs:arm_nag`. The ORDER is load bearing twice over. Clearing the marker at all is
+- Success: `src/main.rs:arm_remind`. The ORDER is load bearing twice over. Clearing the marker at all is
   required for correctness rather than hygiene: the marker name is constant PER SESSION, so one left by
   the previous approval in this session would make the new job drop silently. Clearing it BEFORE the
   record closes a window a concurrent fire can walk into: published first, the new record can be claimed
@@ -1237,28 +1237,28 @@ Then the previous marker is cleared, the record is written, and one job `nag:<se
   record, so the sentence stays true: a record with no job wakes no fire of its own, but it stays
   ENUMERABLE, and leaving it would be the line saying one thing while the state on disk said another. The
   line is
-  `pns: the nag could not be scheduled (<refusal>); this approval will not be nudged, <its record is dropped|and its record could not be dropped either>`.
+  `pns: the reminder could not be scheduled (<refusal>); this approval will not be nudged, <its record is dropped|and its record could not be dropped either>`.
 - Thresholds: `due = now + after_secs` and `until = due + after_secs`, one whole schedule past the due
   second, which resolves to the same instant as the fire-time staleness cap. The two are not redundant:
   the lease drops the JOB, so a machine that slept through the window never spawns at all, while the cap
   judges RECORDS, a different set because a fire enumerates siblings whose own jobs have not fired yet.
-  `src/nag.rs:MAX_SESSION_ID_CHARS` is `ID_MAX - JOB_PREFIX.len()`, so the composed id always fits.
-- Required side effects: the record at `<state>/nag/<session-id>.pending` is mode 0600, asserted by
+  `src/remind.rs:MAX_SESSION_ID_CHARS` is `ID_MAX - JOB_PREFIX.len()`, so the composed id always fits.
+- Required side effects: the record at `<state>/remind/<session-id>.pending` is mode 0600, asserted by
   `tests/hooks.rs:arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first` alongside the
   spool assertions.
-- Forbidden side effects: NO FREE TEXT REACHES THE SPOOL. `args` is `["nag"]` and the operator's own
+- Forbidden side effects: NO FREE TEXT REACHES THE SPOOL. `args` is `["remind"]` and the operator's own
   question lives in the record, because `args` are visible in the spool file and in whatever the daemon
   logs.
-- Timeout and cancellation: the marker `nag-<session-id>` is written by the resolved and answered paths
+- Timeout and cancellation: the marker `remind-<session-id>` is written by the resolved and answered paths
   and is what makes coalescing quiet: every sibling job of a coalesced card drops through the marker
   path.
 - Idempotency and duplicates: ONE JOB PER APPROVAL, and the id is the spool filename, so a second
   approval in one session REPLACES the job rather than stacking a second one.
 - Privacy: the session id appears in the job id, in the marker name and in the record's filename. The
   detail does not reach any of the three.
-- Process ownership and cleanup: the fired `pns nag` process takes its own fire claim, released by
+- Process ownership and cleanup: the fired `pns remind` process takes its own fire claim, released by
   `src/main.rs:release_fire`, which is a separate mechanism from the daemon's claim.
-- Compatibility contract: `pns nag` takes NO session argument, because coalescing means it looks at every
+- Compatibility contract: `pns remind` takes NO session argument, because coalescing means it looks at every
   outstanding record rather than at the one whose timer woke it, so an argument would be a value it had
   to ignore.
 

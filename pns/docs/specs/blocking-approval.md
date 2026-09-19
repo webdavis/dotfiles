@@ -11,7 +11,7 @@ code back untouched. Every path on which it declines to forward exits 0, which i
 opinion, prompt as usual", so a pns that cannot reach moshi costs the operator a phone card and never a
 refused tool call. The pns hook path adds two things the gate does not have: its own notification about
 the block (raised after the forward starts, with the phone leg suppressed when the forward really began),
-and the durable state a wait leaves behind (the blocked marker, the nag record, the decision ring line).
+and the durable state a wait leaves behind (the blocked marker, the reminder record, the decision ring line).
 
 Vocabulary note: throughout, "submission" is the `moshi-hook` child process pns spawns, and "the approval
 card" is what moshi raises on the phone from the forwarded payload. pns never sees that card and never
@@ -397,7 +397,7 @@ then the notification is raised.
 - Fail direction: fail toward telling the operator. When in doubt the card goes out.
 - Thresholds: Not applicable.
 - Required side effects: the ORDER is the behavior. The forward's spawn is first and nothing may sit in
-  front of it; `arm_nag` is second, so the nag clock starts at the true prompt time and a notification
+  front of it; `arm_remind` is second, so the reminder clock starts at the true prompt time and a notification
   that dies still leaves a timer armed; `run_event` is third; the bounded wait is last
   (`src/main.rs:blocking_event`). The card's own content is state `blocked`, project taken as the last
   non-empty segment of the payload's `cwd` (`src/main.rs:project_of`), detail from the payload's message
@@ -410,7 +410,7 @@ then the notification is raised.
   `tests/hooks.rs:a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_run`. An
   unparseable payload names no tool and the detail is the empty string, because inventing one would be
   worse (`tests/hooks.rs:a_payload_pns_cannot_parse_is_still_submitted_verbatim`).
-- Forbidden side effects: `PNS_SKIP_PHONE` is set in THIS PROCESS ONLY. The nag fire is a different
+- Forbidden side effects: `PNS_SKIP_PHONE` is set in THIS PROCESS ONLY. The reminder fire is a different
   process minutes later that never inherits it, so the nudge reaches the phone the first card was
   suppressed from, deliberately (`src/main.rs`, line 4500). Suppression must not be applied by the
   delivery plan, because the card moshi is raising is something the surface model cannot know about.
@@ -492,7 +492,7 @@ Then one marker file per waiting session is published, and a later event from th
   the TURN MARKER alone, because the harness resumes the tool call and the turn ends later at the Stop
   that follows (`tests/hooks.rs:an_approval_leaves_the_turn_marker_alone`).
 - Timeout and cancellation: the marker's own backstop is `[lights.blocked] give_up_after_secs`, which
-  configuration refuses to set shorter than `[nag] after_secs`, because that is a configuration that
+  configuration refuses to set shorter than `[remind] delay`, because that is a configuration that
   gives up on a wait before it ever nudges about it (`src/main.rs:update_blocked_marker`,
   `src/config.rs:parse_config`).
 - Idempotency and duplicates: one file per SESSION carries no generation, so an OLDER Stop can remove a
@@ -510,17 +510,17 @@ Then one marker file per waiting session is published, and a later event from th
   `a_forwarded_gate_leaves_the_state_markers_untouched` verifies a real forward for both bare and
   explicit pi gate forms, then checks the existing marker bytes and exact state-directory entries.
 
-### 11. The nag armed with the wait
+### 11. The reminder armed with the wait
 
 Given an approval nobody answers should be nudged once, and the clock should start at the true prompt
 time
 
 When `src/main.rs:blocking_event` runs, after the spawn and before the notification
 
-Then `src/main.rs:arm_nag` publishes a record for that session, and clears any previous approval's
+Then `src/main.rs:arm_remind` publishes a record for that session, and clears any previous approval's
 answered marker first.
 
-- Success: `arm_nag` writes a record holding agent, project, branch, detail, pane and the arming time.
+- Success: `arm_remind` writes a record holding agent, project, branch, detail, pane and the arming time.
   `tests/hooks.rs:an_unanswered_approval_is_nudged_once_through_the_ordinary_paths` and
   `tests/hooks.rs:three_unanswered_approvals_produce_one_card_that_says_three` drive the fire.
 - Failure sources: no clock reading, an unsafe session id, or a schedule that could not be created. The
@@ -528,17 +528,17 @@ answered marker first.
   `tests/hooks.rs:an_approval_whose_nudge_could_not_be_scheduled_leaves_no_record_behind`.
 - Fail direction: fail toward not nudging. A record whose arming time nothing could read would be judged
   stale on the first fire anyway, so not writing it is the same answer one step earlier.
-- Thresholds: `[nag] after_secs`, with `src/main.rs:NAG_OFF` (zero) meaning the nag is off and nothing is
+- Thresholds: `[remind] delay`, with `src/main.rs:REMIND_OFF` (zero) meaning the reminder is off and nothing is
   armed.
 - Required side effects: the answered marker is removed BEFORE the record is published, and the order is
   load bearing twice over. The marker name is constant per session, so one left by the previous approval
   would make the new job drop silently; and published first, the new record could be claimed by a
   concurrent fire that then finds the previous approval's marker and drops it as answered.
-- Forbidden side effects: NO NAG ON CODEX, and the gate is positive (an agent that is not
+- Forbidden side effects: NO REMIND ON CODEX, and the gate is positive (an agent that is not
   `src/main.rs:CLAUDE_AGENT` returns immediately) so an empty or unknown `PNS_PRODUCER` arms nothing either.
   Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no batch-level one, and
-  agent turns routinely run tens of minutes: a Codex nag would be wrong in the common case rather than at
-  an edge (`src/main.rs:arm_nag`).
+  agent turns routinely run tens of minutes: a Codex remind would be wrong in the common case rather than at
+  an edge (`src/main.rs:arm_remind`).
 - Timeout and cancellation: the nudge is a separate process minutes later, see behavior 8's note on
   `PNS_SKIP_PHONE`.
 - Idempotency and duplicates: one card whatever the count. Three waiting approvals produce ONE nudge card

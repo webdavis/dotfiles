@@ -29,7 +29,7 @@ process ownership and cleanup, and which outputs or exit codes are compatibility
 | `quiet-behavior.md`                    | Every mechanism that silences pns, and exactly what each one silences                                  |
 | `missed-notifications.md`              | Journalling a notification the operator could not perceive, and replaying it                           |
 | `return-recap.md`                      | Composing and posting the account of an absence                                                        |
-| `nagging.md`                           | The repeat card about an approval nobody answered                                                      |
+| `reminding.md`                           | The repeat card about an approval nobody answered                                                      |
 | `home-probe.md`                        | Asking the router whether the operator's devices are home                                              |
 | `lighting-policy.md`                   | Pulses, the unread state, leases, phases, quiet windows and dim windows                                |
 | `daemon-jobs.md`                       | The clock, the job model, and process ownership                                                        |
@@ -76,7 +76,7 @@ refactor.
 ## File-protocol ownership
 
 `pns-adapters` now owns filesystem reads, private atomic publication, append locks, ring codecs,
-`FileRecords`, and the spool, nag, marker, return-window and setup-publication protocols. The domain
+`FileRecords`, and the spool, remind, marker, return-window and setup-publication protocols. The domain
 keeps policy and typed records. The application consumes its existing ring ports and owns when a
 replay attempt completes through `ReturnMoment::complete`. The root commands still compose adapters
 and retain use cases scheduled for later application steps; no placeholder repository is introduced.
