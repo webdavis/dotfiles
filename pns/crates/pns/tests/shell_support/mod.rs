@@ -44,10 +44,10 @@ impl Fixture {
             .env("HOME", &self.root)
             .env("PNS_STATE_DIR", self.root.join("state"))
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
-            .env("PNS_IDLE_SECS", "99999")
+            .env("PNS_SCREEN_IDLE", "99999")
             .env("PNS_PHONE_INPUT_AGE", "99999")
-            .env("MOSHI_HOOK_BIN", self.root.join("no-moshi"))
-            .env("CODEX_BIN", self.root.join("no-codex"))
+            .env("PNS_MOSHI_HOOK_BIN", self.root.join("no-moshi"))
+            .env("PNS_CODEX_BIN", self.root.join("no-codex"))
             .env("PWD", "/owned/logical project")
             .env("HERDR_PANE_ID", "t1:p2")
             .env(

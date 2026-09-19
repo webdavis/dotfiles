@@ -139,7 +139,7 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
     std::fs::write(marker(&sandbox, "s1"), "1").expect("marker");
 
     let mut slow = with_state_dir(&sandbox);
-    slow.env("CODEX_BIN", bin.join("codex"))
+    slow.env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     let mut stop = spawn_hook(slow, "stop");
     write_payload(

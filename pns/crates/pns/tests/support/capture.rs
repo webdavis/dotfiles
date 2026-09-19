@@ -15,7 +15,7 @@ pub fn plugin_command(sandbox: &Sandbox) -> Command {
     let mut command = sandbox.bare();
     // These tests exercise delivery, not the operator's live idle and mosh sessions.
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_PHONE_INPUT_AGE", "99999");
     command
 }
