@@ -344,6 +344,8 @@ mod quota_messages;
 mod quota_state;
 #[path = "hooks/quota_waits.rs"]
 mod quota_waits;
+#[path = "hooks/remind_answered_signal.rs"]
+mod remind_answered_signal;
 #[path = "hooks/remind_arming.rs"]
 mod remind_arming;
 #[path = "hooks/remind_clearing.rs"]

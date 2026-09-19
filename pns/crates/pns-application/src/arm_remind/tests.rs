@@ -14,6 +14,7 @@ fn arming_clears_the_previous_answer_before_publication_and_schedules_no_private
         "session",
         &event(),
         60,
+        true,
         || Some(100),
         |_| panic!("unexpected warning"),
     );
@@ -49,6 +50,7 @@ fn a_failed_marker_clear_warns_but_preserves_the_existing_publication_attempt() 
         "session",
         &event(),
         60,
+        true,
         || Some(100),
         |line| warnings.push(line.to_string()),
     );
@@ -76,6 +78,7 @@ fn a_failed_remind_publication_never_registers_a_job() {
         "session",
         &event(),
         60,
+        true,
         || Some(100),
         |line| warnings.push(line.to_string()),
     );
@@ -110,6 +113,7 @@ fn a_refused_schedule_rolls_back_the_record_and_reports_both_rollback_outcomes()
             "session",
             &event(),
             60,
+            true,
             || Some(100),
             |line| warnings.push(line.to_string()),
         );
@@ -124,6 +128,34 @@ fn a_refused_schedule_rolls_back_the_record_and_reports_both_rollback_outcomes()
             )]
         );
     }
+}
+
+#[test]
+fn a_producer_with_no_answered_signal_is_warned_about_and_still_armed() {
+    // THE NUDGE IS NOT WITHHELD, which is the whole shape of the warning: the
+    // reminder runs and the staleness cap is what ends it, so the line says
+    // what will happen rather than refusing to arm.
+    let records = Recorder::default();
+    let mut warnings = Vec::new();
+    ArmRemind {
+        records: &records,
+        jobs: &records,
+    }
+    .run(
+        "session",
+        &event(),
+        60,
+        false,
+        || Some(100),
+        |line| warnings.push(line.to_string()),
+    );
+    assert_eq!(
+        warnings,
+        [
+            "pns: `claude` sends no answered signal, so this reminder is stopped only by the `[remind]` staleness cap"
+        ]
+    );
+    assert_eq!(*records.steps.borrow(), ["clear", "publish", "schedule"]);
 }
 
 #[test]
@@ -164,6 +196,7 @@ fn a_disabled_remind_and_an_invalid_session_never_read_the_clock() {
             "session",
             &event,
             0,
+            true,
             || panic!("clock"),
             |_| panic!("warning"),
         );
@@ -177,6 +210,7 @@ fn a_disabled_remind_and_an_invalid_session_never_read_the_clock() {
             session,
             &event(),
             after,
+            true,
             || panic!("clock"),
             |_| panic!("warning"),
         );
@@ -185,7 +219,14 @@ fn a_disabled_remind_and_an_invalid_session_never_read_the_clock() {
         records: &records,
         jobs: &records,
     }
-    .run("session", &event(), 60, || None, |_| panic!("warning"));
+    .run(
+        "session",
+        &event(),
+        60,
+        true,
+        || None,
+        |_| panic!("warning"),
+    );
     clear_remind(&records, "../session", |_| panic!("warning"));
     assert!(records.steps.borrow().is_empty());
 }

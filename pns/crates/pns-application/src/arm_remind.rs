@@ -32,7 +32,8 @@ use pns_domain::EventArgs;
 ///
 /// WHETHER TO ARM AT ALL IS THE CALLER'S, resolved from the call's own
 /// `--remind` switch and the producer's config entry before this runs. A
-/// delay of zero is the one statement this layer reads as off.
+/// delay of zero is the one statement this layer reads as off, and so is
+/// whether the producer sends the answered signal that clears the record.
 pub struct ArmRemind<'a, R, J> {
     pub records: &'a R,
     pub jobs: &'a J,
@@ -44,11 +45,22 @@ impl<R: RemindRecords, J: JobSpool> ArmRemind<'_, R, J> {
         session_id: &str,
         event: &EventArgs,
         after_secs: u64,
+        answered_signal: bool,
         clock: impl FnOnce() -> Option<u64>,
         mut warn: impl FnMut(&str),
     ) {
         if after_secs == 0 {
             return;
+        }
+        // NOTHING WILL SAY THIS WAS ANSWERED, so the nudge runs until the cap
+        // judges the record stale. Said once, at the arming, because that is
+        // the moment the operator can still act on it.
+        if !answered_signal {
+            warn(&format!(
+                "pns: `{}` sends no answered signal, so this reminder is stopped \
+                 only by the `[remind]` staleness cap",
+                event.agent
+            ));
         }
         let (Some(marker), Some(id)) = (
             pns_domain::remind::marker_name(session_id),
