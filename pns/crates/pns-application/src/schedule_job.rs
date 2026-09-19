@@ -5,7 +5,8 @@ use crate::JobSpool;
 /// asleep through the moment wakes to a job whose point has passed.
 const DEFAULT_LEASE_SLACK_SECS: u64 = 60;
 
-/// `--until` in its two spellings.
+/// `--until +<duration>` and `--until-epoch <epoch>`, the relative and
+/// absolute spellings of the same lease.
 pub enum Until {
     Epoch(u64),
     FromNow(u64),

@@ -5,7 +5,7 @@ use crate::*;
 /// IT SAYS WHAT HAPPENED, which is what `ReportMode::ReportOutcome` was for
 /// and what it never actually did: the destination registry RETURNS its outcomes and
 /// prints nothing, so the mode only ever moved the deadline. MEASURED against
-/// a dead endpoint, `pns recap --since ... --until ...` printed nothing and
+/// a dead endpoint, `pns recap --since-epoch ... --until-epoch ...` printed nothing and
 /// exited 0, which is exactly the drill an operator runs by hand to check a
 /// route they have just prepared, against exactly the failure it is most
 /// likely to meet.

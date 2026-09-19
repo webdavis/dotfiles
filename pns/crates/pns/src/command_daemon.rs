@@ -22,7 +22,7 @@ pub(crate) fn daemon_mode(verb: &str) -> i32 {
 }
 
 pub(crate) const DAEMON_USAGE: &str = "pns: usage: pns daemon run | \
-pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] \
+pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] \
 [--unless-marker <name>] -- <subcommand> [args] | \
 pns daemon cancel --id <id> | \
 pns daemon retry (one sweep of the retry queue, run by the clock)";
@@ -71,12 +71,15 @@ fn parse_schedule(argv: &[String]) -> Option<ScheduleJob> {
             "--in" => in_secs = pns_domain::count::parse_count(words.next()?)?,
             "--every" => every = Some(pns_domain::count::parse_count(words.next()?)?),
             "--unless-marker" => marker = Some(words.next()?.clone()),
+            // ONLY THE RELATIVE FORM LIVES HERE: a point in time says so with
+            // its own flag, `--until-epoch`, rather than a bare number this
+            // one would have to guess the shape of.
             "--until" => {
-                let raw = words.next()?;
-                until = Some(match raw.strip_prefix('+') {
-                    Some(seconds) => Until::FromNow(pns_domain::count::parse_count(seconds)?),
-                    None => Until::Epoch(pns_domain::count::parse_count(raw)?),
-                });
+                let raw = words.next()?.strip_prefix('+')?;
+                until = Some(Until::FromNow(pns_domain::count::parse_count(raw)?));
+            }
+            "--until-epoch" => {
+                until = Some(Until::Epoch(pns_domain::count::parse_count(words.next()?)?));
             }
             _ => return None,
         }
@@ -118,5 +121,56 @@ fn daemon_cancel() -> i32 {
             eprintln!("pns daemon: {refusal}");
             1
         }
+    }
+}
+
+#[cfg(test)]
+mod schedule_until_tests {
+    use super::*;
+
+    fn argv(words: &[&str]) -> Vec<String> {
+        words.iter().map(|word| word.to_string()).collect()
+    }
+
+    #[test]
+    fn until_epoch_says_so_and_the_old_bare_number_is_refused() {
+        let old = parse_schedule(&argv(&[
+            "--id",
+            "job",
+            "--until",
+            "1756500000",
+            "--",
+            "--state",
+            "done",
+        ]));
+        assert!(
+            old.is_none(),
+            "a bare number after --until is not a duration"
+        );
+
+        let new = parse_schedule(&argv(&[
+            "--id",
+            "job",
+            "--until-epoch",
+            "1756500000",
+            "--",
+            "--state",
+            "done",
+        ]));
+        assert!(matches!(
+            new.expect("a valid schedule").until,
+            Some(Until::Epoch(1_756_500_000))
+        ));
+    }
+
+    #[test]
+    fn until_stays_the_relative_form() {
+        let relative = parse_schedule(&argv(&[
+            "--id", "job", "--until", "+1800", "--", "--state", "done",
+        ]));
+        assert!(matches!(
+            relative.expect("a valid schedule").until,
+            Some(Until::FromNow(1800))
+        ));
     }
 }

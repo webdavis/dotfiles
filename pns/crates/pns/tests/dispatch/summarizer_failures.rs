@@ -170,7 +170,7 @@ fn an_empty_window_says_so_itself_and_never_starts_a_summarizer_at_all() {
     // "- nothing was recorded in this window" under an instruction to rewrite it
     // as a timeline will happily write one. THE HAND-RUN RECAP IS EXACTLY WHERE
     // THAT LANDS: the event path never posts over an empty window, and
-    // `pns recap --since ... --until ...` is the drill an operator runs at a
+    // `pns recap --since-epoch ... --until-epoch ...` is the drill an operator runs at a
     // quiet stretch to check a route, which is also where an invented line is
     // most likely to be believed.
     let sandbox = Sandbox::new("recap-summarizer-empty-window");
@@ -178,7 +178,13 @@ fn an_empty_window_says_so_itself_and_never_starts_a_summarizer_at_all() {
     sandbox.write_config(&recap_summarized_by(""));
 
     let mut command = logged_event(&sandbox);
-    command.args(["recap", "--since", "1756500000", "--until", "1756500600"]);
+    command.args([
+        "recap",
+        "--since-epoch",
+        "1756500000",
+        "--until-epoch",
+        "1756500600",
+    ]);
     stub_summarizer(
         &sandbox,
         &mut command,

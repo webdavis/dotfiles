@@ -93,13 +93,19 @@ fn a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing
     // fall through to, which would have sent a notification about nothing.
     let sandbox = Sandbox::new("recap-usage");
     let output = logged_event(&sandbox)
-        .args(["recap", "--since", "yesterday", "--until", "1756500000"])
+        .args([
+            "recap",
+            "--since-epoch",
+            "yesterday",
+            "--until-epoch",
+            "1756500000",
+        ])
         .output()
         .expect("the engine runs");
 
     assert_eq!(output.status.code(), Some(2), "stderr: {}", stderr(&output));
     assert!(
-        stderr(&output).contains("pns recap --since <epoch> --until <epoch>"),
+        stderr(&output).contains("pns recap --since-epoch <epoch> --until-epoch <epoch>"),
         "the usage names both bounds: {}",
         stderr(&output)
     );

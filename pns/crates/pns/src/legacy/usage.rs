@@ -34,7 +34,7 @@ pns: usage:
   pns stale                        page about every session stuck past the window
   pns failures [<id>|open <id>]    what is not arriving, and one banner's click
   pns failures serve               the local page, run by the clock
-  pns recap --since <epoch> --until <epoch>
+  pns recap --since-epoch <epoch> --until-epoch <epoch>
   pns recap agent --stdin          post a recap somebody else composed
   pns recap git                    print what only git, worktrunk and gh answer
   pns setup [--force]              write a first config, one question at a time
@@ -47,7 +47,7 @@ pns: usage:
 machine-called:  pns send, pns hook <event>, pns shell begin, pns shell end,
                  pns daemon retry, pns lights tick, pns quiet calendar,
                  pns nag, pns stale,
-                 pns failures serve, pns recap --since, pns recap agent,
+                 pns failures serve, pns recap --since-epoch, pns recap agent,
                  pns recap git, pns presence poll [--daemon] and
                  pns github poll [--daemon] are called by hooks, by launchd, by
                  the clock and by the shell notifier rather than typed.
