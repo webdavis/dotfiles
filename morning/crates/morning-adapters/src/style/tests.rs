@@ -158,6 +158,9 @@ fn nothing_reads_as_the_bare_word() {
 fn unavailable_labels_only_the_word_and_leaves_the_reason_plain() {
     let lines = vec![Line::Unavailable("gh exited 1".to_string())];
     let color = render_at(Paint::Color, &lines, WIDEST);
-    assert!(color.contains(&format!("{WARN}unavailable:{RESET}")), "{color}");
+    assert!(
+        color.contains(&format!("{WARN}unavailable:{RESET}")),
+        "{color}"
+    );
     assert!(color.ends_with("gh exited 1\n"), "{color}");
 }
