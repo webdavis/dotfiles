@@ -87,8 +87,8 @@ posture picks its route from the finding's tier in one place (`severity_route`,
 `posture/crates/posture-domain/src/severity.rs`), and that one place holds EVERY tier on `posture-pages`,
 critical included, so `priority` is held out of posture's tier map by posture rather than by anything the
 gateway does; uu's default is `DEFAULT_RECORD_URL` (`uu/crates/uu-adapters/src/config/records.rs`) for
-the weekly record, while its ALERT names no route at all: it sends `--delivery-class health` and pns maps
-that class to `priority` (`pns_domain::routes::route_for`), so a failed unattended upgrade pages without
+the weekly record, while its ALERT names no route at all: it sends `--delivery-class health` and this
+machine's `[delivery_class.health] route` names `priority`, so a failed unattended upgrade pages without
 uu knowing a channel exists; pns's recap takes `DEFAULT_ROUTE` like every other session event, because
 the `pns-recap` route and its channel retired on 2026-09-15. pns keeps a ROSTER of the routes it posts
 to, `pns_domain::routes::ROUTES`, because each one is signed with its own key and a route with no key is

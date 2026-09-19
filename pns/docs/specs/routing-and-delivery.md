@@ -704,11 +704,15 @@ posts to the default.
   `POST /webhooks/priority HTTP/1.1` AND that the `Host` header is still `127.0.0.1:8644`, so a swap that
   took the base with it would be a different defect passing the test. A producer that names no route may
   still say what its event IS, on the argv (`--delivery-class health`) or in a version 1 submission (the
-  request's own `delivery_class` field, which is the same word): a health event whose state is one the
-  operator has to answer resolves to the `[routes] urgent` route, and an event naming no class, or a
-  health event that needs nobody, to the default route. The mapping is `pns_domain::routes::route_for`
+  request's own `delivery_class` field, which is the same word). What that word MEANS is
+  `[delivery_class.<name>]` and nothing compiled in: `route` is where a message of that class goes and
+  it is taken only while the state is one the operator has to answer, so an event naming no class, or a
+  classed event that needs nobody, takes the default route. A message naming no class reads
+  `[delivery_class.default]`, and a class no table defines is REFUSED with exit 2 and named rather than
+  delivered as the default. The mapping is `pns_domain::routes::route_for`
   (`src/legacy/argv/tests.rs:a_failed_health_class_pages_and_a_session_class_keeps_the_default_route`,
-  `pns-domain/src/routes.rs:a_health_event_nobody_has_to_answer_stays_off_the_urgent_route`,
+  `pns-domain/src/routes.rs:a_class_route_stays_unused_while_nobody_has_to_answer`,
+  `tests/hooks/delivery_class.rs:a_class_no_table_defines_is_refused_and_named_on_both_paths`,
   `src/event_flow/submit/mapping/tests.rs:a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_carries_nothing`)
   and an explicit `--channel`, or a route the submission named, still beats it in either order
   (`:a_named_route_beats_the_delivery_class_in_either_order`,
