@@ -19,6 +19,7 @@ pns: usage:
   pns quiet calendar               one calendar read, run by the clock
   pns daemon run|schedule|cancel   the clock
   pns daemon retry                 one sweep of the retry queue, run by the clock
+  pns gateway start|stop|restart|status
   pns lights tick                  the lamps' upkeep, run by the clock
   pns lights quiet                 the lamps' own mute, one place at a time
   pns lights pulse <exit-code>     signal the lamps by hand
