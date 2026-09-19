@@ -35,15 +35,15 @@ Given an operator who wants to hear about a session nobody came back to
 
 When `[stale] escalate_after` is read out of the configuration file
 
-Then 60 to 86400 seconds arms the feature at that window, zero is the feature off, and every other value
-is refused by name.
+Then 1m to 24h arms the feature at that window, `"0s"` is the feature off, and every other value is
+refused by name.
 
-- Success: an armed `[remind]` table with nothing said carries the default, 3600
+- Success: an armed `[stale]` table with nothing said carries the default, 3600
   (`config/tests/stale.rs:the_escalation_window_defaults_to_an_hour_and_zero_is_off_rather_than_an_error`),
   and the shipped template writes it uncommented at that default, per the defaults-visible ruling of
   2026-08-31.
-- Failure sources: a negative number, a duration string, 59, and 86401, each refused with the offender
-  named (`config/tests/stale.rs:an_escalation_window_that_is_not_a_duration_is_refused_by_name`).
+- Failure sources: a negative number, an integer, 59, and 86401, each refused with the offender named
+  (`config/tests/stale.rs:an_escalation_window_that_is_not_a_duration_is_refused_by_name`).
 - Fail direction: an unreadable config reads as OFF (`wait_runtime.rs:stale_settings`), the same
   direction `remind_delay_secs` takes and for its reason.
 - Thresholds: 60 admitted, 59 refused; 86400 admitted, 86401 refused; zero carved out and not an error.
