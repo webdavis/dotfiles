@@ -103,12 +103,12 @@ When `src/main.rs:forward_to_moshi` is asked whether to start a round trip
 Then it forwards for every surface EXCEPT `Desk`, because at the desk the harness prompt in front of them
 already is the question.
 
-- Success: away (`PNS_IDLE_SECS=99999`) forwards, pinned by
+- Success: away (`PNS_SCREEN_IDLE=99999`) forwards, pinned by
   `tests/hooks.rs:a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decision`. A
   desk touched 90 seconds ago against a phone touched 5 seconds ago also forwards, because newest signal
   wins, pinned by
   `tests/hooks.rs:a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it`.
-- Failure sources: a presence reading nobody can parse. A garbled `PNS_IDLE_SECS` is refused rather than
+- Failure sources: a presence reading nobody can parse. A garbled `PNS_SCREEN_IDLE` is refused rather than
   defaulted (`src/engine.rs:surface_reading`), which leaves no fresh desk reading, so the surface is not
   `Desk` and the approval IS forwarded, pinned by
   `tests/hooks.rs:a_presence_reading_nobody_can_parse_still_forwards_the_approval`.
@@ -119,7 +119,7 @@ already is the question.
   `tests/hooks.rs:at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual` and
   `tests/hooks.rs:at_the_desk_the_gate_submits_nothing_and_exits_zero`.
 - Thresholds: the freshness window is `src/engine.rs:DEFAULT_DESK_IDLE_SECS`, 120 seconds, overridable
-  with `PNS_DESK_IDLE_SECS`. `src/surface.rs:fresh_age` filters on `age < fresh_secs` strictly, so an age
+  with `PNS_DESK_IDLE`. `src/surface.rs:fresh_age` filters on `age < fresh_secs` strictly, so an age
   of 119 seconds is fresh and speaks for its surface while an age of exactly 120 is not fresh at all. A
   tie between desk and phone ages goes to the desk (`src/surface.rs:surface`), so a desk and a phone both
   last touched 5 seconds ago read `Desk` and do not forward.
@@ -267,7 +267,7 @@ raised and before the one bounded wait.
   `tests/hooks.rs:the_submission_inherits_the_callers_environment`.
 - Process ownership and cleanup: pns owns the direct child. Only stdin is piped, so the child's stdout
   and stderr are pns's own inherited streams, see behavior 7.
-- Compatibility contract: the binary's location is `MOSHI_HOOK_BIN` if set, else
+- Compatibility contract: the binary's location is `PNS_MOSHI_HOOK_BIN` if set, else
   `src/main.rs:DEFAULT_MOSHI_HOOK_BIN`, which is `/opt/homebrew/bin/moshi-hook`, Homebrew's own prefix
   where the cask puts it. `src/main.rs:moshi_hook_bin` is the single lookup for every caller, and the
   override is how every test points a caller at a stub instead of at the operator's own moshi.

@@ -12,7 +12,7 @@ fn the_doctor_reports_a_dead_daemon_without_moving_its_exit_code() {
     let sandbox = Sandbox::new("daemon-doctor-line");
     sandbox.write_config("[plugins.macos-banner]\nenabled = true\n");
     let mut command = sandbox.pns_stateful();
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     let output = run(command.arg("doctor"));
     assert!(
         stdout(&output).contains("the daemon is enabled and has not run yet"),
@@ -29,7 +29,7 @@ fn the_doctor_reports_a_dead_daemon_without_moving_its_exit_code() {
     )
     .expect("a stale heartbeat");
     let mut command = sandbox.pns_stateful();
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     let output = run(command.arg("doctor"));
     assert!(
         stdout(&output).contains("so it is not running"),

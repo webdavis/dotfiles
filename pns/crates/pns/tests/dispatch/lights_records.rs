@@ -50,7 +50,7 @@ fn a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds() {
     std::fs::write(lease_dir.join("t1:p2"), "500\n").expect("a lease taken by hand");
     let mut command = sandbox.pns_stateful();
     command.env("TZ", "UTC");
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     sandbox.stub_herdr(&mut command, false);
     let outcome = run(command.args(LONG_DONE));
     assert_eq!(outcome.status.code(), Some(0), "{}", stderr(&outcome));
@@ -102,7 +102,7 @@ fn the_news_record_is_written_whatever_the_lamps_are_doing() {
         sandbox.write_config(&config);
         let mut command = sandbox.pns_stateful();
         command.env("TZ", "UTC");
-        command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+        command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
         sandbox.stub_herdr(&mut command, false);
         let outcome = run(command.args(LONG_DONE));
         assert_eq!(

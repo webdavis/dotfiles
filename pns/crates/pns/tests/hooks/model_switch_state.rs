@@ -114,10 +114,10 @@ fn an_observation_writes_no_activity_line() {
 
 #[test]
 fn an_observation_moves_no_presence_edge() {
-    // S3: `Sandbox::pns` sets PNS_IDLE_SECS=99999 (Away), and `mark_present`
+    // S3: `Sandbox::pns` sets PNS_SCREEN_IDLE=99999 (Away), and `mark_present`
     // returns before writing while away, so a First-routed observation would
     // ALSO leave `last-present` alone under the suite's default env. Force
-    // Present with PNS_IDLE_SECS=0.
+    // Present with PNS_SCREEN_IDLE=0.
     //
     // THE OBSERVATION IS CHECKED AGAINST THE STALE SEED DIRECTLY, never
     // against a marker a same-second control call just wrote: two hook
@@ -137,7 +137,7 @@ fn an_observation_moves_no_presence_edge() {
     let spool_before = spool_entries(&sandbox);
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -164,7 +164,7 @@ fn an_observation_moves_no_presence_edge() {
     // marker, so the assertion above is not vacuously true under every
     // attempt.
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert_ne!(
         stored_records::present(&sandbox),
@@ -279,7 +279,7 @@ fn an_observation_replays_no_journal_entry() {
     std::fs::write(&journal, seeded).expect("the journal");
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -305,7 +305,7 @@ fn an_observation_replays_no_journal_entry() {
     // `stop` event under this exact env DOES consume it, so the assertion
     // above is not vacuously true under every attempt.
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert!(
         stored_records::text(&sandbox, "journal").is_empty(),

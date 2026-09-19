@@ -11,7 +11,9 @@ use super::*;
 /// away event is the one row that must NOT flush the queue.
 pub(super) fn present_event(sandbox: &Sandbox) -> std::process::Command {
     let mut command = logged_event(sandbox);
-    command.env("PNS_IDLE_SECS", "0").env("PNS_SKIP_PHONE", "1");
+    command
+        .env("PNS_SCREEN_IDLE", "0")
+        .env("PNS_SKIP_PHONE", "1");
     // The caller already saw this event, so the test isolates its planted queue.
     // Executable stubs report no acknowledgement and cannot establish perception.
     sandbox.stub_herdr(&mut command, false);

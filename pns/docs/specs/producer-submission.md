@@ -358,7 +358,7 @@ itself.
   operator's own `HOME` (`src/main.rs:focus_now`, `src/main.rs:FOCUS_DB`).
 - Failure sources: an unreadable clock (`None`, which ages nothing rather than making a signal infinitely
   fresh); an unreadable Focus store, which `is_ok_and` reads as not silenced (`src/main.rs:run_event`); a
-  garbled `PNS_IDLE_SECS`, `PNS_DESK_IDLE_SECS` or `PNS_PHONE_INPUT_AGE`, each of which sets its own
+  garbled `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE` or `PNS_PHONE_INPUT_AGE`, each of which sets its own
   `*_invalid` flag rather than falling back to a default (`src/engine.rs:Overrides::from_env`).
 - Fail direction: fail-open toward delivering. An unreadable Focus store reads as not silenced; a garbled
   desk threshold makes NOTHING fresh, so the surface is `Away`, which always cards

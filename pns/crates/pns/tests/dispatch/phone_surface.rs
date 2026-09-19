@@ -11,7 +11,7 @@ fn a_back_tap_newer_than_the_last_desk_input_moves_the_operator_to_mobile() {
     std::fs::write(&marker, "").expect("marker");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "300")
+        .env("PNS_SCREEN_IDLE", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .args([
             "send",
@@ -35,7 +35,7 @@ fn desk_input_after_the_tap_cancels_it() {
     std::fs::write(&marker, "").expect("marker");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_PHONE_MARKER_FILE", &marker);
     sandbox.stub_herdr(&mut command, false);
     run(command
@@ -65,7 +65,7 @@ fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
     std::fs::write(&marker, "").expect("marker");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "300")
+        .env("PNS_SCREEN_IDLE", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker);
     sandbox.stub_herdr(&mut command, true);
     run(command
@@ -90,7 +90,7 @@ fn a_narrowing_flag_still_beats_a_fresh_tap() {
     std::fs::write(&marker, "").expect("marker");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "300")
+        .env("PNS_SCREEN_IDLE", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .args(["send", "--scope", "local_only"])
         .args([
@@ -111,7 +111,7 @@ fn skip_phone_still_beats_a_fresh_tap() {
     std::fs::write(&marker, "").expect("marker");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "300")
+        .env("PNS_SCREEN_IDLE", "300")
         .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("PNS_SKIP_PHONE", "1")
         .args([
@@ -181,7 +181,7 @@ fn an_unreadable_view_delivers_rather_than_suppressing_on_doubt() {
     let sandbox = Sandbox::new("unknown-view");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args([
             "send",
             "--producer",
@@ -200,7 +200,7 @@ fn force_phone_is_caller_intent_and_beats_the_whole_surface_model() {
     let sandbox = Sandbox::new("force-phone-watched");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut command, true);
     run(command

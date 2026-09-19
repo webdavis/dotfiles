@@ -13,7 +13,7 @@ fn an_approval_is_forwarded_even_when_the_mobile_channel_is_switched_off() {
     let sandbox = Sandbox::new("hook-blocked-channel-off");
     sandbox.write_config("[plugins.mobile]\nenabled = false\n[plugins.hermes]\nenabled = true\n");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(42), "the operator's own answer");
@@ -52,7 +52,7 @@ fn an_approval_is_forwarded_even_with_the_pane_in_plain_sight() {
     let sandbox = Sandbox::new("hook-blocked-pane-visible");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("HERDR_PANE_ID", "t1:p1");
     sandbox.stub_herdr(&mut command, true);
     sandbox.stub_moshi(&mut command, 42);
@@ -86,7 +86,7 @@ fn the_forward_reads_the_surface_and_never_the_card_overrides() {
     let forced = Sandbox::new("hook-blocked-force-phone");
     let mut command = approval(&forced, 42);
     command
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_FORCE_PHONE", "1");
     let output = hook_with(command, &forced, "blocked", CLAUDE_APPROVAL);
     assert_eq!(output.status.code(), Some(0), "no round trip, no decision");
@@ -135,7 +135,7 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     sandbox.write_config(&nag_config(300));
     let mut command = with_state_dir(&sandbox);
     // Away, so the phone is the only way to answer at all.
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     let expiry = std::time::SystemTime::now()
@@ -226,7 +226,7 @@ fn a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() 
     let sandbox = Sandbox::new("hook-blocked-focus");
     let mut command = with_state_dir(&sandbox);
     // Away, so the phone is the only way to answer at all.
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     sandbox.write_focus_store("com.apple.sleep.sleep-mode", "Sleep");
     sandbox.write_config(
