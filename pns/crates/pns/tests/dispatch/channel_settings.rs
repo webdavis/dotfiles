@@ -26,7 +26,7 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
             "--detail",
             "x",
         ])
-        .args(["--pane", "t1:p2", "--long-running"]));
+        .args(["--pane", "t1:p2", "--elapsed", "300s"]));
     assert!(
         stderr(&output).contains("mobile_watch_card"),
         "the refusal names the setting: {output:?}"

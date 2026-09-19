@@ -1,4 +1,4 @@
-use super::{DeliveryScope, Interaction, Kind, Request, State, decode};
+use super::{DeliveryScope, Kind, Request, State, decode};
 use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
@@ -17,14 +17,8 @@ fn name(text: &str) -> Name {
 }
 
 fn golden_request() -> Request {
-    let mut request = Request::new(
-        id("nvim-7f3a9c2e-0001"),
-        name("nvim"),
-        name("BufWritePost"),
-        State::Done,
-    );
+    let mut request = Request::new(id("nvim-7f3a9c2e-0001"), name("nvim"), State::Done);
     request.session = Some(name("s-2026-09-06-a"));
-    request.occurred_at = Some(1_788_782_400);
     request.elapsed = Some(Duration::from_secs(42));
     request.detail = "wrote 3 files".to_string();
     request.project = Some("dotfiles".to_string());
@@ -44,7 +38,6 @@ fn minimal() -> Value {
         "schema": "pns.request/1",
         "request_id": "r-1",
         "producer": "shell",
-        "event": "command-finished",
         "state": "failed"
     })
 }
@@ -138,7 +131,6 @@ fn observation_and_progress_are_the_quiet_states_and_nothing_else_is() {
 fn absent_optional_fields_take_their_documented_defaults() {
     let request = decode_value(&minimal()).unwrap().request;
     assert_eq!(request.scope, DeliveryScope::Automatic);
-    assert_eq!(request.interaction, Interaction::None);
     assert_eq!(request.detail, "");
     assert_eq!(request.project, None);
     assert_eq!(request.branch, None);
@@ -146,7 +138,6 @@ fn absent_optional_fields_take_their_documented_defaults() {
     assert!(request.extensions.is_empty());
     assert_eq!(request.session, None);
     assert_eq!(request.route, None);
-    assert_eq!(request.occurred_at, None);
     assert_eq!(request.elapsed, None);
 }
 
@@ -207,23 +198,23 @@ fn the_delivery_scope_is_one_word_and_the_words_are_exactly_three() {
 }
 
 #[test]
-fn the_interaction_requirement_is_tagged_and_the_words_are_exactly_two() {
+fn event_occurred_at_and_interaction_are_ignored_and_named_rather_than_refused() {
+    // These fields changed nothing: `event` and `occurred_at` were stored and
+    // never read, and `interaction` always answered "no opinion". They decode
+    // as ordinary unknown fields now, the same as a typo.
     let mut value = minimal();
+    value["event"] = json!("legacy-name");
+    value["occurred_at"] = json!(-1);
     value["interaction"] = json!({ "kind": "await_decision" });
-    let request = decode_value(&value).unwrap().request;
-    assert_eq!(request.interaction, Interaction::AwaitDecision);
-    let encoded: Value = serde_json::from_str(&request.encode().unwrap()).unwrap();
-    assert_eq!(encoded["interaction"], json!({ "kind": "await_decision" }));
-    value["interaction"] = json!({ "kind": "none" });
-    let request = decode_value(&value).unwrap().request;
-    assert_eq!(request.interaction, Interaction::None);
-    let encoded: Value = serde_json::from_str(&request.encode().unwrap()).unwrap();
-    assert_eq!(encoded["interaction"], json!({ "kind": "none" }));
-    value["interaction"] = json!({ "kind": "wait" });
-    assert!(matches!(
-        decode_value(&value).unwrap_err().reason,
-        Rejection::Invalid(_)
-    ));
+    let decoded = decode_value(&value).unwrap();
+    assert_eq!(
+        decoded.ignored,
+        vec![
+            "event".to_string(),
+            "interaction".to_string(),
+            "occurred_at".to_string(),
+        ]
+    );
 }
 
 #[test]
@@ -245,16 +236,6 @@ fn an_invalid_identifier_anywhere_in_the_request_is_refused_as_invalid() {
     ));
     let mut value = minimal();
     value["route"] = json!("a\nb");
-    assert!(matches!(
-        decode_value(&value).unwrap_err().reason,
-        Rejection::Invalid(_)
-    ));
-}
-
-#[test]
-fn a_negative_or_fractional_time_is_invalid() {
-    let mut value = minimal();
-    value["occurred_at"] = json!(-1);
     assert!(matches!(
         decode_value(&value).unwrap_err().reason,
         Rejection::Invalid(_)
@@ -328,7 +309,7 @@ fn a_request_naming_no_kind_keeps_the_original_version_one_bytes() {
     let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
     assert_eq!(
         original,
-        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"event":"command-finished","state":"failed","occurred_at":null,"elapsed":null,"detail":"","project":null,"branch":null,"pane":null,"scope":"automatic","route":null,"interaction":{"kind":"none"},"extensions":{}}"#,
+        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"state":"failed","elapsed":null,"detail":"","project":null,"branch":null,"pane":null,"scope":"automatic","route":null,"extensions":{}}"#,
         "an absent kind moved the canonical bytes"
     );
     assert_eq!(decode_value(&minimal()).unwrap().request.kind, None);

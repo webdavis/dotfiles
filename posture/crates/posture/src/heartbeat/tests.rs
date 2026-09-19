@@ -149,9 +149,7 @@ fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observ
     let request = &effect.requests[0];
     for field in [
         "\"producer\":\"posture\"",
-        "\"event\":\"heartbeat\"",
         "\"state\":\"observation\"",
-        "\"occurred_at\":10000",
         "\"route\":\"posture-pages\"",
         "canary 17s ago",
     ] {

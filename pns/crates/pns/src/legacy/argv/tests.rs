@@ -210,19 +210,21 @@ fn a_recognized_flag_is_never_consumed_as_a_value() {
 }
 
 #[test]
-fn the_long_running_flag_is_protected_from_being_eaten_like_every_other_one() {
-    // It was handled but left out of the predicate, so `--detail
-    // --long-running` swallowed it as the detail text: the notification
-    // carried a flag name as its summary AND lost the tier that decides
-    // the lights, both in silence.
-    let (parsed, warnings) = args(&["--detail", "--long-running"]);
-    assert_eq!(parsed.detail, "");
-    assert!(parsed.long_running, "the tier must still apply");
-    assert_eq!(warnings.len(), 1);
+fn the_long_running_flag_is_retired_and_protected_from_being_eaten_like_every_other_one() {
+    // It used to be handled but left out of the predicate, so `--detail
+    // --long-running` swallowed it as the detail text. Now it is retired
+    // outright: pns derives the tier from `--elapsed` alone.
+    let parsed = parse_args(["--detail", "--long-running"].map(str::to_owned));
+    assert_eq!(parsed.event.detail, "");
+    assert_eq!(parsed.warnings.len(), 1);
     assert!(
-        warnings[0].contains("--detail"),
+        parsed.warnings[0].contains("--detail"),
         "the warning names the flag"
     );
+    assert!(matches!(
+        parsed.into_event(),
+        Err(message) if message == "--long-running was replaced by --elapsed"
+    ));
 }
 
 #[test]
