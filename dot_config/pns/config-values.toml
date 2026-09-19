@@ -26,9 +26,6 @@ service = "com.webdavis.pns-daemon"
 # `default` is the rule for a message naming no class, which is every harness
 # hook and the shell notifier: the routine route, and the mute respected.
 [delivery_class.default]
-note = """
-The rule for a message naming no class, which is every harness hook and the
-shell notifier."""
 route = ""
 bypass_mute = false
 
