@@ -183,8 +183,11 @@ characters, without controls. A wrong type or invalid name is refused before eff
 correlated request identifier. An absent or null delivery class is omitted when encoding, preserving the
 exact canonical bytes of unmarked version 1 requests. A present delivery class survives canonical
 encoding and the original producer request retained by the ledger; changed delivery-class metadata under
-the same identity conflicts. `kind` and `class`, the two fields it replaced, are no longer fields of this
-envelope: a decoded value carrying either names it in `DecodedRequest::ignored` (S014).
+the same identity conflicts. `kind` and `class`, the two fields it replaced, are REFUSED rather than
+ignored: a value carrying either is rejected before effects, and the refusal names the field and its
+replacement. A field this envelope never defined is still ignored and named in
+`DecodedRequest::ignored`, because a newer producer must not break an older pns; one it used to honour
+is a producer whose word would otherwise go nowhere (S014).
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),

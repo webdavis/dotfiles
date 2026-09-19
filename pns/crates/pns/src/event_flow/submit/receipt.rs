@@ -1,8 +1,26 @@
+use super::NotSubmitted;
 use pns_application::{LedgerCompletion, LedgerFailure, Submitted, UnconfirmedDelivery};
 use pns_domain::Delivery;
 use pns_protocol::{DeliveryOutcome, DestinationOutcome, Name, ResultEnvelope, Status};
 
-pub(super) fn result(submitted: Result<Submitted, LedgerFailure>) -> ResultEnvelope {
+pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelope {
+    // BAD INPUT LEAVES THE LEDGER OUT OF IT, and says which word was refused,
+    // so a producer reading the reply learns the class it has to fix without
+    // reading the machine's stderr.
+    let submitted = match submitted {
+        Err(NotSubmitted::UnknownDeliveryClass(class)) => {
+            return ResultEnvelope {
+                request_id: None,
+                status: Status::Rejected,
+                decision_id: None,
+                interaction: None,
+                destinations: Vec::new(),
+                diagnostics: vec!["unknown_delivery_class".into(), class],
+            };
+        }
+        Err(NotSubmitted::Ledger(error)) => Err(error),
+        Ok(submitted) => Ok(submitted),
+    };
     let (sequence, outcomes, failure) = match submitted {
         Ok(Submitted::Attempted { sequence, outcomes }) => (
             sequence,

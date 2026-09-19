@@ -90,7 +90,7 @@ impl pns_application::RaiseNotification for StaleNotification {
             &HookPayload::default(),
             Attempt::Nudge,
         );
-        if landed == event_flow::Landed::No {
+        if landed != event_flow::Landed::Yes {
             // SAID RATHER THAN SWALLOWED, on the stream the daemon keeps. The
             // page's route is the one thing about it that is not
             // the ordinary event path's problem: a gateway that refuses it

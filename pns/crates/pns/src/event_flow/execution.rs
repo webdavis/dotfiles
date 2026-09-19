@@ -7,15 +7,38 @@ pub(super) fn execute(
     attempt: Attempt,
     pulse: PulseSink<'_>,
     producer: Option<&super::submit::ProducerRequest>,
-) -> Result<pns_application::Submitted, pns_application::LedgerFailure> {
+) -> Result<pns_application::Submitted, NotSubmitted> {
     let json = producer.is_some();
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
-    let silence_policy = match &loaded {
-        Ok(LoadOutcome::Loaded(config)) => config.silence_policy(
-            (!event.delivery_class.is_empty()).then_some(event.delivery_class.as_str()),
-        ),
-        _ => pns_domain::SilencePolicy::Respect,
+    // WHAT THE EVENT'S CLASS MEANS ON THIS MACHINE, read once and before
+    // anything is delivered. A class no `[delivery_class.<name>]` table
+    // defines is REFUSED here rather than delivered as the default: the
+    // operator either deleted the table or the producer misspelled the word,
+    // and either way a page sent on a guess lands somewhere they did not
+    // intend. An event naming no class reads `[delivery_class.default]`, which
+    // is where the rule for one is written down.
+    //
+    // A CONFIG THAT IS ABSENT OR UNREADABLE DEFINES NONE AND REFUSES NONE,
+    // which is `[routes]`'s own reading below: an event still has to land
+    // somewhere on a machine whose config nobody could read.
+    let (class, silence_policy) = match &loaded {
+        Ok(LoadOutcome::Loaded(config)) => {
+            if config.refuses_delivery_class(&event.delivery_class) {
+                eprintln!(
+                    "pns: no [delivery_class.{}] table defines that delivery class",
+                    event.delivery_class
+                );
+                return Err(NotSubmitted::UnknownDeliveryClass(
+                    event.delivery_class.clone(),
+                ));
+            }
+            (
+                config.delivery_class(&event.delivery_class).cloned(),
+                config.silence_policy(&event.delivery_class),
+            )
+        }
+        _ => (None, pns_domain::SilencePolicy::Respect),
     };
     // Read off the config before selection consumes it: the pulse needs hue's
     // settings, the plan needs the mobile card toggle, the catch-up needs the
@@ -102,11 +125,13 @@ pub(super) fn execute(
         ),
     };
     // THE ROUTE IS SETTLED HERE, at the one place that holds both the event
-    // and the names the operator gave their routes: `channel` is what the
+    // and the route its class names: `channel` is what the
     // ledger row, the retry that rebuilds off it and every destination read,
     // so a page recorded on one route and posted to another is impossible
     // rather than unlikely.
-    let event = &event.clone().routed(&routes);
+    let event = &event
+        .clone()
+        .routed(class.as_ref().map(|class| class.route.as_str()));
     let (selection, warning) = select_plugins(&roster(), loaded);
     if let Some(warning) = warning {
         eprintln!("{warning}");

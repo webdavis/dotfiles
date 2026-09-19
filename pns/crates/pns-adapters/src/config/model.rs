@@ -42,8 +42,15 @@ pub struct Config {
     /// key: naming no mode and switching the feature off are the same
     /// statement, and a second way to say it is a second thing to disagree.
     pub focus_silence: Vec<String>,
-    /// Exact request classes allowed through mute and named Focus for banner and phone.
-    pub bypass_silence_classes: Vec<String>,
+    /// `[delivery_class.<name>]`: what each delivery class a producer may send
+    /// DOES, keyed by the class name.
+    ///
+    /// THE WHOLE STATEMENT OF WHICH CLASSES EXIST. pns compiles in none, so a
+    /// class no table here defines is refused rather than delivered as a
+    /// guess, and a message naming no class takes `DEFAULT_DELIVERY_CLASS`'s
+    /// table. Empty is a file that defined none, which is every message on
+    /// the default route with the mute respected.
+    pub delivery_classes: BTreeMap<String, DeliveryClass>,
     /// `[delivery] remote_deadline`: how long ONE remote call may take, in
     /// seconds, before the caller stops waiting on it. Zero is no deadline at
     /// all, which is the caller's own instruction rather than a default.
@@ -130,7 +137,7 @@ impl Default for Config {
             plugins: BTreeMap::new(),
             recap: Recap::default(),
             focus_silence: Vec::new(),
-            bypass_silence_classes: vec!["security".into()],
+            delivery_classes: BTreeMap::new(),
             remote_deadline_secs: DEFAULT_REMOTE_DEADLINE_SECS,
             routes: pns_domain::routes::Routes::default(),
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
@@ -149,8 +156,37 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn silence_policy(&self, class: Option<&str>) -> pns_domain::SilencePolicy {
-        if class.is_some_and(|class| self.bypass_silence_classes.iter().any(|name| name == class)) {
+    /// What the class a message carries says, with a message naming none
+    /// reading `[delivery_class.default]`.
+    ///
+    /// `None` IS TWO DIFFERENT FACTS AND ONE ANSWER: a class this file never
+    /// defined, and a file that defines no default. `refuses_delivery_class`
+    /// is what tells the first apart, because only that one is the operator's
+    /// mistake.
+    pub fn delivery_class(&self, named: &str) -> Option<&DeliveryClass> {
+        self.delivery_classes.get(if named.is_empty() {
+            DEFAULT_DELIVERY_CLASS
+        } else {
+            named
+        })
+    }
+
+    /// Whether this file refuses the class a message named.
+    ///
+    /// A MESSAGE NAMING NO CLASS IS NEVER REFUSED: naming none is a complete
+    /// statement, and a file with no `[delivery_class.default]` has simply
+    /// written no rule for it.
+    pub fn refuses_delivery_class(&self, named: &str) -> bool {
+        !named.is_empty() && !self.delivery_classes.contains_key(named)
+    }
+
+    /// Whether the class a message carries lets it through the mute and the
+    /// named Focus modes for the banner and the phone card.
+    pub fn silence_policy(&self, named: &str) -> pns_domain::SilencePolicy {
+        if self
+            .delivery_class(named)
+            .is_some_and(|class| class.bypass_mute)
+        {
             pns_domain::SilencePolicy::BypassBannerAndPhone
         } else {
             pns_domain::SilencePolicy::Respect

@@ -29,8 +29,10 @@ fn header_for(table: &str) -> String {
         // it, so a sample writes whichever of them, and the refusal names
         // the path the operator wrote rather than this row.
         super::TARGET_KEYS => "lights.room.\"3F - Studio\"".to_string(),
-        // The same shape one level shallower: the row is the prefix and the
-        // producer's own name is what a sample writes under it.
+        // THE SAME SHAPE ONE LEVEL SHALLOWER: each row is a prefix and the
+        // operator's own class or producer name is what a sample writes under
+        // it.
+        super::DELIVERY_CLASS_KEYS => "delivery_class.security".to_string(),
         super::PRODUCER_KEYS => "producer.claude".to_string(),
         other => other.to_string(),
     }
@@ -80,6 +82,7 @@ fn shown_as(table: &str) -> String {
 fn refusal_names(table: &str) -> String {
     match table {
         super::TARGET_KEYS => "`lights.room.3F - Studio`".to_string(),
+        super::DELIVERY_CLASS_KEYS => "`delivery_class.security`".to_string(),
         super::PRODUCER_KEYS => "`producer.claude`".to_string(),
         other => shown_as(other),
     }
@@ -117,12 +120,14 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("paths", "state_dir", "'~/state'"),
     ("paths", "channels_dir", "'/opt/pns/channels'"),
     (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
+    (super::TOP_LEVEL, "delivery", "{ max_attempts = 3 }"),
     (
         super::TOP_LEVEL,
-        "delivery",
-        "{ bypass_silence_classes = [\"custom\"], max_attempts = 3 }",
+        "delivery_class",
+        "{ security = { bypass_mute = true } }",
     ),
-    ("delivery", "bypass_silence_classes", "[\"custom\"]"),
+    (super::DELIVERY_CLASS_KEYS, "route", "'pages'"),
+    (super::DELIVERY_CLASS_KEYS, "bypass_mute", "true"),
     ("delivery", "max_attempts", "3"),
     ("delivery", "max_age_secs", "7"),
     ("delivery", "remote_deadline", "5"),
