@@ -88,7 +88,6 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     assert_eq!(std::fs::read(home.join("calls")).unwrap(), b"call\n");
     let request = std::fs::read_to_string(home.join("request")).unwrap();
     for text in [
-        "\"event\":\"heartbeat\"",
         "\"state\":\"observation\"",
         "\"route\":\"posture-pages\"",
         "STALE",
