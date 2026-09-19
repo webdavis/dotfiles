@@ -195,17 +195,20 @@ fn elapsed_rejects_a_bare_number_and_every_other_non_duration() {
 }
 
 #[test]
-fn elapsed_rejects_an_explicit_tier_in_either_order() {
+fn long_running_is_refused_as_retired_whether_or_not_elapsed_is_also_given() {
+    // pns derives the tier from `--elapsed` alone now, so this flag is
+    // refused outright rather than accepted or silently dropped.
     for args in [
-        ["send", "--elapsed", "35s", "--long-running"],
-        ["send", "--long-running", "--elapsed", "35s"],
+        &["send", "--elapsed", "35s", "--long-running"][..],
+        &["send", "--long-running", "--elapsed", "35s"][..],
+        &["send", "--long-running"][..],
     ] {
-        let sandbox = Sandbox::new(&format!("elapsed-conflict-{}", args[1]));
+        let sandbox = Sandbox::new(&format!("long-running-retired-{}", args.join("-")));
         let output = run(command(&sandbox).args(args));
         assert_eq!(output.status.code(), Some(2));
         assert_eq!(
             stderr(&output),
-            "pns: --elapsed cannot be combined with --long-running\n"
+            "pns: --long-running was replaced by --elapsed\n"
         );
         assert!(!sandbox.fired("hermes"));
         assert!(!sandbox.state().exists());
@@ -220,23 +223,6 @@ fn help_still_wins_over_elapsed_refusal_without_delivery() {
     assert!(stdout(&output).contains("--elapsed <duration>"));
     assert!(output.stderr.is_empty());
     assert!(!sandbox.state().exists());
-}
-
-#[test]
-fn legacy_events_keep_their_detail_and_explicit_long_running_tier() {
-    let sandbox = Sandbox::new("elapsed-legacy");
-    let output = run(command(&sandbox).args([
-        "send",
-        "--producer",
-        "shell",
-        "--state",
-        "done",
-        "--detail",
-        "build (305s)",
-        "--long-running",
-    ]));
-    assert_eq!(output.status.code(), Some(0));
-    assert_eq!(sandbox.event("hermes")["detail"], "build (305s)");
 }
 
 #[test]

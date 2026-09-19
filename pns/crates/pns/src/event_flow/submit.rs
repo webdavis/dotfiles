@@ -1,8 +1,6 @@
 use super::*;
 use pns_application::{SubmissionIdentity, Submitted};
-use pns_protocol::{
-    DecodedRequest, DeliveryScope, Interaction, InteractionResult, Request, ResultEnvelope, Status,
-};
+use pns_protocol::{DecodedRequest, DeliveryScope, Request, ResultEnvelope, Status};
 
 mod mapping;
 mod receipt;
@@ -92,8 +90,6 @@ fn accept(
     };
     let mut result = receipt::result(submit(&request, &producer));
     result.request_id = Some(request.request_id);
-    result.interaction =
-        (request.interaction == Interaction::AwaitDecision).then_some(InteractionResult::NoOpinion);
     // Unknown field names are already bounded by the decoder. Keep them verbatim,
     // without a prefix that could push an otherwise valid name beyond the text cap.
     if !decoded.ignored.is_empty() {

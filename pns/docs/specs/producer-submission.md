@@ -2,8 +2,9 @@
 
 Historical snapshot, not the live contract: this file predates the retirement ladder. `--agent`/
 `PNS_AGENT` is REFUSED on the current parser (`src/legacy/argv.rs:RETIRED_FLAGS`), not warned and
-dropped as section 4 below still says; `--producer`/`PNS_PRODUCER` is the live spelling. Not rewritten
-pending the ladder's closing docs pass.
+dropped as section 4 below still says; `--producer`/`PNS_PRODUCER` is the live spelling. `--long-running`
+is likewise REFUSED now, not accepted as a boolean the way the excerpt below still shows it: pns derives
+that tier from `--elapsed` alone. Not rewritten pending the ladder's closing docs pass.
 
 ## Scope
 

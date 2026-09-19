@@ -1,8 +1,7 @@
 //! The producer request: what any producer, in any language, tells pns about
 //! one event, in version 1 of the `pns.request` envelope.
 //!
-//! The source's own event name (`event`) is carried as metadata; the
-//! normalized [`State`] is what pns policy reads. Delivery scope is one
+//! The normalized [`State`] is what pns policy reads. Delivery scope is one
 //! typed word, so the legacy pair of independent flags cannot be spelled
 //! here (decision 0007). A producer states `elapsed` and pns decides the
 //! tier from it; there is no field for a caller-decided tier.
@@ -23,14 +22,12 @@ const SCHEMA_MAJOR: u32 = 1;
 /// Every top-level field version 1 defines, `schema` included. A key not in
 /// this list is ignored and named, never refused: additive fields from a
 /// newer producer must not break an older pns.
-const KNOWN_FIELDS: [&str; 18] = [
+const KNOWN_FIELDS: [&str; 15] = [
     "schema",
     "request_id",
     "producer",
     "session",
-    "event",
     "state",
-    "occurred_at",
     "elapsed",
     "detail",
     "project",
@@ -40,7 +37,6 @@ const KNOWN_FIELDS: [&str; 18] = [
     "route",
     "kind",
     "class",
-    "interaction",
     "extensions",
 ];
 
@@ -142,17 +138,6 @@ pub enum DeliveryScope {
     RemoteOnly,
 }
 
-/// Whether the producer is waiting on an answer. `AwaitDecision` is the
-/// blocking approval: the submission does not return until the operator's
-/// decision arrives or the bounded wait expires.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Interaction {
-    #[default]
-    None,
-    AwaitDecision,
-}
-
 /// One version 1 request. Construct with [`Request::new`] and set what the
 /// producer knows beyond the four required parts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -164,11 +149,7 @@ pub struct Request {
     /// inside the old wrapper was stored and never read.
     #[serde(default)]
     pub session: Option<Name>,
-    pub event: Name,
     pub state: State,
-    /// Epoch seconds, when the producer knows when it happened.
-    #[serde(default)]
-    pub occurred_at: Option<u64>,
     /// How long the work ran, written as `<count><s|m|h>`. pns decides the
     /// tier from it.
     #[serde(default, with = "elapsed")]
@@ -196,8 +177,6 @@ pub struct Request {
     /// An operator-configured delivery class, independent of producer and route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub class: Option<Name>,
-    #[serde(default)]
-    pub interaction: Interaction,
     /// Producer-specific data, carried verbatim and never read here.
     #[serde(default)]
     pub extensions: Map<String, Value>,
@@ -215,14 +194,12 @@ struct Wire<'a> {
 impl Request {
     /// A request with the four required parts set and every optional part at
     /// its default.
-    pub fn new(request_id: RequestId, producer: Name, event: Name, state: State) -> Self {
+    pub fn new(request_id: RequestId, producer: Name, state: State) -> Self {
         Request {
             request_id,
             producer,
             session: None,
-            event,
             state,
-            occurred_at: None,
             elapsed: None,
             detail: String::new(),
             project: None,
@@ -232,7 +209,6 @@ impl Request {
             route: None,
             kind: None,
             class: None,
-            interaction: Interaction::default(),
             extensions: Map::new(),
         }
     }

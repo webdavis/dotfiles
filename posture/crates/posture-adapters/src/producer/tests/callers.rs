@@ -54,9 +54,11 @@ fn an_oversized_poll_gap_reports_omission_without_marking_or_publishing() {
     );
     assert_eq!(outcome, Err(PollFailure::Gap(SubmissionFailure::Refused)));
     assert_eq!(sink.runner.requests.len(), 1);
-    assert_eq!(
-        sink.runner.requests[0].event.as_str(),
-        "notification-omitted"
+    assert!(
+        sink.runner.requests[0]
+            .detail
+            .starts_with("Posture security alert omitted"),
+        "the omission notice stands in for the finding"
     );
 }
 
@@ -114,8 +116,10 @@ fn an_oversized_judged_batch_reports_omission_without_advancing_its_cursor() {
         JudgeOutcome::Retained
     );
     assert_eq!(sink.runner.requests.len(), 1);
-    assert_eq!(
-        sink.runner.requests[0].event.as_str(),
-        "notification-omitted"
+    assert!(
+        sink.runner.requests[0]
+            .detail
+            .starts_with("Posture security alert omitted"),
+        "the omission notice stands in for the finding"
     );
 }

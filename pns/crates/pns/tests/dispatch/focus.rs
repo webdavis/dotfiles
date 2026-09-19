@@ -39,7 +39,7 @@ fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_jour
     assert_eq!(waiting.len(), 1, "exactly one miss was queued: {waiting:?}");
     assert_eq!(
         field(waiting.last().expect("a journal"), "detail"),
-        "the live turn",
+        "the live turn (300s)",
         "and it is this event's: {waiting:?}"
     );
     let ring = decisions(&sandbox);

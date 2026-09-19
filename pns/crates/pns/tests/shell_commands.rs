@@ -44,7 +44,7 @@ fn shell_end_uses_the_existing_event_route_and_only_the_command_name() {
     );
     assert!(!fixture.marker().exists());
     let event = fixture.event();
-    assert_eq!(event["detail"], "cargo (300s, exit 7)");
+    assert_eq!(event["detail"], "cargo, exit 7 (300s)");
     assert_eq!(event["agent"], "shell");
     assert_eq!(event["state"], "failed");
     assert_eq!(event["project"], "logical project");

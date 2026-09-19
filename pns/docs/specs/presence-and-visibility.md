@@ -421,7 +421,8 @@ Then the banner belongs to the desk with the pane out of sight, the card belongs
 - Fail direction: `Unknown` visibility routes as not-watching, so it delivers
   (`tests/dispatch.rs:an_unreadable_view_delivers_rather_than_suppressing_on_doubt`).
 - Thresholds: `long_running` is a caller-stated tier, not a threshold this function computes. It arrives
-  either from the `--long-running` flag (`src/args.rs`) or, on the hook path, from
+  either derived from `--elapsed`/JSON `elapsed` (`src/legacy/argv.rs`, `src/event_flow/submit/mapping.rs`)
+  or, on the hook path, from
   `pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs()))`, whose default is **300 seconds**
   inclusive (`src/pulse.rs:DEFAULT_LONG_SESSION_SECS`, overridable with `PNS_PULSE_THRESHOLD_SECS` at
   `src/main.rs:pulse_threshold_secs`): 300 is long, 299 is not (`src/pulse.rs` asserts both).

@@ -8,8 +8,10 @@ banner's click is `pns failures open <id>`, and each old word is refused. `--cha
 REFUSED in favor of `--route`, which is the flag that now names a hermes route in the table and the
 usage text below. The narrowing pair `--local-only` and `--remote-only` is REFUSED too, replaced by
 one `--scope automatic|local_only|remote_only`; the refusal for giving both, behavior 15 below, went
-with them, because one flag cannot contradict itself. Not rewritten pending the ladder's closing docs
-pass.
+with them, because one flag cannot contradict itself. `--long-running` is REFUSED too
+(`src/legacy/argv.rs:RETIRED_FLAGS`), refused as `--long-running was replaced by --elapsed`: pns derives
+the tier from `--elapsed` alone now, and behavior 16 below (its own compatibility contract) no longer
+holds. Not rewritten pending the ladder's closing docs pass.
 
 ## Scope
 

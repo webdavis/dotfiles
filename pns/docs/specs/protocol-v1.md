@@ -170,12 +170,13 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 ## protocol-v1/S011: Request fields and defaults
 
-Given a version 1 request, when decoded, then request_id, producer, event and state are required and
-must have their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent
-optional session, times, route, kind and class become None; detail is empty, project, branch and pane
-are None, scope is automatic, interaction is none, and extensions is an empty object. Request::new
-supplies those same defaults. The session is a plain name and the place of the work is three top-level
-fields, the same names the flags carry.
+Given a version 1 request, when decoded, then request_id, producer and state are required and must have
+their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent optional session,
+elapsed, route, kind and class become None; detail is empty, project, branch and pane are None, scope is
+automatic, and extensions is an empty object. Request::new supplies those same defaults. The session is a
+plain name and the place of the work is three top-level fields, the same names the flags carry. `event`,
+`occurred_at` and `interaction` are no longer fields of this envelope: a decoded value carrying any of
+them names it in DecodedRequest::ignored (S014), the same as any other unknown top-level field.
 
 `class` uses the same validated `Name` as the other short names: 1 through 64 Unicode characters, without
 controls. A wrong type or invalid name is refused before effects, retaining the correlated request
@@ -210,15 +211,15 @@ missing state is not defaulted.
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L52),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186).
 
-## protocol-v1/S013: Scope and interaction words
+## protocol-v1/S013: Scope words
 
-Given a request scope or interaction, when encoded or decoded, then scope is exactly automatic,
-local_only or remote_only, and interaction.kind is exactly none or await_decision. Defaults are automatic
-and none. Unknown words are refused. These fields describe a request; this codec performs no delivery or
-blocking wait.
+Given a request scope, when encoded or decoded, then it is exactly automatic, local_only or remote_only.
+The default is automatic. An unknown word is refused. This field describes a request; the codec performs
+no delivery. The request-side `interaction` field this section once covered is gone: `pns submit` always
+answered it with "no opinion" regardless of what a caller sent, so it changed nothing (result-side
+`interaction`, S018, is unaffected and still means what it did).
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L65),
-[`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L77),
 [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L9).
 
 ## protocol-v1/S014: Additive fields and inert content
@@ -234,14 +235,16 @@ Source: [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L196),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107).
 
-## protocol-v1/S015: Request times
+## protocol-v1/S015: Request elapsed
 
-Given occurred_at, when decoded, then supplied values must be unsigned integral epoch seconds; negative
-or fractional values are field_invalid. Given elapsed, when decoded, then the value is a duration written
-as a count and a unit (`90s`, `5m`, `2h`), inside zero to thirty days. A bare number, any other
-text and any non-string are field_invalid, because one reader takes `90` as seconds and the next as
-minutes. Omission remains None for both. The codec does not choose a notification tier from elapsed
-time.
+Given elapsed, when decoded, then the value is a duration written as a count and a unit (`90s`, `5m`,
+`2h`), inside zero to thirty days. A bare number, any other text and any non-string are field_invalid,
+because one reader takes `90` as seconds and the next as minutes. Omission remains None. The codec itself
+does not choose a notification tier from elapsed time; the caller that maps a request onto an event does
+(`pns/crates/pns/src/event_flow/submit/mapping.rs`, long_running at or above
+`pns_domain::pulse::DEFAULT_LONG_SESSION_SECS`). `occurred_at`, the wire field this section once covered,
+is gone: it was stored and never read, apart from the unrelated `github` extension's own `occurred_at`
+inside `extensions`, which this section never specified and which stays.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L8).

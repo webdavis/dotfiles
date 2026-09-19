@@ -119,7 +119,7 @@ fn poll_once(source: &pns_adapters::GithubSource, launch: Launch) -> i32 {
     let polled =
         pns_adapters::GithubNotifications::new(source.token.clone()).poll(&stored.last_modified);
     report(&stored, &state, polled, now, launch, &mut |event| {
-        submitted(event, now)
+        submitted(event)
     })
 }
 
@@ -266,8 +266,8 @@ fn published(
 /// NO `class`, because GitHub is work rather than machine health: `priority`
 /// is a posture page, a failed unattended upgrade or a dead daemon, and a
 /// lint job is none of those.
-fn submitted(event: &GithubEvent, now: u64) {
-    if let Some(request) = request_for(event, now)
+fn submitted(event: &GithubEvent) {
+    if let Some(request) = request_for(event)
         && let Ok(encoded) = request.encode()
     {
         let _ = event_flow::submit_encoded(encoded.as_bytes());
@@ -280,24 +280,15 @@ fn submitted(event: &GithubEvent, now: u64) {
 /// SEPARATE FROM THE DISPATCH so what is submitted can be graded without
 /// anything being delivered: the tests over this reach the same value the
 /// ledger and the channel lookup do.
-fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
+fn request_for(event: &GithubEvent) -> Option<pns_protocol::Request> {
     let mut request = pns_protocol::Request::new(
         pns_protocol::RequestId::new(&event.identity).ok()?,
         pns_protocol::Name::new(pns_adapters::GITHUB).ok()?,
-        pns_protocol::Name::new(EVENT_NAME).ok()?,
         // EVERY POLLED EVENT IS AN OBSERVATION: it is GitHub telling pns
         // that something happened, not a turn waiting on the operator, so
         // it changes no workflow or marker state and arms no nag.
         pns_protocol::State::Observation,
     );
-    // AN INSTANT THE PARSE COULD NOT READ FALLS BACK TO NOW rather than to
-    // 1970, which every elapsed calculation downstream would read as work
-    // that ran for half a century.
-    request.occurred_at = Some(if event.occurred_at == 0 {
-        now
-    } else {
-        event.occurred_at
-    });
     request.detail = event.title.clone();
     // THE REPOSITORY IS THE PROJECT, full name and owner included, which is
     // the key `channel_for` tries first: one repository resolves to one
@@ -307,14 +298,6 @@ fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
     request.extensions = pns_adapters::github_extensions(event);
     Some(request)
 }
-
-/// The `event` name every polled submission carries.
-///
-/// ONE NAME RATHER THAN THE KIND'S, because `event` is documented as the
-/// source's own event name and is metadata: the kind is already in the
-/// extension, where the decode reads it, and spelling it twice is two places
-/// for it to disagree.
-const EVENT_NAME: &str = "notification";
 
 mod receive;
 
