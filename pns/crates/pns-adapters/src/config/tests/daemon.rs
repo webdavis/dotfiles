@@ -53,3 +53,47 @@ fn the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name() 
         other => panic!("expected Invalid, got {other:?}"),
     }
 }
+
+/// `[daemon] service`: the launchd label `pns gateway` acts on. NO DEFAULT,
+/// unlike `enabled` beside it: an absent key is `None`, which is what every
+/// gateway verb refuses on rather than a label pns guessed at.
+#[test]
+fn the_daemon_service_key_has_no_default_and_refuses_the_wrong_type_by_name() {
+    assert_eq!(
+        parse_config("").unwrap().daemon_service,
+        None,
+        "no table at all names no service"
+    );
+    assert_eq!(
+        parse_config("[daemon]\nenabled = true\n")
+            .unwrap()
+            .daemon_service,
+        None,
+        "a table that never mentions it still names none"
+    );
+    assert_eq!(
+        parse_config("[daemon]\nservice = \"com.example.pns-daemon\"\n")
+            .unwrap()
+            .daemon_service
+            .as_deref(),
+        Some("com.example.pns-daemon")
+    );
+    // BOTH KEYS TOGETHER, so one setting reading right does not depend on
+    // the other being absent.
+    assert_eq!(
+        parse_config("[daemon]\nenabled = false\nservice = \"com.example.pns-daemon\"\n")
+            .unwrap()
+            .daemon_service
+            .as_deref(),
+        Some("com.example.pns-daemon")
+    );
+
+    let err = parse_config("[daemon]\nservice = 5\n").unwrap_err();
+    match err {
+        ConfigError::Invalid(message) => assert!(
+            message.contains("daemon") && message.contains("service"),
+            "the offender is named: {message}"
+        ),
+        other => panic!("expected Invalid, got {other:?}"),
+    }
+}

@@ -53,9 +53,9 @@ fn recap_posts_unreadable_wall_clocks_as_placeholders() {
     ).unwrap();
     let output = run(sandbox.pns_stateful().args([
         "recap",
-        "--since",
+        "--since-epoch",
         &(i64::MAX - 1).to_string(),
-        "--until",
+        "--until-epoch",
         &i64::MAX.to_string(),
     ]));
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));

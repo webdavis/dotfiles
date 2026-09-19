@@ -58,6 +58,7 @@ mod command_daemon;
 mod command_doctor;
 mod command_enroll;
 mod command_failures;
+mod command_gateway;
 mod command_github;
 mod command_quiet_calendar;
 pub(crate) use command_github::github_mode;
@@ -105,6 +106,7 @@ pub(crate) use channel_settings::{
 pub(crate) use command_daemon::{DAEMON_USAGE, daemon_mode};
 pub(crate) use command_doctor::doctor_mode;
 pub(crate) use command_failures::failures_mode;
+pub(crate) use command_gateway::gateway_mode;
 pub(crate) use command_lights::lights_mode;
 pub(crate) use command_loop::loop_mode;
 pub(crate) use command_nag::nag_mode;

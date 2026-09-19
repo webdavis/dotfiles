@@ -11,4 +11,4 @@ pub mod page;
 
 pub use apply_log::Apply;
 pub use ledger::Ledger;
-pub use page::{Section, SectionBody, render};
+pub use page::{Line, Section, SectionBody, render};

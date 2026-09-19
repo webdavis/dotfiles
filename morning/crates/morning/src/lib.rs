@@ -7,6 +7,8 @@
 mod brief;
 
 use morning_adapters::Config;
+use morning_adapters::style::Paint;
+use std::io::IsTerminal;
 use std::path::Path;
 
 /// What one run produced.
@@ -16,15 +18,17 @@ pub struct Response {
     pub exit: u8,
 }
 
-const USAGE: &str = "usage: morning [--config <path>]\n\n\
+const USAGE: &str = "usage: morning [--config <path>] [--no-color]\n\n\
 Prints one page: the last apply, the applies the ledger owes, the open pull\n\
 requests, the newest overnight recap, the operator's own items and today's\n\
-tasks. It reads and prints; it changes nothing.\n";
+tasks. It reads and prints; it changes nothing.\n\n\
+--no-color forces a plain page, with no escape sequences, whatever the\n\
+destination is.\n";
 
 /// Runs morning. `config_path` is the default location; `--config` overrides it.
 pub fn run(args: &[String], config_path: &Path, home: &Path) -> Response {
-    let config_path = match parse_args(args, config_path) {
-        Ok(Some(path)) => path,
+    let (config_path, forced_plain) = match parse_args(args, config_path) {
+        Ok(Some(parsed)) => parsed,
         Ok(None) => return page(USAGE.to_string()),
         Err(message) => {
             return Response {
@@ -34,8 +38,9 @@ pub fn run(args: &[String], config_path: &Path, home: &Path) -> Response {
             };
         }
     };
+    let paint = Paint::decide(forced_plain, std::io::stdout().is_terminal());
     match Config::load(&config_path) {
-        Ok(config) => page(brief::compose(&config, home)),
+        Ok(config) => page(brief::compose(&config, home, paint)),
         Err(message) => Response {
             stdout: String::new(),
             stderr: format!("morning: {message}\n"),
@@ -52,14 +57,20 @@ fn page(stdout: String) -> Response {
     }
 }
 
-/// The config file to read, or `None` for the usage text. An unknown argument
-/// is an error rather than a silent fall-through to help.
-fn parse_args(args: &[String], default: &Path) -> Result<Option<std::path::PathBuf>, String> {
+/// The config file to read and whether `--no-color` was typed, or `None` for
+/// the usage text. An unknown argument is an error rather than a silent
+/// fall-through to help.
+fn parse_args(
+    args: &[String],
+    default: &Path,
+) -> Result<Option<(std::path::PathBuf, bool)>, String> {
     let mut chosen = default.to_path_buf();
+    let mut forced_plain = false;
     let mut arguments = args.iter();
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--help" | "-h" => return Ok(None),
+            "--no-color" => forced_plain = true,
             "--config" => match arguments.next() {
                 Some(path) => chosen = std::path::PathBuf::from(path),
                 None => return Err("--config needs a path".to_string()),
@@ -67,7 +78,7 @@ fn parse_args(args: &[String], default: &Path) -> Result<Option<std::path::PathB
             other => return Err(format!("unknown argument {other}")),
         }
     }
-    Ok(Some(chosen))
+    Ok(Some((chosen, forced_plain)))
 }
 
 #[cfg(test)]

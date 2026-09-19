@@ -12,6 +12,13 @@
 # because it is a secret. See `pns/crates/pns-adapters/src/config/render/layout.rs`
 # (`LAYOUT`) for the schema this is walked against.
 
+# The launchd label `pns gateway start|stop|restart|status` acts on: the same
+# one Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl and
+# run_onchange_after_70-load-pns-daemon-launchagent.sh.tmpl install the clock
+# under.
+[daemon]
+service = "com.webdavis.pns-daemon"
+
 [plugins.mobile]
 token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 

@@ -179,6 +179,13 @@ pub(crate) fn run() {
     if first == "daemon" {
         std::process::exit(daemon_mode(&second_argument(&flagless)));
     }
+    // The daemon's own launchd service: start, stop, restart and report the
+    // service `[daemon] service` names. A MODE beside the daemon's for the
+    // same reason: it takes no event and delivers nothing, and nothing on the
+    // event path reaches it.
+    if first == "gateway" {
+        std::process::exit(gateway_mode(&second_argument(&flagless)));
+    }
     // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
     // takes no decision and delivers nothing, and the daemon is what runs it.
     // It reaches the event path through nothing at all.
@@ -389,7 +396,7 @@ mod tests {
 
     #[test]
     fn a_word_that_merely_contains_the_flag_is_not_the_flag() {
-        let argv = strings(&["recap", "--since=--no-color"]);
+        let argv = strings(&["recap", "--since-epoch=--no-color"]);
         let (flagless, forced_plain) = take_tool_wide_flags(&argv);
         assert!(!forced_plain);
         assert_eq!(flagless, argv);

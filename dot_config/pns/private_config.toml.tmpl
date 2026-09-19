@@ -294,6 +294,12 @@ api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}
 # `pns doctor` says which state it is in.
 [daemon]
 enabled = true
+# The launchd label this machine's clock runs under, which `pns gateway
+# start|stop|restart|status` starts, stops, restarts and reports on. NO
+# DEFAULT: pns compiles in no label of its own, since it does not know what
+# your installation calls its own plist, and every gateway verb refuses
+# while this is unset.
+service = "com.webdavis.pns-daemon"
 
 # These request classes may pass your timed mute and named Focus for
 # banners and phone cards. Presence and delivery scope still decide
