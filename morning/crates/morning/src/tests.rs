@@ -46,22 +46,25 @@ fn a_full_page_carries_every_section_with_what_its_source_reported() {
     assert_eq!(response.exit, 0);
     assert_eq!(response.stderr, "");
     let page = response.stdout;
-    assert!(page.starts_with('╭'), "{page}");
+    assert!(page.starts_with("\nmorning\n"), "{page}");
     assert!(
-        page.contains("Last apply\n  OK at 2026-09-17T10:18:49Z\n"),
+        page.contains("◆ Last apply ──\n  OK at 2026-09-17T10:18:49Z\n"),
         "{page}"
     );
-    assert!(page.contains("Applies owed\n  12. Ship it;"), "{page}");
-    assert!(page.contains("Pull requests\n  #781 green\n"), "{page}");
+    assert!(page.contains("◆ Applies owed ──\n  12. Ship it;"), "{page}");
     assert!(
-        page.contains("Overnight recap\n  two PRs merged overnight\n"),
+        page.contains("◆ Pull requests ──\n  #781 green\n"),
         "{page}"
     );
     assert!(
-        page.contains("Operator's own items\n  12. Ship it;"),
+        page.contains("◆ Overnight recap ──\n  two PRs merged overnight\n"),
         "{page}"
     );
-    assert!(page.contains("Today\n  call the clinic\n"), "{page}");
+    assert!(
+        page.contains("◆ Operator's own items ──\n  12. Ship it;"),
+        "{page}"
+    );
+    assert!(page.contains("◆ Today ──\n  call the clinic\n"), "{page}");
 }
 
 #[test]
@@ -83,7 +86,7 @@ fn a_source_whose_command_fails_reports_the_failure_in_its_own_section() {
         "[tasks]\ncommand = [\"/bin/sh\", \"-c\", \"echo 'td: not installed' >&2; exit 3\"]\n";
     let page = run_with(config, &directory).stdout;
     assert!(
-        page.contains("Today\n  unavailable: it exited 3: td: not installed\n"),
+        page.contains("◆ Today ──\n  unavailable: it exited 3: td: not installed\n"),
         "{page}"
     );
 }
@@ -102,10 +105,28 @@ fn a_source_that_hangs_is_abandoned_and_the_rest_of_the_page_still_prints() {
         started.elapsed()
     );
     assert!(
-        page.contains("Pull requests\n  unavailable: no answer within 0.2 seconds"),
+        page.contains("◆ Pull requests ──\n  unavailable: no answer within 0.2 seconds"),
         "{page}"
     );
-    assert!(page.contains("Today\n  call the clinic\n"), "{page}");
+    assert!(page.contains("◆ Today ──\n  call the clinic\n"), "{page}");
+}
+
+#[test]
+fn no_color_is_a_known_flag_in_any_position() {
+    let directory = scratch("no-color");
+    let path = directory.join("config.toml");
+    std::fs::write(&path, "").unwrap();
+    for args in [
+        vec!["--no-color".to_string()],
+        vec![
+            "--config".to_string(),
+            path.display().to_string(),
+            "--no-color".to_string(),
+        ],
+    ] {
+        let response = run(&args, &path, Path::new("/nonexistent-home"));
+        assert_eq!(response.exit, 0, "{:?}: {}", args, response.stderr);
+    }
 }
 
 #[test]

@@ -1,11 +1,9 @@
-//! The page itself: one frame, then a block per section, then nothing.
+//! The page's shape: what to say, with no idea how it will look.
 //!
-//! The width is fixed rather than measured. A brief is read in a terminal, in
-//! a pane and in an agent transcript, and the same bytes in all three is worth
-//! more than filling a wide window.
-
-/// How wide the frame is drawn.
-const WIDTH: usize = 68;
+//! Every function here is pure data, text in, a shape out. Painting it, the
+//! colors, the rule, the measured width, lives entirely in
+//! `morning-adapters`'s style module, so this crate never emits an escape
+//! sequence and a narrow terminal never breaks anything the domain produced.
 
 /// One block of the page.
 pub struct Section {
@@ -38,58 +36,44 @@ impl Section {
     }
 }
 
-/// The whole page, ending in one newline.
+/// One line of the page's content, before any paint.
+pub enum Line {
+    /// The tool's name, at the top.
+    Header(String),
+    /// A section's title.
+    Heading(String),
+    /// One row of a section's content, not yet clipped to any width.
+    Row(String),
+    /// A section held back this many rows beyond what it printed.
+    More(usize),
+    /// A section reported nothing.
+    Nothing,
+    /// A section could not be read, and why.
+    Unavailable(String),
+}
+
+/// The whole page, as a shape rather than text.
 ///
 /// `rows` is what keeps this a PAGE. A ledger with seventy open operator items
 /// answers "where do I start today" worse than the first few do, so a section
-/// prints its first `rows` rows and then says how many it held back.
-pub fn render(heading: &str, sections: &[Section], rows: usize) -> String {
+/// keeps only its first `rows` rows and says how many it held back.
+pub fn render(heading: &str, sections: &[Section], rows: usize) -> Vec<Line> {
     let rows = rows.max(1);
-    let mut page = frame(heading);
+    let mut lines = vec![Line::Header(heading.to_string())];
     for section in sections {
-        page.push('\n');
-        page.push_str(&section.title);
-        page.push('\n');
+        lines.push(Line::Heading(section.title.clone()));
         match &section.body {
-            SectionBody::Lines(lines) if lines.is_empty() => page.push_str("  nothing\n"),
-            SectionBody::Lines(lines) => {
-                for line in lines.iter().take(rows) {
-                    page.push_str("  ");
-                    page.push_str(&clip(line, WIDTH - 2));
-                    page.push('\n');
-                }
-                if lines.len() > rows {
-                    page.push_str(&format!("  ... {} more\n", lines.len() - rows));
+            SectionBody::Lines(items) if items.is_empty() => lines.push(Line::Nothing),
+            SectionBody::Lines(items) => {
+                lines.extend(items.iter().take(rows).cloned().map(Line::Row));
+                if items.len() > rows {
+                    lines.push(Line::More(items.len() - rows));
                 }
             }
-            SectionBody::Unavailable(reason) => {
-                page.push_str("  unavailable: ");
-                page.push_str(reason);
-                page.push('\n');
-            }
+            SectionBody::Unavailable(reason) => lines.push(Line::Unavailable(reason.clone())),
         }
     }
-    page
-}
-
-/// A row cut to the page's width, so a ledger paragraph does not wrap into a
-/// block that hides the row under it.
-fn clip(line: &str, width: usize) -> String {
-    match line.chars().count() > width {
-        true => format!("{}...", line.chars().take(width - 3).collect::<String>()),
-        false => line.to_string(),
-    }
-}
-
-fn frame(heading: &str) -> String {
-    let inner = WIDTH - 2;
-    let text: String = heading.chars().take(inner - 2).collect();
-    let padding = inner - 2 - text.chars().count();
-    format!(
-        "╭{rule}╮\n│ {text}{space} │\n╰{rule}╯\n",
-        rule = "─".repeat(inner),
-        space = " ".repeat(padding)
-    )
+    lines
 }
 
 #[cfg(test)]
