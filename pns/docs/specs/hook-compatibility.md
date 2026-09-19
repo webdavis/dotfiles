@@ -1102,16 +1102,16 @@ ______________________________________________________________________
 
 ## Environment inputs this path reads
 
-| Variable                      | Read by                                    | Effect                                                                              |
-| ----------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `PNS_PRODUCER`                | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
-| `HERDR_PANE_ID`               | every delivering arm                       | the pane the card focuses on click, passed verbatim                                 |
-| `PNS_STATE_DIR`               | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
-| `PNS_PAYLOAD_DEADLINE_MS`     | `payload_deadline`                         | the standard-input wait; defaults to 5 s                                            |
-| `PNS_REPLY_REREAD_ATTEMPTS`   | `reread_attempts`                          | extra transcript reads; default 4, clamped to 10                                    |
-| `PNS_REPLY_REREAD_INTERVAL`   | `reread_interval`                          | seconds between reads; default 0.15, clamped to 5                                   |
-| `PNS_CONDENSER_DEADLINE_MS`   | `condense`                                 | the condenser bound; defaults to 30 s                                               |
-| `PNS_SUMMARIZING`             | `condense`                                 | the cheap re-entry guard                                                            |
+| Variable                          | Read by                                    | Effect                                                                              |
+| --------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `PNS_PRODUCER`                    | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
+| `HERDR_PANE_ID`                   | every delivering arm                       | the pane the card focuses on click, passed verbatim                                 |
+| `PNS_STATE_DIR`                   | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
+| `PNS_PAYLOAD_DEADLINE_MS`         | `payload_deadline`                         | the standard-input wait; defaults to 5 s                                            |
+| `PNS_REPLY_REREAD_ATTEMPTS`       | `reread_attempts`                          | extra transcript reads; default 4, clamped to 10                                    |
+| `PNS_REPLY_REREAD_INTERVAL`       | `reread_interval`                          | seconds between reads; default 0.15, clamped to 5                                   |
+| `PNS_CONDENSER_DEADLINE_MS`       | `condense`                                 | the condenser bound; defaults to 30 s                                               |
+| `PNS_SUMMARIZING`                 | `condense`                                 | the cheap re-entry guard                                                            |
 | `PNS_CODEX_BIN`, `PNS_CODEX_HOME` | `condense`, `condenser_home`               | the condenser binary and its private home                                           |
-| `PNS_PULSE_THRESHOLD_SECS`    | `pulse_threshold_secs`                     | the long-turn threshold; defaults to 300                                            |
-| `HOME`                        | `state_dir`, `condenser_home`, `run_event` | the configuration and state roots                                                   |
+| `PNS_PULSE_THRESHOLD_SECS`        | `pulse_threshold_secs`                     | the long-turn threshold; defaults to 300                                            |
+| `HOME`                            | `state_dir`, `condenser_home`, `run_event` | the configuration and state roots                                                   |
