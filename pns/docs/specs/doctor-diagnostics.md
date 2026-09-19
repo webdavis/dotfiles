@@ -50,7 +50,7 @@ The doctor writes NOTHING to its own state directory, appends NOTHING to the dec
 NOTHING (behavior 27). Everything above except items 6, 7 and 8 is observable by the operator as a
 notification or a lamp. **A test harness must never invoke `pns doctor` against a real configuration.**
 The suite's own pattern is `tests/dispatch.rs:doctor_command`, which points `PNS_STATE_DIR` into a
-sandbox and `MOSHI_HOOK_BIN` at a path that does not exist, and `tests/dispatch.rs:no_moshi_hook`, whose
+sandbox and `PNS_MOSHI_HOOK_BIN` at a path that does not exist, and `tests/dispatch.rs:no_moshi_hook`, whose
 doc comment states the reason in full: without it "the suite reads the developer's own machine".
 
 ## The checks
@@ -312,7 +312,7 @@ both phone overrides cannot reach it.
 
 - Success:
   `tests/dispatch.rs:the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrides`
-  plants a live mute in the state directory, sets `PNS_IDLE_SECS=0` (at the desk), `PNS_SKIP_PHONE=1` and
+  plants a live mute in the state directory, sets `PNS_SCREEN_IDLE=0` (at the desk), `PNS_SKIP_PHONE=1` and
   `PNS_FORCE_PHONE=1`, and asserts every one of `mobile`, `macos-banner` and `hermes` still fired, with
   exit 0.
 - Failure sources: none reachable. There is no code path from a gate to the doctor's leg list.
@@ -517,7 +517,7 @@ Then it makes exactly two bounded spawns, the local one first, and never calls `
   recorded argv is exactly `[["status", "--json"], ["status"]]` and that no argument anywhere was
   `probe`. The stub records argument boundaries with a unit separator precisely so a single argument
   `status --json` could not masquerade as the two real ones.
-- Failure sources: the binary is resolved through `MOSHI_HOOK_BIN`, falling back to
+- Failure sources: the binary is resolved through `PNS_MOSHI_HOOK_BIN`, falling back to
   `/opt/homebrew/bin/moshi-hook` (`src/main.rs:moshi_hook_bin`, `src/main.rs:DEFAULT_MOSHI_HOOK_BIN`). An
   absent binary, a hang, and a non-zero exit are indistinguishable to `src/system.rs:run_bounded`, which
   answers `None` for all three.

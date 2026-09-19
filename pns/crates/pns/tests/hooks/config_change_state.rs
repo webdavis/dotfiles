@@ -141,7 +141,7 @@ fn a_config_change_moves_no_presence_edge() {
     std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -162,7 +162,7 @@ fn a_config_change_moves_no_presence_edge() {
     );
 
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert_ne!(
         stored_records::present(&sandbox),
@@ -262,7 +262,7 @@ fn a_config_change_observation_replays_no_journal_entry() {
     std::fs::write(&journal, seeded).expect("the journal");
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -283,7 +283,7 @@ fn a_config_change_observation_replays_no_journal_entry() {
     );
 
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert!(
         stored_records::text(&sandbox, "journal").is_empty(),

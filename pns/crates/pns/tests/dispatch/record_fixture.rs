@@ -19,7 +19,7 @@ pub(super) fn acknowledged_banner(sandbox: &Sandbox) -> std::process::Command {
     // its own and every caller adds the rest of the send behind it.
     command
         .env_remove("PNS_CHANNELS_DIR")
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args(["send", "--scope", "local_only"]);
     sandbox.stub_notifier(&mut command);
     sandbox.stub_herdr(&mut command, false);

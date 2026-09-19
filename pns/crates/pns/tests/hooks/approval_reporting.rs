@@ -55,7 +55,7 @@ fn a_blocked_hook_cards_the_operator_as_blocked_and_says_what_was_asked() {
     let sandbox = Sandbox::new("hook-blocked-card");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("HERDR_PANE_ID", "wY:p4");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(

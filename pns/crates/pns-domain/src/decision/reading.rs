@@ -32,7 +32,7 @@ pub fn surface_reading(
     // caller stated, never took, or could not take leaves the lock a spawn
     // for an answer nothing can use, and the blocked path an approval waits
     // on pays that deadline serially. Nothing in this repo sets
-    // `PNS_IDLE_SECS` in production (measured repo-wide 2026-08-28); a future
+    // `PNS_SCREEN_IDLE` in production (measured repo-wide 2026-08-28); a future
     // setter would silently disable the override with it.
     let (desk_input_age, screen_locked) = if overrides.reads_desk() {
         let idle = snapshot.idle;

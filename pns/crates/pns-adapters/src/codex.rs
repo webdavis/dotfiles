@@ -18,7 +18,7 @@ pub fn condense(reply: &str) -> (String, String) {
     else {
         return fallback();
     };
-    let codex = std::env::var("CODEX_BIN").unwrap_or_else(|_| "codex".to_string());
+    let codex = std::env::var("PNS_CODEX_BIN").unwrap_or_else(|_| "codex".to_string());
     let mut command = Command::new(&codex);
     command
         .args(["exec", "--ephemeral", "--skip-git-repo-check", "-C"])

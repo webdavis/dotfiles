@@ -16,14 +16,14 @@ impl Sandbox {
         let mut command = self.bare();
         command
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
-            .env("PNS_IDLE_SECS", "99999")
+            .env("PNS_SCREEN_IDLE", "99999")
             // The phone's clock is read by walking the DEVELOPER'S OWN live
             // mosh sessions, so the suite states it instead: untouched for a
             // day. A test about the phone overrides this with its own age.
             .env("PNS_PHONE_INPUT_AGE", "99999")
             // No live condenser: a Stop hook spawns one for real, and the
             // suite must never reach the operator's own Codex.
-            .env("CODEX_BIN", "/nonexistent/codex");
+            .env("PNS_CODEX_BIN", "/nonexistent/codex");
         command
     }
 
@@ -48,7 +48,7 @@ impl Sandbox {
         // the daemon suite. A default here makes that structural rather than
         // remembered, and every test that wants a stub still overrides it,
         // because this is set before the caller's own `env` calls.
-        command.env("MOSHI_HOOK_BIN", self.root.join("no-moshi-hook-here"));
+        command.env("PNS_MOSHI_HOOK_BIN", self.root.join("no-moshi-hook-here"));
         // PATH survives because the binary resolves herdr and terminal-notifier
         // through it, and a test that stubs either one prepends to this.
         if let Some(path) = std::env::var_os("PATH") {

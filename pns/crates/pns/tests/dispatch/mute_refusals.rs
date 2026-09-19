@@ -18,7 +18,7 @@ fn a_state_file_that_cannot_be_read_delivers_everything_and_complains_once_per_e
     // At the desk with the pane out of sight and the card forced, the same
     // both-decorations row the corrupt-file pin uses, so a mute reading true
     // here would be unmissable.
-    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_SCREEN_IDLE", "0");
     event.env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event

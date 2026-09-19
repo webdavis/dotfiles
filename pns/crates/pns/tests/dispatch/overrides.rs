@@ -7,7 +7,7 @@ fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
     let sandbox = Sandbox::new("local-only");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args([
             "send",
             "--producer",
@@ -65,7 +65,7 @@ fn hermes_is_sync_on_the_log_path_which_is_what_makes_an_undelivered_entry_visib
 #[test]
 fn at_the_desk_the_phone_is_skipped_and_only_the_phone() {
     let sandbox = Sandbox::new("at-the-desk");
-    run(sandbox.pns().env("PNS_IDLE_SECS", "0").args([
+    run(sandbox.pns().env("PNS_SCREEN_IDLE", "0").args([
         "send",
         "--producer",
         "claude",
@@ -87,7 +87,7 @@ fn relay_skip_phone_drops_the_phone_and_only_the_phone() {
     let sandbox = Sandbox::new("skip-phone");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_SKIP_PHONE", "1")
         .args([
             "send",
@@ -110,7 +110,7 @@ fn relay_skip_phone_beats_relay_force_phone() {
     let sandbox = Sandbox::new("skip-beats-force");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_SKIP_PHONE", "1")
         .env("PNS_FORCE_PHONE", "1")
         .args([
@@ -130,7 +130,7 @@ fn relay_force_phone_overrides_presence() {
     let sandbox = Sandbox::new("force-phone");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_FORCE_PHONE", "1")
         .args([
             "send",
@@ -150,7 +150,7 @@ fn relay_force_phone_overrides_presence() {
 fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
     let sandbox = Sandbox::new("channel-fails");
     sandbox.stub_channel("mobile", "exit 9");
-    run(sandbox.pns().env("PNS_IDLE_SECS", "0").args([
+    run(sandbox.pns().env("PNS_SCREEN_IDLE", "0").args([
         "send",
         "--producer",
         "claude",
@@ -167,7 +167,7 @@ fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
 fn an_absent_channel_is_simply_not_installed() {
     let sandbox = Sandbox::new("absent-channel");
     std::fs::remove_file(sandbox.root.join("channels/hermes.sh")).expect("remove the channel");
-    let output = run(sandbox.pns().env("PNS_IDLE_SECS", "0").args([
+    let output = run(sandbox.pns().env("PNS_SCREEN_IDLE", "0").args([
         "send",
         "--producer",
         "claude",

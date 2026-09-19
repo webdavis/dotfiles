@@ -101,7 +101,7 @@ pub(super) const STUDIO_MAP: &str = "[lights]\nrefresh_secs = 20\n\
 /// One event against a spy bridge: whether the bridge was dialled, and whether
 /// the two network legs fired.
 ///
-/// `MOSHI_HOOK_BIN` POINTS NOWHERE, in every case, without exception. The
+/// `PNS_MOSHI_HOOK_BIN` POINTS NOWHERE, in every case, without exception. The
 /// operator's own moshi daemon is a real program on this machine and no test
 /// may reach it; the sandbox's channel stubs cover the leg, and this covers the
 /// native path that resolves the binary by name.
@@ -142,9 +142,9 @@ pub(super) fn lamp_run(
     }
     let mut command = sandbox.pns();
     command.env("TZ", "UTC");
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     command.env(
-        "PNS_IDLE_SECS",
+        "PNS_SCREEN_IDLE",
         match presence {
             Presence::Away => "99999",
             Presence::Desk => "0",
@@ -216,7 +216,7 @@ pub(super) fn lamp_submit(name: &str, config: &str, request: &str) -> (bool, Opt
     ));
     let mut command = sandbox.pns();
     command.env("TZ", "UTC");
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     let mut child = command
         .args(["send", "--json"])
         .stdin(std::process::Stdio::piped())

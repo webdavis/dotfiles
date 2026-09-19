@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-/// The idle threshold the bash defaults to when `PNS_DESK_IDLE_SECS` says
+/// The idle threshold the bash defaults to when `PNS_DESK_IDLE` says
 /// nothing: past this the operator counts as away from the desk.
 pub const DEFAULT_DESK_IDLE_SECS: u64 = 120;
 
@@ -85,8 +85,8 @@ impl Overrides {
             }
         };
         let set = |key: &str| vars.get(key).is_some_and(|raw| !raw.is_empty());
-        let (idle_secs, idle_invalid) = read("PNS_IDLE_SECS");
-        let (desk_idle_secs, desk_invalid) = read("PNS_DESK_IDLE_SECS");
+        let (idle_secs, idle_invalid) = read("PNS_SCREEN_IDLE");
+        let (desk_idle_secs, desk_invalid) = read("PNS_DESK_IDLE");
         let (phone_input_age, phone_invalid) = read("PNS_PHONE_INPUT_AGE");
         Self {
             idle_secs,
