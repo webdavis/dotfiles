@@ -182,14 +182,14 @@ Then `src/channels/hue.rs:HuePulse::run` fetches the `room` listing, maps each w
 - Timeout and cancellation: `BRIDGE_DEADLINE`, 10 seconds per call.
 - Idempotency and duplicates: independent per fixture; one refused write does not cost another its
   signal.
-- Privacy: room names come from the config or from `HUE_PULSE_ROOMS`; no event text is sent.
+- Privacy: room names come from the config; no event text is sent.
 - Process ownership and cleanup: the bridge owns the whole effect and puts the lamp back byte for byte
   when the signal ends. Measured on a real lamp on 2026-09-01, with the lamp on and again with it off
   (`src/channels/hue.rs`, module doc). Nothing here snapshots or restores.
 - Compatibility contract: `src/channels/hue.rs:DEFAULT_ROOMS` = `["3F - Studio", "2F - Kitchen"]` when
-  neither `HUE_PULSE_ROOMS` nor a settings `rooms` array names any. The environment override wins and
-  splits on newlines, because room names carry spaces
-  (`src/channels/hue.rs:the_environment_override_wins_and_splits_on_newlines`).
+  the settings `rooms` array names none. `HUE_PULSE_ROOMS` is gone;
+  `[plugins.hue] rooms` is the only source now
+  (`src/channels/hue.rs:hue_pulse_rooms_no_longer_selects_the_rooms_the_config_array_does`).
 
 ### 4. A machine with a map pulses per lamp, and skips muted and held lamps
 

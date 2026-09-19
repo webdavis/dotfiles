@@ -55,7 +55,6 @@ pub(crate) fn render(result: &TapResult) -> Vec<String> {
         if let Some(marker) = &result.marker {
             lines.push(row(&format!("Marker: {:?}", marker.path)));
             let source = match marker.source.as_str() {
-                "environment" => "PNS_PHONE_MARKER_FILE",
                 "config" => "[phone] marker_file",
                 _ => "shipped default",
             };

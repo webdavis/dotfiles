@@ -427,7 +427,7 @@ Then it asks `src/main.rs:hue_resolves` FIRST, and only dials when the settings 
   operator hunting through a bridge nothing contacted".
 - Thresholds: `Signalled(0)` is graded a FAILURE by `src/doctor.rs:verdict`; `Signalled(1)` and above are
   `Sent`. One room either side of zero is the whole distinction. The pulse addresses rooms from
-  `[plugins.hue] rooms`, or `HUE_PULSE_ROOMS` when that environment variable is set and non-empty.
+  `[plugins.hue] rooms`, the only source.
 - Required side effects: **the lamps flash.** `Behaviour::Done` is sent as an `on_off_color` signal for
   `src/channels/hue.rs:UNMAPPED_SIGNAL_DURATION_MS`, 3000 milliseconds, with no brightness stated.
 - Forbidden side effects: no brightness is written on this path, so the lamp comes back byte-identical

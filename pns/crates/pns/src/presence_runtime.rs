@@ -4,16 +4,15 @@ pub(crate) fn phone_tap_status() -> pns_domain::doctor::Item {
     use pns_adapters::{MarkerReading, phone_marker_path, read_phone_marker};
     use pns_domain::doctor::{Item, Mark};
     let home = std::env::var("HOME").unwrap_or_default();
-    let resolved =
-        match phone_marker_path(&home, std::env::var_os("PNS_PHONE_MARKER_FILE").as_deref()) {
-            Ok(resolved) => resolved,
-            Err(error) => {
-                return Item::row(
-                    Mark::Warn,
-                    format!("phone tap: unknown ({}); run `pns tap info`", error.code),
-                );
-            }
-        };
+    let resolved = match phone_marker_path(&home) {
+        Ok(resolved) => resolved,
+        Err(error) => {
+            return Item::row(
+                Mark::Warn,
+                format!("phone tap: unknown ({}); run `pns tap info`", error.code),
+            );
+        }
+    };
     let metadata = read_phone_marker(&resolved.path);
     let overrides = overrides_from_env();
     let window = (!overrides.desk_invalid).then_some(
@@ -52,12 +51,9 @@ pub(crate) fn phone_tap_status() -> pns_domain::doctor::Item {
 /// consumer: see `SystemProbes`.
 pub(crate) fn system_probes() -> SystemProbes<SystemCommandRunner> {
     let home = std::env::var("HOME").unwrap_or_default();
-    let marker = pns_adapters::phone_marker_path(
-        &home,
-        std::env::var_os("PNS_PHONE_MARKER_FILE").as_deref(),
-    )
-    .ok()
-    .map(|resolved| resolved.path);
+    let marker = pns_adapters::phone_marker_path(&home)
+        .ok()
+        .map(|resolved| resolved.path);
     SystemProbes::new(SystemCommandRunner, String::new())
         .with_phone_marker(marker)
         // OFF `state_dir`, which is where the daemon publishes it and which

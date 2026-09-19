@@ -143,7 +143,7 @@ already is the question.
   that deadline serially" (`src/engine.rs:surface_reading`).
 - Idempotency and duplicates: one reading per invocation.
 - Privacy: the phone marker path is `$HOME/.local/state/pns/phone-attention.marker` unless
-  `PNS_PHONE_MARKER_FILE` overrides it (`src/main.rs:system_probes`). Only file times are read, never
+  `[phone] marker_file` overrides it (`src/main.rs:system_probes`). Only file times are read, never
   content.
 - Process ownership and cleanup: Not applicable, the presence check spawns no child of its own.
 - Compatibility contract: none, this is pns's own policy.
@@ -288,10 +288,7 @@ killing and reaping the child on expiry.
   performed. All three return 0.
 - Fail direction: fail-open, and precisely: exit 0 is NO OPINION and never a decision. The harness draws
   the prompt and the operator answers at the pane. Nothing pns does on this path can deny a tool call.
-- Thresholds: the deadline is `src/main.rs:submit_deadline`, resolved in three steps.
-  1. `PNS_MOSHI_SUBMIT_DEADLINE_MS`, in milliseconds, the test hatch. A LITERAL ZERO here is filtered out
-     and falls through to the config exactly as an unset variable would, because a zero is not a bound,
-     it is this wait switched off by accident.
+- Thresholds: the deadline is `src/main.rs:submit_deadline`, resolved in two steps.
   1. `[plugins.mobile] submit_deadline_secs`, read off the ARMED mobile table only, meaning the table is
      present, `enabled` is true, and `type = "moshi"` (`src/config.rs:armed_mobile`,
      `src/config.rs:submit_deadline`).
@@ -300,10 +297,10 @@ killing and reaping the child on expiry.
      name with the message "`mobile` key `submit_deadline_secs` is 0, which is the bound switched off by
      accident: a deadline that expires before the daemon can answer costs the phone card on every
      approval". `submit_deadline_secs = 3600` is accepted and `3601` is refused against
-     `src/config.rs:MAX_SUBMIT_DEADLINE_SECS`. A refusal is LOUD:
-     `src/main.rs:configured_submit_deadline` prints "pns: config error ({detail}); the moshi submission
-     keeps its {n}-second bound" to stderr and takes the 5 second default, because an operator who asked
-     for something, did not get it and was told nothing is the defect one level down. The poll interval
+     `src/config.rs:MAX_SUBMIT_DEADLINE_SECS`. A refusal is LOUD: `src/main.rs:submit_deadline` prints
+     "pns: config error ({detail}); the moshi submission keeps its {n}-second bound" to stderr and takes
+     the 5 second default, because an operator who asked for something, did not get it and was told
+     nothing is the defect one level down. The poll interval
      is `src/main.rs:SUBMISSION_POLL_INTERVAL`, 10 milliseconds, short enough to add no latency an
      operator could notice on a submission answered in roughly 150 milliseconds, long enough not to spin
      a core.
