@@ -19,6 +19,40 @@
 [daemon]
 service = "com.webdavis.pns-daemon"
 
+# The three classes this machine serves, which is the whole statement of
+# which words a producer may send: pns compiles in none, and a class no table
+# here defines is refused rather than delivered somewhere unintended.
+#
+# `default` is the rule for a message naming no class, which is every harness
+# hook and the shell notifier: the routine route, and the mute respected.
+[delivery_class.default]
+note = """
+The rule for a message naming no class, which is every harness hook and the
+shell notifier."""
+route = ""
+bypass_mute = false
+
+# uu sends this on its weekly upgrade run, and pns's own stale-block
+# escalation carries it. `priority` is the same route [routes] urgent names,
+# and it is taken only while somebody is waiting on the event, so an upgrade
+# that went fine stays on the routine route.
+[delivery_class.health]
+note = """
+uu sends this on its weekly upgrade run, and pns's own stale-block escalation
+carries it."""
+route = "priority"
+bypass_mute = false
+
+# posture sends this on a security finding. It names its own route
+# (posture-pages), so this table adds the one thing posture cannot: a finding
+# crosses a timed mute and a named Focus mode.
+[delivery_class.security]
+note = """
+posture sends this on a security finding. It names its own route, so this
+table adds the one thing posture cannot: crossing a mute."""
+route = ""
+bypass_mute = true
+
 [plugins.mobile]
 token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 

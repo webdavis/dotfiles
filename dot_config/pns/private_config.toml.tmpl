@@ -303,13 +303,9 @@ enabled = true
 # while this is unset.
 service = "com.webdavis.pns-daemon"
 
-# These request classes may pass your timed mute and named Focus for
-# banners and phone cards. Presence and delivery scope still decide
-# which surface receives them; muted lights stay off and hermes is
-# unchanged. Names match exactly. An empty list allows no bypass.
-# Exhausted delivery retries remain available for operator review.
+# How a delivery that did not land is retried. Exhausted delivery
+# retries remain available for operator review.
 [delivery]
-bypass_silence_classes = ["security"]
 # Retry claims after the initial send, including interrupted retries. Zero permits no retries.
 max_attempts = 20
 # Stop retrying only after this original age is exceeded. Zero and future epochs do not expire.
@@ -318,6 +314,36 @@ max_age_secs = 604800
 # exact: there is no random spread, because one local daemon draining one queue
 # has no herd to spread.
 retry_base_secs = 60
+
+# What each delivery class DOES, one table per class, named by the word
+# a producer sends as `--delivery-class` or JSON `delivery_class`.
+# `route` is where a message of that class goes when its producer
+# named no route of its own, and it is taken only while somebody is
+# waiting on the event, so a weekly upgrade that went fine stays on
+# the routine route; empty is the routine route at every state.
+# `bypass_mute` lets it pass your timed mute and named Focus modes
+# for banners and phone cards, and presence and delivery scope still
+# decide which surface receives it; muted lights stay off and hermes
+# is unchanged. A message naming NO class reads [delivery_class.default],
+# and a class no table here defines is refused rather than delivered
+# somewhere you did not intend.
+# The rule for a message naming no class, which is every harness hook and the
+# shell notifier.
+[delivery_class.default]
+route = ""
+bypass_mute = false
+
+# uu sends this on its weekly upgrade run, and pns's own stale-block escalation
+# carries it.
+[delivery_class.health]
+route = "priority"
+bypass_mute = false
+
+# posture sends this on a security finding. It names its own route, so this
+# table adds the one thing posture cannot: crossing a mute.
+[delivery_class.security]
+route = ""
+bypass_mute = true
 
 # The return recap: what you missed while you were away. THE UNCOMMENTED
 # LINES ARE THE DEFAULTS, written out so they can be seen; each switch
