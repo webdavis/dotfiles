@@ -33,19 +33,19 @@ than a delivery.
 
 ## What posture puts in a request
 
-| Field         | posture's value                                                    |
-| ------------- | ------------------------------------------------------------------ |
-| `request_id`  | `posture-<32 hex>`, derived from the finding's own occurrence seed |
-| `producer`    | `posture`                                                          |
-| `event`       | the source event, such as `alert` or `heartbeat`                   |
-| `state`       | `blocked` for a page, `observation` otherwise                      |
-| `occurred_at` | when the finding happened, where that is known                     |
-| `detail`      | the title, a newline, then the body                                |
-| `route`       | the route the page's own tier names (see below)                    |
-| `class`       | `security`, on a page and never on an observation                  |
+| Field        | posture's value                                                    |
+| ------------ | ------------------------------------------------------------------ |
+| `request_id` | `posture-<32 hex>`, derived from the finding's own occurrence seed |
+| `producer`   | `posture`                                                          |
+| `state`      | `blocked` for a page, `observation` otherwise                      |
+| `detail`     | the title, a newline, then the body                                |
+| `route`      | the route the page's own tier names (see below)                    |
+| `class`      | `security`, on a page and never on an observation                  |
 
-Nothing else is set. A repeat submission of the same finding carries the ORIGINAL `request_id`, which is
-what makes a retry idempotent for an engine that keys on it.
+Nothing else is set. The finding's own event name and time still exist inside posture, feeding the
+request-id seed and the hermes body, but they are no longer fields on the request itself. A repeat
+submission of the same finding carries the ORIGINAL `request_id`, which is what makes a retry idempotent
+for an engine that keys on it.
 
 ## What posture requires of a result
 
