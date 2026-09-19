@@ -239,10 +239,10 @@ where
                     }
                 }
             }
-            // ITS OWN ARM, like `--delivery-class` and `--elapsed` above, rather than the
-            // generic value flag below: a missing value refuses the same way an
-            // out-of-set word does, instead of warning and delivering an event
-            // with no state at all.
+            // ITS OWN ARM, like `--delivery-class` and `--elapsed` above,
+            // rather than the generic value flag below: a missing value refuses
+            // the same way an out-of-set word does, instead of warning and
+            // delivering an event with no state at all.
             "--state" => {
                 let value = tokens.next_if(|next| !is_producer_flag(next));
                 if State::from_word(value.as_deref().unwrap_or_default()).is_none() {
