@@ -6,7 +6,6 @@ fn normalized_state_scope_and_elapsed_choose_policy_without_using_source_event_n
     let mut request = Request::new(
         RequestId::new("id").unwrap(),
         Name::new("source").unwrap(),
-        Name::new("failed").unwrap(),
         State::Done,
     );
     request.project = Some("project".into());
@@ -75,7 +74,6 @@ fn a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_sessi
     let mut request = Request::new(
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
-        Name::new("lane-failed").unwrap(),
         State::Failed,
     );
     for (stated, kind) in [
@@ -110,7 +108,6 @@ fn a_route_the_producer_named_still_outranks_the_kind_it_stated() {
     let mut request = Request::new(
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
-        Name::new("lane-failed").unwrap(),
         State::Failed,
     );
     request.kind = Some(pns_protocol::Kind::Health);

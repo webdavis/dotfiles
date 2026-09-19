@@ -3,7 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::time::{Duration, Instant};
 
 /// Exactly what the producer must be handed.
-const EXPECTED_ARGV: &str = "send\n--producer\nshell\n--state\ndone\n--project\nproject\n--detail\ncargo (300s)\n--pane\nt1:p2\n--long-running\n";
+const EXPECTED_ARGV: &str = "send\n--producer\nshell\n--state\ndone\n--project\nproject\n--detail\ncargo\n--pane\nt1:p2\n--elapsed\n300s\n";
 
 /// How long the fixture waits for anything.
 ///
@@ -47,7 +47,7 @@ printf done >'{0}/done'
     std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
     let event =
         pns_domain::shell_event("cargo build", 0, 300, "project".into(), "t1:p2".into()).unwrap();
-    spawn(binary, &event).unwrap();
+    spawn(binary, &event, 300).unwrap();
     let deadline = Instant::now() + PATIENT;
     // WAIT FOR THE CONTENT, not for the name. A redirection creates the file
     // before it writes, so an existence test returned an empty or half-written

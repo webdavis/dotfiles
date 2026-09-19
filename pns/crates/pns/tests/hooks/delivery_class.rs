@@ -6,7 +6,6 @@ fn input(class: Option<&str>) -> String {
     let mut request = Request::new(
         RequestId::new("class-case").unwrap(),
         Name::new("independent-tool").unwrap(),
-        Name::new("page").unwrap(),
         State::Blocked,
     );
     request.detail = "same private detail".into();

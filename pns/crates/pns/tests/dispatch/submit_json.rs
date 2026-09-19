@@ -7,7 +7,6 @@ fn request() -> Request {
     let mut request = Request::new(
         RequestId::new("source-123").unwrap(),
         Name::new("posture").unwrap(),
-        Name::new("failed").unwrap(),
         State::Observation,
     );
     request.detail = "original detail".into();
@@ -15,9 +14,7 @@ fn request() -> Request {
     request.branch = Some("original branch".into());
     request.route = Some(Name::new("priority").unwrap());
     request.session = Some(Name::new("original-session").unwrap());
-    request.occurred_at = Some(123);
     request.elapsed = Some(std::time::Duration::from_secs(3));
-    request.interaction = pns_protocol::Interaction::AwaitDecision;
     request
         .extensions
         .insert("source_data".into(), serde_json::json!({"unchanged": true}));
@@ -92,10 +89,9 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
             .iter()
             .any(|code| code == "ledger_committed")
     );
-    assert_eq!(
-        accepted.interaction,
-        Some(pns_protocol::InteractionResult::NoOpinion)
-    );
+    // The request carries no `interaction` field any more, so the result
+    // never has an opinion to report.
+    assert_eq!(accepted.interaction, None);
     assert!(stderr(&first).contains("child output"));
     let delivered: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(sandbox.path("received")).unwrap()).unwrap();

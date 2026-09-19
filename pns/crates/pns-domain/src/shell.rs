@@ -1,4 +1,4 @@
-use crate::{EventArgs, elapsed_event};
+use crate::EventArgs;
 
 pub fn shell_is_interactive(command: &str) -> bool {
     [
@@ -13,6 +13,13 @@ pub fn shell_is_interactive(command: &str) -> bool {
     })
 }
 
+/// The event a finished shell command notifies as, when it ran long enough to
+/// earn one, or `None` for a command under thirty seconds.
+///
+/// THE TIER ISN'T DECIDED HERE. This crosses a process boundary to a spawned
+/// `pns send`, which re-derives `long_running` from `--elapsed` the same way
+/// every other producer does, so the raw `elapsed` seconds travel alongside
+/// this event rather than a precomputed boolean.
 pub fn shell_event(
     command: &str,
     exit_code: u8,
@@ -20,30 +27,25 @@ pub fn shell_event(
     project: String,
     pane: String,
 ) -> Option<EventArgs> {
-    if shell_is_interactive(command) {
+    if shell_is_interactive(command) || elapsed < 30 {
         return None;
     }
     // Bash's old ${name%% *} names the command, never its arguments. Preserve
     // that literal-space boundary rather than interpreting a shell program.
     let name = command.split(' ').next().unwrap_or_default();
-    let mut event = elapsed_event(
-        EventArgs {
-            agent: "shell".into(),
-            state: if exit_code == 0 { "done" } else { "failed" }.into(),
-            project,
-            pane,
-            detail: name.into(),
-            ..EventArgs::default()
-        },
-        elapsed,
-    )?;
-    // A blank first-command history still has the same parenthesized detail.
-    event.detail = if exit_code == 0 {
-        format!("{name} ({elapsed}s)")
+    let detail = if exit_code == 0 {
+        name.to_string()
     } else {
-        format!("{name} ({elapsed}s, exit {exit_code})")
+        format!("{name}, exit {exit_code}")
     };
-    Some(event)
+    Some(EventArgs {
+        agent: "shell".into(),
+        state: if exit_code == 0 { "done" } else { "failed" }.into(),
+        project,
+        pane,
+        detail,
+        ..EventArgs::default()
+    })
 }
 
 #[cfg(test)]

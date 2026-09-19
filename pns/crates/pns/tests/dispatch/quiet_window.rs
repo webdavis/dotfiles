@@ -46,7 +46,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
                 "--detail",
                 "x",
             ])
-            .args(["--pane", "t1:p2", "--long-running"])
+            .args(["--pane", "t1:p2", "--elapsed", "300s"])
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -111,7 +111,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
             "--detail",
             "x",
         ])
-        .args(["--pane", "t1:p2", "--long-running"]));
+        .args(["--pane", "t1:p2", "--elapsed", "300s"]));
     assert!(
         sandbox.fired("mobile") && sandbox.fired("hermes"),
         "every other leg still dispatches inside the window"
@@ -164,7 +164,7 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
             "--detail",
             "x",
         ])
-        .args(["--pane", "t1:p2", "--long-running"]));
+        .args(["--pane", "t1:p2", "--elapsed", "300s"]));
     let said = stderr(&pulsing);
     assert_eq!(
         said.matches("hue.quiet_hours").count(),
@@ -235,7 +235,7 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
             "--detail",
             "x",
         ])
-        .args(["--pane", "t1:p2", "--long-running"]));
+        .args(["--pane", "t1:p2", "--elapsed", "300s"]));
     assert!(
         !dialled_within(&listener, std::time::Duration::ZERO),
         "the child is inside a window written in ITS zone, so the room stays dark"
@@ -260,7 +260,7 @@ fn the_window_is_read_in_the_zone_the_child_was_given() {
             "--detail",
             "x",
         ])
-        .args(["--pane", "t1:p2", "--long-running"])
+        .args(["--pane", "t1:p2", "--elapsed", "300s"])
         .spawn()
         .expect("the engine starts");
     assert!(

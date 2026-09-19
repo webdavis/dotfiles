@@ -36,10 +36,10 @@ const VALUE_FLAGS: [&str; 12] = [
 ];
 
 /// Every flag that takes no value. It is a LIST rather than a chain of
-/// comparisons because the chain is what went stale: `--long-running` was
-/// handled below and never added here, so a value flag in front of it ate it as
-/// its value and the tier vanished without a warning.
-const BARE_FLAGS: [&str; 2] = ["--long-running", "--require-delivery"];
+/// comparisons because the chain is what went stale before: a bare flag
+/// handled elsewhere and never added here let a value flag in front of it eat
+/// it as its value and the signal vanished without a warning.
+const BARE_FLAGS: [&str; 1] = ["--require-delivery"];
 
 /// Every flag pns used to take, paired with the one that replaced it and by
 /// whether it took a value. A retired flag is REFUSED and the refusal names its
@@ -48,11 +48,12 @@ const BARE_FLAGS: [&str; 2] = ["--long-running", "--require-delivery"];
 /// that took a value consumes it too, so `--channel priority` does not leave
 /// `priority` behind as a stray word; a bare one consumes nothing, so
 /// `--local-only --help` still prints the usage it asked for.
-const RETIRED_FLAGS: [(&str, &str, bool); 4] = [
+const RETIRED_FLAGS: [(&str, &str, bool); 5] = [
     ("--agent", "--producer", true),
     ("--channel", "--route", true),
     ("--local-only", "--scope", false),
     ("--remote-only", "--scope", false),
+    ("--long-running", "--elapsed", false),
 ];
 
 /// Whether a token is a producer flag. A retired flag counts, so a flag whose
@@ -162,7 +163,6 @@ where
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
-            "--long-running" => parsed.long_running = true,
             "--require-delivery" => require_delivery = true,
             // HELP IN FLAG POSITION WINS: this arm only ever sees a token
             // that reached the top of the loop unconsumed, so `--state
@@ -277,9 +277,6 @@ where
                 }
             }
         }
-    }
-    if elapsed != Ok(None) && parsed.long_running {
-        elapsed = Err("--elapsed cannot be combined with --long-running".to_owned());
     }
     ParsedArgs {
         help,
