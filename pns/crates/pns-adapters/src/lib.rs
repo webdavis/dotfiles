@@ -23,6 +23,8 @@ mod calendar;
 pub use calendar::{read_calendar, read_calendar_state, write_calendar_state};
 
 mod github;
+mod install;
+pub use install::{InstallSettings, install_settings, install_settings_of};
 mod phone_marker;
 mod tap_install;
 pub use config::DaemonConfig;
@@ -130,8 +132,8 @@ pub use destinations::banner::{
 };
 
 pub use destinations::hermes::{
-    DEFAULT_HERMES_URL, HermesChannel, channel_url, hermes_body, probe_route, probe_routes,
-    remote_deadline,
+    DEFAULT_HERMES_URL, DEFAULT_REMOTE_DEADLINE_SECS, HermesChannel, channel_url, hermes_body,
+    probe_route, probe_routes, remote_deadline,
 };
 
 pub use destinations::discord::{

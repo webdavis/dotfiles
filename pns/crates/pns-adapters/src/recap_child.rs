@@ -1,4 +1,3 @@
-use crate::remote_deadline;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 
@@ -58,13 +57,6 @@ pub fn spawn_recap(since: u64, until: u64) -> Option<std::process::ChildStdin> {
         // A NEW GROUP, WITH ITS OWN ID, which is what `setpgid(0, 0)` in the
         // forked child does and what the doc above promises.
         .process_group(0);
-    // AN UNBOUNDED DEADLINE IS A TERMINAL'S CHOICE, NEVER A BACKGROUND
-    // CHILD'S. `PNS_REMOTE_TIMEOUT=0` is curl's `-m 0`, no deadline at all,
-    // which nobody is behind to interrupt here: a wedged gateway would keep
-    // this process alive for good, and every later window would add another.
-    if remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()).is_none() {
-        child.env("PNS_REMOTE_TIMEOUT", RECAP_DEADLINE_SECS.to_string());
-    }
     child.spawn().ok()?.stdin.take()
 }
 
@@ -90,9 +82,9 @@ pub fn hand_recap_card(
 /// says there is none. NEVER in the usage text: the event path passes it and an
 /// operator running a recap by hand has no card to hand over.
 pub const CARD_ON_STDIN: &str = "--card-on-stdin";
-/// The deadline a detached recap falls back to when the environment asked for
-/// none. Generous, because nobody is waiting on this process; finite, because
-/// nobody is watching it either.
+/// How long a detached recap may live. Generous, because nobody is waiting on
+/// this process; finite, because nobody is watching it either, and it holds
+/// whatever `[delivery] remote_deadline` allows one call inside it.
 const RECAP_DEADLINE_SECS: u64 = 30;
 
 /// Bound the complete recap operation, including work before summarization.

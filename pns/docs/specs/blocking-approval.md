@@ -625,7 +625,7 @@ one that is suppressed.
   and never what it carried.
 - Process ownership and cleanup: Not applicable, the post is in-process.
 - Compatibility contract: yes. `src/channels/moshi.rs:DEFAULT_MOSHI_URL` is
-  `https://api.getmoshi.app/api/webhook`, overridable with `PNS_MOSHI_URL`; the body shape is moshi's;
+  `https://api.getmoshi.app/api/webhook`, set by `[plugins.mobile] url`, else `PNS_MOSHI_URL`; the body shape is moshi's;
   the deep-link scheme `moshi://herdr?workspace=&tab=&pane=&session=` is moshi's, with tab and pane
   available since moshi 3.13.0; and a tap resumes a card moshi ALREADY HOLDS. It looks for an active card
   matching server session and workspace, else resumes the most recently minimized card for that session,
