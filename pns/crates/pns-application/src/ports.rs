@@ -19,6 +19,7 @@ pub(super) mod ledger;
 pub(super) mod notification;
 pub(super) mod process;
 pub(super) mod records;
+pub(super) mod service;
 
 pub(super) mod nag;
 
