@@ -38,7 +38,7 @@ fn record<T>(now: u64, legs: &[(Leg, Delivery)], use_record: impl FnOnce(&Record
         decision: &decision,
         overrides: &overrides,
         legs,
-        nag: false,
+        remind: false,
         permission_mode: "",
         agent_id: "",
         tool_name: "",

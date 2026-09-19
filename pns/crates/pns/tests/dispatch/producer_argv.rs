@@ -76,7 +76,7 @@ fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
 
 #[test]
 fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
-    // THE HOUSE RULE `pns nag` already keeps, moved up to the top-level
+    // THE HOUSE RULE `pns remind` already keeps, moved up to the top-level
     // dispatch: an unknown argument never falls through to a fire. A mistyped
     // subcommand used to reach the lenient producer parser, which skipped the
     // word it did not know and notified about an empty event, so `pns stpo`

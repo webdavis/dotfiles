@@ -8,7 +8,7 @@ use super::{Job, Reason, Verdict, decide, rearm};
 
 fn full() -> Job {
     Job {
-        id: "nag:sess-123".to_string(),
+        id: "remind:sess-123".to_string(),
         due: 1_700_000_000,
         until: 1_700_000_300,
         every: Some(30),
@@ -60,7 +60,7 @@ fn a_job_whose_lease_expired_while_the_machine_slept_is_dropped_never_run_late()
     );
 }
 
-/// The nag primitive: an answer that arrived cancels the nudge before
+/// The reminder primitive: an answer that arrived cancels the nudge before
 /// anything runs.
 #[test]
 fn a_present_marker_cancels_the_job_before_anything_runs() {

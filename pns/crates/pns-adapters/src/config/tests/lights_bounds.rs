@@ -91,21 +91,21 @@ fn the_blocked_backstop_reads_the_configured_number_rather_than_a_hardcoded_defa
 }
 
 #[test]
-fn a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys() {
+fn a_backstop_that_gives_up_before_the_reminder_nudges_is_refused_naming_both_keys() {
     // A CONFIG THAT CANNOT DO WHAT IT SAYS. The backstop darkens an
-    // unanswered wait's lamp at `give_up_after_secs` and the nag cards the
-    // same wait at `after_secs`. Written the shorter way round, the lamp is
+    // unanswered wait's lamp at `give_up_after_secs` and the reminder cards the
+    // same wait at `delay`. Written the shorter way round, the lamp is
     // given up on before the nudge it belongs to has ever fired, so the
     // nudge's own lamp could never be lit. Both numbers are stated by the
     // operator, so the refusal names both keys and both values rather than
     // picking one of them to be wrong.
-    let said = refusal("[nag]\nafter_secs = 600\n[lights.blocked]\ngive_up_after_secs = 60\n");
+    let said = refusal("[remind]\ndelay = \"10m\"\n[lights.blocked]\ngive_up_after_secs = 60\n");
     for named in [
         "lights.blocked",
         "give_up_after_secs",
         "60",
-        "nag",
-        "after_secs",
+        "remind",
+        "delay",
         "600",
     ] {
         assert!(
@@ -118,7 +118,7 @@ fn a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys() 
     // exactly as the nudge fires, which is a tight config rather than a
     // contradictory one.
     assert!(
-        parse_config("[nag]\nafter_secs = 600\n[lights.blocked]\ngive_up_after_secs = 600\n")
+        parse_config("[remind]\ndelay = \"10m\"\n[lights.blocked]\ngive_up_after_secs = 600\n")
             .is_ok(),
         "a backstop equal to the schedule sits on the bound and must be accepted"
     );
@@ -126,16 +126,16 @@ fn a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys() 
     // THE SHIPPED DEFAULTS SATISFY IT, which is the whole reason this
     // refusal costs no operator a config change.
     assert!(
-        parse_config("[nag]\nafter_secs = 300\n[lights.blocked]\ngive_up_after_secs = 57600\n")
+        parse_config("[remind]\ndelay = \"5m\"\n[lights.blocked]\ngive_up_after_secs = 57600\n")
             .is_ok(),
         "the values dot_config/pns/private_config.toml.tmpl ships must parse"
     );
 
-    // A NAG THAT IS OFF CONTRADICTS NOTHING, because no nudge ever fires
+    // A REMINDER THAT IS OFF CONTRADICTS NOTHING, because no nudge ever fires
     // for the backstop to run in front of. Both spellings of off.
     for written in [
         "[lights.blocked]\ngive_up_after_secs = 60\n",
-        "[nag]\nafter_secs = 0\n[lights.blocked]\ngive_up_after_secs = 60\n",
+        "[remind]\ndelay = \"0s\"\n[lights.blocked]\ngive_up_after_secs = 60\n",
     ] {
         assert!(
             parse_config(written).is_ok(),

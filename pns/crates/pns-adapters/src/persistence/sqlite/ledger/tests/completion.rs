@@ -30,7 +30,7 @@ fn begin(store: &SqliteStore, identity: &SubmissionIdentity) {
                 decision: &decision,
                 overrides: &overrides,
                 legs: &[],
-                nag: false,
+                remind: false,
                 permission_mode: "private-policy",
                 agent_id: "original-agent",
                 tool_name: "original-tool",

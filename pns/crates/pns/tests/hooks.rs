@@ -325,18 +325,6 @@ mod loop_waits;
 mod model_switch;
 #[path = "hooks/model_switch_state.rs"]
 mod model_switch_state;
-#[path = "hooks/nag_arming.rs"]
-mod nag_arming;
-#[path = "hooks/nag_clearing.rs"]
-mod nag_clearing;
-#[path = "hooks/nag_delivery.rs"]
-mod nag_delivery;
-#[path = "hooks/nag_observations.rs"]
-mod nag_observations;
-#[path = "hooks/nag_refusals.rs"]
-mod nag_refusals;
-#[path = "hooks/nag_state.rs"]
-mod nag_state;
 #[path = "hooks/policy_audit.rs"]
 mod policy_audit;
 #[path = "hooks/quota_messages.rs"]
@@ -345,6 +333,18 @@ mod quota_messages;
 mod quota_state;
 #[path = "hooks/quota_waits.rs"]
 mod quota_waits;
+#[path = "hooks/remind_arming.rs"]
+mod remind_arming;
+#[path = "hooks/remind_clearing.rs"]
+mod remind_clearing;
+#[path = "hooks/remind_delivery.rs"]
+mod remind_delivery;
+#[path = "hooks/remind_observations.rs"]
+mod remind_observations;
+#[path = "hooks/remind_refusals.rs"]
+mod remind_refusals;
+#[path = "hooks/remind_state.rs"]
+mod remind_state;
 #[path = "hooks/sandbox_network.rs"]
 mod sandbox_network;
 #[path = "hooks/stale_arming.rs"]
@@ -359,12 +359,12 @@ mod turn_tier;
 use config_change::config_change_payload;
 use lights_waits::{LAMPS_ON, answered_dialog, elicitation_result, waiting_sessions};
 use model_switch::model_switch_payload;
-use nag_state::{
-    carded_events, counted_channels, deliveries, epoch_now, nag, nag_config, nag_directory_names,
-    nag_marker, nag_record, spool_entries, spool_entry, state_lines, write_marker, write_record,
-    write_record_at,
-};
 use quota_messages::{QUOTA_TYPES, quota_payload};
+use remind_state::{
+    carded_events, counted_channels, deliveries, epoch_now, remind, remind_config,
+    remind_directory_names, remind_marker, remind_record, spool_entries, spool_entry, state_lines,
+    write_marker, write_record, write_record_at,
+};
 
 #[path = "hooks/delivery_class.rs"]
 mod delivery_class;

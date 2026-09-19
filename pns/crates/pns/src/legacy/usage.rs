@@ -30,7 +30,7 @@ pns: usage:
   pns shell begin --pid <pid> --command <line>
   pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <duration>
   pns loop begin|end               take the loop lamp by hand, and give it back
-  pns nag                          card every outstanding approval
+  pns remind                          card every outstanding approval
   pns stale                        page about every session stuck past the window
   pns failures [<id>|open <id>]    what is not arriving, and one banner's click
   pns failures serve               the local page, run by the clock
@@ -46,7 +46,7 @@ pns: usage:
 
 machine-called:  pns send, pns hook <event>, pns shell begin, pns shell end,
                  pns daemon retry, pns lights tick, pns quiet calendar,
-                 pns nag, pns stale,
+                 pns remind, pns stale,
                  pns failures serve, pns recap --since-epoch, pns recap agent,
                  pns recap git, pns presence poll [--daemon] and
                  pns github poll [--daemon] are called by hooks, by launchd, by

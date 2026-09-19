@@ -111,7 +111,7 @@ fn because(fields: &Fields<'_>) -> Option<String> {
     if fields.yes("remote_only") {
         return Some("the event asked for the phone only".into());
     }
-    if fields.yes("nag") {
+    if fields.yes("remind") {
         return Some("it was a repeat of an approval nobody answered".into());
     }
     where_you_were(fields)

@@ -56,9 +56,9 @@ ______________________________________________________________________
 
 Also relevant, though not a lease: the blocked backstop `[lights.blocked] give_up_after_secs`, default
 `src/config.rs:DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` = 16 hours, bounds 60 seconds to 7 days
-(`MAX_GIVE_UP_AFTER_SECS`). Configuration refuses a `give_up_after_secs` below `[nag] after_secs` because
+(`MAX_GIVE_UP_AFTER_SECS`). Configuration refuses a `give_up_after_secs` below `[remind] delay` because
 that is a config that gives up on a wait before it ever nudges about it (`src/config.rs`, the
-`give_up`/`nag_after_secs` comparison).
+`give_up`/`remind_delay_secs` comparison).
 
 ______________________________________________________________________
 

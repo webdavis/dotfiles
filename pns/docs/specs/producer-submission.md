@@ -17,7 +17,7 @@ fall out of it, the pane scrub, the rendered event handed to each channel, the d
 between a compiled-in plugin and an executable channel, per-leg isolation, which delivery lines reach
 stdout, and the records the first delivery writes. It does not cover the harness hook arms
 (`pns hook <event>`), the moshi gate, or the modes that take no event (`pulse`, `quiet`, `doctor`,
-`recap`, `daemon`, `lights`, `loop`, `nag`, `setup`); those reach `run_event` by other routes or
+`recap`, `daemon`, `lights`, `loop`, `remind`, `setup`); those reach `run_event` by other routes or
 not at all. Every claim below cites the symbol or test that establishes it; anything a reader would
 expect and that no evidence supports is written as a `NOT ESTABLISHED:` line.
 
@@ -749,8 +749,8 @@ decision actually ran on and each leg's verdict, and the ring is pruned to its c
   `actionId` is recorded, because pns never has one (`src/decision_log.rs:line` doc).
 - Timeout and cancellation: not applicable, this is a bounded file append.
 - Idempotency and duplicates: exactly one line per event, including a nudge, which is distinguished only
-  by the `nag=` boolean so two `claude/blocked` entries are not indistinguishable
-  (`src/decision_log.rs:Record::nag`).
+  by the `remind=` boolean so two `claude/blocked` entries are not indistinguishable
+  (`src/decision_log.rs:Record::remind`).
 - Privacy: covered under forbidden side effects. A newline is the character that matters most, because
   one in a value would forge a second entry the reader could not tell from a real decision
   (`src/decision_log.rs:printable`).

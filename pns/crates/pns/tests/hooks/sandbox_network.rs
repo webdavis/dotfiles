@@ -22,7 +22,7 @@ fn permission_prompt(session: &str, message: &str) -> String {
 #[test]
 fn a_sandboxed_command_asking_for_the_network_cards_the_operator_and_arms_the_wait() {
     let sandbox = Sandbox::new("sandbox-network-cards");
-    sandbox.write_config(&format!("{}{}", nag_config(300), LAMPS_ON));
+    sandbox.write_config(&format!("{}{}", remind_config(300), LAMPS_ON));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -49,7 +49,7 @@ fn a_sandboxed_command_asking_for_the_network_cards_the_operator_and_arms_the_wa
         "and the lamp says the operator is being waited on"
     );
     assert!(
-        nag_record(&sandbox, "s1").exists(),
+        remind_record(&sandbox, "s1").exists(),
         "and an unanswered sandbox dialog is nudged like any other approval"
     );
 }
@@ -70,7 +70,7 @@ fn every_other_permission_prompt_on_this_arm_is_silence() {
         "",
     ] {
         let sandbox = Sandbox::new(&format!("sandbox-network-silent-{}", message.len()));
-        sandbox.write_config(&format!("{}{}", nag_config(300), LAMPS_ON));
+        sandbox.write_config(&format!("{}{}", remind_config(300), LAMPS_ON));
         counted_channels(&sandbox);
 
         let output = hook_with(

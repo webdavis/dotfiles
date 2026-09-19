@@ -51,7 +51,7 @@ pub(crate) fn doctor_mode() -> i32 {
         replay_card,
         focus_silence,
         daemon_enabled,
-        nag_after_secs,
+        remind_delay_secs,
         lights,
         hue_declared,
         routes,
@@ -66,7 +66,7 @@ pub(crate) fn doctor_mode() -> i32 {
             config.recap.replay_card,
             config.focus_silence.clone(),
             config.daemon_enabled,
-            config.nag_after_secs,
+            config.remind_delay_secs,
             config.lights.clone(),
             // WHETHER THE TABLE WAS WRITTEN AT ALL, which
             // `enabled_hue_table` cannot say: it answers `None` both for a
@@ -79,7 +79,7 @@ pub(crate) fn doctor_mode() -> i32 {
         // for the same reading. The two must agree or the doctor describes a
         // delivery the event would not make, and the Focus list falls back
         // EMPTY here for the same reason it does there.
-        // AND THE NAG FALLS BACK OFF, which is the fallback `nag_after_secs`
+        // AND THE REMINDER FALLS BACK OFF, which is the fallback `remind_delay_secs`
         // takes for the same reading: the two must agree or the doctor
         // describes a schedule the fire would not keep.
         _ => (
@@ -90,7 +90,7 @@ pub(crate) fn doctor_mode() -> i32 {
             true,
             Vec::new(),
             true,
-            NAG_OFF,
+            REMIND_OFF,
             None,
             false,
             // THE SHIPPED ROUTE NAMES, which is the fallback `run_event`
@@ -162,7 +162,7 @@ pub(crate) fn doctor_mode() -> i32 {
         records: &pns_adapters::SqliteStore::for_records(state_dir()),
         clock: &now_secs,
         replay_card,
-        nag_after_secs,
+        remind_delay_secs,
     }
     .run(
         pns_application::DoctorActions {

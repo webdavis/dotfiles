@@ -1031,7 +1031,7 @@ Then the surface, both visibilities, the three ages, the lock, the freshness win
   under a ten-second deadline and would take the record with it"; the accepted price is stated: "a
   decision is lost if a channel hangs to its deadline and the process is killed before this runs"
   (`src/main.rs`).
-- Idempotency and duplicates: one line per dispatch attempt; a nudge is flagged `nag=yes`.
+- Idempotency and duplicates: one line per dispatch attempt; a nudge is flagged `remind=yes`.
 - Privacy: agent, state, permission mode, payload agent id and tool name pass through
   `src/decision_log.rs:printable`; the pane is reduced to `present` or `none`.
 - Process ownership and cleanup: Not applicable.
