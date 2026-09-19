@@ -1,5 +1,22 @@
 use super::*;
 
+/// `[delivery] remote_deadline`: how long one remote call may take, in
+/// seconds. Removed from the table before the rest is walked, the way the
+/// retry counts are.
+pub(super) fn parse_remote_deadline(table: &mut toml::Table) -> Result<u64, ConfigError> {
+    let Some(value) = table.remove("remote_deadline") else {
+        return Ok(Config::default().remote_deadline_secs);
+    };
+    value
+        .as_integer()
+        .and_then(|seconds| u64::try_from(seconds).ok())
+        .ok_or_else(|| {
+            ConfigError::Invalid(
+                "`delivery` key `remote_deadline` must be a nonnegative integer".into(),
+            )
+        })
+}
+
 pub(super) fn parse_delivery(value: toml::Value) -> Result<Vec<String>, ConfigError> {
     let toml::Value::Table(table) = value else {
         return Err(ConfigError::Invalid("`delivery` is not a table".into()));

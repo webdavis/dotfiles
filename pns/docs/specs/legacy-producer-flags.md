@@ -42,7 +42,7 @@ knows.
 | `--detail`       | one following token, free text           | warn `--detail given without a value; ignoring`, field stays empty                            | taken as the value verbatim, no warning                                        | `src/args.rs:a_trailing_value_flag_is_warned_and_ignored`, `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`         |
 | `--pane`         | one following token, a pane id           | warn `--pane given without a value; ignoring`, field stays empty                              | taken as the value verbatim, then judged by `safety::pane_is_safe` at dispatch | `src/args.rs:a_recognized_flag_is_never_consumed_as_a_value`, `tests/dispatch.rs:a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event` |
 | `--channel`      | one following token, a hermes route name | warn `--channel given without a value; ignoring`, field stays empty (the default route)       | taken as the value verbatim, then judged by `safety::route_name_is_usable`     | `src/args.rs:the_channel_flag_names_a_route_and_is_protected_like_every_value_flag`                                                                       |
-| `--kind`         | one following token, `agent` or `health` | refused: `--kind requires one of: agent, health` on stderr, exit 2, nothing delivered          | any other word is refused the same way, because a guessed kind is a misrouted page              | `src/legacy/argv/tests.rs:a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route`, `src/legacy/tests.rs:an_unknown_kind_is_refused_before_anything_is_delivered`                        |
+| `--delivery-class` | one following token, a validated name | refused: `--delivery-class is not a usable name: <reason>` on stderr, exit 2, nothing delivered | taken as the value verbatim, then held to the envelope's own name rules | `src/legacy/argv/tests.rs:a_failed_health_class_pages_and_a_session_class_keeps_the_default_route`, `src/legacy/tests.rs:an_unusable_delivery_class_is_refused_before_anything_is_delivered` |
 | `--local-only`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:local_only_keeps_the_banner_and_reaches_nothing_off_the_machine`                                                                       |
 | `--remote-only`  | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:remote_only_delivers_through_hermes_alone`                                                                                             |
 | `--long-running` | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`                                                                    |
@@ -57,38 +57,10 @@ The two lists behind the table are `src/legacy/argv.rs:VALUE_FLAGS` (the nine va
 
 ## The usage text, verbatim
 
-`const USAGE` in `src/main.rs` is one text printed on request and on a refusal, because an operator who
-mistyped and an operator who asked have the same question. It is the contract, reproduced exactly:
-
-```text
-pns: usage:
-  pns [<producer flags>]           one notification, stated in argv
-  pns hook <event>                 a harness hook: prompt, stop, stop-failure,
-                                   blocked, asked, plan-ready, denied, resolved,
-                                   model-switch, quota, config-change
-  pns <harness>-hook               presence-gated pass-through to moshi-hook,
-                                   spelled the way moshi's extension calls it
-  pns pulse <exit-code>            signal the lamps by hand
-  pns quiet [<duration>|off]       the operator's mute
-  pns daemon run|schedule|cancel   the clock
-  pns lights tick|quiet            the lamps' upkeep
-  pns loop begin|end               take the loop lamp by hand, and give it back
-  pns remind                          card every outstanding approval
-  pns recap --since <epoch> --until <epoch>
-  pns setup [--force]              write a first config, one question at a time
-  pns doctor                       one test send through every channel
-  pns --help, -h                   this text
-
-producer flags: --agent <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route> --elapsed <secs>
-                --kind <agent|health> --local-only --remote-only --long-running
-                --require-delivery
-
-kinds:          agent, the default, is a session event and takes the route
-                `[routes] default` names; health is a machine's own health and
-                takes `[routes] urgent` when its --state is one somebody has to
-                answer, unless --channel already named one.
-```
+`const USAGE` moved to `src/legacy/usage.rs` and has drifted piecemeal through the retirement ladder
+since this file last reproduced it in full. Rather than carry a second copy that goes stale one rename at
+a time, read the constant itself for the live subcommand list, producer flags and delivery-class routing
+text.
 
 The subcommand-specific usage texts are separate constants and are printed instead of `USAGE` when the
 subcommand itself is mistyped:
@@ -533,10 +505,10 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
   not move.
 - Fail direction: loud but non-fatal. `pns` exits 0 whatever the gateway answered, which is why the
   caller reads the stdout line rather than the status.
-- Thresholds: the sync deadline is `remote_deadline(PNS_REMOTE_TIMEOUT)`, default 5 seconds, clamped to
+- Thresholds: the sync deadline is `remote_deadline([delivery] remote_deadline)`, default 5 seconds, clamped to
   86400 seconds, and a literal `0` means no deadline at all (`src/channels/hermes.rs:remote_deadline`).
-  One step either side: `PNS_REMOTE_TIMEOUT=0` waits forever by caller intent; an unparseable value falls
-  back to 5 seconds rather than to zero or forever.
+  One step either side: `remote_deadline = 0` waits forever by operator intent; a value that is not a
+  nonnegative integer refuses the config by name, the way the other `[delivery]` counts do.
 - Required side effects: one printed outcome line per leg whose mode is `ReportOutcome`
   (`src/main.rs:run_event`).
 - Forbidden side effects: no banner, no phone card.
@@ -629,7 +601,7 @@ Given `--channel log`\\
 
 When `hermes_url_for` resolves the endpoint\\
 
-Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives
+Then `[plugins.hermes] url`, and `PNS_HERMES_URL` after it, win if set and non-empty; else an empty channel gives
 `DEFAULT_HERMES_URL` (`http://127.0.0.1:8644/webhooks/pns-events`); else `channel_url` swaps the final
 path segment for the route.
 

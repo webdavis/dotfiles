@@ -15,7 +15,7 @@ mod tests {
         assert_eq!(request.detail, "lint");
         // NO CLASS, because GitHub is work rather than machine health: a lint
         // failure is not a posture page and must not bypass a Focus.
-        assert_eq!(request.class, None);
+        assert_eq!(request.delivery_class, None);
         assert_eq!(
             request.route, None,
             "the ordinary route, not the urgent one"

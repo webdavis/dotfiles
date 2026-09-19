@@ -41,7 +41,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // "unknown" on its own leaves nowhere to go.
             "[home]\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
             "home: config error (unknown top-level key `home`; the file serves \
-             daemon, delivery, failures, focus, lights, phone, plugins, producer, quiet, \
+             daemon, delivery, failures, focus, lights, paths, phone, plugins, producer, quiet, \
              recap, remind, routes, stale)",
         ),
         (

@@ -13,7 +13,7 @@
 //! while the same word sitting where a flag's value belongs is still just a
 //! value, under the second rule.
 
-use pns_domain::{DeliveryScope, EventArgs, routes::Kind};
+use pns_domain::{DeliveryScope, EventArgs};
 use pns_protocol::State;
 
 /// Every flag that takes a value. Private: the only consumers are the
@@ -31,7 +31,7 @@ const VALUE_FLAGS: [&str; 12] = [
     "--elapsed",
     "--request-id",
     "--session",
-    "--kind",
+    "--delivery-class",
     "--scope",
 ];
 
@@ -48,8 +48,9 @@ const BARE_FLAGS: [&str; 3] = ["--require-delivery", "--remind", "--no-remind"];
 /// that took a value consumes it too, so `--channel priority` does not leave
 /// `priority` behind as a stray word; a bare one consumes nothing, so
 /// `--local-only --help` still prints the usage it asked for.
-const RETIRED_FLAGS: [(&str, &str, bool); 5] = [
+const RETIRED_FLAGS: [(&str, &str, bool); 6] = [
     ("--agent", "--producer", true),
+    ("--kind", "--delivery-class", true),
     ("--channel", "--route", true),
     ("--local-only", "--scope", false),
     ("--remote-only", "--scope", false),
@@ -140,18 +141,19 @@ pub(super) struct ParsedArgs {
     /// them knows is a page nobody gets.
     state: Option<String>,
     elapsed: Result<Option<u64>, String>,
-    /// `--request-id` and `--session`: the two identifiers a JSON producer
-    /// already sends, now spelled as flags. Each is held to the identifier
-    /// rules the envelope holds its twin to, so one spelling cannot carry a
-    /// value the other refuses.
+    /// `--request-id`, `--session` and `--delivery-class`: the names a JSON
+    /// producer already sends, now spelled as flags. Each is held to the
+    /// identifier rules the envelope holds its twin to, so one spelling
+    /// cannot carry a value the other refuses.
     identifiers: Result<(), String>,
     /// `--session`: the harness session this event belongs to, which lands in
     /// the same payload field a JSON request's `session` does.
     pub session: String,
-    /// `--kind`: what the event IS, which decides its route when the producer
-    /// named none. A word that is neither kind refuses the event rather than
-    /// falling back to the default, the same way a bad `--elapsed` does.
-    kind: Result<Kind, String>,
+    /// `--delivery-class`: what the event IS for delivery, which decides its
+    /// route when the producer named none and whether it passes a mute. The
+    /// same vocabulary the JSON request's `delivery_class` takes, because one
+    /// field spelled two ways is still one field.
+    pub delivery_class: String,
     /// `--scope`: how wide this delivery may reach, in one of three words. One
     /// flag cannot contradict itself, which is why the pair it replaced needed
     /// a refusal for being given together and this does not.
@@ -170,7 +172,6 @@ impl ParsedArgs {
         }
         self.identifiers?;
         let elapsed = self.elapsed?;
-        let kind = self.kind?;
         let event = match elapsed {
             Some(seconds) => pns_domain::elapsed_event(self.event, seconds),
             None => Some(self.event),
@@ -178,11 +179,11 @@ impl ParsedArgs {
         let Some(mut event) = event else {
             return Ok(None);
         };
-        // THE KIND TRAVELS, NEVER THE ROUTE IT NAMES. Which route a kind takes
-        // is settled once the config is read (`EventArgs::routed`), because the
-        // route's NAME is the operator's (`[routes] urgent`) and this parse
-        // runs before any file is opened.
-        event.kind = kind;
+        // THE DELIVERY CLASS TRAVELS, NEVER THE ROUTE IT NAMES. Which route a
+        // class takes is settled once the config is read (`EventArgs::routed`),
+        // because the route's NAME is the operator's (`[routes] urgent`) and
+        // this parse runs before any file is opened.
+        event.delivery_class = self.delivery_class;
         event.scope = self.scope?;
         Ok(Some(event))
     }
@@ -202,7 +203,7 @@ where
     let mut session = String::new();
     let mut retired = None;
     let mut state = None;
-    let mut kind = Ok(Kind::default());
+    let mut delivery_class = String::new();
     let mut scope = Ok(DeliveryScope::default());
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
@@ -214,12 +215,17 @@ where
             // `--help` as `--state`'s value by the time this token is asked
             // about again.
             flag if is_help_flag(flag) => help = true,
-            "--kind" => {
-                let word = tokens.next_if(|next| !is_producer_flag(next));
-                if kind.is_ok() {
-                    kind = word.as_deref().and_then(Kind::from_word).ok_or_else(|| {
-                        format!("--kind requires one of: {}", Kind::WORDS.join(", "))
-                    });
+            "--delivery-class" => {
+                let value = tokens
+                    .next_if(|next| !is_producer_flag(next))
+                    .unwrap_or_default();
+                match pns_protocol::Name::new(value.as_str()) {
+                    Ok(_) => delivery_class = value,
+                    Err(error) => {
+                        identifiers = identifiers.and(Err(format!(
+                            "--delivery-class is not a usable name: {error}"
+                        )));
+                    }
                 }
             }
             "--scope" => {
@@ -277,10 +283,10 @@ where
                     }
                 }
             }
-            // ITS OWN ARM, like `--kind` and `--elapsed` above, rather than the
-            // generic value flag below: a missing value refuses the same way an
-            // out-of-set word does, instead of warning and delivering an event
-            // with no state at all.
+            // ITS OWN ARM, like `--delivery-class` and `--elapsed` above,
+            // rather than the generic value flag below: a missing value refuses
+            // the same way an out-of-set word does, instead of warning and
+            // delivering an event with no state at all.
             "--state" => {
                 let value = tokens.next_if(|next| !is_producer_flag(next));
                 if State::from_word(value.as_deref().unwrap_or_default()).is_none() {
@@ -332,7 +338,7 @@ where
         elapsed,
         identifiers,
         session,
-        kind,
+        delivery_class,
         scope,
     }
 }

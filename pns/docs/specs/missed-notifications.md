@@ -858,10 +858,10 @@ recap's own section: `["asked", "blocked", "denied", "failed", "plan-ready"]`.
   this rides an event whose stdout a hook reads" (`src/main.rs:replay_missed`, asserted as empty stdout
   AND empty stderr in the delivery test).
 - Timeout and cancellation: the legs carry the decision's own deadlines. The detached recap child is
-  given `PNS_REMOTE_TIMEOUT=30` (`src/main.rs:RECAP_DEADLINE_SECS`) when the environment asked for no
-  deadline at all, because "AN UNBOUNDED DEADLINE IS A TERMINAL'S CHOICE, NEVER A BACKGROUND CHILD'S ...
-  a wedged gateway would keep this process alive for good, and every later window would add another." The
-  default when the variable is unset is 5 seconds (`src/channels/hermes.rs:remote_deadline`).
+  bounded by the 30-second group watchdog `RECAP_DEADLINE_SECS` arms around itself, whatever
+  `[delivery] remote_deadline` allows one call inside it, so an unbounded deadline cannot keep that
+  process alive for good. The default when the file names no deadline is 5 seconds
+  (`src/channels/hermes.rs:remote_deadline`).
 - Idempotency and duplicates: at most one card per return moment, of any kind, and it is a single
   dispatch of a single event.
   `tests/dispatch.rs:racing_present_events_recap_one_loud_window_exactly_once_between_them` asserts
@@ -1036,8 +1036,8 @@ ______________________________________________________________________
 
 ## State files
 
-Every file below lives under the state directory, which is `$PNS_STATE_DIR` when set and
-`$HOME/.local/state/pns` otherwise (`src/main.rs:state_dir`). `STATE_FILE_MODE` is `0o600` and is
+Every file below lives under the state directory, which is `[paths] state_dir`, else `PNS_STATE_DIR`, when
+either is set and `$HOME/.local/state/pns` otherwise (`src/main.rs:state_dir`). `STATE_FILE_MODE` is `0o600` and is
 described as "ONE RULE FOR THE DIRECTORY'S CONTENTS rather than a knob for one caller: none of them has a
 reason to be world-readable, and the journal holds the operator's own text."
 

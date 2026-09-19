@@ -22,7 +22,7 @@ const SCHEMA_MAJOR: u32 = 1;
 /// Every top-level field version 1 defines, `schema` included. A key not in
 /// this list is ignored and named, never refused: additive fields from a
 /// newer producer must not break an older pns.
-const KNOWN_FIELDS: [&str; 15] = [
+const KNOWN_FIELDS: [&str; 14] = [
     "schema",
     "request_id",
     "producer",
@@ -35,8 +35,7 @@ const KNOWN_FIELDS: [&str; 15] = [
     "pane",
     "scope",
     "route",
-    "kind",
-    "class",
+    "delivery_class",
     "extensions",
 ];
 
@@ -109,25 +108,6 @@ impl State {
     ];
 }
 
-/// What the event IS, which is what pns maps to a route when the producer
-/// named none. TWO WORDS AND NO MORE: a producer says what kind of thing
-/// happened and never which route or channel it lands on, because a route is
-/// one deployment's gateway and a producer is a tool other people install
-/// (operator ruling, 2026-09-15).
-///
-/// NOT A SECOND SPELLING OF `state`. The state says how the work ended and
-/// this says whose work it was, and pns needs both: a health event that is
-/// done is not a page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Kind {
-    /// A session event: a harness hook, the shell notifier, a daemon job.
-    Agent,
-    /// A machine's own health, such as an unattended upgrade that failed
-    /// while nobody was watching.
-    Health,
-}
-
 /// Where the event may go. One word, three values, no fourth for "both".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -168,15 +148,14 @@ pub struct Request {
     pub scope: DeliveryScope,
     #[serde(default)]
     pub route: Option<Name>,
-    /// What the event is, for a producer that states it. ABSENT IS NOT
-    /// `Agent`: an absent kind is a producer that said nothing, and it is
-    /// omitted when encoding so the canonical bytes of a request written
-    /// before this field existed do not move.
+    /// What this event is for delivery: which route it takes when it named
+    /// none, and whether it passes a mute. ONE FIELD AND ONE VOCABULARY, the
+    /// same words the `--delivery-class` flag takes, because a producer
+    /// stating it in JSON and one typing the flag are saying the same thing.
+    /// Absent is a producer that said nothing, and it is omitted when
+    /// encoding so a request that names no class keeps its canonical bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<Kind>,
-    /// An operator-configured delivery class, independent of producer and route.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub class: Option<Name>,
+    pub delivery_class: Option<Name>,
     /// Producer-specific data, carried verbatim and never read here.
     #[serde(default)]
     pub extensions: Map<String, Value>,
@@ -207,8 +186,7 @@ impl Request {
             pane: None,
             scope: DeliveryScope::default(),
             route: None,
-            kind: None,
-            class: None,
+            delivery_class: None,
             extensions: Map::new(),
         }
     }

@@ -13,9 +13,7 @@ pub(super) fn execute(
     let loaded = load_config(&config_path(&home));
     let silence_policy = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => config.silence_policy(
-            producer
-                .and_then(|request| request.class.as_ref())
-                .map(pns_protocol::Name::as_str),
+            (!event.delivery_class.is_empty()).then_some(event.delivery_class.as_str()),
         ),
         _ => pns_domain::SilencePolicy::Respect,
     };

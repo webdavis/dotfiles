@@ -194,7 +194,7 @@ Given a producer invocation carrying `--channel <route>`
 
 When `dispatch_legs` constructs the hermes channel
 
-Then the endpoint is `PNS_HERMES_URL` if that variable is set and non-empty, else the default route's
+Then the endpoint is `[plugins.hermes] url`, else `PNS_HERMES_URL`, if either is set and non-empty, else the default route's
 final path segment replaced by `<route>`, else the default route, and an unusable route name is
 complained about and replaced by the default.
 
@@ -670,13 +670,13 @@ a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `p
   costs the others nothing, and every channel above was constructed before the first delivery, so a leg
   cannot be lost to a sibling's refusal" (`src/main.rs:dispatch_legs`). `Unlaunched` prints in NEITHER
   mode, because the common case is a channel nobody installed (`src/channels/mod.rs:Delivery`).
-- Thresholds: precedence turns on one predicate. With `PNS_CHANNELS_DIR` set and non-empty, executables
+- Thresholds: precedence turns on one predicate. With `[paths] channels_dir`, or `PNS_CHANNELS_DIR` after it, set and non-empty, executables
   win for EVERY name; with it unset or empty, a native plugin wins and the executable fallback serves
   only names with no native implementation (`src/channels/mod.rs:native_first`,
   `src/main.rs:dispatch_legs`). The channels directory defaults to `$HOME/.local/libexec/pns/channels`,
   and an EMPTY value means the default as much as unset does (`src/main.rs:resolve_path`).
 - Required side effects: for a native leg, one outbound attempt. The banner spawns `terminal-notifier` by
-  NAME through PATH (`src/channels/banner.rs:deliver`); moshi posts JSON to `PNS_MOSHI_URL` or the
+  NAME through PATH (`src/channels/banner.rs:deliver`); moshi posts JSON to `[plugins.mobile] url`, `PNS_MOSHI_URL` or the
   compiled default (`src/main.rs:moshi_channel`); hermes posts a signed body to the URL from behavior 5
   (`src/channels/hermes.rs:deliver`).
 - Forbidden side effects: no `?` and no early return in the leg loop. A panic must not take the remaining
@@ -686,7 +686,7 @@ a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `p
 - Timeout and cancellation: the native legs are bounded. Moshi posts under
   `src/channels/moshi.rs:POST_DEADLINE` (10 seconds). Hermes posts under
   `src/channels/hermes.rs:ASYNC_DEADLINE` (10 seconds) on a `Silent` leg, and on a `ReportOutcome` leg
-  under `remote_deadline(PNS_REMOTE_TIMEOUT)`, which defaults to 5 seconds, clamps to 86,400 seconds, and
+  under `remote_deadline([delivery] remote_deadline)`, which defaults to 5 seconds, clamps to 86,400 seconds, and
   treats an explicit 0 as no deadline at all (`src/channels/hermes.rs:remote_deadline`,
   `src/channels/hermes.rs:DEFAULT_SYNC_DEADLINE_SECS`, `src/channels/hermes.rs:MAX_SYNC_DEADLINE_SECS`).
   An EXECUTABLE channel is NOT bounded: `deliver` calls `child.wait()` with no deadline

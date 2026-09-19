@@ -155,7 +155,7 @@ fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observ
     ] {
         assert!(request.contains(field), "{field}: {request}");
     }
-    assert!(!request.contains("\"class\""));
+    assert!(!request.contains("\"delivery_class\""));
     assert!(request.ends_with('\n'));
     assert!(stderr.is_empty());
     assert_eq!(std::fs::read(&path).unwrap(), before);

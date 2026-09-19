@@ -36,15 +36,15 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
             long_running: request.elapsed.is_some_and(|elapsed| {
                 elapsed.as_secs() >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS
             }),
-            // WHAT THE EVENT IS, as its producer stated it, and a producer
-            // that stated nothing gets the ordinary session default. The
+            // WHAT THE EVENT IS FOR DELIVERY, as its producer stated it, and
+            // a producer that stated nothing carries no class at all. The
             // route it lands on is decided from this and never named here:
             // a producer knows its own work failed and nothing about which
             // channels a gateway has (operator ruling, 2026-09-15).
-            kind: match request.kind {
-                None | Some(pns_protocol::Kind::Agent) => pns_domain::routes::Kind::Agent,
-                Some(pns_protocol::Kind::Health) => pns_domain::routes::Kind::Health,
-            },
+            delivery_class: request
+                .delivery_class
+                .as_ref()
+                .map_or_else(String::new, |class| class.as_str().into()),
         },
         attempt,
     )

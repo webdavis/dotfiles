@@ -26,11 +26,12 @@
 [routes]
 # Where an event whose producer named no route lands, the return recap
 # included. It is also the last path segment of the gateway URL pns
-# posts to unless PNS_HERMES_URL says otherwise.
+# posts to unless [plugins.hermes] url names one outright.
 default = "pns-events"
 # The route reserved for what needs a human now: a machine-health event
-# (`pns send --kind health`) whose --state is one somebody has to answer,
-# and the stale-block escalation, both take it, whatever it is called.
+# (`pns send --delivery-class health`) whose --state is one somebody has
+# to answer, and the stale-block escalation, both take it, whatever it is
+# called.
 urgent = "priority"
 
 [plugins.mobile]
@@ -47,6 +48,10 @@ token = {{ (keepassxc "moshi-hook :: Device Token").Password | toToml }}
 # screen is noise, and the light pulse alone marks the command finishing;
 # set true to be carded anyway.
 mobile_watch_card = false
+# Where the card is pushed. Left out it is moshi's own webhook endpoint,
+# which is what a paired phone answers at; name one to point this
+# install at a gateway of your own.
+# url = "https://api.getmoshi.app/api/webhook"
 # How long pns waits for moshi to acknowledge a submitted permission
 # prompt, in seconds. The harness draws the prompt only once the hook
 # returns, so this is time the question is off your screen. On expiry
@@ -82,6 +87,12 @@ submit_deadline_secs = 5
 # with the key that route verifies.
 [plugins.hermes]
 enabled = true
+# The gateway endpoint. Left out, each route posts to the shipped
+# address with that route as its last path segment, so renaming a route
+# moves the path and not the gateway. NAMED, this one address carries
+# EVERY route verbatim, which is why it is a whole-install override
+# rather than the usual way to point at your own gateway.
+# url = "http://127.0.0.1:8644/webhooks/pns-events"
 
 # One signing key per route, keyed by the route name and each prepared in
 # ~/.hermes/config.yaml under that same name. These keys are the whole
@@ -140,6 +151,11 @@ uu = {{ (keepassxc "Discord (Uriel) :: Channel ID (#uu-dev)").Password | toToml 
 # The macOS banner, which is what a machine you are sitting at says.
 [plugins.macos-banner]
 enabled = true
+# The terminal a banner click returns to, as a bundle id. Left out, the
+# one this process was started from is used, which is right on a machine
+# with one terminal; name it where a hook runs under launchd and
+# inherits none.
+# terminal_bundle_id = "com.mitchellh.ghostty"
 # What a click on a DELIVERY FAILURE banner opens: "herdr" splits a pane
 # in the running session, "window" opens a new terminal window, and
 # "command" runs `click_command` below. Left unset it is inferred: the
@@ -313,6 +329,12 @@ bypass_silence_classes = ["security"]
 max_attempts = 20
 # Stop retrying only after this original age is exceeded. Zero and future epochs do not expire.
 max_age_secs = 604800
+# How long ONE remote call may take, in seconds, before the caller stops
+# waiting on it. Short because a hook or a shell prompt is blocked on it.
+# Zero is no deadline at all, which is your instruction rather than a
+# default: a wedged gateway then holds that caller for as long as it
+# takes.
+remote_deadline = 5
 # Queued retries wait this many seconds times their retry count. The wait is
 # exact: there is no random spread, because one local daemon draining one queue
 # has no herd to spread.
@@ -465,6 +487,19 @@ escalate_after = "1h"
 # [phone]
 # An absolute path or ~/ path. Missing config uses this default too.
 # marker_file = "~/.local/state/pns/phone-attention.marker"
+
+# Where this install keeps its own files. Left out, state lives under
+# ~/.local/state/pns and the native channels are used directly. Each is
+# an absolute path or a ~/ path.
+# [paths]
+# The ledger, the markers and the spooled jobs. Moving it leaves
+# whatever is in the old directory where it is.
+# state_dir = "~/.local/state/pns"
+# A directory of channel executables. NAMING IT AT ALL FORCES every
+# channel through an executable of its own name in here instead of the
+# compiled-in one, which is what makes it a testing seam rather than a
+# place to point at the usual location.
+# channels_dir = "~/.local/libexec/pns/channels"
 
 # The failure page: the same record `pns failures` prints, served over
 # loopback so moshi's browser preview can read it from your phone. The

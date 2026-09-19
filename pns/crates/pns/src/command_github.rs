@@ -263,9 +263,9 @@ fn published(
 /// second guard behind the seen-set: a repeat submission of one event is
 /// answered as the existing record rather than delivered twice.
 ///
-/// NO `class`, because GitHub is work rather than machine health: `priority`
-/// is a posture page, a failed unattended upgrade or a dead daemon, and a
-/// lint job is none of those.
+/// NO `delivery_class`, because GitHub is work rather than machine health:
+/// `priority` is a posture page, a failed unattended upgrade or a dead daemon,
+/// and a lint job is none of those.
 fn submitted(event: &GithubEvent) {
     if let Some(request) = request_for(event)
         && let Ok(encoded) = request.encode()

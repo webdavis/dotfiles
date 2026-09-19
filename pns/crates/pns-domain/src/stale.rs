@@ -13,9 +13,9 @@
 //!
 //! WHICH ROUTE THAT IS stays the operator's to name. `[stale] route` names
 //! one outright and reaches `page` as an argument; with none named the page
-//! carries the HEALTH kind alone, so the one statement that turns a kind into
-//! a route (`routes::Kind::route`) settles it. This module names no route of
-//! its own either way.
+//! carries the HEALTH delivery class alone, so the one statement that turns a
+//! class into a route (`routes::route_for`) settles it. This module names no
+//! route of its own either way.
 
 use crate::surface::Surface;
 
@@ -135,9 +135,11 @@ pub fn page(blocked: &Blocked, now: u64, route: &str) -> crate::EventArgs {
         branch: blocked.branch.clone(),
         detail: waited(now.saturating_sub(blocked.since)),
         // THE ROUTE THE OPERATOR NAMED, which `[stale] route` settles and the
-        // caller has already resolved; empty leaves the kind below to pick it.
+        // caller has already resolved; empty leaves the class below to pick it.
         channel: route.to_string(),
-        kind: crate::routes::Kind::Health,
+        // NOT A ROUTE NAME: the delivery class is what puts this on the
+        // urgent route, whatever `[routes] urgent` calls it.
+        delivery_class: crate::routes::HEALTH.to_string(),
         session: blocked.session.clone(),
         session_title: blocked.title.clone(),
         ..crate::EventArgs::default()

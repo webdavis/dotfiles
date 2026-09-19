@@ -9,6 +9,18 @@ pub struct PluginEntry {
     pub settings: toml::Table,
 }
 
+/// `[paths]`: where this install keeps its state and looks for channel
+/// executables, or `None` for each key the file does not name.
+///
+/// `None` IS NOT A DEFAULT PATH. `channels_dir` NAMED forces every channel
+/// onto its executable, so "the file says nothing" and "the file says the
+/// usual place" are two different instructions and cannot share a value.
+#[derive(Debug, Default, PartialEq)]
+pub struct Paths {
+    pub state_dir: Option<String>,
+    pub channels_dir: Option<String>,
+}
+
 /// The whole parsed file. Ordered, so listings and errors are deterministic.
 ///
 /// THE DEFAULT IS WRITTEN OUT rather than derived, for `Recap`'s own reason
@@ -18,6 +30,8 @@ pub struct PluginEntry {
 #[derive(Debug, PartialEq)]
 pub struct Config {
     pub phone_marker_file: Option<String>,
+    /// `[paths]`: the two install-wide directories.
+    pub paths: Paths,
     pub plugins: BTreeMap<String, PluginEntry>,
     pub recap: Recap,
     /// `[focus] silence`: the Focus MODE NAMES that mean it, each written
@@ -30,6 +44,10 @@ pub struct Config {
     pub focus_silence: Vec<String>,
     /// Exact request classes allowed through mute and named Focus for banner and phone.
     pub bypass_silence_classes: Vec<String>,
+    /// `[delivery] remote_deadline`: how long ONE remote call may take, in
+    /// seconds, before the caller stops waiting on it. Zero is no deadline at
+    /// all, which is the caller's own instruction rather than a default.
+    pub remote_deadline_secs: u64,
     /// `[daemon] enabled`: whether `pns daemon run` stays up and ticks.
     ///
     /// DEFAULT ON, which is the opposite of `[focus]` and of every plugin, and
@@ -108,10 +126,12 @@ impl Default for Config {
     fn default() -> Self {
         Config {
             phone_marker_file: None,
+            paths: Paths::default(),
             plugins: BTreeMap::new(),
             recap: Recap::default(),
             focus_silence: Vec::new(),
             bypass_silence_classes: vec!["security".into()],
+            remote_deadline_secs: DEFAULT_REMOTE_DEADLINE_SECS,
             routes: pns_domain::routes::Routes::default(),
             daemon_enabled: DEFAULT_DAEMON_ENABLED,
             daemon_service: None,
