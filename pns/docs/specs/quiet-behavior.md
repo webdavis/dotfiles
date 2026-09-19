@@ -148,7 +148,7 @@ Then it prints a refusal quoting what was typed, then the usage line, exits 2, a
   seconds to the next. The refused shapes pinned in
   `src/duration.rs:a_duration_that_is_not_a_count_and_a_unit_is_refused_by_what_was_typed` are `30`, the
   empty string, `1d`, `-5m`, ` 5m`, `05m`, `m`, `ms` and `2 h`. The two refusal texts are
-  `pns: quiet duration <typed> is not <count><s|m|h>` and
+  `pns: quiet duration <typed> is not <count><ms|s|m|h>` and
   `pns: quiet duration <typed> is outside 1s to 24h`, each quoting the typed word with Rust debug
   formatting.
 - Required side effects: both lines go to stderr, never stdout.

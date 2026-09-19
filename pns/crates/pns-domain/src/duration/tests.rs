@@ -6,10 +6,11 @@ use std::time::Duration;
 
 #[test]
 fn a_count_and_its_unit_are_that_much_time() {
-    // ALL THREE UNITS, over a range wide enough to hold them, so the units
+    // ALL FOUR UNITS, over a range wide enough to hold them, so the units
     // are what this pins rather than one field's bounds.
-    let wide = Duration::from_secs(1)..=Duration::from_secs(86_400);
+    let wide = Duration::from_millis(1)..=Duration::from_secs(86_400);
     for (typed, held) in [
+        ("500ms", Duration::from_millis(500)),
         ("45s", Duration::from_secs(45)),
         ("30m", Duration::from_secs(1_800)),
         ("2h", Duration::from_secs(7_200)),
@@ -32,7 +33,7 @@ fn a_duration_that_is_not_a_count_and_a_unit_is_refused_by_what_was_typed() {
         assert_eq!(
             parse(typed),
             Err(format!(
-                "pns: quiet duration {typed:?} is not <count><s|m|h>"
+                "pns: quiet duration {typed:?} is not <count><ms|s|m|h>"
             )),
             "typed: {typed:?}"
         );
@@ -46,7 +47,7 @@ fn a_refusal_names_the_field_it_was_parsing() {
     // which argument the complaint is about.
     assert_eq!(
         parse_duration("flare", "30", RANGE),
-        Err("pns: flare \"30\" is not <count><s|m|h>".to_string())
+        Err("pns: flare \"30\" is not <count><ms|s|m|h>".to_string())
     );
     assert_eq!(
         parse_duration("flare", "25h", RANGE),
