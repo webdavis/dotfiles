@@ -200,16 +200,13 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
 /// moves only when the wait sleeps on it. The gate's own `/bin/sh` spawn still
 /// happens inside this window; a whole second leaves it plenty of margin.
 const SUBMIT_DEADLINE_SECS: u64 = 1;
-const SILENT_MOSHI_DEADLINE_MS: &str = "1000";
 
-/// The sandbox's stub channels, with the moshi submission deadline pulled
-/// down to `SUBMIT_DEADLINE_SECS` so a silent moshi expires fast.
+/// `support::STUB_CHANNELS`, with the moshi submission deadline pulled down
+/// to `SUBMIT_DEADLINE_SECS` so a silent moshi expires fast.
 fn config_with_short_submit_deadline() -> String {
-    format!(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\nsubmit_deadline_secs = {SUBMIT_DEADLINE_SECS}\n\
-         [plugins.hermes]\nenabled = true\n\
-         [plugins.macos-banner]\nenabled = true\n\
-         [failures]\nserve = false\n"
+    support::STUB_CHANNELS.replace(
+        "type = \"moshi\"\n",
+        &format!("type = \"moshi\"\nsubmit_deadline_secs = {SUBMIT_DEADLINE_SECS}\n"),
     )
 }
 
@@ -274,7 +271,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
         .expect("the hook's streams and process must finish inside the liveness limit");
     let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        said.contains(&expiry_line(SILENT_MOSHI_DEADLINE_MS)),
+        said.contains(&expiry_line(&(SUBMIT_DEADLINE_SECS * 1000).to_string())),
         "the wait had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
@@ -333,7 +330,7 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
         .expect("the gate's streams and process must finish inside the liveness limit");
     let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        said.contains(&expiry_line(SILENT_MOSHI_DEADLINE_MS)),
+        said.contains(&expiry_line(&(SUBMIT_DEADLINE_SECS * 1000).to_string())),
         "the gate had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
