@@ -197,7 +197,7 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
     request.state = State::Done;
     request.pane = Some("t1:p2".into());
     let mut command = sandbox.pns_stateful();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     let output = invoke_command(&sandbox, command, &request.encode().unwrap());
     assert_eq!(result(&output).status, Status::Accepted);

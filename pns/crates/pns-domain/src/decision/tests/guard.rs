@@ -27,7 +27,7 @@ fn a_safe_pane_is_not_dropped() {
 fn a_garbage_desk_threshold_fails_toward_away_never_into_the_default() {
     // Substituting the default would read a stale desk as fresh and hold
     // the operator at a desk they are not at.
-    let vars = BTreeMap::from([("PNS_DESK_IDLE_SECS".to_string(), "0600".to_string())]);
+    let vars = BTreeMap::from([("PNS_DESK_IDLE".to_string(), "0600".to_string())]);
     let overrides = Overrides::from_env(&vars);
     let probes = EnvironmentSnapshot {
         idle: Some(5),
@@ -90,4 +90,17 @@ fn skip_and_force_parse_from_their_relay_variables() {
     let overrides = Overrides::from_env(&vars);
     assert!(overrides.skip_phone);
     assert!(overrides.force_phone);
+}
+
+#[test]
+fn idle_overrides_read_their_pns_prefixed_names_and_ignore_the_old_ones() {
+    let vars = BTreeMap::from([
+        ("PNS_SCREEN_IDLE".to_string(), "5".to_string()),
+        ("PNS_DESK_IDLE".to_string(), "9".to_string()),
+        ("PNS_IDLE_SECS".to_string(), "500".to_string()),
+        ("PNS_DESK_IDLE_SECS".to_string(), "900".to_string()),
+    ]);
+    let overrides = Overrides::from_env(&vars);
+    assert_eq!(overrides.idle_secs, Some(5));
+    assert_eq!(overrides.desk_idle_secs, Some(9));
 }

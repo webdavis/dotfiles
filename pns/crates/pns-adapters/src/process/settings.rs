@@ -17,9 +17,9 @@ pub fn env_deadline(variable: &str) -> Option<Duration> {
 /// also the seam every test drives the binary through, which is what makes a
 /// caller stubbable at all.
 pub fn moshi_hook_bin() -> String {
-    std::env::var("MOSHI_HOOK_BIN").unwrap_or_else(|_| DEFAULT_MOSHI_HOOK_BIN.to_string())
+    std::env::var("PNS_MOSHI_HOOK_BIN").unwrap_or_else(|_| DEFAULT_MOSHI_HOOK_BIN.to_string())
 }
-/// Homebrew's own prefix, which is where the cask puts it. `MOSHI_HOOK_BIN`
+/// Homebrew's own prefix, which is where the cask puts it. `PNS_MOSHI_HOOK_BIN`
 /// overrides it, and that override is how every test points a caller at a stub
 /// instead of at the operator's own moshi.
 const DEFAULT_MOSHI_HOOK_BIN: &str = "/opt/homebrew/bin/moshi-hook";

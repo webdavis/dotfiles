@@ -23,7 +23,7 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
     // is right here.
     let sandbox = Sandbox::new("desk-hidden");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([
@@ -47,7 +47,7 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
     // so the event is already in front of the operator.
     let sandbox = Sandbox::new("desk-watching");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args([

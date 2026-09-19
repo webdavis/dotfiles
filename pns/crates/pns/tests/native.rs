@@ -58,7 +58,7 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
     let mut command = plugin_command(&sandbox);
     // At the desk, because the banner is a desk surface now: an idle of
     // 99999 is the operator being away, and away raises no banner at all.
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_notifier(&mut command);
     run(command
         .args([
@@ -91,7 +91,7 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
 
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_MOSHI_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
@@ -132,7 +132,7 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
     );
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_MOSHI_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
@@ -223,7 +223,7 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
     );
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_HERMES_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
@@ -276,14 +276,14 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
 
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("HTTP_PROXY", capture.url())
         .env("http_proxy", capture.url())
         .env("NO_PROXY", "localhost");
     sandbox.stub_notifier(&mut command);
     // No moshi-hook to spawn: the pairing check would otherwise reach the real
     // binary on the developer's own machine and the moshi API behind it.
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     // THE EXIT CODE IS NOT ASSERTED: it belongs to the whole report, and a
     // config naming one plugin makes it exit non-zero on grounds that have
     // nothing to do with the route this pins.

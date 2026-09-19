@@ -22,7 +22,7 @@ fn a_reading_nobody_could_take_is_reported_as_absent_and_never_as_a_number() {
     // A GARBLED THRESHOLD: there is no window, so nothing below it was
     // measured either.
     let garbled = Overrides::from_env(&BTreeMap::from([(
-        "PNS_DESK_IDLE_SECS".to_string(),
+        "PNS_DESK_IDLE".to_string(),
         "0600".to_string(),
     )]));
     let inputs = decide_with(&all_readable, &garbled, "").inputs;

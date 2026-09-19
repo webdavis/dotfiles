@@ -22,7 +22,7 @@ fn an_ordinary_stop_never_reaches_moshi() {
     // switch that causes it.
     let sandbox = Sandbox::new("hook-stop-no-round-trip");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(
         command,

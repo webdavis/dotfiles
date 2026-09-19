@@ -14,7 +14,7 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
         request.pane = Some("t1:p1".into());
         let mut command = sandbox.pns_stateful();
         command
-            .env("PNS_IDLE_SECS", desk)
+            .env("PNS_SCREEN_IDLE", desk)
             .env("PNS_PHONE_INPUT_AGE", phone)
             .env("PNS_FORCE_PHONE", "1");
         sandbox.stub_herdr(&mut command, visible);
@@ -66,7 +66,7 @@ fn json_progress_and_blocked_keep_presence_driven_phone_cards() {
             request.state = stated;
             request.pane = Some("t1:p1".into());
             let mut command = sandbox.pns_stateful();
-            command.env("PNS_IDLE_SECS", idle);
+            command.env("PNS_SCREEN_IDLE", idle);
             sandbox.stub_herdr(&mut command, visible);
             let output = invoke_command(&sandbox, command, &request.encode().unwrap());
             assert_eq!(
