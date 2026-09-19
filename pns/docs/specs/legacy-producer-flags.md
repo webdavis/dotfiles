@@ -57,39 +57,10 @@ The two lists behind the table are `src/legacy/argv.rs:VALUE_FLAGS` (the nine va
 
 ## The usage text, verbatim
 
-`const USAGE` in `src/main.rs` is one text printed on request and on a refusal, because an operator who
-mistyped and an operator who asked have the same question. It is the contract, reproduced exactly:
-
-```text
-pns: usage:
-  pns [<producer flags>]           one notification, stated in argv
-  pns hook <event>                 a harness hook: prompt, stop, stop-failure,
-                                   blocked, asked, plan-ready, denied, resolved,
-                                   model-switch, quota, config-change
-  pns <harness>-hook               presence-gated pass-through to moshi-hook,
-                                   spelled the way moshi's extension calls it
-  pns pulse <exit-code>            signal the lamps by hand
-  pns quiet [<duration>|off]       the operator's mute
-  pns daemon run|schedule|cancel   the clock
-  pns lights tick|quiet            the lamps' upkeep
-  pns loop begin|end               take the loop lamp by hand, and give it back
-  pns nag                          card every outstanding approval
-  pns recap --since <epoch> --until <epoch>
-  pns setup [--force]              write a first config, one question at a time
-  pns doctor                       one test send through every channel
-  pns --help, -h                   this text
-
-producer flags: --agent <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route> --elapsed <secs>
-                --delivery-class <name> --local-only --remote-only
-                --long-running --require-delivery
-
-delivery class: naming none is a session event and takes the route
-                `[routes] default` names; `health` is a machine's own health
-                and takes `[routes] urgent` when its --state is one somebody
-                has to answer, unless --channel already named one. The same
-                word the JSON request's `delivery_class` carries.
-```
+`const USAGE` moved to `src/legacy/usage.rs` and has drifted piecemeal through the retirement ladder
+since this file last reproduced it in full. Rather than carry a second copy that goes stale one rename at
+a time, read the constant itself for the live subcommand list, producer flags and delivery-class routing
+text.
 
 The subcommand-specific usage texts are separate constants and are printed instead of `USAGE` when the
 subcommand itself is mistyped:
