@@ -10,7 +10,7 @@ fn without_a_lights_table_nothing_new_reaches_the_bridge() {
     let long_running: Vec<&str> = LONG_DONE
         .iter()
         .copied()
-        .chain(["--long-running"])
+        .chain(["--elapsed", "300s"])
         .collect();
     assert_eq!(
         lamp_run(
@@ -83,7 +83,7 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
     let long_running: Vec<&str> = LONG_DONE
         .iter()
         .copied()
-        .chain(["--long-running"])
+        .chain(["--elapsed", "300s"])
         .collect();
     assert_eq!(
         lamp_run(

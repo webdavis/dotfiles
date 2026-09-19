@@ -6,6 +6,7 @@ use pns_protocol::{
 use std::cell::Cell;
 
 const REQUEST: &[u8] = br#"{"schema":"pns.request/1","request_id":"posture-occurrence","producer":"posture","event":"heartbeat","state":"observation","session":"session","occurred_at":42,"elapsed":"7s","detail":"private body","project":"repo","branch":"topic","pane":"pane","scope":"remote_only","route":"posture","interaction":{"kind":"none"},"extensions":{"posture":{"count":2}},"future":true}"#;
+const IGNORED: [&str; 4] = ["event", "future", "interaction", "occurred_at"];
 fn args() -> Vec<String> {
     vec!["--json".into()]
 }
@@ -30,7 +31,7 @@ fn one_valid_request_reaches_the_callback_with_every_decoded_field_intact() {
     let status = run(&args(), REQUEST, &mut output, |decoded| {
         calls.set(calls.get() + 1);
         assert_eq!(decoded, pns_protocol::decode_request(REQUEST).unwrap());
-        assert_eq!(decoded.ignored, ["future"]);
+        assert_eq!(decoded.ignored, IGNORED);
         receipt(Status::Accepted)
     })
     .unwrap();

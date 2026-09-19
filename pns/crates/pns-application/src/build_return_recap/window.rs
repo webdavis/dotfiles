@@ -10,8 +10,8 @@ pub fn recap_bounds(arguments: &[String]) -> Option<(u64, u64)> {
     let mut tokens = arguments.iter();
     while let Some(token) = tokens.next() {
         let bound = match token.as_str() {
-            "--since" => &mut since,
-            "--until" => &mut until,
+            "--since-epoch" => &mut since,
+            "--until-epoch" => &mut until,
             _ => return None,
         };
         // A REPEATED FLAG IS A REFUSAL TOO: two windows were asked for and only
@@ -45,7 +45,7 @@ pub fn recap_wall_clock(
 /// the other two are an agent's, and every one of them exits 2 on a word this
 /// will not vouch for, because a recap that swallowed a typo is a recap the
 /// operator believes was posted.
-pub const RECAP_USAGE: &str = "pns: usage: pns recap --since <epoch> --until <epoch>\n\
+pub const RECAP_USAGE: &str = "pns: usage: pns recap --since-epoch <epoch> --until-epoch <epoch>\n\
                                pns: usage: pns recap agent --stdin\n\
                                pns: usage: pns recap git";
 

@@ -32,7 +32,7 @@ pub fn shell_mode(argv: &[String]) -> i32 {
                 let project = cwd.rsplit('/').next().unwrap_or_default().to_owned();
                 let pane = std::env::var("HERDR_PANE_ID").unwrap_or_default();
                 match shell_event(command, exit_code, elapsed, project, pane) {
-                    Some(event) => pns_adapters::spawn_shell_event(&event),
+                    Some(event) => pns_adapters::spawn_shell_event(&event, elapsed),
                     None => Ok(()),
                 }
             })

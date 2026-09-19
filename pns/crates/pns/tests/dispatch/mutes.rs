@@ -105,7 +105,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
                 "--detail",
                 "x",
             ])
-            .args(["--pane", "t1:p2", "--long-running"]);
+            .args(["--pane", "t1:p2", "--elapsed", "300s"]);
         event
     };
 

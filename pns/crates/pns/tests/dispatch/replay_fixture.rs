@@ -81,7 +81,7 @@ pub(super) fn focus_config(silence: &str) -> String {
 /// `present_event` asserted against a silenced card and a silenced pulse is
 /// asserting what the surface had already decided: the Focus clause could be
 /// deleted outright and both would still read as held. `PNS_FORCE_PHONE` puts
-/// the card back on the plan and `--long-running` puts the pulse there, and
+/// the card back on the plan and a long `--elapsed` puts the pulse there, and
 /// the sibling test below shows all three firing in this same world.
 ///
 /// THE FORCE IS ALSO THE POINT, not just the setup. It is a producer's opinion
@@ -93,7 +93,7 @@ pub(super) fn focus_event(sandbox: &Sandbox) -> std::process::Command {
     command
         .env_remove("PNS_SKIP_PHONE")
         .env("PNS_FORCE_PHONE", "1")
-        .arg("--long-running");
+        .args(["--elapsed", "300s"]);
     command
 }
 

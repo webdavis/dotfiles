@@ -35,10 +35,8 @@ pub(super) fn encode(
     let mut request = Request::new(
         identity.clone(),
         Name::new("posture").map_err(|_| EncodeFailure::Invalid)?,
-        Name::new(alert.event).map_err(|_| EncodeFailure::Invalid)?,
         state,
     );
-    request.occurred_at = alert.occurred_at;
     request.detail = format!("{}\n{}", alert.title, alert.detail);
     request.route = route;
     if alert.signal == AlertSignal::NeedsAttention {

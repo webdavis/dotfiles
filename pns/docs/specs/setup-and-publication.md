@@ -1223,12 +1223,10 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
 The tap command creates the parent directory and updates the same marker object its presence probe reads,
 without truncating contents or following a final symlink. It refuses directories and special files.
 Repeated and concurrent taps require no daemon, journal or lock. Missing configuration uses
-`$HOME/.local/state/pns/phone-attention.marker`; nonempty `PNS_PHONE_MARKER_FILE` wins over
-`[phone] marker_file`. The config value accepts an absolute path or `~/` and rejects empty, relative and
-control-containing paths. Environment paths retain their existing literal path interpretation. Unusable
-configuration never silently redirects a write to the default. An explicit environment path can be used
-without reading configuration. These filesystem operations have no timeout on a hung filesystem; no
-background worker or new retry mechanism is introduced.
+`$HOME/.local/state/pns/phone-attention.marker`; `[phone] marker_file` is the only override. The config
+value accepts an absolute path or `~/` and rejects empty, relative and control-containing paths.
+Unusable configuration never silently redirects a write to the default. These filesystem operations
+have no timeout on a hung filesystem; no background worker or new retry mechanism is introduced.
 
 `pns tap install` is a guide only. It never reads or writes `authorized_keys`, publishes config,
 installs a daemon or sends a notification. It prints the running binary's absolute path in a forced

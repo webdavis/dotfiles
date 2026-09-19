@@ -3,7 +3,7 @@ use super::*;
 pub(super) const PHONE: Table = Table {
     name: "phone",
     prose: "# Phone attention, shared by `pns tap` and the presence reader.\n\
-            # PNS_PHONE_MARKER_FILE takes precedence. Setup guide: pns tap install.\n",
+            # Setup guide: pns tap install.\n",
     opt_in: true,
     children: &[],
     keys: &[Key {

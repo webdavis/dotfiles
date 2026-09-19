@@ -7,21 +7,16 @@ fn a_back_tap_newer_than_the_last_desk_input_moves_the_operator_to_mobile() {
     // Matrix row "tap newer than the last desk input wins: mobile". The
     // marker is a file the phone touches; nothing else has to know why.
     let sandbox = Sandbox::new("tap-newer");
-    let marker = sandbox.path("phone.marker");
-    std::fs::write(&marker, "").expect("marker");
-    run(sandbox
-        .pns()
-        .env("PNS_SCREEN_IDLE", "300")
-        .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args([
-            "send",
-            "--producer",
-            "claude",
-            "--state",
-            "blocked",
-            "--detail",
-            "x",
-        ]));
+    sandbox.touch_default_phone_marker();
+    run(sandbox.pns().env("PNS_SCREEN_IDLE", "300").args([
+        "send",
+        "--producer",
+        "claude",
+        "--state",
+        "blocked",
+        "--detail",
+        "x",
+    ]));
     assert!(sandbox.fired("mobile"));
     assert!(!sandbox.fired("macos-banner"), "mobile never banners");
 }
@@ -31,12 +26,9 @@ fn desk_input_after_the_tap_cancels_it() {
     // Matrix row "desk input AFTER the tap cancels it": newest signal wins,
     // which is what retired the marker's fixed five-minute TTL.
     let sandbox = Sandbox::new("tap-cancelled");
-    let marker = sandbox.path("phone.marker");
-    std::fs::write(&marker, "").expect("marker");
+    sandbox.touch_default_phone_marker();
     let mut command = sandbox.pns();
-    command
-        .env("PNS_SCREEN_IDLE", "0")
-        .env("PNS_PHONE_MARKER_FILE", &marker);
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([
@@ -61,12 +53,9 @@ fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
     // suppressed. `pns()` states the phone's pty clock as a day untouched,
     // which is exactly the closed-moshi half of the repro.
     let sandbox = Sandbox::new("tap-moshi-closed");
-    let marker = sandbox.path("phone.marker");
-    std::fs::write(&marker, "").expect("marker");
+    sandbox.touch_default_phone_marker();
     let mut command = sandbox.pns();
-    command
-        .env("PNS_SCREEN_IDLE", "300")
-        .env("PNS_PHONE_MARKER_FILE", &marker);
+    command.env("PNS_SCREEN_IDLE", "300");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args([
@@ -86,12 +75,10 @@ fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
 #[test]
 fn a_narrowing_flag_still_beats_a_fresh_tap() {
     let sandbox = Sandbox::new("tap-local-only");
-    let marker = sandbox.path("phone.marker");
-    std::fs::write(&marker, "").expect("marker");
+    sandbox.touch_default_phone_marker();
     run(sandbox
         .pns()
         .env("PNS_SCREEN_IDLE", "300")
-        .env("PNS_PHONE_MARKER_FILE", &marker)
         .args(["send", "--scope", "local_only"])
         .args([
             "--producer",
@@ -107,12 +94,10 @@ fn a_narrowing_flag_still_beats_a_fresh_tap() {
 #[test]
 fn skip_phone_still_beats_a_fresh_tap() {
     let sandbox = Sandbox::new("tap-skip");
-    let marker = sandbox.path("phone.marker");
-    std::fs::write(&marker, "").expect("marker");
+    sandbox.touch_default_phone_marker();
     run(sandbox
         .pns()
         .env("PNS_SCREEN_IDLE", "300")
-        .env("PNS_PHONE_MARKER_FILE", &marker)
         .env("PNS_SKIP_PHONE", "1")
         .args([
             "send",

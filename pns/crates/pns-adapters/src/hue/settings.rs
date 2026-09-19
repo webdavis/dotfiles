@@ -1,12 +1,11 @@
 use pns_domain::CertificatePin;
 use pns_domain::lamps::{QuietWindow, parse_window};
 
-/// The rooms the bash pulsed when `HUE_PULSE_ROOMS` said nothing.
+/// The rooms the bash pulsed when the settings named none.
 pub const DEFAULT_ROOMS: &[&str] = &["3F - Studio", "2F - Kitchen"];
 
 /// Everything the pulse needs from the config, or None for the not-set-up
-/// silence: a bridge and key are required, rooms come from the environment
-/// override (newline-separated, room names carry spaces), else the settings
+/// silence: a bridge and key are required, rooms come from the settings
 /// array, else the defaults.
 #[derive(Debug, PartialEq)]
 pub struct HueSettings {
@@ -27,10 +26,7 @@ pub struct HueSettings {
 /// finish, so it refuses by name in the `quiet_hours` grammar instead of
 /// pulsing through a connection that verifies nothing. A table with no bridge
 /// and key at all is still the silence it always was.
-pub fn hue_settings(
-    settings: &toml::Table,
-    rooms_env: Option<&str>,
-) -> Result<Option<HueSettings>, String> {
+pub fn hue_settings(settings: &toml::Table) -> Result<Option<HueSettings>, String> {
     let text = |key: &str| -> Option<String> {
         settings
             .get(key)?
@@ -38,12 +34,6 @@ pub fn hue_settings(
             .filter(|value| !value.is_empty())
             .map(String::from)
     };
-    let from_env: Vec<String> = rooms_env
-        .unwrap_or_default()
-        .lines()
-        .filter(|room| !room.is_empty())
-        .map(String::from)
-        .collect();
     let (Some(bridge), Some(key)) = (text("bridge"), text("key")) else {
         return Ok(None);
     };
@@ -55,22 +45,18 @@ pub fn hue_settings(
         bridge,
         key,
         certificate,
-        rooms: if from_env.is_empty() {
-            settings
-                .get("rooms")
-                .and_then(|rooms| rooms.as_array())
-                .map(|rooms| {
-                    rooms
-                        .iter()
-                        .filter_map(|room| room.as_str())
-                        .map(String::from)
-                        .collect::<Vec<_>>()
-                })
-                .filter(|rooms| !rooms.is_empty())
-                .unwrap_or_else(|| DEFAULT_ROOMS.iter().map(|room| room.to_string()).collect())
-        } else {
-            from_env
-        },
+        rooms: settings
+            .get("rooms")
+            .and_then(|rooms| rooms.as_array())
+            .map(|rooms| {
+                rooms
+                    .iter()
+                    .filter_map(|room| room.as_str())
+                    .map(String::from)
+                    .collect::<Vec<_>>()
+            })
+            .filter(|rooms| !rooms.is_empty())
+            .unwrap_or_else(|| DEFAULT_ROOMS.iter().map(|room| room.to_string()).collect()),
     }))
 }
 
@@ -90,12 +76,8 @@ and paste the line it prints; no pulse"
 /// any, and the refusal said out loud once when there are not. Written here
 /// rather than seven times, so a refusal cannot reach one path and be
 /// swallowed on another.
-pub fn armed_hue(
-    settings: &toml::Table,
-    rooms_env: Option<&str>,
-    complain: impl FnOnce(&str),
-) -> Option<HueSettings> {
-    match hue_settings(settings, rooms_env) {
+pub fn armed_hue(settings: &toml::Table, complain: impl FnOnce(&str)) -> Option<HueSettings> {
+    match hue_settings(settings) {
         Ok(hue) => hue,
         Err(refusal) => {
             complain(&refusal);

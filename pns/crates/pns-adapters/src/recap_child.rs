@@ -49,8 +49,8 @@ pub fn spawn_recap(since: u64, until: u64) -> Option<std::process::ChildStdin> {
     let binary = std::env::current_exe().ok()?;
     let mut child = Command::new(binary);
     child
-        .args(["recap", "--since", &since.to_string()])
-        .args(["--until", &until.to_string()])
+        .args(["recap", "--since-epoch", &since.to_string()])
+        .args(["--until-epoch", &until.to_string()])
         .arg(CARD_ON_STDIN)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())

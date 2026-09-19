@@ -3,12 +3,15 @@ use std::io;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 
-pub fn spawn_shell_event(event: &EventArgs) -> io::Result<()> {
-    spawn(std::env::current_exe()?, event)
+pub fn spawn_shell_event(event: &EventArgs, elapsed: u64) -> io::Result<()> {
+    spawn(std::env::current_exe()?, event, elapsed)
 }
 
-fn spawn(binary: std::path::PathBuf, event: &EventArgs) -> io::Result<()> {
+fn spawn(binary: std::path::PathBuf, event: &EventArgs, elapsed: u64) -> io::Result<()> {
     let mut command = Command::new(binary);
+    // `--elapsed` lets the spawned `pns send` derive `long_running` itself,
+    // the same way every other producer does; there is no flag to carry a
+    // precomputed boolean any more.
     command.args([
         "send",
         "--producer",
@@ -21,10 +24,9 @@ fn spawn(binary: std::path::PathBuf, event: &EventArgs) -> io::Result<()> {
         &event.detail,
         "--pane",
         &event.pane,
+        "--elapsed",
+        &format!("{elapsed}s"),
     ]);
-    if event.long_running {
-        command.arg("--long-running");
-    }
     // Marker removal already finished. This is the existing producer route,
     // off the prompt's job table and streams, with its existing delivery bounds.
     command

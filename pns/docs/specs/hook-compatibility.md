@@ -463,10 +463,11 @@ Then `consume_turn_marker` renames the marker to a per-process claim path, reads
 - Fail direction: closed, meaning "not long". `consume_turn_marker` returns `None` on any of them, and
   `pulse::session_was_long(None, _)` is false. A hand-edited marker is not a crash and is still consumed
   (`tests/hooks.rs:a_corrupt_marker_declines_rather_than_crashing_and_is_still_consumed`).
-- Thresholds: `session_was_long` is `elapsed_secs >= threshold_secs`. The default threshold is
-  `pulse::DEFAULT_LONG_SESSION_SECS` = 300 seconds, overridable by `PNS_PULSE_THRESHOLD_SECS`. At exactly
-  300 seconds elapsed the turn IS long; at 299 it is not (`src/pulse.rs:session_was_long`, and the crate
-  unit test at `src/pulse.rs` asserting `session_was_long(Some(300), Some(300))`).
+- Thresholds: `session_was_long` is `elapsed_secs >= threshold_secs`. The threshold is
+  `pulse::DEFAULT_LONG_SESSION_SECS` = 300 seconds, fixed: it is its own constant, not `[lights.loop]
+  threshold_secs`, which arms the loop lamp on a different clock. At exactly 300 seconds elapsed the turn
+  IS long; at 299 it is not (`src/pulse.rs:session_was_long`, and the crate unit test at `src/pulse.rs`
+  asserting `session_was_long(Some(300), Some(300))`).
 - Required side effects: the marker is gone afterwards
   (`tests/hooks.rs:stopping_consumes_the_marker_so_a_second_stop_cannot_re_fire_the_tier`), and the claim
   file `session-<id>.claim.<process id>` is removed too.
@@ -1113,5 +1114,7 @@ ______________________________________________________________________
 | `PNS_CONDENSER_DEADLINE_MS`       | `condense`                                 | the condenser bound; defaults to 30 s                                               |
 | `PNS_SUMMARIZING`                 | `condense`                                 | the cheap re-entry guard                                                            |
 | `PNS_CODEX_BIN`, `PNS_CODEX_HOME` | `condense`, `condenser_home`               | the condenser binary and its private home                                           |
-| `PNS_PULSE_THRESHOLD_SECS`        | `pulse_threshold_secs`                     | the long-turn threshold; defaults to 300                                            |
 | `HOME`                            | `state_dir`, `condenser_home`, `run_event` | the configuration and state roots                                                   |
+
+The long-turn threshold is `pulse::DEFAULT_LONG_SESSION_SECS`, a fixed 300 seconds with neither an
+environment nor a config override.

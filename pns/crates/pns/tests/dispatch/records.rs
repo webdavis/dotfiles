@@ -13,7 +13,8 @@ fn an_event_appends_exactly_one_decision_carrying_what_it_decided_and_what_the_l
             "claude",
             "--state",
             "done",
-            "--long-running",
+            "--elapsed",
+            "300s",
         ])
         .args(["--project", "dotfiles", "--detail", "a private summary"]));
     assert!(sandbox.fired("mobile"), "the channels fired");

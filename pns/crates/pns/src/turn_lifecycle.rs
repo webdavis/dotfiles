@@ -40,7 +40,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
-                Some(pulse_threshold_secs()),
+                Some(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
             ),
             ..attribution(payload, agent)
         },
@@ -83,7 +83,7 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
-                Some(pulse_threshold_secs()),
+                Some(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
             ),
             ..attribution(payload, agent)
         },
@@ -116,14 +116,6 @@ pub(crate) fn named_project(repository: &str, cwd: &str) -> String {
         true => project_of(cwd),
         false => repository.to_string(),
     }
-}
-
-/// How long a turn must run to earn the lights.
-fn pulse_threshold_secs() -> u64 {
-    std::env::var("PNS_PULSE_THRESHOLD_SECS")
-        .ok()
-        .and_then(|raw| raw.parse().ok())
-        .unwrap_or(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS)
 }
 
 #[cfg(test)]

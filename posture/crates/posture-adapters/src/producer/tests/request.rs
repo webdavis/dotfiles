@@ -1,14 +1,12 @@
 use super::*;
 
 #[test]
-fn attention_retains_occurrence_body_route_time_and_security_class() {
+fn attention_retains_occurrence_body_route_and_security_class() {
     let mut sut = subject(Status::Accepted, true);
     assert_eq!(sut.submit(&alert()), Submission::Accepted);
     let request = &sut.runner.requests[0];
     assert_eq!(request.producer.as_str(), "posture");
-    assert_eq!(request.event.as_str(), "page");
     assert_eq!(request.state, crate::wire::State::Blocked);
-    assert_eq!(request.occurred_at, Some(1730000000));
     assert_eq!(request.route.as_ref().unwrap().as_str(), "assigned-route");
     assert_eq!(request.class.as_ref().unwrap().as_str(), "security");
     assert_eq!(request.detail, "Security finding\nline one\nline two");
@@ -49,23 +47,6 @@ fn a_supplied_occurrence_is_stable_but_missing_occurrences_are_unique_per_call()
         sut.runner.requests[2].request_id,
         sut.runner.requests[3].request_id
     );
-}
-#[test]
-fn invalid_requests_are_refused_before_any_child_or_alarm_even_with_oversized_text() {
-    for event in ["", "invalid\nevent"] {
-        for detail in ["ordinary".to_string(), "x".repeat(300_000)] {
-            let mut sut = subject(Status::Accepted, true);
-            let mut input = alert();
-            input.event = event;
-            input.detail = detail;
-            assert_eq!(
-                sut.submit(&input),
-                Submission::NotAccepted(SubmissionFailure::Refused)
-            );
-            assert!(sut.runner.requests.is_empty());
-            assert!(sut.alarm.calls.is_empty());
-        }
-    }
 }
 #[test]
 fn oversized_observations_remain_refused_without_a_security_notification() {
