@@ -40,7 +40,10 @@ pub(crate) const REMIND_OFF: u64 = 0;
 pub(crate) fn remind_delay(argv: &[String], producer: &str) -> Result<u64, String> {
     match remind_switch(argv)? {
         Some(Remind::Off) => Ok(REMIND_OFF),
-        Some(Remind::After(seconds)) => Ok(seconds),
+        Some(Remind::After(seconds)) => match backstop_secs() {
+            Some(give_up) if give_up < seconds => Err(remind_outlasts_backstop(seconds, give_up)),
+            _ => Ok(seconds),
+        },
         Some(Remind::Configured) => match remind_delay_secs() {
             REMIND_OFF => Err(NO_DELAY_TO_REMIND_AT.to_string()),
             delay => Ok(delay),
@@ -58,6 +61,27 @@ pub(crate) fn remind_delay(argv: &[String], producer: &str) -> Result<u64, Strin
 const NO_DELAY_TO_REMIND_AT: &str = "--remind has no delay to run at; \
 set `delay` in the `[remind]` table of ~/.config/pns/config.toml, \
 or pass --remind=<duration>";
+
+/// `[lights.blocked] give_up_after_secs`, the loader's own reading, so
+/// `--remind=<duration>` is held to the invariant the loader already enforces
+/// for `[remind] delay`: `backstop_outlasts_the_reminder` in
+/// `pns-adapters/src/config/remind.rs`.
+fn backstop_secs() -> Option<u64> {
+    loaded_config()?
+        .lights
+        .as_ref()
+        .map(|lights| lights.blocked.give_up_after_secs)
+}
+
+/// What `--remind=<duration>` naming a wait past the lamp's own backstop is
+/// told, in the loader's wording for the same contradiction.
+fn remind_outlasts_backstop(seconds: u64, give_up: u64) -> String {
+    format!(
+        "--remind is {seconds}s, above `lights.blocked` key `give_up_after_secs` \
+         ({give_up}s), so the lamp would be given up on before the nudge it \
+         belongs to has ever fired"
+    )
+}
 
 /// How long an unanswered approval waits, off `[remind] delay` alone.
 ///

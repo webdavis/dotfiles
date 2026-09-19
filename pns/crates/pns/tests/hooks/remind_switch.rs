@@ -131,6 +131,29 @@ fn a_switch_with_no_delay_to_run_at_is_refused_and_names_both_fixes() {
 }
 
 #[test]
+fn a_remind_duration_past_the_lamps_backstop_is_refused_and_names_both_numbers() {
+    // `--remind=<duration>` is held to the same invariant the loader enforces
+    // for `[remind] delay`: the lamp must not be given up on before the nudge
+    // it belongs to has ever fired.
+    let sandbox = Sandbox::new("remind-switch-outlasts-backstop");
+    sandbox.write_config(&format!(
+        "{}[lights.blocked]\ngive_up_after_secs = 60\n",
+        support::STUB_CHANNELS
+    ));
+
+    let output = blocked_with(&sandbox, &["--remind=5m"]);
+    assert_eq!(output.status.code(), Some(2));
+    let said = support::stderr(&output);
+    assert!(said.contains("300"), "the call's own seconds: {said}");
+    assert!(said.contains("60"), "and the backstop's: {said}");
+    assert!(
+        said.contains("give_up_after_secs"),
+        "the config key is named: {said}"
+    );
+    assert!(!remind_record(&sandbox, "s1").exists());
+}
+
+#[test]
 fn a_duration_outside_the_configured_range_is_refused_by_the_same_rule() {
     let sandbox = Sandbox::new("remind-switch-bad-duration");
     sandbox.write_config(&delay_only(300));
