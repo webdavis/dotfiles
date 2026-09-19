@@ -25,7 +25,7 @@ fn every_table_armed() -> toml::Table {
         [focus]
         silence = ["Sleep"]
 
-        [nag]
+        [remind]
     }
 }
 

@@ -134,7 +134,8 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("quiet.calendar", "command", "[\"busy-window\"]"),
     ("quiet.calendar", "poll_secs", "120"),
     ("quiet.calendar", "deadline_secs", "20"),
-    (super::TOP_LEVEL, "nag", "{ after_secs = 300 }"),
+    (super::TOP_LEVEL, "remind", "{ delay = \"5m\" }"),
+    (super::TOP_LEVEL, "stale", "{ escalate_after = \"1h\" }"),
     (
         super::TOP_LEVEL,
         "plugins",
@@ -158,8 +159,9 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("focus", "silence", "[\"Sleep\"]"),
     ("daemon", "enabled", "true"),
     ("daemon", "service", "'com.example.pns-daemon'"),
-    ("nag", "after_secs", "300"),
-    ("nag", "stale_after_secs", "3600"),
+    ("remind", "delay", "\"5m\""),
+    ("stale", "escalate_after", "\"1h\""),
+    ("stale", "route", "\"priority\""),
     ("lights", "blocked", "{ duration_ms = 2000 }"),
     ("lights", "dim", "{ duration_ms = 3000 }"),
     ("lights", "done", "{ duration_ms = 4000 }"),
@@ -265,7 +267,6 @@ mod lights_motion;
 mod lights_targets;
 mod loading;
 mod mobile;
-mod nag;
 mod presence_intervals;
 mod presence_rooms;
 mod presence_shape;
@@ -274,8 +275,10 @@ mod recap_sources;
 mod recap_summarizer;
 mod recap_switches;
 mod recap_threshold;
+mod remind;
 mod roster;
 mod schema;
+mod stale;
 mod vocabulary;
 
 #[test]

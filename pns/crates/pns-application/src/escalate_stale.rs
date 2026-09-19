@@ -34,9 +34,15 @@ pub struct EscalateStaleBlocks<'a, W, N> {
 }
 
 impl<W: StaleWaits, N: RaiseNotification> EscalateStaleBlocks<'_, W, N> {
-    pub fn run(&self, now: u64, window: u64, reading: &SurfaceReading) -> StaleOutcome {
+    pub fn run(
+        &self,
+        now: u64,
+        window: u64,
+        route: &str,
+        reading: &SurfaceReading,
+    ) -> StaleOutcome {
         // A CONFIG THAT TURNED THE FEATURE OFF BETWEEN ARMING AND FIRING MEANS
-        // NO PAGE, which is `nag_mode`'s own reading: the operator cancelled
+        // NO PAGE, which is `remind_mode`'s own reading: the operator cancelled
         // the timer, and a page from it would be the feature ignoring them.
         // The rows are left alone, because the session's own next event clears
         // them (every Stop does) rather than accumulating.
@@ -51,8 +57,8 @@ impl<W: StaleWaits, N: RaiseNotification> EscalateStaleBlocks<'_, W, N> {
         // it found it, so a later fire can still escalate the block.
         //
         // WHICH LATER FIRE, IF ANY, IS NOT PROMISED HERE. The job `track_wait`
-        // arms is a one-shot, the shape `arm_nag` already uses and for its
-        // reason (a held-back nag is lost rather than queued), so what reaches
+        // arms is a one-shot, the shape `arm_remind` already uses and for its
+        // reason (a held-back reminder is lost rather than queued), so what reaches
         // a suppressed row is the session's next wait-starting event, another
         // session's fire sweeping globally, or `pns stale` typed at the desk.
         if let Gate::Skip(why) = stale::gate(
@@ -73,7 +79,7 @@ impl<W: StaleWaits, N: RaiseNotification> EscalateStaleBlocks<'_, W, N> {
             if !self.waits.claim(&blocked.session, now) {
                 continue;
             }
-            self.notifier.raise(&stale::page(blocked, now));
+            self.notifier.raise(&stale::page(blocked, now, route));
             paged += 1;
         }
         match paged {
@@ -89,7 +95,7 @@ impl<W: StaleWaits, N: RaiseNotification> EscalateStaleBlocks<'_, W, N> {
 /// cannot disagree about what switches the feature off. The other two
 /// spellings are each a different layer's own (`config`'s accepted value and
 /// the composition root's fallback for a config it could not read), which is
-/// the shape `NAG_OFF` already has.
+/// the shape `REMIND_OFF` already has.
 pub(crate) const WINDOW_OFF: u64 = 0;
 
 #[cfg(test)]

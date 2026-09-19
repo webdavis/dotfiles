@@ -5,7 +5,7 @@ use super::{Job, parse, render, validate_shape};
 
 fn full() -> Job {
     Job {
-        id: "nag:sess-123".to_string(),
+        id: "remind:sess-123".to_string(),
         due: 1_700_000_000,
         until: 1_700_000_300,
         every: Some(30),
@@ -193,7 +193,7 @@ fn every_other_out_of_range_field_is_refused_by_name_too() {
         );
     }
     // Both edges of the lease are legal: a one-shot whose lease is exactly
-    // its due second is the shape the nag registers.
+    // its due second is the shape the reminder registers.
     assert_eq!(
         validate_shape(&Job {
             due: 1_700_000_300,

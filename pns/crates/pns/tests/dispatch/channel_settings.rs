@@ -103,7 +103,7 @@ fn a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly() {
 #[test]
 fn an_absent_config_stays_silent_in_pulse_mode() {
     // The other half of the rule: absent is not broken. A machine that never
-    // opted into a config must not be nagged on every long command.
+    // opted into a config must not be reminded on every long command.
     let sandbox = support::Sandbox::without_config("pulse-absent-config");
     let output = sandbox
         .bare()

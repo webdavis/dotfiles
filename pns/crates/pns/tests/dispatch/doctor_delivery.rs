@@ -273,7 +273,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             ),
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
-            NAG_OFF_LINE,
+            REMIND_OFF_LINE,
             HOME_UNCONFIGURED_LINE,
             LIGHTS_OFF_LINE,
             NO_CERTIFICATE_LINE,

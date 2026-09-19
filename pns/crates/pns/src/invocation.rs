@@ -215,10 +215,14 @@ pub(crate) fn run() {
     // takes NO SESSION ARGUMENT either, because coalescing means it looks at
     // every outstanding record rather than at the one whose timer woke it, so
     // an argument would be a value it had to ignore.
-    if first == "nag" {
-        std::process::exit(nag_mode());
+    if first == "remind" {
+        std::process::exit(remind_mode());
     }
-    // The page about a session nobody came back to. A MODE beside the nag's
+    // The reminder is `pns remind` now, matching `[remind]` and `--remind`.
+    if first == "nag" {
+        std::process::exit(crate::command_remind::retired_nag());
+    }
+    // The page about a session nobody came back to. A MODE beside the reminder's
     // for the same reasons: it reads no stdin, takes no decision from an
     // event, and takes NO SESSION ARGUMENT, because one fire covers every
     // session stuck past the window rather than the one whose timer woke it.

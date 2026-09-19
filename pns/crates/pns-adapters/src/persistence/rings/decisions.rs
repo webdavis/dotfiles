@@ -28,7 +28,7 @@ pub fn line(record: &Record) -> String {
          session_visibility={session_visibility:?} \
          desk_age={desk_age} phone_age={phone_age} tap_age={tap_age} \
          locked={locked} fresh_window={fresh_window} long_running={long_running} \
-         nag={nag} \
+         remind={remind} \
          local_only={local_only} remote_only={remote_only} \
          pane={pane} pane_dropped={pane_dropped} watch_card={watch_card} \
          muted={muted} focus={focus} skip_phone={skip_phone} force_phone={force_phone} \
@@ -58,7 +58,7 @@ pub fn line(record: &Record) -> String {
         locked = tri(inputs.screen_locked),
         fresh_window = count(inputs.desk_fresh_secs),
         long_running = yes_no(inputs.long_running),
-        nag = yes_no(record.nag),
+        remind = yes_no(record.remind),
         local_only = yes_no(inputs.scope == pns_domain::DeliveryScope::LocalOnly),
         remote_only = yes_no(inputs.scope == pns_domain::DeliveryScope::RemoteOnly),
         // THE PANE AS THE DECISION USED IT and no further: its value is a

@@ -162,7 +162,7 @@ impl SqliteStore {
     /// it a compare-and-swap that SQLite arbitrates, so two fires woken in one
     /// tick produce one page between them without a lock file of their own.
     ///
-    /// STAMPED ON ATTEMPT, NEVER ON SUCCESS, which matches the nag's own
+    /// STAMPED ON ATTEMPT, NEVER ON SUCCESS, which matches the reminder's own
     /// honesty: a mute, a Focus or an empty plan can suppress the delivery,
     /// and a page that retried every hour because the first one was muted is
     /// the failure mode worth avoiding.

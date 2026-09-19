@@ -6,15 +6,16 @@
 //! these rows is the persistence adapter's, the job that wakes the fire is the
 //! daemon's, and the surface reading the gate judges is taken by the caller.
 //!
-//! IT IS THE NAG'S SIBLING AND NOT A SETTING ON IT (design, 2026-09-14). The
-//! nag says "this approval is still waiting" minutes later on the ordinary
+//! IT IS THE REMINDER'S SIBLING AND NOT A SETTING ON IT (design, 2026-09-14). The
+//! the reminder says "this approval is still waiting" minutes later on the ordinary
 //! route; this says "nobody is coming" an hour later on the route reserved for
 //! things that need a human, once per block.
 //!
-//! WHICH ROUTE THAT IS stays the operator's to name. The page carries the
-//! HEALTH kind rather than a route name, so the one statement that turns a
-//! kind into a route (`routes::Kind::route`) settles this page too and this
-//! module names no route at all.
+//! WHICH ROUTE THAT IS stays the operator's to name. `[stale] route` names
+//! one outright and reaches `page` as an argument; with none named the page
+//! carries the HEALTH kind alone, so the one statement that turns a kind into
+//! a route (`routes::Kind::route`) settles it. This module names no route of
+//! its own either way.
 
 use crate::surface::Surface;
 
@@ -36,10 +37,10 @@ pub struct Blocked {
 ///
 /// A COLON, which `session_id_is_safe` refuses and the daemon's own id rule
 /// admits, so a job id can never be mistaken for a session id. It is
-/// `nag::usable`'s bound that decides whether a session can carry a name at
+/// `remind::usable`'s bound that decides whether a session can carry a name at
 /// all, because both prefixes are measured against the same daemon cap.
 pub fn job_id(session_id: &str) -> Option<String> {
-    crate::nag::usable(session_id).map(|id| format!("{JOB_PREFIX}{id}"))
+    crate::remind::usable(session_id).map(|id| format!("{JOB_PREFIX}{id}"))
 }
 
 /// What an escalation job's id starts with.
@@ -114,8 +115,8 @@ pub fn gate(
     Gate::Page
 }
 
-/// The page: the ordinary event of the sender header, on the priority route,
-/// whose detail is how long the block has stood.
+/// The page: the ordinary event of the sender header, on the route the fire
+/// was given, whose detail is how long the block has stood.
 ///
 /// THE HEADER AND SUBHEADER ARE COMPOSED WHERE EVERY OTHER EVENT'S ARE, off
 /// these fields at the hermes destination, so a page reads as the same line
@@ -126,15 +127,16 @@ pub fn gate(
 /// `HERDR_PANE_ID` of its own and the sessions row is not where a pane
 /// belongs; a page that focuses nothing is honest, and an invented pane id
 /// would focus somebody else's.
-pub fn page(blocked: &Blocked, now: u64) -> crate::EventArgs {
+pub fn page(blocked: &Blocked, now: u64, route: &str) -> crate::EventArgs {
     crate::EventArgs {
         agent: blocked.harness.clone(),
         state: BLOCKED_STATE.to_string(),
         project: blocked.project.clone(),
         branch: blocked.branch.clone(),
         detail: waited(now.saturating_sub(blocked.since)),
-        // NOT A ROUTE NAME: the kind is what puts this on the urgent route,
-        // whatever `[routes] urgent` calls it.
+        // THE ROUTE THE OPERATOR NAMED, which `[stale] route` settles and the
+        // caller has already resolved; empty leaves the kind below to pick it.
+        channel: route.to_string(),
         kind: crate::routes::Kind::Health,
         session: blocked.session.clone(),
         session_title: blocked.title.clone(),
@@ -144,7 +146,7 @@ pub fn page(blocked: &Blocked, now: u64) -> crate::EventArgs {
 
 /// How long the block has stood, as the page says it.
 ///
-/// SPELLED OUT IN MINUTES rather than `nag::waited`'s compact `63m` (design,
+/// SPELLED OUT IN MINUTES rather than `remind::waited`'s compact `63m` (design,
 /// 2026-09-14). That one is read by someone who has been watching the pane it
 /// is about; this one is read by someone who has not, on the route they have
 /// agreed to be interrupted on, where a bare unit suffix is one more thing to

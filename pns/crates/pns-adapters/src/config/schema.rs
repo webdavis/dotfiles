@@ -39,8 +39,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon", "delivery", "failures", "focus", "lights", "nag", "phone", "plugins",
-            "quiet", "recap", "routes",
+            "daemon", "delivery", "failures", "focus", "lights", "phone", "plugins", "quiet",
+            "recap", "remind", "routes", "stale",
         ],
     ),
     (ROUTES, &["default", "urgent"]),
@@ -73,7 +73,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("daemon", &["enabled", "service"]),
     ("phone", &["marker_file"]),
-    ("nag", &["after_secs", "stale_after_secs"]),
+    ("remind", &["delay"]),
+    ("stale", &["escalate_after", "route"]),
     ("failures", &["port", "serve"]),
     (
         "lights",
@@ -294,4 +295,39 @@ pub(super) fn unknown_key(roster_table: &str, shown_table: &str, key: &str) -> C
         "unknown `{shown_table}` key `{key}`; the table serves {}",
         keys_of(roster_table).unwrap_or_default().join(", ")
     ))
+}
+
+/// One duration key off a table: `<count><s|m|h>`, inside the range that key
+/// allows, refused BY NAME like every other key here.
+///
+/// THE DOMAIN'S ONE PARSER DOES THE READING, so a duration means the same
+/// thing in config as it does on the command line; only the `pns: ` prefix it
+/// writes for a terminal is dropped, because a config refusal already carries
+/// its own framing.
+///
+/// ZERO IS CARVED OUT AND IS NOT AN ERROR, for the callers whose key is the
+/// switch as well as the timing: `"0s"` is the same statement as leaving the
+/// key out, while every other value under the floor is a schedule the
+/// operator meant and pns will not run.
+pub(super) fn duration_key(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<u64, ConfigError> {
+    let Some(text) = setting.as_str() else {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` has type `{}`, not a duration like \"5m\"",
+            setting.type_str()
+        )));
+    };
+    let field = format!("`{table}` key `{key}`");
+    if pns_domain::duration::parse_duration(&field, text, Duration::ZERO..=Duration::ZERO).is_ok() {
+        return Ok(0);
+    }
+    pns_domain::duration::parse_duration(&field, text, range)
+        .map(|duration| duration.as_secs())
+        .map_err(|said| {
+            ConfigError::Invalid(said.strip_prefix("pns: ").unwrap_or(&said).to_string())
+        })
 }

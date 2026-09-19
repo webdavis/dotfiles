@@ -8,11 +8,12 @@ pub(super) const HEADER: &str = "# The pns engine's plugin selection, as `pns se
      # the plugins below are OPT-INS you arm with a credential first: hue needs\n\
      # a bridge and key, hermes needs a signed route, and the home probe needs\n\
      # a router API key, so switching them on by default would deliver nothing\n\
-     # and report three failures. Focus, the nag and the lamp map are separate\n\
-     # opt-ins below `[plugins]` and need no credential at all. A commented-out\n\
-     # block below is a feature nothing is set up for yet: fill its values in\n\
-     # and uncomment it. A plugin names its backend with `type`, and the key is\n\
-     # required: nothing guesses which implementation a table meant.\n";
+     # and report three failures. Focus, the reminder and the lamp map are\n\
+     # separate opt-ins below `[plugins]` and need no credential at all. A\n\
+     # commented-out block below is a feature nothing is set up for yet: fill\n\
+     # its values in and uncomment it. A plugin names its backend with `type`,\n\
+     # and the key is required: nothing guesses which implementation a table\n\
+     # meant.\n";
 
 pub(super) const DAEMON_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
      # reactions to one, saying something when nothing happened and keeping a\n\

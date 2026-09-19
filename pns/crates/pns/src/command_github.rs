@@ -287,7 +287,7 @@ fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
         pns_protocol::Name::new(EVENT_NAME).ok()?,
         // EVERY POLLED EVENT IS AN OBSERVATION: it is GitHub telling pns
         // that something happened, not a turn waiting on the operator, so
-        // it changes no workflow or marker state and arms no nag.
+        // it changes no workflow or marker state and arms no reminder.
         pns_protocol::State::Observation,
     );
     // AN INSTANT THE PARSE COULD NOT READ FALLS BACK TO NOW rather than to

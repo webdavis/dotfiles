@@ -5,7 +5,7 @@ use super::*;
 pub(super) const DEFAULT_DAEMON_ENABLED: bool = true;
 
 /// `[daemon]`'s two keys: the clock switch, and the launchd label `pns
-/// gateway` acts on. IN `parse_nag`'s SHAPE, a named struct rather than a
+/// gateway` acts on. IN `parse_remind`'s SHAPE, a named struct rather than a
 /// pair of same-typed values, and for the same reason: an unknown key inside
 /// the table and a value of the wrong type are each refused BY NAME, rather
 /// than half-read into a clock or a gateway the operator believes they set.

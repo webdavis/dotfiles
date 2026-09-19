@@ -19,7 +19,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
     // for a batch payload over the 1MB cap, an operator who escaped the prompt
     // instead of answering it, and the window between this merge and the apply
     // that installs the PostToolBatch entry.
-    clear_nag(&payload.session_id);
+    clear_remind(&payload.session_id);
     let reply = turn_reply(payload);
     // A STATE THE CONDENSER READ OFF THE TURN IS A GUESS, and says so, so the
     // submit path can withhold a blocked marker a live loop makes wrong. An
@@ -74,7 +74,7 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
     );
     // The same free clear `end_of_turn` takes, for the same reason: StopFailure
     // fires INSTEAD of Stop, so without it a dead turn leaves its approval armed.
-    clear_nag(&payload.session_id);
+    clear_remind(&payload.session_id);
     run_event(
         &pns_domain::EventArgs {
             agent: agent.to_string(),

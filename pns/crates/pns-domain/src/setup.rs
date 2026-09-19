@@ -34,7 +34,7 @@ pub struct Answers {
     /// The Focus mode names that mean "not now". Empty is the feature off,
     /// which is what the parser reads an absent table as.
     pub focus_modes: Vec<String>,
-    pub nag: bool,
+    pub remind: bool,
 }
 
 /// Whether the walk armed the light pulse. THE ROOMS COUNT AS A CREDENTIAL:

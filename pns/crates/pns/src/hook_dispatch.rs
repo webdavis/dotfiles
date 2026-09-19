@@ -76,7 +76,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // wait armed after the moment being cleared for, which is what keeps a
         // late clear from taking a newer wait's marker.
         "resolved" => {
-            clear_nag(&payload.session_id);
+            clear_remind(&payload.session_id);
             if !payload.in_subagent || payload.hook_event_name == "SubagentStop" {
                 end_blocked_wait(&payload.session_id, now_secs());
             }
@@ -132,7 +132,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // ordinary tool approval's type, so the declaration's matcher cannot
         // separate the two and `sandbox_network_detail` is what does. Routed
         // as a wait through `Attempt::First` with a `LAMP_BLOCKED` state word,
-        // so `run_event` arms the marker itself, plus the nag, which is
+        // so `run_event` arms the marker itself, plus the reminder, which is
         // `blocking_event`'s shape without the moshi forward: there is no
         // permission-request payload to hand moshi, and Claude Code already
         // carries this dialog to a phone over its own remote-control bridge.
@@ -153,7 +153,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 // `RequestApproval`'s own order: the record this arms is what
                 // a later answer clears, and an answer landing between the
                 // card and the arming would leave a record nothing clears.
-                arm_nag(&payload.session_id, &event);
+                arm_remind(&payload.session_id, &event);
                 let _ = run_event(&event, &system_probes(), &payload, Attempt::First);
             }
         }

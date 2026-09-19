@@ -68,10 +68,10 @@ mod command_quiet_calendar;
 pub(crate) use command_github::github_mode;
 mod command_lights;
 mod command_loop;
-mod command_nag;
 mod command_presence;
 mod command_quiet;
 mod command_recap;
+mod command_remind;
 mod command_setup;
 mod command_stale;
 mod command_tap;
@@ -93,9 +93,9 @@ mod lamp_event_lease;
 mod lamp_pulse;
 mod lights_tick_runtime;
 mod moshi_submission;
-mod nag_schedule_runtime;
 mod presence_runtime;
 mod recap_delivery_runtime;
+mod remind_schedule_runtime;
 mod return_replay;
 mod runtime_environment;
 mod sender;
@@ -113,10 +113,10 @@ pub(crate) use command_failures::failures_mode;
 pub(crate) use command_gateway::gateway_mode;
 pub(crate) use command_lights::lights_mode;
 pub(crate) use command_loop::loop_mode;
-pub(crate) use command_nag::nag_mode;
 pub(crate) use command_presence::presence_mode;
 pub(crate) use command_quiet::{muted_now, quiet_mode};
 pub(crate) use command_recap::recap_mode;
+pub(crate) use command_remind::remind_mode;
 pub(crate) use command_setup::setup_mode;
 pub(crate) use command_stale::stale_mode;
 pub(crate) use daemon_runtime::daemon_run;
@@ -131,7 +131,6 @@ pub(crate) use lamp_event_lease::clear_held_lamps;
 pub(crate) use lamp_pulse::{fire_pulse, fire_pulse_unless_quiet};
 pub(crate) use lights_tick_runtime::lights_tick;
 pub(crate) use moshi_submission::{blocking_event, gate_mode};
-pub(crate) use nag_schedule_runtime::{NAG_OFF, arm_nag, clear_nag, nag_after_secs};
 use pns_adapters::focus_now;
 pub(crate) use pns_adapters::marker_files::renew_loop_lease;
 pub(crate) use pns_adapters::marker_files::update_blocked_marker;
@@ -139,6 +138,7 @@ pub(crate) use pns_adapters::{MoshiApprovalForwarder, condense, spawn_recap};
 pub(crate) use presence_runtime::{
     home_presence, last_narrowing, presence_snapshot, presence_status, system_probes,
 };
+pub(crate) use remind_schedule_runtime::{REMIND_OFF, arm_remind, clear_remind, remind_delay_secs};
 pub(crate) use return_replay::replay_missed;
 pub(crate) use runtime_environment::{
     env_deadline, executable_in_path, now_secs, overrides_from_env, state_dir,
@@ -146,7 +146,7 @@ pub(crate) use runtime_environment::{
 pub(crate) use sender::{attribution, name_session};
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, named_project, start_of_turn};
 pub(crate) use turn_text::turn_reply;
-pub(crate) use wait_runtime::{end_blocked_wait, stale_after_secs, track_wait};
+pub(crate) use wait_runtime::{end_blocked_wait, stale_settings, track_wait};
 
 pub fn run() {
     invocation::run();

@@ -22,7 +22,7 @@ fn a_walk_that_armed_nothing_still_writes_the_core() {
     }
     assert!(config.lights.is_none());
     assert!(config.focus_silence.is_empty());
-    assert_eq!(config.nag_after_secs, 0);
+    assert_eq!(config.remind_delay_secs, 0);
     // AND A DECLINED TABLE IS COMMENTED OUT rather than written with empty
     // values, which is the same rule stated about the text rather than
     // about what it parses to: `silence = []` and `rooms = []` load to the

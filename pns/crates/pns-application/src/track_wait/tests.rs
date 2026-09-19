@@ -69,7 +69,7 @@ fn a_wait_starting_event_records_the_row_and_schedules_one_leased_job() {
     assert_eq!(jobs[0].args, ["stale"]);
     assert_eq!(
         jobs[0].unless_marker, None,
-        "the row is the authority, not the nag's answered marker"
+        "the row is the authority, not the reminder's answered marker"
     );
 }
 

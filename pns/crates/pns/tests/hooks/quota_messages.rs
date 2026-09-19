@@ -29,7 +29,7 @@ pub(crate) fn quota_payload(session: &str, notification_type: &str, message: &st
 #[test]
 fn quota_auto_resume_fired_delivers_one_card_naming_itself() {
     let sandbox = Sandbox::new("quota-fired-card");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -52,7 +52,7 @@ fn quota_auto_resume_fired_delivers_one_card_naming_itself() {
 #[test]
 fn quota_auto_resume_stale_delivers_one_card_naming_itself() {
     let sandbox = Sandbox::new("quota-stale-card");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -75,7 +75,7 @@ fn quota_auto_resume_stale_delivers_one_card_naming_itself() {
 #[test]
 fn quota_auto_resume_disabled_delivers_one_card_naming_itself() {
     let sandbox = Sandbox::new("quota-disabled-card");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -99,7 +99,7 @@ fn a_quota_notification_carrying_no_message_still_names_what_happened() {
     // label alone rather than a label with a dangling separator after it.
     for message in [r#""message":"""#, r#""message":42"#, r#""unrelated":1"#] {
         let sandbox = Sandbox::new(&format!("quota-no-message-{}", message.len()));
-        sandbox.write_config(&nag_config(300));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
 
         let output = hook_with(
@@ -124,7 +124,7 @@ fn a_quota_notification_carrying_no_message_still_names_what_happened() {
 #[test]
 fn an_unrecognised_notification_type_delivers_nothing() {
     let sandbox = Sandbox::new("quota-unmatched-type");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     // THE CONTROL: a matched type in this same sandbox proves the writer is
@@ -179,10 +179,10 @@ fn an_unrecognised_notification_type_delivers_nothing() {
 }
 
 #[test]
-fn every_quota_type_is_logged_as_an_observation_with_no_nag() {
+fn every_quota_type_is_logged_as_an_observation_with_no_remind() {
     for notification_type in QUOTA_TYPES {
-        let sandbox = Sandbox::new(&format!("quota-nag-{notification_type}"));
-        sandbox.write_config(&nag_config(300));
+        let sandbox = Sandbox::new(&format!("quota-remind-{notification_type}"));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
 
         let output = hook_with(
@@ -205,8 +205,8 @@ fn every_quota_type_is_logged_as_an_observation_with_no_nag() {
             "{notification_type}: names the harness and the state: {recorded:?}"
         );
         assert!(
-            lines[0].contains(" nag=no "),
-            "{notification_type}: an observation is logged with no nag: {recorded:?}"
+            lines[0].contains(" remind=no "),
+            "{notification_type}: an observation is logged with no reminder: {recorded:?}"
         );
     }
 }

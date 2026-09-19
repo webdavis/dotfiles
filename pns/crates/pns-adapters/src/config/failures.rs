@@ -44,7 +44,7 @@ impl Default for Failures {
     }
 }
 
-/// `[failures]`, in `parse_nag`'s shape: an unknown key and a value of the wrong
+/// `[failures]`, in `parse_remind`'s shape: an unknown key and a value of the wrong
 /// shape are each refused BY NAME rather than half-read into a page the operator
 /// believes they configured.
 pub(super) fn parse_failures(value: toml::Value) -> Result<Failures, ConfigError> {
@@ -72,7 +72,7 @@ pub(super) fn parse_failures(value: toml::Value) -> Result<Failures, ConfigError
     Ok(failures)
 }
 
-/// The port, REFUSED RATHER THAN CLAMPED in `nag_schedule`'s style: a silently
+/// The port, REFUSED RATHER THAN CLAMPED in `remind_schedule`'s style: a silently
 /// corrected port is a port the operator believes they set, and they would go
 /// looking for the page on the number they wrote.
 fn port(setting: &toml::Value) -> Result<u16, ConfigError> {

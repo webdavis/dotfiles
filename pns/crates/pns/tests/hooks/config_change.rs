@@ -39,7 +39,7 @@ pub(crate) fn config_change_payload(
 fn each_config_change_source_delivers_one_card_naming_itself_and_its_file() {
     for (source, label) in CONFIG_CHANGE_SOURCES {
         let sandbox = Sandbox::new(&format!("config-change-card-{source}"));
-        sandbox.write_config(&nag_config(300));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
 
         let output = hook_with(
@@ -68,7 +68,7 @@ fn a_config_change_with_no_file_names_only_the_source() {
     // source with no `file_path` states only which source changed, never a
     // trailing colon with nothing after it.
     let sandbox = Sandbox::new("config-change-no-file");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -95,7 +95,7 @@ fn config_change_events_each_deliver_their_own_card_with_no_once_ever_guarantee(
     // for every distinct invocation rather than coalescing repeats into one
     // card.
     let sandbox = Sandbox::new("config-change-repeats-each-card");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     for _ in 0..3 {
@@ -121,7 +121,7 @@ fn a_hostile_file_path_is_sanitised_before_it_reaches_the_card() {
     // `flattened` strips) and could reorder the rendered line the same way it
     // could in a model name; the config-change arm must strip it too.
     let sandbox = Sandbox::new("config-change-hostile-path");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -152,7 +152,7 @@ fn an_unrecognised_config_source_delivers_nothing_and_writes_nothing() {
     // own exact-string matcher already refuses but the Rust parser does not
     // enforce on its own.
     let sandbox = Sandbox::new("config-change-unrecognised-source-silent");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(

@@ -40,9 +40,9 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
     assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
-    assert_eq!(config.nag_after_secs, 300);
+    assert_eq!(config.remind_delay_secs, 300);
     assert_eq!(
-        config.stale_after_secs, 3600,
+        config.stale_escalate_after_secs, 3600,
         "a defaulted key ships uncommented at its default (operator ruling, 2026-08-31)"
     );
 }
@@ -59,7 +59,7 @@ fn an_empty_walk_still_renders_the_core_at_its_defaults() {
         assert!(!config.plugins.contains_key(opt_in));
     }
     assert!(config.focus_silence.is_empty());
-    assert_eq!(config.nag_after_secs, 0);
+    assert_eq!(config.remind_delay_secs, 0);
     assert!(config.lights.is_none());
 }
 

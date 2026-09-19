@@ -19,10 +19,10 @@ pub(crate) use submit::{submit_encoded, submit_mode};
 /// turn needing the operator's attention, so it changes no workflow or marker
 /// state and is routed marker-neutral through the same tail a nudge skips.
 /// It is still recorded as a decision (`record_decision` runs before the
-/// guard for every attempt), just with `nag=no`.
+/// guard for every attempt), just with `remind=no`.
 ///
 /// AN OBSERVATION SHAPED LIKE A `PermissionRequest` IS TOO LATE TO GATE HERE.
-/// `blocking_event` forwards to moshi and arms the nag before `run_event`
+/// `blocking_event` forwards to moshi and arms the reminder before `run_event`
 /// ever runs, so this guard cannot undo either one; a caller on that path
 /// must refuse the observation at the top of `blocking_event` itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

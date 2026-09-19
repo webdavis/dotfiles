@@ -2,7 +2,7 @@
 //!
 //! This crate is responsible for orchestrating one operator-meaningful
 //! operation at a time (submitting a notification, requesting an approval,
-//! replaying missed notifications, building a return recap, running a nag,
+//! replaying missed notifications, building a return recap, running a reminder,
 //! reading the home probe, reconciling the lights, taking a loop lease,
 //! running a daemon tick, scheduling or cancelling a job, running the doctor,
 //! running setup) by combining pns-domain policy with capabilities it declares
@@ -65,7 +65,7 @@ pub use selection::{ConfigOutcome, select_plugins};
 pub use submission_delivery::{SubmissionDelivery, Submitted};
 pub use submit_notification::{Attempt, Submission, SubmitNotification};
 
-pub use ports::nag::{Claimed, NagRecords, NagSchedule};
+pub use ports::remind::{Claimed, RemindRecords, RemindSchedule};
 pub use ports::stale::{SessionWaits, StaleWaits};
 
 mod escalate_stale;
@@ -76,16 +76,16 @@ pub use track_wait::{end_wait, track_wait};
 mod poll_presence;
 pub use poll_presence::{PollClaim, Polled, PresencePoll, poll_presence};
 
-mod nag;
-pub use nag::{Outcome as NagOutcome, RunNag};
+mod remind;
+pub use remind::{Outcome as RemindOutcome, RunRemind};
 
 mod read_home_probe;
 pub use read_home_probe::{ReadHomeProbe, read_home};
 
-mod arm_nag;
-pub use arm_nag::ArmNag;
-mod clear_nag;
-pub use clear_nag::clear_nag;
+mod arm_remind;
+pub use arm_remind::ArmRemind;
+mod clear_remind;
+pub use clear_remind::clear_remind;
 
 mod daemon_tick;
 pub use daemon_tick::RunDaemonTick;

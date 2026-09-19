@@ -25,7 +25,7 @@ pub(crate) fn track_wait(session_id: &str, event_state: &str, window: u64, now: 
 
 /// End this session's wait: the marker and the row, in one call.
 ///
-/// IT SHADOWS THE ADAPTER'S OWN `end_blocked_wait` ON PURPOSE, in `clear_nag`'s
+/// IT SHADOWS THE ADAPTER'S OWN `end_blocked_wait` ON PURPOSE, in `clear_remind`'s
 /// style. Both hook arms that end a wait directly (`prompt`, `resolved`) reach
 /// this one name, so a caller cannot end half of it, and a third caller
 /// arriving later gets both without knowing there were two.
@@ -40,16 +40,43 @@ pub(crate) fn end_blocked_wait(session_id: &str, now: Option<u64>) {
     }
 }
 
-/// How long a block stands before it is escalated, or `WINDOW_OFF`.
+/// What one fire reads off config: how long a block stands before it is
+/// escalated, and the route its page takes.
+pub(crate) struct StaleSettings {
+    pub window: u64,
+    pub route: String,
+}
+
+/// Both of them, from ONE load: the window and the route are two answers about
+/// one page, and reading the file twice is how they come back from different
+/// files.
 ///
-/// AN UNREADABLE CONFIG MEANS OFF, which is `nag_after_secs`'s reading and for
-/// its reason: a file nobody can parse asked for nothing, and a feature that
-/// PAGES must not be switched on by a parse failure.
-pub(crate) fn stale_after_secs() -> u64 {
+/// AN UNREADABLE CONFIG MEANS OFF, which is `remind_delay_secs`'s reading and
+/// for its reason: a file nobody can parse asked for nothing, and a feature
+/// that PAGES must not be switched on by a parse failure.
+///
+/// AND THE ROUTE FALLS BACK TO THE SHIPPED URGENT NAME, which is the one the
+/// health kind would resolve to anyway, so the line a suppressed fire prints
+/// still names somewhere rather than nothing.
+pub(crate) fn stale_settings() -> StaleSettings {
     let home = std::env::var("HOME").unwrap_or_default();
+    let shipped = || {
+        pns_domain::routes::Routes::default()
+            .urgent_route()
+            .to_string()
+    };
     match load_config(&config_path(&home)) {
-        Ok(LoadOutcome::Loaded(config)) => config.stale_after_secs,
-        _ => WINDOW_OFF,
+        Ok(LoadOutcome::Loaded(config)) => StaleSettings {
+            window: config.stale_escalate_after_secs,
+            route: config
+                .stale_route
+                .clone()
+                .unwrap_or_else(|| config.routes.urgent_route().to_string()),
+        },
+        _ => StaleSettings {
+            window: WINDOW_OFF,
+            route: shipped(),
+        },
     }
 }
 
