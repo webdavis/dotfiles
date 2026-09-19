@@ -144,7 +144,8 @@ mod presence_registration;
 pub use calendar_registration::ensure_calendar_poll;
 pub use daemon::{RunDaemon, daemon_tick};
 pub use github_registration::{GITHUB_DAEMON_FLAG, ensure_github_poll};
-pub use ports::jobs::DaemonSettings;
+pub use ports::jobs::{DaemonSettings, PollSetting};
+mod poll_lease;
 pub use presence_registration::{PRESENCE_DAEMON_FLAG, ensure_presence_poll};
 
 mod doctor;

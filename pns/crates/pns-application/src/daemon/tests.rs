@@ -1,4 +1,5 @@
 use super::*;
+use crate::PollSetting;
 mod fixture;
 use fixture::World;
 
@@ -104,17 +105,35 @@ fn the_daemon_tick_accepts_both_bounds_and_refuses_the_adjacent_values() {
 #[test]
 fn presence_registration_keeps_a_future_due_and_cancels_when_the_sensor_is_off() {
     let world = World::new(Vec::new());
-    crate::ensure_presence_poll(&world, Some(7), 100);
+    crate::ensure_presence_poll(&world, PollSetting::Every(7), 100);
     let first = world.pending.borrow().clone().unwrap();
     assert_eq!((first.due, first.until, first.every), (100, 400, Some(7)));
     assert_eq!(first.args, ["presence", "poll", "--daemon"]);
     *world.pending.borrow_mut() = Some(pns_domain::jobs::Job { due: 500, ..first });
-    crate::ensure_presence_poll(&world, Some(7), 101);
+    crate::ensure_presence_poll(&world, PollSetting::Every(7), 101);
     let kept = world.pending.borrow().clone().unwrap();
     assert_eq!((kept.due, kept.until), (500, 500));
-    crate::ensure_presence_poll(&world, None, 102);
+    crate::ensure_presence_poll(&world, PollSetting::Off, 102);
     assert!(world.pending.borrow().is_none());
     assert_eq!(world.log.borrow().last().unwrap(), "cancel(presence)");
+}
+
+#[test]
+fn presence_registration_survives_a_config_the_daemon_cannot_read() {
+    let world = World::new(Vec::new());
+    crate::ensure_presence_poll(&world, PollSetting::Every(7), 100);
+    let first = world.pending.borrow().clone().unwrap();
+    *world.pending.borrow_mut() = Some(pns_domain::jobs::Job { due: 250, ..first });
+    crate::ensure_presence_poll(&world, PollSetting::Unreadable, 200);
+    let kept = world.pending.borrow().clone().unwrap();
+    assert_eq!((kept.due, kept.until, kept.every), (250, 500, Some(7)));
+    assert!(
+        !world
+            .log
+            .borrow()
+            .iter()
+            .any(|line| line == "cancel(presence)")
+    );
 }
 
 mod retries;

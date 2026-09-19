@@ -131,7 +131,9 @@ mod daemon_tests;
 fn ensure_presence_poll(state: &Path, presence: Option<&pns_adapters::Presence>, now: u64) {
     pns_application::ensure_presence_poll(
         &pns_adapters::FileJobSpool::new(state.to_path_buf()),
-        presence.map(|presence| presence.poll_secs),
+        presence.map_or(pns_application::PollSetting::Off, |presence| {
+            pns_application::PollSetting::Every(presence.poll_secs)
+        }),
         now,
     );
 }
