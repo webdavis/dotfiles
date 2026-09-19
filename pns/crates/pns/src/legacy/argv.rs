@@ -175,7 +175,7 @@ where
                 let value = tokens
                     .next_if(|next| !is_producer_flag(next))
                     .unwrap_or_default();
-                match pns_protocol::Name::new(value.clone()) {
+                match pns_protocol::Name::new(value.as_str()) {
                     Ok(_) => delivery_class = value,
                     Err(error) => {
                         identifiers = identifiers.and(Err(format!(
