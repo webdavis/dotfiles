@@ -1,69 +1,72 @@
 use super::*;
 
+fn rows_of(lines: &[Line]) -> Vec<&str> {
+    lines
+        .iter()
+        .filter_map(|line| match line {
+            Line::Row(text) => Some(text.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
-fn a_full_page_frames_the_heading_and_indents_every_row() {
-    let page = render(
-        "morning, 2026-09-17",
+fn a_page_opens_with_the_header_then_one_heading_per_section() {
+    let lines = render(
+        "morning",
         &[
             Section::lines("Last apply", vec!["OK at 2026-09-17T10:18:49Z".into()]),
             Section::unavailable("Pull requests", "gh exited 1"),
         ],
         8,
     );
-    assert_eq!(
-        page,
-        "╭──────────────────────────────────────────────────────────────────╮\n\
-         │ morning, 2026-09-17                                              │\n\
-         ╰──────────────────────────────────────────────────────────────────╯\n\
-         \n\
-         Last apply\n\
-         \u{20}\u{20}OK at 2026-09-17T10:18:49Z\n\
-         \n\
-         Pull requests\n\
-         \u{20}\u{20}unavailable: gh exited 1\n"
-    );
+    assert!(matches!(&lines[0], Line::Header(text) if text == "morning"));
+    assert!(matches!(&lines[1], Line::Heading(title) if title == "Last apply"));
+    assert!(matches!(&lines[2], Line::Row(text) if text == "OK at 2026-09-17T10:18:49Z"));
+    assert!(matches!(&lines[3], Line::Heading(title) if title == "Pull requests"));
+    assert!(matches!(&lines[4], Line::Unavailable(reason) if reason == "gh exited 1"));
+    assert_eq!(lines.len(), 5);
 }
 
 #[test]
 fn an_empty_section_says_nothing_rather_than_going_missing() {
-    let page = render("morning", &[Section::lines("Applies owed", Vec::new())], 8);
-    assert!(page.ends_with("Applies owed\n  nothing\n"), "{page}");
+    let lines = render("morning", &[Section::lines("Applies owed", Vec::new())], 8);
+    assert!(matches!(lines.last(), Some(Line::Nothing)));
 }
 
 #[test]
-fn a_page_with_no_sections_is_the_frame_alone() {
-    assert_eq!(render("morning", &[], 8).lines().count(), 3);
+fn a_page_with_no_sections_is_the_header_alone() {
+    assert_eq!(render("morning", &[], 8).len(), 1);
 }
 
 #[test]
-fn a_heading_wider_than_the_frame_is_cut_rather_than_wrapped() {
-    let page = render(&"x".repeat(200), &[], 8);
-    assert!(
-        page.lines().all(|line| line.chars().count() == 68),
-        "{page}"
-    );
-}
-
-#[test]
-fn a_section_longer_than_the_page_keeps_its_first_rows_and_counts_the_rest() {
+fn a_section_longer_than_its_row_cap_keeps_the_first_rows_and_counts_the_rest() {
     let items: Vec<String> = (1..=30).map(|n| format!("item {n}")).collect();
-    let page = render(
+    let lines = render(
         "morning",
         &[Section::lines("Operator's own items", items)],
         3,
     );
-    assert!(page.contains("  item 3\n  ... 27 more\n"), "{page}");
-    assert!(!page.contains("item 4"), "{page}");
+    assert_eq!(rows_of(&lines), vec!["item 1", "item 2", "item 3"]);
+    assert!(matches!(lines.last(), Some(Line::More(27))));
 }
 
 #[test]
-fn a_row_wider_than_the_page_is_cut_rather_than_left_to_wrap() {
-    let page = render(
+fn a_section_that_fits_within_its_row_cap_carries_no_more_line() {
+    let lines = render(
         "morning",
-        &[Section::lines("Applies owed", vec!["y".repeat(200)])],
+        &[Section::lines("Today", vec!["a".into(), "b".into()])],
         8,
     );
-    let row = page.lines().last().unwrap();
-    assert_eq!(row.chars().count(), 68);
-    assert!(row.ends_with("..."), "{row}");
+    assert!(!lines.iter().any(|line| matches!(line, Line::More(_))));
+}
+
+#[test]
+fn a_row_cap_of_zero_still_keeps_one_row() {
+    let lines = render(
+        "morning",
+        &[Section::lines("Today", vec!["a".into(), "b".into()])],
+        0,
+    );
+    assert_eq!(rows_of(&lines), vec!["a"]);
 }
