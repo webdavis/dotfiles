@@ -76,17 +76,17 @@ impl DaemonSettings for World {
             .expect("loop exceeded its bounded settings sequence")
             .clone()
     }
-    fn github_interval(&self) -> Option<u64> {
+    fn github_interval(&self) -> PollSetting {
         self.log.borrow_mut().push("github".into());
-        None
+        PollSetting::Off
     }
-    fn presence_interval(&self) -> Option<u64> {
+    fn presence_interval(&self) -> PollSetting {
         self.log.borrow_mut().push("presence".into());
-        Some(7)
+        PollSetting::Every(7)
     }
-    fn calendar_interval(&self) -> Option<u64> {
+    fn calendar_interval(&self) -> PollSetting {
         self.log.borrow_mut().push("calendar".into());
-        None
+        PollSetting::Off
     }
 }
 impl Clock for World {

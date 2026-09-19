@@ -1,4 +1,4 @@
-use crate::JobSpool;
+use crate::{JobSpool, PollSetting};
 
 /// Keep the GitHub poll registered while the source is on, and cancelled while
 /// it is not.
@@ -17,10 +17,17 @@ use crate::JobSpool;
 /// state by the caller rather than off the config: the documentation says to
 /// obey `X-Poll-Interval`, and obeying it means the registration moves when
 /// the header does.
-pub fn ensure_github_poll(jobs: &impl JobSpool, interval: Option<u64>, now: u64) {
-    let Some(interval) = interval else {
-        let _ = jobs.cancel(GITHUB_JOB);
-        return;
+pub fn ensure_github_poll(jobs: &impl JobSpool, setting: PollSetting, now: u64) {
+    let interval = match setting {
+        PollSetting::Every(interval) => interval,
+        PollSetting::Unreadable => {
+            crate::poll_lease::renew_lease(jobs, GITHUB_JOB, GITHUB_LEASE_SECS, now);
+            return;
+        }
+        PollSetting::Off => {
+            let _ = jobs.cancel(GITHUB_JOB);
+            return;
+        }
     };
     let pending = jobs.pending(GITHUB_JOB).map(|job| job.due);
     // DUE NOW when nothing is pending, so arming the source is followed by a

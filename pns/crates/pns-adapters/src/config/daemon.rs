@@ -1,5 +1,6 @@
 use super::github::job_interval;
 use super::*;
+use pns_application::PollSetting;
 
 /// See `Config::daemon_enabled`.
 pub(super) const DEFAULT_DAEMON_ENABLED: bool = true;
@@ -50,29 +51,42 @@ impl pns_application::DaemonSettings for DaemonConfig {
     /// obeyed, so the config key is only ever the figure used before the first
     /// answer. A state file with no interval in it (a fresh machine, or one
     /// whose first poll has not answered yet) falls back to the key.
-    fn github_interval(&self) -> Option<u64> {
+    fn github_interval(&self) -> PollSetting {
         let source = match load_config(&config_path(&self.home)) {
             Ok(LoadOutcome::Loaded(config)) => parse_github(&config).ok().flatten(),
-            _ => None,
-        }?;
+            Ok(LoadOutcome::Missing) => None,
+            Err(_) => return PollSetting::Unreadable,
+        };
+        let Some(source) = source else {
+            return PollSetting::Off;
+        };
         let asked_for = crate::read_poll_state(&crate::state_dir()).interval_secs;
-        Some(job_interval(source.poll_secs, asked_for))
+        PollSetting::Every(job_interval(source.poll_secs, asked_for))
     }
     /// How often the calendar poll runs, and `None` while the feature is off,
     /// names no command, or sits in a config that will not load.
-    fn calendar_interval(&self) -> Option<u64> {
+    fn calendar_interval(&self) -> PollSetting {
         match load_config(&config_path(&self.home)) {
-            Ok(LoadOutcome::Loaded(config)) => config.quiet_calendar.armed(),
-            _ => None,
+            Ok(LoadOutcome::Loaded(config)) => setting(config.quiet_calendar.armed()),
+            Ok(LoadOutcome::Missing) => PollSetting::Off,
+            Err(_) => PollSetting::Unreadable,
         }
     }
-    fn presence_interval(&self) -> Option<u64> {
+    fn presence_interval(&self) -> PollSetting {
         match load_config(&config_path(&self.home)) {
-            Ok(LoadOutcome::Loaded(config)) => parse_presence(&config)
-                .ok()
-                .flatten()
-                .map(|presence| presence.poll_secs),
-            _ => None,
+            Ok(LoadOutcome::Loaded(config)) => setting(
+                parse_presence(&config)
+                    .ok()
+                    .flatten()
+                    .map(|presence| presence.poll_secs),
+            ),
+            Ok(LoadOutcome::Missing) => PollSetting::Off,
+            Err(_) => PollSetting::Unreadable,
         }
     }
+}
+
+/// A loaded config's answer: an interval is on, nothing is off.
+fn setting(interval: Option<u64>) -> PollSetting {
+    interval.map_or(PollSetting::Off, PollSetting::Every)
 }
