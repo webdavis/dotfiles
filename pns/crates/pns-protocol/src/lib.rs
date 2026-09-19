@@ -47,8 +47,7 @@ pub use egress::{EgressEnvelope, EgressMode, RenderedEvent, decode as decode_egr
 pub use envelope::{Rejected, Rejection};
 pub use identifiers::{InvalidIdentifier, NAME_MAX_CHARS, Name, REQUEST_ID_MAX_CHARS, RequestId};
 pub use request::{
-    Decoded as DecodedRequest, DeliveryScope, Kind, Request, State,
-    decode as decode_request,
+    Decoded as DecodedRequest, DeliveryScope, Kind, Request, State, decode as decode_request,
 };
 pub use result::{
     DeliveryOutcome, DestinationOutcome, InteractionResult, ResultEnvelope, Status,
