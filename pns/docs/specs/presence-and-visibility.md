@@ -239,7 +239,7 @@ Then the age counts only if it is strictly less than the window; anything else, 
   (behavior 23).
 - Fail direction: not fresh, so the signal drops out of the arbitration rather than holding its surface.
 - Thresholds: the window defaults to **120 seconds** (`src/engine.rs:DEFAULT_DESK_IDLE_SECS`) and is
-  overridden by `PNS_DESK_IDLE_SECS`. The comparison is strict: an age of **119** is fresh, an age of
+  overridden by `PNS_DESK_IDLE`. The comparison is strict: an age of **119** is fresh, an age of
   **120** is not, and an age of **121** is not. `src/surface.rs`'s matrix uses 120 throughout, with
   "scrolling moshi now beats desk touched 90s ago" fresh at 90 and "nothing fresh anywhere is away" stale
   at 600. `tests/hooks.rs:the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started` drives
@@ -254,8 +254,8 @@ Then the age counts only if it is strictly less than the window; anything else, 
 - Privacy: an age in seconds; the `decision ring` writes `fresh_window=` and the three ages as counts, or
   `none` (`src/decision_log.rs:count`).
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `PNS_DESK_IDLE_SECS` is the only knob. There is no config key for the freshness
-  window: `NOT ESTABLISHED:` grepped `PNS_DESK_IDLE_SECS` and `desk_idle` across `src/`, `tests/` and the
+- Compatibility contract: `PNS_DESK_IDLE` is the only knob. There is no config key for the freshness
+  window: `NOT ESTABLISHED:` grepped `PNS_DESK_IDLE` and `desk_idle` across `src/`, `tests/` and the
   repository's TOML and Markdown; the only definitions are `src/engine.rs:Overrides::from_env` and
   `src/engine.rs:DEFAULT_DESK_IDLE_SECS`, and `src/config.rs` has no matching key.
 
@@ -647,7 +647,7 @@ Then the lock probe is never spawned; only an idle reading that really arrived e
 - Privacy: a boolean.
 - Process ownership and cleanup: as behavior 14. The measured cost difference is recorded: the Root read
   is "92KB against 294KB, measured on dresden 2026-08-28" (`src/system.rs:lock_reading`).
-- Compatibility contract: the doc records that nothing in this repository sets `PNS_IDLE_SECS` in
+- Compatibility contract: the doc records that nothing in this repository sets `PNS_SCREEN_IDLE` in
   production (measured repository-wide 2026-08-28) and warns that "a future setter would silently disable
   the override with it" (`src/engine.rs:surface_reading`).
 
@@ -900,7 +900,7 @@ Then `SystemProbes` spawns one thread for the desk pair and one for the phone ch
 
 ### 22. A stated reading is trusted and its probe never runs
 
-Given `PNS_IDLE_SECS` or `PNS_PHONE_INPUT_AGE` set to a valid count
+Given `PNS_SCREEN_IDLE` or `PNS_PHONE_INPUT_AGE` set to a valid count
 
 When `src/engine.rs:surface_reading` needs that reading
 
@@ -923,10 +923,10 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
   (`src/main.rs:overrides_from_env` collects `std::env::vars_os()` into one `BTreeMap`).
 - Privacy: Not applicable.
 - Process ownership and cleanup: fewer children, by design.
-- Compatibility contract: `PNS_IDLE_SECS`, `PNS_DESK_IDLE_SECS`, `PNS_PHONE_INPUT_AGE`, `PNS_SKIP_PHONE`,
+- Compatibility contract: `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`, `PNS_PHONE_INPUT_AGE`, `PNS_SKIP_PHONE`,
   `PNS_FORCE_PHONE` and `PNS_PHONE_MARKER_FILE` are the six presence-facing variables. `muted` and
   `focus_active` are unreachable from any of them (`src/engine.rs:Overrides::from_env`). The overrides
-  steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_IDLE_SECS` and
+  steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_SCREEN_IDLE` and
   `PNS_PHONE_INPUT_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unread`
   lamp always sees the machine's own probes."
 
@@ -947,7 +947,7 @@ Then the value is `None` and the matching `*_invalid` flag is set, and the readi
 - Failure sources: this behavior is the failure handling.
 - Fail direction: unknown, which for the desk clock and the phone means "does not compete", so the
   arbitration falls toward `Away`. For the freshness window it is stronger: a garbled
-  `PNS_DESK_IDLE_SECS` returns a `SurfaceReading` of `Away` with every field `None` and no probe read at
+  `PNS_DESK_IDLE` returns a `SurfaceReading` of `Away` with every field `None` and no probe read at
   all, because "substituting 120 would read a stale desk as fresh and hold the operator at their desk"
   (`src/engine.rs:surface_reading`,
   `src/engine.rs:a_garbage_desk_threshold_fails_toward_away_never_into_the_default`, which uses `"0600"`,

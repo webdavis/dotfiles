@@ -80,7 +80,7 @@ fn the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading() {
     // stating the desk clock states the desk's whole story, garbled value
     // included.
     let garbled = Overrides::from_env(&BTreeMap::from([(
-        "PNS_IDLE_SECS".to_string(),
+        "PNS_SCREEN_IDLE".to_string(),
         "not-a-number".to_string(),
     )]));
     // (label, overrides, what the idle probe answers, idle reads, lock reads)

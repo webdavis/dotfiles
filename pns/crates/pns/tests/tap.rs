@@ -68,7 +68,7 @@ fn tap_and_the_event_reader_share_the_configured_marker() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(json(&out)["marker"]["source"], "config");
     assert!(path.is_file());
-    run(s.pns().env("PNS_IDLE_SECS", "60").args([
+    run(s.pns().env("PNS_SCREEN_IDLE", "60").args([
         "send",
         "--producer",
         "shell",
@@ -176,7 +176,7 @@ fn tap_preserves_contents_and_desk_wins_a_tie() {
     let out = s
         .pns()
         .env("PNS_PHONE_MARKER_FILE", &marker)
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args(["tap", "--json"])
         .output()
         .unwrap();
@@ -322,7 +322,7 @@ fn doctor_reports_the_configured_tap_as_missing_fresh_or_stale_without_writing_i
         let before = fs::metadata(&path).ok().map(|m| m.modified().unwrap());
         let out = s
             .pns()
-            .env("MOSHI_HOOK_BIN", s.path("absent-moshi-hook"))
+            .env("PNS_MOSHI_HOOK_BIN", s.path("absent-moshi-hook"))
             .args(["doctor", "--no-color"])
             .output()
             .unwrap();

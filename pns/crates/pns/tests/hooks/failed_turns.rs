@@ -85,7 +85,7 @@ fn a_dead_turn_spawns_no_condenser_and_reads_no_transcript() {
     );
     let mut command = sandbox.pns();
     command
-        .env("CODEX_BIN", bin.join("codex"))
+        .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
         .env("PNS_REPLY_REREAD_ATTEMPTS", "4")
         .env("PNS_REPLY_REREAD_INTERVAL", "2");
@@ -129,7 +129,7 @@ fn a_failed_turn_never_reaches_moshi() {
     // for the reason the Stop twin above states.
     let sandbox = Sandbox::new("hook-stop-failure-no-round-trip");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(
         command,

@@ -17,13 +17,13 @@ pub(super) fn doctor_command(sandbox: &Sandbox) -> std::process::Command {
 /// one: a path inside the sandbox that does not exist.
 ///
 /// WITHOUT THIS THE SUITE READS THE DEVELOPER'S OWN MACHINE. The doctor
-/// resolves the binary through `MOSHI_HOOK_BIN` over a Homebrew path, so an
+/// resolves the binary through `PNS_MOSHI_HOOK_BIN` over a Homebrew path, so an
 /// unstubbed run would spawn the real moshi-hook, contact the moshi API, take
 /// about five seconds doing it, and answer differently on every machine.
 /// Absent is also a real state rather than a flag, and the check is inert on
 /// the exit code for it, so no test here has its verdict decided by the stub.
 pub(super) fn no_moshi_hook(sandbox: &Sandbox, command: &mut std::process::Command) {
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
 }
 
 /// A moshi-hook that answers both shapes of `status` from canned bytes and
@@ -67,7 +67,7 @@ pub(super) fn stub_moshi_hook(
             sandbox = sandbox.display()
         ),
     );
-    command.env("MOSHI_HOOK_BIN", &script);
+    command.env("PNS_MOSHI_HOOK_BIN", &script);
 }
 
 /// Every argv the stub was ever handed, one vector per invocation, with the

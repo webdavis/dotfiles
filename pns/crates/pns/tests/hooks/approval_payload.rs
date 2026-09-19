@@ -8,7 +8,7 @@ fn a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were() {
     // exactly 1,000,000 bytes forwarded out of a 1.2MB payload.
     let sandbox = Sandbox::new("hook-blocked-oversized");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     command.env("PNS_PAYLOAD_DEADLINE_MS", PAYLOAD_READ_LIMIT_MS);
     sandbox.stub_moshi(&mut command, 42);
     let mut child = spawn_hook(command, "blocked");
@@ -47,7 +47,7 @@ fn a_payload_at_the_cap_is_whole_and_is_still_submitted() {
     // machine, with nothing regressed either time.
     sandbox.allow_slow("exactly at the cap means a real megabyte through a real pipe");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     command.env("PNS_PAYLOAD_DEADLINE_MS", PAYLOAD_READ_LIMIT_MS);
     sandbox.stub_moshi(&mut command, 42);
     let mut child = spawn_hook(command, "blocked");

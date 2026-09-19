@@ -30,7 +30,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         // POINTS NOWHERE, as it does in every binary case here: the operator's
         // own moshi daemon is a real program on this machine and no test may
         // reach it.
-        command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+        command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
         sandbox.stub_herdr(&mut command, false);
         // ACCEPTED WHILE THE CHILD IS STILL RUNNING, which is what keeps this
         // fast: the spy hangs up the moment it accepts, so the engine's TLS

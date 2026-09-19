@@ -4,7 +4,7 @@ use super::*;
 fn at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual() {
     let sandbox = Sandbox::new("hook-blocked-desk");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(0), "no opinion: prompt as usual");
@@ -23,7 +23,7 @@ fn a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it() 
     let sandbox = Sandbox::new("hook-blocked-phone-fresher");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "90")
+        .env("PNS_SCREEN_IDLE", "90")
         .env("PNS_PHONE_INPUT_AGE", "5");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
@@ -34,7 +34,7 @@ fn a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it() 
 #[test]
 fn a_presence_reading_nobody_can_parse_still_forwards_the_approval() {
     // FAIL TOWARD THE PHONE, ACROSS THE FORWARD. `surface_reading` refuses a
-    // garbled `PNS_IDLE_SECS` rather than falling back to a probe or to a
+    // garbled `PNS_SCREEN_IDLE` rather than falling back to a probe or to a
     // default, so the surface is not Desk and `forward_to_moshi` says yes.
     // The engine unit
     // `the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading`
@@ -50,7 +50,7 @@ fn a_presence_reading_nobody_can_parse_still_forwards_the_approval() {
     // kills this test.
     let sandbox = Sandbox::new("hook-blocked-idle-garbled");
     let mut command = approval(&sandbox, 42);
-    command.env("PNS_IDLE_SECS", "soup");
+    command.env("PNS_SCREEN_IDLE", "soup");
     let output = hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
     assert_eq!(output.status.code(), Some(42), "the operator's own answer");
     assert_eq!(
@@ -92,7 +92,7 @@ fn at_the_desk_a_blocked_approval_banners_a_hidden_pane_and_leaves_a_watched_one
         let sandbox = Sandbox::new(&format!("hook-blocked-desk-{slug}"));
         let mut command = approval(&sandbox, 42);
         command
-            .env("PNS_IDLE_SECS", "0")
+            .env("PNS_SCREEN_IDLE", "0")
             .env("HERDR_PANE_ID", "t1:p1");
         sandbox.stub_herdr(&mut command, pane_watched);
         let output = hook_with(command, &sandbox, "blocked", CLAUDE_APPROVAL);
