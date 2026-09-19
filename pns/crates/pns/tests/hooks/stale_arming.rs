@@ -1,16 +1,16 @@
 use super::*;
 
 /// The config the escalation is armed under: the shipped window, written out.
-fn stale_config(stale_after_secs: u64) -> String {
+fn stale_config(escalate_after_secs: u64) -> String {
     format!(
-        "{}[nag]\nafter_secs = 0\nstale_after_secs = {stale_after_secs}\n",
+        "{}[stale]\nescalate_after = \"{escalate_after_secs}s\"\n",
         support::STUB_CHANNELS
     )
 }
 
 #[test]
 fn a_blocked_approval_arms_one_leased_escalation_job_for_every_harness() {
-    // FOR EVERY HARNESS, where the nag arms for claude alone. That gate exists
+    // FOR EVERY HARNESS, where the reminder arms for claude alone. That gate exists
     // because a five-minute nudge would be wrong in the common case for a
     // Codex turn that runs tens of minutes; an hour is past any normal turn,
     // so the gate does not carry over.
@@ -41,7 +41,7 @@ fn a_blocked_approval_arms_one_leased_escalation_job_for_every_harness() {
         );
         assert!(
             !entry.contains("marker="),
-            "{agent}: the row is the authority, not the nag's answered marker: {entry}"
+            "{agent}: the row is the authority, not the reminder's answered marker: {entry}"
         );
         let field = |key: &str| -> u64 {
             entry
@@ -57,7 +57,7 @@ fn a_blocked_approval_arms_one_leased_escalation_job_for_every_harness() {
             "{agent}: the lease runs one more window past the due second: {entry}"
         );
         assert!(
-            !nag_record(&sandbox, "s1").exists(),
+            !remind_record(&sandbox, "s1").exists(),
             "{agent}: and the nudge beside it is off, so nothing armed it"
         );
     }

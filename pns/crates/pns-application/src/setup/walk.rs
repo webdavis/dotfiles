@@ -133,8 +133,8 @@ pub(super) fn walk(terminal: &impl Terminal) -> Result<Answers, String> {
             "which Focus modes mean it, comma separated",
         )?);
     }
-    terminal.section("Nagging", "a second card about something left unanswered");
-    answers.nag = ask_yes(
+    terminal.section("Reminding", "a second card about something left unanswered");
+    answers.remind = ask_yes(
         terminal,
         "Card you a second time about an approval left unanswered?",
     )?;

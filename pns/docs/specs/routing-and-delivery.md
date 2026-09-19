@@ -859,7 +859,7 @@ Then it exits 0.
 
 - **Success:** `src/main.rs:main` falls through to `event_mode(&argv)`, which returns `()`; no
   `std::process::exit` is on the event path (`src/main.rs:main` lines 48 to 155). Every mode that DOES
-  set a code (`pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`, `nag`, `setup`, `gate`,
+  set a code (`pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`, `remind`, `setup`, `gate`,
   `hook`) is reached by argv[1] before the event path.
 - **Failure sources:** A non-UTF-8 byte in argv, which would panic `std::env::args()`. It is avoided by
   one lossy read through `args_os` (`src/main.rs:main`), pinned by

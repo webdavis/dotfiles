@@ -88,8 +88,8 @@ subcommand itself is mistyped:
 
 - `src/main.rs:RECAP_USAGE`: `pns: usage: pns recap --since <epoch> --until <epoch>`
 
-- `src/main.rs:NAG_USAGE`:
-  `pns: usage: pns nag (it takes no arguments: one fire cards every outstanding approval at once)`
+- `src/main.rs:REMIND_USAGE`:
+  `pns: usage: pns remind (it takes no arguments: one fire cards every outstanding approval at once)`
 
 `LIGHTS_USAGE` names a `<place>` argument; the vocabulary for that argument is the lamps' own and is out
 of scope here.
@@ -163,7 +163,7 @@ Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` w
 ### 2. A subcommand word is dispatched before the producer check
 
 Given argv whose first token is one of `pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`,
-`nag`, `setup`, `hook`, or a word ending in `-hook`\\
+`remind`, `setup`, `hook`, or a word ending in `-hook`\\
 
 When `main` runs its dispatch chain\\
 

@@ -42,7 +42,7 @@ pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns-events"
 /// line is byte for byte the one the first attempt sent. The ledger keeps no
 /// session, so a retried dim line names the agent alone rather than the
 /// session and its title; adding a session column to the delivery ledger is
-/// deliberately out of scope (design, 2026-09-14). The nag's coalesced
+/// deliberately out of scope (design, 2026-09-14). The reminder's coalesced
 /// nudge names the agent alone for a different reason, and deliberately: it
 /// stands for every outstanding approval at once, so naming one of their
 /// sessions would say something false.

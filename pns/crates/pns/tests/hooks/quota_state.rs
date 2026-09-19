@@ -13,7 +13,7 @@ fn no_quota_type_clears_a_live_wait_on_its_own_session() {
     // `quota_auto_resume_stale_arms_the_needs_marker_for_its_own_session`).
     for notification_type in ["quota_auto_resume_fired", "quota_auto_resume_disabled"] {
         let sandbox = Sandbox::new(&format!("quota-no-clear-own-{notification_type}"));
-        sandbox.write_config(&nag_config(300));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
         std::fs::create_dir_all(sandbox.path("state/lights-blocked")).expect("lights-blocked dir");
         std::fs::write(sandbox.path("state/lights-blocked/s1"), "1700000000")
@@ -44,7 +44,7 @@ fn no_quota_type_clears_a_live_wait_on_its_own_session() {
 fn no_quota_type_arms_unread_news() {
     for notification_type in QUOTA_TYPES {
         let sandbox = Sandbox::new(&format!("quota-no-news-{notification_type}"));
-        sandbox.write_config(&nag_config(300));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
 
         let output = hook_with(
@@ -75,7 +75,7 @@ fn no_quota_type_arms_unread_news() {
 fn no_quota_type_writes_an_activity_line() {
     for notification_type in QUOTA_TYPES {
         let sandbox = Sandbox::new(&format!("quota-no-activity-{notification_type}"));
-        sandbox.write_config(&nag_config(300));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
         let activity_before = state_lines(&sandbox, "activity");
 
@@ -102,7 +102,7 @@ fn no_quota_type_writes_an_activity_line() {
 
 #[test]
 fn a_quota_observation_journals_no_missed_notification() {
-    // A delivered card is not a miss, so `nag_config`'s bare three channels
+    // A delivered card is not a miss, so `remind_config`'s bare three channels
     // never reach `record_missed`'s `was_missed` branch whichever attempt
     // fires: the assertion below would hold for a card that landed just as
     // much as for one an Observation correctly withheld from the journal.
@@ -111,7 +111,7 @@ fn a_quota_observation_journals_no_missed_notification() {
     // model-switch's own version of this same control), which is what a
     // First-attempt run under the SAME mute proves is reachable here.
     let sandbox = Sandbox::new("quota-journals-no-miss");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     let expiry = std::time::SystemTime::now()
@@ -160,7 +160,7 @@ fn a_quota_observation_replays_no_journal_entry() {
     // otherwise consume: without one, "the journal survives" is true whether
     // or not the guard works, because there is nothing in it to lose.
     let sandbox = Sandbox::new("quota-replays-no-entry");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let journal = sandbox.path("state/missed-notifications");
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
@@ -209,7 +209,7 @@ fn a_quota_observation_replays_no_journal_entry() {
 #[test]
 fn a_quota_observation_registers_no_lights_tick() {
     // A LAMPS-LIVE case: `register_lights_tick` is gated on `lamps_live`
-    // (main.rs), so `nag_config`'s bare three channels never reach it
+    // (main.rs), so `remind_config`'s bare three channels never reach it
     // whichever attempt fires. This needs its own `[lights]`/`[plugins.hue]`
     // table, `LAMPS_ON`'s own fixture, the way model-switch's
     // `an_observation_registers_no_lights_tick` needs it.
@@ -253,7 +253,7 @@ fn a_quota_observation_registers_no_lights_tick() {
 fn no_quota_type_renews_a_loop_lease() {
     for notification_type in QUOTA_TYPES {
         let sandbox = Sandbox::new(&format!("quota-no-lease-{notification_type}"));
-        sandbox.write_config(&nag_config(300));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
         let lease_dir = sandbox.path("state/lights-loop");
         std::fs::create_dir_all(&lease_dir).expect("lease dir");
@@ -286,7 +286,7 @@ fn no_quota_type_renews_a_loop_lease() {
 fn no_quota_type_moves_the_presence_edge() {
     for notification_type in QUOTA_TYPES {
         let sandbox = Sandbox::new(&format!("quota-no-presence-{notification_type}"));
-        sandbox.write_config(&nag_config(300));
+        sandbox.write_config(&remind_config(300));
         counted_channels(&sandbox);
         std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
         std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");

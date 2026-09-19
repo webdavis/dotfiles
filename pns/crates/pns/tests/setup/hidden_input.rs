@@ -82,7 +82,7 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     pty.write_all(b"Work,Sleep\n");
 
     pty.read_until("approval left unanswered", PTY_DEADLINE)
-        .expect("the nag question");
+        .expect("the reminder question");
     pty.write_all(b"y\n");
 
     pty.read_to_eof(PTY_DEADLINE).expect("the wizard exits");

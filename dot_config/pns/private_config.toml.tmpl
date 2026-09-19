@@ -13,11 +13,12 @@
 # the plugins below are OPT-INS you arm with a credential first: hue needs
 # a bridge and key, hermes needs a signed route, and the home probe needs
 # a router API key, so switching them on by default would deliver nothing
-# and report three failures. Focus, the nag and the lamp map are separate
-# opt-ins below `[plugins]` and need no credential at all. A commented-out
-# block below is a feature nothing is set up for yet: fill its values in
-# and uncomment it. A plugin names its backend with `type`, and the key is
-# required: nothing guesses which implementation a table meant.
+# and report three failures. Focus, the reminder and the lamp map are
+# separate opt-ins below `[plugins]` and need no credential at all. A
+# commented-out block below is a feature nothing is set up for yet: fill
+# its values in and uncomment it. A plugin names its backend with `type`,
+# and the key is required: nothing guesses which implementation a table
+# meant.
 
 # The two routes pns picks for itself, by the name your gateway serves them
 # under. Every OTHER route is named by the producer that raised the event,
@@ -413,35 +414,42 @@ summarizer_deadline_secs = 240
 # everything as it was, in seconds, from 1 to 120.
 # deadline_secs = 20
 
-# The nag: one more card when an approval has been sitting unanswered. IT
-# IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the
+# The reminder: one more card when an approval has been sitting unanswered.
+# IT IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the
 # prompt appeared is still the one carrying Allow and Deny. It needs the
 # daemon running and the PostToolBatch hook entry that tells pns an
 # approval was dealt with; without that entry the only clearing signal
 # is the end of the turn. It respects every mute the first card respects,
-# a `pns quiet`, a Focus, the quiet window, and a nag held back is LOST
-# rather than queued. Several approvals waiting are one card rather than
-# several, each approval is nagged at most once, and a card counts every
-# approval outstanding at that moment, so a fresh one can be named early
-# and is then done. The signal is the tool batch RESOLVING rather than
-# your answer, so a tool approved at once that then runs longer than this
-# is nagged about anyway; if that bites, raise the number. THIRTY SECONDS
-# IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by
-# name; no table at all, and after_secs of zero, are the same statement.
-[nag]
-after_secs = 300
-# And the OTHER end of the same wait: how long a session stays blocked before
-# ONE page about it goes to the priority route, the one reserved for things
-# that need a human. It fires once per block and then says nothing until
-# that block resolves, and only when you could act on it: nothing is sent
-# while you are away from both the desk and the phone, or while the screen
-# has been locked for the whole window, because a page nobody can answer is
-# how the route reserved for the ones you must answer stops being read. A
-# screen locked for PART of the window still pages, which is the case this
-# exists for: you were here, you stepped away, and a session is stuck. It
-# needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE CEILING,
-# anything outside is refused by name, and zero is the feature off.
-stale_after_secs = 3600
+# a `pns quiet`, a Focus, the quiet window, and a reminder held back is
+# LOST rather than queued. Several approvals waiting are one card rather
+# than several, each approval is reminded about at most once, and a card
+# counts every approval outstanding at that moment, so a fresh one can be
+# named early and is then done. The signal is the tool batch RESOLVING
+# rather than your answer, so a tool approved at once that then runs
+# longer than this is reminded about anyway; if that bites, raise the
+# number. THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING, anything
+# outside is refused by name; no table at all, and a delay of "0s", are
+# the same statement.
+[remind]
+delay = "5m"
+
+# The OTHER end of the same wait: how long a session stays blocked before
+# ONE page about it goes out, to the route reserved for things that need
+# a human. It fires once per block and then says nothing until that block
+# resolves, and only when you could act on it: nothing is sent while you
+# are away from both the desk and the phone, or while the screen has been
+# locked for the whole window, because a page nobody can answer is how
+# the route reserved for the ones you must answer stops being read. A
+# screen locked for PART of the window still pages, which is the case
+# this exists for: you were here, you stepped away, and a session is
+# stuck. It needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE
+# CEILING, anything outside is refused by name, and "0s" is the feature
+# off.
+[stale]
+escalate_after = "1h"
+# Where that page goes. Unset sends it to `[routes] urgent`, which is
+# what every other page pns raises for itself takes.
+# route = "priority"
 
 # Phone attention, shared by `pns tap` and the presence reader.
 # Setup guide: pns tap install.

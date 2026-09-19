@@ -57,7 +57,7 @@ pub(super) fn execute(
             // settings nobody could read is the fail-open the whole reading is
             // shaped to avoid.
             pns_adapters::parse_presence(config).ok().flatten(),
-            config.stale_after_secs,
+            config.stale_escalate_after_secs,
             config.routes.clone(),
         ),
         // A config that is absent or could not be read falls back to the
@@ -215,7 +215,7 @@ pub(super) fn execute(
         decision: &decision,
         overrides: &overrides,
         legs: &[],
-        nag: attempt == Attempt::Nudge,
+        remind: attempt == Attempt::Nudge,
         permission_mode: &payload.permission_mode,
         agent_id: &payload.agent_id,
         tool_name: &payload.tool_name,

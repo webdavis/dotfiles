@@ -23,7 +23,7 @@ pub fn claim_lock(lock: &Path, now: u64, stale_secs: u64) -> bool {
     // to EVERY racer on APFS (measured, eight racers all told they had
     // succeeded), so two processes clearing one dead lock would each then create
     // a fresh one and both would own the window. A rename does arbitrate.
-    let claim = crate::nag_records::claim_path(lock, std::process::id());
+    let claim = crate::remind_records::claim_path(lock, std::process::id());
     if std::fs::symlink_metadata(&claim).is_ok() {
         return false;
     }

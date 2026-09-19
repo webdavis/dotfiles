@@ -44,10 +44,11 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.retry_backoff = retry::parse_backoff(&mut table)?;
                 config.bypass_silence_classes = parse_delivery(toml::Value::Table(table))?;
             }
-            "nag" => {
-                let schedules = parse_nag(value)?;
-                config.nag_after_secs = schedules.after_secs;
-                config.stale_after_secs = schedules.stale_after_secs;
+            "remind" => config.remind_delay_secs = parse_remind(value)?,
+            "stale" => {
+                let escalation = parse_stale(value)?;
+                config.stale_escalate_after_secs = escalation.escalate_after_secs;
+                config.stale_route = escalation.route;
             }
             "failures" => config.failures = parse_failures(value)?,
             "routes" => config.routes = parse_routes(value)?,
@@ -119,7 +120,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     refusals::refuse_two_durable_logs(&config)?;
     refusals::refuse_a_map_without_a_catch_all(&config)?;
     refusals::refuse_a_map_without_the_urgent_channel(&config)?;
-    backstop_outlasts_the_nag(&config)?;
+    backstop_outlasts_the_reminder(&config)?;
     Ok(config)
 }
 

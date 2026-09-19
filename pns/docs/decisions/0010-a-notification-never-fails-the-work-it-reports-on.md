@@ -42,7 +42,7 @@ An event that is delivered but not journalled is fine: the operator saw it. An e
 but not delivered is fine: the replay finds it. An event that is neither is the only real loss, and it is
 the case both directions are chosen to avoid.
 
-Ordering follows from this, and `src/main.rs:claim_fire` already states the pattern for the nag: markers
+Ordering follows from this, and `src/main.rs:claim_fire` already states the pattern for the reminder: markers
 are written BEFORE the card and claims are removed AFTER it, so a crash before the card leaves approvals
 marked and silent, a crash after it leaves claims nothing re-enumerates, and neither ordering can produce
 a SECOND card.

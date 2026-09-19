@@ -132,12 +132,12 @@ pub(super) const FOCUS_OFF_LINE: &str =
 /// defaults ON and no daemon has ever written a beat here.
 pub(super) const DAEMON_NEVER_RAN_LINE: &str = "the daemon is enabled and has not run yet";
 
-/// And what it says about the nag on a machine whose config has no `[nag]`
+/// And what it says about the reminder on a machine whose config has no `[remind]`
 /// table, which is every machine until an operator writes one: the feature
 /// ships OFF. It sits IMMEDIATELY BELOW the daemon's line, which is the whole
-/// mitigation for the one thing it does not say (a nag with a dead daemon never
+/// mitigation for the one thing it does not say (a reminder with a dead daemon never
 /// fires): the two read as one paragraph.
-pub(super) const NAG_OFF_LINE: &str = "the nag is off (no `[nag] after_secs`)";
+pub(super) const REMIND_OFF_LINE: &str = "the reminder is off (no `[remind] delay`)";
 
 /// And what it says about the home probe on a machine whose config names no
 /// router. IT IS A NOTE, not a warning: nobody asked for a home reading here,

@@ -129,10 +129,10 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     // card and still answers it; only pns's own duplicate notification about
     // that block goes quiet.
     let sandbox = Sandbox::new("hook-blocked-muted");
-    // The three stub channels named explicitly, plus the nag scheduled: the
+    // The three stub channels named explicitly, plus the reminder scheduled: the
     // second half of this test is the MIRROR case, and a nudge needs a schedule
     // to exist at all.
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     let mut command = with_state_dir(&sandbox);
     // Away, so the phone is the only way to answer at all.
     command.env("PNS_SCREEN_IDLE", "99999");
@@ -192,7 +192,7 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     // question long since answered is worse than silence.
     counted_channels(&sandbox);
     write_record(&sandbox, "s1", 300, "may I", "wW:p21");
-    support::run(&mut nag(&sandbox));
+    support::run(&mut remind(&sandbox));
     assert_eq!(
         deliveries(&sandbox, "macos-banner"),
         0,

@@ -26,7 +26,7 @@ mod tests {
         // carry their own deadline, so one still alive at `CHILD_TICKS` is
         // wedged; giving it thirty-seven seconds would only delay the kill.
         assert_eq!(
-            child_bound(Duration::from_millis(10), "nag:a-session"),
+            child_bound(Duration::from_millis(10), "remind:a-session"),
             Duration::from_millis(300),
             "every job but the lights tick keeps the tick-scaled bound exactly"
         );

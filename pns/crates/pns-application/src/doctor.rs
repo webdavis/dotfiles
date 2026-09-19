@@ -13,7 +13,7 @@ pub struct RunDoctor<'a, R, C> {
     pub records: &'a R,
     pub clock: &'a C,
     pub replay_card: bool,
-    pub nag_after_secs: u64,
+    pub remind_delay_secs: u64,
     /// How much of each recorded decision to print. A FIELD RATHER THAN AN
     /// ARGUMENT because it is the operator's standing answer for the whole
     /// report, not one section's parameter.
@@ -188,12 +188,12 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         // broken".
         emit(Item::note((actions.daemon)()));
         // IMMEDIATELY BELOW THE DAEMON'S OWN LINE, and that placement is the whole
-        // mitigation for the one thing this line does not say: a nag with a dead
+        // mitigation for the one thing this line does not say: a reminder with a dead
         // daemon never fires, and the line above already reports the daemon from its
         // heartbeat. Two lines deriving one fact is how they drift apart, so these
         // two read as one paragraph instead.
-        emit(Item::note(pns_domain::doctor::nag_line(
-            self.nag_after_secs,
+        emit(Item::note(pns_domain::doctor::remind_line(
+            self.remind_delay_secs,
         )));
         // AND THE HOME PROBE, which is the other reading that decides whether
         // the operator is there to be reached. It reports and never grades, for

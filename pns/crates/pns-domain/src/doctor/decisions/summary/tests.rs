@@ -3,13 +3,13 @@ use super::*;
 /// A real entry off this machine's ring, trimmed of its epoch.
 const DESK_VISIBLE: &str = "shell/done mode=none agent=none tool=none surface=Desk \
      visibility=Visible session_visibility=Visible desk_age=0 phone_age=11760 tap_age=33085 \
-     locked=no fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
+     locked=no fresh_window=120 long_running=no remind=no local_only=no remote_only=no pane=present \
      pane_dropped=no watch_card=no muted=no focus=no skip_phone=no force_phone=no idle_invalid=no \
      desk_invalid=no phone_invalid=no plan=banner:no,card:no,pulse:no legs=hermes:delivered";
 
 const DESK_HIDDEN: &str = "claude/config-change mode=none agent=none tool=none surface=Desk \
      visibility=Hidden session_visibility=Hidden desk_age=2 phone_age=11713 tap_age=33038 \
-     locked=no fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
+     locked=no fresh_window=120 long_running=no remind=no local_only=no remote_only=no pane=present \
      pane_dropped=no watch_card=no muted=no focus=no skip_phone=no force_phone=no idle_invalid=no \
      desk_invalid=no phone_invalid=no plan=banner:yes,card:no,pulse:no \
      legs=macos-banner:delivered,hermes:delivered";
@@ -96,9 +96,9 @@ fn a_scoped_event_names_the_scope_rather_than_the_surface() {
 }
 
 #[test]
-fn a_nag_says_it_is_a_repeat() {
+fn a_remind_says_it_is_a_repeat() {
     assert_eq!(
-        summarize("claude/asked surface=Away nag=yes")
+        summarize("claude/asked surface=Away remind=yes")
             .because
             .as_deref(),
         Some("it was a repeat of an approval nobody answered")

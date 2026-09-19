@@ -84,7 +84,7 @@ Overwritten from the template on every apply, whatever the live file holds.
   - `Elicitation` runs `pns hook asked` async, carding the MCP server that stopped mid-tool-call to ask
     the operator for input; async is what keeps pns out of the answer, since this hook runs before the
     dialog is shown and exit code 2 alone would decline the request outright.
-  - `PostToolBatch` runs `pns hook resolved` async with no matcher, clearing the nag record when an
+  - `PostToolBatch` runs `pns hook resolved` async with no matcher, clearing the reminder record when an
     assistant tool batch resolves, whether the operator approved the call or denied it: a denied call
     still produces a tool_result, so it resolves the batch rather than skipping it. The classifier's own
     refusals are `PermissionDenied`'s to report, not this entry's.

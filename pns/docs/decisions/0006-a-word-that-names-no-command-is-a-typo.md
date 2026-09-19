@@ -9,7 +9,7 @@ The producer parser is deliberately lenient. It skips a token it does not recogn
 because a notification path must not fail the work it reports on and a stray token is not worth losing a
 card over.
 
-The subcommand table is not lenient. `pns nag` and `pns lights` already refused a verb they would not
+The subcommand table is not lenient. `pns remind` and `pns lights` already refused a verb they would not
 vouch for.
 
 Between them sat a hole. `pns stpo` carried no recognised flag, so the lenient parser skipped the word,
@@ -37,7 +37,7 @@ first word alone would drop real notifications whose argv happens to start with 
 
 That contract governs EVENT deliveries: a notification must never fail the work it reports on. A word
 naming no command never becomes an event, so refusing it costs no notification. Exit 2 here is the same
-answer `pns nag` and `pns lights` already gave for a verb they did not recognise.
+answer `pns remind` and `pns lights` already gave for a verb they did not recognise.
 
 ## Consequence for the refactor
 

@@ -8,7 +8,7 @@ fn a_config_change_does_not_clear_a_live_wait_on_its_own_session() {
     // is needed for a misrouted `Attempt::First` to clear it regardless of
     // whether the lamps are configured.
     let sandbox = Sandbox::new("config-change-no-clear-own-wait");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state/lights-blocked")).expect("lights-blocked dir");
     std::fs::write(sandbox.path("state/lights-blocked/s1"), "1700000000")
@@ -51,7 +51,7 @@ fn a_config_change_does_not_clear_a_live_wait_on_its_own_session() {
 #[test]
 fn a_config_change_writes_no_activity_line() {
     let sandbox = Sandbox::new("config-change-no-activity");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let activity_before = state_lines(&sandbox, "activity");
 
@@ -90,7 +90,7 @@ fn a_config_change_writes_no_activity_line() {
 #[test]
 fn a_config_change_renews_no_loop_lease() {
     let sandbox = Sandbox::new("config-change-no-lease");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let lease_dir = sandbox.path("state/lights-loop");
     std::fs::create_dir_all(&lease_dir).expect("lease dir");
@@ -135,7 +135,7 @@ fn a_config_change_moves_no_presence_edge() {
     // the control before the observation would let a misrouted `Attempt::First`
     // pass for the wrong reason under `mark_present`'s own `held >= now` guard.
     let sandbox = Sandbox::new("config-change-no-presence-edge");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
@@ -210,7 +210,7 @@ fn a_config_change_registers_no_lights_tick() {
 #[test]
 fn a_config_change_observation_journals_no_missed_notification() {
     let sandbox = Sandbox::new("config-change-journals-no-miss");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     let expiry = std::time::SystemTime::now()
@@ -253,7 +253,7 @@ fn a_config_change_observation_journals_no_missed_notification() {
 #[test]
 fn a_config_change_observation_replays_no_journal_entry() {
     let sandbox = Sandbox::new("config-change-replays-no-entry");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let journal = sandbox.path("state/missed-notifications");
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");

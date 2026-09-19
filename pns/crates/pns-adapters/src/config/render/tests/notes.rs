@@ -229,7 +229,7 @@ fn the_recap_prose_keeps_the_hook_path_and_note_limit_facts_the_template_carries
 
 #[test]
 fn the_header_scopes_the_credential_arming_claim_to_the_plugins_it_names() {
-    // Focus, the nag and the lamp map are opt-in tables that need no
+    // Focus, the reminder and the lamp map are opt-in tables that need no
     // credential at all; only three of the plugins do (hue, hermes,
     // router), so a blanket "everything else is armed with a
     // credential" misstates all three of them.

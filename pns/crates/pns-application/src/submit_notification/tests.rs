@@ -41,8 +41,8 @@ impl Recorder {
 
 impl DecisionRing for Recorder {
     fn record(&self, record: &Record) {
-        self.note(if record.nag {
-            "decision(nag)"
+        self.note(if record.remind {
+            "decision(remind)"
         } else {
             "decision"
         });

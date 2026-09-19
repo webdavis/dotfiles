@@ -74,7 +74,7 @@ fn fired(recorder: &Recorder, reading: &SurfaceReading) -> StaleOutcome {
         waits: recorder,
         notifier: recorder,
     }
-    .run(NOW, WINDOW, reading)
+    .run(NOW, WINDOW, "", reading)
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn a_window_of_zero_reads_no_rows_at_all() {
         waits: &recorder,
         notifier: &recorder,
     }
-    .run(NOW, 0, &at_the_desk());
+    .run(NOW, 0, "", &at_the_desk());
     assert_eq!(outcome, StaleOutcome::Off);
     assert!(recorder.claimed.borrow().is_empty());
     assert!(recorder.pages.borrow().is_empty());

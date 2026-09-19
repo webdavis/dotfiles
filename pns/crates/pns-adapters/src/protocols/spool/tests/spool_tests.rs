@@ -99,25 +99,25 @@ fn a_refresh_published_while_a_job_is_claimed_survives_the_daemons_re_arm() {
 fn a_registration_landing_while_the_old_record_is_claimed_is_not_deleted_by_the_cleanup() {
     let scratch = Scratch::new("registration-survives-cleanup");
     let spool = scratch.spool();
-    let old = job("nag", NOW);
+    let old = job("remind", NOW);
     publish_job(&spool, &old).expect("the old record");
 
-    let held = claim(&spool.join("nag")).expect("the claim");
+    let held = claim(&spool.join("remind")).expect("the claim");
     assert!(
-        !spool.join("nag").exists(),
+        !spool.join("remind").exists(),
         "a claim takes the name with it"
     );
 
     // The client registers again while the daemon holds the old record.
     let fresh = Job {
         args: vec!["--producer".to_string(), "fresh".to_string()],
-        ..job("nag", NOW + 60)
+        ..job("remind", NOW + 60)
     };
     publish_job(&spool, &fresh).expect("the new registration");
 
     std::fs::remove_file(&held).expect("the cleanup");
     assert_eq!(
-        parse(read(&spool.join("nag")).trim_end()),
+        parse(read(&spool.join("remind")).trim_end()),
         Ok(fresh),
         "the registration that arrived during the claim is what survived"
     );
@@ -196,7 +196,7 @@ fn a_symlinked_markers_directory_cancels_nothing() {
 
     let waiting = Job {
         unless_marker: Some("answered".to_string()),
-        ..job("nag", NOW)
+        ..job("remind", NOW)
     };
     assert!(
         !marker_exists(&scratch.root, &waiting),
