@@ -1,24 +1,20 @@
 use super::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::test_sandbox::Sandbox;
 
 pub(super) struct Fixture {
+    /// Canonical, because the tree reports the paths it resolved and a
+    /// symlinked temporary directory would not match them.
     pub root: PathBuf,
     pub desired: PathBuf,
     pub scratch: PathBuf,
     pub target: PathBuf,
+    /// Removes the tree when the test drops the fixture.
+    _sandbox: Sandbox,
 }
 impl Fixture {
     pub fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let root = std::env::temp_dir().canonicalize().unwrap().join(format!(
-            "posture-live-tree-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos()),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let sandbox = Sandbox::new("live-tree");
+        let root = sandbox.path().canonicalize().unwrap();
         let desired = root.join("desired");
         let scratch = root.join("scratch");
         let target = root.join("target");
@@ -38,6 +34,7 @@ impl Fixture {
             desired,
             scratch,
             target,
+            _sandbox: sandbox,
         }
     }
     pub fn staging(&self) -> DesiredStaging {
@@ -48,10 +45,5 @@ impl Fixture {
     }
     pub fn config(&self) -> PathBuf {
         self.target.join("osquery.conf")
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        fs::remove_dir_all(&self.root).unwrap();
     }
 }
