@@ -187,7 +187,7 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
     );
     let mut command = doctor_command(&sandbox);
     command.env("PNS_MOSHI_HOOK_BIN", &script);
-    command.env("PNS_MOSHI_STATUS_DEADLINE_MS", "200");
+    command.env("PNS_MOSHI_STATUS_DEADLINE", "200ms");
 
     let started = std::time::Instant::now();
     let output = command.output().expect("the engine runs");
@@ -232,7 +232,7 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
     );
     let mut command = doctor_command(&sandbox);
     command.env("PNS_MOSHI_HOOK_BIN", &script);
-    command.env("PNS_MOSHI_JSON_DEADLINE_MS", "200");
+    command.env("PNS_MOSHI_JSON_DEADLINE", "200ms");
 
     let started = std::time::Instant::now();
     let output = command.output().expect("the engine runs");

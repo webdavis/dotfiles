@@ -189,7 +189,7 @@ fn at_the_desk_the_gate_submits_nothing_and_exits_zero() {
     let mut command = sandbox.pns();
     command
         .env("PNS_SCREEN_IDLE", "0")
-        .env("PNS_PHONE_INPUT_AGE", "99999");
+        .env("PNS_PHONE_INPUT_MAX_AGE", "24h");
     sandbox.stub_moshi(&mut command, 7);
     let mut child = spawn_gate(command, "pi-hook");
     // The pipe is closed rather than written through: a gate that declines

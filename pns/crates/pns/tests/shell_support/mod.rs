@@ -45,7 +45,7 @@ impl Fixture {
             .env("PNS_STATE_DIR", self.root.join("state"))
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
             .env("PNS_SCREEN_IDLE", "99999")
-            .env("PNS_PHONE_INPUT_AGE", "99999")
+            .env("PNS_PHONE_INPUT_MAX_AGE", "24h")
             .env("PNS_MOSHI_HOOK_BIN", self.root.join("no-moshi"))
             .env("PNS_CODEX_BIN", self.root.join("no-codex"))
             .env("PWD", "/owned/logical project")

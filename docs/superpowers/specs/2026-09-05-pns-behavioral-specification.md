@@ -438,7 +438,7 @@ Eleven event words reach `pns hook <event>` (`src/main.rs:488-679 hook_mode`). T
 across all of them and are stated once.
 
 S047. The payload is read from stdin on a thread, at most `MAX_PAYLOAD_BYTES + 1` = 1,000,001 bytes,
-      inside `PNS_PAYLOAD_DEADLINE_MS` (default 5,000 ms); a payload nobody finishes writing yields no
+      inside `PNS_PAYLOAD_DEADLINE` (default 5,000 ms); a payload nobody finishes writing yields no
       notification and exit 0; a payload over the cap is not whole and is never forwarded, but still
       notifies.
       Source: `src/main.rs:2727-2798 read_payload`, `src/main.rs:2799 MAX_PAYLOAD_BYTES`,
@@ -576,7 +576,7 @@ S057. `stop`: the reply is the payload's `last_assistant_message`, else the tran
 
 S058. `stop`: a non-empty reply is condensed by `codex exec --ephemeral --skip-git-repo-check -C
       <home> -s read-only -` against a private 0700 home with `PNS_SUMMARIZING=1`, bounded by
-      `CONDENSER_DEADLINE` (30 s, `PNS_CONDENSER_DEADLINE_MS`); the last usable `STATE|SUMMARY` line
+      `CONDENSER_DEADLINE` (30 s, `PNS_CONDENSER_DEADLINE`); the last usable `STATE|SUMMARY` line
       wins, only `done`, `asking` and `blocked` are verdicts, and anything else falls back to
       `("done", preview(reply))`.
       Source: `src/main.rs:2225-2263 condense`, `src/main.rs:2264-2298 condenser_home`,
@@ -973,7 +973,7 @@ S090. Every reading on one probe set is memoized, the empty answer included, and
       also `an_unreadable_clock_ages_no_marker_rather_than_treating_it_as_fresh`
            at src/engine.rs:1526
 
-S091. A stated override (`PNS_SCREEN_IDLE`, `PNS_PHONE_INPUT_AGE`) is trusted and its probe never runs;
+S091. A stated override (`PNS_SCREEN_IDLE`, `PNS_PHONE_INPUT_MAX_AGE`) is trusted and its probe never runs;
       a garbled one sets an `_invalid` flag and answers unknown outright rather than a fallback.
       Source: `src/engine.rs:101-129 Overrides::from_env`, `src/engine.rs:341-420 surface_reading`.
       Pin: `a_stated_phone_input_age_spares_the_process_walk_behind_it`
@@ -2228,8 +2228,9 @@ S194. `com.webdavis.pns-daemon` runs `<home>/.local/libexec/pns/pns daemon run` 
       Source: `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:7-52`.
       Pin: UNPINNED. A declaration, out of test scope by the 2026-08-05 ruling.
 
-S195. `daemon run` reads the tick once from `PNS_DAEMON_TICK_MS` (10 to 60,000 ms, anything else the
-      1,000 ms default, never clamped), exits 0 printing `pns daemon: disabled in the config; exiting`
+S195. `daemon run` reads the tick once from `PNS_DAEMON_TICK_INTERVAL` (`<count><ms|s|m|h>`, 10ms to
+      60s, anything else refused and the 1s default kept, never clamped), exits 0 printing
+      `pns daemon: disabled in the config; exiting`
       when `[daemon] enabled = false`, refuses permanently and exits 0 when the spool path is not a
       directory, and otherwise loops: sleep one tick, count, every thirtieth tick re-read the switch
       and reconcile the presence poll job, then one pass.
@@ -2333,7 +2334,7 @@ S205. A registration is refused when `due` is more than 30 days from now in eith
       also `an_argv_that_renders_past_the_record_cap_is_refused_by_name`
            at src/daemon.rs:1296
 
-S206. The `HEARTBEAT_STALE_SECS` (10) does not scale with `PNS_DAEMON_TICK_MS`, so a daemon run above a
+S206. The `HEARTBEAT_STALE_SECS` (10) does not scale with `PNS_DAEMON_TICK_INTERVAL`, so a daemon run above a
       10 s tick reads as not running.
       Source: `src/daemon.rs HEARTBEAT_STALE_SECS`, `src/daemon.rs DEFAULT_TICK_SECS`.
       Pin: UNPINNED. Recorded in `docs/specs/daemon-jobs.md`.

@@ -50,7 +50,7 @@ impl DaemonGuard {
         let errors = out.try_clone().expect("the daemon log again");
         let child = sandbox
             .pns_stateful()
-            .env("PNS_DAEMON_TICK_MS", tick_ms.to_string())
+            .env("PNS_DAEMON_TICK_INTERVAL", format!("{tick_ms}ms"))
             .args(["daemon", "run"])
             .stdin(std::process::Stdio::null())
             .stdout(out)

@@ -51,7 +51,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         "stop-failure" => failed_turn(&payload, &agent),
         "blocked" => {
             return match remind_after(&agent) {
-                Ok(after_secs) => blocking_event(&payload, &agent, &payload_json, after_secs),
+                Ok(reminder) => blocking_event(&payload, &agent, &payload_json, reminder),
                 Err(code) => code,
             };
         }
@@ -165,11 +165,11 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 // `RequestApproval`'s own order: the record this arms is what
                 // a later answer clears, and an answer landing between the
                 // card and the arming would leave a record nothing clears.
-                let after_secs = match remind_after(&agent) {
-                    Ok(after_secs) => after_secs,
+                let reminder = match remind_after(&agent) {
+                    Ok(reminder) => reminder,
                     Err(code) => return code,
                 };
-                arm_remind(&payload.session_id, &event, after_secs);
+                arm_remind(&payload.session_id, &event, reminder);
                 let _ = run_event(&event, &system_probes(), &payload, Attempt::First);
             }
         }
@@ -287,12 +287,12 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
     0
 }
 
-/// This call's resolved reminder delay, or the exit code to answer with once
-/// the refusal has been said.
+/// This call's resolved reminder, or the exit code to answer with once the
+/// refusal has been said.
 ///
 /// ON STDERR, NEVER STDOUT, like every other line this path writes: Claude
 /// Code reads this hook's stdout as moshi's decision object.
-fn remind_after(agent: &str) -> Result<u64, i32> {
+fn remind_after(agent: &str) -> Result<Reminder, i32> {
     remind_delay(&crate::arguments_after_verb(), agent).map_err(|refusal| {
         eprintln!("pns: {refusal}");
         2

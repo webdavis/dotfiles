@@ -268,7 +268,7 @@ const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(15);
 /// independent of it: dropping that default to one millisecond fails both rows
 /// with `0` where `42` was expected without this line, and leaves both green
 /// with it.
-const PAYLOAD_READ_LIMIT_MS: &str = "10000";
+const PAYLOAD_READ_LIMIT: &str = "10s";
 
 fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
     command
@@ -344,6 +344,8 @@ mod quota_messages;
 mod quota_state;
 #[path = "hooks/quota_waits.rs"]
 mod quota_waits;
+#[path = "hooks/remind_answered_signal.rs"]
+mod remind_answered_signal;
 #[path = "hooks/remind_arming.rs"]
 mod remind_arming;
 #[path = "hooks/remind_clearing.rs"]

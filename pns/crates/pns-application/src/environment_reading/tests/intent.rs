@@ -54,7 +54,7 @@ fn a_garbage_phone_override_is_unknown_without_a_probe_read() {
     // value is refused rather than falling back to the live reading,
     // which would let a probe answer a question the caller overrode.
     let vars = BTreeMap::from([(
-        "PNS_PHONE_INPUT_AGE".to_string(),
+        "PNS_PHONE_INPUT_MAX_AGE".to_string(),
         "not-a-number".to_string(),
     )]);
     let overrides = Overrides::from_env(&vars);

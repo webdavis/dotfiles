@@ -68,12 +68,38 @@ fn a_transcript_that_never_ends_is_not_read_at_all() {
 }
 
 #[test]
+fn the_retired_millisecond_deadline_names_state_nothing_at_all() {
+    // ONE ROW FOR EVERY NAME THAT LEFT, set to the value that would be most
+    // destructive under the old reading: a one-millisecond payload window
+    // loses the payload outright, so a turn that still reports proves nothing
+    // reads these any more.
+    let sandbox = Sandbox::new("hook-retired-deadline-names");
+    let mut command = sandbox.pns();
+    for retired in [
+        "PNS_PAYLOAD_DEADLINE_MS",
+        "PNS_CONDENSER_DEADLINE_MS",
+        "PNS_MOSHI_JSON_DEADLINE_MS",
+        "PNS_MOSHI_STATUS_DEADLINE_MS",
+        "PNS_DAEMON_TICK_MS",
+    ] {
+        command.env(retired, "1");
+    }
+    let mut child = spawn_hook(command, "stop");
+    write_payload(
+        &mut child,
+        br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
+    );
+    assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+    assert_eq!(sandbox.event("hermes")["detail"], "a turn");
+}
+
+#[test]
 fn a_payload_nobody_finishes_writing_still_exits_on_the_contract() {
     // The pipe stays open with nothing in it, which used to hang before any
     // of the exit-0 contract could run.
     let sandbox = Sandbox::new("hook-payload-hang");
     let mut command = sandbox.pns();
-    command.env("PNS_PAYLOAD_DEADLINE_MS", "200");
+    command.env("PNS_PAYLOAD_DEADLINE", "200ms");
     let child = spawn_hook(command, "stop");
     assert_eq!(
         finished_within(child, HANG_LIMIT),
@@ -95,7 +121,7 @@ fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     command
         .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
-        .env("PNS_CONDENSER_DEADLINE_MS", "300");
+        .env("PNS_CONDENSER_DEADLINE", "300ms");
     let mut child = spawn_hook(command, "stop");
     write_payload(
         &mut child,
@@ -121,7 +147,7 @@ fn a_condenser_that_never_reads_its_stdin_is_bounded_too() {
     command
         .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
-        .env("PNS_CONDENSER_DEADLINE_MS", "300");
+        .env("PNS_CONDENSER_DEADLINE", "300ms");
     let mut child = spawn_hook(command, "stop");
     let big = "x".repeat(200_000);
     let payload =
