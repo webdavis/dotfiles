@@ -29,8 +29,8 @@ fn values(answers: &Answers) -> toml::Table {
                 .to_string(),
             toml::Value::String(answers.hermes_key.clone()),
         );
-        // UNDER THE DURABLE LOG'S OWN HEADING, with the transport named: the
-        // wizard asks about hermes, which is one of the two `type` may name.
+        // UNDER THE DURABLE LOG'S OWN HEADING. The wizard asks only about
+        // hermes; `type` is the layout's own default, written by the render.
         let mut log = toml::Table::new();
         log.insert("keys".to_string(), toml::Value::Table(keys));
         plugins.insert("log".to_string(), toml::Value::Table(log));
