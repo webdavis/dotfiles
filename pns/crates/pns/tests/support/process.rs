@@ -25,8 +25,14 @@ pub fn run_expecting(code: i32, command: &mut Command) -> Output {
 /// and neither says what it saw. This ends on the evidence, and the CALLER
 /// reports the failure, because only the caller knows how to describe what was
 /// there instead.
+///
+/// THE DEADLINE IS A HANG GUARD AND NOTHING ELSE, so it is set where no
+/// loaded run reaches it. At 10s it was still a reading of the machine:
+/// `lifecycle::a_hung_child_does_not_stall_the_tick_and_is_killed` waits here
+/// for a daemon start, a tick and a spawn, and spent all ten seconds on 3 of 4
+/// runs of the daemon suite under 256 synthetic CPU spinners.
 pub fn poll_until<T>(mut probe: impl FnMut() -> Option<T>) -> Option<T> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
         if let Some(found) = probe() {
             return Some(found);

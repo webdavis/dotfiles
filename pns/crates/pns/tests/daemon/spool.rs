@@ -100,7 +100,7 @@ fn a_marker_on_disk_cancels_a_scheduled_job_end_to_end() {
         "the unmarked control never fired; the daemon said: {}",
         guard.said()
     );
-    std::thread::sleep(Duration::from_millis(TICK_MS * 8));
+    std::thread::sleep(Duration::from_millis(TICK_MS * SETTLE_TICKS));
     assert_eq!(
         fires(&sandbox),
         1,
