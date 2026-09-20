@@ -252,15 +252,14 @@ fn elapsed_still_obeys_the_presence_gate() {
 }
 
 #[test]
-fn elapsed_flag_is_protected_and_empty_detail_is_rendered() {
+fn elapsed_flag_is_protected_and_the_missing_detail_is_refused() {
+    // `--elapsed` standing where the detail belongs is never eaten as it:
+    // the missing value is refused and named, and nothing is delivered.
     let sandbox = Sandbox::new("elapsed-protected");
     let output = run(command(&sandbox).args(["send", "--detail", "--elapsed", "35s"]));
-    assert_eq!(output.status.code(), Some(0));
-    assert_eq!(
-        stderr(&output),
-        "pns: --detail given without a value; ignoring\n"
-    );
-    assert_eq!(sandbox.event("hermes")["detail"], "35s");
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(stderr(&output), "pns: --detail requires a value\n");
+    assert!(!sandbox.fired("hermes"));
 }
 
 #[test]
@@ -328,7 +327,7 @@ fn one_duration_spelling_earns_one_tier_on_the_flag_path_and_the_json_path() {
 
         let json = Sandbox::new(&format!("duration-json-{elapsed}"));
         let request = format!(
-            r#"{{"schema":"pns.request/1","request_id":"nvim-{elapsed}","producer":"nvim","event":"finished","state":"done","detail":"neotest: owned","elapsed":"{elapsed}"}}"#
+            r#"{{"schema":"pns.request/1","request_id":"nvim-{elapsed}","producer":"nvim","state":"done","detail":"neotest: owned","elapsed":"{elapsed}"}}"#
         );
         let output = send_json(&json, &request);
         assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -348,7 +347,7 @@ fn a_bare_elapsed_number_is_refused_on_the_flag_path_and_the_json_path() {
     let json = Sandbox::new("duration-bare-json");
     let output = send_json(
         &json,
-        r#"{"schema":"pns.request/1","request_id":"nvim-bare","producer":"nvim","event":"finished","state":"done","elapsed":"90"}"#,
+        r#"{"schema":"pns.request/1","request_id":"nvim-bare","producer":"nvim","state":"done","elapsed":"90"}"#,
     );
     assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
     assert!(!json.fired("hermes"));
