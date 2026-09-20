@@ -44,9 +44,10 @@ pub fn surface_reading(
     };
     // AGES, never timestamps, and both aged against the SAME clock read: an
     // unreadable clock ages nothing, which drops a phone signal out of the
-    // arbitration rather than making it infinitely fresh.
-    let age_of =
-        |taken_at: Option<u64>| now_secs.and_then(|now| Some(now.saturating_sub(taken_at?)));
+    // arbitration rather than making it infinitely fresh. A `taken_at` in
+    // the future is the same kind of untrustworthy clock read, so it ages
+    // nothing too, rather than saturating to age 0, the freshest reading.
+    let age_of = |taken_at: Option<u64>| now_secs.and_then(|now| now.checked_sub(taken_at?));
     let phone_input_age = if overrides.reads_phone() {
         age_of(snapshot.phone_atime)
     } else if overrides.phone_invalid {
@@ -79,5 +80,45 @@ pub(super) fn operator_visibility(snapshot: &EnvironmentSnapshot, pane: &str) ->
     match snapshot.view.as_ref() {
         Some(view) => crate::surface::visibility(pane, view),
         None => Visibility::Unknown,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::surface_reading;
+    use crate::{EnvironmentSnapshot, Overrides};
+
+    /// A `taken_at` one second ahead of the clock read is unknown, not the
+    /// freshest possible reading.
+    #[test]
+    fn a_taken_at_one_second_in_the_future_ages_as_unknown() {
+        let snapshot = EnvironmentSnapshot {
+            marker_mtime: Some(1_000_001),
+            ..EnvironmentSnapshot::default()
+        };
+        let reading = surface_reading(&snapshot, &Overrides::default(), Some(1_000_000));
+        assert_eq!(reading.marker_age, None);
+    }
+
+    /// `taken_at` equal to `now` is the freshest real reading, age zero.
+    #[test]
+    fn a_taken_at_equal_to_now_ages_zero() {
+        let snapshot = EnvironmentSnapshot {
+            marker_mtime: Some(1_000_000),
+            ..EnvironmentSnapshot::default()
+        };
+        let reading = surface_reading(&snapshot, &Overrides::default(), Some(1_000_000));
+        assert_eq!(reading.marker_age, Some(0));
+    }
+
+    /// A `taken_at` in the past ages normally.
+    #[test]
+    fn a_taken_at_in_the_past_ages_by_the_difference() {
+        let snapshot = EnvironmentSnapshot {
+            marker_mtime: Some(999_400),
+            ..EnvironmentSnapshot::default()
+        };
+        let reading = surface_reading(&snapshot, &Overrides::default(), Some(1_000_000));
+        assert_eq!(reading.marker_age, Some(600));
     }
 }
