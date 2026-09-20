@@ -9,9 +9,7 @@ fn a_duration_outside_the_bounds_is_refused_by_what_was_typed() {
     for typed in ["0s", "25h", "1441m", "9223372036854775807h"] {
         assert_eq!(
             mute_command(&typed_at("3F - Studio", typed), &known, ONE_HOUR),
-            Err(format!(
-                "pns: mute duration {typed:?} is outside 1s to 24h"
-            )),
+            Err(format!("pns: mute duration {typed:?} is outside 1s to 24h")),
             "typed: {typed:?}"
         );
     }
