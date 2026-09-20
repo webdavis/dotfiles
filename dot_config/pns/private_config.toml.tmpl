@@ -531,6 +531,19 @@ escalate_after = "1h"
 # place to point at the usual location.
 # channels_dir = "~/.local/libexec/pns/channels"
 
+# The state database. One number: how long a write waits for the lock
+# another writer holds before the write is refused. It bounds a WEDGED
+# writer and measures nothing else: every transaction pns makes is a
+# handful of short statements with no network and no sleep in it, and a
+# writer that dies drops its lock with its process, so a wait that
+# expires is a machine in trouble rather than a busy one. A hook you are
+# waiting on pays this bound per lock it takes, which is why the ceiling
+# is a minute; ten milliseconds is the floor, anything outside is refused
+# by name, and "0s" refuses a contended write the instant it is
+# contended instead of waiting at all.
+[storage]
+busy_deadline = "5s"
+
 # The failure page: the same record `pns failures` prints, served over
 # loopback so moshi's browser preview can read it from your phone. The
 # listener binds 127.0.0.1 only, because the per-session SSH forward is
