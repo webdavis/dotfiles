@@ -152,6 +152,7 @@ mod unifi;
 pub use unifi::{HomeStaleness, UniFiRouter, first_site_id, parse_clients};
 
 pub use herdr::workspace_agent_statuses;
+pub use herdr::{WorkspaceRow, parse_workspaces};
 
 pub use presence::BridgePresencePoll;
 

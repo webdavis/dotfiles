@@ -186,3 +186,28 @@ impl DeliveryLedger for SqliteStore {
 }
 #[cfg(test)]
 mod tests;
+
+impl SqliteStore {
+    /// The newest command the shell notifier timed, which is the last thing
+    /// the operator ran long enough for the engine to hear about.
+    ///
+    /// THE AGENT NAMES THE PRODUCER. The notifier submits every timed command
+    /// as the `shell` producer, so that column is what separates its events
+    /// from a harness's, and the ledger is where they land.
+    ///
+    /// READ ONLY, AND EVERY FAILURE IS NO COMMAND, the reasoning
+    /// `newest_wait` states: a report neither creates a database nor refuses
+    /// to print because it could not read one.
+    pub fn newest_shell_command(&self) -> Option<String> {
+        let connection = self.read_only().ok()?;
+        connection
+            .query_row(
+                "SELECT detail FROM ledger_events
+                  WHERE agent = 'shell' AND detail <> ''
+                  ORDER BY seq DESC LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+    }
+}
