@@ -9,6 +9,33 @@
 //! crate takes no `serde_json`, and the paths are grammar the composition root
 //! resolves against a state directory it owns.
 
+use std::ops::RangeInclusive;
+use std::time::Duration;
+
+/// How long an unanswered approval may be made to wait before it is carded
+/// again, BOUNDED ON BOTH SIDES.
+///
+/// ONE RANGE FOR EVERY WAY THE DELAY IS STATED: the `[remind] delay` config
+/// key, the `--remind=<duration>` flag and the JSON request's `remind` field
+/// are the same number said three ways, so a value one of them refuses is a
+/// value all three refuse.
+///
+/// THE FLOOR IS THIRTY SECONDS. A nudge arriving before the operator could
+/// plausibly have picked up their phone is the stacking this design forbids,
+/// and thirty is low enough that the feature can be drilled in half a minute.
+///
+/// THE CEILING IS AN HOUR, which also sits inside the daemon's own
+/// registration window (`jobs`, thirty days) with room to spare, and is what
+/// keeps `2 * delay` in the staleness cap far from any arithmetic edge.
+pub const DELAY_RANGE: RangeInclusive<Duration> =
+    Duration::from_secs(MIN_DELAY_SECS)..=Duration::from_secs(MAX_DELAY_SECS);
+
+/// The shortest reminder anyone may schedule. See [`DELAY_RANGE`].
+pub const MIN_DELAY_SECS: u64 = 30;
+
+/// The longest. See [`DELAY_RANGE`].
+pub const MAX_DELAY_SECS: u64 = 3_600;
+
 /// One approval waiting on the operator: everything the nudge card is built
 /// from, plus the second it started waiting.
 ///
