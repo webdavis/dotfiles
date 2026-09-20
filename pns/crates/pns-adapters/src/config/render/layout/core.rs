@@ -249,6 +249,10 @@ pub(super) const QUIET_CALENDAR: Table = Table {
         },
     ],
 };
+/// The TOML literal `[remind] delay` ships at, and the value a walk that
+/// armed the reminder writes out: one literal, so the wizard cannot arm the
+/// reminder at a delay the shipped file never names.
+pub(in crate::config) const REMIND_DELAY: &str = "\"5m\"";
 pub(super) const REMIND: Table = Table {
     name: "remind",
     prose: "# The reminder: one more card when an approval has been sitting unanswered.\n\
@@ -272,7 +276,7 @@ pub(super) const REMIND: Table = Table {
     keys: &[Key {
         name: "delay",
         prose: "",
-        sample: Sample::Default("\"5m\""),
+        sample: Sample::Default(REMIND_DELAY),
     }],
 };
 /// What one producer asked for, keyed by the name that producer sends.

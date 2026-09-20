@@ -223,3 +223,17 @@ fn the_phone_marker_note_points_at_the_tap_install_subcommand() {
     assert!(text.contains("Setup guide: pns tap install."), "{text}");
     assert!(!text.contains("pns tap --install"), "{text}");
 }
+
+#[test]
+fn an_empty_opt_in_table_renders_exactly_like_no_table_at_all() {
+    // A HEADING WITH NOTHING UNDER IT IS NOT A SETTING. `[remind]` shipped
+    // empty for one render's worth of side effect, keeping `delay` live; a
+    // values file that wants the default now writes the default.
+    let mut values = toml::Table::new();
+    values.insert("remind".to_string(), toml::Value::Table(toml::Table::new()));
+    let empty = render(&values).expect("an empty opt-in table renders");
+    let absent = render(&toml::Table::new()).expect("an empty walk still renders");
+    assert_eq!(empty, absent);
+    let config = parse_config(&empty).unwrap_or_else(|error| panic!("{error:?}\n{empty}"));
+    assert_eq!(config.remind_delay_secs, 0);
+}

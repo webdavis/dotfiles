@@ -103,7 +103,19 @@ fn values(answers: &Answers) -> toml::Table {
         values.insert("focus".to_string(), toml::Value::Table(focus));
     }
     if answers.remind {
-        values.insert("remind".to_string(), toml::Value::Table(toml::Table::new()));
+        // THE DELAY IS WRITTEN OUT. An empty `[remind]` states no setting and
+        // renders exactly like no table at all, so a walk that armed the
+        // reminder says what it armed it at.
+        let mut remind = toml::Table::new();
+        remind.insert(
+            "delay".to_string(),
+            toml::Value::String(
+                crate::config::render::REMIND_DELAY
+                    .trim_matches('"')
+                    .to_string(),
+            ),
+        );
+        values.insert("remind".to_string(), toml::Value::Table(remind));
     }
     values
 }

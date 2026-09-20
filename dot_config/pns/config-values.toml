@@ -77,16 +77,12 @@ bot_token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Passwor
 # missing, rather than borrowing another route's secret.
 #
 # THESE KEYS ARE THE ROSTER. pns compiles in no list of routes, so this table
-# is the whole statement of which routes this machine posts to, and `note`
-# below is what says so in the rendered file: `pns-events` and `priority` are
-# the two names the `[routes]` table carries in the rendered file, and
-# `posture-pages` exists here because posture submits pages under that name
-# and nowhere in pns.
+# is the whole statement of which routes this machine posts to: `pns-events`
+# and `priority` are the two names the `[routes]` table carries in the
+# rendered file, and `posture-pages` exists here because posture submits
+# pages under that name and nowhere in pns. Every key here is a route name,
+# `note` included, so this table takes no comment of its own.
 [plugins.log.keys]
-note = """
-pns-events and priority are the two names the [routes] table above carries;
-posture-pages is named by the producer that submits pages under it and
-nowhere in pns."""
 pns-events = { keepassxc = "Hermes :: Webhook Secret (#pns-events)", field = "Password" }
 posture-pages = { keepassxc = "Hermes :: Webhook Secret (#posture-pages)", field = "Password" }
 priority = { keepassxc = "Hermes :: Webhook Secret (#priority)", field = "Password" }
@@ -149,10 +145,10 @@ url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 
-# Empty on purpose: an opt-in table's mere presence is what keeps its
-# defaults live rather than commented, and "5m" (the layout default) is the
-# operator's real setting.
+# "5m" is the layout default and the operator's real setting, written out
+# because a table states its settings rather than arming them by being here.
 [remind]
+delay = "5m"
 
 # THE HOUSE DIM WINDOW: every place below that states no `dim_window` of its
 # own runs this one, and it is also what a bare `pns lights mute` lasts until.
