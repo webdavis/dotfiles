@@ -101,10 +101,10 @@ pub(crate) fn event_mode(argv: &[String]) -> i32 {
 pub(crate) fn run() {
     // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
     // panics on non-UTF-8, and a stray byte degrading into an unknown token,
-    // which the producer parse then refuses by name, says more than an abort.
-    // `first`, the producer check
-    // and the event parse each used to read `std::env::args_os()` on their
-    // own; this is the one collection they share now.
+    // which the producer parse then refuses by name, says more than an
+    // abort. `first`, the producer check and the event parse each used to
+    // read `std::env::args_os()` on their own; this is the one collection
+    // they share now.
     let argv: Vec<String> = std::env::args_os()
         .skip(1)
         .map(|argument| argument.to_string_lossy().into_owned())
