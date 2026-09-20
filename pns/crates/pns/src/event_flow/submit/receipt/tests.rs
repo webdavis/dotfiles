@@ -59,7 +59,7 @@ fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
                 .map(|(_, outcome)| *outcome)
                 .collect::<Vec<_>>()
         );
-        assert_eq!(output.decision_id, sequence.map(|id| id.to_string()));
+        assert_eq!(output.ledger_sequence, sequence.map(|id| id.to_string()));
         assert!(!output.encode().unwrap().contains("private detail"));
         assert_eq!(
             output

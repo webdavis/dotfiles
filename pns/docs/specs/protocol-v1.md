@@ -208,9 +208,8 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 
 Given a request scope, when encoded or decoded, then it is exactly automatic, local_only or remote_only.
 The default is automatic. An unknown word is refused. This field describes a request; the codec performs
-no delivery. The request-side `interaction` field this section once covered is gone: `pns submit` always
-answered it with "no opinion" regardless of what a caller sent, so it changed nothing (result-side
-`interaction`, S018, is unaffected and still means what it did).
+no delivery. The `interaction` field this section once covered is gone from both envelopes: `pns submit`
+always answered it with "no opinion" regardless of what a caller sent, so it changed nothing.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L65),
 [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L9).
@@ -256,10 +255,12 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 
 ## protocol-v1/S017: Result fields and public construction
 
-Given a version 1 result, when decoded, then status is required; absent request_id, decision_id and
-interaction are None, and absent destination and diagnostic arrays are empty. Valid results round-trip
-through the curated public exports and the package-owned `result-v1.json` fixture. A missing destination
-note is omitted when encoded; a supplied note is preserved.
+Given a version 1 result, when decoded, then status is required; absent request_id and ledger_sequence
+are None, and absent destination and diagnostic arrays are empty. `ledger_sequence` is the stringified
+ledger row this request committed as, and each destination names itself in `name`. The envelope carries
+no `interaction` field. Valid results round-trip through the curated public exports and the
+package-owned `result-v1.json` fixture. A missing destination note is omitted when encoded; a supplied
+note is preserved.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L68),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L59),
@@ -267,13 +268,11 @@ Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/resu
 [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L45),
 [`crates/pns-protocol/src/result/tests.rs`](../../crates/pns-protocol/src/result/tests.rs#L41).
 
-## protocol-v1/S018: Result words and decision codes
+## protocol-v1/S018: Result words
 
-Given a result, when encoded or decoded, then status is delivered, partial, undelivered or rejected,
-destination outcome is delivered, failed, silent or unlaunched, and interaction.kind is no_opinion or
-answered.
-Answered carries its signed 32-bit code unchanged. Unknown status, outcome or interaction words are
-field_invalid.
+Given a result, when encoded or decoded, then status is delivered, partial, undelivered or rejected, and
+destination outcome is delivered, failed, silent or unlaunched. Each is one bare word on the wire, never
+a one-key wrapper object, so a wrapped word is field_invalid the same way an unknown word is.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L27),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L48),
@@ -285,7 +284,7 @@ Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/resu
 Given an object that passes parse and shared bounds, when schema or typed-field decoding fails, then a
 valid request_id is retained for correlation; an invalid identifier is not recovered. Malformed or
 over-bound input has no recovered identifier. ResultEnvelope::rejected returns status rejected, that
-optional identifier, one stable diagnostic code, and no decision, interaction or destination outcomes.
+optional identifier, one stable diagnostic code, no ledger row and no destination outcomes.
 
 Source: [`crates/pns-protocol/src/envelope.rs`](../../crates/pns-protocol/src/envelope.rs#L53),
 [`crates/pns-protocol/src/envelope.rs`](../../crates/pns-protocol/src/envelope.rs#L107),

@@ -50,6 +50,5 @@ pub use request::{
     Decoded as DecodedRequest, DeliveryScope, Request, State, decode as decode_request,
 };
 pub use result::{
-    DeliveryOutcome, DestinationOutcome, InteractionResult, ResultEnvelope, Status,
-    decode as decode_result,
+    DeliveryOutcome, DestinationOutcome, ResultEnvelope, Status, decode as decode_result,
 };
