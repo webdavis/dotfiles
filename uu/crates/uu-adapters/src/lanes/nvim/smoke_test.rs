@@ -74,13 +74,11 @@ fn child(
     runner: &dyn CommandRunner,
     report: &mut LaneReport,
 ) -> Result<(), String> {
-    let mut args = tree.environment();
-    args.extend([
-        lane.host.nvim.clone(),
-        "--headless".into(),
+    let mut args = vec![
+        "--headless".to_string(),
         "-u".into(),
         tree.config.join("init.lua").to_string_lossy().into_owned(),
-    ]);
+    ];
     let script = tree
         .config
         .join("lua/uu/smoke_test.lua")
@@ -92,7 +90,7 @@ fn child(
         args.extend(["-c".into(), format!("lua dofile({})", lua_string(&script))]);
     }
     let args = args.iter().map(String::as_str).collect::<Vec<_>>();
-    let ran = runner.run_with_input("/usr/bin/env", &args, "")?;
+    let ran = runner.run_reporting_in(&lane.host.nvim, &args, &tree.environment())?;
     for line in ran.stdout.lines() {
         report.noted(line.into());
     }

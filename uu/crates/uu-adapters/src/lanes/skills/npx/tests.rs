@@ -61,7 +61,10 @@ fn the_npx_command_is_run_once_per_repo_group_with_every_skill_of_that_group() {
             "-y"
         ]]
     );
-    assert_eq!(runner.environments(), vec![env.variables]);
+    assert_eq!(
+        runner.environments(),
+        vec![crate::lanes::Environment::only(&env.variables)]
+    );
 }
 #[test]
 fn the_child_environment_keeps_candidate_roots_and_only_the_explicit_interpreter_path() {
@@ -124,7 +127,12 @@ printf '%s\n' "$HOME" "$npm_config_cache" "${GIT_CONFIG_GLOBAL-unset}"
     );
     assert_eq!(
         runner
-            .run_in(installer.to_str().unwrap(), &[], &env.variables)
+            .run_in(
+                installer.to_str().unwrap(),
+                &[],
+                &crate::lanes::Environment::only(&env.variables),
+                None,
+            )
             .unwrap(),
         format!(
             "{}
@@ -138,7 +146,12 @@ unset
     env.variables.remove("PATH");
     assert!(
         runner
-            .run_in(installer.to_str().unwrap(), &[], &env.variables)
+            .run_in(
+                installer.to_str().unwrap(),
+                &[],
+                &crate::lanes::Environment::only(&env.variables),
+                None,
+            )
             .is_err()
     );
 }

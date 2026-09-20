@@ -29,6 +29,51 @@ pub enum Verdict {
     Failed(String),
 }
 
+/// The environment one child runs in.
+///
+/// ONE VALUE FOR EVERY LANE THAT NEEDS ONE, so no lane composes an
+/// environment out of argv words and no lane spawns a helper to set them.
+/// `path_prefix` is its own field rather than a `PATH` entry in `variables`
+/// because the rest of that value is uu's own inherited `PATH`, which lives
+/// in the process and not in the lane's arguments: the adapter joins the two
+/// at spawn time and a lane stays a function of what it was given.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Environment {
+    /// Set on the child, over whatever uu inherited unless `only_these`.
+    pub variables: std::collections::BTreeMap<String, String>,
+    /// Put ahead of the inherited `PATH`.
+    pub path_prefix: Option<String>,
+    /// Hand the child `variables` alone and nothing uu inherited.
+    pub only_these: bool,
+}
+
+impl Environment {
+    /// Whatever uu inherited, unchanged.
+    pub fn inheriting() -> Self {
+        Self::default()
+    }
+
+    /// `variables` and nothing else.
+    pub fn only(variables: &std::collections::BTreeMap<String, String>) -> Self {
+        Environment {
+            variables: variables.clone(),
+            path_prefix: None,
+            only_these: true,
+        }
+    }
+
+    pub fn with(mut self, key: &str, value: String) -> Self {
+        self.variables.insert(key.to_string(), value);
+        self
+    }
+
+    /// `dir` first on the child's `PATH`, then everything uu inherited.
+    pub fn prepending_path(mut self, dir: &str) -> Self {
+        self.path_prefix = Some(dir.to_string());
+        self
+    }
+}
+
 /// The spawn seam. `run`'s `Ok` carries the command's stdout, `Err` why it did
 /// not succeed, already fit to print.
 ///
@@ -47,13 +92,28 @@ pub trait CommandRunner {
     ) -> Result<(), String> {
         Err("runner does not support file output".into())
     }
+    /// `run`, in `env`, and under `most` as well as the lane's deadline when
+    /// the caller names one.
     fn run_in(
         &self,
         _program: &str,
         _args: &[&str],
-        _env: &std::collections::BTreeMap<String, String>,
+        _env: &Environment,
+        _most: Option<Duration>,
     ) -> Result<String, String> {
-        Err("runner does not support isolated environments".into())
+        Err("runner does not support a child environment".into())
+    }
+
+    /// `run_in`, keeping what the child printed and how it ended instead of
+    /// failing on a non-clean exit: the smoke test reads a child's stderr and
+    /// its verdict, not only its stdout.
+    fn run_reporting_in(
+        &self,
+        _program: &str,
+        _args: &[&str],
+        _env: &Environment,
+    ) -> Result<Ran, String> {
+        Err("runner does not support a child environment".into())
     }
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String>;
 

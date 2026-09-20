@@ -80,7 +80,8 @@ impl SkillsCandidate {
                 args.extend(["--skill", name]);
             }
             args.extend(["--agent", "claude-code", "--agent", "codex", "-g", "-y"]);
-            if let Err(why) = runner.run_in(&config.npx, &args, &env.variables) {
+            let environment = crate::lanes::Environment::only(&env.variables);
+            if let Err(why) = runner.run_in(&config.npx, &args, &environment, None) {
                 for name in names {
                     failed.insert(name.to_string(), why.clone());
                 }

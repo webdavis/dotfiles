@@ -33,7 +33,9 @@ impl Candidate {
             root,
         })
     }
-    pub fn environment(&self) -> Vec<String> {
+    /// The base directories the smoke child is redirected into, set over
+    /// whatever uu inherited.
+    pub fn environment(&self) -> crate::lanes::Environment {
         [
             ("HOME", "h"),
             ("CLAUDE_CONFIG_DIR", "h/.claude"),
@@ -43,8 +45,10 @@ impl Candidate {
             ("XDG_CACHE_HOME", "k"),
         ]
         .iter()
-        .map(|(key, leaf)| format!("{key}={}", self.root.join(leaf).display()))
-        .collect()
+        .fold(
+            crate::lanes::Environment::inheriting(),
+            |env, (key, leaf)| env.with(key, self.root.join(leaf).display().to_string()),
+        )
     }
 }
 
