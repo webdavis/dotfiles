@@ -104,6 +104,39 @@ pub fn run_bounded(
         .flatten()
 }
 
+/// `run_bounded`, with the child's own exit code kept.
+///
+/// ONE CALLER, AND IT NEEDS THE CODE: a `[recap.sources]` command that exits
+/// non-zero renders one line naming which, because the operator cannot tell a
+/// command they typed wrong from a tool that is unhappy without it. Every
+/// other caller reads a failure as unknown and has nothing to say about the
+/// number, which is why this is a second entry point rather than a wider
+/// return type on the first.
+///
+/// `Err(None)` IS EVERY WAY OF NOT REACHING AN EXIT CODE: a spawn that found
+/// no such program, a deadline, and an answer past the byte ceiling.
+pub fn run_bounded_reporting(
+    mut command: Command,
+    deadline: Duration,
+    max_bytes: u64,
+) -> Result<String, Option<i32>> {
+    let expires_at = std::time::Instant::now() + deadline;
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null());
+    let started = Group::start(expires_at)
+        .and_then(|group| Ok((group.spawn(&mut command)?, group)))
+        .map_err(|_| None)?;
+    let (output, status) = collect_reporting(started.0, None, expires_at, max_bytes);
+    match status.filter(std::process::ExitStatus::success) {
+        Some(_) => output
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .ok_or(None),
+        None => Err(status.and_then(|status| status.code())),
+    }
+}
+
 pub fn finish_bounded(
     command: &mut Command,
     stdin_text: Option<&str>,
@@ -116,11 +149,32 @@ pub fn finish_bounded(
 }
 
 fn collect(
-    mut child: std::process::Child,
+    child: std::process::Child,
     stdin_text: Option<&str>,
     expires_at: std::time::Instant,
     max_bytes: u64,
 ) -> Option<String> {
+    let (output, status) = collect_reporting(child, stdin_text, expires_at, max_bytes);
+    // A command that failed has no reading to give: every caller here treats
+    // no answer as unknown, which is the honest report.
+    //
+    // LOSSY, and only now that the size has been judged: every reading here is
+    // read line by line downstream, so one invalid byte must cost its own line
+    // rather than the whole answer, and `read_to_string` would refuse the lot.
+    status
+        .filter(std::process::ExitStatus::success)
+        .and(output)
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// The bytes a bounded child wrote and the status it exited with, which is
+/// what the two entry points above each read differently.
+fn collect_reporting(
+    mut child: std::process::Child,
+    stdin_text: Option<&str>,
+    expires_at: std::time::Instant,
+    max_bytes: u64,
+) -> (Option<Vec<u8>>, Option<std::process::ExitStatus>) {
     // The WRITE is inside the window too: a child that never reads its stdin
     // blocks the writer, and doing it before the clock started meant the
     // deadline never covered the case.
@@ -165,19 +219,9 @@ fn collect(
     let Some(status) = status else {
         let _ = child.kill();
         let _ = child.wait();
-        return None;
+        return (None, None);
     };
-    // A command that failed has no reading to give: every caller here treats
-    // no answer as unknown, which is the honest report.
-    //
-    // LOSSY, and only now that the size has been judged: every reading here is
-    // read line by line downstream, so one invalid byte must cost its own line
-    // rather than the whole answer, and `read_to_string` would refuse the lot.
-    status
-        .success()
-        .then_some(output)
-        .flatten()
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+    (output, Some(status))
 }
 
 #[cfg(test)]

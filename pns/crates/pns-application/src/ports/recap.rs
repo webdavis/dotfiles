@@ -13,8 +13,26 @@ pub struct Fetched {
     pub truncated: bool,
 }
 
-pub trait MergedPullRequestSource {
-    fn merged(&self, repositories: &[String], since: u64, until: u64) -> Option<Fetched>;
+/// The durable activity table, which is where the recap's agents section
+/// comes from. NOT THE RING: the ring keeps a bounded tail of rendered lines
+/// for the return card and rolls off by count, where this keeps the fields
+/// themselves and rolls off by age.
+pub trait ActivityEvents {
+    fn activity_between(&self, since: u64, until: u64) -> Vec<pns_domain::recap::activity::Event>;
+}
+
+/// One `[recap.sources]` command, run over a window or over none at all.
+///
+/// `since` AND `until` ARE OPTIONAL because `open` has no window: a command
+/// asked with no bounds is the same command with nothing substituted into it,
+/// which is how the design says the unbounded listings are taken.
+pub trait SourceCommands {
+    fn run(
+        &self,
+        argv: &[String],
+        since: Option<u64>,
+        until: Option<u64>,
+    ) -> pns_domain::recap::external::Sourcing;
 }
 
 pub trait ReviewNoteSource {

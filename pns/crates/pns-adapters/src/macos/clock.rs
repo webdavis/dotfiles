@@ -110,3 +110,68 @@ pub fn utc_timestamp(epoch_secs: u64) -> Option<String> {
 
 #[cfg(test)]
 mod tests;
+
+/// One epoch second as an RFC 3339 instant in the LOCAL zone, offset and all.
+///
+/// THE OFFSET IS WHAT MAKES IT UNAMBIGUOUS, and the local zone is what makes
+/// it the operator's own day. A `[recap.sources]` command is handed the window
+/// this way, so a tool that takes a timestamp reads the same moment pns means
+/// wherever it resolves it, and a person reading the argv of a running process
+/// sees the hour they would have typed.
+pub fn local_timestamp(epoch_secs: u64) -> Option<String> {
+    let seconds = libc::time_t::try_from(epoch_secs).ok()?;
+    let mut broken_down = std::mem::MaybeUninit::<libc::tm>::uninit();
+    // SAFETY: `localtime_r`'s contract, as above: `seconds` points at a live
+    // `time_t` on this frame, `broken_down` is an aligned `tm` this frame owns
+    // for the whole call with nothing else aliasing it, the reentrant form
+    // writes only into that buffer, and the buffer is read ONLY after a
+    // non-null return, which is what proves it was initialized.
+    let local = unsafe {
+        if libc::localtime_r(&seconds, broken_down.as_mut_ptr()).is_null() {
+            return None;
+        }
+        broken_down.assume_init()
+    };
+    let offset = local.tm_gmtoff / 60;
+    Some(format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}{}{:02}:{:02}",
+        local.tm_year.checked_add(1900)?,
+        local.tm_mon.checked_add(1)?,
+        local.tm_mday,
+        local.tm_hour,
+        local.tm_min,
+        local.tm_sec,
+        if offset < 0 { '-' } else { '+' },
+        offset.abs() / 60,
+        offset.abs() % 60,
+    ))
+}
+
+/// The local calendar moment an epoch second falls on, and the day of the week
+/// it is, numbered from Sunday the way `tm_wday` is.
+///
+/// THE SAME ONE PLACE THE ZONE IS READ, and the answer leaves as plain
+/// numbers: every window rule is arithmetic over these, with no clock inside
+/// it.
+pub fn local_civil(epoch_secs: u64) -> Option<(pns_domain::recap::window::LocalCivilTime, u32)> {
+    let seconds = libc::time_t::try_from(epoch_secs).ok()?;
+    let mut broken_down = std::mem::MaybeUninit::<libc::tm>::uninit();
+    // SAFETY: as `local_timestamp` above.
+    let local = unsafe {
+        if libc::localtime_r(&seconds, broken_down.as_mut_ptr()).is_null() {
+            return None;
+        }
+        broken_down.assume_init()
+    };
+    Some((
+        pns_domain::recap::window::LocalCivilTime {
+            year: u32::try_from(local.tm_year.checked_add(1900)?).ok()?,
+            month: u32::try_from(local.tm_mon.checked_add(1)?).ok()?,
+            day: u32::try_from(local.tm_mday).ok()?,
+            hour: u32::try_from(local.tm_hour).ok()?,
+            minute: u32::try_from(local.tm_min).ok()?,
+            second: u32::try_from(local.tm_sec.min(59)).ok()?,
+        },
+        u32::try_from(local.tm_wday).ok()?,
+    ))
+}

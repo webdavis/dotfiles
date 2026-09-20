@@ -1,12 +1,14 @@
 use super::super::*;
 use crate::Fetched;
-use pns_domain::{EventArgs, missed::Entry};
+use pns_domain::recap::activity::Event;
+use pns_domain::recap::external::Sourcing;
+use pns_domain::recap::sections::body;
 use std::cell::{Cell, RefCell};
 
 pub(super) struct World {
     pub log: RefCell<Vec<String>>,
     pub left: Cell<u64>,
-    pub entries: Vec<Entry>,
+    pub events: Vec<Event>,
     pub available: bool,
 }
 impl World {
@@ -15,26 +17,43 @@ impl World {
             log: RefCell::new(Vec::new()),
             left: Cell::new(0),
             available: true,
-            entries: vec![Entry {
-                at: None,
+            events: vec![Event {
+                at: 150,
                 agent: "agent".into(),
                 state: "done".into(),
+                session: "one".into(),
+                session_title: "finished".into(),
                 detail: "finished".into(),
-                ..Entry::default()
+                ..Event::default()
             }],
         }
     }
+    /// The assembled recap, rendered the way a delivery would render it.
     pub fn build(&self, recap: &Recap) -> String {
-        BuildReturnRecap {
+        let assembled = self.assemble(recap, Vec::new());
+        let externals = assembled.externals();
+        let clock = |at: Option<u64>| super::super::recap_wall_clock(at, |_| None);
+        body(&assembled.page(&externals, &clock))
+    }
+    pub fn assemble(&self, recap: &Recap, sections: Vec<String>) -> Assembled {
+        BuildRecap {
             activity: self,
-            merges: self,
+            commands: self,
             notes: self,
             summarizer: self,
         }
-        .run(
-            recap,
-            100,
-            200,
+        .assemble(
+            &Request {
+                recap,
+                window: None,
+                previous: false,
+                since: 100,
+                until: 200,
+                sections,
+                verbose: false,
+                limit: None,
+                windowed: true,
+            },
             |at| super::super::recap_wall_clock(at, |_| None),
             |budget| {
                 self.log.borrow_mut().push("budget".into());
@@ -44,34 +63,30 @@ impl World {
         )
     }
 }
-impl ActivityRing for World {
-    fn record(&self, _: &EventArgs, _: Option<u64>) {
-        panic!("a recap must not record");
-    }
-    fn entries_between(&self, since: u64, until: u64) -> Vec<Entry> {
+impl ActivityEvents for World {
+    fn activity_between(&self, since: u64, until: u64) -> Vec<Event> {
         assert_eq!((since, until), (100, 200));
         self.log.borrow_mut().push("activity".into());
-        self.entries.clone()
+        self.events.clone()
     }
 }
-impl MergedPullRequestSource for World {
-    fn merged(&self, repositories: &[String], since: u64, until: u64) -> Option<Fetched> {
-        assert_eq!(repositories, &["owner/repo"]);
-        assert_eq!((since, until), (100, 200));
-        self.log.borrow_mut().push("merges".into());
-        self.available.then(|| Fetched {
-            sources: vec![pns_domain::recap::external::merged(
-                42,
-                "merge title",
-                "merge body",
-            )],
-            truncated: false,
-        })
+impl SourceCommands for World {
+    fn run(&self, argv: &[String], since: Option<u64>, until: Option<u64>) -> Sourcing {
+        self.log
+            .borrow_mut()
+            .push(format!("run({} {since:?} {until:?})", argv.join(" ")));
+        match self.available {
+            false => Sourcing::Unavailable,
+            true => Sourcing::Read(
+                vec![pns_domain::recap::external::printed("#42 merge title")],
+                false,
+            ),
+        }
     }
 }
 impl ReviewNoteSource for World {
     fn notes(&self, pattern: &str, since: u64, until: u64) -> Option<Fetched> {
-        assert_eq!(pattern, "notes/*.md");
+        assert_eq!(pattern, "/notes/*.md");
         assert_eq!((since, until), (100, 200));
         self.log.borrow_mut().push("notes".into());
         self.available.then(|| Fetched {
@@ -97,8 +112,11 @@ impl Summarizer for World {
 
 pub(super) fn configured() -> Recap {
     Recap {
-        repositories: vec!["owner/repo".into()],
-        review_notes_glob: Some("notes/*.md".into()),
+        sources: pns_domain::recap::Sources {
+            pull_requests: Some(vec!["gh".into()]),
+            ..pns_domain::recap::Sources::default()
+        },
+        review_notes_glob: Some("/notes/*.md".into()),
         summarizer: Some(vec!["summary".into(), "--plain".into()]),
         summarizer_deadline: std::time::Duration::from_secs(6),
         ..Recap::default()
