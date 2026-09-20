@@ -100,7 +100,7 @@ fn a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_se
     let sandbox = Sandbox::new("mobile-type-refused-leg");
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.banner]\nenabled = true\n",
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
     );
     let output = run(sandbox
         .pns()
@@ -135,7 +135,7 @@ fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
     let sandbox = Sandbox::new("doctor-type-fault");
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
-         [plugins.banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
+         [plugins.banner]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
@@ -236,7 +236,7 @@ fn the_doctor_names_every_route_the_config_armed_no_key_for() {
     let sandbox = Sandbox::new("doctor-unarmed-routes");
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\n\
          logbook = \"armed\"\nposture-pages = \"\"\n",
     );
     let output = doctor_command(&sandbox).output().expect("the engine runs");
@@ -246,7 +246,7 @@ fn the_doctor_names_every_route_the_config_armed_no_key_for() {
         assert!(
             said.contains(&format!(
                 "no hermes signing key for the {route} route, so every post to it is \
-                 refused; set [plugins.hermes.keys] {route}"
+                 refused; set [plugins.log.keys] {route}"
             )),
             "the {route} route is unarmed and unnamed: {said}"
         );

@@ -53,6 +53,13 @@ bypass_mute = true
 [plugins.mobile]
 token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 
+# The durable paper trail. ONE TABLE, so two of them cannot be declared: the
+# rendered `type` names which transport carries it, and the credentials for
+# the other one sit here ready, which makes the cutover that single line and
+# the rollback the same line back.
+[plugins.log]
+token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
+
 # One key per hermes route, so a key leaked from any route cannot post to
 # every route. A route left out here posts nothing and says which key is
 # missing, rather than borrowing another route's secret.
@@ -63,7 +70,7 @@ token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 # the two names the `[routes]` table carries in the rendered file, and
 # `posture-pages` exists here because posture submits pages under that name
 # and nowhere in pns.
-[plugins.hermes.keys]
+[plugins.log.keys]
 note = """
 pns-events and priority are the two names the [routes] table above carries;
 posture-pages is named by the producer that submits pages under it and
@@ -72,23 +79,16 @@ pns-events = { keepassxc = "Hermes :: Webhook Secret (#pns-events)", field = "Pa
 posture-pages = { keepassxc = "Hermes :: Webhook Secret (#posture-pages)", field = "Password" }
 priority = { keepassxc = "Hermes :: Webhook Secret (#priority)", field = "Password" }
 
-# SHIPPED DISABLED, and it has to be: [plugins.hermes] above is enabled, and
-# both durable logs at once is refused at load, naming both tables. The
-# cutover is two lines in one edit, `enabled = false` there and `true` here,
-# and the rollback is the same two the other way.
-[plugins.discord]
-enabled = false
-token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
-
-# One entry per project, plus the two fallbacks and the severity channel. A
-# channel id is a secret like every other id here, so every entry NAMES its
-# vault record rather than writing the id into a committed file.
+# One entry per project, plus the two fallbacks and the severity channel, read
+# only while the log's `type` is discord. A channel id is a secret like every
+# other id here, so every entry NAMES its vault record rather than writing the
+# id into a committed file.
 #
 # `priority` is what a critical page carries whatever project it was about,
 # `pns-events` is where an event with no project at all lands, and `default`
 # is the catch-all for a project nobody mapped. A repository that needs its
 # own channel under its full name is one more line, keyed `owner/name`.
-[plugins.discord.channels]
+[plugins.log.channels]
 default = { keepassxc = "Discord (Uriel) :: Channel ID (#github-notifications)", field = "Password" }
 pns-events = { keepassxc = "Discord (Uriel) :: Channel ID (#pns-events)", field = "Password" }
 priority = { keepassxc = "Discord (Uriel) :: Channel ID (#priority)", field = "Password" }

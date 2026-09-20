@@ -156,7 +156,7 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
   from the default.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: the config is read once per recap process.
-- Privacy: the `[plugins.hermes.keys] <route>` is read here and used only to sign the POST
+- Privacy: the `[plugins.log.keys] <route>` is read here and used only to sign the POST
   (`src/channels/hermes.rs:sign`). It is never placed in a prompt, never passed to `gh`, and never
   printed: `hermes_keys` returns it and `deliver_recap` hands it to `dispatch_legs` alone
   (`src/main.rs:deliver_recap`).
@@ -841,9 +841,9 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
   chose between the two routes, and the accepted limit that a 404 was invisible on a machine running
   executable channels.
 - Required side effects: ONE POST AND NO RETRY. A gateway having a bad minute would otherwise put every
-  recap in the channel twice. The POST is HMAC-SHA256 signed with the `[plugins.hermes.keys] <route>`;
+  recap in the channel twice. The POST is HMAC-SHA256 signed with the `[plugins.log.keys] <route>`;
   with no key, `deliver` returns
-  `Delivery::Failed("post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent")`
+  `Delivery::Failed("post SKIPPED -- no hermes key for the <route> route ([plugins.log.keys] <route>); nothing was sent")`
   before any network call (`pns-adapters/src/destinations/hermes.rs`). Pinned on the wire by
   `tests/native.rs:a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it`, which
   proxies the gateway, answers 404, and asserts exactly
@@ -862,7 +862,7 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
   back to 5 rather than to zero or forever.
 - Idempotency and duplicates: one dispatch, so nothing to dedupe inside a run. A POST is not idempotent
   at the gateway, and nothing dedupes two runs of the mode over the same window.
-- Privacy: the whole composed body leaves the machine, HMAC-signed, to whichever gateway `[plugins.hermes] url` or `PNS_HERMES_URL`
+- Privacy: the whole composed body leaves the machine, HMAC-signed, to whichever gateway `[plugins.log] url` or `PNS_HERMES_URL`
   or the compiled-in default names. The hermes body carries `agent`, `state`, `project` and `detail`,
   where `detail` is the body verbatim, newlines and all. The signing key is never in the body and never
   printed.
@@ -870,7 +870,7 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
   exits.
 - Compatibility contract: the route is `DEFAULT_ROUTE` (`pns-domain/src/routes.rs`), the same const every
   routeless event takes, so a machine wanting a recap channel of its own gets it by pointing
-  `#pns-events` somewhere else rather than by a key. `[plugins.hermes] url`, and `PNS_HERMES_URL` after it, OUTRANK the route name
+  `#pns-events` somewhere else rather than by a key. `[plugins.log] url`, and `PNS_HERMES_URL` after it, OUTRANK the route name
   (`pns/crates/pns/src/channel_dispatch.rs:hermes_target`), which is why the wire test proxies the gateway rather than moving
   it.
 

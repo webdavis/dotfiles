@@ -17,7 +17,7 @@ pub struct Answers {
     pub mobile_token: String,
     /// The signing key for the DEFAULT hermes route. The walk asks for one,
     /// because one route is what a fresh machine has prepared; the other
-    /// routes' keys are added to `[plugins.hermes.keys]` as their routes are
+    /// routes' keys are added to `[plugins.log.keys]` as their routes are
     /// prepared.
     pub hermes_key: String,
     pub hue_bridge: String,

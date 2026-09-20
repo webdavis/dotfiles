@@ -59,7 +59,7 @@ fn an_opt_in_table_absent_renders_commented_and_present_renders_live() {
     // table never reaches the parsed config at all.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     assert!(
-        text.contains("# [plugins.hermes]\n# enabled = true\n"),
+        text.contains("# [plugins.log]\n# enabled = true\n"),
         "{text}"
     );
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
@@ -69,22 +69,19 @@ fn an_opt_in_table_absent_renders_commented_and_present_renders_live() {
     // caller never stated `enabled` itself, which is X7's own ruling: an
     // opt-in table's `enabled` is written true the moment the table shows
     // up at all, and the parser is what reads its absence as off.
-    let mut hermes = toml::Table::new();
+    let mut log = toml::Table::new();
     let mut keys = toml::Table::new();
     keys.insert(
         "pns-events".to_string(),
         toml::Value::String("secret".to_string()),
     );
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
     let text = render(&values).expect("an armed table renders");
-    assert!(
-        text.contains("[plugins.hermes]\nenabled = true\n"),
-        "{text}"
-    );
+    assert!(text.contains("[plugins.log]\nenabled = true\n"), "{text}");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert!(config.plugins["hermes"].enabled);
 }

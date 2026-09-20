@@ -11,7 +11,9 @@ fn an_approval_is_forwarded_even_when_the_mobile_channel_is_switched_off() {
     // MECHANISM-BOUND: the submission is read off the record, so this goes
     // RED at the endpoint switch for item 25 to rewrite.
     let sandbox = Sandbox::new("hook-blocked-channel-off");
-    sandbox.write_config("[plugins.mobile]\nenabled = false\n[plugins.hermes]\nenabled = true\n");
+    sandbox.write_config(
+        "[plugins.mobile]\nenabled = false\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
+    );
     let mut command = sandbox.pns();
     command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
@@ -230,7 +232,7 @@ fn a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() 
     sandbox.stub_moshi(&mut command, 42);
     sandbox.write_focus_store("com.apple.sleep.sleep-mode", "Sleep");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          [plugins.banner]\nenabled = true\n[focus]\nsilence = [\"Sleep\"]\n",
     );
 

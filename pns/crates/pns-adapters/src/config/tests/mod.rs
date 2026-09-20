@@ -45,7 +45,8 @@ fn config_writing(table: &str, key: &str, value: &str) -> String {
     match table {
         super::TOP_LEVEL => format!("{key} = {value}\n"),
         other => format!(
-            "[{}]\n{key} = {value}\n{}",
+            "{}[{}]\n{key} = {value}\n{}",
+            prelude(table),
             header_for(other),
             companion(table, key)
         ),
@@ -62,6 +63,22 @@ fn config_writing(table: &str, key: &str, value: &str) -> String {
 fn companion(table: &str, key: &str) -> &'static str {
     match (table, key) {
         (super::TARGET_KEYS, "dim_behaviours") => "dim_window = \"22:00-07:00\"\n",
+        // THE DURABLE LOG IS FILED UNDER ITS TRANSPORT, so every other key of
+        // that table needs the `type` naming one or the file is refused before
+        // the key under test is read at all.
+        ("plugins.log", "type") => "",
+        ("plugins.log", _) => "type = \"hermes\"\n",
+        _ => "",
+    }
+}
+
+/// The table a nested row cannot stand without, written above its heading.
+///
+/// `[plugins.log.channels]` DECLARES THE DURABLE LOG by writing it, so the
+/// `type` that says which transport it is has to come first.
+fn prelude(table: &str) -> &'static str {
+    match table {
+        "plugins.log.channels" | "plugins.log.keys" => "[plugins.log]\ntype = \"hermes\"\n",
         _ => "",
     }
 }
@@ -159,7 +176,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (
         super::TOP_LEVEL,
         "plugins",
-        "{ hermes = { enabled = true } }",
+        "{ log = { enabled = true, type = \"hermes\" } }",
     ),
     (super::TOP_LEVEL, "recap", "{ post_window_recap = true }"),
     (super::TOP_LEVEL, "routes", "{ urgent = \"sirens\" }"),
@@ -223,19 +240,18 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::TARGET_KEYS, "dim_behaviours", "[\"blocked\"]"),
     (super::TARGET_KEYS, "dim_window", "\"22:00-07:00\""),
     (super::TARGET_KEYS, "shows", "[\"done\"]"),
-    ("plugins.discord", "channels", "{ default = \"9001\" }"),
-    ("plugins.discord", "enabled", "true"),
-    ("plugins.discord", "token", "\"secret\""),
-    ("plugins.discord", "type", "\"bot\""),
-    ("plugins.discord.channels", "default", "\"9001\""),
-    ("plugins.mobile.image_cards", "missed", "true"),
-    ("plugins.hermes", "enabled", "true"),
-    ("plugins.hermes", "keys", "{ pns-events = \"secret\" }"),
+    ("plugins.log", "channels", "{ default = \"9001\" }"),
+    ("plugins.log", "enabled", "true"),
+    ("plugins.log", "keys", "{ pns-events = \"secret\" }"),
+    ("plugins.log", "token", "\"secret\""),
+    ("plugins.log", "type", "\"hermes\""),
     (
-        "plugins.hermes",
+        "plugins.log",
         "url",
         "\"http://127.0.0.1:8644/webhooks/pns-events\"",
     ),
+    ("plugins.log.channels", "default", "\"9001\""),
+    ("plugins.mobile.image_cards", "missed", "true"),
     ("plugins.lights", "bridge", "\"192.168.1.10\""),
     (
         "plugins.lights",

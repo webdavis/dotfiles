@@ -214,7 +214,9 @@ fn a_quota_observation_registers_no_lights_tick() {
     // table, `LAMPS_ON`'s own fixture, the way model-switch's
     // `an_observation_registers_no_lights_tick` needs it.
     let sandbox = Sandbox::new("quota-no-lights-tick");
-    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    sandbox.write_config(&format!(
+        "{LAMPS_ON}[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
+    ));
     counted_channels(&sandbox);
 
     let output = hook_with(

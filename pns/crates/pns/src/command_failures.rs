@@ -233,7 +233,7 @@ fn command(stored: &StoredFailure) -> String {
 }
 
 /// Where the destination lives, as the reader would type it. Config
-/// (`[plugins.mobile] url` / `[plugins.hermes] url`) outranks the matching
+/// (`[plugins.mobile] url` / `[plugins.log] url`) outranks the matching
 /// variable (`PNS_MOSHI_URL` / `PNS_HERMES_URL`), which is what keeps the
 /// message pointing at the gateway this machine actually posts to.
 fn address(

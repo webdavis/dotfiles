@@ -12,10 +12,10 @@ fn a_hostile_literal_crosses_as_one_inert_string_and_never_as_structure() {
         "pns-events".to_string(),
         toml::Value::String(hostile.to_string()),
     );
-    let mut hermes = toml::Table::new();
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    let mut log = toml::Table::new();
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -43,10 +43,10 @@ fn a_literal_holding_a_chezmoi_action_opening_crosses_with_its_braces_broken_up(
         "pns-events".to_string(),
         toml::Value::String(hostile.to_string()),
     );
-    let mut hermes = toml::Table::new();
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    let mut log = toml::Table::new();
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 

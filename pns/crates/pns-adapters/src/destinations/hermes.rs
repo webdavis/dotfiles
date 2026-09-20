@@ -117,7 +117,7 @@ pub struct HermesChannel<P: SignedPost> {
     /// never empty: it is what `url` was built from and what `key` was looked
     /// up by, so the two cannot name different routes.
     pub route: String,
-    /// The signing key FOR THAT ROUTE, looked up in `[plugins.hermes.keys]`
+    /// The signing key FOR THAT ROUTE, looked up in `[plugins.log.keys]`
     /// at the composition root. None is the not-set-up case, which for a
     /// route is now its own state rather than the whole channel's.
     pub key: Option<String>,

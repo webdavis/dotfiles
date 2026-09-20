@@ -69,7 +69,7 @@ pub(super) const ITS_NAME: &str = "Casually Concerned";
 /// these two tests differ in.
 pub(super) fn focus_config(silence: &str) -> String {
     format!(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          [plugins.banner]\nenabled = true\n[focus]\nsilence = [{silence}]\n"
     )
 }

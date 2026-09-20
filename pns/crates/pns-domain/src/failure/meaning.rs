@@ -27,7 +27,7 @@ pub const DESTINATION_MOBILE: &str = "mobile";
 /// messages go stale silently. A test in `pns-adapters`, which can see both this
 /// and the live config schema, asserts the two agree, so a rename breaks the
 /// build rather than the message.
-pub const HERMES_KEYS_TABLE: &str = "plugins.hermes.keys";
+pub const HERMES_KEYS_TABLE: &str = "plugins.log.keys";
 
 /// The one key inside that table a route's own signature comes from, spelled
 /// the way the schema's refusals spell a table and a key.

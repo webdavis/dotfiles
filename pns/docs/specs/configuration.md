@@ -100,7 +100,7 @@ assert_eq!(
             r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#
         ),
         (
-            "plugins.hermes.keys".to_string(),
+            "plugins.log.keys".to_string(),
             r#"pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}"#
         ),
         (
@@ -121,7 +121,7 @@ assert_eq!(
 
 The pin carries each line's TABLE as well as its text, and the test's own comment says why: "a bare line
 comparison cannot tell hermes's secret sitting under `[plugins.lights]` from hermes's secret sitting under
-`[plugins.hermes]`, since the line text alone never says which heading it fell under (sol-1 finding 1)."
+`[plugins.log]`, since the line text alone never says which heading it fell under (sol-1 finding 1)."
 
 The pin's stated ceiling, from the same doc comment: "THE STUB ONLY READS THE GRAMMAR of a secret
 action... It reads neither WHICH entry a line names nor WHICH field it takes off that entry, so pointing
@@ -264,7 +264,7 @@ column, which lives outside this layer.
 | Key path                              | Type             | Default                              | Bound                                                   | Secret                                                               | Out of bounds or malformed                                                                                                                                                 | Judged by                                                               | Tests                                                                                                                                               |
 | ------------------------------------- | ---------------- | ------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plugins.<any>.enabled`               | bool             | `false` (selection is explicit)      | none                                                    | no                                                                   | `` plugin `{name}` has a non-boolean `enabled` ``                                                                                                                          | `parse_config`                                                          | `an_absent_enabled_flag_reads_disabled_because_selection_is_explicit`, `a_non_boolean_enabled_flag_is_refused_naming_the_plugin`                    |
-| `plugins.hermes.keys.<route>`         | string           | unset                                | a route in `pns_domain::routes::ROUTES`                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/` at delivery                                             | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
+| `plugins.log.keys.<route>`         | string           | unset                                | a route in `pns_domain::routes::ROUTES`                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/` at delivery                                             | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
 | `plugins.lights.bridge`                  | string           | unset                                | not judged here                                         | YES (the repo's values file takes it off a vault entry's `UserName`) | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
 | `plugins.lights.key`                     | string           | unset                                | not judged here                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
 | `plugins.lights.rooms`                   | array of strings | unset                                | not judged here                                         | no                                                                   | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
@@ -287,7 +287,7 @@ column, which lives outside this layer.
 The secret-bearing key paths are declared once more, as data, at
 `src/bin/pns-config-render.rs`: four fixed paths in `SECRET_BEARING_KEYS`
 (`["plugins.mobile.token", "plugins.lights.bridge", "plugins.lights.key", "plugins.home_presence.api_key"]`) plus one
-`plugins.hermes.keys.<route>` per entry of `pns_domain::routes::ROUTES`, joined by
+`plugins.log.keys.<route>` per entry of `pns_domain::routes::ROUTES`, joined by
 `secret_bearing_keys()`. That list is what makes "secret" an enforced classification rather than a
 convention: in the committed values file each of those paths must hold a keepassxc marker table, never a
 literal.
@@ -630,7 +630,7 @@ Then it is refused with the table, the key and the whole vocabulary named
   this repo ships. If it stops loading, the machine falls back to the CORE with a warning nobody is
   standing in front of: the phone and the banner keep working, and the durable paper trail, the lights
   and the home probe all stop."
-- Thresholds: the six judged tables are `plugins.hermes`, `plugins.lights`, `plugins.banner`,
+- Thresholds: the six judged tables are `plugins.log`, `plugins.lights`, `plugins.banner`,
   `plugins.mobile`, `plugins.presence`, `plugins.home_presence`. A table for a plugin nothing registered has NO roster row, so
   `keys_of` returns `None` and `admits` passes everything
   (`src/config.rs:an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name`).
@@ -1213,8 +1213,8 @@ Then every recognised key and table is removed as it is written, and anything re
 - Required side effects: CORE tables are written LIVE whether or not the values mention them; OPT-IN
   tables are written COMMENTED, heading included, when the values never mention them at all. Pinned by
   `src/config_text.rs:an_opt_in_table_absent_renders_commented_and_present_renders_live`, which asserts
-  the exact text `# [plugins.hermes]\n# enabled = true\n` for the absent case and
-  `[plugins.hermes]\nenabled = true\n` for the present one, and confirms the parsed result each way. A
+  the exact text `# [plugins.log]\n# enabled = true\n` for the absent case and
+  `[plugins.log]\nenabled = true\n` for the present one, and confirms the parsed result each way. A
   `Sample::Example` key stays commented even inside a live table unless the values supply a value for it
   (`src/config_text.rs:render_block`).
 - Forbidden side effects: the `[lights]` cluster is the ONE hardcoded branch, because its seven headings

@@ -33,7 +33,7 @@ pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
 /// and the mobile table naming the one backend compiled in. A test that needs
 /// something else writes over it with `write_config`.
 pub const STUB_CHANNELS: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-                                 [plugins.hermes]\nenabled = true\n\
+                                 [plugins.log]\nenabled = true\ntype = \"hermes\"\n\
                                  [plugins.banner]\nenabled = true\n\
                                  [failures]\npage_enabled = false\n";
 
