@@ -37,7 +37,7 @@ fn direct_record_writes_report_each_failed_store_without_creating_a_legacy_autho
 }
 
 #[test]
-fn a_database_report_names_its_sqlite_code_and_constraint() {
+fn a_database_report_names_its_constraint() {
     let path = state();
     let mut store = SqliteStore::new(path.clone());
     store.log = path.join("database.log");
