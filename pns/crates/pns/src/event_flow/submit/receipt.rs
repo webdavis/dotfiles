@@ -14,8 +14,7 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
             return ResultEnvelope {
                 request_id: None,
                 status: Status::Rejected,
-                decision_id: None,
-                interaction: None,
+                ledger_sequence: None,
                 destinations: Vec::new(),
                 diagnostics: vec!["unknown_delivery_class".into(), class],
             };
@@ -53,8 +52,7 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
     ResultEnvelope {
         request_id: None,
         status,
-        decision_id: sequence.map(|id| id.to_string()),
-        interaction: None,
+        ledger_sequence: sequence.map(|id| id.to_string()),
         destinations: outcomes.into_iter().map(|(entry, _)| entry).collect(),
         diagnostics: vec![
             failure
@@ -159,7 +157,7 @@ fn outcome(destination: String, delivered: &Delivery) -> DestinationOutcome {
 fn named(destination: String, outcome: DeliveryOutcome) -> DestinationOutcome {
     DestinationOutcome {
         // Destination names come from the validated compiled registry.
-        destination: Name::new(destination).expect("a registered destination name"),
+        name: Name::new(destination).expect("a registered destination name"),
         outcome,
         note: None,
     }
