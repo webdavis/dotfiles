@@ -30,7 +30,7 @@ pub(crate) fn mute_mode() -> i32 {
         // rather than under a subcommand of its own because it is the same
         // switch: one word, one mute.
         [word] if word == "calendar" => {
-            return crate::command_quiet_calendar::quiet_calendar_mode();
+            return crate::command_mute_calendar::mute_calendar_mode();
         }
         // Clearing also replaces an imported record nothing could parse. The
         // standing-state report below still decides what actually happened.

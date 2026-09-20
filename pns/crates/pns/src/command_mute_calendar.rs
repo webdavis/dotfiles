@@ -15,7 +15,7 @@ use std::time::Duration;
 /// The only lines it writes name what happened to the mute, never an event's
 /// subject, its attendees or its identifier, because these reach a log the
 /// operator is not the only reader of.
-pub(crate) fn quiet_calendar_mode() -> i32 {
+pub(crate) fn mute_calendar_mode() -> i32 {
     let home = std::env::var("HOME").unwrap_or_default();
     let calendar = match load_config(&config_path(&home)) {
         Ok(LoadOutcome::Loaded(config)) => config.quiet_calendar,

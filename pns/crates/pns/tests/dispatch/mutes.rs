@@ -229,7 +229,7 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
 
 #[test]
 fn quiet_calendar_arms_the_mute_through_the_argv_the_daemon_schedules() {
-    // THE DAEMON NEVER CALLS `quiet_calendar_mode` DIRECTLY: it schedules
+    // THE DAEMON NEVER CALLS `mute_calendar_mode` DIRECTLY: it schedules
     // `["mute", "calendar"]` (calendar_registration.rs) and the engine
     // dispatches on argv like every other invocation. Running the binary
     // with that exact argv is what pins the wiring between them, not a call

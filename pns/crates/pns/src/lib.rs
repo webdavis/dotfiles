@@ -60,7 +60,7 @@ mod command_enroll;
 mod command_failures;
 mod command_gateway;
 mod command_github;
-mod command_quiet_calendar;
+mod command_mute_calendar;
 pub(crate) use command_github::github_mode;
 mod command_lights;
 mod command_loop;
