@@ -35,11 +35,12 @@ set_up_before_script() {
 STUB
   chmod +x "$SANDBOX/.cargo/bin/pns"
 
-  for harness in pi omp; do
-    HOME="$SANDBOX" CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
-      <"$REPO_ROOT/dot_$harness/agent/extensions/pns-reminders.ts.tmpl" \
-      >"$SANDBOX/$harness-reminders.ts"
-  done
+  HOME="$SANDBOX" CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
+    <"$REPO_ROOT/dot_pi/agent/private_extensions/pns-reminders.ts.tmpl" \
+    >"$SANDBOX/pi-reminders.ts"
+  HOME="$SANDBOX" CI=1 chezmoi --source "$REPO_ROOT" execute-template --no-tty \
+    <"$REPO_ROOT/private_dot_omp/private_agent/private_extensions/pns-reminders.ts.tmpl" \
+    >"$SANDBOX/omp-reminders.ts"
 }
 
 tear_down_after_script() {
