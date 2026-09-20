@@ -23,7 +23,7 @@ fn golden_result() -> ResultEnvelope {
         interaction: Some(InteractionResult::NoOpinion),
         destinations: vec![
             DestinationOutcome {
-                destination: name("macos-banner"),
+                destination: name("banner"),
                 outcome: DeliveryOutcome::Delivered,
                 note: None,
             },

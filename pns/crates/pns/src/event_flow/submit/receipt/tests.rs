@@ -110,7 +110,7 @@ fn a_page_every_destination_took_is_delivered() {
         sequence: Some(7),
         outcomes: vec![
             (leg("hermes"), Delivery::Delivered("posted".into())),
-            (leg("macos-banner"), Delivery::Delivered("posted".into())),
+            (leg("banner"), Delivery::Delivered("posted".into())),
         ],
     }));
     assert_eq!(output.status, Status::Delivered);
