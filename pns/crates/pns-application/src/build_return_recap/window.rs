@@ -90,6 +90,8 @@ fn field(written: &str, width: usize, range: std::ops::RangeInclusive<u32>) -> O
         .filter(|value| range.contains(value))
 }
 
+pub use pns_domain::recap::window::LocalCivilTime;
+
 /// How long ago a bound sits, through the crate's ONE duration parser.
 ///
 /// `d` IS SPELLED AS HOURS rather than taught to that parser, because a day is
@@ -109,17 +111,6 @@ fn duration_ago(written: &str) -> Option<std::time::Duration> {
         std::time::Duration::ZERO..=MAX_AGO,
     )
     .ok()
-}
-
-/// A moment on the operator's own calendar, before any zone is applied to it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LocalCivilTime {
-    pub year: u32,
-    pub month: u32,
-    pub day: u32,
-    pub hour: u32,
-    pub minute: u32,
-    pub second: u32,
 }
 
 /// The furthest back a duration ago may reach: a year, which is past every

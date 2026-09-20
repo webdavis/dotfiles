@@ -12,6 +12,7 @@ mod options;
 pub mod prompt;
 pub mod sanitize;
 pub mod sections;
+pub mod window;
 pub use options::Recap;
 
 #[cfg(test)]
