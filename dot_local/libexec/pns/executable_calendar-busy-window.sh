@@ -28,6 +28,12 @@ set -euo pipefail
 # than prepended so a test's stubbed PATH entry still wins.
 PATH="$PATH:$HOME/.local/bin:/opt/homebrew/bin"
 
+# gog's own keyring-open timeout defaults to 30s, past pns's 20s deadline for
+# this command; kept below it so a stalled keychain read fails here, on its
+# own stderr, rather than being killed mute by pns first. --no-input refuses
+# any prompt outright instead of burning the deadline waiting on one.
+export GOG_KEYRING_OPEN_TIMEOUT=10s
+
 fail() {
   printf 'calendar-busy-window: %s\n' "$1" >&2
   exit 1
@@ -40,7 +46,7 @@ from="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || fail "could not read the clock"
 to="$(date -u -v+1H +%Y-%m-%dT%H:%M:%SZ)" || fail "could not read the clock"
 
 raw=""
-if ! raw="$(gog calendar events --json --readonly --results-only --from "$from" --to "$to" --max 50)"; then
+if ! raw="$(gog calendar events --json --readonly --results-only --no-input --from "$from" --to "$to" --max 50)"; then
   fail "gog calendar events exited non-zero"
 fi
 

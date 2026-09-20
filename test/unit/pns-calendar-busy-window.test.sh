@@ -60,52 +60,32 @@ MIXED_FIXTURE='[
   {"summary": "east coast call", "start": {"dateTime": "2026-09-20T09:00:00-04:00"}, "end": {"dateTime": "2026-09-20T09:30:00-04:00"}}
 ]'
 
-function test_a_timed_busy_event_reports_busy_true() {
+function test_mixed_fixture_produces_correctly_shaped_busy_events() {
   install_gog_fixture "$MIXED_FIXTURE"
   run_script
   assert_same 0 "$?"
+
+  # Busy flags: timed events report busy true, transparent and cancelled
+  # events report busy false rather than being dropped.
   assert_same 'true' "$(jq -r '.events[] | select(.start == 1789916400) | .busy' "$sandbox/stdout")"
-}
-
-function test_a_transparent_event_reports_busy_false_rather_than_being_dropped() {
-  install_gog_fixture "$MIXED_FIXTURE"
-  run_script
   assert_same 'false' "$(jq -r '.events[] | select(.start == 1789920000) | .busy' "$sandbox/stdout")"
-}
-
-function test_a_cancelled_event_reports_busy_false_rather_than_being_dropped() {
-  install_gog_fixture "$MIXED_FIXTURE"
-  run_script
   assert_same 'false' "$(jq -r '.events[] | select(.start == 1789923600) | .busy' "$sandbox/stdout")"
-}
 
-function test_an_all_day_event_is_skipped_entirely() {
-  install_gog_fixture "$MIXED_FIXTURE"
-  run_script
+  # The all-day event is skipped entirely; the other four survive.
   assert_same '0' "$(jq '[.events[] | select(.start == null)] | length' "$sandbox/stdout")"
   assert_same '4' "$(jq '.events | length' "$sandbox/stdout")"
-}
 
-function test_a_non_utc_offset_is_converted_to_the_correct_epoch_second() {
-  install_gog_fixture "$MIXED_FIXTURE"
-  run_script
-  # 2026-09-20T09:00:00-04:00 is 13:00:00Z.
+  # 2026-09-20T09:00:00-04:00 is 13:00:00Z: the offset is converted, not dropped.
   assert_same 'true' "$(jq -r '.events[] | select(.start == 1789909200) | .busy' "$sandbox/stdout")"
   assert_same '1789911000' "$(jq -r '.events[] | select(.start == 1789909200) | .end' "$sandbox/stdout")"
-}
 
-function test_events_are_sorted_by_start() {
-  install_gog_fixture "$MIXED_FIXTURE"
-  run_script
+  # Ordering: sorted by start.
   assert_same '1789909200
 1789916400
 1789920000
 1789923600' "$(jq -r '.events[].start' "$sandbox/stdout")"
-}
 
-function test_stdout_is_exactly_the_documented_shape() {
-  install_gog_fixture "$MIXED_FIXTURE"
-  run_script
+  # Shape: stdout is exactly the documented key set.
   jq -e '.events | type == "array"' "$sandbox/stdout" >/dev/null
   assert_same 0 "$?"
   assert_same '["busy","end","start"]' "$(jq -c '[.events[0] | keys] | .[0]' "$sandbox/stdout")"
