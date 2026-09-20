@@ -7,7 +7,7 @@ fn test_the_restart_is_judged_on_the_ppid_1_parent_never_on_an_arbitrary_worker(
     assert_eq!(reader.daemon_parent(), Ok(ParentPid::parse("42")));
     assert_eq!(
         reader.0.calls,
-        [("osqueryd".to_owned(), None, Some(1))],
+        [("osqueryd".to_owned(), None, Some(1), None)],
         "the walk asks for the launchd-parented daemon by name"
     );
 }

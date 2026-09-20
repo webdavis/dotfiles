@@ -11,7 +11,7 @@ impl<P: ProcessLookup> OsqueryParents<P> {
 }
 impl<P: ProcessLookup> ProcessTable for OsqueryParents<P> {
     fn daemon_parent(&mut self) -> Result<Option<ParentPid>, InspectionFailure> {
-        let pids = self.0.matching(DAEMON, None, Some(LAUNCHD))?;
+        let pids = self.0.matching(DAEMON, None, Some(LAUNCHD), None)?;
         // THE LOWEST MATCHING ID, so a machine that somehow holds two
         // launchd-parented daemons is judged on one of them rather than on
         // whichever the kernel happened to list first.

@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_processes::ScriptedProcesses;
+use crate::test_processes::{ScriptedProcesses, Walk};
 use crate::{CommandIo, CommandOutput};
 use posture_application::InspectionFailure;
 use posture_domain::{ControlRecord, ControlValue, ControlsInput, validate_controls};
@@ -94,7 +94,7 @@ fn walks(case: &serde_json::Value) -> ScriptedProcesses {
             }),
     )
 }
-fn expected_walks(case: &serde_json::Value) -> Vec<(String, Option<u32>, Option<u32>)> {
+fn expected_walks(case: &serde_json::Value) -> Vec<Walk> {
     case["walks"]
         .as_array()
         .unwrap()
@@ -103,6 +103,7 @@ fn expected_walks(case: &serde_json::Value) -> Vec<(String, Option<u32>, Option<
             (
                 walk[0].as_str().unwrap().to_owned(),
                 Some(walk[1].as_u64().unwrap() as u32),
+                None,
                 None,
             )
         })
