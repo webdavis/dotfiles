@@ -17,17 +17,12 @@ impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
         }
         let mut target = control.target().to_owned();
         if control.reader() == ControlReader::LuluResolvedRule {
-            let Some((resolved, exit)) = self.output(
-                "/usr/bin/readlink",
-                &[OsStr::new("-f"), OsStr::new(&target)],
-                false,
-            ) else {
+            // The archive records the launcher's resolved path, so a target
+            // that cannot be resolved is no reading at all.
+            let Ok(resolved) = std::fs::canonicalize(&target) else {
                 return Indeterminate;
             };
-            if exit != 0 || resolved.is_empty() {
-                return Indeterminate;
-            }
-            target = resolved;
+            target = resolved.to_string_lossy().into_owned();
         }
         let Some(rules) = PropertyList::read(&self.rules) else {
             return Indeterminate;

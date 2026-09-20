@@ -1,6 +1,6 @@
 [
   {
-    "name": "ordinary-eight",
+    "name": "ordinary-seven",
     "responses": [
       {
         "out": "FileVault is On.\n",
@@ -16,11 +16,6 @@
         "out": "",
         "exit": 0,
         "err": "Guest account disabled.\n"
-      },
-      {
-        "out": "/resolved & path\n",
-        "exit": 0,
-        "err": ""
       }
     ],
     "files": {
@@ -36,7 +31,6 @@
       "disabled",
       "running",
       "stopped",
-      "present",
       "present"
     ],
     "calls": [
@@ -52,11 +46,6 @@
         "/usr/sbin/sysadminctl",
         "-guestAccount",
         "status"
-      ],
-      [
-        "/usr/bin/readlink",
-        "-f",
-        "/launcher with space"
       ]
     ],
     "seconds": 0.2859442920307629,
@@ -89,10 +78,6 @@
       [
         "lulu_rule_present",
         "/A & <B>"
-      ],
-      [
-        "lulu_rule_resolved_present",
-        "/launcher with space"
       ]
     ],
     "uid": 501,
@@ -374,80 +359,6 @@
     "controls": [
       [
         "lulu_rule_present",
-        "/a"
-      ]
-    ],
-    "uid": 501,
-    "walks": [],
-    "walk_results": []
-  },
-  {
-    "name": "resolution-empty",
-    "responses": [
-      {
-        "out": "",
-        "exit": 0,
-        "err": ""
-      }
-    ],
-    "files": {
-      "preferences": "<plist version=\"1.0\"><dict></dict></plist>",
-      "rules": null,
-      "login_window": null
-    },
-    "fields": [
-      "no_profile",
-      "indeterminate"
-    ],
-    "calls": [
-      [
-        "/usr/bin/readlink",
-        "-f",
-        "/a"
-      ]
-    ],
-    "seconds": 0.07250095799099654,
-    "stderr": "",
-    "controls": [
-      [
-        "lulu_rule_resolved_present",
-        "/a"
-      ]
-    ],
-    "uid": 501,
-    "walks": [],
-    "walk_results": []
-  },
-  {
-    "name": "resolution-failed",
-    "responses": [
-      {
-        "out": "/resolved\n",
-        "exit": 2,
-        "err": ""
-      }
-    ],
-    "files": {
-      "preferences": "<plist version=\"1.0\"><dict></dict></plist>",
-      "rules": null,
-      "login_window": null
-    },
-    "fields": [
-      "no_profile",
-      "indeterminate"
-    ],
-    "calls": [
-      [
-        "/usr/bin/readlink",
-        "-f",
-        "/a"
-      ]
-    ],
-    "seconds": 0.0586544590187259,
-    "stderr": "",
-    "controls": [
-      [
-        "lulu_rule_resolved_present",
         "/a"
       ]
     ],
