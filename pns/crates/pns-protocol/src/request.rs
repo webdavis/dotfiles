@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::{Map, Value};
 
 use crate::envelope::{Opened, Rejected, Rejection, encode, open};
@@ -22,7 +22,7 @@ const SCHEMA_MAJOR: u32 = 1;
 /// Every top-level field version 1 defines, `schema` included. A key not in
 /// this list is ignored and named, never refused: additive fields from a
 /// newer producer must not break an older pns.
-const KNOWN_FIELDS: [&str; 14] = [
+const KNOWN_FIELDS: [&str; 15] = [
     "schema",
     "request_id",
     "producer",
@@ -36,6 +36,7 @@ const KNOWN_FIELDS: [&str; 14] = [
     "scope",
     "route",
     "delivery_class",
+    "remind",
     "extensions",
 ];
 
@@ -128,6 +129,55 @@ pub enum DeliveryScope {
     RemoteOnly,
 }
 
+/// What a producer asked for about the reminder on this request, in the same
+/// three statements the flag path spells.
+///
+/// ONE SWITCH FOR BOTH PATHS, which is why the type lives here rather than
+/// beside the parser: `--remind`, `--remind=<duration>` and `--no-remind`
+/// produce this same value, so a request that states it in JSON and a hook
+/// that types the flag hand one resolution one answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Remind {
+    /// `true`, or `--remind`: armed, at the delay config carries.
+    Configured,
+    /// A duration string, or `--remind=<duration>`: armed, at this delay.
+    After(Duration),
+    /// `false`, or `--no-remind`: disarmed, whatever config says.
+    Off,
+}
+
+impl Serialize for Remind {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Configured => serializer.serialize_bool(true),
+            Self::Off => serializer.serialize_bool(false),
+            Self::After(delay) => serializer.serialize_str(&pns_domain::duration::spelled(*delay)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Remind {
+    /// A BOOLEAN OR A DURATION, and anything else names the field in its
+    /// refusal, because a producer that meant to arm a reminder and spelled
+    /// the value wrong must not be delivered as one that asked for nothing.
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Value::deserialize(deserializer)? {
+            Value::Bool(true) => Ok(Self::Configured),
+            Value::Bool(false) => Ok(Self::Off),
+            Value::String(text) => pns_domain::duration::parse_duration(
+                "remind",
+                &text,
+                pns_domain::remind::DELAY_RANGE,
+            )
+            .map(Self::After)
+            .map_err(de::Error::custom),
+            _ => Err(de::Error::custom(
+                "pns: remind is not a boolean or a duration like \"5m\"",
+            )),
+        }
+    }
+}
+
 /// One version 1 request. Construct with [`Request::new`] and set what the
 /// producer knows beyond the four required parts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -166,6 +216,13 @@ pub struct Request {
     /// encoding so a request that names no class keeps its canonical bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivery_class: Option<Name>,
+    /// Whether an approval this request reports waits for a second card, and
+    /// how long it waits. Absent is a producer that said nothing, which falls
+    /// through to the producer's own config entry and then to off, and it is
+    /// omitted when encoding so a request that says nothing keeps its
+    /// canonical bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remind: Option<Remind>,
     /// Producer-specific data, carried verbatim and never read here.
     #[serde(default)]
     pub extensions: Map<String, Value>,
@@ -197,6 +254,7 @@ impl Request {
             scope: DeliveryScope::default(),
             route: None,
             delivery_class: None,
+            remind: None,
             extensions: Map::new(),
         }
     }

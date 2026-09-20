@@ -396,7 +396,9 @@ fn the_last_reminder_switch_argv_named_is_the_one_that_answers() {
     );
     assert_eq!(
         switches(&["--no-remind", "--remind=90s"]),
-        Ok(Some(super::Remind::After(90)))
+        Ok(Some(super::Remind::After(std::time::Duration::from_secs(
+            90
+        ))))
     );
     // A WORD THAT MERELY STARTS THE SAME IS NOT THE FLAG.
     assert_eq!(switches(&["--reminder", "--remind-me"]), Ok(None));

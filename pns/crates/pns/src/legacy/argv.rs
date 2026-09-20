@@ -14,7 +14,7 @@
 //! value, under the second rule.
 
 use pns_domain::{DeliveryScope, EventArgs};
-use pns_protocol::State;
+use pns_protocol::{Remind, State};
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the
@@ -66,17 +66,6 @@ fn is_producer_flag(token: &str) -> bool {
         || RETIRED_FLAGS.iter().any(|(retired, ..)| *retired == token)
 }
 
-/// What a call said about the reminder, which beats every config entry.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Remind {
-    /// `--remind`: armed, at the delay `[remind] delay` carries.
-    Configured,
-    /// `--remind=<duration>`: armed, at this many seconds.
-    After(u64),
-    /// `--no-remind`: disarmed, whatever config says.
-    Off,
-}
-
 /// The reminder switch a hook's own argv carried, or `None` when it named
 /// neither flag.
 ///
@@ -104,9 +93,8 @@ pub fn remind_switch(argv: &[String]) -> Result<Option<Remind>, String> {
 
 /// `--remind=<duration>`'s own value, read by the parser every other pns
 /// duration goes through and held to the range `[remind] delay` is held to.
-fn remind_after(duration: &str) -> Result<u64, String> {
+fn remind_after(duration: &str) -> Result<std::time::Duration, String> {
     pns_domain::duration::parse_duration("--remind", duration, pns_adapters::remind_delay_range())
-        .map(|delay| delay.as_secs())
         .map_err(|refusal| refusal.trim_start_matches("pns: ").to_owned())
 }
 

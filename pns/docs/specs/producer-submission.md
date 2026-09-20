@@ -140,6 +140,11 @@ the range `[remind] delay` is held to, thirty seconds to an hour, refused by nam
 (`crates/pns/src/legacy/argv.rs:remind_switch`,
 `crates/pns/src/legacy/argv/tests.rs:the_last_reminder_switch_argv_named_is_the_one_that_answers`).
 
+A JSON request states the same three things in its optional `remind` field (`true`, a duration string,
+`false`), and both spellings decode to one `pns_protocol::Remind` value, which is what
+`crates/pns/src/remind_schedule_runtime.rs:remind_delay` resolves against config
+(`crates/pns/src/remind_schedule_runtime/tests.rs`).
+
 Given argv containing producer flags
 
 When `parse_args` walks it

@@ -1,4 +1,4 @@
-use super::{DeliveryScope, Request, State, decode};
+use super::{DeliveryScope, Remind, Request, State, decode};
 use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
@@ -26,6 +26,7 @@ fn golden_request() -> Request {
     request.pane = Some("wW:p21".to_string());
     request.route = Some(name("alert"));
     request.delivery_class = Some(name("health"));
+    request.remind = Some(Remind::After(Duration::from_secs(300)));
     let Value::Object(extensions) = json!({ "nvim": { "buffer": 12 } }) else {
         unreachable!("the literal above is an object");
     };
@@ -294,4 +295,47 @@ fn a_request_naming_no_delivery_class_keeps_the_original_version_one_bytes() {
         original,
         "a null delivery class is an absent delivery class"
     );
+}
+
+#[test]
+fn remind_is_a_boolean_or_a_duration_and_anything_else_names_the_field() {
+    for (value, remind) in [
+        (json!(true), Remind::Configured),
+        (json!(false), Remind::Off),
+        (json!("30s"), Remind::After(Duration::from_secs(30))),
+        (json!("5m"), Remind::After(Duration::from_secs(300))),
+        (json!("1h"), Remind::After(Duration::from_secs(3_600))),
+    ] {
+        let mut request = minimal();
+        request["remind"] = value.clone();
+        assert_eq!(
+            decode_value(&request).unwrap().request.remind,
+            Some(remind),
+            "{value}"
+        );
+    }
+    // A DURATION OUTSIDE THE ONE RANGE EVERY SPELLING SHARES, a bare number
+    // and a shape that is neither word are each refused, by name.
+    for value in [
+        json!("29s"),
+        json!("2h"),
+        json!("300"),
+        json!(300),
+        json!([]),
+    ] {
+        let mut request = minimal();
+        request["remind"] = value.clone();
+        let refused = decode_value(&request).expect_err("a reminder is a boolean or a duration");
+        let Rejection::Invalid(sentence) = &refused.reason else {
+            panic!("{value} was refused as {:?}", refused.reason);
+        };
+        assert!(sentence.contains("remind"), "{value}: {sentence}");
+    }
+}
+
+#[test]
+fn a_request_saying_nothing_about_the_reminder_keeps_the_original_version_one_bytes() {
+    let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
+    assert!(!original.contains("remind"), "{original}");
+    assert_eq!(decode_value(&minimal()).unwrap().request.remind, None);
 }
