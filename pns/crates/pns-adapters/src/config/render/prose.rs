@@ -65,11 +65,11 @@ pub(super) const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED,
      # carry on, and `pns mute`, which mutes all of them, is a different\n\
      # command with a different file that neither reads. A bare mute reads\n\
      # `[lights] dim_window` as the schedule and is refused when none is set;\n\
-     # an explicit duration is the same 1s to 24h `pns mute` takes. A state file nobody can parse mutes EVERY lamp and says so: dark\n\
-     # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY\n\
-     # LAMP, ROOM AND ZONE, whether a declaration above writes it or the\n\
-     # bridge merely holds it, and a name neither knows is refused with the\n\
-     # list of the ones that work.\n";
+     # an explicit duration is the same 1s to 24h `pns mute` takes. A state file\n\
+     # nobody can parse mutes EVERY lamp and says so: dark is the fail direction\n\
+     # on a lamp path. THE NAMES IT TAKES ARE EVERY LAMP, ROOM AND ZONE, whether\n\
+     # a declaration above writes it or the bridge merely holds it, and a name\n\
+     # neither knows is refused with the list of the ones that work.\n";
 
 /// The prose above the declarations, and the one commented declaration a
 /// fresh machine's operator can copy: the wizard never asks about the lamp
