@@ -1,8 +1,8 @@
 # `pns resume`: the "where was I" answer
 
 One subcommand that answers the question an operator asks when they come back to a machine they left
-mid-flight: which herdr workspace they were in, which agent pane is waiting on them, which branch and
-checkout that pane is on, and the last command the shell timed. Every answer is read from state pns
+mid-flight: which herdr workspace they were in, which agent session is waiting on them, which branch and
+checkout that session is on, and the last command the shell timed. Every answer is read from state pns
 already keeps plus one herdr listing; nothing new is written, nothing is polled, and no config key
 belongs to this command.
 

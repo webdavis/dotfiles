@@ -157,7 +157,7 @@ fn render(paint: Paint, page: &ResumePage) -> Vec<String> {
     lines.push(style::heading(
         paint,
         "Waiting on you",
-        "the agent pane blocked on an answer",
+        "the agent session blocked on an answer",
     ));
     if page.waiting {
         lines.push(row(
