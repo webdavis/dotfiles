@@ -51,7 +51,7 @@ fn a_durable_leg_that_was_refused_did_not_land() {
 fn a_decorative_leg_that_failed_does_not_decide_it() {
     let submitted = attempted(vec![
         (
-            leg("macos-banner", true),
+            leg("banner", true),
             pns_domain::Delivery::Failed("no notifier".into()),
         ),
         (
@@ -67,7 +67,7 @@ fn a_decorative_leg_that_failed_does_not_decide_it() {
 #[test]
 fn a_plan_with_no_durable_leg_landed() {
     let submitted = attempted(vec![(
-        leg("macos-banner", true),
+        leg("banner", true),
         pns_domain::Delivery::Delivered("posted".into()),
     )]);
     assert_eq!(landed(&submitted), Landed::Yes);

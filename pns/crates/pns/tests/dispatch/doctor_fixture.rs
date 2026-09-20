@@ -143,22 +143,23 @@ pub(super) const REMIND_OFF_LINE: &str = "the reminder is off (no `[remind] dela
 /// router. IT IS A NOTE, not a warning: nobody asked for a home reading here,
 /// and grading that choice as a fault would withhold the report's all-clear on
 /// every such machine forever.
-pub(super) const HOME_UNCONFIGURED_LINE: &str = "home: not configured (no [plugins.router] table)";
+pub(super) const HOME_UNCONFIGURED_LINE: &str =
+    "home: not configured (no [plugins.home_presence] table)";
 
 /// And what it says about the lamps on a machine whose config has no `[lights]`
 /// table, which is every machine that never wrote one.
 pub(super) const LIGHTS_OFF_LINE: &str =
-    "lights: off in the config, so the pulse uses the [plugins.hue] rooms";
+    "lights: off in the config, so the pulse uses the [plugins.lights] rooms";
 
 /// And what it says about the pinned certificate on a machine whose config
 /// names no bridge: there is no address to pin one against.
 pub(super) const NO_CERTIFICATE_LINE: &str =
-    "certificate: no [plugins.hue] bridge, so no certificate is pinned";
+    "certificate: no [plugins.lights] bridge, so no certificate is pinned";
 
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
 pub(super) const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-     [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n";
+     [plugins.banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n";
 
 /// The report's own sentences, with the presentation taken back off.
 ///

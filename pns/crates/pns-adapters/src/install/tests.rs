@@ -44,7 +44,7 @@ const SETTINGS: &[(&str, &str, &str, &str)] = &[
         "http://environment.invalid/push",
     ),
     (
-        "[plugins.macos-banner]\nterminal_bundle_id = \"com.config.Terminal\"\n",
+        "[plugins.banner]\nterminal_bundle_id = \"com.config.Terminal\"\n",
         "PNS_TERMINAL_BUNDLE_ID",
         "com.config.Terminal",
         "com.environment.Terminal",

@@ -49,7 +49,7 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
     sandbox.write_config(
         "[plugins.hermess]\nenabled = true\n\
          [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+         [plugins.hermes]\nenabled = true\n[plugins.banner]\nenabled = true\n",
     );
     let output = run(sandbox
         .pns()
@@ -206,7 +206,7 @@ fn an_unknown_plugin_never_resurrects_a_disabled_pulse() {
     std::fs::write(
         sandbox.path(".config/pns/config.toml"),
         format!(
-            "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+            "[plugins.lights]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              [plugins.typo]\nenabled = true\n"
         ),
     )

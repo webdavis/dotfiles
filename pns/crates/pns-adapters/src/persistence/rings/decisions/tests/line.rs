@@ -124,7 +124,7 @@ fn a_line_carries_the_arbitrated_plan_and_each_legs_verdict() {
         ),
         (
             Leg {
-                name: "macos-banner",
+                name: "banner",
                 mode: ReportMode::Silent,
                 decorative: true,
             },
@@ -152,7 +152,7 @@ fn a_line_carries_the_arbitrated_plan_and_each_legs_verdict() {
     assert!(
         recorded.ends_with(
             " plan=banner:no,card:yes,pulse:no \
-                 legs=mobile:failed,hermes:delivered,macos-banner:silent,kitchen:unlaunched"
+                 legs=mobile:failed,hermes:delivered,banner:silent,kitchen:unlaunched"
         ),
         "got {recorded}"
     );

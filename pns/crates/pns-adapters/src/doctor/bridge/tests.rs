@@ -26,7 +26,7 @@ mod tests {
                 lights_report(Some(&lights), None, false),
                 pns_domain::doctor::LightsReport::HueMissing
             ),
-            "a table and NO [plugins.hue] at all is a config that is half written"
+            "a table and NO [plugins.lights] at all is a config that is half written"
         );
         assert!(
             matches!(

@@ -23,7 +23,7 @@ impl Fixture {
         for leaf in [".config/pns", "channels", "bin"] {
             std::fs::create_dir_all(root.join(leaf)).unwrap();
         }
-        std::fs::write(root.join(".config/pns/config.toml"), "[plugins.hermes]\nenabled = true\n[plugins.mobile]\nenabled = false\n[plugins.macos-banner]\nenabled = false\n").unwrap();
+        std::fs::write(root.join(".config/pns/config.toml"), "[plugins.hermes]\nenabled = true\n[plugins.mobile]\nenabled = false\n[plugins.banner]\nenabled = false\n").unwrap();
         let channel = root.join("channels/hermes.sh");
         std::fs::write(&channel, "#!/bin/sh\ncat >\"$HOME/hermes.event\"\n").unwrap();
         std::fs::set_permissions(channel, std::fs::Permissions::from_mode(0o700)).unwrap();

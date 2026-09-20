@@ -4,7 +4,7 @@ use super::*;
 fn a_config_change_does_not_clear_a_live_wait_on_its_own_session() {
     // LOAD-BEARING, in `an_observation_does_not_clear_a_live_wait`'s own
     // style: `blocked_marker_action("config-change")` is `End`, and the End
-    // arm removes the marker UNGATED, so no `[lights]`/`[plugins.hue]` table
+    // arm removes the marker UNGATED, so no `[lights]`/`[plugins.lights]` table
     // is needed for a misrouted `Attempt::First` to clear it regardless of
     // whether the lamps are configured.
     let sandbox = Sandbox::new("config-change-no-clear-own-wait");

@@ -132,7 +132,7 @@ fn an_unmuted_decision_is_the_one_that_shipped_before_the_mute_existed() {
             Some(2),
             Some(elsewhere("wW:p1")),
             false,
-            vec!["macos-banner", "hermes"],
+            vec!["banner", "hermes"],
             false,
         ),
         (
@@ -140,7 +140,7 @@ fn an_unmuted_decision_is_the_one_that_shipped_before_the_mute_existed() {
             Some(2),
             None,
             false,
-            vec!["macos-banner", "hermes"],
+            vec!["banner", "hermes"],
             false,
         ),
         (
@@ -197,7 +197,7 @@ fn an_unmuted_decision_is_the_one_that_shipped_before_the_mute_existed() {
                         mode: ReportMode::Silent,
                         // THE THREE-CHANNEL ROSTER, STATED: hermes is the
                         // durable log and shows the operator nothing;
-                        // moshi is the phone and macos-banner this
+                        // moshi is the phone and banner this
                         // screen, and both do. A plan that mislabelled
                         // one fails here as well as in routing's own
                         // tests, which is the point of stating it.

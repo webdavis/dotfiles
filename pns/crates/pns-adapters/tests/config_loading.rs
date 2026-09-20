@@ -77,12 +77,12 @@ fn a_regular_config_and_its_symlink_still_load_the_selected_plugin() {
     ));
     std::fs::create_dir(&dir).unwrap();
     let path = dir.join("config.toml");
-    std::fs::write(&path, "[plugins.hue]\nenabled = true\n").unwrap();
+    std::fs::write(&path, "[plugins.lights]\nenabled = true\n").unwrap();
     let link = dir.join("linked.toml");
     symlink(&path, &link).unwrap();
     for input in [&path, &link] {
         match load_config(input) {
-            Ok(LoadOutcome::Loaded(config)) => assert!(config.plugins["hue"].enabled),
+            Ok(LoadOutcome::Loaded(config)) => assert!(config.plugins["lights"].enabled),
             other => panic!("expected the configured plugin, got {other:?}"),
         }
     }
