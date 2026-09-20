@@ -75,9 +75,13 @@ fn a_glob_that_matches_nothing_says_so_and_one_pointing_nowhere_says_something_e
     run(&mut present_event(&sandbox));
 
     let body = posted_recap(&sandbox);
+    // AN EMPTY WINDOWED SECTION IS OMITTED unless `-v` asks for it, which is
+    // the design's own ruling: a page of "nothing in this window" lines
+    // buries the sections that had news. What must never happen is the empty
+    // state reading as one of the other two.
     assert!(
-        body.contains("CAUGHT BY REVIEW, AND IMPLEMENTED: nothing was noted"),
-        "a glob that matched nothing read as something else: {body}"
+        !body.contains("REVIEW NOTES"),
+        "a glob that matched nothing printed a section nobody can act on: {body}"
     );
 
     // AND A GLOB POINTING AT A DIRECTORY NOBODY MADE is a config the operator
@@ -93,7 +97,7 @@ fn a_glob_that_matches_nothing_says_so_and_one_pointing_nowhere_says_something_e
 
     let missing = posted_recap(&nowhere);
     assert!(
-        missing.contains("CAUGHT BY REVIEW, AND IMPLEMENTED: unavailable"),
+        missing.contains("REVIEW NOTES: unavailable"),
         "a directory nobody made read as a quiet night: {missing}"
     );
 }
@@ -139,7 +143,7 @@ fn a_note_that_matched_and_would_not_open_says_so_rather_than_vanishing() {
     let lines: Vec<&str> = body.lines().collect();
     let noted = lines
         .iter()
-        .position(|line| line.starts_with("CAUGHT BY REVIEW"))
+        .position(|line| line.starts_with("REVIEW NOTES"))
         .unwrap_or_else(|| panic!("no review section at all: {body}"));
     assert_eq!(
         lines[noted + 1..noted + 3],
@@ -152,57 +156,64 @@ fn a_note_that_matched_and_would_not_open_says_so_rather_than_vanishing() {
 }
 
 #[test]
-fn a_summarized_merge_section_keeps_only_the_lines_its_own_sources_vouch_for() {
-    // THE WHOLE PATH IN ONE TEST: a listing off `gh`, the merge prompt handed
-    // to a real process, and the receipts check run over what that process
-    // actually said. Every piece of it was covered on its own and the WIRING
-    // between them was not, so forcing both external answers to None left the
-    // suite green: no test proved a configured summarizer ever reached these
-    // two sections at all.
-    let sandbox = Sandbox::new("recap-merges-summarized");
+fn a_summarized_review_section_keeps_only_the_lines_its_own_sources_vouch_for() {
+    // THE WHOLE PATH IN ONE TEST: two notes off the glob, the note prompt
+    // handed to a real process, and the receipts check run over what that
+    // process actually said. Every piece of it was covered on its own and the
+    // WIRING between them was not, so forcing the answer to None left the
+    // suite green: no test proved a configured summarizer ever reached this
+    // section at all.
+    let sandbox = Sandbox::new("recap-notes-summarized");
     record_every_event(&sandbox);
     sandbox.write_config(&recap_summarized_by(
-        "repositories = [\"webdavis/dotfiles\"]\n",
+        "review_notes_glob = \"~/notes/checklist-*.md\"\n",
     ));
     loud_window(&sandbox);
+    write_note(
+        &sandbox,
+        "notes/checklist-first.md",
+        "# the first finding\n",
+        epoch_now(),
+    );
+    write_note(
+        &sandbox,
+        "notes/checklist-second.md",
+        "# the second finding\n",
+        epoch_now(),
+    );
 
     let mut command = present_event(&sandbox);
-    let listing = serde_json::json!([
-        { "number": 213, "title": "a subject", "body": "## Summary\n\nthe first.\n" },
-        { "number": 212, "title": "another subject", "body": "## Summary\n\nthe second.\n" },
-    ]);
-    stub_gh(&sandbox, &mut command, &format!("printf '%s' '{listing}'"));
-    // ONE STUB, THREE QUESTIONS, ANSWERED APART. It replies to the merge
-    // prompt only when it is handed the merge instruction, which is what
-    // proves `merge_prompt` is what this section asked with rather than the
-    // night's prompt reaching it by accident.
+    // ONE STUB, TWO QUESTIONS, ANSWERED APART. It replies to the note prompt
+    // only when it is handed the note instruction, which is what proves
+    // `note_prompt` is what this section asked with rather than the window's
+    // own prompt reaching it by accident.
     sandbox.stub_on_path(
         &mut command,
         SUMMARIZER,
-        "case \"$(cat)\" in\n  *'pull requests merged'*) printf '%s\\n' \
-         '#213 the recap names what shipped' 'and this line cites nothing' ;;\n  \
-         *) printf '%s\\n' 'the night, in one line' ;;\nesac",
+        "case \"$(cat)\" in\n  *'review notes written'*) printf '%s\\n' \
+         'checklist-first.md the review named it' 'and this line cites nothing' ;;\n  \
+         *) printf '%s\\n' 'the window, in one line' ;;\nesac",
     );
     run(&mut command);
 
     let body = posted_recap(&sandbox);
     let lines: Vec<&str> = body.lines().collect();
-    let shipped = lines
+    let reviewed = lines
         .iter()
-        .position(|line| *line == "NEW BEHAVIOR")
-        .unwrap_or_else(|| panic!("no NEW BEHAVIOR section at all: {body}"));
+        .position(|line| *line == "REVIEW NOTES")
+        .unwrap_or_else(|| panic!("no REVIEW NOTES section at all: {body}"));
     assert_eq!(
-        lines[shipped..shipped + 3],
+        lines[reviewed..reviewed + 3],
         [
-            "NEW BEHAVIOR",
-            "- #213 the recap names what shipped",
+            "REVIEW NOTES",
+            "- checklist-first.md the review named it",
             "...and 1 more",
         ],
         "{body}"
     );
-    // AND THE NIGHT GOT ITS OWN ANSWER, so the two questions really were two.
+    // AND THE WINDOW GOT ITS OWN ANSWER, so the two questions really were two.
     assert!(
-        body.contains("- the night, in one line"),
-        "the night was answered with the merge section's lines: {body}"
+        body.contains("- the window, in one line"),
+        "the window was answered with the review section's lines: {body}"
     );
 }

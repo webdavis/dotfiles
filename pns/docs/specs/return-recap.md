@@ -1,9 +1,15 @@
 # Return recap
 
+Parts of this document describe the engine before the recap slices landed. The windows, the
+`[recap.sources]` commands, the section names, the document and the delivery flags are settled in
+`docs/superpowers/specs/2026-09-19-pns-recap-design.md`, which wins wherever the two disagree. What
+still holds here is the process model: the detached child, the single summarizer budget, the two
+budgets a delivered body is composed under, and the wall clock.
+
 ## Scope
 
 Everything `pns recap --since <when> [--until <when>]` does: how it parses its two bounds,
-how it reads one window off the activity ring, how it reaches the two sources it cannot find on its own
+how it reads one window off the durable activity table, how it reaches the two sources it cannot find on its own
 (merged pull requests through `gh`, review notes matching a glob), how it spends one summarizer budget
 across up to three questions, how it composes a body under two budgets at once, how it renders a local
 wall clock, and how it posts to the one durable route it has. It also covers the other caller: the event
@@ -43,7 +49,7 @@ gate is consulted.
 
 | Spawn          | Gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Owner and bounds                                                                                                                                                                                                                                                     | On deadline                                                                                                                                                                                                                                                                             |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gh`           | `(!recap.repositories.is_empty()).then(...)` in `src/main.rs:recap_mode`. This is THE FIRST SPAWN GATED BY A CONFIGURATION KEY: with no `[recap] repositories` key, `fetched_merges` is `None`, `merged_pull_requests` is never called, and no `gh` process exists at all. `Found::Unconfigured` renders "NEW BEHAVIOR: not configured (no merged pull request source)." Pinned by `tests/dispatch.rs:no_repos_key_means_no_gh_process_is_ever_started`, whose tripwire records ANY run | `system::run_bounded` owns it: `Stdio::null()` stdin, piped stdout, null stderr, a detached reader thread capped at `max_bytes + 1`, `recv_timeout(deadline)`, then `wait_until` polling to the same expiry (`src/system.rs:run_bounded`). 30 seconds, 524,288 bytes | `child.kill()` then `child.wait()`, and `None` is returned. The reader thread is never joined; the kill closes the pipe under it. The kill reaches the child PID only, not a process group (`src/system.rs:run_bounded`)                                                                |
+| a `[recap.sources]` command | `Sources::each` in `BuildRecap::assemble`. THE SPAWN IS GATED BY A CONFIGURATION KEY: with no key for that section, the command is never run and the section is absent from the page, from the document and from `--section`. Pinned by `tests/dispatch.rs:no_source_command_means_no_process_is_ever_started_and_no_section_at_all`, whose tripwire records ANY run | `system::run_bounded` owns it: `Stdio::null()` stdin, piped stdout, null stderr, a detached reader thread capped at `max_bytes + 1`, `recv_timeout(deadline)`, then `wait_until` polling to the same expiry (`src/system.rs:run_bounded`). 30 seconds, 524,288 bytes | `child.kill()` then `child.wait()`, and `None` is returned. The reader thread is never joined; the kill closes the pipe under it. The kill reaches the child PID only, not a process group (`src/system.rs:run_bounded`)                                                                |
 | The summarizer | `recap.summarizer.as_deref()`, plus `.filter(\|_\| !entries.is_empty())` for the night's question and `read_sources(...)` for each external question, so an empty window and an empty source both start nothing (`src/main.rs:recap_mode`, `src/main.rs:summarized`). The argv is a list of WORDS handed straight to `Command`, never through a shell (`src/main.rs:summarize`)                                                                                                         | The same `run_bounded`, with the prompt written on stdin INSIDE the deadline window. The deadline is `left_of(episode)`, what is left of ONE episode budget shared by all three questions (`src/main.rs:left_of`). Byte cap `MAX_ANSWER_BYTES + 1` = 16,385          | Same kill-and-wait. `left_of` reaching zero means `summarize` returns `None` before spawning at all: "AN EPISODE WHOSE DEADLINE IS GONE STARTS NO PROCESS AT ALL" (`src/main.rs:summarize`). Every failure becomes the same one sentence in the body (`src/recap.rs:SUMMARIZER_SILENT`) |
 
 ## Behaviors
@@ -249,7 +255,7 @@ Then a readable local zone yields `HH:MM` zero-padded, and anything else yields 
 
 ### 6. Merged pull requests are read once per repository, inside three bounds
 
-Given `[recap] repositories = ["OWNER/REPO", ...]`
+Given `[recap.sources] pull_requests = [...]`
 
 When the detached child fetches
 

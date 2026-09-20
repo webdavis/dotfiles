@@ -105,12 +105,12 @@ mod recap_card;
 #[path = "dispatch/recap_fixture.rs"]
 mod recap_fixture;
 use recap_fixture::*;
-#[path = "dispatch/recap_merges.rs"]
-mod recap_merges;
 #[path = "dispatch/recap_notes.rs"]
 mod recap_notes;
 #[path = "dispatch/recap_process.rs"]
 mod recap_process;
+#[path = "dispatch/recap_pull_requests.rs"]
+mod recap_pull_requests;
 #[path = "dispatch/recap_routes.rs"]
 mod recap_routes;
 #[path = "dispatch/record_fixture.rs"]

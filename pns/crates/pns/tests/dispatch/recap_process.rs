@@ -61,8 +61,11 @@ fn the_digest_reaches_discord_from_a_process_the_event_never_waited_for() {
         body.starts_with("While you were away, "),
         "the recap's own header leads, which is what titles a forum thread: {body}"
     );
-    assert!(body.contains("· 13 events"), "{body}");
-    assert!(body.contains("NEEDS YOU"), "{body}");
+    // TWELVE, NOT THE CARD'S THIRTEEN: the card counts the ring, which the
+    // live event joined, and the recap counts the durable activity table,
+    // which argv events never reach. Each is honest about what IT read.
+    assert!(body.contains("· 12 events"), "{body}");
+    assert!(body.contains("OPEN"), "{body}");
     assert!(
         body.contains("claude/blocked p4: planted 4"),
         "the urgent entry reached the timeline: {body}"

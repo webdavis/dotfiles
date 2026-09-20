@@ -184,6 +184,8 @@ fn an_empty_window_says_so_itself_and_never_starts_a_summarizer_at_all() {
         "1756500000",
         "--until-epoch",
         "1756500600",
+        "--to",
+        "durable",
     ]);
     stub_summarizer(
         &sandbox,

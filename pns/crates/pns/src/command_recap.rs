@@ -1,31 +1,32 @@
 use crate::*;
-use pns_application::{RECAP_USAGE, recap_bounds};
+use pns_application::{RECAP_USAGE, RecapRequest};
 
-/// The `recap` mode: one window of activity, rendered and posted, in a process
-/// nobody is waiting on.
+mod options;
+mod render;
+mod window;
+use options::{OPEN, Options, Span, options};
+
+/// The `recap` mode: one window of activity, rendered and posted, or printed
+/// where the operator typed it.
 ///
 /// IT TAKES NO DECISION, which is what makes it a mode. The decision was taken
-/// by the event that spawned it, and re-deciding here would be the second
-/// reading of one moment `GateInputs` exists to forbid.
-///
-/// IT REACHES ONE DESTINATION, the durable route, and never the phone or the
-/// banner. The phone layer was already delivered by the card that pointed here.
+/// by the event that spawned it, or by the operator, and re-deciding here would
+/// be the second reading of one moment `GateInputs` exists to forbid.
 ///
 /// EXIT 2 FOR A MISTYPED INVOCATION, in `mute_mode`'s style rather than the
 /// hook path's always-zero: this is hand-runnable, and a subcommand that
 /// swallows a typo is a recap the operator believes was posted. The spawner
 /// never reads the code.
 ///
-/// THREE VERBS, ONE ROUTE. The window form is the night's, spawned detached;
-/// `agent` posts a recap an agent wrote to the same destination; `git` prints
-/// the part of that recap only git, worktrunk and `gh` can answer, so the
-/// skill pastes it instead of composing it by hand.
+/// THREE VERBS AND EVERY WINDOW. The window forms are the engine's; `agent`
+/// posts a recap an agent wrote to the durable route; `git` prints the part of
+/// that recap only git, worktrunk and `gh` can answer, so the skill pastes it
+/// instead of composing it by hand.
 ///
-/// ONLY THE WINDOW FORM RUNS UNDER THE GROUP WATCHDOG. That deadline exists
-/// for a child NOBODY IS WATCHING, and it is 30 seconds; the two agent verbs
-/// have a caller waiting on them and every spawn each makes is bounded on its
-/// own, so borrowing the watchdog would only cap a remote listing at less than the
-/// listing is given.
+/// ONLY A DELIVERED RECAP RUNS UNDER THE GROUP WATCHDOG. That deadline exists
+/// for a child NOBODY IS WATCHING; a recap printed to a terminal has an
+/// operator in front of it who can interrupt, and every spawn it makes is
+/// bounded on its own.
 pub(crate) fn recap_mode() -> i32 {
     match crate::arguments_after_subcommand()
         .first()
@@ -38,7 +39,7 @@ pub(crate) fn recap_mode() -> i32 {
 }
 
 /// The recap an agent wrote, fitted and posted to the same durable route the
-/// night's recap takes.
+/// window's recap takes.
 ///
 /// `--stdin` IS REQUIRED RATHER THAN IMPLIED. A recap is a body somebody
 /// composed, and a command that reads a terminal's stdin when no source was
@@ -64,7 +65,7 @@ fn agent_recap() -> i32 {
     }
     let home = std::env::var("HOME").unwrap_or_default();
     let (hermes_keys, discord, _, _, routes) = recap_settings(&home);
-    post(&body, &home, &hermes_keys, &discord, &routes)
+    post(&body, None, &home, &hermes_keys, &discord, &routes)
 }
 
 /// The Git block, the stack graph and the file list, printed.
@@ -100,13 +101,12 @@ fn git_recap() -> i32 {
 /// card up. Reading the pipe first is the same rule from the other side, since
 /// the writer is the process that spawned this one and writes at once.
 fn recap() -> i32 {
-    let (arguments, card) = handed_card(crate::arguments_after_subcommand());
-    let Some((since, until)) =
-        pns_adapters::now_secs().and_then(|now| recap_bounds(&arguments, now, local_epoch_of))
-    else {
+    let arguments = crate::arguments_after_subcommand();
+    let Some(options) = options(&arguments) else {
         eprintln!("{RECAP_USAGE}");
         return 2;
     };
+    let card = options.card_on_stdin.then(handed_card).flatten();
     let home = std::env::var("HOME").unwrap_or_default();
     let (hermes_keys, discord, mobile, recap, routes) = recap_settings(&home);
     if let Some(card) = card {
@@ -119,63 +119,64 @@ fn recap() -> i32 {
             &routes,
         );
     }
-    let body = pns_application::BuildReturnRecap {
-        activity: &pns_adapters::SqliteStore::for_records(state_dir()),
-        merges: &pns_adapters::GitHubMerges,
-        notes: &pns_adapters::ReviewNotes { home: home.clone() },
-        summarizer: &pns_adapters::ProcessSummarizer,
+    // A RECAP WITH NO CLOCK IS A REFUSAL rather than a window over epoch
+    // zero, which would report a quiet day in 1970.
+    let Some(now) = now_secs() else {
+        eprintln!("pns: the system clock could not be read, so no window can be stated");
+        return 2;
+    };
+    match window::resolve(&options, &recap, now) {
+        Err(refusal) => {
+            eprintln!("pns: {refusal}");
+            eprintln!("{RECAP_USAGE}");
+            2
+        }
+        Ok(window) => render::run(
+            &options,
+            &recap,
+            &window,
+            &home,
+            &hermes_keys,
+            &discord,
+            &routes,
+        ),
     }
-    .run(
-        &recap,
-        since,
-        until,
-        |at| pns_application::recap_wall_clock(at, local_minutes_since_midnight),
-        |budget| {
-            let end = std::time::Instant::now() + budget;
-            move || end.saturating_duration_since(std::time::Instant::now())
+}
+
+/// The request the engine is handed, from one resolved window.
+pub(crate) fn request<'request>(
+    options: &'request Options,
+    recap: &'request pns_adapters::Recap,
+    window: &'request window::Resolved,
+) -> RecapRequest<'request> {
+    RecapRequest {
+        recap,
+        window: window.name.clone(),
+        previous: window.previous,
+        since: window.since,
+        until: window.until,
+        sections: match options.span {
+            Span::Open => vec![OPEN.to_string()],
+            _ => options.sections.clone(),
         },
-    );
-    post(&body, &home, &hermes_keys, &discord, &routes)
+        verbose: options.verbose,
+        limit: options.limit,
+        windowed: options.span != Span::Open,
+    }
 }
 
-/// One calendar moment in the operator's own zone, which is the one thing the
-/// window parser cannot work out for itself.
-fn local_epoch_of(civil: pns_application::LocalCivilTime) -> Option<u64> {
-    pns_adapters::local_epoch(
-        civil.year,
-        civil.month,
-        civil.day,
-        civil.hour,
-        civil.minute,
-        civil.second,
-    )
-}
-
-/// The card this child was handed, and the arguments with its flag removed.
-///
-/// THE FLAG IS STRIPPED BEFORE THE WINDOW IS PARSED rather than taught to the
-/// parser, which keeps `recap_bounds` refusing every word it will not vouch
-/// for and keeps an internal hand-off out of the operator's usage text.
+/// The card this child was handed, read off its stdin.
 ///
 /// STDIN IS READ ONLY WHEN THE FLAG SAID SO. An operator running this form by
 /// hand passes no flag, so nothing here ever reads their terminal.
-fn handed_card(arguments: Vec<String>) -> (Vec<String>, Option<pns_adapters::HandedCard>) {
-    let (flags, arguments): (Vec<String>, Vec<String>) = arguments
-        .into_iter()
-        .partition(|argument| argument == pns_adapters::CARD_ON_STDIN);
-    if flags.is_empty() {
-        return (arguments, None);
-    }
+fn handed_card() -> Option<pns_adapters::HandedCard> {
     let mut line = String::new();
-    let read = std::io::Read::read_to_string(&mut std::io::stdin(), &mut line).is_ok();
-    (
-        arguments,
-        read.then(|| pns_adapters::decode_handed_card(&line))
-            .flatten(),
-    )
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut line).ok()?;
+    pns_adapters::decode_handed_card(&line)
 }
 
-/// The durable destinations' credentials and the recap's own settings, or the fail-closed reading.
+/// The durable destinations' credentials and the recap's own settings, or the
+/// fail-closed reading.
 ///
 /// FAIL CLOSED ON THE SUMMARIZER AND OPEN ON THE POST, which is
 /// `lights_pulse`'s split: a config nobody can read named no command, so the
@@ -211,9 +212,10 @@ fn recap_settings(
 }
 
 /// One composed body on the durable route. ONE POSTER FOR BOTH RECAPS, the
-/// night's and the agent's, so neither can drift onto a route of its own.
-fn post(
+/// engine's and the agent's, so neither can drift onto a route of its own.
+pub(crate) fn post(
     body: &str,
+    to: Option<&str>,
     home: &str,
     hermes_keys: &HermesKeys,
     discord: &DiscordSettings,
@@ -223,6 +225,7 @@ fn post(
         crate::recap_delivery_runtime::deliver_recap(
             body,
             route,
+            to,
             home,
             hermes_keys,
             discord,
@@ -232,6 +235,11 @@ fn post(
         .map(|(_, outcome)| outcome)
         .collect()
     })
+}
+
+/// Every window word one refusal lists.
+pub(crate) fn window_words() -> String {
+    pns_domain::recap::window::WINDOW_WORDS.join(", ")
 }
 
 /// The verb that posts a recap somebody else composed.
