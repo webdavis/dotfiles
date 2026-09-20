@@ -29,6 +29,51 @@ pub fn local_minutes_since_midnight(epoch_secs: u64) -> Option<u16> {
         .filter(|minutes| *minutes < 1440)
 }
 
+/// The epoch second a local calendar moment falls on, or None when the system
+/// cannot say or the fields name no such day.
+///
+/// THE SAME PLACE THE LOCAL ZONE IS READ, from the other direction:
+/// `mktime` applies the zone database, the `TZ` variable and the two
+/// transitions a year, with `tm_isdst` left at -1 so it decides for itself
+/// which side of a transition the moment sits on.
+///
+/// A DAY THAT DOES NOT EXIST IS REFUSED rather than normalized: `mktime`
+/// rolls February 30th forward to March, and a window silently moved is a
+/// window the operator believes they asked for.
+pub fn local_epoch(
+    year: u32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    second: u32,
+) -> Option<u64> {
+    let mut broken_down: libc::tm = unsafe { std::mem::zeroed() };
+    broken_down.tm_year = i32::try_from(year).ok()?.checked_sub(1900)?;
+    broken_down.tm_mon = i32::try_from(month).ok()?.checked_sub(1)?;
+    broken_down.tm_mday = i32::try_from(day).ok()?;
+    broken_down.tm_hour = i32::try_from(hour).ok()?;
+    broken_down.tm_min = i32::try_from(minute).ok()?;
+    broken_down.tm_sec = i32::try_from(second).ok()?;
+    broken_down.tm_isdst = -1;
+    // SAFETY: `mktime` reads and writes only the `tm` it is handed, which this
+    // frame owns for the whole call with nothing else aliasing it, and returns
+    // -1 for a moment it cannot express.
+    let seconds = unsafe { libc::mktime(&mut broken_down) };
+    // Read back rather than trusted: the normalized fields are what say the
+    // moment was a real one. A DST gap normalizes the hour (and sometimes the
+    // minute) the same way an impossible date normalizes the day, so both are
+    // caught here.
+    let kept = broken_down.tm_mon == i32::try_from(month).ok()? - 1
+        && broken_down.tm_mday == i32::try_from(day).ok()?
+        && broken_down.tm_hour == i32::try_from(hour).ok()?
+        && broken_down.tm_min == i32::try_from(minute).ok()?;
+    if seconds == -1 || !kept {
+        return None;
+    }
+    u64::try_from(seconds).ok()
+}
+
 /// One epoch second as an RFC 3339 instant in UTC, or None when the system
 /// cannot say.
 ///
