@@ -49,7 +49,8 @@ fi
 # plugin list` answers with a JSON envelope and returns exit 0 even when that
 # envelope is an error, so the exact-id match is the only trustworthy signal. An
 # unreachable or wedged server fails the call and reads as not-registered to the
-# caller, which then declines to install rather than guessing.
+# caller, whose install attempt then fails too and reports the retry line
+# rather than claiming success.
 plugin_source_record() {
   local response
   response="$("$timeout_bin" 10 herdr plugin list --plugin "$1" --json 2>/dev/null)" || return 1
