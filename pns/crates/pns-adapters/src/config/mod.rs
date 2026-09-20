@@ -89,12 +89,12 @@ use routes::parse_routes;
 mod lights_tables;
 use lights_tables::parse_lights;
 mod lights_bounds;
+pub use lights_bounds::{MAX_ARM_INTERVAL_SECS, MIN_ARM_INTERVAL_SECS};
 use lights_bounds::{
-    MAX_FADE_MS, MAX_GIVE_UP_AFTER_SECS, MAX_THRESHOLD_SECS, MIN_FADE_MS, MIN_LEASE_TIMEOUT_SECS,
-    MIN_THRESHOLD_SECS, accent_agrees, behaviour_table, breath_key, coordinate, ends_agree,
-    percent,
+    MAX_FADE_MS, MIN_FADE_MS, accent_agrees, arm_interval_range, behaviour_table,
+    blocked_lease_expiry_range, breath_key, coordinate, ends_agree, loop_arm_after_range,
+    loop_lease_expiry_range, percent, positive_duration, unseen_arm_after_range,
 };
-pub use lights_bounds::{MAX_REFRESH_SECS, MIN_REFRESH_SECS};
 mod lights_targets;
 use lights_targets::parse_targets;
 pub use pns_domain::lamps::config::BEHAVIOUR_WORDS;

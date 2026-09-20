@@ -152,7 +152,7 @@ impl<B: LampBridge, H: HeldLamps, T: LampTickClaim, P: PresenceDecisions>
         // the time this child still has.
         let spent_ms = elapsed_ms();
         let budget_ms = lights
-            .refresh_secs
+            .arm_interval_secs
             .saturating_mul(1000)
             .saturating_sub(spent_ms);
         let landings = drive_breaths(

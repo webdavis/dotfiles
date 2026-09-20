@@ -108,7 +108,7 @@ fn the_accent_can_never_become_the_slowest_leg_of_the_loops_own_cycle() {
 #[test]
 fn a_lights_value_of_the_wrong_type_is_refused_by_name_and_by_type() {
     for (written, key) in [
-        ("[lights]\nrefresh_secs = \"20\"\n", "refresh_secs"),
+        ("[lights]\narm_interval = 20\n", "arm_interval"),
         ("[lights.done]\nduration_ms = true\n", "duration_ms"),
         ("[lights.dim]\nlow = 10.5\n", "low"),
         ("[lights]\ndone = 3\n", "lights.done"),

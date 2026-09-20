@@ -244,7 +244,7 @@ fn the_header_scopes_the_credential_arming_claim_to_the_plugins_it_names() {
 #[test]
 fn a_note_above_the_bare_lights_heading_renders_like_any_other_tables() {
     // `lights` IS TAKEN APART BEFORE IT IS WRITTEN, so its own `note` has
-    // to be pulled out with `refresh_secs` or the leftover check refuses
+    // to be pulled out with `arm_interval` or the leftover check refuses
     // it as an unknown key, the one table a values file could not comment.
     let mut lights = toml::Table::new();
     lights.insert(

@@ -145,19 +145,19 @@ table are the same statement (off), and every other value is refused by name.
 
 ### 2. A cross-table refusal: the lamp backstop must outlast the reminder
 
-Given `[lights.blocked] give_up_after_secs` darkens an unanswered wait's lamp, and `[remind] delay`
+Given `[lights.blocked] lease_expiry` darkens an unanswered wait's lamp, and `[remind] delay`
 cards that same wait
 
 When both tables are present and the reminder is on
 
-Then a `give_up_after_secs` shorter than `after_secs` is refused at load, because it is a configuration
+Then a `lease_expiry` shorter than `after_secs` is refused at load, because it is a configuration
 that gives up on a wait before it has ever nudged about it.
 
 - Success: 600 and 600 load (equal is accepted), and 300 against 57600 loads (`src/config.rs`, the tests
   beside `backstop_outlasts_the_reminder`).
-- Failure sources: `[remind] delay = "10m"` with `[lights.blocked] give_up_after_secs = 60` is refused
+- Failure sources: `[remind] delay = "10m"` with `[lights.blocked] lease_expiry = 60` is refused
   with
-  `` `lights.blocked` key `give_up_after_secs` is 60, below `remind` key `delay` 600, so the lamp would be given up on before the nudge it belongs to has ever fired ``
+  `` `lights.blocked` key `lease_expiry` is 60, below `remind` key `delay` 600, so the lamp would be given up on before the nudge it belongs to has ever fired ``
   (`src/config.rs:backstop_outlasts_the_reminder`).
 - Fail direction: fail-closed, the whole file is refused at load rather than worked around at runtime.
 - Thresholds: strictly less than is the contradiction. Equal is accepted: "reaching the bound exactly as
@@ -171,7 +171,7 @@ that gives up on a wait before it has ever nudged about it.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: two of this check's guards are DEAD TODAY and the code says so rather than
   leaving a reader to discover it. `REMIND_OFF` is zero, so the off-remind early return can never be the thing
-  that makes the comparison false; and the default `give_up_after_secs` (16 hours) sits far above
+  that makes the comparison false; and the default `lease_expiry` (16 hours) sits far above
   `MAX_DELAY_SECS` (one hour), so a file with no `[lights]` table could not trip it either. Both stay
   "because what makes them dead is a coupling between two bounds that have nothing else to do with each
   other" (`src/config.rs:backstop_outlasts_the_reminder`).

@@ -98,6 +98,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "lights",
         &[
+            "arm_interval",
             "blocked",
             "checks",
             "dim",
@@ -105,7 +106,6 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "failed",
             "lamp",
             "loop",
-            "refresh_secs",
             "room",
             "unseen",
             "zone",
@@ -115,7 +115,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("lights.failed", &["brightness", "duration_ms"]),
     (
         "lights.blocked",
-        &["duration_ms", "give_up_after_secs", "high", "low"],
+        &["duration_ms", "high", "lease_expiry", "low"],
     ),
     ("lights.dim", &["duration_ms", "high", "low"]),
     (
@@ -124,18 +124,18 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     (
         "lights.unseen",
-        &["after_secs", "duration_ms", "high", "low"],
+        &["arm_after", "duration_ms", "high", "low"],
     ),
     (
         "lights.loop",
         &[
+            "arm_after",
             "duration_ms",
             "flare",
             "flare_ms",
             "high",
-            "lease_timeout_secs",
+            "lease_expiry",
             "low",
-            "threshold_secs",
         ],
     ),
     (TARGET_KEYS, &["behaviours", "dim_behaviours", "dim_window"]),

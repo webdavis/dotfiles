@@ -78,7 +78,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         without_a_table,
         outcome(
             "lights-guard-with-a-table",
-            "[lights]\nrefresh_secs = 20\n\
+            "[lights]\narm_interval = \"20s\"\n\
              [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\", \"failed\"]\n",
         ),
         "same stdout, same stderr, same exit code, the bridge dialled either way, \

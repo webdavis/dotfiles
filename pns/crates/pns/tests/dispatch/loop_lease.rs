@@ -47,11 +47,11 @@ fn an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer() {
     let long = lights_job(&away);
 
     // EXACT, AND NOT MERELY DIFFERENT. `until` is `due.max(now + lease)`, so a
-    // `refresh_secs` longer than the ordinary lease used to EXTEND that lease to
+    // `arm_interval` longer than the ordinary lease used to EXTEND that lease to
     // the refresh: an allowed 600 seconds bought a ten-minute backstop and an
     // allowed day bought a sticky glow with no repeat left to clear it. The
     // config ceiling is what closes that, and this is the assertion that reads
-    // the two lengths back. `due` is `now + refresh_secs` on a sandbox holding
+    // the two lengths back. `due` is `now + arm_interval` on a sandbox holding
     // no pending job, which is what recovers the second the lease was measured
     // from without a second clock on this side.
     const REFRESH: u64 = 20;

@@ -78,8 +78,8 @@ fn an_armed_but_unspecified_lights_table_renders_every_locked_default_uncommente
     let lights = config.lights.expect("lights was armed");
     assert_eq!(*lights, crate::config::Lights::default());
     assert_eq!(
-        lights.blocked.give_up_after_secs,
-        pns_domain::lamps::config::DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS
+        lights.blocked.lease_expiry_secs,
+        pns_domain::lamps::config::DEFAULT_BLOCKED_LEASE_EXPIRY_SECS
     );
 }
 
@@ -138,15 +138,10 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
             "{expected} should be live once lights is armed: {armed}"
         );
     }
-    // THE KEYS THAT CARRY THEIR OWN COMMENT (`after_secs`,
-    // `threshold_secs`, `lease_timeout_secs`) sit behind that prose
-    // rather than right after the previous key's line, so they are
-    // checked on their own.
-    for expected in [
-        "\nafter_secs = 300\n",
-        "\nthreshold_secs = 300\n",
-        "\nlease_timeout_secs = 3900\n",
-    ] {
+    // THE KEYS THAT CARRY THEIR OWN COMMENT (`arm_after` on both tables,
+    // and `lease_expiry`) sit behind that prose rather than right after
+    // the previous key's line, so they are checked on their own.
+    for expected in ["\narm_after = \"5m\"\n", "\nlease_expiry = \"65m\"\n"] {
         assert!(
             armed.contains(expected),
             "{expected} should be live once lights is armed: {armed}"
