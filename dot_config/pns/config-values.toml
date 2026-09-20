@@ -150,7 +150,8 @@ api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 # rather than the bare name the shipped example shows, because the daemon's
 # own PATH (com.webdavis.pns-daemon.plist.tmpl) carries ~/.local/bin and
 # /opt/homebrew/bin but not ~/.local/libexec/pns, and pns spawns argv[0]
-# through no shell, so a bare name here would never resolve. poll_interval and
+# through no shell, so a bare name here would never resolve; the literal home
+# is fine on that basis too, this machine is single-user. poll_interval and
 # deadline stay at their layout defaults.
 [quiet.calendar]
 enabled = true
