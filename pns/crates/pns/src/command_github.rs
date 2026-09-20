@@ -77,7 +77,7 @@ fn armed_source() -> Result<pns_adapters::GithubSource, i32> {
         Err(error) => {
             // A REFUSED TABLE IS LOUD ON EVERY PATH, the Unauthorized arm's
             // own reason: an operator armed `[plugins.github]` and typo'd
-            // `poll_secs` deserves the same sentence a revoked token gets,
+            // `poll_interval` deserves the same sentence a revoked token gets,
             // not a poll that exits 0 and never says why.
             eprintln!("pns github: [plugins.github] {}", error.detail());
             Err(1)
