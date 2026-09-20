@@ -63,6 +63,12 @@ impl DaemonGuard {
         DaemonGuard { child, log }
     }
 
+    /// The daemon's own process ID, for a test that signals it or asks what
+    /// it has spawned.
+    pub fn pid(&self) -> i32 {
+        i32::try_from(self.child.id()).expect("an owned process ID")
+    }
+
     /// Everything the daemon has said, both streams together.
     pub fn said(&self) -> String {
         std::fs::read_to_string(&self.log).unwrap_or_default()
