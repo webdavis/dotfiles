@@ -85,11 +85,11 @@ fn with_state_dir(sandbox: &Sandbox) -> Command {
 // `operator_surface`, never across the forward).
 //
 // ONE BEHAVIOR IS DROPPED ON SCOPE AND IS PINNED NOWHERE END TO END: the
-// locked screen. `screen_locked` spawns `/usr/sbin/ioreg` by absolute path, so
-// no PATH stub reaches it, and it is read only where `PNS_SCREEN_IDLE` is
-// unstated while every sandbox here states it. It has a unit pin on
-// `operator_surface` and buying the composition would need a production
-// override that exists for no other reason.
+// locked screen. `screen_locked` reads the registry natively, so no PATH stub
+// reaches it, and it is read only where `PNS_SCREEN_IDLE` is unstated while
+// every sandbox here states it. It has a unit pin on `operator_surface` and
+// buying the composition would need a production override that exists for no
+// other reason.
 //
 // THE EXIT CODE IS NOT HOW CLAUDE CODE ANSWERS, and the rows that pin one say
 // so themselves. Claude Code 2.1.241 decides a PermissionRequest from the

@@ -27,7 +27,7 @@ impl Fixture {
         let channel = root.join("channels/hermes.sh");
         std::fs::write(&channel, "#!/bin/sh\ncat >\"$HOME/hermes.event\"\n").unwrap();
         std::fs::set_permissions(channel, std::fs::Permissions::from_mode(0o700)).unwrap();
-        for name in ["herdr", "terminal-notifier", "ioreg", "pgrep", "ps"] {
+        for name in ["herdr", "terminal-notifier", "pgrep"] {
             let path = root.join("bin").join(name);
             std::fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();

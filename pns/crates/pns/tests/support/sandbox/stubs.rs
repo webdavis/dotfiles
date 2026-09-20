@@ -61,13 +61,15 @@ esac"#
     ///
     /// AN EMPTY LOG IS THE OBSERVABLE PROXY for "this path spawned nothing",
     /// which is how the help and usage paths are pinned without a wall clock.
-    /// Its REACH IS STATED rather than implied: the system probes are absolute
-    /// by design (`/usr/sbin/ioreg`, `/usr/bin/pgrep`, `/bin/ps`) so no PATH
-    /// can stand in front of them, and what this does catch is the native
-    /// banner's `terminal-notifier`, the session view's `herdr`, the branch
-    /// lookup's `git` and the condenser's `codex`. The banner is the one that
-    /// makes it bite: a usage path that reached the event path raised a real
-    /// macOS notification reading "pns · done".
+    /// Its REACH IS STATED rather than implied: the phone chain's server
+    /// lookup is absolute by design (`/usr/bin/pgrep`) so no PATH can stand
+    /// in front of it, and the desk idle age, the console lock and the
+    /// phone's process walk are native reads with no PATH to stand in front
+    /// of either. What this does catch is the native banner's
+    /// `terminal-notifier`, the session view's `herdr`, the branch lookup's
+    /// `git` and the condenser's `codex`. The banner is the one that makes it
+    /// bite: a usage path that reached the event path raised a real macOS
+    /// notification reading "pns · done".
     pub fn spy_path(&self, command: &mut Command) {
         for name in ["herdr", "terminal-notifier", "git", "codex"] {
             self.stub_on_path(
