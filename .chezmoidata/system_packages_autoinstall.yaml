@@ -323,17 +323,18 @@ packages:
     ref: c587dda54e2fa71722630ae53974101cdf76989f
 
   herdr_plugins:
-    # One roster, two consumers: run_after_53 installs missing plugins at apply,
-    # and uu's config template renders it into the herdr lane that refreshes
-    # them weekly. Every plugin this machine wants is listed here except
-    # herdr-process, which is linked rather than installed (see
-    # herdr_linked_plugin above).
+    # One roster, two consumers: run_after_53 installs a missing plugin at apply
+    # and reinstalls one whose `ref` no longer matches the revision herdr
+    # recorded, and uu's config template renders it into the herdr lane that
+    # refreshes the unpinned ones weekly. Every plugin this machine wants is
+    # listed here except herdr-process, which is linked rather than installed
+    # (see herdr_linked_plugin above).
     #
     # The first three are ours, each in its own public repository so that they
     # install by the same convention as everybody else's. Their `ref` is the
     # revision herdr checks out and builds; herdr v1 has no `plugin update`, so
-    # bumping one of these values is only half the job and the operator
-    # reinstalls, exactly as for a third-party pin.
+    # bumping one of these values makes the next apply reinstall the plugin,
+    # exactly as for a third-party pin.
     - id: herdr-workspace-jump
       repo: webdavis/herdr-workspace-jump
       ref: a7c3fe40e22a81fe8abd6ee3542f782547b66fb1
