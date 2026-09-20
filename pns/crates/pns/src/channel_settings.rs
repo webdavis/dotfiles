@@ -118,11 +118,11 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
     let mut warnings = Vec::new();
     // THE TYPE ALONE on both tables. The durable log is not among them: its
     // `type` is refused at load whichever way its switch is set, because the
-    // type is what the table is filed under rather than a setting inside it. `router_settings` settles the type before
-    // it reads anything else, which is why only its two type refusals count
-    // here: a switched-off table naming a backend that DOES answer, with a
-    // missing `router_url` under it, is a different edit and not this
-    // warning's business.
+    // type is what the table is filed under rather than a setting inside it.
+    // `router_settings` settles the type before it reads anything else,
+    // which is why only its two type refusals count here: a switched-off
+    // table naming a backend that DOES answer, with a missing `router_url`
+    // under it, is a different edit and not this warning's business.
     if switched_off("home_presence").is_some_and(|settings| {
         matches!(
             pns_adapters::router_settings(settings),
