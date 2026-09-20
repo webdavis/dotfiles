@@ -74,7 +74,7 @@ if [[ -x $PNS_MOSHI_GATE ]]; then
     [[ -f $extension ]] || continue
     current="$(sed -n 's/^const helperBinary = "\(.*\)"$/\1/p' "$extension" | head -1)"
     if [[ -z $current ]]; then
-      printf 'moshi-hook: %s no longer declares a helperBinary line this script recognizes, so a replayed payload for that harness stays on moshi-hook.\n' \
+      printf 'moshi-hook: WARNING: %s no longer declares a helperBinary line this script recognizes, so a replayed payload for that harness stays on moshi-hook.\n' \
         "$extension" >&2
       continue
     fi
