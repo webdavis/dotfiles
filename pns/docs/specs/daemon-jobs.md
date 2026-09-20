@@ -137,27 +137,29 @@ needs a restart.
 
 ## Behaviors
 
-### 1. `pns gateway` serves three verbs and refuses everything else
+### 1. `pns gateway` serves eight verbs and refuses everything else
 
 Given the operator types `pns gateway <word>`
 
-When `<word>` is not `run`, `schedule` or `cancel`
+When `<word>` is not `run`, `retry`, `schedule`, `cancel`, `start`, `stop`, `restart` or `status`
 
 Then the usage text goes to stderr and the process exits 2
 
-- Success: `src/main.rs:daemon_mode` matches the three verbs and every other word falls to the arm that
-  prints `DAEMON_USAGE` and returns 2. The verb comes from `src/main.rs:second_argument`, which is
-  `args_os().nth(2)` lossily converted, so a bare `pns gateway` presents an empty verb and is refused like
-  any other unknown word.
+- Success: `src/command_gateway.rs:gateway_mode` matches `run`, `retry`, `schedule` and `cancel`, and
+  falls every other word through to `src/command_gateway/service.rs:service_mode`, which matches the
+  four launchd verbs and refuses anything else with `GATEWAY_USAGE`. The verb comes from
+  `src/invocation.rs:second_argument`, which is `args_os().nth(2)` lossily converted, so a bare
+  `pns gateway` presents an empty verb and is refused like any other unknown word.
 - Failure sources: none of its own. It reads argv and branches.
 - Fail direction: LOUD and non-zero, per the house rule that an unknown argument never falls through to
   help with exit 0. A verb this does not serve is a command the operator believes ran
-  (`src/main.rs:daemon_mode` doc comment).
+  (`src/command_gateway.rs:gateway_mode` doc comment).
 - Thresholds: Not applicable. No number is compared.
-- Required side effects: exactly one line on stderr, verbatim:
-  `pns: usage: pns gateway run | pns gateway schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <event args> | pns gateway cancel --id <id>`
+- Required side effects: exactly one line on stderr, verbatim (`src/command_gateway.rs:GATEWAY_USAGE`):
+  `pns: usage: pns gateway run | pns gateway schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <subcommand> [args] | pns gateway cancel --id <id> | pns gateway retry (one sweep of the retry queue, run by the clock) | pns gateway start | pns gateway stop | pns gateway restart | pns gateway status`
 - Forbidden side effects: nothing is written, no config is read, no clock is read, and nothing is
-  spawned.
+  spawned. `service_mode` filters the verb before it reads `HOME` or loads the config
+  (`src/command_gateway/service.rs:service_mode`), so an unknown word never reaches either.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: Not applicable. The refusal has no state.
 - Privacy: the rejected word is NOT echoed. The usage text is fixed and carries nothing the operator

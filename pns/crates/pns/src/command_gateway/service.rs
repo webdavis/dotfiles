@@ -5,6 +5,12 @@ use pns_application::{ServiceController, ServiceError, ServiceState};
 /// wraps its own, and the refusal every word this subcommand does not serve
 /// ends at.
 pub(super) fn service_mode(verb: &str) -> i32 {
+    // Filtered here, before HOME or the config is touched: an unknown verb
+    // reads and spawns nothing, matching the forbidden-side-effect contract.
+    if !matches!(verb, "start" | "stop" | "restart" | "status") {
+        eprintln!("{GATEWAY_USAGE}");
+        return 2;
+    }
     let home = std::env::var("HOME").unwrap_or_default();
     let controller = pns_adapters::LaunchdServiceController {
         runner: pns_adapters::SystemLaunchctlRunner,
