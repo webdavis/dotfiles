@@ -9,7 +9,7 @@ pub(super) const DELIVERY: Table = Table {
     keys: &[
         Key {
             name: "event_max_age",
-            prose: "# Stop retrying once the ORIGINAL EVENT is older than this. Zero and future\n# epochs do not expire.\n",
+            prose: "# Stop retrying once the ORIGINAL EVENT is older than this. An event with no\n# recorded creation epoch, or one in the future, never expires.\n",
             sample: Sample::Default("\"168h\""),
         },
         Key {

@@ -323,8 +323,8 @@ service = "com.webdavis.pns-daemon"
 # How a delivery that did not land is retried. Exhausted delivery
 # retries remain available for operator review.
 [delivery]
-# Stop retrying once the ORIGINAL EVENT is older than this. Zero and future
-# epochs do not expire.
+# Stop retrying once the ORIGINAL EVENT is older than this. An event with no
+# recorded creation epoch, or one in the future, never expires.
 event_max_age = "168h"
 # Retries allowed after the initial send, including interrupted ones. Zero
 # permits no retry at all.
