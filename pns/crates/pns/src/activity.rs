@@ -21,6 +21,35 @@ pub(crate) fn record(event: &pns_domain::EventArgs, payload: &HookPayload) {
     }
     let facts =
         pns_adapters::session_facts(&crate::turn_text::transcript_tail(&payload.transcript_path));
+    store(
+        event,
+        payload,
+        session_title(&facts, &event.session_title),
+        model(payload, &facts),
+    );
+}
+
+/// Record the `resolved` event, with no transcript read: it fires once per
+/// tool batch, where a 4MB read and parse on every call is no longer the
+/// payload read and a parse the caller's own comment promises.
+pub(crate) fn record_session_only(event: &pns_domain::EventArgs, payload: &HookPayload) {
+    if !pns_domain::safety::session_id_is_safe(&payload.session_id) {
+        return;
+    }
+    store(
+        event,
+        payload,
+        event.session_title.clone(),
+        payload.to_model.clone(),
+    );
+}
+
+fn store(
+    event: &pns_domain::EventArgs,
+    payload: &HookPayload,
+    session_title: String,
+    model: String,
+) {
     let row = ActivityEvent {
         at: now_secs().unwrap_or_default(),
         agent: event.agent.clone(),
@@ -28,10 +57,10 @@ pub(crate) fn record(event: &pns_domain::EventArgs, payload: &HookPayload) {
         project: event.project.clone(),
         branch: event.branch.clone(),
         session: payload.session_id.clone(),
-        session_title: session_title(&facts, &event.session_title),
+        session_title,
         pane: event.pane.clone(),
         workspace: std::env::var("HERDR_WORKSPACE_ID").unwrap_or_default(),
-        model: model(payload, &facts),
+        model,
         title: pns_domain::render::title(&event.agent, &event.state, &event.project),
         detail: event.detail.clone(),
     };

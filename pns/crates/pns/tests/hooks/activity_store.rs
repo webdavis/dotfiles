@@ -65,6 +65,40 @@ fn a_prompt_writes_one_row_naming_the_session_the_transcript_names() {
 }
 
 #[test]
+fn a_resolved_row_carries_the_sessions_stored_title_and_reads_no_transcript() {
+    let sandbox = Sandbox::new("hook-activity-resolved");
+    std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+    hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "prompt",
+        r#"{"session_id":"s1","prompt":"what the operator typed"}"#,
+    );
+    // A TRANSCRIPT NAMING A DIFFERENT TITLE, so a row that read it would
+    // disagree with the one the prompt already stored: proof `resolved`
+    // never opens the file at all, not just that it reports the same answer.
+    let transcript = sandbox.path("transcript.jsonl");
+    std::fs::write(&transcript, "{\"type\":\"custom-title\",\"customTitle\":\"a transcript title resolved must never read\"}\n")
+        .expect("a transcript");
+    let output = hook_with(
+        with_state_dir(&sandbox),
+        &sandbox,
+        "resolved",
+        &format!(
+            r#"{{"session_id":"s1","transcript_path":"{}"}}"#,
+            transcript.display()
+        ),
+    );
+    assert!(output.status.success());
+    let row = rows(&sandbox).pop().expect("the resolved row");
+    assert_eq!(row.0, "resolved");
+    assert_eq!(
+        row.2, "what the operator typed",
+        "the stored title, not the transcript's"
+    );
+}
+
+#[test]
 fn a_session_title_falls_back_to_the_prompt_when_the_transcript_names_none() {
     let sandbox = Sandbox::new("hook-activity-fallback");
     let output = hook_with(

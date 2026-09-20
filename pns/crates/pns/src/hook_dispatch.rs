@@ -121,7 +121,8 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
             if !payload.in_subagent || payload.hook_event_name == "SubagentStop" {
                 end_blocked_wait(&payload.session_id, now_secs());
             }
-            activity::record(&session_only_event(&agent, event, String::new()), &payload);
+            let title = stored_title(&payload, &agent);
+            activity::record_session_only(&session_only_event(&agent, event, title), &payload);
         }
         // MID-TURN NEWS FROM A SERVER THAT STOPPED TO ASK. It reports
         // something that happened INSIDE a turn that is still running, so it
