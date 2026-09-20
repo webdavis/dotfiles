@@ -29,9 +29,13 @@ fn table() -> LibprocProcesses {
 fn a_spawned_fixture_is_found_by_its_name_real_user_and_parent() {
     let fixture = Fixture::spawn(Path::new("/bin/sleep"));
     let own_pid = std::process::id();
-    assert_eq!(
-        table().matching("sleep", Some(current_uid()), Some(own_pid)),
-        Ok(vec![fixture.pid()])
+    // Containment, not equality: other tests in this binary spawn their own
+    // `sleep` children, and an overlapping window can widen the match set.
+    assert!(
+        table()
+            .matching("sleep", Some(current_uid()), Some(own_pid))
+            .unwrap()
+            .contains(&fixture.pid())
     );
     assert_eq!(
         table().matching("sleep", Some(current_uid() + 1), Some(own_pid)),
