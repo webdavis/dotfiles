@@ -85,6 +85,7 @@ mod invocation;
 mod subcommand_usage;
 mod tap_report;
 use invocation::{arguments_after_subcommand, arguments_after_verb};
+mod activity;
 mod lamp_event_lease;
 mod lamp_pulse;
 mod lights_tick_runtime;
@@ -115,7 +116,7 @@ pub(crate) use command_remind::remind_mode;
 pub(crate) use command_resume::resume_mode;
 pub(crate) use command_setup::setup_mode;
 pub(crate) use command_stale::stale_mode;
-pub(crate) use event_flow::{Attempt, run_event};
+pub(crate) use event_flow::{Attempt, hook_event, run_event};
 pub(crate) use hook_dispatch::hook_mode;
 pub(crate) use hook_observations::{
     arm_quota_stale_wait, config_change_detail, model_switch_detail, quota_observation_detail,
@@ -140,7 +141,7 @@ pub(crate) use return_replay::replay_missed;
 pub(crate) use runtime_environment::{
     env_duration, executable_in_path, now_secs, overrides_from_env, state_dir,
 };
-pub(crate) use sender::{attribution, name_session};
+pub(crate) use sender::{attribution, name_session, stored_title};
 pub(crate) use turn_lifecycle::{end_of_turn, failed_turn, named_project, start_of_turn};
 pub(crate) use turn_text::turn_reply;
 pub(crate) use wait_runtime::{end_blocked_wait, stale_settings, track_wait};

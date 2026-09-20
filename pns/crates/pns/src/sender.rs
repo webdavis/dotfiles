@@ -27,8 +27,16 @@ pub(crate) fn attribution(payload: &HookPayload, agent: &str) -> pns_domain::Eve
 /// NO GIT AND NO NETWORK, because this runs inside the synchronous prompt
 /// hook: one local row write, and the checkout is left to the first event
 /// that actually reads it.
-pub(crate) fn name_session(payload: &HookPayload, agent: &str) {
-    named(&sessions(), payload, agent);
+pub(crate) fn name_session(payload: &HookPayload, agent: &str) -> String {
+    named(&sessions(), payload, agent, &session_label(payload))
+}
+
+/// This session's title, already recorded by an earlier prompt or event. AN
+/// EMPTY TITLE READS RATHER THAN WRITES: `note_session` only replaces a
+/// stored title when it is itself empty, so passing one through leaves
+/// whatever is there untouched and hands it back.
+pub(crate) fn stored_title(payload: &HookPayload, agent: &str) -> String {
+    named(&sessions(), payload, agent, "")
 }
 
 fn sessions() -> SqliteStore {
@@ -59,18 +67,18 @@ fn attributed(store: &SqliteStore, payload: &HookPayload, agent: &str) -> pns_do
     }
 }
 
-fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) {
-    drop(noted(
+fn named(store: &SqliteStore, payload: &HookPayload, agent: &str, title: &str) -> String {
+    noted(
         store,
         &SessionNote {
             id: tracked(&payload.session_id).unwrap_or_default(),
             harness: agent,
             project: "",
             branch: "",
-            title: &session_label(payload),
+            title,
             now: stamp(),
         },
-    ));
+    )
 }
 
 /// Record the session and answer the title it is known by. An id pns cannot

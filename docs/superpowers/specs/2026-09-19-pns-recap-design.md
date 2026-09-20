@@ -198,8 +198,11 @@ already names, done once per event, and it may lag a turn because Claude Code wr
 asynchronously. The herdr workspace label is not stored; the page resolves it from the id once at
 render time by asking herdr, and leaves it blank when herdr is absent.
 
-Rows are kept for `[recap] retain`, a duration string defaulting to `"30d"`; the gateway prunes on
-its tick. Existing ring contents are not migrated; the table starts empty.
+Rows are kept for `[recap] retain`, a duration string defaulting to thirty days, written `"720h"`
+because pns's duration parser takes `<count><ms|s|m|h>` and has no day unit; the gateway prunes on
+its tick, once an hour rather than once a second. Existing ring contents are not migrated; the table
+starts empty. The `at` column is epoch seconds, like every other time column in that database, and
+the reader formats the local time it prints.
 
 ## Output
 
@@ -405,9 +408,17 @@ change to `pns recap agent --stdin` or `pns recap git`.
 
 ## To verify while writing slices 52 and 55
 
-Whether Claude Code's `session_title` hook field, which pns already parses, matches the transcript's
-`aiTitle` or its `customTitle`; the store records whichever the transcript says under the order above
-and the finding is written into this document.
+VERIFIED while writing slice 52 (2026-09-20), against this machine's own Claude Code session
+directory and a Codex rollout file, read-only. A Claude Code transcript states each title on a line of
+its own: `{"type": "custom-title", "customTitle": ...}` for the name the operator gave the session and
+`{"type": "ai-title", "aiTitle": ...}` for the harness's own generated one, so the two are separate
+records rather than two readings of one field, and the hook payload's `session_title` is a third
+value pns keeps reading as before. The store takes the newest `customTitle` of the tail, then the
+newest `aiTitle`, then the title the sessions row already holds, which is the harness title or the
+first prompt. A Codex rollout file (`~/.codex/sessions`, `session_meta`, `event_msg`, `response_item`,
+`turn_context`, `token_usage_record` and `world_state` lines) carries neither title field, which is
+why a Codex session shows no title. The model comes off the newest assistant line's `message.model`,
+which is present on every one of them.
 
 While writing slice 55: whether hermes reads a piped prompt in quiet mode or only `-q`, the exact
 shape of the session line `-Q` appends so it can be stripped, and which toolset value runs a query with

@@ -302,6 +302,8 @@ fn finished_within(mut child: std::process::Child, limit: std::time::Duration) -
     }
 }
 
+#[path = "hooks/activity_store.rs"]
+mod activity_store;
 #[path = "hooks/approval_exemptions.rs"]
 mod approval_exemptions;
 #[path = "hooks/approval_forwarding.rs"]

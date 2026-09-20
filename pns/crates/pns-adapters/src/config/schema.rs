@@ -64,6 +64,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "post_window_recap",
             "replay_card",
             "repositories",
+            "retain",
             "review_notes_glob",
             "summarizer",
             "summarizer_deadline",
