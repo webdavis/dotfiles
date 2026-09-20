@@ -6,19 +6,19 @@ use super::*;
 #[test]
 fn a_refusal_for_want_of_a_signature_proves_the_route_exists() {
     assert_eq!(
-        RouteVerdict::read(DeliveryOutcome::Status(401)),
+        RouteVerdict::read(TransportOutcome::Status(401)),
         RouteVerdict::Served
     );
     assert_eq!(
-        RouteVerdict::read(DeliveryOutcome::Status(403)),
+        RouteVerdict::read(TransportOutcome::Status(403)),
         RouteVerdict::Served
     );
     assert_eq!(
-        RouteVerdict::read(DeliveryOutcome::Status(404)),
+        RouteVerdict::read(TransportOutcome::Status(404)),
         RouteVerdict::Missing
     );
     assert_eq!(
-        RouteVerdict::read(DeliveryOutcome::Status(410)),
+        RouteVerdict::read(TransportOutcome::Status(410)),
         RouteVerdict::Missing
     );
 }
@@ -29,11 +29,11 @@ fn a_refusal_for_want_of_a_signature_proves_the_route_exists() {
 #[test]
 fn an_unreachable_gateway_names_no_route_as_missing() {
     for outcome in [
-        DeliveryOutcome::NoResponse,
-        DeliveryOutcome::NoStatus,
-        DeliveryOutcome::Status(500),
-        DeliveryOutcome::Status(502),
-        DeliveryOutcome::Status(503),
+        TransportOutcome::NoResponse,
+        TransportOutcome::NoStatus,
+        TransportOutcome::Status(500),
+        TransportOutcome::Status(502),
+        TransportOutcome::Status(503),
     ] {
         let verdict = RouteVerdict::read(outcome);
         assert!(
@@ -49,7 +49,7 @@ fn an_unreachable_gateway_names_no_route_as_missing() {
 /// would hide that behind a tick.
 #[test]
 fn a_gateway_that_accepts_an_unsigned_post_is_reported_rather_than_ticked() {
-    let verdict = RouteVerdict::read(DeliveryOutcome::Status(200));
+    let verdict = RouteVerdict::read(TransportOutcome::Status(200));
     assert!(!verdict.is_missing());
     assert_ne!(verdict, RouteVerdict::Served);
     let RouteVerdict::Unknown(reason) = verdict else {
@@ -72,11 +72,14 @@ fn the_missing_line_names_the_route_and_the_file_to_edit() {
 #[test]
 fn an_unknown_line_carries_the_reason_it_could_not_be_answered() {
     assert!(
-        route_line("testpath", &RouteVerdict::read(DeliveryOutcome::NoResponse))
-            .contains("did not answer")
+        route_line(
+            "testpath",
+            &RouteVerdict::read(TransportOutcome::NoResponse)
+        )
+        .contains("did not answer")
     );
     assert!(
-        route_line("testpath", &RouteVerdict::read(DeliveryOutcome::NoStatus))
+        route_line("testpath", &RouteVerdict::read(TransportOutcome::NoStatus))
             .contains("URL could not be built")
     );
 }

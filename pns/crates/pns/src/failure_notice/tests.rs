@@ -1,5 +1,5 @@
 use super::*;
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 
 fn stored(id: u64, failed_at: u64, retries: u64, deadlettered: bool) -> StoredFailure {
     StoredFailure {
@@ -8,7 +8,7 @@ fn stored(id: u64, failed_at: u64, retries: u64, deadlettered: bool) -> StoredFa
         route: "testpath".into(),
         agent: "posture".into(),
         state: "failed".into(),
-        outcome: DeliveryOutcome::Status(404),
+        outcome: TransportOutcome::Status(404),
         failed_at,
         retries,
         deadlettered,

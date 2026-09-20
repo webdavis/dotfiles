@@ -12,7 +12,7 @@
 //! different secrets.
 
 use super::Failure;
-use crate::retry::DeliveryOutcome;
+use crate::retry::TransportOutcome;
 
 /// The destination id the hermes wording answers to.
 pub const DESTINATION_HERMES: &str = "hermes";
@@ -45,16 +45,16 @@ pub const PHONE_TOKEN: &str = "[plugins.phone] device_token";
 
 /// The `status` field: the code paired with its registered name, because a
 /// reader may know one and not the other.
-pub(super) fn status(outcome: DeliveryOutcome) -> String {
+pub(super) fn status(outcome: TransportOutcome) -> String {
     match outcome {
-        DeliveryOutcome::Status(code) => match name(code) {
+        TransportOutcome::Status(code) => match name(code) {
             Some(name) => format!("HTTP {code} ({name})"),
             // An unregistered code still says what it was. Inventing a name for
             // it would be worse than admitting there is none.
             None => format!("HTTP {code}"),
         },
-        DeliveryOutcome::NoResponse => "no response".to_string(),
-        DeliveryOutcome::NoStatus => "bad URL".to_string(),
+        TransportOutcome::NoResponse => "no response".to_string(),
+        TransportOutcome::NoStatus => "bad URL".to_string(),
     }
 }
 
@@ -91,13 +91,13 @@ pub(super) fn meaning(failure: &Failure) -> String {
     hermes(failure.outcome, route, address)
 }
 
-fn hermes(outcome: DeliveryOutcome, route: &str, address: &str) -> String {
+fn hermes(outcome: TransportOutcome, route: &str, address: &str) -> String {
     let code = match outcome {
-        DeliveryOutcome::NoResponse => return format!("nothing answered at {address}"),
-        DeliveryOutcome::NoStatus => {
+        TransportOutcome::NoResponse => return format!("nothing answered at {address}"),
+        TransportOutcome::NoStatus => {
             return format!("the URL pns built for {route} is malformed, nothing was sent");
         }
-        DeliveryOutcome::Status(code) => code,
+        TransportOutcome::Status(code) => code,
     };
     match code {
         400 => format!("hermes could not parse the body pns posted to {route}"),
@@ -133,13 +133,13 @@ fn hermes(outcome: DeliveryOutcome, route: &str, address: &str) -> String {
     }
 }
 
-fn moshi(outcome: DeliveryOutcome, address: &str) -> String {
+fn moshi(outcome: TransportOutcome, address: &str) -> String {
     let code = match outcome {
-        DeliveryOutcome::NoResponse => return format!("nothing answered at {address}"),
-        DeliveryOutcome::NoStatus => {
+        TransportOutcome::NoResponse => return format!("nothing answered at {address}"),
+        TransportOutcome::NoStatus => {
             return format!("the URL pns built from {address} is malformed, nothing was sent");
         }
-        DeliveryOutcome::Status(code) => code,
+        TransportOutcome::Status(code) => code,
     };
     match code {
         401 => format!("the {PHONE_TOKEN} is wrong or expired"),

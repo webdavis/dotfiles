@@ -19,7 +19,7 @@ impl CommandRunner for &Notifier {
 }
 
 fn request(class: Option<&str>, state: &str) -> String {
-    let mut request = pns_protocol::Request::new(
+    let mut request = pns_protocol::RequestEnvelope::new(
         pns_protocol::RequestId::new("page-123").unwrap(),
         pns_protocol::Name::new("posture").unwrap(),
         pns_protocol::State::from_word(state).expect("the tests state one of the six words"),
