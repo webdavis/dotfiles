@@ -26,6 +26,7 @@ pub enum CurationFailure {
     Capture(CaptureRefusal),
     Source(SourceRefusal),
     InvalidLine(std::path::PathBuf),
+    Record,
     Publication(PublicationRefusal),
 }
 pub struct CurateAllowlist<'a, L, S, P, W> {
@@ -52,7 +53,7 @@ impl<L: LaunchdTable, S: SourceAllowlist, P: Publisher, W: WriteLock>
             }
             AllowlistCommand::Add(label) | AllowlistCommand::Deny(label) => label,
         };
-        let _guard = self.lock.acquire().map_err(|_| CurationFailure::Lock)?;
+        let guard = self.lock.acquire().map_err(|_| CurationFailure::Lock)?;
         if !valid_allowlist_label(label) {
             return Err(CurationFailure::InvalidLabel(label.to_owned()));
         }
@@ -94,6 +95,10 @@ impl<L: LaunchdTable, S: SourceAllowlist, P: Publisher, W: WriteLock>
             });
         let curated = curate_allowlist(&borrowed, change)
             .map_err(|_| CurationFailure::InvalidLine(source.clone()))?;
+        let verb = if captured.is_some() { "allow" } else { "deny" };
+        guard
+            .record(verb, label)
+            .map_err(|_| CurationFailure::Record)?;
         self.publisher
             .publish(&source, &curated)
             .map_err(CurationFailure::Publication)?;
