@@ -111,7 +111,7 @@ impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
     fn process(&mut self, name: &str, uid: u32) -> ControlReading {
         use ControlReading::{Indeterminate, Known};
         use ControlValue::{Running, Stopped};
-        match self.processes.matching(name, Some(uid), None) {
+        match self.processes.matching(name, Some(uid), None, None) {
             Ok(pids) if pids.is_empty() => Known(Stopped),
             Ok(_) => Known(Running),
             Err(_) => Indeterminate,

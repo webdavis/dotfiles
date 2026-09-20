@@ -5,7 +5,7 @@
 
 use posture_application::InspectionFailure;
 use std::ffi::c_int;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// One window for a walk, the same generous bound the spawned reads had: the
@@ -13,11 +13,14 @@ use std::time::Duration;
 /// of headroom and still a bound.
 const WALK_DEADLINE: Duration = Duration::from_secs(5);
 
-/// The process table, asked which process ids a name, a real user and a
-/// parent select together.
+/// The process table, asked which process ids a name, a real user, a parent
+/// and an executable directory select together.
 pub trait ProcessLookup {
     /// The matching ids in ascending order, empty where the table holds no
-    /// match. `uid` and `parent` each go unfiltered when None.
+    /// match. `uid`, `parent` and `directory` each go unfiltered when None.
+    ///
+    /// `directory` selects on where the executable lives: a process matches
+    /// when its executable path sits at or below that directory.
     ///
     /// The name is the executable's own file name. macOS `pgrep -x` compares
     /// the name a process gave its own argument zero, which is the same string
@@ -29,6 +32,7 @@ pub trait ProcessLookup {
         name: &str,
         uid: Option<u32>,
         parent: Option<u32>,
+        directory: Option<&Path>,
     ) -> Result<Vec<i32>, InspectionFailure>;
 }
 
@@ -55,11 +59,15 @@ impl ProcessLookup for LibprocProcesses {
         name: &str,
         uid: Option<u32>,
         parent: Option<u32>,
+        directory: Option<&Path>,
     ) -> Result<Vec<i32>, InspectionFailure> {
         let name = name.to_owned();
-        bounded_call(self.deadline, move || walk(&name, uid, parent))
-            .ok_or(InspectionFailure::TimedOut)?
-            .ok_or(InspectionFailure::Failed)
+        let directory = directory.map(Path::to_path_buf);
+        bounded_call(self.deadline, move || {
+            walk(&name, uid, parent, directory.as_deref())
+        })
+        .ok_or(InspectionFailure::TimedOut)?
+        .ok_or(InspectionFailure::Failed)
     }
 }
 
@@ -80,16 +88,28 @@ pub(crate) fn bounded_call<T: Send + 'static>(
 
 /// The selected ids in ascending order, or None where the table itself could
 /// not be read.
-fn walk(name: &str, uid: Option<u32>, parent: Option<u32>) -> Option<Vec<i32>> {
+fn walk(
+    name: &str,
+    uid: Option<u32>,
+    parent: Option<u32>,
+    directory: Option<&Path>,
+) -> Option<Vec<i32>> {
     let mut selected: Vec<i32> = all_pids()?
         .into_iter()
         .filter(|pid| short_info(*pid).is_some_and(|info| owned_by(&info, uid, parent)))
-        .filter(|pid| executable_name(*pid).as_deref() == Some(name))
+        .filter(|pid| executable_path(*pid).is_some_and(|path| runs(&path, name, directory)))
         .collect();
     // ASCENDING, so two walks of one unchanged table answer identically; the
     // kernel's own listing order is not promised anywhere.
     selected.sort_unstable();
     Some(selected)
+}
+
+/// Whether one executable path carries the name being looked for and lives
+/// under the directory being looked in.
+fn runs(path: &Path, name: &str, directory: Option<&Path>) -> bool {
+    path.file_name().and_then(|file| file.to_str()) == Some(name)
+        && directory.is_none_or(|directory| path.starts_with(directory))
 }
 
 /// Whether one record passes the real-user and parent filters. The REAL user
@@ -153,12 +173,11 @@ fn short_info(pid: i32) -> Option<libc::proc_bsdshortinfo> {
     (written == size).then(|| unsafe { info.assume_init() })
 }
 
-/// The file name of a process's executable, or None where the path could not
-/// be read or is not a name this crate can compare.
+/// The path of a process's executable, or None where it could not be read.
 ///
 /// The PATH rather than the record's own name field, because that field holds
 /// at most thirty one bytes and the LuLu extension's name is thirty two.
-fn executable_name(pid: i32) -> Option<String> {
+fn executable_path(pid: i32) -> Option<PathBuf> {
     let mut buffer = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
     let size = u32::try_from(buffer.len()).ok()?;
     // SAFETY: the buffer holds `size` bytes, which is the ceiling libproc is
@@ -168,8 +187,7 @@ fn executable_name(pid: i32) -> Option<String> {
         return None;
     }
     buffer.truncate(written as usize);
-    let path = String::from_utf8(buffer).ok()?;
-    Some(Path::new(&path).file_name()?.to_str()?.to_owned())
+    Some(PathBuf::from(String::from_utf8(buffer).ok()?))
 }
 
 /// `PROC_ALL_PIDS`, which `libc` does not declare.

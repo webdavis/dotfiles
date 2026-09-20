@@ -1,8 +1,13 @@
 use super::*;
+use crate::test_processes::ScriptedProcesses;
 use crate::{CommandIo, CommandOutput};
 use posture_application::InspectionFailure;
 use posture_domain::{AgentExit, AgentState, judge_agent};
-use std::{collections::VecDeque, ffi::OsStr, path::Path};
+use std::{
+    collections::VecDeque,
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
 struct Script(
     VecDeque<(
         &'static str,
@@ -87,27 +92,42 @@ fn sentinel_and_malformed_fields_remain_distinct_from_unloaded() {
     assert_eq!(reader.agent(LABEL), AgentReading::Unloaded);
 }
 #[test]
-fn osquery_and_pns_liveness_use_read_only_commands_and_fail_closed() {
-    let script = Script(VecDeque::from([
-        (
-            "/usr/bin/pgrep",
-            vec!["-fq".into(), "/opt/osquery/.*osqueryd".into()],
-            Ok(CommandOutput {
-                bytes: vec![],
-                exit: 0,
-            }),
-        ),
-        (
-            "/bin/launchctl",
-            vec!["print".into(), "gui/501/com.webdavis.pns-daemon".into()],
-            Ok(CommandOutput {
-                bytes: format!("state = running\npid = {}\n", std::process::id()).into_bytes(),
-                exit: 0,
-            }),
-        ),
-    ]));
+fn osquery_liveness_walks_for_the_vendor_daemon_and_reads_a_refused_walk_as_stopped() {
+    for (answer, expected) in [
+        (Ok(vec![31070]), true),
+        (Ok(vec![]), false),
+        (Err(InspectionFailure::Failed), false),
+        (Err(InspectionFailure::TimedOut), false),
+    ] {
+        let mut reader = SystemWatchdogProcesses::with_processes(
+            Script(VecDeque::new()),
+            ScriptedProcesses::new([answer.clone()]),
+            501,
+        );
+        assert_eq!(reader.osquery_running(), expected, "{answer:?}");
+        assert_eq!(
+            reader.processes.calls,
+            [(
+                "osqueryd".to_owned(),
+                None,
+                None,
+                Some(PathBuf::from("/opt/osquery"))
+            )],
+            "the walk asks for the vendor daemon by name and by where it lives"
+        );
+    }
+}
+#[test]
+fn pns_daemon_liveness_uses_a_read_only_command() {
+    let script = Script(VecDeque::from([(
+        "/bin/launchctl",
+        vec!["print".into(), "gui/501/com.webdavis.pns-daemon".into()],
+        Ok(CommandOutput {
+            bytes: format!("state = running\npid = {}\n", std::process::id()).into_bytes(),
+            exit: 0,
+        }),
+    )]));
     let mut reader = SystemWatchdogProcesses::new(script, 501);
-    assert!(reader.osquery_running());
     assert_eq!(reader.pns_daemon(), DaemonHealth::Running);
     assert!(reader.runner.0.is_empty());
 }

@@ -33,16 +33,16 @@ fn a_spawned_fixture_is_found_by_its_name_real_user_and_parent() {
     // `sleep` children, and an overlapping window can widen the match set.
     assert!(
         table()
-            .matching("sleep", Some(current_uid()), Some(own_pid))
+            .matching("sleep", Some(current_uid()), Some(own_pid), None)
             .unwrap()
             .contains(&fixture.pid())
     );
     assert_eq!(
-        table().matching("sleep", Some(current_uid() + 1), Some(own_pid)),
+        table().matching("sleep", Some(current_uid() + 1), Some(own_pid), None),
         Ok(vec![])
     );
     assert_eq!(
-        table().matching("sleep", Some(current_uid()), Some(own_pid + 1)),
+        table().matching("sleep", Some(current_uid()), Some(own_pid + 1), None),
         Ok(vec![])
     );
 }
@@ -56,19 +56,63 @@ fn a_name_longer_than_a_record_name_field_is_still_matched_whole() {
     let fixture = Fixture::spawn(&program);
     let own_pid = std::process::id();
     assert_eq!(
-        table().matching(name, Some(current_uid()), Some(own_pid)),
+        table().matching(name, Some(current_uid()), Some(own_pid), None),
         Ok(vec![fixture.pid()])
     );
     assert_eq!(
-        table().matching(&name[..15], Some(current_uid()), Some(own_pid)),
+        table().matching(&name[..15], Some(current_uid()), Some(own_pid), None),
         Ok(vec![])
+    );
+}
+
+#[test]
+fn a_directory_selects_the_fixture_that_runs_from_it_and_rejects_the_one_that_does_not() {
+    let sandbox = Sandbox::new("process-lookup-directory");
+    // The REAL path, because the executable path libproc reports is resolved
+    // and the system temporary directory is reached through a symlink.
+    let directory = std::fs::canonicalize(sandbox.path()).unwrap();
+    let program = directory.join("sleep");
+    std::fs::copy("/bin/sleep", &program).unwrap();
+    let fixture = Fixture::spawn(&program);
+    let own_pid = std::process::id();
+    let elsewhere = Fixture::spawn(Path::new("/bin/sleep"));
+    assert_eq!(
+        table().matching(
+            "sleep",
+            Some(current_uid()),
+            Some(own_pid),
+            Some(&directory)
+        ),
+        Ok(vec![fixture.pid()])
+    );
+    assert!(
+        !table()
+            .matching(
+                "sleep",
+                Some(current_uid()),
+                Some(own_pid),
+                Some(Path::new("/bin"))
+            )
+            .unwrap()
+            .contains(&fixture.pid())
+    );
+    assert!(
+        table()
+            .matching(
+                "sleep",
+                Some(current_uid()),
+                Some(own_pid),
+                Some(Path::new("/bin"))
+            )
+            .unwrap()
+            .contains(&elsewhere.pid())
     );
 }
 
 #[test]
 fn a_name_nothing_runs_under_reads_as_absent_rather_than_unknown() {
     assert_eq!(
-        table().matching("posture-nothing-is-called-this", None, None),
+        table().matching("posture-nothing-is-called-this", None, None, None),
         Ok(vec![])
     );
 }
@@ -84,7 +128,7 @@ fn a_walk_that_does_not_answer_gives_the_deadline_back_to_the_caller() {
     assert_eq!(answer, None);
     assert!(started.elapsed() < Duration::from_secs(5));
     assert_eq!(
-        LibprocProcesses::with_deadline(Duration::ZERO).matching("sleep", None, None),
+        LibprocProcesses::with_deadline(Duration::ZERO).matching("sleep", None, None, None),
         Err(InspectionFailure::TimedOut)
     );
 }
