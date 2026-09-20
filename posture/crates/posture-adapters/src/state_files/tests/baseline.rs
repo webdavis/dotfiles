@@ -15,7 +15,7 @@ fn controls() -> Vec<Control> {
 fn cases() -> Vec<serde_json::Value> {
     serde_json::from_str(include_str!("baseline.json")).unwrap()
 }
-fn path(case: &serde_json::Value) -> PathBuf {
+fn path(case: &serde_json::Value) -> (crate::test_sandbox::Sandbox, PathBuf) {
     let dir = root();
     let path = dir.join("state");
     let name = case["name"].as_str().unwrap();
@@ -32,12 +32,13 @@ fn path(case: &serde_json::Value) -> PathBuf {
     } else if let Some(raw) = case["input"].as_str() {
         put(&path, raw, case["mode"].as_u64().unwrap() as u32);
     }
-    path
+    (dir, path)
 }
 #[test]
 fn a_baseline_read_preserves_captured_scalars_and_control_declaration_fields() {
     for case in cases().into_iter().filter(|c| c["fields"][0] == "1") {
-        let mut store = PollStateFiles::new(path(&case));
+        let (_sandbox, p) = path(&case);
+        let mut store = PollStateFiles::new(p);
         let reading = store.read(&controls(), |_| {}).unwrap();
         assert_eq!(store.prior_json.as_deref(), case["fields"][5].as_str());
         let wanted: Vec<_> = case["fields"].as_array().unwrap()[2..5]
@@ -77,7 +78,7 @@ fn a_baseline_read_preserves_captured_scalars_and_control_declaration_fields() {
 #[test]
 fn baseline_trust_refuses_wrong_modes_shapes_and_symlink_own_modes_without_blocking() {
     for case in cases().into_iter().filter(|c| c["fields"][0] != "1") {
-        let path = path(&case);
+        let (_sandbox, path) = path(&case);
         let mut store = PollStateFiles::new(path.clone());
         assert!(
             store.read(&controls(), |_| {}).is_none(),
