@@ -1,3 +1,4 @@
+use super::phone::PHONE_TABLE;
 use super::*;
 
 /// The `[plugins.phone]` settings, but ONLY when the table is ARMED: switched
@@ -56,14 +57,13 @@ pub fn ack_deadline(config: &Config) -> Result<Duration, ConfigError> {
     let Some(stated) = phone.get("ack_deadline") else {
         return Ok(DEFAULT_ACK_DEADLINE);
     };
-    let deadline = duration_value("phone", "ack_deadline", stated, ack_deadline_range())?;
+    let deadline = duration_value(PHONE_TABLE, "ack_deadline", stated, ack_deadline_range())?;
     if deadline.is_zero() {
-        return Err(ConfigError::Invalid(
-            "`phone` key `ack_deadline` is 0, which is the bound switched off by \
+        return Err(ConfigError::Invalid(format!(
+            "`{PHONE_TABLE}` key `ack_deadline` is 0, which is the bound switched off by \
              accident: a deadline that expires before the daemon can answer costs the phone \
              card on every approval"
-                .to_string(),
-        ));
+        )));
     }
     Ok(deadline)
 }

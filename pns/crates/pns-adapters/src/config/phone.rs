@@ -28,7 +28,7 @@ pub(super) fn marker_file(settings: &toml::Table) -> Result<Option<String>, Conf
 }
 
 /// The heading every refusal in this module names.
-const PHONE_TABLE: &str = "plugins.phone";
+pub(super) const PHONE_TABLE: &str = "plugins.phone";
 
 /// The one `[plugins.phone] type` a compiled-in backend answers. VALIDATED
 /// AND THEN DISCARDED, the way the router sensor's is: the enum that
