@@ -311,8 +311,9 @@ Source: [`crates/pns-protocol/src/envelope.rs`](../../crates/pns-protocol/src/en
 
 Given a constructed result with advisory diagnostic codes, when encoded, then the first 64 codes are kept
 in order; 63 or 64 remain unchanged and 65 loses only its last code. `ignored_fields` is bounded the same
-way and in the same place. Encoding does not mutate the caller or change other result fields. This deliberate version 1 policy permits bounded advisory summaries; it is
-not a legacy-compatibility requirement. The retained codes still obey text and total-byte bounds.
+way and in the same place. Encoding does not mutate the caller or change other result fields. This
+deliberate version 1 policy permits bounded advisory summaries; it is not a legacy-compatibility
+requirement. The retained codes still obey text and total-byte bounds.
 
 Source: [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L28),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L108),
@@ -434,12 +435,12 @@ time selects the existing 300-second long-running tier without suppressing a sho
 JSON stdout contains exactly one result line. Human delivery lines and executable-channel stdout go to
 stderr for that invocation, including its replay tail. Legacy stdout and the flat executable stdin body
 remain unchanged. A `delivered` result exits zero, `partial` and `undelivered` exit one, and rejected
-requests and output errors exit two.
-Destination results carry typed verdicts without echoing private transport text. Unknown top-level field
-names are returned by name in the result's `ignored_fields` list, never as diagnostics. An awaited decision receives `no_opinion` because this
-entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
-migration. The encrypted Hermes formatter and operator route configuration remain a separate deployment
-gate. The configured delivery-class policy is specified in `quiet-behavior.md`, behavior 7.
+requests and output errors exit two. Destination results carry typed verdicts without echoing private
+transport text. Unknown top-level field names are returned by name in the result's `ignored_fields` list,
+never as diagnostics. An awaited decision receives `no_opinion` because this entrypoint has no applicable
+interaction forwarder; this does not complete the separate hook and approval migration. The encrypted
+Hermes formatter and operator route configuration remain a separate deployment gate. The configured
+delivery-class policy is specified in `quiet-behavior.md`, behavior 7.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
 attempts the planned channels without inventing an identifier or lease time. Native transports omit the
