@@ -18,7 +18,7 @@ pub(super) const PLUGINS_PHONE: Table = Table {
             sample: Sample::Default("\"moshi\""),
         },
         Key {
-            name: "token",
+            name: "device_token",
             prose: "# Pair with moshi and put the webhook secret it issues here: that pairing\n\
                          # is what completes the phone card.\n",
             sample: Sample::Example("\"\""),
@@ -122,7 +122,7 @@ pub(super) const PLUGINS_LOG: Table = Table {
             sample: Sample::Example("\"http://127.0.0.1:8644/webhooks/pns-events\""),
         },
         Key {
-            name: "token",
+            name: "bot_token",
             prose: "# DISCORD ONLY: the bot token, from the Discord application\u{27}s Bot page.\n\
                          # Every call carries it as `Authorization: Bot <token>`, and a discord\n\
                          # log with none posts nothing and says which key is missing.\n",
@@ -235,12 +235,12 @@ pub(super) const PLUGINS_LIGHTS: Table = Table {
             sample: Sample::Default("\"hue\""),
         },
         Key {
-            name: "bridge",
+            name: "bridge_host",
             prose: "",
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "key",
+            name: "api_key",
             prose: "",
             sample: Sample::Example("\"\""),
         },

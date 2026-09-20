@@ -297,7 +297,7 @@ fn a_request_naming_no_delivery_class_keeps_the_original_version_one_bytes() {
     let original = decode_value(&minimal()).unwrap().request.encode().unwrap();
     assert_eq!(
         original,
-        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","session":null,"state":"failed","elapsed":null,"detail":"","project":null,"branch":null,"pane":null,"scope":"automatic","route":null,"extensions":{}}"#,
+        r#"{"schema":"pns.request/1","request_id":"r-1","producer":"shell","state":"failed","detail":"","scope":"automatic","extensions":{}}"#,
         "an absent delivery class moved the canonical bytes"
     );
     assert_eq!(
@@ -310,6 +310,37 @@ fn a_request_naming_no_delivery_class_keeps_the_original_version_one_bytes() {
         decode_value(&value).unwrap().request.encode().unwrap(),
         original,
         "a null delivery class is an absent delivery class"
+    );
+}
+
+#[test]
+fn an_absent_optional_request_field_is_omitted_rather_than_written_as_null() {
+    let request = decode_value(&minimal()).unwrap().request;
+    assert_eq!(request.session, None);
+    assert_eq!(request.elapsed, None);
+    let text = request.encode().unwrap();
+    let wire: Value = serde_json::from_str(&text).unwrap();
+    for field in [
+        "session",
+        "elapsed",
+        "project",
+        "branch",
+        "pane",
+        "route",
+        "delivery_class",
+        "remind",
+    ] {
+        assert_eq!(wire.get(field), None, "{field}");
+    }
+    assert!(!text.contains("null"), "{text}");
+    // A field written as null decodes as absent and comes back omitted.
+    let mut nulled = minimal();
+    for field in ["session", "elapsed", "project", "branch", "pane", "route"] {
+        nulled[field] = Value::Null;
+    }
+    assert_eq!(
+        decode_value(&nulled).unwrap().request.encode().unwrap(),
+        text
     );
 }
 

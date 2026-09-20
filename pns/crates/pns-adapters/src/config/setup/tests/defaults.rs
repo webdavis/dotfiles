@@ -56,10 +56,14 @@ fn the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to() {
 #[test]
 fn a_skipped_token_is_commented_out_rather_than_written_empty() {
     // MOBILE STAYS ON EITHER WAY: pairing is what completes it, and a
-    // `token = ""` would read as configured while carding nothing.
+    // `device_token = ""` would read as configured while carding nothing.
     let text = compose_config(&Answers::default());
-    assert!(text.contains("# token = \"\""), "{text}");
+    assert!(text.contains("# device_token = \"\""), "{text}");
     let config = parsed(&text);
     assert!(config.plugins["phone"].enabled);
-    assert!(!config.plugins["phone"].settings.contains_key("token"));
+    assert!(
+        !config.plugins["phone"]
+            .settings
+            .contains_key("device_token")
+    );
 }

@@ -25,7 +25,7 @@ fn a_router_table_switched_off_is_told_apart_from_no_table_at_all() {
     // read as one they never wrote: the first is fixed by flipping a flag
     // they are looking at, the second by writing a table.
     let config = pns_adapters::parse_config(
-        "[plugins.home_presence]\nenabled = false\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
+        "[plugins.home_presence]\nenabled = false\ntype = \"unifi\"\nurl = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
     )
     .unwrap();
     assert_eq!(
@@ -50,9 +50,9 @@ fn a_router_table_with_no_type_names_the_key_and_the_one_type_that_answers() {
     // nothing implements, which points at a value the operator never
     // typed instead of at the key they left blank.
     for text in [
-        "router_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
-        "type = 5\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
-        "type = \"\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+        "url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+        "type = 5\nurl = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+        "type = \"\"\nurl = \"https://192.168.1.1\"\nphone = \"mister\"\n",
     ] {
         assert_eq!(
             router_settings(&table(text)),
@@ -71,7 +71,7 @@ fn a_type_no_compiled_in_backend_answers_is_refused_quoting_it() {
     // Silently probing a UniFi endpoint on a router that is not one would
     // read Unknown forever with nothing to look at; the refusal quotes
     // what was asked for and says what this binary can answer.
-    let asus = table("type = \"asus\"\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n");
+    let asus = table("type = \"asus\"\nurl = \"https://192.168.1.1\"\nphone = \"mister\"\n");
     assert_eq!(
         router_settings(&asus),
         Err(SetupFailure::UnknownType("asus".to_string()))
@@ -85,13 +85,13 @@ fn a_type_no_compiled_in_backend_answers_is_refused_quoting_it() {
 #[test]
 fn a_missing_empty_or_mistyped_url_reports_the_invalid_table_line() {
     // A present-but-wrong VALUE is fixed by editing one line; a missing
-    // TABLE is fixed by writing one. `router_url = 5` reported as "no
+    // TABLE is fixed by writing one. `url = 5` reported as "no
     // table" used to send the operator to write a table they already had.
     let named = "type = \"unifi\"\n";
     for text in [
         "device_hostname = \"mister\"\n",
-        "router_url = \"\"\ndevice_hostname = \"mister\"\n",
-        "router_url = 5\ndevice_hostname = \"mister\"\n",
+        "url = \"\"\ndevice_hostname = \"mister\"\n",
+        "url = 5\ndevice_hostname = \"mister\"\n",
     ] {
         assert_eq!(
             router_settings(&table(&format!("{named}{text}"))),
@@ -105,7 +105,7 @@ fn a_missing_empty_or_mistyped_url_reports_the_invalid_table_line() {
         invalid.contains("[plugins.home_presence]"),
         "got: {invalid}"
     );
-    assert!(invalid.contains("router_url"), "got: {invalid}");
+    assert!(invalid.contains("url"), "got: {invalid}");
     // The line stops naming the device keys: each of the three has its
     // own refusal now, and one covering all four sends the operator to
     // read four keys to find the one that is wrong.
@@ -121,9 +121,7 @@ fn a_router_table_naming_no_device_at_all_is_refused_naming_every_key() {
     // device identifier" on its own sends the operator to the docs to
     // find out what one is called.
     assert_eq!(
-        device_identity(&table(
-            "type = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\n"
-        )),
+        device_identity(&table("type = \"unifi\"\nurl = \"https://192.168.1.1\"\n")),
         Err(SetupFailure::NoDeviceIdentifier)
     );
     let line = setup_report(&SetupFailure::NoDeviceIdentifier);

@@ -10,7 +10,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
         ("plugins.log", "key", "keys"),
         ("plugins.lights", "room", "rooms"),
         ("plugins.banner", "sound", "enabled"),
-        ("plugins.phone", "tokens", "token"),
+        ("plugins.phone", "tokens", "device_token"),
         ("plugins.home_presence", "phone", "device_hostname"),
     ] {
         let said = refusal(&format!("[{table}]\nenabled = true\n{mistyped} = \"x\"\n"));
@@ -33,7 +33,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
 fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
     // The positive control under the refusal above: a sweep that refused
     // the whole vocabulary would pass every assertion up there.
-    let shipped = "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.banner]\nenabled = true\n             [plugins.phone]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             card_while_watching = false\nack_deadline = \"5s\"\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+    let shipped = "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge_host = \"b\"\napi_key = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.banner]\nenabled = true\n             [plugins.phone]\nenabled = true\ntype = \"moshi\"\ndevice_token = \"t\"\n             card_while_watching = false\nack_deadline = \"5s\"\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nalert_route = \"priority\"\n";
     let config = parse_config(shipped).expect("every shipped key parses");
     assert_eq!(config.plugins.len(), 5);
 }
@@ -64,7 +64,7 @@ fn a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does() {
     // settings moved under `[plugins.home_presence]`, and a config written before
     // that move is refused WHOLE, which takes every plugin's secret with
     // it. Told only that `home` is unknown, an operator has nowhere to go.
-    let said = refusal("[home]\nrouter_url = \"https://192.168.1.1\"\n");
+    let said = refusal("[home]\nurl = \"https://192.168.1.1\"\n");
     assert!(said.contains("`home`"), "the table is named: {said}");
     for serves in [
         "daemon", "delivery", "focus", "lights", "plugins", "recap", "remind", "stale",

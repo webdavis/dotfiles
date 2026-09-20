@@ -27,7 +27,7 @@ fn verdict_line(presence: &HomePresence) -> String {
         // key, a timeout and an unparseable body alike.
         HomePresence::Unknown => concat!(
             "unknown: the router returned no readable client list, so nothing was established; ",
-            "check router_url and api_key in [plugins.home_presence] ",
+            "check url and api_key in [plugins.home_presence] ",
             "(a rejected key reads the same here as an unreachable router)"
         )
         .to_string(),
@@ -162,7 +162,7 @@ pub fn setup_report(failure: &SetupFailure) -> String {
              answers (the only type is \"{UNIFI_TYPE}\")"
         ),
         SetupFailure::InvalidRouterTable => {
-            "home: the [plugins.home_presence] table is present but router_url is missing, empty, \
+            "home: the [plugins.home_presence] table is present but url is missing, empty, \
              or not a string"
                 .to_string()
         }

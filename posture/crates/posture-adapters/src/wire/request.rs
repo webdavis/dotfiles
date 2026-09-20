@@ -50,7 +50,7 @@ pub struct Request {
     pub request_id: RequestId,
     pub producer: Name,
     /// The producer's session, for correlation: a plain id at the top level.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<Name>,
     pub state: State,
     /// How long the work ran, written as `<count><s|m|h>`; the engine decides
@@ -58,21 +58,21 @@ pub struct Request {
     /// posture measures no duration and never sends one: reading the spelling
     /// is the engine's job, and a parser here would be a second opinion about
     /// a value posture only ever writes as absent.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub elapsed: Option<String>,
     #[serde(default)]
     pub detail: String,
     /// Where the work was happening, at the top level and one field per part,
     /// because not every producer has a project, a branch or a pane.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane: Option<String>,
     #[serde(default)]
     pub scope: DeliveryScope,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub route: Option<Name>,
     /// What this event is for delivery: which route it takes when it named
     /// none, and whether it passes a mute. The engine takes the same word

@@ -39,7 +39,7 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
     log.insert(
         "note".to_string(),
         toml::Value::String(
-            "line one\n[plugins.lights]\nenabled = true\nbridge = \"hostile\"".to_string(),
+            "line one\n[plugins.lights]\nenabled = true\nbridge_host = \"hostile\"".to_string(),
         ),
     );
     let mut keys = toml::Table::new();

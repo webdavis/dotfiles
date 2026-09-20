@@ -15,7 +15,7 @@ use super::*;
 ///
 /// THE PLUGIN TABLES ARE IN IT and their settings are no longer free-form,
 /// which is the one behaviour change: a plugin's near miss (`room` for `rooms`,
-/// `tokens` for `token`) used to reach the plugin as a setting it did not
+/// `tokens` for `device_token`) used to reach the plugin as a setting it did not
 /// recognize and cost a destination silently. A table for a plugin nothing
 /// registered is NOT here and stays free-form, because this layer has no
 /// vocabulary to judge a plugin that does not exist; the registry refuses the
@@ -145,7 +145,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // one line.
     (
         "plugins.log",
-        &["channels", "enabled", "keys", "token", "type", "url"],
+        &["bot_token", "channels", "enabled", "keys", "type", "url"],
     ),
     // AN OPEN TABLE: the row states the one key the SCHEMA requires, and the
     // rest of its vocabulary is the operator's own project names, which no
@@ -159,8 +159,8 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "plugins.github",
         &[
             "enabled",
+            "personal_access_token",
             "poll_secs",
-            "token",
             "webhook_port",
             "webhook_secret",
         ],
@@ -168,10 +168,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "plugins.lights",
         &[
-            "bridge",
+            "api_key",
+            "bridge_host",
             "certificate",
             "enabled",
-            "key",
             "quiet_hours",
             "rooms",
             "type",
@@ -205,10 +205,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         &[
             "ack_deadline",
             "card_while_watching",
+            "device_token",
             "enabled",
             "image_cards",
             "marker_file",
-            "token",
             "type",
             "url",
         ],
@@ -221,14 +221,14 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "plugins.home_presence",
         &[
+            "alert_route",
             "api_key",
             "device_hostname",
             "device_ipv4",
             "device_mac",
             "enabled",
-            "router_url",
-            "stale_alert_channel",
             "type",
+            "url",
         ],
     ),
 ];

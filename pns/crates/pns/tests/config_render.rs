@@ -91,7 +91,7 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
 
 /// THE MUTANT THIS PINS: the literal-secret refusal check removed, OR
 /// narrowed by dropping any one path out of `secret_bearing_keys`. A single
-/// case covering only `plugins.lights.bridge` stays green if the others are
+/// case covering only `plugins.lights.bridge_host` stays green if the others are
 /// removed from that list; table-driving across all of them is what catches a
 /// narrowed roster. THE HERMES ROUTES ARE READ OFF THE VALUES FILE'S OWN KEY
 /// TABLE, so a route line added there is covered the moment it is written.
@@ -107,20 +107,20 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
     });
     let fixed = [
         (
-            "plugins.phone.token",
-            "[plugins.phone]\ntoken = \"a-literal-token\"\n",
+            "plugins.phone.device_token",
+            "[plugins.phone]\ndevice_token = \"a-literal-token\"\n",
         ),
         (
-            "plugins.lights.bridge",
-            "[plugins.lights]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
+            "plugins.lights.bridge_host",
+            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
         ),
         (
-            "plugins.lights.key",
-            "[plugins.lights]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
+            "plugins.lights.api_key",
+            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
         ),
         (
-            "plugins.log.token",
-            "[plugins.log]\ntoken = \"a-literal-token\"\n",
+            "plugins.log.bot_token",
+            "[plugins.log]\nbot_token = \"a-literal-token\"\n",
         ),
         (
             "plugins.log.channels.default",
@@ -129,6 +129,10 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
         (
             "plugins.home_presence.api_key",
             "[plugins.home_presence]\napi_key = \"a-literal-key\"\n",
+        ),
+        (
+            "plugins.github.personal_access_token",
+            "[plugins.github]\npersonal_access_token = \"a-literal-token\"\n",
         ),
     ]
     .into_iter()

@@ -76,6 +76,43 @@ fn validate_lease(lease: LeaseWindow) -> Result<(), LedgerFailure> {
         Ok(())
     }
 }
+
+/// Whether a retry names the same submission the ledger already recorded.
+/// Every field but `producer_request` compares by value; that one compares
+/// by decoded meaning, so a producer re-encoding the same request with a
+/// newer pns (which may drop bytes a canonical render never wrote, like an
+/// absent optional field) still recognizes its own retry instead of
+/// conflicting with itself.
+fn submissions_match(existing: &LedgerSubmission, new: &LedgerSubmission) -> bool {
+    existing.identity == new.identity
+        && existing.event == new.event
+        && existing.legs == new.legs
+        && producer_requests_match(
+            existing.producer_request.as_deref(),
+            new.producer_request.as_deref(),
+        )
+}
+
+/// Two producer_request texts match verbatim, or, when they differ, by
+/// decoding to the same `Request`. Falls back to the byte compare (already
+/// known to fail) when either side does not decode, so unparseable legacy
+/// metadata still conflicts rather than being waved through.
+fn producer_requests_match(existing: Option<&str>, new: Option<&str>) -> bool {
+    match (existing, new) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            a == b
+                || matches!(
+                    (
+                        pns_protocol::decode_request(a.as_bytes()),
+                        pns_protocol::decode_request(b.as_bytes()),
+                    ),
+                    (Ok(a), Ok(b)) if a.request == b.request
+                )
+        }
+        _ => false,
+    }
+}
 impl DeliveryLedger for SqliteStore {
     type Claim = DeliveryClaim;
 
@@ -97,7 +134,9 @@ impl DeliveryLedger for SqliteStore {
             self.transaction(|transaction| prepare::submission(transaction, submission, lease)),
         )?;
         match result {
-            PreparedSubmission::Existing(ref record) if record.submission != *submission => {
+            PreparedSubmission::Existing(ref record)
+                if !submissions_match(&record.submission, submission) =>
+            {
                 Err(LedgerFailure::ConflictingSubmission)
             }
             other => Ok(other),

@@ -99,7 +99,7 @@ fn a_phone_table_naming_no_compiled_in_backend_pushes_no_card_through_either_sea
     // not.
     let sandbox = Sandbox::new("phone-type-refused-leg");
     sandbox.write_config(
-        "[plugins.phone]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
+        "[plugins.phone]\nenabled = true\ntype = \"pushover\"\ndevice_token = \"tok-real\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
     );
     let output = run(sandbox
@@ -134,7 +134,7 @@ fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
     // operator with a perfectly good token in the file was sent to `token`.
     let sandbox = Sandbox::new("doctor-type-fault");
     sandbox.write_config(
-        "[plugins.phone]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
+        "[plugins.phone]\nenabled = true\ntype = \"pushover\"\ndevice_token = \"tok-real\"\n\
          [plugins.banner]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let output = doctor_command(&sandbox).output().expect("the engine runs");
