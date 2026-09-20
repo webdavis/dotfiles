@@ -30,7 +30,7 @@ pub(crate) fn lights_enroll() -> i32 {
     let home = std::env::var("HOME").unwrap_or_default();
     let Some(address) = bridge_address(&home) else {
         eprintln!(
-            "pns: no [plugins.hue] bridge in the config, so there is no address to enroll \
+            "pns: no [plugins.lights] bridge in the config, so there is no address to enroll \
 against"
         );
         return 2;

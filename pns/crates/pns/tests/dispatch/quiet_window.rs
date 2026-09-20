@@ -4,7 +4,7 @@ use super::*;
 fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
     // A GUARD, not a red-first test, and it says what it still covers rather
     // than what it once did. With a `[lights]` table an ordinary long-running
-    // notification no longer takes the `[plugins.hue] rooms` path at all: it
+    // notification no longer takes the `[plugins.lights] rooms` path at all: it
     // resolves the map on the bridge and writes per lamp, which is one or two
     // GETs and a PUT each where it used to be one group PUT. So "nothing
     // moves" is no longer true of the wire.
@@ -22,7 +22,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         // table that cost the operator their card would otherwise sit inside
         // a leg nobody switched on.
         sandbox.write_config(&format!(
-            "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+            "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              rooms = [\"3F - Studio\"]\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
              [plugins.hermes]\nenabled = true\n{lights}"
         ));
@@ -63,7 +63,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
             dialled,
             // EVERY LEG THIS EVENT COULD REACH, named rather than counted, so
             // a table that swapped one destination for another cannot pass.
-            ["mobile", "hermes", "macos-banner"].map(|leg| sandbox.fired(leg)),
+            ["mobile", "hermes", "banner"].map(|leg| sandbox.fired(leg)),
         )
     };
     let without_a_table = outcome("lights-guard-without-a-table", "");
@@ -93,7 +93,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("quiet-window-mutes-the-pulse");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"{}\"\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.hermes]\nenabled = true\n",
         window_around(utc_minute_now(), 120)
@@ -127,7 +127,7 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("quiet-window-malformed");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"10pm-7am\"\n[plugins.hermes]\nenabled = true\n"
     ));
 
@@ -189,7 +189,7 @@ fn the_hand_run_pulse_reaches_the_bridge_inside_the_quiet_window() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("quiet-window-manual-pulse");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"{}\"\n",
         window_around(utc_minute_now(), 120)
     ));

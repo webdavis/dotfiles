@@ -25,7 +25,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
         config.plugins["hermes"].settings["keys"]["pns-events"].as_str(),
         Some("hermes-secret")
     );
-    let hue = &config.plugins["hue"].settings;
+    let hue = &config.plugins["lights"].settings;
     assert_eq!(hue["bridge"].as_str(), Some("192.168.1.9"));
     assert_eq!(hue["key"].as_str(), Some("hue-secret"));
     assert_eq!(
@@ -34,7 +34,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
             .map(|rooms| rooms.iter().filter_map(|room| room.as_str()).collect()),
         Some(vec!["Studio", "Kitchen"])
     );
-    let router = &config.plugins["router"].settings;
+    let router = &config.plugins["home_presence"].settings;
     assert_eq!(router["type"].as_str(), Some("unifi"));
     assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
@@ -52,10 +52,10 @@ fn an_empty_walk_still_renders_the_core_at_its_defaults() {
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert!(config.plugins["mobile"].enabled);
-    assert!(config.plugins["macos-banner"].enabled);
+    assert!(config.plugins["banner"].enabled);
     assert!(config.daemon_enabled);
     assert_eq!(config.recap, crate::config::Recap::default());
-    for opt_in in ["hermes", "hue", "router"] {
+    for opt_in in ["hermes", "lights", "home_presence"] {
         assert!(!config.plugins.contains_key(opt_in));
     }
     assert!(config.focus_silence.is_empty());
@@ -106,7 +106,7 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     for expected in [
         "[plugins.mobile]\nenabled = true\n",
-        "[plugins.macos-banner]\nenabled = true\n",
+        "[plugins.banner]\nenabled = true\n",
         "[daemon]\nenabled = true\n",
     ] {
         assert!(text.contains(expected), "{expected} should be live: {text}");

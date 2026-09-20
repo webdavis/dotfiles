@@ -4,8 +4,8 @@ use super::*;
 
 #[test]
 fn a_plugin_table_with_enabled_true_is_selected_and_keeps_its_settings() {
-    let config = parse_config("[plugins.hue]\nenabled = true\nbridge = \"office\"\n").unwrap();
-    let hue = &config.plugins["hue"];
+    let config = parse_config("[plugins.lights]\nenabled = true\nbridge = \"office\"\n").unwrap();
+    let hue = &config.plugins["lights"];
     assert!(hue.enabled);
     assert_eq!(
         hue.settings.get("bridge").and_then(|v| v.as_str()),
@@ -19,8 +19,8 @@ fn a_plugin_table_with_enabled_true_is_selected_and_keeps_its_settings() {
 
 #[test]
 fn an_absent_enabled_flag_reads_disabled_because_selection_is_explicit() {
-    let config = parse_config("[plugins.hue]\nbridge = \"office\"\n").unwrap();
-    assert!(!config.plugins["hue"].enabled);
+    let config = parse_config("[plugins.lights]\nbridge = \"office\"\n").unwrap();
+    assert!(!config.plugins["lights"].enabled);
 }
 
 #[test]
@@ -31,10 +31,13 @@ fn an_empty_config_is_valid_and_selects_nothing() {
 
 #[test]
 fn a_non_boolean_enabled_flag_is_refused_naming_the_plugin() {
-    let err = parse_config("[plugins.hue]\nenabled = \"yes\"\n").unwrap_err();
+    let err = parse_config("[plugins.lights]\nenabled = \"yes\"\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => {
-            assert!(message.contains("hue"), "the offender is named: {message}")
+            assert!(
+                message.contains("lights"),
+                "the offender is named: {message}"
+            )
         }
         other => panic!("expected Invalid, got {other:?}"),
     }
@@ -42,7 +45,7 @@ fn a_non_boolean_enabled_flag_is_refused_naming_the_plugin() {
 
 #[test]
 fn an_unknown_top_level_key_is_refused_so_a_typo_cannot_disable_a_channel() {
-    // [plugin.hue] instead of [plugins.hue] must be a loud refusal, never
+    // [plugin.hue] instead of [plugins.lights] must be a loud refusal, never
     // a quietly ignored table that leaves hue disabled.
     let err = parse_config("[plugin.hue]\nenabled = true\n").unwrap_err();
     match err {
@@ -58,10 +61,13 @@ fn an_unknown_top_level_key_is_refused_so_a_typo_cannot_disable_a_channel() {
 
 #[test]
 fn a_plugin_entry_that_is_not_a_table_is_refused_naming_the_plugin() {
-    let err = parse_config("[plugins]\nhue = true\n").unwrap_err();
+    let err = parse_config("[plugins]\nlights = true\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => {
-            assert!(message.contains("hue"), "the offender is named: {message}")
+            assert!(
+                message.contains("lights"),
+                "the offender is named: {message}"
+            )
         }
         other => panic!("expected Invalid, got {other:?}"),
     }
@@ -69,7 +75,7 @@ fn a_plugin_entry_that_is_not_a_table_is_refused_naming_the_plugin() {
 
 #[test]
 fn a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored() {
-    // The probe's settings moved into `[plugins.router]`. A config still
+    // The probe's settings moved into `[plugins.home_presence]`. A config still
     // carrying `[home]` must be refused NAMING it, so the operator is sent
     // to the one table they have to move; admitting it as a key nothing
     // reads any more would leave the home probe reporting "not configured"

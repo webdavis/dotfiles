@@ -3,7 +3,7 @@
 //!
 //! Hue is config-SELECTED but not event-dispatched: the pulse fires on an
 //! exit code from the long-command notifier, not on a notification, so this
-//! channel is the binary's `pulse` mode reading the same `[plugins.hue]`
+//! channel is the binary's `pulse` mode reading the same `[plugins.lights]`
 //! table (bridge, key, rooms) rather than a leg of the event plan.
 //!
 //! ONE PUT PER ROOM, and the bridge does the rest. It speaks CLIP v2 directly,
@@ -21,7 +21,7 @@
 //! here and no restore engine anywhere.
 
 // THE LAMP RESOLUTION POLICY moved to `pns-domain`, one file per question it
-// answers. What stays here parses: the `[plugins.hue]` settings, the quiet
+// answers. What stays here parses: the `[plugins.lights]` settings, the quiet
 // window off a config string, and the bridge's own JSON listing.
 
 #[cfg(test)]

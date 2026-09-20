@@ -57,7 +57,7 @@ fn an_event_inside_another_runs_return_moment_delivers_no_card_of_any_kind() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         1,

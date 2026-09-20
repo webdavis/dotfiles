@@ -2,13 +2,13 @@ use super::Config;
 use pns_domain::home::{DeviceIdentity, DeviceIdentityError, DeviceKey, UNIFI_TYPE};
 
 /// The enabled router sensor's settings table, or the cause it could not be
-/// had. The probe's config home is `[plugins.router]`, the sensor registered
+/// had. The probe's config home is `[plugins.home_presence]`, the sensor registered
 /// in the roster, so the whole file is read by one schema and the operator has
 /// one spelling to get right.
 pub fn enabled_router_table(config: &Config) -> Result<&toml::Table, SetupFailure> {
     let entry = config
         .plugins
-        .get("router")
+        .get("home_presence")
         .ok_or(SetupFailure::NoRouterPlugin)?;
     // A probe the operator SWITCHED OFF is not one they never wrote: one is
     // fixed by flipping the flag in front of them, the other by writing a
@@ -148,7 +148,7 @@ pub fn stale_alert_channel(router: &toml::Table) -> (String, Option<String>) {
         None => (
             String::new(),
             Some(format!(
-                "pns: config error (stale_alert_channel = {} in [plugins.router] is not a \
+                "pns: config error (stale_alert_channel = {} in [plugins.home_presence] is not a \
                  usable route name); the stale alert posts to the default route",
                 spell(value)
             )),

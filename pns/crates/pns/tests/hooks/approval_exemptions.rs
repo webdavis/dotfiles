@@ -194,7 +194,7 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     write_record(&sandbox, "s1", 300, "may I", "wW:p21");
     support::run(&mut remind(&sandbox));
     assert_eq!(
-        deliveries(&sandbox, "macos-banner"),
+        deliveries(&sandbox, "banner"),
         0,
         "a muted operator gets no banner about a nudge"
     );
@@ -231,7 +231,7 @@ fn a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() 
     sandbox.write_focus_store("com.apple.sleep.sleep-mode", "Sleep");
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
-         [plugins.macos-banner]\nenabled = true\n[focus]\nsilence = [\"Sleep\"]\n",
+         [plugins.banner]\nenabled = true\n[focus]\nsilence = [\"Sleep\"]\n",
     );
 
     let payload = "{\"message\":\"may I\",\"session_id\":\"s1\"}\n";

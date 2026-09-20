@@ -50,7 +50,7 @@ fn only_a_home_reading_alerts_and_the_sensor_is_never_a_destination() {
     // A RECORDING stub under the sensor's own name, so a router that had
     // somehow become a leg leaves a trace instead of exec'ing nothing.
     sandbox.stub_channel(
-        "router",
+        "home_presence",
         &format!("cat >\"{}/router.event\"", sandbox.display()),
     );
     let router = RouterStub::start(KEYS_AWAY);
@@ -74,7 +74,7 @@ fn only_a_home_reading_alerts_and_the_sensor_is_never_a_destination() {
     home();
     assert_eq!(alerts(&sandbox).len(), 1, "a Home reading alerts");
     assert!(
-        !sandbox.fired("router"),
+        !sandbox.fired("home_presence"),
         "the roster registers router as a SENSOR: an input carries no routing, \
          so the alert ABOUT its reading can never be delivered back to it"
     );
@@ -145,7 +145,7 @@ fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
 
     assert!(
         stderr(&output).lines().any(|line| line
-            == "pns: config error (stale_alert_channel = \"../alert\" in [plugins.router] is not a \
+            == "pns: config error (stale_alert_channel = \"../alert\" in [plugins.home_presence] is not a \
                 usable route name); the stale alert posts to the default route"),
         "{}",
         stderr(&output)

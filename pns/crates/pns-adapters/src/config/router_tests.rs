@@ -27,10 +27,10 @@ fn the_router_names_its_backend_with_type_and_no_longer_with_brand() {
 
 #[test]
 fn an_enabled_unifi_router_table_yields_its_url_and_device() {
-    // The whole value path in one: the config's `[plugins.router]` table,
+    // The whole value path in one: the config's `[plugins.home_presence]` table,
     // through the selection gate, into the two settings the probe runs on.
     let config = crate::config::parse_config(
-        "[plugins.router]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
+        "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
     )
     .unwrap();
     let router = enabled_router_table(&config).expect("the enabled table");
@@ -70,7 +70,7 @@ fn the_api_key_reads_from_the_router_plugin_table_beside_the_settings() {
     // only how: a table lifted from anywhere else would pass a bare-table
     // assertion just as well.
     let config = crate::config::parse_config(
-        "[plugins.router]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
+        "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
     )
     .unwrap();
     let router = enabled_router_table(&config).expect("the enabled table");
@@ -121,7 +121,7 @@ fn a_stale_alert_channel_that_is_not_a_usable_route_complains_and_falls_back() {
             complaint.as_deref(),
             Some(
                 format!(
-                    "pns: config error (stale_alert_channel = {quoted} in [plugins.router] \
+                    "pns: config error (stale_alert_channel = {quoted} in [plugins.home_presence] \
                      is not a usable route name); the stale alert posts to the default route"
                 )
                 .as_str()

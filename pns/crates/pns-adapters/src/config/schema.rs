@@ -160,7 +160,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "plugins.hue",
+        "plugins.lights",
         &[
             "bridge",
             "certificate",
@@ -168,15 +168,17 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "key",
             "quiet_hours",
             "rooms",
+            "type",
         ],
     ),
     (
-        "plugins.macos-banner",
+        "plugins.banner",
         &[
             "click_command",
             "click_type",
             "enabled",
             "terminal_bundle_id",
+            "type",
         ],
     ),
     (
@@ -210,7 +212,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // `OPEN_TABLES`.
     (MOBILE_IMAGE_CARDS, &["missed"]),
     (
-        "plugins.router",
+        "plugins.home_presence",
         &[
             "api_key",
             "device_hostname",

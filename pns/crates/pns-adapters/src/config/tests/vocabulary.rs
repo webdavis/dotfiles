@@ -8,10 +8,10 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
     // `token` is a phone card that silently never leaves the machine.
     for (table, mistyped, near) in [
         ("plugins.hermes", "key", "keys"),
-        ("plugins.hue", "room", "rooms"),
-        ("plugins.macos-banner", "sound", "enabled"),
+        ("plugins.lights", "room", "rooms"),
+        ("plugins.banner", "sound", "enabled"),
         ("plugins.mobile", "tokens", "token"),
-        ("plugins.router", "phone", "device_hostname"),
+        ("plugins.home_presence", "phone", "device_hostname"),
     ] {
         let said = refusal(&format!("[{table}]\nenabled = true\n{mistyped} = \"x\"\n"));
         assert!(
@@ -33,7 +33,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
 fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
     // The positive control under the refusal above: a sweep that refused
     // the whole vocabulary would pass every assertion up there.
-    let shipped = "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.hue]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.macos-banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.router]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+    let shipped = "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
     let config = parse_config(shipped).expect("every shipped key parses");
     assert_eq!(config.plugins.len(), 5);
 }
@@ -61,7 +61,7 @@ fn an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by
 fn a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does() {
     // THE MOST OPERATOR-VISIBLE TYPO CLASS: a whole table misspelled, or a
     // table that moved. `[home]` is the real one; the router probe's
-    // settings moved under `[plugins.router]`, and a config written before
+    // settings moved under `[plugins.home_presence]`, and a config written before
     // that move is refused WHOLE, which takes every plugin's secret with
     // it. Told only that `home` is unknown, an operator has nowhere to go.
     let said = refusal("[home]\nrouter_url = \"https://192.168.1.1\"\n");
@@ -83,14 +83,14 @@ fn type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused() {
     // it on one table had to learn a second word on the next; there is now
     // one, and the retired spelling is refused by name with the vocabulary
     // spelled out rather than reaching the probe as a setting it ignores.
-    let said = refusal("[plugins.router]\nenabled = true\nbrand = \"unifi\"\n");
+    let said = refusal("[plugins.home_presence]\nenabled = true\nbrand = \"unifi\"\n");
     assert!(said.contains("`brand`"), "the retired key is named: {said}");
     assert!(
         said.contains("type"),
         "and `type` is listed instead: {said}"
     );
     assert!(
-        parse_config("[plugins.router]\nenabled = true\ntype = \"unifi\"\n").is_ok(),
+        parse_config("[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n").is_ok(),
         "the router table serves `type`"
     );
     assert!(

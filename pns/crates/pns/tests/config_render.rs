@@ -91,7 +91,7 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
 
 /// THE MUTANT THIS PINS: the literal-secret refusal check removed, OR
 /// narrowed by dropping any one path out of `secret_bearing_keys`. A single
-/// case covering only `plugins.hue.bridge` stays green if the others are
+/// case covering only `plugins.lights.bridge` stays green if the others are
 /// removed from that list; table-driving across all of them is what catches a
 /// narrowed roster. THE HERMES ROUTES ARE READ OFF THE VALUES FILE'S OWN KEY
 /// TABLE, so a route line added there is covered the moment it is written.
@@ -111,12 +111,12 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
             "[plugins.mobile]\ntoken = \"a-literal-token\"\n",
         ),
         (
-            "plugins.hue.bridge",
-            "[plugins.hue]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
+            "plugins.lights.bridge",
+            "[plugins.lights]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
         ),
         (
-            "plugins.hue.key",
-            "[plugins.hue]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
+            "plugins.lights.key",
+            "[plugins.lights]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
         ),
         (
             "plugins.discord.token",
@@ -127,8 +127,8 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
             "[plugins.discord.channels]\ndefault = \"9001\"\n",
         ),
         (
-            "plugins.router.api_key",
-            "[plugins.router]\napi_key = \"a-literal-key\"\n",
+            "plugins.home_presence.api_key",
+            "[plugins.home_presence]\napi_key = \"a-literal-key\"\n",
         ),
     ]
     .into_iter()
@@ -220,7 +220,7 @@ fn running_the_binary_twice_against_the_same_values_file_writes_identical_bytes(
     let second_path = scratch.path("second.tmpl");
     std::fs::write(
         &values_path,
-        "[plugins.hue]\nrooms = [\"Studio\", \"Kitchen\"]\n[remind]\n",
+        "[plugins.lights]\nrooms = [\"Studio\", \"Kitchen\"]\n[remind]\n",
     )
     .expect("write values");
 
