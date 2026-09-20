@@ -4,7 +4,7 @@ use crate::config::{DEFAULT_SUBMIT_DEADLINE_SECS, Recap, parse_config};
 /// Every table a walk can decline, spelled as a heading standing at the
 /// head of a line: what the two ends of the walk are checked for.
 const DECLINABLE_TABLES: [&str; 5] = [
-    "[plugins.hermes]",
+    "[plugins.log]",
     "[plugins.lights]",
     "[plugins.home_presence]",
     "[focus]",

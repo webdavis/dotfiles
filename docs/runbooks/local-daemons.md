@@ -163,9 +163,9 @@ left signing with a key the gateway no longer holds:
 
 | Route           | Sender and the key it reads                                                                                                                                                                                                              |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pns-events`    | `[plugins.hermes.keys] pns-events` in `dot_config/pns/config-values.toml`                                                                                                                                                                |
+| `pns-events`    | `[plugins.log.keys] pns-events` in `dot_config/pns/config-values.toml`                                                                                                                                                                   |
 | `posture-pages` | `[notify.hermes.keys] posture-pages` in `dot_config/posture/private_config.toml.tmpl`, and the same route in pns's own table                                                                                                             |
-| `priority`      | `[plugins.hermes.keys] priority`, and `[notify.hermes.keys] priority` on posture's own side                                                                                                                                              |
+| `priority`      | `[plugins.log.keys] priority`, and `[notify.hermes.keys] priority` on posture's own side                                                                                                                                                 |
 | `uu-runs`       | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                                                                                                                                                                              |
 | `general`       | no sender in this repository; an ad-hoc signed POST                                                                                                                                                                                      |
 | `explain`       | posture only, `[notify.hermes.keys] explain` in `dot_config/posture/private_config.toml.tmpl`, and only for the copy of a delivered critical page (`notify.hermes.critical_copy_route`, `posture/crates/posture-adapters/src/hermes.rs`) |
@@ -288,21 +288,21 @@ value.
 
 ## The pns Discord bot (project channels)
 
-The bot is pns's OWN durable destination, `[plugins.discord]`, the alternative to the hermes gateway
-above and never a companion to it: both declare the same routing, so a config enabling both is refused at
-load naming both tables, because two durable logs post every event twice. It holds no gateway intent and
-opens no websocket. It is an HTTP client that posts to `discord.com/api/v10` and reads nothing back
-except its own responses, which is why nothing restarts and nothing listens.
+The bot is pns's OWN durable destination, one of the two transports `[plugins.log] type` names, and the
+alternative to the hermes gateway above rather than a companion to it: there is ONE durable-log table, so
+two of them cannot be declared at all. It holds no gateway intent and opens no websocket. It is an HTTP
+client that posts to `discord.com/api/v10` and reads nothing back except its own responses, which is why
+nothing restarts and nothing listens.
 
-**It ships disabled.** `[plugins.hermes]` is the live durable log today, and the cutover is a two-line
-edit in one apply, `enabled = false` there and `true` here, with the rollback the same two lines the
-other way.
+**It ships unselected.** `[plugins.log] type = "hermes"` is the live durable log today while the bot's
+own token and channel map sit in the same table ready, so the cutover is that one line changed to
+`"discord"` in one apply, and the rollback is the same line back.
 
 **The bot's own three vault entries**, created once and never per project:
 
 | Entry                                          | What reads it                                                       |
 | ---------------------------------------------- | ------------------------------------------------------------------- |
-| `Discord (Uriel) :: Bot Token (pns)`           | `[plugins.discord] token`, in the `Authorization` header            |
+| `Discord (Uriel) :: Bot Token (pns)`           | `[plugins.log] token`, in the `Authorization` header                |
 | `Discord (Uriel) :: Application/User ID (pns)` | guild-scoped command registration, when slash commands are built    |
 | `Discord (Uriel) :: Public Key (pns)`          | Ed25519 verification of interactions, when slash commands are built |
 
@@ -312,13 +312,12 @@ token is read today.
 
 ### Where a message lands
 
-ONE MAP, `[plugins.discord.channels]` in `dot_config/pns/config-values.toml`, shared by every producer:
-the GitHub source and an agent session about the same repository resolve the same channel, because the
-lookup tries the event's route, then `owner/name`, then the bare project name, then `pns-events` when
-there is no project at all, then `default`. That is why the GitHub source design's own
-`[plugins.github.channels]` map is cancelled rather than built: one repository, one channel, whichever
-producer named it. A config that still holds `[plugins.github]` is refused out loud, naming `github` as a
-plugin nothing registered.
+ONE MAP, `[plugins.log.channels]` in `dot_config/pns/config-values.toml`, shared by every producer: the
+GitHub source and an agent session about the same repository resolve the same channel, because the lookup
+tries the event's route, then `owner/name`, then the bare project name, then `pns-events` when there is
+no project at all, then `default`. That is why the GitHub source design's own `[plugins.github.channels]`
+map is cancelled rather than built: one repository, one channel, whichever producer named it. A config
+that still holds `[plugins.github]` is refused out loud, naming `github` as a plugin nothing registered.
 
 Two of those keys are the fallbacks and are never per project. `default` is `#github-notifications`, the
 catch-all for a repository nobody mapped; `pns-events` is where an event with no repository at all lands,
@@ -334,8 +333,8 @@ Three edits, in this order, and none of them writes an id into this repository:
    CI, pull requests, GitHub notifications and agent session threads.
 1. Create `Discord (Uriel) :: Channel ID (#<project>-dev)` in KeePassXC, holding the channel id in its
    Password field.
-1. Add one line to `[plugins.discord.channels]` keyed on the repository's bare name, naming that entry
-   and field, exactly as every line already there does. A repository whose bare name will collide after a
+1. Add one line to `[plugins.log.channels]` keyed on the repository's bare name, naming that entry and
+   field, exactly as every line already there does. A repository whose bare name will collide after a
    `git subtree split` takes a second line keyed `owner/name`, which the lookup tries first.
 
 A channel id is a secret like every other id in that file, so the map holds ENTRY NAMES and never a
@@ -345,8 +344,8 @@ private guild's layout. Then apply with KeePassXC unlocked. Nothing restarts.
 ### What a failure says
 
 Every line names the status and the config key to fix, never the token and never a channel id. A missing
-or empty token posts nothing and says `[plugins.discord] token`; a map that answered nothing says
-`[plugins.discord.channels] default`, because every lookup ends at the catch-all. A 401, a 403 or a 404
+or empty token posts nothing and says `[plugins.log] token`; a map that answered nothing says
+`[plugins.log.channels] default`, because every lookup ends at the catch-all. A 401, a 403 or a 404
 dead-letters on its first attempt and shows up in `pns failures`; a 429 or any 5xx is retried on the
 ledger's own linear backoff, and the `Retry-After` header is logged rather than obeyed so a second
 schedule cannot disagree with the ledger about when a leg is due.

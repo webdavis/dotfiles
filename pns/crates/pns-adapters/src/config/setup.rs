@@ -29,9 +29,11 @@ fn values(answers: &Answers) -> toml::Table {
                 .to_string(),
             toml::Value::String(answers.hermes_key.clone()),
         );
-        let mut hermes = toml::Table::new();
-        hermes.insert("keys".to_string(), toml::Value::Table(keys));
-        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        // UNDER THE DURABLE LOG'S OWN HEADING. The wizard asks only about
+        // hermes; `type` is the layout's own default, written by the render.
+        let mut log = toml::Table::new();
+        log.insert("keys".to_string(), toml::Value::Table(keys));
+        plugins.insert("log".to_string(), toml::Value::Table(log));
     }
     if hue_is_armed(answers) {
         let mut hue = toml::Table::new();

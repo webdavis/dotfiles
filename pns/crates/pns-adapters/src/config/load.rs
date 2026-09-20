@@ -89,7 +89,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                     for (key, value) in &settings {
                         admits_flat(&table, key)?;
                         // AND ONE LEVEL DOWN, because a plugin's settings may
-                        // hold a table of their own (`[plugins.hermes.keys]`,
+                        // hold a table of their own (`[plugins.log.keys]`,
                         // whose vocabulary is the route names). A near miss
                         // there is a route whose key never signs anything,
                         // which is the same silent hole the walk above closes
@@ -124,7 +124,10 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     }
     refusals::refuse_a_moved_plugin_table(&config)?;
     refusals::refuse_a_plugin_type_nothing_answers(&config)?;
-    refusals::refuse_two_durable_logs(&config)?;
+    // AFTER THE MOVED-HEADING REFUSAL, so a file still holding the old
+    // durable-log headings is told which heading to write rather than being
+    // asked for a `type` under one it does not have yet.
+    plugins::name_the_log_for_its_transport(&mut config)?;
     refusals::refuse_a_map_without_a_catch_all(&config)?;
     refusals::refuse_a_map_without_the_urgent_channel(&config)?;
     backstop_outlasts_the_reminder(&config)?;

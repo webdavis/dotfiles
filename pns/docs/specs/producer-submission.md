@@ -194,7 +194,7 @@ Given a producer invocation carrying `--channel <route>`
 
 When `dispatch_legs` constructs the hermes channel
 
-Then the endpoint is `[plugins.hermes] url`, else `PNS_HERMES_URL`, if either is set and non-empty, else the default route's
+Then the endpoint is `[plugins.log] url`, else `PNS_HERMES_URL`, if either is set and non-empty, else the default route's
 final path segment replaced by `<route>`, else the default route, and an unusable route name is
 complained about and replaced by the default.
 
@@ -708,7 +708,7 @@ a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `p
   stdout is EXACTLY `""` for an absent channel on a synchronous leg. The printed sentences are pinned
   verbatim by
   `tests/dispatch.rs:every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`:
-  `pns: post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent\n`,
+  `pns: post SKIPPED -- no hermes key for the <route> route ([plugins.log.keys] <route>); nothing was sent\n`,
   `pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)\n`, and
   `pns: post FAILED (curl reported no HTTP status at all)\n`. The two that need a listener are pinned by
   `tests/native.rs:sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent`

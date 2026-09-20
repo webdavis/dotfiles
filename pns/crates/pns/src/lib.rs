@@ -30,8 +30,8 @@ pub(crate) use std::collections::BTreeMap;
 pub(crate) use std::path::Path;
 pub(crate) use std::time::Duration;
 
+pub(crate) use pns_adapters::DiscordSettings;
 pub(crate) use pns_adapters::select_plugins;
-pub(crate) use pns_adapters::{BOT_TYPE, DiscordSettings, discord_backend};
 pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge, quiet_window};
 
 /// The hue settings with the pin's own refusal said out loud, the one way

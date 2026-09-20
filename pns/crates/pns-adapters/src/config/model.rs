@@ -73,7 +73,7 @@ pub struct Config {
     /// NOT AN OPTION and not a list: both names are defaulted, so a file with
     /// no table and a file writing the defaults are the same statement, and
     /// every OTHER route this machine posts to is named by the producer that
-    /// raised the event and granted a key in `[plugins.hermes.keys]`.
+    /// raised the event and granted a key in `[plugins.log.keys]`.
     pub routes: pns_domain::routes::Routes,
     pub retry_limits: pns_domain::retry::RetryLimits,
     pub retry_backoff: pns_domain::retry::RetryBackoff,

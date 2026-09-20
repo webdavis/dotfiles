@@ -6,7 +6,7 @@
 //! tools that learn about each other when somebody configures them together
 //! and never before, so a route name compiled in here would be one
 //! deployment's gateway baked into a product other people install. Which
-//! routes exist is the set of signing keys `[plugins.hermes.keys]` grants: a
+//! routes exist is the set of signing keys `[plugins.log.keys]` grants: a
 //! route the operator granted a key to is a route they granted, and a route
 //! with no key is refused rather than signed with somebody else's. The two
 //! routes pns SELECTS for itself are named in `[routes]`.

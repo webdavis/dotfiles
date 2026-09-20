@@ -1,12 +1,11 @@
 //! The discord channel, native: the durable Discord log, one HTTPS POST
 //! straight to a channel with no gateway in between.
 //!
-//! THE ALTERNATIVE TO hermes, NEVER A COMPANION. Both declare the same
-//! routing, and enabling both is refused at config load, naming both tables,
-//! because two durable channels post every event twice while the recap follows
-//! whichever registered first.
+//! THE ALTERNATIVE TO hermes, NEVER A COMPANION: `[plugins.log] type` names
+//! one transport, so two durable logs are unrepresentable rather than
+//! refused.
 //!
-//! THE TOKEN'S PATH IS THE POINT. It is read from `[plugins.discord]`, placed
+//! THE TOKEN'S PATH IS THE POINT. It is read from `[plugins.log]`, placed
 //! in the `Authorization` header of a type deriving no `Debug`, and never
 //! reaches argv, a child's environment, or any line this module prints: a
 //! failure names the STATUS and the config key, never the credential.
@@ -112,10 +111,10 @@ fn fitted(lines: Vec<String>) -> String {
 /// The native discord plugin.
 pub struct DiscordChannel<P: DiscordPost> {
     pub post: P,
-    /// The bot token, read from `[plugins.discord]` at the composition root.
+    /// The bot token, read from `[plugins.log]` at the composition root.
     /// None is the not-set-up case, which posts nothing and says so.
     pub token: Option<String>,
-    /// `[plugins.discord.channels]` whole, because the channel is decided per
+    /// `[plugins.log.channels]` whole, because the channel is decided per
     /// EVENT rather than per process: one map, one lookup, and no branch here.
     pub channels: ChannelMap,
     /// The route this leg was submitted on, taken at construction the way
@@ -265,21 +264,11 @@ fn outcome_line(outcome: DeliveryOutcome) -> String {
 /// rather than a project nobody mapped.
 fn skipped_line(no_token: bool) -> String {
     let key = if no_token {
-        "[plugins.discord] token"
+        "[plugins.log] token"
     } else {
-        "[plugins.discord.channels] default"
+        "[plugins.log.channels] default"
     };
     format!("discord post SKIPPED, no {key} in the config; nothing was sent")
-}
-
-/// The line for a discord leg refused before the seam: the table names a
-/// transport nothing compiled in answers.
-///
-/// THE SAME SHAPE AS `skipped_line` ABOVE IT, because the two are the same news
-/// in the operator's terms: the leg was selected, nothing was sent, and here is
-/// the config to fix. What differs is only which key is wrong.
-pub fn refused_discord_line(reason: &str) -> String {
-    format!("discord post SKIPPED, {reason}; nothing was sent")
 }
 
 #[cfg(test)]

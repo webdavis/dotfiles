@@ -74,7 +74,10 @@ fn a_room_sensor_the_config_never_switched_on_is_still_a_skip() {
     // NOT SELECTED IS ASKED FIRST, or a plugin nobody enabled would print
     // a reading and read as switched on.
     assert_eq!(
-        kind_for("[plugins.hermes]\nenabled = true\n", "presence"),
+        kind_for(
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
+            "presence"
+        ),
         CheckKind::Skipped(NOT_ENABLED)
     );
 }

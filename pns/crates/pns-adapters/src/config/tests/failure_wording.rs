@@ -78,10 +78,10 @@ fn the_no_key_refusal_quotes_a_key_the_schema_declares() {
 /// is rejected, rather than the parse quietly returning true for everything.
 #[test]
 fn a_quoted_key_the_schema_does_not_declare_is_rejected() {
-    assert!(!declared("[plugins.hermes] key"));
-    assert!(!declared("[plugins.hermes.nested] pns"));
-    assert!(!declared("[plugins.hermes.keys]pns"));
-    assert!(!declared("plugins.hermes.keys pns"));
+    assert!(!declared("[plugins.log] key"));
+    assert!(!declared("[plugins.log.nested] pns"));
+    assert!(!declared("[plugins.log.keys]pns"));
+    assert!(!declared("plugins.log.keys pns"));
     assert!(
         !declared("[plugins.mobile] tokens"),
         "a closed table still refuses a key it does not serve"
