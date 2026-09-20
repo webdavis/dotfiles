@@ -57,11 +57,11 @@ mod tests {
         let state = scratch("presence-register");
         let presence = pns_adapters::Presence {
             rooms: vec!["3F - Studio".to_string()],
-            exclude: Vec::new(),
+            excluded_rooms: Vec::new(),
             desk_room: None,
-            desk_stale_after_secs: 120,
-            poll_secs: 7,
-            stale_after_secs: 21,
+            desk_input_max_age_secs: 120,
+            poll_interval_secs: 7,
+            reading_max_age_secs: 21,
         };
 
         ensure_presence_poll(&state, Some(&presence), 1000);
@@ -96,11 +96,11 @@ mod tests {
         let state = scratch("presence-cancel");
         let presence = pns_adapters::Presence {
             rooms: vec!["3F - Studio".to_string()],
-            exclude: Vec::new(),
+            excluded_rooms: Vec::new(),
             desk_room: None,
-            desk_stale_after_secs: 120,
-            poll_secs: 5,
-            stale_after_secs: 15,
+            desk_input_max_age_secs: 120,
+            poll_interval_secs: 5,
+            reading_max_age_secs: 15,
         };
         ensure_presence_poll(&state, Some(&presence), 1000);
         let record = pns_adapters::job_spool::spool_dir(&state).join("presence");
@@ -119,11 +119,11 @@ mod tests {
         let state = scratch("presence-lease");
         let presence = pns_adapters::Presence {
             rooms: vec!["3F - Studio".to_string()],
-            exclude: Vec::new(),
+            excluded_rooms: Vec::new(),
             desk_room: None,
-            desk_stale_after_secs: 120,
-            poll_secs: 5,
-            stale_after_secs: 15,
+            desk_input_max_age_secs: 120,
+            poll_interval_secs: 5,
+            reading_max_age_secs: 15,
         };
         ensure_presence_poll(&state, Some(&presence), 1000);
         // As the daemon leaves it after firing once: due again five seconds on.

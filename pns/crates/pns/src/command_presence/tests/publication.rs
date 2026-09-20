@@ -134,9 +134,9 @@ mod tests {
             pns_domain::classify(
                 pns_adapters::parse_presence_line(&published),
                 Some(1_788_456_400),
-                settings.stale_after_secs,
+                settings.reading_max_age_secs,
                 &settings.rooms,
-                &settings.exclude,
+                &settings.excluded_rooms,
             ),
             pns_domain::PresenceStatus::Room {
                 room: "3F - Studio".to_string(),

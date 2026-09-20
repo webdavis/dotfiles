@@ -477,7 +477,7 @@ Then one marker file per waiting session is published, and a later event from th
   `src/main.rs:hook_mode`: `prompt`, because the operator typing answers any live wait their session
   could be holding, and `resolved`, guarded on `!payload.in_subagent` because a batch carrying an
   `agent_id` key resolved a subagent's tool and not the parent's own wait. Beside the marker, `run_event`
-  also writes the decision ring line and the news record that arms the `unread` lamp
+  also writes the decision ring line and the news record that arms the `unseen` lamp
   (`src/main.rs:record_news`). The decision ring line for a forwarded approval carries `claude/blocked`,
   `skip_phone=yes` and `mode=default agent=agent_01 tool=Bash`, pinned by
   `tests/hooks.rs:an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed` and

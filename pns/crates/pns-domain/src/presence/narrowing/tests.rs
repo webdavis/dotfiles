@@ -13,7 +13,7 @@ fn routed(name: &str, room: &str) -> Routed {
             room: Some(room.to_string()),
             zones: Vec::new(),
         },
-        shows: vec![Behaviour::Done],
+        behaviours: vec![Behaviour::Done],
         dim: None,
     }
 }

@@ -88,7 +88,7 @@ pub(crate) fn write_presence_reading<B: pns_adapters::Bridge>(
     pns_application::poll_presence(
         &pns_adapters::BridgePresencePoll { bridge, state },
         &presence.rooms,
-        &presence.exclude,
+        &presence.excluded_rooms,
         now,
     )
 }
@@ -130,7 +130,7 @@ mod daemon_tests;
 fn ensure_presence_poll(state: &Path, presence: Option<&pns_adapters::Presence>, now: u64) {
     pns_application::ensure_presence_poll(
         &pns_adapters::FileJobSpool::new(state.to_path_buf()),
-        presence.map(|presence| presence.poll_secs),
+        presence.map(|presence| presence.poll_interval_secs),
         now,
     );
 }

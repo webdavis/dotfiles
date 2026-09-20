@@ -35,7 +35,7 @@ fn every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them
             "[lights.loop]\nlease_timeout_secs = 86401\n",
             "lease_timeout_secs",
         ),
-        ("[lights.unread]\nafter_secs = 86401\n", "after_secs"),
+        ("[lights.unseen]\nafter_secs = 86401\n", "after_secs"),
     ] {
         let said = refusal(written);
         assert!(
@@ -57,7 +57,7 @@ fn every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them
         // `flare_ms` can never reach the range's top end and there is no
         // honest row to write for one.
         "[lights.loop]\nhigh = 99\nflare = 100\nflare_ms = 200\n",
-        "[lights.unread]\nafter_secs = 0\n",
+        "[lights.unseen]\nafter_secs = 0\n",
         "[lights.blocked]\ngive_up_after_secs = 60\n",
         "[lights.blocked]\ngive_up_after_secs = 604800\n",
     ] {

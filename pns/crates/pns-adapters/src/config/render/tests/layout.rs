@@ -53,7 +53,7 @@ fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
     //
     // `lights` ITSELF IS THE ONE EXCEPTION, and only because `config`
     // reads it as one flat table where this layout writes seven headings:
-    // the roster's `done`, `failed`, `blocked`, `unread`, `loop` and `dim`
+    // the roster's `done`, `failed`, `blocked`, `unseen`, `loop` and `dim`
     // are each a SEPARATE `lights.<name>` entry here, not a `Key` of
     // `lights`, and `lamp`, `room` and `zone` are the hardcoded
     // declaration branch. So `lights`'s effective key set is its own
@@ -116,7 +116,7 @@ fn the_hardcoded_target_declaration_branch_writes_every_target_key() {
     // directly rather than by a table lookup.
     let mut target = toml::Table::new();
     target.insert(
-        "shows".to_string(),
+        "behaviours".to_string(),
         toml::Value::Array(vec![toml::Value::String("done".to_string())]),
     );
     target.insert(
@@ -137,13 +137,16 @@ fn the_hardcoded_target_declaration_branch_writes_every_target_key() {
     let text = render(&values).expect("a full target declaration renders");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     let studio = &config.lights.expect("lights was armed").rooms["Studio"];
-    assert_eq!(studio.shows, Some(vec![crate::config::Behaviour::Done]));
+    assert_eq!(
+        studio.behaviours,
+        Some(vec![crate::config::Behaviour::Done])
+    );
     assert_eq!(studio.dim_window.as_deref(), Some("22:00-07:00"));
     assert_eq!(studio.dim_behaviours, vec![crate::config::Behaviour::Done]);
 }
 
 #[test]
-fn the_target_declaration_key_roster_is_exactly_shows_dim_window_and_dim_behaviours() {
+fn the_target_declaration_key_roster_is_exactly_behaviours_dim_window_and_dim_behaviours() {
     // THE EXACT KEY SET, not merely "an unknown key is refused": a fourth
     // key added to `render_target`'s own hardcoded list would pass every
     // existing test without ever being asserted as belonging.
@@ -153,5 +156,5 @@ fn the_target_declaration_key_roster_is_exactly_shows_dim_window_and_dim_behavio
         .expect("TARGET_KEYS is declared in the roster");
     let mut roster_keys = roster_keys.to_vec();
     roster_keys.sort_unstable();
-    assert_eq!(roster_keys, ["dim_behaviours", "dim_window", "shows"]);
+    assert_eq!(roster_keys, ["behaviours", "dim_behaviours", "dim_window"]);
 }

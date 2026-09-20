@@ -7,8 +7,8 @@ fn an_empty_behaviour_set_leaves_a_lamp_out_rather_than_writing_to_it() {
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-             [lights.lamp.\"3F - Studio - HCL3\"]\nshows = []\n",
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+             [lights.lamp.\"3F - Studio - HCL3\"]\nbehaviours = []\n",
         ),
     );
     assert_eq!(carried(&routing, "3F - Studio - HCL3"), None);
@@ -20,10 +20,10 @@ fn a_name_the_bridge_does_not_have_is_reported_with_the_level_that_wrote_it() {
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.lamp.\"3F - Studio - HCL9\"]\nshows = [\"done\"]\n\
-             [lights.room.\"3F - Attic\"]\nshows = [\"done\"]\n\
-             [lights.room.\"3F - Cupboard\"]\nshows = [\"done\"]\n\
-             [lights.zone.Outdoors]\nshows = [\"done\"]\n",
+            "[lights.lamp.\"3F - Studio - HCL9\"]\nbehaviours = [\"done\"]\n\
+             [lights.room.\"3F - Attic\"]\nbehaviours = [\"done\"]\n\
+             [lights.room.\"3F - Cupboard\"]\nbehaviours = [\"done\"]\n\
+             [lights.zone.Outdoors]\nbehaviours = [\"done\"]\n",
         ),
     );
     assert_eq!(
@@ -62,7 +62,7 @@ fn a_case_folded_name_is_a_typo_rather_than_a_name_to_forgive() {
     // the routing depend on a rule the bridge's own listing does not follow.
     let routing = resolve(
         &stock(),
-        &lights("[lights.room.\"3f - studio\"]\nshows = [\"done\"]\n"),
+        &lights("[lights.room.\"3f - studio\"]\nbehaviours = [\"done\"]\n"),
     );
     assert_eq!(routing.unresolved.len(), 1);
     assert_eq!(routing.unresolved[0].kind, Missing::NotOnBridge);
@@ -98,8 +98,8 @@ fn a_lamp_moved_to_another_room_answers_the_room_it_is_in_now() {
     let routing = resolve(
         &held,
         &lights(
-            "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-             [lights.room.\"2F - Kitchen\"]\nshows = [\"blocked\"]\n",
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"blocked\"]\n",
         ),
     );
     assert_eq!(
@@ -128,7 +128,7 @@ fn every_listing_is_fetched_and_a_bridge_that_refused_one_resolves_nothing() {
     };
     let map = resolve_on_bridge(
         &full,
-        &lights("[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n"),
+        &lights("[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n"),
     );
     assert_eq!(map.map(|routing| routing.lamps.len()), Some(3));
     assert_eq!(
@@ -145,7 +145,7 @@ fn every_listing_is_fetched_and_a_bridge_that_refused_one_resolves_nothing() {
     assert!(
         resolve_on_bridge(
             &no_zones,
-            &lights("[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n")
+            &lights("[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n")
         )
         .is_none(),
         "one refused listing resolves NOTHING rather than everything else"

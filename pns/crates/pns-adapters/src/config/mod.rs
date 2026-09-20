@@ -20,7 +20,7 @@
 
 use crate::DEFAULT_REMOTE_DEADLINE_SECS;
 use pns_domain::lamps::config::{
-    Behaviour, Blocked, Breath, BreatheThenFlare, Github, Lights, Looping, Pulse, Target, Unread,
+    Behaviour, Blocked, Breath, BreatheThenFlare, Checks, Lights, Looping, Pulse, Target, Unseen,
 };
 use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
@@ -113,8 +113,9 @@ pub use room::{ROOM_MAX, room_fits};
 mod presence_values;
 pub use presence_values::Presence;
 use presence_values::{
-    DEFAULT_DESK_STALE_AFTER_SECS, DEFAULT_PRESENCE_POLL_SECS, DEFAULT_PRESENCE_STALE_AFTER_SECS,
-    MAX_DESK_STALE_AFTER_SECS, MAX_PRESENCE_POLL_SECS, MIN_PRESENCE_POLL_SECS, PRESENCE_TYPE,
+    DEFAULT_DESK_INPUT_MAX_AGE_SECS, DEFAULT_POLL_INTERVAL_SECS, DEFAULT_READING_MAX_AGE_SECS,
+    MIN_POLL_INTERVAL_SECS, PRESENCE_TYPE, desk_input_max_age_range, poll_interval_range,
+    reading_max_age_range,
 };
 
 mod router;

@@ -97,9 +97,9 @@ fn presence_reading(
                 .as_deref()
                 .and_then(pns_adapters::parse_presence_line),
             now,
-            settings.stale_after_secs,
+            settings.reading_max_age_secs,
             &settings.rooms,
-            &settings.exclude,
+            &settings.excluded_rooms,
         ),
         now,
     )
@@ -132,15 +132,15 @@ pub(crate) fn presence_snapshot<R: pns_application::CommandRunner>(
                 .as_deref()
                 .and_then(pns_adapters::parse_presence_line),
             now,
-            settings.stale_after_secs,
+            settings.reading_max_age_secs,
             &settings.rooms,
-            &settings.exclude,
+            &settings.excluded_rooms,
         ),
         desk_idle_secs,
         screen_locked,
         home,
         desk_room: settings.desk_room.clone(),
-        desk_stale_after_secs: settings.desk_stale_after_secs,
+        desk_stale_after_secs: settings.desk_input_max_age_secs,
         now,
     })
 }
