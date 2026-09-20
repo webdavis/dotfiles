@@ -1,0 +1,12 @@
+# The jump chords' targets: one action per entry, rendered into the plugin's
+# manifest at apply time.
+[workspaces]
+homelab = "~/workspaces/Ivy/webdavis/homelab"
+dotfiles = "~/workspaces/Ivy/webdavis/dotfiles"
+"casually-concerned" = "~/workspaces/Ivy/casually-concerned"
+Ivy = "~/workspaces/Ivy"
+"justdavis-ansible" = "~/workspaces/Ivy/karlmdavis/justdavis-ansible"
+"essential-feed-case-study" = "~/workspaces/Ivy/webdavis/essential-feed-case-study"
+netpulse = "~/workspaces/Ivy/webdavis/netpulse"
+plantpulse = "~/workspaces/Ivy/hobbies/plantpulse"
+fitness = "~/workspaces/Ivy/hobbies/fitness"
