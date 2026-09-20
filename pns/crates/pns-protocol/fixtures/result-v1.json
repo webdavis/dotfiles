@@ -5,7 +5,7 @@
   "decision_id": "d-000123",
   "interaction": { "kind": "no_opinion" },
   "destinations": [
-    { "destination": "macos-banner", "outcome": "delivered" },
+    { "destination": "banner", "outcome": "delivered" },
     { "destination": "hermes", "outcome": "failed", "note": "post FAILED HTTP 401" }
   ],
   "diagnostics": ["ignored_field:detial"]
