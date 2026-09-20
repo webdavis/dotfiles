@@ -138,7 +138,7 @@ table are the same statement (off), and every other value is refused by name.
   with no network and no subprocess in any of them".
 - Privacy: Not applicable, no secret is involved in this key.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: one key that is both switch and schedule, following `[focus] silence`, "so
+- Compatibility contract: one key whose ABSENCE is the off statement, "so
   there is no second `enabled` key that can disagree with the first"
   (`src/config.rs:Config::remind_delay_secs`). Default OFF, unlike `[daemon]` beside it, because this one
   interrupts and needs three separate operator steps before it works at all.
@@ -326,7 +326,7 @@ than the daemon's own registration cap names nothing, and the arm returns having
 
 ### 6. Nothing is armed when nothing should be, and a nudge that cannot be scheduled leaves no record
 
-Given three reasons not to arm: no `[remind]` table, `delay = "0s"`, and a producer nobody switched the
+Given three reasons not to arm: no `[remind]` table, no `delay` key, and a producer nobody switched the
 reminder on for
 
 When `pns hook blocked` runs under each
@@ -895,7 +895,7 @@ not.
 
 ### 19. The feature switched off between arming and firing drops every record
 
-Given an operator who armed a reminder and then set `delay = "0s"`, or removed the `[remind]` table, or left a
+Given an operator who armed a reminder and then removed the `delay` key or the whole `[remind]` table, or left a
 config that no longer parses
 
 When a fire runs
@@ -1045,8 +1045,9 @@ a timer.
   approval outstanding at that moment, so a fresh one can be named early and is then done. The signal is
   the tool batch RESOLVING rather than your answer, so a tool approved at once that then runs longer than
   this is reminded about anyway; if that bites, raise the number. THIRTY SECONDS IS THE FLOOR AND AN HOUR
-  THE CEILING, anything outside is refused by name; no table at all, and a delay of "0s", are the same
-  statement." (`crates/pns-adapters/src/config/render/layout/core.rs`, the `[remind]` table's `prose`).
+  THE CEILING, anything outside is refused by name, "0s" included: leaving the key out is the one way to
+  say the reminder is off." (`crates/pns-adapters/src/config/render/layout/core.rs`, the `[remind]`
+  table's `prose`).
 
 ______________________________________________________________________
 

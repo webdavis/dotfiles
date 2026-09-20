@@ -67,7 +67,7 @@ pub(crate) fn stale_settings() -> StaleSettings {
     };
     match load_config(&config_path(&home)) {
         Ok(LoadOutcome::Loaded(config)) => StaleSettings {
-            window: config.stale_escalate_after_secs,
+            window: config.stale_window_secs(),
             route: config
                 .stale_route
                 .clone()

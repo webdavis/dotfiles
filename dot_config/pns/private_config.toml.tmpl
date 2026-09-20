@@ -9,16 +9,18 @@
 # file until it is fixed: pns falls back to its built-in roster, every
 # secret in here goes unread, and the refusal on stderr names the key.
 #
-# THE BANNER AND THE PHONE CARD ARE THE CORE and are written on. Three of
-# the plugins below are OPT-INS you arm with a credential first: hue needs
-# a bridge and key, hermes needs a signed route, and the home probe needs
-# a router API key, so switching them on by default would deliver nothing
-# and report three failures. Focus, the reminder and the lamp map are
-# separate opt-ins below `[plugins]` and need no credential at all. A
-# commented-out block below is a feature nothing is set up for yet: fill
-# its values in and uncomment it. A plugin names its backend with `type`,
-# and the key is required: nothing guesses which implementation a table
-# meant.
+# EVERY SWITCH IS WRITTEN OUT AT ITS OWN DEFAULT, which for a plugin is
+# off: a table is on because a line here says so and never because the
+# table exists. The banner and the phone card are the core two, and this
+# machine arms them. Three of the plugins below are OPT-INS you arm with
+# a credential first: hue needs a bridge and key, hermes needs a signed
+# route, and the home probe needs a router API key, so arming one
+# without its credential would deliver nothing and report a failure.
+# Focus, the reminder and the lamp map are separate opt-ins below
+# `[plugins]` and need no credential at all. A commented-out block
+# below is a feature nothing is set up for yet: fill its values in and
+# uncomment it. A plugin names its backend with `type`, and the key is
+# required: nothing guesses which implementation a table meant.
 
 # The two routes pns picks for itself, by the name your gateway serves them
 # under. Every OTHER route is named by the producer that raised the event,
@@ -442,10 +444,11 @@ summarizer_deadline = "4m"
 # phone cards. A Focus name matches however you capitalised
 # it, a mode's raw modeIdentifier works too, and an empty entry is refused
 # by name. An unreadable Focus store reads as no Focus, never as silence.
-# NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no
-# table at all.
+# NAMING NO MODE SILENCES NOTHING, which is the same statement as no
+# table at all; `enabled = false` keeps the list and stops it being read.
 # [focus]
-# silence = ["Sleep"]
+# enabled = true
+# modes = ["Sleep"]
 
 # The mute, `pns mute <duration>`, and what else may switch it.
 # [quiet]
@@ -485,8 +488,8 @@ summarizer_deadline = "4m"
 # rather than your answer, so a tool approved at once that then runs
 # longer than this is reminded about anyway; if that bites, raise the
 # number. THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING, anything
-# outside is refused by name; no table at all, and a delay of "0s", are
-# the same statement.
+# outside is refused by name, "0s" included: leaving the key out is the
+# one way to say the reminder is off.
 [remind]
 delay = "5m"
 
@@ -510,9 +513,10 @@ delay = "5m"
 # screen locked for PART of the window still pages, which is the case
 # this exists for: you were here, you stepped away, and a session is
 # stuck. It needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE
-# CEILING, anything outside is refused by name, and "0s" is the feature
-# off.
+# CEILING, anything outside is refused by name, "0s" included: the window
+# is not the switch, `enabled` is.
 [stale]
+enabled = true
 escalate_after = "1h"
 # Where that page goes. Unset sends it to `[routes] urgent`, which is
 # what every other page pns raises for itself takes.

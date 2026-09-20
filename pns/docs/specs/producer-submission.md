@@ -276,7 +276,7 @@ Given a producer event
 When `run_event` starts
 
 Then `load_config(&config_path(&home))` runs once, and hue's settings table, the `[lights]` table, the
-`[plugins.phone]` verdict, the hermes key, the `[recap]` table and the `[focus] silence` list are read
+`[plugins.phone]` verdict, the hermes key, the `[recap]` table and the `[focus] modes` list are read
 off that one outcome before `select_plugins` takes ownership of it.
 
 - Success: six values (`hue_table`, `lights`, `mobile`, `hermes_key`, `recap`, `focus_silence`) come out
