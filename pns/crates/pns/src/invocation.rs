@@ -57,8 +57,10 @@ fn take_tool_wide_flags(argv: &[String]) -> (Vec<String>, bool) {
     (kept, forced_plain)
 }
 
-/// The one flag every printing command answers to.
-const NO_COLOR_FLAG: &str = "--no-color";
+/// The one flag every printing command answers to. `pub(crate)` so the strict
+/// producer parse recognizes it rather than refusing a flag pns takes: the
+/// event path is handed the original argv, colour flag included.
+pub(crate) const NO_COLOR_FLAG: &str = "--no-color";
 /// What a harness word moshi's extension spells ends in. SHAPE ONLY: whether
 /// the word itself is acceptable is `gate_mode`'s to say.
 const HARNESS_HOOK_SUFFIX: &str = "-hook";
@@ -98,9 +100,9 @@ pub(crate) fn event_mode(argv: &[String]) -> i32 {
 
 pub(crate) fn run() {
     // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
-    // panics on non-UTF-8, and a stray byte degrading into an unknown token
-    // (which the lenient parser already skips) is the honest failure mode
-    // for an always-exit-0 notification path. `first`, the producer check
+    // panics on non-UTF-8, and a stray byte degrading into an unknown token,
+    // which the producer parse then refuses by name, says more than an abort.
+    // `first`, the producer check
     // and the event parse each used to read `std::env::args_os()` on their
     // own; this is the one collection they share now.
     let argv: Vec<String> = std::env::args_os()

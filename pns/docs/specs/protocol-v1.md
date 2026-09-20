@@ -177,18 +177,17 @@ None, scope is automatic, and extensions is an empty object. Request::new suppli
 The session is a plain name and the place of the work is three top-level fields, the same names the
 flags carry. `event`,
 `occurred_at` and `interaction` are no longer fields of this envelope: a decoded value carrying any of
-them names it in DecodedRequest::ignored (S014), the same as any other unknown top-level field.
+them is refused and named (S014), the same as any other unknown top-level field.
 
 `delivery_class` uses the same validated `Name` as the other short names: 1 through 64 Unicode
 characters, without controls. A wrong type or invalid name is refused before effects, retaining the
 correlated request identifier. An absent or null delivery class is omitted when encoding, preserving the
 exact canonical bytes of unmarked version 1 requests. A present delivery class survives canonical
 encoding and the original producer request retained by the ledger; changed delivery-class metadata under
-the same identity conflicts. `kind` and `class`, the two fields it replaced, are REFUSED rather than
-ignored: a value carrying either is rejected before effects, and the refusal names the field and its
-replacement. A field this envelope never defined is still ignored and named in
-`DecodedRequest::ignored`, because a newer producer must not break an older pns; one it used to honour
-is a producer whose word would otherwise go nowhere (S014).
+the same identity conflicts. `kind` and `class`, the two fields it replaced, are refused with their
+replacement named: a value carrying either is rejected before effects. A field this envelope never
+defined is refused too, named as `` `<field>` is not a field pns takes``, because a field pns would
+drop is a producer saying something that goes nowhere (S014).
 
 `remind` is optional and says whether the approval this request reports waits for a second card:
 `true` arms it at the delay config carries, a duration string (`"5m"`) arms it at that delay instead and
@@ -229,10 +228,12 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 
 ## protocol-v1/S014: Additive fields and inert content
 
-Given a known-major envelope with bounded unknown fields, when decoded, then unknown fields are ignored;
-unknown request top-level fields are also returned by name in DecodedRequest::ignored. Parsed values
-under request.extensions and text within bounds are preserved without sanitizing or interpretation.
-Unknown fields and extensions remain subject to all shared bounds.
+Given a known-major envelope with bounded unknown fields, when decoded, then unknown fields are ignored,
+except at a request's top level, where the first one is refused as field_invalid and named in the
+refusal. DecodedRequest::ignored names the top-level fields this envelope recognizes but acts on
+nowhere; every field version 1 defines is acted on today, so it is empty on every accepted request.
+Parsed values under request.extensions and text within bounds are preserved without sanitizing or
+interpretation. Unknown fields and extensions remain subject to all shared bounds.
 
 Source: [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L18),
 [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L22),
@@ -271,8 +272,9 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 Given a version 1 result, when decoded, then status is required; absent request_id and ledger_sequence
 are None, and absent destination, diagnostic and ignored-field arrays are empty. `ledger_sequence` is the
 stringified ledger row this request committed as, and each destination names itself in `name`. The
-request's own top-level fields version 1 does not define are named in `ignored_fields`, a list of their
-own, so nothing in `diagnostics` changes the meaning of the entries beside it. The envelope carries no
+request's own top-level fields this envelope recognizes but acts on nowhere are named in
+`ignored_fields`, a list of their own, so nothing in `diagnostics` changes the meaning of the entries
+beside it. A field version 1 does not define never reaches this list: the decode refuses it (S014). The envelope carries no
 `interaction` field. Valid results round-trip through the curated public exports and the
 package-owned `result-v1.json` fixture. A missing destination note is omitted when encoded; a supplied
 note is preserved.
@@ -436,8 +438,9 @@ JSON stdout contains exactly one result line. Human delivery lines and executabl
 stderr for that invocation, including its replay tail. Legacy stdout and the flat executable stdin body
 remain unchanged. A `delivered` result exits zero, `partial` and `undelivered` exit one, and rejected
 requests and output errors exit two. Destination results carry typed verdicts without echoing private
-transport text. Unknown top-level field names are returned by name in the result's `ignored_fields` list,
-never as diagnostics. An awaited decision receives `no_opinion` because this entrypoint has no applicable
+transport text. An unknown top-level field name is refused by the decode rather than delivered,
+and the result's `ignored_fields` list, which names recognized fields acted on nowhere, carries those
+names rather than diagnostic codes. An awaited decision receives `no_opinion` because this entrypoint has no applicable
 interaction forwarder; this does not complete the separate hook and approval migration. The encrypted
 Hermes formatter and operator route configuration remain a separate deployment gate. The configured
 delivery-class policy is specified in `quiet-behavior.md`, behavior 7.

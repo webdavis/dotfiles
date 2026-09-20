@@ -152,7 +152,7 @@ fn canonical_request_overflow_is_correlated_and_refused_before_effects() {
     let sandbox = Sandbox::new("json-canonical-overflow");
     let mut value = serde_json::json!({
         "schema":"pns.request/1", "request_id":"source-123", "producer":"posture",
-        "event":"page", "state":"observation",
+        "state":"observation",
         "extensions":{"a":"x".repeat(8000),"b":"x".repeat(8000),"c":"x".repeat(8000),
             "d":"","e":"x".repeat(8000),"f":"x".repeat(8000),"g":"x".repeat(8000),
             "h":"x".repeat(8000),"i":"x".repeat(8000)}
