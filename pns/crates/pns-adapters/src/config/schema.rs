@@ -79,10 +79,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "delivery",
         &[
-            "max_attempts",
-            "max_age_secs",
+            "event_max_age",
+            "max_retries",
             "remote_deadline",
-            "retry_base_secs",
+            "retry_step",
         ],
     ),
     (DELIVERY_CLASS_KEYS, &["bypass_mute", "route"]),

@@ -137,7 +137,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("paths", "state_dir", "'~/state'"),
     ("paths", "channels_dir", "'/opt/pns/channels'"),
     (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
-    (super::TOP_LEVEL, "delivery", "{ max_attempts = 3 }"),
+    (super::TOP_LEVEL, "delivery", "{ max_retries = 3 }"),
     (
         super::TOP_LEVEL,
         "delivery_class",
@@ -145,10 +145,10 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ),
     (super::DELIVERY_CLASS_KEYS, "route", "'pages'"),
     (super::DELIVERY_CLASS_KEYS, "bypass_mute", "true"),
-    ("delivery", "max_attempts", "3"),
-    ("delivery", "max_age_secs", "7"),
+    ("delivery", "event_max_age", "'7m'"),
+    ("delivery", "max_retries", "3"),
     ("delivery", "remote_deadline", "5"),
-    ("delivery", "retry_base_secs", "7"),
+    ("delivery", "retry_step", "'7s'"),
     (super::TOP_LEVEL, "failures", "{ page_enabled = true }"),
     ("failures", "page_enabled", "true"),
     ("failures", "page_port", "8646"),
@@ -346,44 +346,72 @@ mod vocabulary;
 
 #[test]
 fn delivery_retry_settings_are_accepted_and_bad_limits_are_refused() {
-    assert!(
-        parse_config("[delivery]\nmax_attempts = 3\nmax_age_secs = 7\n").is_ok(),
-        "delivery retry limits must load"
-    );
-    let parsed = parse_config("[delivery]\nmax_attempts = 3\nmax_age_secs = 7\n").unwrap();
+    let parsed = parse_config("[delivery]\nmax_retries = 3\nevent_max_age = \"7m\"\n")
+        .expect("delivery retry limits must load");
     assert_eq!(
         (
-            parsed.retry_limits.max_attempts,
-            parsed.retry_limits.max_age_secs
+            parsed.retry_limits.max_retries,
+            parsed.retry_limits.event_max_age_secs
         ),
-        (3, 7)
+        (3, 420)
     );
     assert_eq!(
         parse_config("").unwrap().retry_limits,
         pns_domain::retry::RetryLimits {
-            max_attempts: 20,
-            max_age_secs: 604800
+            max_retries: 20,
+            event_max_age_secs: 604800
         }
     );
+    // ZERO IS CARVED OUT of both, as it is for every other duration key: no
+    // retry at all, and an event that expires the moment it has any age.
     assert_eq!(
-        parse_config("[delivery]\nmax_attempts = 0\nmax_age_secs = 0")
+        parse_config("[delivery]\nmax_retries = 0\nevent_max_age = \"0s\"")
             .unwrap()
-            .retry_limits
-            .max_attempts,
-        0
+            .retry_limits,
+        pns_domain::retry::RetryLimits {
+            max_retries: 0,
+            event_max_age_secs: 0
+        }
     );
     for value in ["-1", "1.5", "true", "\"20\""] {
-        assert!(parse_config(&format!("[delivery]\nmax_attempts = {value}\n")).is_err());
+        assert!(parse_config(&format!("[delivery]\nmax_retries = {value}\n")).is_err());
+    }
+    for value in ["-1", "1.5", "true", "20", "\"20\"", "\"1s\"", "\"31d\""] {
+        assert!(
+            parse_config(&format!("[delivery]\nevent_max_age = {value}\n")).is_err(),
+            "{value}"
+        );
     }
 }
 
 #[test]
-fn the_delivery_backoff_takes_its_one_base_and_defaults_to_a_minute() {
-    let configured = parse_config("[delivery]\nretry_base_secs = 7\n").unwrap();
-    assert_eq!(configured.retry_backoff.base_secs, 7);
-    assert_eq!(parse_config("").unwrap().retry_backoff.base_secs, 60);
-    for invalid in ["-1", "1.5", "true", "\"secret\"", "[]"] {
-        assert!(parse_config(&format!("[delivery]\nretry_base_secs = {invalid}\n")).is_err());
+fn the_delivery_backoff_takes_its_one_step_and_defaults_to_a_minute() {
+    let configured = parse_config("[delivery]\nretry_step = \"7s\"\n").unwrap();
+    assert_eq!(configured.retry_backoff.step_secs, 7);
+    assert_eq!(parse_config("").unwrap().retry_backoff.step_secs, 60);
+    for invalid in ["-1", "1.5", "true", "7", "\"secret\"", "[]", "\"2h\""] {
+        assert!(
+            parse_config(&format!("[delivery]\nretry_step = {invalid}\n")).is_err(),
+            "{invalid}"
+        );
+    }
+}
+
+/// The spellings these three keys replaced. Each is refused by name, and the
+/// listing that comes back carries the word to write instead.
+#[test]
+fn the_delivery_keys_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
+    for (retired, replacement) in [
+        ("max_attempts = 3", "max_retries"),
+        ("max_age_secs = 7", "event_max_age"),
+        ("retry_base_secs = 7", "retry_step"),
+    ] {
+        let error = refusal(&format!("[delivery]\n{retired}\n"));
+        assert!(
+            error.contains(retired.split(' ').next().unwrap()),
+            "{error}"
+        );
+        assert!(error.contains(replacement), "{error}");
     }
 }
 
