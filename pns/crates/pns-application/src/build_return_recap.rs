@@ -122,7 +122,7 @@ fn summarized(
 }
 
 mod window;
-pub use window::{RECAP_USAGE, recap_bounds, recap_wall_clock};
+pub use window::{LocalCivilTime, RECAP_USAGE, recap_bounds, recap_wall_clock};
 
 #[cfg(test)]
 mod tests;

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Everything `pns recap --since-epoch <epoch> --until-epoch <epoch>` does: how it parses its two bounds,
+Everything `pns recap --since <when> [--until <when>]` does: how it parses its two bounds,
 how it reads one window off the activity ring, how it reaches the two sources it cannot find on its own
 (merged pull requests through `gh`, review notes matching a glob), how it spends one summarizer budget
 across up to three questions, how it composes a body under two budgets at once, how it renders a local
@@ -54,12 +54,19 @@ Given `pns recap` and the words after it
 
 When `recap_bounds` reads them
 
-Then both `--since-epoch` and `--until-epoch` must be present exactly once, each followed by a plain count, with `since <= until`, or the run prints `pns: usage: pns recap --since-epoch <epoch> --until-epoch <epoch>` to stderr and exits 2
+Then each bound is written once, as a local date (`2026-09-19`), a local date-time (`2026-09-19T08:00`, seconds optional) or a duration ago (`2h`, `30m`, `3d`) after `--since`/`--until`, or as a plain count after `--since-epoch`/`--until-epoch`, with `since <= until`, or the run prints `RECAP_USAGE` to stderr and exits 2
 
-- Success: `src/main.rs:recap_bounds` walks the tokens, mapping `--since-epoch` and `--until-epoch` to
-  two slots and returning `None` for any other word. `src/main.rs:recap_mode` exits 2 on `None`.
-- Failure sources: an unknown word; a flag with no value after it; a repeated flag; a value that is not a
-  plain count; a window that runs backwards; either bound missing.
+- Success: `crates/pns-application/src/build_return_recap/window.rs:recap_bounds` walks the tokens,
+  mapping the four flags to two slots and returning `None` for any other word. A date form is handed to
+  the caller's `local_epoch`, which is the ONE place the local zone is read
+  (`crates/pns-adapters/src/macos/clock.rs:local_epoch`); a duration ago goes through the crate's one
+  duration parser and is subtracted from now, with `d` spelled as hours. `command_recap.rs:recap` exits
+  2 on `None`.
+- Defaults: an omitted `--until` is now. The epoch pair is all or nothing, since the process that spawns
+  this writes both flags.
+- Failure sources: an unknown word; a flag with no value after it; a repeated flag, including the epoch
+  and date spellings of one bound; a value that is neither a moment nor a duration; a day the calendar
+  does not have; a window that runs backwards; `--since` missing.
 - Fail direction: CLOSED and loud. "EVERY UNKNOWN WORD IS A REFUSAL, never a silent default: a recap over
   a window nobody asked for is worse than none" (`src/main.rs:recap_bounds`). Exit 2 is deliberate: "EXIT
   2 FOR A MISTYPED INVOCATION, in `quiet_mode`'s style rather than the hook path's always-zero"

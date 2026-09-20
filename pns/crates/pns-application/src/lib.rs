@@ -134,7 +134,9 @@ pub use maintain_lamps::{LampReadings, MaintainLamps};
 
 mod build_return_recap;
 mod post_return_recap;
-pub use build_return_recap::{BuildReturnRecap, RECAP_USAGE, recap_bounds, recap_wall_clock};
+pub use build_return_recap::{
+    BuildReturnRecap, LocalCivilTime, RECAP_USAGE, recap_bounds, recap_wall_clock,
+};
 pub use ports::recap::{Fetched, MergedPullRequestSource, ReviewNoteSource, Summarizer};
 pub use post_return_recap::post_return_recap;
 
