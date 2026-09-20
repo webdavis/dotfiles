@@ -1,8 +1,11 @@
 use crate::property_list::PropertyList;
-use crate::{CommandIo, CommandRunner, SystemRunner, legacy_json::command_text};
+use crate::{
+    CommandIo, CommandRunner, LibprocProcesses, ProcessLookup, SystemRunner,
+    legacy_json::command_text,
+};
 use posture_domain::{
     Control, ControlReader, ControlReading, ControlValue, LuluProfile, classify_autologin,
-    classify_filevault, classify_messages, classify_pgrep,
+    classify_filevault, classify_messages,
 };
 use std::ffi::OsStr;
 use std::path::Path;
@@ -12,14 +15,15 @@ use std::time::Duration;
 
 // The Bash monitor bounds each status invocation at 20 seconds. This is not a tick budget.
 pub(crate) const POLL_PROBE_BUDGET: Duration = Duration::from_secs(20);
-pub struct ControlProbes<R = SystemRunner> {
+pub struct ControlProbes<R = SystemRunner, P = LibprocProcesses> {
     runner: R,
+    processes: P,
     uid: u32,
     rules: PathBuf,
     preferences: PathBuf,
     login_window: PathBuf,
 }
-impl ControlProbes<SystemRunner> {
+impl ControlProbes<SystemRunner, LibprocProcesses> {
     pub fn current_user(rules: PathBuf, preferences: PathBuf, login_window: PathBuf) -> Self {
         // SAFETY: getuid has no preconditions and reads the current process identity.
         Self::new(unsafe { libc::getuid() }, rules, preferences, login_window)
@@ -27,6 +31,7 @@ impl ControlProbes<SystemRunner> {
     pub fn new(uid: u32, rules: PathBuf, preferences: PathBuf, login_window: PathBuf) -> Self {
         Self {
             runner: SystemRunner::per_command(POLL_PROBE_BUDGET),
+            processes: LibprocProcesses::default(),
             uid,
             rules,
             preferences,
@@ -34,7 +39,7 @@ impl ControlProbes<SystemRunner> {
         }
     }
 }
-impl<R: CommandRunner> ControlProbes<R> {
+impl<R: CommandRunner> ControlProbes<R, LibprocProcesses> {
     pub fn with_runner(
         runner: R,
         uid: u32,
@@ -44,12 +49,15 @@ impl<R: CommandRunner> ControlProbes<R> {
     ) -> Self {
         Self {
             runner,
+            processes: LibprocProcesses::default(),
             uid,
             rules,
             preferences,
             login_window,
         }
     }
+}
+impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
     pub fn read(&mut self, controls: &[Control]) -> (Vec<ControlReading>, LuluProfile) {
         // The shell preflights the base profile before any control reads, once per batch.
         let profile = if controls
@@ -84,18 +92,35 @@ impl<R: CommandRunner> ControlProbes<R> {
     }
     fn control(&mut self, control: &Control, profile: LuluProfile) -> ControlReading {
         use ControlReader::*;
-        use ControlReading::Indeterminate;
-        use ControlValue::{Disabled, Enabled};
         let reader = control.reader();
         if reader.requires_target() {
             return self.rule(control, profile);
         }
-        if reader == AutoLogin {
-            return classify_autologin(
+        match reader {
+            OverSight => self.process(OVERSIGHT, self.uid),
+            LuluExtension => self.process(LULU_EXTENSION, ROOT),
+            AutoLogin => classify_autologin(
                 PropertyList::read(&self.login_window).map(|list| list.declares("autoLoginUser")),
-            );
+            ),
+            _ => self.command_control(reader),
         }
-        let uid = self.uid.to_string();
+    }
+    /// A security agent's presence, taken from one in-process walk of the
+    /// process table: matches mean running, no match means stopped, and a
+    /// table that could not be walked is no reading at all.
+    fn process(&mut self, name: &str, uid: u32) -> ControlReading {
+        use ControlReading::{Indeterminate, Known};
+        use ControlValue::{Running, Stopped};
+        match self.processes.matching(name, Some(uid), None) {
+            Ok(pids) if pids.is_empty() => Known(Stopped),
+            Ok(_) => Known(Running),
+            Err(_) => Indeterminate,
+        }
+    }
+    fn command_control(&mut self, reader: ControlReader) -> ControlReading {
+        use ControlReader::*;
+        use ControlReading::Indeterminate;
+        use ControlValue::{Disabled, Enabled};
         let (program, args): (&str, Vec<&OsStr>) = match reader {
             FileVault => ("/usr/bin/fdesetup", vec![OsStr::new("status")]),
             SystemIntegrity => ("/usr/bin/csrutil", vec![OsStr::new("status")]),
@@ -103,17 +128,7 @@ impl<R: CommandRunner> ControlProbes<R> {
                 "/usr/sbin/sysadminctl",
                 ["-guestAccount", "status"].map(OsStr::new).to_vec(),
             ),
-            OverSight => (
-                "/usr/bin/pgrep",
-                ["-x", "-U", &uid, "OverSight"].map(OsStr::new).to_vec(),
-            ),
-            LuluExtension => (
-                "/usr/bin/pgrep",
-                ["-x", "-U", "0", "com.objective-see.lulu.extension"]
-                    .map(OsStr::new)
-                    .to_vec(),
-            ),
-            AutoLogin | LuluRule | LuluResolvedRule => unreachable!(),
+            OverSight | LuluExtension | AutoLogin | LuluRule | LuluResolvedRule => unreachable!(),
         };
         let Some((output, exit)) = self.output(program, &args, true) else {
             return Indeterminate;
@@ -136,10 +151,14 @@ impl<R: CommandRunner> ControlProbes<R> {
                     ("Guest account disabled.", Disabled),
                 ],
             ),
-            OverSight | LuluExtension => classify_pgrep(&output, exit),
-            AutoLogin | LuluRule | LuluResolvedRule => unreachable!(),
+            OverSight | LuluExtension | AutoLogin | LuluRule | LuluResolvedRule => unreachable!(),
         }
     }
 }
+
+const OVERSIGHT: &str = "OverSight";
+const LULU_EXTENSION: &str = "com.objective-see.lulu.extension";
+/// The LuLu system extension runs as root, never as the operator.
+const ROOT: u32 = 0;
 #[cfg(test)]
 mod tests;

@@ -2,7 +2,7 @@ use super::*;
 use crate::property_list::PropertyList;
 use posture_domain::classify_lulu_profile;
 
-impl<R: CommandRunner> ControlProbes<R> {
+impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
     pub(super) fn profile(&self) -> LuluProfile {
         classify_lulu_profile(
             PropertyList::read(&self.preferences).map(|list| list.declares("currentProfile")),
