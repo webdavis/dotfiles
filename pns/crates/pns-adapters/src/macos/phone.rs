@@ -1,4 +1,4 @@
-use super::proc_table::ProcessTable;
+use super::proc_table::{ProcessTable, plain_device_name};
 use crate::process::{PROBE_DEADLINE, bounded_call};
 use pns_application::CommandRunner;
 use std::sync::Arc;
@@ -83,9 +83,16 @@ pub(crate) fn phone_reading_within<R: CommandRunner>(
 ///
 /// The directory is a parameter so the lookup can be pointed at fixtures; in
 /// production it is always `/dev`.
+///
+/// FILTERED AGAIN HERE, at the join itself, rather than trusted from the
+/// `ProcessTable` that named them: `LibprocTable::terminal_name` already
+/// refuses anything but a plain device name, but that guard lives one layer
+/// away from where the path is actually built, and a second `ProcessTable`
+/// impl could bypass it without touching this function.
 pub fn newest_terminal_atime(tty_dir: &str, names: &[String]) -> Option<u64> {
     names
         .iter()
+        .filter_map(|name| plain_device_name(name))
         .filter_map(|name| atime_secs(&format!("{tty_dir}/{name}")))
         .max()
 }
