@@ -414,6 +414,52 @@ cases["<C-g>! stages, amends, and force-pushes in order on success"] = function(
   assert(#answer.notifications == 0, "expected no notifications on success")
 end
 
+-- The amend runs a pre-commit hook, a multi-second window in which the user
+-- can switch to a buffer in another repository. The push must still target
+-- the buffer that was current when `<C-g>!` was pressed.
+cases["<C-g>! pushes against the buffer captured before the amend, not one switched to while it ran"] = function()
+  local original_buf = vim.api.nvim_get_current_buf()
+  local other_buf = vim.api.nvim_create_buf(false, true)
+
+  local real_cmd = vim.cmd
+  local real_schedule = vim.schedule
+  local real_execute = vim.fn.FugitiveExecute
+  local real_did_change = vim.fn.FugitiveDidChange
+
+  local push_buf
+  vim.cmd = function(command)
+    if command == "Git! push --force" then
+      push_buf = vim.api.nvim_get_current_buf()
+    end
+  end
+  vim.schedule = function(fn)
+    fn()
+  end
+  vim.fn.FugitiveDidChange = function() end
+  vim.fn.FugitiveExecute = function(_, callback)
+    vim.api.nvim_set_current_buf(other_buf)
+    callback({ exit_status = 0, stderr = {} })
+  end
+
+  local ok, err = pcall(captured["<C-g>!"].rhs)
+
+  vim.cmd = real_cmd
+  vim.schedule = real_schedule
+  vim.fn.FugitiveExecute = real_execute
+  vim.fn.FugitiveDidChange = real_did_change
+  vim.api.nvim_set_current_buf(original_buf)
+  vim.api.nvim_buf_delete(other_buf, { force = true })
+
+  assert(ok, "<C-g>! raised: " .. tostring(err))
+  assert(
+    push_buf == original_buf,
+    ("push ran against buffer %s, expected the buffer active before the amend (%s)"):format(
+      tostring(push_buf),
+      tostring(original_buf)
+    )
+  )
+end
+
 cases["<C-g>! stages then warns and stops when the amend fails"] = function()
   local answer = press_amend_and_push(1, { "error: nothing to commit" })
   assert(
