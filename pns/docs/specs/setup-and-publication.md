@@ -799,7 +799,7 @@ Then it calls `pns::config::parse_config(&composed)` first, and a refusal there 
   error from a plugin table, the only judgement made is on KEY NAMES (`src/config.rs:admits_flat`,
   `src/config.rs:unknown_key`), so a plugin's VALUE, which is where every secret lives, is never
   interpolated into a refusal. Some non-plugin `Invalid` arms do quote values (the `recap` key
-  `review_notes` pattern, the numeric bounds), but the wizard writes none of those from an answer.
+  `review_notes_glob` pattern, the numeric bounds), but the wizard writes none of those from an answer.
 - Process ownership and cleanup: nothing held.
 - Compatibility contract: the check uses the same `parse_config` the engine itself loads with, not a
   second validator.

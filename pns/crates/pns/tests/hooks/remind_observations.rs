@@ -4,7 +4,7 @@ use super::*;
 fn a_nudge_is_not_a_new_event() {
     // THE CONTIGUOUS TAIL OF `run_event` BELONGS TO THE FIRST DELIVERY. Each
     // line here is a defect avoided rather than tidiness: the recap counts
-    // activity-ring lines toward `min_events`, so a nudge that rang would
+    // activity-ring lines toward `minimum_events`, so a nudge that rang would
     // inflate the operator's own recap with pns's noise; a nudge is not evidence
     // of presence, so it must not move the last-present marker; and the journal
     // is what a catch-up replays, and a "still waiting" card replayed hours

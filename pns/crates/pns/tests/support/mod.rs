@@ -35,7 +35,7 @@ pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
 pub const STUB_CHANNELS: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
                                  [plugins.hermes]\nenabled = true\n\
                                  [plugins.banner]\nenabled = true\n\
-                                 [failures]\nserve = false\n";
+                                 [failures]\npage_enabled = false\n";
 
 pub fn write_script(path: &Path, body: &str) {
     std::fs::write(path, format!("#!/usr/bin/env bash\n{body}\n")).expect("write script");

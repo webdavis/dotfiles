@@ -121,7 +121,7 @@ pub(super) const RACERS: usize = 8;
 /// `the_marker_advances_when_the_recap_fires_so_a_second_event_recaps_nothing`
 /// pins; here the recap is simply not what is being measured.
 pub(super) fn recap_switched_off() -> String {
-    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\ndigest = false\n")
+    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\npost_window_recap = false\n")
 }
 
 /// MORE RACERS THAN THE JOURNAL TEST USES: they all take the SAME adoption

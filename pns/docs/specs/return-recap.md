@@ -43,7 +43,7 @@ gate is consulted.
 
 | Spawn          | Gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Owner and bounds                                                                                                                                                                                                                                                     | On deadline                                                                                                                                                                                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gh`           | `(!recap.repos.is_empty()).then(...)` in `src/main.rs:recap_mode`. This is THE FIRST SPAWN GATED BY A CONFIGURATION KEY: with no `[recap] repos` key, `fetched_merges` is `None`, `merged_pull_requests` is never called, and no `gh` process exists at all. `Found::Unconfigured` renders "NEW BEHAVIOR: not configured (no merged pull request source)." Pinned by `tests/dispatch.rs:no_repos_key_means_no_gh_process_is_ever_started`, whose tripwire records ANY run | `system::run_bounded` owns it: `Stdio::null()` stdin, piped stdout, null stderr, a detached reader thread capped at `max_bytes + 1`, `recv_timeout(deadline)`, then `wait_until` polling to the same expiry (`src/system.rs:run_bounded`). 30 seconds, 524,288 bytes | `child.kill()` then `child.wait()`, and `None` is returned. The reader thread is never joined; the kill closes the pipe under it. The kill reaches the child PID only, not a process group (`src/system.rs:run_bounded`)                                                                |
+| `gh`           | `(!recap.repositories.is_empty()).then(...)` in `src/main.rs:recap_mode`. This is THE FIRST SPAWN GATED BY A CONFIGURATION KEY: with no `[recap] repositories` key, `fetched_merges` is `None`, `merged_pull_requests` is never called, and no `gh` process exists at all. `Found::Unconfigured` renders "NEW BEHAVIOR: not configured (no merged pull request source)." Pinned by `tests/dispatch.rs:no_repos_key_means_no_gh_process_is_ever_started`, whose tripwire records ANY run | `system::run_bounded` owns it: `Stdio::null()` stdin, piped stdout, null stderr, a detached reader thread capped at `max_bytes + 1`, `recv_timeout(deadline)`, then `wait_until` polling to the same expiry (`src/system.rs:run_bounded`). 30 seconds, 524,288 bytes | `child.kill()` then `child.wait()`, and `None` is returned. The reader thread is never joined; the kill closes the pipe under it. The kill reaches the child PID only, not a process group (`src/system.rs:run_bounded`)                                                                |
 | The summarizer | `recap.summarizer.as_deref()`, plus `.filter(\|_\| !entries.is_empty())` for the night's question and `read_sources(...)` for each external question, so an empty window and an empty source both start nothing (`src/main.rs:recap_mode`, `src/main.rs:summarized`). The argv is a list of WORDS handed straight to `Command`, never through a shell (`src/main.rs:summarize`)                                                                                           | The same `run_bounded`, with the prompt written on stdin INSIDE the deadline window. The deadline is `left_of(episode)`, what is left of ONE episode budget shared by all three questions (`src/main.rs:left_of`). Byte cap `MAX_ANSWER_BYTES + 1` = 16,385          | Same kill-and-wait. `left_of` reaching zero means `summarize` returns `None` before spawning at all: "AN EPISODE WHOSE DEADLINE IS GONE STARTS NO PROCESS AT ALL" (`src/main.rs:summarize`). Every failure becomes the same one sentence in the body (`src/recap.rs:SUMMARIZER_SILENT`) |
 
 ## Behaviors
@@ -145,8 +145,8 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
   never named" (`src/main.rs:recap_mode`). The route needs no fail-closed arm of its own: a recap has one
   route and it is the default one.
 - Thresholds: `Recap::default()` is written out rather than derived (`src/config.rs:Recap`):
-  `replay_card: true`, `digest: true`, `min_events: 8`, `summarizer: None`,
-  `summarizer_deadline: 4m`, `repos: []`, `review_notes: None`. `summarizer_deadline` is refused above
+  `replay_card: true`, `post_window_recap: true`, `minimum_events: 8`, `summarizer: None`,
+  `summarizer_deadline: 4m`, `repositories: []`, `review_notes_glob: None`. `summarizer_deadline` is refused above
   `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: `"3600s"` is accepted, `"3601s"` is refused by name
   (`config/recap.rs:summarizer_deadline_range`), and the refusal exists because a duration past the
   ceiling PANICS at `Instant::now() + deadline` inside a process whose stderr is `/dev/null`.
@@ -161,7 +161,7 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
   printed: `hermes_keys` returns it and `deliver_recap` hands it to `dispatch_legs` alone
   (`src/main.rs:deliver_recap`).
 - Process ownership and cleanup: none.
-- Compatibility contract: `repos` unset and `review_notes` unset are the WORKING settings, not degraded
+- Compatibility contract: `repositories` unset and `review_notes_glob` unset are the WORKING settings, not degraded
   ones. "UNSET MEANS THE SOURCE IS NEVER READ AT ALL: no `gh` is spawned and no directory is opened,
   which is the fence that makes both sections opt-in rather than merely empty" (`src/config.rs:Recap`).
 
@@ -242,7 +242,7 @@ Then a readable local zone yields `HH:MM` zero-padded, and anything else yields 
 
 ### 6. Merged pull requests are read once per repository, inside three bounds
 
-Given `[recap] repos = ["OWNER/REPO", ...]`
+Given `[recap] repositories = ["OWNER/REPO", ...]`
 
 When the detached child fetches
 
@@ -310,7 +310,7 @@ Then it runs `gh pr list --repo <repo> --state merged --search merged:<utc(since
 
 ### 7. Review notes are one directory, one glob, one window, and every read is bounded
 
-Given `[recap] review_notes = "<absolute or ~/ path with at most one `\*` in its file name>"`
+Given `[recap] review_notes_glob = "<absolute or ~/ path with at most one `\*` in its file name>"`
 
 When the detached child fetches
 
@@ -885,7 +885,7 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
 - Success: `src/main.rs:spawn_recap` builds the child, sets
   `.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0)`, and returns
   `child.spawn().is_ok()`. `src/main.rs:replay_missed` computes
-  `fires = recap.digest && durable_route && window.is_some() && counted.len() >= recap.min_events` and
+  `fires = recap.post_window_recap && durable_route && window.is_some() && counted.len() >= recap.minimum_events` and
   spawns BEFORE composing the card, "so the card can say truthfully whether there is a recap to point
   at".
 - Failure sources: `current_exe` failing; the spawn failing; the child dying before it posts.
@@ -894,18 +894,18 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
   (`src/main.rs:spawn_recap`). A child that dies "COSTS ONE RECAP AND NOTHING ELSE, which is why nothing
   supervises it: the activity ring is not consumed, the marker has already moved, and the card already
   carried the counts."
-- Thresholds: all four clauses of `fires` are required and none is optional. `min_events` defaults to 8
-  (`src/config.rs:DEFAULT_MIN_EVENTS`), and the live event counts itself: a window of 7 planted events
+- Thresholds: all four clauses of `fires` are required and none is optional. `minimum_events` defaults to 8
+  (`src/config.rs:DEFAULT_MINIMUM_EVENTS`), and the live event counts itself: a window of 7 planted events
   plus the live one is under the threshold and delivers the plain catch-up card, pinned by
   `tests/dispatch.rs:a_window_under_the_threshold_delivers_the_catch_up_card_unchanged` (which plants
   `MIN_EVENTS - 2`), while 12 planted plus the live one is 13 and fires, pinned by
   `tests/dispatch.rs:a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first`.
-  `min_events = 0` is refused at load, "which is not a threshold; 1 is the floor"
+  `minimum_events = 0` is refused at load, "which is not a threshold; 1 is the floor"
   (`src/config.rs:threshold`). No marker means no window at all, pinned by
   `tests/dispatch.rs:an_activity_window_with_no_marker_to_open_it_recaps_nothing_and_still_catches_up`
   and by
   `tests/dispatch.rs:a_marker_no_reader_can_parse_opens_no_window_rather_than_one_from_epoch_zero`.
-  `digest = false` posts nothing and leaves the catch-up card alone, pinned by
+  `post_window_recap = false` posts nothing and leaves the catch-up card alone, pinned by
   `tests/dispatch.rs:a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone`. No durable
   route means the card must not promise one, pinned by
   `tests/dispatch.rs:a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_carry`,
