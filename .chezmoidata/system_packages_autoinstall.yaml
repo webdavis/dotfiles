@@ -326,9 +326,9 @@ packages:
     # One roster, two consumers: run_after_53 installs a missing plugin at apply
     # and reinstalls one whose `ref` no longer matches the revision herdr
     # recorded, and uu's config template renders it into the herdr lane that
-    # refreshes the unpinned ones weekly. Every plugin this machine wants is listed here except
-    # herdr-process, which is linked rather than installed (see
-    # herdr_linked_plugin above).
+    # refreshes the unpinned ones weekly. Every plugin this machine wants is
+    # listed here except herdr-process, which is linked rather than installed
+    # (see herdr_linked_plugin above).
     #
     # The first three are ours, each in its own public repository so that they
     # install by the same convention as everybody else's. Their `ref` is the
