@@ -29,7 +29,11 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
         match key.as_str() {
             "paths" => config.paths = paths::parse_paths(value)?,
             "recap" => config.recap = parse_recap(value)?,
-            "focus" => config.focus_silence = parse_focus(value)?,
+            "focus" => {
+                let focus = parse_focus(value)?;
+                config.focus_enabled = focus.enabled;
+                config.focus_modes = focus.modes;
+            }
             "quiet" => config.quiet_calendar = parse_quiet(value)?,
             "daemon" => {
                 let daemon = parse_daemon(value)?;
@@ -50,6 +54,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             "remind" => config.remind_delay_secs = parse_remind(value)?,
             "stale" => {
                 let escalation = parse_stale(value)?;
+                config.stale_enabled = escalation.enabled;
                 config.stale_escalate_after_secs = escalation.escalate_after_secs;
                 config.stale_route = escalation.route;
             }

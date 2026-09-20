@@ -40,7 +40,7 @@ pub struct Overrides {
     pub muted: bool,
     /// A macOS Focus THE CONFIG NAMED is asserted right now, which is the
     /// operating system's own mute rather than a reading about where the
-    /// operator is. It is not "a Focus is on": `[focus] silence` lists the
+    /// operator is. It is not "a Focus is on": `[focus] modes` lists the
     /// modes that mean it, and this is already the answer to "is one of those
     /// the mode that is on".
     ///
@@ -53,7 +53,7 @@ pub struct Overrides {
 
 impl Overrides {
     /// The operator told everything to be quiet: their own typed mute, or a
-    /// macOS Focus they named in `[focus] silence`.
+    /// macOS Focus they named in `[focus] modes`.
     ///
     /// ONE CONDITION, ONE SPELLING. The arbitration below is its first reader
     /// and the lights' own gate at the composition root is its second, and two

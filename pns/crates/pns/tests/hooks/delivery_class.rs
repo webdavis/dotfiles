@@ -52,9 +52,7 @@ fn invoke(sandbox: &Sandbox, input: &str) -> std::process::Output {
 fn muted(name: &str, tables: &str) -> Sandbox {
     let sandbox = Sandbox::new(name);
     let config = std::fs::read_to_string(sandbox.path(".config/pns/config.toml")).unwrap();
-    sandbox.write_config(&format!(
-        "{config}\n[focus]\nsilence = [\"Sleep\"]\n{tables}"
-    ));
+    sandbox.write_config(&format!("{config}\n[focus]\nmodes = [\"Sleep\"]\n{tables}"));
     sandbox.write_focus_store("com.apple.sleep", "Sleep");
     let quiet = pns_adapters::SqliteStore::for_records(sandbox.state());
     quiet.set_mute_expiry(Some(i64::MAX as u64)).unwrap();

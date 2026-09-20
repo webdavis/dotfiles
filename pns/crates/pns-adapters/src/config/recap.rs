@@ -28,6 +28,12 @@ fn summarizer_deadline_range() -> RangeInclusive<Duration> {
 
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
+///
+/// NO KEY HERE DOUBLES AS ITS OWN SWITCH. `summarizer` and `repositories`
+/// are off by being UNSET, which is a state the key already has, so neither
+/// carries a magic value that means off and neither needs an `enabled` beside
+/// it; an empty value is refused by name instead, because it names a thing pns
+/// would then try and fail to use.
 pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
     let toml::Value::Table(table) = value else {
         return Err(ConfigError::Invalid("`recap` is not a table".to_string()));

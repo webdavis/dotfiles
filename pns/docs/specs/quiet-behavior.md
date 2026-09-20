@@ -4,7 +4,7 @@
 
 Every way `pns` is silenced, and exactly what each one silences. Five mechanisms are covered: the
 operator's own typed mute (`pns mute`, state file `quiet-until`), macOS Focus read through the Do Not
-Disturb store and filtered by `[focus] silence`, the quiet window (the config key is
+Disturb store and filtered by `[focus] modes`, the quiet window (the config key is
 `[plugins.lights] quiet_hours`, and the parsed value is `hue::QuietWindow`), the dim window (per lamp, room
 or zone `dim_window` plus `dim_behaviours`), and the lamps' own by-hand mute (`pns lights mute`, state
 file `lights-quiet`). Two of those names turn out to be one mechanism and the evidence is in behavior 14.
@@ -17,7 +17,7 @@ Approvals get their own behavior (9) because the exemption is structural rather 
 | Mechanism                                             | Where its state lives                                                                                                                                                                      | What it silences                                                                                                                                                            | What it does NOT silence                                                                                                                                                                        | How it expires                                                                                                               | Tests that pin it                                                                                                                                                                                                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Operator mute (`pns mute <duration>`)                | `<state>/quiet-until`, one line holding an absolute epoch second, mode `0600` (`src/main.rs:QUIET_UNTIL`, `src/main.rs:STATE_FILE_MODE`)                                                   | The banner, the phone card and the pulse for one event, plus the blocked lamp's one flash (`src/engine.rs:decide`, `src/main.rs:blocked_lamp` gate at the composition root) | The durable log leg, the moshi approval forward, the decision ring, the journal, the activity ring, the news record, the blocked marker, the tick's sustained breath, `pns lights pulse`, `pns doctor` | Half open against the run's own clock: `now < expiry` (`src/mute.rs:is_muted`). `pns mute off` unlinks the file            | `src/quiet.rs` unit tests; `tests/dispatch.rs:a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge`; `tests/dispatch.rs:the_operators_own_mute_takes_the_blocked_lamp_with_everything_else`                                                                            |
-| macOS Focus (`[focus] silence`)                       | Apple's own store at `$HOME/Library/DoNotDisturb/DB/{Assertions.json,ModeConfigurations.json}` (`src/main.rs:FOCUS_DB`); the policy list is config (`src/config.rs:Config::focus_silence`) | Exactly what the operator mute silences: the same `Overrides::silenced()` predicate (`src/engine.rs:Overrides::silenced`)                                                   | The same list as above, approvals included                                                                                                                                                      | Nothing pns owns. It ends when macOS moves the assertion record out of `storeAssertionRecords` (`src/focus.rs:active_modes`) | `tests/dispatch.rs:an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled`; `tests/hooks.rs:a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`                                                                                     |
+| macOS Focus (`[focus] modes`)                       | Apple's own store at `$HOME/Library/DoNotDisturb/DB/{Assertions.json,ModeConfigurations.json}` (`src/main.rs:FOCUS_DB`); the policy list is config (`src/config.rs:Config::focus_silence`) | Exactly what the operator mute silences: the same `Overrides::silenced()` predicate (`src/engine.rs:Overrides::silenced`)                                                   | The same list as above, approvals included                                                                                                                                                      | Nothing pns owns. It ends when macOS moves the assertion record out of `storeAssertionRecords` (`src/focus.rs:active_modes`) | `tests/dispatch.rs:an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled`; `tests/hooks.rs:a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`                                                                                     |
 | Quiet window (config key `[plugins.lights] quiet_hours`) | The config file (`src/channels/hue.rs:quiet_window`)                                                                                                                                       | On a machine with NO `[lights]` table: the whole room pulse (`src/main.rs:fire_pulse_unless_quiet`). Nothing else, ever                                                     | Cards, banners, the durable log, and every routed lamp on a machine that DOES have a `[lights]` table                                                                                           | Minute of the local day, start inclusive and end exclusive, may wrap midnight (`src/channels/hue.rs:quiet_now`)              | `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`; `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`; `src/channels/hue.rs:a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end` |
 | Dim window (`dim_window`, `dim_behaviours`)           | The config file, per lamp, room or zone, arbitrated most specific first (`src/channels/hue.rs:DimWindow`)                                                                                  | Per lamp and per behavior: a behavior inside the window either runs its dim form or is taken away entirely (`src/channels/hue.rs:dim_showing`)                              | Cards, banners, the durable log, the pulse's decision, and any lamp that states no window                                                                                                       | The same minute-of-day rule, reusing `quiet_now` over its own `QuietWindow`                                                  | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`; `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg`                                                                                     |
 | Lamps' by-hand mute (`pns lights mute <place>`)      | `<state>/lights-quiet`, one line per place as `<epoch> <place>`, at most 32 lines, mode `0600` (`src/main.rs:LIGHTS_QUIET`, `src/lights.rs:MAX_MUTED_PLACES`)                              | Every behavior on every lamp that answers to the named lamp, room or zone, on both the event flash and the tick's sustained breath (`src/channels/hue.rs:muted_now`)        | Cards, banners, the durable log, `pns mute`'s file, the pulse's plan, lamps outside the named place                                                                                            | Per entry, half open on `quiet::is_muted`; expired entries are dropped on the next write (`src/lights.rs:muted_after`)       | `tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`; `tests/dispatch.rs:a_lights_mute_expires_off_this_run_s_own_clock_and_not_off_a_fixed_epoch`                                                                                               |
@@ -249,7 +249,7 @@ complains once and reads as NOT muted
 
 Given an unmarked event whose plan called for a banner, a phone card and a pulse
 
-When either the operator mute is live or a Focus named in `[focus] silence` is asserted
+When either the operator mute is live or a Focus named in `[focus] modes` is asserted
 
 Then the delivery plan becomes `banner: false, phone_card: false, pulse: false`
 
@@ -342,7 +342,7 @@ Then the durable channel still receives it
 
 Given an agent blocked on a permission prompt, with the operator away
 
-When a `pns mute` mute is live, or a Focus named in `[focus] silence` is asserted
+When a `pns mute` mute is live, or a Focus named in `[focus] modes` is asserted
 
 Then the moshi forward still happens, byte for byte, and moshi's own exit code is still passed through
 
@@ -418,7 +418,7 @@ and the lights lease's shared input.
 
 ### 11. macOS Focus is read per mode, never as "a Focus is on"
 
-Given `[focus] silence = ["Sleep"]` and a Focus asserted in the Do Not Disturb store
+Given `[focus] modes = ["Sleep"]` and a Focus asserted in the Do Not Disturb store
 
 When the composition root takes the reading
 
@@ -436,7 +436,7 @@ Then the event is silenced only if an ASSERTED mode matches a listed name or ide
   both would pass with the catalog read deleted).
 - Failure sources: the store's read; the catalog's read (behavior 13); a schema Apple changes.
 - Fail direction: OPEN on every one. See behavior 12.
-- Thresholds: an EMPTY `[focus] silence` list silences nothing and, more than that, opens no file at all:
+- Thresholds: an EMPTY `[focus] modes` list silences nothing and, more than that, opens no file at all:
   `src/main.rs:focus_now` returns early, so the default machine pays no input or output for a feature it
   did not ask for (`src/focus.rs:an_empty_list_is_the_feature_switched_off`). Matching is case
   insensitive and folded BOTH ways, because neither direction alone is enough: "Straße" lowercases to
@@ -473,7 +473,7 @@ Then the event is silenced only if an ASSERTED mode matches a listed name or ide
 
 ### 12. An unreadable Focus store silences nothing, and the doctor is where it is said
 
-Given `[focus] silence` names a mode
+Given `[focus] modes` names a mode
 
 When the assertion store is absent, gated, not a regular file, or past the read ceiling
 
@@ -519,7 +519,7 @@ Then no notification is silenced, and `pns doctor` prints which of the states th
 
 ### 13. A mode catalog that cannot be read leaves NAME matching inert, and says so
 
-Given `[focus] silence = ["Coding"]` and a `ModeConfigurations.json` that cannot be read
+Given `[focus] modes = ["Coding"]` and a `ModeConfigurations.json` that cannot be read
 
 When the reading is taken
 
