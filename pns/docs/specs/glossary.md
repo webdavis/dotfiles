@@ -20,7 +20,7 @@ That is the type inventory. The prose terms below were then confirmed by greppin
 | ---------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | decision trace               | zero occurrences                                 | `decision ring` (the file `decisions`), and `journal` for the missed-notification file                                               |
 | quiet place                  | one occurrence, in prose only, naming no concept | `quiet window`, `quiet hours`, `dim window`                                                                                          |
-| home presence                | zero occurrences as a phrase                     | `home probe` and `router` in prose. But note the TYPE is named `HomePresence` (`src/home.rs`), so the word survives as an identifier |
+| home presence                | occurs as the config heading `[plugins.home_presence]` and the roster sensor name | `home probe` and `router` in prose. The TYPE is also named `HomePresence` (`src/home.rs`), so the word survives as an identifier and a config key |
 | held light                   | zero occurrences                                 | `held` (`src/lights.rs:Held`, `HeldEntry`), and the `unread` lamp for the state itself                                               |
 | plugin (as a universal role) | present, but as three distinct kinds             | `src/registry.rs:PluginKind` separates the kinds; a sensor is not a destination                                                      |
 
