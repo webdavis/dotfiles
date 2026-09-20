@@ -31,7 +31,10 @@ fn shell_work_below_its_lamp_threshold_renews_the_tick_without_inheriting_an_age
     assert!(!log.contains(&"interval".into()));
     assert_eq!(
         log.last(),
-        Some(&format!("schedule({},400,100)", 100 + lights.refresh_secs))
+        Some(&format!(
+            "schedule({},400,100)",
+            100 + lights.arm_interval_secs
+        ))
     );
 }
 
@@ -62,7 +65,7 @@ fn missing_tick_credentials_preserve_held_state_and_do_not_probe_the_house() {
         *world.log.borrow(),
         [
             "clock".to_string(),
-            format!("connect(Some({}))", lights.refresh_secs)
+            format!("connect(Some({}))", lights.arm_interval_secs)
         ]
     );
     assert_eq!(

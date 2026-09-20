@@ -227,7 +227,7 @@ fn success_news_waits_out_its_delay_and_failure_news_does_not() {
         None,
         "a failure the clock says has not happened yet arms no lamp"
     );
-    // AND STILL NOT WITH NO DELAY AT ALL. `after_secs` may be zero, and a
+    // AND STILL NOT WITH NO DELAY AT ALL. `arm_after_secs` may be zero, and a
     // saturated age of zero passes a zero threshold, so this edge is where
     // "no elapsed time" and "an elapsed time of zero" stop agreeing.
     assert_eq!(

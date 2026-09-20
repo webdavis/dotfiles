@@ -140,9 +140,9 @@ api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 # operator's real setting.
 [remind]
 
-# The one lamp knob that differs from its layout default (300).
+# The one lamp knob that differs from its layout default ("5m").
 [lights.loop]
-threshold_secs = 360
+arm_after = "6m"
 
 [lights.room."3F - Studio"]
 behaviours = ["done", "failed"]

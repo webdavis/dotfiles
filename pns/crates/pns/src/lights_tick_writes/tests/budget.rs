@@ -26,12 +26,14 @@ mod tests {
                 ),
             ),
         ];
-        for refresh_secs in pns_adapters::MIN_REFRESH_SECS..=pns_adapters::MAX_REFRESH_SECS {
-            let three = tick_bridge_deadline(refresh_secs).as_millis() * 3;
-            let interval = u128::from(refresh_secs) * 1000;
+        for arm_interval_secs in
+            pns_adapters::MIN_ARM_INTERVAL_SECS..=pns_adapters::MAX_ARM_INTERVAL_SECS
+        {
+            let three = tick_bridge_deadline(arm_interval_secs).as_millis() * 3;
+            let interval = u128::from(arm_interval_secs) * 1000;
             assert!(
                 three < interval,
-                "refresh {refresh_secs}s: three calls at {three}ms do not fit"
+                "interval {arm_interval_secs}s: three calls at {three}ms do not fit"
             );
             let left = u64::try_from(interval - three).expect("a budget in milliseconds");
             for (named, cycle) in &cycles {
@@ -42,7 +44,7 @@ mod tests {
                         pns_domain::lights::breath::Resume::default()
                     )
                     .is_empty(),
-                    "refresh {refresh_secs}s: the {left}ms left over will not hold one \
+                    "interval {arm_interval_secs}s: the {left}ms left over will not hold one \
                      cycle of {named}"
                 );
                 // AND RESUMED AT THE WORST A LIVE RECORD CAN LEAVE, which is the
@@ -67,7 +69,7 @@ mod tests {
                         }
                     )
                     .is_empty(),
-                    "refresh {refresh_secs}s: {named} resumed a whole {worst}ms step \
+                    "interval {arm_interval_secs}s: {named} resumed a whole {worst}ms step \
                      late has no room in the {left}ms the interval leaves"
                 );
             }

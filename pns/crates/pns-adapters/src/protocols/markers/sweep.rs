@@ -118,11 +118,11 @@ pub(super) fn sweep_markers(directory: &Path, now: u64, max_age_secs: u64) -> Ve
 /// ever looks in this directory: a session that ends without another event
 /// leaves a marker nothing else would ever remove, and one file per abandoned
 /// session for the life of a machine is unbounded growth.
-pub(super) fn sweep_blocked(state: &Path, now: u64, give_up_after_secs: u64) -> Vec<u64> {
+pub(super) fn sweep_blocked(state: &Path, now: u64, lease_expiry_secs: u64) -> Vec<u64> {
     sweep_markers(
         &crate::marker_files::blocked_dir(state),
         now,
-        give_up_after_secs,
+        lease_expiry_secs,
     )
 }
 
@@ -138,10 +138,10 @@ pub(super) fn blocked_lamp(
     lights: &pns_domain::lamps::config::Lights,
     now: u64,
 ) -> bool {
-    let give_up_after_secs = lights.blocked.give_up_after_secs;
+    let lease_expiry_secs = lights.blocked.lease_expiry_secs;
     pns_domain::lights::held::any_blocked(
-        &sweep_blocked(state, now, give_up_after_secs),
+        &sweep_blocked(state, now, lease_expiry_secs),
         now,
-        give_up_after_secs,
+        lease_expiry_secs,
     )
 }
