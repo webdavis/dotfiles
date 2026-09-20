@@ -21,8 +21,8 @@ Config {
                 "personal_access_token": String(
                     "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
                 ),
-                "poll_secs": Integer(
-                    60,
+                "poll_interval": String(
+                    "60s",
                 ),
                 "webhook_port": Integer(
                     8648,

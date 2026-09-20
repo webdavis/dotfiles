@@ -207,14 +207,14 @@ enabled = true
 # pns never reads that, and a daemon whose credentials change when
 # you re-authorize a CLI is a daemon nobody decided about.
 personal_access_token = {{ (keepassxc "GitHub (Webdavis) :: Personal Access Token (pns notifications)").Password | toToml }}
-# How often the poll runs BEFORE the first answer, bounded 60 to 3600.
+# How often the poll runs BEFORE the first answer, bounded "60s" to "1h".
 # From then on the server's own X-Poll-Interval decides, which the
 # documentation asks for by name, so this is only ever the starting
 # figure. The floor is 60 because that is what the header says today
 # and anything under it is a request to be rate-limited; the knob is
 # for polling SLOWER. Each request sends the stored Last-Modified, so
 # a quiet minute answers 304 and costs no rate limit at all.
-poll_secs = 60
+poll_interval = "60s"
 # The secret the GitHub App's webhook was created with, which is what
 # arms `pns github receive`: the push transport. Naming one here turns
 # a delivery into an immediate poll instead of waiting for the next
@@ -455,11 +455,11 @@ summarizer_deadline = "4m"
 # ARGV, NEVER A SHELL STRING. It is your own command: pns names no
 # calendar and holds no credential of one.
 # command = ["calendar-busy-window"]
-# How often it is asked, in seconds, from 30 to 1800.
-# poll_secs = 120
+# How often it is asked, bounded "30s" to "30m".
+# poll_interval = "2m"
 # How long one run may take before it is killed and the poll leaves
-# everything as it was, in seconds, from 1 to 120.
-# deadline_secs = 20
+# everything as it was, bounded "1s" to "30s".
+# deadline = "20s"
 
 # The reminder: one more card when an approval has been sitting unanswered.
 # IT IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the
