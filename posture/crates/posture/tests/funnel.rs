@@ -1,4 +1,5 @@
 mod funnel_fixture;
+mod sandbox;
 
 macro_rules! cases {
     ($($name:ident),* $(,)?) => {$(

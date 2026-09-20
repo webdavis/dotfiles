@@ -7,37 +7,11 @@
 //! `execute` threads down, so asserting on a `Vec<u8>` is the whole test.
 
 use super::*;
+use crate::test_sandbox::Sandbox;
 use std::os::unix::fs::MetadataExt;
 
 const FINDING: &str = "private-finding-identity";
 const SECRET: &str = "private-finding-secret";
-
-/// A temp tree cleared before it is made and removed when the test ends.
-///
-/// CLEARED ON THE WAY IN as well as out, because the name is keyed on the
-/// process and a run that died mid-test would otherwise hand the next one a
-/// directory it refuses to recreate.
-struct Root {
-    path: std::path::PathBuf,
-}
-
-impl Root {
-    fn new(case: &str) -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "posture-spool-diagnostic-{}-{case}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&path);
-        std::fs::create_dir_all(&path).unwrap();
-        Self { path }
-    }
-}
-
-impl Drop for Root {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
-    }
-}
 
 #[test]
 fn a_failed_spool_directory_reports_only_its_path_and_continues_detection() {
@@ -55,19 +29,20 @@ fn a_successful_spool_append_stays_silent_and_continues_detection() {
 }
 
 fn check(case: &str) {
-    let root = Root::new(case);
-    let request = root.path.join("request");
-    let calls = root.path.join("calls");
+    let sandbox = Sandbox::new(&format!("spool-diagnostic-{case}"));
+    let root = sandbox.path();
+    let request = root.join("request");
+    let calls = root.join("calls");
     let mut config =
-        Configuration::read(|name| (name == "HOME").then(|| root.path.clone().into())).unwrap();
-    config.log = root.path.join("results");
-    config.cursor = root.path.join("cursor");
-    config.spool = root.path.join("spool/digest.ndjson");
-    config.pipeline_manifest = root.path.join("pipeline-manifest");
-    config.managed_bin_manifest = root.path.join("managed-manifest");
-    config.alarm = root.path.join("unused-private-alarm");
+        Configuration::read(|name| (name == "HOME").then(|| root.to_path_buf().into())).unwrap();
+    config.log = root.join("results");
+    config.cursor = root.join("cursor");
+    config.spool = root.join("spool/digest.ndjson");
+    config.pipeline_manifest = root.join("pipeline-manifest");
+    config.managed_bin_manifest = root.join("managed-manifest");
+    config.alarm = root.join("unused-private-alarm");
     match case {
-        "parent" => std::fs::write(root.path.join("spool"), b"blocked parent").unwrap(),
+        "parent" => std::fs::write(root.join("spool"), b"blocked parent").unwrap(),
         "open" => std::fs::create_dir_all(&config.spool).unwrap(),
         "writable" => {}
         _ => panic!("unknown spool case"),
@@ -81,7 +56,7 @@ fn check(case: &str) {
     .unwrap();
     let inode = std::fs::metadata(&config.log).unwrap().ino();
     std::fs::write(&config.cursor, format!("{inode} 0\n")).unwrap();
-    let engine = root.path.join(".local/libexec/engine");
+    let engine = root.join(".local/libexec/engine");
     config.notify = crate::command_notify(&engine);
     std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
     // THE PATHS ARE BAKED IN rather than read from `$HOME`, because this stub
@@ -108,7 +83,7 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagno
     let mut diagnostics = Vec::new();
     assert_eq!(execute(config, Time, || NoInspection, &mut diagnostics), 0);
 
-    let spool = root.path.join("spool/digest.ndjson");
+    let spool = root.join("spool/digest.ndjson");
     let diagnostic = String::from_utf8(diagnostics).unwrap();
     if case == "writable" {
         assert!(diagnostic.is_empty(), "{diagnostic}");
@@ -133,9 +108,9 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagno
     let request = std::fs::read_to_string(&request).unwrap();
     assert!(request.contains("later-admin"), "{request}");
     assert!(!request.contains(FINDING), "{request}");
-    let log = std::fs::metadata(root.path.join("results")).unwrap();
+    let log = std::fs::metadata(root.join("results")).unwrap();
     assert_eq!(
-        std::fs::read_to_string(root.path.join("cursor")).unwrap(),
+        std::fs::read_to_string(root.join("cursor")).unwrap(),
         format!("{} {}\n", log.ino(), log.len())
     );
 }

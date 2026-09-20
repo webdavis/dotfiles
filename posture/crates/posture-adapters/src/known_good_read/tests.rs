@@ -7,23 +7,16 @@
 //! `recorded_as_it_stands`, which is the same code path minus that one gate.
 
 use super::*;
+use crate::test_sandbox::Sandbox;
 use std::os::unix::fs::PermissionsExt;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-fn scratch() -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let root = std::env::temp_dir().join(format!(
-        "posture-manifest-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).unwrap();
-    root
+fn scratch() -> Sandbox {
+    Sandbox::new("manifest")
 }
 
 struct Fixture {
-    root: PathBuf,
+    /// Removes the manifest directory when the test drops the fixture.
+    root: Sandbox,
     target: PathBuf,
 }
 

@@ -75,7 +75,8 @@ fn test_seam_refusals_precede_argument_parsing_and_native_effects() {
 
 #[test]
 fn unavailable_osqueryctl_returns_before_any_staging_or_target_creation() {
-    let root = std::env::temp_dir().join(format!("converge-cli-absent-{}", std::process::id()));
+    let sandbox = crate::test_sandbox::Sandbox::new("converge-cli-absent");
+    let root = sandbox.join("absent");
     assert!(!root.exists());
     let mut configuration = config();
     configuration.desired = root.join("missing-desired");

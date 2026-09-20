@@ -4,7 +4,7 @@ use std::os::unix::ffi::OsStringExt;
 fn request(spool: &str, overrides: &[(&str, OsString)]) -> String {
     let fixture = Fixture::new(spool);
     let mut config = Configuration::read(|key| match key {
-        "HOME" => Some(fixture.home.clone().into()),
+        "HOME" => Some(fixture.home.path().to_path_buf().into()),
         "OSQUERY_DIGEST_STORE" => Some(fixture.store.clone().into()),
         _ => overrides
             .iter()
