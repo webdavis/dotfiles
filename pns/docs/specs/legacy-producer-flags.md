@@ -48,9 +48,10 @@ knows.
 | `--long-running` | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`                                                                    |
 | `--help`, `-h`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:the_help_flag_prints_the_usage_and_reaches_nothing_at_all`                                                                             |
 
-The two lists behind the table are `src/legacy/argv.rs:VALUE_FLAGS` (the nine value-taking flags) and
-`src/legacy/argv.rs:BARE_FLAGS` (`--long-running`, `--local-only`, `--remote-only`,
-`--require-delivery`). `--help` and `-h` are deliberately in NEITHER list:
+The two lists behind the table are `src/legacy/argv.rs:VALUE_FLAGS` (the value-taking flags) and
+`src/legacy/argv.rs:BARE_FLAGS` (`--remind` and `--no-remind`). `--require-delivery` was retired with the
+exit code that always reports delivery, and joins the retired spellings that are refused by name with
+exit 2 (`src/legacy/argv.rs:RETIRED_FLAGS`). `--help` and `-h` are deliberately in NEITHER list:
 `src/legacy/argv.rs:is_help_flag` answers them separately, which is what keeps
 `--agent --help` an agent literally named `--help` rather than a warn-and-drop
 (`src/args.rs:help_in_value_position_is_still_just_a_value`).

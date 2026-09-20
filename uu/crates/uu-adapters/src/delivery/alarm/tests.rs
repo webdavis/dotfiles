@@ -210,3 +210,28 @@ fn a_pending_record_passes_its_count_through_the_actual_delivery_adapter() {
     assert_eq!(body["detail"], "pending detail");
     assert!(delivery.alerter.calls.borrow().is_empty());
 }
+
+/// FAIL OPEN, ON THE ENGINE'S NEW ANSWER. pns reports delivery on every call
+/// now, so exit 1 arrives whenever one destination missed, where it once took
+/// an opt-in flag to hear at all. uu turns that into a reported alert failure
+/// and nothing else: the run it was telling somebody about stays clean.
+#[test]
+fn an_engine_exit_of_one_is_reported_rather_than_raised() {
+    assert!(
+        PnsAlerter.alert("/usr/bin/false", &[]).is_err(),
+        "a non-zero engine must be reported"
+    );
+    let delivery = EngineRunDelivery {
+        records: None,
+        engine: Some("/usr/bin/false"),
+        post: Post {
+            calls: RefCell::default(),
+            outcome: PostOutcome::Status(204),
+        },
+        alerter: PnsAlerter,
+    };
+    assert!(matches!(
+        delivery.alert(AlarmKind::Failed, "host", AlertTarget::Run, "detail"),
+        AlertOutcome::Failed(_)
+    ));
+}

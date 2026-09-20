@@ -63,7 +63,10 @@ pns: usage:
 producer flags: --producer <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --route <name> --elapsed <duration>
                 --request-id <id> --session <id> --delivery-class <name>
-                --scope <automatic|local_only|remote_only> --require-delivery
+                --scope <automatic|local_only|remote_only>
+
+exit codes:     0 every destination took the page, 1 any destination did not,
+                2 a field pns will not honour.
 
 durations:      a count and a unit, `30s`, `5m`, `2h`. A bare number is
                 refused: one reader takes it as seconds and the next as

@@ -21,7 +21,7 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
         let output = invoke_command(&sandbox, command, &request.encode().unwrap());
         assert_eq!(
             result(&output).status,
-            Status::Accepted,
+            Status::Delivered,
             "{label}: {output:?}"
         );
         assert!(
@@ -71,7 +71,7 @@ fn json_progress_and_blocked_keep_presence_driven_phone_cards() {
             let output = invoke_command(&sandbox, command, &request.encode().unwrap());
             assert_eq!(
                 result(&output).status,
-                Status::Accepted,
+                Status::Delivered,
                 "{stated:?}/{label}: {output:?}"
             );
             assert_eq!(sandbox.fired("banner"), banner, "{stated:?}/{label}");

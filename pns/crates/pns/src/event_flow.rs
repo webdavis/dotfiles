@@ -138,6 +138,9 @@ pub(crate) enum Landed {
 /// operator missed, not a page that is nowhere, and a producer that treated it
 /// as one would fail on every machine without `terminal-notifier`.
 ///
+/// SILENT IS AN ARRIVAL, the same reading the receipt takes: it is the verdict
+/// of an executable channel that ran and had nothing to say.
+///
 /// A LEDGER THAT REFUSED THE SUBMISSION IS `No`, because nothing was attempted
 /// and pns cannot say the page landed. An EXISTING record is `Yes`: the
 /// submission is a duplicate of one already answered, and answering it a second
@@ -150,7 +153,11 @@ fn landed(submitted: &Result<pns_application::Submitted, NotSubmitted>) -> Lande
         Ok(pns_application::Submitted::Existing(_)) => Landed::Yes,
         Ok(pns_application::Submitted::Attempted { outcomes, .. }) => {
             let lost = outcomes.iter().any(|(leg, delivery)| {
-                !leg.decorative && !matches!(delivery, pns_domain::Delivery::Delivered(_))
+                !leg.decorative
+                    && !matches!(
+                        delivery,
+                        pns_domain::Delivery::Delivered(_) | pns_domain::Delivery::Silent
+                    )
             });
             if lost { Landed::No } else { Landed::Yes }
         }

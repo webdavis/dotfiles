@@ -11,12 +11,15 @@ use super::{Malformed, decoded};
 /// The envelope's name and the one major this build speaks.
 const SCHEMA: &str = "pns.result/1";
 
-/// Whether the request was taken: whole, in part, or not at all.
+/// WHAT THE REQUEST WAS DELIVERED TO, not what the engine stored: every
+/// destination, some of them, none of them, or the request refused before any
+/// was tried. Whether a durable row committed is a diagnostic of its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Status {
-    Accepted,
-    Degraded,
+    Delivered,
+    Partial,
+    Undelivered,
     Rejected,
 }
 
