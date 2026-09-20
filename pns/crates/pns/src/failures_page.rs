@@ -31,6 +31,14 @@ const REBIND_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
 /// [`say_now`].
 const RESAY_AFTER: std::time::Duration = std::time::Duration::from_secs(600);
 
+/// How long `answer` waits for a request line before giving up on the client.
+///
+/// THE LOOP IS SINGLE THREADED, so a connection that never sends a line would
+/// otherwise block every reader behind it forever: a stray preconnect from a
+/// browser is enough to leave the page silently dead until the daemon that
+/// started it restarts it.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Serve until the listener dies, which for the daemon's child means until the
 /// daemon stops it.
 ///
@@ -49,11 +57,18 @@ pub(crate) fn serve(port: u16) {
 /// fixed number, and the retry loop above would turn that race into a
 /// thirty-second wait rather than a failure.
 fn serve_on(listener: TcpListener) {
+    serve_on_within(listener, REQUEST_TIMEOUT);
+}
+
+/// `serve_on`, with the request timeout named rather than the constant, so a
+/// test can shrink it and prove the loop moves on inside milliseconds rather
+/// than waiting out the production value.
+fn serve_on_within(listener: TcpListener, request_timeout: std::time::Duration) {
     let store = SqliteStore::for_records(pns_adapters::state_dir());
     // `flatten` DROPS THE FAILED ACCEPTS, which is the point: a phone that hung
     // up mid-handshake must not take the page down for the next reader.
     for stream in listener.incoming().flatten() {
-        let _ = answer(&store, stream);
+        let _ = answer(&store, stream, request_timeout);
     }
 }
 
@@ -100,7 +115,12 @@ fn say_now(said: Option<std::time::Instant>, now: std::time::Instant) -> bool {
     said.is_none_or(|said| now.duration_since(said) >= RESAY_AFTER)
 }
 
-fn answer(store: &SqliteStore, mut stream: TcpStream) -> std::io::Result<()> {
+fn answer(
+    store: &SqliteStore,
+    mut stream: TcpStream,
+    request_timeout: std::time::Duration,
+) -> std::io::Result<()> {
+    stream.set_read_timeout(Some(request_timeout))?;
     let mut line = String::new();
     BufReader::new(stream.try_clone()?).read_line(&mut line)?;
     let response = match target(&line) {
