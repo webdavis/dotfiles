@@ -81,6 +81,8 @@ mod lights_routes;
 mod lights_tick;
 #[path = "dispatch/loop_lease.rs"]
 mod loop_lease;
+#[path = "dispatch/mute_fixture.rs"]
+mod mute_fixture;
 #[path = "dispatch/mute_refusals.rs"]
 mod mute_refusals;
 #[path = "dispatch/mutes.rs"]
@@ -95,9 +97,7 @@ mod plan_rows;
 mod producer_argv;
 #[path = "dispatch/producer_events.rs"]
 mod producer_events;
-#[path = "dispatch/quiet_fixture.rs"]
-mod quiet_fixture;
-use quiet_fixture::*;
+use mute_fixture::*;
 #[path = "dispatch/quiet_window.rs"]
 mod quiet_window;
 #[path = "dispatch/recap_card.rs"]

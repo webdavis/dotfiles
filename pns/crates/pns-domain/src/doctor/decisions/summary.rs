@@ -100,7 +100,7 @@ fn outcome(fields: &Fields<'_>) -> String {
 /// in force would send them to the wrong switch.
 fn because(fields: &Fields<'_>) -> Option<String> {
     if fields.yes("muted") {
-        return Some("`pns quiet` was running".into());
+        return Some("`pns mute` was running".into());
     }
     if fields.yes("focus") {
         return Some("a Focus mode pns respects was on".into());

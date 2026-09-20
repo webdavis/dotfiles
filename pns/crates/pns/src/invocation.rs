@@ -148,8 +148,12 @@ pub(crate) fn run() {
     }
     // The operator's mute, typed and timed. Also a MODE: it writes the state
     // the event path reads, and delivers nothing itself.
+    if first == "mute" {
+        std::process::exit(mute_mode());
+    }
+    // The word the mute used to answer to.
     if first == "quiet" {
-        std::process::exit(quiet_mode());
+        std::process::exit(crate::command_mute::retired_quiet());
     }
     // One test send through every configured channel, and one line per
     // registered plugin about it. A MODE for the same reason the others are:

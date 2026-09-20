@@ -12,7 +12,7 @@ pub use pns_domain::lights::breath::{
 pub use pns_domain::lights::held::{Held, House, active_held, any_blocked, pulse_fires, shown};
 pub use pns_domain::lights::looping::{Loop, loop_running};
 pub use pns_domain::lights::mute::{
-    MAX_MUTED_PLACES, Muted, QuietCommand, bare_mute_secs, muted_after, muted_places, muted_report,
+    MAX_MUTED_PLACES, MuteCommand, Muted, bare_mute_secs, muted_after, muted_places, muted_report,
 };
 pub use pns_domain::lights::phase::{
     Action, HeldEntry, Phase, Say, blocked_marker_action, resume_from, say,

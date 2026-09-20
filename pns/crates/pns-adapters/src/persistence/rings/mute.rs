@@ -21,19 +21,19 @@ pub const QUIET_UNTIL: &str = "quiet-until";
 /// as quiet as one that was never there: unreadable permissions, a directory
 /// standing in its place and bytes that are not UTF-8 each muted nothing and
 /// announced nothing, which is the state nobody can discover.
-pub fn read_quiet_expiry() -> Option<u64> {
+pub fn read_mute_expiry() -> Option<u64> {
     let raw = match std::fs::read_to_string(state_dir().join(QUIET_UNTIL)) {
         Ok(raw) => raw,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
         Err(error) => {
             eprintln!(
                 "pns: state error (quiet-until could not be read: {error}); \
-                 nothing is muted, clear it with pns quiet off"
+                 nothing is muted, clear it with pns mute off"
             );
             return None;
         }
     };
-    pns_domain::quiet::expiry_from_state(&raw)
+    pns_domain::mute::expiry_from_state(&raw)
         .inspect_err(|complaint| eprintln!("{complaint}"))
         .ok()
 }
