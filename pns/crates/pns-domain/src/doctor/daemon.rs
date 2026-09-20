@@ -168,7 +168,7 @@ mod daemon_tests {
     /// S206: A TICK LONGER THAN THE BOUND READS A HEALTHY DAEMON AS DEAD.
     ///
     /// `HEARTBEAT_STALE_SECS` is ten of the DEFAULT tick and is fixed at
-    /// compile time, while `PNS_DAEMON_TICK_MS` is read at run time and admits
+    /// compile time, while `PNS_DAEMON_TICK_INTERVAL` is read at run time and admits
     /// far more. On any tick longer than the bound the previous beat is
     /// ALREADY STALE when the next one is written, so a daemon that is beating
     /// exactly as configured grades as not running, on every tick, forever.

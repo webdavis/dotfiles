@@ -1,5 +1,5 @@
-use crate::{env_deadline, moshi_hook_bin, run_bounded};
-use std::{process::Command, time::Duration};
+use crate::{env_duration, moshi_hook_bin, run_bounded};
+use std::{ops::RangeInclusive, process::Command, time::Duration};
 
 /// What moshi-hook says about this host's pairing, in TWO BOUNDED SPAWNS of
 /// one subcommand.
@@ -69,7 +69,7 @@ const PAIRING_READ_MAX: u64 = 2 * crate::ANSWER_MAX as u64;
 /// and "today" is exactly why the bound has to be this function's own to state
 /// and a test's own to move.
 fn moshi_json_deadline() -> Duration {
-    env_deadline("PNS_MOSHI_JSON_DEADLINE_MS").unwrap_or(MOSHI_JSON_DEADLINE)
+    env_duration("PNS_MOSHI_JSON_DEADLINE", PAIRING_DEADLINE_RANGE).unwrap_or(MOSHI_JSON_DEADLINE)
 }
 
 const MOSHI_JSON_DEADLINE: Duration = Duration::from_secs(5);
@@ -81,7 +81,15 @@ const MOSHI_JSON_DEADLINE: Duration = Duration::from_secs(5);
 /// very `unavailable (...)` sentence that explains the delay, which is the one
 /// thing this call is for.
 fn moshi_status_deadline() -> Duration {
-    env_deadline("PNS_MOSHI_STATUS_DEADLINE_MS").unwrap_or(MOSHI_STATUS_DEADLINE)
+    env_duration("PNS_MOSHI_STATUS_DEADLINE", PAIRING_DEADLINE_RANGE)
+        .unwrap_or(MOSHI_STATUS_DEADLINE)
 }
 
 const MOSHI_STATUS_DEADLINE: Duration = Duration::from_secs(8);
+
+/// What either pairing deadline may be overridden to: a millisecond at the
+/// floor, because a test proving expiry wants the shortest window the parser
+/// can type, and a minute at the ceiling, because `pns doctor` is a command
+/// the operator waits on.
+const PAIRING_DEADLINE_RANGE: RangeInclusive<Duration> =
+    Duration::from_millis(1)..=Duration::from_secs(60);

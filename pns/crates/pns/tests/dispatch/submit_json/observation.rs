@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn json_observations_banner_across_surfaces_without_phone_or_replay() {
     for (label, desk, phone, visible) in [
-        ("away", "99999", "99999", false),
-        ("desk-visible", "0", "99999", true),
-        ("mobile-visible", "90", "0", true),
-        ("desk-hidden", "0", "99999", false),
+        ("away", "99999", "24h", false),
+        ("desk-visible", "0", "24h", true),
+        ("mobile-visible", "90", "0s", true),
+        ("desk-hidden", "0", "24h", false),
     ] {
         let sandbox = Sandbox::new(&format!("observation-{label}"));
         let mut request = request();
@@ -15,7 +15,7 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
         let mut command = sandbox.pns_stateful();
         command
             .env("PNS_SCREEN_IDLE", desk)
-            .env("PNS_PHONE_INPUT_AGE", phone)
+            .env("PNS_PHONE_INPUT_MAX_AGE", phone)
             .env("PNS_FORCE_PHONE", "1");
         sandbox.stub_herdr(&mut command, visible);
         let output = invoke_command(&sandbox, command, &request.encode().unwrap());
