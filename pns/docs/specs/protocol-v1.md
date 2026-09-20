@@ -274,10 +274,10 @@ are None, and absent destination, diagnostic and ignored-field arrays are empty.
 stringified ledger row this request committed as, and each destination names itself in `name`. The
 request's own top-level fields this envelope recognizes but acts on nowhere are named in
 `ignored_fields`, a list of their own, so nothing in `diagnostics` changes the meaning of the entries
-beside it. A field version 1 does not define never reaches this list: the decode refuses it (S014). The envelope carries no
-`interaction` field. Valid results round-trip through the curated public exports and the
-package-owned `result-v1.json` fixture. A missing destination note is omitted when encoded; a supplied
-note is preserved.
+beside it. A field version 1 does not define never reaches this list: the decode refuses it (S014). The
+envelope carries no `interaction` field. Valid results round-trip through the curated public exports and
+the package-owned `result-v1.json` fixture. A missing destination note is omitted when encoded; a
+supplied note is preserved.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L68),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L59),
@@ -438,12 +438,12 @@ JSON stdout contains exactly one result line. Human delivery lines and executabl
 stderr for that invocation, including its replay tail. Legacy stdout and the flat executable stdin body
 remain unchanged. A `delivered` result exits zero, `partial` and `undelivered` exit one, and rejected
 requests and output errors exit two. Destination results carry typed verdicts without echoing private
-transport text. An unknown top-level field name is refused by the decode rather than delivered,
-and the result's `ignored_fields` list, which names recognized fields acted on nowhere, carries those
-names rather than diagnostic codes. An awaited decision receives `no_opinion` because this entrypoint has no applicable
-interaction forwarder; this does not complete the separate hook and approval migration. The encrypted
-Hermes formatter and operator route configuration remain a separate deployment gate. The configured
-delivery-class policy is specified in `quiet-behavior.md`, behavior 7.
+transport text. An unknown top-level field name is refused by the decode rather than delivered, and the
+result's `ignored_fields` list, which names recognized fields acted on nowhere, carries those names
+rather than diagnostic codes. An awaited decision receives `no_opinion` because this entrypoint has no
+applicable interaction forwarder; this does not complete the separate hook and approval migration. The
+encrypted Hermes formatter and operator route configuration remain a separate deployment gate. The
+configured delivery-class policy is specified in `quiet-behavior.md`, behavior 7.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
 attempts the planned channels without inventing an identifier or lease time. Native transports omit the
