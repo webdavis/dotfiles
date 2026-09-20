@@ -12,6 +12,11 @@
 # because it is a secret. See `pns/crates/pns-adapters/src/config/render/layout.rs`
 # (`LAYOUT`) for the schema this is walked against.
 
+# EVERY `enabled` REACHES THE RENDERED FILE at its own default, `[daemon]`
+# true and every `[plugins.*]` false, so no table's switch has to be
+# inferred. A plugin this machine actually runs therefore states the switch
+# below; that line is the whole reason its table is here.
+
 # The launchd label `pns gateway start|stop|restart|status` acts on: the same
 # one Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl and
 # run_onchange_after_70-load-pns-daemon-launchagent.sh.tmpl install the clock
@@ -51,13 +56,20 @@ route = ""
 bypass_mute = true
 
 [plugins.phone]
+enabled = true
 token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
+
+# The banner this machine raises for itself. ONE KEY, the switch: every other
+# banner setting is at its layout default here.
+[plugins.banner]
+enabled = true
 
 # The durable paper trail. ONE TABLE, so two of them cannot be declared: the
 # rendered `type` names which transport carries it, and the credentials for
 # the other one sit here ready, which makes the cutover that single line and
 # the rollback the same line back.
 [plugins.log]
+enabled = true
 token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
 
 # One key per hermes route, so a key leaked from any route cannot post to
@@ -111,6 +123,7 @@ uu = { keepassxc = "Discord (Uriel) :: Channel ID (#uu-dev)", field = "Password"
 # the value with `pns lights enroll` on the machine and save the line it
 # prints onto that entry as the attribute named here.
 [plugins.lights]
+enabled = true
 bridge = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }
 certificate = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", attribute = "certificate-pin" }
 key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }
@@ -122,15 +135,18 @@ quiet_hours = "22:00-07:00"
 # header asks for today; from the first answer onwards the header decides and
 # this key is only the figure used before it.
 [plugins.github]
+enabled = true
 token = { keepassxc = "GitHub (Webdavis) :: Personal Access Token (pns notifications)", field = "Password" }
 
 [plugins.presence]
+enabled = true
 type = "hue"
 rooms = ["3F - Studio", "2F - Kitchen", "3F - MBedroom"]
 excluded_rooms = []
 desk_room = "3F - Studio"
 
 [plugins.home_presence]
+enabled = true
 router_url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
