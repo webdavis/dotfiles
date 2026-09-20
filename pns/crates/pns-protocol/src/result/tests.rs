@@ -30,7 +30,8 @@ fn golden_result() -> ResultEnvelope {
                 note: Some("post FAILED HTTP 401".to_string()),
             },
         ],
-        diagnostics: vec!["ignored_field:detial".to_string()],
+        diagnostics: vec!["ledger_committed".to_string()],
+        ignored_fields: vec!["detial".to_string()],
     }
 }
 
@@ -63,6 +64,7 @@ fn a_rejection_becomes_a_rejected_result_carrying_the_recovered_id_and_the_code(
     assert_eq!(result.diagnostics, vec!["major_unsupported".to_string()]);
     assert!(result.destinations.is_empty());
     assert_eq!(result.ledger_sequence, None);
+    assert!(result.ignored_fields.is_empty());
     // Encodable even with no id, which is the malformed-bytes case.
     let anonymous = ResultEnvelope::rejected(&Rejected {
         request_id: None,
@@ -154,4 +156,29 @@ fn a_result_with_the_wrong_schema_is_refused_like_a_request() {
     let rejected = decode(br#"{"schema":"pns.result/2","request_id":"r-1"}"#).unwrap_err();
     assert_eq!(rejected.reason, Rejection::MajorUnsupported(2));
     assert_eq!(rejected.request_id, Some(id("r-1")));
+}
+
+#[test]
+fn ignored_field_names_are_their_own_list_and_are_bounded_like_the_diagnostics() {
+    let wire: Value = serde_json::from_str(&golden_result().encode().unwrap()).unwrap();
+    assert_eq!(wire["ignored_fields"], json!(["detial"]));
+    assert_eq!(wire["diagnostics"], json!(["ledger_committed"]));
+    let mut result = golden_result();
+    result.ignored_fields = (0..65).map(|index| format!("field_{index}")).collect();
+    let decoded = decode(result.encode().unwrap().as_bytes()).unwrap();
+    assert_eq!(decoded.ignored_fields.len(), 64);
+    assert_eq!(
+        result.ignored_fields.len(),
+        65,
+        "encoding must not mutate the caller"
+    );
+}
+
+#[test]
+fn a_result_with_no_ignored_field_answers_an_empty_list() {
+    let mut result = golden_result();
+    result.ignored_fields = Vec::new();
+    let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
+    assert_eq!(wire["ignored_fields"], json!([]));
+    assert_eq!(decode(wire.to_string().as_bytes()).unwrap(), result);
 }
