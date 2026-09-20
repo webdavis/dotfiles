@@ -38,7 +38,7 @@ const LIGHTS_TICK_LOCK: &str = "lights-tick.lock";
 /// interval of an unchanged lamp; stealing the lock from one that is still
 /// driving is the failure the lock exists to stop, so the bound errs long.
 fn lights_tick_stale_secs() -> u64 {
-    crate::MAX_REFRESH_SECS
-        + pns_domain::lamps::tick_bridge_deadline(crate::MAX_REFRESH_SECS).as_secs()
+    crate::MAX_ARM_INTERVAL_SECS
+        + pns_domain::lamps::tick_bridge_deadline(crate::MAX_ARM_INTERVAL_SECS).as_secs()
         + 1
 }

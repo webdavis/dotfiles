@@ -77,7 +77,7 @@ pub fn schedule_lights_tick(
     let pending = spool.pending(LIGHTS_JOB).map(|job| job.due);
     let due = pending
         .filter(|due| *due > now)
-        .unwrap_or_else(|| now.saturating_add(lights.refresh_secs));
+        .unwrap_or_else(|| now.saturating_add(lights.arm_interval_secs));
     let job = pns_domain::jobs::Job {
         id: LIGHTS_JOB.to_string(),
         due,
@@ -87,7 +87,7 @@ pub fn schedule_lights_tick(
         // anywhere. It bites for any refresh interval longer than the ordinary
         // lease, even when the selected lease is shorter than the refresh interval.
         until: due.max(now.saturating_add(lease_secs)),
-        every: Some(lights.refresh_secs),
+        every: Some(lights.arm_interval_secs),
         unless_marker: None,
         args: vec!["lights".to_string(), "tick".to_string()],
     };

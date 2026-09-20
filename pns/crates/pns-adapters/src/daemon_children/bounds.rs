@@ -1,4 +1,4 @@
-use crate::config::MAX_REFRESH_SECS;
+use crate::config::MAX_ARM_INTERVAL_SECS;
 use pns_domain::jobs::PAGE_JOB;
 use pns_domain::lamps::{LIGHTS_JOB, tick_bridge_deadline};
 use std::time::Duration;
@@ -23,7 +23,7 @@ const CHILD_TICKS: u32 = 30;
 /// wedged delivery take longer to kill.
 ///
 /// THE TICK'S OWN ARITHMETIC, STATED: the longest interval it can be given
-/// (`MAX_REFRESH_SECS`, thirty seconds), plus the longest a single write may
+/// (`MAX_ARM_INTERVAL_SECS`, thirty seconds), plus the longest a single write may
 /// take at that interval (`tick_bridge_deadline`, a fifth of it, so six), plus
 /// one reap tick, because a child is only noticed as gone on the pass after it
 /// exits. Thirty-seven seconds at the production clock.
@@ -50,8 +50,9 @@ pub(super) fn child_bound(tick: Duration, id: &str) -> Option<Duration> {
     if id != LIGHTS_JOB {
         return Some(tick * CHILD_TICKS);
     }
-    let one_lights_tick =
-        Duration::from_secs(MAX_REFRESH_SECS) + tick_bridge_deadline(MAX_REFRESH_SECS) + tick;
+    let one_lights_tick = Duration::from_secs(MAX_ARM_INTERVAL_SECS)
+        + tick_bridge_deadline(MAX_ARM_INTERVAL_SECS)
+        + tick;
     Some((tick * CHILD_TICKS).max(one_lights_tick))
 }
 

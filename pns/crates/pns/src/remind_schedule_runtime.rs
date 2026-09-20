@@ -102,7 +102,7 @@ const NO_DELAY_TO_REMIND_AT: &str = "--remind has no delay to run at; \
 set `delay` in the `[remind]` table of ~/.config/pns/config.toml, \
 or pass --remind=<duration>";
 
-/// `[lights.blocked] give_up_after_secs`, the loader's own reading, so
+/// `[lights.blocked] lease_expiry`, the loader's own reading, so
 /// `--remind=<duration>` is held to the invariant the loader already enforces
 /// for `[remind] delay`: `backstop_outlasts_the_reminder` in
 /// `pns-adapters/src/config/remind.rs`.
@@ -110,14 +110,14 @@ fn backstop_secs() -> Option<u64> {
     loaded_config()?
         .lights
         .as_ref()
-        .map(|lights| lights.blocked.give_up_after_secs)
+        .map(|lights| lights.blocked.lease_expiry_secs)
 }
 
 /// What `--remind=<duration>` naming a wait past the lamp's own backstop is
 /// told, in the loader's wording for the same contradiction.
 fn remind_outlasts_backstop(seconds: u64, give_up: u64) -> String {
     format!(
-        "--remind is {seconds}s, above `lights.blocked` key `give_up_after_secs` \
+        "--remind is {seconds}s, above `lights.blocked` key `lease_expiry` \
          ({give_up}s), so the lamp would be given up on before the nudge it \
          belongs to has ever fired"
     )
