@@ -27,7 +27,6 @@ pub(super) fn parse_targets(
             )));
         };
         let mut target = Target::default();
-        let mut states_behaviours = false;
         for (key, stated) in settings {
             admits(TARGET_KEYS, &where_it_is, key)?;
             match key.as_str() {
@@ -36,26 +35,12 @@ pub(super) fn parse_targets(
                 }
                 "dim_window" => target.dim_window = Some(text(&where_it_is, key, stated)?),
                 "dim_behaviours" => {
-                    target.dim_behaviours = behaviours(&where_it_is, key, stated)?;
-                    states_behaviours = true;
+                    target.dim_behaviours = Some(behaviours(&where_it_is, key, stated)?);
                 }
                 _ => {
                     return Err(unknown_key(TARGET_KEYS, &where_it_is, key));
                 }
             }
-        }
-        // NO DEAD KNOBS, which is the config ruling reaching the one pair of
-        // keys that can be half written. The enables RIDE the window (they are
-        // resolved as one answer), so a declaration that names which behaviours
-        // run dimmed and never says WHEN is a list nothing reads: the operator
-        // gets a lamp that strobes all night and a file that says it should
-        // not. STATED rather than non-empty, because an empty list with no
-        // window is the same dead knob and the two must not disagree.
-        if states_behaviours && target.dim_window.is_none() {
-            return Err(ConfigError::Invalid(format!(
-                "`{where_it_is}` states `dim_behaviours` with no `dim_window` for \
-                 them to run in, so nothing would ever read them"
-            )));
         }
         targets.insert(name.clone(), target);
     }

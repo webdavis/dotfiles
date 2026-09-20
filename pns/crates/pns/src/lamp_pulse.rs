@@ -1,14 +1,7 @@
 use crate::*;
 
-/// The event path's pulse, which the lights' own quiet window may mute.
-///
-/// THE GATE LIVES HERE, at the call site, and not in `fire_pulse` below:
-/// `pns lights pulse` shares that function and is deliberately exempt, because the
-/// hand-run pulse is how a bridge and key are checked and gating it would make
-/// the quiet window untestable exactly while it is on. Inside the `if` that
-/// already earned a pulse, so a refusal is printed only where a room would
-/// otherwise have lit.
-pub(crate) fn fire_pulse_unless_quiet(
+/// The event path's pulse, routed by the lamp map when the config carries one.
+pub(crate) fn fire_pulse_for_event(
     hue_table: Option<toml::Table>,
     lights: Option<&pns_domain::lamps::config::Lights>,
     flash: pns_domain::lights::flash::Flash,
@@ -23,7 +16,6 @@ pub(crate) fn fire_pulse_unless_quiet(
         &now_secs,
         local_minutes_since_midnight,
         lights,
-        || quiet_window(&settings),
         || {
             fire_pulse(Some(settings.clone()), flash.behaviour());
         },
@@ -36,7 +28,6 @@ pub(crate) fn fire_pulse_unless_quiet(
                 |line| eprintln!("{line}"),
             )
         },
-        |line| eprintln!("{line}"),
     );
 }
 /// The ROOM-BASED lights signal, from whichever mode asked for it, and how many
@@ -44,7 +35,7 @@ pub(crate) fn fire_pulse_unless_quiet(
 /// check is what it exists for, since the bridge acknowledges no write and a
 /// room that was addressed is the last observable fact on this path.
 ///
-/// `[plugins.lights] rooms` IS THE PATH WITHOUT A `[lights]` TABLE, and it is also
+/// `DEFAULT_ROOMS` IS THE PATH WITHOUT A `[lights]` TABLE, and it is also
 /// `pns lights pulse`'s path with one. That is deliberate: the hand-run pulse is the
 /// bridge-and-key check, not a feature, and keeping it room-based means it
 /// stays one write to one obvious place while the routing map grows.
@@ -58,7 +49,10 @@ pub(crate) fn fire_pulse(
     let bridge = UreqBridge::new(&hue, BRIDGE_DEADLINE);
     let signalled = HuePulse {
         bridge,
-        rooms: hue.rooms,
+        rooms: pns_adapters::DEFAULT_ROOMS
+            .iter()
+            .map(|room| (*room).to_string())
+            .collect(),
     }
     .run(behaviour);
     crate::certificate_notice::announce_mismatch();
