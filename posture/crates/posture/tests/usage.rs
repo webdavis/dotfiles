@@ -144,10 +144,28 @@ fn enrich_with_an_absent_or_empty_path_is_successful_and_silent() {
     }
 }
 
+/// Removes the fixture directory when the run ends. The epoch nanosecond in
+/// the name keeps a RECYCLED process id off an earlier run's leftovers: 685
+/// of them, from 2026-09-17, piled up in the system temporary directory
+/// before this guard existed.
+struct MetadataGuard(std::path::PathBuf);
+impl Drop for MetadataGuard {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 #[test]
 fn enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands() {
-    let directory = std::env::temp_dir().join(format!("posture-metadata-{}", std::process::id()));
+    let directory = std::env::temp_dir().join(format!(
+        "posture-metadata-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos())
+    ));
     std::fs::create_dir(&directory).expect("private fixture directory");
+    let _guard = MetadataGuard(directory.clone());
     let path = directory.join("file with spaces");
     std::fs::write(&path, b"inert non-code fixture").expect("fixture contents");
     let output = run(

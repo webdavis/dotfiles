@@ -105,8 +105,8 @@ fn quarantine_uses_the_selected_path_and_requires_nonempty_output() {
 
 #[test]
 fn only_regular_files_reach_file_and_its_mach_o_reading_selects_code() {
-    let directory = std::env::temp_dir().join(format!("posture-file-kind-{}", std::process::id()));
-    std::fs::create_dir(&directory).expect("private fixture directory");
+    let sandbox = crate::test_sandbox::Sandbox::new("file-kind");
+    let directory = sandbox.path();
     let path = directory.join("binary with spaces");
     std::fs::write(&path, b"inert fixture").expect("fixture contents");
     let mut adapter = SystemInspection::new(Scripted {
@@ -122,7 +122,7 @@ fn only_regular_files_reach_file_and_its_mach_o_reading_selects_code() {
             false
         )]
     );
-    assert!(!adapter.is_mach_o(&directory));
+    assert!(!adapter.is_mach_o(directory));
     assert_eq!(
         adapter.runner.calls.len(),
         1,
