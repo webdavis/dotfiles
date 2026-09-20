@@ -60,6 +60,26 @@ impl SqliteStore {
         self.failing(|connection| failing::one(connection, id))
     }
 
+    /// Acknowledges every dead-lettered failing leg and answers how many it
+    /// cleared, which is the only way a leg the retry policy gave up on leaves
+    /// `pns failures`.
+    ///
+    /// DEAD-LETTERED ONLY. A failing leg still inside its retry budget may yet
+    /// arrive, so clearing it would hide a delivery that is still being chased.
+    /// The rows stay and `ledger_attempts` is untouched, so what was tried is
+    /// still readable afterwards.
+    pub fn drain_deadlettered_legs(&self) -> Result<u64, LedgerFailure> {
+        self.ledger_result(self.transaction(|transaction| {
+            let drained = transaction.execute(
+                "UPDATE ledger_legs SET acknowledged = 1, owner = NULL, token = NULL,
+                 lease_until = NULL
+                 WHERE acknowledged = 0 AND deadlettered_at IS NOT NULL",
+                [],
+            )?;
+            Ok(drained as u64)
+        }))
+    }
+
     fn failing<T>(
         &self,
         read: impl FnOnce(&rusqlite::Connection) -> Result<T, StoreError>,

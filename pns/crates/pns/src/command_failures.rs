@@ -28,6 +28,7 @@ pub(crate) fn failures_mode() -> i32 {
         // A VERB BEFORE THE NUMBER PARSE, and the two can never collide: an id
         // is a number and a verb is a word.
         [word] if word == "serve" => serve(),
+        [word] if word == DRAIN_VERB => drain(&store),
         [verb, word] if verb == OPEN_VERB => match word.parse::<u64>() {
             Ok(id) => open(id),
             Err(_) => {
@@ -132,6 +133,25 @@ fn plural(count: usize) -> String {
     } else {
         format!("{count} delivery legs")
     }
+}
+
+/// `pns failures drain`: clears the legs nothing will ever deliver.
+///
+/// ONLY THE DEAD-LETTERED GO. A leg still inside its retry budget is left in
+/// the listing because it may yet arrive; a leg the retry policy gave up on is
+/// the one an operator is stuck with, and until this verb existed nothing could
+/// take it off the list.
+fn drain(store: &SqliteStore) -> i32 {
+    let Ok(drained) = store.drain_deadlettered_legs() else {
+        eprintln!("pns: the delivery ledger could not be written");
+        return 1;
+    };
+    match drained {
+        0 => println!("pns: nothing to drain"),
+        1 => println!("pns: drained 1 dead-lettered leg"),
+        count => println!("pns: drained {count} dead-lettered legs"),
+    }
+    0
 }
 
 /// `pns failures serve`: the page, in the foreground, until it is stopped.
@@ -375,7 +395,10 @@ pub(crate) fn retired_click() -> i32 {
 /// The verb the banner's stored click command names.
 const OPEN_VERB: &str = "open";
 
-pub(crate) const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|open <id>|serve]";
+/// The verb that clears the dead-lettered legs.
+const DRAIN_VERB: &str = "drain";
+
+pub(crate) const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|open <id>|drain|serve]";
 
 #[cfg(test)]
 #[path = "command_failures/tests.rs"]
