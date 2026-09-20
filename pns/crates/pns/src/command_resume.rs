@@ -102,21 +102,29 @@ const HERDR: &str = "herdr";
 
 /// The checkout the waiting branch is in.
 ///
-/// THE WORKSPACE HERDR OPENED ON THAT BRANCH'S WORKTREE FIRST, found by the
-/// directory name, because a lane's worktree is `<repo>/<branch slug>` and
-/// that is the one answer that names the right checkout when several
-/// workspaces sit in one repository. The focused workspace's own checkout is
-/// next, for a session that never left its main checkout, and the session's
-/// project is what is left when herdr answered nothing at all.
+/// ONLY THE WORKSPACE HERDR OPENED ON THAT BRANCH'S WORKTREE, found by the
+/// directory name, because a lane's worktree is `<repo>/<branch slug>`. NO
+/// FALLBACK: the focused workspace and the session's own `project` are both
+/// answers to a different question ("where is this terminal", "what is this
+/// session called"), not "where is that branch checked out", and printing
+/// either as `Worktree:` states something false with no "not known" marker.
+/// A slug can repeat across repositories, so a match whose `repo_name`
+/// agrees with the session's project wins over the first hit.
 fn worktree_of(workspaces: &[WorkspaceRow], branch: &str, project: &str) -> String {
     let slug = branch.replace('/', "-");
-    workspaces
+    if slug.is_empty() {
+        return String::new();
+    }
+    let matches: Vec<&WorkspaceRow> = workspaces
         .iter()
-        .find(|workspace| !slug.is_empty() && directory_name(&workspace.checkout_path) == slug)
-        .or_else(|| workspaces.iter().find(|workspace| workspace.focused))
+        .filter(|workspace| directory_name(&workspace.checkout_path) == slug)
+        .collect();
+    matches
+        .iter()
+        .find(|workspace| workspace.repo_name == project)
+        .or_else(|| matches.first())
         .map(|workspace| workspace.checkout_path.clone())
-        .filter(|path| !path.is_empty())
-        .unwrap_or_else(|| project.to_string())
+        .unwrap_or_default()
 }
 
 fn directory_name(path: &str) -> &str {

@@ -5,10 +5,15 @@ fn strings(words: &[&str]) -> Vec<String> {
 }
 
 fn workspace(label: &str, focused: bool, checkout_path: &str) -> WorkspaceRow {
+    workspace_in(label, focused, checkout_path, "")
+}
+
+fn workspace_in(label: &str, focused: bool, checkout_path: &str, repo_name: &str) -> WorkspaceRow {
     WorkspaceRow {
         label: label.to_string(),
         focused,
         checkout_path: checkout_path.to_string(),
+        repo_name: repo_name.to_string(),
     }
 }
 
@@ -39,17 +44,31 @@ fn the_branchs_own_worktree_wins_over_the_focused_workspaces_checkout() {
 }
 
 #[test]
-fn a_branch_no_workspace_was_opened_on_falls_back_to_the_focused_checkout() {
+fn a_branch_no_workspace_was_opened_on_is_not_known_even_with_a_focused_workspace() {
     let workspaces = [workspace("dotfiles", true, "/repo/dotfiles")];
-    assert_eq!(
-        worktree_of(&workspaces, "main", "dotfiles"),
-        "/repo/dotfiles"
-    );
+    assert_eq!(worktree_of(&workspaces, "main", "dotfiles"), "");
 }
 
 #[test]
-fn a_herdr_that_answered_nothing_leaves_the_sessions_project() {
-    assert_eq!(worktree_of(&[], "feat/resume", "dotfiles"), "dotfiles");
+fn a_herdr_that_answered_nothing_is_not_known() {
+    assert_eq!(worktree_of(&[], "feat/resume", "dotfiles"), "");
+}
+
+#[test]
+fn a_slug_shared_by_two_repositories_is_broken_by_the_sessions_project() {
+    let workspaces = [
+        workspace_in("other", false, "/worktrees/other/feat-resume", "other"),
+        workspace_in(
+            "dotfiles",
+            false,
+            "/worktrees/dotfiles/feat-resume",
+            "dotfiles",
+        ),
+    ];
+    assert_eq!(
+        worktree_of(&workspaces, "feat/resume", "dotfiles"),
+        "/worktrees/dotfiles/feat-resume"
+    );
 }
 
 #[test]

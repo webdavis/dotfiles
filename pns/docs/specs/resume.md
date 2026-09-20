@@ -30,7 +30,7 @@ swallowed silently is a page they believe was sent. `pns resume --help` and `-h`
 | `waiting`   | whether any `sessions` row still carries a `blocked_since` (`SqliteStore::newest_wait`)                           | `false`, and the page says nothing is waiting |
 | `title`     | that row's `title`, which the session's first prompt wrote                                                         | "not known"                                 |
 | `branch`    | that row's `branch`                                                                                                | "not known"                                 |
-| `worktree`  | the listed workspace whose `worktree.checkout_path` directory name matches the branch slug, else the focused workspace's checkout, else the row's `project` | "not known"        |
+| `worktree`  | the listed workspace whose `worktree.checkout_path` directory name matches the branch slug, `repo_name` breaking a tie in favour of the row's `project`; no fallback | "not known"        |
 | `command`   | the newest `ledger_events` row whose `agent` is `shell`, its `detail` (`SqliteStore::newest_shell_command`)         | "no command has been timed yet"             |
 
 The waiting pane is the session with the NEWEST `blocked_since`, where the stale-block escalation takes

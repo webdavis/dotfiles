@@ -14,6 +14,10 @@ pub struct WorkspaceRow {
     /// that names none: a report says it does not know rather than guessing a
     /// path.
     pub checkout_path: String,
+    /// The repository that worktree belongs to, EMPTY when herdr named none.
+    /// A branch slug repeats across repositories; this is what tells two
+    /// same-named worktrees apart.
+    pub repo_name: String,
 }
 
 /// Every workspace herdr listed, in the order it listed them.
@@ -47,6 +51,7 @@ fn row(workspace: &serde_json::Value) -> WorkspaceRow {
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false),
         checkout_path: text("/worktree/checkout_path"),
+        repo_name: text("/worktree/repo_name"),
     }
 }
 
@@ -57,10 +62,10 @@ mod tests {
     const LISTED: &str = r#"{"result":{"workspaces":[
       {"label":"homelab","focused":false},
       {"label":"dotfiles","focused":true,
-       "worktree":{"checkout_path":"/repo/dotfiles"}}]}}"#;
+       "worktree":{"checkout_path":"/repo/dotfiles","repo_name":"dotfiles"}}]}}"#;
 
     #[test]
-    fn every_listed_workspace_answers_its_label_focus_and_checkout() {
+    fn every_listed_workspace_answers_its_label_focus_checkout_and_repo() {
         assert_eq!(
             parse_workspaces(LISTED),
             vec![
@@ -68,11 +73,13 @@ mod tests {
                     label: "homelab".into(),
                     focused: false,
                     checkout_path: String::new(),
+                    repo_name: String::new(),
                 },
                 WorkspaceRow {
                     label: "dotfiles".into(),
                     focused: true,
                     checkout_path: "/repo/dotfiles".into(),
+                    repo_name: "dotfiles".into(),
                 },
             ]
         );
