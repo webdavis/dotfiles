@@ -30,8 +30,8 @@ fn a_state_file_that_is_not_epoch_and_place_lines_complains_and_mutes_nothing() 
             muted_entries(contents),
             Err(format!(
                 "pns: state error (lights-quiet holds {named}, which is not \
-                 an expiry and a place); nothing is quiet, and the next \
-                 pns lights quiet write replaces the file"
+                 an expiry and a place); nothing is muted, and the next \
+                 pns lights mute write replaces the file"
             )),
             "contents: {contents:?}"
         );
@@ -47,8 +47,8 @@ fn a_state_file_that_is_not_epoch_and_place_lines_complains_and_mutes_nothing() 
         muted_entries(&past_cap),
         Err(format!(
             "pns: state error (lights-quiet holds {} lines, more than the \
-             {MAX_MUTED_PLACES} places it keeps); nothing is quiet, and the \
-             next pns lights quiet write replaces the file",
+             {MAX_MUTED_PLACES} places it keeps); nothing is muted, and the \
+             next pns lights mute write replaces the file",
             MAX_MUTED_PLACES + 1
         )),
         "a file past the cap"
@@ -73,7 +73,7 @@ fn a_state_file_that_is_not_epoch_and_place_lines_complains_and_mutes_nothing() 
 
 #[test]
 fn the_report_names_every_live_place_and_says_so_when_there_are_none() {
-    // ROUNDED UP, which is `quiet::status_line`'s own rule reached through
+    // ROUNDED UP, which is `mute::status_line`'s own rule reached through
     // its own function: a mute with forty seconds left is still on, and "0
     // minutes" reads as off.
     //
@@ -91,41 +91,41 @@ fn the_report_names_every_live_place_and_says_so_when_there_are_none() {
             Some(now)
         ),
         vec![
-            "`3F - Studio` is quiet for another 1 minute".to_string(),
-            "`3F - Master Bedroom` is quiet for another 27 minutes".to_string(),
+            "`3F - Studio` is muted for another 1 minute".to_string(),
+            "`3F - Master Bedroom` is muted for another 27 minutes".to_string(),
         ]
     );
     assert_eq!(
         muted_report(&muted(&[(now, "3F - Studio")]), Some(now)),
-        vec!["nothing is quiet".to_string()],
+        vec!["nothing is muted".to_string()],
         "an expired entry is not a place to report"
     );
     assert_eq!(
         muted_report(&[], Some(now)),
-        vec!["nothing is quiet".to_string()],
+        vec!["nothing is muted".to_string()],
         "and neither is an empty file"
     );
 }
 
 #[test]
 fn a_clock_that_will_not_answer_reports_the_reason_never_nothing_is_quiet() {
-    // THE ROOT MUTES EVERYTHING ON NO CLOCK (`ad_hoc_quiet`, fail closed),
-    // so a report saying "nothing is quiet" here would tell the operator
+    // THE ROOT MUTES EVERYTHING ON NO CLOCK (`ad_hoc_mute`, fail closed),
+    // so a report saying "nothing is muted" here would tell the operator
     // the opposite of what every lamp is about to do.
     assert_eq!(
         muted_report(&[], None),
         vec![
             "pns lights: the clock cannot be read, so no mute can be judged \
-             live; every lamp is quiet until it can"
+             live; every lamp is muted until it can"
                 .to_string()
         ],
-        "an empty file with no clock must not read as nothing is quiet"
+        "an empty file with no clock must not read as nothing is muted"
     );
     assert_eq!(
         muted_report(&muted(&[(1_000, "3F - Studio")]), None),
         vec![
             "pns lights: the clock cannot be read, so no mute can be judged \
-             live; every lamp is quiet until it can"
+             live; every lamp is muted until it can"
                 .to_string()
         ],
         "an entry on file with no clock reports the same, not the entry"

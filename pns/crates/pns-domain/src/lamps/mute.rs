@@ -17,8 +17,8 @@ pub enum Muting {
 /// Whether the operator's own by-hand mute covers this lamp.
 ///
 /// EVERY NAME THE LAMP ANSWERS TO, which is the same vocabulary a declaration
-/// names it by: `pns lights quiet "3F - Studio"` reaches every lamp in the
-/// studio and `pns lights quiet "3F - Studio - HCL3"` reaches one. A zone name
+/// names it by: `pns lights mute "3F - Studio"` reaches every lamp in the
+/// studio and `pns lights mute "3F - Studio - HCL3"` reaches one. A zone name
 /// works for the same reason.
 pub fn muted_now(lamp: &Lamp, muting: &Muting) -> bool {
     let Muting::Places(muted) = muting else {
@@ -32,7 +32,7 @@ pub fn muted_now(lamp: &Lamp, muting: &Muting) -> bool {
 /// Every name a mute may be typed at, sorted and deduplicated: the config's
 /// declarations, plus the bridge's own lamps, rooms and zones.
 ///
-/// THE VOCABULARY `pns lights quiet` ACCEPTS, and it is BOTH SOURCES because
+/// THE VOCABULARY `pns lights mute` ACCEPTS, and it is BOTH SOURCES because
 /// the target grammar is lamp, room and zone rather than "whatever the config
 /// happened to write down". Off the config alone it accepted a misspelled
 /// declaration, which is a mute that can never match a lamp, and refused a real

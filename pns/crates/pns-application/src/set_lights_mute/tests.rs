@@ -1,6 +1,6 @@
-use super::SetLightsQuiet;
+use super::SetLightsMute;
 use crate::LampMutes;
-use pns_domain::lights::mute::{Muted, QuietCommand};
+use pns_domain::lights::mute::{MuteCommand, Muted};
 use std::cell::RefCell;
 
 #[derive(Default)]
@@ -28,8 +28,8 @@ impl LampMutes for Mutes {
 #[test]
 fn a_lights_quiet_report_never_republishes_the_record_it_read() {
     let mutes = Mutes::default();
-    let lines = SetLightsQuiet { mutes: &mutes }
-        .run(&QuietCommand::Report, Some(100), |_| {
+    let lines = SetLightsMute { mutes: &mutes }
+        .run(&MuteCommand::Report, Some(100), |_| {
             panic!("unexpected warning")
         })
         .unwrap();
@@ -43,9 +43,9 @@ fn a_lights_mute_warns_before_replacing_unreadable_state() {
         complaints: vec!["unreadable".into()],
         ..Default::default()
     };
-    let lines = SetLightsQuiet { mutes: &mutes }
+    let lines = SetLightsMute { mutes: &mutes }
         .run(
-            &QuietCommand::Mute {
+            &MuteCommand::Mute {
                 place: "studio".into(),
                 seconds: 60,
             },
@@ -62,11 +62,11 @@ fn a_lights_mute_warns_before_replacing_unreadable_state() {
 #[test]
 fn a_refused_lights_mute_or_unmute_returns_no_success_report() {
     for command in [
-        QuietCommand::Mute {
+        MuteCommand::Mute {
             place: "studio".into(),
             seconds: 60,
         },
-        QuietCommand::Unmute {
+        MuteCommand::Unmute {
             place: "studio".into(),
         },
     ] {
@@ -74,7 +74,7 @@ fn a_refused_lights_mute_or_unmute_returns_no_success_report() {
             fail: true,
             ..Default::default()
         };
-        assert_eq!(SetLightsQuiet { mutes: &mutes }.run(&command, Some(100), |_| panic!("warning")),
+        assert_eq!(SetLightsMute { mutes: &mutes }.run(&command, Some(100), |_| panic!("warning")),
             Err("pns: state error (lights-quiet could not be written: fixture); the mute was not set".into()));
         assert_eq!(mutes.trace.borrow().len(), 2);
     }
@@ -84,8 +84,8 @@ fn a_refused_lights_mute_or_unmute_returns_no_success_report() {
 fn a_missing_clock_refuses_a_new_lights_mute_before_publication() {
     let mutes = Mutes::default();
     assert_eq!(
-        SetLightsQuiet { mutes: &mutes }.run(
-            &QuietCommand::Mute {
+        SetLightsMute { mutes: &mutes }.run(
+            &MuteCommand::Mute {
                 place: "studio".into(),
                 seconds: 60
             },

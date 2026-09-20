@@ -1,4 +1,4 @@
-//! The lamps, pinned: what `pns lights quiet` accepts, refuses and writes.
+//! The lamps, pinned: what `pns lights mute` accepts, refuses and writes.
 
 use super::fixtures::*;
 #[test]
@@ -56,9 +56,9 @@ fn a_mute_past_the_places_the_file_keeps_is_refused_rather_than_written() {
     assert_eq!(
         muted_after(&full, "3F - One More", Some(9_000), Some(1_000)),
         Err(
-            "pns: lights quiet: 32 places are already quiet, which is every \
+            "pns: lights mute: 32 places are already muted, which is every \
              line lights-quiet keeps; the mute was not set, and `pns lights \
-             quiet <place> off` ends one"
+             mute <place> off` ends one"
                 .to_string()
         ),
         "a full file plus one more place is a file the reader refuses whole"
@@ -153,7 +153,7 @@ fn off_clears_one_place_and_leaves_the_others_where_they_were() {
 fn an_ad_hoc_quiet_ends_on_the_second_it_names_and_an_expired_file_mutes_nothing() {
     // HALF OPEN, AND THE BOUNDARY SECOND ITSELF is the assertion: a `<=`
     // here is an off-by-one nobody sees, because both neighbours agree
-    // under either spelling. It is `quiet::is_muted`'s own edge, asked
+    // under either spelling. It is `mute::is_muted`'s own edge, asked
     // through this reader so the two cannot come out disagreeing.
     let entries = muted(&[(1_000, "3F - Studio")]);
     assert_eq!(

@@ -8,7 +8,7 @@ pub struct QuietWindow {
 }
 impl QuietWindow {
     /// The minute of the local day this window ends at, which is the one thing
-    /// a BARE `pns lights quiet` needs from it.
+    /// a BARE `pns lights mute` needs from it.
     pub fn ends_at(&self) -> u16 {
         self.end
     }

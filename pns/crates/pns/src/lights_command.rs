@@ -54,7 +54,7 @@ is no pane to key the lease to; run it inside the pane, or name one with --pane"
 pub const LOOP_USAGE: &str = "pns: usage: pns loop begin [--pane <id>] | \
 pns loop end [--pane <id>]";
 
-use pns_domain::lights::mute::QuietCommand;
+use pns_domain::lights::mute::MuteCommand;
 
 /// The typed command, or the refusal that quotes back what was typed.
 ///
@@ -73,14 +73,14 @@ use pns_domain::lights::mute::QuietCommand;
 /// THE DURATION IS `duration::parse_duration`'S over the mute's own range,
 /// refusal and all, so a second spelling of "how long" cannot exist and
 /// neither can a second set of bounds.
-pub fn quiet_command(
+pub fn mute_command(
     arguments: &[String],
     known: &[String],
-    until_quiet_ends: Option<u64>,
-) -> Result<QuietCommand, String> {
+    until_mute_ends: Option<u64>,
+) -> Result<MuteCommand, String> {
     match arguments {
-        [] => Ok(QuietCommand::Report),
-        [place, word] if word == "off" => Ok(QuietCommand::Unmute {
+        [] => Ok(MuteCommand::Report),
+        [place, word] if word == "off" => Ok(MuteCommand::Unmute {
             place: place.clone(),
         }),
         [place] => {
@@ -92,10 +92,10 @@ pub fn quiet_command(
             // when those are has not said how long this mute lasts; picking a
             // length would be a mute the operator did not ask for, ending at an
             // hour they cannot predict.
-            let Some(seconds) = until_quiet_ends else {
+            let Some(seconds) = until_mute_ends else {
                 return Err(NO_SCHEDULE.to_string());
             };
-            Ok(QuietCommand::Mute {
+            Ok(MuteCommand::Mute {
                 place: place.clone(),
                 seconds,
             })
@@ -104,12 +104,12 @@ pub fn quiet_command(
             if !known.iter().any(|name| name == place) {
                 return Err(unmutable(place, known));
             }
-            Ok(QuietCommand::Mute {
+            Ok(MuteCommand::Mute {
                 place: place.clone(),
                 seconds: pns_domain::duration::parse_duration(
-                    "quiet duration",
+                    "mute duration",
                     word,
-                    pns_domain::quiet::MUTE_RANGE,
+                    pns_domain::mute::MUTE_RANGE,
                 )?
                 .as_secs(),
             })
@@ -118,7 +118,7 @@ pub fn quiet_command(
         // report: a typo the operator does not see is a mute they believe is
         // on.
         _ => Err(
-            "pns: lights quiet takes a place, optionally with a duration or \
+            "pns: lights mute takes a place, optionally with a duration or \
                   off, or nothing at all"
                 .to_string(),
         ),
@@ -126,7 +126,7 @@ pub fn quiet_command(
 }
 
 /// Why a bare mute cannot be set on a machine with no quiet hours.
-const NO_SCHEDULE: &str = "pns: lights quiet: a bare mute lasts until your quiet \
+const NO_SCHEDULE: &str = "pns: lights mute: a bare mute lasts until your quiet \
 hours end, and `[plugins.lights] quiet_hours` states none; give a duration instead, \
 or set that key";
 
@@ -153,7 +153,7 @@ fn unmutable(place: &str, known: &[String]) -> String {
         )
     };
     format!(
-        "pns: lights quiet: {place:?} is no lamp, room or zone this can quiet; \
+        "pns: lights mute: {place:?} is no lamp, room or zone this can mute; \
          {reaches}"
     )
 }
