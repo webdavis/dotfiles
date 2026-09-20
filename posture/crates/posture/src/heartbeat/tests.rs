@@ -2,7 +2,6 @@ use super::*;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::{ClockUnavailable, InspectionFailure, WallTime};
 use posture_domain::HeartbeatWindow;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     cell::RefCell,
     ffi::{OsStr, OsString},
@@ -88,29 +87,28 @@ impl Clock for Time {
         })
     }
 }
-fn subject(bound: &str) -> (Configuration, Rc<RefCell<Effects>>) {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let home = std::env::temp_dir().join(format!(
-        "posture-heartbeat-cli-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    std::fs::create_dir(&home).unwrap();
+fn subject(
+    bound: &str,
+) -> (
+    crate::test_sandbox::Sandbox,
+    Configuration,
+    Rc<RefCell<Effects>>,
+) {
+    let sandbox = crate::test_sandbox::Sandbox::new("heartbeat-cli");
+    let home = sandbox.path();
     let snapshots = home.join("selected snapshot");
     std::fs::write(
         &snapshots,
         b"{\"name\":\"heartbeat_canary\",\"unixTime\":9983}\n",
     )
     .unwrap();
-    (
-        Configuration {
-            snapshots,
-            notify: crate::command_notify(&home.join("engine")),
-            alarm: home.join("osascript"),
-            maximum_age: HeartbeatWindow::from_override(Some(bound)),
-        },
-        Rc::default(),
-    )
+    let config = Configuration {
+        notify: crate::command_notify(&home.join("engine")),
+        alarm: home.join("osascript"),
+        maximum_age: HeartbeatWindow::from_override(Some(bound)),
+        snapshots,
+    };
+    (sandbox, config, Rc::default())
 }
 fn run_case(
     config: Configuration,
@@ -135,7 +133,7 @@ fn run_case(
 }
 #[test]
 fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observation() {
-    let (config, effects) = subject("1800");
+    let (_sandbox, config, effects) = subject("1800");
     let path = config.snapshots.clone();
     let before = std::fs::read(&path).unwrap();
     let mut stderr = vec![];
@@ -172,7 +170,7 @@ fn engine_failure_attempts_an_independent_alarm_but_never_changes_best_effort_st
         (Reply::TimedOut, 1),
         (Reply::Malformed, 1),
     ] {
-        let (config, effects) = subject("1800");
+        let (_sandbox, config, effects) = subject("1800");
         let mut stderr = vec![];
         assert_eq!(run_case(config, effects.clone(), reply, &mut stderr), 0);
         let effect = effects.borrow();
@@ -187,7 +185,7 @@ fn engine_failure_attempts_an_independent_alarm_but_never_changes_best_effort_st
 }
 #[test]
 fn invalid_literal_emits_one_fixed_diagnostic_and_still_submits_the_default_observation() {
-    let (config, effects) = subject("08");
+    let (_sandbox, config, effects) = subject("08");
     let mut stderr = vec![];
     assert_eq!(
         run_case(config, effects.clone(), Reply::Committed, &mut stderr),

@@ -54,12 +54,20 @@ pub(in crate::converge) struct Scratch(pub PathBuf);
 impl Scratch {
     pub fn new() -> Self {
         let root = std::env::temp_dir().join(format!(
-            "converge-native-{}-{}",
+            "converge-native-{}-{}-{}",
             std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |since| since.as_nanos()),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();
         fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
         Self(root)
+    }
+}
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
     }
 }

@@ -1,11 +1,8 @@
 //! A temporary directory that removes itself when the test drops it.
 //!
-//! Adapters are the layer that touches real files, so their tests make real
-//! ones. Without an owner each run leaves its directories in the system
-//! temporary directory forever, and a suite that writes a multi-megabyte
-//! fixture leaves that too. Nothing already in this crate's dependency set
-//! offers the type, and it is small enough not to earn a new dependency in a
-//! tool whose job is judging integrity.
+//! Mirrors `posture_adapters::test_sandbox::Sandbox`: this crate cannot
+//! reach that one (it is `pub(crate)` there), and the type is small enough
+//! not to earn a shared dependency between two workspace crates.
 
 use std::{
     fs,
@@ -19,9 +16,7 @@ impl Sandbox {
     /// A fresh empty directory, named for its subject, this process, a
     /// counter and the epoch nanosecond, so that tests running in parallel
     /// never share one and a RECYCLED process id never meets an earlier
-    /// run's leftover: nothing prunes what the guard below misses (a test
-    /// that aborts instead of unwinding), so a pid-only name eventually
-    /// collides with `AlreadyExists`.
+    /// run's leftover.
     pub(crate) fn new(subject: &str) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let path = std::env::temp_dir().join(format!(
@@ -43,12 +38,6 @@ impl Sandbox {
 impl std::ops::Deref for Sandbox {
     type Target = Path;
     fn deref(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl AsRef<Path> for Sandbox {
-    fn as_ref(&self) -> &Path {
         &self.0
     }
 }

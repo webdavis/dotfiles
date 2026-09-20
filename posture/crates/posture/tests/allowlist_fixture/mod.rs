@@ -129,6 +129,11 @@ impl Fixture {
         }
     }
 }
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
+    }
+}
 fn script(path: &std::path::Path, body: &str) {
     fs::write(path, format!("#!/bin/bash\nset -euo pipefail\n{body}")).unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
