@@ -35,10 +35,22 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.focus_modes = focus.modes;
             }
             "quiet" => config.quiet_calendar = parse_quiet(value)?,
+            "gateway" => {
+                let gateway = parse_gateway(value)?;
+                config.gateway_enabled = gateway.enabled;
+                config.gateway_service = gateway.service;
+            }
+            // MOVED, and refused by name rather than listed among the unknown
+            // tables: the clock switch and the launchd label are the gateway's
+            // settings now that `pns gateway` serves every verb, so the
+            // operator is told the heading to write rather than handed the
+            // whole top-level vocabulary to search.
             "daemon" => {
-                let daemon = parse_daemon(value)?;
-                config.daemon_enabled = daemon.enabled;
-                config.daemon_service = daemon.service;
+                return Err(ConfigError::Invalid(
+                    "`[daemon]` is now `[gateway]`: `pns gateway` serves the clock as well as \
+                     the launchd service. Rename the heading."
+                        .to_string(),
+                ));
             }
             "delivery" => {
                 let toml::Value::Table(mut table) = value else {

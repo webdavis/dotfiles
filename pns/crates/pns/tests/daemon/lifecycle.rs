@@ -229,7 +229,7 @@ impl Drop for OwnedDelivery {
 fn turning_the_config_switch_off_stops_a_running_daemon() {
     let sandbox = Sandbox::new("daemon-off-switch-is-real");
     sandbox.write_config(&format!(
-        "{ONE_CHANNEL}[daemon]
+        "{ONE_CHANNEL}[gateway]
 enabled = true
 "
     ));
@@ -251,7 +251,7 @@ enabled = true
     );
 
     sandbox.write_config(&format!(
-        "{ONE_CHANNEL}[daemon]
+        "{ONE_CHANNEL}[gateway]
 enabled = false
 "
     ));

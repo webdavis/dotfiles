@@ -306,7 +306,7 @@ api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}
 # and never a card. ON UNLESS YOU SAY OTHERWISE, because it delivers
 # nothing by itself; deleting the table is the same statement, and
 # `pns doctor` says which state it is in.
-[daemon]
+[gateway]
 enabled = true
 # The launchd label this machine's clock runs under, which `pns gateway
 # start|stop|restart|status` starts, stops, restarts and reports on. NO

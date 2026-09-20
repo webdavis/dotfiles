@@ -2,7 +2,7 @@ use super::Sandbox;
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 
-/// A `pns daemon run` that is KILLED ON EVERY EXIT PATH, including a panicking
+/// A `pns gateway run` that is KILLED ON EVERY EXIT PATH, including a panicking
 /// test.
 ///
 /// THE SUITE'S FIRST LONG-LIVED CHILD, and the reason this is a guard rather
@@ -51,7 +51,7 @@ impl DaemonGuard {
         let child = sandbox
             .pns_stateful()
             .env("PNS_DAEMON_TICK_INTERVAL", format!("{tick_ms}ms"))
-            .args(["daemon", "run"])
+            .args(["gateway", "run"])
             .stdin(std::process::Stdio::null())
             .stdout(out)
             .stderr(errors)

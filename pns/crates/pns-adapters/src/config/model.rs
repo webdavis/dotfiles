@@ -61,19 +61,19 @@ pub struct Config {
     /// seconds, before the caller stops waiting on it. Zero is no deadline at
     /// all, which is the caller's own instruction rather than a default.
     pub remote_deadline_secs: u64,
-    /// `[daemon] enabled`: whether `pns daemon run` stays up and ticks.
+    /// `[gateway] enabled`: whether `pns gateway run` stays up and ticks.
     ///
     /// DEFAULT ON, which is the opposite of every plugin, and the difference
     /// is that this switch delivers nothing. An idle daemon
     /// reads one empty directory a second. Default OFF would put every feature
     /// that rides the clock behind TWO switches, so an operator who enabled the
     /// feature and saw nothing would have to discover a second, invisible one.
-    pub daemon_enabled: bool,
-    /// `[daemon] service`: the launchd label `pns gateway` starts, stops,
+    pub gateway_enabled: bool,
+    /// `[gateway] service`: the launchd label `pns gateway` starts, stops,
     /// restarts and reports on. NO DEFAULT: pns compiles in no label of its
     /// own, since it does not know what a given installation's plist is
     /// named. `None` is what every gateway verb refuses on.
-    pub daemon_service: Option<String>,
+    pub gateway_service: Option<String>,
     /// `[routes]`: what the two routes pns selects for itself are called.
     ///
     /// NOT AN OPTION and not a list: both names are defaulted, so a file with
@@ -100,7 +100,7 @@ pub struct Config {
     /// is a value the operator has to decode, and the absent key already says
     /// it.
     ///
-    /// DEFAULT OFF, unlike `[daemon]` beside it, and the difference is that
+    /// DEFAULT OFF, unlike `[gateway]` beside it, and the difference is that
     /// this one INTERRUPTS. It also needs three separate operator steps before
     /// it works (an apply for the hook declaration, the daemon running, and
     /// this key), and a default-on feature that silently does nothing until all
@@ -157,8 +157,8 @@ impl Default for Config {
             delivery_classes: BTreeMap::new(),
             remote_deadline_secs: DEFAULT_REMOTE_DEADLINE_SECS,
             routes: pns_domain::routes::Routes::default(),
-            daemon_enabled: DEFAULT_DAEMON_ENABLED,
-            daemon_service: None,
+            gateway_enabled: DEFAULT_GATEWAY_ENABLED,
+            gateway_service: None,
             retry_limits: Default::default(),
             retry_backoff: Default::default(),
             producer_remind: BTreeMap::new(),

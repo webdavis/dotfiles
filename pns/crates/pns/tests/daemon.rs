@@ -58,7 +58,7 @@ fn fires(sandbox: &Sandbox) -> usize {
 /// a rider will make.
 fn schedule(sandbox: &Sandbox, flags: &[&str], args: &[&str]) -> std::process::Output {
     let mut command = sandbox.pns_stateful();
-    command.args(["daemon", "schedule"]);
+    command.args(["gateway", "schedule"]);
     command.args(flags);
     command.arg("--");
     command.args(args);

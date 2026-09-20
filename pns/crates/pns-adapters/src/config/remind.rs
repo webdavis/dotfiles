@@ -4,7 +4,7 @@ use super::*;
 /// off. See `Config::remind_delay_secs`.
 pub(super) const REMIND_OFF: u64 = 0;
 
-/// `[remind]`'s one key, in `parse_daemon`'s shape: an unknown key inside the
+/// `[remind]`'s one key, in `parse_gateway`'s shape: an unknown key inside the
 /// table and a value of the wrong shape are each refused BY NAME rather than
 /// half-read into a schedule the operator believes they set.
 pub(super) fn parse_remind(value: toml::Value) -> Result<u64, ConfigError> {

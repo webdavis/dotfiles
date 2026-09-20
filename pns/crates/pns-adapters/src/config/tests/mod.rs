@@ -133,7 +133,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::TOP_LEVEL, "paths", "{ state_dir = '~/state' }"),
     ("paths", "state_dir", "'~/state'"),
     ("paths", "channels_dir", "'/opt/pns/channels'"),
-    (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
+    (super::TOP_LEVEL, "gateway", "{ enabled = true }"),
     (super::TOP_LEVEL, "delivery", "{ max_retries = 3 }"),
     (
         super::TOP_LEVEL,
@@ -192,8 +192,8 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("recap", "summarizer_deadline", "\"4m\""),
     ("focus", "enabled", "true"),
     ("focus", "modes", "[\"Sleep\"]"),
-    ("daemon", "enabled", "true"),
-    ("daemon", "service", "'com.example.pns-daemon'"),
+    ("gateway", "enabled", "true"),
+    ("gateway", "service", "'com.example.pns-daemon'"),
     ("remind", "delay", "\"5m\""),
     ("stale", "enabled", "true"),
     ("stale", "escalate_after", "\"1h\""),
@@ -318,10 +318,10 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
 ];
 
 mod credentials;
-mod daemon;
 mod delivery;
 mod failure_wording;
 mod focus;
+mod gateway;
 mod lights_bounds;
 mod lights_checks;
 mod lights_defaults;

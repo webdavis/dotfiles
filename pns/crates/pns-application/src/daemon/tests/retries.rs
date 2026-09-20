@@ -40,7 +40,7 @@ fn a_retry_failure_is_reported_and_the_next_tick_still_reaps_and_retries() {
     assert_eq!(calls.get(), 29);
     assert_eq!(world.count("reap"), 29);
     assert_eq!(
-        world.count("err:pns daemon: delivery retry failed: owned pending ledger failure"),
+        world.count("err:pns gateway: delivery retry failed: owned pending ledger failure"),
         1
     );
 }

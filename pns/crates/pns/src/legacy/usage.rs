@@ -17,8 +17,8 @@ pns: usage:
                                    spelled the way moshi's extension calls it
   pns mute [<duration>|off]        the operator's mute
   pns mute calendar                one calendar read, run by the clock
-  pns daemon run|schedule|cancel   the clock
-  pns daemon retry                 one sweep of the retry queue, run by the clock
+  pns gateway run|schedule|cancel  the clock
+  pns gateway retry                one sweep of the retry queue, run by the clock
   pns gateway start|stop|restart|status
   pns lights tick                  the lamps' upkeep, run by the clock
   pns lights mute                  the lamps' own mute, one place at a time
@@ -46,7 +46,7 @@ pns: usage:
   pns --version, -V                the package version
 
 machine-called:  pns send, pns hook <event>, pns shell begin, pns shell end,
-                 pns daemon retry, pns lights tick, pns mute calendar,
+                 pns gateway retry, pns lights tick, pns mute calendar,
                  pns remind, pns stale,
                  pns failures serve, pns recap --since-epoch, pns recap agent,
                  pns recap git, pns presence poll [--daemon] and

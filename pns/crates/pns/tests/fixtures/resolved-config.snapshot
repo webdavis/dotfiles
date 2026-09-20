@@ -222,8 +222,8 @@ Config {
         },
     },
     remote_deadline_secs: 5,
-    daemon_enabled: true,
-    daemon_service: Some(
+    gateway_enabled: true,
+    gateway_service: Some(
         "com.webdavis.pns-daemon",
     ),
     routes: Routes {

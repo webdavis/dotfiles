@@ -67,7 +67,7 @@ pub(crate) fn doctor_mode() -> i32 {
             config.recap.replay_card,
             config.focus_enabled,
             config.focus_modes.clone(),
-            config.daemon_enabled,
+            config.gateway_enabled,
             config.remind_delay_secs,
             config.lights.clone(),
             // WHETHER THE TABLE WAS WRITTEN AT ALL, which

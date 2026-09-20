@@ -32,7 +32,7 @@ pub(crate) fn remind_config(delay_secs: u64) -> String {
 /// live daemon is ticking beside the fire: a channel script can never confirm
 /// a delivery (`deliver_executable` answers `Silent` whatever the script
 /// exits), so its leg stays retry-eligible from the moment it is written and
-/// `pns daemon retry` re-delivers the same event on a later tick.
+/// `pns gateway retry` re-delivers the same event on a later tick.
 pub(crate) fn counted_channels(sandbox: &Sandbox) {
     for channel in ["phone", "hermes", "banner"] {
         sandbox.stub_channel(

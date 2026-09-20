@@ -28,10 +28,10 @@ the table names which:
 | harness gate      | the bare `pns <harness>-hook` form, the only spelling (`src/main.rs:gate_mode`)                                                                                         | milliseconds, one submission                                               |
 | producer          | `pns [<producer flags>]`, the argv form the shell notifier and any external alert path use (`src/main.rs:event_mode`, `USAGE`)                                          | milliseconds, one event                                                    |
 | interactive shell | `pns shell begin/end`, called synchronously by the Bash callbacks and restricted to the calling shell's PID | one command                                                                |
-| daemon            | `pns daemon run`, the clock under launchd (`src/main.rs:daemon_run`)                                                                                                    | long-lived                                                                 |
+| daemon            | `pns gateway run`, the clock under launchd (`src/main.rs:daemon_run`)                                                                                                    | long-lived                                                                 |
 | daemon child      | the daemon re-executing this binary with a job's argv (`src/main.rs:spawn_job`), for example the lights tick and `pns remind`                                              | bounded, see the process table                                             |
 | detached recap    | `pns recap --since-epoch --until-epoch`, started by an event and never waited on (`src/main.rs:spawn_recap`)                                                                        | fixed 30-second whole-operation deadline, independent of producer survival |
-| typed command     | `pns mute`, `pns lights mute`, \`pns loop begin                                                                                                                       | end`, `pns remind`, `pns doctor`, `pns setup`, `pns daemon schedule           |
+| typed command     | `pns mute`, `pns lights mute`, \`pns loop begin                                                                                                                       | end`, `pns remind`, `pns doctor`, `pns setup`, `pns gateway schedule           |
 | external toucher  | whatever touches `phone-attention.marker`; only its mtime is read (`src/system.rs:marker_mtime_secs`)                                                                   | not this crate's                                                           |
 
 `pns tap` now writes this marker through `crates/pns-adapters/src/phone_marker.rs`. It updates the
@@ -1073,7 +1073,7 @@ bytes and all, published in one step."
   `Wait` is never claimed. An irregular entry is left alone and never opened, and said ONCE rather than
   once a tick (`src/main.rs:drain_spool`, the `reported` set).
 - Timeout and cancellation: a job is cancelled by its `unless_marker` (behavior 26's marker), by its
-  lease running out, or by `pns daemon cancel`.
+  lease running out, or by `pns gateway cancel`.
 - Idempotency and duplicates: the id IS the filename, so re-registering is a refresh rather than a second
   job. The residual window is stated honestly: "A refresh that lands AFTER the claim is taken cannot stop
   the occurrence already claimed from running ... Nothing is LOST and nothing runs twice; the old

@@ -57,10 +57,10 @@ mod github;
 pub use github::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,
 };
-mod daemon;
+mod gateway;
 mod retry;
-pub use daemon::DaemonConfig;
-use daemon::{DEFAULT_DAEMON_ENABLED, parse_daemon};
+pub use gateway::DaemonConfig;
+use gateway::{DEFAULT_GATEWAY_ENABLED, parse_gateway};
 mod remind;
 pub use remind::remind_delay_range;
 use remind::{REMIND_OFF, backstop_outlasts_the_reminder, parse_remind};

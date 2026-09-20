@@ -42,5 +42,5 @@
 {"label":"com.webdavis.osquery-digest","path":"~/Library/LaunchAgents/com.webdavis.osquery-digest.plist","program":"~/.cargo/bin/posture digest","sha256":""}
 {"label":"com.webdavis.osquery-heartbeat","path":"~/Library/LaunchAgents/com.webdavis.osquery-heartbeat.plist","program":"~/.cargo/bin/posture heartbeat","sha256":""}
 {"label":"com.webdavis.osquery-tailscale-monitor","path":"~/Library/LaunchAgents/com.webdavis.osquery-tailscale-monitor.plist","program":"~/.cargo/bin/posture funnel","sha256":""}
-{"label":"com.webdavis.pns-daemon","path":"~/Library/LaunchAgents/com.webdavis.pns-daemon.plist","program":"~/.cargo/bin/pns daemon run","sha256":""}
+{"label":"com.webdavis.pns-daemon","path":"~/Library/LaunchAgents/com.webdavis.pns-daemon.plist","program":"~/.cargo/bin/pns gateway run","sha256":""}
 {"label":"com.webdavis.scalebar","path":"~/Library/LaunchAgents/com.webdavis.scalebar.plist","program":"~/.local/libexec/scalebar/Scalebar","sha256":""}

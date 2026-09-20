@@ -2,8 +2,8 @@
 
 ## Scope
 
-Everything `pns daemon` is: the clock (`pns daemon run`, run by the `com.webdavis.pns-daemon`
-LaunchAgent), the two typed verbs beside it (`pns daemon schedule`, `pns daemon cancel`), and the whole
+Everything `pns gateway` is: the clock (`pns gateway run`, run by the `com.webdavis.pns-daemon`
+LaunchAgent), the two typed verbs beside it (`pns gateway schedule`, `pns gateway cancel`), and the whole
 life of one `job` from the moment a client writes it into the `spool` to the moment the daemon claims it,
 fires it, bounds the child it started, kills that child's process group and reaps it. The record format,
 the validation, the `claim` and `lease` protocol, the marker cancellation, the heartbeat, the enable
@@ -20,7 +20,7 @@ writing one file; the daemon reads the directory on its tick. There is no connec
 reply and nothing for a hook to wait on, so a daemon that is dead, wedged or mid-restart changes nothing
 about the write.
 
-Retained delivery retries run as one supervised `pns daemon retry` child at a time, after each spool
+Retained delivery retries run as one supervised `pns gateway retry` child at a time, after each spool
 pass. They use the same child deadline and reaping as scheduled jobs. The internal child id
 `.delivery-retry` cannot collide with a valid spool filename. The child samples its clock and claims one
 retained leg; a slow destination must not block the daemon's heartbeat or another scheduled job. An extra
@@ -35,7 +35,7 @@ second job, then verifies that the second job still runs.
 | `lights` (`src/main.rs:LIGHTS_JOB`)                                      | Three callers, all through `src/main.rs:schedule_lights_tick`: every event decision on a machine with a `[lights]` table (`src/main.rs:register_lights_tick`), `pns loop begin` (`src/main.rs:loop_mode`, `LoopCommand::Begin` arm), and the tick itself when work is still in flight (`src/main.rs`, the `!active.is_empty() \|\| standing.in_flight` tail of `lights_tick`) | `until = due.max(now + lease)`. The lease is 300s for an ordinary event (`src/main.rs:ORDINARY_LEASE_SECS`), 43200s (twelve hours) for a journalled one (`src/main.rs:JOURNALLED_LEASE_SECS`), `lights.looping.lease_expiry` for `pns loop begin` (default 3900, accepted range 60 to 86400, `src/config.rs:DEFAULT_LOOP_LEASE_EXPIRY_SECS`, `MIN_LEASE_EXPIRY_SECS`, `MAX_LIGHTS_TIMING_SECS`), and 300s again for the tick's own renewal | `pns lights tick`, argv `["lights", "tick"]`, repeating at `every = lights.arm_interval` (default 12, accepted range 10 to 30, `src/config.rs:DEFAULT_ARM_INTERVAL_SECS`, `MIN_ARM_INTERVAL_SECS`, `MAX_ARM_INTERVAL_SECS`)                                                                                                                                                                                                                                        | `max(tick * 30, MAX_ARM_INTERVAL_SECS + tick_bridge_deadline(MAX_ARM_INTERVAL_SECS) + tick)`, which is 37s at the production tick (`src/main.rs:child_bound`)        | `tests/dispatch.rs:an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer`; `tests/dispatch.rs:a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold`; `tests/dispatch.rs:a_tick_with_nothing_in_flight_lets_its_own_lease_lapse`; `tests/dispatch.rs:a_lease_taken_by_hand_schedules_the_tick_that_reads_it`; `src/main.rs:a_child_outlives_the_longest_interval_plus_the_write_and_the_reap_that_follow_it`; `src/main.rs:a_job_waits_while_its_own_child_lives_and_fires_once_that_child_has_gone` |
 | `remind:<session-id>` (`src/remind.rs:job_id`, prefix `src/remind.rs:JOB_PREFIX`) | `src/main.rs:arm_remind`, on a blocked approval from the `claude` agent when `[remind] delay` is non-zero                                                                                                                                                                                                                                                                      | `until = due + after_secs`, where `due = now + after_secs`. One whole schedule past the due second, deliberately: `until == due` is a zero-length lease and a busy tick loses the nudge                                                                                                                                                                                                                                                   | `pns remind`, argv `["remind"]` (`src/main.rs:REMIND_MODE_WORD`), one-shot (`every: None`), cancelled by `unless_marker = "remind-<session-id>"` (`src/remind.rs:marker_name`, prefix `src/remind.rs:MARKER_PREFIX`)                                                                                                                                                                                                                                                  | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm)                                                                       | `tests/hooks.rs:the_daemon_really_fires_the_remind_and_really_drops_it_when_the_marker_is_there`; `tests/hooks.rs:arming_writes_a_record_registers_a_job_and_clears_a_stale_marker_first` (which asserts `id=remind:s1`, `marker=remind-s1` and `args=["remind"]` in the record)                                                                                                                                                                                                                                                                     |
 | `presence` (`src/main.rs:PRESENCE_JOB`)                                  | One caller, `src/main.rs:ensure_presence_poll`, from the `SWITCH_TICKS` block of `src/main.rs:daemon_run`: the daemon registers its own sensor, because no event asks for a room reading. `presence_settings()` returning `None` (the table absent, switched off, or refused) CANCELS it instead                                                                              | `until = due.max(now + 300)` (`src/main.rs:PRESENCE_LEASE_SECS`), refreshed by every sweep while the table is on. The pending `due` is kept, so a thirty-second sweep never pushes a five-second poll away from itself                                                                                                                                                                                                                    | `pns presence poll --daemon`, argv `["presence", "poll", "--daemon"]` (the flag is the daemon's own spelling, and it is what makes a poll that stood down for a live holder stay silent and exit 0: the same stand-down typed by hand says so and exits 1), repeating at `every = [plugins.presence] poll_interval` (default `"5s"`, accepted range `"2s"` to `"1m"`, `pns-adapters/src/config/presence_values.rs:DEFAULT_POLL_INTERVAL_SECS`, `MIN_POLL_INTERVAL_SECS`, `MAX_POLL_INTERVAL_SECS`) | `tick * 30` = 30s at the production tick (`src/main.rs:child_bound`, non-lights arm), which is past the two `hue::BRIDGE_DEADLINE` calls one poll can take | `src/main.rs:an_armed_sensor_registers_the_poll_at_its_own_interval`; `src/main.rs:a_sensor_that_is_off_cancels_the_poll_it_had_registered`; `src/main.rs:a_sweep_refreshes_the_lease_without_moving_a_poll_that_is_already_due`; `src/main.rs:a_poll_publishes_the_room_it_read_as_the_line_the_sensor_parses`; `src/main.rs:a_bridge_that_did_not_answer_leaves_the_last_reading_where_it_was`                                                                                                                                         |
-| Any id the operator types (`pns daemon schedule --id <id>`)              | `src/main.rs:daemon_schedule` through `src/main.rs:parse_schedule`                                                                                                                                                                                                                                                                                                            | `--until-epoch <epoch>` or `--until +<secs>` as typed, else `due + 60` (`src/main.rs:DEFAULT_LEASE_SLACK_SECS`)                                                                                                                                                                                                                                                                                                                                 | Everything after `--`, re-executed as `pns <args>`                                                                                                                                                                                                                                                                                                                                                                                                  | `tick * 30` (`src/main.rs:child_bound`, non-lights arm)                                                                                                    | `tests/daemon.rs:a_scheduled_job_runs_once_and_its_effect_is_observable`; `tests/daemon.rs:a_repeating_job_keeps_firing_until_its_lease_runs_out_then_stops`; `tests/daemon.rs:a_registration_succeeds_with_no_daemon_anywhere_and_blocks_on_nothing`; `tests/daemon.rs:a_marker_on_disk_cancels_a_scheduled_job_end_to_end`                                                                                                                                                                                                             |
+| Any id the operator types (`pns gateway schedule --id <id>`)              | `src/main.rs:gateway_schedule` through `src/main.rs:parse_schedule`                                                                                                                                                                                                                                                                                                            | `--until-epoch <epoch>` or `--until +<secs>` as typed, else `due + 60` (`src/main.rs:DEFAULT_LEASE_SLACK_SECS`)                                                                                                                                                                                                                                                                                                                                 | Everything after `--`, re-executed as `pns <args>`                                                                                                                                                                                                                                                                                                                                                                                                  | `tick * 30` (`src/main.rs:child_bound`, non-lights arm)                                                                                                    | `tests/daemon.rs:a_scheduled_job_runs_once_and_its_effect_is_observable`; `tests/daemon.rs:a_repeating_job_keeps_firing_until_its_lease_runs_out_then_stops`; `tests/daemon.rs:a_registration_succeeds_with_no_daemon_anywhere_and_blocks_on_nothing`; `tests/daemon.rs:a_marker_on_disk_cancels_a_scheduled_job_end_to_end`                                                                                                                                                                                                             |
 
 There is no registry of job ids. The daemon knows only what is in the spool directory, and any of the
 four routes above writes the same record shape (`src/daemon.rs:Job`, `src/daemon.rs:render`). The
@@ -137,40 +137,42 @@ needs a restart.
 
 ## Behaviors
 
-### 1. `pns daemon` serves three verbs and refuses everything else
+### 1. `pns gateway` serves eight verbs and refuses everything else
 
-Given the operator types `pns daemon <word>`
+Given the operator types `pns gateway <word>`
 
-When `<word>` is not `run`, `schedule` or `cancel`
+When `<word>` is not `run`, `retry`, `schedule`, `cancel`, `start`, `stop`, `restart` or `status`
 
 Then the usage text goes to stderr and the process exits 2
 
-- Success: `src/main.rs:daemon_mode` matches the three verbs and every other word falls to the arm that
-  prints `DAEMON_USAGE` and returns 2. The verb comes from `src/main.rs:second_argument`, which is
-  `args_os().nth(2)` lossily converted, so a bare `pns daemon` presents an empty verb and is refused like
-  any other unknown word.
+- Success: `src/command_gateway.rs:gateway_mode` matches `run`, `retry`, `schedule` and `cancel`, and
+  falls every other word through to `src/command_gateway/service.rs:service_mode`, which matches the
+  four launchd verbs and refuses anything else with `GATEWAY_USAGE`. The verb comes from
+  `src/invocation.rs:second_argument`, which is `args_os().nth(2)` lossily converted, so a bare
+  `pns gateway` presents an empty verb and is refused like any other unknown word.
 - Failure sources: none of its own. It reads argv and branches.
 - Fail direction: LOUD and non-zero, per the house rule that an unknown argument never falls through to
   help with exit 0. A verb this does not serve is a command the operator believes ran
-  (`src/main.rs:daemon_mode` doc comment).
+  (`src/command_gateway.rs:gateway_mode` doc comment).
 - Thresholds: Not applicable. No number is compared.
-- Required side effects: exactly one line on stderr, verbatim:
-  `pns: usage: pns daemon run | pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <event args> | pns daemon cancel --id <id>`
+- Required side effects: exactly one line on stderr, verbatim (`src/command_gateway.rs:GATEWAY_USAGE`):
+  `pns: usage: pns gateway run | pns gateway schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <subcommand> [args] | pns gateway cancel --id <id> | pns gateway retry (one sweep of the retry queue, run by the clock) | pns gateway start | pns gateway stop | pns gateway restart | pns gateway status`
 - Forbidden side effects: nothing is written, no config is read, no clock is read, and nothing is
-  spawned.
+  spawned. `service_mode` filters the verb before it reads `HOME` or loads the config
+  (`src/command_gateway/service.rs:service_mode`), so an unknown word never reaches either.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: Not applicable. The refusal has no state.
 - Privacy: the rejected word is NOT echoed. The usage text is fixed and carries nothing the operator
   typed.
 - Process ownership and cleanup: no process is created.
-- Compatibility contract: `pns daemon --help` and `pns daemon -h` are unknown verbs and get the same exit
+- Compatibility contract: `pns gateway --help` and `pns gateway -h` are unknown verbs and get the same exit
   2, not help. The daemon has no help arm of its own; the binary's `--help` is answered only when argv
   reaches the producer parser (`src/main.rs:USAGE`, `src/main.rs:is_producer_argv`), which a leading
   `daemon` never does.
 
-### 2. `pns daemon run` refuses a trailing word
+### 2. `pns gateway run` refuses a trailing word
 
-Given the operator types `pns daemon run <anything>`
+Given the operator types `pns gateway run <anything>`
 
 When the fourth argv word is present
 
@@ -182,37 +184,37 @@ Then the usage text goes to stderr and the process exits 2 without starting a cl
 - Fail direction: loud and non-zero, before the config is read, before the spool is touched and before
   the loop starts.
 - Thresholds: Not applicable.
-- Required side effects: `DAEMON_USAGE` on stderr, exit 2.
+- Required side effects: `GATEWAY_USAGE` on stderr, exit 2.
 - Forbidden side effects: no heartbeat is published, no spool directory is created, and the loop is not
   entered.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: Not applicable.
 - Privacy: the trailing word is not echoed.
 - Process ownership and cleanup: no process is created.
-- Compatibility contract: the plist passes exactly `daemon run` and nothing else
+- Compatibility contract: the plist passes exactly `gateway run` and nothing else
   (`Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl`, `ProgramArguments`), so a third word can
   only arrive by hand.
 
 ### 3. The clock will not start while the config switch is off, and exits 0 so it stays down
 
-Given `[daemon] enabled = false` in the config
+Given `[gateway] enabled = false` in the config
 
-When `pns daemon run` starts
+When `pns gateway run` starts
 
 Then it prints one line and exits 0
 
-- Success: `src/main.rs:daemon_run` calls `src/main.rs:daemon_enabled` before anything else and returns 0
-  on false, after printing to stdout, verbatim: `pns daemon: disabled in the config; exiting`.
+- Success: `src/main.rs:daemon_run` calls `src/main.rs:gateway_enabled` before anything else and returns 0
+  on false, after printing to stdout, verbatim: `pns gateway: disabled in the config; exiting`.
 - Failure sources: a config that will not parse; a config that is missing; an unreadable `HOME`.
-- Fail direction: ON. `src/main.rs:daemon_enabled` answers true for `LoadOutcome::Missing` and true for a
+- Fail direction: ON. `src/main.rs:gateway_enabled` answers true for `LoadOutcome::Missing` and true for a
   parse error, and the parse error also prints to stderr:
-  `pns daemon: the config could not be read (<detail>); carrying on enabled`. A file that will not parse
-  must not silently stop a service the operator enabled. The default is also on with no `[daemon]` table
-  at all (`src/config.rs:DEFAULT_DAEMON_ENABLED`, true, and the reasoning in the `Config::daemon_enabled`
+  `pns gateway: the config could not be read (<detail>); carrying on enabled`. A file that will not parse
+  must not silently stop a service the operator enabled. The default is also on with no `[gateway]` table
+  at all (`src/config.rs:DEFAULT_GATEWAY_ENABLED`, true, and the reasoning in the `Config::gateway_enabled`
   doc comment: this switch delivers nothing, an idle daemon reads one empty directory a second, and
   default-off would put every clock-riding feature behind two switches).
-- Thresholds: Not applicable. The key is a boolean; `[daemon] enabled` with a non-boolean value is a
-  config error, and any other key inside `[daemon]` is refused by name (`src/config.rs:parse_daemon`).
+- Thresholds: Not applicable. The key is a boolean; `[gateway] enabled` with a non-boolean value is a
+  config error, and any other key inside `[gateway]` is refused by name (`src/config.rs:parse_gateway`).
 - Required side effects: exactly ONE line, once, on the path that exits.
   `KeepAlive { SuccessfulExit = false }` is what keeps a clean exit 0 exited, so the line is written at
   most once per bootstrap rather than once per throttle window.
@@ -231,7 +233,7 @@ Then it prints one line and exits 0
 
 Given something that is not a directory sits at `<state>/daemon`
 
-When `pns daemon run` prepares the spool
+When `pns gateway run` prepares the spool
 
 Then it prints the refusal on stderr and exits 0 without ticking
 
@@ -239,7 +241,7 @@ Then it prints the refusal on stderr and exits 0 without ticking
   a symlink and a link where the spool should be would silently put every job somewhere this tool did not
   choose. A non-directory answers `Startup::Refused` with, verbatim,
   `<path> is not a directory; refusing to start`, and `src/main.rs:daemon_run` prints it as
-  `pns daemon: <refusal>` and returns 0. Pinned by
+  `pns gateway: <refusal>` and returns 0. Pinned by
   `src/daemon.rs:a_spool_path_that_is_not_a_directory_is_a_permanent_refusal` (with an unmutated control
   proving an ABSENT spool is made rather than refused) and end to end by
   `tests/daemon.rs:a_spool_that_is_not_a_directory_refuses_the_start_and_exits_zero`.
@@ -251,7 +253,7 @@ Then it prints the refusal on stderr and exits 0 without ticking
   comment). A transient variant would belong beside it and there is none today.
 - Thresholds: Not applicable.
 - Required side effects: on the second arm, the line is
-  `pns daemon: the spool directory could not be made (<error>)`. NOT ESTABLISHED: no test exercises that
+  `pns gateway: the spool directory could not be made (<error>)`. NOT ESTABLISHED: no test exercises that
   arm; only the not-a-directory arm is pinned.
 - Forbidden side effects: nothing is repaired, nothing is unlinked, and the offending path is left
   exactly where it was found.
@@ -301,7 +303,7 @@ re-reads the switch, then runs one pass
 
 ### 6. The switch is re-read every thirtieth tick and stops a daemon that is already running
 
-Given a running daemon and an operator who edits the config to `[daemon] enabled = false`
+Given a running daemon and an operator who edits the config to `[gateway] enabled = false`
 
 When the tick counter next hits a multiple of `SWITCH_TICKS`
 
@@ -319,7 +321,7 @@ Then the daemon prints its line and exits 0
   config is not read; at tick 30 it is. Counted in TICKS rather than seconds so one knob moves with the
   clock instead of two disagreeing about it.
 - Required side effects: the same verbatim line as behavior 3,
-  `pns daemon: disabled in the config; exiting`, and exit 0.
+  `pns gateway: disabled in the config; exiting`, and exit 0.
 - Forbidden side effects: nothing is unlinked on the way out. The heartbeat file is LEFT BEHIND (nothing
   in the crate removes it; a grep of `src/` finds `publish_heartbeat` and `heartbeat_path` and no
   remover), so the doctor grades it by age afterwards.
@@ -430,7 +432,7 @@ Then the reap has already happened and the pass returns before the heartbeat and
 - Privacy: Not applicable.
 - Process ownership and cleanup: unchanged. The reap is the cleanup.
 - Compatibility contract: the same "no clock is no registration" rule holds on the writer side
-  (`src/main.rs:register_lights_tick`, `src/main.rs:arm_remind`, `src/main.rs:daemon_schedule`), so nothing
+  (`src/main.rs:register_lights_tick`, `src/main.rs:arm_remind`, `src/main.rs:gateway_schedule`), so nothing
   ever writes a job due at epoch zero.
 
 ### 10. The spool scan is sorted, skips the module's own working files, and survives an unreadable directory
@@ -472,7 +474,7 @@ tick
 
 - Success: `src/daemon.rs:peek` answers `Peeked::Irregular` off `symlink_metadata(...).is_file()` before
   any open, and `src/main.rs:drain_spool` prints only when `reported.insert(entry.clone())` is true,
-  verbatim: `pns daemon: <path> is not a regular file; left alone and never opened`. Pinned by
+  verbatim: `pns gateway: <path> is not a regular file; left alone and never opened`. Pinned by
   `tests/daemon.rs:an_irregular_spool_entry_is_left_alone_and_never_opened`, which uses a real
   `/usr/bin/mkfifo` pipe, proves an ordinary job still fires afterwards (so the clock was not stalled),
   asserts the pipe still exists, and counts the complaint lines at exactly 1.
@@ -506,7 +508,7 @@ Then it is dropped and the log names the record and the rule it broke
   `src/daemon.rs:count`). `src/daemon.rs:validate_shape` is then applied to what parsed, which is the
   whole reason it is a function rather than a check inside the registration: a hand-edited spool file
   must not be able to do what a registration could not. `src/main.rs:act` prints
-  `` pns daemon: dropped `<id>`: <refusal> `` and releases the claim. Pinned by
+  `` pns gateway: dropped `<id>`: <refusal> `` and releases the claim. Pinned by
   `tests/daemon.rs:a_hand_edited_spool_record_whose_args_fail_validation_is_dropped` (a record with
   `args=[]` that parses cleanly and fails the shape rules; the log must contain both
   `` dropped `handmade`  `` and `` `args` is empty ``, the spool must empty, and the fire count must stay
@@ -601,7 +603,7 @@ Then nothing is renamed, nothing is rewritten and the entry is left exactly wher
 
 ### 15. A claim is taken by rename, and the rename is the ownership test
 
-Given two daemons (or a daemon and a hand-run `pns daemon` process) reaching one due job in the same
+Given two daemons (or a daemon and a hand-run `pns gateway` process) reaching one due job in the same
 second
 
 When each tries to claim it
@@ -628,7 +630,7 @@ Then exactly one wins, and the loser reads nothing at all
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: this is the whole duplicate-suppression mechanism. Two daemons cannot both
   run one occurrence, because the claim is taken BEFORE the record is read for anything the daemon acts
-  on. A daemon and a hand-run `pns daemon schedule` do not race for a claim at all: the client only ever
+  on. A daemon and a hand-run `pns gateway schedule` do not race for a claim at all: the client only ever
   publishes (behavior 28), and its publish uses an overwriting rename that a claim has already moved the
   name out of the way of. Pinned by
   `src/daemon.rs:a_registration_landing_while_the_old_record_is_claimed_is_not_deleted_by_the_cleanup`,
@@ -703,7 +705,7 @@ Then the record goes back under its id only if a client has not written there in
 - Success: `src/main.rs:act`'s `Verdict::Wait` arm calls `src/daemon.rs:hand_back` and releases the claim
   on both `Ok(true)` and `Ok(false)`.
 - Failure sources: a staging or link failure.
-- Fail direction: on error the line is `` pns daemon: `<id>` could not be put back (<error>) `` and the
+- Fail direction: on error the line is `` pns gateway: `<id>` could not be put back (<error>) `` and the
   claim is STILL released, so no working file is left behind. NOT ESTABLISHED: no test exercises this
   error arm.
 - Thresholds: Not applicable.
@@ -735,7 +737,7 @@ When the daemon drops it
 Then it prints one line naming the id and the reason, and the record is gone
 
 - Success: `src/main.rs:act`'s `Verdict::Drop(reason)` arm prints
-  `` pns daemon: dropped `<id>` because <reason> `` where `<reason>` is one of `its lease had expired`
+  `` pns gateway: dropped `<id>` because <reason> `` where `<reason>` is one of `its lease had expired`
   and `its marker was already there`, then releases the claim. Pinned end to end by
   `tests/daemon.rs:a_marker_on_disk_cancels_a_scheduled_job_end_to_end` (which asserts the exact phrase
   `its marker was already there` and then runs an in-test control: the same daemon, the same tick, an
@@ -811,12 +813,12 @@ Then the repeat is written first, then the claim is released, then the child is 
 - Failure sources: a link failure on the re-arm; a spawn failure.
 - Fail direction: written the other way round, a daemon killed between the two loses the repeat with the
   job already run, which is the lamp going dark on a loop that is still alive. A failed spawn is said out
-  loud: `` pns daemon: `<id>` could not start (<error>) ``, because an action that suppressed its own
+  loud: `` pns gateway: `<id>` could not start (<error>) ``, because an action that suppressed its own
   error has not been performed and the alternative is a job that reports as run and delivered nothing. A
-  failed re-arm is said too: `` pns daemon: `<id>` will not repeat (<error>) ``.
+  failed re-arm is said too: `` pns gateway: `<id>` will not repeat (<error>) ``.
 - Thresholds: Not applicable.
 - Required side effects: when the id was taken in the meantime, the line is
-  `` pns daemon: `<id>` was registered again while it ran, so its repeat stands down ``, and the client's
+  `` pns gateway: `<id>` was registered again while it ran, so its repeat stands down ``, and the client's
   record stands. NOT ESTABLISHED: no test exercises that line, nor the two error lines above.
 - Forbidden side effects: the re-arm is create-if-absent for the same reason the put-back is. A client
   that refreshed this id while the occurrence was claimed published the newer signal, and a rename here
@@ -881,7 +883,7 @@ and `process_group(0)`
 - Success: `src/main.rs:spawn_job`.
 - Failure sources: `current_exe` failing; `spawn` failing (a missing binary, a process limit).
 - Fail direction: the `io::Result` is returned to `fire`, which prints
-  `` pns daemon: `<id>` could not start (<error>) ``.
+  `` pns gateway: `<id>` could not start (<error>) ``.
 - Thresholds: Not applicable.
 - Required side effects: STDERR IS INHERITED, and that is the one reader a job has. A job runs unattended
   with no terminal behind it, so a complaint it writes goes wherever this puts that stream. With stderr
@@ -905,7 +907,7 @@ and `process_group(0)`
   a second one for the same id.
 - Privacy: the argv reaches the process table and the spool file. That is why the reminder deliberately puts
   NO free text in `args`: the operator's own question lives in the reminder record and `pns remind` takes no
-  argument. `pns daemon schedule` places whatever the operator typed after `--` into the record, so that
+  argument. `pns gateway schedule` places whatever the operator typed after `--` into the record, so that
   route CAN put free text in the spool.
 - Process ownership and cleanup: this is the second row of the process table. The daemon owns the child
   through `Bounded`; it owns the rest of the group only through the group kill.
@@ -1033,7 +1035,7 @@ When the remove fails
 Then one line names the file and says it was left behind
 
 - Success: `src/main.rs:release` prints, verbatim:
-  `pns daemon: the working file <path> could not be removed (<error>); it is left behind`.
+  `pns gateway: the working file <path> could not be removed (<error>); it is left behind`.
 - Failure sources: a read-only directory; a file removed under it.
 - Fail direction: say it. A claim that could not be removed is a LEAK, not a nothing: it is invisible to
   the scan (the working prefix is outside the id character set), so it sits there until a hand removes
@@ -1083,17 +1085,17 @@ Then it writes nothing at all
   behaviors 3, 4, 6, 11, 12, 13, 17, 18, 20, 26. A firing that WORKED is not among them, which is why the
   reminder's end-to-end test uses the delivered card as its probe rather than a log line.
 
-### 28. `pns daemon schedule` registers one job and waits on nothing
+### 28. `pns gateway schedule` registers one job and waits on nothing
 
 Given the operator or a rider registering a job
 
 When
-`pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <args>`
+`pns gateway schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>] [--until-epoch <epoch>] [--unless-marker <name>] -- <args>`
 runs
 
 Then the record is validated and published by rename, with no daemon involved
 
-- Success: `src/main.rs:parse_schedule` builds a `ScheduleRequest`, `src/main.rs:daemon_schedule` reads
+- Success: `src/main.rs:parse_schedule` builds a `ScheduleRequest`, `src/main.rs:gateway_schedule` reads
   the clock once, computes `due = now + in_secs` and `until` from `Until`, and calls
   `src/daemon.rs:schedule`, which validates and then publishes with the private overwriting
   `publish_job`. Exit 0.
@@ -1101,10 +1103,10 @@ Then the record is validated and published by rename, with no daemon involved
   fails.
 - Fail direction: LOUD and non-zero for a typed command, because `pns`'s own event parser is lenient (it
   sits on a notification path that must not fail) and this one sits in front of an operator who typed a
-  command and will believe it did what they wrote. An unparseable argv prints `DAEMON_USAGE` and exits 2.
-  No clock prints `pns daemon: this machine has no clock to schedule against` and exits 1. A refusal
-  prints `pns daemon: <refusal>` and exits 1 (a spool failure reads
-  `pns daemon: the spool write failed: <error>`).
+  command and will believe it did what they wrote. An unparseable argv prints `GATEWAY_USAGE` and exits 2.
+  No clock prints `pns gateway: this machine has no clock to schedule against` and exits 1. A refusal
+  prints `pns gateway: <refusal>` and exits 1 (a spool failure reads
+  `pns gateway: the spool write failed: <error>`).
 - Thresholds: `--in` defaults to 0. `--until`/`--until-epoch` absent gives `due + 60`
   (`src/main.rs:DEFAULT_LEASE_SLACK_SECS`), because a lease is never ABSENT, only unstated: a job with no
   expiry is the parked job the whole design refuses. A minute is long enough that a busy tick or a slow
@@ -1142,24 +1144,24 @@ Then the record is validated and published by rename, with no daemon involved
   `src/daemon.rs:an_argv_that_renders_past_the_record_cap_is_refused_by_name`, with an unmutated control
   proving the same 4096 plain bytes are accepted.
 
-### 29. `pns daemon cancel` forgets one job, and is not an error the second time
+### 29. `pns gateway cancel` forgets one job, and is not an error the second time
 
-Given `pns daemon cancel --id <id>`
+Given `pns gateway cancel --id <id>`
 
 When the job is there, absent, or the id is not a job id
 
 Then the three cases are exit 0, exit 0 and exit 1
 
-- Success: `src/main.rs:daemon_cancel` destructures argv into exactly `[flag, id]` and requires
-  `flag == "--id"`; anything else prints `DAEMON_USAGE` and exits 2. `src/daemon.rs:cancel` validates the
+- Success: `src/main.rs:gateway_cancel` destructures argv into exactly `[flag, id]` and requires
+  `flag == "--id"`; anything else prints `GATEWAY_USAGE` and exits 2. `src/daemon.rs:cancel` validates the
   id with `name_is_safe` and unlinks `<spool>/<id>`.
 - Failure sources: an unsafe id; a remove that fails for a reason other than not-found.
-- Fail direction: an unsafe id is `` pns daemon: `<id>` is not a job id ``, exit 1. A remove error is
-  `pns daemon: the spool entry could not be removed: <error>`, exit 1.
+- Fail direction: an unsafe id is `` pns gateway: `<id>` is not a job id ``, exit 1. A remove error is
+  `pns gateway: the spool entry could not be removed: <error>`, exit 1.
 - Thresholds: Not applicable.
-- Required side effects: on success, `` pns daemon: cancelled `<id>`  `` on stdout, exit 0.
+- Required side effects: on success, `` pns gateway: cancelled `<id>`  `` on stdout, exit 0.
 - Forbidden side effects: an ABSENT job is NOT an error. It prints
-  `` pns daemon: no job named `<id>` was scheduled `` and exits 0, because the end state the operator
+  `` pns gateway: no job named `<id>` was scheduled `` and exits 0, because the end state the operator
   asked for is the one they already have, and a non-zero exit would make a drill's cleanup step fail the
   second time it ran.
 - Timeout and cancellation: Not applicable.
@@ -1368,4 +1370,4 @@ Then the process dies inside its tick and any live child is left running
 | `bound`           | `src/main.rs:Bounded`, `src/main.rs:child_bound`, `src/main.rs:CHILD_TICKS`                              |
 | `working file`    | `src/daemon.rs:WORKING_PREFIX`, `src/daemon.rs:pending_for`, `src/main.rs:release`                       |
 | `startup refusal` | `src/daemon.rs:Startup`, `src/daemon.rs:prepare_spool`                                                   |
-| the enable switch | `src/config.rs:Config::daemon_enabled`, `src/main.rs:daemon_enabled`, `src/main.rs:SWITCH_TICKS`         |
+| the enable switch | `src/config.rs:Config::gateway_enabled`, `src/main.rs:gateway_enabled`, `src/main.rs:SWITCH_TICKS`         |

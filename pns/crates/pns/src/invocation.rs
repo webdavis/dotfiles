@@ -7,7 +7,7 @@ use crate::*;
 /// PUBLISHED ONCE rather than threaded, for the same reason the color answer
 /// is. Fifteen commands used to reach for `std::env::args_os()` themselves,
 /// which is what made a flag typed BEFORE the subcommand shift every position
-/// after it: `pns --no-color daemon start` handed `daemon` to the daemon as its
+/// after it: `pns --no-color gateway start` handed `gateway` to the gateway as its
 /// verb, and `pns --no-color doctor` looked to the doctor like a stray word to
 /// refuse. Reading one filtered answer is what makes the flag mean the same
 /// thing wherever it is typed.
@@ -188,19 +188,21 @@ pub(crate) fn run() {
     if first == "resume" {
         std::process::exit(resume_mode());
     }
-    // The clock. A MODE for the reason the others are: `run` takes no event
-    // and delivers nothing itself, and the two typed verbs beside it only move
-    // a file. Nothing on the event path below reaches it, and nothing here
-    // reaches the event path except by re-executing this binary.
-    if first == "daemon" {
-        std::process::exit(daemon_mode(&second_argument(&flagless)));
-    }
-    // The daemon's own launchd service: start, stop, restart and report the
-    // service `[daemon] service` names. A MODE beside the daemon's for the
-    // same reason: it takes no event and delivers nothing, and nothing on the
-    // event path reaches it.
+    // The clock and its own launchd service. A MODE for the reason the others
+    // are: `run` takes no event and delivers nothing itself, the typed verbs
+    // beside it only move a file, and the four service verbs only talk to
+    // launchd about the label `[gateway] service` names. Nothing on the event
+    // path below reaches it, and nothing here reaches the event path except by
+    // re-executing this binary.
     if first == "gateway" {
         std::process::exit(gateway_mode(&second_argument(&flagless)));
+    }
+    // THE OLD SPELLING, REFUSED BY NAME rather than falling through to the
+    // event path: `pns daemon <verb>` is a command the operator believes ran.
+    if first == "daemon" {
+        eprintln!("`pns daemon` is now `pns gateway`");
+        eprintln!("{GATEWAY_USAGE}");
+        std::process::exit(2);
     }
     // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
     // takes no decision and delivers nothing, and the daemon is what runs it.
@@ -392,7 +394,7 @@ mod tests {
 
     #[test]
     fn argv_without_the_flag_is_passed_through_unchanged() {
-        let argv = strings(&["daemon", "schedule", "--id", "x"]);
+        let argv = strings(&["gateway", "schedule", "--id", "x"]);
         let (flagless, forced_plain) = take_tool_wide_flags(&argv);
         assert!(!forced_plain);
         assert_eq!(flagless, argv);
@@ -409,8 +411,8 @@ mod tests {
     #[test]
     fn a_verb_keeps_its_position_when_the_flag_was_typed_before_the_subcommand() {
         // The bug this exists to prevent: reading the verb off the environment
-        // handed `daemon` to the daemon as its own verb.
-        let (flagless, _) = take_tool_wide_flags(&strings(&["--no-color", "daemon", "start"]));
+        // handed `gateway` to the gateway as its own verb.
+        let (flagless, _) = take_tool_wide_flags(&strings(&["--no-color", "gateway", "start"]));
         assert_eq!(second_argument(&flagless), "start");
     }
 

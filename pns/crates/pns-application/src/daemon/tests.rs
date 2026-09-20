@@ -10,7 +10,7 @@ fn a_disabled_daemon_never_prepares_the_spool_or_starts_a_tick() {
         *world.log.borrow(),
         [
             "settings",
-            "out:pns daemon: disabled in the config; exiting"
+            "out:pns gateway: disabled in the config; exiting"
         ]
     );
 }
@@ -21,7 +21,7 @@ fn a_permanently_refused_spool_exits_cleanly_before_sleeping_or_reading_a_clock(
     assert_eq!(world.run(false), 0);
     assert_eq!(
         *world.log.borrow(),
-        ["settings", "prepare", "err:pns daemon: spool refused"]
+        ["settings", "prepare", "err:pns gateway: spool refused"]
     );
 }
 
@@ -57,7 +57,7 @@ fn the_daemon_reloads_on_the_thirtieth_tick_before_registering_or_draining() {
     );
     assert_eq!(
         log.last().unwrap(),
-        "out:pns daemon: disabled in the config; exiting"
+        "out:pns gateway: disabled in the config; exiting"
     );
 }
 
@@ -68,7 +68,7 @@ fn an_unreadable_daemon_config_warns_and_keeps_running_until_a_readable_off_swit
     assert_eq!(world.count("sleep"), 30);
     assert_eq!(world.count("reap"), 29);
     assert!(world.log.borrow().contains(
-        &"err:pns daemon: the config could not be read (bad config); carrying on enabled".into()
+        &"err:pns gateway: the config could not be read (bad config); carrying on enabled".into()
     ));
 }
 

@@ -211,7 +211,7 @@ fn fires_racing_over_one_directory_still_produce_exactly_one_card() {
 
 #[test]
 fn the_daemon_really_fires_the_remind_and_really_drops_it_when_the_marker_is_there() {
-    // THE TEST THAT PROVES THE FEATURE EXISTS END TO END: a real `pns daemon
+    // THE TEST THAT PROVES THE FEATURE EXISTS END TO END: a real `pns gateway
     // run` at its fast tick, a real spool entry, a real spawned `pns remind`. The
     // second row is the only place `unless_marker` is PROVEN rather than
     // assumed, and it is what makes coalescing quiet: every sibling job of a
@@ -225,7 +225,7 @@ fn the_daemon_really_fires_the_remind_and_really_drops_it_when_the_marker_is_the
             write_marker(&sandbox, "s1");
         }
         support::run(sandbox.pns_stateful().args([
-            "daemon",
+            "gateway",
             "schedule",
             "--id",
             "remind:s1",
@@ -275,7 +275,7 @@ fn the_daemon_really_fires_the_remind_and_really_drops_it_when_the_marker_is_the
             // ticking beside this fire re-delivers the card. A channel script
             // cannot confirm a delivery (`deliver_executable` answers `Silent`
             // whatever it exits), so the reminder's legs are retry-eligible the
-            // moment they are written and `pns daemon retry` hands the SAME
+            // moment they are written and `pns gateway retry` hands the SAME
             // event over again a tick later. A delivery count is therefore a
             // function of when this thread happens to read it, which is what
             // failed CI on #629 with `Some(2)` against `Some(1)`; the number
