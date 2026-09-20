@@ -14,6 +14,15 @@
 /// a prefix on it, short enough that a spool filename stays a filename.
 pub const ID_MAX: usize = 64;
 
+/// The failure page's job id.
+///
+/// A LEADING DOT CANNOT BE A SCHEDULED ID, so nothing an operator registers
+/// can collide with it. It is named here rather than only where it is started
+/// because the daemon's shutdown has to name the one child it takes with it:
+/// every other child is a delivery in flight, which is orphaned on purpose,
+/// and this one is a listener holding a port.
+pub const PAGE_JOB: &str = ".failures-page";
+
 /// One leased job: the whole of what the daemon knows how to do.
 ///
 /// ONE PRIMITIVE, not two. The reminder ("say something at T unless an answer
