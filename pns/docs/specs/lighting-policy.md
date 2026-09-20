@@ -1279,8 +1279,8 @@ off the room listing.
   (`src/presence_policy.rs:a_room_holding_no_routed_lamp_falls_back_to_the_whole_routing`).
 - Thresholds: the motion reading's freshness is `src/presence.rs:classify`'s, against
   `[plugins.presence] reading_max_age`; the desk's is `[plugins.presence] desk_input_max_age`
-  (default `"2m"`, `src/config.rs:DEFAULT_DESK_INPUT_MAX_AGE_SECS`, bounded `"1s"` to
-  `src/config.rs:MAX_DESK_INPUT_MAX_AGE_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
+  (default `"2m"`, `pns-adapters/src/config/presence_values.rs:DEFAULT_DESK_INPUT_MAX_AGE_SECS`,
+  bounded `"1s"` to `MAX_DESK_INPUT_MAX_AGE_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
   good), past which a keyboard nobody has touched speaks for nothing. No dwell rule and no hysteresis of
   its own.
 - Required side effects: one JSON object per decision appended to the `presence-decisions` ring
