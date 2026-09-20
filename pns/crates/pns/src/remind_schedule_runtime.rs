@@ -1,5 +1,5 @@
-use crate::legacy::{Remind, remind_switch};
 use crate::*;
+use pns_protocol::Remind;
 
 pub(crate) fn clear_remind(session_id: &str) {
     pns_application::clear_remind(
@@ -47,6 +47,11 @@ pub(crate) const REMIND_OFF: u64 = 0;
 /// How long THIS call's unanswered approval waits before it is carded again,
 /// or `REMIND_OFF`.
 ///
+/// ONE RESOLUTION FOR BOTH PATHS. The switch arrives as the same value
+/// whether a hook typed `--remind=<duration>` or a producer sent
+/// `"remind": "5m"` in its JSON request, so neither path can drift into its
+/// own reading of config, its own precedence or its own refusal.
+///
 /// MOST SPECIFIC FIRST: the switch this call carried, then the producer's own
 /// `[producer.<name>] remind`, then off. The producer's NAME decides nothing
 /// on its own, which is the whole point: only a harness knows whether it sends
@@ -60,17 +65,22 @@ pub(crate) const REMIND_OFF: u64 = 0;
 /// names both ways out. A producer's config entry with no delay is the feature
 /// off instead, because an unset `[remind] delay` is already how the file says
 /// "no reminder".
-pub(crate) fn remind_delay(argv: &[String], producer: &str) -> Result<Reminder, String> {
+pub(crate) fn remind_delay(switch: Option<Remind>, producer: &str) -> Result<Reminder, String> {
     let by_the_call = |after_secs| Reminder {
         after_secs,
         answered_signal: true,
     };
-    match remind_switch(argv)? {
+    match switch {
         Some(Remind::Off) => Ok(by_the_call(REMIND_OFF)),
-        Some(Remind::After(seconds)) => match backstop_secs() {
-            Some(give_up) if give_up < seconds => Err(remind_outlasts_backstop(seconds, give_up)),
-            _ => Ok(by_the_call(seconds)),
-        },
+        Some(Remind::After(delay)) => {
+            let seconds = delay.as_secs();
+            match backstop_secs() {
+                Some(give_up) if give_up < seconds => {
+                    Err(remind_outlasts_backstop(seconds, give_up))
+                }
+                _ => Ok(by_the_call(seconds)),
+            }
+        }
         Some(Remind::Configured) => match remind_delay_secs() {
             REMIND_OFF => Err(NO_DELAY_TO_REMIND_AT.to_string()),
             delay => Ok(by_the_call(delay)),
@@ -133,3 +143,6 @@ fn loaded_config() -> Option<Box<pns_adapters::Config>> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests;

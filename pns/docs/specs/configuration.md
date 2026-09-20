@@ -204,8 +204,8 @@ switches."
 | -------------- | --------------- | ------------------------------------- | -------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `remind.delay` | duration string | unset (`REMIND_OFF`, the feature off) | `"0s"` is off; otherwise 30s to 1h inclusive | no     | not a duration: `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``; outside: `` `remind` key `delay` "{text}" is outside 30s to 1h `` | `src/config.rs:remind_delay_range` | `the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
-`MAX_REMIND_DELAY_SECS` is defined as `MAX_SUMMARIZER_DEADLINE_SECS`, so the two ceilings are one number by
-construction rather than two that agree by accident.
+The bounds live in the policy crate as `pns_domain::remind::DELAY_RANGE`, so the `[remind] delay` key,
+the `--remind=<duration>` flag and the JSON request's `remind` field are held to one range.
 
 ### `[lights]`
 
@@ -855,7 +855,7 @@ Then the feature is off and it is not an error
   `config/tests/remind.rs:a_delay_that_is_not_a_duration_is_refused_by_name`: `300`, `"-1m"`, `"300"`,
   `["5m"]`, `"29s"`, `"61m"`, the misspelled `delay_secs`, and `remind = 300` at the top level.
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path.
-- Thresholds: floor `MIN_REMIND_DELAY_SECS` 30, ceiling `MAX_REMIND_DELAY_SECS` 3600. One step either side is
+- Thresholds: floor `MIN_DELAY_SECS` 30, ceiling `MAX_DELAY_SECS` 3600. One step either side is
   pinned in both directions: 30 and 3600 are accepted, 29 and 3601 are refused. Zero is a third state,
   below the floor and accepted.
 - Required side effects: none.
@@ -1097,7 +1097,7 @@ Then the file is refused, naming both keys and both values
 - Compatibility contract: two guards inside this function are documented as DEAD CODE TODAY, and the code
   says so out loud rather than leaving a reader to discover it: `REMIND_OFF` is zero and
   `give_up_after_secs` has a floor of 60, so the comparison is already false for an off reminder; and
-  `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16 hours) sits far above `MAX_REMIND_DELAY_SECS` (one hour), so a
+  `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16 hours) sits far above `MAX_DELAY_SECS` (one hour), so a
   file with no `[lights]` table could not trip the check at its default. They stay "because what makes
   them dead is a coupling between two bounds that have nothing else to do with each other." The test
   still exercises both spellings of an off remind as accepted configs.

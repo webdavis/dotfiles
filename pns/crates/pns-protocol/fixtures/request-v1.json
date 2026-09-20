@@ -12,5 +12,6 @@
   "scope": "automatic",
   "route": "alert",
   "delivery_class": "health",
+  "remind": "5m",
   "extensions": { "nvim": { "buffer": 12 } }
 }

@@ -1,6 +1,6 @@
 use super::*;
 use pns_application::{SubmissionIdentity, Submitted};
-use pns_protocol::{DecodedRequest, DeliveryScope, Request, ResultEnvelope, Status};
+use pns_protocol::{DecodedRequest, DeliveryScope, Request, ResultEnvelope, State, Status};
 
 mod mapping;
 mod receipt;
@@ -42,6 +42,16 @@ fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::
                     .map_or_else(String::new, |session| session.as_str().into()),
                 ..HookPayload::default()
             };
+            // BEFORE THE DELIVERY, which is the blocked hook's own order: the
+            // record this arms is what a later answer clears, and an answer
+            // landing between the card and the arming would leave a record
+            // nothing clears. A refusal is said and the event still goes: a
+            // nudge nobody could resolve must not cost the delivery the rest
+            // of the envelope still earns.
+            match mapping::reminder(request) {
+                Ok(reminder) => arm_remind(&payload.session_id, &event, reminder),
+                Err(refusal) => eprintln!("pns: {refusal}"),
+            }
             execution::execute(
                 &event,
                 &system_probes(),
