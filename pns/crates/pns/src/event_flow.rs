@@ -85,7 +85,7 @@ pub(crate) fn run_event(
         payload,
         attempt,
         &|table, lights, flash, presence| {
-            fire_pulse_unless_quiet(table, lights, flash, presence);
+            fire_pulse_for_event(table, lights, flash, presence);
         },
     )
 }

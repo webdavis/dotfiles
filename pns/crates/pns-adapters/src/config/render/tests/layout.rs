@@ -142,7 +142,10 @@ fn the_hardcoded_target_declaration_branch_writes_every_target_key() {
         Some(vec![crate::config::Behaviour::Done])
     );
     assert_eq!(studio.dim_window.as_deref(), Some("22:00-07:00"));
-    assert_eq!(studio.dim_behaviours, vec![crate::config::Behaviour::Done]);
+    assert_eq!(
+        studio.dim_behaviours,
+        Some(vec![crate::config::Behaviour::Done])
+    );
 }
 
 #[test]

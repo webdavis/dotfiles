@@ -98,8 +98,8 @@ mod producer_argv;
 #[path = "dispatch/producer_events.rs"]
 mod producer_events;
 use mute_fixture::*;
-#[path = "dispatch/quiet_window.rs"]
-mod quiet_window;
+#[path = "dispatch/dim_window.rs"]
+mod dim_window;
 #[path = "dispatch/recap_card.rs"]
 mod recap_card;
 #[path = "dispatch/recap_fixture.rs"]
