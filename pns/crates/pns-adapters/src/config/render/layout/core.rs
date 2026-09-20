@@ -167,6 +167,17 @@ pub(super) const RECAP: Table = Table {
                          # named as one that could not be read rather than left out.\n",
             sample: Sample::Example("\"/absolute/path/notes-*.md\""),
         },
+        Key {
+            name: "retain",
+            prose: "# How long pns keeps one row of the activity store, the durable table of\n\
+                         # harness hook events the recap reads. The gateway prunes anything older\n\
+                         # on its own tick, so a shorter value takes effect without a restart.\n\
+                         # THIRTY DAYS, SPELLED IN HOURS because a duration is <count><ms|s|m|h>\n\
+                         # and a day is not one of the units. An hour is the floor and a year the\n\
+                         # ceiling; zero is refused by name, because this store has no off switch\n\
+                         # and a retention of nothing would empty it on the next tick.\n",
+            sample: Sample::Default("\"720h\""),
+        },
     ],
 };
 pub(super) const FOCUS: Table = Table {

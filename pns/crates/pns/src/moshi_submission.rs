@@ -73,6 +73,9 @@ pub(crate) fn blocking_event(
         pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
         ..attribution(payload, agent)
     };
+    // THE ROW BEFORE THE FORWARD, because a payload handed to moshi never
+    // reaches `raise` and the wait still happened.
+    crate::activity::record(&event, payload);
     // Each test guards the reading below it: the surface probe never runs for
     // a payload that was never going to be forwarded.
     // ONE probe set for the whole event: the forward decision below and the

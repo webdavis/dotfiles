@@ -665,9 +665,12 @@ newline-delimited JSON requests per jump through `HERDR_SOCKET_PATH`, opening a 
 request. Every socket failure falls back to the `herdr` CLI through `HERDR_BIN_PATH`. A keybinding passes
 NO arguments, so the label and the working directory are baked into each action's argv in the manifest,
 one action per workspace; herdr does not run an action through a shell, so the manifest's `~` is expanded
-by the plugin. Installed by `herdr plugin install` from the `packages.herdr_plugins` roster in
-`.chezmoidata/system_packages_autoinstall.yaml`, at the revision that roster pins; herdr clones the
-repository and runs the manifest's own `cargo build --release --locked`.
+by the plugin. The plugin ships no `herdr-plugin.toml` and so cannot be installed with
+`herdr plugin install`: its actions are a function of this machine's own workspace configuration at
+`dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml` (`[workspaces]` label = directory), so
+it is built and LINKED instead, from the `packages.herdr_linked_plugins` pin in
+`.chezmoidata/system_packages_autoinstall.yaml`, by
+`.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl`.
 
 The same plugin owns the workspace-level most-recently-used toggle on `prefix+ctrl+\\` (herdr ships
 `last_pane` but no workspace equivalent). Its `[[events]]` hook on `workspace.focused` fires for EVERY
@@ -697,20 +700,25 @@ own gates. **The manifest `id` is what herdr registers a plugin as**, verbatim, 
 namespacing, so the `plugin_action` keybindings in `dot_config/herdr/config.toml` are unaffected by the
 move.
 
-Two arrive by `herdr plugin install` from the `packages.herdr_plugins` roster. herdr v1 has no
-`plugin update`, so bumping a `ref` there is carried out as a reinstall: `run_after_53` compares each
-roster revision with the one `herdr plugin list --json` records and reinstalls whatever drifted, which an
-install over a GitHub-managed plugin does by replacing its managed checkout. So a pin bump lands on the
-next full apply, and uu's weekly herdr lane keeps reporting the same comparison for the week between
-applies.
+One arrives by `herdr plugin install` from the `packages.herdr_plugins` roster: `herdr-smart-nav`. herdr
+v1 has no `plugin update`, so bumping its `ref` there is carried out as a reinstall: `run_after_53`
+compares the roster revision with the one `herdr plugin list --json` records and reinstalls it when it
+drifted, which an install over a GitHub-managed plugin does by replacing its managed checkout. So a pin
+bump lands on the next full apply, and uu's weekly herdr lane keeps reporting the same comparison for the
+week between applies.
 
-`herdr-process` is the exception and stays on the LINK path, driven by
-`.chezmoiscripts/run_onchange_after_58` and the `packages.herdr_linked_plugin` pin beside that roster. It
-ships no `herdr-plugin.toml`, because its actions are one set per declared process profile and the
-manifest is rendered from `dot_config/herdr/processes.toml` and `dot_config/herdr/config.toml` by
-`herdr-process generate`. herdr requires a committed manifest to install, and herdr plugin v1 registers
-no actions at runtime, so the builder clones the pinned revision into `~/.local/share/herdr-process`,
-compiles it, generates the manifest and links that directory.
+`herdr-process` and `herdr-workspace-jump` are the exception and stay on the LINK path, driven by
+`.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` and the
+`packages.herdr_linked_plugins` list beside the `herdr_plugins` roster. Neither ships a
+`herdr-plugin.toml`, because each plugin's actions are one set per its own declared configuration
+(herdr-process: process profiles, from `dot_config/herdr/processes.toml` and
+`dot_config/herdr/config.toml` via `herdr-process generate`; herdr-workspace-jump: workspaces, from
+`dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml` via `herdr-workspace-jump generate`).
+herdr requires a committed manifest to install, and herdr plugin v1 registers no actions at runtime, so
+the shared builder clones each plugin's pinned revision into `~/.local/share/<plugin-id>`, compiles it,
+generates its manifest and links that directory. Keys and workspace routes stay the operator's own
+configuration rather than baked into a plugin (operator ruling 2026-09-20): a new workspace is a config
+edit and an apply, never a pull request to the plugin repository.
 
 ### Herdr native status
 

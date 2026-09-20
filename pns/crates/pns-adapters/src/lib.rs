@@ -121,7 +121,8 @@ mod herdr;
 mod probes;
 mod process;
 pub use macos::{
-    LaunchdServiceController, SystemLaunchctlRunner, local_minutes_since_midnight, utc_timestamp,
+    LaunchdServiceController, SystemLaunchctlRunner, local_epoch, local_minutes_since_midnight,
+    utc_timestamp,
 };
 pub use probes::SystemProbes;
 pub use process::spawn_shell_event;
@@ -197,12 +198,14 @@ pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_card_wire::{HandedCard, decode_handed_card};
 pub use recap_child::{CARD_ON_STDIN, hand_recap_card, run_recap_bounded, spawn_recap};
 
-pub use persistence::{DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError};
+pub use persistence::{
+    ActivityEvent, DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError,
+};
 
 mod harness;
 pub use harness::{
-    HookPayload, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
-    transcript_reply,
+    HookPayload, SessionFacts, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
+    session_facts, transcript_reply,
 };
 
 #[cfg(test)]

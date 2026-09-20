@@ -45,6 +45,7 @@ pub struct Recap {
     pub summarizer_deadline: std::time::Duration,
     pub repositories: Vec<String>,
     pub review_notes_glob: Option<String>,
+    pub retain: std::time::Duration,
 }
 
 impl Default for Recap {
@@ -57,6 +58,7 @@ impl Default for Recap {
             summarizer_deadline: DEFAULT_SUMMARIZER_DEADLINE,
             repositories: Vec::new(),
             review_notes_glob: None,
+            retain: DEFAULT_RETAIN,
         }
     }
 }
@@ -88,3 +90,20 @@ const DEFAULT_MINIMUM_EVENTS: usize = 8;
 /// SAYS it did, which is the same outcome as any other summarizer that does not
 /// answer. Nothing silently changes shape, so there is nothing to refuse.
 const DEFAULT_SUMMARIZER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(240);
+
+/// How long a row in the activity store is kept before the gateway's own
+/// prune deletes it.
+///
+/// THIRTY DAYS, WRITTEN IN HOURS because the duration parser's vocabulary is
+/// `<count><ms|s|m|h>`: a day is not one of its units, so the value a config
+/// file carries for this key is spelled the same way every other duration in
+/// pns is.
+///
+/// IT BOUNDS THE TABLE RATHER THAN THE RECAP. Every window the recap serves is
+/// shorter than this, so the rows past it answer no question anybody asks, and
+/// the sessions table keeps the name of a session whose events have gone.
+///
+/// ZERO IS REFUSED at the config, the way `[remind] delay` refuses it: a
+/// retention of nothing deletes each row on the tick after it was written,
+/// which reads as switching the store off and is not what a duration says.
+const DEFAULT_RETAIN: std::time::Duration = std::time::Duration::from_secs(30 * 24 * 60 * 60);

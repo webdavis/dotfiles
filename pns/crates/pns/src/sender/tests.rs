@@ -11,15 +11,12 @@ fn an_event_with_no_prompt_of_its_own_carries_the_title_the_first_prompt_stored(
     // The Stop hook's payload names no prompt and Claude Code sends no
     // session title on it, so the label can only come from the store.
     let store = store();
-    named(
-        &store,
-        &HookPayload {
-            session_id: "s1".to_string(),
-            prompt: "arm posture alert and retire the Bash alerter".to_string(),
-            ..HookPayload::default()
-        },
-        "claude",
-    );
+    let payload = HookPayload {
+        session_id: "s1".to_string(),
+        prompt: "arm posture alert and retire the Bash alerter".to_string(),
+        ..HookPayload::default()
+    };
+    named(&store, &payload, "claude", &session_label(&payload));
     let event = attributed(
         &store,
         &HookPayload {
