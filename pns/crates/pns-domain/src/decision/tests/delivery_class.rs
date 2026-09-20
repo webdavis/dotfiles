@@ -4,7 +4,7 @@ use crate::{DecisionRequest, EnvironmentSnapshot, Overrides, SilencePolicy};
 #[test]
 fn a_class_exception_preserves_only_the_selected_banner_and_phone_under_each_silence() {
     for (muted, focus_active) in [(true, false), (false, true), (true, true)] {
-        for (idle, expected) in [(2, "banner"), (9_000, "mobile")] {
+        for (idle, expected) in [(2, "banner"), (9_000, "phone")] {
             let decide = |silence_policy, skip_phone, scope, visible| {
                 crate::decide(
                     &EnvironmentSnapshot {

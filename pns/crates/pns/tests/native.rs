@@ -85,9 +85,9 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
 fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output() {
     let sandbox = Sandbox::new("native-moshi");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
     );
-    let capture = Capture::builder(&sandbox, "mobile").start();
+    let capture = Capture::builder(&sandbox, "phone").start();
 
     let mut command = plugin_command(&sandbox);
     command
@@ -128,7 +128,7 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
 fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token() {
     let sandbox = Sandbox::new("dead-moshi");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
     );
     let mut command = plugin_command(&sandbox);
     command

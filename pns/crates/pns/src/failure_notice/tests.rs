@@ -88,7 +88,7 @@ fn composed(destination: &str) -> Failure {
 /// arrives nowhere and the operator learns nothing.
 #[test]
 fn a_mobile_failure_pushes_no_card_about_itself() {
-    assert_eq!(card_surface(&composed("mobile"), true), None);
+    assert_eq!(card_surface(&composed("phone"), true), None);
 }
 
 /// hermes carries the full form, so a hermes failure means there is nothing in

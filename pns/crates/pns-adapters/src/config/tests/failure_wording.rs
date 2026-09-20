@@ -8,7 +8,7 @@
 //! and look for it. These cases turn that into a build failure.
 
 use crate::config::schema::{TABLE_KEYS, is_open};
-use pns_domain::failure::{MOBILE_TOKEN, hermes_key_named};
+use pns_domain::failure::{PHONE_TOKEN, hermes_key_named};
 use pns_domain::routes::Routes;
 
 /// Every route a message in these cases is composed about: the two this
@@ -42,7 +42,7 @@ fn declared(quoted: &str) -> bool {
 
 #[test]
 fn every_config_key_a_failure_message_quotes_is_a_key_the_schema_declares() {
-    let mut quoted = vec![MOBILE_TOKEN.to_string()];
+    let mut quoted = vec![PHONE_TOKEN.to_string()];
     // ONE PER ROUTE, because the hermes wording names the route's own key and
     // a table that stopped serving them is a message pointing at a key the
     // config refuses.
@@ -83,7 +83,7 @@ fn a_quoted_key_the_schema_does_not_declare_is_rejected() {
     assert!(!declared("[plugins.log.keys]pns"));
     assert!(!declared("plugins.log.keys pns"));
     assert!(
-        !declared("[plugins.mobile] tokens"),
+        !declared("[plugins.phone] tokens"),
         "a closed table still refuses a key it does not serve"
     );
 }

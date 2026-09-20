@@ -116,7 +116,7 @@ fn a_doctor_given_any_extra_word_prints_usage_exits_two_and_reaches_no_channel()
             stderr(&output)
         );
         assert_eq!(stdout(&output), "", "arguments: {arguments:?}");
-        for channel in ["mobile", "banner", "hermes"] {
+        for channel in ["phone", "banner", "hermes"] {
             assert!(
                 !sandbox.fired(channel),
                 "{channel} was sent a payload by a refused command: {arguments:?}"

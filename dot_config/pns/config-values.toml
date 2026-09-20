@@ -50,7 +50,7 @@ table adds the one thing posture cannot: crossing a mute."""
 route = ""
 bypass_mute = true
 
-[plugins.mobile]
+[plugins.phone]
 token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 
 # The durable paper trail. ONE TABLE, so two of them cannot be declared: the

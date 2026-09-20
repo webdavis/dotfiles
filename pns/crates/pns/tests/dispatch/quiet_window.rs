@@ -23,7 +23,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         // a leg nobody switched on.
         sandbox.write_config(&format!(
             "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-             rooms = [\"3F - Studio\"]\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+             rooms = [\"3F - Studio\"]\n[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
              [plugins.log]\nenabled = true\ntype = \"hermes\"\n{lights}"
         ));
         let mut command = sandbox.pns();
@@ -63,7 +63,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
             dialled,
             // EVERY LEG THIS EVENT COULD REACH, named rather than counted, so
             // a table that swapped one destination for another cannot pass.
-            ["mobile", "hermes", "banner"].map(|leg| sandbox.fired(leg)),
+            ["phone", "hermes", "banner"].map(|leg| sandbox.fired(leg)),
         )
     };
     let without_a_table = outcome("lights-guard-without-a-table", "");
@@ -94,7 +94,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
     let sandbox = Sandbox::new("quiet-window-mutes-the-pulse");
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         quiet_hours = \"{}\"\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+         quiet_hours = \"{}\"\n[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
         window_around(utc_minute_now(), 120)
     ));
@@ -113,7 +113,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
         ])
         .args(["--pane", "t1:p2", "--elapsed", "300s"]));
     assert!(
-        sandbox.fired("mobile") && sandbox.fired("hermes"),
+        sandbox.fired("phone") && sandbox.fired("hermes"),
         "every other leg still dispatches inside the window"
     );
     assert!(

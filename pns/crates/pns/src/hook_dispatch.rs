@@ -293,10 +293,12 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
 /// ON STDERR, NEVER STDOUT, like every other line this path writes: Claude
 /// Code reads this hook's stdout as moshi's decision object.
 fn remind_after(agent: &str) -> Result<Reminder, i32> {
-    remind_delay(&crate::arguments_after_verb(), agent).map_err(|refusal| {
-        eprintln!("pns: {refusal}");
-        2
-    })
+    legacy::remind_switch(&crate::arguments_after_verb())
+        .and_then(|switch| remind_delay(switch, agent))
+        .map_err(|refusal| {
+            eprintln!("pns: {refusal}");
+            2
+        })
 }
 
 /// What `pns hook` takes, which is one harness event per run.

@@ -34,7 +34,7 @@ default = "pns-events"
 # called.
 urgent = "priority"
 
-[plugins.mobile]
+[plugins.phone]
 enabled = true
 # Which compiled-in backend carries the card. "moshi" is the only one
 # today, and a table naming none, or naming one nothing answers, is
@@ -47,18 +47,23 @@ token = {{ (keepassxc "moshi-hook :: Device Token").Password | toToml }}
 # pane on the phone. OFF: a card describing the pane already filling the
 # screen is noise, and the light pulse alone marks the command finishing;
 # set true to be carded anyway.
-mobile_watch_card = false
+card_while_watching = false
 # Where the card is pushed. Left out it is moshi's own webhook endpoint,
 # which is what a paired phone answers at; name one to point this
 # install at a gateway of your own.
 # url = "https://api.getmoshi.app/api/webhook"
 # How long pns waits for moshi to acknowledge a submitted permission
-# prompt, in seconds. The harness draws the prompt only once the hook
-# returns, so this is time the question is off your screen. On expiry
-# the submission is killed and its pending card dies with it, and
-# nothing is said either way. There is no off switch: zero, a negative,
-# a fraction and anything past 3600 are refused by name.
-submit_deadline_secs = 5
+# prompt. The harness draws the prompt only once the hook returns, so
+# this is time the question is off your screen. On expiry the
+# submission is killed and its pending card dies with it, and nothing
+# is said either way. There is no off switch: "0s", anything under a
+# second and anything past "1h" are refused by name.
+ack_deadline = "5s"
+# Where `pns tap` writes the phone's attention marker and the presence
+# reader looks for it: an absolute path or a ~/ path. Read whether or
+# not the card is switched on, and missing config uses this default
+# too. Setup guide: pns tap install.
+marker_file = "~/.local/state/pns/phone-attention.marker"
 
 # Which card types carry an IMAGE of the whole message, keyed by card type
 # and off for every one of them until you name it here. A card type is the
@@ -80,7 +85,7 @@ submit_deadline_secs = 5
 #
 # THE LINK NEEDS NO CREDENTIAL: anyone who has it can read the whole
 # message for that day, so arm a card type only where that is acceptable.
-[plugins.mobile.image_cards]
+[plugins.phone.image_cards]
 # missed = false
 
 # The durable paper trail: every event written where it can be read back
@@ -509,12 +514,6 @@ escalate_after = "1h"
 # Where that page goes. Unset sends it to `[routes] urgent`, which is
 # what every other page pns raises for itself takes.
 # route = "priority"
-
-# Phone attention, shared by `pns tap` and the presence reader.
-# Setup guide: pns tap install.
-# [phone]
-# An absolute path or ~/ path. Missing config uses this default too.
-# marker_file = "~/.local/state/pns/phone-attention.marker"
 
 # Where this install keeps its own files. Left out, state lives under
 # ~/.local/state/pns and the native channels are used directly. Each is

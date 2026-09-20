@@ -15,7 +15,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     // command.
     let sandbox = Sandbox::new("doctor-failure");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.banner]\nenabled = true\n\
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.banner]\nenabled = true\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let mut command = sandbox.bare();
@@ -34,8 +34,8 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
         printed.contains(
-            "mobile: FAILED, push SKIPPED, no moshi token in the config \
-             ([plugins.mobile] token); nothing was sent"
+            "phone: FAILED, push SKIPPED, no moshi token in the config \
+             ([plugins.phone] token); nothing was sent"
         ),
         "the first channel's own sentence, verbatim: {printed}"
     );
@@ -74,7 +74,7 @@ fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_m
 
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
-    for channel in ["mobile", "banner", "hermes"] {
+    for channel in ["phone", "banner", "hermes"] {
         assert!(
             report_rows(&printed)
                 .iter()
@@ -123,7 +123,7 @@ fn the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrid
     let output = command.output().expect("the engine runs");
 
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
-    for channel in ["mobile", "banner", "hermes"] {
+    for channel in ["phone", "banner", "hermes"] {
         assert!(
             sandbox.fired(channel),
             "{channel} was suppressed by a gate the doctor exists to bypass: {}",
@@ -243,7 +243,7 @@ fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_cho
 #[test]
 fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one() {
     let sandbox = Sandbox::new("doctor-nothing-enabled");
-    sandbox.write_config("[plugins.mobile]\nenabled = false\n");
+    sandbox.write_config("[plugins.phone]\nenabled = false\n");
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     assert_eq!(
@@ -260,7 +260,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             "home_presence: skipped, not enabled in the config",
             "presence: skipped, not enabled in the config",
             "github: skipped, not enabled in the config",
-            "mobile: skipped, not enabled in the config",
+            "phone: skipped, not enabled in the config",
             "banner: skipped, not enabled in the config",
             "hermes: skipped, not enabled in the config",
             "discord: skipped, not enabled in the config",
@@ -287,7 +287,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         ],
         "the whole roster is still the report; only a census can say this"
     );
-    for channel in ["mobile", "banner", "hermes"] {
+    for channel in ["phone", "banner", "hermes"] {
         assert!(
             !sandbox.fired(channel),
             "{channel} received a payload from a config that enabled nothing"

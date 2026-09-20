@@ -131,8 +131,6 @@ fn presence_config(body: &str) -> Config {
 /// TOML as the heading each of them would otherwise be written as, and it
 /// is what lets one walk cover a level with no heading of its own.
 const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
-    (super::TOP_LEVEL, "phone", "{ marker_file = '~/attention' }"),
-    ("phone", "marker_file", "'~/attention'"),
     (super::TOP_LEVEL, "paths", "{ state_dir = '~/state' }"),
     ("paths", "state_dir", "'~/state'"),
     ("paths", "channels_dir", "'/opt/pns/channels'"),
@@ -255,7 +253,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
         "\"http://127.0.0.1:8644/webhooks/pns-events\"",
     ),
     ("plugins.log.channels", "default", "\"9001\""),
-    ("plugins.mobile.image_cards", "missed", "true"),
+    ("plugins.phone.image_cards", "missed", "true"),
     ("plugins.lights", "bridge", "\"192.168.1.10\""),
     (
         "plugins.lights",
@@ -289,17 +287,18 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.presence", "rooms", "[\"3F - Studio\"]"),
     ("plugins.presence", "stale_after_secs", "15"),
     ("plugins.presence", "type", "\"hue\""),
-    ("plugins.mobile", "enabled", "true"),
-    ("plugins.mobile", "image_cards", "{ missed = true }"),
-    ("plugins.mobile", "mobile_watch_card", "false"),
-    ("plugins.mobile", "submit_deadline_secs", "5"),
-    ("plugins.mobile", "token", "\"secret\""),
+    ("plugins.phone", "enabled", "true"),
+    ("plugins.phone", "image_cards", "{ missed = true }"),
+    ("plugins.phone", "card_while_watching", "false"),
+    ("plugins.phone", "ack_deadline", "\"5s\""),
+    ("plugins.phone", "marker_file", "'~/attention'"),
+    ("plugins.phone", "token", "\"secret\""),
     (
-        "plugins.mobile",
+        "plugins.phone",
         "url",
         "\"https://api.getmoshi.app/api/webhook\"",
     ),
-    ("plugins.mobile", "type", "\"moshi\""),
+    ("plugins.phone", "type", "\"moshi\""),
     ("plugins.home_presence", "api_key", "\"secret\""),
     ("plugins.home_presence", "device_hostname", "\"mister\""),
     ("plugins.home_presence", "device_ipv4", "\"192.168.1.9\""),
@@ -332,7 +331,7 @@ mod lights_defaults;
 mod lights_motion;
 mod lights_targets;
 mod loading;
-mod mobile;
+mod phone;
 mod presence_intervals;
 mod presence_rooms;
 mod presence_shape;

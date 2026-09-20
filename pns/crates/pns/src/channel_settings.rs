@@ -11,22 +11,22 @@ use crate::*;
 /// it, and was told nothing.
 ///
 /// IT IS HANDED THE ARMED TABLE rather than the config, because every read of
-/// `[plugins.mobile]` goes through one accessor: a toggle honoured under a
+/// `[plugins.phone]` goes through one accessor: a toggle honoured under a
 /// table whose backend was refused would be one setting of a refused table
 /// still in force.
 fn watch_card(settings: &toml::Table) -> bool {
-    let Some(stated) = settings.get("mobile_watch_card") else {
+    let Some(stated) = settings.get("card_while_watching") else {
         return false;
     };
     stated.as_bool().unwrap_or_else(|| {
         eprintln!(
-            "pns: config error ([plugins.mobile] mobile_watch_card is {}, not a boolean); the mobile watching card stays off",
+            "pns: config error ([plugins.phone] card_while_watching is {}, not a boolean); the mobile watching card stays off",
             stated.type_str()
         );
         false
     })
 }
-/// What reading `[plugins.mobile]` decided, carried whole rather than
+/// What reading `[plugins.phone]` decided, carried whole rather than
 /// collapsed into an absent token.
 ///
 /// THE COMPLAINT TRAVELS WITH THE OUTCOME. A backend nobody answers and a
@@ -48,7 +48,7 @@ pub(crate) struct Mobile {
     /// posture and every card type's text card.
     pub(crate) image_cards: Vec<String>,
 }
-/// The one read of `[plugins.mobile]`, and the one place its refusal reaches
+/// The one read of `[plugins.phone]`, and the one place its refusal reaches
 /// stderr.
 ///
 /// THE COMPLAINT IS PRINTED HERE because this is the composition root, which is
@@ -57,7 +57,7 @@ pub(crate) struct Mobile {
 /// toggle and the refusal come out of a single verdict instead of three
 /// readers that each had to remember to ask the same question.
 pub(crate) fn read_mobile(config: &pns_adapters::Config) -> Mobile {
-    let settings = match pns_adapters::armed_mobile(config) {
+    let settings = match pns_adapters::armed_phone(config) {
         Ok(settings) => settings,
         Err(reason) => {
             eprintln!("pns: config error ({reason}); no card is pushed");
@@ -134,8 +134,8 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
             pns_domain::home::UNIFI_TYPE,
         ));
     }
-    if switched_off("mobile").is_some_and(|settings| mobile_backend(settings).is_err()) {
-        warnings.push(disabled_backend_warning("mobile", MOSHI_TYPE));
+    if switched_off("phone").is_some_and(|settings| phone_backend(settings).is_err()) {
+        warnings.push(disabled_backend_warning("phone", MOSHI_TYPE));
     }
     warnings
 }

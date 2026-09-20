@@ -9,9 +9,9 @@ fn a_walk_that_armed_nothing_still_writes_the_core() {
     let text = compose_config(&Answers::default());
     let config = parsed(&text);
     assert!(config.plugins["banner"].enabled);
-    assert!(config.plugins["mobile"].enabled);
+    assert!(config.plugins["phone"].enabled);
     assert_eq!(
-        config.plugins["mobile"].settings["type"].as_str(),
+        config.plugins["phone"].settings["type"].as_str(),
         Some("moshi")
     );
     for opt_in in ["hermes", "lights", "home_presence"] {
@@ -45,11 +45,11 @@ fn the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to() {
     let config = parsed(&compose_config(&Answers::default()));
     assert_eq!(config.recap, Recap::default());
     assert!(config.daemon_enabled);
-    let mobile = &config.plugins["mobile"].settings;
-    assert_eq!(mobile["mobile_watch_card"].as_bool(), Some(false));
+    let phone = &config.plugins["phone"].settings;
+    assert_eq!(phone["card_while_watching"].as_bool(), Some(false));
     assert_eq!(
-        mobile["submit_deadline_secs"].as_integer(),
-        Some(DEFAULT_SUBMIT_DEADLINE_SECS as i64)
+        crate::config::ack_deadline(&config).unwrap(),
+        DEFAULT_ACK_DEADLINE
     );
 }
 
@@ -60,6 +60,6 @@ fn a_skipped_token_is_commented_out_rather_than_written_empty() {
     let text = compose_config(&Answers::default());
     assert!(text.contains("# token = \"\""), "{text}");
     let config = parsed(&text);
-    assert!(config.plugins["mobile"].enabled);
-    assert!(!config.plugins["mobile"].settings.contains_key("token"));
+    assert!(config.plugins["phone"].enabled);
+    assert!(!config.plugins["phone"].settings.contains_key("token"));
 }

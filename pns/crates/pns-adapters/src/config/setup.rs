@@ -4,7 +4,7 @@ use pns_domain::{Answers, hue_is_armed, router_is_armed};
 ///
 /// ONLY WHAT WAS ARMED IS HERE. A table this method never inserts is one
 /// `render` writes at its layout default, commented for an opt-in table
-/// and live at the CORE default for `mobile`, `banner`, `daemon`
+/// and live at the CORE default for `phone`, `banner`, `daemon`
 /// and `recap`, none of which this wizard even asks about.
 fn values(answers: &Answers) -> toml::Table {
     let mut plugins = toml::Table::new();
@@ -14,7 +14,7 @@ fn values(answers: &Answers) -> toml::Table {
             "token".to_string(),
             toml::Value::String(answers.mobile_token.clone()),
         );
-        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+        plugins.insert("phone".to_string(), toml::Value::Table(mobile));
     }
     if !answers.hermes_key.is_empty() {
         // THE WALK'S ONE ANSWER IS THE DEFAULT ROUTE'S KEY, under its SHIPPED

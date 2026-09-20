@@ -172,7 +172,7 @@ that gives up on a wait before it has ever nudged about it.
 - Compatibility contract: two of this check's guards are DEAD TODAY and the code says so rather than
   leaving a reader to discover it. `REMIND_OFF` is zero, so the off-remind early return can never be the thing
   that makes the comparison false; and the default `give_up_after_secs` (16 hours) sits far above
-  `MAX_REMIND_DELAY_SECS` (one hour), so a file with no `[lights]` table could not trip it either. Both stay
+  `MAX_DELAY_SECS` (one hour), so a file with no `[lights]` table could not trip it either. Both stay
   "because what makes them dead is a coupling between two bounds that have nothing else to do with each
   other" (`src/config.rs:backstop_outlasts_the_reminder`).
 

@@ -1,17 +1,5 @@
 use super::*;
 
-pub(super) const PHONE: Table = Table {
-    name: "phone",
-    prose: "# Phone attention, shared by `pns tap` and the presence reader.\n\
-            # Setup guide: pns tap install.\n",
-    opt_in: true,
-    children: &[],
-    keys: &[Key {
-        name: "marker_file",
-        prose: "# An absolute path or ~/ path. Missing config uses this default too.\n",
-        sample: Sample::Default("\"~/.local/state/pns/phone-attention.marker\""),
-    }],
-};
 /// Where this install keeps its state and looks for channel executables.
 ///
 /// OPT-IN, and both keys are EXAMPLES rather than defaults, because neither

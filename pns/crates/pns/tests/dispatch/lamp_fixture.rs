@@ -121,7 +121,7 @@ pub(super) fn lamp_run(
     // in `[plugins.log]`, where nothing reads it and nothing complains.
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+         rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n{config}"
     ));
     // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
@@ -192,7 +192,7 @@ pub(super) fn lamp_run(
         .status;
     (
         dialled,
-        sandbox.fired("mobile"),
+        sandbox.fired("phone"),
         sandbox.fired("hermes"),
         sandbox.fired("banner"),
         status.code(),

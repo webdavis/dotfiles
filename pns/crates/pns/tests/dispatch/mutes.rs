@@ -90,7 +90,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     let away_and_long = |sandbox: &Sandbox, port: u16| {
         sandbox.write_config(&format!(
             "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
+             [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
              [plugins.banner]\nenabled = true\n"
         ));
         let mut event = sandbox.pns();
@@ -123,7 +123,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         wait_bounded(child, std::time::Duration::from_secs(5)),
         Some(0)
     );
-    assert!(loud.fired("mobile"), "unmuted control: the phone is carded");
+    assert!(loud.fired("phone"), "unmuted control: the phone is carded");
 
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("quiet-muted-event");
@@ -143,7 +143,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         "THE RECORD SURVIVES THE MUTE: hermes is not a field of the delivery \
          plan, so the durable log is exempt structurally and the mute is lossless"
     );
-    assert!(!sandbox.fired("mobile"), "no card while muted");
+    assert!(!sandbox.fired("phone"), "no card while muted");
     assert!(!sandbox.fired("banner"), "no banner while muted");
     assert!(
         !dialled_within(&listener, std::time::Duration::ZERO),
@@ -182,7 +182,7 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
         .args(["--pane", "t1:p2"]));
 
     assert!(sandbox.fired("banner"), "a broken mute mutes nothing");
-    assert!(sandbox.fired("mobile"), "including a forced card");
+    assert!(sandbox.fired("phone"), "including a forced card");
     assert!(sandbox.fired("hermes"));
     // ONE COMPLAINT PER EVENT, not one per reader: the file is broken until
     // someone fixes it, so it repeats on the next event, but a single run must

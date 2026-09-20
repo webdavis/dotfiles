@@ -143,7 +143,7 @@ already is the question.
   that deadline serially" (`src/engine.rs:surface_reading`).
 - Idempotency and duplicates: one reading per invocation.
 - Privacy: the phone marker path is `$HOME/.local/state/pns/phone-attention.marker` unless
-  `[phone] marker_file` overrides it (`src/main.rs:system_probes`). Only file times are read, never
+  `[plugins.phone] marker_file` overrides it (`src/main.rs:system_probes`). Only file times are read, never
   content.
 - Process ownership and cleanup: Not applicable, the presence check spawns no child of its own.
 - Compatibility contract: none, this is pns's own policy.
@@ -288,15 +288,15 @@ killing and reaping the child on expiry.
 - Fail direction: fail-open, and precisely: exit 0 is NO OPINION and never a decision. The harness draws
   the prompt and the operator answers at the pane. Nothing pns does on this path can deny a tool call.
 - Thresholds: the deadline is `src/main.rs:submit_deadline`, resolved in two steps.
-  1. `[plugins.mobile] submit_deadline_secs`, read off the ARMED mobile table only, meaning the table is
-     present, `enabled` is true, and `type = "moshi"` (`src/config.rs:armed_mobile`,
-     `src/config.rs:submit_deadline`).
-  1. `src/config.rs:DEFAULT_SUBMIT_DEADLINE_SECS`, which is 5 seconds. One step either side of the
-     accepted range: `submit_deadline_secs = 1` is accepted, and `submit_deadline_secs = 0` is refused by
-     name with the message "`mobile` key `submit_deadline_secs` is 0, which is the bound switched off by
+  1. `[plugins.phone] ack_deadline`, read off the ARMED phone table only, meaning the table is
+     present, `enabled` is true, and `type = "moshi"` (`src/config.rs:armed_phone`,
+     `src/config.rs:ack_deadline`).
+  1. `src/config.rs:DEFAULT_ACK_DEADLINE`, which is 5 seconds. One step either side of the
+     accepted range: `ack_deadline = 1` is accepted, and `ack_deadline = 0` is refused by
+     name with the message "`phone` key `ack_deadline` is 0, which is the bound switched off by
      accident: a deadline that expires before the daemon can answer costs the phone card on every
-     approval". `submit_deadline_secs = 3600` is accepted and `3601` is refused against
-     `src/config.rs:MAX_SUBMIT_DEADLINE_SECS`. A refusal is LOUD: `src/main.rs:submit_deadline` prints
+     approval". `ack_deadline = 3600` is accepted and `3601` is refused against
+     `src/config.rs:MAX_ACK_DEADLINE_SECS`. A refusal is LOUD: `src/main.rs:submit_deadline` prints
      "pns: config error ({detail}); the moshi submission keeps its {n}-second bound" to stderr and takes
      the 5 second default, because an operator who asked for something, did not get it and was told
      nothing is the defect one level down. The poll interval
@@ -383,12 +383,12 @@ then the notification is raised.
 
 - Success: with the forward started, the durable leg still fires and the phone leg does not, pinned by
   `tests/hooks.rs:the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_phone`
-  asserting `fired("hermes")` and `!fired("mobile")`.
+  asserting `fired("hermes")` and `!fired("phone")`.
 - Failure sources: a forward that never spawned. The suppression used to be applied to the INTENT to
   forward, so an away operator whose `moshi-hook` could not spawn lost the one notification still able to
   reach them (`src/main.rs:blocking_event`). Now `PNS_SKIP_PHONE=1` is set only inside the
   `forwarded.is_some()` branch, and
-  `tests/hooks.rs:moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero` asserts `fired("mobile")`
+  `tests/hooks.rs:moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero` asserts `fired("phone")`
   on that path.
 - Fail direction: fail toward telling the operator. When in doubt the card goes out.
 - Thresholds: Not applicable.
@@ -587,16 +587,16 @@ Given the operator answers from their phone
 
 When the forward succeeds
 
-Then moshi raises the actionable card itself from the forwarded payload, and pns's own mobile leg is the
+Then moshi raises the actionable card itself from the forwarded payload, and pns's own phone leg is the
 one that is suppressed.
 
 - Success: moshi mints the card's action identifier inside itself and answers pns with an exit code. The
   `skip_phone=yes` field in the decision ring line is THE ONLY TRACE of a forward anywhere in pns's
   records, pinned by
   `tests/hooks.rs:an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed`.
-- Failure sources: on the paths where pns DOES raise a phone card (no forward started), the mobile leg
+- Failure sources: on the paths where pns DOES raise a phone card (no forward started), the phone leg
   can still fail. `src/channels/moshi.rs:MoshiChannel::deliver` returns "push SKIPPED -- no moshi token
-  in the config ([plugins.mobile] token); nothing was sent" for a missing or empty token, and "push
+  in the config ([plugins.phone] token); nothing was sent" for a missing or empty token, and "push
   FAILED (the moshi endpoint refused it or could not be reached)" for a non-2xx or unreachable endpoint.
   `src/channels/moshi.rs:refused_backend_line` wraps a `type` fault as "push SKIPPED -- {reason}; nothing
   was sent".
@@ -620,13 +620,13 @@ one that is suppressed.
 - Timeout and cancellation: the post follows no redirects (`max_redirects(0)`), because following one
   would send the token to whatever host the endpoint names.
 - Idempotency and duplicates: one post, no retry.
-- Privacy: THE SECRET'S PATH IS THE POINT. The token is read from the `[plugins.mobile]` table's `token`
+- Privacy: THE SECRET'S PATH IS THE POINT. The token is read from the `[plugins.phone]` table's `token`
   key, placed in the request BODY, and never touches argv, the environment of a child, or an error string
   (module documentation of `src/channels/moshi.rs`). The delivery verdict says whether the push landed
   and never what it carried.
 - Process ownership and cleanup: Not applicable, the post is in-process.
 - Compatibility contract: yes. `src/channels/moshi.rs:DEFAULT_MOSHI_URL` is
-  `https://api.getmoshi.app/api/webhook`, set by `[plugins.mobile] url`, else `PNS_MOSHI_URL`; the body shape is moshi's;
+  `https://api.getmoshi.app/api/webhook`, set by `[plugins.phone] url`, else `PNS_MOSHI_URL`; the body shape is moshi's;
   the deep-link scheme `moshi://herdr?workspace=&tab=&pane=&session=` is moshi's, with tab and pane
   available since moshi 3.13.0; and a tap resumes a card moshi ALREADY HOLDS. It looks for an active card
   matching server session and workspace, else resumes the most recently minimized card for that session,

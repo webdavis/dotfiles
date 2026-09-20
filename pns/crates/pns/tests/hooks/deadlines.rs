@@ -222,8 +222,8 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
 }
 
 /// The deadline each silent-moshi run injects, through
-/// `[plugins.mobile] submit_deadline_secs`: the only source left now that
-/// `PNS_MOSHI_SUBMIT_DEADLINE_MS` is gone, and it counts whole seconds, so
+/// `[plugins.phone] ack_deadline`: the only source left now that
+/// `PNS_MOSHI_SUBMIT_DEADLINE_MS` is gone, and its floor is one second, so
 /// one second is the shortest deadline either row can inject.
 ///
 /// WHAT THESE TWO ROWS PIN, AND WHAT THEY LEAVE TO A CONTROLLED CLOCK. A row
@@ -235,14 +235,14 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
 /// the unit tests beside `answer_within_on` in `src/moshi_submission.rs`, on a clock that
 /// moves only when the wait sleeps on it. The gate's own `/bin/sh` spawn still
 /// happens inside this window; a whole second leaves it plenty of margin.
-const SUBMIT_DEADLINE_SECS: u64 = 1;
+const ACK_DEADLINE_SECS: u64 = 1;
 
-/// `support::STUB_CHANNELS`, with the moshi submission deadline pulled down
-/// to `SUBMIT_DEADLINE_SECS` so a silent moshi expires fast.
-fn config_with_short_submit_deadline() -> String {
+/// `support::STUB_CHANNELS`, with the moshi acknowledgement deadline pulled
+/// down to `ACK_DEADLINE_SECS` so a silent moshi expires fast.
+fn config_with_short_ack_deadline() -> String {
     support::STUB_CHANNELS.replace(
         "type = \"moshi\"\n",
-        &format!("type = \"moshi\"\nsubmit_deadline_secs = {SUBMIT_DEADLINE_SECS}\n"),
+        &format!("type = \"moshi\"\nack_deadline = \"{ACK_DEADLINE_SECS}s\"\n"),
     )
 }
 
@@ -285,11 +285,11 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     // injected deadline and the teardown; it is the RED run, with no bound,
     // that reaches the liveness limit before the capture owner cleans up.
     let sandbox = Sandbox::new("hook-blocked-silent-moshi");
-    // STRUCTURAL, NOT A REGRESSION: `submit_deadline_secs` counts whole
-    // seconds, so one second is the shortest deadline this row can inject
-    // now that the millisecond environment override is gone.
+    // STRUCTURAL, NOT A REGRESSION: `ack_deadline`'s floor is one second, so
+    // one second is the shortest deadline this row can inject now that the
+    // millisecond environment override is gone.
     sandbox.allow_slow("the config deadline's own second sits over the warning budget");
-    sandbox.write_config(&config_with_short_submit_deadline());
+    sandbox.write_config(&config_with_short_ack_deadline());
     let mut command = sandbox.pns();
     command.env("PNS_SCREEN_IDLE", "99999");
     stub_silent_moshi(&sandbox, &mut command);
@@ -307,7 +307,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
         .expect("the hook's streams and process must finish inside the liveness limit");
     let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        said.contains(&expiry_line(&(SUBMIT_DEADLINE_SECS * 1000).to_string())),
+        said.contains(&expiry_line(&(ACK_DEADLINE_SECS * 1000).to_string())),
         "the wait had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
@@ -354,7 +354,7 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
     // and the whole-second config deadline leaves it plenty of margin.
     let sandbox = Sandbox::new("gate-silent-moshi");
     sandbox.allow_slow("the config deadline's own second sits over the warning budget");
-    sandbox.write_config(&config_with_short_submit_deadline());
+    sandbox.write_config(&config_with_short_ack_deadline());
     let mut command = sandbox.pns();
     command.env("PNS_SCREEN_IDLE", "99999");
     stub_silent_moshi(&sandbox, &mut command);
@@ -366,7 +366,7 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
         .expect("the gate's streams and process must finish inside the liveness limit");
     let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        said.contains(&expiry_line(&(SUBMIT_DEADLINE_SECS * 1000).to_string())),
+        said.contains(&expiry_line(&(ACK_DEADLINE_SECS * 1000).to_string())),
         "the gate had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(

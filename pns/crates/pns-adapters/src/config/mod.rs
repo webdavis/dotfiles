@@ -28,18 +28,17 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 mod model;
 mod paths;
-mod phone;
 pub use model::{Config, ConfigError, LoadOutcome, Paths, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};
 mod plugins;
 mod refusals;
 pub use plugins::{
-    DEFAULT_SUBMIT_DEADLINE_SECS, armed_discord, armed_mobile, enabled_hue_table, submit_deadline,
+    DEFAULT_ACK_DEADLINE, ack_deadline, armed_discord, armed_phone, enabled_hue_table,
 };
 mod recap;
 pub use pns_domain::recap::Recap;
-use recap::{MAX_SUMMARIZER_DEADLINE_SECS, parse_recap};
+use recap::parse_recap;
 mod recap_values;
 use recap_values::{argv, threshold};
 mod recap_sources;
@@ -103,8 +102,8 @@ mod presence;
 
 pub use presence::parse_presence;
 
-mod mobile;
-pub use mobile::{MOSHI_TYPE, mobile_backend, moshi_image_cards, moshi_secret};
+mod phone;
+pub use phone::{MOSHI_TYPE, moshi_image_cards, moshi_secret, phone_backend};
 
 mod render;
 pub use render::{identity_placeholder, render, strip_chezmoi_actions};
