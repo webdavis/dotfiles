@@ -45,7 +45,8 @@ fn lock_parent_and_lock_file_setup_errors_both_fail_closed() {
 }
 #[test]
 fn a_recorded_write_names_the_caller_the_time_the_verb_and_the_label() {
-    let root = root();
+    let sandbox = Sandbox::new("lock");
+    let root = sandbox.path();
     let deployed = root.join("allowlist");
     let guard = AllowlistWriteLock::new(&deployed).acquire().unwrap();
     guard.record("allow", "my.alpha").unwrap();
@@ -69,7 +70,8 @@ fn a_recorded_write_names_the_caller_the_time_the_verb_and_the_label() {
 }
 #[test]
 fn a_write_whose_record_cannot_be_appended_is_refused() {
-    let root = root();
+    let sandbox = Sandbox::new("lock");
+    let root = sandbox.path();
     let deployed = root.join("allowlist");
     let guard = AllowlistWriteLock::new(&deployed).acquire().unwrap();
     fs::create_dir(root.join("allowlist.audit")).unwrap();
