@@ -120,3 +120,23 @@ fn a_lock_whose_directory_cannot_be_made_refuses_rather_than_running_unlocked() 
     assert!(!SingleRunLock::beside(&blocked.join("offset")).taken());
     let _ = fs::remove_file(&blocked);
 }
+
+#[test]
+fn a_detached_child_outliving_this_run_never_wedges_the_lock() {
+    // Rust opens every file close-on-exec by default, so a detached child
+    // never inherits this descriptor; this is a liveness check on the
+    // process boundary, not a pin on the crate's own `.custom_flags` call,
+    // which a mutation test confirms is redundant with that std default.
+    let cursor = scratch();
+    let held = SingleRunLock::beside(&cursor);
+    assert!(held.taken());
+    let mut child = std::process::Command::new("/bin/sleep")
+        .arg("30")
+        .spawn()
+        .unwrap();
+    drop(held);
+    let free = SingleRunLock::beside(&cursor).taken();
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(free, "a surviving child still holds the released lock");
+}
