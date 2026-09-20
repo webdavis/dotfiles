@@ -4,6 +4,28 @@ use super::fixtures::{decide, decide_with, elsewhere, three_selection, watching}
 use crate::surface::{DeliveryPlan, Surface, Visibility};
 use crate::{DEFAULT_DESK_IDLE_SECS, EnvironmentSnapshot, Overrides};
 
+// --- a future timestamp is unknown, never fresh --------------------------
+#[test]
+fn a_future_phone_timestamp_routes_as_not_watching_so_the_phone_cards() {
+    // A phone clock ahead of the decision clock used to saturate to age
+    // zero, the freshest possible reading, which read as the phone already
+    // watching the pane and suppressed its card. Unknown now, it drops the
+    // phone out of the arbitration entirely, so the surface falls to Away
+    // and the card the operator should have gotten actually fires.
+    let skewed = EnvironmentSnapshot {
+        phone_atime: Some(1_000_001),
+        view: Some(watching("wW:p1")),
+        ..EnvironmentSnapshot::default()
+    };
+    let decision = decide_with(&skewed, &Overrides::default(), "wW:p1");
+    assert_eq!(decision.inputs.phone_input_age, None);
+    assert_eq!(decision.inputs.surface, Surface::Away);
+    assert!(
+        decision.plan.phone_card,
+        "away always cards, where a Mobile surface reading itself as watching would not have"
+    );
+}
+
 // --- the readings the decision ran on ------------------------------------
 #[test]
 fn a_decision_reports_the_readings_its_surface_was_decided_from() {
