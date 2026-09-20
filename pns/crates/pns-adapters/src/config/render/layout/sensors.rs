@@ -12,7 +12,7 @@ pub(super) const PLUGINS_PRESENCE: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -84,7 +84,7 @@ pub(super) const PLUGINS_HOME_PRESENCE: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -145,7 +145,7 @@ pub(super) const PLUGINS_GITHUB: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "personal_access_token",

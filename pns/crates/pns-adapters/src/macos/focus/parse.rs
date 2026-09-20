@@ -14,7 +14,7 @@
 //!
 //! POLICY IS PER MODE AND NEVER "a Focus is on". Measured on this operator's
 //! own machine, a Focus was asserted for 95% of one day, so a gate that fired
-//! on any Focus at all would be a mute with no expiry. `[focus] silence` names
+//! on any Focus at all would be a mute with no expiry. `[focus] modes` names
 //! the modes that mean it, and a mode nobody named silences nothing.
 
 use std::collections::{BTreeMap, BTreeSet};
