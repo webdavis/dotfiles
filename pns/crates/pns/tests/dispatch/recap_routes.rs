@@ -15,13 +15,14 @@ fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_ca
     // it can carry anything and so is not in the core.
     let sandbox = Sandbox::new("recap-no-durable-route");
     record_every_event(&sandbox);
-    sandbox
-        .write_config("[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.macos-banner]\nenabled = true\n");
+    sandbox.write_config(
+        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.banner]\nenabled = true\n",
+    );
     loud_window(&sandbox);
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
     let body = raised[1]["detail"].as_str().expect("a detail");
     assert!(
@@ -52,7 +53,7 @@ fn the_marker_advances_so_a_second_present_event_recaps_nothing() {
     run(&mut present_event(&sandbox));
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         3,
@@ -109,7 +110,7 @@ fn a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing
         "the usage names both bounds: {}",
         stderr(&output)
     );
-    for channel in ["hermes", "mobile", "macos-banner"] {
+    for channel in ["hermes", "mobile", "banner"] {
         assert!(
             !sandbox.fired(channel),
             "{channel} was handed a recap over a window nobody could read"

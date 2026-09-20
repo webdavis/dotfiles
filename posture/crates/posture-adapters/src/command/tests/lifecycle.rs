@@ -1,22 +1,13 @@
 use super::*;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    mpsc,
-};
-
-static NEXT: AtomicUsize = AtomicUsize::new(0);
+use std::sync::mpsc;
 
 fn timed_probe(script: &'static str) {
     timed_probe_with(script, CommandIo::Inspection { merge_stderr: true });
 }
 
 pub(super) fn timed_probe_with(script: &'static str, io: CommandIo<'static>) {
-    let directory = std::env::temp_dir().join(format!(
-        "posture-probe-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    std::fs::create_dir(&directory).expect("private test directory");
+    let sandbox = crate::test_sandbox::Sandbox::new("probe");
+    let directory = sandbox.path();
     let ready = directory.join("ready");
     let child_ready = ready.clone();
     let (send, receive) = mpsc::channel();

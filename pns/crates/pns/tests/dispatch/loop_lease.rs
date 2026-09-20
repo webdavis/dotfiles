@@ -4,9 +4,7 @@ use super::*;
 fn an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer() {
     let ordinary = registering_event("lights-tick-lease-ordinary");
     let config = std::fs::read_to_string(ordinary.path(".config/pns/config.toml")).unwrap();
-    ordinary.write_config(&format!(
-        "{config}\n[plugins.macos-banner]\nenabled = true\n"
-    ));
+    ordinary.write_config(&format!("{config}\n[plugins.banner]\nenabled = true\n"));
     run(acknowledged_banner(&ordinary).args([
         "--producer",
         "claude",
@@ -98,7 +96,7 @@ fn a_registration_that_cannot_be_written_costs_the_event_nothing() {
             stdout(&output).replace(&sandbox.display(), "<sandbox>"),
             stderr(&output).replace(&sandbox.display(), "<sandbox>"),
             output.status.code(),
-            ["mobile", "hermes", "macos-banner"].map(|leg| sandbox.fired(leg)),
+            ["mobile", "hermes", "banner"].map(|leg| sandbox.fired(leg)),
         )
     };
     let working = outcome("lights-tick-spool-fine", false);
@@ -125,7 +123,7 @@ fn a_tick_with_work_in_flight_keeps_itself_scheduled_past_the_loop_threshold() {
     // could not arm itself.
     let sandbox = Sandbox::new("lights-tick-renews-its-own-lease");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
     ));
     // A COMMAND THIS TEST'S OWN PROCESS IS HOLDING: the sweep reads the pid in
     // the name and only a LIVE shell's marker counts as work in flight.
@@ -155,7 +153,7 @@ fn a_tick_with_nothing_in_flight_lets_its_own_lease_lapse() {
     // a house that is holding nothing.
     let sandbox = Sandbox::new("lights-tick-lapses");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
     ));
     let output = tick(&sandbox);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -175,7 +173,7 @@ fn a_lease_taken_by_hand_schedules_the_tick_that_reads_it() {
     // minutes into the run it was taken for.
     let sandbox = Sandbox::new("loop-begin-schedules-the-tick");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
     ));
     let taken = run(sandbox
         .pns_stateful()

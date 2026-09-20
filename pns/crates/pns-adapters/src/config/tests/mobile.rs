@@ -46,11 +46,11 @@ fn the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five() {
     // this states both halves: the key on another table never parses, and
     // a config carrying no mobile table at all is still the default.
     assert!(
-        parse_config("[plugins.hue]\nsubmit_deadline_secs = 30\n").is_err(),
+        parse_config("[plugins.lights]\nsubmit_deadline_secs = 30\n").is_err(),
         "the mobile table's key is not part of hue's vocabulary"
     );
     assert_eq!(
-        submit_deadline(&parse_config("[plugins.hue]\nenabled = true\n").unwrap()).unwrap(),
+        submit_deadline(&parse_config("[plugins.lights]\nenabled = true\n").unwrap()).unwrap(),
         Duration::from_secs(5),
         "another plugin's table is not where the mobile bound is read"
     );

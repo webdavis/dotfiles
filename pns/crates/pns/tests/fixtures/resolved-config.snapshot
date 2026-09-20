@@ -5,6 +5,14 @@ Config {
         channels_dir: None,
     },
     plugins: {
+        "banner": PluginEntry {
+            enabled: true,
+            settings: {
+                "type": String(
+                    "macos",
+                ),
+            },
+        },
         "discord": PluginEntry {
             enabled: false,
             settings: {
@@ -97,7 +105,24 @@ Config {
                 ),
             },
         },
-        "hue": PluginEntry {
+        "home_presence": PluginEntry {
+            enabled: true,
+            settings: {
+                "api_key": String(
+                    "from-the-vault:UniFi :: API Key (dresden-udr):Password",
+                ),
+                "device_hostname": String(
+                    "mister",
+                ),
+                "router_url": String(
+                    "https://192.168.1.1",
+                ),
+                "type": String(
+                    "unifi",
+                ),
+            },
+        },
+        "lights": PluginEntry {
             enabled: true,
             settings: {
                 "bridge": String(
@@ -122,11 +147,10 @@ Config {
                         ),
                     ],
                 ),
+                "type": String(
+                    "hue",
+                ),
             },
-        },
-        "macos-banner": PluginEntry {
-            enabled: true,
-            settings: {},
         },
         "mobile": PluginEntry {
             enabled: true,
@@ -184,23 +208,6 @@ Config {
                 ),
             },
         },
-        "router": PluginEntry {
-            enabled: true,
-            settings: {
-                "api_key": String(
-                    "from-the-vault:UniFi :: API Key (dresden-udr):Password",
-                ),
-                "device_hostname": String(
-                    "mister",
-                ),
-                "router_url": String(
-                    "https://192.168.1.1",
-                ),
-                "type": String(
-                    "unifi",
-                ),
-            },
-        },
     },
     recap: Recap {
         replay_card: true,
@@ -246,6 +253,7 @@ Config {
     remind_delay_secs: 300,
     stale_escalate_after_secs: 3600,
     stale_route: None,
+    storage_busy_deadline: 5s,
     lights: Some(
         Lights {
             refresh_secs: 12,

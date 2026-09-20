@@ -22,13 +22,18 @@ pub struct InstallSettings {
     pub hermes_url: Option<String>,
     /// `[plugins.mobile] url`, else `PNS_MOSHI_URL`: the push endpoint.
     pub moshi_url: Option<String>,
-    /// `[plugins.macos-banner] terminal_bundle_id`, else
+    /// `[plugins.banner] terminal_bundle_id`, else
     /// `PNS_TERMINAL_BUNDLE_ID`: the terminal a banner click returns to.
     pub terminal_bundle_id: Option<String>,
     /// `[delivery] remote_deadline`: how long one remote call may take.
     /// CONFIG ALONE, since this one had a duplicate variable rather than a
     /// home in the file, and the file is where it belongs.
     pub remote_deadline: Option<Duration>,
+    /// `[storage] busy_deadline`: how long a writer waits for the state
+    /// database's write lock. CONFIG ALONE, for the same reason: the bound
+    /// used to come off a variable that called itself test-only and was read
+    /// by production code on every connection.
+    pub busy_deadline: Duration,
 }
 
 /// The settings for one home, off the config file it holds.
@@ -79,7 +84,7 @@ fn resolve(
             environment,
         ),
         terminal_bundle_id: setting(
-            plugin_setting(config, "macos-banner", "terminal_bundle_id"),
+            plugin_setting(config, "banner", "terminal_bundle_id"),
             "PNS_TERMINAL_BUNDLE_ID",
             environment,
         ),
@@ -88,6 +93,9 @@ fn resolve(
                 config.remote_deadline_secs
             }),
         ),
+        busy_deadline: config.map_or(crate::config::DEFAULT_BUSY_DEADLINE, |config| {
+            config.storage_busy_deadline
+        }),
     }
 }
 

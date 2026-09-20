@@ -54,6 +54,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "remind",
             "routes",
             "stale",
+            "storage",
         ],
     ),
     (ROUTES, &["default", "urgent"]),
@@ -94,6 +95,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // the schema's and the refusal names the whole path.
     (PRODUCER_KEYS, &["remind"]),
     ("stale", &["escalate_after", "route"]),
+    ("storage", &["busy_deadline"]),
     ("failures", &["port", "serve"]),
     (
         "lights",
@@ -160,7 +162,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "plugins.hue",
+        "plugins.lights",
         &[
             "bridge",
             "certificate",
@@ -168,15 +170,17 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "key",
             "quiet_hours",
             "rooms",
+            "type",
         ],
     ),
     (
-        "plugins.macos-banner",
+        "plugins.banner",
         &[
             "click_command",
             "click_type",
             "enabled",
             "terminal_bundle_id",
+            "type",
         ],
     ),
     (
@@ -210,7 +214,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // `OPEN_TABLES`.
     (MOBILE_IMAGE_CARDS, &["missed"]),
     (
-        "plugins.router",
+        "plugins.home_presence",
         &[
             "api_key",
             "device_hostname",
@@ -351,6 +355,17 @@ pub(super) fn duration_key(
     setting: &toml::Value,
     range: RangeInclusive<Duration>,
 ) -> Result<u64, ConfigError> {
+    duration_value(table, key, setting, range).map(|duration| duration.as_secs())
+}
+
+/// The same key kept whole, for the settings whose range is finer than a
+/// second and would read as zero through `duration_key`'s seconds.
+pub(super) fn duration_value(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<Duration, ConfigError> {
     let Some(text) = setting.as_str() else {
         return Err(ConfigError::Invalid(format!(
             "`{table}` key `{key}` has type `{}`, not a duration like \"5m\"",
@@ -359,11 +374,9 @@ pub(super) fn duration_key(
     };
     let field = format!("`{table}` key `{key}`");
     if pns_domain::duration::parse_duration(&field, text, Duration::ZERO..=Duration::ZERO).is_ok() {
-        return Ok(0);
+        return Ok(Duration::ZERO);
     }
-    pns_domain::duration::parse_duration(&field, text, range)
-        .map(|duration| duration.as_secs())
-        .map_err(|said| {
-            ConfigError::Invalid(said.strip_prefix("pns: ").unwrap_or(&said).to_string())
-        })
+    pns_domain::duration::parse_duration(&field, text, range).map_err(|said| {
+        ConfigError::Invalid(said.strip_prefix("pns: ").unwrap_or(&said).to_string())
+    })
 }

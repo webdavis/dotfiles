@@ -34,7 +34,7 @@ pub(crate) fn remind_config(delay_secs: u64) -> String {
 /// exits), so its leg stays retry-eligible from the moment it is written and
 /// `pns daemon retry` re-delivers the same event on a later tick.
 pub(crate) fn counted_channels(sandbox: &Sandbox) {
-    for channel in ["mobile", "hermes", "macos-banner"] {
+    for channel in ["mobile", "hermes", "banner"] {
         sandbox.stub_channel(
             channel,
             &format!(

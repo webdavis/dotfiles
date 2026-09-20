@@ -94,7 +94,7 @@ fn refusal_names(table: &str) -> String {
 /// insists on before the sensor is selected at all.
 fn presence_config(body: &str) -> Config {
     parse_config(&format!(
-        "[plugins.hue]\nenabled = true\n[plugins.presence]\nenabled = true\n{body}"
+        "[plugins.lights]\nenabled = true\n[plugins.presence]\nenabled = true\n{body}"
     ))
     .unwrap()
 }
@@ -155,6 +155,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::PRODUCER_KEYS, "remind", "true"),
     (super::TOP_LEVEL, "remind", "{ delay = \"5m\" }"),
     (super::TOP_LEVEL, "stale", "{ escalate_after = \"1h\" }"),
+    (super::TOP_LEVEL, "storage", "{ busy_deadline = \"5s\" }"),
     (
         super::TOP_LEVEL,
         "plugins",
@@ -181,6 +182,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("remind", "delay", "\"5m\""),
     ("stale", "escalate_after", "\"1h\""),
     ("stale", "route", "\"priority\""),
+    ("storage", "busy_deadline", "\"5s\""),
     ("lights", "blocked", "{ duration_ms = 2000 }"),
     ("lights", "dim", "{ duration_ms = 3000 }"),
     ("lights", "done", "{ duration_ms = 4000 }"),
@@ -234,28 +236,26 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
         "url",
         "\"http://127.0.0.1:8644/webhooks/pns-events\"",
     ),
-    ("plugins.hue", "bridge", "\"192.168.1.10\""),
+    ("plugins.lights", "bridge", "\"192.168.1.10\""),
     (
-        "plugins.hue",
+        "plugins.lights",
         "certificate",
         "\"sha256:0000000000000000000000000000000000000000000000000000000000000001\"",
     ),
-    ("plugins.hue", "enabled", "true"),
-    ("plugins.hue", "key", "\"secret\""),
-    ("plugins.hue", "quiet_hours", "\"22:00-07:00\""),
-    ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
+    ("plugins.lights", "enabled", "true"),
+    ("plugins.lights", "key", "\"secret\""),
+    ("plugins.lights", "quiet_hours", "\"22:00-07:00\""),
+    ("plugins.lights", "rooms", "[\"3F - Studio\"]"),
+    ("plugins.lights", "type", "\"hue\""),
+    ("plugins.banner", "click_command", "\"/usr/bin/open {id}\""),
+    ("plugins.banner", "click_type", "\"herdr\""),
+    ("plugins.banner", "enabled", "true"),
     (
-        "plugins.macos-banner",
-        "click_command",
-        "\"/usr/bin/open {id}\"",
-    ),
-    ("plugins.macos-banner", "click_type", "\"herdr\""),
-    ("plugins.macos-banner", "enabled", "true"),
-    (
-        "plugins.macos-banner",
+        "plugins.banner",
         "terminal_bundle_id",
         "\"com.mitchellh.ghostty\"",
     ),
+    ("plugins.banner", "type", "\"macos\""),
     ("plugins.presence", "enabled", "true"),
     ("plugins.presence", "desk_room", "\"3F - Studio\""),
     ("plugins.presence", "desk_stale_after_secs", "120"),
@@ -280,14 +280,26 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
         "\"https://api.getmoshi.app/api/webhook\"",
     ),
     ("plugins.mobile", "type", "\"moshi\""),
-    ("plugins.router", "api_key", "\"secret\""),
-    ("plugins.router", "device_hostname", "\"mister\""),
-    ("plugins.router", "device_ipv4", "\"192.168.1.9\""),
-    ("plugins.router", "device_mac", "\"2e:11:ab:6d:b0:4f\""),
-    ("plugins.router", "enabled", "true"),
-    ("plugins.router", "router_url", "\"https://192.168.1.1\""),
-    ("plugins.router", "stale_alert_channel", "\"priority\""),
-    ("plugins.router", "type", "\"unifi\""),
+    ("plugins.home_presence", "api_key", "\"secret\""),
+    ("plugins.home_presence", "device_hostname", "\"mister\""),
+    ("plugins.home_presence", "device_ipv4", "\"192.168.1.9\""),
+    (
+        "plugins.home_presence",
+        "device_mac",
+        "\"2e:11:ab:6d:b0:4f\"",
+    ),
+    ("plugins.home_presence", "enabled", "true"),
+    (
+        "plugins.home_presence",
+        "router_url",
+        "\"https://192.168.1.1\"",
+    ),
+    (
+        "plugins.home_presence",
+        "stale_alert_channel",
+        "\"priority\"",
+    ),
+    ("plugins.home_presence", "type", "\"unifi\""),
 ];
 
 mod daemon;
@@ -313,6 +325,7 @@ mod remind;
 mod roster;
 mod schema;
 mod stale;
+mod storage;
 mod vocabulary;
 
 #[test]

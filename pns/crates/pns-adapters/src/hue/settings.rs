@@ -65,7 +65,7 @@ pub fn hue_settings(settings: &toml::Table) -> Result<Option<HueSettings>, Strin
 /// reading this line is at a terminal and one command away from the value.
 fn certificate_refusal(why: &str) -> String {
     format!(
-        "pns: config error (plugins.hue.certificate is {why}); run `pns lights enroll` \
+        "pns: config error (plugins.lights.certificate is {why}); run `pns lights enroll` \
 and paste the line it prints; no pulse"
     )
 }

@@ -53,7 +53,7 @@ fn a_username_secret_marker_renders_the_exact_action_and_round_trips_through_the
         toml::Value::Array(vec![toml::Value::String("Studio".to_string())]),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -67,7 +67,7 @@ fn a_username_secret_marker_renders_the_exact_action_and_round_trips_through_the
             .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["hue"].settings["key"].as_str(),
+        config.plugins["lights"].settings["key"].as_str(),
         Some("from-the-vault")
     );
 }
@@ -164,7 +164,7 @@ fn an_attribute_secret_marker_renders_keepassxc_attribute_and_round_trips_throug
         attribute_secret("Hue Bridge", "certificate-pin"),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -180,7 +180,7 @@ fn an_attribute_secret_marker_renders_keepassxc_attribute_and_round_trips_throug
             .expect("a chezmoi-stub round trip stands in for a well-formed attribute action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["hue"].settings["certificate"].as_str(),
+        config.plugins["lights"].settings["certificate"].as_str(),
         Some("from-the-vault")
     );
 }
@@ -203,7 +203,7 @@ fn a_marker_naming_both_a_field_and_an_attribute_is_refused_by_name() {
     let mut hue = toml::Table::new();
     hue.insert("certificate".to_string(), toml::Value::Table(table));
     let mut plugins = toml::Table::new();
-    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -219,7 +219,7 @@ fn a_blank_attribute_name_is_refused_rather_than_written_through() {
         attribute_secret("Hue Bridge", "   "),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -235,7 +235,7 @@ fn an_attribute_name_that_could_close_the_action_early_is_refused() {
         attribute_secret("Hue Bridge", "pin\" }}"),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 

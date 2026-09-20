@@ -10,7 +10,7 @@ fn the_recaps_volume_threshold_is_a_count_the_operator_can_state() {
     assert_eq!(config.recap.min_events, 3, "the stated count was read");
     assert!(config.recap.digest, "and the switches kept their defaults");
     assert_eq!(
-        parse_config("[plugins.hue]\nenabled = true\n")
+        parse_config("[plugins.lights]\nenabled = true\n")
             .unwrap()
             .recap
             .min_events,

@@ -54,6 +54,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.stale_escalate_after_secs = escalation.escalate_after_secs;
                 config.stale_route = escalation.route;
             }
+            "storage" => config.storage_busy_deadline = parse_storage(value)?,
             "failures" => config.failures = parse_failures(value)?,
             "routes" => config.routes = parse_routes(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
@@ -121,6 +122,8 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             }
         }
     }
+    refusals::refuse_a_moved_plugin_table(&config)?;
+    refusals::refuse_a_plugin_type_nothing_answers(&config)?;
     refusals::refuse_two_durable_logs(&config)?;
     refusals::refuse_a_map_without_a_catch_all(&config)?;
     refusals::refuse_a_map_without_the_urgent_channel(&config)?;

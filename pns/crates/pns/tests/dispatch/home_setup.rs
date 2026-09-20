@@ -36,50 +36,50 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // The retired feature table, refused by NAME rather than ignored,
             // AND the refusal names the tables that do work. This is the one
             // an operator actually meets: `[home]` moved under
-            // `[plugins.router]`, so a config written before that move is
+            // `[plugins.home_presence]`, so a config written before that move is
             // refused whole, which takes every plugin's secret with it, and
             // "unknown" on its own leaves nowhere to go.
             "[home]\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
             "home: config error (unknown top-level key `home`; the file serves \
              daemon, delivery, delivery_class, failures, focus, lights, paths, phone, plugins, \
              producer, quiet, \
-             recap, remind, routes, stale)",
+             recap, remind, routes, stale, storage)",
         ),
         (
             "[plugins.hermes]\nenabled = true\n",
-            "home: not configured (no [plugins.router] table)",
+            "home: not configured (no [plugins.home_presence] table)",
         ),
         (
-            "[plugins.router]\nenabled = false\ntype = \"unifi\"\n\
+            "[plugins.home_presence]\nenabled = false\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
-            "home: [plugins.router] is present but enabled = false",
+            "home: [plugins.home_presence] is present but enabled = false",
         ),
         (
-            "[plugins.router]\nenabled = true\n\
+            "[plugins.home_presence]\nenabled = true\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
-            "home: no type in [plugins.router] (the only type is \"unifi\")",
+            "home: no type in [plugins.home_presence] (the only type is \"unifi\")",
         ),
         (
-            "[plugins.router]\nenabled = true\ntype = \"asus\"\n\
+            "[plugins.home_presence]\nenabled = true\ntype = \"asus\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
-            "home: [plugins.router] has type \"asus\", which no compiled-in backend answers \
+            "home: [plugins.home_presence] has type \"asus\", which no compiled-in backend answers \
              (the only type is \"unifi\")",
         ),
         (
             // The URL is the one setting left outside the device keys, so it
             // keeps its own line, and that line no longer names them.
-            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
+            "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
              device_hostname = \"mister\"\napi_key = \"k-123\"\n",
-            "home: the [plugins.router] table is present but router_url is missing, empty, \
+            "home: the [plugins.home_presence] table is present but router_url is missing, empty, \
              or not a string",
         ),
         (
             // A table with no device in it at all: the line names the three
             // keys to set rather than any key that went away, since there is
             // no back-compat here.
-            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
+            "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\napi_key = \"k-123\"\n",
-            "home: no device to look for in [plugins.router] \
+            "home: no device to look for in [plugins.home_presence] \
              (set at least one of device_mac, device_hostname, device_ipv4)",
         ),
         (
@@ -87,30 +87,30 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // reaches that line at all: the table's own vocabulary is judged
             // at load, so the key that went away is named where the operator
             // wrote it, with the keys that replaced it in the same sentence.
-            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
+            "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
-            "home: config error (unknown `plugins.router` key `phone`; the table serves \
+            "home: config error (unknown `plugins.home_presence` key `phone`; the table serves \
              api_key, device_hostname, device_ipv4, device_mac, enabled, router_url, \
              stale_alert_channel, type)",
         ),
         (
-            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
+            "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_ipv4 = \"192.168.1\"\napi_key = \"k-123\"\n",
-            "home: device_ipv4 = \"192.168.1\" in [plugins.router] is not an IPv4 address \
+            "home: device_ipv4 = \"192.168.1\" in [plugins.home_presence] is not an IPv4 address \
              (a dotted quad, e.g. \"192.168.1.169\")",
         ),
         (
-            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
+            "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_mac = \"2e11ab6db04f\"\napi_key = \"k-123\"\n",
-            "home: device_mac = \"2e11ab6db04f\" in [plugins.router] is not a MAC address \
+            "home: device_mac = \"2e11ab6db04f\" in [plugins.home_presence] is not a MAC address \
              (six hex pairs under one separator, e.g. \"2e:11:ab:6d:b0:4f\")",
         ),
         (
             // Everything else is in order, so the key is the only thing left
             // to be missing, and the probe stops before it reaches a router.
-            "[plugins.router]\nenabled = true\ntype = \"unifi\"\n\
+            "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
              router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
-            "home: no api_key in the [plugins.router] table (the probe is not set up)",
+            "home: no api_key in the [plugins.home_presence] table (the probe is not set up)",
         ),
     ] {
         sandbox.write_config(config);

@@ -71,7 +71,7 @@ fn a_locked_screen_cards_the_phone_and_leaves_the_desk_banner_unraised() {
         "the card must reach them: {legs:?}"
     );
     assert!(
-        !legs.contains(&"macos-banner"),
+        !legs.contains(&"banner"),
         "nobody is in front of the display: {legs:?}"
     );
 }
@@ -90,7 +90,7 @@ fn a_phone_probe_that_read_nothing_leaves_the_operator_at_their_desk() {
     };
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
-    assert!(legs.contains(&"macos-banner"), "got {legs:?}");
+    assert!(legs.contains(&"banner"), "got {legs:?}");
     assert!(!legs.contains(&"mobile"), "got {legs:?}");
 }
 
