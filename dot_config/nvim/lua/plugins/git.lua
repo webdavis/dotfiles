@@ -1140,7 +1140,7 @@ return {
         { "<C-g>cc", "<cmd>Git commit --verbose<cr>", desc = "Fugitive: entire index (all staged changes)", silent = true },
         { "<C-g>cf", "<cmd>Git commit %<cr>", desc = "Fugitive: current file only", silent = true },
         { "<C-g>ca", "<cmd>Git commit --amend --verbose<cr>", desc = "Fugitive: amend latest (edit message)", silent = true },
-        { "<C-g>cn", "<cmd>Git commit --amend --no-edit<cr>", desc = "Fugitive: amend latest (don't edit message)", silent = true },
+        { "<C-g>cn", "<cmd>Git! commit --amend --no-edit<cr>", desc = "Fugitive: amend latest (don't edit message)", silent = true },
         -- stylua: ignore end
 
         {
@@ -1435,14 +1435,14 @@ return {
         },
 
         -- Fetch/Pull:
-        { "<C-g>Ff", "<cmd>Git fetch<cr>", desc = "Fugitive: fetch", silent = true },
-        { "<C-g>Fp", "<cmd>Git pull<cr>", desc = "Fugitive: pull", silent = true },
-        { "<C-g>Fr", "<cmd>Git pull --rebase<cr>", desc = "Fugitive: pull --rebase", silent = true },
+        { "<C-g>Ff", "<cmd>Git! fetch<cr>", desc = "Fugitive: fetch", silent = true },
+        { "<C-g>Fp", "<cmd>Git! pull<cr>", desc = "Fugitive: pull", silent = true },
+        { "<C-g>Fr", "<cmd>Git! pull --rebase<cr>", desc = "Fugitive: pull --rebase", silent = true },
 
         -- stylua: ignore start
         -- Push:
-        { "<C-g>pp", "<cmd>Git push<cr>", desc = "Fugitive: push", silent = true },
-        { "<C-g>pf", "<cmd>Git push --force-with-lease<cr>", desc = "Fugitive: push --force-with-lease", silent = true },
+        { "<C-g>pp", "<cmd>Git! push<cr>", desc = "Fugitive: push", silent = true },
+        { "<C-g>pf", "<cmd>Git! push --force-with-lease<cr>", desc = "Fugitive: push --force-with-lease", silent = true },
         -- stylua: ignore end
 
         -- An interactive `git push -u origin <current_branch>` implementation:
@@ -1470,7 +1470,7 @@ return {
               -- spliced in. The single quotes it replaces were not a defence: a
               -- branch name may legally contain one, and closing them early made
               -- the remainder into further `git push` flags.
-              vim.cmd("Git push -u origin HEAD")
+              vim.cmd("Git! push -u origin HEAD")
             end)
           end,
           desc = "Fugitive: push -u origin <branch>",
