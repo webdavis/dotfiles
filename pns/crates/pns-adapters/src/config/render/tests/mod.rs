@@ -14,7 +14,6 @@ fn every_table_armed() -> toml::Table {
         [plugins.lights]
         bridge_host = "192.168.1.9"
         api_key = "hue-secret"
-        rooms = ["Studio", "Kitchen"]
 
         [plugins.home_presence]
         type = "unifi"
@@ -23,7 +22,7 @@ fn every_table_armed() -> toml::Table {
         device_hostname = "phone"
 
         [focus]
-        silence = ["Sleep"]
+        modes = ["Sleep"]
 
         [remind]
     }

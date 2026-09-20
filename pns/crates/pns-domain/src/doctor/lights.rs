@@ -37,7 +37,8 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
     let routing = match report {
         LightsReport::Off => {
             return vec![format!(
-                "{PREFIX}lights: off in the config, so the pulse uses the [plugins.lights] rooms"
+                "{PREFIX}lights: off in the config, so the pulse flashes the plugin's own \
+                 default rooms"
             )];
         }
         LightsReport::HueMissing => {

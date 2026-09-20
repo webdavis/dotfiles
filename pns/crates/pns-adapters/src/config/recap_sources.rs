@@ -4,6 +4,9 @@ use super::*;
 /// names in `gh`'s own `OWNER/REPO` spelling, passed to it as one argument
 /// each.
 ///
+/// UNSET IS THE OFF STATEMENT, so the key never doubles as its own switch:
+/// with no key at all no `gh` process is started.
+///
 /// EMPTINESS IS REFUSED AT BOTH LEVELS, for `summarizer`'s reason rather than a
 /// new one. A key present with no name under it, or a name that is the empty
 /// string, would leave the section reading "nothing merged in this window" over
@@ -32,6 +35,9 @@ pub(super) fn repositories(setting: &toml::Value) -> Result<Vec<String>, ConfigE
 }
 
 /// `review_notes_glob`, the one pattern deciding which files the recap may open.
+///
+/// UNSET IS THE OFF STATEMENT, as it is for `repositories` above: with no
+/// pattern the directory is never opened.
 ///
 /// THE GLOB IS THE WHOLE PERMISSION, which is why its shape is judged here
 /// rather than resolved generously at the read. Two spellings are refused by

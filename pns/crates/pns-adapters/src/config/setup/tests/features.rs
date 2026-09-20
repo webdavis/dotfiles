@@ -27,18 +27,12 @@ fn every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers() {
     let hue = &config.plugins["lights"].settings;
     assert_eq!(hue["bridge_host"].as_str(), Some("192.168.1.9"));
     assert_eq!(hue["api_key"].as_str(), Some("hue-secret"));
-    assert_eq!(
-        hue["rooms"]
-            .as_array()
-            .map(|rooms| rooms.iter().filter_map(|room| room.as_str()).collect()),
-        Some(vec!["Studio", "Kitchen"])
-    );
     let router = &config.plugins["home_presence"].settings;
     assert_eq!(router["type"].as_str(), Some("unifi"));
     assert_eq!(router["url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
-    assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
+    assert_eq!(config.focus_modes, vec!["Sleep".to_string()]);
     assert_eq!(config.remind_delay_secs, 300);
 }
 
@@ -55,7 +49,10 @@ fn a_credential_left_blank_declines_its_feature_rather_than_arming_an_empty_one(
         ),
         (|answers: &mut Answers| answers.hue_bridge.clear(), "lights"),
         (|answers: &mut Answers| answers.hue_key.clear(), "lights"),
-        (|answers: &mut Answers| answers.hue_rooms.clear(), "lights"),
+        (
+            |answers: &mut Answers| answers.hue_certificate.clear(),
+            "lights",
+        ),
         (
             |answers: &mut Answers| answers.router_url.clear(),
             "home_presence",

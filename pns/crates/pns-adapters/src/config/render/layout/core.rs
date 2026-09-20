@@ -178,15 +178,22 @@ pub(super) const FOCUS: Table = Table {
                  # phone cards. A Focus name matches however you capitalised\n\
                  # it, a mode's raw modeIdentifier works too, and an empty entry is refused\n\
                  # by name. An unreadable Focus store reads as no Focus, never as silence.\n\
-                 # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\
-                 # table at all.\n",
+                 # NAMING NO MODE SILENCES NOTHING, which is the same statement as no\n\
+                 # table at all; `enabled = false` keeps the list and stops it being read.\n",
     opt_in: true,
     children: &[],
-    keys: &[Key {
-        name: "silence",
-        prose: "",
-        sample: Sample::Example("[\"Sleep\"]"),
-    }],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "modes",
+            prose: "",
+            sample: Sample::Example("[\"Sleep\"]"),
+        },
+    ],
 };
 /// The mute's own section. IT HOLDS NO KEYS: the mute itself is typed
 /// (`pns mute 30m`) rather than configured, and the one thing there is to
@@ -258,8 +265,8 @@ pub(super) const REMIND: Table = Table {
                  # rather than your answer, so a tool approved at once that then runs\n\
                  # longer than this is reminded about anyway; if that bites, raise the\n\
                  # number. THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING, anything\n\
-                 # outside is refused by name; no table at all, and a delay of \"0s\", are\n\
-                 # the same statement.\n",
+                 # outside is refused by name, \"0s\" included: leaving the key out is the\n\
+                 # one way to say the reminder is off.\n",
     opt_in: true,
     children: &[],
     keys: &[Key {
@@ -302,11 +309,16 @@ pub(super) const STALE: Table = Table {
                  # screen locked for PART of the window still pages, which is the case\n\
                  # this exists for: you were here, you stepped away, and a session is\n\
                  # stuck. It needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE\n\
-                 # CEILING, anything outside is refused by name, and \"0s\" is the feature\n\
-                 # off.\n",
+                 # CEILING, anything outside is refused by name, \"0s\" included: the window\n\
+                 # is not the switch, `enabled` is.\n",
     opt_in: false,
     children: &[],
     keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
         Key {
             name: "escalate_after",
             prose: "",
@@ -379,15 +391,27 @@ pub(super) const LIGHTS: Table = Table {
     prose: LIGHTS_PROSE,
     opt_in: true,
     children: &[],
-    keys: &[Key {
-        name: "arm_interval",
-        prose: "# How often the daemon re-arms the lamps, bounded \"10s\" to \"30s\". It is also\n\
-                     # the breath budget: a breathing lamp is faded by the tick itself, seamlessly,\n\
-                     # across the whole interval, so this decides how many fades fit between two\n\
-                     # ticks. The floor is one bridge call, so a tick cannot start while the last\n\
-                     # one is still dialling; the ceiling is what the daemon derives a tick's own\n\
-                     # lifetime from, and an interval past it would be a breath cut off part way\n\
-                     # through.\n",
-        sample: Sample::Default("\"12s\""),
-    }],
+    keys: &[
+        Key {
+            name: "arm_interval",
+            prose: "# How often the daemon re-arms the lamps, bounded \"10s\" to \"30s\". It is\n\
+                         # also the breath budget: a breathing lamp is faded by the tick itself,\n\
+                         # seamlessly, across the whole interval, so this decides how many fades\n\
+                         # fit between two ticks. The floor is one bridge call, so a tick cannot\n\
+                         # start while the last one is still dialling; the ceiling is what the\n\
+                         # daemon derives a tick's own lifetime from, and an interval past it\n\
+                         # would be a breath cut off part way through.\n",
+            sample: Sample::Default("\"12s\""),
+        },
+        Key {
+            name: "dim_window",
+            prose: "# THE HOUSE DIM WINDOW, and the only one in the vocabulary: local wall\n\
+                         # clock, the start inclusive and the end exclusive, and it may wrap\n\
+                         # midnight. Every place below that states no `dim_window` of its own\n\
+                         # runs this one, and a place that states one overrides it for that\n\
+                         # place alone. A bare `pns lights mute <place>` mutes until this\n\
+                         # window ends and is refused when none is set.\n",
+            sample: Sample::Example("\"22:00-07:00\""),
+        },
+    ],
 };

@@ -80,6 +80,10 @@ pub struct Lights {
     /// the operator locked one shape rather than one per behaviour. WHICH
     /// behaviours run it is a per-target opt-in, not a knob here.
     pub dim: Breath,
+    /// THE HOUSE DIM WINDOW: the default every place that states none of its
+    /// own runs, and the one window in the vocabulary. A place's own
+    /// `dim_window` overrides it for that place alone.
+    pub dim_window: Option<String>,
     pub lamps: BTreeMap<String, Target>,
     pub rooms: BTreeMap<String, Target>,
     pub zones: BTreeMap<String, Target>,
@@ -134,8 +138,9 @@ pub struct Looping {
 /// EACH FIELD IS ONE QUESTION, resolved independently of the others: a lamp's
 /// own declaration can state which behaviours it carries and say nothing about
 /// dimming, and its room's window still applies. `Option` is what spells "said
-/// nothing" for the behaviour set; the dim question is stated exactly when
-/// `dim_window` is.
+/// nothing" for the behaviour set; the dim question is stated when either
+/// `dim_window` or `dim_behaviours` is, and a declaration that states only the
+/// behaviours runs them inside `[lights] dim_window`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Target {
     pub behaviours: Option<Vec<Behaviour>>,
@@ -143,8 +148,10 @@ pub struct Target {
     /// The behaviours that run their DIM FORM inside that window. Everything
     /// else the target carries is suppressed there, which is what makes a
     /// window with an empty list a room that goes dark for the night with no
-    /// second mode to spell it.
-    pub dim_behaviours: Vec<Behaviour>,
+    /// second mode to spell it. `Option`, like `behaviours` above it, because
+    /// STATING an empty list is what a place that goes fully dark writes and
+    /// saying nothing at all is a different answer.
+    pub dim_behaviours: Option<Vec<Behaviour>>,
 }
 impl Default for Lights {
     fn default() -> Self {
@@ -167,6 +174,7 @@ impl Default for Lights {
                 lease_expiry_secs: DEFAULT_LOOP_LEASE_EXPIRY_SECS,
             },
             dim: DEFAULT_DIM,
+            dim_window: None,
             lamps: BTreeMap::new(),
             rooms: BTreeMap::new(),
             zones: BTreeMap::new(),

@@ -69,7 +69,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "summarizer_deadline",
         ],
     ),
-    ("focus", &["silence"]),
+    ("focus", &["enabled", "modes"]),
     ("quiet", &["calendar"]),
     (
         "quiet.calendar",
@@ -92,7 +92,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // carries the producer's own name, so the roster holds the part that is
     // the schema's and the refusal names the whole path.
     (PRODUCER_KEYS, &["remind"]),
-    ("stale", &["escalate_after", "route"]),
+    ("stale", &["enabled", "escalate_after", "route"]),
     ("storage", &["busy_deadline"]),
     ("failures", &["page_enabled", "page_port"]),
     (
@@ -102,6 +102,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "blocked",
             "checks",
             "dim",
+            "dim_window",
             "done",
             "failed",
             "lamp",
@@ -111,31 +112,31 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "zone",
         ],
     ),
-    ("lights.done", &["brightness", "duration_ms"]),
-    ("lights.failed", &["brightness", "duration_ms"]),
+    ("lights.done", &["brightness_percent", "duration"]),
+    ("lights.failed", &["brightness_percent", "duration"]),
     (
         "lights.blocked",
-        &["duration_ms", "high", "lease_expiry", "low"],
+        &["duration", "high_percent", "lease_expiry", "low_percent"],
     ),
-    ("lights.dim", &["duration_ms", "high", "low"]),
+    ("lights.dim", &["duration", "high_percent", "low_percent"]),
     (
         "lights.checks",
-        &["brightness", "duration_ms", "fail_color", "pass_color"],
+        &["brightness_percent", "duration", "fail_color", "pass_color"],
     ),
     (
         "lights.unseen",
-        &["arm_after", "duration_ms", "high", "low"],
+        &["arm_after", "duration", "high_percent", "low_percent"],
     ),
     (
         "lights.loop",
         &[
             "arm_after",
-            "duration_ms",
-            "flare",
-            "flare_ms",
-            "high",
+            "duration",
+            "flare_duration",
+            "flare_percent",
+            "high_percent",
             "lease_expiry",
-            "low",
+            "low_percent",
         ],
     ),
     (TARGET_KEYS, &["behaviours", "dim_behaviours", "dim_window"]),
@@ -167,15 +168,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     (
         "plugins.lights",
-        &[
-            "api_key",
-            "bridge_host",
-            "certificate",
-            "enabled",
-            "quiet_hours",
-            "rooms",
-            "type",
-        ],
+        &["api_key", "bridge_host", "certificate", "enabled", "type"],
     ),
     (
         "plugins.banner",
@@ -350,10 +343,11 @@ pub(super) fn unknown_key(roster_table: &str, shown_table: &str, key: &str) -> C
 /// writes for a terminal is dropped, because a config refusal already carries
 /// its own framing.
 ///
-/// ZERO IS CARVED OUT AND IS NOT AN ERROR, for the callers whose key is the
-/// switch as well as the timing: `"0s"` is the same statement as leaving the
-/// key out, while every other value under the floor is a schedule the
-/// operator meant and pns will not run.
+/// ZERO IS CARVED OUT AND IS NOT AN ERROR, for the callers whose zero is a
+/// real bound: no wait for the database lock, an event that expires the
+/// moment it has any age, a lamp armed at once. A key whose zero would mean
+/// the FEATURE off reads through `nonzero_duration_key` instead, where it is
+/// refused by name.
 pub(super) fn duration_key(
     table: &str,
     key: &str,
@@ -361,6 +355,28 @@ pub(super) fn duration_key(
     range: RangeInclusive<Duration>,
 ) -> Result<u64, ConfigError> {
     duration_value(table, key, setting, range).map(|duration| duration.as_secs())
+}
+
+/// One duration key whose OFF STATEMENT IS THE ABSENT KEY, refusing `"0s"`
+/// by name and saying where off lives instead.
+///
+/// A KEY IS NEVER ITS OWN SWITCH. A zero that means "off" is a value every
+/// reader has to decode and every writer has to remember, and the key not
+/// being there already says it; `[stale]`, whose unset window is an hour
+/// rather than off, carries an `enabled` key for the same reason.
+pub(super) fn nonzero_duration_key(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<u64, ConfigError> {
+    let stated = duration_value(table, key, setting, range)?;
+    if stated.is_zero() {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` is 0, which is not a duration; leave the key unset for off"
+        )));
+    }
+    Ok(stated.as_secs())
 }
 
 /// The same key kept whole, for the settings whose range is finer than a

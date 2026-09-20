@@ -112,11 +112,11 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
         ),
         (
             "plugins.lights.bridge_host",
-            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
+            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\n",
         ),
         (
             "plugins.lights.api_key",
-            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
+            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\n",
         ),
         (
             "plugins.log.bot_token",
@@ -223,7 +223,7 @@ fn running_the_binary_twice_against_the_same_values_file_writes_identical_bytes(
     let second_path = scratch.path("second.tmpl");
     std::fs::write(
         &values_path,
-        "[plugins.lights]\nrooms = [\"Studio\", \"Kitchen\"]\n[remind]\n",
+        "[lights]\ndim_window = \"22:00-07:00\"\n[remind]\n",
     )
     .expect("write values");
 
@@ -295,4 +295,47 @@ fn checking_a_changed_resolved_configuration_refuses_without_writing() {
     );
     assert_eq!(std::fs::read_to_string(&values_path).unwrap(), values);
     assert_eq!(std::fs::read_dir(&scratch.root).unwrap().count(), 1);
+}
+
+/// THE MUTANT THIS PINS: an `enabled` key dropped from the layout, or one
+/// turned into an `Example` so the switch ships with no value a reader can
+/// see. Every table the schema gives an `enabled` key writes exactly one
+/// line for it, live in a live table and commented in a commented one, and
+/// always at its own default.
+#[test]
+fn the_written_template_carries_one_enabled_line_per_table_that_declares_one() {
+    let scratch = Scratch::new("enabled-lines");
+    let values_path = scratch.path("config-values.toml");
+    let template_path = scratch.path("private_config.toml.tmpl");
+    std::fs::write(&values_path, "").expect("write values");
+
+    let output = run(&values_path, &template_path);
+    assert!(output.status.success(), "{output:?}");
+    let written = std::fs::read_to_string(&template_path).expect("read written template");
+    let declared = pns_adapters::TABLE_KEYS
+        .iter()
+        .filter(|(_, keys)| keys.contains(&"enabled"))
+        .count();
+    let lines: Vec<&str> = written
+        .lines()
+        .filter(|line| {
+            line.trim_start()
+                .trim_start_matches("# ")
+                .starts_with("enabled = ")
+        })
+        .collect();
+    assert_eq!(
+        lines.len(),
+        declared,
+        "one `enabled` line per table that declares one: {lines:?}"
+    );
+    // AND EVERY ONE OF THEM CARRIES A VALUE, which is what tells a written
+    // default from a commented example the reader has to guess at.
+    for line in lines {
+        let stated = line.trim_start().trim_start_matches("# ");
+        assert!(
+            stated == "enabled = true" || stated == "enabled = false",
+            "an `enabled` line states a boolean: {line:?}"
+        );
+    }
 }

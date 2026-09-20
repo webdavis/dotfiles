@@ -1,6 +1,7 @@
 use super::*;
 
-/// The delay that means the reminder is off. See `Config::remind_delay_secs`.
+/// The delay a file with no `[remind] delay` carries, which is the reminder
+/// off. See `Config::remind_delay_secs`.
 pub(super) const REMIND_OFF: u64 = 0;
 
 /// `[remind]`'s one key, in `parse_daemon`'s shape: an unknown key inside the
@@ -14,7 +15,9 @@ pub(super) fn parse_remind(value: toml::Value) -> Result<u64, ConfigError> {
     for (key, setting) in table {
         admits_flat("remind", &key)?;
         match key.as_str() {
-            "delay" => delay = duration_key("remind", "delay", &setting, remind_delay_range())?,
+            "delay" => {
+                delay = nonzero_duration_key("remind", "delay", &setting, remind_delay_range())?;
+            }
             _ => {
                 return Err(unknown_key("remind", "remind", &key));
             }
@@ -23,12 +26,10 @@ pub(super) fn parse_remind(value: toml::Value) -> Result<u64, ConfigError> {
     Ok(delay)
 }
 
-/// `delay`'s range, WITH ZERO CARVED OUT by `parse_remind` above.
-///
-/// ZERO IS NOT A SCHEDULE AND IS NOT AN ERROR: it is the same statement as
-/// writing no table, which is what makes this key the switch as well as the
-/// timing. Every other value under the floor IS an error, because it is a
-/// schedule the operator meant and pns will not run.
+/// `delay`'s range. ZERO IS REFUSED BY NAME by `nonzero_duration_key` above:
+/// leaving the key out is the one way to say the reminder is off, and every
+/// other value under the floor is a schedule the operator meant and pns will
+/// not run.
 ///
 /// THE BOUNDS THEMSELVES ARE THE POLICY CRATE'S, so the file, the flag and the
 /// JSON field are held to one range.
@@ -53,7 +54,7 @@ pub fn remind_delay_range() -> RangeInclusive<Duration> {
 /// EQUAL IS ACCEPTED. Shorter is the contradiction; reaching the bound exactly
 /// as the nudge fires is a tight config the operator may well mean.
 ///
-/// A REMINDER THAT IS OFF CONTRADICTS NOTHING, and neither does a file with no
+/// A REMINDER THAT IS OFF (the key left out) CONTRADICTS NOTHING, and neither does a file with no
 /// `[lights]` table: with no nudge or no lamp there is no pair to disagree.
 ///
 /// NEITHER OF THOSE TWO GUARDS IS OBSERVABLE TODAY, said here because a

@@ -8,7 +8,7 @@ pub(super) const PLUGINS_PHONE: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -102,7 +102,7 @@ pub(super) const PLUGINS_LOG: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -180,7 +180,7 @@ pub(super) const PLUGINS_BANNER: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -217,16 +217,16 @@ pub(super) const PLUGINS_BANNER: Table = Table {
 };
 pub(super) const PLUGINS_LIGHTS: Table = Table {
     name: "plugins.lights",
-    prose: "# The light pulse: the named rooms flash green when work finishes and red\n\
-                 # when it dies. Needs the bridge's address, a key it issued, and the rooms\n\
-                 # spelled the way the bridge spells them.\n",
+    prose: "# The light pulse: the TRANSPORT alone, which needs the bridge's address,\n\
+                 # a key it issued and the certificate it presents. WHICH lamp shows what,\n\
+                 # and when it runs dimmed, is the `[lights]` policy below.\n",
     opt_in: true,
     children: &[],
     keys: &[
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -254,23 +254,6 @@ pub(super) const PLUGINS_LIGHTS: Table = Table {
                          # value from `pns lights enroll`, which prints this line ready to\n\
                          # paste; it changes only when the bridge hardware does.\n",
             sample: Sample::Example("\"\""),
-        },
-        Key {
-            name: "rooms",
-            prose: "",
-            sample: Sample::Example("[]"),
-        },
-        Key {
-            name: "quiet_hours",
-            prose: "# The hours the room pulse stays dark: local wall clock, the start\n\
-                         # inclusive and the end exclusive, and it may wrap midnight. A hand-run\n\
-                         # `pns lights pulse` is exempt, so a bridge and key can be checked\n\
-                         # in-window.\n\
-                         # A bare `pns lights mute <place>` mutes until this window ends and is\n\
-                         # refused when none is set. With a `[lights]` table below, each place's\n\
-                         # own `dim_window` decides the night instead and this window is the\n\
-                         # mute's schedule alone.\n",
-            sample: Sample::Example("\"22:00-07:00\""),
         },
     ],
 };

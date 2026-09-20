@@ -34,14 +34,20 @@ pub struct Config {
     pub paths: Paths,
     pub plugins: BTreeMap<String, PluginEntry>,
     pub recap: Recap,
-    /// `[focus] silence`: the Focus MODE NAMES that mean it, each written
+    /// `[focus] enabled`: whether the named Focus modes are read at all.
+    ///
+    /// DEFAULT ON, because the roster beside it is what decides whether
+    /// anything is silenced: a machine that never wrote the table names no
+    /// mode and is silenced by none. The switch is here for the operator who
+    /// wants their list kept and Focus awareness off for a week.
+    pub focus_enabled: bool,
+    /// `[focus] modes`: the Focus MODE NAMES that silence, each written
     /// either as the name Control Center shows or as a raw `modeIdentifier`.
     ///
-    /// EMPTY IS THE FEATURE OFF, which is what makes the table optional and
-    /// what every machine that never wrote one gets. There is no `enabled`
-    /// key: naming no mode and switching the feature off are the same
-    /// statement, and a second way to say it is a second thing to disagree.
-    pub focus_silence: Vec<String>,
+    /// EMPTY IS NOTHING SILENCED, which is what every machine that never
+    /// wrote the table gets. It is the ROSTER and never the switch; read them
+    /// together through `focus_silence`.
+    pub focus_modes: Vec<String>,
     /// `[delivery_class.<name>]`: what each delivery class a producer may send
     /// DOES, keyed by the class name.
     ///
@@ -57,8 +63,8 @@ pub struct Config {
     pub remote_deadline_secs: u64,
     /// `[daemon] enabled`: whether `pns daemon run` stays up and ticks.
     ///
-    /// DEFAULT ON, which is the opposite of `[focus]` and of every plugin, and
-    /// the difference is that this switch delivers nothing. An idle daemon
+    /// DEFAULT ON, which is the opposite of every plugin, and the difference
+    /// is that this switch delivers nothing. An idle daemon
     /// reads one empty directory a second. Default OFF would put every feature
     /// that rides the clock behind TWO switches, so an operator who enabled the
     /// feature and saw nothing would have to discover a second, invisible one.
@@ -87,13 +93,12 @@ pub struct Config {
     /// per-call `--remind` beats whatever this says.
     pub producer_remind: BTreeMap<String, bool>,
     /// `[remind] delay`: how long an unanswered approval waits before it is
-    /// carded a second time, in whole seconds off the key's duration. ZERO IS
-    /// THE FEATURE OFF.
+    /// carded a second time, in whole seconds off the key's duration.
     ///
-    /// ONE KEY THAT IS THE SWITCH AND THE SCHEDULE, which is `[focus]
-    /// silence`'s own precedent: naming no schedule and switching off are one
-    /// statement, so there is no second `enabled` key that can disagree with
-    /// the first.
+    /// AN UNSET KEY IS THE FEATURE OFF, and `"0s"` is refused by name rather
+    /// than read as the same statement: a key that doubles as its own switch
+    /// is a value the operator has to decode, and the absent key already says
+    /// it.
     ///
     /// DEFAULT OFF, unlike `[daemon]` beside it, and the difference is that
     /// this one INTERRUPTS. It also needs three separate operator steps before
@@ -101,9 +106,16 @@ pub struct Config {
     /// this key), and a default-on feature that silently does nothing until all
     /// three are done is a mystery rather than a default.
     pub remind_delay_secs: u64,
+    /// `[stale] enabled`: whether the page about a blocked session is raised
+    /// at all. DEFAULT ON, for `DEFAULT_ESCALATE_AFTER_SECS`'s reason.
+    ///
+    /// A SWITCH OF ITS OWN, because the window beside it cannot be the
+    /// switch: unset is an hour rather than off, so there would be no value
+    /// left to mean off with `"0s"` refused.
+    pub stale_enabled: bool,
     /// `[stale] escalate_after`: how long a session stays blocked before ONE
-    /// page about it is raised, in whole seconds off the key's duration. ZERO
-    /// IS THE FEATURE OFF.
+    /// page about it is raised, in whole seconds off the key's duration.
+    /// Read it with the switch through `stale_window_secs`.
     ///
     /// DEFAULT ON AT AN HOUR, unlike `remind_delay_secs` above it: see
     /// `DEFAULT_ESCALATE_AFTER_SECS`.
@@ -140,7 +152,8 @@ impl Default for Config {
             paths: Paths::default(),
             plugins: BTreeMap::new(),
             recap: Recap::default(),
-            focus_silence: Vec::new(),
+            focus_enabled: DEFAULT_FOCUS_ENABLED,
+            focus_modes: Vec::new(),
             delivery_classes: BTreeMap::new(),
             remote_deadline_secs: DEFAULT_REMOTE_DEADLINE_SECS,
             routes: pns_domain::routes::Routes::default(),
@@ -150,6 +163,7 @@ impl Default for Config {
             retry_backoff: Default::default(),
             producer_remind: BTreeMap::new(),
             remind_delay_secs: REMIND_OFF,
+            stale_enabled: DEFAULT_STALE_ENABLED,
             stale_escalate_after_secs: DEFAULT_ESCALATE_AFTER_SECS,
             stale_route: None,
             storage_busy_deadline: DEFAULT_BUSY_DEADLINE,
@@ -161,6 +175,30 @@ impl Default for Config {
 }
 
 impl Config {
+    /// The Focus modes that silence right now: the roster while the switch is
+    /// on, and nothing at all while it is off.
+    ///
+    /// ONE READING FOR EVERY CALLER, so a reader that forgot the switch
+    /// cannot exist: an empty list is already "nothing silences", which is
+    /// what every reader of the roster does with an off switch anyway.
+    pub fn focus_silence(&self) -> &[String] {
+        if self.focus_enabled {
+            &self.focus_modes
+        } else {
+            &[]
+        }
+    }
+
+    /// How long a block stands before it is paged about, and zero while the
+    /// switch is off, which is `WINDOW_OFF`'s own reading.
+    pub fn stale_window_secs(&self) -> u64 {
+        if self.stale_enabled {
+            self.stale_escalate_after_secs
+        } else {
+            0
+        }
+    }
+
     /// What the class a message carries says, with a message naming none
     /// reading `[delivery_class.default]`.
     ///

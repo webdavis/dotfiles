@@ -103,8 +103,8 @@ pub use hue::{
     BRIDGE_DEADLINE, Bridge, DEFAULT_ROOMS, Enrollment, HuePulse, HueSettings, Mismatch,
     TYPED_COMMAND_DEADLINE, TypedLampBridge, UreqBridge, armed_hue, breath_arm_body,
     bridge_inventory, clear_body, clear_held, enroll, fade_body, grouped_light_ids_for_rooms,
-    hue_settings, inventory, pulse_body, quiet_window, refused_mismatch, resolve_on_bridge,
-    signal_fixtures, unreported_mismatch,
+    hue_settings, inventory, pulse_body, refused_mismatch, resolve_on_bridge, signal_fixtures,
+    unreported_mismatch,
 };
 
 mod presence;
@@ -152,6 +152,7 @@ mod unifi;
 pub use unifi::{HomeStaleness, UniFiRouter, first_site_id, parse_clients};
 
 pub use herdr::workspace_agent_statuses;
+pub use herdr::{WorkspaceRow, parse_workspaces};
 
 pub use presence::BridgePresencePoll;
 
