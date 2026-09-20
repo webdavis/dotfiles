@@ -172,9 +172,10 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a version 1 request, when decoded, then request_id, producer and state are required and must have
 their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent optional session,
-elapsed, route and delivery_class become None; detail is empty, project, branch and pane are None, scope is
-automatic, and extensions is an empty object. Request::new supplies those same defaults. The session is a
-plain name and the place of the work is three top-level fields, the same names the flags carry. `event`,
+elapsed, route, delivery_class and remind become None; detail is empty, project, branch and pane are
+None, scope is automatic, and extensions is an empty object. Request::new supplies those same defaults.
+The session is a plain name and the place of the work is three top-level fields, the same names the
+flags carry. `event`,
 `occurred_at` and `interaction` are no longer fields of this envelope: a decoded value carrying any of
 them names it in DecodedRequest::ignored (S014), the same as any other unknown top-level field.
 
@@ -188,6 +189,18 @@ ignored: a value carrying either is rejected before effects, and the refusal nam
 replacement. A field this envelope never defined is still ignored and named in
 `DecodedRequest::ignored`, because a newer producer must not break an older pns; one it used to honour
 is a producer whose word would otherwise go nowhere (S014).
+
+`remind` is optional and says whether the approval this request reports waits for a second card:
+`true` arms it at the delay config carries, a duration string (`"5m"`) arms it at that delay instead and
+is held to the one range every spelling of the delay shares (thirty seconds to an hour), and `false`
+disarms it whatever config says. A value that is neither a boolean nor a valid duration is refused
+before effects and the refusal names the field. An absent or null `remind` is a producer that said
+nothing, which falls through to the producer's own config entry and then to off, and it is omitted when
+encoding so an unmarked request keeps its canonical version 1 bytes. It decodes to the SAME switch the
+`--remind`, `--remind=<duration>` and `--no-remind` flags produce, so both paths hand one resolution one
+answer. The submit path arms from it on a `blocked` request, where an approval is waiting; on every other
+state it arms nothing, because the producer's `[producer.<name>] remind` entry states that producer's
+approvals rather than every event it sends.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),
