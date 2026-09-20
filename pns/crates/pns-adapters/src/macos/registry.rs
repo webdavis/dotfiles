@@ -83,7 +83,7 @@ fn number_property(entry: io_object_t, key: &CStr) -> Option<u64> {
     // CFNumber, and `value` is a 64-bit slot matching the requested type.
     let read = unsafe {
         CFGetTypeID(property) == CFNumberGetTypeID()
-            && CFNumberGetValue(property, CF_NUMBER_SINT64_TYPE, (&raw mut value).cast())
+            && CFNumberGetValue(property, CF_NUMBER_SINT64_TYPE, (&raw mut value).cast()) != 0
     };
     // SAFETY: the property came from a Create call, so it is owned here.
     unsafe { CFRelease(property) };
@@ -96,7 +96,7 @@ fn boolean_property(entry: io_object_t, key: &CStr) -> Option<bool> {
     // SAFETY: the type is checked before the read, so the reference is a
     // CFBoolean.
     let read = unsafe {
-        (CFGetTypeID(property) == CFBooleanGetTypeID()).then(|| CFBooleanGetValue(property))
+        (CFGetTypeID(property) == CFBooleanGetTypeID()).then(|| CFBooleanGetValue(property) != 0)
     };
     // SAFETY: the property came from a Create call, so it is owned here.
     unsafe { CFRelease(property) };
@@ -157,8 +157,10 @@ unsafe extern "C" {
     ) -> CFTypeRef;
     fn CFGetTypeID(cf: CFTypeRef) -> usize;
     fn CFNumberGetTypeID() -> usize;
-    fn CFNumberGetValue(number: CFTypeRef, the_type: c_int, value_ptr: *mut c_void) -> bool;
+    // `Boolean` is `unsigned char`, valid for any byte; Rust `bool` is only
+    // valid for 0 or 1, so these are declared `u8` and compared `!= 0`.
+    fn CFNumberGetValue(number: CFTypeRef, the_type: c_int, value_ptr: *mut c_void) -> u8;
     fn CFBooleanGetTypeID() -> usize;
-    fn CFBooleanGetValue(boolean: CFTypeRef) -> bool;
+    fn CFBooleanGetValue(boolean: CFTypeRef) -> u8;
     fn CFRelease(cf: CFTypeRef);
 }
