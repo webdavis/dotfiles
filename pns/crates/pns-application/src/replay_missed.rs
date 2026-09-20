@@ -3,7 +3,7 @@
 //!
 //! IT IS A DECISION AND NOT AN ORDERING, unlike the record tail beside it.
 //! Four refusals come first, each for its own reason, and only then is there a
-//! window to count, a post_window_recap to weigh and a card to compose.
+//! window to count, a digest to weigh and a card to compose.
 //!
 //! ONE RETURN IS ONE CATCH-UP. The moment is claimed before anything is read,
 //! so two events arriving together cannot both replay the same window.
@@ -23,9 +23,9 @@ use pns_domain::missed::{self, Entry};
 pub struct RecapPolicy {
     /// Whether a card is raised for the operator at all.
     pub replay_card: bool,
-    /// Whether a durable post_window_recap is published beside it.
+    /// Whether a durable digest is published beside it.
     pub post_window_recap: bool,
-    /// How many events a window must hold before a post_window_recap is worth publishing.
+    /// How many events a window must hold before a digest is worth publishing.
     pub minimum_events: usize,
 }
 
@@ -82,7 +82,7 @@ where
             ActivityRing::entries_between(self.ports, since, until)
         });
 
-        // THE DIGEST IS DURABLE AND THE CARD IS NOT, so the post_window_recap needs a
+        // THE DIGEST IS DURABLE AND THE CARD IS NOT, so the digest needs a
         // durable route to go to and a window worth the operator's attention;
         // the card below is raised on far weaker grounds.
         let fires = recap.post_window_recap
@@ -99,7 +99,7 @@ where
             ReturnMoment::complete(self.ports);
             return None;
         }
-        // A CARD WITH NOTHING IN IT IS NOISE. With no post_window_recap to point at and
+        // A CARD WITH NOTHING IN IT IS NOISE. With no digest to point at and
         // nothing waiting, there is no sentence to write.
         let detail = if fires {
             missed::recap_card(
