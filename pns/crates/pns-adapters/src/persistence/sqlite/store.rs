@@ -37,7 +37,19 @@ use std::time::Duration;
 /// environment variable that called itself test-only and was read here by
 /// production code on every connection.
 fn busy_timeout() -> Duration {
-    crate::install_settings(&std::env::var("HOME").unwrap_or_default()).busy_deadline
+    static RESOLVED: std::sync::Mutex<Option<(String, Duration)>> = std::sync::Mutex::new(None);
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mut cached = RESOLVED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((cached_home, deadline)) = cached.as_ref()
+        && *cached_home == home
+    {
+        return *deadline;
+    }
+    let deadline = crate::install_settings(&home).busy_deadline;
+    *cached = Some((home, deadline));
+    deadline
 }
 
 pub struct SqliteStore {
