@@ -146,9 +146,9 @@ impl HerdrLane {
     /// An unpinned plugin: uninstalled, then reinstalled at its source's tip.
     fn refresh(&self, plugin: &Plugin, runner: &dyn CommandRunner, report: &mut LaneReport) {
         let id = plugin.id.as_str();
-        // AN INSTALL OVER A FAILED UNINSTALL IS NOT ATTEMPTED. herdr pins
-        // a plugin at install, so installing on top of a copy that would
-        // not come off is how one plugin becomes two.
+        // A FAILED UNINSTALL ENDS THE REFRESH. The installed copy is left
+        // exactly as it was and the report says so, rather than running
+        // the install on top of whatever state the failed removal left.
         if let Err(why) = runner.run(&self.binary, &["plugin", "uninstall", id]) {
             report.failed(format!(
                 "plugin {id}: uninstall failed ({why}); leaving the installed copy alone"
