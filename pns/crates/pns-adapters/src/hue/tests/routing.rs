@@ -204,3 +204,84 @@ fn each_question_resolves_on_its_own_so_a_lamp_can_state_one_and_inherit_the_oth
         "and its room's window, because the lamp said nothing about quiet hours"
     );
 }
+
+#[test]
+fn a_place_that_states_no_window_runs_the_house_one_and_its_own_overrides_it() {
+    // ONE DIM WINDOW IN THE VOCABULARY, `[lights] dim_window`, and a place's
+    // own key is an override for that place alone. A declaration that names
+    // only which behaviours run dimmed is the case the house default exists
+    // for: it answers WHAT without repeating WHEN.
+    let routing = resolve(
+        &stock(),
+        &lights(
+            "[lights]\ndim_window = \"22:00-07:00\"\n\
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"loop\"]\n\
+             dim_behaviours = [\"loop\"]\n\
+             [lights.lamp.\"3F - Studio - HCL2\"]\nbehaviours = [\"loop\"]\n\
+             dim_window = \"23:00-06:00\"\ndim_behaviours = []\n",
+        ),
+    );
+    let dim = |name: &str| {
+        routing
+            .lamps
+            .iter()
+            .find(|routed| routed.lamp.name == name)
+            .unwrap_or_else(|| panic!("{name} is routed"))
+            .dim
+            .clone()
+            .unwrap_or_else(|| panic!("{name} has a window"))
+    };
+    let house = parse_window("22:00-07:00").expect("a window");
+    let own = parse_window("23:00-06:00").expect("a window");
+    assert_eq!(
+        dim("3F - Studio - HCL1").window,
+        house,
+        "the room states the behaviours and no window, so the house one applies"
+    );
+    assert_eq!(
+        dim("3F - Studio - HCL1").behaviours,
+        vec![Behaviour::Looping]
+    );
+    assert_eq!(
+        dim("3F - Studio - HCL2").window,
+        own,
+        "and the lamp's own window wins where it states one"
+    );
+    assert_eq!(dim("3F - Studio - HCL2").behaviours, Vec::new());
+}
+
+#[test]
+fn a_lamp_no_declaration_dims_takes_the_house_window_with_nothing_dimmed() {
+    // THE DEFAULT REACHES A PLACE THAT NEVER MENTIONS DIMMING, which is what
+    // makes it a house window rather than a value only a declaration can
+    // spend: an empty enable list is the whole-house night the shipped
+    // bedroom already writes by hand.
+    let routing = resolve(
+        &stock(),
+        &lights(
+            "[lights]\ndim_window = \"22:00-07:00\"\n\
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"loop\"]\n",
+        ),
+    );
+    let hcl1 = routing
+        .lamps
+        .iter()
+        .find(|routed| routed.lamp.name == "3F - Studio - HCL1")
+        .expect("HCL1 is routed");
+    assert_eq!(
+        hcl1.dim.as_ref().map(|dim| dim.behaviours.clone()),
+        Some(Vec::new())
+    );
+
+    // AND WITH NO HOUSE WINDOW IT IS FULL BRIGHTNESS AT EVERY HOUR, which is
+    // the other half of the default being a default.
+    let unset = resolve(
+        &stock(),
+        &lights("[lights.room.\"3F - Studio\"]\nbehaviours = [\"loop\"]\n"),
+    );
+    assert!(
+        unset.lamps.iter().all(|routed| routed.dim.is_none()),
+        "no window anywhere is no window: {:?}",
+        unset.lamps
+    );
+}

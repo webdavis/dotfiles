@@ -25,7 +25,6 @@ pub struct Answers {
     /// The bridge's pinned certificate, in the wire form `pns lights enroll`
     /// prints.
     pub hue_certificate: String,
-    pub hue_rooms: Vec<String>,
     /// Which compiled-in backend answers the home probe.
     pub router_type: String,
     pub router_url: String,
@@ -37,17 +36,14 @@ pub struct Answers {
     pub remind: bool,
 }
 
-/// Whether the walk armed the light pulse. THE ROOMS COUNT AS A CREDENTIAL:
-/// with none named the plugin falls back to a compiled-in room list that names
-/// nobody else's rooms, so a bridge and key alone are a pulse that reaches no
-/// lamp and reports nothing. THE CERTIFICATE COUNTS AS A CREDENTIAL TOO: a
-/// table with a bridge and key and no pin refuses at load, so a wizard that
-/// wrote one would compose a config that never pulses and says so only later.
+/// Whether the walk armed the light pulse. THE CERTIFICATE COUNTS AS A
+/// CREDENTIAL: a table with a bridge and key and no pin refuses at load, so a
+/// wizard that wrote one would compose a config that never pulses and says so
+/// only later.
 pub fn hue_is_armed(answers: &Answers) -> bool {
     !answers.hue_bridge.is_empty()
         && !answers.hue_key.is_empty()
         && !answers.hue_certificate.is_empty()
-        && !answers.hue_rooms.is_empty()
 }
 
 /// Whether the walk armed the home probe. THE BACKEND COUNTS AS A CREDENTIAL:

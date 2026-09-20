@@ -3,14 +3,13 @@
 //! the file outgrew the size rule.
 
 pub use crate::hue::{
-    Bridge, DEFAULT_ROOMS, HuePulse, breath_arm_body, clear_body, clear_held, fade_body,
-    grouped_light_ids_for_rooms, hue_settings, inventory, pulse_body, quiet_window,
-    resolve_on_bridge,
+    Bridge, HuePulse, breath_arm_body, clear_body, clear_held, fade_body,
+    grouped_light_ids_for_rooms, hue_settings, inventory, pulse_body, resolve_on_bridge,
 };
 pub use pns_domain::lamps::config::Behaviour;
 pub use pns_domain::lamps::{
     DimWindow, Inventory, Missing, Muting, Routing, Showing, Unresolved, dim_showing,
-    mutable_names, muted_now, parse_window, quiet_now, resolve,
+    mutable_names, muted_now, parse_window, resolve,
 };
 pub use pns_domain::lights::flash::Flash;
 pub use std::cell::RefCell;
