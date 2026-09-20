@@ -153,8 +153,15 @@ api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 # through no shell, so a bare name here would never resolve; the literal home
 # is fine on that basis too, this machine is single-user. poll_interval and
 # deadline stay at their layout defaults.
+#
+# enabled stays false until a live run against the real gog token is proven:
+# `gog auth list` currently times out opening the login keychain item
+# (macOS wants an interactive "Always Allow" click to clear it) and account
+# resolution has never succeeded on this machine. Flip to true once
+# ~/.local/libexec/pns/calendar-busy-window.sh prints the documented
+# document by hand.
 [quiet.calendar]
-enabled = true
+enabled = false
 command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
 
 # "5m" is the layout default and the operator's real setting, written out
