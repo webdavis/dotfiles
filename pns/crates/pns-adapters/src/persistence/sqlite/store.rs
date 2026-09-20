@@ -31,19 +31,25 @@ use std::time::Duration;
 /// more than one. That is the trade this number makes: a rare multi-second
 /// stall against the common case this change fixes, records silently lost to
 /// ordinary contention.
-const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
-/// A TEST-ONLY OVERRIDE of that bound, in `PNS_RING_LOCK_TEST_DELAY_MS`'s own
-/// style and for its mirror-image reason: a test that STAGES a wedged writer
-/// and asserts the refusal would otherwise spend the whole product bound
-/// waiting for a lock it deliberately holds itself. Unset in every real
-/// invocation, which is the only way the shipped default is ever used.
-const BUSY_TIMEOUT_OVERRIDE: &str = "PNS_DB_BUSY_TIMEOUT_MS";
-
+///
+/// THE NUMBER ITSELF IS `[storage] busy_deadline`'s default, and an install
+/// that wants another one writes that key. It used to be overridable by an
+/// environment variable that called itself test-only and was read here by
+/// production code on every connection.
 fn busy_timeout() -> Duration {
-    std::env::var(BUSY_TIMEOUT_OVERRIDE)
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .map_or(BUSY_TIMEOUT, Duration::from_millis)
+    static RESOLVED: std::sync::Mutex<Option<(String, Duration)>> = std::sync::Mutex::new(None);
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mut cached = RESOLVED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((cached_home, deadline)) = cached.as_ref()
+        && *cached_home == home
+    {
+        return *deadline;
+    }
+    let deadline = crate::install_settings(&home).busy_deadline;
+    *cached = Some((home, deadline));
+    deadline
 }
 
 pub struct SqliteStore {
