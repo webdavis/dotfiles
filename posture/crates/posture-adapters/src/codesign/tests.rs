@@ -1,5 +1,6 @@
 use super::*;
 use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStrExt;
 
 #[derive(Default)]
 struct Scripted {
@@ -85,51 +86,63 @@ fn plist_extraction_preserves_empty_values_and_reads_no_child_process() {
     );
 }
 
-#[test]
-fn quarantine_uses_the_selected_path_and_requires_nonempty_output() {
-    let mut adapter = SystemInspection::new(Scripted {
-        next: b"mark\n".to_vec(),
-        ..Default::default()
-    });
-    assert!(adapter.quarantined(Path::new("/script path")));
-    assert_eq!(
-        adapter.runner.calls,
-        vec![(
-            "/usr/bin/xattr".into(),
-            ["-p", "com.apple.quarantine", "/script path"]
-                .map(OsString::from)
-                .to_vec(),
-            false
-        )]
-    );
-    adapter.runner.next = b"\n".to_vec();
-    assert!(!adapter.quarantined(Path::new("/script path")));
+/// Marks a real file the way a download is marked, so the reading under test
+/// meets the attribute the system would have set.
+fn set_quarantine(path: &Path, value: &[u8]) {
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a fixture path");
+    let status = unsafe {
+        libc::setxattr(
+            path.as_ptr(),
+            QUARANTINE.as_ptr().cast::<libc::c_char>(),
+            value.as_ptr().cast::<libc::c_void>(),
+            value.len(),
+            0,
+            0,
+        )
+    };
+    assert_eq!(status, 0, "the fixture attribute must be set");
 }
 
 #[test]
-fn only_regular_files_reach_file_and_its_mach_o_reading_selects_code() {
+fn quarantine_reads_the_attribute_of_the_selected_path_and_spawns_nothing() {
+    let sandbox = crate::test_sandbox::Sandbox::new("quarantine");
+    let marked = sandbox.join("marked path");
+    let plain = sandbox.join("plain path");
+    std::fs::write(&marked, b"inert fixture").expect("fixture contents");
+    std::fs::write(&plain, b"inert fixture").expect("fixture contents");
+    set_quarantine(&marked, b"0083;68c0f0c0;Safari;");
+    let mut adapter = SystemInspection::new(Scripted::default());
+    assert!(adapter.quarantined(&marked));
+    assert!(!adapter.quarantined(&plain));
+    assert!(!adapter.quarantined(&sandbox.join("absent path")));
+    assert!(
+        adapter.runner.calls.is_empty(),
+        "no child process reads xattr"
+    );
+}
+
+#[test]
+fn only_regular_files_are_read_and_a_mach_o_magic_selects_code() {
     let sandbox = crate::test_sandbox::Sandbox::new("file-kind");
     let directory = sandbox.path();
-    let path = directory.join("binary with spaces");
-    std::fs::write(&path, b"inert fixture").expect("fixture contents");
-    let mut adapter = SystemInspection::new(Scripted {
-        next: b"fixture: MACH-O executable\n".to_vec(),
-        ..Default::default()
-    });
-    assert!(adapter.is_mach_o(&path));
-    assert_eq!(
-        adapter.runner.calls,
-        vec![(
-            "/usr/bin/file".into(),
-            vec![path.as_os_str().to_owned()],
-            false
-        )]
-    );
+    let mut adapter = SystemInspection::new(Scripted::default());
+    for magic in MACH_O_MAGICS {
+        let path = directory.join(format!("binary with spaces {magic:08x}"));
+        let mut contents = magic.to_be_bytes().to_vec();
+        contents.extend_from_slice(b"the rest of an object");
+        std::fs::write(&path, &contents).expect("fixture contents");
+        assert!(adapter.is_mach_o(&path), "{magic:08x}");
+    }
+    let text = directory.join("notes.txt");
+    std::fs::write(&text, b"inert fixture").expect("fixture contents");
+    assert!(!adapter.is_mach_o(&text));
+    let short = directory.join("three bytes");
+    std::fs::write(&short, b"\xfe\xed\xfa").expect("fixture contents");
+    assert!(!adapter.is_mach_o(&short));
     assert!(!adapter.is_mach_o(directory));
-    assert_eq!(
-        adapter.runner.calls.len(),
-        1,
-        "directories must not spawn file"
+    assert!(
+        adapter.runner.calls.is_empty(),
+        "no child process reads a magic"
     );
 }
 
@@ -154,11 +167,12 @@ fn command_substitution_removes_nul_before_signing_classification() {
 
 #[test]
 fn a_quarantine_attribute_containing_only_nul_is_empty() {
-    let mut adapter = SystemInspection::new(Scripted {
-        next: b"\0\n".to_vec(),
-        ..Default::default()
-    });
-    assert!(!adapter.quarantined(Path::new("/x.app")));
+    let sandbox = crate::test_sandbox::Sandbox::new("quarantine-nul");
+    let path = sandbox.join("marked");
+    std::fs::write(&path, b"inert fixture").expect("fixture contents");
+    set_quarantine(&path, b"\0");
+    let mut adapter = SystemInspection::new(Scripted::default());
+    assert!(!adapter.quarantined(&path));
     assert_eq!(
         adapter.diagnostics(),
         b"posture: warning: ignored null byte in inspection output\n"

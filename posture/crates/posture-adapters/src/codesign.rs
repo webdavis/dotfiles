@@ -1,8 +1,22 @@
 use crate::property_list::PropertyList;
 use crate::{CommandIo, CommandRunner};
 use posture_application::{EnrichmentInspection, InspectionFailure};
-use std::ffi::OsStr;
+use std::ffi::{CString, OsStr};
+use std::io::Read;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
+
+/// The four Mach-O magics and their byte-swapped twins, read big-endian from
+/// the first four bytes of a file.
+const MACH_O_MAGICS: [u32; 6] = [
+    0xfeed_face,
+    0xfeed_facf,
+    0xcafe_babe,
+    0xcefa_edfe,
+    0xcffa_edfe,
+    0xbeba_feca,
+];
+const QUARANTINE: &[u8] = b"com.apple.quarantine\0";
 
 pub struct SystemInspection<R> {
     runner: R,
@@ -68,33 +82,52 @@ impl<R: CommandRunner> EnrichmentInspection for SystemInspection<R> {
         )
     }
     fn quarantined(&mut self, path: &Path) -> bool {
-        self.read(
-            "/usr/bin/xattr",
-            &[
-                OsStr::new("-p"),
-                OsStr::new("com.apple.quarantine"),
-                path.as_os_str(),
-            ],
-            false,
-        )
-        .is_ok_and(|value| !value.is_empty())
+        quarantine_attribute(path).is_some_and(|value| !self.sanitize(value).is_empty())
     }
     fn is_file(&self, path: &Path) -> bool {
         path.is_file()
     }
     fn is_mach_o(&mut self, path: &Path) -> bool {
-        self.is_file(path)
-            && self
-                .read("/usr/bin/file", &[path.as_os_str()], false)
-                .is_ok_and(|bytes| {
-                    bytes
-                        .windows(6)
-                        .any(|value| value.eq_ignore_ascii_case(b"mach-o"))
-                })
+        self.is_file(path) && magic(path).is_some_and(|magic| MACH_O_MAGICS.contains(&magic))
     }
     fn metadata(&mut self, path: &Path) -> Option<Vec<u8>> {
         crate::metadata::metadata(path)
     }
+}
+
+/// The first four bytes of a file, big-endian. A file too short to hold them,
+/// or one that cannot be opened, has no magic.
+fn magic(path: &Path) -> Option<u32> {
+    let mut bytes = [0_u8; 4];
+    std::fs::File::open(path)
+        .and_then(|mut file| file.read_exact(&mut bytes))
+        .ok()?;
+    Some(u32::from_be_bytes(bytes))
+}
+
+/// The quarantine attribute's bytes, or None when the path carries no such
+/// attribute and when the read fails for any other reason.
+fn quarantine_attribute(path: &Path) -> Option<Vec<u8>> {
+    let path = CString::new(path.as_os_str().as_bytes()).ok()?;
+    let name = QUARANTINE.as_ptr().cast::<libc::c_char>();
+    // getxattr with a null buffer reports the attribute's size, leaving the
+    // path and name pointers untouched; -1 means no such attribute.
+    let size = unsafe { libc::getxattr(path.as_ptr(), name, std::ptr::null_mut(), 0, 0, 0) };
+    let size = usize::try_from(size).ok()?;
+    let mut value = vec![0_u8; size];
+    // The second call fills exactly the buffer measured above.
+    let read = unsafe {
+        libc::getxattr(
+            path.as_ptr(),
+            name,
+            value.as_mut_ptr().cast::<libc::c_void>(),
+            size,
+            0,
+            0,
+        )
+    };
+    value.truncate(usize::try_from(read).ok()?);
+    Some(value)
 }
 
 #[cfg(test)]

@@ -19,12 +19,7 @@ impl CommandRunner for Scripted {
         io: CommandIo,
     ) -> Result<CommandOutput, InspectionFailure> {
         let program = program.to_str().unwrap();
-        assert_eq!(
-            io,
-            CommandIo::Inspection {
-                merge_stderr: program != "/usr/bin/readlink"
-            }
-        );
+        assert_eq!(io, CommandIo::Inspection { merge_stderr: true });
         self.calls.push(
             std::iter::once(program.to_owned())
                 .chain(args.iter().map(|s| s.to_str().unwrap().to_owned()))
@@ -171,7 +166,7 @@ fn check(case: &serde_json::Value) {
 }
 
 #[test]
-fn all_eight_control_probes_keep_captured_arguments_output_and_profile_order() {
+fn all_seven_control_probes_keep_captured_arguments_output_and_profile_order() {
     check(&captures()[0]);
 }
 
@@ -208,6 +203,59 @@ fn probe_launch_and_deadline_failures_remain_indeterminate() {
         assert_eq!(
             sut.runner.calls,
             vec![vec!["/usr/bin/fdesetup".to_owned(), "status".to_owned()]]
+        );
+    }
+}
+
+/// The resolved-rule reader canonicalizes its target before the archive
+/// match, so a chain of links reads as the file it ends at and an unresolvable
+/// target is no reading at all.
+#[test]
+fn a_resolved_rule_follows_a_symlink_chain_and_refuses_a_missing_target() {
+    let sandbox = crate::test_sandbox::Sandbox::new("resolved-rule");
+    let launcher = sandbox.join("Launcher");
+    std::fs::write(&launcher, b"inert fixture").expect("fixture contents");
+    std::os::unix::fs::symlink(&launcher, sandbox.join("middle")).expect("a fixture link");
+    std::os::unix::fs::symlink(sandbox.join("middle"), sandbox.join("first"))
+        .expect("a fixture link");
+    let rules = sandbox.join("rules.plist");
+    std::fs::write(
+        &rules,
+        format!(
+            "<plist version=\"1.0\"><array><string>{}</string></array></plist>",
+            launcher.canonicalize().expect("a fixture path").display()
+        ),
+    )
+    .expect("fixture contents");
+    let preferences = sandbox.join("preferences.plist");
+    std::fs::write(
+        &preferences,
+        br#"<plist version="1.0"><dict></dict></plist>"#,
+    )
+    .expect("fixture contents");
+    for (target, expected) in [
+        (
+            sandbox.join("first"),
+            ControlReading::Known(ControlValue::Present),
+        ),
+        (sandbox.join("absent"), ControlReading::Indeterminate),
+    ] {
+        let mut sut = ControlProbes {
+            runner: Scripted {
+                responses: VecDeque::new(),
+                calls: vec![],
+            },
+            processes: ScriptedProcesses::new([]),
+            uid: 501,
+            rules: rules.clone(),
+            preferences: preferences.clone(),
+            login_window: sandbox.join("loginwindow.plist"),
+        };
+        let control = control("lulu_rule_resolved_present", target.to_str().unwrap());
+        assert_eq!(sut.read(&[control]), (vec![expected], LuluProfile::Base));
+        assert!(
+            sut.runner.calls.is_empty(),
+            "no child process resolves a path"
         );
     }
 }

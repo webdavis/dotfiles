@@ -37,27 +37,22 @@ impl CommandRunner for Runner {
             }),
             "/bin/launchctl" => {
                 assert_eq!(args[0], "print");
+                // The live pid is this process, so the daemon reading is
+                // taken from a process that genuinely exists.
                 let body = if args[1]
                     .to_string_lossy()
                     .ends_with("com.webdavis.pns-daemon")
                 {
                     if effects.unhealthy {
-                        "state = waiting\n"
+                        "state = waiting\n".to_owned()
                     } else {
-                        "state = running\npid = 42\n"
+                        format!("state = running\npid = {}\n", std::process::id())
                     }
                 } else {
-                    "runs = 1\nlast exit code = (never exited)\n"
+                    "runs = 1\nlast exit code = (never exited)\n".to_owned()
                 };
                 Ok(CommandOutput {
-                    bytes: body.as_bytes().to_vec(),
-                    exit: 0,
-                })
-            }
-            "/bin/kill" => {
-                assert_eq!(args, [OsStr::new("-0"), OsStr::new("42")]);
-                Ok(CommandOutput {
-                    bytes: vec![],
+                    bytes: body.into_bytes(),
                     exit: 0,
                 })
             }

@@ -101,15 +101,7 @@ fn osquery_and_pns_liveness_use_read_only_commands_and_fail_closed() {
             "/bin/launchctl",
             vec!["print".into(), "gui/501/com.webdavis.pns-daemon".into()],
             Ok(CommandOutput {
-                bytes: b"state = running\npid = 42\n".to_vec(),
-                exit: 0,
-            }),
-        ),
-        (
-            "/bin/kill",
-            vec!["-0".into(), "42".into()],
-            Ok(CommandOutput {
-                bytes: vec![],
+                bytes: format!("state = running\npid = {}\n", std::process::id()).into_bytes(),
                 exit: 0,
             }),
         ),
@@ -118,6 +110,24 @@ fn osquery_and_pns_liveness_use_read_only_commands_and_fail_closed() {
     assert!(reader.osquery_running());
     assert_eq!(reader.pns_daemon(), DaemonHealth::Running);
     assert!(reader.runner.0.is_empty());
+}
+#[test]
+fn a_live_pid_is_running_and_a_reaped_one_is_not() {
+    let mut exited = std::process::Command::new("/usr/bin/true")
+        .spawn()
+        .expect("a child that exits at once");
+    let reaped = exited.id();
+    exited.wait().expect("the child is reaped");
+    for (pid, expected) in [
+        (std::process::id(), DaemonHealth::Running),
+        (reaped, DaemonHealth::NotRunning),
+    ] {
+        let mut script = Script::print(&format!("state = running\npid = {pid}\n"), 0);
+        script.0[0].1[1] = "gui/501/com.webdavis.pns-daemon".into();
+        let mut reader = SystemWatchdogProcesses::new(script, 501);
+        assert_eq!(reader.pns_daemon(), expected, "pid {pid}");
+        assert!(reader.runner.0.is_empty(), "no child process signals a pid");
+    }
 }
 #[test]
 fn a_loaded_daemon_needs_running_state_and_a_live_valid_pid() {
