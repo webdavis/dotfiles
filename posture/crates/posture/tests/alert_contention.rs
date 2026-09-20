@@ -64,7 +64,7 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnos
     std::fs::write(&cursor, format!("{inode} 0\n")).unwrap();
 
     let deadline = Instant::now() + LIVENESS_BOUND;
-    let children: Vec<_> = (0..2)
+    let mut children: Vec<_> = (0..2)
         .map(|_| {
             Command::new(env!("CARGO_BIN_EXE_posture"))
                 .env_clear()
@@ -85,33 +85,46 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnos
                 .unwrap()
         })
         .collect();
-    for mut child in children {
-        loop {
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    assert_eq!(status.code(), Some(0), "a contended run is a clean no-op");
-                    break;
-                }
-                Ok(None) if Instant::now() < deadline => {
-                    std::thread::sleep(Duration::from_millis(1))
-                }
-                state => {
-                    let killed = child.kill();
-                    panic!("alert exceeded its bound: {state:?}, {killed:?}");
-                }
+
+    // Both children are driven to exit (or killed) before anything asserts, so
+    // a failure on one never leaves its sibling running against the sandbox.
+    let mut statuses: Vec<Option<std::process::ExitStatus>> = vec![None; children.len()];
+    loop {
+        for (child, status) in children.iter_mut().zip(statuses.iter_mut()) {
+            if status.is_none()
+                && let Ok(Some(s)) = child.try_wait()
+            {
+                *status = Some(s);
             }
         }
+        if statuses.iter().all(Option::is_some) {
+            break;
+        }
+        if Instant::now() >= deadline {
+            for child in &mut children {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            let _ = std::fs::remove_dir_all(&home);
+            panic!("alert exceeded its bound: {statuses:?}");
+        }
+        std::thread::sleep(Duration::from_millis(1));
     }
 
+    let calls_content = std::fs::read_to_string(&calls).unwrap();
+    let cursor_content = std::fs::read_to_string(&cursor).unwrap();
+    let _ = std::fs::remove_dir_all(&home);
+
+    for status in statuses.into_iter().flatten() {
+        assert_eq!(status.code(), Some(0), "a contended run is a clean no-op");
+    }
     assert_eq!(
-        std::fs::read_to_string(&calls).unwrap(),
-        "call\n",
+        calls_content, "call\n",
         "the batch reached the engine exactly once"
     );
     assert_eq!(
-        std::fs::read_to_string(&cursor).unwrap().trim(),
+        cursor_content.trim(),
         format!("{inode} {}", batch.len()),
         "both runs leave one shared final cursor at the end of the batch"
     );
-    let _ = std::fs::remove_dir_all(&home);
 }
