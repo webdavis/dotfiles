@@ -12,7 +12,7 @@
 # because it is a secret. See `pns/crates/pns-adapters/src/config/render/layout.rs`
 # (`LAYOUT`) for the schema this is walked against.
 
-# EVERY `enabled` REACHES THE RENDERED FILE at its own default, `[daemon]`
+# EVERY `enabled` REACHES THE RENDERED FILE at its own default, `[gateway]`
 # true and every `[plugins.*]` false, so no table's switch has to be
 # inferred. A plugin this machine actually runs therefore states the switch
 # below; that line is the whole reason its table is here.
@@ -21,7 +21,7 @@
 # one Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl and
 # run_onchange_after_70-load-pns-daemon-launchagent.sh.tmpl install the clock
 # under.
-[daemon]
+[gateway]
 service = "com.webdavis.pns-daemon"
 
 # The three classes this machine serves, which is the whole statement of

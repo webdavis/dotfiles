@@ -1211,7 +1211,7 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
 - Idempotency and duplicates: the same declined walk composes the same bytes every time.
 - Privacy: a fully declined walk writes a config with no secret in it at all, still at `0o600`.
 - Process ownership and cleanup: nothing held.
-- Compatibility contract: the wizard never asks about `[lights]`, `[daemon]`, `[recap]` or the banner.
+- Compatibility contract: the wizard never asks about `[lights]`, `[gateway]`, `[recap]` or the banner.
   The lamp-map starter is always present and wholly commented out, whether or not hue is armed
   (`src/setup.rs:the_lamp_map_starter_is_always_offered_and_is_wholly_commented_out`). See
   `docs/specs/configuration.md`.

@@ -19,23 +19,23 @@ const FIXTURE_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 fn daemon_cancel_reports_the_removed_job_and_then_its_absence() {
     let sandbox = Sandbox::new("application-cancel-job");
     let scheduled = run(sandbox.pns_stateful().args([
-        "daemon", "schedule", "--id", "owned", "--in", "60", "--", "--state", "done",
+        "gateway", "schedule", "--id", "owned", "--in", "60", "--", "--state", "done",
     ]));
     assert_eq!(scheduled.status.code(), Some(0), "{}", stderr(&scheduled));
     assert!(sandbox.path("state/daemon/owned").is_file());
     let cancelled = run(sandbox
         .pns_stateful()
-        .args(["daemon", "cancel", "--id", "owned"]));
+        .args(["gateway", "cancel", "--id", "owned"]));
     assert_eq!(cancelled.status.code(), Some(0));
-    assert_eq!(stdout(&cancelled), "pns daemon: cancelled `owned`\n");
+    assert_eq!(stdout(&cancelled), "pns gateway: cancelled `owned`\n");
     assert!(!sandbox.path("state/daemon/owned").exists());
     let absent = run(sandbox
         .pns_stateful()
-        .args(["daemon", "cancel", "--id", "owned"]));
+        .args(["gateway", "cancel", "--id", "owned"]));
     assert_eq!(absent.status.code(), Some(0));
     assert_eq!(
         stdout(&absent),
-        "pns daemon: no job named `owned` was scheduled\n"
+        "pns gateway: no job named `owned` was scheduled\n"
     );
 }
 

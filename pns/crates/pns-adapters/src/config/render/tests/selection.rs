@@ -21,10 +21,10 @@ fn an_unknown_key_is_refused_by_name_wherever_it_appears() {
     let error = render(&values).expect_err("an unknown plugin name must be refused");
     assert!(error.contains("zzz_not_a_plugin"), "{error}");
 
-    let mut daemon = toml::Table::new();
-    daemon.insert("zzz_not_a_key".to_string(), toml::Value::Boolean(true));
+    let mut gateway = toml::Table::new();
+    gateway.insert("zzz_not_a_key".to_string(), toml::Value::Boolean(true));
     let mut values = toml::Table::new();
-    values.insert("daemon".to_string(), toml::Value::Table(daemon));
+    values.insert("gateway".to_string(), toml::Value::Table(gateway));
     let error = render(&values).expect_err("an unknown key inside a table must be refused");
     assert!(error.contains("zzz_not_a_key"), "{error}");
 

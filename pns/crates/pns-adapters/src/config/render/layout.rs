@@ -21,7 +21,7 @@
 /// One table, in file order.
 pub(super) struct Table {
     /// The heading it writes, dotted (`"plugins.phone"`, `"lights.done"`),
-    /// or a bare top-level name (`"daemon"`).
+    /// or a bare top-level name (`"gateway"`).
     pub name: &'static str,
     /// The comment above the heading. Carries its own `# ` prefixes and
     /// trailing newline, the way the wizard's old section constants did.
@@ -101,7 +101,7 @@ pub(super) const LAYOUT: &[Table] = &[
     PLUGINS_GITHUB,
     PLUGINS_PRESENCE,
     PLUGINS_HOME_PRESENCE,
-    DAEMON,
+    GATEWAY,
     DELIVERY,
     DELIVERY_CLASS,
     RECAP,

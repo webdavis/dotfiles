@@ -39,11 +39,11 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon",
             "delivery",
             "delivery_class",
             "failures",
             "focus",
+            "gateway",
             "lights",
             "paths",
             "plugins",
@@ -85,7 +85,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (DELIVERY_CLASS_KEYS, &["bypass_mute", "route"]),
-    ("daemon", &["enabled", "service"]),
+    ("gateway", &["enabled", "service"]),
     ("paths", &["channels_dir", "state_dir"]),
     ("remind", &["delay"]),
     // THE NESTED ROW IS A PREFIX, as `lights.<level>` is: `[producer.<name>]`

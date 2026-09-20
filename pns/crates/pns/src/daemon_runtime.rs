@@ -3,7 +3,7 @@ use pns_application::JobChildren;
 
 pub(crate) fn daemon_run() -> i32 {
     if !crate::arguments_after_verb().is_empty() {
-        eprintln!("{DAEMON_USAGE}");
+        eprintln!("{GATEWAY_USAGE}");
         return 2;
     }
     pns_adapters::catch_termination();
@@ -55,7 +55,7 @@ fn start_retry(now: u64, children: &mut impl JobChildren) -> Result<(), String> 
         until: now,
         every: None,
         unless_marker: None,
-        args: vec!["daemon".into(), "retry".into()],
+        args: vec!["gateway".into(), "retry".into()],
     })
 }
 
@@ -98,7 +98,7 @@ fn start_page(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
 
 pub(crate) fn daemon_retry() -> i32 {
     if !crate::arguments_after_verb().is_empty() {
-        eprintln!("{DAEMON_USAGE}");
+        eprintln!("{GATEWAY_USAGE}");
         return 2;
     }
     let result = now_secs()
@@ -107,7 +107,7 @@ pub(crate) fn daemon_retry() -> i32 {
     match result {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!("pns daemon: delivery retry failed: {error}");
+            eprintln!("pns gateway: delivery retry failed: {error}");
             1
         }
     }

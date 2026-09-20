@@ -17,7 +17,7 @@ pub(super) const HEADER: &str = "# The pns engine's plugin selection, as `pns se
      # uncomment it. A plugin names its backend with `type`, and the key is\n\
      # required: nothing guesses which implementation a table meant.\n";
 
-pub(super) const DAEMON_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
+pub(super) const GATEWAY_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
      # reactions to one, saying something when nothing happened and keeping a\n\
      # lamp alive while an agent loop is. It holds no state of its own, so a\n\
      # restart loses nothing and a stopped daemon costs those ambient features\n\

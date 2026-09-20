@@ -44,7 +44,7 @@ fn the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to() {
     // it were today's.
     let config = parsed(&compose_config(&Answers::default()));
     assert_eq!(config.recap, Recap::default());
-    assert!(config.daemon_enabled);
+    assert!(config.gateway_enabled);
     let phone = &config.plugins["phone"].settings;
     assert_eq!(phone["card_while_watching"].as_bool(), Some(false));
     assert_eq!(

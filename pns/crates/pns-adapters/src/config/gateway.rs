@@ -1,47 +1,47 @@
 use super::github::job_interval;
 use super::*;
 
-/// See `Config::daemon_enabled`.
-pub(super) const DEFAULT_DAEMON_ENABLED: bool = true;
+/// See `Config::gateway_enabled`.
+pub(super) const DEFAULT_GATEWAY_ENABLED: bool = true;
 
-/// `[daemon]`'s two keys: the clock switch, and the launchd label `pns
+/// `[gateway]`'s two keys: the clock switch, and the launchd label `pns
 /// gateway` acts on. IN `parse_remind`'s SHAPE, a named struct rather than a
 /// pair of same-typed values, and for the same reason: an unknown key inside
 /// the table and a value of the wrong type are each refused BY NAME, rather
-/// than half-read into a clock or a gateway the operator believes they set.
-pub(super) struct DaemonTable {
+/// than half-read into a clock or a service label the operator believes they set.
+pub(super) struct GatewayTable {
     pub enabled: bool,
     pub service: Option<String>,
 }
 
-pub(super) fn parse_daemon(value: toml::Value) -> Result<DaemonTable, ConfigError> {
+pub(super) fn parse_gateway(value: toml::Value) -> Result<GatewayTable, ConfigError> {
     let toml::Value::Table(table) = value else {
-        return Err(ConfigError::Invalid("`daemon` is not a table".to_string()));
+        return Err(ConfigError::Invalid("`gateway` is not a table".to_string()));
     };
-    let mut daemon = DaemonTable {
-        enabled: DEFAULT_DAEMON_ENABLED,
+    let mut gateway = GatewayTable {
+        enabled: DEFAULT_GATEWAY_ENABLED,
         service: None,
     };
     for (key, setting) in table {
-        admits_flat("daemon", &key)?;
+        admits_flat("gateway", &key)?;
         match key.as_str() {
             "enabled" => {
-                daemon.enabled = setting.as_bool().ok_or_else(|| {
+                gateway.enabled = setting.as_bool().ok_or_else(|| {
                     ConfigError::Invalid(format!(
-                        "`daemon` key `enabled` has type `{}`, not boolean",
+                        "`gateway` key `enabled` has type `{}`, not boolean",
                         setting.type_str()
                     ))
                 })?;
             }
             "service" => {
-                daemon.service = Some(text("daemon", "service", &setting)?);
+                gateway.service = Some(text("gateway", "service", &setting)?);
             }
             _ => {
-                return Err(unknown_key("daemon", "daemon", &key));
+                return Err(unknown_key("gateway", "gateway", &key));
             }
         }
     }
-    Ok(daemon)
+    Ok(gateway)
 }
 
 pub struct DaemonConfig {
@@ -50,7 +50,7 @@ pub struct DaemonConfig {
 impl pns_application::DaemonSettings for DaemonConfig {
     fn enabled(&self) -> Result<bool, String> {
         match load_config(&config_path(&self.home)) {
-            Ok(LoadOutcome::Loaded(config)) => Ok(config.daemon_enabled),
+            Ok(LoadOutcome::Loaded(config)) => Ok(config.gateway_enabled),
             Ok(LoadOutcome::Missing) => Ok(true),
             Err(error) => Err(error.detail().to_string()),
         }

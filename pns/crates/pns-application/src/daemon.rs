@@ -47,7 +47,7 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
         let (jobs, mut children, mut sleep) = match prepare() {
             Ok(prepared) => prepared,
             Err(refusal) => {
-                notice(DaemonNotice::Error(format!("pns daemon: {refusal}")));
+                notice(DaemonNotice::Error(format!("pns gateway: {refusal}")));
                 return 0;
             }
         };
@@ -103,7 +103,7 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
                 && let Err(error) = retry(now, &mut children)
             {
                 notice(DaemonNotice::Error(format!(
-                    "pns daemon: delivery retry failed: {error}"
+                    "pns gateway: delivery retry failed: {error}"
                 )));
             }
         }
@@ -118,7 +118,7 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
             Ok(enabled) => enabled,
             Err(detail) => {
                 notice(DaemonNotice::Error(format!(
-                    "pns daemon: the config could not be read ({detail}); carrying on enabled"
+                    "pns gateway: the config could not be read ({detail}); carrying on enabled"
                 )));
                 true
             }
@@ -126,7 +126,7 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
     }
 }
 
-const DISABLED: &str = "pns daemon: disabled in the config; exiting";
+const DISABLED: &str = "pns gateway: disabled in the config; exiting";
 /// How many ticks pass between two reads of the config's own switch.
 ///
 /// THIRTY, so the cost is one config read per thirty seconds at the production

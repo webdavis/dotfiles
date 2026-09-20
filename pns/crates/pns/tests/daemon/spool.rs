@@ -168,7 +168,7 @@ fn a_spool_that_is_not_a_directory_refuses_the_start_and_exits_zero() {
     let output = sandbox
         .pns_stateful()
         .env("PNS_DAEMON_TICK_INTERVAL", format!("{TICK_MS}ms"))
-        .args(["daemon", "run"])
+        .args(["gateway", "run"])
         .output()
         .expect("the engine runs");
     assert_eq!(

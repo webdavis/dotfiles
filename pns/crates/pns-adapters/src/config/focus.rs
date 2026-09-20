@@ -9,7 +9,7 @@ pub(super) struct FocusTable {
 /// See `Config::focus_enabled`.
 pub(super) const DEFAULT_FOCUS_ENABLED: bool = true;
 
-/// `[focus]`'s two keys, in `parse_daemon`'s shape: the roster of modes and
+/// `[focus]`'s two keys, in `parse_gateway`'s shape: the roster of modes and
 /// the switch that decides whether any of them is read, each refused BY NAME
 /// when the key is unknown or the value is the wrong shape.
 ///

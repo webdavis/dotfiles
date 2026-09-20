@@ -158,7 +158,7 @@ shape, the registry interprets the contents").
 | Key path                                                  | Type  | Default | Bound             | Secret | Out of bounds or malformed                                                                                    | Judged by                  | Tests                                                                                                                                                                                                                                                                                                                  |
 | --------------------------------------------------------- | ----- | ------- | ----------------- | ------ | ------------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `daemon`, `focus`, `lights`, `remind`, `plugins`, `recap` | table | absent  | closed set of six | no     | `Invalid`: `` unknown top-level key `{key}`; the file serves daemon, focus, lights, remind, plugins, recap `` | `parse_config`             | `an_unknown_top_level_key_is_refused_so_a_typo_cannot_disable_a_channel`, `a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`, `a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`, `a_top_level_key_that_merely_looks_like_recap_is_still_refused_by_name`                      |
-| any of the six written as a scalar                        | table | n/a     | must be a table   | no     | `Invalid`: `` `{name}` is not a table ``                                                                      | each table's own parse arm | `a_non_table_recap_value_is_refused_naming_the_key`, `a_non_table_focus_value_is_refused_naming_the_arm_rather_than_the_key`, `a_non_table_plugins_value_is_refused_naming_the_key`, `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
+| any of the six written as a scalar                        | table | n/a     | must be a table   | no     | `Invalid`: `` `{name}` is not a table ``                                                                      | each table's own parse arm | `a_non_table_recap_value_is_refused_naming_the_key`, `a_non_table_focus_value_is_refused_naming_the_arm_rather_than_the_key`, `a_non_table_plugins_value_is_refused_naming_the_key`, `the_gateway_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
 ### `[recap]`
 
@@ -192,11 +192,11 @@ ordinary thing to write, and `pns doctor` is where the operator learns whether i
 `config/tests/focus.rs:the_switch_off_silences_nothing_even_with_modes_named` and
 `config/tests/focus.rs:a_switch_that_is_not_a_boolean_is_refused_naming_the_key`.
 
-### `[daemon]`
+### `[gateway]`
 
 | Key path         | Type | Default                           | Bound | Secret | Out of bounds or malformed                                             | Judged by                    | Tests                                                                        |
 | ---------------- | ---- | --------------------------------- | ----- | ------ | ---------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------- |
-| `daemon.enabled` | bool | `true` (`DEFAULT_DAEMON_ENABLED`) | none  | no     | `Invalid`: `` `daemon` key `enabled` has type `{type}`, not boolean `` | `src/config.rs:parse_daemon` | `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name` |
+| `gateway.enabled` | bool | `true` (`DEFAULT_GATEWAY_ENABLED`) | none  | no     | `Invalid`: `` `gateway` key `enabled` has type `{type}`, not boolean `` | `src/config.rs:parse_gateway` | `the_gateway_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name` |
 
 Default ON, which is the opposite of `[focus]` and of every plugin. The reason given at
 `src/config.rs:Config::daemon_enabled`: this switch delivers nothing by itself, "an idle daemon reads one
@@ -331,7 +331,7 @@ marks an interpolation.
 | `review_notes_glob` with a `*` in a directory                          | `` `recap` key `review_notes_glob` is `{pattern}`, and only its file name may hold a `*` ``                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
 | `review_notes_glob` with two `*` in the file name                      | `` `recap` key `review_notes_glob` is `{pattern}`, and its file name may hold only one `*` ``                                                                                                                                                                        | `Invalid`                                                  | same                                                                                   |
 | a `modes` entry that is the empty string                        | `` `focus` key `modes` names a mode that is the empty string, which is no Focus at all ``                                                                                                                                                                     | `Invalid`                                                  | same                                                                                   |
-| a non-boolean `[daemon] enabled`                                  | `` `daemon` key `enabled` has type `{type}`, not boolean ``                                                                                                                                                                                                     | `Invalid`                                                  | open: the daemon carries on enabled (`src/main.rs:daemon_enabled`)                     |
+| a non-boolean `[gateway] enabled`                                  | `` `gateway` key `enabled` has type `{type}`, not boolean ``                                                                                                                                                                                                     | `Invalid`                                                  | open: the daemon carries on enabled (`src/main.rs:gateway_enabled`)                     |
 | `delay` not a duration                                            | `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``                                                                                                                                                                                          | `Invalid`                                                  | closed on the pulse path, open to the CORE on the delivery path                        |
 | `delay` outside its range                                         | `` `remind` key `delay` "{text}" is outside 30s to 1h ``                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
 | a `[lights]` scalar of the wrong type                             | `` `{table}` key `{key}` has type `{type}`, not a count between {low} and {high} ``                                                                                                                                                                             | `Invalid`                                                  | closed: the lights tick returns 0 and arms nothing                                     |
@@ -815,7 +815,7 @@ Then the feature is off and nothing is refused
 - Compatibility contract: a name matching no mode is legal and stays legal, "because a name that matches
   no mode is an ordinary thing to write (a Focus you keep on another Mac)."
 
-### 11. `[daemon] enabled` defaults on and fails OPEN when the file cannot be read
+### 11. `[gateway] enabled` defaults on and fails OPEN when the file cannot be read
 
 Given no config at all, or a config the daemon cannot parse\
 
@@ -823,14 +823,14 @@ When the daemon asks whether it is switched on\
 
 Then it runs
 
-- Success: `src/config.rs:parse_daemon` starts at `DEFAULT_DAEMON_ENABLED` (true) and moves only on an
+- Success: `src/config.rs:parse_gateway` starts at `DEFAULT_GATEWAY_ENABLED` (true) and moves only on an
   explicit boolean. Pinned by
-  `src/config.rs:the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, which
+  `src/config.rs:the_gateway_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, which
   covers all four states plus the wrong type, the misspelled key and the non-table form.
 - Failure sources: `enabled = "yes"` and `enable = true` are each refused by name.
 - Fail direction: this is the ONE place in the surface that fails open on an unreadable file.
-  `src/main.rs:daemon_enabled` reads `Err(error)` as `true` and prints
-  `pns daemon: the config could not be read ({detail}); carrying on enabled`, with the rationale "a file
+  `src/main.rs:gateway_enabled` reads `Err(error)` as `true` and prints
+  `pns gateway: the config could not be read ({detail}); carrying on enabled`, with the rationale "a file
   that will not parse must not silently stop a service the operator enabled." `Missing` is also `true`.
   The pulse path never asks this question.
 - Thresholds: Not applicable, it is a boolean.
@@ -874,7 +874,7 @@ Then it is refused by name, and the refusal says to leave the key unset for off
 - Idempotency and duplicates: deterministic.
 - Privacy: an integer is echoed.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: DEFAULT OFF, unlike `[daemon]` beside it, "because this table gates something
+- Compatibility contract: DEFAULT OFF, unlike `[gateway]` beside it, "because this table gates something
   that INTERRUPTS" and needs three separate operator steps before it works.
 
 ### 13. `[lights]` absent is None, and an empty `[lights]` is every locked default
@@ -1534,7 +1534,7 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 | `pns lights pulse`                                        | exit 0, silent                                                       | exit 0, loud, no pulse                                | `pns: config error ({detail}); no pulse`                                           |
 | lights tick                                               | return 0, nothing armed                                              | return 0, nothing armed                               | silent (a line per tick would be a log the rotation job rotates a real log out of) |
 | `pns lights mute`                                         | no place is known, every mute refused by name, the report still runs | same                                                  | the mute's own refusal                                                             |
-| daemon enable check                                       | enabled                                                              | enabled, loud                                         | `pns daemon: the config could not be read ({detail}); carrying on enabled`         |
+| daemon enable check                                       | enabled                                                              | enabled, loud                                         | `pns gateway: the config could not be read ({detail}); carrying on enabled`         |
 | `submit_deadline`                                         | 5 seconds                                                            | 5 seconds, loud                                       | `pns: config error ({detail}); the moshi submission keeps its {n}-second bound`    |
 | the doctor's home rows                                    | a setup row                                                          | a setup row                                           | `home: config error ({detail})`                                                    |
 | `pns doctor`                                              | `no config file, so only the core runs` per skipped plugin           | `the config could not be read, so only the core runs` | as shown                                                                           |

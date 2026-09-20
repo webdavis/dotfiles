@@ -61,9 +61,9 @@ pub(super) const ROUTES: Table = Table {
         },
     ],
 };
-pub(super) const DAEMON: Table = Table {
-    name: "daemon",
-    prose: DAEMON_PROSE,
+pub(super) const GATEWAY: Table = Table {
+    name: "gateway",
+    prose: GATEWAY_PROSE,
     opt_in: false,
     children: &[],
     keys: &[

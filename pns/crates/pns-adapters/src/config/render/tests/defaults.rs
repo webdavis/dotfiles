@@ -50,7 +50,7 @@ fn an_empty_walk_still_renders_the_core_at_its_defaults() {
     // off, because `[plugins.*] enabled` defaults false.
     assert!(!config.plugins["phone"].enabled);
     assert!(!config.plugins["banner"].enabled);
-    assert!(config.daemon_enabled);
+    assert!(config.gateway_enabled);
     assert!(config.focus_enabled);
     assert!(config.stale_enabled);
     assert_eq!(config.recap, crate::config::Recap::default());
@@ -107,7 +107,7 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     for expected in [
         "[plugins.phone]\nenabled = false\n",
         "[plugins.banner]\nenabled = false\n",
-        "[daemon]\nenabled = true\n",
+        "[gateway]\nenabled = true\n",
         "[stale]\nenabled = true\n",
     ] {
         assert!(text.contains(expected), "{expected} should be live: {text}");

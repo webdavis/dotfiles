@@ -54,7 +54,6 @@ pub(crate) use pns_domain::render;
 mod certificate_notice;
 mod channel_dispatch;
 mod channel_settings;
-mod command_daemon;
 mod command_doctor;
 mod command_enroll;
 mod command_failures;
@@ -104,10 +103,9 @@ mod wait_runtime;
 pub(crate) use channel_settings::{
     Mobile, disabled_backend_warnings, plugin_settings, read_discord, read_mobile,
 };
-pub(crate) use command_daemon::{DAEMON_USAGE, daemon_mode};
 pub(crate) use command_doctor::doctor_mode;
 pub(crate) use command_failures::failures_mode;
-pub(crate) use command_gateway::gateway_mode;
+pub(crate) use command_gateway::{GATEWAY_USAGE, gateway_mode};
 pub(crate) use command_lights::lights_mode;
 pub(crate) use command_loop::loop_mode;
 pub(crate) use command_mute::{mute_mode, muted_now};
@@ -117,7 +115,6 @@ pub(crate) use command_remind::remind_mode;
 pub(crate) use command_resume::resume_mode;
 pub(crate) use command_setup::setup_mode;
 pub(crate) use command_stale::stale_mode;
-pub(crate) use daemon_runtime::daemon_run;
 pub(crate) use event_flow::{Attempt, run_event};
 pub(crate) use hook_dispatch::hook_mode;
 pub(crate) use hook_observations::{
