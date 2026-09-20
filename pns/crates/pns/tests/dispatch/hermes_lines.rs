@@ -15,20 +15,20 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
     for (case, config, url, expected) in [
         (
             "no key in the config",
-            "[plugins.hermes]\nenabled = true\n",
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
             "http://127.0.0.1:1/hook",
             "pns: post SKIPPED, no hermes key for the pns-events route \
-             ([plugins.hermes.keys] pns-events); nothing was sent\n",
+             ([plugins.log.keys] pns-events); nothing was sent\n",
         ),
         (
             "a gateway nothing is listening for",
-            "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"k\" }\n",
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"k\" }\n",
             "http://127.0.0.1:1/hook",
             "pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)\n",
         ),
         (
             "a url that is never put on the wire",
-            "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"k\" }\n",
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"k\" }\n",
             "http://[::1",
             "pns: post FAILED (curl reported no HTTP status at all)\n",
         ),
@@ -37,17 +37,21 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
         sandbox.write_config(config);
         let mut command = sandbox.bare();
         command.env("PNS_HERMES_URL", url);
-        let output = run(command
-            .args([
-                "send",
-                "--producer",
-                "weekly",
-                "--state",
-                "done",
-                "--detail",
-                "ran",
-            ])
-            .args(["--scope", "remote_only"]));
+        // hermes is the only channel here and it never delivers.
+        let output = run_expecting(
+            1,
+            command
+                .args([
+                    "send",
+                    "--producer",
+                    "weekly",
+                    "--state",
+                    "done",
+                    "--detail",
+                    "ran",
+                ])
+                .args(["--scope", "remote_only"]),
+        );
         assert_eq!(stdout(&output), expected, "case: {case}");
     }
 }

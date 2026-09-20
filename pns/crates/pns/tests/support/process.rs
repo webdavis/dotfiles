@@ -1,13 +1,18 @@
 use std::process::{Command, Output};
 
 /// Run to completion, asserting the exit-0 edge: a failed notification must
-/// never fail the caller.
+/// never fail the caller. Every call site here is a hook path, which always
+/// answers 0; a caller that expects a different code uses [`run_expecting`].
 pub fn run(command: &mut Command) -> Output {
+    run_expecting(0, command)
+}
+
+/// Run to completion, asserting the exit code named here. For the few
+/// callers on the delivery path whose page never lands, so `run`'s default
+/// stays pinned to the success edge everywhere else.
+pub fn run_expecting(code: i32, command: &mut Command) -> Output {
     let output = command.output().expect("the engine runs");
-    assert!(
-        output.status.success(),
-        "the engine must exit 0 on every path: {output:?}"
-    );
+    assert_eq!(output.status.code(), Some(code), "{output:?}");
     output
 }
 

@@ -64,8 +64,21 @@ fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::
             )
         })
     }) {
-        Ok(Status::Rejected) | Err(_) => 2,
-        Ok(Status::Accepted | Status::Degraded) => 0,
+        Ok(status) => exit_code(status),
+        // A receipt that could not even be written is input this path cannot
+        // honour, on the code every other refusal earns.
+        Err(_) => crate::legacy::REFUSED_INPUT,
+    }
+}
+
+/// THE STATUS IS THE EXIT CODE. A page that reached only some of its
+/// destinations is a broken destination the producer would not otherwise hear
+/// about, so it earns the same `1` as one that reached none.
+fn exit_code(status: Status) -> i32 {
+    match status {
+        Status::Delivered => 0,
+        Status::Partial | Status::Undelivered => crate::invocation::EVENT_NOT_DELIVERED,
+        Status::Rejected => crate::legacy::REFUSED_INPUT,
     }
 }
 
@@ -105,4 +118,17 @@ fn accept(
         result.diagnostics.extend(decoded.ignored);
     }
     result
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    use super::{Status, exit_code};
+
+    #[test]
+    fn every_status_earns_the_exit_code_its_delivery_deserves() {
+        assert_eq!(exit_code(Status::Delivered), 0);
+        assert_eq!(exit_code(Status::Partial), 1);
+        assert_eq!(exit_code(Status::Undelivered), 1);
+        assert_eq!(exit_code(Status::Rejected), 2);
+    }
 }

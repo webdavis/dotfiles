@@ -54,7 +54,7 @@ fn a_request_asking_for_the_configured_delay_arms_at_it() {
     sandbox.write_config(&remind_config(300, false));
 
     let output = blocked(&sandbox, Some(serde_json::json!(true)));
-    assert_eq!(result(&output).status, Status::Accepted);
+    assert_eq!(result(&output).status, Status::Delivered);
     assert!(
         remind_record(&sandbox).exists(),
         "`\"remind\": true` arms what the producer table never asked for"
@@ -68,7 +68,7 @@ fn a_requests_own_duration_beats_the_configured_delay() {
     sandbox.write_config(&remind_config(60, false));
 
     let output = blocked(&sandbox, Some(serde_json::json!("5m")));
-    assert_eq!(result(&output).status, Status::Accepted);
+    assert_eq!(result(&output).status, Status::Delivered);
     assert_eq!(armed_delay(&sandbox), 300);
 }
 
@@ -78,7 +78,7 @@ fn a_request_can_disarm_a_reminder_the_producer_table_asked_for() {
     sandbox.write_config(&remind_config(300, true));
 
     let output = blocked(&sandbox, Some(serde_json::json!(false)));
-    assert_eq!(result(&output).status, Status::Accepted);
+    assert_eq!(result(&output).status, Status::Delivered);
     assert!(
         !remind_record(&sandbox).exists(),
         "`\"remind\": false` beats the producer's own entry"
@@ -94,14 +94,14 @@ fn a_request_that_says_nothing_falls_through_to_the_producer_table_and_then_off(
     let sandbox = Sandbox::new("json-remind-absent");
     sandbox.write_config(&remind_config(300, false));
 
-    assert_eq!(result(&blocked(&sandbox, None)).status, Status::Accepted);
+    assert_eq!(result(&blocked(&sandbox, None)).status, Status::Delivered);
     assert!(
         !remind_record(&sandbox).exists(),
         "a delay alone arms nothing"
     );
 
     sandbox.write_config(&remind_config(300, true));
-    assert_eq!(result(&blocked(&sandbox, None)).status, Status::Accepted);
+    assert_eq!(result(&blocked(&sandbox, None)).status, Status::Delivered);
     assert_eq!(
         armed_delay(&sandbox),
         300,
@@ -122,6 +122,6 @@ fn a_state_no_approval_waits_on_arms_nothing_however_the_request_asks() {
     encoded["remind"] = serde_json::json!(true);
     let output = invoke(&sandbox, &serde_json::to_string(&encoded).unwrap());
 
-    assert_eq!(result(&output).status, Status::Accepted);
+    assert_eq!(result(&output).status, Status::Delivered);
     assert!(!remind_record(&sandbox).exists());
 }

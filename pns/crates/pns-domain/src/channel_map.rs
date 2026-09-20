@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 
 /// The channel map itself: an entry name or channel id per key, exactly as
-/// the operator wrote it in `[plugins.discord.channels]`.
+/// the operator wrote it in `[plugins.log.channels]`.
 ///
 /// A PLAIN MAP RATHER THAN A NEWTYPE. Its keys are the operator's project
 /// names, its values are opaque to this crate, and every invariant worth

@@ -7,7 +7,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
     // is a pulse into a room the bridge does not have, and `tokens` for
     // `token` is a phone card that silently never leaves the machine.
     for (table, mistyped, near) in [
-        ("plugins.hermes", "key", "keys"),
+        ("plugins.log", "key", "keys"),
         ("plugins.lights", "room", "rooms"),
         ("plugins.banner", "sound", "enabled"),
         ("plugins.mobile", "tokens", "token"),
@@ -33,7 +33,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
 fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
     // The positive control under the refusal above: a sweep that refused
     // the whole vocabulary would pass every assertion up there.
-    let shipped = "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+    let shipped = "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
     let config = parse_config(shipped).expect("every shipped key parses");
     assert_eq!(config.plugins.len(), 5);
 }
@@ -145,7 +145,7 @@ fn a_key_under_any_route_name_the_gateway_serves_is_accepted() {
     // route nothing in this repository will ever mention.
     for route in ["general", "weather-balloons", "pns_events_2"] {
         let text = format!(
-            "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n{route} = \"secret\"\n"
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\n{route} = \"secret\"\n"
         );
         let config = crate::config::parse_config(&text)
             .unwrap_or_else(|error| panic!("`{route}` was refused: {error:?}"));
@@ -164,7 +164,7 @@ fn a_route_name_no_url_could_carry_still_signs_nothing() {
     // pns cannot build a URL out of is one nothing posts to, so the key it
     // holds signs nothing rather than signing for a route nobody granted.
     let config = crate::config::parse_config(
-        "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n\"a/b\" = \"secret\"\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\n\"a/b\" = \"secret\"\n",
     )
     .expect("an unusable name is the operator's to write");
     assert!(

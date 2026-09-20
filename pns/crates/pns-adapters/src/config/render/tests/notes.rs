@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn a_note_renders_above_its_heading_as_a_commented_line() {
-    let mut hermes = toml::Table::new();
-    hermes.insert(
+    let mut log = toml::Table::new();
+    log.insert(
         "note".to_string(),
         toml::Value::String("armed for the pns-events route".to_string()),
     );
@@ -12,15 +12,15 @@ fn a_note_renders_above_its_heading_as_a_commented_line() {
         "pns-events".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
     let text = render(&values).expect("a noted table renders");
     assert!(
-        text.contains("# armed for the pns-events route\n[plugins.hermes]"),
+        text.contains("# armed for the pns-events route\n[plugins.log]"),
         "{text}"
     );
     // AND `note` NEVER REACHES THE PARSED CONFIG: it is a renderer
@@ -35,8 +35,8 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
     // THE INJECTION CASE. A note that could open a live heading or an
     // uncommented key on its second line would let a values file smuggle
     // arbitrary config text past every other refusal in this module.
-    let mut hermes = toml::Table::new();
-    hermes.insert(
+    let mut log = toml::Table::new();
+    log.insert(
         "note".to_string(),
         toml::Value::String(
             "line one\n[plugins.lights]\nenabled = true\nbridge = \"hostile\"".to_string(),
@@ -47,9 +47,9 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
         "pns-events".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -159,13 +159,13 @@ fn a_note_holding_a_chezmoi_action_opening_is_refused_by_name() {
     // brace-splitting cannot protect it: chezmoi's template engine reads
     // `{{ ... }}` inside a comment exactly like anywhere else in the file, so
     // the only safe answer is refusing the note outright.
-    let mut hermes = toml::Table::new();
-    hermes.insert(
+    let mut log = toml::Table::new();
+    log.insert(
         "note".to_string(),
         toml::Value::String("safe {{ printf \"pwned\" }} unsafe".to_string()),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -186,16 +186,16 @@ fn a_note_holding_a_forbidden_control_character_is_refused_by_name() {
         "bad\u{7f}byte",
         "lone\rcarriage",
     ] {
-        let mut hermes = toml::Table::new();
-        hermes.insert("note".to_string(), toml::Value::String(hostile.to_string()));
+        let mut log = toml::Table::new();
+        log.insert("note".to_string(), toml::Value::String(hostile.to_string()));
         let mut keys = toml::Table::new();
         keys.insert(
             "pns-events".to_string(),
             toml::Value::String("hermes-secret".to_string()),
         );
-        hermes.insert("keys".to_string(), toml::Value::Table(keys));
+        log.insert("keys".to_string(), toml::Value::Table(keys));
         let mut plugins = toml::Table::new();
-        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        plugins.insert("log".to_string(), toml::Value::Table(log));
         let mut values = toml::Table::new();
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
 

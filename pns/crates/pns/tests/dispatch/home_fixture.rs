@@ -21,7 +21,7 @@ pub(super) const NO_LISTING: &str = "<html>router login</html>";
 /// exercising a delivery.
 pub(super) fn stale_config(router_url: &str) -> String {
     format!(
-        "[plugins.hermes]\nenabled = true\n{}",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\n{}",
         router_table(router_url)
     )
 }

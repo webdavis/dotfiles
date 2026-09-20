@@ -61,7 +61,7 @@ impl CommandRunner for Runner {
             .to_owned();
         self.effects.borrow_mut().requests.push(request);
         let (status, diagnostics, exit) = match reply {
-            Reply::Committed => ("accepted", "\"ledger_committed\"", 0),
+            Reply::Committed => ("delivered", "\"ledger_committed\"", 0),
             Reply::Refused => ("rejected", "", 2),
         };
         Ok(CommandOutput {

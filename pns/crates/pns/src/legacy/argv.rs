@@ -39,7 +39,7 @@ const VALUE_FLAGS: [&str; 12] = [
 /// comparisons because the chain is what went stale before: a bare flag
 /// handled elsewhere and never added here let a value flag in front of it eat
 /// it as its value and the signal vanished without a warning.
-const BARE_FLAGS: [&str; 3] = ["--require-delivery", "--remind", "--no-remind"];
+const BARE_FLAGS: [&str; 2] = ["--remind", "--no-remind"];
 
 /// Every flag pns used to take, paired with the one that replaced it and by
 /// whether it took a value. A retired flag is REFUSED and the refusal names its
@@ -48,13 +48,18 @@ const BARE_FLAGS: [&str; 3] = ["--require-delivery", "--remind", "--no-remind"];
 /// that took a value consumes it too, so `--channel priority` does not leave
 /// `priority` behind as a stray word; a bare one consumes nothing, so
 /// `--local-only --help` still prints the usage it asked for.
-const RETIRED_FLAGS: [(&str, &str, bool); 6] = [
+const RETIRED_FLAGS: [(&str, &str, bool); 7] = [
     ("--agent", "--producer", true),
     ("--kind", "--delivery-class", true),
     ("--channel", "--route", true),
     ("--local-only", "--scope", false),
     ("--remote-only", "--scope", false),
     ("--long-running", "--elapsed", false),
+    (
+        "--require-delivery",
+        "the exit code, which always reports delivery now",
+        false,
+    ),
 ];
 
 /// Whether a token is a producer flag. A retired flag counts, so a flag whose
@@ -112,15 +117,6 @@ pub(super) struct ParsedArgs {
     pub help: bool,
     pub event: EventArgs,
     pub warnings: Vec<String>,
-    /// `--require-delivery`: whether this caller wants the exit code to say
-    /// that its page did not reach the durable log.
-    ///
-    /// OPT-IN, AND IT HAS TO BE. Decision 0010 says a notification never fails
-    /// the work it reports on, and every harness hook, the shell notifier and
-    /// the daemon call this while real work is in flight. A caller that asked
-    /// for the answer is a caller that can take it; every other one keeps the
-    /// exit-0 contract untouched.
-    pub require_delivery: bool,
     /// The first retired flag argv carried, already worded as its refusal.
     retired: Option<String>,
     /// `--state`: what happened, in one of six words. A seventh word refuses
@@ -184,7 +180,6 @@ where
 {
     let mut parsed = EventArgs::default();
     let mut help = false;
-    let mut require_delivery = false;
     let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
     let mut identifiers = Ok(());
@@ -196,7 +191,6 @@ where
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
-            "--require-delivery" => require_delivery = true,
             // HELP IN FLAG POSITION WINS: this arm only ever sees a token
             // that reached the top of the loop unconsumed, so `--state
             // --help` never lands here, the value arm below already took
@@ -320,7 +314,6 @@ where
         help,
         event: parsed,
         warnings,
-        require_delivery,
         retired,
         state,
         elapsed,

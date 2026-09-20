@@ -54,7 +54,7 @@ fn lookup_stops_at_a_non_table_segment_rather_than_panicking() {
 }
 
 /// EVERY CHANNEL ID IS A SECRET, so every key of the open
-/// `[plugins.discord.channels]` table is secret-bearing and not only the
+/// `[plugins.log.channels]` table is secret-bearing and not only the
 /// fixed `default` one. A pasted id under a project's key is the exact
 /// mistake the values file exists to make impossible.
 ///
@@ -67,17 +67,14 @@ fn a_literal_channel_id_under_any_project_key_is_refused_by_name() {
         "dotfiles".to_string(),
         toml::Value::String("000000000000000000".to_string()),
     );
-    let mut discord = toml::Table::new();
-    discord.insert("channels".to_string(), toml::Value::Table(channels));
+    let mut log = toml::Table::new();
+    log.insert("channels".to_string(), toml::Value::Table(channels));
     let mut plugins = toml::Table::new();
-    plugins.insert("discord".to_string(), toml::Value::Table(discord));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
     let error =
         refuse_literal_secrets(&values).expect_err("a literal channel id is not a secret marker");
-    assert!(
-        error.contains("plugins.discord.channels.dotfiles"),
-        "{error}"
-    );
+    assert!(error.contains("plugins.log.channels.dotfiles"), "{error}");
 }
