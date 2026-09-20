@@ -173,7 +173,7 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
         r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
     );
     assert!(
-        sandbox.fired("macos-banner"),
+        sandbox.fired("banner"),
         "the banner belongs to the desk the operator went back to"
     );
     assert!(

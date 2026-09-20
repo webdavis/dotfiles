@@ -16,7 +16,7 @@
 //! notification off must not pass quietly; a MISSING file is its own honest
 //! outcome, distinct from both error and emptiness, so the caller can say
 //! "unconfigured" instead of guessing; unknown top-level keys are refused,
-//! so `[plugin.hue]` cannot silently disable what `[plugins.hue]` enables.
+//! so `[plugin.hue]` cannot silently disable what `[plugins.lights]` enables.
 
 use crate::DEFAULT_REMOTE_DEADLINE_SECS;
 use pns_domain::lamps::config::{

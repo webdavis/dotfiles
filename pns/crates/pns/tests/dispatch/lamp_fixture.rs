@@ -66,10 +66,10 @@ pub(super) fn window_around(centre: u16, radius: u16) -> String {
     )
 }
 
-/// The `[plugins.hue]` config the two halves below share, quiet hours apart.
+/// The `[plugins.lights]` config the two halves below share, quiet hours apart.
 pub(super) fn hue_config(port: u16, quiet_hours: &str) -> String {
     format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"{quiet_hours}\"\n[plugins.hermes]\nenabled = true\n"
     )
 }
@@ -115,12 +115,12 @@ pub(super) fn lamp_run(
 ) -> (bool, bool, bool, bool, Option<i32>) {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
-    // `hue_extra` GOES INSIDE `[plugins.hue]` and the rest comes after every
+    // `hue_extra` GOES INSIDE `[plugins.lights]` and the rest comes after every
     // plugin table, because a bare key in a TOML file belongs to whichever
     // table was opened last: appending `quiet_hours` to the end of this put it
     // in `[plugins.hermes]`, where nothing reads it and nothing complains.
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.hermes]\nenabled = true\n{config}"
     ));
@@ -194,7 +194,7 @@ pub(super) fn lamp_run(
         dialled,
         sandbox.fired("mobile"),
         sandbox.fired("hermes"),
-        sandbox.fired("macos-banner"),
+        sandbox.fired("banner"),
         status.code(),
     )
 }
@@ -211,7 +211,7 @@ pub(super) fn lamp_submit(name: &str, config: &str, request: &str) -> (bool, Opt
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\n{config}"
     ));
     let mut command = sandbox.pns();

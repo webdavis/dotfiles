@@ -40,14 +40,14 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
         lights_lines(&LightsReport::Off),
         vec![
             "pns doctor: lights: off in the config, so the pulse uses the \
-                 [plugins.hue] rooms"
+                 [plugins.lights] rooms"
         ],
         "no table is the state every machine was in before this table existed"
     );
     assert_eq!(
         lights_lines(&LightsReport::HueMissing),
         vec![
-            "pns doctor: lights: configured, but there is no [plugins.hue] \
+            "pns doctor: lights: configured, but there is no [plugins.lights] \
                  table to light them through"
         ],
         "A TABLE THAT WAS NEVER WRITTEN IS NOT A SWITCH SOMEONE TURNED OFF. \
@@ -58,7 +58,7 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::HueDisabled),
         vec![
-            "pns doctor: lights: configured, but [plugins.hue] enabled is false, \
+            "pns doctor: lights: configured, but [plugins.lights] enabled is false, \
                  so nothing lights"
         ],
         "ONE SWITCH, and the doctor is where an operator sees it is off"
@@ -66,7 +66,7 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::NoBridge),
         vec![
-            "pns doctor: lights: no [plugins.hue] bridge and key, so no lamp \
+            "pns doctor: lights: no [plugins.lights] bridge and key, so no lamp \
                  could be resolved"
         ],
         "a config that named no bridge is not a bridge that answered nothing"

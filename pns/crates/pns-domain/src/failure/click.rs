@@ -103,12 +103,12 @@ pub fn parse_view(name: &str, command: &str, herdr_present: bool) -> Result<Clic
         "" => Ok(ClickView::inferred(herdr_present)),
         "herdr" => Ok(ClickView::Herdr),
         "window" => Ok(ClickView::Window),
-        "command" if command.trim().is_empty() => Err(
-            "[plugins.macos-banner] click_type is \"command\" but click_command is empty".into(),
-        ),
+        "command" if command.trim().is_empty() => {
+            Err("[plugins.banner] click_type is \"command\" but click_command is empty".into())
+        }
         "command" => Ok(ClickView::Command(command.to_string())),
         other => Err(format!(
-            "[plugins.macos-banner] click_type is {other:?}; the types are \
+            "[plugins.banner] click_type is {other:?}; the types are \
              \"herdr\", \"window\" and \"command\""
         )),
     }

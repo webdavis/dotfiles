@@ -7,12 +7,12 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
     // carries both skip reasons: a plugin that cannot be a destination, and a
     // plugin the config declined.
     sandbox.write_config(&format!(
-        "[plugins.router]\nenabled = true\n{EVERY_DISPATCHED_CHANNEL}"
+        "[plugins.home_presence]\nenabled = true\n{EVERY_DISPATCHED_CHANNEL}"
     ));
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
-    for channel in ["mobile", "macos-banner", "hermes"] {
+    for channel in ["mobile", "banner", "hermes"] {
         let event = sandbox.event(channel);
         assert_eq!(event["agent"], "pns", "channel: {channel}");
         assert_eq!(event["state"], "doctor", "channel: {channel}");
@@ -54,14 +54,14 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
     assert_eq!(
         &printed[..],
         [
-            "router: skipped, a sensor and never a delivery destination",
+            "home_presence: skipped, a sensor and never a delivery destination",
             "presence: skipped, not enabled in the config",
             "github: skipped, not enabled in the config",
             "mobile: sent, this channel reports no outcome",
-            "macos-banner: sent, this channel reports no outcome",
+            "banner: sent, this channel reports no outcome",
             "hermes: sent, this channel reports no outcome",
             "discord: skipped, not enabled in the config",
-            "hue: skipped, not enabled in the config",
+            "lights: skipped, not enabled in the config",
             "3 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
             &format!(
@@ -71,9 +71,9 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
             REMIND_OFF_LINE,
-            // This fixture WROTE a `[plugins.router]` table, so the probe is set
+            // This fixture WROTE a `[plugins.home_presence]` table, so the probe is set
             // up wrong rather than absent, and the row says which edit.
-            "home: no type in [plugins.router] (the only type is \"unifi\")",
+            "home: no type in [plugins.home_presence] (the only type is \"unifi\")",
             LIGHTS_OFF_LINE,
             NO_CERTIFICATE_LINE,
             "the delivery record could not be read, so nothing here is known",
@@ -100,7 +100,7 @@ fn a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_se
     let sandbox = Sandbox::new("mobile-type-refused-leg");
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+         [plugins.hermes]\nenabled = true\n[plugins.banner]\nenabled = true\n",
     );
     let output = run(sandbox
         .pns()
@@ -135,7 +135,7 @@ fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
     let sandbox = Sandbox::new("doctor-type-fault");
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
-         [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
+         [plugins.banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
     );
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
@@ -177,7 +177,7 @@ fn the_doctor_tells_a_machine_with_no_config_that_there_is_no_config() {
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     let reported = stdout(&output);
-    for plugin in ["router", "hermes", "hue"] {
+    for plugin in ["home_presence", "hermes", "lights"] {
         let line = report_rows(&reported)
             .into_iter()
             .find(|line| line.starts_with(&format!("{plugin}:")))
@@ -199,12 +199,13 @@ fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does
     // which is where diagnostics belong.
     let sandbox = Sandbox::new("disabled-table-type");
     sandbox.write_config(&format!(
-        "[plugins.router]\nenabled = false\ntype = \"asus\"\n{EVERY_DISPATCHED_CHANNEL}"
+        "[plugins.home_presence]\nenabled = false\ntype = \"asus\"\n{EVERY_DISPATCHED_CHANNEL}"
     ));
 
     let checked = doctor_command(&sandbox).output().expect("the engine runs");
     assert!(
-        stderr(&checked).contains("[plugins.router]") && stderr(&checked).contains("switched off"),
+        stderr(&checked).contains("[plugins.home_presence]")
+            && stderr(&checked).contains("switched off"),
         "the doctor is where a switched-off misconfiguration is visible: {}",
         stderr(&checked)
     );

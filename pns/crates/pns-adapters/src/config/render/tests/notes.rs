@@ -39,7 +39,7 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
     hermes.insert(
         "note".to_string(),
         toml::Value::String(
-            "line one\n[plugins.hue]\nenabled = true\nbridge = \"hostile\"".to_string(),
+            "line one\n[plugins.lights]\nenabled = true\nbridge = \"hostile\"".to_string(),
         ),
     );
     let mut keys = toml::Table::new();
@@ -63,9 +63,9 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
         }
     }
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
-    // AND THE INJECTED TABLE NEVER ARRIVED: a real `[plugins.hue]` armed
+    // AND THE INJECTED TABLE NEVER ARRIVED: a real `[plugins.lights]` armed
     // by the note would be the exact failure this test exists to catch.
-    assert!(!config.plugins.contains_key("hue"));
+    assert!(!config.plugins.contains_key("lights"));
 }
 
 #[test]

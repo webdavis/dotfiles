@@ -5,7 +5,7 @@ use super::*;
 /// The lamps switched on: a map, and the transport enabled. BOTH, because a
 /// `[lights]` table with hue disabled lights nothing and runs no tick, so
 /// there would be nothing to sweep the markers it wrote.
-pub(crate) const LAMPS_ON: &str = "[plugins.hue]\nenabled = true\n\
+pub(crate) const LAMPS_ON: &str = "[plugins.lights]\nenabled = true\n\
      [lights]\nrefresh_secs = 20\n\
      [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n";
 
