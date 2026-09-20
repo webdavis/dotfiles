@@ -30,11 +30,11 @@ pub fn held_render(
         ),
         crate::lights::held::Held::UnreadFailure => (
             crate::pulse::FAILURE_COLOR,
-            crate::lights::breath::breath_cycle(&lights.unread.breath),
+            crate::lights::breath::breath_cycle(&lights.unseen.breath),
         ),
         crate::lights::held::Held::UnreadSuccess => (
             crate::pulse::UNREAD_SUCCESS_COLOR,
-            crate::lights::breath::breath_cycle(&lights.unread.breath),
+            crate::lights::breath::breath_cycle(&lights.unseen.breath),
         ),
     };
     // THE DIM FORM IS ONE SHAPE FOR EVERY BEHAVIOUR, which is what the operator
@@ -48,7 +48,7 @@ pub fn held_render(
 
 /// The colour and brightness one pulse fires at.
 ///
-/// THE FLASH AND NOT ITS ROUTABLE WORD, which is what lets `github` carry two
+/// THE FLASH AND NOT ITS ROUTABLE WORD, which is what lets `checks` carry two
 /// colours under one config word: the pass and the failure route identically
 /// and render differently, exactly as the two unread flavours do above.
 pub fn pulse_render(
@@ -66,11 +66,11 @@ pub fn pulse_render(
         }
         // THE ONE PAIR THAT COMES OFF THE CONFIG. Both flavours share the
         // blink, because a brightness per colour is a knob nothing else has.
-        Flash::GithubPass => (lights.github.pass, lights.github.pulse),
-        Flash::GithubFail => (lights.github.fail, lights.github.pulse),
+        Flash::GithubPass => (lights.checks.pass_color, lights.checks.pulse),
+        Flash::GithubFail => (lights.checks.fail_color, lights.checks.pulse),
         // A HELD STATE IS NOT A PULSE, and there is no nearest shape to fall
         // back to: a lamp asked to flash a state it holds would be armed with
-        // something nobody measured. `github` spelled as a bare word lands
+        // something nobody measured. `checks` spelled as a bare word lands
         // here too, since its colour is the event's to say.
         Flash::Word(_) => return None,
     };

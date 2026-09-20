@@ -18,7 +18,7 @@ const NOON: Option<u16> = Some(12 * 60);
 
 #[test]
 fn inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed() {
-    let window = night(&[Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping]);
+    let window = night(&[Behaviour::Blocked, Behaviour::Unseen, Behaviour::Looping]);
     assert_eq!(
         dim_showing(Some(&window), Behaviour::Blocked, MIDNIGHT),
         Showing::Dimmed,
@@ -54,7 +54,7 @@ fn a_window_with_nothing_enabled_suppresses_every_behaviour_and_needs_no_mode() 
         Behaviour::Done,
         Behaviour::Failed,
         Behaviour::Blocked,
-        Behaviour::Unread,
+        Behaviour::Unseen,
         Behaviour::Looping,
     ] {
         assert_eq!(
@@ -88,9 +88,9 @@ fn a_dim_window_nobody_can_parse_leaves_that_lamp_dark_and_says_which_lamp() {
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
              dim_window = \"2200-0700\"\n\
-             [lights.room.\"2F - Kitchen\"]\nshows = [\"done\"]\n",
+             [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"done\"]\n",
         ),
     );
     assert_eq!(
@@ -154,9 +154,9 @@ fn a_mute_reaches_a_lamp_by_its_own_name_by_its_room_and_by_any_zone_holding_it(
 #[test]
 fn the_names_a_mute_takes_are_the_declarations_and_the_bridges_own_three_levels() {
     let declared = lights(
-        "[lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"blocked\"]\n\
-         [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-         [lights.zone.Upstairs]\nshows = [\"done\"]\n",
+        "[lights.lamp.\"3F - Studio - HCL3\"]\nbehaviours = [\"blocked\"]\n\
+         [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+         [lights.zone.Upstairs]\nbehaviours = [\"done\"]\n",
     );
     assert_eq!(
         mutable_names(&declared, None),

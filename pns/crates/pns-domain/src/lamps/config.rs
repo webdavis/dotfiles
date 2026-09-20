@@ -25,7 +25,7 @@ pub struct Breath {
 ///
 /// THE LOOP'S OWN SHAPE TYPE, and not two more fields on `Breath`, for the
 /// config ruling stated at `Lights`: only the knobs that APPLY to a behaviour
-/// exist. `Breath` is what the blocked lamp, both unread lamps and the shared
+/// exist. `Breath` is what the blocked lamp, both unseen lamps and the shared
 /// dim form run, none of which flare, so an accent parked on `Breath` would be
 /// four dead knobs on three behaviours for a reader to set and watch do
 /// nothing.
@@ -59,7 +59,7 @@ pub struct BreatheThenFlare {
 ///
 /// ONLY THE KNOBS THAT APPLY TO A BEHAVIOUR EXIST (operator ruling): a pulse
 /// has a duration and one brightness, a breathing state has a duration and two
-/// ends, and some of them carry one knob more besides (unread's delay, loop's
+/// ends, and some of them carry one knob more besides (unseen's delay, loop's
 /// threshold and lease, blocked's give-up backstop). There is no dead knob
 /// anywhere for a reader to set and watch do nothing.
 #[derive(Debug, Clone, PartialEq)]
@@ -68,10 +68,10 @@ pub struct Lights {
     pub done: Pulse,
     pub failed: Pulse,
     pub blocked: Blocked,
-    pub unread: Unread,
-    /// `[lights.github]`, the one behaviour whose COLOURS are config rather
+    pub unseen: Unseen,
+    /// `[lights.checks]`, the one behaviour whose COLOURS are config rather
     /// than locked constants.
-    pub github: Github,
+    pub checks: Checks,
     /// `[lights.loop]`. NOT SPELLED `r#loop` AT THE FIELD, because every reader
     /// would then carry the raw identifier through; the TOML key is `loop` and
     /// the mapping is stated once, in `parse_lights`.
@@ -93,19 +93,19 @@ pub struct Pulse {
     pub duration_ms: u64,
     pub brightness: u8,
 }
-/// The github lamp: one blink, and the two colours that blink runs at.
+/// The checks lamp: one blink, and the two colours that blink runs at.
 ///
 /// THE ONLY CONFIGURABLE COLOUR IN THE VOCABULARY. The other five behaviours'
 /// colours were each locked by eye on a real lamp; this pair has only ever
 /// been measured on paper, which is why it is a knob here and they are not.
 ///
-/// ONE BRIGHTNESS FOR BOTH COLOURS, on `Unread`'s precedent: a brightness per
+/// ONE BRIGHTNESS FOR BOTH COLOURS, on `Unseen`'s precedent: a brightness per
 /// colour would be a knob no other pulse behaviour has.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Github {
+pub struct Checks {
     pub pulse: Pulse,
-    pub pass: crate::pulse::PulseColor,
-    pub fail: crate::pulse::PulseColor,
+    pub pass_color: crate::pulse::PulseColor,
+    pub fail_color: crate::pulse::PulseColor,
 }
 /// The blocked lamp: its breath, plus how long an unanswered wait may hold it
 /// before the daemon gives up on an abandoned session.
@@ -114,10 +114,10 @@ pub struct Blocked {
     pub breath: Breath,
     pub give_up_after_secs: u64,
 }
-/// The unread lamp: its breath, plus how old SUCCESS news must be before it
+/// The unseen lamp: its breath, plus how old SUCCESS news must be before it
 /// arms. Failure news arms with no delay at all and has no knob.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Unread {
+pub struct Unseen {
     pub breath: Breath,
     pub after_secs: u64,
 }
@@ -138,7 +138,7 @@ pub struct Looping {
 /// `dim_window` is.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Target {
-    pub shows: Option<Vec<Behaviour>>,
+    pub behaviours: Option<Vec<Behaviour>>,
     pub dim_window: Option<String>,
     /// The behaviours that run their DIM FORM inside that window. Everything
     /// else the target carries is suppressed there, which is what makes a
@@ -156,11 +156,11 @@ impl Default for Lights {
                 breath: DEFAULT_BLOCKED,
                 give_up_after_secs: DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS,
             },
-            unread: Unread {
-                breath: DEFAULT_UNREAD_BREATH,
-                after_secs: DEFAULT_UNREAD_AFTER_SECS,
+            unseen: Unseen {
+                breath: DEFAULT_UNSEEN_BREATH,
+                after_secs: DEFAULT_UNSEEN_AFTER_SECS,
             },
-            github: DEFAULT_GITHUB,
+            checks: DEFAULT_CHECKS,
             looping: Looping {
                 breathe_then_flare: DEFAULT_LOOP_MOTION,
                 threshold_secs: DEFAULT_LOOP_THRESHOLD_SECS,
@@ -196,23 +196,23 @@ pub const DEFAULT_FAILED: Pulse = Pulse {
     duration_ms: 4000,
     brightness: 100,
 };
-/// The github blink, at `done`'s own locked shape, in the May pair. Neither
+/// The checks blink, at `done`'s own locked shape, in the May pair. Neither
 /// colour has passed the one test a colour can pass, which is why both are
 /// knobs.
-pub const DEFAULT_GITHUB: Github = Github {
+pub const DEFAULT_CHECKS: Checks = Checks {
     pulse: Pulse {
         duration_ms: 4000,
         brightness: 100,
     },
-    pass: crate::pulse::GITHUB_PASS_COLOR,
-    fail: crate::pulse::GITHUB_FAIL_COLOR,
+    pass_color: crate::pulse::CHECKS_PASS_COLOR,
+    fail_color: crate::pulse::CHECKS_FAIL_COLOR,
 };
 pub const DEFAULT_BLOCKED: Breath = Breath {
     duration_ms: 2000,
     high: 100,
     low: 30,
 };
-pub const DEFAULT_UNREAD_BREATH: Breath = Breath {
+pub const DEFAULT_UNSEEN_BREATH: Breath = Breath {
     duration_ms: 4000,
     high: 60,
     low: 10,
@@ -238,10 +238,10 @@ pub const DEFAULT_DIM: Breath = Breath {
     high: 7,
     low: 1,
 };
-/// How old SUCCESS news must be before the unread lamp arms: five minutes, so a
+/// How old SUCCESS news must be before the unseen lamp arms: five minutes, so a
 /// result the operator is already looking at does not light a lamp about itself.
 /// FAILURE news has no such delay and no knob.
-pub const DEFAULT_UNREAD_AFTER_SECS: u64 = 300;
+pub const DEFAULT_UNSEEN_AFTER_SECS: u64 = 300;
 /// How long an unanswered wait may hold the blocked lamp before the daemon
 /// gives up on an abandoned session (operator ruling 2026-09-01).
 ///

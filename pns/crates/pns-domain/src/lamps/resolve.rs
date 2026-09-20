@@ -10,14 +10,14 @@ use super::window::window_refusal;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Routed {
     pub lamp: Lamp,
-    pub shows: Vec<crate::lamps::config::Behaviour>,
+    pub behaviours: Vec<crate::lamps::config::Behaviour>,
     pub dim: Option<DimWindow>,
 }
 /// Every lamp any declaration reaches, plus what could not be resolved and what
 /// was refused.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Routing {
-    /// ONLY LAMPS THAT CARRY SOMETHING. A lamp resolved to an empty `shows`
+    /// ONLY LAMPS THAT CARRY SOMETHING. A lamp resolved to an empty `behaviours`
     /// list carries nothing, which is what a deliberate empty declaration means
     /// as much as what silence means, so both leave the lamp out of the walks
     /// rather than costing a write that does nothing.
@@ -61,15 +61,15 @@ pub fn resolve(inventory: &Inventory, lights: &crate::lamps::config::Lights) -> 
         ..Routing::default()
     };
     for lamp in &inventory.lamps {
-        let shows = match winner(&mut routing, lamp, lights, "shows", |target| {
-            target.shows.clone()
+        let behaviours = match winner(&mut routing, lamp, lights, "behaviours", |target| {
+            target.behaviours.clone()
         }) {
             // A CONTESTED BEHAVIOUR SET IS AN EMPTY ONE, which the drop below
             // turns into a dark lamp: two declarations that each name what it
             // carries settle nothing, so it carries nothing.
             Answered::Refused => Vec::new(),
             Answered::Silent => Vec::new(),
-            Answered::Stated(shows) => shows,
+            Answered::Stated(behaviours) => behaviours,
         };
         let dim = match winner(&mut routing, lamp, lights, "dim_window", |target| {
             target
@@ -98,12 +98,12 @@ pub fn resolve(inventory: &Inventory, lights: &crate::lamps::config::Lights) -> 
                 }
             },
         };
-        if shows.is_empty() {
+        if behaviours.is_empty() {
             continue;
         }
         routing.lamps.push(Routed {
             lamp: lamp.clone(),
-            shows,
+            behaviours,
             dim,
         });
     }

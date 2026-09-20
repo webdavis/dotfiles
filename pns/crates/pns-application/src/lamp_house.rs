@@ -77,7 +77,7 @@ impl<W: AgentWork, M: LampMarkers, R: LampHouseRecords> ReadLampHouse<'_, W, M, 
                     last_interaction(),
                     working,
                     now,
-                    lights.unread.after_secs,
+                    lights.unseen.after_secs,
                 ),
             },
         }

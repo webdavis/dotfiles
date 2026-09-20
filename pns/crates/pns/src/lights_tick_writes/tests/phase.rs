@@ -13,7 +13,7 @@ mod tests {
         // slice exists to remove, reintroduced through the record.
         let lights = *pns_adapters::parse_config(
             "[lights]\nrefresh_secs = 12\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n",
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -65,7 +65,7 @@ mod tests {
         // back up from exactly where it left off.
         let lights = *pns_adapters::parse_config(
             "[lights]\nrefresh_secs = 12\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n",
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -155,7 +155,7 @@ mod tests {
         // unread lamp that has to turn red.
         let lights = *pns_adapters::parse_config(
             "[lights]\nrefresh_secs = 12\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\", \"loop\"]\n",
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\", \"loop\"]\n",
         )
         .expect("the test's own config parses")
         .lights

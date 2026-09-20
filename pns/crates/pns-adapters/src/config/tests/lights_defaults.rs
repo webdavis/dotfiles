@@ -32,8 +32,8 @@ fn no_lights_table_is_none_and_an_empty_one_is_every_locked_default() {
         }
     );
     assert_eq!(
-        shipped.unread,
-        Unread {
+        shipped.unseen,
+        Unseen {
             breath: Breath {
                 duration_ms: 4000,
                 high: 60,
@@ -75,7 +75,7 @@ fn a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locke
         "[lights]\nrefresh_secs = 25\n\
              [lights.done]\nduration_ms = 1500\n\
              [lights.blocked]\nlow = 45\n\
-             [lights.unread]\nafter_secs = 60\n\
+             [lights.unseen]\nafter_secs = 60\n\
              [lights.loop]\nthreshold_secs = 360\nlease_timeout_secs = 600\n\
              [lights.dim]\nhigh = 9\n",
     );
@@ -100,8 +100,8 @@ fn a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locke
         Lights::default().blocked.give_up_after_secs,
         "the breath moved and the backstop stayed at its locked default"
     );
-    assert_eq!(stated.unread.after_secs, 60);
-    assert_eq!(stated.unread.breath, Lights::default().unread.breath);
+    assert_eq!(stated.unseen.after_secs, 60);
+    assert_eq!(stated.unseen.breath, Lights::default().unseen.breath);
     assert_eq!(stated.looping.threshold_secs, 360);
     assert_eq!(stated.looping.lease_timeout_secs, 600);
     assert_eq!(stated.dim.high, 9);
@@ -119,14 +119,14 @@ fn a_knob_that_does_not_apply_to_a_behaviour_does_not_exist_on_it() {
         ("[lights.done]\nhigh = 90\n", "high"),
         ("[lights.failed]\nlow = 10\n", "low"),
         ("[lights.blocked]\nbrightness = 90\n", "brightness"),
-        ("[lights.unread]\nbrightness = 90\n", "brightness"),
+        ("[lights.unseen]\nbrightness = 90\n", "brightness"),
         ("[lights.loop]\nbrightness = 90\n", "brightness"),
         ("[lights.dim]\nbrightness = 90\n", "brightness"),
         ("[lights.dim]\nthreshold_secs = 90\n", "threshold_secs"),
         ("[lights.done]\nthreshold_secs = 90\n", "threshold_secs"),
         ("[lights.blocked]\nafter_secs = 90\n", "after_secs"),
         (
-            "[lights.unread]\nlease_timeout_secs = 90\n",
+            "[lights.unseen]\nlease_timeout_secs = 90\n",
             "lease_timeout_secs",
         ),
     ] {

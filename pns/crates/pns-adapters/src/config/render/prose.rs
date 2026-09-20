@@ -31,16 +31,16 @@ pub(super) const RECAP_PROSE: &str = "# The return recap: what you missed while 
 pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A declaration names a place at one\n\
      # of three levels, `[lights.lamp.\"<name>\"]`, `[lights.room.\"<name>\"]` or\n\
      # `[lights.zone.\"<name>\"]`, spelled as the bridge spells it, and says\n\
-     # which of the six behaviours it carries: `done`, `failed` and `github`\n\
-     # blink, and `blocked`, `unread` and `loop` breathe while their condition\n\
+     # which of the six behaviours it carries: `done`, `failed` and `checks`\n\
+     # blink, and `blocked`, `unseen` and `loop` breathe while their condition\n\
      # lasts. The most specific declaration naming a lamp wins, lamp over room\n\
      # over zone, and levels never merge; each question resolves on its own,\n\
      # so a lamp can state its behaviours and still inherit its room's dim\n\
-     # window. On one lamp the held states rank blocked, loop, then unread,\n\
-     # and a held state preempts a blink on the lamp holding it. `unread` is\n\
+     # window. On one lamp the held states rank blocked, loop, then unseen,\n\
+     # and a held state preempts a blink on the lamp holding it. `unseen` is\n\
      # one word carrying two colours, one for a run that finished and red for\n\
-     # one that died; a lamp carries both or neither, and `github` is the\n\
-     # second such word (see `[lights.github]` below). An unknown key at any\n\
+     # one that died; a lamp carries both or neither, and `checks` is the\n\
+     # second such word (see `[lights.checks]` below). An unknown key at any\n\
      # level, and a behaviour word outside the six, are refused by name.\n\
      #\n\
      # `[lights]` IS INERT UNLESS `[plugins.lights] enabled` IS TRUE: hue is the\n\
@@ -87,6 +87,6 @@ pub(super) const ROUTING: &str = "# The routing. `dim_window` is local wall cloc
 /// caller declared no place of its own: a real declaration is a better
 /// example than this one.
 pub(super) const EXAMPLE_DECLARATION: &str = "# [lights.room.\"Studio\"]\n\
-     # shows = [\"done\", \"failed\"]\n\
+     # behaviours = [\"done\", \"failed\"]\n\
      # dim_window = \"22:00-07:00\"\n\
-     # dim_behaviours = [\"blocked\", \"unread\", \"loop\"]\n\n";
+     # dim_behaviours = [\"blocked\", \"unseen\", \"loop\"]\n\n";

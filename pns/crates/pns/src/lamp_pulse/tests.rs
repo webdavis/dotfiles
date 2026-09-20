@@ -4,7 +4,7 @@ mod tests {
     use std::cell::RefCell;
 
     /// A pulse at a word whose colour is fixed. Every row below asks for one;
-    /// the two `github` flavours are the exception and spell themselves.
+    /// the two `checks` flavours are the exception and spell themselves.
     fn flash(behaviour: pns_domain::lamps::config::Behaviour) -> pns_domain::lights::flash::Flash {
         pns_domain::lights::flash::Flash::Word(behaviour)
     }
@@ -16,7 +16,7 @@ mod tests {
         // GETs happen either way, so a gate dropped here is invisible to every
         // other test in the crate.
         let lights = *pns_adapters::parse_config(
-            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n",
+            "[lights]\n[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -147,8 +147,8 @@ mod tests {
         // and wrote nothing at all, which is the silence the fallback exists
         // to prevent.
         let lights = *pns_adapters::parse_config(
-            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-             [lights.room.\"2F - Kitchen\"]\nshows = [\"blocked\"]\n",
+            "[lights]\n[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"blocked\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -189,8 +189,8 @@ mod tests {
         // here is that the pulse path narrows AT ALL, and that the decision is
         // written where `pns doctor` reads it back.
         let lights = *pns_adapters::parse_config(
-            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-             [lights.room.\"2F - Kitchen\"]\nshows = [\"done\"]\n",
+            "[lights]\n[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"done\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -234,8 +234,8 @@ mod tests {
         // floor. A mistyped lamp name was therefore dark forever with the whole
         // system silent about it.
         let lights = *pns_adapters::parse_config(
-            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-             [lights.lamp.\"3F - Nowhere\"]\nshows = [\"done\"]\n",
+            "[lights]\n[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+             [lights.lamp.\"3F - Nowhere\"]\nbehaviours = [\"done\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -256,12 +256,12 @@ mod tests {
 
     /// The one behaviour whose colour the EVENT states. Both halves of the
     /// routing are here because they are one question: a lamp that names
-    /// `github` lights in the configured colour, and a lamp that names
+    /// `checks` lights in the configured colour, and a lamp that names
     /// anything else stays dark while a GitHub event goes past it.
     #[test]
     fn a_github_pulse_reaches_a_lamp_that_names_github_and_no_other_lamp() {
         let routed = *pns_adapters::parse_config(
-            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"github\"]\n",
+            "[lights]\n[lights.room.\"3F - Studio\"]\nbehaviours = [\"checks\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -292,14 +292,14 @@ mod tests {
             assert!(
                 puts[0].1.contains(xy),
                 "{flash:?} runs at the shipped default pair, which is what an \
-                 absent `[lights.github]` table falls back to: {}",
+                 absent `[lights.checks]` table falls back to: {}",
                 puts[0].1
             );
         }
-        // AND A LAMP THAT NAMES SOMETHING ELSE STAYS DARK. `github` is a word
+        // AND A LAMP THAT NAMES SOMETHING ELSE STAYS DARK. `checks` is a word
         // like any other: nothing routes an event to a lamp that did not ask.
         let elsewhere = *pns_adapters::parse_config(
-            "[lights]\n[lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n",
+            "[lights]\n[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\", \"failed\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -316,7 +316,7 @@ mod tests {
         );
         assert!(
             dark.puts.borrow().is_empty(),
-            "a lamp that does not name `github` is left alone: {:?}",
+            "a lamp that does not name `checks` is left alone: {:?}",
             dark.puts.borrow()
         );
     }
