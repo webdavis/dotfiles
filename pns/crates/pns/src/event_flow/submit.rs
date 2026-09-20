@@ -163,7 +163,7 @@ mod accept_tests {
     }
 
     #[test]
-    fn a_request_the_envelope_recognizes_whole_names_no_ignored_field() {
+    fn a_request_with_only_known_fields_answers_an_empty_ignored_list() {
         let result = answered(
             r#"{"schema":"pns.request/1","request_id":"r-1","producer":"test","state":"observation"}"#,
         );
