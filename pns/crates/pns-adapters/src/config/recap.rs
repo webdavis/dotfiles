@@ -2,8 +2,10 @@ use super::*;
 
 /// The most any summarizer may be given. ONE HOUR, which is fifteen times the
 /// default, so no honest backend on any machine meets it; see `seconds` for the
-/// two failures that live past it.
-pub(super) const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
+/// two failures that live past it. Pinned to the reminder policy's own
+/// ceiling so the two stay one number by construction rather than two that
+/// agree by accident.
+pub(super) const MAX_SUMMARIZER_DEADLINE_SECS: u64 = pns_domain::remind::MAX_DELAY_SECS;
 
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
