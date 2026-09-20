@@ -212,6 +212,8 @@ reads. So a dedicated channel exists and its id is already on disk; only the rea
 `interaction = { "kind": "await_decision" }`, documented in `pns/crates/pns-protocol/src/request.rs`
 as "the blocking approval: the submission does not return until the operator's decision arrives or
 the bounded wait expires". `pns.result/1` carries `interaction: NoOpinion | Answered { code }`.
+(Superseded 2026-09-19: `interaction` and `InteractionResult` were removed from `pns.result/1`; see
+`pns/docs/specs/protocol-v1.md`.)
 
 Nothing implements it. `pns/crates/pns/src/event_flow/submit.rs` answers every `AwaitDecision` with
 `InteractionResult::NoOpinion`. posture's own copy of the wire

@@ -73,10 +73,9 @@ fn subject(status: Status, committed: bool) -> ProducerCommand<Runner, Alarm> {
     let result = ResultEnvelope {
         request_id: None,
         status,
-        decision_id: Some("17".into()),
-        interaction: None,
+        ledger_sequence: Some("17".into()),
         destinations: vec![DestinationOutcome {
-            destination: Name::new("hermes").unwrap(),
+            name: Name::new("hermes").unwrap(),
             outcome: DeliveryOutcome::Failed,
             note: None,
         }],

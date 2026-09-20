@@ -1,7 +1,6 @@
 use super::*;
 use pns_protocol::{
-    DeliveryOutcome, DestinationOutcome, InteractionResult, MAX_BYTES, MAX_ITEMS, Name, RequestId,
-    decode_result,
+    DeliveryOutcome, DestinationOutcome, MAX_BYTES, MAX_ITEMS, Name, RequestId, decode_result,
 };
 use std::cell::Cell;
 
@@ -14,10 +13,9 @@ fn receipt(status: Status) -> ResultEnvelope {
     ResultEnvelope {
         request_id: Some(RequestId::new("posture-occurrence").unwrap()),
         status,
-        decision_id: Some("d-17".into()),
-        interaction: Some(InteractionResult::NoOpinion),
+        ledger_sequence: Some("17".into()),
         destinations: vec![DestinationOutcome {
-            destination: Name::new("hermes").unwrap(),
+            name: Name::new("hermes").unwrap(),
             outcome: DeliveryOutcome::Failed,
             note: Some("transport unavailable".into()),
         }],
