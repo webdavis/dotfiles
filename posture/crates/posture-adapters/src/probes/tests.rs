@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_processes::ScriptedProcesses;
 use crate::{CommandIo, CommandOutput};
 use posture_application::InspectionFailure;
 use posture_domain::{ControlRecord, ControlValue, ControlsInput, validate_controls};
@@ -73,6 +74,35 @@ fn control(reader: &str, target: &str) -> Control {
 fn captures() -> Vec<serde_json::Value> {
     serde_json::from_str(include_str!("captures.json")).unwrap()
 }
+fn walks(case: &serde_json::Value) -> ScriptedProcesses {
+    ScriptedProcesses::new(
+        case["walk_results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|result| match result.as_array() {
+                Some(pids) => Ok(pids
+                    .iter()
+                    .map(|pid| pid.as_i64().unwrap() as i32)
+                    .collect()),
+                None => Err(InspectionFailure::Failed),
+            }),
+    )
+}
+fn expected_walks(case: &serde_json::Value) -> Vec<(String, Option<u32>, Option<u32>)> {
+    case["walks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|walk| {
+            (
+                walk[0].as_str().unwrap().to_owned(),
+                Some(walk[1].as_u64().unwrap() as u32),
+                None,
+            )
+        })
+        .collect()
+}
 fn check(case: &serde_json::Value) {
     let controls: Vec<_> = case["controls"]
         .as_array()
@@ -85,6 +115,7 @@ fn check(case: &serde_json::Value) {
             responses: case["responses"].as_array().unwrap().clone().into(),
             calls: vec![],
         },
+        processes: walks(case),
         uid: case["uid"].as_u64().unwrap() as u32,
         rules: "/fixture/rules.plist".into(),
         preferences: "/fixture/preferences.plist".into(),
@@ -117,6 +148,12 @@ fn check(case: &serde_json::Value) {
         "{}",
         case["name"]
     );
+    assert_eq!(
+        sut.processes.calls,
+        expected_walks(case),
+        "{}",
+        case["name"]
+    );
     assert!(sut.runner.responses.is_empty(), "{}", case["name"]);
 }
 
@@ -126,7 +163,7 @@ fn all_eight_control_probes_keep_captured_arguments_output_and_profile_order() {
 }
 
 #[test]
-fn failed_control_exits_never_believe_healthy_output_or_pid_mismatches() {
+fn failed_control_exits_and_refused_process_walks_never_believe_healthy_output() {
     check(&captures()[1]);
 }
 
@@ -145,6 +182,7 @@ fn probe_launch_and_deadline_failures_remain_indeterminate() {
                 responses: vec![serde_json::json!({"failure":failure})].into(),
                 calls: vec![],
             },
+            processes: ScriptedProcesses::new([]),
             uid: 501,
             rules: "/fixture/rules.plist".into(),
             preferences: "/fixture/preferences.plist".into(),

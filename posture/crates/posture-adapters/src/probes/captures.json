@@ -28,16 +28,6 @@
         "err": "Guest account disabled.\n"
       },
       {
-        "out": "123\n",
-        "exit": 0,
-        "err": ""
-      },
-      {
-        "out": "",
-        "exit": 1,
-        "err": ""
-      },
-      {
         "out": "<string>/A &amp; &lt;B&gt;</string>\n",
         "exit": 0,
         "err": ""
@@ -91,20 +81,6 @@
         "/usr/sbin/sysadminctl",
         "-guestAccount",
         "status"
-      ],
-      [
-        "/usr/bin/pgrep",
-        "-x",
-        "-U",
-        "501",
-        "OverSight"
-      ],
-      [
-        "/usr/bin/pgrep",
-        "-x",
-        "-U",
-        "0",
-        "com.objective-see.lulu.extension"
       ],
       [
         "/usr/bin/plutil",
@@ -164,7 +140,23 @@
         "/launcher with space"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [
+      [
+        "OverSight",
+        501
+      ],
+      [
+        "com.objective-see.lulu.extension",
+        0
+      ]
+    ],
+    "walk_results": [
+      [
+        123
+      ],
+      []
+    ]
   },
   {
     "name": "failed-ordinary",
@@ -188,16 +180,6 @@
         "out": "",
         "exit": 2,
         "err": "Guest account enabled.\n"
-      },
-      {
-        "out": "123\n",
-        "exit": 1,
-        "err": ""
-      },
-      {
-        "out": "",
-        "exit": 0,
-        "err": ""
       }
     ],
     "fields": [
@@ -228,20 +210,6 @@
         "/usr/sbin/sysadminctl",
         "-guestAccount",
         "status"
-      ],
-      [
-        "/usr/bin/pgrep",
-        "-x",
-        "-U",
-        "501",
-        "OverSight"
-      ],
-      [
-        "/usr/bin/pgrep",
-        "-x",
-        "-U",
-        "0",
-        "com.objective-see.lulu.extension"
       ]
     ],
     "seconds": 0.16702691605314612,
@@ -272,7 +240,21 @@
         ""
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [
+      [
+        "OverSight",
+        501
+      ],
+      [
+        "com.objective-see.lulu.extension",
+        0
+      ]
+    ],
+    "walk_results": [
+      null,
+      null
+    ]
   },
   {
     "name": "profile-active",
@@ -324,7 +306,9 @@
         "/b"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   },
   {
     "name": "profile-unreadable",
@@ -362,7 +346,9 @@
         "/b"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   },
   {
     "name": "profile-empty",
@@ -395,7 +381,9 @@
         "/a"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   },
   {
     "name": "archive-empty",
@@ -441,7 +429,9 @@
         "/a"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   },
   {
     "name": "archive-failed",
@@ -487,7 +477,9 @@
         "/a"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   },
   {
     "name": "archive-longer-path",
@@ -533,7 +525,9 @@
         "/a"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   },
   {
     "name": "resolution-empty",
@@ -576,7 +570,9 @@
         "/a"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   },
   {
     "name": "resolution-failed",
@@ -619,6 +615,8 @@
         "/a"
       ]
     ],
-    "uid": 501
+    "uid": 501,
+    "walks": [],
+    "walk_results": []
   }
 ]

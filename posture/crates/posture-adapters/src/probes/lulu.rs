@@ -1,7 +1,7 @@
 use super::*;
 use posture_domain::classify_lulu_profile;
 
-impl<R: CommandRunner> ControlProbes<R> {
+impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
     pub(super) fn profile(&mut self) -> LuluProfile {
         let preferences = self.preferences.clone();
         let Some((xml, exit)) = self.plist(&preferences) else {

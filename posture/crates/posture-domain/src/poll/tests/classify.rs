@@ -13,25 +13,6 @@ fn failed_or_conflicting_probes_never_believe_healthy_printed_text() {
     }
 }
 #[test]
-fn pid_status_and_output_must_agree_in_both_directions() {
-    for output in ["0", "42", "1\n2", "99999999999999999999999"] {
-        assert_eq!(classify_pgrep(output, 0), Known(Running));
-    }
-    assert_eq!(classify_pgrep("", 1), Known(Stopped));
-    for (text, exit) in [
-        ("", 0),
-        ("1", 1),
-        ("1", 2),
-        ("", 2),
-        ("1\n", 0),
-        ("1 2", 0),
-        ("-1", 0),
-        ("é", 0),
-    ] {
-        assert_eq!(classify_pgrep(text, exit), Indeterminate, "{text:?}/{exit}");
-    }
-}
-#[test]
 fn all_five_filevault_forms_preserve_deferred_enablement_as_off() {
     for (text, value) in [
         ("FileVault is On.", On),

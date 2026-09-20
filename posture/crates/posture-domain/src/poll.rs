@@ -10,7 +10,7 @@ pub use baseline::{
 };
 pub use classify::{
     ControlReading, LuluProfile, classify_autologin, classify_filevault, classify_lulu_profile,
-    classify_messages, classify_pgrep,
+    classify_messages,
 };
 
 #[derive(Debug, Clone, Copy)]

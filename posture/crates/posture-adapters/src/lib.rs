@@ -71,6 +71,8 @@ pub use controls_file::read_controls;
 
 mod probes;
 pub use probes::ControlProbes;
+mod process_lookup;
+pub use process_lookup::{LibprocProcesses, ProcessLookup, WALK_DEADLINE};
 mod osqueryi;
 pub use osqueryi::{PostureQuery, PostureTrio};
 
@@ -150,5 +152,7 @@ pub use ssh_user::{current_uid, current_user_name};
 
 #[cfg(test)]
 mod test_gateway;
+#[cfg(test)]
+mod test_processes;
 #[cfg(test)]
 mod test_sandbox;

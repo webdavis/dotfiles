@@ -49,19 +49,6 @@ pub fn classify_filevault(output: &str, exit: i32) -> ControlReading {
         ],
     )
 }
-pub fn classify_pgrep(output: &str, exit: i32) -> ControlReading {
-    if exit == 0
-        && output
-            .split('\n')
-            .all(|line| !line.is_empty() && line.bytes().all(|b| b.is_ascii_digit()))
-    {
-        ControlReading::Known(ControlValue::Running)
-    } else if exit == 1 && output.is_empty() {
-        ControlReading::Known(ControlValue::Stopped)
-    } else {
-        ControlReading::Indeterminate
-    }
-}
 pub fn classify_autologin(output: &str, exit: i32) -> ControlReading {
     if exit == 0 {
         ControlReading::Known(ControlValue::On)
