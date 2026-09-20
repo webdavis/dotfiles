@@ -200,7 +200,8 @@ pub(crate) fn run() {
     // THE OLD SPELLING, REFUSED BY NAME rather than falling through to the
     // event path: `pns daemon <verb>` is a command the operator believes ran.
     if first == "daemon" {
-        eprintln!("pns: `pns daemon` is now `pns gateway`: {GATEWAY_USAGE}");
+        eprintln!("`pns daemon` is now `pns gateway`");
+        eprintln!("{GATEWAY_USAGE}");
         std::process::exit(2);
     }
     // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
