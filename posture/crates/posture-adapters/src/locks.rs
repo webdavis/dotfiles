@@ -1,4 +1,4 @@
-use crate::{current_uid, ssh_current_user};
+use crate::{current_uid, current_user_name};
 use posture_application::{LockRefusal, RecordRefusal, WriteLock, WriteRecord};
 use std::ffi::CStr;
 use std::fs::{self, File, OpenOptions};
@@ -62,7 +62,7 @@ impl WriteRecord for WriteGuard {
             "verb": verb,
             "label": label,
             "uid": current_uid(),
-            "user": ssh_current_user(),
+            "user": current_user_name(),
             "parent": parent_process_name(),
         });
         let mut bytes = serde_json::to_vec(&line).map_err(|_| RecordRefusal)?;

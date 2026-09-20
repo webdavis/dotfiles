@@ -71,7 +71,7 @@ fn a_recorded_write_names_the_caller_the_time_the_verb_and_the_label() {
     for line in &lines {
         assert_eq!(line["label"], "my.alpha");
         assert_eq!(line["uid"], crate::current_uid());
-        assert_eq!(line["user"], serde_json::json!(crate::ssh_current_user()));
+        assert_eq!(line["user"], serde_json::json!(crate::current_user_name()));
         let time = line["time"].as_str().unwrap();
         assert_eq!(time.len(), 20, "{time} is not an RFC 3339 UTC instant");
         assert!(time.ends_with('Z'));
