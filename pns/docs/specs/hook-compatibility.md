@@ -466,7 +466,7 @@ Then `consume_turn_marker` renames the marker to a per-process claim path, reads
   (`tests/hooks.rs:a_corrupt_marker_declines_rather_than_crashing_and_is_still_consumed`).
 - Thresholds: `session_was_long` is `elapsed_secs >= threshold_secs`. The threshold is
   `pulse::DEFAULT_LONG_SESSION_SECS` = 300 seconds, fixed: it is its own constant, not `[lights.loop]
-  threshold_secs`, which arms the loop lamp on a different clock. At exactly 300 seconds elapsed the turn
+  arm_after`, which arms the loop lamp on a different clock. At exactly 300 seconds elapsed the turn
   IS long; at 299 it is not (`src/pulse.rs:session_was_long`, and the crate unit test at `src/pulse.rs`
   asserting `session_was_long(Some(300), Some(300))`).
 - Required side effects: the marker is gone afterwards
@@ -1067,7 +1067,7 @@ Then `blocked_marker_action` maps the event's state word to Start or End, Start 
 - Privacy: the marker's contents are one epoch timestamp.
 - Process ownership and cleanup: fail-quiet on both arms; a marker that did not land costs one lamp its
   colour and never a card.
-- Compatibility contract: `[lights.blocked] give_up_after_secs` shorter than `[remind] delay` is
+- Compatibility contract: `[lights.blocked] lease_expiry` shorter than `[remind] delay` is
   refused by name at configuration load, so the backstop can never sweep a wait the reminder has not yet
   nudged (`src/main.rs:update_blocked_marker`, referring to `config::parse_config`).
 

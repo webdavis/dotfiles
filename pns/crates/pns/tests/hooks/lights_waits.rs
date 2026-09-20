@@ -6,7 +6,7 @@ use super::*;
 /// `[lights]` table with hue disabled lights nothing and runs no tick, so
 /// there would be nothing to sweep the markers it wrote.
 pub(crate) const LAMPS_ON: &str = "[plugins.lights]\nenabled = true\n\
-     [lights]\nrefresh_secs = 20\n\
+     [lights]\narm_interval = \"20s\"\n\
      [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n";
 
 /// Every session the lamps currently believe is waiting on the operator.

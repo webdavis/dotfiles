@@ -432,7 +432,7 @@ Then the banner belongs to the desk with the pane out of sight, the card belongs
   either derived from `--elapsed`/JSON `elapsed` (`src/legacy/argv.rs`, `src/event_flow/submit/mapping.rs`)
   or, on the hook path, from
   `pns::pulse::session_was_long(elapsed, Some(pulse::DEFAULT_LONG_SESSION_SECS))`, a fixed **300 seconds**
-  inclusive with no override, `[lights.loop] threshold_secs` arms the loop lamp on a separate clock: 300
+  inclusive with no override, `[lights.loop] arm_after` arms the loop lamp on a separate clock: 300
   is long, 299 is not (`src/pulse.rs` asserts both).
   `card_while_watching` defaults to false (`src/main.rs:watch_card`).
 - Required side effects: none. `plan` returns a value; `src/routing.rs:channel_plan` turns it into legs.

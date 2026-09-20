@@ -12,7 +12,7 @@ impl LampMarkers for FileLampMarkers {
     fn leases(&self, now: u64, timeout_secs: u64) -> Vec<u64> {
         super::sweep_leases(&self.0, now, timeout_secs)
     }
-    fn blocked(&self, now: u64, give_up_after_secs: u64) -> Vec<u64> {
-        super::sweep::sweep_blocked(&self.0, now, give_up_after_secs)
+    fn blocked(&self, now: u64, lease_expiry_secs: u64) -> Vec<u64> {
+        super::sweep::sweep_blocked(&self.0, now, lease_expiry_secs)
     }
 }
