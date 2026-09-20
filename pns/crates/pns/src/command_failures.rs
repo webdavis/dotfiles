@@ -215,7 +215,7 @@ pub(crate) fn compose(
         command: command(stored),
         outcome: stored.outcome,
         retries: stored.retries,
-        max_attempts: pns_domain::retry::RetryLimits::default().max_attempts,
+        max_attempts: pns_domain::retry::RetryLimits::default().max_retries,
     }
 }
 
