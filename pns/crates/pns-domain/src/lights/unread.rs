@@ -92,12 +92,12 @@ pub enum Unread {
 ///
 /// FAILURE ARMS AT ONCE AND SUCCESS WAITS. A result the operator is still
 /// looking at should not light a lamp about itself, so success news has to be
-/// `after_secs` old; a failure has no such grace, because the sooner they know
+/// `arm_after` old; a failure has no such grace, because the sooner they know
 /// the better.
 ///
 /// THE AGE TEST IS CLOSED AND THE EDGE TEST IS NOT, which is two different
 /// questions taking the crate's two standing conventions. News exactly
-/// `after_secs` old HAS waited that long (`session_was_long`'s rule), and news
+/// `arm_after` old HAS waited that long (`session_was_long`'s rule), and news
 /// exactly AT the interaction edge is not newer than it (`marker_is_live`'s
 /// sibling rule, and the direction that leaves a lamp dark on a tie).
 pub fn unread_arming(
@@ -105,7 +105,7 @@ pub fn unread_arming(
     last_interaction: Option<u64>,
     working: bool,
     now: u64,
-    after_secs: u64,
+    arm_after_secs: u64,
 ) -> Option<Unread> {
     if working {
         return None;
@@ -123,7 +123,10 @@ pub fn unread_arming(
         return Some(Unread::Failure);
     }
     unseen(news.done_at)
-        .filter(|at| now.checked_sub(*at).is_some_and(|age| age >= after_secs))
+        .filter(|at| {
+            now.checked_sub(*at)
+                .is_some_and(|age| age >= arm_after_secs)
+        })
         .map(|_| Unread::Success)
 }
 /// When the operator last touched the machine, from the three roads' own

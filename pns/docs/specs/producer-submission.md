@@ -4,7 +4,12 @@ Historical snapshot, not the live contract: this file predates the retirement la
 `PNS_AGENT` is REFUSED on the current parser (`src/legacy/argv.rs:RETIRED_FLAGS`), not warned and
 dropped as section 4 below still says; `--producer`/`PNS_PRODUCER` is the live spelling. `--long-running`
 is likewise REFUSED now, not accepted as a boolean the way the excerpt below still shows it: pns derives
-that tier from `--elapsed` alone. Not rewritten pending the ladder's closing docs pass.
+that tier from `--elapsed` alone. SECTION 4 IS NO LONGER THE PARSER EITHER: the parse is strict now,
+so a value flag given no value is refused as `<flag> requires a value` and any other unknown word as
+`<word> is not a flag pns takes`, each with exit 2 and nothing delivered, where section 4 says warn,
+skip and deliver. A recognized flag standing in value position is still never eaten, and an
+unrecognized token in value position is still taken as the value. Not rewritten pending the ladder's
+closing docs pass.
 
 ## Scope
 

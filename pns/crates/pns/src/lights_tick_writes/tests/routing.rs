@@ -12,7 +12,7 @@ mod tests {
         let state = scratch("tick-complains");
         let bridge = scripted(true);
         let lights = *pns_adapters::parse_config(
-            "[lights]\nrefresh_secs = 10\n\
+            "[lights]\narm_interval = \"10s\"\n\
              [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n\
              dim_window = \"2200-0700\"\n\
              [lights.lamp.\"3F - Nowhere\"]\nbehaviours = [\"blocked\"]\n",
@@ -48,7 +48,7 @@ mod tests {
         // takes, so a narrowing wired into the pulse alone would leave a
         // blocked breath lit in every room while the operator sits in one.
         let lights = *pns_adapters::parse_config(
-            "[lights]\nrefresh_secs = 10\n\
+            "[lights]\narm_interval = \"10s\"\n\
              [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n\
              [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"blocked\"]\n",
         )
@@ -98,7 +98,7 @@ mod tests {
         // `pulse_fires`: a kitchen lamp carrying only `unseen` is not a lamp a
         // blocked wait can breathe on.
         let lights = *pns_adapters::parse_config(
-            "[lights]\nrefresh_secs = 10\n\
+            "[lights]\narm_interval = \"10s\"\n\
              [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n\
              [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"unseen\"]\n",
         )

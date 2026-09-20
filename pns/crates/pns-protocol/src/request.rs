@@ -20,8 +20,9 @@ const SCHEMA_NAME: &str = "pns.request";
 const SCHEMA_MAJOR: u32 = 1;
 
 /// Every top-level field version 1 defines, `schema` included. A key not in
-/// this list is ignored and named, never refused: additive fields from a
-/// newer producer must not break an older pns.
+/// this list is REFUSED and named, the same way the flag path refuses a word
+/// that is no flag of pns's: a field pns drops is a producer saying something
+/// that goes nowhere.
 const KNOWN_FIELDS: [&str; 15] = [
     "schema",
     "request_id",
@@ -42,12 +43,9 @@ const KNOWN_FIELDS: [&str; 15] = [
 
 /// Every field version 1 RETIRED, paired with the one that replaced it.
 ///
-/// REFUSED BY NAME, where an unknown field is merely ignored, and the split is
-/// the same one the flag path already makes for `--kind`: a field nobody ever
-/// defined is a newer producer pns does not have to understand, while one this
-/// envelope USED to honour is a producer still saying something pns would now
-/// silently drop. A page whose class went nowhere is the failure this refusal
-/// exists to prevent.
+/// The refusal names the replacement, where an unknown field is only named,
+/// which is the same split the flag path makes between `--kind` and a word it
+/// never defined.
 const RETIRED_FIELDS: [(&str, &str); 2] = [("class", "delivery_class"), ("kind", "delivery_class")];
 
 fn schema() -> SchemaId {
@@ -270,8 +268,10 @@ impl Request {
     }
 }
 
-/// A decoded request plus the top-level fields version 1 does not define,
-/// so the result can name them as diagnostics.
+/// A decoded request plus the top-level fields this envelope recognizes but
+/// acts on nowhere, which the result names in its own `ignored_fields` list.
+/// Every field version 1 defines is acted on today, so the list is empty on
+/// every accepted request; a field version 1 does not define is refused.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Decoded {
     pub request: Request,
@@ -288,12 +288,20 @@ pub fn decode(bytes: &[u8]) -> Result<Decoded, Rejected> {
             reason: Rejection::Invalid(format!("`{retired}` was replaced by `{replacement}`")),
         });
     }
-    let ignored = ignored_fields(&value);
+    if let Some(unknown) = unknown_field(&value) {
+        return Err(Rejected {
+            request_id,
+            reason: Rejection::Invalid(format!("`{unknown}` is not a field pns takes")),
+        });
+    }
     let request = serde_json::from_value(value).map_err(|error| Rejected {
         request_id,
         reason: Rejection::Invalid(error.to_string()),
     })?;
-    Ok(Decoded { request, ignored })
+    Ok(Decoded {
+        request,
+        ignored: Vec::new(),
+    })
 }
 
 fn retired_field(value: &Value) -> Option<(&'static str, &'static str)> {
@@ -303,17 +311,12 @@ fn retired_field(value: &Value) -> Option<(&'static str, &'static str)> {
         .find(|(retired, _)| object.contains_key(*retired))
 }
 
-fn ignored_fields(value: &Value) -> Vec<String> {
+fn unknown_field(value: &Value) -> Option<String> {
     value
-        .as_object()
-        .map(|object| {
-            object
-                .keys()
-                .filter(|key| !KNOWN_FIELDS.contains(&key.as_str()))
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default()
+        .as_object()?
+        .keys()
+        .find(|key| !KNOWN_FIELDS.contains(&key.as_str()))
+        .cloned()
 }
 
 /// `elapsed` on the wire: one duration spelling, the parser every other pns

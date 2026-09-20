@@ -61,7 +61,7 @@ fn a_request_round_trips_through_encode_and_decode_unchanged() {
     let decoded = decode(request.encode().unwrap().as_bytes()).unwrap();
     assert_eq!(decoded.request, request);
     // Also pins the known-field list: a field the struct writes but the list
-    // omits would surface here as an "ignored" field of our own making.
+    // omits would refuse its own encoded request here.
     assert!(decoded.ignored.is_empty(), "{:?}", decoded.ignored);
 }
 
@@ -143,17 +143,36 @@ fn absent_optional_fields_take_their_documented_defaults() {
     assert_eq!(request.elapsed, None);
 }
 
+/// A field pns would drop is a producer saying something that goes nowhere,
+/// so it is refused and named, exactly as the flag path refuses an unknown
+/// flag. The refusal names the FIRST unknown field rather than listing them.
 #[test]
-fn an_unknown_top_level_field_is_ignored_and_named_rather_than_refused() {
+fn an_unknown_top_level_field_is_refused_and_named() {
     let mut value = minimal();
     value["detial"] = json!("a typo");
     value["zzz"] = json!(1);
-    let decoded = decode_value(&value).unwrap();
+    let refusal = decode_value(&value).expect_err("an unknown field is refused");
     assert_eq!(
-        decoded.ignored,
-        vec!["detial".to_string(), "zzz".to_string()]
+        refusal.reason,
+        Rejection::Invalid("`detial` is not a field pns takes".to_string())
     );
-    assert_eq!(decoded.request.detail, "");
+    assert_eq!(
+        refusal.request_id.map(|id| id.as_str().to_string()),
+        Some("r-1".to_string()),
+        "the refusal stays correlated"
+    );
+}
+
+/// A field carrying no value at all is still bad input: `state` is required,
+/// and a request without it is refused before anything is delivered.
+#[test]
+fn a_required_field_left_out_is_refused() {
+    let mut value = minimal();
+    value.as_object_mut().unwrap().remove("state");
+    assert!(matches!(
+        decode_value(&value).unwrap_err().reason,
+        Rejection::Invalid(_)
+    ));
 }
 
 #[test]
@@ -200,23 +219,20 @@ fn the_delivery_scope_is_one_word_and_the_words_are_exactly_three() {
 }
 
 #[test]
-fn event_occurred_at_and_interaction_are_ignored_and_named_rather_than_refused() {
+fn event_occurred_at_and_interaction_are_refused_like_any_other_unknown_field() {
     // These fields changed nothing: `event` and `occurred_at` were stored and
-    // never read, and `interaction` always answered "no opinion". They decode
-    // as ordinary unknown fields now, the same as a typo.
-    let mut value = minimal();
-    value["event"] = json!("legacy-name");
-    value["occurred_at"] = json!(-1);
-    value["interaction"] = json!({ "kind": "await_decision" });
-    let decoded = decode_value(&value).unwrap();
-    assert_eq!(
-        decoded.ignored,
-        vec![
-            "event".to_string(),
-            "interaction".to_string(),
-            "occurred_at".to_string(),
-        ]
-    );
+    // never read, and `interaction` always answered "no opinion". Each is an
+    // ordinary unknown field now, the same as a typo.
+    for field in ["event", "occurred_at", "interaction"] {
+        let mut value = minimal();
+        value[field] = json!("whatever it said");
+        assert_eq!(
+            decode_value(&value)
+                .expect_err("a retired name is refused")
+                .reason,
+            Rejection::Invalid(format!("`{field}` is not a field pns takes")),
+        );
+    }
 }
 
 #[test]

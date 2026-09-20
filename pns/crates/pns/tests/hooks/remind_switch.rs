@@ -137,7 +137,7 @@ fn a_remind_duration_past_the_lamps_backstop_is_refused_and_names_both_numbers()
     // it belongs to has ever fired.
     let sandbox = Sandbox::new("remind-switch-outlasts-backstop");
     sandbox.write_config(&format!(
-        "{}[lights.blocked]\ngive_up_after_secs = 60\n",
+        "{}[lights.blocked]\nlease_expiry = \"60s\"\n",
         support::STUB_CHANNELS
     ));
 
@@ -147,7 +147,7 @@ fn a_remind_duration_past_the_lamps_backstop_is_refused_and_names_both_numbers()
     assert!(said.contains("300"), "the call's own seconds: {said}");
     assert!(said.contains("60"), "and the backstop's: {said}");
     assert!(
-        said.contains("give_up_after_secs"),
+        said.contains("lease_expiry"),
         "the config key is named: {said}"
     );
     assert!(!remind_record(&sandbox, "s1").exists());
