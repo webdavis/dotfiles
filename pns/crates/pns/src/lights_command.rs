@@ -107,7 +107,7 @@ pub fn mute_command(
             Ok(MuteCommand::Mute {
                 place: place.clone(),
                 seconds: pns_domain::duration::parse_duration(
-                    "quiet duration",
+                    "mute duration",
                     word,
                     pns_domain::mute::MUTE_RANGE,
                 )?

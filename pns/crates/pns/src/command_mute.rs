@@ -38,7 +38,7 @@ pub(crate) fn mute_mode() -> i32 {
             let _ = records.set_mute_expiry(None);
         }
         [duration] => match pns_domain::duration::parse_duration(
-            "quiet duration",
+            "mute duration",
             duration,
             pns_domain::mute::MUTE_RANGE,
         ) {
