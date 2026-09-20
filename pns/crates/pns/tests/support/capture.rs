@@ -27,27 +27,51 @@ pub struct Capture {
     captured: PathBuf,
 }
 
-impl Capture {
-    /// `requests` is how many the server serves before it exits, which only a
-    /// leg that posts more than once has any use for.
-    pub fn start(
-        sandbox: &Sandbox,
-        name: &str,
-        status: Option<&str>,
-        requests: Option<&str>,
-    ) -> Self {
-        let port_file = sandbox.path(&format!("{name}.port"));
-        let captured = sandbox.path(&format!("{name}.capture"));
+/// The status http-capture answers when no caller chose one.
+const DEFAULT_STATUS: u16 = 200;
+
+/// Refuses a status no HTTP response can carry, at the call site that named it.
+fn checked_status(status: u16) -> u16 {
+    assert!(
+        (100..=599).contains(&status),
+        "{status} is not an HTTP status a capture can answer"
+    );
+    status
+}
+
+/// Names the status and the request count, so neither can take the other's place.
+pub struct CaptureBuilder<'a> {
+    sandbox: &'a Sandbox,
+    name: &'a str,
+    status: u16,
+    requests: usize,
+}
+
+impl<'a> CaptureBuilder<'a> {
+    /// The status the server answers every request with.
+    pub fn status(mut self, status: u16) -> Self {
+        self.status = checked_status(status);
+        self
+    }
+
+    /// How many requests the server serves before it exits, which only a leg
+    /// that posts more than once has any use for.
+    pub fn requests(mut self, requests: usize) -> Self {
+        self.requests = requests;
+        self
+    }
+
+    pub fn start(self) -> Capture {
+        let port_file = self.sandbox.path(&format!("{}.port", self.name));
+        let captured = self.sandbox.path(&format!("{}.capture", self.name));
         let mut command = Command::new(CAPTURE);
-        command.arg(&port_file).arg(&captured);
-        // The count is positional behind the status, so a caller naming one
-        // names both.
-        if let Some(status) = status {
-            command.arg(status);
-        }
-        if let Some(requests) = requests {
-            command.arg(requests);
-        }
+        // Both are passed on every start, so http-capture's positional pair is
+        // never read one argument short.
+        command
+            .arg(&port_file)
+            .arg(&captured)
+            .arg(self.status.to_string())
+            .arg(self.requests.to_string());
         let server = command.spawn().expect("the capture server starts");
 
         let deadline = Instant::now() + Duration::from_secs(30);
@@ -66,6 +90,18 @@ impl Capture {
             captured,
         }
     }
+}
+
+impl Capture {
+    /// A capture that answers 200 to one request until told otherwise.
+    pub fn builder<'a>(sandbox: &'a Sandbox, name: &'a str) -> CaptureBuilder<'a> {
+        CaptureBuilder {
+            sandbox,
+            name,
+            status: DEFAULT_STATUS,
+            requests: 1,
+        }
+    }
 
     pub fn url(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
@@ -80,5 +116,21 @@ impl Capture {
     pub fn finish(mut self) -> String {
         let _ = self.server.wait();
         std::fs::read_to_string(&self.captured).unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::checked_status;
+
+    #[test]
+    fn a_real_http_status_is_kept() {
+        assert_eq!(checked_status(503), 503);
+    }
+
+    #[test]
+    #[should_panic(expected = "3 is not an HTTP status")]
+    fn a_request_count_passed_as_a_status_is_refused() {
+        checked_status(3);
     }
 }

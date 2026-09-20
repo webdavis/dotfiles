@@ -21,10 +21,16 @@ pub(super) fn mute_command(sandbox: &Sandbox) -> std::process::Command {
 /// contention between short transactions, and a test staging a wedged writer
 /// is not that. The refusal is what is being pinned, and it is the same
 /// refusal at either bound.
+///
+/// THE BOUND IS WRITTEN INTO THIS SANDBOX'S CONFIG, which is the only way to
+/// set it: `[storage] busy_deadline` replaced the environment variable that
+/// production code used to read.
 pub(super) fn refused_mute_command(sandbox: &Sandbox) -> std::process::Command {
-    let mut command = mute_command(sandbox);
-    command.env("PNS_DB_BUSY_TIMEOUT_MS", "50");
-    command
+    sandbox.write_config(&format!(
+        "{}[storage]\nbusy_deadline = \"50ms\"\n",
+        support::STUB_CHANNELS
+    ));
+    mute_command(sandbox)
 }
 
 /// The state file the mute is published to.
