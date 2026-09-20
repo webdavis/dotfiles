@@ -287,8 +287,8 @@ Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/resu
 
 Given a result, when encoded or decoded, then status is delivered, partial, undelivered or rejected, and
 destination outcome is delivered, failed, silent, unlaunched or unknown. `silent` is a channel that ran
-and said nothing, `unknown` a leg whose answer the ledger never learned. Each is one bare word on the wire, never
-a one-key wrapper object, so a wrapped word is field_invalid the same way an unknown word is.
+and said nothing, `unknown` a leg whose answer the ledger never learned. Each is one bare word on the
+wire, never a one-key wrapper object, so a wrapped word is field_invalid the same way an unknown word is.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L27),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L48),
