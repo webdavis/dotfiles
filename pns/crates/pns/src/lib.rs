@@ -135,7 +135,7 @@ pub(crate) use presence_runtime::{
     home_presence, last_narrowing, presence_snapshot, presence_status, system_probes,
 };
 pub(crate) use remind_schedule_runtime::{
-    REMIND_OFF, arm_remind, clear_remind, remind_delay, remind_delay_secs,
+    REMIND_OFF, Reminder, arm_remind, clear_remind, remind_delay, remind_delay_secs,
 };
 pub(crate) use return_replay::replay_missed;
 pub(crate) use runtime_environment::{
