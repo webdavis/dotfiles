@@ -221,39 +221,33 @@ bash:60-66, which called `osascript` directly.
 The event is the producer argv the shell notifier already uses:
 
 ```
-~/.local/libexec/pns/pns --producer lights --state done --project <room> \
-  --detail "<action line>" --local-only
+~/.cargo/bin/pns send --producer lights --state done --project <room> \
+  --detail "<action line>" --scope local_only
 ```
 
-`PnsNotifier::announce` runs synchronously and owns the monitor process until it exits and is reaped.
-The monitor is the installed coreutils `gtimeout`, invoked without a shell:
+`PnsNotifier::announce` runs synchronously and bounds pns itself, with no external monitor process.
+It spawns pns as its own process group leader, then polls the child every millisecond until it exits or
+the 2s deadline passes. A child that finishes in time reports its own exit code. An overrun ends the
+group: SIGTERM first, then up to 250ms grace, then SIGKILL to whatever is still there; the adapter
+reports exit 137 (128 + `SIGKILL`) for that outcome, and never claims that code proves delivery. The
+group send is safe against pns's own detached delivery children racing it: every one of them sets its
+own process group before detaching, so the group signal reaches only pns's direct process and any
+descendant still inside it, never an in-flight delivery. All three streams are null. `PnsNotifier` waits
+for and reaps the child itself, then returns control to the use case, which returns the original
+successful action unchanged. No detached waiter is left for lights to forget.
 
-```
-gtimeout --foreground --signal=KILL 2s <pns-path> <producer-argv...>
-```
+A spawn or wait error is notification failure, with no unbounded fallback; a missing pns binary lands
+here. All outcomes leave light-action output and exit 0 unchanged, with no notification diagnostic or
+retry.
 
-`gtimeout` owns the direct pns child: it waits for completion, sends the uncatchable kill signal after
-two seconds if necessary, and reaps that child before returning. Foreground mode keeps the monitor
-outside a separate timeout process group so the kill does not kill the monitor itself. All three
-streams are null. `PnsNotifier` waits for and reaps the monitor, then returns control to the use case,
-which returns the original successful action unchanged. No detached waiter is left for lights to forget.
-
-Handle every outcome explicitly inside the adapter: zero means the invocation finished; 137 may mean
-timeout, a kill or that same pns exit code, and never proves delivery. Treat 125 as monitor failure and
-126/127 as unable to run, without claiming those codes cannot come from pns. Other nonzero or signal
-exits, and spawn or wait errors, are notification failure.
-All leave light-action output and exit 0 unchanged, with no notification diagnostic or retry. If
-`gtimeout` or pns is unavailable, skip notification; never fall back to an unbounded direct spawn.
-
-This deadline covers the direct producer child. Foreground `gtimeout` does not kill pns descendants.
 pns owns delivery-process cleanup, including after its producer exits or is killed; PR 10 must verify
 that separate lifecycle contract before wiring notification, including an independent finite owner for
 any deliberately detached recap. The original Bash-channel path had an unbounded child wait; the pns
-lifecycle fixes are a delivery prerequisite, not a guarantee made by this monitor. The lights plan does
+lifecycle fixes are a delivery prerequisite, not a guarantee made by this bound. The lights plan does
 not add a delivery supervisor or change pns. Notification remains default-off.
 
-`--local-only` is deliberate: you are standing in the room with your hand on the key, so there is nothing
-for the phone to tell you.
+`--scope local_only` is deliberate: you are standing in the room with your hand on the key, so there is
+nothing for the phone to tell you.
 
 ## Deliberate brightness changes and hardware acceptance
 

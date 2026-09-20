@@ -168,10 +168,6 @@ def check(case, result, fixture, legacy=False, capture_notifications=True):
     assert len(notes) == int(case["notify"]), ("notifications", notes)
     if notes and not legacy:
         want = [
-            "gtimeout",
-            "--foreground",
-            "--signal=KILL",
-            "2s",
             result["home"] + "/.cargo/bin/pns",
             "send",
             "--producer",
