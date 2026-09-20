@@ -21,7 +21,7 @@ pub fn signal_after_delivery(
     } else {
         // TODAY'S PATH, UNCHANGED, and it is the compatibility claim of this
         // whole change: one house window for the whole pulse, one write per room
-        // in `[plugins.hue] rooms`, and one refusal that costs the pulse when
+        // in `[plugins.lights] rooms`, and one refusal that costs the pulse when
         // nobody can read the window. A machine that never wrote a `[lights]`
         // table reaches nothing new.
         match window() {

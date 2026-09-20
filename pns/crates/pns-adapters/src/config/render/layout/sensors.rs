@@ -4,7 +4,7 @@ pub(super) const PLUGINS_PRESENCE: Table = Table {
     prose: "# Which room you are in, read off the bridge's per-room motion roll-up so\n\
                  # the lamp that signals is the one beside you. A SENSOR, not a\n\
                  # destination: no event routes to it. It reads the bridge through\n\
-                 # [plugins.hue] above, so switching this on with that one off is refused\n\
+                 # [plugins.lights] above, so switching this on with that one off is refused\n\
                  # by name.\n",
     opt_in: true,
     children: &[],
@@ -72,8 +72,8 @@ pub(super) const PLUGINS_PRESENCE: Table = Table {
         },
     ],
 };
-pub(super) const PLUGINS_ROUTER: Table = Table {
-    name: "plugins.router",
+pub(super) const PLUGINS_HOME_PRESENCE: Table = Table {
+    name: "plugins.home_presence",
     prose: "# The home probe: whether the phone is on the home wifi, answered by the\n\
                  # router's own client list. A SENSOR rather than a destination, so no\n\
                  # event ever routes to it; `pns doctor` is how it is read.\n",

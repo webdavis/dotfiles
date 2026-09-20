@@ -45,7 +45,7 @@ fn body(mismatch: &Mismatch) -> String {
         "pns: the bridge at {} presented a certificate pns is not pinned to, so \
 every lamp call is refused\nexpected: {}\npresented: {}\nfix: run `pns lights enroll`, \
 check the printed common name is the bridge you expect, and put its \
-`certificate = \"sha256:...\"` line on the vault entry [plugins.hue] certificate reads",
+`certificate = \"sha256:...\"` line on the vault entry [plugins.lights] certificate reads",
         mismatch.address, mismatch.expected, mismatch.presented
     )
 }

@@ -132,7 +132,7 @@ pub(super) fn holds(state: &Path) -> Vec<PathBuf> {
 fn returning() -> Decision {
     Decision {
         legs: vec![Leg {
-            name: "macos-banner",
+            name: "banner",
             mode: ReportMode::Silent,
             decorative: true,
         }],

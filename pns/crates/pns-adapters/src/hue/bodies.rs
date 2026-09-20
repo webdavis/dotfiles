@@ -17,7 +17,7 @@ fn dimming(percent: u8) -> serde_json::Value {
 /// IT ALWAYS STATES A BRIGHTNESS, and that is the price of a config that can
 /// dim: a `dimming` written beside a signal PERSISTS after the signal ends
 /// (drill D4, 2026-08-30), so a body that said nothing would inherit whatever
-/// the last dim write left. The `[plugins.hue] rooms` path below states none,
+/// the last dim write left. The `[plugins.lights] rooms` path below states none,
 /// and the lamp comes back byte-identical, because nothing on that path can
 /// ever write a floor.
 pub fn pulse_body(

@@ -29,13 +29,13 @@ fn every_surface_and_visibility_pair_dispatches_the_legs_its_row_planned() {
             "at the desk, pane on another tab: banner",
             Some(2),
             Some(elsewhere("wW:p1")),
-            vec!["macos-banner", "hermes"],
+            vec!["banner", "hermes"],
         ),
         (
             "at the desk, view unreadable: banner, never suppressed on doubt",
             Some(2),
             None,
-            vec!["macos-banner", "hermes"],
+            vec!["banner", "hermes"],
         ),
         (
             "away, pane on screen: the card still fires",
@@ -77,7 +77,7 @@ fn a_phone_used_more_recently_than_the_desk_never_gets_a_banner() {
     };
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
-    assert!(!legs.contains(&"macos-banner"), "got {legs:?}");
+    assert!(!legs.contains(&"banner"), "got {legs:?}");
     assert!(legs.contains(&"mobile"), "got {legs:?}");
 }
 
@@ -132,7 +132,7 @@ fn a_tap_with_moshi_closed_cards_even_when_the_session_view_cannot_be_read() {
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
     assert!(legs.contains(&"mobile"), "got {legs:?}");
-    assert!(!legs.contains(&"macos-banner"), "mobile never banners");
+    assert!(!legs.contains(&"banner"), "mobile never banners");
 }
 
 #[test]
