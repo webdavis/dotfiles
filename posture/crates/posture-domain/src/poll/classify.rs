@@ -49,25 +49,19 @@ pub fn classify_filevault(output: &str, exit: i32) -> ControlReading {
         ],
     )
 }
-pub fn classify_autologin(output: &str, exit: i32) -> ControlReading {
-    if exit == 0 {
-        ControlReading::Known(ControlValue::On)
-    } else if output.contains("autoLoginUser) does not exist") {
-        ControlReading::Known(ControlValue::Off)
-    } else {
-        ControlReading::Indeterminate
+/// `None` when the login window preferences could not be read.
+pub fn classify_autologin(auto_login_user_declared: Option<bool>) -> ControlReading {
+    match auto_login_user_declared {
+        Some(true) => ControlReading::Known(ControlValue::On),
+        Some(false) => ControlReading::Known(ControlValue::Off),
+        None => ControlReading::Indeterminate,
     }
 }
-pub fn classify_lulu_profile(
-    success: bool,
-    nonempty: bool,
-    current_profile_present: bool,
-) -> LuluProfile {
-    if !success || !nonempty {
-        LuluProfile::Unconfirmed
-    } else if current_profile_present {
-        LuluProfile::Active
-    } else {
-        LuluProfile::Base
+/// `None` when the LuLu base preferences could not be read.
+pub fn classify_lulu_profile(current_profile_declared: Option<bool>) -> LuluProfile {
+    match current_profile_declared {
+        Some(true) => LuluProfile::Active,
+        Some(false) => LuluProfile::Base,
+        None => LuluProfile::Unconfirmed,
     }
 }

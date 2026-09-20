@@ -4,6 +4,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 type Comparison = Result<String, (&'static str, String)>;
+
+/// The git the fork comparison runs, at its system path.
+const GIT: &str = "/usr/bin/git";
 pub(super) fn inspect(
     parent: &Path,
     fields: &[&str; 3],
@@ -34,7 +37,8 @@ pub(super) fn inspect(
     (result, cleanup)
 }
 fn compare(home: &Path, fields: &[&str; 3], runner: &dyn CommandRunner) -> Comparison {
-    let mut environment = vec!["-i".to_string(), "PATH=/usr/bin:/bin".into()];
+    let mut variables =
+        std::collections::BTreeMap::from([("PATH".to_string(), "/usr/bin:/bin".to_string())]);
     for key in [
         "HOME",
         "XDG_CONFIG_HOME",
@@ -45,24 +49,22 @@ fn compare(home: &Path, fields: &[&str; 3], runner: &dyn CommandRunner) -> Compa
         "CLAUDE_CONFIG_DIR",
         "TMPDIR",
     ] {
-        environment.push(format!("{key}={}", home.display()));
+        variables.insert(key.to_string(), home.display().to_string());
     }
-    environment.extend(
-        [
-            "GIT_CONFIG_GLOBAL=/dev/null",
-            "GIT_CONFIG_SYSTEM=/dev/null",
-            "GIT_CONFIG_COUNT=0",
-            "GIT_CONFIG_PARAMETERS=",
-            "GIT_TERMINAL_PROMPT=0",
-            "/usr/bin/git",
-        ]
-        .map(str::to_string),
-    );
-    let run = |args: &[&str]| {
-        let mut command = environment.iter().map(String::as_str).collect::<Vec<_>>();
-        command.extend_from_slice(args);
-        runner.run_with_deadline("/usr/bin/env", &command, Duration::from_secs(300))
-    };
+    for (key, value) in [
+        ("GIT_CONFIG_GLOBAL", "/dev/null"),
+        ("GIT_CONFIG_SYSTEM", "/dev/null"),
+        ("GIT_CONFIG_COUNT", "0"),
+        ("GIT_CONFIG_PARAMETERS", ""),
+        ("GIT_TERMINAL_PROMPT", "0"),
+    ] {
+        variables.insert(key.to_string(), value.to_string());
+    }
+    // NOTHING UU INHERITED reaches this git: the comparison reads an untrusted
+    // upstream, so its whole environment is the one named here.
+    let environment = crate::lanes::Environment::only(&variables);
+    let run =
+        |args: &[&str]| runner.run_in(GIT, args, &environment, Some(Duration::from_secs(300)));
     let repo = home.join("repo");
     let path = repo.to_string_lossy();
     if let Err(why) = run(&["clone", "--quiet", "--depth", "1", "--", fields[0], &path]) {

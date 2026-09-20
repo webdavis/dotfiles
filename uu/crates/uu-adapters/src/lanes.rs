@@ -26,7 +26,7 @@ pub use skills::{
     SkillsPublication, SkillsRecovery, SkillsRoster, exchange_skills_directories,
 };
 
-pub use spawn::{CommandRunner, Ran, Verdict};
+pub use spawn::{CommandRunner, Environment, Ran, Verdict};
 pub use text::failure_reason;
 use uu_domain::LaneReport;
 

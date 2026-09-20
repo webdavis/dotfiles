@@ -11,27 +11,32 @@ mod fixture;
 use fixture::{Child, Fixture};
 
 #[test]
-fn the_smoke_test_runs_nvim_through_env_with_the_four_base_directories_redirected() {
+fn the_smoke_test_runs_nvim_itself_with_the_four_base_directories_redirected() {
     let f = Fixture::new("args");
     let child = Child::new(&f, "ok");
     assert_eq!(f.run(&child).verdict(), LaneVerdict::Completed);
     let calls = child.calls.borrow();
-    for call in calls.iter() {
-        assert_eq!(call[0], "/usr/bin/env");
+    let environments = child.environments.borrow();
+    assert_eq!(calls.len(), environments.len());
+    for (call, env) in calls.iter().zip(environments.iter()) {
+        // NO HELPER PROCESS between the lane and nvim: the base directories
+        // are set on the child rather than spelled as argv words.
+        assert_eq!(call[0], "/fixture/nvim");
+        assert!(!env.only_these, "nvim keeps what uu inherited");
         for (key, leaf) in [
             ("XDG_CONFIG_HOME", "c"),
             ("XDG_DATA_HOME", "d"),
             ("XDG_STATE_HOME", "s"),
             ("XDG_CACHE_HOME", "k"),
         ] {
-            assert!(
-                call.contains(&format!("{key}={}/{leaf}", f.lane.cache)),
-                "{call:?}"
+            assert_eq!(
+                env.variables.get(key).map(String::as_str),
+                Some(format!("{}/{leaf}", f.lane.cache).as_str()),
+                "{env:?}"
             );
         }
-        let nvim = call.iter().position(|a| a == "/fixture/nvim").unwrap();
         assert_eq!(
-            &call[nvim + 1..nvim + 4],
+            &call[1..4],
             &[
                 "--headless",
                 "-u",
@@ -46,16 +51,16 @@ fn both_smoke_children_keep_home_and_claude_discovery_private() {
     let f = Fixture::new("home");
     let child = Child::new(&f, "ok");
     f.run(&child);
-    let calls = child.calls.borrow();
-    assert_eq!(calls.len(), 2);
-    for call in calls.iter() {
-        assert!(
-            call.contains(&format!("HOME={}/h", f.lane.cache)),
-            "{call:?}"
+    let environments = child.environments.borrow();
+    assert_eq!(environments.len(), 2);
+    for env in environments.iter() {
+        assert_eq!(
+            env.variables.get("HOME").map(String::as_str),
+            Some(format!("{}/h", f.lane.cache).as_str())
         );
-        assert!(
-            call.contains(&format!("CLAUDE_CONFIG_DIR={}/h/.claude", f.lane.cache)),
-            "{call:?}"
+        assert_eq!(
+            env.variables.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+            Some(format!("{}/h/.claude", f.lane.cache).as_str())
         );
     }
     for leaf in ["h", "h/.claude"] {

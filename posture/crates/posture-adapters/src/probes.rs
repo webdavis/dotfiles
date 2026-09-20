@@ -1,3 +1,4 @@
+use crate::property_list::PropertyList;
 use crate::{
     CommandIo, CommandRunner, LibprocProcesses, ProcessLookup, SystemRunner,
     legacy_json::command_text,
@@ -20,30 +21,39 @@ pub struct ControlProbes<R = SystemRunner, P = LibprocProcesses> {
     uid: u32,
     rules: PathBuf,
     preferences: PathBuf,
+    login_window: PathBuf,
 }
 impl ControlProbes<SystemRunner, LibprocProcesses> {
-    pub fn current_user(rules: PathBuf, preferences: PathBuf) -> Self {
+    pub fn current_user(rules: PathBuf, preferences: PathBuf, login_window: PathBuf) -> Self {
         // SAFETY: getuid has no preconditions and reads the current process identity.
-        Self::new(unsafe { libc::getuid() }, rules, preferences)
+        Self::new(unsafe { libc::getuid() }, rules, preferences, login_window)
     }
-    pub fn new(uid: u32, rules: PathBuf, preferences: PathBuf) -> Self {
+    pub fn new(uid: u32, rules: PathBuf, preferences: PathBuf, login_window: PathBuf) -> Self {
         Self {
             runner: SystemRunner::per_command(POLL_PROBE_BUDGET),
             processes: LibprocProcesses::default(),
             uid,
             rules,
             preferences,
+            login_window,
         }
     }
 }
 impl<R: CommandRunner> ControlProbes<R, LibprocProcesses> {
-    pub fn with_runner(runner: R, uid: u32, rules: PathBuf, preferences: PathBuf) -> Self {
+    pub fn with_runner(
+        runner: R,
+        uid: u32,
+        rules: PathBuf,
+        preferences: PathBuf,
+        login_window: PathBuf,
+    ) -> Self {
         Self {
             runner,
             processes: LibprocProcesses::default(),
             uid,
             rules,
             preferences,
+            login_window,
         }
     }
 }
@@ -89,6 +99,9 @@ impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
         match reader {
             OverSight => self.process(OVERSIGHT, self.uid),
             LuluExtension => self.process(LULU_EXTENSION, ROOT),
+            AutoLogin => classify_autologin(
+                PropertyList::read(&self.login_window).map(|list| list.declares("autoLoginUser")),
+            ),
             _ => self.command_control(reader),
         }
     }
@@ -111,21 +124,11 @@ impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
         let (program, args): (&str, Vec<&OsStr>) = match reader {
             FileVault => ("/usr/bin/fdesetup", vec![OsStr::new("status")]),
             SystemIntegrity => ("/usr/bin/csrutil", vec![OsStr::new("status")]),
-            AutoLogin => (
-                "/usr/bin/defaults",
-                [
-                    "read",
-                    "/Library/Preferences/com.apple.loginwindow",
-                    "autoLoginUser",
-                ]
-                .map(OsStr::new)
-                .to_vec(),
-            ),
             GuestAccount => (
                 "/usr/sbin/sysadminctl",
                 ["-guestAccount", "status"].map(OsStr::new).to_vec(),
             ),
-            OverSight | LuluExtension | LuluRule | LuluResolvedRule => unreachable!(),
+            OverSight | LuluExtension | AutoLogin | LuluRule | LuluResolvedRule => unreachable!(),
         };
         let Some((output, exit)) = self.output(program, &args, true) else {
             return Indeterminate;
@@ -140,7 +143,6 @@ impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
                     ("System Integrity Protection status: disabled.", Disabled),
                 ],
             ),
-            AutoLogin => classify_autologin(&output, exit),
             GuestAccount => classify_messages(
                 &output,
                 exit,
@@ -149,7 +151,7 @@ impl<R: CommandRunner, P: ProcessLookup> ControlProbes<R, P> {
                     ("Guest account disabled.", Disabled),
                 ],
             ),
-            OverSight | LuluExtension | LuluRule | LuluResolvedRule => unreachable!(),
+            OverSight | LuluExtension | AutoLogin | LuluRule | LuluResolvedRule => unreachable!(),
         }
     }
 }

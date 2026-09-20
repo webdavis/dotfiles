@@ -41,6 +41,7 @@ pub(super) struct Child<'a> {
     f: &'a Fixture,
     mode: &'a str,
     pub calls: RefCell<Vec<Vec<String>>>,
+    pub environments: RefCell<Vec<crate::lanes::Environment>>,
 }
 impl<'a> Child<'a> {
     pub fn new(f: &'a Fixture, mode: &'a str) -> Self {
@@ -48,6 +49,7 @@ impl<'a> Child<'a> {
             f,
             mode,
             calls: RefCell::new(Vec::new()),
+            environments: RefCell::new(Vec::new()),
         }
     }
 }
@@ -58,8 +60,16 @@ impl CommandRunner for Child<'_> {
     fn run_with_deadline(&self, _: &str, _: &[&str], _: Duration) -> Result<String, String> {
         panic!("whole lane owns deadline")
     }
-    fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String> {
-        assert_eq!(input, "");
+    fn run_with_input(&self, _: &str, _: &[&str], _: &str) -> Result<Ran, String> {
+        panic!("a smoke child is handed nothing on stdin")
+    }
+    fn run_reporting_in(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &crate::lanes::Environment,
+    ) -> Result<Ran, String> {
+        self.environments.borrow_mut().push(env.clone());
         self.calls.borrow_mut().push(
             std::iter::once(program)
                 .chain(args.iter().copied())
