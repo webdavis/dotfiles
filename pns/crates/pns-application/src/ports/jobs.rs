@@ -28,6 +28,12 @@ pub trait JobChildren {
     fn reap(&mut self);
     fn running(&self, id: &str) -> bool;
     fn start(&mut self, job: &Job) -> Result<(), String>;
+    /// Stop one named child and wait a bounded while for it to go.
+    ///
+    /// FOR THE LONG-LIVED ONES ONLY. A delivery in flight is orphaned when the
+    /// daemon stops, which costs at worst one extra card; a listener orphaned
+    /// the same way holds its port against every daemon that follows.
+    fn terminate(&mut self, id: &str);
 }
 
 pub enum DaemonNotice {

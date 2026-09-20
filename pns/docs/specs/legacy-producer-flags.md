@@ -11,7 +11,11 @@ one `--scope automatic|local_only|remote_only`; the refusal for giving both, beh
 with them, because one flag cannot contradict itself. `--long-running` is REFUSED too
 (`src/legacy/argv.rs:RETIRED_FLAGS`), refused as `--long-running was replaced by --elapsed`: pns derives
 the tier from `--elapsed` alone now, and behavior 16 below (its own compatibility contract) no longer
-holds. Not rewritten pending the ladder's closing docs pass.
+holds. THE LENIENCY ITSELF IS GONE: a word that is no flag of pns's is refused as
+`<word> is not a flag pns takes` and a value flag given no value is refused as `<flag> requires a
+value`, each with exit 2 and nothing delivered, so behaviors 6 and 7 below and every "warn" cell in the
+flag table describe a parser that no longer exists. Not rewritten pending the ladder's closing docs
+pass.
 
 ## Scope
 

@@ -215,7 +215,7 @@ fn a_submitted_github_event_lights_the_checks_lamp_unless_its_outcome_is_neutral
     ] {
         let request = format!(
             r#"{{"schema":"pns.request/1","request_id":"gh-{outcome}","producer":"github",
-                "event":"workflow_run","state":"{state}",
+                "state":"{state}",
                 "extensions":{{"github":{{"repo":"webdavis/dotfiles","kind":"workflow_run",
                   "outcome":"{outcome}","title":"lint",
                   "url":"https://github.com/webdavis/dotfiles/actions/runs/1",

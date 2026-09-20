@@ -17,10 +17,13 @@
 //! - The schema identifier is `<name>/<major>`. A major that the crate does
 //!   not know is refused clearly ([`Rejection::MajorUnsupported`]).
 //!   Additive change within a major does not bump it.
-//! - Unknown fields in a known major are ignored within the wire bounds.
-//!   Unknown request top-level fields are also named
-//!   ([`DecodedRequest::ignored`]), so an older pns keeps working against a
-//!   newer producer and the producer can still learn its field went nowhere.
+//! - Unknown fields in a known major are ignored within the wire bounds,
+//!   except at a request's top level, where one is REFUSED and named: a field
+//!   pns would drop is a producer saying something that goes nowhere, which
+//!   is the same answer the flag path gives an unknown flag.
+//!   [`DecodedRequest::ignored`] names the top-level fields the envelope
+//!   recognizes but acts on nowhere, and every field version 1 defines is
+//!   acted on today, so that list is empty on every accepted request.
 //! - Producer-specific data goes under `extensions`, which is carried
 //!   verbatim, bounded, and never interpreted here.
 //! - Text is carried verbatim inside the caps. Sanitizing is the domain's
