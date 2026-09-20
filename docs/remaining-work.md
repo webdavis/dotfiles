@@ -4,7 +4,7 @@ The open task list for the dotfiles modernization, including pns, posture, uu, l
 review tools and the deferred subprojects. Use the resume order below; task numbers are stable
 references.
 
-Updated as tasks complete. Last updated 2026-09-15.
+Updated as tasks complete. Last updated 2026-09-19.
 
 ## Where things stand
 
@@ -3140,6 +3140,182 @@ is missing.
   at all, so the marker is the diff3 middle line from a merge where the file was new on both sides, and
   the resolver deleted the outer markers and missed this one. All four ruling bullets were present and
   distinct, so nothing was lost. The hazard was that every lane reads that section as binding.
+
+  SLICE 12 DONE 2026-09-18, [PR #786](https://github.com/webdavis/dotfiles/pull/786), merged `3482daaa`.
+  Slice 12 of the pns refactor ladder replaced the narrowing pair --local-only and --remote-only with one
+  --scope flag taking automatic, local_only or remote_only, the three words the JSON request's scope
+  field already used. pns_domain::DeliveryScope gained from_word and WORDS beside Kind's, and --scope
+  parses in its own arm, so a word outside the three, or a --scope with no value, refuses with exit 2
+  naming the three rather than falling back to automatic and sending off the machine what a caller meant
+  to keep on it. Each retired spelling is refused naming --scope. The refusal that existed only to catch
+  both flags being given together went with them, along with its two tests, decision 0007's accepted
+  status and the Refusal enum that carried it, because one flag cannot contradict itself. Neither retired
+  flag took a value, so RETIRED_FLAGS now records which ones do: --channel still takes its value with it,
+  while --local-only --help still prints the usage instead of eating the help as a value. lights was the
+  one caller and moved in the same commit with its unit test and the argument-surface expectation that
+  pins its argv; a sweep of the checkout, of pns.nvim and of the three herdr plugin trees found no other
+  caller. just test-rust and just ship both passed, and a mutation that let an unknown scope fall through
+  to the default reddened three specs.
+
+  SLICE 13 DONE 2026-09-19, [PR #796](https://github.com/webdavis/dotfiles/pull/796), merged `5481a477`.
+  Slice 13 of the pns refactor removed the request fields that changed nothing: `event`, `occurred_at`,
+  `interaction` and `session.turn` from the pns-protocol request struct and its golden fixture, and
+  `--long-running` from pns's legacy CLI (now derived from `--elapsed` alone), with posture's producer
+  and wire crates and fixture mirrored to match. The shell notifier stopped precomputing the long-running
+  tier in-process and instead passes `--elapsed` to the spawned `pns send`, which derives it itself the
+  same way every other producer does. A batch of test files across pns-protocol, pns and posture that
+  still asserted on the retired wire fields (a golden encoded-bytes literal, a required-field list, a
+  detail-format ordering, and several posture alert tests keyed on the removed `event` string) were
+  updated to match the corrected wire shape, distinguishing gap versus exposure alerts by their body text
+  instead. `just test-rust` and `just lint-check` both pass clean from the worktree root.
+
+  SLICE 14 DONE 2026-09-19, [PR #799](https://github.com/webdavis/dotfiles/pull/799), merged `0eae47ce`.
+  Pns slice 14 merged `kind` and `class` into one request field, `delivery_class`, spelled
+  `--delivery-class <name>` on the command line and `"delivery_class": "<name>"` in a version 1 request.
+  The two fields had been one idea wearing two names: the flag picked the route an event took when its
+  producer named none, while the JSON-only `class` decided whether a message passed a mute, and only the
+  JSON half could carry posture's `security`. The merged field takes a validated name on both paths, so a
+  producer stating it in JSON and one typing the flag reach the same route. `pns_protocol::Kind` and
+  `pns_domain::routes::Kind` are gone, replaced by a `routes::HEALTH` constant and a `routes::route_for`
+  function, because `health` is the one class pns routes for itself and the rest are the operator's to
+  define. `EventArgs` carries the class as a plain word now, which also collapsed a duplicate source: the
+  mute-bypass check reads it off the event rather than off a second copy on the producer request.
+  `--kind` is a retired flag, refused with exit 2 and a sentence naming `--delivery-class`, and a JSON
+  `kind` or `class` is reported in the ignored-fields list the way slice 13's removed fields are. Callers
+  moved in the same change: uu's weekly alert, posture's producer request and its copy of the wire
+  contract, both golden fixtures, the generated pns config template, the routing runbook and four specs.
+  uu and pns are rebuilt by the same apply, so the two binaries move together.
+
+  SLICE 15 DONE 2026-09-19, [PR #802](https://github.com/webdavis/dotfiles/pull/802), merged `03ff31be`.
+  Task 93 (pns refactor slice 15) landed the `[delivery_class.<name>]` tables. Which delivery classes
+  exist, where each one routes and which of them cross a mute moved out of pns and into config: each
+  table carries `route` (empty is the default route) and `bypass_mute`, parsed by a new
+  `pns/crates/pns-adapters/src/config/delivery_class.rs` and rendered by a hardcoded branch beside the
+  lamp declarations. `[delivery] bypass_silence_classes` left the roster, and `config/delivery.rs` now
+  exists to refuse a leftover `[delivery]` key by name so an operator still carrying the retired one is
+  told. `pns-domain/src/routes.rs` lost the compiled words `agent` and `health`; `route_for` takes the
+  route the class named and keeps only the severity rule that a class routes of its own while the state
+  is one somebody waits on, and `EventArgs::routed` takes that route rather than the `[routes]` pair. The
+  one class word pns still writes is `stale::DELIVERY_CLASS`, where pns names its own page the way uu and
+  posture name theirs. A `delivery_class` naming no configured table is refused with exit 2 and named, on
+  stderr and in the reply's diagnostics, on both the argv and JSON paths; a message naming no class reads
+  `[delivery_class.default]`; and the retired JSON `class` and `kind` fields are refused by name rather
+  than listed as ignored. The shipped values file gained `default`, `health` (route `priority`) and
+  `security` (`bypass_mute = true`), both keys written at their default on every class, and the config
+  template and resolved-configuration snapshot were regenerated from it. `just test-rust` and
+  `just lint-check` both exit 0 on the branch merged with main. The apply window is the risk this slice
+  carries: until a full apply runs, the deployed config has no class tables, so uu's health page and
+  posture's security page are refused rather than routed.
+
+  SLICE 22 DONE 2026-09-19, [PR #798](https://github.com/webdavis/dotfiles/pull/798), merged `b26f79c1`.
+  Slice 22 of the pns refactor ladder landed the reminder rename and the table split. The approval nudge
+  is called the reminder everywhere now: `pns nag` became `pns remind`, the old word is refused with a
+  sentence naming the new one and exit 2, and every module, type, constant, on-disk name (the `remind/`
+  record directory, `remind-<session>` markers, `remind:<session>` job ids) and the `remind=`
+  decision-log field followed across all four pns crates. The single `[nag]` table, which held two
+  unrelated features, became `[remind] delay` for the local nudge about an unanswered approval and
+  `[stale] escalate_after` for the page about a session stuck past its window, with a new `[stale] route`
+  naming where that page goes (unset still leaves the health kind to resolve it against
+  `[routes] urgent`, so shipped behaviour is unchanged). Both keys take a duration string rather than a
+  count of seconds, read through the domain's one parser behind a new shared `duration_key` helper in
+  `schema.rs`; `"0s"` remains the feature off at either key, which plan item 101 will take up later.
+  `[nag]` is refused at load as an unknown top-level table and the refusal lists `remind` and `stale`
+  among the tables the file serves. The shipped config was regenerated with `just pns-config-render`, the
+  specs and the Claude Code hook comment follow the new names, and `just test-rust` and `just lint-check`
+  both pass. Tasks 42, 35 and 100 of `pns/docs/pns-refactor.md` are done, as is the
+  `nag.stale_after_secs` third of task 99.
+
+  SLICE 23 DONE 2026-09-19, [PR #801](https://github.com/webdavis/dotfiles/pull/801), merged `734bdc14`.
+  Pns slice 23 landed. The approval reminder no longer arms itself because the sending producer happens
+  to be called "claude": the `event.agent != CLAUDE_AGENT` gate and the constant behind it are gone from
+  `ArmRemind`, which now takes an already-resolved delay and reads zero as off. A call switches the
+  reminder on for itself with `--remind`, `--remind=<duration>` or `--no-remind` on its own hook
+  invocation, and a producer nobody can pass a flag to is served by the new `[producer.<name>] remind`
+  table. The hook path resolves the two most specific first, the call's switch beating the producer's
+  entry beating a built-in default of off, and `--remind` with no delay anywhere is refused with exit 2
+  that names both fixes rather than guessing a delay. The shipped config template was regenerated and the
+  specs for reminding, blocking approvals and producer submission were brought to the new flags and
+  table. The behavioural cost is stated and accepted: nothing passes `--remind` yet, so the Claude Code
+  approval reminder stops arming until slice 25 moves the harness declarations, and task 93 is that
+  slice. Gates: `just test-rust` and `just lint-check` both exit 0.
+
+  SLICE 24 DONE 2026-09-19, [PR #803](https://github.com/webdavis/dotfiles/pull/803), merged `f0109634`.
+  Pns slice 24 landed the reminder's honesty line. Arming a reminder for a producer that sends no
+  answered signal now writes exactly one line to stderr and not a byte to stdout, which is what keeps
+  Claude Code's reading of the hook's stdout intact, and the reminder is armed anyway with the `[remind]`
+  staleness cap left as the hard stop. Which producers answer is derived from how the reminder was armed
+  rather than from a new config key or a compiled-in roster of names: a harness wires `--remind` on its
+  own approval hook only when it also wires the answered event, so the switch is the assertion, and
+  `[producer.<name>] remind`, which exists for a producer nobody can pass a flag to, carries none.
+  `remind_delay` answers with the delay and that assertion together, and both travel to `ArmRemind`. Two
+  process-level tests with the real binary pin the stderr line, the empty stdout, the silent `--remind`
+  path and the cap ending both arms; `just test-rust` and `just lint-check` are green.
+
+  SLICE 29 DONE 2026-09-19, [PR #794](https://github.com/webdavis/dotfiles/pull/794), merged `f09af878`.
+  Pns's point-in-time flags were renamed to say epoch: pns recap --since/--until became
+  --since-epoch/--until-epoch, and pns daemon schedule --until was split so the relative +<duration> form
+  stayed on --until while the absolute form moved to a new --until-epoch flag, so a point in time can no
+  longer be typed where the parser expects a duration. The one caller, recap_child::spawn_recap, and
+  every usage string and live spec under pns/docs/specs were updated to match, with a unit test pinning
+  that the old bare spellings are refused as unknown input and that the new flags parse an epoch.
+
+  SLICE 30 DONE 2026-09-19, [PR #792](https://github.com/webdavis/dotfiles/pull/792), merged `4481ed4c`.
+  Slice 30 of the pns refactor gave every environment variable pns owns the PNS\_ prefix and spelled its
+  words out: MOSHI_HOOK_BIN became PNS_MOSHI_HOOK_BIN, CODEX_BIN became PNS_CODEX_BIN, PNS_IDLE_SECS
+  became PNS_SCREEN_IDLE, and PNS_DESK_IDLE_SECS became PNS_DESK_IDLE. Every reader and every test caller
+  moved in the same change, pns/docs/specs and two dated design records were updated to match, and new
+  tests pin that each old name is now ignored. A repo-wide grep confirmed no deployed file exports any of
+  the four old names, matching the slice's own risk note; the one coincidentally-named MOSHI_HOOK_BIN in
+  the moshi-hook bounce chezmoi script is that script's own unrelated variable and was left alone.
+
+  SLICE 31 DONE 2026-09-19, [PR #797](https://github.com/webdavis/dotfiles/pull/797), merged `9ef9ce3e`.
+  Pns refactor slice 31 deleted the four environment variables that duplicated a config key.
+  PNS_PHONE_MARKER_FILE, HUE_PULSE_ROOMS, PNS_MOSHI_SUBMIT_DEADLINE_MS and PNS_PULSE_THRESHOLD_SECS are
+  gone; config ([phone] marker_file, [plugins.hue] rooms, [plugins.mobile] submit_deadline_secs,
+  [lights.loop] threshold_secs) is now the only source for each. pulse_threshold_secs previously never
+  read the config key at all, only the deleted env var with a hardcoded fallback; it now loads
+  [lights.loop] threshold_secs the same way the loop lamp does. Every reader, every test env setter and
+  the render layout's precedence prose moved with it, one pin test per deleted variable was added, and
+  the seven affected pns/docs/specs files were updated. A grep of the deployed tree found nothing
+  exporting any of the four names, matching the slice's own risk note: a stale shell-profile export now
+  silently reverts to the config value rather than winning, which was the intent.
+
+  SLICE 32 DONE 2026-09-19, [PR #800](https://github.com/webdavis/dotfiles/pull/800), merged `53cc5b27`.
+  Pns refactor slice 32 landed. Each of the six install-wide settings that had only an environment
+  variable now has a config key and reads the file first: `[paths] state_dir` ahead of `PNS_STATE_DIR`,
+  `[paths] channels_dir` ahead of `PNS_CHANNELS_DIR`, `[plugins.hermes] url` ahead of `PNS_HERMES_URL`,
+  `[plugins.mobile] url` ahead of `PNS_MOSHI_URL`, `[plugins.macos-banner] terminal_bundle_id` ahead of
+  `PNS_TERMINAL_BUNDLE_ID`, and `[delivery] remote_deadline`, which retired `PNS_REMOTE_TIMEOUT` outright
+  because a delivery bound belongs beside `max_attempts`. One resolver, `install_settings`, answers all
+  six off a single config load, with an empty value on either side naming nothing; `state_dir()` caches
+  its answer for the process, since the parse measured 3.6 ms against the deployed file and a blocked
+  hook path reads it several times. Two readers that had gone their own way were brought back to it: the
+  recap child stopped injecting a deadline variable into itself, leaving the 30-second group watchdog it
+  already arms to bound that process, and `pns failures` stopped reading two of the variables directly
+  for its address line. Unit tests pin every setting in both directions and pin that the retired variable
+  changes nothing, the shipped config template was regenerated, and twelve spec files were restated.
+
+  SLICE 33 DONE 2026-09-19, [PR #804](https://github.com/webdavis/dotfiles/pull/804), merged `8b24cc36`.
+  Slice 33 of the pns refactor ladder landed, plan items 84 and 85. Every duration environment variable
+  that survives on main now reads the same `<count><ms|s|m|h>` string as pns's flags and config keys,
+  through the domain's one duration parser, with a range of its own and a refusal that quotes the
+  variable's own name and the shapes it accepts. The parser learned `ms` to make that possible, trying it
+  ahead of `s` so the second's suffix cannot claim the tail of a millisecond value. The names now use one
+  word per kind of knob: PNS_PAYLOAD_DEADLINE_MS, PNS_MOSHI_JSON_DEADLINE_MS,
+  PNS_MOSHI_STATUS_DEADLINE_MS and PNS_CONDENSER_DEADLINE_MS dropped their unit suffix,
+  PNS_DAEMON_TICK_MS became PNS_DAEMON_TICK_INTERVAL, PNS_PHONE_INPUT_AGE became PNS_PHONE_INPUT_MAX_AGE
+  under the operator ruling that makes max_age a fourth time word, and PNS_REPLY_REREAD_INTERVAL kept its
+  name and stopped parsing float seconds. A value the parser refuses is reported and the caller keeps its
+  default, because every one of these is read on a path whose contract is exiting 0. Nothing in the
+  deployed tree set any of them, so no caller moved. PNS_DB_BUSY_TIMEOUT_MS and
+  PNS_RING_LOCK_TEST_DELAY_MS were left for slice 34, which trades one for a config key and puts the
+  other behind cfg(test). The spec set and the environment-variable table were updated to match.
+
+  The gateway daemon's `pns gateway start|stop|restart|status` verbs merged as
+  [PR #795](https://github.com/webdavis/dotfiles/pull/795) at `c1733362`, giving it the same service-verb
+  shape as pns's other subcommands.
+
+  SLICE STATUS 2026-09-19: merged 1-15, 22-24, 29-33; in flight 16, 25, 28, 34, 36.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
