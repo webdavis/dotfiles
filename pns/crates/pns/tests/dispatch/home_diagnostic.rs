@@ -89,7 +89,7 @@ fn the_home_rows_always_show_the_evidence_and_warn_once_per_stale_state() {
         home(),
         [concat!(
             "home: unknown: the router returned no readable client list, so nothing was established; ",
-            "check router_url and api_key in [plugins.router] ",
+            "check router_url and api_key in [plugins.home_presence] ",
             "(a rejected key reads the same here as an unreachable router)"
         )]
     );

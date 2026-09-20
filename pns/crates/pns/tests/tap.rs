@@ -31,7 +31,7 @@ fn tap_without_config_creates_the_default_marker_and_reports_mobile() {
         let mode = fs::metadata(s.path(created)).unwrap().permissions().mode();
         assert_eq!(mode & 0o077, 0, "{created} is not private: {mode:o}");
     }
-    for channel in ["mobile", "hermes", "macos-banner"] {
+    for channel in ["mobile", "hermes", "banner"] {
         assert!(!s.fired(channel));
     }
 }
@@ -78,7 +78,7 @@ fn tap_and_the_event_reader_share_the_configured_marker() {
         "tap",
     ]));
     assert!(s.fired("mobile"));
-    assert!(!s.fired("macos-banner"));
+    assert!(!s.fired("banner"));
     assert!(!s.path(".local/state/pns/phone-attention.marker").exists());
 }
 

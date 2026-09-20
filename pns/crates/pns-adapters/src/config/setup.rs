@@ -4,7 +4,7 @@ use pns_domain::{Answers, hue_is_armed, router_is_armed};
 ///
 /// ONLY WHAT WAS ARMED IS HERE. A table this method never inserts is one
 /// `render` writes at its layout default, commented for an opt-in table
-/// and live at the CORE default for `mobile`, `macos-banner`, `daemon`
+/// and live at the CORE default for `mobile`, `banner`, `daemon`
 /// and `recap`, none of which this wizard even asks about.
 fn values(answers: &Answers) -> toml::Table {
     let mut plugins = toml::Table::new();
@@ -58,7 +58,7 @@ fn values(answers: &Answers) -> toml::Table {
                     .collect(),
             ),
         );
-        plugins.insert("hue".to_string(), toml::Value::Table(hue));
+        plugins.insert("lights".to_string(), toml::Value::Table(hue));
     }
     if router_is_armed(answers) {
         let mut router = toml::Table::new();
@@ -78,7 +78,7 @@ fn values(answers: &Answers) -> toml::Table {
             "device_hostname".to_string(),
             toml::Value::String(answers.router_device_hostname.clone()),
         );
-        plugins.insert("router".to_string(), toml::Value::Table(router));
+        plugins.insert("home_presence".to_string(), toml::Value::Table(router));
     }
 
     let mut values = toml::Table::new();

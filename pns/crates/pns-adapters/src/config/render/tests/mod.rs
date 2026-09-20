@@ -11,12 +11,12 @@ fn every_table_armed() -> toml::Table {
         [plugins.hermes.keys]
         pns-events = "hermes-secret"
 
-        [plugins.hue]
+        [plugins.lights]
         bridge = "192.168.1.9"
         key = "hue-secret"
         rooms = ["Studio", "Kitchen"]
 
-        [plugins.router]
+        [plugins.home_presence]
         type = "unifi"
         router_url = "https://192.168.1.1"
         api_key = "router-secret"

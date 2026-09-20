@@ -26,32 +26,32 @@ fn a_line_names_its_plugin_and_its_outcome_and_a_failure_quotes_the_channel() {
         "hermes: sent, this channel reports no outcome"
     );
     let router = Check {
-        plugin: "router",
+        plugin: "home_presence",
         kind: CheckKind::Skipped(A_SENSOR),
     };
     assert_eq!(
         line(&router, &Outcome::Skipped(A_SENSOR)),
-        "router: skipped, a sensor and never a delivery destination"
+        "home_presence: skipped, a sensor and never a delivery destination"
     );
 }
 
 #[test]
 fn the_pulse_line_claims_neither_a_flash_nor_a_cause_it_cannot_know() {
     let hue = Check {
-        plugin: "hue",
+        plugin: "lights",
         kind: CheckKind::Pulse,
     };
     assert_eq!(
         line(&hue, &Outcome::Signalled(2)),
-        "hue: signalled 2 rooms (watch for the flash; the bridge acknowledges no write)"
+        "lights: signalled 2 rooms (watch for the flash; the bridge acknowledges no write)"
     );
     assert_eq!(
         line(&hue, &Outcome::Signalled(1)),
-        "hue: signalled 1 room (watch for the flash; the bridge acknowledges no write)"
+        "lights: signalled 1 room (watch for the flash; the bridge acknowledges no write)"
     );
     assert_eq!(
         line(&hue, &Outcome::Signalled(0)),
-        "hue: FAILED, signalled no rooms \
+        "lights: FAILED, signalled no rooms \
              (no room listing from the bridge, or no configured room name matched)",
         "zero names both causes rather than choosing one, and no count claims the \
              lights actually flashed"

@@ -10,7 +10,7 @@ fn a_machine_with_no_config_runs_the_core_and_nothing_that_needs_arming() {
     // three failures.
     use crate::config::LoadOutcome;
     let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Missing));
-    assert_eq!(selection_names(&selection), vec!["mobile", "macos-banner"]);
+    assert_eq!(selection_names(&selection), vec!["mobile", "banner"]);
     assert_eq!(warning, None);
 }
 
@@ -22,7 +22,7 @@ fn the_core_is_two_registered_plugins_and_the_config_still_beats_it() {
     // asserted against the REAL roster, both members named.
     assert_eq!(
         selection_names(&roster().core()),
-        vec!["mobile", "macos-banner"],
+        vec!["mobile", "banner"],
         "every core name is a registered plugin"
     );
     // AND IT IS ONLY A FALLBACK. A config that exists says what runs, so
@@ -54,7 +54,7 @@ fn a_broken_config_is_loud_but_never_turns_notifications_off() {
             "key with no value at line 1".to_string(),
         )),
     );
-    assert_eq!(selection_names(&selection), vec!["mobile", "macos-banner"]);
+    assert_eq!(selection_names(&selection), vec!["mobile", "banner"]);
     let warning = warning.expect("a broken config must be said aloud");
     assert!(warning.contains("key with no value"));
 }
@@ -93,9 +93,10 @@ fn a_hue_table_selects_hue_like_any_other_plugin_and_warns_about_nothing() {
     // ordinary and costs the operator no part of their event selection.
     use crate::config::LoadOutcome;
     let config =
-        parse_config("[plugins.hermes]\nenabled = true\n[plugins.hue]\nenabled = true\n").unwrap();
+        parse_config("[plugins.hermes]\nenabled = true\n[plugins.lights]\nenabled = true\n")
+            .unwrap();
     let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
-    assert_eq!(selection_names(&selection), vec!["hermes", "hue"]);
+    assert_eq!(selection_names(&selection), vec!["hermes", "lights"]);
     assert_eq!(warning, None);
 }
 

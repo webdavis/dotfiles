@@ -18,7 +18,7 @@ fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
             "x",
         ])
         .args(["--scope", "local_only"]));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     assert!(!sandbox.fired("mobile"));
     assert!(!sandbox.fired("hermes"));
 }
@@ -39,7 +39,7 @@ fn remote_only_delivers_through_hermes_alone() {
         ]));
     assert!(sandbox.fired("hermes"));
     assert!(!sandbox.fired("mobile"));
-    assert!(!sandbox.fired("macos-banner"));
+    assert!(!sandbox.fired("banner"));
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn at_the_desk_the_phone_is_skipped_and_only_the_phone() {
     ]));
     assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn relay_skip_phone_drops_the_phone_and_only_the_phone() {
         ]));
     assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
         "x",
     ]));
     assert!(sandbox.fired("hermes"));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
 }
 
 #[test]
@@ -181,7 +181,7 @@ fn an_absent_channel_is_simply_not_installed() {
             "x",
         ]),
     );
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     // AND IT IS STILL A NON-EVENT. hermes runs sync on this path, so a launch
     // failure that reported itself would print here; the hand-run check is the
     // only caller that reads one.

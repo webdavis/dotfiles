@@ -8,13 +8,13 @@ fn a_walk_that_armed_nothing_still_writes_the_core() {
     // asked for a config.
     let text = compose_config(&Answers::default());
     let config = parsed(&text);
-    assert!(config.plugins["macos-banner"].enabled);
+    assert!(config.plugins["banner"].enabled);
     assert!(config.plugins["mobile"].enabled);
     assert_eq!(
         config.plugins["mobile"].settings["type"].as_str(),
         Some("moshi")
     );
-    for opt_in in ["hermes", "hue", "router"] {
+    for opt_in in ["hermes", "lights", "home_presence"] {
         assert!(
             !config.plugins.contains_key(opt_in),
             "`{opt_in}` was armed by nobody"

@@ -95,7 +95,7 @@ pub struct BannerChannel<R: CommandRunner> {
 
 impl<R: CommandRunner + Send + Sync> NotificationDestination for BannerChannel<R> {
     fn id(&self) -> &DestinationId {
-        const ID: DestinationId = DestinationId::new("macos-banner");
+        const ID: DestinationId = DestinationId::new("banner");
         &ID
     }
 

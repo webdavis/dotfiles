@@ -98,7 +98,7 @@ fn json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_herme
         let reply = pns_protocol::decode_result(&output.stdout).unwrap();
         assert_eq!(reply.status, Status::Delivered, "{output:?}");
         assert_eq!(
-            sandbox.fired("macos-banner"),
+            sandbox.fired("banner"),
             allowed,
             "class={class:?}, {tables}"
         );
@@ -139,7 +139,7 @@ fn a_class_no_table_defines_is_refused_and_named_on_both_paths() {
             "the reply must name the class it refused"
         );
         assert!(!sandbox.fired("hermes"), "{class} was delivered anyway");
-        assert!(!sandbox.fired("macos-banner"), "{class} reached a banner");
+        assert!(!sandbox.fired("banner"), "{class} reached a banner");
 
         let mut argv = sandbox.pns();
         argv.args([
@@ -227,6 +227,6 @@ fn malformed_class_or_configuration_never_grants_a_mute_exception() {
     );
     let output = invoke(&sandbox, &input(Some("security")));
     assert!(String::from_utf8_lossy(&output.stderr).contains("bypass_mute"));
-    assert!(!sandbox.fired("macos-banner"));
+    assert!(!sandbox.fired("banner"));
     assert!(!sandbox.fired("mobile"));
 }

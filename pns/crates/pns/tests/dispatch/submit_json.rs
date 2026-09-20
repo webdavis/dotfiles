@@ -185,7 +185,7 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
         None,
     );
     sandbox.stub_channel(
-        "macos-banner",
+        "banner",
         &format!(
             "cat >'{}'\nprintf 'replay child output\\n'",
             sandbox.path("replay-event").display(),

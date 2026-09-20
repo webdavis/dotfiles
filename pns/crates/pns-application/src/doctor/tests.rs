@@ -61,7 +61,7 @@ fn report(
             kind: CheckKind::Send,
         },
         Check {
-            plugin: "hue",
+            plugin: "lights",
             kind: CheckKind::Pulse,
         },
         Check {

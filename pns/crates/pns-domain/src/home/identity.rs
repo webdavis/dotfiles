@@ -25,7 +25,7 @@ pub enum DeviceKey {
     Ipv4,
 }
 impl DeviceKey {
-    /// The key's spelling in `[plugins.router]`, which is also how every line
+    /// The key's spelling in `[plugins.home_presence]`, which is also how every line
     /// names it: the operator reads back the word they typed.
     pub fn config_key(self) -> &'static str {
         match self {

@@ -60,7 +60,7 @@ fn a_leg_named_by_nothing_registered_is_skipped() {
             decorative: true,
         },
         Leg {
-            name: "macos-banner",
+            name: "banner",
             mode: ReportMode::Silent,
             decorative: true,
         },

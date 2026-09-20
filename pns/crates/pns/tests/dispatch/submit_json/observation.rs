@@ -25,7 +25,7 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
             "{label}: {output:?}"
         );
         assert!(
-            sandbox.fired("macos-banner"),
+            sandbox.fired("banner"),
             "{label}: observation banner missing"
         );
         assert!(sandbox.fired("hermes"), "{label}: observation log missing");
@@ -41,7 +41,7 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
             .unwrap()
             .map(Result::unwrap)
             .collect();
-        assert_eq!(destinations, ["macos-banner", "hermes"]);
+        assert_eq!(destinations, ["banner", "hermes"]);
         assert_eq!(
             connection
                 .query_row("SELECT count(*) FROM journal", [], |row| row
@@ -74,7 +74,7 @@ fn json_progress_and_blocked_keep_presence_driven_phone_cards() {
                 Status::Delivered,
                 "{stated:?}/{label}: {output:?}"
             );
-            assert_eq!(sandbox.fired("macos-banner"), banner, "{stated:?}/{label}");
+            assert_eq!(sandbox.fired("banner"), banner, "{stated:?}/{label}");
             assert_eq!(sandbox.fired("mobile"), phone, "{stated:?}/{label}");
             assert!(sandbox.fired("hermes"));
         }
