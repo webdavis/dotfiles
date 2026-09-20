@@ -887,8 +887,9 @@ Then one of six states is reported, per BEHAVIOUR rather than per lamp, and the 
 
 - Success: all six are pinned by
   `src/doctor.rs:the_lights_section_says_which_of_its_six_states_the_config_is_in`, and a resolved map
-  renders `pns doctor: lights: done 2, failed 2, blocked 1, unread 1, loop 0`. The behaviour words and
-  their order come from `src/config.rs:BEHAVIOUR_WORDS`: `done`, `failed`, `blocked`, `unread`, `loop`.
+  renders `pns doctor: lights: done 2, failed 2, blocked 1, unseen 1, loop 0, checks 0`. The behaviour
+  words and their order come from `src/config.rs:BEHAVIOUR_WORDS`: `done`, `failed`, `blocked`,
+  `unseen`, `loop`, `checks`.
 
 - Failure sources: `HueMissing` (a `[lights]` table with no `[plugins.lights]` table at all) versus
   `HueDisabled` (a `[plugins.lights]` table with its switch off) are told apart by reading
@@ -932,7 +933,7 @@ Then one of six states is reported, per BEHAVIOUR rather than per lamp, and the 
   - `lights: configured, but [plugins.lights] enabled is false, so nothing lights`
   - `lights: no [plugins.lights] bridge and key, so no lamp could be resolved`
   - `lights: the bridge listed nothing, so no lamp resolved`
-  - `lights: done <n>, failed <n>, blocked <n>, unread <n>, loop <n>`
+  - `lights: done <n>, failed <n>, blocked <n>, unseen <n>, loop <n>, checks <n>`
 
   A resolved state adds one line per unresolved name and one per refusal, in the channel's OWN words
   (`src/channels/hue.rs:missing_sentence`), so the tick reports an unresolved lamp in the same words and

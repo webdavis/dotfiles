@@ -50,13 +50,13 @@ fn the_most_specific_declaration_that_names_a_lamp_supplies_its_whole_behaviour_
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n\
-             [lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"blocked\", \"unread\"]\n",
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\", \"failed\"]\n\
+             [lights.lamp.\"3F - Studio - HCL3\"]\nbehaviours = [\"blocked\", \"unseen\"]\n",
         ),
     );
     assert_eq!(
         carried(&routing, "3F - Studio - HCL3"),
-        Some(vec![Behaviour::Blocked, Behaviour::Unread]),
+        Some(vec![Behaviour::Blocked, Behaviour::Unseen]),
         "the lamp's own declaration wins outright and the room's does not merge in"
     );
     assert_eq!(
@@ -76,8 +76,8 @@ fn a_room_beats_a_zone_and_a_zone_answers_a_lamp_no_nearer_declaration_names() {
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.zone.Upstairs]\nshows = [\"loop\"]\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n",
+            "[lights.zone.Upstairs]\nbehaviours = [\"loop\"]\n\
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n",
         ),
     );
     assert_eq!(
@@ -87,7 +87,7 @@ fn a_room_beats_a_zone_and_a_zone_answers_a_lamp_no_nearer_declaration_names() {
     );
     let zone_only = resolve(
         &stock(),
-        &lights("[lights.zone.Upstairs]\nshows = [\"loop\"]\n"),
+        &lights("[lights.zone.Upstairs]\nbehaviours = [\"loop\"]\n"),
     );
     assert_eq!(
         carried(&zone_only, "3F - Studio - HCL1"),
@@ -110,15 +110,15 @@ fn a_lamp_two_zones_both_answer_for_is_refused_with_both_named() {
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.zone.Upstairs]\nshows = [\"loop\"]\n\
-             [lights.zone.Desk]\nshows = [\"blocked\"]\n",
+            "[lights.zone.Upstairs]\nbehaviours = [\"loop\"]\n\
+             [lights.zone.Desk]\nbehaviours = [\"blocked\"]\n",
         ),
     );
     assert_eq!(
         routing.refusals,
         vec![
             "lights: `3F - Studio - HCL1` is covered by 2 zone declarations that \
-             each state `shows` (\"Desk\" and \"Upstairs\"); there is nothing more \
+             each state `behaviours` (\"Desk\" and \"Upstairs\"); there is nothing more \
              specific to break the tie, so that lamp answers none of them"
                 .to_string()
         ],
@@ -147,13 +147,13 @@ fn a_dim_question_two_zones_both_answer_leaves_that_lamp_dark_rather_than_bright
     // THE SAME DIRECTION AN UNPARSEABLE WINDOW ALREADY TAKES: that lamp
     // drops out of the routing entirely, which costs one lamp rather than
     // the house, and the refusal names both declarations.
-    // THE ROOM ANSWERS `shows`, so the lamp really is routed and the ONLY
+    // THE ROOM ANSWERS `behaviours`, so the lamp really is routed and the ONLY
     // question in doubt is the dim one: a config where both were contested
     // would drop the lamp for carrying nothing and prove nothing here.
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.room.\"3F - Studio\"]\nshows = [\"loop\"]\n\
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"loop\"]\n\
              [lights.zone.Upstairs]\n\
              dim_window = \"22:00-07:00\"\ndim_behaviours = [\"loop\"]\n\
              [lights.zone.Desk]\n\
@@ -187,9 +187,9 @@ fn each_question_resolves_on_its_own_so_a_lamp_can_state_one_and_inherit_the_oth
     let routing = resolve(
         &stock(),
         &lights(
-            "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
              dim_window = \"22:00-07:00\"\ndim_behaviours = [\"blocked\"]\n\
-             [lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"blocked\"]\n",
+             [lights.lamp.\"3F - Studio - HCL3\"]\nbehaviours = [\"blocked\"]\n",
         ),
     );
     let hcl3 = routing
@@ -197,7 +197,7 @@ fn each_question_resolves_on_its_own_so_a_lamp_can_state_one_and_inherit_the_oth
         .iter()
         .find(|routed| routed.lamp.name == "3F - Studio - HCL3")
         .expect("HCL3 is routed");
-    assert_eq!(hcl3.shows, vec![Behaviour::Blocked], "its own answer");
+    assert_eq!(hcl3.behaviours, vec![Behaviour::Blocked], "its own answer");
     assert_eq!(
         hcl3.dim.as_ref().map(|dim| dim.behaviours.clone()),
         Some(vec![Behaviour::Blocked]),

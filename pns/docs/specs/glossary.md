@@ -21,17 +21,17 @@ That is the type inventory. The prose terms below were then confirmed by greppin
 | decision trace               | zero occurrences                                 | `decision ring` (the file `decisions`), and `journal` for the missed-notification file                                               |
 | quiet place                  | one occurrence, in prose only, naming no concept | `quiet window`, `quiet hours`, `dim window`                                                                                          |
 | home presence                | occurs as the config heading `[plugins.home_presence]` and the roster sensor name | `home probe` and `router` in prose. The TYPE is also named `HomePresence` (`src/home.rs`), so the word survives as an identifier and a config key |
-| held light                   | zero occurrences                                 | `held` (`src/lights.rs:Held`, `HeldEntry`), and the `unread` lamp for the state itself                                               |
+| held light                   | zero occurrences                                 | `held` (`src/lights.rs:Held`, `HeldEntry`), and the `unseen` lamp for the state itself                                               |
 | plugin (as a universal role) | present, but as three distinct kinds             | `src/registry.rs:PluginKind` separates the kinds; a sensor is not a destination                                                      |
 
 `signal` deserves its own line. It names no pns concept: what a producer states is the `state`, one of
 six words on the flag path and in the JSON request alike. The word survives only where it belongs to
 somebody else, the Hue bridge's own JSON field (`"signal": "on_off_color"`) and the POSIX signal mask.
 
-## `unread`, and where `glow` still lives
+## `unseen`, and where `glow` still lives
 
-The lamp state is `unread`. An operator ruling on 2026-08-31 renamed it, and the rename landed in the
-types: `src/config.rs:Behaviour::Unread`, `src/lights.rs:Unread` (the two flavours `Success` and
+The lamp state is `unseen`. An operator ruling on 2026-08-31 renamed it, and the rename landed in the
+types: `src/config.rs:Behaviour::Unseen`, `src/lights.rs:Unread` (the two flavours `Success` and
 `Failure`), `src/lights.rs:Held::UnreadSuccess` and `Held::UnreadFailure`, and the colour constants
 `UNREAD_SUCCESS_COLOR` and `FAILURE_COLOR` in `src/pulse.rs`.
 
@@ -50,7 +50,7 @@ be wrong about all three:
    `tests/dispatch.rs:the_operators_return_puts_out_a_glow_without_any_daemon_running` and
    `an_event_holding_no_glow_reaches_the_bridge_for_nothing`.
 
-Prefer `unread` in new code and new prose. Renaming the surviving comments and test names is a separate
+Prefer `unseen` in new code and new prose. Renaming the surviving comments and test names is a separate
 change. The three legacy names in `sweep_legacy_state` must not be renamed at all while that sweep is
 still deployed, because the string in the source is the only thing that names the file to delete.
 
@@ -99,7 +99,7 @@ still deployed, because the string in the source is the only thing that names th
 | Term                     | Defined at                                                | What it is                                                                           |
 | ------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | pulse                    | `src/pulse.rs`                                            | A timed blink on the lamps, fired on an exit code or an event                        |
-| unread                   | `src/lights.rs:Unread`, `src/config.rs:Behaviour::Unread` | The steady lamp state saying there is news the operator has not seen                 |
+| unseen                   | `src/lights.rs:Unread`, `src/config.rs:Behaviour::Unseen` | The steady lamp state saying there is news the operator has not seen                 |
 | held                     | `src/lights.rs:Held`, `HeldEntry`                         | Which lamp is currently carrying which state, recorded so a later run can put it out |
 | phase                    | `src/lights.rs:Phase`                                     | One step of a breath                                                                 |
 | streak                   | `src/lights.rs:Streak`                                    | How long the working state has run without a break                                   |

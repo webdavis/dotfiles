@@ -199,16 +199,20 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("stale", "route", "\"priority\""),
     ("storage", "busy_deadline", "\"5s\""),
     ("lights", "blocked", "{ duration_ms = 2000 }"),
+    ("lights", "checks", "{ duration_ms = 4000 }"),
     ("lights", "dim", "{ duration_ms = 3000 }"),
     ("lights", "done", "{ duration_ms = 4000 }"),
     ("lights", "failed", "{ duration_ms = 4000 }"),
-    ("lights", "github", "{ duration_ms = 4000 }"),
-    ("lights", "lamp", "{ HCL1 = { shows = [\"done\"] } }"),
+    ("lights", "lamp", "{ HCL1 = { behaviours = [\"done\"] } }"),
     ("lights", "loop", "{ threshold_secs = 300 }"),
     ("lights", "refresh_secs", "12"),
-    ("lights", "room", "{ Study = { shows = [\"done\"] } }"),
-    ("lights", "unread", "{ after_secs = 300 }"),
-    ("lights", "zone", "{ Upstairs = { shows = [\"done\"] } }"),
+    ("lights", "room", "{ Study = { behaviours = [\"done\"] } }"),
+    ("lights", "unseen", "{ after_secs = 300 }"),
+    (
+        "lights",
+        "zone",
+        "{ Upstairs = { behaviours = [\"done\"] } }",
+    ),
     ("lights.blocked", "duration_ms", "2000"),
     ("lights.blocked", "give_up_after_secs", "57600"),
     ("lights.blocked", "high", "100"),
@@ -216,14 +220,14 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("lights.dim", "duration_ms", "3000"),
     ("lights.dim", "high", "7"),
     ("lights.dim", "low", "1"),
+    ("lights.checks", "brightness", "100"),
+    ("lights.checks", "duration_ms", "4000"),
+    ("lights.checks", "fail_color", "[0.5562, 0.4084]"),
+    ("lights.checks", "pass_color", "[0.2725, 0.1283]"),
     ("lights.done", "brightness", "100"),
     ("lights.done", "duration_ms", "4000"),
     ("lights.failed", "brightness", "100"),
     ("lights.failed", "duration_ms", "4000"),
-    ("lights.github", "brightness", "100"),
-    ("lights.github", "duration_ms", "4000"),
-    ("lights.github", "fail", "[0.5562, 0.4084]"),
-    ("lights.github", "pass", "[0.2725, 0.1283]"),
     ("lights.loop", "duration_ms", "4000"),
     ("lights.loop", "flare", "100"),
     ("lights.loop", "flare_ms", "200"),
@@ -231,13 +235,13 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("lights.loop", "lease_timeout_secs", "3900"),
     ("lights.loop", "low", "10"),
     ("lights.loop", "threshold_secs", "300"),
-    ("lights.unread", "after_secs", "300"),
-    ("lights.unread", "duration_ms", "4000"),
-    ("lights.unread", "high", "60"),
-    ("lights.unread", "low", "10"),
+    ("lights.unseen", "after_secs", "300"),
+    ("lights.unseen", "duration_ms", "4000"),
+    ("lights.unseen", "high", "60"),
+    ("lights.unseen", "low", "10"),
+    (super::TARGET_KEYS, "behaviours", "[\"done\"]"),
     (super::TARGET_KEYS, "dim_behaviours", "[\"blocked\"]"),
     (super::TARGET_KEYS, "dim_window", "\"22:00-07:00\""),
-    (super::TARGET_KEYS, "shows", "[\"done\"]"),
     ("plugins.log", "channels", "{ default = \"9001\" }"),
     ("plugins.log", "enabled", "true"),
     ("plugins.log", "keys", "{ pns-events = \"secret\" }"),
@@ -322,8 +326,8 @@ mod delivery;
 mod failure_wording;
 mod focus;
 mod lights_bounds;
+mod lights_checks;
 mod lights_defaults;
-mod lights_github;
 mod lights_motion;
 mod lights_targets;
 mod loading;

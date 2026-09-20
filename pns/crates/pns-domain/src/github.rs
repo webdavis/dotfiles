@@ -53,7 +53,7 @@ pub const GITHUB_OUTCOME_WORDS: [(&str, GithubOutcome); 3] = [
 ];
 
 impl GithubOutcome {
-    /// Which colour of the `github` lamp this outcome runs at, or nothing at
+    /// Which colour of the `checks` lamp this outcome runs at, or nothing at
     /// all for the outcome that has no colour to run at.
     pub fn flash(self) -> Option<crate::lights::flash::Flash> {
         match self {

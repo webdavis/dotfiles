@@ -13,9 +13,9 @@ mod tests {
         let bridge = scripted(true);
         let lights = *pns_adapters::parse_config(
             "[lights]\nrefresh_secs = 10\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n\
              dim_window = \"2200-0700\"\n\
-             [lights.lamp.\"3F - Nowhere\"]\nshows = [\"blocked\"]\n",
+             [lights.lamp.\"3F - Nowhere\"]\nbehaviours = [\"blocked\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -49,8 +49,8 @@ mod tests {
         // blocked breath lit in every room while the operator sits in one.
         let lights = *pns_adapters::parse_config(
             "[lights]\nrefresh_secs = 10\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
-             [lights.room.\"2F - Kitchen\"]\nshows = [\"blocked\"]\n",
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"blocked\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -95,12 +95,12 @@ mod tests {
     #[test]
     fn a_tick_narrows_over_the_lamps_this_state_would_reach_and_not_the_rest() {
         // The tick's half of the same rule, through `shown` rather than
-        // `pulse_fires`: a kitchen lamp carrying only `unread` is not a lamp a
+        // `pulse_fires`: a kitchen lamp carrying only `unseen` is not a lamp a
         // blocked wait can breathe on.
         let lights = *pns_adapters::parse_config(
             "[lights]\nrefresh_secs = 10\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n\
-             [lights.room.\"2F - Kitchen\"]\nshows = [\"unread\"]\n",
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n\
+             [lights.room.\"2F - Kitchen\"]\nbehaviours = [\"unseen\"]\n",
         )
         .expect("the test's own config parses")
         .lights

@@ -71,8 +71,8 @@ pub(super) const LIGHTS_BLOCKED: Table = Table {
         },
     ],
 };
-pub(super) const LIGHTS_UNREAD: Table = Table {
-    name: "lights.unread",
+pub(super) const LIGHTS_UNSEEN: Table = Table {
+    name: "lights.unseen",
     prose: "",
     opt_in: true,
     children: &[],
@@ -100,16 +100,16 @@ pub(super) const LIGHTS_UNREAD: Table = Table {
         },
     ],
 };
-pub(super) const LIGHTS_GITHUB: Table = Table {
-    name: "lights.github",
+pub(super) const LIGHTS_CHECKS: Table = Table {
+    name: "lights.checks",
     prose: "# The one behaviour that carries its own COLOURS: a GitHub event, purple\n\
                  # for a pass and orange for a failure, as CIE xy `[x, y]` pairs (which is\n\
                  # what the bridge takes; a hex colour would be clamped into its gamut and\n\
-                 # desaturated). One brightness for both, as `unread` has.\n\
+                 # desaturated). One brightness for both, as `unseen` has.\n\
                  #\n\
-                 # THE PAIR IS CHOSEN FOR A LAMP OF ITS OWN. Give `github` a lamp whose\n\
-                 # `shows` names nothing else: the purple sits close enough to the blocked\n\
-                 # magenta, and the orange close enough to the unread daylight, that a lamp\n\
+                 # THE PAIR IS CHOSEN FOR A LAMP OF ITS OWN. Give `checks` a lamp whose\n\
+                 # `behaviours` names nothing else: the purple sits close enough to the blocked\n\
+                 # magenta, and the orange close enough to the unseen daylight, that a lamp\n\
                  # carrying either alongside it cannot be told apart across a room.\n",
     opt_in: true,
     children: &[],
@@ -125,12 +125,12 @@ pub(super) const LIGHTS_GITHUB: Table = Table {
             sample: Sample::Default("100"),
         },
         Key {
-            name: "pass",
+            name: "pass_color",
             prose: "",
             sample: Sample::Default("[0.2725, 0.1283]"),
         },
         Key {
-            name: "fail",
+            name: "fail_color",
             prose: "",
             sample: Sample::Default("[0.5562, 0.4084]"),
         },

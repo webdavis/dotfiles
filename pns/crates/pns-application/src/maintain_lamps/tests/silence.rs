@@ -30,9 +30,9 @@ fn lights() -> Lights {
         lamps: [(
             "status".into(),
             Target {
-                shows: Some(vec![
+                behaviours: Some(vec![
                     Behaviour::Blocked,
-                    Behaviour::Unread,
+                    Behaviour::Unseen,
                     Behaviour::Looping,
                 ]),
                 ..Target::default()

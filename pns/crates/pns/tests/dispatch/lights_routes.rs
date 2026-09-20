@@ -91,7 +91,7 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
             "",
             &format!(
                 "[lights]\nrefresh_secs = 20\n\
-                 [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+                 [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
                  dim_window = \"{asleep}\"\ndim_behaviours = []\n"
             ),
             &long_running,
@@ -232,7 +232,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
 }
 
 /// A `github` extension on a producer submission reaches the lamp that names
-/// `github`, and a `neutral` outcome reaches no lamp at all.
+/// `checks`, and a `neutral` outcome reaches no lamp at all.
 ///
 /// THE WHOLE FEATURE, END TO END, WITH NO TRANSPORT: this is what "testable by
 /// hand the day it merges" means, and the two rows are the two halves of the
@@ -240,9 +240,9 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
 /// long-running tier the plan's own `pulse` is; a review request or a release
 /// has no colour and must not light anything.
 #[test]
-fn a_submitted_github_event_lights_the_github_lamp_unless_its_outcome_is_neutral() {
+fn a_submitted_github_event_lights_the_checks_lamp_unless_its_outcome_is_neutral() {
     const GITHUB_MAP: &str = "[lights]\nrefresh_secs = 20\n\
-         [lights.lamp.\"3F - Studio - HCL1\"]\nshows = [\"github\"]\n";
+         [lights.lamp.\"3F - Studio - HCL1\"]\nbehaviours = [\"checks\"]\n";
     for (outcome, state, dials) in [
         ("failed", "failed", true),
         ("passed", "done", true),

@@ -42,17 +42,17 @@ fn a_dimmed_pulse_fires_at_the_dim_floor_and_a_suppressed_one_does_not_fire() {
         pulse_render(Flash::Word(Behaviour::Done), &shipped, Showing::Dark).is_none(),
         "and a suppressed pulse writes nothing at all"
     );
-    for held in [Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping] {
+    for held in [Behaviour::Blocked, Behaviour::Unseen, Behaviour::Looping] {
         assert!(
             pulse_render(Flash::Word(held), &shipped, Showing::Full).is_none(),
             "{held:?} is a held state and has no pulse shape to fall back to"
         );
     }
-    // AND THE `github` WORD ON ITS OWN RENDERS NOTHING EITHER, which is the
+    // AND THE `checks` WORD ON ITS OWN RENDERS NOTHING EITHER, which is the
     // fail-dark direction on the one behaviour whose colour the event states:
     // a pulse that reached here without an outcome has no colour to run at.
     assert!(
-        pulse_render(Flash::Word(Behaviour::Github), &shipped, Showing::Full).is_none(),
+        pulse_render(Flash::Word(Behaviour::Checks), &shipped, Showing::Full).is_none(),
         "the pass and the failure are the two flavours; the bare word is neither"
     );
 }
@@ -76,12 +76,12 @@ fn each_held_state_renders_its_own_locked_colour_and_shape() {
         (
             pns_domain::lights::held::Held::UnreadFailure,
             pns_domain::pulse::FAILURE_COLOR,
-            pns_domain::lights::breath::breath_cycle(&shipped.unread.breath),
+            pns_domain::lights::breath::breath_cycle(&shipped.unseen.breath),
         ),
         (
             pns_domain::lights::held::Held::UnreadSuccess,
             pns_domain::pulse::UNREAD_SUCCESS_COLOR,
-            pns_domain::lights::breath::breath_cycle(&shipped.unread.breath),
+            pns_domain::lights::breath::breath_cycle(&shipped.unseen.breath),
         ),
     ];
     for (held, color, cycle) in expected {

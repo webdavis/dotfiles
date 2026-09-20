@@ -116,7 +116,7 @@ fn a_thread_naming_no_repository_is_no_event_at_all() {
 #[test]
 fn a_ci_title_saying_failed_reaches_the_fail_colour() {
     // THE MUTANT THIS PINS: `Neutral` compiled in as the poll's outcome, which
-    // leaves the `github` lamp dark for every workflow run the inbox reports.
+    // leaves the `checks` lamp dark for every workflow run the inbox reports.
     let event = polled_event(&ci_activity()).expect("ci_activity maps");
     assert_eq!(event.outcome, GithubOutcome::Failed);
     assert_eq!(
