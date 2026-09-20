@@ -59,15 +59,15 @@ pub(super) const LIGHTS_BLOCKED: Table = Table {
             sample: Sample::Default("30"),
         },
         Key {
-            name: "give_up_after_secs",
+            name: "lease_expiry",
             prose: "# How long an unanswered wait may hold the lamp before the daemon gives\n\
-                         # up on an abandoned session, in seconds. This is a BACKSTOP, not an\n\
-                         # expiry: the locked behaviour is the blocked lamp breathing, continuous\n\
-                         # until you answer, and the ordinary end is your session's next event,\n\
-                         # whatever the hour. 57600 (16 hours) outlasts a long day away and still\n\
-                         # gives the lamp back before the next one starts. The range is 60 to\n\
-                         # 604800 (a week), since an abandoned wait can span a weekend away.\n",
-            sample: Sample::Default("57600"),
+                         # up on an abandoned session. This is a BACKSTOP: the locked behaviour\n\
+                         # is the blocked lamp breathing, continuous until you answer, and the\n\
+                         # ordinary end is your session's next event, whatever the hour. \"16h\"\n\
+                         # outlasts a long day away and still gives the lamp back before the next\n\
+                         # one starts. It is bounded \"1m\" to \"168h\" (a week), since an abandoned\n\
+                         # wait can span a weekend away.\n",
+            sample: Sample::Default("\"16h\""),
         },
     ],
 };
@@ -93,10 +93,11 @@ pub(super) const LIGHTS_UNSEEN: Table = Table {
             sample: Sample::Default("10"),
         },
         Key {
-            name: "after_secs",
-            prose: "# How old a FINISHED run must be before its lamp arms, in seconds. A\n\
-                         # run that DIED has no such delay and no knob. Zero arms at once.\n",
-            sample: Sample::Default("300"),
+            name: "arm_after",
+            prose: "# How old a FINISHED run must be before its lamp arms, bounded \"0s\" to\n\
+                         # \"24h\". A run that DIED has no such delay and no knob. \"0s\" arms at\n\
+                         # once.\n",
+            sample: Sample::Default("\"5m\""),
         },
     ],
 };
@@ -172,17 +173,18 @@ pub(super) const LIGHTS_LOOP: Table = Table {
             sample: Sample::Default("200"),
         },
         Key {
-            name: "threshold_secs",
-            prose: "# How long work must run continuously before the lamp arms itself, in\n\
-                         # seconds. Both an agent herdr calls working and a tracked shell command\n\
-                         # count.\n",
-            sample: Sample::Default("300"),
+            name: "arm_after",
+            prose: "# How long work must run continuously before the lamp arms itself, bounded\n\
+                         # \"1s\" to \"24h\". Both an agent herdr calls working and a tracked shell\n\
+                         # command count.\n",
+            sample: Sample::Default("\"5m\""),
         },
         Key {
-            name: "lease_timeout_secs",
+            name: "lease_expiry",
             prose: "# How long a lease taken by `pns loop begin` survives with nothing\n\
-                         # renewing it, in seconds. The pane's own hook traffic renews it.\n",
-            sample: Sample::Default("3900"),
+                         # renewing it, bounded \"1m\" to \"24h\". The pane's own hook traffic\n\
+                         # renews it.\n",
+            sample: Sample::Default("\"65m\""),
         },
     ],
 };

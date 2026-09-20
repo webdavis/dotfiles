@@ -256,7 +256,7 @@ Config {
     storage_busy_deadline: 5s,
     lights: Some(
         Lights {
-            refresh_secs: 12,
+            arm_interval_secs: 12,
             done: Pulse {
                 duration_ms: 4000,
                 brightness: 100,
@@ -271,7 +271,7 @@ Config {
                     high: 100,
                     low: 30,
                 },
-                give_up_after_secs: 57600,
+                lease_expiry_secs: 57600,
             },
             unseen: Unseen {
                 breath: Breath {
@@ -279,7 +279,7 @@ Config {
                     high: 60,
                     low: 10,
                 },
-                after_secs: 300,
+                arm_after_secs: 300,
             },
             checks: Checks {
                 pulse: Pulse {
@@ -305,8 +305,8 @@ Config {
                     flare: 100,
                     flare_ms: 200,
                 },
-                threshold_secs: 360,
-                lease_timeout_secs: 3900,
+                arm_after_secs: 360,
+                lease_expiry_secs: 3900,
             },
             dim: Breath {
                 duration_ms: 3000,

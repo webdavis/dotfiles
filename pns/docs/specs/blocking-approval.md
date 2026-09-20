@@ -487,7 +487,7 @@ Then one marker file per waiting session is published, and a later event from th
   answered hours ago; the same test asserts the journal file does not exist. An approval must also leave
   the TURN MARKER alone, because the harness resumes the tool call and the turn ends later at the Stop
   that follows (`tests/hooks.rs:an_approval_leaves_the_turn_marker_alone`).
-- Timeout and cancellation: the marker's own backstop is `[lights.blocked] give_up_after_secs`, which
+- Timeout and cancellation: the marker's own backstop is `[lights.blocked] lease_expiry`, which
   configuration refuses to set shorter than `[remind] delay`, because that is a configuration that
   gives up on a wait before it ever nudges about it (`src/main.rs:update_blocked_marker`,
   `src/config.rs:parse_config`).

@@ -24,9 +24,9 @@ pub struct Loop<'reading> {
     pub leases: &'reading [u64],
     pub now: u64,
     /// How long tracked work must run continuously before the lamp arms itself.
-    pub threshold_secs: u64,
+    pub arm_after_secs: u64,
     /// How long a lease survives with nothing renewing it.
-    pub lease_timeout_secs: u64,
+    pub lease_expiry_secs: u64,
 }
 /// Whether the loop lamp is on.
 ///
@@ -60,7 +60,7 @@ pub fn loop_running(state: &Loop<'_>) -> bool {
         state
             .now
             .checked_sub(since)
-            .is_some_and(|elapsed| elapsed >= state.threshold_secs)
+            .is_some_and(|elapsed| elapsed >= state.arm_after_secs)
     };
     let agent_run =
         state.agents_working && state.streak.is_some_and(|streak| long_enough(streak.since));
@@ -69,5 +69,5 @@ pub fn loop_running(state: &Loop<'_>) -> bool {
         || state
             .leases
             .iter()
-            .any(|at| marker_is_live(*at, state.now, state.lease_timeout_secs))
+            .any(|at| marker_is_live(*at, state.now, state.lease_expiry_secs))
 }

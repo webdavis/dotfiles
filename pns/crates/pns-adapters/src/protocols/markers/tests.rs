@@ -167,7 +167,7 @@ fn the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves()
     // bound was ever hardcoded to, and a wait older than all of them but
     // inside it: a reader that kept an old constant on EITHER half puts
     // the lamp out here.
-    const GIVE_UP_AFTER_SECS: u64 = 100_000;
+    const LEASE_EXPIRY_SECS: u64 = 100_000;
     let state = scratch("blocked-knob-tick");
     let marker = crate::marker_files::blocked_marker(&state, "s1").expect("a usable session id");
     std::fs::create_dir_all(marker.parent().expect("the wait directory"))
@@ -176,7 +176,7 @@ fn the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves()
     // THROUGH THE PARSER, not a field poked on a default: the knob the
     // operator writes is the one the tick must read.
     let config = crate::parse_config(&format!(
-        "[lights.blocked]\ngive_up_after_secs = {GIVE_UP_AFTER_SECS}\n"
+        "[lights.blocked]\nlease_expiry = \"{LEASE_EXPIRY_SECS}s\"\n"
     ))
     .expect("a config stating the knob");
     let lights = config.lights.as_deref().expect("the lights table");
@@ -186,7 +186,7 @@ fn the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves()
         "a day-old question inside the configured backstop still holds the lamp"
     );
     assert!(
-        !blocked_lamp(&state, lights, 1_000 + GIVE_UP_AFTER_SECS + 1),
+        !blocked_lamp(&state, lights, 1_000 + LEASE_EXPIRY_SECS + 1),
         "and one second past the backstop the lamp is given back"
     );
     assert!(
@@ -206,7 +206,7 @@ fn a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop
     // A KNOB THAT IS NOT THE SHIPPED DEFAULT, so a `sweep_blocked` that
     // silently kept an old hardcoded number instead of reading the
     // configured one would still be caught here.
-    const GIVE_UP_AFTER_SECS: u64 = 3_600;
+    const LEASE_EXPIRY_SECS: u64 = 3_600;
 
     let state = scratch("blocked-bound");
     let marker = crate::marker_files::blocked_marker(&state, "s1").expect("a usable session id");
@@ -215,17 +215,17 @@ fn a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop
     std::fs::write(&marker, "1000\n").expect("a wait in progress");
 
     assert_eq!(
-        sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS - 1, GIVE_UP_AFTER_SECS),
+        sweep_blocked(&state, 1_000 + LEASE_EXPIRY_SECS - 1, LEASE_EXPIRY_SECS),
         vec![1_000],
         "a question just short of the knob is still a question nobody has answered"
     );
     assert_eq!(
-        sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS, GIVE_UP_AFTER_SECS),
+        sweep_blocked(&state, 1_000 + LEASE_EXPIRY_SECS, LEASE_EXPIRY_SECS),
         vec![1_000],
         "exactly at the backstop it is still live: the bound is closed"
     );
     assert_eq!(
-        sweep_blocked(&state, 1_000 + GIVE_UP_AFTER_SECS + 1, GIVE_UP_AFTER_SECS),
+        sweep_blocked(&state, 1_000 + LEASE_EXPIRY_SECS + 1, LEASE_EXPIRY_SECS),
         Vec::<u64>::new(),
         "and one second past it the abandoned session gives the bulb back"
     );

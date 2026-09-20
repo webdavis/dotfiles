@@ -737,7 +737,7 @@ or removed.
   which is `pane_is_safe` plus a refusal of `..` and of this crate's own working-file grammar. One step
   either side: `--pane wW:p9` is accepted; `--pane ../x` and `--pane abc.new.1` are refused by name.
 - Required side effects on `begin`: the marker file, and a scheduled lamps tick covering
-  `lights.looping.lease_timeout_secs` when a config with a `[lights]` table loads.
+  `lights.looping.lease_expiry` when a config with a `[lights]` table loads.
 - Forbidden side effects: no lease at epoch zero. When the clock cannot be read, `begin` prints
   `pns: loop: the clock cannot be read; the lease was not taken` and exits 1 rather than writing a marker
   that would be expired the moment it was written.
