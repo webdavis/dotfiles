@@ -135,3 +135,14 @@ fn the_banners_stored_click_command_names_the_open_verb() {
 fn the_usage_line_names_the_open_verb_and_its_argument() {
     assert!(FAILURES_USAGE.contains("open <id>"), "{FAILURES_USAGE}");
 }
+
+/// The id column holds the widest id the ledger hands out without running into
+/// the timestamp: a four-wide column was filled by a four-digit id, and the two
+/// facts ran together as one word.
+#[test]
+fn a_long_id_still_leaves_a_gap_before_the_timestamp() {
+    let failure = stored(12345, pns_domain::retry::TransportOutcome::Status(404));
+    let when = when(failure.failed_at);
+    let listing = listing(Paint::Plain, std::slice::from_ref(&failure));
+    assert!(listing.contains(&format!("12345 {when}")), "{listing}");
+}

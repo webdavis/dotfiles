@@ -99,7 +99,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     // THE COLUMN HEADER IS FAINT, not a mark: it names the columns rather than
     // reporting anything, and a row's own glyph is what carries the verdict.
     out.push_str(&paint.faint(&format!(
-        "    {:<4}{:<18}{:<14}{:<11}sent by",
+        "    {:<6}{:<18}{:<14}{:<11}sent by",
         "id", "when", "status", "route"
     )));
     out.push('\n');
@@ -110,7 +110,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
             "·",
             2,
             &format!(
-                "{:<4}{:<18}{:<14}{:<11}{}",
+                "{:<6}{:<18}{:<14}{:<11}{}",
                 failure.id,
                 when(failure.failed_at),
                 short_status(failure),
