@@ -31,10 +31,6 @@ impl CommandRunner for Runner {
     ) -> Result<CommandOutput, InspectionFailure> {
         let mut effects = self.0.borrow_mut();
         match program.to_str().unwrap() {
-            "/usr/bin/pgrep" => Ok(CommandOutput {
-                bytes: vec![],
-                exit: 0,
-            }),
             "/bin/launchctl" => {
                 assert_eq!(args[0], "print");
                 // The live pid is this process, so the daemon reading is
@@ -92,6 +88,21 @@ impl CommandRunner for Runner {
             }
             _ => panic!("unexpected command {program:?}"),
         }
+    }
+}
+/// A scripted process table, so the assembled reads never walk the live
+/// machine: every walk answers with one process id when the daemon is
+/// declared present, and none when it is not.
+struct Processes(bool);
+impl ProcessLookup for Processes {
+    fn matching(
+        &mut self,
+        _name: &str,
+        _uid: Option<u32>,
+        _parent: Option<u32>,
+        _directory: Option<&Path>,
+    ) -> Result<Vec<i32>, InspectionFailure> {
+        Ok(if self.0 { vec![1] } else { vec![] })
     }
 }
 struct Time;
@@ -173,6 +184,7 @@ fn call(c: Configuration, runner: &Runner) -> (u8, Vec<u8>) {
             fallback: runner.clone(),
             independent: runner.clone(),
         },
+        Processes(true),
         &mut Gateway,
         &mut stderr,
     );

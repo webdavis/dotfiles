@@ -3,10 +3,15 @@
 use crate::ProcessLookup;
 use posture_application::InspectionFailure;
 use std::collections::VecDeque;
+use std::path::{Path, PathBuf};
+
+/// One recorded walk: the name, the real user, the parent and the directory
+/// it was asked for.
+pub(crate) type Walk = (String, Option<u32>, Option<u32>, Option<PathBuf>);
 
 pub(crate) struct ScriptedProcesses {
     answers: VecDeque<Result<Vec<i32>, InspectionFailure>>,
-    pub(crate) calls: Vec<(String, Option<u32>, Option<u32>)>,
+    pub(crate) calls: Vec<Walk>,
 }
 
 impl ScriptedProcesses {
@@ -26,8 +31,14 @@ impl ProcessLookup for ScriptedProcesses {
         name: &str,
         uid: Option<u32>,
         parent: Option<u32>,
+        directory: Option<&Path>,
     ) -> Result<Vec<i32>, InspectionFailure> {
-        self.calls.push((name.to_owned(), uid, parent));
+        self.calls.push((
+            name.to_owned(),
+            uid,
+            parent,
+            directory.map(Path::to_path_buf),
+        ));
         self.answers
             .pop_front()
             .expect("an undeclared extra process walk ran")
