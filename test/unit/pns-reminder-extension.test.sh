@@ -89,9 +89,12 @@ function test_pi_prompt_end_clears_the_reminder() {
   assert_contains "producer:pi" "$(cat "$PNS_STUB_LOG")"
 }
 
-function test_omp_approval_requested_arms_a_reminder() {
+function test_omp_approval_requested_arms_a_reminder_with_no_card_of_its_own() {
+  # `arm-remind`, never `blocked`: moshi's own generated extension already
+  # reports this event to its own daemon socket, so this call must only
+  # schedule the nudge, never raise a second pns notification for it.
   fire omp tool_approval_requested '{"sessionId":"s2","toolName":"bash","reason":"writes"}'
-  assert_contains "argv:hook blocked --remind" "$(cat "$PNS_STUB_LOG")"
+  assert_contains "argv:hook arm-remind --remind" "$(cat "$PNS_STUB_LOG")"
   assert_contains "producer:omp" "$(cat "$PNS_STUB_LOG")"
   assert_contains '"tool_name":"bash"' "$(cat "$PNS_STUB_LOG")"
 }

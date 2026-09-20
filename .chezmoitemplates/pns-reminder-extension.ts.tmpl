@@ -69,9 +69,17 @@ function callPns(args, eventName, event, ctx, extra) {
 
 // The waiting and answered pair pns needs: `--remind` arms the unanswered
 // reminder and `resolved` is what clears it, the same wiring Claude Code and
-// Codex carry in their own hook declarations.
+// Codex carry in their own hook declarations. `waiting` also raises pns's own
+// notification, for a harness with no card of its own on this event.
 function waiting(eventName, event, ctx, extra) {
   callPns(["hook", "blocked", "--remind"], eventName, event, ctx, extra)
+}
+
+// The same arm with no card: for a harness whose OWN extension already
+// reports this event to its own daemon socket, so a second notification from
+// here would double the approval up.
+function armOnly(eventName, event, ctx, extra) {
+  callPns(["hook", "arm-remind", "--remind"], eventName, event, ctx, extra)
 }
 
 function answered(eventName, event, ctx, extra) {
