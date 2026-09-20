@@ -140,6 +140,13 @@ fn only_regular_files_are_read_and_a_mach_o_magic_selects_code() {
     std::fs::write(&short, b"\xfe\xed\xfa").expect("fixture contents");
     assert!(!adapter.is_mach_o(&short));
     assert!(!adapter.is_mach_o(directory));
+    let literal = directory.join("literal fat64 magic");
+    std::fs::write(&literal, 0xfeed_facf_u32.to_be_bytes()).expect("fixture contents");
+    assert!(adapter.is_mach_o(&literal));
+    assert!(
+        adapter.is_mach_o(Path::new("/usr/bin/true")),
+        "a real Mach-O binary must classify as code"
+    );
     assert!(
         adapter.runner.calls.is_empty(),
         "no child process reads a magic"
