@@ -319,7 +319,9 @@ fn an_observation_registers_no_lights_tick() {
     // registration cannot run under it whichever attempt fires. This needs
     // its own `[lights]`/`[plugins.lights]` table, LAMPS_ON's own fixture.
     let sandbox = Sandbox::new("observation-no-lights-tick");
-    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    sandbox.write_config(&format!(
+        "{LAMPS_ON}[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
+    ));
     counted_channels(&sandbox);
 
     let output = hook_with(

@@ -23,7 +23,7 @@ fn hue_listener(sandbox: &Sandbox) -> std::sync::Arc<std::sync::atomic::AtomicUs
         sandbox.path(".config/pns/config.toml"),
         format!(
             "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-             [plugins.hermes]\nenabled = true\n"
+             [plugins.log]\nenabled = true\ntype = \"hermes\"\n"
         ),
     )
     .expect("config");

@@ -24,7 +24,10 @@ fn a_registered_plugin_the_config_did_not_enable_is_a_skip_that_says_which() {
     // switched off. Neither is an error and both have to be visible, or
     // the operator reads a short report as a complete one.
     assert_eq!(
-        kind_for("[plugins.hermes]\nenabled = true\n", "mobile"),
+        kind_for(
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
+            "mobile"
+        ),
         CheckKind::Skipped(NOT_ENABLED)
     );
     assert_eq!(
@@ -91,7 +94,7 @@ fn a_selected_event_dispatched_channel_is_a_send() {
         assert_eq!(
             kind_for(
                 "[plugins.mobile]\nenabled = true\n[plugins.banner]\nenabled = true\n\
-                     [plugins.hermes]\nenabled = true\n",
+                     [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
                 plugin
             ),
             CheckKind::Send,

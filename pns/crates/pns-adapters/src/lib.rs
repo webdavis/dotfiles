@@ -62,7 +62,7 @@ pub use config::{
 };
 
 pub use config::banner_click;
-pub use config::{BOT_TYPE, DiscordSettings, armed_discord, discord_backend, discord_settings};
+pub use config::{DiscordSettings, armed_discord, discord_settings};
 pub use config::{HermesKeys, hermes_keys};
 
 pub use config::select_plugins;
@@ -139,7 +139,6 @@ pub use destinations::hermes::{
 
 pub use destinations::discord::{
     DiscordChannel, DiscordPost, DiscordReply, DiscordRequest, SessionThreads, UreqDiscordPost,
-    refused_discord_line,
 };
 
 pub use destinations::moshi::{

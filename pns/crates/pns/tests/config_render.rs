@@ -101,8 +101,8 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
     // over the table the file wrote, so any name in it is secret-bearing.
     let hermes_routes = ["pns-events", "weather-balloons"].into_iter().map(|route| {
         (
-            format!("plugins.hermes.keys.{route}"),
-            format!("[plugins.hermes.keys]\n{route} = \"a-literal-key\"\n"),
+            format!("plugins.log.keys.{route}"),
+            format!("[plugins.log.keys]\n{route} = \"a-literal-key\"\n"),
         )
     });
     let fixed = [
@@ -119,12 +119,12 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
             "[plugins.lights]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
         ),
         (
-            "plugins.discord.token",
-            "[plugins.discord]\ntoken = \"a-literal-token\"\n",
+            "plugins.log.token",
+            "[plugins.log]\ntoken = \"a-literal-token\"\n",
         ),
         (
-            "plugins.discord.channels.default",
-            "[plugins.discord.channels]\ndefault = \"9001\"\n",
+            "plugins.log.channels.default",
+            "[plugins.log.channels]\ndefault = \"9001\"\n",
         ),
         (
             "plugins.home_presence.api_key",

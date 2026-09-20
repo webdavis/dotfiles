@@ -174,7 +174,9 @@ fn a_config_change_moves_no_presence_edge() {
 #[test]
 fn a_config_change_registers_no_lights_tick() {
     let sandbox = Sandbox::new("config-change-no-lights-tick");
-    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    sandbox.write_config(&format!(
+        "{LAMPS_ON}[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
+    ));
     counted_channels(&sandbox);
 
     let output = hook_with(

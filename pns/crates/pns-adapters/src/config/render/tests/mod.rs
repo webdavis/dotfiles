@@ -8,7 +8,7 @@ fn every_table_armed() -> toml::Table {
         [plugins.mobile]
         token = "moshi-secret"
 
-        [plugins.hermes.keys]
+        [plugins.log.keys]
         pns-events = "hermes-secret"
 
         [plugins.lights]

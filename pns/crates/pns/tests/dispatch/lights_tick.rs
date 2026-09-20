@@ -38,7 +38,7 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
     // owns transport refusal; repeated silence needs two complete ticks.
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     plant_waiting_session(&sandbox);
     for run in 0..2 {
@@ -102,7 +102,7 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
     let sandbox = Sandbox::new("lights-held-cleared-on-return");
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     pns_adapters::SqliteStore::for_records(sandbox.state())
@@ -153,7 +153,7 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
     let sandbox = Sandbox::new("lights-held-nothing-held");
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     let mut command = logged_event(&sandbox);
     command.env("PNS_SCREEN_IDLE", "0");

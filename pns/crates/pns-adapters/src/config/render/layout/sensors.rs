@@ -136,7 +136,7 @@ pub(super) const PLUGINS_GITHUB: Table = Table {
                  # security alerts finished, read off the notifications API once per\n\
                  # interval. A SENSOR rather than a destination, so no event routes to\n\
                  # it; what it finds is submitted through the ordinary producer path and\n\
-                 # lands in the channel [plugins.discord.channels] maps the repository\n\
+                 # lands in the channel [plugins.log.channels] maps the repository\n\
                  # to, or in its `default` catch-all.\n",
     opt_in: true,
     children: &[],

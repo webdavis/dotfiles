@@ -13,8 +13,22 @@ Config {
                 ),
             },
         },
-        "discord": PluginEntry {
-            enabled: false,
+        "github": PluginEntry {
+            enabled: true,
+            settings: {
+                "poll_secs": Integer(
+                    60,
+                ),
+                "token": String(
+                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
+                ),
+                "webhook_port": Integer(
+                    8648,
+                ),
+            },
+        },
+        "hermes": PluginEntry {
+            enabled: true,
             settings: {
                 "channels": Table(
                     {
@@ -65,31 +79,6 @@ Config {
                         ),
                     },
                 ),
-                "token": String(
-                    "from-the-vault:Discord (Uriel) :: Bot Token (pns):Password",
-                ),
-                "type": String(
-                    "bot",
-                ),
-            },
-        },
-        "github": PluginEntry {
-            enabled: true,
-            settings: {
-                "poll_secs": Integer(
-                    60,
-                ),
-                "token": String(
-                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
-                ),
-                "webhook_port": Integer(
-                    8648,
-                ),
-            },
-        },
-        "hermes": PluginEntry {
-            enabled: true,
-            settings: {
                 "keys": Table(
                     {
                         "pns-events": String(
@@ -102,6 +91,12 @@ Config {
                             "from-the-vault:Hermes :: Webhook Secret (#priority):Password",
                         ),
                     },
+                ),
+                "token": String(
+                    "from-the-vault:Discord (Uriel) :: Bot Token (pns):Password",
+                ),
+                "type": String(
+                    "hermes",
                 ),
             },
         },

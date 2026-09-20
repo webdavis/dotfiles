@@ -16,7 +16,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     let sandbox = Sandbox::new("doctor-failure");
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.banner]\nenabled = true\n\
-         [plugins.hermes]\nenabled = true\n",
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let mut command = sandbox.bare();
     // Belt and braces: with no key nothing is posted at all, and if that ever
@@ -50,7 +50,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     assert!(
         printed.contains(
             "hermes: FAILED, post SKIPPED, no hermes key for the pns-events route \
-             ([plugins.hermes.keys] pns-events); nothing was sent"
+             ([plugins.log.keys] pns-events); nothing was sent"
         ),
         "the last leg still got its turn after an earlier failure: {printed}"
     );

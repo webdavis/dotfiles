@@ -8,7 +8,8 @@ use super::*;
 fn no_router_plugin_table_at_all_is_not_configured_naming_the_table() {
     // hermes rides along so this is a MISS on the router's own name and
     // not a config the parser dropped whole.
-    let config = pns_adapters::parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+    let config =
+        pns_adapters::parse_config("[plugins.log]\nenabled = true\ntype = \"hermes\"\n").unwrap();
     assert_eq!(
         enabled_router_table(&config),
         Err(SetupFailure::NoRouterPlugin)
