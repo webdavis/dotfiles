@@ -430,25 +430,7 @@ Config {
                     ),
                 },
             },
-            zones: {
-                "3F - Upstairs": Target {
-                    behaviours: Some(
-                        [
-                            Done,
-                            Failed,
-                        ],
-                    ),
-                    dim_window: None,
-                    dim_behaviours: Some(
-                        [
-                            Blocked,
-                            Unseen,
-                            Looping,
-                            Checks,
-                        ],
-                    ),
-                },
-            },
+            zones: {},
         },
     ),
     quiet_calendar: QuietCalendar {

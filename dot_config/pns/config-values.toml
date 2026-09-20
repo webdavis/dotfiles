@@ -180,9 +180,3 @@ behaviours = ["loop", "blocked", "unseen"]
 [lights.lamp."1F - Front door - HCL1"]
 behaviours = ["loop", "blocked", "unseen"]
 dim_behaviours = ["blocked", "unseen", "loop"]
-
-# A ZONE DECLARATION, the third level: the least specific, so a lamp or room
-# declaration naming any of its members wins the question it states.
-[lights.zone."3F - Upstairs"]
-behaviours = ["done", "failed"]
-dim_behaviours = ["blocked", "unseen", "loop", "checks"]
