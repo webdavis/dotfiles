@@ -21,8 +21,10 @@ impl SqliteStore {
             StoreError::UnsafeFile => "state file is not private and regular",
             StoreError::UnsupportedSchema(_) => "unsupported database schema",
         };
+        // The category groups the failure; the error names it, on one line.
+        let detail = error.to_string().replace('\n', " ");
         self.write_diagnostic(&format!(
-            "pns: state error ({operation}: {category}); recording failed"
+            "pns: state error ({operation}: {category}: {detail}); recording failed"
         ));
     }
 
