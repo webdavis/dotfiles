@@ -426,8 +426,8 @@ Then it asks `src/main.rs:hue_resolves` FIRST, and only dials when the settings 
   the zero-rooms line would blame the listing or the room names, "both wrong here, and both send the
   operator hunting through a bridge nothing contacted".
 - Thresholds: `Signalled(0)` is graded a FAILURE by `src/doctor.rs:verdict`; `Signalled(1)` and above are
-  `Sent`. One room either side of zero is the whole distinction. The pulse addresses rooms from
-  `[plugins.lights] rooms`, the only source.
+  `Sent`. One room either side of zero is the whole distinction. The pulse addresses the plugin's own
+  default rooms, the only source.
 - Required side effects: **the lamps flash.** `Behaviour::Done` is sent as an `on_off_color` signal for
   `src/channels/hue.rs:UNMAPPED_SIGNAL_DURATION_MS`, 3000 milliseconds, with no brightness stated.
 - Forbidden side effects: no brightness is written on this path, so the lamp comes back byte-identical
@@ -928,7 +928,7 @@ Then one of six states is reported, per BEHAVIOUR rather than per lamp, and the 
 
 - Compatibility contract, the six openings verbatim (each prefixed `pns doctor: `):
 
-  - `lights: off in the config, so the pulse uses the [plugins.lights] rooms`
+  - `lights: off in the config, so the pulse flashes the plugin's own default rooms`
   - `lights: configured, but there is no [plugins.lights] table to light them through`
   - `lights: configured, but [plugins.lights] enabled is false, so nothing lights`
   - `lights: no [plugins.lights] bridge and key, so no lamp could be resolved`

@@ -40,29 +40,28 @@ fn a_malformed_certificate_is_refused_quoting_what_was_written() {
 }
 
 #[test]
+fn a_bridge_a_key_and_a_pin_are_the_whole_of_the_transport() {
+    // THE POSITIVE CONTROL under the refusals around it: the three
+    // credentials are all this table serves, and each reaches the settings.
+    let settings = hue_settings(&table(&format!(
+        "bridge = \"192.168.1.10\"\nkey = \"k\"\n{PIN}"
+    )))
+    .expect("an armed table")
+    .expect("settings rather than silence");
+    assert_eq!(settings.bridge, "192.168.1.10");
+    assert_eq!(settings.key, "k");
+    assert_eq!(
+        settings.certificate.to_string(),
+        "sha256:0000000000000000000000000000000000000000000000000000000000000001"
+    );
+}
+
+#[test]
 fn an_empty_certificate_is_the_same_refusal_as_an_absent_one() {
     let absent = hue_settings(&table("bridge = \"b\"\nkey = \"k\"")).expect_err("a refusal");
     let empty = hue_settings(&table("bridge = \"b\"\nkey = \"k\"\ncertificate = \"\""))
         .expect_err("a refusal");
     assert_eq!(absent, empty);
-}
-
-#[test]
-fn rooms_default_to_the_bash_pair_when_nothing_names_them() {
-    let settings = hue_settings(&table(&format!("bridge = \"b\"\nkey = \"k\"\n{PIN}")))
-        .unwrap()
-        .unwrap();
-    assert_eq!(settings.rooms, DEFAULT_ROOMS.to_vec());
-}
-
-#[test]
-fn the_settings_rooms_array_beats_the_defaults() {
-    let settings = hue_settings(&table(&format!(
-        "bridge = \"b\"\nkey = \"k\"\nrooms = [\"Config Room\"]\n{PIN}"
-    )))
-    .unwrap()
-    .unwrap();
-    assert_eq!(settings.rooms, vec!["Config Room"]);
 }
 
 #[test]

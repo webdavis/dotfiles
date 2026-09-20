@@ -131,19 +131,6 @@ Config {
                 "key": String(
                     "from-the-vault:OpenHue :: API Key (hue-bridge-pro):Password",
                 ),
-                "quiet_hours": String(
-                    "22:00-07:00",
-                ),
-                "rooms": Array(
-                    [
-                        String(
-                            "3F - Studio",
-                        ),
-                        String(
-                            "2F - Kitchen",
-                        ),
-                    ],
-                ),
                 "type": String(
                     "hue",
                 ),
@@ -313,6 +300,9 @@ Config {
                 high: 7,
                 low: 1,
             },
+            dim_window: Some(
+                "22:00-07:00",
+            ),
             lamps: {
                 "1F - Front door - HCL1": Target {
                     behaviours: Some(
@@ -322,14 +312,14 @@ Config {
                             Unseen,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [
+                            Blocked,
+                            Unseen,
+                            Looping,
+                        ],
                     ),
-                    dim_behaviours: [
-                        Blocked,
-                        Unseen,
-                        Looping,
-                    ],
                 },
                 "2F - Kitchen - HCD5": Target {
                     behaviours: Some(
@@ -338,7 +328,7 @@ Config {
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "2F - Kitchen - HCD6": Target {
                     behaviours: Some(
@@ -349,7 +339,7 @@ Config {
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - MBedroom - HCL2": Target {
                     behaviours: Some(
@@ -358,7 +348,7 @@ Config {
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - MBedroom - HCL3": Target {
                     behaviours: Some(
@@ -369,7 +359,7 @@ Config {
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - Studio - HCL2": Target {
                     behaviours: Some(
@@ -378,7 +368,7 @@ Config {
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - Studio - HCL3": Target {
                     behaviours: Some(
@@ -389,7 +379,7 @@ Config {
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
             },
             rooms: {
@@ -400,15 +390,15 @@ Config {
                             Failed,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [
+                            Blocked,
+                            Unseen,
+                            Looping,
+                            Checks,
+                        ],
                     ),
-                    dim_behaviours: [
-                        Blocked,
-                        Unseen,
-                        Looping,
-                        Checks,
-                    ],
                 },
                 "3F - MBedroom": Target {
                     behaviours: Some(
@@ -417,10 +407,10 @@ Config {
                             Failed,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [],
                     ),
-                    dim_behaviours: [],
                 },
                 "3F - Studio": Target {
                     behaviours: Some(
@@ -429,18 +419,36 @@ Config {
                             Failed,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [
+                            Blocked,
+                            Unseen,
+                            Looping,
+                            Checks,
+                        ],
                     ),
-                    dim_behaviours: [
-                        Blocked,
-                        Unseen,
-                        Looping,
-                        Checks,
-                    ],
                 },
             },
-            zones: {},
+            zones: {
+                "3F - Upstairs": Target {
+                    behaviours: Some(
+                        [
+                            Done,
+                            Failed,
+                        ],
+                    ),
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [
+                            Blocked,
+                            Unseen,
+                            Looping,
+                            Checks,
+                        ],
+                    ),
+                },
+            },
         },
     ),
     quiet_calendar: QuietCalendar {

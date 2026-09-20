@@ -39,8 +39,8 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::Off),
         vec![
-            "pns doctor: lights: off in the config, so the pulse uses the \
-                 [plugins.lights] rooms"
+            "pns doctor: lights: off in the config, so the pulse flashes the \
+                 plugin's own default rooms"
         ],
         "no table is the state every machine was in before this table existed"
     );

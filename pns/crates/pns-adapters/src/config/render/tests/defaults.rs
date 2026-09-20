@@ -28,12 +28,6 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     let hue = &config.plugins["lights"].settings;
     assert_eq!(hue["bridge"].as_str(), Some("192.168.1.9"));
     assert_eq!(hue["key"].as_str(), Some("hue-secret"));
-    assert_eq!(
-        hue["rooms"]
-            .as_array()
-            .map(|rooms| rooms.iter().filter_map(|room| room.as_str()).collect()),
-        Some(vec!["Studio", "Kitchen"])
-    );
     let router = &config.plugins["home_presence"].settings;
     assert_eq!(router["type"].as_str(), Some("unifi"));
     assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
@@ -102,7 +96,8 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     // reads the parsed config cannot tell a live default line from a
     // commented one that happens to match. This test reads the rendered
     // TEXT, scoped to each table's own heading so a shared key name
-    // (`duration_ms`, `high`, `low`) cannot borrow another table's line.
+    // (`duration`, `high_percent`, `low_percent`) cannot borrow another
+    // table's line.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     for expected in [
         "[plugins.phone]\nenabled = true\n",
@@ -116,7 +111,7 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     }
     // AND, WHILE LIGHTS IS ABSENT, none of its own defaults leak out live.
     assert!(
-        !text.contains("\nduration_ms ="),
+        !text.contains("\nduration ="),
         "a lights default rendered live while lights is absent: {text}"
     );
 
@@ -126,12 +121,12 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     // HEADINGS PLUS THEIR PROSE-FREE KEYS, contiguous lines with nothing
     // between them.
     for expected in [
-        "[lights.done]\nduration_ms = 4000\nbrightness = 100\n",
-        "[lights.failed]\nduration_ms = 4000\nbrightness = 100\n",
-        "[lights.blocked]\nduration_ms = 2000\nhigh = 100\nlow = 30\n",
-        "[lights.unseen]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
-        "[lights.loop]\nduration_ms = 4000\nhigh = 80\nlow = 10\n",
-        "[lights.dim]\nduration_ms = 3000\nhigh = 7\nlow = 1\n",
+        "[lights.done]\nduration = \"4s\"\nbrightness_percent = 100\n",
+        "[lights.failed]\nduration = \"4s\"\nbrightness_percent = 100\n",
+        "[lights.blocked]\nduration = \"2s\"\nhigh_percent = 100\nlow_percent = 30\n",
+        "[lights.unseen]\nduration = \"4s\"\nhigh_percent = 60\nlow_percent = 10\n",
+        "[lights.loop]\nduration = \"4s\"\nhigh_percent = 80\nlow_percent = 10\n",
+        "[lights.dim]\nduration = \"3s\"\nhigh_percent = 7\nlow_percent = 1\n",
     ] {
         assert!(
             armed.contains(expected),

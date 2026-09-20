@@ -149,7 +149,7 @@ pub(super) const HOME_UNCONFIGURED_LINE: &str =
 /// And what it says about the lamps on a machine whose config has no `[lights]`
 /// table, which is every machine that never wrote one.
 pub(super) const LIGHTS_OFF_LINE: &str =
-    "lights: off in the config, so the pulse uses the [plugins.lights] rooms";
+    "lights: off in the config, so the pulse flashes the plugin's own default rooms";
 
 /// And what it says about the pinned certificate on a machine whose config
 /// names no bridge: there is no address to pin one against.

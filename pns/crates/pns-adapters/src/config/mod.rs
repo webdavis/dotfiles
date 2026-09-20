@@ -91,9 +91,9 @@ use lights_tables::parse_lights;
 mod lights_bounds;
 pub use lights_bounds::{MAX_ARM_INTERVAL_SECS, MIN_ARM_INTERVAL_SECS};
 use lights_bounds::{
-    MAX_FADE_MS, MIN_FADE_MS, accent_agrees, arm_interval_range, behaviour_table,
-    blocked_lease_expiry_range, breath_key, coordinate, ends_agree, loop_arm_after_range,
-    loop_lease_expiry_range, percent, positive_duration, unseen_arm_after_range,
+    accent_agrees, arm_interval_range, behaviour_table, blocked_lease_expiry_range, breath_key,
+    coordinate, ends_agree, fade_duration, loop_arm_after_range, loop_lease_expiry_range, percent,
+    positive_duration, unseen_arm_after_range,
 };
 mod lights_targets;
 use lights_targets::parse_targets;

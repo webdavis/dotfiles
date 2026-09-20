@@ -73,11 +73,11 @@ fn no_lights_table_is_none_and_an_empty_one_is_every_locked_default() {
 fn a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values() {
     let stated = lights(
         "[lights]\narm_interval = \"25s\"\n\
-             [lights.done]\nduration_ms = 1500\n\
-             [lights.blocked]\nlow = 45\n\
+             [lights.done]\nduration = \"1500ms\"\n\
+             [lights.blocked]\nlow_percent = 45\n\
              [lights.unseen]\narm_after = \"60s\"\n\
              [lights.loop]\narm_after = \"6m\"\nlease_expiry = \"10m\"\n\
-             [lights.dim]\nhigh = 9\n",
+             [lights.dim]\nhigh_percent = 9\n",
     );
     assert_eq!(stated.arm_interval_secs, 25);
     assert_eq!(
@@ -115,13 +115,13 @@ fn a_knob_that_does_not_apply_to_a_behaviour_does_not_exist_on_it() {
     // single brightness. A reader who sets one and watches nothing happen is
     // exactly what this refuses.
     for (written, key) in [
-        ("[lights.done]\nlow = 10\n", "low"),
-        ("[lights.done]\nhigh = 90\n", "high"),
-        ("[lights.failed]\nlow = 10\n", "low"),
-        ("[lights.blocked]\nbrightness = 90\n", "brightness"),
-        ("[lights.unseen]\nbrightness = 90\n", "brightness"),
-        ("[lights.loop]\nbrightness = 90\n", "brightness"),
-        ("[lights.dim]\nbrightness = 90\n", "brightness"),
+        ("[lights.done]\nlow_percent = 10\n", "low"),
+        ("[lights.done]\nhigh_percent = 90\n", "high"),
+        ("[lights.failed]\nlow_percent = 10\n", "low"),
+        ("[lights.blocked]\nbrightness_percent = 90\n", "brightness"),
+        ("[lights.unseen]\nbrightness_percent = 90\n", "brightness"),
+        ("[lights.loop]\nbrightness_percent = 90\n", "brightness"),
+        ("[lights.dim]\nbrightness_percent = 90\n", "brightness"),
         ("[lights.dim]\narm_after = \"90s\"\n", "arm_after"),
         ("[lights.done]\narm_after = \"90s\"\n", "arm_after"),
         ("[lights.blocked]\narm_after = \"90s\"\n", "arm_after"),

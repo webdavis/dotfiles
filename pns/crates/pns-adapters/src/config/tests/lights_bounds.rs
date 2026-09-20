@@ -8,22 +8,36 @@ fn every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them
         ("[lights]\narm_interval = \"9s\"\n", "arm_interval"),
         ("[lights]\narm_interval = \"31s\"\n", "arm_interval"),
         ("[lights]\narm_interval = \"0s\"\n", "arm_interval"),
-        ("[lights.done]\nduration_ms = 199\n", "duration_ms"),
-        ("[lights.done]\nduration_ms = 5001\n", "duration_ms"),
-        ("[lights.done]\nbrightness = 0\n", "brightness"),
-        ("[lights.done]\nbrightness = 101\n", "brightness"),
-        ("[lights.blocked]\nlow = 0\n", "low"),
-        ("[lights.blocked]\nhigh = 101\n", "high"),
+        ("[lights.done]\nduration = \"199ms\"\n", "duration"),
+        ("[lights.done]\nduration = \"5001ms\"\n", "duration"),
+        ("[lights.done]\nduration = \"0s\"\n", "duration"),
+        (
+            "[lights.done]\nbrightness_percent = 0\n",
+            "brightness_percent",
+        ),
+        (
+            "[lights.done]\nbrightness_percent = 101\n",
+            "brightness_percent",
+        ),
+        ("[lights.blocked]\nlow_percent = 0\n", "low_percent"),
+        ("[lights.blocked]\nhigh_percent = 101\n", "high_percent"),
         ("[lights.blocked]\nlease_expiry = \"59s\"\n", "lease_expiry"),
         (
             "[lights.blocked]\nlease_expiry = \"604801s\"\n",
             "lease_expiry",
         ),
         ("[lights.blocked]\nlease_expiry = \"0s\"\n", "lease_expiry"),
-        ("[lights.loop]\nflare = 0\n", "flare"),
-        ("[lights.loop]\nflare = 101\n", "flare"),
-        ("[lights.loop]\nflare_ms = 199\n", "flare_ms"),
-        ("[lights.loop]\nflare_ms = 5001\n", "flare_ms"),
+        ("[lights.loop]\nflare_percent = 0\n", "flare_percent"),
+        ("[lights.loop]\nflare_percent = 101\n", "flare_percent"),
+        (
+            "[lights.loop]\nflare_duration = \"199ms\"\n",
+            "flare_duration",
+        ),
+        (
+            "[lights.loop]\nflare_duration = \"5001ms\"\n",
+            "flare_duration",
+        ),
+        ("[lights.loop]\nflare_duration = \"0s\"\n", "flare_duration"),
         ("[lights.loop]\narm_after = \"0s\"\n", "arm_after"),
         ("[lights.loop]\narm_after = \"86401s\"\n", "arm_after"),
         ("[lights.loop]\nlease_expiry = \"59s\"\n", "lease_expiry"),
@@ -42,15 +56,15 @@ fn every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them
     for written in [
         "[lights]\narm_interval = \"10s\"\n",
         "[lights]\narm_interval = \"30s\"\n",
-        "[lights.done]\nduration_ms = 200\nbrightness = 1\n",
-        "[lights.done]\nduration_ms = 5000\nbrightness = 100\n",
+        "[lights.done]\nduration = \"200ms\"\nbrightness_percent = 1\n",
+        "[lights.done]\nduration = \"5s\"\nbrightness_percent = 100\n",
         "[lights.loop]\narm_after = \"1s\"\nlease_expiry = \"60s\"\n",
         // THE ACCENT'S FLOOR AND THE BRIGHTNESS CEILING, both reachable.
         // Its own ceiling is not: `accent_agrees` keeps the flash under
-        // `duration_ms`, which is itself capped at `MAX_FADE_MS`, so
-        // `flare_ms` can never reach the range's top end and there is no
-        // honest row to write for one.
-        "[lights.loop]\nhigh = 99\nflare = 100\nflare_ms = 200\n",
+        // `duration`, which is itself capped at `MAX_FADE_MS`, so
+        // `flare_duration` can never reach the range's top end and there is
+        // no honest row to write for one.
+        "[lights.loop]\nhigh_percent = 99\nflare_percent = 100\nflare_duration = \"200ms\"\n",
         "[lights.unseen]\narm_after = \"0s\"\n",
         "[lights.blocked]\nlease_expiry = \"60s\"\n",
         "[lights.blocked]\nlease_expiry = \"168h\"\n",
@@ -153,6 +167,12 @@ fn every_retired_lights_timing_key_is_refused_by_name_with_its_new_spelling_besi
         ("[lights.loop]\nlease_timeout_secs = 3900\n", "lease_expiry"),
         ("[lights.loop]\nthreshold_secs = 300\n", "arm_after"),
         ("[lights.unseen]\nafter_secs = 300\n", "arm_after"),
+        ("[lights.done]\nduration_ms = 4000\n", "duration"),
+        ("[lights.done]\nbrightness = 100\n", "brightness_percent"),
+        ("[lights.blocked]\nhigh = 100\n", "high_percent"),
+        ("[lights.blocked]\nlow = 30\n", "low_percent"),
+        ("[lights.loop]\nflare = 100\n", "flare_percent"),
+        ("[lights.loop]\nflare_ms = 200\n", "flare_duration"),
     ] {
         let said = refusal(retired);
         let key = retired

@@ -48,10 +48,6 @@ fn a_username_secret_marker_renders_the_exact_action_and_round_trips_through_the
         toml::Value::String("192.168.1.9".to_string()),
     );
     hue.insert("key".to_string(), secret("Hue Bridge", "UserName"));
-    hue.insert(
-        "rooms".to_string(),
-        toml::Value::Array(vec![toml::Value::String("Studio".to_string())]),
-    );
     let mut plugins = toml::Table::new();
     plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();

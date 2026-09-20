@@ -61,13 +61,16 @@ fn lights_mute() -> i32 {
     };
     let state = state_dir();
     let now = now_secs();
-    // HOW LONG A BARE MUTE LASTS, off the operator's OWN schedule rather than
-    // any one room's dim window: a mute typed at bedtime is about their night.
+    // HOW LONG A BARE MUTE LASTS, off the HOUSE window rather than any one
+    // place's own: a mute typed at bedtime is about the operator's night.
     // A window nobody can parse states no schedule, which the refusal covers.
     let until_mute_ends = pns_domain::lights::mute::bare_mute_secs(
         match &loaded {
-            Ok(LoadOutcome::Loaded(config)) => enabled_hue_table(config)
-                .and_then(|settings| quiet_window(&settings).ok().flatten())
+            Ok(LoadOutcome::Loaded(config)) => config
+                .lights
+                .as_ref()
+                .and_then(|lights| lights.dim_window.as_deref())
+                .and_then(pns_domain::lamps::parse_window)
                 .map(|window| window.ends_at()),
             _ => None,
         },
@@ -130,7 +133,7 @@ fn lights_mute() -> i32 {
 /// plan now, which is what stopped the tier being decided twice; this stays as
 /// the operator's own command for signalling the lights by hand, and for
 /// checking that a bridge and key in the config actually work. It ignores
-/// `hue.quiet_hours` on purpose: the gate lives at the event path's call site
+/// the dim window on purpose: the gate lives at the event path's call site
 /// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
 /// inside the window, which is what keeps the window checkable while it is on.
 ///

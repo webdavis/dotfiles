@@ -14,7 +14,6 @@ fn every_table_armed() -> toml::Table {
         [plugins.lights]
         bridge = "192.168.1.9"
         key = "hue-secret"
-        rooms = ["Studio", "Kitchen"]
 
         [plugins.home_presence]
         type = "unifi"

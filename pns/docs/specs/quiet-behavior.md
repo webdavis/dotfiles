@@ -4,9 +4,9 @@
 
 Every way `pns` is silenced, and exactly what each one silences. Five mechanisms are covered: the
 operator's own typed mute (`pns mute`, state file `quiet-until`), macOS Focus read through the Do Not
-Disturb store and filtered by `[focus] silence`, the quiet window (the config key is
-`[plugins.lights] quiet_hours`, and the parsed value is `hue::QuietWindow`), the dim window (per lamp, room
-or zone `dim_window` plus `dim_behaviours`), and the lamps' own by-hand mute (`pns lights mute`, state
+Disturb store and filtered by `[focus] silence`, the house dim window (the config key is
+`[lights] dim_window`, and the parsed value is `hue::QuietWindow`), the per-place dim window (a lamp,
+room or zone `dim_window` plus `dim_behaviours`), and the lamps' own by-hand mute (`pns lights mute`, state
 file `lights-quiet`). Two of those names turn out to be one mechanism and the evidence is in behavior 14.
 Everything below is derived from the crate at `pns` and its tests only. Where the code
 does not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
@@ -18,8 +18,8 @@ Approvals get their own behavior (9) because the exemption is structural rather 
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Operator mute (`pns mute <duration>`)                | `<state>/quiet-until`, one line holding an absolute epoch second, mode `0600` (`src/main.rs:QUIET_UNTIL`, `src/main.rs:STATE_FILE_MODE`)                                                   | The banner, the phone card and the pulse for one event, plus the blocked lamp's one flash (`src/engine.rs:decide`, `src/main.rs:blocked_lamp` gate at the composition root) | The durable log leg, the moshi approval forward, the decision ring, the journal, the activity ring, the news record, the blocked marker, the tick's sustained breath, `pns lights pulse`, `pns doctor` | Half open against the run's own clock: `now < expiry` (`src/mute.rs:is_muted`). `pns mute off` unlinks the file            | `src/quiet.rs` unit tests; `tests/dispatch.rs:a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge`; `tests/dispatch.rs:the_operators_own_mute_takes_the_blocked_lamp_with_everything_else`                                                                            |
 | macOS Focus (`[focus] silence`)                       | Apple's own store at `$HOME/Library/DoNotDisturb/DB/{Assertions.json,ModeConfigurations.json}` (`src/main.rs:FOCUS_DB`); the policy list is config (`src/config.rs:Config::focus_silence`) | Exactly what the operator mute silences: the same `Overrides::silenced()` predicate (`src/engine.rs:Overrides::silenced`)                                                   | The same list as above, approvals included                                                                                                                                                      | Nothing pns owns. It ends when macOS moves the assertion record out of `storeAssertionRecords` (`src/focus.rs:active_modes`) | `tests/dispatch.rs:an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled`; `tests/hooks.rs:a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`                                                                                     |
-| Quiet window (config key `[plugins.lights] quiet_hours`) | The config file (`src/channels/hue.rs:quiet_window`)                                                                                                                                       | On a machine with NO `[lights]` table: the whole room pulse (`src/main.rs:fire_pulse_unless_quiet`). Nothing else, ever                                                     | Cards, banners, the durable log, and every routed lamp on a machine that DOES have a `[lights]` table                                                                                           | Minute of the local day, start inclusive and end exclusive, may wrap midnight (`src/channels/hue.rs:quiet_now`)              | `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`; `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`; `src/channels/hue.rs:a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end` |
-| Dim window (`dim_window`, `dim_behaviours`)           | The config file, per lamp, room or zone, arbitrated most specific first (`src/channels/hue.rs:DimWindow`)                                                                                  | Per lamp and per behavior: a behavior inside the window either runs its dim form or is taken away entirely (`src/channels/hue.rs:dim_showing`)                              | Cards, banners, the durable log, the pulse's decision, and any lamp that states no window                                                                                                       | The same minute-of-day rule, reusing `quiet_now` over its own `QuietWindow`                                                  | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`; `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg`                                                                                     |
+| House dim window (config key `[lights] dim_window`) | The config file (`src/config.rs:parse_lights`)                                                                                                                                       | Every lamp that states no `dim_window` of its own, exactly as a per-place window does                                                     | Cards, banners, the durable log, and any lamp whose own declaration overrides it                                                                                           | Minute of the local day, start inclusive and end exclusive, may wrap midnight (`src/channels/hue.rs:quiet_now`)              | `src/channels/hue.rs:a_place_that_states_no_window_runs_the_house_one_and_its_own_overrides_it`; `src/channels/hue.rs:a_lamp_no_declaration_dims_takes_the_house_window_with_nothing_dimmed`; `src/channels/hue.rs:a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end` |
+| Per-place dim window (`dim_window`, `dim_behaviours`) | The config file, per lamp, room or zone, arbitrated most specific first (`src/channels/hue.rs:DimWindow`)                                                                                  | Per lamp and per behavior: a behavior inside the window either runs its dim form or is taken away entirely (`src/channels/hue.rs:dim_showing`)                              | Cards, banners, the durable log, the pulse's decision, and any lamp that states no window                                                                                                       | The same minute-of-day rule, reusing `quiet_now` over its own `QuietWindow`                                                  | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`; `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg`                                                                                     |
 | Lamps' by-hand mute (`pns lights mute <place>`)      | `<state>/lights-quiet`, one line per place as `<epoch> <place>`, at most 32 lines, mode `0600` (`src/main.rs:LIGHTS_QUIET`, `src/lights.rs:MAX_MUTED_PLACES`)                              | Every behavior on every lamp that answers to the named lamp, room or zone, on both the event flash and the tick's sustained breath (`src/channels/hue.rs:muted_now`)        | Cards, banners, the durable log, `pns mute`'s file, the pulse's plan, lamps outside the named place                                                                                            | Per entry, half open on `quiet::is_muted`; expired entries are dropped on the next write (`src/lights.rs:muted_after`)       | `tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`; `tests/dispatch.rs:a_lights_mute_expires_off_this_run_s_own_clock_and_not_off_a_fixed_epoch`                                                                                               |
 
 Two families, two opposite fail directions. The engine mutes (operator mute, Focus) FAIL OPEN: anything
@@ -553,55 +553,47 @@ clause of its own
   (`src/focus.rs:silenced`). The consequence, stated in the source: a catalog that is absent, gated or
   garbled leaves identifier entries working and NAME entries inert.
 
-### 14. Quiet hours and the quiet window are ONE mechanism, under two names
+### 14. The house window and a place's own are ONE mechanism, under two scopes
 
-Given the config key `[plugins.lights] quiet_hours = "22:00-07:00"`
+Given the config key `[lights] dim_window = "22:00-07:00"`
 
-When the pulse gate runs
+When a lamp's dim question resolves
 
 Then that string is parsed once into a `QuietWindow` and judged by one predicate
 
-- Success: this is not two mechanisms. `src/channels/hue.rs:quiet_window` reads the key literally named
-  `quiet_hours` from the `[plugins.lights]` settings table and returns
-  `Result<Option<QuietWindow>, String>`; `src/channels/hue.rs:quiet_now` is the only predicate over it;
-  `src/channels/hue.rs:QuietWindow::ends_at` is the one field a bare `pns lights mute` reads. There is
-  no separate "quiet hours" state, file, or code path anywhere in the crate. The two names are the CONFIG
-  KEY (`quiet_hours`) and the parsed VALUE and its type (`QuietWindow`, "the window" throughout the
-  source prose).
+- Success: this is not two mechanisms. `src/config.rs:parse_lights` reads the key literally named
+  `dim_window` off the `[lights]` table into `Lights::dim_window`; `src/channels/hue.rs:resolve` falls
+  back to it for every lamp whose own lamp, room or zone declaration states no window;
+  `src/channels/hue.rs:quiet_now` is the only predicate over the parsed value; and
+  `src/channels/hue.rs:QuietWindow::ends_at` is the one field a bare `pns lights mute` reads. The two
+  names are the SCOPE the key was written at, not two schedules.
 - Failure sources: a value that is not `HH:MM-HH:MM`; a value of the wrong TOML type.
-- Fail direction: a refusal, never a silent no-window, because an operator who asked for quiet hours and
-  mistyped them would otherwise be flashed at 3am and told nothing (`src/channels/hue.rs:quiet_window`).
-  The refusal text is verbatim
-  `pns: config error (hue.quiet_hours is <offender>, not a HH:MM-HH:MM window); no pulse`, where the
-  offender is the debug-quoted string or the TOML type name (`src/channels/hue.rs:quiet_hours_refusal`,
-  pinned by `src/channels/hue.rs:a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name` and
-  `src/channels/hue.rs:a_quiet_hours_of_the_wrong_type_is_refused_by_name_and_by_type`). An EMPTY string
-  is absent rather than a refusal, the rule the bridge and key beside it already follow
-  (`src/channels/hue.rs:a_blanked_quiet_hours_is_no_window_rather_than_a_refusal`).
+- Fail direction: the type is refused at load (`` `lights` key `dim_window` has type `{type}`, not a
+  string ``); a string the window grammar cannot read is a refusal for the lamps that took it, and those
+  lamps stay DARK, because an operator who asked for a dim window and mistyped it would otherwise be
+  flashed at 3am and told nothing (`src/channels/hue.rs:window_refusal`, pinned by
+  `src/channels/hue.rs:a_dim_window_nobody_can_parse_leaves_that_lamp_dark_and_says_which_lamp`).
 - Thresholds: `src/channels/hue.rs:minute_of_day` requires exactly two ASCII digits per field, hours
   below 24 and minutes below 60, so `2:00-07:00`, `24:00-07:00`, `22:60-07:00`, `10pm-7am` and a trailing
   space are all refused.
-- Required side effects: the refusal is printed once and only where a pulse was actually due, inside the
-  `if` that already earned one. An event that earned no pulse says nothing about the window
-  (`src/main.rs:fire_pulse_unless_quiet`, pinned by
-  `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`, which asserts
-  exactly one occurrence of `hue.quiet_hours` and that the room stayed dark).
-- Forbidden side effects: on a machine WITH a `[lights]` table, `quiet_hours` is no longer a rung of the
-  routed chain at all. A typo in the house key cannot darken a routed lamp
-  (`tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`). Its only two
-  remaining jobs are the no-map pulse gate and the schedule a bare `pns lights mute` reads.
+- Required side effects: a place that states `dim_behaviours` and no window of its own runs them inside
+  the house window, and a place that states neither runs the house window with nothing dimmed
+  (`src/channels/hue.rs:a_place_that_states_no_window_runs_the_house_one_and_its_own_overrides_it`,
+  `src/channels/hue.rs:a_lamp_no_declaration_dims_takes_the_house_window_with_nothing_dimmed`).
+- Forbidden side effects: a machine with NO `[lights]` table has no window to read at all, so its plain
+  room pulse fires at every hour
+  (`tests/dispatch.rs:a_config_with_no_lamp_map_takes_the_plain_room_pulse_at_every_hour`).
 - Timeout and cancellation: Not applicable to the gate. The pulse behind it dials under
   `src/channels/hue.rs:BRIDGE_DEADLINE` (10 seconds).
 - Idempotency and duplicates: the clock is read FRESH at the gate rather than at the run's start, because
   the legs above dial the network under their own deadlines and a run can cross into a window between
-  starting and reaching the moment a lamp would light. HONEST LIMIT, stated in the source: no suite pins
-  the freshness, because a test's clock does not advance mid-run (`src/main.rs:fire_pulse_unless_quiet`).
+  starting and reaching the moment a lamp would light
+  (`src/main.rs:a_mapped_pulse_receives_the_moment_the_gate_read_after_delivery`).
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: the window mutes the LIGHTS and nothing else. The card and the durable log are
-  how a long command reports at any hour
-  (`tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`
-  asserts both other legs still dispatch while the room stays dark).
+- Compatibility contract: one key, two scopes, and the more specific one wins for the place that wrote
+  it. A declaration that states `dim_behaviours` alone is the case this default exists for: it answers
+  WHAT without repeating WHEN.
 
 ### 15. Window boundaries: start inclusive, end exclusive, wrapping, and an unreadable clock
 
@@ -638,12 +630,12 @@ joined, and a start equal to its end is never quiet
 - Privacy: no wall-clock time is rendered to the operator anywhere on the mute paths.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: local wall clock, start inclusive, end exclusive, may wrap midnight. This is
-  what the shipped config template promises for both `quiet_hours` and `dim_window`
-  (`src/config_text.rs`, the `quiet_hours` key prose and `src/config_text.rs:ROUTING`).
+  what the shipped config template promises for `dim_window` at both scopes
+  (`src/config_text.rs`, the `[lights] dim_window` key prose and `src/config_text.rs:ROUTING`).
 
-### 16. The hand-run pulse and the doctor are exempt from the quiet window
+### 16. The hand-run pulse and the doctor are exempt from the dim window
 
-Given a live quiet window
+Given a live dim window
 
 When the operator runs `pns lights pulse <exit-code>` or `pns doctor`
 
@@ -715,11 +707,10 @@ it for one that is not listed
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: this is a per-lamp RENDERING rule, and it is separate from the quiet window
   even though it reuses the `QuietWindow` type and the `quiet_now` predicate. It has its own key at its
-  own scope, it answers three states instead of two, and the routed path never consults `quiet_hours`
-  (`tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`). A bare
-  `pns lights mute` reads `quiet_hours` and NEVER any room's `dim_window`, because a mute typed at
-  bedtime is about the operator's night and a room's window is a rendering rule that has nothing to say
-  about how long a by-hand silence should last (`src/lights.rs:bare_mute_secs`).
+  own scope and it answers three states instead of two. A bare `pns lights mute` reads
+  `[lights] dim_window` and NEVER any place's override, because a mute typed at bedtime is about the
+  operator's night and a place's window is a rendering rule that has nothing to say about how long a
+  by-hand silence should last (`src/lights.rs:bare_mute_secs`).
 
 ### 18. `pns lights mute <place> [<duration>|off]` mutes one place's lamps and nothing else
 
@@ -735,8 +726,8 @@ Then `lights-quiet` gains a line, the report prints what is quiet, and no other 
   `tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`, which
   asserts the CARD still reaches the phone when away and the BANNER still runs at the desk, each against
   an unmuted control in the same world.
-- Failure sources: a place no declaration and no bridge listing names; a bare mute with no `quiet_hours`
-  set; a clock that cannot be read; an unwritable state directory; the 32-line cap.
+- Failure sources: a place no declaration and no bridge listing names; a bare mute with no
+  `[lights] dim_window` set; a clock that cannot be read; an unwritable state directory; the 32-line cap.
 - Fail direction: FAIL OPEN at every turn for the COMMAND, which is `quiet.rs`'s direction rather than
   the window's: a state file nobody can parse mutes NOTHING at this command and says so, because a lights
   mute the operator cannot see is worse than a lamp that flashed (`src/main.rs:lights_quiet`). The LAMP
@@ -747,7 +738,7 @@ Then `lights-quiet` gains a line, the report prints what is quiet, and no other 
   `muted_entries` reject the whole file at the next event and cancel every mute on the machine silently:
   `pns: lights mute: 32 places are already muted, which is every line lights-quiet keeps; the mute was not set, and `pns
   lights mute <place> off` ends one` (`src/lights.rs:muted_after`). A bare mute runs from now to the
-  next end of `quiet_hours`, and NOW AT THE END MINUTE IS A WHOLE DAY rather than nothing, since a mute
+  next end of `[lights] dim_window`, and NOW AT THE END MINUTE IS A WHOLE DAY rather than nothing, since a mute
   of zero seconds is not a mute (`src/lights.rs:bare_mute_secs`,
   `src/lights.rs:how_long_a_bare_mute_runs_is_the_minutes_from_now_to_the_windows_end`).
 - Required side effects: a place NO claim names is REFUSED rather than stored, because a mute would
@@ -758,8 +749,8 @@ Then `lights-quiet` gains a line, the report prints what is quiet, and no other 
   lamps, rooms and zones (`src/channels/hue.rs:mutable_names`), and the bridge is dialled only on the
   MISS path (`src/main.rs:asks_the_bridge`), so muting a room the config routes costs no network at all.
   A bare mute with no schedule is refused rather than guessed:
-  `pns: lights mute: a bare mute lasts until your quiet hours end, and `[plugins.lights]
-  quiet_hours` states none; give a duration instead, or set that key` (`src/lights.rs:NO_SCHEDULE`).
+  `pns: lights mute: a bare mute lasts until your dim window ends, and `[lights]
+  dim_window` states none; give a duration instead, or set that key` (`src/lights.rs:NO_SCHEDULE`).
 - Forbidden side effects: `off` is allowed over ANY name, because it can only remove; a place muted
   yesterday and dropped from the config today would otherwise be a mute nothing could clear
   (`src/lights.rs:quiet_command`, `src/main.rs:asks_the_bridge`). A failed publish reports NOTHING on

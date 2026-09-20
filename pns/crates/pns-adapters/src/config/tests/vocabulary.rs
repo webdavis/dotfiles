@@ -3,12 +3,12 @@ use super::*;
 #[test]
 fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key() {
     // A plugin's settings used to reach the plugin free-form, so a near
-    // miss was a destination that quietly never worked: `room` for `rooms`
-    // is a pulse into a room the bridge does not have, and `tokens` for
-    // `token` is a phone card that silently never leaves the machine.
+    // miss was a destination that quietly never worked: `keys` for `key` is
+    // a bridge nothing can authenticate against, and `tokens` for `token` is
+    // a phone card that silently never leaves the machine.
     for (table, mistyped, near) in [
         ("plugins.log", "key", "keys"),
-        ("plugins.lights", "room", "rooms"),
+        ("plugins.lights", "keys", "key"),
         ("plugins.banner", "sound", "enabled"),
         ("plugins.phone", "tokens", "token"),
         ("plugins.home_presence", "phone", "device_hostname"),
@@ -33,7 +33,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
 fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
     // The positive control under the refusal above: a sweep that refused
     // the whole vocabulary would pass every assertion up there.
-    let shipped = "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.banner]\nenabled = true\n             [plugins.phone]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             card_while_watching = false\nack_deadline = \"5s\"\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+    let shipped = "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             [plugins.banner]\nenabled = true\n             [plugins.phone]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             card_while_watching = false\nack_deadline = \"5s\"\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
     let config = parse_config(shipped).expect("every shipped key parses");
     assert_eq!(config.plugins.len(), 5);
 }

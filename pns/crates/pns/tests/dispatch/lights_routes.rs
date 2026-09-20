@@ -16,7 +16,6 @@ fn without_a_lights_table_nothing_new_reaches_the_bridge() {
         lamp_run(
             "lamps-no-table-long-done",
             "",
-            "",
             &long_running,
             Mute::Nothing,
             Presence::Away
@@ -27,7 +26,6 @@ fn without_a_lights_table_nothing_new_reaches_the_bridge() {
     assert_eq!(
         lamp_run(
             "lamps-no-table-blocked",
-            "",
             "",
             &BLOCKED,
             Mute::Nothing,
@@ -53,7 +51,6 @@ fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
     assert_eq!(
         lamp_run(
             "lamps-map-blocked",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Nothing,
@@ -88,11 +85,10 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
     assert_eq!(
         lamp_run(
             "lamps-every-place-asleep",
-            "",
             &format!(
-                "[lights]\narm_interval = \"20s\"\n\
+                "[lights]\narm_interval = \"20s\"\ndim_window = \"{asleep}\"\n\
                  [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
-                 dim_window = \"{asleep}\"\ndim_behaviours = []\n"
+                 dim_behaviours = []\n"
             ),
             &long_running,
             Mute::Nothing,
@@ -103,32 +99,6 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
          DIAL CAN PROVE HERE stops at the round trip, because this spy is a \
          plain TCP listener that hangs up; that no lamp is WRITTEN to is pinned \
          in the unit tests over dim_showing and pulse_render"
-    );
-}
-
-#[test]
-fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
-    // `[plugins.lights] quiet_hours` IS NO LONGER A RUNG OF THE ROUTED CHAIN. It
-    // is now exactly one thing: the schedule a bare `pns lights mute` reads,
-    // and the window the no-map pulse takes. A routed lamp states its own
-    // `dim_window` or has none, so a typo in the house key cannot darken it.
-    //
-    // THE NO-TABLE SIBLING IS ITS OWN TEST and it still holds:
-    // `a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`
-    // pins the whole-pulse refusal for a machine that wrote no `[lights]`
-    // table, which is the compatibility contract this must not move.
-    assert_eq!(
-        lamp_run(
-            "lamps-house-window-unreadable",
-            "quiet_hours = \"10pm-7am\"\n",
-            STUDIO_MAP,
-            &BLOCKED,
-            Mute::Nothing,
-            Presence::Away,
-        ),
-        (true, true, true, false, Some(0)),
-        "the routed lamps never consult the house key, so a typo there costs \
-         them nothing"
     );
 }
 
@@ -146,7 +116,6 @@ fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     assert_eq!(
         lamp_run(
             "lamps-map-blocked-muted",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Everything,
@@ -158,7 +127,6 @@ fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     assert_eq!(
         lamp_run(
             "lamps-map-blocked-unmuted",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Nothing,
@@ -189,7 +157,6 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     assert_eq!(
         lamp_run(
             "lamps-adhoc-quiet-away",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Lights("3F - Studio"),
@@ -205,7 +172,6 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     assert_eq!(
         lamp_run(
             "lamps-adhoc-quiet-desk",
-            "",
             &with_banner,
             &BLOCKED,
             Mute::Lights("3F - Studio"),
@@ -218,7 +184,6 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     assert_eq!(
         lamp_run(
             "lamps-adhoc-unmuted-desk",
-            "",
             &with_banner,
             &BLOCKED,
             Mute::Nothing,

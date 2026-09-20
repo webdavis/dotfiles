@@ -32,7 +32,7 @@ pub(crate) use std::time::Duration;
 
 pub(crate) use pns_adapters::DiscordSettings;
 pub(crate) use pns_adapters::select_plugins;
-pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge, quiet_window};
+pub(crate) use pns_adapters::{BRIDGE_DEADLINE, HuePulse, UreqBridge};
 
 /// The hue settings with the pin's own refusal said out loud, the one way
 /// every lamp caller reads it.

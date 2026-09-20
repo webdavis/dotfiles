@@ -49,17 +49,6 @@ fn values(answers: &Answers) -> toml::Table {
             "certificate".to_string(),
             toml::Value::String(answers.hue_certificate.clone()),
         );
-        hue.insert(
-            "rooms".to_string(),
-            toml::Value::Array(
-                answers
-                    .hue_rooms
-                    .iter()
-                    .cloned()
-                    .map(toml::Value::String)
-                    .collect(),
-            ),
-        );
         plugins.insert("lights".to_string(), toml::Value::Table(hue));
     }
     if router_is_armed(answers) {
