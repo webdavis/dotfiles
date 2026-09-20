@@ -95,7 +95,11 @@ impl<L: LaunchdTable, S: SourceAllowlist, P: Publisher, W: WriteLock>
             });
         let curated = curate_allowlist(&borrowed, change)
             .map_err(|_| CurationFailure::InvalidLine(source.clone()))?;
-        let verb = if captured.is_some() { "allow" } else { "deny" };
+        let verb = if matches!(command, AllowlistCommand::Add(_)) {
+            "allow"
+        } else {
+            "deny"
+        };
         guard
             .record(verb, label)
             .map_err(|_| CurationFailure::Record)?;
