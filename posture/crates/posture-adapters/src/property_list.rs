@@ -35,7 +35,7 @@ impl PropertyList {
         false
     }
 
-    /// The scalar at a dot-separated key path, rendered the way `plutil raw` renders it.
+    /// The scalar (string, integer, real, or boolean) at a dot-separated key path.
     pub(crate) fn raw(&self, key_path: &str) -> Option<Vec<u8>> {
         let mut value = &self.0;
         for segment in key_path.split('.') {
