@@ -1,6 +1,6 @@
 use super::*;
 
-fn stored(id: u64, outcome: pns_domain::retry::DeliveryOutcome) -> StoredFailure {
+fn stored(id: u64, outcome: pns_domain::retry::TransportOutcome) -> StoredFailure {
     StoredFailure {
         id,
         destination: failure::DESTINATION_HERMES.to_string(),
@@ -19,7 +19,7 @@ fn stored(id: u64, outcome: pns_domain::retry::DeliveryOutcome) -> StoredFailure
 #[test]
 fn the_shown_command_is_the_routing_flags_that_produced_this_leg() {
     let failure = compose(
-        &stored(47, pns_domain::retry::DeliveryOutcome::Status(404)),
+        &stored(47, pns_domain::retry::TransportOutcome::Status(404)),
         None,
         None,
     );
@@ -33,7 +33,7 @@ fn the_shown_command_is_the_routing_flags_that_produced_this_leg() {
 /// flag with an empty value that would not reproduce the send.
 #[test]
 fn a_leg_with_no_state_or_route_leaves_those_flags_out_entirely() {
-    let mut bare = stored(1, pns_domain::retry::DeliveryOutcome::NoResponse);
+    let mut bare = stored(1, pns_domain::retry::TransportOutcome::NoResponse);
     bare.state = String::new();
     bare.route = String::new();
     assert_eq!(command(&bare), "pns send --producer posture");
@@ -43,7 +43,7 @@ fn a_leg_with_no_state_or_route_leaves_those_flags_out_entirely() {
 /// printed command entirely, so the suggestion the reader is shown always runs.
 #[test]
 fn an_internal_state_word_is_left_out_of_the_printed_command() {
-    let mut recap = stored(2, pns_domain::retry::DeliveryOutcome::NoResponse);
+    let mut recap = stored(2, pns_domain::retry::TransportOutcome::NoResponse);
     recap.state = "recap".to_string();
     recap.route = String::new();
     assert_eq!(command(&recap), "pns send --producer posture");
@@ -54,15 +54,15 @@ fn an_internal_state_word_is_left_out_of_the_printed_command() {
 #[test]
 fn the_listing_status_is_the_code_alone_and_names_each_silence() {
     assert_eq!(
-        short_status(&stored(1, pns_domain::retry::DeliveryOutcome::Status(404))),
+        short_status(&stored(1, pns_domain::retry::TransportOutcome::Status(404))),
         "HTTP 404"
     );
     assert_eq!(
-        short_status(&stored(1, pns_domain::retry::DeliveryOutcome::NoResponse)),
+        short_status(&stored(1, pns_domain::retry::TransportOutcome::NoResponse)),
         "no response"
     );
     assert_eq!(
-        short_status(&stored(1, pns_domain::retry::DeliveryOutcome::NoStatus)),
+        short_status(&stored(1, pns_domain::retry::TransportOutcome::NoStatus)),
         "bad URL"
     );
 }

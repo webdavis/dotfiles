@@ -8,7 +8,7 @@
 
 use super::Failure;
 use super::meaning::{DESTINATION_HERMES, PHONE_TOKEN, hermes_key_named};
-use crate::retry::DeliveryOutcome;
+use crate::retry::TransportOutcome;
 
 /// Where the reader is standing when they read this.
 ///
@@ -103,42 +103,42 @@ fn repair(failure: &Failure) -> String {
     let route = &failure.route;
     if failure.destination != DESTINATION_HERMES {
         return match failure.outcome {
-            DeliveryOutcome::Status(401) => {
+            TransportOutcome::Status(401) => {
                 format!("put a current moshi token in {PHONE_TOKEN}")
             }
-            DeliveryOutcome::Status(404) => {
+            TransportOutcome::Status(404) => {
                 "check the moshi URL, then restart the moshi daemon".to_string()
             }
             _ => "run `pns doctor` for the full mobile configuration".to_string(),
         };
     }
     match failure.outcome {
-        DeliveryOutcome::Status(400 | 422) => {
+        TransportOutcome::Status(400 | 422) => {
             "report this: pns built a body hermes will not take, which is a pns bug".to_string()
         }
-        DeliveryOutcome::Status(401) => {
+        TransportOutcome::Status(401) => {
             format!(
                 "put the {route} route's current key in {}",
                 hermes_key_named(route)
             )
         }
-        DeliveryOutcome::Status(403) => {
+        TransportOutcome::Status(403) => {
             format!(
                 "grant the {} access to {route} in ~/.hermes/config.yaml",
                 hermes_key_named(route)
             )
         }
-        DeliveryOutcome::Status(404 | 410) => format!(
+        TransportOutcome::Status(404 | 410) => format!(
             "run `pns doctor` to see which routes the gateway accepts, \
              then add \"{route}\" to ~/.hermes/config.yaml"
         ),
-        DeliveryOutcome::Status(405) => {
+        TransportOutcome::Status(405) => {
             format!("make \"{route}\" a POST route in ~/.hermes/config.yaml")
         }
-        DeliveryOutcome::Status(413) => {
+        TransportOutcome::Status(413) => {
             "raise the gateway's body limit in ~/.hermes/config.yaml".to_string()
         }
-        DeliveryOutcome::NoStatus => {
+        TransportOutcome::NoStatus => {
             format!("check the route name \"{route}\" and the URL in ~/.config/pns/config.toml")
         }
         _ => "run `pns doctor` for the full gateway configuration".to_string(),

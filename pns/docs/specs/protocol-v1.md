@@ -175,7 +175,8 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 Given a version 1 request, when decoded, then request_id, producer and state are required and must have
 their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent optional session,
 elapsed, route, delivery_class and remind become None; detail is empty, project, branch and pane are
-None, scope is automatic, and extensions is an empty object. Request::new supplies those same defaults.
+None, scope is automatic, and extensions is an empty object. RequestEnvelope::new supplies those
+same defaults.
 ONE RULE FOR AN ABSENT OPTIONAL FIELD, on this envelope and on the result: it is omitted when encoding
 rather than written as `null`, and a field written as `null` decodes as absent.
 The session is a plain name and the place of the work is three top-level fields, the same names the
@@ -260,9 +261,10 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 
 ## protocol-v1/S016: Request fixture and public construction
 
-Given a valid Request built through the curated public exports or the package-owned `request-v1.json`
-fixture, when encoded and decoded, then every defined request field and extension value round-trips
-unchanged. The fixture decodes to its explicitly asserted request. Schema is supplied by the codec.
+Given a valid RequestEnvelope built through the curated public exports or the package-owned
+`request-v1.json` fixture, when encoded and decoded, then every defined request field and extension
+value round-trips unchanged. The fixture decodes to its explicitly asserted request. Schema is
+supplied by the codec.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L167),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186),

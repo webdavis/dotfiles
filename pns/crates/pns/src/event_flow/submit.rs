@@ -1,6 +1,6 @@
 use super::*;
 use pns_application::{SubmissionIdentity, Submitted};
-use pns_protocol::{DecodedRequest, DeliveryScope, Request, ResultEnvelope, State, Status};
+use pns_protocol::{DecodedRequest, DeliveryScope, RequestEnvelope, ResultEnvelope, State, Status};
 
 mod mapping;
 mod receipt;
@@ -88,7 +88,7 @@ fn exit_code(status: Status) -> i32 {
 
 fn accept(
     decoded: DecodedRequest,
-    submit: impl FnOnce(&Request, &ProducerRequest) -> Result<Submitted, NotSubmitted>,
+    submit: impl FnOnce(&RequestEnvelope, &ProducerRequest) -> Result<Submitted, NotSubmitted>,
 ) -> ResultEnvelope {
     let request = decoded.request;
     let encoded = match request.encode() {
