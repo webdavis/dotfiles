@@ -53,6 +53,13 @@ fn last_segment(table: &str) -> &str {
     table.rsplit('.').next().expect("a row has a segment")
 }
 
+/// The tables the commit message names as the rule's other side: not `open`
+/// in the schema's sense (their keys are declared, not the operator's own),
+/// but each one holds more than a single setting, so its own name is plural
+/// too. Named here rather than derived, so a rename to singular is red even
+/// though nothing about the table stops being closed.
+const CLOSED_SET_HOLDERS: [&str; 5] = ["routes", "plugins", "paths", "lights", "failures"];
+
 #[test]
 fn the_plural_rule_holds_one_way_round_across_the_whole_roster() {
     for (table, _) in super::super::TABLE_KEYS.iter().copied() {
@@ -77,6 +84,12 @@ fn the_plural_rule_holds_one_way_round_across_the_whole_roster() {
                 "`{keyed}` is keyed by one name and is plural"
             );
         }
+    }
+
+    // THE CLOSED SET-HOLDERS ARE THE OTHER HALF OF THE RULE: `is_open` never
+    // sees them, so nothing above this line walks them.
+    for table in CLOSED_SET_HOLDERS {
+        assert!(is_plural(table), "`{table}` holds a set and is singular");
     }
 
     // THE THREE LEVELS ARE THE SAME SHAPE one row further in: their own row
