@@ -216,12 +216,11 @@ whether pns could parse them.
   `tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, whose own arithmetic asserts the
   length; a 1.2 megabyte payload is not. The reader takes `MAX_PAYLOAD_BYTES + 1` bytes on purpose, so a
   payload that HIT the cap is distinguishable from one that merely reached it
-  (`src/main.rs:read_payload`). The read deadline is 5 seconds by default, overridable in milliseconds
-  with `PNS_PAYLOAD_DEADLINE_MS` (`src/main.rs:payload_deadline`). Unlike the submit deadline,
-  `payload_deadline` applies NO zero filter, so `PNS_PAYLOAD_DEADLINE_MS=0` is a zero-length read window
-  (derived from `src/main.rs:payload_deadline` and `src/main.rs:env_deadline`; NOT ESTABLISHED: no test
-  drives a zero payload deadline, I grepped `tests/hooks.rs` and `tests/dispatch.rs` for
-  `PNS_PAYLOAD_DEADLINE_MS` and found only the 200 millisecond case).
+  (`src/main.rs:read_payload`). The read deadline is 5 seconds by default, overridable with a
+  `<count><ms|s|m|h>` duration in `PNS_PAYLOAD_DEADLINE` (`src/main.rs:payload_deadline`). The window
+  the variable may state runs from `1ms` to `60s`, so a zero-length read window can no longer be
+  asked for, and a value outside that range or written without a unit is reported and dropped for the
+  default rather than honoured (`src/main.rs:payload_deadline` and `process::settings::env_duration`).
 - Required side effects: none beyond the write.
 - Forbidden side effects: no truncated object may reach moshi, and no payload may be rewritten on the way
   through.
