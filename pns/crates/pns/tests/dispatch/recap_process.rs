@@ -139,7 +139,7 @@ fn a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone() {
     // EACH SWITCH GATES ONLY ITS OWN DELIVERY. With the recap off, a loud
     // window is still a window: the marker still moves, the journal is still
     // claimed, and what the operator gets is slice 13's card, unchanged.
-    let sandbox = Sandbox::new("recap-post_window_recap-off");
+    let sandbox = Sandbox::new("recap-digest-off");
     record_every_event(&sandbox);
     sandbox.write_config(&recap_switched_off());
     loud_window(&sandbox);
@@ -160,7 +160,7 @@ fn a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone() {
         events(&sandbox, "hermes")
             .iter()
             .all(|event| event["state"] != "recap"),
-        "a recap was posted with the post_window_recap switched off: {:?}",
+        "a recap was posted with the digest switched off: {:?}",
         events(&sandbox, "hermes")
     );
     assert!(
