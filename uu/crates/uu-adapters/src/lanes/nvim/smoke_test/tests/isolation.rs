@@ -4,7 +4,9 @@ use std::time::Instant;
 
 const CASE: &str = "lanes::nvim::smoke_test::tests::isolation::the_real_smoke_children_keep_external_home_and_discovery_unchanged";
 const ROOT: &str = "UU_SMOKE_ISOLATION_ROOT";
-const LIVENESS_BOUND: Duration = Duration::from_secs(15);
+/// A HANG GUARD RATHER THAN A MEASUREMENT: every wait here leaves on the
+/// file it waits for, and this only stops a wedged fixture.
+const LIVENESS_BOUND: Duration = Duration::from_secs(30);
 
 fn snapshot(path: &std::path::Path) -> Vec<(PathBuf, Vec<u8>)> {
     let mut result = Vec::new();
@@ -31,11 +33,13 @@ fn the_real_smoke_children_keep_external_home_and_discovery_unchanged() {
             },
             cache: root.join("k").to_str().unwrap().into(),
         };
-        let runner = crate::runner::SystemRunner::for_lane(
-            "isolation",
-            Duration::from_millis(600),
-            Duration::from_millis(600),
-        );
+        // THE SAME LIVENESS BOUND THE PARENT WAITS ON, not a reading of how
+        // long two shell launchers take: this budget also covers the parent's
+        // snapshots and its acknowledgement between the phases, and 600ms was
+        // one fifth of a measured loaded run of the whole case (0.12s alone,
+        // 0.59s under 192 synthetic CPU spinners).
+        let runner =
+            crate::runner::SystemRunner::for_lane("isolation", LIVENESS_BOUND, LIVENESS_BOUND);
         let report = lane.run("isolation", &crate::lanes::stubs::stub_facts(), &runner);
         assert_eq!(
             report.verdict(),

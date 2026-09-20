@@ -24,7 +24,7 @@ fn the_daemon_does_not_write_a_log_line_per_tick() {
         guard.said()
     );
     // THEN many more ticks, an empty spool, nothing to say.
-    std::thread::sleep(Duration::from_millis(TICK_MS * 8));
+    std::thread::sleep(Duration::from_millis(TICK_MS * SETTLE_TICKS));
     assert_eq!(guard.said(), "", "an idle daemon must say nothing at all");
 }
 
@@ -55,7 +55,7 @@ fn a_daemon_that_ran_a_job_says_nothing_about_having_run_it() {
     );
     // PAST THE SPAWN AND PAST THE DRAIN THAT FOLLOWS IT, so a line written
     // after the delivery landed is still inside the window this reads.
-    std::thread::sleep(Duration::from_millis(TICK_MS * 8));
+    std::thread::sleep(Duration::from_millis(TICK_MS * SETTLE_TICKS));
     assert_eq!(
         guard.said(),
         "",
