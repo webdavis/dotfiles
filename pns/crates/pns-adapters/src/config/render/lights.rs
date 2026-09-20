@@ -20,7 +20,7 @@ pub(super) fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Re
     }
     let mut clusters = Vec::new();
     for cluster in [
-        "done", "failed", "blocked", "unread", "github", "loop", "dim",
+        "done", "failed", "blocked", "unseen", "checks", "loop", "dim",
     ] {
         clusters.push((cluster, take_table(&mut lights, cluster)?));
     }
@@ -66,7 +66,7 @@ pub(super) fn render_target(
 ) -> Result<(), String> {
     write_note(out, take_note(settings)?);
     out.push_str(&format!("[lights.{level}.{}]\n", quoted(name)));
-    for key in ["shows", "dim_window", "dim_behaviours"] {
+    for key in ["behaviours", "dim_window", "dim_behaviours"] {
         if let Some(value) = settings.remove(key) {
             let rendered = render_value(&value)
                 .map_err(|error| format!("`lights.{level}.{name}` key `{key}`: {error}"))?;

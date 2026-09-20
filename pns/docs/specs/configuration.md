@@ -17,7 +17,7 @@ this document.
 
 Two vocabulary notes that matter for reading the tables below. `quiet hours` is the config key
 `[plugins.lights] quiet_hours` and `quiet window` is the parsed value behind it; `dim window` is the
-per-target `dim_window` key. `unread` is one of the five behaviour words. `home probe` and `router` name
+per-target `dim_window` key. `unseen` is one of the five behaviour words. `home probe` and `router` name
 the `[plugins.home_presence]` sensor. The `config-change` hook event (`src/main.rs:config_change_detail`) is
 about the HARNESS's own settings file and has nothing to do with this file; it is out of scope here.
 
@@ -225,10 +225,10 @@ named no lamp yet. Those are different states and the doctor says different thin
 | `lights.blocked.high`               | integer         | `100`                                                    | 1 to 100, and `low <= high`                                                                                                     | no     | `bounded`, plus `ends_agree`                                                                                                                     | `breath_key`, `src/config.rs:ends_agree`                                      | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                                    |
 | `lights.blocked.low`                | integer         | `30`                                                     | 1 to 100, and `low <= high`                                                                                                     | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
 | `lights.blocked.give_up_after_secs` | integer         | `57600` (`DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`, 16 hours) | 60 (`MIN_LEASE_TIMEOUT_SECS`) to 604800 (`MAX_GIVE_UP_AFTER_SECS`, a week), AND at least `remind.delay` when the reminder is on | no     | `bounded` refusal; the cross-table one is quoted in behavior 19                                                                                  | `src/config.rs:parse_blocked`, `src/config.rs:backstop_outlasts_the_reminder` | `the_blocked_backstop_reads_the_configured_number_rather_than_a_hardcoded_default`, `a_backstop_that_gives_up_before_the_reminder_nudges_is_refused_naming_both_keys` |
-| `lights.unread.duration_ms`         | integer         | `4000`                                                   | 200 to 5000                                                                                                                     | no     | `bounded` naming `lights.unread`                                                                                                                 | `breath_key`                                                                  | `a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values`                                                                               |
-| `lights.unread.high`                | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                                    | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                                    |
-| `lights.unread.low`                 | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
-| `lights.unread.after_secs`          | integer         | `300` (`DEFAULT_UNREAD_AFTER_SECS`)                      | 0 to 86400 (`MAX_THRESHOLD_SECS`); zero means "at once"                                                                         | no     | `bounded` refusal naming `lights.unread`                                                                                                         | `src/config.rs:parse_unread`                                                  | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`                                                                                       |
+| `lights.unseen.duration_ms`         | integer         | `4000`                                                   | 200 to 5000                                                                                                                     | no     | `bounded` naming `lights.unseen`                                                                                                                 | `breath_key`                                                                  | `a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values`                                                                               |
+| `lights.unseen.high`                | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                                    | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                                    |
+| `lights.unseen.low`                 | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
+| `lights.unseen.after_secs`          | integer         | `300` (`DEFAULT_UNSEEN_AFTER_SECS`)                      | 0 to 86400 (`MAX_THRESHOLD_SECS`); zero means "at once"                                                                         | no     | `bounded` refusal naming `lights.unseen`                                                                                                         | `src/config.rs:parse_unread`                                                  | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`                                                                                       |
 | `lights.loop.duration_ms`           | integer         | `4000`                                                   | 200 to 5000                                                                                                                     | no     | `bounded` naming `lights.loop`                                                                                                                   | `breath_key`                                                                  | same                                                                                                                                                                  |
 | `lights.loop.high`                  | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                                    | same                                                                                                                                                                  |
 | `lights.loop.low`                   | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
@@ -246,7 +246,7 @@ The refusal names the PATH THE OPERATOR WROTE, not the roster row.
 
 | Key path         | Type                     | Default                                                     | Bound                                                                                          | Secret | Out of bounds or malformed                                                                                                                      | Judged by                     | Tests                                                                                                                                                                                                                           |
 | ---------------- | ------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shows`          | array of behaviour words | `None` (said nothing, which is distinct from an empty list) | the closed set `done`, `failed`, `blocked`, `unread`, `loop` (`src/config.rs:BEHAVIOUR_WORDS`) | no     | `` `{path}` key `shows` names `{word}`, which is no behaviour; the lamps say done, failed, blocked, unread, loop ``                             | `src/config.rs:behaviours`    | `a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys`, `a_declaration_that_states_nothing_states_nothing_rather_than_defaulting`, `a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named` |
+| `behaviours`          | array of behaviour words | `None` (said nothing, which is distinct from an empty list) | the closed set `done`, `failed`, `blocked`, `unseen`, `loop` (`src/config.rs:BEHAVIOUR_WORDS`) | no     | `` `{path}` key `behaviours` names `{word}`, which is no behaviour; the lamps say done, failed, blocked, unread, loop ``                             | `src/config.rs:behaviours`    | `a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys`, `a_declaration_that_states_nothing_states_nothing_rather_than_defaulting`, `a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named` |
 | `dim_window`     | string                   | `None`                                                      | not parsed here (the layer reads a file; the window's own grammar is `src/channels/hue.rs`'s)  | no     | `` `{path}` key `dim_window` has type `{type}`, not a string ``                                                                                 | `src/config.rs:text`          | `a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys`                                                                                                                                                            |
 | `dim_behaviours` | array of behaviour words | `[]`                                                        | the same closed set, AND `dim_window` must be stated                                           | no     | the behaviour refusal above, or `` `{path}` states `dim_behaviours` with no `dim_window` for them to run in, so nothing would ever read them `` | `src/config.rs:parse_targets` | `dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped`                                                                                                                                          |
 
@@ -882,7 +882,7 @@ Then the first yields `None` and the second yields `Lights::default()` in full
   `src/config.rs:no_lights_table_is_none_and_an_empty_one_is_every_locked_default`, which asserts every
   one of the locked figures individually: `refresh_secs` 12; `done` and `failed` both
   `Pulse { duration_ms: 4000, brightness: 100 }`; `blocked` breath `2000/100/30` with
-  `give_up_after_secs: 57_600`; `unread` breath `4000/60/10` with `after_secs: 300`; `loop` breath
+  `give_up_after_secs: 57_600`; `unseen` breath `4000/60/10` with `after_secs: 300`; `loop` breath
   `4000/60/10` with `threshold_secs: 300` and `lease_timeout_secs: 3900`; `dim` `3000/7/1`; and all three
   declaration maps empty.
 - Failure sources: `lights = 3` is refused as a non-table; anything inside is judged by the arms below.
@@ -937,7 +937,7 @@ Then the refusal names the table, the key, the value and the whole range
 - Required side effects: none.
 - Forbidden side effects: nothing is clamped. Zero brightness is refused rather than read as off, because
   "a dark signal is a lamp that says nothing, and the way to say nothing is to leave the behaviour off
-  that lamp's `shows` list" (`src/config.rs:MIN_BRIGHTNESS`).
+  that lamp's `behaviours` list" (`src/config.rs:MIN_BRIGHTNESS`).
 - Timeout and cancellation: `MAX_FADE_MS` exists so that `breath_fades` stays total: "a fade past this
   ceiling could be asked for a schedule the shortest interval the config allows has no room left to even
   start."
@@ -957,7 +957,7 @@ Then it is refused, naming both ends and what it would cost
 
 - Success: `src/config.rs:ends_agree` runs after every breathing table is read and returns
   `` `{table}` has low {low} above high {high}, so a fade to `high` would move the lamp down and one to `low` would move it up ``.
-  Pinned across all four breathing tables (`blocked`, `unread`, `loop`, `dim`) by
+  Pinned across all four breathing tables (`blocked`, `unseen`, `loop`, `dim`) by
   `src/config.rs:a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`.
 - Failure sources: any config stating `low > high` on one of those four tables, whether both ends are
   stated or only one is (the check runs over the merged struct, so a stated `low` above the DEFAULT
@@ -990,8 +990,8 @@ Then it is refused by name, with the keys that table DOES serve listed
 - Failure sources: eleven cases in
   `src/config.rs:a_knob_that_does_not_apply_to_a_behaviour_does_not_exist_on_it`, each asserting the
   refusal contains the key AND the phrase `the table serves`: `low` and `high` on `done`, `low` on
-  `failed`, `brightness` on `blocked`, `unread`, `loop` and `dim`, `threshold_secs` on `dim` and `done`,
-  `after_secs` on `blocked`, `lease_timeout_secs` on `unread`.
+  `failed`, `brightness` on `blocked`, `unseen`, `loop` and `dim`, `threshold_secs` on `dim` and `done`,
+  `after_secs` on `blocked`, `lease_timeout_secs` on `unseen`.
 - Fail direction: closed and dark on the lamp paths.
 - Thresholds: Not applicable, this is a name check.
 - Required side effects: none.
@@ -1003,7 +1003,7 @@ Then it is refused by name, with the keys that table DOES serve listed
 - Idempotency and duplicates: deterministic.
 - Privacy: key names only.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `[lights.blocked]`, `[lights.unread]` and `[lights.loop]` each carry ONE knob
+- Compatibility contract: `[lights.blocked]`, `[lights.unseen]` and `[lights.loop]` each carry ONE knob
   beyond the shared breath keys, and those three knobs are the only asymmetry in the cluster.
 
 ### 17. One declaration vocabulary serves all three levels, and the refusal names the operator's path
@@ -1012,7 +1012,7 @@ Given `[lights.room."3F - Studio"] dim_hours = "22:00-07:00"`\
 
 When `parse_config` runs\
 
-Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists `dim_behaviours, dim_window, shows`
+Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists `behaviours, dim_behaviours, dim_window`
 
 - Success: `src/config.rs:parse_targets` calls `admits(TARGET_KEYS, &where_it_is, key)`, which is the
   two-name form of `admits`: the roster row is looked up under `lights.<level>` while the refusal is
@@ -1023,7 +1023,7 @@ Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists
   `lamp = { "HCL1" = 3 }`, `room = 3` and `zone = "Upstairs"`).
 - Fail direction: closed and dark on the lamp paths.
 - Thresholds: the key set is exactly three, asserted as a set rather than by absence in
-  `src/config_text.rs:the_target_declaration_key_roster_is_exactly_shows_dim_window_and_dim_behaviours`,
+  `src/config_text.rs:the_target_declaration_key_roster_is_exactly_behaviours_dim_window_and_dim_behaviours`,
   because "a fourth key added to `render_target`'s own hardcoded list would pass every existing test
   without ever being asserted as belonging."
 - Required side effects: all three levels read the same three keys and land in three separate maps, which
@@ -1034,7 +1034,7 @@ Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists
 - Idempotency and duplicates: `BTreeMap` keyed by the operator's own name.
 - Privacy: the operator's lamp names appear in refusals.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `shows` is `Option<Vec<Behaviour>>` and the distinction is load-bearing: `None`
+- Compatibility contract: `behaviours` is `Option<Vec<Behaviour>>` and the distinction is load-bearing: `None`
   is "said nothing" and inherits, while `Some(vec![])` is an OVERRIDE that takes one lamp out of a routed
   room (`src/config.rs:a_declaration_that_states_nothing_states_nothing_rather_than_defaulting`).
 

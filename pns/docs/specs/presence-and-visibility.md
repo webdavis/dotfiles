@@ -10,7 +10,7 @@ fail direction of every unreadable reading, the exact freshness threshold and it
 readings are memoized so one submission decides on one coherent snapshot, and how the slow
 subprocess-backed readings are started ahead and bounded. It does not cover channel delivery mechanics
 (`src/routing.rs`, `src/channels/`), the `quiet window` and `quiet hours` rules (`src/quiet.rs`,
-`src/lights.rs`), the `unread` lamp, the `decision ring` and `journal` file formats beyond the fields
+`src/lights.rs`), the `unseen` lamp, the `decision ring` and `journal` file formats beyond the fields
 this area writes into them, or the `home probe` and `router` (`src/home.rs`). Everything here is derived
 from the crate's own source and tests; gaps are marked `NOT ESTABLISHED:`.
 
@@ -946,7 +946,7 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
   marker_file` is the only source for that path now). `muted` and
   `focus_active` are unreachable from any of them (`src/engine.rs:Overrides::from_env`). The overrides
   steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_SCREEN_IDLE` and
-  `PNS_PHONE_INPUT_MAX_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unread`
+  `PNS_PHONE_INPUT_MAX_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unseen`
   lamp always sees the machine's own probes."
 
 ### 23. A garbled override answers unknown outright, never a fallback

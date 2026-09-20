@@ -54,7 +54,7 @@ impl<B: LampBridge, P: PresenceDecisions> SignalLamps<'_, B, P> {
             let lamp_is_held = held.is_none_or(|held| held.contains(&path));
             if pns_domain::lamps::muted_now(&routed.lamp, reading.muted)
                 || !pns_domain::lights::held::pulse_fires(
-                    &routed.shows,
+                    &routed.behaviours,
                     flash.behaviour(),
                     lamp_is_held,
                 )

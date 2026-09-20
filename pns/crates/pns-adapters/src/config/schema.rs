@@ -103,13 +103,13 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "blocked",
             "dim",
             "done",
+            "checks",
             "failed",
-            "github",
             "lamp",
             "loop",
             "refresh_secs",
             "room",
-            "unread",
+            "unseen",
             "zone",
         ],
     ),
@@ -121,11 +121,11 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ),
     ("lights.dim", &["duration_ms", "high", "low"]),
     (
-        "lights.github",
-        &["brightness", "duration_ms", "fail", "pass"],
+        "lights.checks",
+        &["brightness", "duration_ms", "fail_color", "pass_color"],
     ),
     (
-        "lights.unread",
+        "lights.unseen",
         &["after_secs", "duration_ms", "high", "low"],
     ),
     (
@@ -140,7 +140,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "threshold_secs",
         ],
     ),
-    (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
+    (TARGET_KEYS, &["behaviours", "dim_behaviours", "dim_window"]),
     // ONE ROW FOR BOTH TRANSPORTS, which is the union of what the two serve:
     // the heading is the durable log and `type` names which transport carries
     // it, so a file can hold the other one's credentials ready and cut over in

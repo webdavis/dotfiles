@@ -129,7 +129,7 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
         "[lights.done]\nduration_ms = 4000\nbrightness = 100\n",
         "[lights.failed]\nduration_ms = 4000\nbrightness = 100\n",
         "[lights.blocked]\nduration_ms = 2000\nhigh = 100\nlow = 30\n",
-        "[lights.unread]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
+        "[lights.unseen]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
         "[lights.loop]\nduration_ms = 4000\nhigh = 80\nlow = 10\n",
         "[lights.dim]\nduration_ms = 3000\nhigh = 7\nlow = 1\n",
     ] {
@@ -205,7 +205,7 @@ fn the_routing_prose_is_always_written_and_the_example_only_when_nothing_is_decl
         let text = render(&values).expect("every lights shape renders");
         assert!(text.contains("# The routing. `dim_window` is"), "{text}");
         assert_eq!(
-            text.contains("# [lights.room.\"Studio\"]\n# shows = "),
+            text.contains("# [lights.room.\"Studio\"]\n# behaviours = "),
             example_expected,
             "{text}"
         );

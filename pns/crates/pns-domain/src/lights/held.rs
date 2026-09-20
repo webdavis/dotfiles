@@ -44,7 +44,7 @@ impl Held {
         match self {
             Held::Blocked => crate::lamps::config::Behaviour::Blocked,
             Held::Looping => crate::lamps::config::Behaviour::Looping,
-            Held::UnreadFailure | Held::UnreadSuccess => crate::lamps::config::Behaviour::Unread,
+            Held::UnreadFailure | Held::UnreadSuccess => crate::lamps::config::Behaviour::Unseen,
         }
     }
 

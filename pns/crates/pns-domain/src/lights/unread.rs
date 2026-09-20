@@ -51,18 +51,18 @@ pub fn news_after(
         }),
         // `Github` IS NOT NEWS OF ITS OWN. A GitHub event's state word is
         // `done` or `failed` like any other, so its news is already recorded
-        // through one of the two arms above; the `github` word names a COLOUR
+        // through one of the two arms above; the `checks` word names a COLOUR
         // the event states, not a second record.
         crate::lamps::config::Behaviour::Blocked
-        | crate::lamps::config::Behaviour::Unread
+        | crate::lamps::config::Behaviour::Unseen
         | crate::lamps::config::Behaviour::Looping
-        | crate::lamps::config::Behaviour::Github => None,
+        | crate::lamps::config::Behaviour::Checks => None,
     }
 }
 /// Which of the unread lamp's two colours is showing.
 ///
 /// TWO FLAVOURS OF ONE BEHAVIOUR, never two routable behaviours: a config
-/// carries `unread` or it does not, and both colours ride the lamp that carries
+/// carries `unseen` or it does not, and both colours ride the lamp that carries
 /// it. That is the operator's own routing map read literally, where the two are
 /// always listed together.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

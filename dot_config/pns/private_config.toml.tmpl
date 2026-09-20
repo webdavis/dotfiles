@@ -561,16 +561,16 @@ page_port = 8646
 # The lamp map: WHICH LAMP says what. A declaration names a place at one
 # of three levels, `[lights.lamp."<name>"]`, `[lights.room."<name>"]` or
 # `[lights.zone."<name>"]`, spelled as the bridge spells it, and says
-# which of the six behaviours it carries: `done`, `failed` and `github`
-# blink, and `blocked`, `unread` and `loop` breathe while their condition
+# which of the six behaviours it carries: `done`, `failed` and `checks`
+# blink, and `blocked`, `unseen` and `loop` breathe while their condition
 # lasts. The most specific declaration naming a lamp wins, lamp over room
 # over zone, and levels never merge; each question resolves on its own,
 # so a lamp can state its behaviours and still inherit its room's dim
-# window. On one lamp the held states rank blocked, loop, then unread,
-# and a held state preempts a blink on the lamp holding it. `unread` is
+# window. On one lamp the held states rank blocked, loop, then unseen,
+# and a held state preempts a blink on the lamp holding it. `unseen` is
 # one word carrying two colours, one for a run that finished and red for
-# one that died; a lamp carries both or neither, and `github` is the
-# second such word (see `[lights.github]` below). An unknown key at any
+# one that died; a lamp carries both or neither, and `checks` is the
+# second such word (see `[lights.checks]` below). An unknown key at any
 # level, and a behaviour word outside the six, are refused by name.
 #
 # `[lights]` IS INERT UNLESS `[plugins.lights] enabled` IS TRUE: hue is the
@@ -613,7 +613,7 @@ low = 30
 # 604800 (a week), since an abandoned wait can span a weekend away.
 give_up_after_secs = 57600
 
-[lights.unread]
+[lights.unseen]
 duration_ms = 4000
 high = 60
 low = 10
@@ -624,17 +624,17 @@ after_secs = 300
 # The one behaviour that carries its own COLOURS: a GitHub event, purple
 # for a pass and orange for a failure, as CIE xy `[x, y]` pairs (which is
 # what the bridge takes; a hex colour would be clamped into its gamut and
-# desaturated). One brightness for both, as `unread` has.
+# desaturated). One brightness for both, as `unseen` has.
 #
-# THE PAIR IS CHOSEN FOR A LAMP OF ITS OWN. Give `github` a lamp whose
-# `shows` names nothing else: the purple sits close enough to the blocked
-# magenta, and the orange close enough to the unread daylight, that a lamp
+# THE PAIR IS CHOSEN FOR A LAMP OF ITS OWN. Give `checks` a lamp whose
+# `behaviours` names nothing else: the purple sits close enough to the blocked
+# magenta, and the orange close enough to the unseen daylight, that a lamp
 # carrying either alongside it cannot be told apart across a room.
-[lights.github]
+[lights.checks]
 duration_ms = 4000
 brightness = 100
-pass = [0.2725, 0.1283]
-fail = [0.5562, 0.4084]
+pass_color = [0.2725, 0.1283]
+fail_color = [0.5562, 0.4084]
 
 # A live pane lease keeps the summarizer's guessed waits from arming
 # blocked; real hook waits still take priority.
@@ -672,42 +672,42 @@ low = 1
 # A place with no window is untouched at every hour; one that states
 # behaviours and no window keeps inheriting its room's window.
 [lights.lamp."1F - Front door - HCL1"]
-shows = ["loop", "blocked", "unread"]
+behaviours = ["loop", "blocked", "unseen"]
 dim_window = "22:00-07:00"
-dim_behaviours = ["blocked", "unread", "loop"]
+dim_behaviours = ["blocked", "unseen", "loop"]
 
 [lights.lamp."2F - Kitchen - HCD5"]
-shows = ["github"]
+behaviours = ["checks"]
 
 [lights.lamp."2F - Kitchen - HCD6"]
-shows = ["loop", "blocked", "unread"]
+behaviours = ["loop", "blocked", "unseen"]
 
 [lights.lamp."3F - MBedroom - HCL2"]
-shows = ["github"]
+behaviours = ["checks"]
 
 [lights.lamp."3F - MBedroom - HCL3"]
-shows = ["loop", "blocked", "unread"]
+behaviours = ["loop", "blocked", "unseen"]
 
 [lights.lamp."3F - Studio - HCL2"]
-shows = ["github"]
+behaviours = ["checks"]
 
 [lights.lamp."3F - Studio - HCL3"]
-shows = ["loop", "blocked", "unread"]
+behaviours = ["loop", "blocked", "unseen"]
 
 [lights.room."2F - Kitchen"]
-shows = ["done", "failed"]
+behaviours = ["done", "failed"]
 dim_window = "22:00-07:00"
-dim_behaviours = ["blocked", "unread", "loop", "github"]
+dim_behaviours = ["blocked", "unseen", "loop", "checks"]
 
 [lights.room."3F - MBedroom"]
-shows = ["done", "failed"]
+behaviours = ["done", "failed"]
 dim_window = "22:00-07:00"
 dim_behaviours = []
 
 [lights.room."3F - Studio"]
-shows = ["done", "failed"]
+behaviours = ["done", "failed"]
 dim_window = "22:00-07:00"
-dim_behaviours = ["blocked", "unread", "loop", "github"]
+dim_behaviours = ["blocked", "unseen", "loop", "checks"]
 
 # ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:
 #

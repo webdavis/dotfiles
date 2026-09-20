@@ -117,8 +117,8 @@ pub(super) const LAYOUT: &[Table] = &[
     LIGHTS_DONE,
     LIGHTS_FAILED,
     LIGHTS_BLOCKED,
-    LIGHTS_UNREAD,
-    LIGHTS_GITHUB,
+    LIGHTS_UNSEEN,
+    LIGHTS_CHECKS,
     LIGHTS_LOOP,
     LIGHTS_DIM,
 ];
