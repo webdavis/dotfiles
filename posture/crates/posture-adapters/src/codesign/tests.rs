@@ -54,31 +54,34 @@ fn codesign_receives_the_unsplit_path_and_merged_output() {
 }
 
 #[test]
-fn plist_extraction_preserves_empty_values_and_exact_key_arguments() {
-    let mut adapter = SystemInspection::new(Scripted {
-        next: b"\n\n".to_vec(),
-        ..Default::default()
-    });
+fn plist_extraction_preserves_empty_values_and_reads_no_child_process() {
+    let sandbox = crate::test_sandbox::Sandbox::new("plist-value");
+    let path = sandbox.join("job.plist");
+    std::fs::write(
+        &path,
+        br#"<plist version="1.0"><dict><key>Program</key><string>/bin/sh</string><key>ProgramArguments</key><array><string>/bin/sh</string><string/></array></dict></plist>"#,
+    )
+    .expect("fixture contents");
+    let mut adapter = SystemInspection::new(Scripted::default());
     assert_eq!(
-        adapter.plist_value(Path::new("/x.plist"), "ProgramArguments.5"),
+        adapter.plist_value(&path, "ProgramArguments.1"),
         Ok(Vec::new())
     );
     assert_eq!(
-        adapter.runner.calls,
-        vec![(
-            "/usr/bin/plutil".into(),
-            [
-                "-extract",
-                "ProgramArguments.5",
-                "raw",
-                "-o",
-                "-",
-                "/x.plist"
-            ]
-            .map(OsString::from)
-            .to_vec(),
-            false
-        )]
+        adapter.plist_value(&path, "Program"),
+        Ok(b"/bin/sh".to_vec())
+    );
+    assert_eq!(
+        adapter.plist_value(&path, "ProgramArguments.5"),
+        Err(InspectionFailure::Failed)
+    );
+    assert_eq!(
+        adapter.plist_value(&sandbox.join("absent.plist"), "Program"),
+        Err(InspectionFailure::Failed)
+    );
+    assert!(
+        adapter.runner.calls.is_empty(),
+        "no child process reads a plist"
     );
 }
 
