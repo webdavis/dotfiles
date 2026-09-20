@@ -87,7 +87,7 @@ pub(super) const RECAP: Table = Table {
     name: "recap",
     prose: RECAP_PROSE,
     opt_in: false,
-    children: &[],
+    children: &[RECAP_SOURCES],
     keys: &[
         Key {
             name: "replay_card",
@@ -136,21 +136,40 @@ pub(super) const RECAP: Table = Table {
             sample: Sample::Default("\"4m\""),
         },
         Key {
-            name: "repositories",
-            prose: "# The repositories whose merged pull requests become the recap's \"what\n\
-                         # it does now\" section. UNSET IS THE WORKING SETTING and it is a fence:\n\
-                         # with no repo named, no `gh` process is started at all. Named, the recap\n\
-                         # runs one read-only `gh pr list` per repo, bounded in count and in time,\n\
-                         # over the window alone; it never touches a token, and `gh`'s own login is\n\
-                         # what authorizes it. Each line carries the pull request number it came\n\
-                         # from, and a line that cannot be traced back to one pns actually fetched\n\
-                         # is dropped rather than posted. A `gh` that is missing, refuses or runs\n\
-                         # long costs this section and nothing else. `gh` IS FOUND ON PATH, and the\n\
-                         # PATH is the one the event that started the recap was handed: a hook\n\
-                         # environment without /opt/homebrew/bin reads `gh` as permanently\n\
-                         # unavailable, and the section says so on every window until the harness's\n\
-                         # own PATH carries it.\n",
-            sample: Sample::Example("[\"owner/name\"]"),
+            name: "overnight",
+            prose: "# The four periods of your own day, local time, as a start and an end.\n\
+                         # `pns recap morning` is the most recent instance of that one, in progress\n\
+                         # or complete, and a bare `pns recap` is whichever ended most recently.\n\
+                         # THE FOUR MUST TILE THE DAY: a gap or an overlap between any two is\n\
+                         # refused at load with both windows named.\n",
+            sample: Sample::Default("[\"22:00\", \"06:00\"]"),
+        },
+        Key {
+            name: "morning",
+            prose: "",
+            sample: Sample::Default("[\"06:00\", \"12:00\"]"),
+        },
+        Key {
+            name: "afternoon",
+            prose: "",
+            sample: Sample::Default("[\"12:00\", \"17:00\"]"),
+        },
+        Key {
+            name: "evening",
+            prose: "",
+            sample: Sample::Default("[\"17:00\", \"22:00\"]"),
+        },
+        Key {
+            name: "week_starts_on",
+            prose: "# Which day `pns recap week` counts from. `monday` or `sunday`, and\n\
+                         # nothing else.\n",
+            sample: Sample::Default("\"monday\""),
+        },
+        Key {
+            name: "rows_per_section",
+            prose: "# How many rows one list section prints before the line that says how\n\
+                         # many more there were. `--limit` overrides it for one run.\n",
+            sample: Sample::Default("8"),
         },
         Key {
             name: "review_notes_glob",
@@ -180,6 +199,51 @@ pub(super) const RECAP: Table = Table {
         },
     ],
 };
+/// The commands that fill the recap's list sections, one per section.
+pub(super) const RECAP_SOURCES: Table = Table {
+    name: "recap.sources",
+    prose: "# Where each list section of the recap comes from: an ARGV LIST, never a\n\
+                 # shell string, run directly with `{since}` and `{until}` replaced by the\n\
+                 # window's own bounds as local RFC 3339 timestamps. One row per line of\n\
+                 # standard output; pns counts and prints the lines and parses none of\n\
+                 # them. UNSET IS THE WORKING SETTING and it is a fence: a section nobody\n\
+                 # named starts no process and is absent from the page, from the document\n\
+                 # and from `--section`. A command that exits non-zero costs its own\n\
+                 # section one line naming the code and nothing else. `pull_requests` and\n\
+                 # `applies` are run a second time with no window at all, which is what\n\
+                 # fills the `open` section.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[
+        Key {
+            name: "pull_requests",
+            prose: "",
+            sample: Sample::Example(
+                "[\"gh\", \"pr\", \"list\", \"--search\", \"updated:>={since}\"]",
+            ),
+        },
+        Key {
+            name: "commits",
+            prose: "# Work with neither an agent session nor a pull request behind it. It\n\
+                         # ships unnamed, so a fresh install has no `commits` section at all.\n",
+            sample: Sample::Example(
+                "[\"git\", \"log\", \"--since={since}\", \"--until={until}\", \"--oneline\"]",
+            ),
+        },
+        Key {
+            name: "tasks",
+            prose: "# Your own task tool. pns assumes none, so this and `applies` decide\n\
+                         # for themselves whether the window means anything to them.\n",
+            sample: Sample::Example("[\"dam\", \"ls\", \"due:today\"]"),
+        },
+        Key {
+            name: "applies",
+            prose: "",
+            sample: Sample::Example("[\"chezmoi\", \"status\"]"),
+        },
+    ],
+};
+
 pub(super) const FOCUS: Table = Table {
     name: "focus",
     prose: "# The macOS Focus modes that pns reads as your own instruction not to be\n\

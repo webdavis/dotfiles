@@ -220,10 +220,10 @@ fn a_note_holding_a_forbidden_control_character_is_refused_by_name() {
 fn the_recap_prose_keeps_the_hook_path_and_note_limit_facts_the_template_carries() {
     // X2's template-prose rule: the shipped template's facts win except
     // where they name the operator's own environment. Dropping the hook
-    // PATH explanation on `repositories` or the twenty-five note limit on
-    // `review_notes_glob` loses a real fact nothing else states.
+    // twenty-five note limit on `review_notes_glob` loses a real fact
+    // nothing else states, and so does the fence on `[recap.sources]`.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
-    assert!(text.contains("FOUND ON PATH"), "{text}");
+    assert!(text.contains("never a\n# shell string"), "{text}");
     assert!(text.contains("Twenty-five notes"), "{text}");
 }
 

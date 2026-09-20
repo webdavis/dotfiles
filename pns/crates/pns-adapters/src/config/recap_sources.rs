@@ -1,37 +1,63 @@
 use super::*;
 
-/// `repositories`, the repositories the merged pull requests are read from: a list of
-/// names in `gh`'s own `OWNER/REPO` spelling, passed to it as one argument
-/// each.
+/// `[recap.sources]`, one argv list per list section.
 ///
-/// UNSET IS THE OFF STATEMENT, so the key never doubles as its own switch:
-/// with no key at all no `gh` process is started.
+/// A COMMAND, NEVER A REPOSITORY LIST. pns owns no task tool, no apply log and
+/// no opinion about which repositories matter, so each section is filled by a
+/// program the operator names word by word. `{since}` and `{until}` in any
+/// word are replaced with the window's bounds before it runs.
 ///
-/// EMPTINESS IS REFUSED AT BOTH LEVELS, for `summarizer`'s reason rather than a
-/// new one. A key present with no name under it, or a name that is the empty
-/// string, would leave the section reading "nothing merged in this window" over
-/// a night that merged plenty, and the operator would be looking at their
-/// repository rather than at their config.
+/// UNSET IS THE OFF STATEMENT, so no key doubles as its own switch: a section
+/// nobody named starts no process, prints nothing and is not a name
+/// `--section` accepts.
 ///
-/// THE NAME ITSELF IS NOT JUDGED BEYOND THAT, and deliberately. `gh` accepts
-/// `OWNER/REPO`, `HOST/OWNER/REPO` and a full URL, it is the authority on which
-/// of those exist, and a shape rule written here would refuse a spelling that
-/// works. It is passed as ARGV, so nothing in it can be read as syntax by
-/// anything; a name `gh` does not know costs the section one "unavailable"
-/// line, which is the same rung a missing `gh` takes.
-pub(super) fn repositories(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
-    let names = strings(
-        "recap",
-        "repositories",
-        "a list of repository names",
-        setting,
-    )?;
-    if names.is_empty() || names.iter().any(String::is_empty) {
+/// EMPTINESS IS REFUSED AT BOTH LEVELS, for `summarizer`'s reason. A key
+/// present with an empty list names no command at all, and a first word that
+/// is the empty string parses and then fails to spawn, which reads to the
+/// operator as a section that is not answering rather than as a table they
+/// have to fix. Only the FIRST word is judged: an empty argument is a real
+/// thing to pass a program.
+///
+/// THE WORDS THEMSELVES ARE NOT JUDGED BEYOND THAT, and deliberately. They are
+/// passed as argv, so nothing in them can be read as syntax by anything, and a
+/// shape rule written here would refuse a spelling that works.
+pub(super) fn parse_recap_sources(value: toml::Value) -> Result<Sources, ConfigError> {
+    const TABLE: &str = "recap.sources";
+    let toml::Value::Table(table) = value else {
         return Err(ConfigError::Invalid(
-            "`recap` key `repositories` names no repository to read".to_string(),
+            "`recap.sources` is not a table".to_string(),
         ));
+    };
+    let mut sources = Sources::default();
+    for (key, setting) in table {
+        admits_flat(TABLE, &key)?;
+        let command = source_command(&key, &setting)?;
+        match key.as_str() {
+            "pull_requests" => sources.pull_requests = Some(command),
+            "commits" => sources.commits = Some(command),
+            "tasks" => sources.tasks = Some(command),
+            "applies" => sources.applies = Some(command),
+            _ => return Err(unknown_key(TABLE, TABLE, &key)),
+        }
     }
-    Ok(names)
+    Ok(sources)
+}
+
+/// One source command's words, refused by name when they name no program.
+fn source_command(key: &str, setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+    const TABLE: &str = "recap.sources";
+    let words = strings(TABLE, key, "a list of command words", setting)?;
+    if words.is_empty() {
+        return Err(ConfigError::Invalid(format!(
+            "`{TABLE}` key `{key}` is empty, so it names no command to run"
+        )));
+    }
+    if words[0].is_empty() {
+        return Err(ConfigError::Invalid(format!(
+            "`{TABLE}` key `{key}` starts with an empty word, so it names no command to run"
+        )));
+    }
+    Ok(words)
 }
 
 /// `review_notes_glob`, the one pattern deciding which files the recap may open.

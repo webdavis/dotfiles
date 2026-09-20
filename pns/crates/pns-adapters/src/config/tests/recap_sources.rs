@@ -1,17 +1,31 @@
 use super::*;
 
 #[test]
-fn the_two_external_sources_are_named_by_the_operator_or_not_read_at_all() {
-    // NEITHER SECTION HAS A SOURCE pns can find on its own: merged pull
-    // requests live in a repository nothing here knows the name of, and the
-    // review notes live wherever this operator's own pipeline puts them.
-    // Both are therefore keys, and an absent key is the working setting.
+fn every_list_section_is_named_by_the_operator_or_not_read_at_all() {
+    // NO LIST SECTION HAS A SOURCE pns can find on its own: pull requests
+    // live in repositories nothing here knows the name of, tasks live in
+    // whichever task tool this operator uses, and the review notes live
+    // wherever their own pipeline puts them. All are therefore keys, and an
+    // absent key is the working setting.
     let config = parse_config(
-        "[recap]\nrepositories = [\"webdavis/dotfiles\"]\n\
-             review_notes_glob = \"~/.claude/pipeline/slices/checklist-*.md\"\n",
+        "[recap]\nreview_notes_glob = \"~/.claude/pipeline/slices/checklist-*.md\"\n\
+         [recap.sources]\n\
+         pull_requests = [\"gh\", \"pr\", \"list\", \"--search\", \"updated:>={since}\"]\n\
+         tasks = [\"dam\", \"ls\"]\n",
     )
     .unwrap();
-    assert_eq!(config.recap.repositories, ["webdavis/dotfiles".to_string()]);
+    assert_eq!(
+        config.recap.sources.pull_requests.as_deref(),
+        Some(
+            ["gh", "pr", "list", "--search", "updated:>={since}"]
+                .map(String::from)
+                .as_slice()
+        )
+    );
+    assert_eq!(
+        config.recap.sources.tasks.as_deref(),
+        Some(["dam", "ls"].map(String::from).as_slice())
+    );
     assert_eq!(
         config.recap.review_notes_glob.as_deref(),
         Some("~/.claude/pipeline/slices/checklist-*.md")
@@ -19,9 +33,10 @@ fn the_two_external_sources_are_named_by_the_operator_or_not_read_at_all() {
     let unconfigured = parse_config("[recap]\npost_window_recap = true\n")
         .unwrap()
         .recap;
-    assert!(
-        unconfigured.repositories.is_empty(),
-        "UNSET IS THE WORKING SETTING: no repo is no `gh` at all"
+    assert_eq!(
+        unconfigured.sources,
+        pns_domain::recap::Sources::default(),
+        "UNSET IS THE WORKING SETTING: no command is no process at all"
     );
     assert_eq!(
         unconfigured.review_notes_glob, None,
@@ -30,22 +45,22 @@ fn the_two_external_sources_are_named_by_the_operator_or_not_read_at_all() {
 }
 
 #[test]
-fn a_repos_value_that_is_not_repository_names_is_refused_naming_the_key() {
+fn a_source_value_that_is_not_command_words_is_refused_naming_the_key() {
     // THE SAME FOUR SHAPES `summarizer` REFUSES, for the same reason: a
-    // list this layer reads itself is a list it can judge, and a repo name
-    // it silently dropped would read to the operator as a night with no
-    // merges in it rather than as a table they have to fix.
+    // list this layer reads itself is a list it can judge, and a command it
+    // silently dropped would read to the operator as a window with nothing
+    // in it rather than as a table they have to fix.
     for (stated, expected) in [
-        ("\"webdavis/dotfiles\"", "not a list"),
-        ("[\"webdavis/dotfiles\", 3]", "not a list"),
-        ("[]", "names no repository"),
-        ("[\"\"]", "names no repository"),
+        ("\"dam ls\"", "not a list"),
+        ("[\"dam\", 3]", "not a list"),
+        ("[]", "names no command"),
+        ("[\"\"]", "names no command"),
     ] {
-        let err = parse_config(&format!("[recap]\nrepositories = {stated}\n")).unwrap_err();
+        let err = parse_config(&format!("[recap.sources]\ntasks = {stated}\n")).unwrap_err();
         match err {
             ConfigError::Invalid(message) => {
                 assert!(
-                    message.contains("repositories"),
+                    message.contains("tasks"),
                     "the offender is named for {stated}: {message}"
                 );
                 assert!(
@@ -55,6 +70,15 @@ fn a_repos_value_that_is_not_repository_names_is_refused_naming_the_key() {
             }
             other => panic!("expected Invalid for {stated}, got {other:?}"),
         }
+    }
+}
+
+#[test]
+fn a_source_key_nothing_serves_is_refused_by_name() {
+    let err = parse_config("[recap.sources]\nreviews = [\"ls\"]\n").unwrap_err();
+    match err {
+        ConfigError::Invalid(message) => assert!(message.contains("reviews"), "{message}"),
+        other => panic!("expected Invalid, got {other:?}"),
     }
 }
 

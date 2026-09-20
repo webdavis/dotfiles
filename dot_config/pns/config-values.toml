@@ -192,3 +192,27 @@ behaviours = ["loop", "blocked", "unseen"]
 [lights.lamp."1F - Front door - HCL1"]
 behaviours = ["loop", "blocked", "unseen"]
 dim_behaviours = ["blocked", "unseen", "loop"]
+
+# The two list sections this machine fills. `pull_requests` and `commits` stay
+# unnamed: the open pull requests reach the operator through the GitHub
+# notification source already, and hand-made commits are not what this machine
+# does. A source is an ARGV LIST run directly, one row per line of output.
+[recap.sources]
+# Today's tasks, through the Todoist CLI, which carries its own credentials;
+# pns never reads a token. One line per task (its priority, then its first
+# line), so the row cap spends itself on tasks rather than on td's multi-line
+# human format.
+tasks = [
+  "bash",
+  "-c",
+  'td --no-spinner today --ndjson | jq -r "$1"',
+  "_",
+  '"p\(5 - .priority) " + (.content | split("\n")[0])',
+]
+# Whether an apply is owed, out of the transcript `just a` writes: the
+# repository state the last apply ran against and how it ended.
+applies = [
+  "bash",
+  "-c",
+  'grep -E "^(head|branch|result|exit_code):" "$HOME/.local/state/chezmoi-apply/latest.apply.log" 2>/dev/null',
+]

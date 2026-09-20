@@ -397,20 +397,21 @@ minimum_events = 8
 # notification's sentence, which takes at most thirty seconds of it
 # because a Stop hook is waiting on that one.
 summarizer_deadline = "4m"
-# The repositories whose merged pull requests become the recap's "what
-# it does now" section. UNSET IS THE WORKING SETTING and it is a fence:
-# with no repo named, no `gh` process is started at all. Named, the recap
-# runs one read-only `gh pr list` per repo, bounded in count and in time,
-# over the window alone; it never touches a token, and `gh`'s own login is
-# what authorizes it. Each line carries the pull request number it came
-# from, and a line that cannot be traced back to one pns actually fetched
-# is dropped rather than posted. A `gh` that is missing, refuses or runs
-# long costs this section and nothing else. `gh` IS FOUND ON PATH, and the
-# PATH is the one the event that started the recap was handed: a hook
-# environment without /opt/homebrew/bin reads `gh` as permanently
-# unavailable, and the section says so on every window until the harness's
-# own PATH carries it.
-# repositories = ["owner/name"]
+# The four periods of your own day, local time, as a start and an end.
+# `pns recap morning` is the most recent instance of that one, in progress
+# or complete, and a bare `pns recap` is whichever ended most recently.
+# THE FOUR MUST TILE THE DAY: a gap or an overlap between any two is
+# refused at load with both windows named.
+overnight = ["22:00", "06:00"]
+morning = ["06:00", "12:00"]
+afternoon = ["12:00", "17:00"]
+evening = ["17:00", "22:00"]
+# Which day `pns recap week` counts from. `monday` or `sunday`, and
+# nothing else.
+week_starts_on = "monday"
+# How many rows one list section prints before the line that says how
+# many more there were. `--limit` overrides it for one run.
+rows_per_section = 8
 # The review notes whose findings become the recap's "caught by review"
 # section: ONE directory, named in full, and a file name that may hold
 # one `*`. A relative path and a `*` in a directory are both refused,
@@ -431,6 +432,26 @@ summarizer_deadline = "4m"
 # ceiling; zero is refused by name, because this store has no off switch
 # and a retention of nothing would empty it on the next tick.
 retain = "720h"
+
+# Where each list section of the recap comes from: an ARGV LIST, never a
+# shell string, run directly with `{since}` and `{until}` replaced by the
+# window's own bounds as local RFC 3339 timestamps. One row per line of
+# standard output; pns counts and prints the lines and parses none of
+# them. UNSET IS THE WORKING SETTING and it is a fence: a section nobody
+# named starts no process and is absent from the page, from the document
+# and from `--section`. A command that exits non-zero costs its own
+# section one line naming the code and nothing else. `pull_requests` and
+# `applies` are run a second time with no window at all, which is what
+# fills the `open` section.
+[recap.sources]
+# pull_requests = ["gh", "pr", "list", "--search", "updated:>={since}"]
+# Work with neither an agent session nor a pull request behind it. It
+# ships unnamed, so a fresh install has no `commits` section at all.
+# commits = ["git", "log", "--since={since}", "--until={until}", "--oneline"]
+# Your own task tool. pns assumes none, so this and `applies` decide
+# for themselves whether the window means anything to them.
+tasks = ["bash", "-c", "td --no-spinner today --ndjson | jq -r \"$1\"", "_", "\"p\\(5 - .priority) \" + (.content | split(\"\\n\")[0])"]
+applies = ["bash", "-c", "grep -E \"^(head|branch|result|exit_code):\" \"$HOME/.local/state/chezmoi-apply/latest.apply.log\" 2>/dev/null"]
 
 # The macOS Focus modes that pns reads as your own instruction not to be
 # interrupted. While one of them is active, banners, cards and light
