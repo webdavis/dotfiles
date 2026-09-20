@@ -119,7 +119,7 @@ fn the_keys_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
             ConfigError::Invalid(message) => {
                 let named = retired.split(' ').next().expect("a key");
                 assert!(
-                    message.contains(named),
+                    message.contains(&format!("`{named}`")),
                     "the offender is named for {retired}: {message}"
                 );
                 assert!(

@@ -74,6 +74,8 @@ fn the_keys_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
         ("port = 9000", "page_port"),
     ] {
         let error = refusal(&format!("[failures]\n{retired}\n"));
+        let named = retired.split(' ').next().expect("a key");
+        assert!(error.contains(&format!("`{named}`")), "{error}");
         assert!(error.contains(replacement), "{error}");
     }
 }
