@@ -34,7 +34,7 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
     );
     assert!(sandbox.fired("hermes"), "the selection still delivers");
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "and nothing fell back to the whole roster"
     );
     assert!(

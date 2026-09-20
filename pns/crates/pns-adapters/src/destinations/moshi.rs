@@ -1,10 +1,10 @@
-//! The moshi backend of the `mobile` channel, native: the phone push, a single
-//! HTTPS POST. `mobile` is the plugin the config selects and `type = "moshi"`
+//! The moshi backend of the `phone` channel, native: the phone push, a single
+//! HTTPS POST. `phone` is the plugin the config selects and `type = "moshi"`
 //! is what picks this; the module keeps the backend's name because that is what
 //! it implements.
 //!
 //! THE SECRET'S PATH IS THE POINT. The token is read from the config's
-//! `[plugins.mobile]` table and never touches argv, the environment of a
+//! `[plugins.phone]` table and never touches argv, the environment of a
 //! child, or an error string: the bash put it on stdin for the same reason
 //! (the process table is world-readable), and in-process is the stronger
 //! form of the same rule. A missing or empty token is the not-set-up case,
@@ -120,14 +120,14 @@ pub struct MoshiChannel<H: HttpPost> {
     /// `PNS_MOSHI_UPLOAD_URL` override, else the default.
     pub upload_url: String,
     /// The card types whose cards carry an image, which is the states named
-    /// `true` in `[plugins.mobile.image_cards]`. EMPTY IS THE SHIPPED
+    /// `true` in `[plugins.phone.image_cards]`. EMPTY IS THE SHIPPED
     /// POSTURE, and a card type nobody named gets today's text card.
     pub image_cards: Vec<String>,
 }
 
 impl<H: HttpPost + Send + Sync> NotificationDestination for MoshiChannel<H> {
     fn id(&self) -> &DestinationId {
-        const ID: DestinationId = DestinationId::new("mobile");
+        const ID: DestinationId = DestinationId::new("phone");
         &ID
     }
 
@@ -214,7 +214,7 @@ impl<H: HttpPost> MoshiChannel<H> {
 /// config key to write, the way hermes's does, because "not set up" without an
 /// address sends the operator hunting.
 const NO_TOKEN_LINE: &str =
-    "push SKIPPED, no moshi token in the config ([plugins.mobile] token); nothing was sent";
+    "push SKIPPED, no moshi token in the config ([plugins.phone] token); nothing was sent";
 
 /// The line for a mobile leg refused before either delivery seam: the table
 /// names a backend nothing compiled in answers.

@@ -15,7 +15,7 @@ fn skip_phone_beats_force_phone_because_already_sent_is_more_specific() {
         force_phone: true,
         ..Overrides::default()
     };
-    assert!(!names(&decide_with(&probes, &overrides, "")).contains(&"mobile"));
+    assert!(!names(&decide_with(&probes, &overrides, "")).contains(&"phone"));
 }
 
 #[test]
@@ -31,7 +31,7 @@ fn force_phone_sends_the_card_from_the_desk_with_the_pane_in_plain_sight() {
         force_phone: true,
         ..Overrides::default()
     };
-    assert!(names(&decide_with(&probes, &overrides, "wW:p1")).contains(&"mobile"));
+    assert!(names(&decide_with(&probes, &overrides, "wW:p1")).contains(&"phone"));
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn a_locked_screen_cards_the_phone_and_leaves_the_desk_banner_unraised() {
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
     assert!(
-        legs.contains(&"mobile"),
+        legs.contains(&"phone"),
         "the card must reach them: {legs:?}"
     );
     assert!(
@@ -91,7 +91,7 @@ fn a_phone_probe_that_read_nothing_leaves_the_operator_at_their_desk() {
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
     assert!(legs.contains(&"banner"), "got {legs:?}");
-    assert!(!legs.contains(&"mobile"), "got {legs:?}");
+    assert!(!legs.contains(&"phone"), "got {legs:?}");
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn an_unreadable_clock_ages_no_phone_signal_rather_than_treating_it_as_fresh() {
     assert_eq!(decision.inputs.marker_age, None);
     assert_eq!(decision.inputs.surface, Surface::Away);
     assert!(
-        names(&decision).contains(&"mobile"),
+        names(&decision).contains(&"phone"),
         "away still cards; neither phone signal decided it"
     );
 }
@@ -147,7 +147,7 @@ fn an_unreadable_clock_ages_no_marker_rather_than_treating_it_as_fresh() {
     assert_eq!(decision.inputs.marker_age, None);
     assert_eq!(decision.inputs.surface, Surface::Away);
     assert!(
-        names(&decision).contains(&"mobile"),
+        names(&decision).contains(&"phone"),
         "away still cards; the tap simply did not decide it"
     );
 }

@@ -66,7 +66,7 @@ fn a_garbage_phone_override_is_unknown_without_a_probe_read() {
     let decision = decide_with(&probes, &overrides, "");
     assert_eq!(probes.phone_reads.get(), 0);
     assert!(
-        names(&decision).contains(&"mobile"),
+        names(&decision).contains(&"phone"),
         "an unknown phone reading falls toward away, which cards"
     );
 }

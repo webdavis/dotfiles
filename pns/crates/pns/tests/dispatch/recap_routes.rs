@@ -16,7 +16,7 @@ fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_ca
     let sandbox = Sandbox::new("recap-no-durable-route");
     record_every_event(&sandbox);
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.banner]\nenabled = true\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.banner]\nenabled = true\n",
     );
     loud_window(&sandbox);
 
@@ -110,7 +110,7 @@ fn a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing
         "the usage names both bounds: {}",
         stderr(&output)
     );
-    for channel in ["hermes", "mobile", "banner"] {
+    for channel in ["hermes", "phone", "banner"] {
         assert!(
             !sandbox.fired(channel),
             "{channel} was handed a recap over a window nobody could read"

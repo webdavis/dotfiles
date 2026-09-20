@@ -233,7 +233,7 @@ fn command(stored: &StoredFailure) -> String {
 }
 
 /// Where the destination lives, as the reader would type it. Config
-/// (`[plugins.mobile] url` / `[plugins.log] url`) outranks the matching
+/// (`[plugins.phone] url` / `[plugins.log] url`) outranks the matching
 /// variable (`PNS_MOSHI_URL` / `PNS_HERMES_URL`), which is what keeps the
 /// message pointing at the gateway this machine actually posts to.
 fn address(
@@ -242,7 +242,7 @@ fn address(
     moshi_url: Option<&str>,
     hermes_url: Option<&str>,
 ) -> String {
-    if destination == failure::DESTINATION_MOBILE {
+    if destination == failure::DESTINATION_PHONE {
         return moshi_url
             .map(str::to_string)
             .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string());

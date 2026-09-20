@@ -12,7 +12,7 @@ fn away_from_the_desk_cards_the_phone_and_logs_but_raises_no_banner() {
         .pns()
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
-    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"));
     assert!(!sandbox.fired("banner"), "away raises no banner");
 }
@@ -38,7 +38,7 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
         .args(["--pane", "t1:p2"]));
     assert!(sandbox.fired("banner"));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("mobile"), "the desk gets no card");
+    assert!(!sandbox.fired("phone"), "the desk gets no card");
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
         ])
         .args(["--pane", "t1:p2"]));
     assert!(!sandbox.fired("banner"), "the pane is in plain sight");
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"));
 }
 
@@ -92,7 +92,7 @@ fn a_channel_is_handed_the_rendered_event_not_the_raw_arguments() {
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--branch", "main"])
         .args(["--detail", "a summary"]));
-    let event = sandbox.event("mobile");
+    let event = sandbox.event("phone");
     assert_eq!(event["agent"], "claude");
     for rendered in ["title", "message", "preview"] {
         // A MISSING key indexes to Null, and Null is != "", so the absence

@@ -31,7 +31,7 @@ const LOCAL: Routing = Routing {
 
 fn three_plugin_registry() -> Registry {
     let mut registry = Registry::new();
-    registry.register_channel("mobile", REMOTE_GATED).unwrap();
+    registry.register_channel("phone", REMOTE_GATED).unwrap();
     registry.register_channel("hermes", DURABLE).unwrap();
     registry.register_channel("banner", LOCAL).unwrap();
     registry
@@ -42,16 +42,16 @@ fn three_plugin_registry() -> Registry {
 #[test]
 fn registration_order_is_kept_because_it_is_delivery_order() {
     let registry = three_plugin_registry();
-    assert_eq!(registry.names(), vec!["mobile", "hermes", "banner"]);
+    assert_eq!(registry.names(), vec!["phone", "hermes", "banner"]);
 }
 
 #[test]
 fn a_name_already_taken_is_refused_naming_it() {
     let mut registry = Registry::new();
-    registry.register_channel("mobile", REMOTE_GATED).unwrap();
+    registry.register_channel("phone", REMOTE_GATED).unwrap();
     assert_eq!(
-        registry.register_channel("mobile", LOCAL),
-        Err(RegistryError::Duplicate("mobile".to_string()))
+        registry.register_channel("phone", LOCAL),
+        Err(RegistryError::Duplicate("phone".to_string()))
     );
 }
 
@@ -155,7 +155,7 @@ fn the_production_roster_carries_the_three_sensors_beside_the_five_channels() {
             ("home_presence", true),
             ("presence", true),
             ("github", true),
-            ("mobile", false),
+            ("phone", false),
             ("banner", false),
             ("hermes", false),
             ("discord", false),
@@ -168,7 +168,7 @@ fn the_production_roster_carries_the_three_sensors_beside_the_five_channels() {
             "home_presence",
             "presence",
             "github",
-            "mobile",
+            "phone",
             "banner",
             "hermes",
             "discord",
@@ -181,5 +181,5 @@ fn the_production_roster_carries_the_three_sensors_beside_the_five_channels() {
 fn all_selects_every_registration_which_is_what_the_census_reports_against() {
     let selection = three_plugin_registry().all();
     let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
-    assert_eq!(names, vec!["mobile", "hermes", "banner"]);
+    assert_eq!(names, vec!["phone", "hermes", "banner"]);
 }

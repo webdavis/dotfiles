@@ -44,7 +44,7 @@ pub(crate) use pns_adapters::{
     HookPayload, flattened, moshi_subcommand, parse_payload, transcript_reply,
 };
 pub(crate) use pns_adapters::{LoadOutcome, config_path, load_config};
-pub(crate) use pns_adapters::{MOSHI_TYPE, mobile_backend, moshi_secret};
+pub(crate) use pns_adapters::{MOSHI_TYPE, moshi_secret, phone_backend};
 pub(crate) use pns_adapters::{SystemCommandRunner, SystemProbes, local_minutes_since_midnight};
 pub(crate) use pns_domain::Delivery;
 pub(crate) use pns_domain::Overrides;

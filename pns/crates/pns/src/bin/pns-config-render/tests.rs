@@ -31,7 +31,7 @@ fn a_proper_secret_marker_table_is_accepted() {
     let mut mobile = toml::Table::new();
     mobile.insert("token".to_string(), toml::Value::Table(marker));
     let mut plugins = toml::Table::new();
-    plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+    plugins.insert("phone".to_string(), toml::Value::Table(mobile));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 

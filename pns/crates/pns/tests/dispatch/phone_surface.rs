@@ -17,7 +17,7 @@ fn a_back_tap_newer_than_the_last_desk_input_moves_the_operator_to_mobile() {
         "--detail",
         "x",
     ]));
-    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("phone"));
     assert!(!sandbox.fired("banner"), "mobile never banners");
 }
 
@@ -41,7 +41,7 @@ fn desk_input_after_the_tap_cancels_it() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(!sandbox.fired("mobile"), "the desk is newer than the tap");
+    assert!(!sandbox.fired("phone"), "the desk is newer than the tap");
     assert!(sandbox.fired("banner"));
 }
 
@@ -68,7 +68,7 @@ fn a_tap_with_moshi_closed_cards_the_phone_even_with_the_pane_in_plain_sight() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("mobile"), "the tap asked for the card");
+    assert!(sandbox.fired("phone"), "the tap asked for the card");
     assert!(!sandbox.fired("banner"), "mobile never banners");
 }
 
@@ -88,7 +88,7 @@ fn a_narrowing_flag_still_beats_a_fresh_tap() {
             "--detail",
             "x",
         ]));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn skip_phone_still_beats_a_fresh_tap() {
             "--detail",
             "x",
         ]));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
 }
 
 // --- the pane the operator is looking at ------------------------------------
@@ -132,7 +132,7 @@ fn a_phone_in_hand_watching_the_pane_gets_nothing_but_the_log() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(!sandbox.fired("banner"), "mobile never banners");
     assert!(sandbox.fired("hermes"));
 }
@@ -155,7 +155,7 @@ fn a_phone_in_hand_showing_another_tab_still_cards() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("phone"));
     assert!(!sandbox.fired("banner"));
 }
 
@@ -199,5 +199,5 @@ fn force_phone_is_caller_intent_and_beats_the_whole_surface_model() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("phone"));
 }

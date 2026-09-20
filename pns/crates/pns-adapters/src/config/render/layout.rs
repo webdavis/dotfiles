@@ -20,7 +20,7 @@
 
 /// One table, in file order.
 pub(super) struct Table {
-    /// The heading it writes, dotted (`"plugins.mobile"`, `"lights.done"`),
+    /// The heading it writes, dotted (`"plugins.phone"`, `"lights.done"`),
     /// or a bare top-level name (`"daemon"`).
     pub name: &'static str,
     /// The comment above the heading. Carries its own `# ` prefixes and
@@ -93,7 +93,7 @@ pub(super) fn every_table() -> Vec<&'static Table> {
 pub(super) const LAYOUT: &[Table] = &[
     // FIRST, because it names the routes every table below is keyed by.
     ROUTES,
-    PLUGINS_MOBILE,
+    PLUGINS_PHONE,
     PLUGINS_LOG,
     PLUGINS_BANNER,
     PLUGINS_LIGHTS,
@@ -109,7 +109,6 @@ pub(super) const LAYOUT: &[Table] = &[
     REMIND,
     PRODUCER,
     STALE,
-    PHONE,
     PATHS,
     STORAGE,
     FAILURES,

@@ -25,7 +25,7 @@ pub(super) fn elsewhere(_origin: &str) -> SessionView {
 pub(super) fn three_selection() -> Selection {
     crate::registry::roster()
         .enabled(&std::collections::BTreeMap::from([
-            ("mobile".to_string(), true),
+            ("phone".to_string(), true),
             ("hermes".to_string(), true),
             ("banner".to_string(), true),
         ]))

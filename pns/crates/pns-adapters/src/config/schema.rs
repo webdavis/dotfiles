@@ -46,7 +46,6 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "focus",
             "lights",
             "paths",
-            "phone",
             "plugins",
             "producer",
             "quiet",
@@ -88,7 +87,6 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (DELIVERY_CLASS_KEYS, &["bypass_mute", "route"]),
     ("daemon", &["enabled", "service"]),
     ("paths", &["channels_dir", "state_dir"]),
-    ("phone", &["marker_file"]),
     ("remind", &["delay"]),
     // THE NESTED ROW IS A PREFIX, as `lights.<level>` is: `[producer.<name>]`
     // carries the producer's own name, so the roster holds the part that is
@@ -203,12 +201,13 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "plugins.mobile",
+        "plugins.phone",
         &[
+            "ack_deadline",
+            "card_while_watching",
             "enabled",
             "image_cards",
-            "mobile_watch_card",
-            "submit_deadline_secs",
+            "marker_file",
             "token",
             "type",
             "url",
@@ -218,7 +217,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // event's producer sent, and pns compiles in no roster of those. The row
     // states the one card type the shipped file shows as an example. See
     // `OPEN_TABLES`.
-    (MOBILE_IMAGE_CARDS, &["missed"]),
+    (PHONE_IMAGE_CARDS, &["missed"]),
     (
         "plugins.home_presence",
         &[
@@ -259,7 +258,7 @@ pub(super) const LOG_CHANNELS: &str = "plugins.log.channels";
 pub(super) const LOG_KEYS: &str = "plugins.log.keys";
 
 /// The per-card-type image switches, whose keys are CARD TYPES.
-pub(super) const MOBILE_IMAGE_CARDS: &str = "plugins.mobile.image_cards";
+pub(super) const PHONE_IMAGE_CARDS: &str = "plugins.phone.image_cards";
 
 /// What the two routes pns selects for itself are called.
 pub(super) const ROUTES: &str = "routes";
@@ -290,7 +289,7 @@ pub(super) const DELIVERY_CLASS_KEYS: &str = "delivery_class.<name>";
 /// THE CARD TYPES ARE HERE FOR THE SAME REASON: a card type is the state word
 /// a producer sent, and producers are separate tools, so a mistyped one is a
 /// card type that never carries an image rather than a refusal at load.
-pub(super) const OPEN_TABLES: &[&str] = &[LOG_CHANNELS, LOG_KEYS, MOBILE_IMAGE_CARDS];
+pub(super) const OPEN_TABLES: &[&str] = &[LOG_CHANNELS, LOG_KEYS, PHONE_IMAGE_CARDS];
 
 /// Whether a table takes keys this schema never declared.
 pub(super) fn is_open(table: &str) -> bool {

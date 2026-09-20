@@ -96,7 +96,7 @@ fn a_registration_that_cannot_be_written_costs_the_event_nothing() {
             stdout(&output).replace(&sandbox.display(), "<sandbox>"),
             stderr(&output).replace(&sandbox.display(), "<sandbox>"),
             output.status.code(),
-            ["mobile", "hermes", "banner"].map(|leg| sandbox.fired(leg)),
+            ["phone", "hermes", "banner"].map(|leg| sandbox.fired(leg)),
         )
     };
     let working = outcome("lights-tick-spool-fine", false);

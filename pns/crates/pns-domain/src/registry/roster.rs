@@ -39,10 +39,10 @@ pub const ROSTER: [Registration; 8] = [
     },
     Registration {
         // The phone. NAMED FOR THE DESTINATION, not for the service behind it:
-        // `[plugins.mobile] type` names which backend carries the card (moshi
+        // `[plugins.phone] type` names which backend carries the card (moshi
         // today), so a second one is a value the operator writes rather than a
         // second plugin name and a second table to move settings into.
-        name: "mobile",
+        name: "phone",
         kind: PluginKind::Channel(Routing {
             local: false,
             presence_gated: true,
@@ -131,4 +131,4 @@ pub const PRESENCE: &str = "presence";
 /// nothing, which is what `the_core_is_two_registered_plugins_and_the_config_
 /// still_beats_it` is for. IN REGISTRATION ORDER, so the warning that lists it
 /// reads in the order the legs run.
-pub const CORE: [&str; 2] = ["mobile", "banner"];
+pub const CORE: [&str; 2] = ["phone", "banner"];

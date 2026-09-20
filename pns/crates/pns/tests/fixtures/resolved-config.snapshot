@@ -1,5 +1,7 @@
 Config {
-    phone_marker_file: None,
+    phone_marker_file: Some(
+        "~/.local/state/pns/phone-attention.marker",
+    ),
     paths: Paths {
         state_dir: None,
         channels_dir: None,
@@ -147,17 +149,20 @@ Config {
                 ),
             },
         },
-        "mobile": PluginEntry {
+        "phone": PluginEntry {
             enabled: true,
             settings: {
+                "ack_deadline": String(
+                    "5s",
+                ),
+                "card_while_watching": Boolean(
+                    false,
+                ),
                 "image_cards": Table(
                     {},
                 ),
-                "mobile_watch_card": Boolean(
-                    false,
-                ),
-                "submit_deadline_secs": Integer(
-                    5,
+                "marker_file": String(
+                    "~/.local/state/pns/phone-attention.marker",
                 ),
                 "token": String(
                     "from-the-vault:moshi-hook :: Device Token:Password",
