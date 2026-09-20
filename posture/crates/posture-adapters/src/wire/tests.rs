@@ -32,11 +32,12 @@ fn the_golden_result_decodes_to_the_fields_posture_acts_on() {
         Some("nvim-7f3a9c2e-0001")
     );
     assert_eq!(result.status, Status::Partial);
-    assert_eq!(result.diagnostics, vec!["ignored_field:detial".to_string()]);
+    assert_eq!(result.diagnostics, vec!["ledger_committed".to_string()]);
     assert_eq!(result.destinations.len(), 2);
     assert_eq!(result.destinations[0].outcome, DeliveryOutcome::Delivered);
     assert_eq!(result.ledger_sequence.as_deref(), Some("123"));
     assert_eq!(result.destinations[0].name.as_str(), "macos-banner");
+    assert_eq!(result.ignored_fields, vec!["detial".to_string()]);
 }
 
 #[test]

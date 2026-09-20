@@ -84,6 +84,7 @@ fn subject(status: Status, committed: bool) -> ProducerCommand<Runner, Alarm> {
         } else {
             vec![]
         },
+        ignored_fields: Vec::new(),
     };
     ProducerCommand::new(
         Runner {
