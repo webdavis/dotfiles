@@ -127,7 +127,7 @@ pub fn quiet_command(
 
 /// Why a bare mute cannot be set on a machine with no quiet hours.
 const NO_SCHEDULE: &str = "pns: lights quiet: a bare mute lasts until your quiet \
-hours end, and `[plugins.hue] quiet_hours` states none; give a duration instead, \
+hours end, and `[plugins.lights] quiet_hours` states none; give a duration instead, \
 or set that key";
 
 /// Why one name cannot be muted, and what can be instead.

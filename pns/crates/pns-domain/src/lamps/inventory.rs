@@ -4,7 +4,7 @@
 /// its grouped light, or one individual lamp.
 ///
 /// The distinction is not cosmetic. A grouped light is one write for a whole
-/// room and is all the room-shaped `[plugins.hue] rooms` pulse ever needs; a
+/// room and is all the room-shaped `[plugins.lights] rooms` pulse ever needs; a
 /// light is what the ROUTED path always resolves to, because arbitration, the
 /// dim window and the mute are each per lamp, and a group write would reach a
 /// lamp that answered any of the three differently.

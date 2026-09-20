@@ -210,7 +210,7 @@ fn a_quota_observation_replays_no_journal_entry() {
 fn a_quota_observation_registers_no_lights_tick() {
     // A LAMPS-LIVE case: `register_lights_tick` is gated on `lamps_live`
     // (main.rs), so `remind_config`'s bare three channels never reach it
-    // whichever attempt fires. This needs its own `[lights]`/`[plugins.hue]`
+    // whichever attempt fires. This needs its own `[lights]`/`[plugins.lights]`
     // table, `LAMPS_ON`'s own fixture, the way model-switch's
     // `an_observation_registers_no_lights_tick` needs it.
     let sandbox = Sandbox::new("quota-no-lights-tick");

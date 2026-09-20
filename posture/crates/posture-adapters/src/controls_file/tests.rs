@@ -1,25 +1,16 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_domain::{ControlReader, ControlValue, ControlsRefusalKind};
-use std::{
-    fs,
-    path::PathBuf,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::{fs, path::PathBuf};
 
-fn directory() -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let path = std::env::temp_dir().join(format!(
-        "posture-controls-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&path).unwrap();
-    path
+fn directory() -> Sandbox {
+    Sandbox::new("controls")
 }
-fn fixture(bytes: &[u8]) -> PathBuf {
-    let path = directory().join("controls.json");
+fn fixture(bytes: &[u8]) -> (Sandbox, PathBuf) {
+    let sandbox = directory();
+    let path = sandbox.join("controls.json");
     fs::write(&path, bytes).unwrap();
-    path
+    (sandbox, path)
 }
 fn captures() -> Vec<serde_json::Value> {
     serde_json::from_str(include_str!("captures.json")).unwrap()
@@ -46,7 +37,7 @@ fn controls_files_match_bash_valid_scalar_and_compound_field_bytes() {
         .filter(|c| c["stdout_fields"][0] == "")
     {
         let fields = capture["stdout_fields"].as_array().unwrap();
-        let controls = read_controls(&fixture(&bytes(&capture)), |_| {})
+        let controls = read_controls(&fixture(&bytes(&capture)).1, |_| {})
             .unwrap_or_else(|error| panic!("{}: {error:?}", capture["name"]));
         assert_eq!(
             controls.len(),
@@ -101,7 +92,7 @@ fn controls_files_refuse_every_captured_invalid_document_without_partial_records
         .into_iter()
         .filter(|c| c["stdout_fields"][0] != "")
     {
-        let error = read_controls(&fixture(&bytes(&capture)), |_| {}).unwrap_err();
+        let error = read_controls(&fixture(&bytes(&capture)).1, |_| {}).unwrap_err();
         assert_eq!(
             error.explanation,
             capture["stdout_fields"][0].as_str().unwrap(),
@@ -114,7 +105,8 @@ fn controls_files_refuse_every_captured_invalid_document_without_partial_records
 #[test]
 fn controls_files_report_missing_kinds_and_read_refusal_without_blocking() {
     use std::os::unix::fs::{PermissionsExt, symlink};
-    let root = directory();
+    let sandbox = directory();
+    let root = sandbox.path();
     let missing = root.join("absent");
     let broken = root.join("broken");
     symlink(&missing, &broken).unwrap();
@@ -122,7 +114,7 @@ fn controls_files_report_missing_kinds_and_read_refusal_without_blocking() {
     let name = std::ffi::CString::new(fifo.as_os_str().as_encoded_bytes()).unwrap();
     // SAFETY: the C string names only this test's private, absent path.
     assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
-    for path in [&missing, &root, &broken, &fifo] {
+    for path in [missing.as_path(), root, broken.as_path(), fifo.as_path()] {
         let error = read_controls(path, |_| {}).unwrap_err();
         assert_eq!(error.kind, ControlsRefusalKind::Missing);
         assert_eq!(
@@ -130,7 +122,7 @@ fn controls_files_report_missing_kinds_and_read_refusal_without_blocking() {
             format!("posture-controls file missing at `{}`", path.display())
         );
     }
-    let unreadable = fixture(&valid());
+    let (_unreadable_sandbox, unreadable) = fixture(&valid());
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)).unwrap();
     let error = read_controls(&unreadable, |_| {}).unwrap_err();
     assert_eq!(error.kind, ControlsRefusalKind::Malformed);
@@ -143,8 +135,9 @@ fn controls_files_report_missing_kinds_and_read_refusal_without_blocking() {
 #[test]
 fn controls_files_follow_a_regular_symlink_without_rewriting_its_target() {
     let bytes = valid();
-    let target = fixture(&bytes);
-    let link = directory().join("controls.json");
+    let (_target_sandbox, target) = fixture(&bytes);
+    let link_sandbox = directory();
+    let link = link_sandbox.join("controls.json");
     std::os::unix::fs::symlink(&target, &link).unwrap();
     let controls = read_controls(&link, |_| {}).unwrap();
     assert_eq!(controls.len(), 1);

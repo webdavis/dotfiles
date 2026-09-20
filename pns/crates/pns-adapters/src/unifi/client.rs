@@ -16,9 +16,9 @@ pub struct UniFiRouter {
     /// runs for real and only the wire is fake, which is the closest Rust
     /// analog to stubbing Swift's URL Loading System.
     agent: ureq::Agent,
-    /// e.g. `https://192.168.1.1`, from the `[plugins.router]` table.
+    /// e.g. `https://192.168.1.1`, from the `[plugins.home_presence]` table.
     base: String,
-    /// The API key, from the `[plugins.router]` table.
+    /// The API key, from the `[plugins.home_presence]` table.
     key: String,
 }
 

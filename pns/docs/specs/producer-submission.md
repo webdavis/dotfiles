@@ -278,14 +278,14 @@ off that one outcome before `select_plugins` takes ownership of it.
   is the one that falls back ON, because a config nobody can parse must not silently stop delivering
   misses; and plugin SELECTION falls back to the CORE rather than the defaults, so notifications keep
   working through a broken config (`src/main.rs:run_event`, the `_ =>` arm's comment).
-- Thresholds: `registry::CORE` is exactly two names, `["mobile", "macos-banner"]`, in registration order
-  (`src/registry.rs:CORE`). The full roster is five entries: `router` (a sensor), `mobile`,
-  `macos-banner`, `hermes`, `hue` (`src/registry.rs:ROSTER`).
+- Thresholds: `registry::CORE` is exactly two names, `["mobile", "banner"]`, in registration order
+  (`src/registry.rs:CORE`). The full roster is five entries: `home_presence` (a sensor), `mobile`,
+  `banner`, `hermes`, `lights` (`src/registry.rs:ROSTER`).
 - Required side effects: when `select_plugins` returns a warning, `run_event` prints it to stderr
   verbatim (`src/main.rs:run_event`). The two wordings are
   `pns: config error ({detail}); running every built-in plugin` for a parsed config naming an
   unregistered plugin, and
-  `pns: config error ({detail}); running the core plugins (mobile, macos-banner)` for a config nobody
+  `pns: config error ({detail}); running the core plugins (mobile, banner)` for a config nobody
   could read (`src/registry.rs:every_plugin_warning`, `src/registry.rs:core_warning`).
 - Forbidden side effects: no second config read anywhere on the event path. The comment names the reason:
   the catch-up dispatches on the same two secrets, so the hermes key is CLONED rather than re-read
@@ -302,7 +302,7 @@ off that one outcome before `select_plugins` takes ownership of it.
   plugin`. The core-fallback wording is pinned in the pulse mode by `tests/dispatch.rs:a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly`(substring`pns:
   config
   error`), and the absent-config silence by `tests/dispatch.rs:an_absent_config_stays_silent_in_pulse_mode`. NOT ESTABLISHED: no test in `tests/dispatch.rs`asserts the exact core-fallback sentence`running
-  the core plugins (mobile, macos-banner)`on the EVENT path. I looked for`running the core`in`tests/\`;
+  the core plugins (mobile, banner)`on the EVENT path. I looked for`running the core`in`tests/\`;
   the only integration coverage of an unreadable config on the event path is the pulse-mode test above.
 
 ### 8. `[plugins.mobile]` is read exactly once, and its refusal travels with its token
@@ -577,7 +577,7 @@ When `dispatch_legs` runs
 Then the pane is replaced by the empty string in the rendered event handed to EVERY channel, and one
 warning is printed to stderr.
 
-- Success: `sandbox.event("macos-banner")["pane"]` is `""` and stderr contains
+- Success: `sandbox.event("banner")["pane"]` is `""` and stderr contains
   `pns: dropped a pane id with shell metacharacters; no channel will focus a pane`
   (`src/main.rs:dispatch_legs`).
 - Failure sources: a pane id carrying a shell metacharacter, which would run when the operator clicks the
@@ -811,7 +811,7 @@ the pulse, the held-lamp clear, and the lights tick registration.
   - The LAST-PRESENT marker advances only when `missed_notifications::is_present` is true, which is
     `surface != Away`, and only forward, and only from inside the return-moment claim
     (`src/missed_notifications.rs:is_present`, `src/main.rs:mark_present`, `src/main.rs:advance_marker`).
-  - The LIGHTS need both switches, a `[lights]` table AND an enabled `[plugins.hue]` table, before the
+  - The LIGHTS need both switches, a `[lights]` table AND an enabled `[plugins.lights]` table, before the
     blocked marker or the tick registration writes anything (`src/main.rs:run_event`, `lamps_live`).
   - The NEWS record is written whatever the delivery did and is NOT gated on the lamp switches, because
     it is one line rewritten in place that can never grow (`src/main.rs:run_event`, the `record_news`

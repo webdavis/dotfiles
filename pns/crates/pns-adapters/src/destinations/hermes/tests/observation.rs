@@ -44,7 +44,7 @@ fn a_stored_observation_retries_silently_with_full_multiline_detail_and_original
         },
         legs: vec![
             LedgerLeg {
-                destination: "macos-banner".into(),
+                destination: "banner".into(),
                 route: "priority".into(),
                 mode: ReportMode::Silent,
                 decorative: true,
@@ -111,7 +111,7 @@ fn a_stored_observation_retries_silently_with_full_multiline_detail_and_original
                 store.inspect(&input.identity).unwrap().unwrap().submission,
                 input
             );
-            for expected in ["macos-banner", "hermes"] {
+            for expected in ["banner", "hermes"] {
                 let (leg, outcome) = flow.retry(lease, &|| Some(now), &notice).unwrap().unwrap();
                 assert_eq!(leg.destination, expected);
                 assert_eq!(leg.route, "priority");
