@@ -37,9 +37,9 @@ struct PhoneCard {
     /// Carried rather than checked, because the channel's own refusal names the
     /// config key and this module has no better sentence than that one.
     token: Option<String>,
-    /// `[failures] serve`, which decides which pointer the card's fix line
+    /// `[failures] page_enabled`, which decides which pointer the card's fix line
     /// carries: the local page, or the place the full form actually is.
-    serve: bool,
+    page_enabled: bool,
     /// The card types whose cards carry an image, carried for the same reason
     /// the token is: the channel reads its own toggles and this module has no
     /// business second-guessing which card types the operator armed.
@@ -123,7 +123,7 @@ fn phone_card() -> Option<PhoneCard> {
     Some(PhoneCard {
         url: pns_adapters::install_settings_of(Some(&config), &home).moshi_url,
         token: mobile.and_then(pns_adapters::moshi_secret),
-        serve: config.failures.serve,
+        page_enabled: config.failures.page_enabled,
         image_cards: mobile
             .map(pns_adapters::moshi_image_cards)
             .unwrap_or_default(),
@@ -159,12 +159,12 @@ fn raise(failure: &Failure, pns_path: &str, phone: &Option<PhoneCard>) {
 /// THE MOBILE LEG IS THE ONE THAT SILENCES ITS OWN CARD. Pushing a card about a
 /// push that was refused sends it through the destination that just refused
 /// one, so it arrives nowhere and the operator learns nothing.
-fn card_surface(failure: &Failure, serve: bool) -> Option<NotificationSurface> {
+fn card_surface(failure: &Failure, page_enabled: bool) -> Option<NotificationSurface> {
     if failure.destination == failure::DESTINATION_MOBILE {
         return None;
     }
     Some(NotificationSurface::Phone {
-        serve,
+        page_enabled,
         // WHETHER THE FULL FORM IS IN DISCORD, which is the only thing the fix
         // line's third choice turns on: hermes carries it, so a hermes failure
         // means there is nothing there to point at.
@@ -173,7 +173,7 @@ fn card_surface(failure: &Failure, serve: bool) -> Option<NotificationSurface> {
 }
 
 fn push(failure: &Failure, phone: &PhoneCard) {
-    let Some(surface) = card_surface(failure, phone.serve) else {
+    let Some(surface) = card_surface(failure, phone.page_enabled) else {
         return;
     };
     let body = failure::notification(failure, surface);

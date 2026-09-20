@@ -73,15 +73,15 @@ fn start_page(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
         return Ok(());
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let serve = match pns_adapters::load_config(&pns_adapters::config_path(&home)) {
-        Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.failures.serve,
+    let page_enabled = match pns_adapters::load_config(&pns_adapters::config_path(&home)) {
+        Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.failures.page_enabled,
         // AN UNREADABLE CONFIG SERVES NOTHING. Every other default in this file
         // errs toward doing the thing, but this one opens a socket, and a
         // listener nobody has asked for is not what a broken file should
         // produce.
         _ => false,
     };
-    if !serve {
+    if !page_enabled {
         return Ok(());
     }
     children.start(&pns_domain::jobs::Job {

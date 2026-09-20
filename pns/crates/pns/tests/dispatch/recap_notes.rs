@@ -10,7 +10,7 @@ fn only_the_notes_the_glob_names_and_the_window_covers_are_ever_read() {
     let sandbox = Sandbox::new("recap-notes");
     record_every_event(&sandbox);
     sandbox.write_config(&format!(
-        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes = \"~/notes/checklist-*.md\"\n"
+        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes_glob = \"~/notes/checklist-*.md\"\n"
     ));
     loud_window(&sandbox);
     let now = epoch_now();
@@ -61,7 +61,7 @@ fn a_glob_that_matches_nothing_says_so_and_one_pointing_nowhere_says_something_e
     let sandbox = Sandbox::new("recap-notes-empty");
     record_every_event(&sandbox);
     sandbox.write_config(&format!(
-        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes = \"~/notes/checklist-*.md\"\n"
+        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes_glob = \"~/notes/checklist-*.md\"\n"
     ));
     loud_window(&sandbox);
     // THE DIRECTORY IS THERE AND THE PATTERN MATCHES NOTHING IN IT.
@@ -85,7 +85,7 @@ fn a_glob_that_matches_nothing_says_so_and_one_pointing_nowhere_says_something_e
     let nowhere = Sandbox::new("recap-notes-nowhere");
     record_every_event(&nowhere);
     nowhere.write_config(&format!(
-        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes = \"~/no-such-dir/checklist-*.md\"\n"
+        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes_glob = \"~/no-such-dir/checklist-*.md\"\n"
     ));
     loud_window(&nowhere);
 
@@ -111,7 +111,7 @@ fn a_note_that_matched_and_would_not_open_says_so_rather_than_vanishing() {
     let sandbox = Sandbox::new("recap-note-unreadable");
     record_every_event(&sandbox);
     sandbox.write_config(&format!(
-        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes = \"~/notes/checklist-*.md\"\n"
+        "{EVERY_DISPATCHED_CHANNEL}[recap]\nreview_notes_glob = \"~/notes/checklist-*.md\"\n"
     ));
     loud_window(&sandbox);
     let now = epoch_now();
@@ -161,7 +161,9 @@ fn a_summarized_merge_section_keeps_only_the_lines_its_own_sources_vouch_for() {
     // two sections at all.
     let sandbox = Sandbox::new("recap-merges-summarized");
     record_every_event(&sandbox);
-    sandbox.write_config(&recap_summarized_by("repos = [\"webdavis/dotfiles\"]\n"));
+    sandbox.write_config(&recap_summarized_by(
+        "repositories = [\"webdavis/dotfiles\"]\n",
+    ));
     loud_window(&sandbox);
 
     let mut command = present_event(&sandbox);

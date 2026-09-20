@@ -14,7 +14,7 @@ pub struct Fetched {
 }
 
 pub trait MergedPullRequestSource {
-    fn merged(&self, repos: &[String], since: u64, until: u64) -> Option<Fetched>;
+    fn merged(&self, repositories: &[String], since: u64, until: u64) -> Option<Fetched>;
 }
 
 pub trait ReviewNoteSource {

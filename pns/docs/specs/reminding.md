@@ -127,7 +127,7 @@ table are the same statement (off), and every other value is refused by name.
   picked up their phone is the stacking this design forbids", and 30 is "low enough that the feature can
   be drilled in half a minute" (`src/config.rs:remind_delay_range`).
 - Required side effects: none, this is a parse.
-- Forbidden side effects: the value is never clamped. "REFUSED RATHER THAN CLAMPED, in `min_events`'s
+- Forbidden side effects: the value is never clamped. "REFUSED RATHER THAN CLAMPED, in `minimum_events`'s
   style: a silently corrected schedule is a schedule the operator believes they set"
   (`src/config.rs:remind_delay_range`).
 - Timeout and cancellation: Not applicable, one file open and one Tom's Obvious Minimal Language (TOML)
@@ -874,7 +874,7 @@ not.
 - Forbidden side effects: no journal entry, no activity-ring line, no `mark_present`, no `replay_missed`,
   no pulse, no blocked-marker update, and no `record_news`, which "is what arms the unread lamp"
   (`src/main.rs:run_event`), so an unread lamp is never armed by a nudge. Each is "a defect avoided
-  rather than tidiness": the recap counts activity-ring lines toward `min_events` so a nudge that rang
+  rather than tidiness": the recap counts activity-ring lines toward `minimum_events` so a nudge that rang
   would inflate the operator's own recap with pns's noise; a nudge is not evidence of presence; and "the
   pulse falling out here is how `escalation is not a colour` stays enforced without touching the lights
   at all" (`src/main.rs:run_event`).
