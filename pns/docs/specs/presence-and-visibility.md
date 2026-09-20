@@ -987,7 +987,7 @@ Then every reading it needs is taken at dispatch, once, into `src/engine.rs:Gate
   dispatch, and NOTHING BELOW THIS POINT touches a probe: one decision cannot be split across two
   readings that disagree about where the operator is." Pinned end to end by
   `tests/hooks.rs:the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started`, which backdates
-  the marker inside the condenser stub so a start-time reading would card the phone and a dispatch-time
+  the marker inside the summarizer stub so a start-time reading would card the phone and a dispatch-time
   reading banners the desk.
 - Failure sources: a probe answering differently between two reads, which the memoization prevents; a
   second `SystemProbes`, which the composition root prevents.

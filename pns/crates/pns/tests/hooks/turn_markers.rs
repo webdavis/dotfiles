@@ -112,16 +112,16 @@ fn a_second_stop_cannot_re_fire_the_tier_because_the_marker_is_claimed_once() {
 }
 
 #[test]
-fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
+fn a_prompt_arriving_while_the_previous_stop_summarizes_keeps_its_own_marker() {
     // Stop is asynchronous. Consuming the marker at the END meant a prompt
-    // submitted during a slow condenser saw the old marker, wrote nothing,
+    // submitted during a slow summarizer saw the old marker, wrote nothing,
     // and then had its clock deleted by the Stop that was still running.
-    let sandbox = Sandbox::new("hook-prompt-during-condense");
+    let sandbox = Sandbox::new("hook-prompt-during-summarize");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
-    // A HANDSHAKE, not a fixed sleep: the stub signals "condensing" the
+    // A HANDSHAKE, not a fixed sleep: the stub signals "summarizing" the
     // instant it starts and blocks on "release" rather than a timed sleep,
-    // so "mid-condense" is a fact this test observes instead of a duration
+    // so "mid-summarize" is a fact this test observes instead of a duration
     // it guesses (the pattern at dispatch.rs's summarizer-parks test).
     // BOUNDED ANYWAY at ten seconds, so a broken build fails rather than
     // hangs.
@@ -129,7 +129,7 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
         &bin.join("codex"),
         &format!(
             "cat >/dev/null\n\
-             touch \"{root}/condensing\"\n\
+             touch \"{root}/summarizing\"\n\
              for _ in $(seq 1 200); do [ -e \"{root}/release\" ] && break; sleep 0.05; done\n\
              printf 'done|late\\n'",
             root = sandbox.display()
@@ -146,11 +146,11 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
         &mut stop,
         br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
     );
-    // The next prompt lands mid-condense: proven by the stub's own signal
-    // rather than a guess about how long condensing takes.
+    // The next prompt lands mid-summarize: proven by the stub's own signal
+    // rather than a guess about how long summarizing takes.
     assert!(
-        support::poll_until(|| sandbox.path("condensing").exists().then_some(())).is_some(),
-        "the condenser never started"
+        support::poll_until(|| sandbox.path("summarizing").exists().then_some(())).is_some(),
+        "the summarizer never started"
     );
     hook_with(
         with_state_dir(&sandbox),
@@ -159,9 +159,9 @@ fn a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker() {
         r#"{"session_id":"s1"}"#,
     );
     // THE HANDSHAKE'S OWN PRECONDITION: nothing below proves Prompt ran
-    // while Stop was still condensing unless Stop is provably still alive
+    // while Stop was still summarizing unless Stop is provably still alive
     // right here, before the release is written. Without this, a stub that
-    // fell through early would still leave the persistent "condensing" file
+    // fell through early would still leave the persistent "summarizing" file
     // behind and let a consume-at-end regression pass unnoticed.
     assert!(
         stop.try_wait().expect("poll").is_none(),

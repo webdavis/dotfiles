@@ -34,6 +34,11 @@ pub struct InstallSettings {
     /// used to come off a variable that called itself test-only and was read
     /// by production code on every connection.
     pub busy_deadline: Duration,
+    /// `[recap] summarizer_deadline`: how long the summarizer may be given.
+    /// CONFIG ALONE, for `busy_deadline`'s reason: the turn summarizer's bound
+    /// used to come off `PNS_SUMMARIZER_DEADLINE`, a variable that duplicated
+    /// this key and disagreed with it on unit and on word.
+    pub summarizer_deadline: Duration,
 }
 
 /// The settings for one home, off the config file it holds.
@@ -96,6 +101,10 @@ fn resolve(
         busy_deadline: config.map_or(crate::config::DEFAULT_BUSY_DEADLINE, |config| {
             config.storage_busy_deadline
         }),
+        summarizer_deadline: config.map_or_else(
+            || pns_domain::recap::Recap::default().summarizer_deadline,
+            |config| config.recap.summarizer_deadline,
+        ),
     }
 }
 
