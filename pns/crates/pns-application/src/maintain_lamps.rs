@@ -72,7 +72,7 @@ where
             return;
         };
         // Missing credentials keep the record because no lamp can be addressed.
-        let Some(bridge) = connect(Some(lights.refresh_secs)) else {
+        let Some(bridge) = connect(Some(lights.arm_interval_secs)) else {
             return;
         };
         self.markers.sweep_legacy();

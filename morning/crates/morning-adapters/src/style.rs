@@ -13,8 +13,8 @@ use std::io::IsTerminal;
 
 /// Gum's signature pink, bold. The tool's own name, and nothing else.
 const ACCENT: &str = "\u{1b}[1;38;5;212m";
-/// Violet, bold. A section of the tool, kept apart from the tool's own pink.
-const HEADING_COLOR: &str = "\u{1b}[1;38;5;99m";
+/// Steel blue, bold. A section of the tool, kept apart from the tool's own pink.
+const HEADING_COLOR: &str = "\u{1b}[1;38;5;75m";
 /// Dimmed, for the rule, a held-back count and an empty section.
 const FAINT: &str = "\u{1b}[38;5;244m";
 /// Amber, for the one word that says a section could not be read.

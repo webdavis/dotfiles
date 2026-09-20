@@ -324,7 +324,7 @@ pub(super) fn execute(
                     pns_domain::lights::held::marker_is_live(
                         at,
                         now,
-                        lights.looping.lease_timeout_secs,
+                        lights.looping.lease_expiry_secs,
                     )
                 })
         }),

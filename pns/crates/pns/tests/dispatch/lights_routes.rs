@@ -90,7 +90,7 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
             "lamps-every-place-asleep",
             "",
             &format!(
-                "[lights]\nrefresh_secs = 20\n\
+                "[lights]\narm_interval = \"20s\"\n\
                  [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
                  dim_window = \"{asleep}\"\ndim_behaviours = []\n"
             ),
@@ -241,7 +241,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
 /// has no colour and must not light anything.
 #[test]
 fn a_submitted_github_event_lights_the_checks_lamp_unless_its_outcome_is_neutral() {
-    const GITHUB_MAP: &str = "[lights]\nrefresh_secs = 20\n\
+    const GITHUB_MAP: &str = "[lights]\narm_interval = \"20s\"\n\
          [lights.lamp.\"3F - Studio - HCL1\"]\nbehaviours = [\"checks\"]\n";
     for (outcome, state, dials) in [
         ("failed", "failed", true),

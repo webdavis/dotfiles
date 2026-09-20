@@ -5,7 +5,7 @@ use super::*;
 /// (`BRIDGE_DEADLINE`), so an interval shorter than one call can start a tick
 /// while the last one is still dialling. Below this the knob is asking for a
 /// pile of children rather than a faster lamp.
-pub const MIN_REFRESH_SECS: u64 = 10;
+pub const MIN_ARM_INTERVAL_SECS: u64 = 10;
 
 /// And the ceiling: THE LONGEST INTERVAL A BREATHING LAMP MAY BE GIVEN.
 ///
@@ -15,45 +15,96 @@ pub const MIN_REFRESH_SECS: u64 = 10;
 /// what a child has to do; `child_bound` in the daemon adds the one write that
 /// can still be in flight when the interval ends and the reap tick that
 /// notices the child afterwards. Reading the dependency the other way had the
-/// supported thirty-second refresh equal to a thirty-second child, which killed
+/// supported thirty-second interval equal to a thirty-second child, which killed
 /// a legal last write before the tick could record where it landed.
 ///
 /// IT IS ALSO UNDER THE ORDINARY LEASE: the tick is registered with `until` at
-/// least as far as its own first due second, so a refresh longer than that
+/// least as far as its own first due second, so an interval longer than that
 /// lease would EXTEND it, and the two lease lengths would stop being the fixed
 /// numbers they are documented as.
 ///
 /// THIRTY SECONDS IS NOT A NARROW LAMP EITHER. It holds eight full cycles of the
 /// locked blocked shape and four of the slow one, so nothing an operator would
 /// want is out of reach above it.
-pub const MAX_REFRESH_SECS: u64 = 30;
+pub const MAX_ARM_INTERVAL_SECS: u64 = 30;
 
-/// How long any threshold or timeout in this table may be. A day, which is the
+/// How long any arming delay or lease in this table may be. A day, which is the
 /// bound the working streak already carried: work that has been going for
-/// longer has stalled, and a threshold past it describes a lamp that never
-/// lights at all.
-pub(super) const MIN_THRESHOLD_SECS: u64 = 1;
-pub(super) const MAX_THRESHOLD_SECS: u64 = 86_400;
+/// longer has stalled, and a delay past it describes a lamp that never lights
+/// at all.
+pub(super) const MIN_ARM_AFTER_SECS: u64 = 1;
+pub(super) const MAX_LIGHTS_TIMING_SECS: u64 = 86_400;
 
-/// The floor under a lease timeout. A minute, because the lease is renewed by
+/// The floor under a lease expiry. A minute, because the lease is renewed by
 /// event traffic and anything shorter drops a live loop between two turns.
 ///
 /// SHARED WITH THE BLOCKED BACKSTOP'S OWN FLOOR, which needs no separate
 /// number: a minute is the same floor for the same reason, a value too small
 /// to mean anything below the granularity real event traffic arrives at.
-pub(super) const MIN_LEASE_TIMEOUT_SECS: u64 = 60;
+pub(super) const MIN_LEASE_EXPIRY_SECS: u64 = 60;
 
-/// The ceiling on the blocked backstop alone. Every OTHER threshold or timeout
-/// in this table caps at a day (`MAX_THRESHOLD_SECS`), but an abandoned wait
+/// The ceiling on the blocked backstop alone. Every OTHER delay or lease in
+/// this table caps at a day (`MAX_LIGHTS_TIMING_SECS`), but an abandoned wait
 /// can span a weekend away, so this one gets a week instead of sharing that
 /// ceiling.
-pub(super) const MAX_GIVE_UP_AFTER_SECS: u64 = 7 * 24 * 60 * 60;
+pub(super) const MAX_BLOCKED_LEASE_EXPIRY_SECS: u64 = 7 * 24 * 60 * 60;
+
+/// `[lights] arm_interval`'s range, as the duration parser takes it.
+pub(super) fn arm_interval_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_ARM_INTERVAL_SECS)..=Duration::from_secs(MAX_ARM_INTERVAL_SECS)
+}
+
+/// `[lights.loop] arm_after`'s range.
+pub(super) fn loop_arm_after_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_ARM_AFTER_SECS)..=Duration::from_secs(MAX_LIGHTS_TIMING_SECS)
+}
+
+/// `[lights.unseen] arm_after`'s range. ITS FLOOR IS ZERO, which means "at
+/// once": the failure flavour's own behaviour spelled for the success one,
+/// rather than a switch that turns anything off.
+pub(super) fn unseen_arm_after_range() -> RangeInclusive<Duration> {
+    Duration::ZERO..=Duration::from_secs(MAX_LIGHTS_TIMING_SECS)
+}
+
+/// `[lights.loop] lease_expiry`'s range.
+pub(super) fn loop_lease_expiry_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_LEASE_EXPIRY_SECS)..=Duration::from_secs(MAX_LIGHTS_TIMING_SECS)
+}
+
+/// `[lights.blocked] lease_expiry`'s range.
+pub(super) fn blocked_lease_expiry_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_LEASE_EXPIRY_SECS)..=Duration::from_secs(MAX_BLOCKED_LEASE_EXPIRY_SECS)
+}
+
+/// One `[lights]` duration key whose floor is a real floor.
+///
+/// `duration_key` CARVES `"0s"` OUT for the keys that are their own switch,
+/// and none of these is one: an interval, a lease and an arming delay all
+/// describe a schedule, so zero is a lamp that never runs rather than a
+/// feature turned off, and it is refused by name like any other value under
+/// the floor.
+pub(super) fn positive_duration(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<u64, ConfigError> {
+    use pns_domain::duration::spelled;
+    let (low, high) = (spelled(*range.start()), spelled(*range.end()));
+    let stated = duration_value(table, key, setting, range)?;
+    if stated.is_zero() {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` \"0s\" is outside {low} to {high}"
+        )));
+    }
+    Ok(stated.as_secs())
+}
 
 /// How long ONE fade may take, in milliseconds.
 ///
 /// THE CEILING IS WHAT MAKES THE DRIVER TOTAL. `breath_fades` needs room for
 /// at least one fade inside a tick's budget, and that budget is what is LEFT
-/// of `MIN_REFRESH_SECS` after the resolve, so a fade past this ceiling could
+/// of `MIN_ARM_INTERVAL_SECS` after the resolve, so a fade past this ceiling could
 /// be asked for a schedule the shortest interval the config allows has no
 /// room left to even start.
 pub(super) const MIN_FADE_MS: u64 = 200;

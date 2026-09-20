@@ -64,7 +64,7 @@ pub struct BreatheThenFlare {
 /// anywhere for a reader to set and watch do nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lights {
-    pub refresh_secs: u64,
+    pub arm_interval_secs: u64,
     pub done: Pulse,
     pub failed: Pulse,
     pub blocked: Blocked,
@@ -112,22 +112,22 @@ pub struct Checks {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Blocked {
     pub breath: Breath,
-    pub give_up_after_secs: u64,
+    pub lease_expiry_secs: u64,
 }
 /// The unseen lamp: its breath, plus how old SUCCESS news must be before it
 /// arms. Failure news arms with no delay at all and has no knob.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Unseen {
     pub breath: Breath,
-    pub after_secs: u64,
+    pub arm_after_secs: u64,
 }
 /// The loop lamp: its motion, how long work must run before the automatic
 /// trigger arms, and how long a hand-taken lease survives without renewal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Looping {
     pub breathe_then_flare: BreatheThenFlare,
-    pub threshold_secs: u64,
-    pub lease_timeout_secs: u64,
+    pub arm_after_secs: u64,
+    pub lease_expiry_secs: u64,
 }
 /// One declaration, at one of the three levels, and the questions it answers.
 ///
@@ -149,22 +149,22 @@ pub struct Target {
 impl Default for Lights {
     fn default() -> Self {
         Lights {
-            refresh_secs: DEFAULT_REFRESH_SECS,
+            arm_interval_secs: DEFAULT_ARM_INTERVAL_SECS,
             done: DEFAULT_DONE,
             failed: DEFAULT_FAILED,
             blocked: Blocked {
                 breath: DEFAULT_BLOCKED,
-                give_up_after_secs: DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS,
+                lease_expiry_secs: DEFAULT_BLOCKED_LEASE_EXPIRY_SECS,
             },
             unseen: Unseen {
                 breath: DEFAULT_UNSEEN_BREATH,
-                after_secs: DEFAULT_UNSEEN_AFTER_SECS,
+                arm_after_secs: DEFAULT_UNSEEN_ARM_AFTER_SECS,
             },
             checks: DEFAULT_CHECKS,
             looping: Looping {
                 breathe_then_flare: DEFAULT_LOOP_MOTION,
-                threshold_secs: DEFAULT_LOOP_THRESHOLD_SECS,
-                lease_timeout_secs: DEFAULT_LEASE_TIMEOUT_SECS,
+                arm_after_secs: DEFAULT_LOOP_ARM_AFTER_SECS,
+                lease_expiry_secs: DEFAULT_LOOP_LEASE_EXPIRY_SECS,
             },
             dim: DEFAULT_DIM,
             lamps: BTreeMap::new(),
@@ -183,7 +183,7 @@ impl Default for Lights {
 /// lands after it: twelve seconds carries seven of the locked two-second
 /// shape, and three or four of the four-second one depending on what that
 /// tick's resolve took off the budget first.
-pub const DEFAULT_REFRESH_SECS: u64 = 12;
+pub const DEFAULT_ARM_INTERVAL_SECS: u64 = 12;
 /// The five locked shapes. EVERY NUMBER HERE WAS SET ON A REAL LAMP under the
 /// operator's observe-adjust-lock protocol (2026-08-31 and 2026-09-01), so a
 /// change to one of them is a change to something that was looked at, not a
@@ -241,7 +241,7 @@ pub const DEFAULT_DIM: Breath = Breath {
 /// How old SUCCESS news must be before the unseen lamp arms: five minutes, so a
 /// result the operator is already looking at does not light a lamp about itself.
 /// FAILURE news has no such delay and no knob.
-pub const DEFAULT_UNSEEN_AFTER_SECS: u64 = 300;
+pub const DEFAULT_UNSEEN_ARM_AFTER_SECS: u64 = 300;
 /// How long an unanswered wait may hold the blocked lamp before the daemon
 /// gives up on an abandoned session (operator ruling 2026-09-01).
 ///
@@ -252,9 +252,9 @@ pub const DEFAULT_UNSEEN_AFTER_SECS: u64 = 300;
 /// Sixteen hours outlasts a long day away and still gives the bulb back before
 /// the next one starts. The ORDINARY end is not this at all: the session's
 /// next event clears the marker, whatever the hour.
-pub const DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS: u64 = 16 * 60 * 60;
+pub const DEFAULT_BLOCKED_LEASE_EXPIRY_SECS: u64 = 16 * 60 * 60;
 /// How long work must run continuously before the loop lamp arms itself.
-pub const DEFAULT_LOOP_THRESHOLD_SECS: u64 = 300;
+pub const DEFAULT_LOOP_ARM_AFTER_SECS: u64 = 300;
 /// How long a hand-taken loop lease survives with nothing renewing it.
 ///
 /// SIXTY-FIVE MINUTES, and the number comes from what renews it: the lease is
@@ -262,4 +262,4 @@ pub const DEFAULT_LOOP_THRESHOLD_SECS: u64 = 300;
 /// wakeup scheduler clamps a sleep to 3600 seconds, so the longest legitimate
 /// gap between two events from a live loop is an hour. A timeout at the hour
 /// itself would drop a lease that was about to be renewed.
-pub const DEFAULT_LEASE_TIMEOUT_SECS: u64 = 3900;
+pub const DEFAULT_LOOP_LEASE_EXPIRY_SECS: u64 = 3900;

@@ -582,14 +582,14 @@ page_port = 8646
 # before you do. Switching hue off while a lamp is held leaves that lamp
 # to the wall switch, since putting it out takes a bridge.
 [lights]
-# How often the daemon re-arms the lamps, in seconds. It is also the breath
-# budget: a breathing lamp is faded by the tick itself, seamlessly, across the
-# whole interval, so this decides how many fades fit between two ticks. The
-# range is 10 to 30. The floor is one bridge call, so a tick cannot start while
-# the last one is still dialling; the ceiling is what the daemon derives a
-# tick's own lifetime from, and an interval past it would be a breath cut off
-# part way through.
-refresh_secs = 12
+# How often the daemon re-arms the lamps, bounded "10s" to "30s". It is also
+# the breath budget: a breathing lamp is faded by the tick itself, seamlessly,
+# across the whole interval, so this decides how many fades fit between two
+# ticks. The floor is one bridge call, so a tick cannot start while the last
+# one is still dialling; the ceiling is what the daemon derives a tick's own
+# lifetime from, and an interval past it would be a breath cut off part way
+# through.
+arm_interval = "12s"
 
 # The five behaviour shapes. Every number below was set on a real lamp;
 # only the knobs that APPLY to a behaviour exist, so a blink has a
@@ -607,21 +607,22 @@ duration_ms = 2000
 high = 100
 low = 30
 # How long an unanswered wait may hold the lamp before the daemon gives
-# up on an abandoned session, in seconds. This is a BACKSTOP, not an
-# expiry: the locked behaviour is the blocked lamp breathing, continuous
-# until you answer, and the ordinary end is your session's next event,
-# whatever the hour. 57600 (16 hours) outlasts a long day away and still
-# gives the lamp back before the next one starts. The range is 60 to
-# 604800 (a week), since an abandoned wait can span a weekend away.
-give_up_after_secs = 57600
+# up on an abandoned session. This is a BACKSTOP: the locked behaviour
+# is the blocked lamp breathing, continuous until you answer, and the
+# ordinary end is your session's next event, whatever the hour. "16h"
+# outlasts a long day away and still gives the lamp back before the next
+# one starts. It is bounded "1m" to "168h" (a week), since an abandoned
+# wait can span a weekend away.
+lease_expiry = "16h"
 
 [lights.unseen]
 duration_ms = 4000
 high = 60
 low = 10
-# How old a FINISHED run must be before its lamp arms, in seconds. A
-# run that DIED has no such delay and no knob. Zero arms at once.
-after_secs = 300
+# How old a FINISHED run must be before its lamp arms, bounded "0s" to
+# "24h". A run that DIED has no such delay and no knob. "0s" arms at
+# once.
+arm_after = "5m"
 
 # The one behaviour that carries its own COLOURS: a GitHub event, purple
 # for a pass and orange for a failure, as CIE xy `[x, y]` pairs (which is
@@ -650,13 +651,14 @@ low = 10
 # `duration_ms`.
 flare = 100
 flare_ms = 200
-# How long work must run continuously before the lamp arms itself, in
-# seconds. Both an agent herdr calls working and a tracked shell command
-# count.
-threshold_secs = 360
+# How long work must run continuously before the lamp arms itself, bounded
+# "1s" to "24h". Both an agent herdr calls working and a tracked shell
+# command count.
+arm_after = "6m"
 # How long a lease taken by `pns loop begin` survives with nothing
-# renewing it, in seconds. The pane's own hook traffic renews it.
-lease_timeout_secs = 3900
+# renewing it, bounded "1m" to "24h". The pane's own hook traffic
+# renews it.
+lease_expiry = "65m"
 
 # The DIM FORM: one shape, shared by every behaviour that runs dimmed, at
 # the faintest levels the hardware has. A dimmed BLINK fires at `low`,

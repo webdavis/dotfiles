@@ -47,8 +47,8 @@ use std::path::Path;
 /// still in.
 ///
 /// THE BACKSTOP CANNOT SWEEP A MARKER THE REMINDER HAS NOT YET NUDGED, and that is
-/// held at CONFIG LOAD rather than here: `[lights.blocked] give_up_after_secs`
-/// shorter than `[remind] after_secs` is refused by name (`config::parse_config`),
+/// held at CONFIG LOAD rather than here: `[lights.blocked] lease_expiry`
+/// shorter than `[remind] delay` is refused by name (`config::parse_config`),
 /// because it is a config that gives up on a wait before it ever nudges about
 /// it. Nothing at this level re-publishes a swept marker, so nothing here has
 /// to tell an abandoned session from a live one.

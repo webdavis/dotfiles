@@ -61,9 +61,12 @@ fn an_absent_or_due_lights_tick_starts_one_refresh_out_with_a_valid_lease() {
         let jobs = spool.written.borrow();
         assert_eq!(
             (jobs[0].due, jobs[0].until),
-            (100 + lights.refresh_secs, 100 + lights.refresh_secs)
+            (
+                100 + lights.arm_interval_secs,
+                100 + lights.arm_interval_secs
+            )
         );
-        assert_eq!(jobs[0].every, Some(lights.refresh_secs));
+        assert_eq!(jobs[0].every, Some(lights.arm_interval_secs));
         assert_eq!(jobs[0].unless_marker, None);
     }
 }
@@ -106,7 +109,7 @@ fn registration_uses_the_actual_miss_answer_for_both_lease_lengths() {
         let jobs = spool.written.borrow();
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].until, expected);
-        assert_eq!(jobs[0].due, 100 + lights.refresh_secs);
+        assert_eq!(jobs[0].due, 100 + lights.arm_interval_secs);
     }
 }
 

@@ -28,7 +28,12 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
             sequence,
             outcomes
                 .into_iter()
-                .map(|(leg, delivered)| (outcome(leg.destination, &delivered), leg.decorative))
+                .map(|(leg, delivered)| {
+                    (
+                        outcome(leg.destination, leg.route, &delivered),
+                        leg.decorative,
+                    )
+                })
                 .collect(),
             None,
         ),
@@ -71,40 +76,47 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
 /// The verdict each leg of a REPLAYED submission gets, reconstructed from its
 /// stored completion rather than a fresh `Delivery`.
 fn existing_outcomes(record: Box<SubmissionRecord>) -> Vec<(DestinationOutcome, bool)> {
-    let decorative: std::collections::HashSet<String> = record
+    let legs: std::collections::HashMap<String, (String, bool)> = record
         .submission
         .legs
         .iter()
-        .filter(|leg| leg.decorative)
-        .map(|leg| leg.destination.clone())
+        .map(|leg| (leg.destination.clone(), (leg.route.clone(), leg.decorative)))
         .collect();
     record
         .attempts
         .into_iter()
         .map(|attempt| {
-            let verdict = match attempt.completion {
-                LedgerCompletion::Rejected { .. } => DeliveryOutcome::Failed,
-                LedgerCompletion::Acknowledged { .. } => DeliveryOutcome::Delivered,
+            let (verdict, note, retry_at) = match attempt.completion {
+                LedgerCompletion::Rejected { detail, .. } => (
+                    DeliveryOutcome::Failed,
+                    Some(detail).filter(|detail| !detail.is_empty()),
+                    None,
+                ),
+                LedgerCompletion::Acknowledged { .. } => (DeliveryOutcome::Delivered, None, None),
                 LedgerCompletion::Retry {
-                    outcome: UnconfirmedDelivery::Failed,
-                    ..
-                } => DeliveryOutcome::Failed,
-                LedgerCompletion::Retry {
-                    outcome: UnconfirmedDelivery::Unlaunched,
-                    ..
-                } => DeliveryOutcome::Unlaunched,
-                // The ledger persists a live Silent as this retry outcome
-                // (see sqlite/ledger/outcomes.rs), so replaying it back as
-                // Silent here reports the same arrival the first attempt
-                // did; the ledger keeps retrying it in the background
-                // regardless.
-                LedgerCompletion::Retry {
-                    outcome: UnconfirmedDelivery::Unknown,
-                    ..
-                } => DeliveryOutcome::Silent,
+                    outcome,
+                    detail,
+                    retry_at,
+                } => (
+                    match outcome {
+                        UnconfirmedDelivery::Failed => DeliveryOutcome::Failed,
+                        UnconfirmedDelivery::Unlaunched => DeliveryOutcome::Unlaunched,
+                        // The ledger persists a live Silent as this retry outcome
+                        // (see sqlite/ledger/outcomes.rs), so replaying it back as
+                        // Silent here reports the same arrival the first attempt
+                        // did; the ledger keeps retrying it in the background
+                        // regardless.
+                        UnconfirmedDelivery::Unknown => DeliveryOutcome::Silent,
+                    },
+                    Some(detail).filter(|detail| !detail.is_empty()),
+                    Some(retry_at),
+                ),
             };
-            let is_decorative = decorative.contains(&attempt.destination);
-            (named(attempt.destination, verdict), is_decorative)
+            let (route, decorative) = legs.get(&attempt.destination).cloned().unwrap_or_default();
+            (
+                named(attempt.destination, route, verdict, note, retry_at),
+                decorative,
+            )
         })
         .collect()
 }
@@ -144,24 +156,40 @@ fn delivered(outcomes: &[(DestinationOutcome, bool)]) -> Status {
     }
 }
 
-fn outcome(destination: String, delivered: &Delivery) -> DestinationOutcome {
-    named(
-        destination,
-        match delivered {
-            Delivery::Delivered(_) => DeliveryOutcome::Delivered,
-            Delivery::Failed(_) | Delivery::Rejected { .. } => DeliveryOutcome::Failed,
-            Delivery::Silent => DeliveryOutcome::Silent,
-            Delivery::Unlaunched(_) => DeliveryOutcome::Unlaunched,
-        },
-    )
+/// The sentence a destination offered about a leg it did not deliver. A
+/// delivery's own text is the event coming back, so only the three verdicts
+/// that explain a shortfall carry one.
+fn outcome(destination: String, route: String, delivered: &Delivery) -> DestinationOutcome {
+    let (verdict, note) = match delivered {
+        Delivery::Delivered(_) => (DeliveryOutcome::Delivered, None),
+        Delivery::Failed(note) => (DeliveryOutcome::Failed, Some(note.clone())),
+        Delivery::Rejected { detail, .. } => (DeliveryOutcome::Failed, Some(detail.clone())),
+        Delivery::Silent => (DeliveryOutcome::Silent, None),
+        Delivery::Unlaunched(note) => (DeliveryOutcome::Unlaunched, Some(note.clone())),
+    };
+    named(destination, route, verdict, note, None)
 }
 
-fn named(destination: String, outcome: DeliveryOutcome) -> DestinationOutcome {
+fn named(
+    destination: String,
+    route: String,
+    outcome: DeliveryOutcome,
+    note: Option<String>,
+    retry_at: Option<u64>,
+) -> DestinationOutcome {
     DestinationOutcome {
         // Destination names come from the validated compiled registry.
         name: Name::new(destination).expect("a registered destination name"),
         outcome,
-        note: None,
+        // A leg submitted to a destination's own default carries no route;
+        // any other route comes from the same validated compiled registry.
+        route: if route.is_empty() {
+            None
+        } else {
+            Some(Name::new(route).expect("a registered route name"))
+        },
+        note,
+        retry_at,
     }
 }
 
