@@ -42,7 +42,7 @@ pub struct Recap {
     pub digest: bool,
     pub min_events: usize,
     pub summarizer: Option<Vec<String>>,
-    pub summarizer_deadline_secs: u64,
+    pub summarizer_deadline: std::time::Duration,
     pub repos: Vec<String>,
     pub review_notes: Option<String>,
 }
@@ -54,7 +54,7 @@ impl Default for Recap {
             digest: true,
             min_events: DEFAULT_MIN_EVENTS,
             summarizer: None,
-            summarizer_deadline_secs: DEFAULT_SUMMARIZER_DEADLINE_SECS,
+            summarizer_deadline: DEFAULT_SUMMARIZER_DEADLINE,
             repos: Vec::new(),
             review_notes: None,
         }
@@ -87,4 +87,4 @@ const DEFAULT_MIN_EVENTS: usize = 8;
 /// of nothing simply cannot be met, so the recap falls to the plain lists and
 /// SAYS it did, which is the same outcome as any other summarizer that does not
 /// answer. Nothing silently changes shape, so there is nothing to refuse.
-const DEFAULT_SUMMARIZER_DEADLINE_SECS: u64 = 240;
+const DEFAULT_SUMMARIZER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(240);

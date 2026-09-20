@@ -13,7 +13,7 @@ Operator-approved, and extended in place as the hooks converted on 2026-08-13:
 | `moshi-hook`           | Third party, and it owns the approval socket                          |
 | `herdr`                | Its command-line interface is the supported way to ask about panes    |
 | `ioreg`, `pgrep`, `ps` | No public application programming interface exists for those readings |
-| `codex`                | The reply condenser, which arrived with the hooks                     |
+| `codex`                | The reply summarizer, which arrived with the hooks                     |
 | `git`                  | The branch lookup, which arrived with the hooks                       |
 | `gh`                   | The recap's merged pull request section                               |
 

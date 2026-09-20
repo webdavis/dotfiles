@@ -25,7 +25,7 @@ fn armed(guessed: bool, state: &str, loop_live: bool) -> bool {
 #[test]
 fn a_guessed_wait_inside_a_live_loop_arms_nothing() {
     assert!(!armed(true, "asking", true));
-    // The condenser's other wait word, guessed off the same prose.
+    // The summarizer's other wait word, guessed off the same prose.
     assert!(!armed(true, "blocked", true));
 }
 

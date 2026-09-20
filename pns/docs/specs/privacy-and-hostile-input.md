@@ -78,7 +78,7 @@ appears in a test file.
 | Every plugin secret, as text in the config file  | The config file itself                                                                           | Parsed into `PluginEntry::settings`                                                                                                                                                                                     | A `ConfigError` detail, which travels to log lines. `config::parse_config` rebuilds a TOML parse failure from the cause and the LINE NUMBER alone, because "the parser's Display echoes the offending source line, and this file carries plugin secrets into log lines" | `src/config.rs:a_malformed_line_is_reported_without_echoing_its_value` (plants `SUPERSECRET` in a malformed line and asserts the refusal does not contain it)                                                                                                                                                                                                                                                                                                                                                                                |
 | Every secret typed into `pns setup`              | The operator's keystrokes on a terminal                                                          | The published `~/.config/pns/config.toml`, mode `0600` (`main::CONFIG_FILE_MODE`)                                                                                                                                       | The terminal. `main::ask_hidden` clears `ECHO` and sets `ECHONL` via `tcsetattr` with `TCSAFLUSH`, arming BEFORE the prompt prints, and restores the terminal when its guard drops                                                                                      | `tests/setup.rs:a_secret_typed_into_setup_never_reaches_the_pty_output`, which arms all four secret branches with distinct sentinels, asserts `ECHO` is already off while the first prompt is visible, asserts none of the four reaches the pseudoterminal transcript, asserts an ordinary `[y/N]` answer DOES still echo, asserts the published file is `0600`, and asserts echo is restored after exit                                                                                                                                     |
 | The chezmoi-managed config template's secrets    | KeePassXC, resolved at apply time                                                                | A `{{ ... \| toToml }}` action in `dot_config/pns/private_config.toml.tmpl`                                                                                                                                             | `dot_config/pns/config-values.toml`, which carries only the keepassxc ENTRY NAME and FIELD, never a value (`config_text::secret_action` admits exactly the keys `keepassxc` and `field`, and `field` only from `SECRET_FIELDS`)                                         | `src/config_text.rs:a_secret_tables_unknown_member_is_named_rather_than_only_counted`; `src/config_text.rs:a_secrets_field_is_whitelisted_to_the_two_chezmoi_methods`; `src/config.rs:the_shipped_template_names_the_entry_and_field_of_every_secret`                                                                                                                                                                                                                                                                                        |
-| The condenser's access to live Codex credentials | `~/.config/pns/codex-home`, a stripped Codex home with the live auth SYMLINKED                   | The condenser child, which runs `codex exec --ephemeral --skip-git-repo-check -s read-only`                                                                                                                             | Any other reader: the directory is created with mode `0700` (`main::condenser_home`) and the config inside it with `0o600`                                                                                                                                              | `NOT ESTABLISHED:` no test found asserting the mode of the condenser home or its config file. The modes are set at `src/main.rs:condenser_home` and `src/main.rs:2306`; nothing in `tests/` reads them back                                                                                                                                                                                                                                                                                                                                  |
+| The summarizer's access to live Codex credentials | `~/.config/pns/codex-home`, a stripped Codex home with the live auth SYMLINKED                   | The summarizer child, which runs `codex exec --ephemeral --skip-git-repo-check -s read-only`                                                                                                                             | Any other reader: the directory is created with mode `0700` (`main::summarizer_home`) and the config inside it with `0o600`                                                                                                                                              | `NOT ESTABLISHED:` no test found asserting the mode of the summarizer home or its config file. The modes are set at `src/main.rs:summarizer_home` and `src/main.rs:2306`; nothing in `tests/` reads them back                                                                                                                                                                                                                                                                                                                                  |
 
 ## Behaviors
 
@@ -643,7 +643,7 @@ written
 
 ### 16. Every child `run_bounded` starts is bounded in time AND in bytes, and past the ceiling is no answer
 
-Given a probe, the condenser, a summarizer, `gh` or `moshi-hook` that hangs, writes without end, or exits
+Given a probe, the summarizer, a summarizer, `gh` or `moshi-hook` that hangs, writes without end, or exits
 non-zero
 
 When `system::run_bounded` runs it
@@ -662,7 +662,7 @@ and reaped, and the caller gets `None`
   lost its last rows and a JSON listing has stopped mid-object, and both arrive at a caller looking
   exactly like a complete short answer".
 - Thresholds: `PROBE_DEADLINE` = 5 s and `PROBE_READ_MAX` = 1 MiB for every probe; `GH_DEADLINE` = 30 s
-  and `GH_READ_MAX` = 512 KiB; `CONDENSER_DEADLINE` with `PROBE_READ_MAX`; `PAIRING_READ_MAX` = 2 MiB;
+  and `GH_READ_MAX` = 512 KiB; `SUMMARIZER_DEADLINE` with `PROBE_READ_MAX`; `PAIRING_READ_MAX` = 2 MiB;
   `recap::MAX_ANSWER_BYTES + 1` for a summarizer. At `max_bytes` the answer is returned, at
   `max_bytes + 1` it is not, and the reader is asked for the extra byte "so the bound stays inclusive
   like every other bound in this crate".
@@ -674,7 +674,7 @@ and reaped, and the caller gets `None`
 - Timeout and cancellation: on expiry the child is killed and waited on; the answer is discarded.
 - Idempotency and duplicates: `PNS_SUMMARIZING` plus a Codex home with NO hooks installed are the
   re-entry guard against a pns-to-codex-to-pns loop, the stripped home being "the hard guarantee".
-- Privacy: the condenser is handed the turn's reply on stdin (up to `REPLY_MAX_CHARS`) and runs
+- Privacy: the summarizer is handed the turn's reply on stdin (up to `REPLY_MAX_CHARS`) and runs
   `-s read-only`. Its home is created `0700` "because it points at the live Codex credentials". Bytes are
   read, not a string: "the size that matters is the size on the wire, and a lossy conversion grows an
   invalid byte into three"; the lossy conversion happens only after the size has been judged.
@@ -683,7 +683,7 @@ and reaped, and the caller gets `None`
   channel (`src/main.rs:deliver`), recorded as findings U1 and U2 in
   `persistence-and-process-lifecycle.md`. The heading is scoped to this function for that reason.
 - Compatibility contract: `doctor::within_cap` is checked in the DOCTOR rather than in the shared spawn,
-  "every other caller of that spawn reads a different tool, and one of them is a condenser whose whole
+  "every other caller of that spawn reads a different tool, and one of them is a summarizer whose whole
   job is to answer at length".
 
 ### 17. The moshi token reaches the request body and nothing else
@@ -801,8 +801,8 @@ Then exactly five outbound destinations exist and each carries a stated payload
   it". Both are local-network addresses the operator configured, and neither carries event text. It is
   not disabled for moshi or hermes.
 - Process ownership and cleanup: `gh` runs as a bounded child; the four HTTP clients are in process.
-- Compatibility contract: the summarizer and the condenser are CHILD processes handed prompt text on
-  stdin. Whether either reaches a network is the child's own business; the condenser is `codex exec`,
+- Compatibility contract: the summarizer and the summarizer are CHILD processes handed prompt text on
+  stdin. Whether either reaches a network is the child's own business; the summarizer is `codex exec`,
   which is a model call, and the recap's summarizer is whatever argv the operator configured.
 
 ### 20. A config refusal names the fault without echoing the value
