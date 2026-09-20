@@ -25,10 +25,6 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs, String) -
     for warning in &parsed.warnings {
         eprintln!("pns: {warning}");
     }
-    // READ BEFORE `into_event` CONSUMES IT, and applied after the delivery: it
-    // decides whether the caller hears the answer, never whether the answer is
-    // computed.
-    let require_delivery = parsed.require_delivery;
     let session = parsed.session.clone();
     let event = match parsed.into_event() {
         Ok(Some(event)) => event,
@@ -38,20 +34,12 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs, String) -
             return REFUSED_INPUT;
         }
     };
-    let code = submit(event, session);
-    // DECISION 0010: a notification never fails the work it reports on. A
-    // caller that did not ask gets 0 whatever the gateway answered, which is
-    // what every harness hook, the shell notifier and the daemon rely on.
-    //
-    // REFUSED INPUT IS THE EXCEPTION, on the same terms as the refusals above
-    // it: a gateway that would not take the page is pns's problem to report
-    // quietly, while a field pns will not honour is the caller's to fix, and
-    // one silently answered 0 is a page nobody learns is not being sent.
-    if require_delivery || code == REFUSED_INPUT {
-        code
-    } else {
-        0
-    }
+    // THE EXIT CODE REPORTS DELIVERY, always: 0 when every destination took
+    // the page, 1 when any did not, 2 for a field pns will not honour. The
+    // always-exit-0 contract lives on the harness hook paths, which return
+    // their own 0 whatever this answers, and the shell notifier and the daemon
+    // discard the code.
+    submit(event, session)
 }
 
 #[cfg(test)]

@@ -16,6 +16,8 @@ impl<R: CommandRunner> SystemProbes<R> {
     pub fn new(runner: R, marker_path: String) -> Self {
         Self {
             runner: Arc::new(runner),
+            registry: Arc::new(crate::macos::registry::IoKitRegistry),
+            table: Arc::new(crate::macos::proc_table::LibprocTable),
             marker_path: Some(marker_path.into()),
             tty_dir: TTY_DIR.to_string(),
             idle: std::cell::OnceCell::new(),
@@ -111,7 +113,7 @@ impl<R: CommandRunner> SystemProbes<R> {
 impl<R: CommandRunner + Send + Sync + 'static> pns_application::IdleProbe for SystemProbes<R> {
     fn idle_secs(&self) -> Option<u64> {
         self.join_desk();
-        *self.idle.get_or_init(|| idle_reading(&*self.runner))
+        *self.idle.get_or_init(|| idle_reading(&self.registry))
     }
 }
 
@@ -122,7 +124,7 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::ScreenLockProbe
         self.join_desk();
         *self
             .screen_locked
-            .get_or_init(|| lock_reading(&*self.runner))
+            .get_or_init(|| lock_reading(&self.registry))
     }
 }
 
@@ -139,7 +141,7 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::PhoneInputProbe
         self.join_phone();
         *self
             .phone_atime
-            .get_or_init(|| phone_reading(&*self.runner, &self.tty_dir))
+            .get_or_init(|| phone_reading(&*self.runner, &self.table, &self.tty_dir))
     }
 }
 

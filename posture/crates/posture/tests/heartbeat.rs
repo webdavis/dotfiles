@@ -41,7 +41,7 @@ IFS= read -r request
 printf '%s\n' "$request" >"$HOME/request"
 printf 'call\n' >>"$HOME/calls"
 identity="$(printf '%s' "$request" | /usr/bin/sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')"
-printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":["ledger_committed"]}\n' "$identity"
+printf '{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagnostics":["ledger_committed"]}\n' "$identity"
 "##).unwrap();
     std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
     let log = home.join(".local/log/osquery/osqueryd.snapshots.log");

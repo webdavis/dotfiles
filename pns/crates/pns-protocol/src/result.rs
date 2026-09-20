@@ -21,12 +21,16 @@ fn schema() -> SchemaId {
     }
 }
 
-/// Whether the request was taken: whole, in part, or not at all.
+/// WHAT THE REQUEST WAS DELIVERED TO, not what was stored: every destination,
+/// some of them, none of them, or the request refused before any was tried.
+/// Whether the ledger row committed is a diagnostic of its own, so a committed
+/// row that reached nobody reads as `Undelivered` rather than as a success.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Status {
-    Accepted,
-    Degraded,
+    Delivered,
+    Partial,
+    Undelivered,
     Rejected,
 }
 

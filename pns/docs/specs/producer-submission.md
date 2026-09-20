@@ -864,22 +864,25 @@ the pulse, the held-lamp clear, and the lights tick registration.
   `tests/dispatch.rs:a_registration_that_cannot_be_written_costs_the_event_nothing` pin the fail-quiet
   direction.
 
-### 19. The producer path exits 0 on every path that becomes an event
+### 19. The producer path reports its delivery in the exit code
 
 Given any producer invocation that reaches `event_mode`
 
 When the process finishes
 
-Then it exits 0, whatever any channel, config, probe or state write did.
+Then it exits 0 when every durable destination took the page, 1 when one did not, and 2 for a field pns
+will not honour.
 
-- Success: exit code 0 (`src/main.rs:main` returns after `event_mode`; the module doc states "The
-  producer path exits 0 on every path, because a notification must never fail the work it reports on").
-- Failure sources: none that change the code. A failed channel, an unwritable state directory, a broken
-  config and a non-Unicode argument all still exit 0.
-- Fail direction: fail-open, and the exit code is the strongest form of it.
-- Thresholds: exactly two producer-adjacent paths exit non-zero, and neither is an event: a word naming
-  no command exits 2 (behavior 2), and the hand-typed verbs refuse a bad invocation with exit 2
-  (`src/main.rs` module doc, which also names the one remaining gap: a word
+- Success: exit code 0 for a page every durable destination took (`src/legacy.rs:run` returns what the
+  submission answered; `src/invocation.rs:event_mode` maps `Landed`).
+- Failure sources: a destination that failed or was never launched answers 1. A decorative destination
+  (the banner, the phone card) does not decide it, and a silent one is a channel that ran and had
+  nothing to say, which counts as an arrival.
+- Fail direction: the producer hears the delivery. The always-exit-0 contract lives on the harness hook
+  paths (`pns hook <event>`), which answer 0 whatever the delivery did, and the shell notifier and the
+  daemon discard the code.
+- Thresholds: a word naming no command exits 2 (behavior 2), and the hand-typed verbs refuse a bad
+  invocation with exit 2 (`src/main.rs` module doc, which also names the one remaining gap: a word
   trailing `lights tick` is dropped rather than refused).
 - Required side effects: none.
 - Forbidden side effects: no path on the event side may abort. `build_registry` is the one panic, and it
@@ -890,9 +893,7 @@ Then it exits 0, whatever any channel, config, probe or state write did.
 - Idempotency and duplicates: not applicable.
 - Privacy: not applicable.
 - Process ownership and cleanup: not applicable.
-- Compatibility contract: every call through `support::run` asserts `output.status.success()`
-  (`tests/support/mod.rs:run`), so the exit-0 edge is pinned by every dispatch test that uses it.
-  `tests/dispatch.rs:a_non_unicode_argument_never_breaks_the_exit_zero_edge` states it explicitly,
-  `tests/dispatch.rs:help_in_flag_position_wins_wherever_it_reaches_the_event_parser` asserts `Some(0)`
-  directly, and `tests/dispatch.rs:a_state_directory_that_cannot_be_written_costs_the_event_nothing`
-  names `run` as the thing asserting it.
+- Compatibility contract: `tests/support/mod.rs:run` asserts the engine answered 0 or 1 rather than 0
+  alone, `src/legacy/tests.rs:every_caller_hears_a_failed_delivery` states the new rule, and
+  `tests/hooks/hook_contract.rs:a_hook_whose_destination_took_nothing_still_exits_zero` pins the hook
+  path that keeps the old one.

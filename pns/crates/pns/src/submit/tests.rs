@@ -32,12 +32,12 @@ fn one_valid_request_reaches_the_callback_with_every_decoded_field_intact() {
         calls.set(calls.get() + 1);
         assert_eq!(decoded, pns_protocol::decode_request(REQUEST).unwrap());
         assert_eq!(decoded.ignored, IGNORED);
-        receipt(Status::Accepted)
+        receipt(Status::Delivered)
     })
     .unwrap();
     assert_eq!(calls.get(), 1, "a valid request must be submitted once");
-    assert_eq!(status, Status::Accepted);
-    assert_eq!(decode_result(&output).unwrap(), receipt(Status::Accepted));
+    assert_eq!(status, Status::Delivered);
+    assert_eq!(decode_result(&output).unwrap(), receipt(Status::Delivered));
 }
 #[test]
 fn decoder_refusals_remain_correlated_without_submitting_or_echoing_private_text() {
@@ -80,7 +80,7 @@ fn the_byte_ceiling_accepts_its_edge_and_reads_only_one_byte_beyond_it() {
         let calls = Cell::new(0);
         let status = run(&args(), &mut input, &mut output, |_| {
             calls.set(calls.get() + 1);
-            receipt(Status::Accepted)
+            receipt(Status::Delivered)
         })
         .unwrap();
         assert_eq!(size - input.len(), size.min(MAX_BYTES + 1));
@@ -88,7 +88,7 @@ fn the_byte_ceiling_accepts_its_edge_and_reads_only_one_byte_beyond_it() {
         assert_eq!(
             status,
             if size <= MAX_BYTES {
-                Status::Accepted
+                Status::Delivered
             } else {
                 Status::Rejected
             }
