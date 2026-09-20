@@ -96,7 +96,7 @@ IFS= read -r request
 printf '%s\n' "$request" >'{request}'
 printf 'call\n' >>'{calls}'
 identity="$(printf '%s' "$request" | /usr/bin/sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')"
-printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":["ledger_committed"]}}\n' "$identity"
+printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagnostics":["ledger_committed"]}}\n' "$identity"
 "##,
             request = request.display(),
             calls = calls.display(),

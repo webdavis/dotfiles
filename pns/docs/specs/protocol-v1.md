@@ -269,8 +269,9 @@ Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/resu
 
 ## protocol-v1/S018: Result words and decision codes
 
-Given a result, when encoded or decoded, then status is accepted, degraded or rejected, destination
-outcome is delivered, failed, silent or unlaunched, and interaction.kind is no_opinion or answered.
+Given a result, when encoded or decoded, then status is delivered, partial, undelivered or rejected,
+destination outcome is delivered, failed, silent or unlaunched, and interaction.kind is no_opinion or
+answered.
 Answered carries its signed 32-bit code unchanged. Unknown status, outcome or interaction words are
 field_invalid.
 
@@ -387,13 +388,19 @@ an output error; it does not fabricate acceptance or silently discard destinatio
 
 ## protocol-v1/S029: Durable submission receipt
 
-An `accepted` result with `ledger_committed` in diagnostics means the ledger committed the request before
-dispatch and owns its delivery. A retained identical request qualifies through the existing ledger row.
-The request identifier remains the producer's original identifier. A successful live send alone does not
-qualify: when storage is unavailable and delivery runs without a committed row, the result is `degraded`
-and does not contain `ledger_committed`. A decoded refusal is `rejected`.
+The status reports DELIVERY: `delivered` when every durable destination took the page, `partial` when
+some did, `undelivered` when none did, and `rejected` for input the engine will not honour. A silent
+destination is one that ran and had nothing to say, which counts as an arrival; a decorative destination
+(the banner, the phone card) does not decide the status, and its verdict is still listed.
 
-Posture advances its own state only on a matching `accepted` result containing `ledger_committed`.
+The ledger is a fact of its own beside the status. `ledger_committed` in diagnostics means the ledger
+committed the request before dispatch and owns its delivery; a retained identical request qualifies
+through the existing ledger row, and the request identifier remains the producer's original identifier.
+When storage is unavailable and delivery runs without a committed row, the diagnostic is
+`ledger_unavailable` and the status still reports what the destinations did. A committed row whose every
+destination failed is `undelivered` beside `ledger_committed`.
+
+Posture advances its own state only on a matching `delivered` result containing `ledger_committed`.
 Acceptance is durable ownership, not proof of a destination acknowledgement. Per-destination outcomes
 state the attempts separately, and retries retain the original identifier. Main dispatch, receipt
 classification and the event workflow are composed by the existing root callback.
@@ -411,7 +418,8 @@ time selects the existing 300-second long-running tier without suppressing a sho
 
 JSON stdout contains exactly one result line. Human delivery lines and executable-channel stdout go to
 stderr for that invocation, including its replay tail. Legacy stdout and the flat executable stdin body
-remain unchanged. Accepted and degraded results exit zero; rejected requests and output errors exit two.
+remain unchanged. A `delivered` result exits zero, `partial` and `undelivered` exit one, and rejected
+requests and output errors exit two.
 Destination results carry typed verdicts without echoing private transport text. Unknown top-level field
 names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
 entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval

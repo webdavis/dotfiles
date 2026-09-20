@@ -94,7 +94,7 @@ pub fn compare(name: &str) {
     let (status, diagnostics, exit) = if case["reject"] == true {
         ("rejected", "", 2)
     } else {
-        ("accepted", "\"ledger_committed\"", 0)
+        ("delivered", "\"ledger_committed\"", 0)
     };
     executable(
         &engine,

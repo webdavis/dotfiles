@@ -23,7 +23,7 @@ impl PollMarkers for Markers {
 
 #[test]
 fn an_oversized_poll_gap_reports_omission_without_marking_or_publishing() {
-    let mut sink = subject(Status::Accepted, true);
+    let mut sink = subject(Status::Delivered, true);
     let id = "control_".repeat(1500);
     let records = [ControlRecord {
         id: &id,
@@ -102,7 +102,7 @@ impl JudgeFindings for Batch {
 
 #[test]
 fn an_oversized_judged_batch_reports_omission_without_advancing_its_cursor() {
-    let mut sink = subject(Status::Accepted, true);
+    let mut sink = subject(Status::Delivered, true);
     assert_eq!(
         JudgeResults {
             lock: &Batch,

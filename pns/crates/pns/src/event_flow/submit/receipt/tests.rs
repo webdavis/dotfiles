@@ -45,14 +45,9 @@ fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
                 })
                 .collect(),
         }));
-        assert_eq!(
-            output.status,
-            if sequence.is_some() {
-                Status::Accepted
-            } else {
-                Status::Degraded
-            }
-        );
+        // ONE LEG DELIVERED AND FOUR DID NOT, whatever the ledger did: the
+        // committed row is a diagnostic beside the status, never the status.
+        assert_eq!(output.status, Status::Partial);
         assert_eq!(
             output
                 .destinations
@@ -91,4 +86,52 @@ fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
         ["unknown_delivery_class", "security"]
     );
     assert!(undefined.destinations.is_empty());
+}
+
+/// THE WHOLE POINT OF THE SLICE: a row that committed and a page that reached
+/// nobody is not a success, and the receipt says both facts at once.
+#[test]
+fn a_committed_row_whose_every_destination_failed_is_undelivered() {
+    let output = result(Ok(Submitted::Attempted {
+        sequence: Some(7),
+        outcomes: vec![(
+            leg("hermes"),
+            Delivery::Failed("the gateway refused".into()),
+        )],
+    }));
+    assert_eq!(output.status, Status::Undelivered);
+    assert_eq!(output.diagnostics, ["ledger_committed"]);
+}
+
+/// A page every destination took, which is the only shape that earns exit 0.
+#[test]
+fn a_page_every_destination_took_is_delivered() {
+    let output = result(Ok(Submitted::Attempted {
+        sequence: Some(7),
+        outcomes: vec![
+            (leg("hermes"), Delivery::Delivered("posted".into())),
+            (leg("macos-banner"), Delivery::Delivered("posted".into())),
+        ],
+    }));
+    assert_eq!(output.status, Status::Delivered);
+}
+
+/// A plan with no destination at all delivered everything it had. Answering
+/// `undelivered` here would fail a caller that narrowed the event itself.
+#[test]
+fn a_plan_with_no_destination_delivered_everything_it_had() {
+    let output = result(Ok(Submitted::Attempted {
+        sequence: Some(7),
+        outcomes: Vec::new(),
+    }));
+    assert_eq!(output.status, Status::Delivered);
+}
+
+fn leg(destination: &str) -> LedgerLeg {
+    LedgerLeg {
+        destination: destination.into(),
+        route: "priority".into(),
+        mode: ReportMode::ReportOutcome,
+        decorative: false,
+    }
 }

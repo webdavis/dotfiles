@@ -1,12 +1,14 @@
 use std::process::{Command, Output};
 
-/// Run to completion, asserting the exit-0 edge: a failed notification must
-/// never fail the caller.
+/// Run to completion, asserting only that the engine ANSWERED: 0 when every
+/// destination took the page and 1 when one did not, which is the exit code
+/// every caller hears now. A refusal (2), a crash or a signal is still a
+/// failure here, and a test that cares which of 0 and 1 it got says so itself.
 pub fn run(command: &mut Command) -> Output {
     let output = command.output().expect("the engine runs");
     assert!(
-        output.status.success(),
-        "the engine must exit 0 on every path: {output:?}"
+        matches!(output.status.code(), Some(0 | 1)),
+        "the engine must answer 0 or 1 on a delivery path: {output:?}"
     );
     output
 }

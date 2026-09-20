@@ -10,7 +10,7 @@ fn unavailable_failed_and_timed_out_engines_each_attempt_one_independent_alarm()
         (InspectionFailure::Failed, SubmissionFailure::Failed),
         (InspectionFailure::TimedOut, SubmissionFailure::TimedOut),
     ] {
-        let mut sut = subject(Status::Accepted, true);
+        let mut sut = subject(Status::Delivered, true);
         sut.runner.response = Err(error);
         assert_eq!(sut.submit(&alert()), Submission::NotAccepted(failure));
         assert_eq!(sut.runner.requests.len(), 1);
@@ -20,7 +20,7 @@ fn unavailable_failed_and_timed_out_engines_each_attempt_one_independent_alarm()
 }
 #[test]
 fn a_nonzero_engine_exit_cannot_be_accepted_even_with_a_valid_receipt() {
-    let mut sut = subject(Status::Accepted, true);
+    let mut sut = subject(Status::Delivered, true);
     sut.runner.response.as_mut().unwrap().exit = 42;
     assert_eq!(
         sut.submit(&alert()),
@@ -31,7 +31,7 @@ fn a_nonzero_engine_exit_cannot_be_accepted_even_with_a_valid_receipt() {
 #[test]
 fn empty_garbage_and_multiple_receipts_attempt_one_alarm_without_retrying() {
     for bytes in [b"".as_slice(), b"garbage", b"{}\n{}"] {
-        let mut sut = subject(Status::Accepted, true);
+        let mut sut = subject(Status::Delivered, true);
         sut.runner.matching = false;
         sut.runner.response.as_mut().unwrap().bytes = bytes.to_vec();
         assert_eq!(
@@ -44,7 +44,7 @@ fn empty_garbage_and_multiple_receipts_attempt_one_alarm_without_retrying() {
 }
 #[test]
 fn failed_independent_alarm_never_turns_engine_failure_into_acceptance() {
-    let mut sut = subject(Status::Accepted, true);
+    let mut sut = subject(Status::Delivered, true);
     sut.runner.response = Err(InspectionFailure::Unavailable);
     sut.alarm.fail = true;
     assert_eq!(
@@ -89,7 +89,7 @@ fn explicit_submission_unavailable_reports_failure_but_degraded_storage_does_not
             1,
         ),
         (
-            Status::Degraded,
+            Status::Undelivered,
             0,
             "ledger_unavailable",
             SubmissionFailure::NotCommitted,

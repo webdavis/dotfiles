@@ -9,7 +9,7 @@ fn security_text_over_the_cap_submits_one_bounded_omission_but_refuses_the_origi
         ("Security finding".into(), "é".repeat(300_000)),
         ("x".repeat(9000), "finding".into()),
     ] {
-        let mut sut = subject(Status::Accepted, true);
+        let mut sut = subject(Status::Delivered, true);
         let mut input = alert();
         input.title = title;
         input.detail = detail;
@@ -29,7 +29,7 @@ fn security_text_over_the_cap_submits_one_bounded_omission_but_refuses_the_origi
 
 #[test]
 fn text_at_the_cap_retains_its_exact_bytes_and_normal_acceptance() {
-    let mut sut = subject(Status::Accepted, true);
+    let mut sut = subject(Status::Delivered, true);
     let mut input = alert();
     input.detail = "é".repeat(7983);
     let expected = format!("{}\n{}", input.title, input.detail);
@@ -40,7 +40,7 @@ fn text_at_the_cap_retains_its_exact_bytes_and_normal_acceptance() {
 
 #[test]
 fn omission_retries_are_stable_and_cannot_acknowledge_the_original_identity() {
-    let mut sut = subject(Status::Accepted, true);
+    let mut sut = subject(Status::Delivered, true);
     let mut input = alert();
     assert_eq!(sut.submit(&input), Submission::Accepted);
     input.detail = "x".repeat(9000);
@@ -68,7 +68,7 @@ fn omission_engine_failure_alarms_once_with_only_bounded_text() {
         InspectionFailure::Failed,
         InspectionFailure::TimedOut,
     ] {
-        let mut sut = subject(Status::Accepted, true);
+        let mut sut = subject(Status::Delivered, true);
         sut.runner.response = Err(error);
         let mut input = alert();
         input.detail = "private original text".repeat(9000);
@@ -86,7 +86,7 @@ fn omission_engine_failure_alarms_once_with_only_bounded_text() {
 
 #[test]
 fn an_omission_receipt_does_not_change_normal_rejection_or_degradation_meaning() {
-    for status in [Status::Rejected, Status::Degraded] {
+    for status in [Status::Rejected, Status::Undelivered] {
         let mut sut = subject(status, true);
         let mut input = alert();
         input.detail = "x".repeat(9000);

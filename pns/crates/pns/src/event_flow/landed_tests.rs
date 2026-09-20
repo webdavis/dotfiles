@@ -93,3 +93,12 @@ fn an_undefined_delivery_class_is_rejected_rather_than_merely_undelivered() {
         Err(NotSubmitted::UnknownDeliveryClass("security".into()));
     assert_eq!(landed(&refused), Landed::Rejected);
 }
+
+/// An executable channel that ran and printed nothing LANDED. `Silent` is that
+/// path's ordinary success, so reading it as a loss would fail every event
+/// sent through a channels directory.
+#[test]
+fn a_silent_durable_leg_landed() {
+    let submitted = attempted(vec![(leg("hermes", false), pns_domain::Delivery::Silent)]);
+    assert_eq!(landed(&submitted), Landed::Yes);
+}

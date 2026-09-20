@@ -10,11 +10,11 @@ and this document is posture's reading of it. Any program may implement it.
 
 A producer runs one command and exchanges two JSON documents with it.
 
-| Direction | Carrier                 | Document                    |
-| --------- | ----------------------- | --------------------------- |
-| in        | the command's stdin     | one request envelope        |
-| out       | the command's stdout    | one result envelope         |
-| out       | the command's exit code | whether the run itself held |
+| Direction | Carrier                 | Document                      |
+| --------- | ----------------------- | ----------------------------- |
+| in        | the command's stdin     | one request envelope          |
+| out       | the command's stdout    | one result envelope           |
+| out       | the command's exit code | 0 delivered, 1 not, 2 refused |
 
 The command's arguments are not part of the contract. An engine spells its own submit path however it
 likes, so both the command and its arguments come from config, passed verbatim.
@@ -51,8 +51,10 @@ for an engine that keys on it.
 
 An accepted submission must be the engine's promise of a retriable obligation for THIS request, taken
 before any destination is tried. Posture reads that as all three of: a `request_id` equal to the one it
-sent, `status: accepted`, and a `ledger_committed` diagnostic. Destination outcomes are not a substitute,
-because a page that reached no channel yet is still a page the engine owes.
+sent, `status: delivered`, and a `ledger_committed` diagnostic. The status says what the destinations did
+(`delivered`, `partial`, `undelivered`, or `rejected` for a refusal), and the diagnostic says the engine
+took the obligation; posture needs both, because a page the engine owes and has not placed anywhere is
+not yet a page delivered.
 
 Anything less leaves posture's own state where it was, so the next run re-reads the same findings. A
 correlated `status: rejected` is a protocol refusal and stays quiet; an engine that could not be run,

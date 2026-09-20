@@ -67,7 +67,7 @@ const HARNESS_HOOK_SUFFIX: &str = "-hook";
 /// ONE, NOT TWO. Two is what this mode already returns for argv it will not
 /// accept, and a producer that could not tell a lost page from a mistyped
 /// command would have to guess which of the two it was looking at.
-const EVENT_NOT_DELIVERED: i32 = 1;
+pub(crate) const EVENT_NOT_DELIVERED: i32 = 1;
 
 /// The event mode's exit code, which is the ONE thing a synchronous producer
 /// can read.

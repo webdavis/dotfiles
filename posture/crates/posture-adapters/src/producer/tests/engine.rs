@@ -37,7 +37,7 @@ impl Engine {
 #[test]
 fn a_real_owned_engine_receives_one_complete_request_and_returns_its_committed_identity() {
     let engine = Engine::new(
-        r#"printf '%s\n' '{"schema":"pns.result/1","request_id":"posture-d28d5af268c004d795ce0240f35f5218","status":"accepted","decision_id":"17","diagnostics":["ledger_committed"]}'"#,
+        r#"printf '%s\n' '{"schema":"pns.result/1","request_id":"posture-d28d5af268c004d795ce0240f35f5218","status":"delivered","decision_id":"17","diagnostics":["ledger_committed"]}'"#,
     );
     let mut sut = engine.producer();
     assert_eq!(sut.submit(&alert()), Submission::Accepted);

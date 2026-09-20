@@ -104,7 +104,7 @@ impl<R: CommandRunner, A: IndependentAlarm> ProducerCommand<R, A> {
             return self.failed_engine(alert, SubmissionFailure::Failed);
         }
         match result.status {
-            Status::Accepted
+            Status::Delivered
                 if result
                     .diagnostics
                     .iter()

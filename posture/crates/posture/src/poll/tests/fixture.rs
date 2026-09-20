@@ -152,7 +152,7 @@ impl CommandRunner for Runner {
                     .next()
                     .unwrap();
                 let status = if self.accepted {
-                    "accepted"
+                    "delivered"
                 } else {
                     "rejected"
                 };

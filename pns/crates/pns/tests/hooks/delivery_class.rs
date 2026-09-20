@@ -96,7 +96,7 @@ fn json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_herme
         let wire = input(class);
         let output = invoke(&sandbox, &wire);
         let reply = pns_protocol::decode_result(&output.stdout).unwrap();
-        assert_eq!(reply.status, Status::Accepted, "{output:?}");
+        assert_eq!(reply.status, Status::Delivered, "{output:?}");
         assert_eq!(
             sandbox.fired("macos-banner"),
             allowed,
@@ -197,7 +197,7 @@ fn a_resubmission_under_a_second_defined_class_is_still_a_conflict() {
     let first = invoke(&sandbox, &input(Some("security")));
     assert_eq!(
         pns_protocol::decode_result(&first.stdout).unwrap().status,
-        Status::Accepted,
+        Status::Delivered,
         "{first:?}"
     );
     let conflicting = invoke(&sandbox, &input(Some("changed")));

@@ -81,7 +81,7 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
     let first = invoke(&sandbox, &input);
     let accepted = result(&first);
     assert!(first.status.success());
-    assert_eq!(accepted.status, Status::Accepted);
+    assert_eq!(accepted.status, Status::Delivered);
     assert_eq!(accepted.request_id, Some(request.request_id.clone()));
     assert!(
         accepted
@@ -106,7 +106,7 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
     ).unwrap();
     assert_eq!(retained, input);
     let duplicate = result(&invoke(&sandbox, &input));
-    assert_eq!(duplicate.status, Status::Accepted);
+    assert_eq!(duplicate.status, Status::Delivered);
     assert_eq!(duplicate.decision_id, accepted.decision_id);
     assert!(
         duplicate
@@ -126,7 +126,9 @@ fn json_storage_failure_attempts_live_but_never_claims_committed_ownership() {
     std::fs::write(sandbox.state(), "not a directory").unwrap();
     let output = invoke(&sandbox, &request().encode().unwrap());
     let reply = result(&output);
-    assert_eq!(reply.status, Status::Degraded);
+    // THE LEDGER IS A FACT OF ITS OWN, not the status: the page reached its
+    // destination, and the row that did not commit is the diagnostic beside it.
+    assert_eq!(reply.status, Status::Delivered);
     assert!(
         !reply
             .diagnostics
@@ -196,7 +198,7 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
     command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     let output = invoke_command(&sandbox, command, &request.encode().unwrap());
-    assert_eq!(result(&output).status, Status::Accepted);
+    assert_eq!(result(&output).status, Status::Delivered);
     assert!(stderr(&output).contains("replay child output"));
     let replay: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(sandbox.path("replay-event")).unwrap())
