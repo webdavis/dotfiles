@@ -281,8 +281,8 @@ fn submitted(event: &GithubEvent) {
 /// SEPARATE FROM THE DISPATCH so what is submitted can be graded without
 /// anything being delivered: the tests over this reach the same value the
 /// ledger and the channel lookup do.
-fn request_for(event: &GithubEvent) -> Option<pns_protocol::Request> {
-    let mut request = pns_protocol::Request::new(
+fn request_for(event: &GithubEvent) -> Option<pns_protocol::RequestEnvelope> {
+    let mut request = pns_protocol::RequestEnvelope::new(
         pns_protocol::RequestId::new(&event.identity).ok()?,
         pns_protocol::Name::new(pns_adapters::GITHUB).ok()?,
         // EVERY POLLED EVENT IS AN OBSERVATION: it is GitHub telling pns

@@ -1,4 +1,4 @@
-use super::{DeliveryScope, Remind, Request, State, decode};
+use super::{DeliveryScope, Remind, RequestEnvelope, State, decode};
 use crate::envelope::Rejection;
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
@@ -16,8 +16,8 @@ fn name(text: &str) -> Name {
     Name::new(text).unwrap()
 }
 
-fn golden_request() -> Request {
-    let mut request = Request::new(id("nvim-7f3a9c2e-0001"), name("nvim"), State::Done);
+fn golden_request() -> RequestEnvelope {
+    let mut request = RequestEnvelope::new(id("nvim-7f3a9c2e-0001"), name("nvim"), State::Done);
     request.session = Some(name("s-2026-09-06-a"));
     request.elapsed = Some(Duration::from_secs(42));
     request.detail = "wrote 3 files".to_string();
@@ -44,7 +44,7 @@ fn minimal() -> Value {
     })
 }
 
-fn decode_value(value: &Value) -> Result<super::Decoded, super::Rejected> {
+fn decode_value(value: &Value) -> Result<super::DecodedRequest, super::Rejected> {
     decode(value.to_string().as_bytes())
 }
 

@@ -7,7 +7,7 @@
 //! mandatory User-Agent and the empty `allowed_mentions` never talk to
 //! Discord.
 
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 use std::time::Duration;
 
 /// The API version this posts against: v10 is Discord's recommended version
@@ -102,7 +102,7 @@ pub fn create_thread(
 /// both in it. It is Discord's own JSON and never a rendered line, so nothing
 /// here reaches an operator's screen.
 pub struct DiscordReply {
-    pub outcome: DeliveryOutcome,
+    pub outcome: TransportOutcome,
     pub body: String,
 }
 
@@ -157,7 +157,7 @@ impl DiscordPost for UreqDiscordPost {
         }
         match call.send(&request.body) {
             Ok(mut response) => DiscordReply {
-                outcome: DeliveryOutcome::Status(response.status().as_u16()),
+                outcome: TransportOutcome::Status(response.status().as_u16()),
                 body: response
                     .body_mut()
                     .with_config()
@@ -169,8 +169,8 @@ impl DiscordPost for UreqDiscordPost {
             // crate refuses to build. No amount of waiting produces a status.
             Err(error) => DiscordReply {
                 outcome: match error {
-                    ureq::Error::BadUri(_) | ureq::Error::Http(_) => DeliveryOutcome::NoStatus,
-                    _ => DeliveryOutcome::NoResponse,
+                    ureq::Error::BadUri(_) | ureq::Error::Http(_) => TransportOutcome::NoStatus,
+                    _ => TransportOutcome::NoResponse,
                 },
                 body: String::new(),
             },
