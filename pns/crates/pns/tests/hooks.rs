@@ -312,6 +312,8 @@ mod approval_payload;
 mod approval_presence;
 #[path = "hooks/approval_reporting.rs"]
 mod approval_reporting;
+#[path = "hooks/arm_remind.rs"]
+mod arm_remind;
 #[path = "hooks/config_change.rs"]
 mod config_change;
 #[path = "hooks/config_change_state.rs"]
