@@ -89,9 +89,13 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
             .iter()
             .any(|code| code == "ledger_committed")
     );
-    // The request carries no `interaction` field any more, so the result
-    // never has an opinion to report.
-    assert_eq!(accepted.interaction, None);
+    // The result carries no `interaction` field any more.
+    let wire: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(wire.get("interaction"), None);
+    for leg in wire["destinations"].as_array().unwrap() {
+        assert!(leg["name"].is_string(), "each leg names itself: {leg}");
+        assert_eq!(leg.get("destination"), None);
+    }
     assert!(stderr(&first).contains("child output"));
     let delivered: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(sandbox.path("received")).unwrap()).unwrap();
@@ -107,7 +111,7 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
     assert_eq!(retained, input);
     let duplicate = result(&invoke(&sandbox, &input));
     assert_eq!(duplicate.status, Status::Delivered);
-    assert_eq!(duplicate.decision_id, accepted.decision_id);
+    assert_eq!(duplicate.ledger_sequence, accepted.ledger_sequence);
     assert!(
         duplicate
             .diagnostics
@@ -135,7 +139,7 @@ fn json_storage_failure_attempts_live_but_never_claims_committed_ownership() {
             .iter()
             .any(|code| code == "ledger_committed")
     );
-    assert_eq!(reply.decision_id, None);
+    assert_eq!(reply.ledger_sequence, None);
     assert!(
         sandbox.path("hermes.event").exists(),
         "live channel was attempted"

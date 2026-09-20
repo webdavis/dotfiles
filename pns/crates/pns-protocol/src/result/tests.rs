@@ -1,6 +1,4 @@
-use super::{
-    DeliveryOutcome, DestinationOutcome, InteractionResult, ResultEnvelope, Status, decode,
-};
+use super::{DeliveryOutcome, DestinationOutcome, ResultEnvelope, Status, decode};
 use crate::envelope::{Rejected, Rejection};
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
@@ -19,16 +17,15 @@ fn golden_result() -> ResultEnvelope {
     ResultEnvelope {
         request_id: Some(id("nvim-7f3a9c2e-0001")),
         status: Status::Partial,
-        decision_id: Some("d-000123".to_string()),
-        interaction: Some(InteractionResult::NoOpinion),
+        ledger_sequence: Some("123".to_string()),
         destinations: vec![
             DestinationOutcome {
-                destination: name("banner"),
+                name: name("banner"),
                 outcome: DeliveryOutcome::Delivered,
                 note: None,
             },
             DestinationOutcome {
-                destination: name("hermes"),
+                name: name("hermes"),
                 outcome: DeliveryOutcome::Failed,
                 note: Some("post FAILED HTTP 401".to_string()),
             },
@@ -65,8 +62,7 @@ fn a_rejection_becomes_a_rejected_result_carrying_the_recovered_id_and_the_code(
     assert_eq!(result.status, Status::Rejected);
     assert_eq!(result.diagnostics, vec!["major_unsupported".to_string()]);
     assert!(result.destinations.is_empty());
-    assert_eq!(result.interaction, None);
-    assert_eq!(result.decision_id, None);
+    assert_eq!(result.ledger_sequence, None);
     // Encodable even with no id, which is the malformed-bytes case.
     let anonymous = ResultEnvelope::rejected(&Rejected {
         request_id: None,
@@ -98,7 +94,7 @@ fn diagnostics_are_bounded_at_the_item_cap_when_encoded() {
 }
 
 #[test]
-fn every_status_outcome_and_interaction_word_is_pinned() {
+fn every_status_and_outcome_word_is_pinned_as_a_bare_string() {
     let mut result = golden_result();
     for (status, word) in [
         (Status::Delivered, "delivered"),
@@ -125,23 +121,16 @@ fn every_status_outcome_and_interaction_word_is_pinned() {
             outcome
         );
     }
-    result.interaction = Some(InteractionResult::Answered { code: 3 });
-    let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
-    assert_eq!(
-        wire["interaction"],
-        json!({ "kind": "answered", "code": 3 })
-    );
-    assert_eq!(
-        decode(wire.to_string().as_bytes()).unwrap().interaction,
-        Some(InteractionResult::Answered { code: 3 })
-    );
-    result.interaction = Some(InteractionResult::NoOpinion);
-    let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
-    assert_eq!(wire["interaction"], json!({ "kind": "no_opinion" }));
-    assert_eq!(
-        decode(wire.to_string().as_bytes()).unwrap().interaction,
-        Some(InteractionResult::NoOpinion)
-    );
+}
+
+#[test]
+fn the_ledger_row_and_each_destination_name_are_the_only_identifying_fields() {
+    let wire: Value = serde_json::from_str(&golden_result().encode().unwrap()).unwrap();
+    assert_eq!(wire["ledger_sequence"], json!("123"));
+    assert_eq!(wire["destinations"][0]["name"], json!("banner"));
+    assert_eq!(wire.get("decision_id"), None);
+    assert_eq!(wire.get("interaction"), None);
+    assert_eq!(wire["destinations"][0].get("destination"), None);
 }
 
 #[test]

@@ -35,6 +35,17 @@ fn the_golden_result_decodes_to_the_fields_posture_acts_on() {
     assert_eq!(result.diagnostics, vec!["ignored_field:detial".to_string()]);
     assert_eq!(result.destinations.len(), 2);
     assert_eq!(result.destinations[0].outcome, DeliveryOutcome::Delivered);
+    assert_eq!(result.ledger_sequence.as_deref(), Some("123"));
+    assert_eq!(result.destinations[0].name.as_str(), "macos-banner");
+}
+
+#[test]
+fn a_destination_still_naming_itself_with_the_retired_field_is_refused() {
+    let mut stale = value(RESULT);
+    let leg = stale["destinations"][0].as_object_mut().unwrap();
+    let name = leg.remove("name").unwrap();
+    leg.insert("destination".to_string(), name);
+    assert!(decode_result(stale.to_string().as_bytes()).is_err());
 }
 
 #[test]
@@ -141,13 +152,14 @@ fn identifiers_that_break_their_own_rules_are_refused_on_the_way_in() {
 }
 
 #[test]
-fn an_unknown_status_outcome_or_interaction_word_is_refused_rather_than_guessed() {
-    for field in ["status", "outcome", "interaction"] {
+fn an_unknown_or_wrapped_status_or_outcome_word_is_refused_rather_than_guessed() {
+    for field in ["status", "outcome", "wrapped_status", "wrapped_outcome"] {
         let mut hostile = value(RESULT);
         match field {
             "status" => hostile["status"] = json!("unknown"),
             "outcome" => hostile["destinations"][0]["outcome"] = json!("unknown"),
-            _ => hostile["interaction"] = json!({ "kind": "unknown" }),
+            "wrapped_status" => hostile["status"] = json!({ "kind": "partial" }),
+            _ => hostile["destinations"][0]["outcome"] = json!({ "kind": "delivered" }),
         }
         assert!(
             decode_result(hostile.to_string().as_bytes()).is_err(),
