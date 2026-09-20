@@ -423,6 +423,14 @@ summarizer_deadline = "4m"
 # printing a total it cannot back; a matched note that will not open is
 # named as one that could not be read rather than left out.
 # review_notes_glob = "/absolute/path/notes-*.md"
+# How long pns keeps one row of the activity store, the durable table of
+# harness hook events the recap reads. The gateway prunes anything older
+# on its own tick, so a shorter value takes effect without a restart.
+# THIRTY DAYS, SPELLED IN HOURS because a duration is <count><ms|s|m|h>
+# and a day is not one of the units. An hour is the floor and a year the
+# ceiling; zero is refused by name, because this store has no off switch
+# and a retention of nothing would empty it on the next tick.
+retain = "720h"
 
 # The macOS Focus modes that pns reads as your own instruction not to be
 # interrupted. While one of them is active, banners, cards and light

@@ -26,6 +26,17 @@ fn summarizer_deadline_range() -> RangeInclusive<Duration> {
     Duration::from_millis(1)..=Duration::from_secs(MAX_SUMMARIZER_DEADLINE_SECS)
 }
 
+/// `retain`'s range: an hour at the floor, so a value is long enough to hold
+/// the window the recap it feeds is about, and a year at the ceiling, past
+/// which the table is a log nobody reads rather than a recap source.
+///
+/// ZERO IS REFUSED BY NAME by `nonzero_duration_key`, exactly as `[remind]
+/// delay` refuses it: a retention of nothing empties the store on the next
+/// tick, which is a switch rather than a duration, and this key has no off.
+fn retain_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(3600)..=Duration::from_secs(365 * 24 * 60 * 60)
+}
+
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
 ///
@@ -65,6 +76,14 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
                     &setting,
                     summarizer_deadline_range(),
                 )?;
+            }
+            "retain" => {
+                recap.retain = Duration::from_secs(nonzero_duration_key(
+                    "recap",
+                    "retain",
+                    &setting,
+                    retain_range(),
+                )?);
             }
             "replay_card" => recap.replay_card = flag(&key, &setting)?,
             "post_window_recap" => recap.post_window_recap = flag(&key, &setting)?,
