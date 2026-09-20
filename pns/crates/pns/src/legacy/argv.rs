@@ -60,8 +60,8 @@ const RETIRED_FLAGS: [(&str, &str, bool); 7] = [
 ];
 
 /// Whether a token is a producer flag. A retired flag counts, so a flag whose
-/// value is missing (`--detail --agent x`) is warned about rather than eating
-/// the retired flag as its value.
+/// value is missing (`--detail --agent x`) is refused rather than eating the
+/// retired flag as its value.
 fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token)
         || BARE_FLAGS.contains(&token)
