@@ -46,7 +46,7 @@ mod tests {
                     .stderr(std::process::Stdio::null())
                     .spawn()
                     .expect("a child that is still running"),
-                expires_at: std::time::Instant::now() + Duration::from_secs(300),
+                expires_at: Some(std::time::Instant::now() + Duration::from_secs(300)),
             }],
         };
         let mut reported = std::collections::BTreeSet::new();
