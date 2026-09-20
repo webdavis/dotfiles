@@ -165,20 +165,33 @@ fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observ
     );
 }
 #[test]
-fn engine_failure_attempts_an_independent_alarm_but_never_changes_best_effort_status() {
-    for (reply, alarms) in [
-        (Reply::Refused, 0),
-        (Reply::Degraded, 0),
-        (Reply::TimedOut, 1),
-        (Reply::Malformed, 1),
+fn an_undelivered_heartbeat_exits_nonzero_and_says_so_on_stderr_and_the_banner() {
+    for (reply, sink_alarms, reason) in [
+        (Reply::Refused, 0, "Refused"),
+        (Reply::Degraded, 0, "NotCommitted"),
+        (Reply::TimedOut, 1, "TimedOut"),
+        (Reply::Malformed, 1, "Unparseable"),
     ] {
         let (config, effects) = subject("1800");
         let mut stderr = vec![];
-        assert_eq!(run_case(config, effects.clone(), reply, &mut stderr), 0);
+        assert_eq!(run_case(config, effects.clone(), reply, &mut stderr), 1);
         let effect = effects.borrow();
         assert_eq!(effect.requests.len(), 1);
-        assert_eq!(effect.alarms.len(), alarms);
-        assert!(stderr.is_empty());
+        // The sink alarms only when delivery itself broke; the run's own
+        // report is the last one and is raised however it failed.
+        assert_eq!(effect.alarms.len(), sink_alarms + 1);
+        assert_eq!(
+            String::from_utf8(stderr).unwrap(),
+            format!(
+                "posture heartbeat: the heartbeat reached no destination (route posture-pages): \
+                 {reason}\n"
+            )
+        );
+        let banner = effect.alarms.last().unwrap()[1]
+            .to_string_lossy()
+            .into_owned();
+        assert!(banner.contains(UNDELIVERED), "{banner}");
+        assert!(banner.contains(reason), "{banner}");
         for args in &effect.alarms {
             assert_eq!(args[0], "-e");
             assert!(args[1].to_string_lossy().contains("sound name \"Sosumi\""));
