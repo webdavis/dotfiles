@@ -6,11 +6,13 @@ pub(crate) fn daemon_run() -> i32 {
         eprintln!("{DAEMON_USAGE}");
         return 2;
     }
+    pns_adapters::catch_termination();
     pns_application::RunDaemon {
         settings: &pns_adapters::DaemonConfig {
             home: std::env::var("HOME").unwrap_or_default(),
         },
         clock: &now_secs,
+        stopping: &pns_adapters::stopping,
     }
     .run(
         || {
@@ -68,7 +70,7 @@ fn start_retry(now: u64, children: &mut impl JobChildren) -> Result<(), String> 
 /// switched on is up within a tick, with no bounce of the daemon in either
 /// direction.
 fn start_page(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
-    const PAGE: &str = ".failures-page";
+    const PAGE: &str = pns_domain::jobs::PAGE_JOB;
     if children.running(PAGE) {
         return Ok(());
     }

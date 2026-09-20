@@ -101,4 +101,7 @@ impl JobChildren for Children {
             Ok(())
         }
     }
+    fn terminate(&mut self, id: &str) {
+        self.trace.borrow_mut().push(format!("terminate:{id}"));
+    }
 }

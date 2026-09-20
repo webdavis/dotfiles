@@ -4,6 +4,8 @@ use std::time::Duration;
 pub struct RunDaemon<'a, S, C> {
     pub settings: &'a S,
     pub clock: &'a C,
+    /// Whether a stop has been asked for, read once per pass.
+    pub stopping: &'a dyn Fn() -> bool,
 }
 impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
     /// The loop. It sleeps, drains the spool, reaps children and retries one retained delivery.
@@ -12,10 +14,11 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
     /// retry callback claims from the delivery ledger. Their retained state and
     /// leases survive the loop; no in-memory schedule can diverge from disk.
     ///
-    /// SIGTERM NEEDS NO HANDLER. launchd stops a job with SIGTERM and the default
-    /// disposition terminates the process; a loop sleeping one second dies inside
-    /// the tick. A child mid-flight is orphaned rather than killed, and an orphaned
-    /// nudge is at worst one extra card.
+    /// SIGTERM IS READ AS A FLAG, on the pass after it arrives. A child
+    /// mid-flight is orphaned rather than killed, and an orphaned nudge is at
+    /// worst one extra card; the page is the one child that goes with the
+    /// daemon, because a listener left behind holds its port against every
+    /// daemon that follows.
     pub fn run<J, K, L>(
         &self,
         prepare: impl FnOnce() -> Result<(J, K, L), String>,
@@ -52,6 +55,10 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
         let mut ticks: u64 = 0;
         loop {
             sleep();
+            if (self.stopping)() {
+                children.terminate(pns_domain::jobs::PAGE_JOB);
+                return 0;
+            }
             ticks = ticks.wrapping_add(1);
             // THE SWITCH IS RE-READ, so `enabled = false` reaches a daemon that is
             // ALREADY RUNNING. Read once at startup it was inert: nothing bounces
@@ -62,6 +69,7 @@ impl<S: DaemonSettings, C: Clock> RunDaemon<'_, S, C> {
             let now = self.clock.now_secs();
             if ticks.is_multiple_of(SWITCH_TICKS) {
                 if !self.enabled(&mut notice) {
+                    children.terminate(pns_domain::jobs::PAGE_JOB);
                     notice(DaemonNotice::Output(DISABLED.into()));
                     return 0;
                 }

@@ -27,6 +27,18 @@ const LISTING_LIMIT: u32 = 20;
 /// How long the child waits before trying a taken port again. See [`bind`].
 const REBIND_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// How long the refusal above stays said before it is written again. See
+/// [`say_now`].
+const RESAY_AFTER: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// How long `answer` waits for a request line before giving up on the client.
+///
+/// THE LOOP IS SINGLE THREADED, so a connection that never sends a line would
+/// otherwise block every reader behind it forever: a stray preconnect from a
+/// browser is enough to leave the page silently dead until the daemon that
+/// started it restarts it.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Serve until the listener dies, which for the daemon's child means until the
 /// daemon stops it.
 ///
@@ -34,6 +46,7 @@ const REBIND_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
 /// time, and a thread per connection would be machinery guarding against a load
 /// this cannot have.
 pub(crate) fn serve(port: u16) {
+    parent_watch::exit_when_orphaned();
     serve_on(bind(port));
 }
 
@@ -44,11 +57,18 @@ pub(crate) fn serve(port: u16) {
 /// fixed number, and the retry loop above would turn that race into a
 /// thirty-second wait rather than a failure.
 fn serve_on(listener: TcpListener) {
+    serve_on_within(listener, REQUEST_TIMEOUT);
+}
+
+/// `serve_on`, with the request timeout named rather than the constant, so a
+/// test can shrink it and prove the loop moves on inside milliseconds rather
+/// than waiting out the production value.
+fn serve_on_within(listener: TcpListener, request_timeout: std::time::Duration) {
     let store = SqliteStore::for_records(pns_adapters::state_dir());
     // `flatten` DROPS THE FAILED ACCEPTS, which is the point: a phone that hung
     // up mid-handshake must not take the page down for the next reader.
     for stream in listener.incoming().flatten() {
-        let _ = answer(&store, stream);
+        let _ = answer(&store, stream, request_timeout);
     }
 }
 
@@ -65,17 +85,18 @@ fn serve_on(listener: TcpListener) {
 /// process holding it exits, or the operator moves it. Exiting would leave the
 /// page permanently off with nothing to notice it and no second line to say so.
 fn bind(port: u16) -> TcpListener {
-    let mut said = false;
+    let mut said = None;
     loop {
         match TcpListener::bind(("127.0.0.1", port)) {
             Ok(listener) => return listener,
             Err(error) => {
-                if !said {
+                let now = std::time::Instant::now();
+                if say_now(said, now) {
                     eprintln!(
                         "pns failures: could not bind 127.0.0.1:{port}: {error}; \
                          waiting for the port"
                     );
-                    said = true;
+                    said = Some(now);
                 }
                 std::thread::sleep(REBIND_AFTER);
             }
@@ -83,7 +104,23 @@ fn bind(port: u16) -> TcpListener {
     }
 }
 
-fn answer(store: &SqliteStore, mut stream: TcpStream) -> std::io::Result<()> {
+/// Whether the refusal above is written on this attempt.
+///
+/// ONCE, THEN EVERY `RESAY_AFTER`. A line per retry wrote sixteen thousand
+/// copies of one sentence into the daemon's log; a line written once and never
+/// again leaves a page that has been down for days saying so only in a file
+/// that has since rotated. The repeat is what keeps a standing refusal
+/// readable in the log the operator actually has.
+fn say_now(said: Option<std::time::Instant>, now: std::time::Instant) -> bool {
+    said.is_none_or(|said| now.duration_since(said) >= RESAY_AFTER)
+}
+
+fn answer(
+    store: &SqliteStore,
+    mut stream: TcpStream,
+    request_timeout: std::time::Duration,
+) -> std::io::Result<()> {
+    stream.set_read_timeout(Some(request_timeout))?;
     let mut line = String::new();
     BufReader::new(stream.try_clone()?).read_line(&mut line)?;
     let response = match target(&line) {
@@ -181,6 +218,8 @@ fn ok(body: &str) -> String {
 fn not_found() -> String {
     response("404 Not Found", page("pns: this page serves / and /<id>\n"))
 }
+
+mod parent_watch;
 
 #[cfg(test)]
 #[path = "failures_page/tests.rs"]
