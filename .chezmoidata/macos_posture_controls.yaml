@@ -54,12 +54,12 @@
 #     DELIBERATELY disabled on this machine, so the declared expect is
 #     `disabled`: the control asserts the operator-declared posture, not a
 #     blanket "enabled". Change the declaration when the intent changes.
-#   - defaults_autologin runs `defaults read` on loginwindow's autoLoginUser
-#     key: the control means "auto-login is not DECLARED", so the reader asks
-#     the declaration itself. An absent key (or a wholly absent loginwindow
-#     domain) is the healthy off; a present key is on whatever the value; any
-#     other read failure is indeterminate, distinguished by the canonical
-#     does-not-exist diagnostic. `sysadminctl -autologin status` was rejected:
+#   - defaults_autologin parses /Library/Preferences/com.apple.loginwindow.plist
+#     in process and looks for the autoLoginUser key: the control means
+#     "auto-login is not DECLARED", so the reader asks the declaration itself.
+#     An absent key is the healthy off; a present key is on whatever the value;
+#     a file that cannot be read or parsed is indeterminate. `sysadminctl
+#     -autologin status` was rejected:
 #     it reports the EFFECTIVE state and prints "Automatic login is disabled
 #     because FileVault is enabled." even with autoLoginUser set, so a
 #     configured auto-login would read healthy until FileVault went off and it
@@ -139,7 +139,7 @@ macos:
     #   - the lulu_rule readers are existence-only, stated here so nobody
     #     upgrades the claim: rules.plist is a keyed archive of LuLu's
     #     private Rule class, readable only as the path strings it mentions
-    #     (via a read-only `plutil -convert xml1 -o -`). The check proves a
+    #     (parsed in process, read only). The check proves a
     #     rule MENTIONING the declared binary exists; it
     #     does not prove the rule allows rather than blocks,
     #     and it must not claim to. (Today

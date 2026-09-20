@@ -1,3 +1,4 @@
+use crate::property_list::PropertyList;
 use crate::{CommandIo, CommandRunner};
 use posture_application::{EnrichmentInspection, InspectionFailure};
 use std::ffi::OsStr;
@@ -32,35 +33,28 @@ impl<R: CommandRunner> SystemInspection<R> {
                     merge_stderr: merged,
                 },
             )
-            .map(|mut bytes| {
-                if bytes.contains(&0) {
-                    self.diagnostics.extend_from_slice(
-                        b"posture: warning: ignored null byte in inspection output\n",
-                    );
-                    bytes.retain(|byte| *byte != 0);
-                }
-                // Command substitution strips all trailing newlines, including an empty raw plist value.
-                while bytes.last() == Some(&b'\n') {
-                    bytes.pop();
-                }
-                bytes
-            })
+            .map(|bytes| self.sanitize(bytes))
+    }
+
+    fn sanitize(&mut self, mut bytes: Vec<u8>) -> Vec<u8> {
+        if bytes.contains(&0) {
+            self.diagnostics
+                .extend_from_slice(b"posture: warning: ignored null byte in inspection output\n");
+            bytes.retain(|byte| *byte != 0);
+        }
+        // Command substitution strips all trailing newlines, including an empty raw plist value.
+        while bytes.last() == Some(&b'\n') {
+            bytes.pop();
+        }
+        bytes
     }
 }
 impl<R: CommandRunner> EnrichmentInspection for SystemInspection<R> {
     fn plist_value(&mut self, path: &Path, key: &str) -> Result<Vec<u8>, InspectionFailure> {
-        self.read(
-            "/usr/bin/plutil",
-            &[
-                OsStr::new("-extract"),
-                OsStr::new(key),
-                OsStr::new("raw"),
-                OsStr::new("-o"),
-                OsStr::new("-"),
-                path.as_os_str(),
-            ],
-            false,
-        )
+        let value = PropertyList::read(path)
+            .and_then(|list| list.raw(key))
+            .ok_or(InspectionFailure::Failed)?;
+        Ok(self.sanitize(value))
     }
     fn signing(&mut self, path: &Path) -> Result<Vec<u8>, InspectionFailure> {
         self.read(
