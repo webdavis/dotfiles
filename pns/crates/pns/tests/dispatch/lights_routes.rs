@@ -109,7 +109,7 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
 #[test]
 fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
     // `[plugins.lights] quiet_hours` IS NO LONGER A RUNG OF THE ROUTED CHAIN. It
-    // is now exactly one thing: the schedule a bare `pns lights quiet` reads,
+    // is now exactly one thing: the schedule a bare `pns lights mute` reads,
     // and the window the no-map pulse takes. A routed lamp states its own
     // `dim_window` or has none, so a typo in the house key cannot darken it.
     //
@@ -141,7 +141,7 @@ fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     // the only place the two answers can come out disagreeing about a lamp the
     // operator switched off.
     //
-    // TYPED, NOT INJECTED: the mute is armed by running `pns quiet 1h` in the
+    // TYPED, NOT INJECTED: the mute is armed by running `pns mute 1h` in the
     // same sandbox, which is the path an operator walks at bedtime.
     assert_eq!(
         lamp_run(
@@ -172,7 +172,7 @@ fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
 #[test]
 fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     // A GUARD, and it is the operator's own scope for this command: the lights
-    // mute is LIGHTS ONLY. `pns quiet` mutes the engine, this mutes one place's
+    // mute is LIGHTS ONLY. `pns mute` mutes the engine, this mutes one place's
     // lamps, and nothing reads the other's file. A mute that quietly took the
     // card with it would be the worst version of this feature: an approval the
     // operator is blocked on, silenced by a command about a bedroom lamp.

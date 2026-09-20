@@ -3,7 +3,9 @@ use crate::*;
 pub(crate) fn lights_mode(verb: &str) -> i32 {
     match verb {
         "tick" => lights_tick(),
-        "quiet" => lights_quiet(),
+        "mute" => lights_mute(),
+        // The word the lamps' mute used to answer to.
+        "quiet" => retired_lights_quiet(),
         "enroll" => crate::command_enroll::lights_enroll(),
         "pulse" => lights_pulse(),
         // UNKNOWN IS AN ERROR, never a silent fallthrough. Argv parsing on the
@@ -18,18 +20,18 @@ pub(crate) fn lights_mode(verb: &str) -> i32 {
 }
 
 pub(crate) const LIGHTS_USAGE: &str = "pns: usage: pns lights tick | \
-pns lights quiet [<place> [<duration>|off]] | \
+pns lights mute [<place> [<duration>|off]] | \
 pns lights pulse [<exit-code>] | \
 pns lights enroll --bridge-id <id> | --allow-unverified";
-/// The lamps' own mute: one place, quiet for a bounded while, by hand.
+/// The lamps' own mute: one place, muted for a bounded while, by hand.
 ///
 /// LIGHTS ONLY, and that is the operator's own scope: cards, banners, the
-/// durable log and `pns quiet` are untouched, so an agent that needs an answer
+/// durable log and `pns mute` are untouched, so an agent that needs an answer
 /// still reaches the phone while the bedroom lamp stays out of it. The two
 /// mutes share a duration parser and nothing else, and neither reads the
 /// other's file.
 ///
-/// FAIL OPEN AT EVERY TURN, which is `quiet.rs`'s direction rather than the
+/// FAIL OPEN AT EVERY TURN, which is `mute.rs`'s direction rather than the
 /// window's: a state file nobody can parse mutes NOTHING and says so, because a
 /// lights mute the operator cannot see is worse than a lamp that flashed.
 ///
@@ -37,7 +39,7 @@ pns lights enroll --bridge-id <id> | --allow-unverified";
 /// runs racing means an operator typing two commands in the same second, and
 /// the loser is one mute they can see is missing and retype. A lock between two
 /// interactive commands would be a mechanism with no reader.
-fn lights_quiet() -> i32 {
+fn lights_mute() -> i32 {
     let arguments: Vec<String> = crate::arguments_after_verb();
     let home = std::env::var("HOME").unwrap_or_default();
     let loaded = load_config(&config_path(&home));
@@ -46,7 +48,7 @@ fn lights_quiet() -> i32 {
             .lights
             .as_deref()
             .map(|lights| {
-                pns_application::quiet_names(lights, &arguments, || {
+                pns_application::mute_names(lights, &arguments, || {
                     pns_adapters::bridge_inventory(config)
                 })
             })
@@ -62,7 +64,7 @@ fn lights_quiet() -> i32 {
     // HOW LONG A BARE MUTE LASTS, off the operator's OWN schedule rather than
     // any one room's dim window: a mute typed at bedtime is about their night.
     // A window nobody can parse states no schedule, which the refusal covers.
-    let until_quiet_ends = pns_domain::lights::mute::bare_mute_secs(
+    let until_mute_ends = pns_domain::lights::mute::bare_mute_secs(
         match &loaded {
             Ok(LoadOutcome::Loaded(config)) => enabled_hue_table(config)
                 .and_then(|settings| quiet_window(&settings).ok().flatten())
@@ -71,7 +73,7 @@ fn lights_quiet() -> i32 {
         },
         now.and_then(local_minutes_since_midnight),
     );
-    let command = match crate::quiet_command(&arguments, &known, until_quiet_ends) {
+    let command = match crate::mute_command(&arguments, &known, until_mute_ends) {
         Ok(command) => command,
         Err(refusal) => {
             eprintln!("{refusal}");
@@ -79,7 +81,7 @@ fn lights_quiet() -> i32 {
             return 2;
         }
     };
-    match (pns_application::SetLightsQuiet {
+    match (pns_application::SetLightsMute {
         mutes: &pns_adapters::SqliteStore::for_records(state),
     })
     .run(&command, now, |warning| eprintln!("{warning}"))
@@ -88,10 +90,10 @@ fn lights_quiet() -> i32 {
             let paint = crate::style::Paint::for_stdout();
             for line in crate::style::header(
                 paint,
-                "pns lights quiet",
+                "pns lights mute",
                 &[crate::style::HeaderLine {
                     label: "Scope",
-                    text: "the lamps only; cards, banners and `pns quiet` are untouched",
+                    text: "the lamps only; cards, banners and `pns mute` are untouched",
                 }],
             ) {
                 println!("{line}");
@@ -101,7 +103,7 @@ fn lights_quiet() -> i32 {
                 "{}",
                 crate::style::heading(
                     paint,
-                    "Quiet now",
+                    "Muted now",
                     "which lamps are muted, and for how long"
                 )
             );
@@ -179,6 +181,13 @@ fn lights_pulse() -> i32 {
 
 pub(crate) const PULSE_USAGE: &str = "pns: usage: pns lights pulse [<exit-code>] | \
 pns lights pulse --help, -h (a bare `pulse` is a success pulse)";
+
+/// What `pns lights quiet` answers now: the verb that replaced it, and no mute.
+fn retired_lights_quiet() -> i32 {
+    eprintln!("pns: quiet is now mute: run `pns lights mute [<place> [<duration>|off]]`");
+    eprintln!("{LIGHTS_USAGE}");
+    2
+}
 
 /// What `pns pulse` answers now: the verb that replaced it, and no pulse.
 pub(crate) fn retired_pulse() -> i32 {

@@ -32,7 +32,7 @@ pub fn publish_muted(
 /// that is unreadable, not UTF-8, or a directory standing where it should be
 /// says NOTHING about which places are quiet, exactly as a corrupt one does,
 /// and the two readers of that complaint take opposite directions with it.
-/// `ad_hoc_quiet` mutes EVERYTHING (a lamp path fails dark), and the command
+/// `ad_hoc_mute` mutes EVERYTHING (a lamp path fails dark), and the command
 /// prints it and rebuilds from an empty list. Either way the operator is told,
 /// which is what a complaint is for: a mute nobody can see, in either
 /// direction, is the state worth a sentence.
@@ -47,7 +47,7 @@ pub fn muted_state(state: &Path) -> (Vec<pns_domain::lights::mute::Muted>, Vec<S
                 Vec::new(),
                 vec![format!(
                     "pns: state error (lights-quiet could not be read: {error}); \
-                     nothing is quiet"
+                     nothing is muted"
                 )],
             );
         }

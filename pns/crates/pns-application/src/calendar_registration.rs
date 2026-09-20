@@ -30,7 +30,7 @@ pub fn ensure_calendar_poll(jobs: &impl JobSpool, interval: Option<u64>, now: u6
         until: due.max(now.saturating_add(CALENDAR_LEASE_SECS)),
         every: Some(interval),
         unless_marker: None,
-        args: vec!["quiet".to_string(), "calendar".to_string()],
+        args: vec!["mute".to_string(), "calendar".to_string()],
     };
     let _ = jobs.schedule(&job, now);
 }
