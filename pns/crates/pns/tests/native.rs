@@ -85,7 +85,7 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
 fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output() {
     let sandbox = Sandbox::new("native-moshi");
     sandbox.write_config(
-        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ndevice_token = \"tok-integration\"\n",
     );
     let capture = Capture::builder(&sandbox, "phone").start();
 
@@ -128,7 +128,7 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
 fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token() {
     let sandbox = Sandbox::new("dead-moshi");
     sandbox.write_config(
-        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ndevice_token = \"tok-integration\"\n",
     );
     let mut command = plugin_command(&sandbox);
     command
@@ -243,7 +243,7 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
 
 /// The route the config named, ON THE WIRE.
 ///
-/// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE. `stale_alert_channel` reading a
+/// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE. `stale_alert_route` reading a
 /// name and `channel_url` swapping a path segment are each pinned by unit
 /// tests; what nothing pinned is the ASSIGNMENT of the one onto the other, and
 /// dropping the route from the event passed the entire suite. Every other home
@@ -270,7 +270,7 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
     sandbox.write_config(&format!(
         "[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          keys = {{ pns-events = \"gate-signing-key\", priority = \"priority-signing-key\" }}\n\
-         {}stale_alert_channel = \"priority\"\n",
+         {}alert_route = \"priority\"\n",
         router_table(&router.localhost_url())
     ));
 

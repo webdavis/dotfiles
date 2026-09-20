@@ -137,7 +137,7 @@ fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
     count_alerts(&sandbox);
     let router = RouterStub::start(KEYS_DISAGREE);
     sandbox.write_config(&format!(
-        "{}stale_alert_channel = \"../alert\"\n",
+        "{}alert_route = \"../alert\"\n",
         stale_config(&router.url())
     ));
     let mut probe = home_probe(&sandbox);
@@ -145,7 +145,7 @@ fn an_unusable_stale_alert_route_complains_and_still_delivers_the_alert() {
 
     assert!(
         stderr(&output).lines().any(|line| line
-            == "pns: config error (stale_alert_channel = \"../alert\" in [plugins.home_presence] is not a \
+            == "pns: config error (alert_route = \"../alert\" in [plugins.home_presence] is not a \
                 usable route name); the stale alert posts to the default route"),
         "{}",
         stderr(&output)

@@ -6,6 +6,7 @@
 
 use super::{Item, Mark};
 use crate::CertificatePin;
+use crate::config_keys::LIGHTS_BRIDGE_HOST;
 
 /// What this process learned about the pin while it ran.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,9 +37,9 @@ pub enum PinState {
 /// reason to name a fingerprint at all.
 pub fn certificate_row(state: &PinState) -> Item {
     match state {
-        PinState::Unconfigured => Item::note(
-            "certificate: no [plugins.lights] bridge, so no certificate is pinned".to_string(),
-        ),
+        PinState::Unconfigured => Item::note(format!(
+            "certificate: no [plugins.lights] {LIGHTS_BRIDGE_HOST}, so no certificate is pinned"
+        )),
         PinState::Refused(reason) => Item::row(Mark::Bad, format!("certificate: {reason}")),
         PinState::Held => Item::row(
             Mark::Good,

@@ -79,7 +79,7 @@ fn each_presence_verdict_reports_its_own_sentence() {
         verdict_line(&HomePresence::Unknown),
         concat!(
             "unknown: the router returned no readable client list, so nothing was established; ",
-            "check router_url and api_key in [plugins.home_presence] ",
+            "check url and api_key in [plugins.home_presence] ",
             "(a rejected key reads the same here as an unreachable router)"
         )
     );
@@ -226,7 +226,7 @@ fn every_setup_failure_line_names_what_to_look_at() {
         (SetupFailure::RouterDisabled, "[plugins.home_presence]"),
         (SetupFailure::NoType, "type"),
         (SetupFailure::UnknownType("asus".to_string()), "asus"),
-        (SetupFailure::InvalidRouterTable, "router_url"),
+        (SetupFailure::InvalidRouterTable, "url"),
         (SetupFailure::NoDeviceIdentifier, "device_hostname"),
         (
             SetupFailure::InvalidDeviceKey {

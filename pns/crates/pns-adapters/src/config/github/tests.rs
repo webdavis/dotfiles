@@ -10,7 +10,7 @@ fn loaded(text: &str) -> Result<Option<super::GithubSource>, ConfigError> {
 }
 
 fn armed(extra: &str) -> String {
-    format!("[plugins.github]\nenabled = true\ntoken = \"{FAKE_TOKEN}\"\n{extra}")
+    format!("[plugins.github]\nenabled = true\npersonal_access_token = \"{FAKE_TOKEN}\"\n{extra}")
 }
 
 #[test]
@@ -27,7 +27,7 @@ fn an_absent_or_switched_off_table_is_inert_rather_than_a_refusal() {
     for text in [
         "",
         "[plugins.github]\nenabled = false\n",
-        &format!("[plugins.github]\nenabled = false\ntoken = \"{FAKE_TOKEN}\"\n"),
+        &format!("[plugins.github]\nenabled = false\npersonal_access_token = \"{FAKE_TOKEN}\"\n"),
     ] {
         assert!(
             matches!(loaded(text), Ok(None)),
@@ -43,8 +43,8 @@ fn an_armed_table_with_no_usable_token_is_refused_by_name() {
     // file could have named itself.
     for text in [
         "[plugins.github]\nenabled = true\n",
-        "[plugins.github]\nenabled = true\ntoken = \"\"\n",
-        "[plugins.github]\nenabled = true\ntoken = 5\n",
+        "[plugins.github]\nenabled = true\npersonal_access_token = \"\"\n",
+        "[plugins.github]\nenabled = true\npersonal_access_token = 5\n",
     ] {
         let Err(ConfigError::Invalid(said)) = loaded(text) else {
             panic!("case {text:?} was not refused");

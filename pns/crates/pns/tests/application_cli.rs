@@ -76,7 +76,7 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
     listener.set_nonblocking(true).unwrap();
     let port = listener.local_addr().unwrap().port();
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"owned\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"owned\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          [focus]\nsilence = [\"Fixture Focus\"]\n"
     ));
     sandbox.write_focus_store("com.apple.donotdisturb.mode.fixture", "Fixture Focus");
