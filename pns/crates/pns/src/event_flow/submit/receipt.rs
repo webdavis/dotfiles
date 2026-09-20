@@ -1,5 +1,7 @@
 use super::NotSubmitted;
-use pns_application::{LedgerCompletion, LedgerFailure, Submitted, UnconfirmedDelivery};
+use pns_application::{
+    LedgerCompletion, LedgerFailure, SubmissionRecord, Submitted, UnconfirmedDelivery,
+};
 use pns_domain::Delivery;
 use pns_protocol::{DeliveryOutcome, DestinationOutcome, Name, ResultEnvelope, Status};
 
@@ -30,43 +32,7 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
                 .collect(),
             None,
         ),
-        Ok(Submitted::Existing(record)) => (
-            Some(record.sequence),
-            {
-                let decorative: std::collections::HashSet<String> = record
-                    .submission
-                    .legs
-                    .iter()
-                    .filter(|leg| leg.decorative)
-                    .map(|leg| leg.destination.clone())
-                    .collect();
-                record
-                    .attempts
-                    .into_iter()
-                    .map(|attempt| {
-                        let verdict = match attempt.completion {
-                            LedgerCompletion::Rejected { .. } => DeliveryOutcome::Failed,
-                            LedgerCompletion::Acknowledged { .. } => DeliveryOutcome::Delivered,
-                            LedgerCompletion::Retry {
-                                outcome: UnconfirmedDelivery::Failed,
-                                ..
-                            } => DeliveryOutcome::Failed,
-                            LedgerCompletion::Retry {
-                                outcome: UnconfirmedDelivery::Unlaunched,
-                                ..
-                            } => DeliveryOutcome::Unlaunched,
-                            LedgerCompletion::Retry {
-                                outcome: UnconfirmedDelivery::Unknown,
-                                ..
-                            } => DeliveryOutcome::Silent,
-                        };
-                        let is_decorative = decorative.contains(&attempt.destination);
-                        (named(attempt.destination, verdict), is_decorative)
-                    })
-                    .collect()
-            },
-            None,
-        ),
+        Ok(Submitted::Existing(record)) => (Some(record.sequence), existing_outcomes(record), None),
         Err(error) => (
             None,
             Vec::new(),
@@ -100,6 +66,47 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
                 .into(),
         ],
     }
+}
+
+/// The verdict each leg of a REPLAYED submission gets, reconstructed from its
+/// stored completion rather than a fresh `Delivery`.
+fn existing_outcomes(record: Box<SubmissionRecord>) -> Vec<(DestinationOutcome, bool)> {
+    let decorative: std::collections::HashSet<String> = record
+        .submission
+        .legs
+        .iter()
+        .filter(|leg| leg.decorative)
+        .map(|leg| leg.destination.clone())
+        .collect();
+    record
+        .attempts
+        .into_iter()
+        .map(|attempt| {
+            let verdict = match attempt.completion {
+                LedgerCompletion::Rejected { .. } => DeliveryOutcome::Failed,
+                LedgerCompletion::Acknowledged { .. } => DeliveryOutcome::Delivered,
+                LedgerCompletion::Retry {
+                    outcome: UnconfirmedDelivery::Failed,
+                    ..
+                } => DeliveryOutcome::Failed,
+                LedgerCompletion::Retry {
+                    outcome: UnconfirmedDelivery::Unlaunched,
+                    ..
+                } => DeliveryOutcome::Unlaunched,
+                // The ledger persists a live Silent as this retry outcome
+                // (see sqlite/ledger/outcomes.rs), so replaying it back as
+                // Silent here reports the same arrival the first attempt
+                // did; the ledger keeps retrying it in the background
+                // regardless.
+                LedgerCompletion::Retry {
+                    outcome: UnconfirmedDelivery::Unknown,
+                    ..
+                } => DeliveryOutcome::Silent,
+            };
+            let is_decorative = decorative.contains(&attempt.destination);
+            (named(attempt.destination, verdict), is_decorative)
+        })
+        .collect()
 }
 
 /// DELIVERY DECIDES THE STATUS, never the ledger: a committed row whose every
