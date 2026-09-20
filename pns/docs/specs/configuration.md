@@ -714,9 +714,9 @@ Then that key moves and the other seven stay at their defaults
   `summarizer`, `repos` or `review_notes` is a WORKING setting, not a broken one
   (`src/config_text.rs:LAYOUT`, the `recap` entry).
 - Thresholds: `min_events` defaults to 8 and has a floor of 1 with no ceiling; `summarizer_deadline`
-  defaults to 240 and admits 0 through 3600 inclusive. One step either side:
-  `summarizer_deadline = "3600s"` parses to an hour and `"3601s"` is refused
-  (`src/config.rs:the_summarizers_deadline_is_a_count_of_seconds_with_a_generous_default`);
+  defaults to "4m" and admits "1ms" through "1h" inclusive, with "0s" also accepted. One step either
+  side: `summarizer_deadline = "3600s"` parses to an hour and `"3601s"` is refused
+  (`config/recap.rs:the_summarizers_deadline_is_a_duration_with_a_generous_default`);
   `min_events = 1` parses to 1 and `0` is refused
   (`src/config.rs:a_volume_threshold_of_zero_is_refused_by_name_rather_than_read_as_every_event`).
 - Required side effects: `src/config.rs:parse_recap` calls `admits_flat("recap", &key)` before its match
