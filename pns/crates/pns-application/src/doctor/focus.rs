@@ -28,17 +28,30 @@ pub struct FocusReading {
 /// reported as quiet. Telling those apart needs a positive assertion about a
 /// shape Apple promises nothing about.
 ///
-/// FIVE SENTENCES, because ABSENT AND UNREADABLE ARE DIFFERENT THINGS TO SAY,
+/// SIX SENTENCES, because ABSENT AND UNREADABLE ARE DIFFERENT THINGS TO SAY,
 /// which is the rule `decision_section` and `missed_line` already follow one
 /// screen up. A machine that has never asserted a Focus has no store, and
 /// telling that operator their database could not be read sends them after a
 /// Full Disk Access grant that was never the problem.
+///
+/// `enabled` and `modes_named` ARE TAKEN SEPARATELY rather than folded into
+/// one another before this call, because their conjunction cannot say the one
+/// state the roster surviving the switch being off exists to describe: a
+/// roster that is still there while `[focus] enabled = false`. Collapsing
+/// them upstream is what used to print "no table names a mode" over a file
+/// that plainly names one.
 pub fn doctor_focus(
     enabled: bool,
+    modes_named: bool,
     read: impl FnOnce() -> Result<FocusReading, std::io::ErrorKind>,
 ) -> String {
-    if !enabled {
+    if !modes_named {
         return "pns doctor: focus awareness is off (no [focus] table names a mode to silence)"
+            .to_string();
+    }
+    if !enabled {
+        return "pns doctor: focus awareness is off ([focus] enabled = false, with modes still \
+                 listed)"
             .to_string();
     }
     match read() {

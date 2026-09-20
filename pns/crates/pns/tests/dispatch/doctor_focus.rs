@@ -80,6 +80,25 @@ fn the_doctor_tells_the_truth_about_a_named_focus_in_every_state() {
 }
 
 #[test]
+fn the_doctor_never_claims_no_roster_while_the_switch_is_merely_off() {
+    // THE SWITCH AND THE ROSTER ARE TWO FACTS, not one. A config that turns
+    // Focus awareness off while still naming modes must not be told back "no
+    // table names a mode to silence": the table plainly does.
+    let sandbox = Sandbox::new("doctor-focus-switch-off-roster-named");
+    sandbox.write_config("[focus]\nenabled = false\nmodes = [\"Sleep\"]\n");
+    let output = doctor_command(&sandbox).output().expect("the engine runs");
+    let printed = String::from_utf8_lossy(&output.stdout).to_string();
+    assert!(
+        printed.contains("[focus] enabled = false") && printed.contains("modes still listed"),
+        "the switched-off-with-a-roster state never surfaced: {printed}"
+    );
+    assert!(
+        !printed.contains("no [focus] table names a mode to silence"),
+        "the doctor claimed no roster while one was named: {printed}"
+    );
+}
+
+#[test]
 fn a_mode_catalog_the_doctor_cannot_read_is_said_and_never_reported_as_health() {
     // NAME MATCHING GOES INERT WITH NO CATALOG. The assertion store decides
     // the verdict and the catalog only resolves names, so a catalog that

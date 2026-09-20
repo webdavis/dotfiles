@@ -49,7 +49,8 @@ pub(crate) fn doctor_mode() -> i32 {
         hermes_keys,
         discord,
         replay_card,
-        focus_silence,
+        focus_enabled,
+        focus_modes,
         daemon_enabled,
         remind_delay_secs,
         lights,
@@ -64,7 +65,8 @@ pub(crate) fn doctor_mode() -> i32 {
                 .unwrap_or_default(),
             read_discord(config),
             config.recap.replay_card,
-            config.focus_silence().to_vec(),
+            config.focus_enabled,
+            config.focus_modes.clone(),
             config.daemon_enabled,
             config.remind_delay_secs,
             config.lights.clone(),
@@ -87,6 +89,7 @@ pub(crate) fn doctor_mode() -> i32 {
             Mobile::default(),
             HermesKeys::default(),
             DiscordSettings::default(),
+            true,
             true,
             Vec::new(),
             true,
@@ -230,8 +233,8 @@ pub(crate) fn doctor_mode() -> i32 {
             pairing: pns_adapters::read_pairing,
             tap: presence_runtime::phone_tap_status,
             focus: || {
-                pns_application::doctor_focus(!focus_silence.is_empty(), || {
-                    pns_adapters::focus_now(&home, &focus_silence).map_err(|error| error.kind())
+                pns_application::doctor_focus(focus_enabled, !focus_modes.is_empty(), || {
+                    pns_adapters::focus_now(&home, &focus_modes).map_err(|error| error.kind())
                 })
             },
             daemon: || {
