@@ -199,7 +199,7 @@ ordinary thing to write, and `pns doctor` is where the operator learns whether i
 | `gateway.enabled` | bool | `true` (`DEFAULT_GATEWAY_ENABLED`) | none  | no     | `Invalid`: `` `gateway` key `enabled` has type `{type}`, not boolean `` | `src/config.rs:parse_gateway` | `the_gateway_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name` |
 
 Default ON, which is the opposite of `[focus]` and of every plugin. The reason given at
-`src/config.rs:Config::daemon_enabled`: this switch delivers nothing by itself, "an idle daemon reads one
+`src/config.rs:Config::gateway_enabled`: this switch delivers nothing by itself, "an idle daemon reads one
 empty directory a second," and default OFF "would put every feature that rides the clock behind TWO
 switches."
 

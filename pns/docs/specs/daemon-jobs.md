@@ -184,7 +184,7 @@ Then the usage text goes to stderr and the process exits 2 without starting a cl
 - Fail direction: loud and non-zero, before the config is read, before the spool is touched and before
   the loop starts.
 - Thresholds: Not applicable.
-- Required side effects: `DAEMON_USAGE` on stderr, exit 2.
+- Required side effects: `GATEWAY_USAGE` on stderr, exit 2.
 - Forbidden side effects: no heartbeat is published, no spool directory is created, and the loop is not
   entered.
 - Timeout and cancellation: Not applicable.
@@ -210,7 +210,7 @@ Then it prints one line and exits 0
   parse error, and the parse error also prints to stderr:
   `pns gateway: the config could not be read (<detail>); carrying on enabled`. A file that will not parse
   must not silently stop a service the operator enabled. The default is also on with no `[gateway]` table
-  at all (`src/config.rs:DEFAULT_GATEWAY_ENABLED`, true, and the reasoning in the `Config::daemon_enabled`
+  at all (`src/config.rs:DEFAULT_GATEWAY_ENABLED`, true, and the reasoning in the `Config::gateway_enabled`
   doc comment: this switch delivers nothing, an idle daemon reads one empty directory a second, and
   default-off would put every clock-riding feature behind two switches).
 - Thresholds: Not applicable. The key is a boolean; `[gateway] enabled` with a non-boolean value is a
@@ -1103,7 +1103,7 @@ Then the record is validated and published by rename, with no daemon involved
   fails.
 - Fail direction: LOUD and non-zero for a typed command, because `pns`'s own event parser is lenient (it
   sits on a notification path that must not fail) and this one sits in front of an operator who typed a
-  command and will believe it did what they wrote. An unparseable argv prints `DAEMON_USAGE` and exits 2.
+  command and will believe it did what they wrote. An unparseable argv prints `GATEWAY_USAGE` and exits 2.
   No clock prints `pns gateway: this machine has no clock to schedule against` and exits 1. A refusal
   prints `pns gateway: <refusal>` and exits 1 (a spool failure reads
   `pns gateway: the spool write failed: <error>`).
@@ -1152,8 +1152,8 @@ When the job is there, absent, or the id is not a job id
 
 Then the three cases are exit 0, exit 0 and exit 1
 
-- Success: `src/main.rs:daemon_cancel` destructures argv into exactly `[flag, id]` and requires
-  `flag == "--id"`; anything else prints `DAEMON_USAGE` and exits 2. `src/daemon.rs:cancel` validates the
+- Success: `src/main.rs:gateway_cancel` destructures argv into exactly `[flag, id]` and requires
+  `flag == "--id"`; anything else prints `GATEWAY_USAGE` and exits 2. `src/daemon.rs:cancel` validates the
   id with `name_is_safe` and unlinks `<spool>/<id>`.
 - Failure sources: an unsafe id; a remove that fails for a reason other than not-found.
 - Fail direction: an unsafe id is `` pns gateway: `<id>` is not a job id ``, exit 1. A remove error is
@@ -1370,4 +1370,4 @@ Then the process dies inside its tick and any live child is left running
 | `bound`           | `src/main.rs:Bounded`, `src/main.rs:child_bound`, `src/main.rs:CHILD_TICKS`                              |
 | `working file`    | `src/daemon.rs:WORKING_PREFIX`, `src/daemon.rs:pending_for`, `src/main.rs:release`                       |
 | `startup refusal` | `src/daemon.rs:Startup`, `src/daemon.rs:prepare_spool`                                                   |
-| the enable switch | `src/config.rs:Config::daemon_enabled`, `src/main.rs:gateway_enabled`, `src/main.rs:SWITCH_TICKS`         |
+| the enable switch | `src/config.rs:Config::gateway_enabled`, `src/main.rs:gateway_enabled`, `src/main.rs:SWITCH_TICKS`         |

@@ -80,7 +80,7 @@ subcommand itself is mistyped:
 
 - `src/main.rs:LIGHTS_USAGE`: `pns: usage: pns lights tick | pns lights mute [<place> [<duration>|off]]`
 
-- `src/main.rs:DAEMON_USAGE`:
+- `src/main.rs:GATEWAY_USAGE`:
   `pns: usage: pns gateway run | pns gateway schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <event args> | pns gateway cancel --id <id>`
 
 - `src/main.rs:QUIET_USAGE`:
