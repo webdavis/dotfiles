@@ -56,7 +56,12 @@ pub(super) fn render_block(
     present: bool,
 ) -> Result<(), String> {
     out.push_str(table.prose);
-    write_note(out, take_note(settings)?);
+    // AN OPEN TABLE'S KEYS ARE THE OPERATOR'S OWN NAMES, so `note` there is a
+    // route or a project like any other and is written out as one; only a
+    // table with a declared roster turns it into a comment.
+    if !crate::config::schema::is_open(table.name) {
+        write_note(out, take_note(settings)?);
+    }
     if present {
         out.push_str(&format!("[{}]\n", table.name));
     } else {
