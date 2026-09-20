@@ -383,9 +383,10 @@ the wrong oldest entry." The lock is created before the ring so a missing state 
 lock's own exclusive create rather than being papered over.
 
 - Success: `tests/hooks.rs:two_policy_settings_changes_racing_the_prune_lose_neither_line`, driven
-  deterministically by `PNS_RING_LOCK_TEST_DELAY_MS`, which is unset in every real invocation. The test's
-  own note: the race "measured across three hundred concurrent real events with no help ... never once
-  reproduced", which is why the hatch exists.
+  deterministically by the spawn order of two owned hook processes. A stall inside the locked section is
+  still reachable from a test through `ring::stall_inside_the_ring_lock`, which a release build compiles
+  as a fixed zero. The race itself "measured across three hundred concurrent real events with no help ...
+  never once reproduced", which is why the hatch exists.
 - Failure sources: the lock held past every attempt; a state directory that cannot be made.
 - Fail direction: fail-closed toward the state and fail-quiet toward the event. The append returns
   `WouldBlock` with "the ring's lock stayed held past every attempt", and every record site drops it.
@@ -1367,9 +1368,9 @@ contracts run against a concrete in-memory repository and SQLite.
 ### 30. Refused writes do not become completed mutations
 
 Given an owned write transaction, when another process attempts a mutation, then its wait is bounded by
-the configured busy timeout, 5 seconds in composition. This is a lock-wait budget, not a
-disk-operation deadline. Tests that stage a wedged writer on purpose shorten that wait with
-`PNS_DB_BUSY_TIMEOUT_MS`, unset in every real invocation. A failed append or replacement rolls back its
+the configured busy timeout, `[storage] busy_deadline` and 5 seconds by default. This is a lock-wait
+budget, not a disk-operation deadline. Tests that stage a wedged writer on purpose shorten that wait by
+writing that key, between 10 milliseconds and a minute, with "0s" refusing a contended write outright. A failed append or replacement rolls back its
 whole transaction. A killed writer leaves no uncommitted row, and a later writer can proceed.
 Delivery-facing record methods return without changing hook streams and report a bounded, non-secret miss
 through the existing daemon log when possible. Explicit mutations return failure and retain prior state.

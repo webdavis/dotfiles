@@ -155,6 +155,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     (super::PRODUCER_KEYS, "remind", "true"),
     (super::TOP_LEVEL, "remind", "{ delay = \"5m\" }"),
     (super::TOP_LEVEL, "stale", "{ escalate_after = \"1h\" }"),
+    (super::TOP_LEVEL, "storage", "{ busy_deadline = \"5s\" }"),
     (
         super::TOP_LEVEL,
         "plugins",
@@ -181,6 +182,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("remind", "delay", "\"5m\""),
     ("stale", "escalate_after", "\"1h\""),
     ("stale", "route", "\"priority\""),
+    ("storage", "busy_deadline", "\"5s\""),
     ("lights", "blocked", "{ duration_ms = 2000 }"),
     ("lights", "dim", "{ duration_ms = 3000 }"),
     ("lights", "done", "{ duration_ms = 4000 }"),
@@ -313,6 +315,7 @@ mod remind;
 mod roster;
 mod schema;
 mod stale;
+mod storage;
 mod vocabulary;
 
 #[test]

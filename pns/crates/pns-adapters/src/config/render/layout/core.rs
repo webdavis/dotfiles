@@ -330,6 +330,31 @@ pub(super) const STALE: Table = Table {
         },
     ],
 };
+/// How long a writer waits for the state database's write lock.
+///
+/// A CORE TABLE WRITTEN LIVE AT ITS DEFAULT, because there is no such thing as
+/// this machine having no bound: the number is always in force and is worth
+/// reading in the file rather than guessing at.
+pub(super) const STORAGE: Table = Table {
+    name: "storage",
+    prose: "# The state database. One number: how long a write waits for the lock\n\
+            # another writer holds before the write is refused. It bounds a WEDGED\n\
+            # writer and measures nothing else: every transaction pns makes is a\n\
+            # handful of short statements with no network and no sleep in it, and a\n\
+            # writer that dies drops its lock with its process, so a wait that\n\
+            # expires is a machine in trouble rather than a busy one. A hook you are\n\
+            # waiting on pays this bound per lock it takes, which is why the ceiling\n\
+            # is a minute; ten milliseconds is the floor, anything outside is refused\n\
+            # by name, and \"0s\" refuses a contended write the instant it is\n\
+            # contended instead of waiting at all.\n",
+    opt_in: false,
+    children: &[],
+    keys: &[Key {
+        name: "busy_deadline",
+        prose: "",
+        sample: Sample::Default("\"5s\""),
+    }],
+};
 pub(super) const FAILURES: Table = Table {
     name: "failures",
     prose: "# The failure page: the same record `pns failures` prints, served over\n\

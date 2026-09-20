@@ -43,7 +43,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             "home: config error (unknown top-level key `home`; the file serves \
              daemon, delivery, delivery_class, failures, focus, lights, paths, phone, plugins, \
              producer, quiet, \
-             recap, remind, routes, stale)",
+             recap, remind, routes, stale, storage)",
         ),
         (
             "[plugins.hermes]\nenabled = true\n",

@@ -54,6 +54,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.stale_escalate_after_secs = escalation.escalate_after_secs;
                 config.stale_route = escalation.route;
             }
+            "storage" => config.storage_busy_deadline = parse_storage(value)?,
             "failures" => config.failures = parse_failures(value)?,
             "routes" => config.routes = parse_routes(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),

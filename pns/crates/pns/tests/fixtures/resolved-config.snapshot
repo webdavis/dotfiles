@@ -246,6 +246,7 @@ Config {
     remind_delay_secs: 300,
     stale_escalate_after_secs: 3600,
     stale_route: None,
+    storage_busy_deadline: 5s,
     lights: Some(
         Lights {
             refresh_secs: 12,
