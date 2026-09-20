@@ -24,7 +24,7 @@ fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_jour
         "the Focus swallowed the banner"
     );
     assert!(
-        events(&sandbox, "mobile").is_empty(),
+        events(&sandbox, "phone").is_empty(),
         "and the card PNS_FORCE_PHONE asked for with it: a mute a producer can \
          override is not a mute"
     );
@@ -96,7 +96,7 @@ fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual()
     // all three decorations really were on this plan, so the three `no`s next
     // door are a Focus holding them and not a surface that never offered them.
     assert_eq!(
-        events(&sandbox, "mobile").len(),
+        events(&sandbox, "phone").len(),
         2,
         "the forced live card and replay fired here"
     );

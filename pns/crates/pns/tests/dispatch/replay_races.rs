@@ -58,7 +58,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
         );
     }
     assert!(
-        events(&sandbox, "mobile").is_empty(),
+        events(&sandbox, "phone").is_empty(),
         "the phone is not a leg for an operator at the desk"
     );
     stored_records::assert_consumed(&sandbox);

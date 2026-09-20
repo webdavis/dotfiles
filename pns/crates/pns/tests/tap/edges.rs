@@ -48,7 +48,10 @@ impl Drop for DeniedParent {
 fn a_denied_marker_write_is_nonzero_and_preserves_existing_state() {
     let s = Sandbox::without_config("tap-permission-denied");
     let denied = DeniedParent::new(&s, Some("keep"));
-    s.write_config(&format!("[phone]\nmarker_file = {:?}\n", denied.marker));
+    s.write_config(&format!(
+        "[plugins.phone]\nmarker_file = {:?}\n",
+        denied.marker
+    ));
     let out = s.pns().args(["tap", "--json"]).output().unwrap();
     let before = denied.modified.expect("the mtime before the denial");
     let marker = denied.restore();
@@ -96,7 +99,10 @@ fn info_states_the_one_file_undo() {
 fn a_failed_tap_reports_the_marker_path_and_the_reason_on_one_stderr_line() {
     let s = Sandbox::without_config("tap-failure-line");
     let denied = DeniedParent::new(&s, None);
-    s.write_config(&format!("[phone]\nmarker_file = {:?}\n", denied.marker));
+    s.write_config(&format!(
+        "[plugins.phone]\nmarker_file = {:?}\n",
+        denied.marker
+    ));
     let out = s.pns().args(["tap"]).output().unwrap();
     let marker = denied.restore();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
@@ -126,7 +132,7 @@ fn install_reports_neither_a_marker_nor_a_surface() {
 #[test]
 fn the_tilde_config_path_expands_with_private_creation_modes() {
     let s = Sandbox::new("tap-tilde");
-    s.write_config("[phone]\nmarker_file = '~/attention/marker'");
+    s.write_config("[plugins.phone]\nmarker_file = '~/attention/marker'");
     let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(
@@ -156,10 +162,7 @@ fn metadata_errors_remain_unknown_in_info_and_doctor() {
     let s = Sandbox::new("tap-metadata-error");
     fs::write(s.path("obstacle"), "private contents").unwrap();
     let marker = s.path("obstacle/marker");
-    s.write_config(&format!(
-        "{}\n[phone]\nmarker_file = {marker:?}\n",
-        support::STUB_CHANNELS
-    ));
+    s.write_config(&support::stub_channels_with_marker(&marker));
     let out = s.pns().args(["tap", "info", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     let answer = json(&out);
@@ -182,7 +185,7 @@ fn metadata_errors_remain_unknown_in_info_and_doctor() {
     let reported = support::stderr(&plain);
     for expected in [
         "obstacle/marker",
-        "[phone] marker_file",
+        "[plugins.phone] marker_file",
         "Last tap: unknown",
         "asleep",
         "retry",
@@ -216,7 +219,7 @@ fn concurrent_taps_on_a_link_preserve_its_target_and_existing_permissions() {
     let before = fs::metadata(&target).unwrap();
     let marker = s.path("link");
     symlink(&target, &marker).unwrap();
-    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
     let children: Vec<_> = (0..4)
         .map(|_| {
             s.pns()
@@ -252,7 +255,7 @@ fn future_marker_is_fresh_but_an_invalid_window_is_unknown() {
         .unwrap()
         .set_modified(SystemTime::now() + Duration::from_secs(3600))
         .unwrap();
-    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
     for window in ["120", "invalid"] {
         let out = s
             .pns()

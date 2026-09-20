@@ -33,7 +33,7 @@ const SCAN: u32 = 20;
 /// the banner is already in front of the operator and a card is the same news
 /// on a second screen, so there is nothing to carry and this is `None`.
 struct PhoneCard {
-    /// `[plugins.mobile] token`, or `None` for a table that is off or unset.
+    /// `[plugins.phone] token`, or `None` for a table that is off or unset.
     /// Carried rather than checked, because the channel's own refusal names the
     /// config key and this module has no better sentence than that one.
     token: Option<String>,
@@ -44,7 +44,7 @@ struct PhoneCard {
     /// the token is: the channel reads its own toggles and this module has no
     /// business second-guessing which card types the operator armed.
     image_cards: Vec<String>,
-    /// `[plugins.mobile] url`, else `PNS_MOSHI_URL`: where the push goes.
+    /// `[plugins.phone] url`, else `PNS_MOSHI_URL`: where the push goes.
     /// Carried for the token's reason, since the channel this builds is built
     /// outside the composition root that already resolved it.
     url: Option<String>,
@@ -119,7 +119,7 @@ fn phone_card() -> Option<PhoneCard> {
     // table naming no compiled-in backend, and the event path this runs
     // inside has already printed that same line for that same event: one
     // fault, one complaint. The armed table is all this needs.
-    let mobile = pns_adapters::armed_mobile(&config).ok().flatten();
+    let mobile = pns_adapters::armed_phone(&config).ok().flatten();
     Some(PhoneCard {
         url: pns_adapters::install_settings_of(Some(&config), &home).moshi_url,
         token: mobile.and_then(pns_adapters::moshi_secret),
@@ -160,7 +160,7 @@ fn raise(failure: &Failure, pns_path: &str, phone: &Option<PhoneCard>) {
 /// push that was refused sends it through the destination that just refused
 /// one, so it arrives nowhere and the operator learns nothing.
 fn card_surface(failure: &Failure, page_enabled: bool) -> Option<NotificationSurface> {
-    if failure.destination == failure::DESTINATION_MOBILE {
+    if failure.destination == failure::DESTINATION_PHONE {
         return None;
     }
     Some(NotificationSurface::Phone {

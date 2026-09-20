@@ -3,7 +3,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 mod settings;
 mod wait;
-use settings::submit_deadline;
+use settings::ack_deadline;
 use wait::answer_within;
 
 pub struct MoshiApprovalForwarder;
@@ -19,7 +19,7 @@ impl pns_application::ApprovalForwarder for MoshiApprovalForwarder {
         // immediately before the wait, as it always was: threading it out of
         // `run_event` would change that function's signature for one duration,
         // and a view torn between the two reads costs at most this event.
-        answer_within(child, submit_deadline())
+        answer_within(child, ack_deadline())
     }
 }
 

@@ -13,11 +13,11 @@ fn every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers() {
     let config = parsed(&text);
     assert_eq!(
         config.plugins.keys().collect::<Vec<_>>(),
-        vec!["banner", "hermes", "home_presence", "lights", "mobile"]
+        vec!["banner", "hermes", "home_presence", "lights", "phone"]
     );
     assert!(config.plugins.values().all(|plugin| plugin.enabled));
     assert_eq!(
-        config.plugins["mobile"].settings["token"].as_str(),
+        config.plugins["phone"].settings["token"].as_str(),
         Some("moshi-secret")
     );
     assert_eq!(

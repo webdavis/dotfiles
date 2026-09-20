@@ -1,9 +1,9 @@
 use super::*;
-pub(super) const PLUGINS_MOBILE: Table = Table {
-    name: "plugins.mobile",
+pub(super) const PLUGINS_PHONE: Table = Table {
+    name: "plugins.phone",
     prose: "",
     opt_in: false,
-    children: &[PLUGINS_MOBILE_IMAGE_CARDS],
+    children: &[PLUGINS_PHONE_IMAGE_CARDS],
     keys: &[
         Key {
             name: "enabled",
@@ -24,7 +24,7 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "mobile_watch_card",
+            name: "card_while_watching",
             prose: "# Whether a long command's card still fires while you are watching that\n\
                          # pane on the phone. OFF: a card describing the pane already filling the\n\
                          # screen is noise, and the light pulse alone marks the command finishing;\n\
@@ -39,21 +39,29 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
             sample: Sample::Example("\"https://api.getmoshi.app/api/webhook\""),
         },
         Key {
-            name: "submit_deadline_secs",
+            name: "ack_deadline",
             prose: "# How long pns waits for moshi to acknowledge a submitted permission\n\
-                         # prompt, in seconds. The harness draws the prompt only once the hook\n\
-                         # returns, so this is time the question is off your screen. On expiry\n\
-                         # the submission is killed and its pending card dies with it, and\n\
-                         # nothing is said either way. There is no off switch: zero, a negative,\n\
-                         # a fraction and anything past 3600 are refused by name.\n",
-            sample: Sample::Default("5"),
+                         # prompt. The harness draws the prompt only once the hook returns, so\n\
+                         # this is time the question is off your screen. On expiry the\n\
+                         # submission is killed and its pending card dies with it, and nothing\n\
+                         # is said either way. There is no off switch: \"0s\", anything under a\n\
+                         # second and anything past \"1h\" are refused by name.\n",
+            sample: Sample::Default("\"5s\""),
+        },
+        Key {
+            name: "marker_file",
+            prose: "# Where `pns tap` writes the phone's attention marker and the presence\n\
+                         # reader looks for it: an absolute path or a ~/ path. Read whether or\n\
+                         # not the card is switched on, and missing config uses this default\n\
+                         # too. Setup guide: pns tap install.\n",
+            sample: Sample::Default("\"~/.local/state/pns/phone-attention.marker\""),
         },
     ],
 };
 /// Which card types carry an image, keyed by card type. An OPEN table, shipped
 /// with every card type off.
-const PLUGINS_MOBILE_IMAGE_CARDS: Table = Table {
-    name: "plugins.mobile.image_cards",
+const PLUGINS_PHONE_IMAGE_CARDS: Table = Table {
+    name: "plugins.phone.image_cards",
     prose: "# Which card types carry an IMAGE of the whole message, keyed by card type\n\
                  # and off for every one of them until you name it here. A card type is the\n\
                  # state word the event carried: `missed` is the card a return raises,\n\

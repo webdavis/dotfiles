@@ -13,7 +13,7 @@ use super::*;
 #[test]
 fn an_unnamed_channels_directory_falls_through_and_a_refused_backend_precedes_dispatch() {
     for scenario in ["unset", "forced", "refused"] {
-        let directory = fixture("mobile");
+        let directory = fixture("phone");
         let install = InstallSettings {
             state_dir: None,
             channels_dir: (scenario != "unset").then(|| directory.to_str().unwrap().to_string()),
@@ -25,7 +25,7 @@ fn an_unnamed_channels_directory_falls_through_and_a_refused_backend_precedes_di
             summarizer_deadline: pns_domain::recap::Recap::default().summarizer_deadline,
         };
         let mut declarations = Registry::new();
-        declarations.register_channel("mobile", ROUTING).unwrap();
+        declarations.register_channel("phone", ROUTING).unwrap();
         let mobile = Mobile {
             refusal: (scenario == "refused").then(|| "unknown backend".into()),
             ..Mobile::default()
@@ -41,7 +41,7 @@ fn an_unnamed_channels_directory_falls_through_and_a_refused_backend_precedes_di
             &pns_domain::routes::Routes::default(),
             false,
         );
-        let outcome = selected.deliver("mobile", &request(&Event::default()));
+        let outcome = selected.deliver("phone", &request(&Event::default()));
         match scenario {
             "forced" => {
                 assert_eq!(outcome, Delivery::Silent);
@@ -73,7 +73,7 @@ fn an_unnamed_channels_directory_falls_through_and_a_refused_backend_precedes_di
             // the config key to write instead of launching anything.
             _ => {
                 assert!(
-                    matches!(&outcome, Delivery::Failed(line) if line.contains("[plugins.mobile] token")),
+                    matches!(&outcome, Delivery::Failed(line) if line.contains("[plugins.phone] token")),
                     "{scenario}: {outcome:?}"
                 );
                 assert!(!directory.join("body").exists());

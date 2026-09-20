@@ -17,7 +17,7 @@ fn an_event_appends_exactly_one_decision_carrying_what_it_decided_and_what_the_l
             "300s",
         ])
         .args(["--project", "dotfiles", "--detail", "a private summary"]));
-    assert!(sandbox.fired("mobile"), "the channels fired");
+    assert!(sandbox.fired("phone"), "the channels fired");
 
     let recorded = decisions(&sandbox);
     assert_eq!(recorded.len(), 1, "exactly one line: {recorded:?}");
@@ -28,7 +28,7 @@ fn an_event_appends_exactly_one_decision_carrying_what_it_decided_and_what_the_l
         " long_running=yes ",
         " pane=none ",
         " plan=banner:no,card:yes,pulse:yes ",
-        " legs=mobile:silent,hermes:silent",
+        " legs=phone:silent,hermes:silent",
     ] {
         assert!(
             entry.contains(expected),
@@ -83,7 +83,7 @@ fn a_state_directory_that_cannot_be_written_costs_the_event_nothing() {
     command.env("PNS_STATE_DIR", &blocked);
     let output = run(command.args(["send", "--producer", "claude", "--state", "done"]));
 
-    assert!(sandbox.fired("mobile"), "every channel still fires");
+    assert!(sandbox.fired("phone"), "every channel still fires");
     assert!(sandbox.fired("hermes"));
     assert_eq!(stdout(&output), "", "nothing is said about the write");
     assert!(
@@ -123,7 +123,7 @@ fn a_fifo_at_the_rings_path_is_never_opened_and_never_parks_the_event() {
         Some(0),
         "a record nobody could write costs the event nothing"
     );
-    for channel in ["mobile", "hermes"] {
+    for channel in ["phone", "hermes"] {
         assert!(sandbox.fired(channel), "{channel} never fired");
     }
     // REFUSED, NOT REPAIRED: the path still holds what it held. Healing an

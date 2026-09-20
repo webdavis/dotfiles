@@ -16,7 +16,7 @@ fn a_present_event_moves_the_last_present_marker_and_an_away_event_does_not() {
         "--detail",
         "x",
     ]));
-    assert!(away.fired("mobile"), "the away row really was taken");
+    assert!(away.fired("phone"), "the away row really was taken");
     assert_eq!(
         last_present(&away),
         None,

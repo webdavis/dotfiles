@@ -42,7 +42,7 @@ const FOOTER: &str = "{{- end }}\n";
 /// a check that reads the VALUES FILE ITSELF, before it is rendered, can
 /// catch a pasted credential landing in the file this repo commits.
 const SECRET_BEARING_KEYS: &[&str] = &[
-    "plugins.mobile.token",
+    "plugins.phone.token",
     "plugins.log.token",
     "plugins.lights.bridge",
     "plugins.lights.certificate",

@@ -135,7 +135,7 @@ fn a_dash_led_first_word_is_no_longer_a_free_pass_for_an_empty_event() {
             "{word:?}: a refusal, never exit 0"
         );
         assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
-        assert!(!sandbox.fired("mobile"), "{word:?} delivered: {output:?}");
+        assert!(!sandbox.fired("phone"), "{word:?} delivered: {output:?}");
         assert!(!sandbox.fired("hermes"), "{word:?} delivered: {output:?}");
     }
 }
@@ -151,7 +151,7 @@ fn a_typed_empty_word_is_refused_unlike_the_bare_invocation_beside_it() {
     let output = sandbox.pns().arg("").output().expect("the engine runs");
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     assert!(stderr(&output).contains("usage"), "{output:?}");
-    assert!(!sandbox.fired("mobile"), "{output:?}");
+    assert!(!sandbox.fired("phone"), "{output:?}");
     assert!(!sandbox.fired("hermes"), "{output:?}");
 }
 
@@ -179,7 +179,7 @@ fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
         assert!(stdout(&output).contains("usage"), "{argv:?}: {output:?}");
         assert_eq!(stderr(&output), "", "{argv:?}: {output:?}");
         assert!(
-            !sandbox.fired("mobile"),
+            !sandbox.fired("phone"),
             "{argv:?} spawned a delivery: {output:?}"
         );
         assert!(
@@ -199,7 +199,7 @@ fn help_in_value_position_is_still_just_a_value() {
     run(sandbox
         .pns()
         .args(["send", "--producer", "--help", "--state", "done"]));
-    assert_eq!(sandbox.event("mobile")["agent"], "--help");
+    assert_eq!(sandbox.event("phone")["agent"], "--help");
 
     // The same word in `--state`'s value position is a value too, and the
     // closed set is what refuses it rather than the help text answering.
@@ -214,7 +214,7 @@ fn help_in_value_position_is_still_just_a_value() {
         String::from_utf8_lossy(&output.stderr),
         "pns: --state requires one of: done, failed, blocked, resolved, observation, progress\n"
     );
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn a_missing_value_warning_keeps_its_exact_sentence() {
         stderr(&output),
         "pns: --detail given without a value; ignoring\n"
     );
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(!sandbox.fired("hermes"));
 }
 
@@ -249,7 +249,7 @@ fn a_retired_subcommand_spelling_names_the_verb_that_replaced_it() {
         assert_eq!(output.status.code(), Some(2), "{word}: {output:?}");
         let complaint = stderr(&output);
         assert!(complaint.contains(replacement), "{word}: {complaint}");
-        assert!(!sandbox.fired("mobile"), "{word}: {output:?}");
+        assert!(!sandbox.fired("phone"), "{word}: {output:?}");
         assert!(!sandbox.fired("hermes"), "{word}: {output:?}");
     }
 }
@@ -276,7 +276,7 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
         ]));
     assert!(sandbox.fired("banner"));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("mobile"), "an observation carded the phone");
+    assert!(!sandbox.fired("phone"), "an observation carded the phone");
 
     let sandbox = Sandbox::new("flag-done");
     run(sandbox
@@ -293,7 +293,7 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
             "x",
         ]));
     assert!(
-        sandbox.fired("mobile"),
+        sandbox.fired("phone"),
         "an ordinary state stopped carding the phone"
     );
 }

@@ -20,7 +20,7 @@ pub struct InstallSettings {
     /// `[plugins.log] url`, else `PNS_HERMES_URL`: the gateway endpoint,
     /// used verbatim for every route rather than per route.
     pub hermes_url: Option<String>,
-    /// `[plugins.mobile] url`, else `PNS_MOSHI_URL`: the push endpoint.
+    /// `[plugins.phone] url`, else `PNS_MOSHI_URL`: the push endpoint.
     pub moshi_url: Option<String>,
     /// `[plugins.banner] terminal_bundle_id`, else
     /// `PNS_TERMINAL_BUNDLE_ID`: the terminal a banner click returns to.
@@ -84,7 +84,7 @@ fn resolve(
             environment,
         ),
         moshi_url: setting(
-            plugin_setting(config, "mobile", "url"),
+            plugin_setting(config, "phone", "url"),
             "PNS_MOSHI_URL",
             environment,
         ),
@@ -126,7 +126,7 @@ fn plugin_setting<'a>(config: Option<&'a Config>, plugin: &str, key: &str) -> Op
     config?.plugins.get(plugin)?.settings.get(key)?.as_str()
 }
 
-/// A `~/` path against this home, the way `[phone] marker_file` is already
+/// A `~/` path against this home, the way `[plugins.phone] marker_file` is already
 /// read. A path written any other way is used as it stands.
 fn against_home(path: String, home: &str) -> String {
     match path.strip_prefix("~/") {

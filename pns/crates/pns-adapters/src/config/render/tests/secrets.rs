@@ -8,7 +8,7 @@ fn a_secret_marker_renders_as_the_chezmoi_action_and_a_literal_renders_quoted() 
         secret("Moshi :: Webhook Secret", "Password"),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+    plugins.insert("phone".to_string(), toml::Value::Table(mobile));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -31,7 +31,7 @@ fn a_secret_marker_renders_as_the_chezmoi_action_and_a_literal_renders_quoted() 
             .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["mobile"].settings["token"].as_str(),
+        config.plugins["phone"].settings["token"].as_str(),
         Some("from-the-vault")
     );
 }
@@ -84,7 +84,7 @@ fn a_secret_holding_a_quote_and_a_backslash_round_trips_through_the_totoml_stub(
         secret("Quote Backslash Secret", "Password"),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+    plugins.insert("phone".to_string(), toml::Value::Table(mobile));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -94,7 +94,7 @@ fn a_secret_holding_a_quote_and_a_backslash_round_trips_through_the_totoml_stub(
             .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["mobile"].settings["token"].as_str(),
+        config.plugins["phone"].settings["token"].as_str(),
         Some("a\"b\\c")
     );
 }
@@ -104,7 +104,7 @@ fn a_plain_secret_round_trips_through_the_totoml_stub_too() {
     let mut mobile = toml::Table::new();
     mobile.insert("token".to_string(), secret("Plain Secret", "Password"));
     let mut plugins = toml::Table::new();
-    plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
+    plugins.insert("phone".to_string(), toml::Value::Table(mobile));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -113,7 +113,7 @@ fn a_plain_secret_round_trips_through_the_totoml_stub_too() {
         .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["mobile"].settings["token"].as_str(),
+        config.plugins["phone"].settings["token"].as_str(),
         Some("plain")
     );
 }

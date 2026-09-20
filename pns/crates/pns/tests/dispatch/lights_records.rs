@@ -11,7 +11,7 @@ fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() 
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\nquiet_hours = \"00:00-23:59\"\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.state()).expect("the state directory");
     std::fs::write(sandbox.state().join("lights-quiet"), "later 3F - Studio\n")
