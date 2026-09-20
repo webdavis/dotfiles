@@ -24,7 +24,7 @@ pub fn pairing_report(json: Option<&str>, plain: Option<&str>) -> PairingReport 
 /// of it scanned on the other. It is checked BEFORE either, which is the only
 /// point where it means anything, and it is checked HERE rather than in the
 /// shared bounded spawn: every other caller of that spawn reads a different
-/// tool, and one of them is a condenser whose whole job is to answer at length.
+/// tool, and one of them is a summarizer whose whole job is to answer at length.
 fn within_cap(answer: &str) -> bool {
     answer.len() <= ANSWER_MAX
 }

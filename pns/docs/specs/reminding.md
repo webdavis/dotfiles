@@ -59,7 +59,7 @@ The code points at that record from each site rather than restating the measurem
 - `src/main.rs:update_blocked_marker` states the cost where the rule could NOT be applied, and the
   decision record repeats it under "What the rule does NOT fix, stated so nobody re-derives it": one file
   per session carries no generation, so a blocked event that publishes a new wait while a previous Stop
-  is still condensing loses that wait when the Stop reaches its removal. That bounds how promptly a
+  is still summarizing loses that wait when the Stop reaches its removal. That bounds how promptly a
   wait's lamp reflects reality; it does not reach the reminder's own record or marker, which are keyed the
   same way but never removed by a sweeper.
 

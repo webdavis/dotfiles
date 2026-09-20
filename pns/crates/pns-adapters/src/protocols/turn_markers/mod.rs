@@ -45,11 +45,11 @@ fn turn_marker(state: &Path, session_id: &str) -> Option<std::path::PathBuf> {
 /// Reading first and unlinking after left that window open, and an unlink
 /// that failed left the marker wedged for every later turn.
 ///
-/// It runs BEFORE the reply and the condenser for the same reason. Stop is
+/// It runs BEFORE the reply and the summarizer for the same reason. Stop is
 /// asynchronous, so the next prompt can arrive while this one is still
-/// condensing: with the marker still on disk that prompt writes nothing, and
+/// summarizing: with the marker still on disk that prompt writes nothing, and
 /// this Stop then deletes the marker its successor was relying on. Claiming
-/// up front also keeps the condenser's own latency out of the elapsed time it
+/// up front also keeps the summarizer's own latency out of the elapsed time it
 /// is measuring.
 ///
 /// The value is VALIDATED before it reaches arithmetic: a truncated write or

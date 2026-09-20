@@ -66,7 +66,7 @@ fn a_summarizer_that_is_not_a_list_of_words_is_refused_naming_the_key() {
 }
 
 #[test]
-fn the_summarizers_deadline_is_a_count_of_seconds_with_a_generous_default() {
+fn the_summarizers_deadline_is_a_duration_with_a_generous_default() {
     // FOUR MINUTES, and what it covers is GENERATION. MEASURED on one
     // machine: a whole three-call episode took about 114.6 seconds, nearly
     // all of it tokens arriving at about eleven a second, while the cold
@@ -76,44 +76,83 @@ fn the_summarizers_deadline_is_a_count_of_seconds_with_a_generous_default() {
         parse_config("[recap]\ndigest = true\n")
             .unwrap()
             .recap
-            .summarizer_deadline_secs,
-        240,
+            .summarizer_deadline,
+        Duration::from_secs(240),
         "the default is generous against a measured episode"
     );
+    // A DURATION STRING, the same one a flag and every other key takes, and
+    // finer than a second so a test can prove expiry without waiting.
     assert_eq!(
-        parse_config("[recap]\nsummarizer_deadline_secs = 5\n")
+        parse_config("[recap]\nsummarizer_deadline = \"3s\"\n")
             .unwrap()
             .recap
-            .summarizer_deadline_secs,
-        5
+            .summarizer_deadline,
+        Duration::from_secs(3)
+    );
+    assert_eq!(
+        parse_config("[recap]\nsummarizer_deadline = \"300ms\"\n")
+            .unwrap()
+            .recap
+            .summarizer_deadline,
+        Duration::from_millis(300)
+    );
+    // ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `min_events`'s zero: a
+    // deadline of nothing cannot be met, so the recap falls to the plain
+    // lists and says it did.
+    assert_eq!(
+        parse_config("[recap]\nsummarizer_deadline = \"0s\"\n")
+            .unwrap()
+            .recap
+            .summarizer_deadline,
+        Duration::ZERO
     );
     // AND IT HAS A TOP END, refused by name for `min_events`'s own reason.
     // An hour is already far past the default, and past it the two failures
     // are real: nothing supervises the detached recap child, so a wedged
     // backend holds one child and one backend process for as long as the
-    // number says, and `9223372036854775807` is a plain TOML integer that
-    // PANICS the child at `Instant::now() + deadline` (MEASURED: "overflow
-    // when adding duration to instant"). That panic lands in a process
-    // whose stderr is /dev/null and whose exit code nobody reads, so the
-    // recap vanishes with no rung of the ladder taken, after the card has
-    // already said it is coming.
+    // number says, and a duration past the ceiling PANICS the child at
+    // `Instant::now() + deadline` (MEASURED: "overflow when adding duration
+    // to instant"). That panic lands in a process whose stderr is /dev/null
+    // and whose exit code nobody reads, so the recap vanishes with no rung
+    // of the ladder taken, after the card has already said it is coming.
     assert_eq!(
-        parse_config("[recap]\nsummarizer_deadline_secs = 3600\n")
+        parse_config("[recap]\nsummarizer_deadline = \"3600s\"\n")
             .unwrap()
             .recap
-            .summarizer_deadline_secs,
-        3600,
+            .summarizer_deadline,
+        Duration::from_secs(3600),
         "an hour is inside the ceiling"
     );
-    for stated in ["\"soon\"", "9.5", "-1", "3601", "9223372036854775807"] {
-        let err =
-            parse_config(&format!("[recap]\nsummarizer_deadline_secs = {stated}\n")).unwrap_err();
+    for stated in ["\"soon\"", "240", "\"3601s\"", "\"2h\""] {
+        let err = parse_config(&format!("[recap]\nsummarizer_deadline = {stated}\n")).unwrap_err();
         match err {
             ConfigError::Invalid(message) => assert!(
-                message.contains("summarizer_deadline_secs"),
+                message.contains("summarizer_deadline"),
                 "the offender is named for {stated}: {message}"
             ),
             other => panic!("expected Invalid for {stated}, got {other:?}"),
         }
+    }
+}
+
+#[test]
+fn the_retired_seconds_spelling_of_the_deadline_is_refused_by_name() {
+    // THE OLD KEY IS NOT SILENTLY IGNORED. It counted bare seconds where
+    // every flag and key beside it took a duration string, so a file still
+    // carrying it would otherwise run the shipped default while the
+    // operator read their own number off the file.
+    let err = parse_config("[recap]\nsummarizer_deadline_secs = 240\n").unwrap_err();
+    match err {
+        ConfigError::Invalid(message) => {
+            assert!(
+                message.contains("summarizer_deadline_secs"),
+                "the retired key is named: {message}"
+            );
+            assert!(
+                message.contains("summarizer_deadline"),
+                "and the spelling that replaced it is listed: {message}"
+            );
+        }
+        other => panic!("expected Invalid, got {other:?}"),
     }
 }

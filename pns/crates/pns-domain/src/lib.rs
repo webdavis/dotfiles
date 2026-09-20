@@ -79,8 +79,8 @@ pub use setup::{
     means_yes as setup_affirmed, router_backend as setup_router_backend, router_is_armed,
 };
 
-mod condenser;
-pub use condenser::{condenser_prompt, condenser_verdict};
+mod summarizer;
+pub use summarizer::{summarizer_prompt, summarizer_verdict};
 
 pub mod retry;
 
