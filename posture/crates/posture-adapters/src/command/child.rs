@@ -15,7 +15,12 @@ impl OwnedChild {
                 libc::kill(-(child.id() as i32), libc::SIGTERM);
             }
             let start = Instant::now();
-            grace::wait_grace(duration, || start.elapsed(), std::thread::sleep);
+            grace::wait_grace(
+                duration,
+                || start.elapsed(),
+                || self.exited().unwrap_or(false),
+                std::thread::sleep,
+            );
         }
         let _ = self.finish();
     }
