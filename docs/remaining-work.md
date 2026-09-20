@@ -4,7 +4,7 @@ The open task list for the dotfiles modernization, including pns, posture, uu, l
 review tools and the deferred subprojects. Use the resume order below; task numbers are stable
 references.
 
-Updated as tasks complete. Last updated 2026-09-19.
+Updated as tasks complete. Last updated 2026-09-20.
 
 ## Where things stand
 
@@ -3315,7 +3315,300 @@ is missing.
   [PR #795](https://github.com/webdavis/dotfiles/pull/795) at `c1733362`, giving it the same service-verb
   shape as pns's other subcommands.
 
-  SLICE STATUS 2026-09-19: merged 1-15, 22-24, 29-33; in flight 16, 25, 28, 34, 36.
+  SLICE 16 DONE 2026-09-19, [PR #808](https://github.com/webdavis/dotfiles/pull/808), merged `3a018b968`.
+  Pns's result status now reports delivery rather than storage. `Status` became `delivered`, `partial`,
+  `undelivered` and `rejected`, derived in the submission receipt from what each destination actually
+  did, and the ledger's commit state moved to the `ledger_committed` and `ledger_unavailable` diagnostics
+  beside it, so a committed row whose every destination failed reads as `undelivered` instead of the
+  `accepted` it used to claim. Both send paths map that answer to one set of exit codes, 0 when every
+  durable destination took the page, 1 when one did not, and 2 for input pns will not honour, and the
+  `--require-delivery` opt-in was retired as a refused flag that names the exit code that replaced it. A
+  silent destination counts as an arrival because it is the ordinary success of an executable channel,
+  and a decorative destination (the banner, the phone card) does not decide the status on either path,
+  its verdict staying in the destinations list. The harness hook paths keep their always-exit-0 contract,
+  pinned by a test. posture and uu moved in the same change: posture accepts only a `delivered` result
+  carrying `ledger_committed`, and uu still fails open on an exit code it now hears on every call. The
+  protocol, producer-submission, routing-and-delivery and legacy-producer-flags specs and posture's
+  producer-api document were rewritten to the new words.
+
+  SLICE 17 DONE 2026-09-20, [PR #822](https://github.com/webdavis/dotfiles/pull/822), merged `a9ebe2d6e`.
+  Slice 17 of the pns refactor ladder renamed the version 1 result envelope's fields and finished the
+  bare-string rule for closed sets. A result now carries `ledger_sequence` where it carried
+  `decision_id`, which stopped that value sharing a word with pns's unrelated decisions table keyed by
+  producer and request id, and each destination outcome names itself in `name` rather than in
+  `destination`, which stuttered with its own array. The hardcoded `interaction` field left the result:
+  the receipt set none and the submit path set `no_opinion` whenever a request asked, so `answered` was
+  never constructed outside tests, and the request-side field it answered was already retired. Deleting
+  its `InteractionResult` type removed the last one-key wrapper object on either envelope, so every
+  closed set is now one bare word and both decoders refuse a wrapped word instead of guessing. posture
+  moved in the same change, since it is the only consumer: its wire reader, its wire tests, its golden
+  fixture and the one fixture command that prints a result document. Both golden fixtures were edited
+  together so the two sides stay pinned to the same bytes, and posture refuses a destination still naming
+  itself with the retired field, so a stale producer fails loudly rather than reading as delivered.
+  `pns/docs/specs/protocol-v1.md` and `posture/docs/producer-api.md` were updated to match.
+  `pns/crates/pns-protocol/src/request.rs` needed nothing: slice 10 had already left it free of wrappers.
+  `just test-rust` and `just lint-check` both exited 0.
+
+  SLICE 18 DONE 2026-09-20, [PR #829](https://github.com/webdavis/dotfiles/pull/829), merged `0934f9d46`.
+  Pns refactor slice 18 landed plan items 75 and 76. An unrecognized top-level field on a version 1
+  request used to be reported by pushing the marker string `ignored_fields` into the result's diagnostics
+  and appending the field names after it, so a reader had to know that one diagnostic changed the meaning
+  of every entry beside it. The names now travel in an `ignored_fields` list of their own on the result
+  envelope, empty when the request carried none, bounded at the same item cap the diagnostics obey. The
+  golden result fixture was corrected with it: it spelled one ignored field as the single diagnostic
+  `ignored_field:detial`, singular and colon-joined, a shape pns never emitted, and it now carries the
+  `ledger_committed` diagnostic a committed row really answers with beside `ignored_fields: ["detial"]`.
+  posture's copy of the same golden moved with it and posture's wire reader gained the field, because
+  posture re-encodes that document field for field in its own test and would otherwise have dropped the
+  key. Four new tests pin the behaviour (a named field in the list with nothing about it in diagnostics,
+  an empty list when there is none, the fixture round trip, and the item-cap bound), and protocol-v1.md
+  was updated at S017, S020 and the submission section. Task 93 stays open: the recap route work it names
+  is untouched by this slice.
+
+  SLICE 19 DONE 2026-09-20, [PR #830](https://github.com/webdavis/dotfiles/pull/830), merged `0ff030972`.
+  Pns refactor slice 19 filled the destination outcome the protocol had left half empty. Every entry in a
+  result's `destinations` array now carries `note`, the sentence the destination itself offered about a
+  leg it did not deliver, which pns already had and threw away; `route`, the named route the leg was
+  submitted on, so a producer that posted to `priority` can see which destination took it there; and
+  `retry_at`, the unix second the ledger will try the leg again, absent when it will not, which is how a
+  producer tells a leg pns is still retrying from one it has given up on. Each of the three is omitted
+  rather than written as null when it does not apply. The outcome word gained `unknown`, splitting the
+  replay path's meaning of "the ledger never learned the answer" out of `silent`, which keeps its one
+  meaning of a channel that ran and said nothing; an unknown leg still counts with the arrivals when the
+  status is computed, because its attempt is unresolved rather than proven to have missed. The rule that
+  the event's own text never comes back is unchanged and now has a test of its own on the replay path,
+  where the event is in reach: `note` carries the destination's sentence and never the event's detail.
+  posture moved in the same change so both sides pin the same bytes, its wire `DeliveryOutcome` gaining
+  `unknown` and its `DestinationOutcome` gaining `route` and `retry_at`, and both golden fixtures now
+  carry a failed hermes leg with all three new fields beside a banner leg that carries none of them. Plan
+  items 70 through 73, with `pns/docs/specs/protocol-v1.md` and `posture/docs/producer-api.md` updated to
+  match (task 93).
+
+  SLICE 25 DONE 2026-09-19, [PR #810](https://github.com/webdavis/dotfiles/pull/810), merged `14520233e`.
+  Task 93 wired the waiting and answered pair on every harness, which is what restores the approval
+  reminder that stopped arming when slice 23 made arming explicit. Claude Code's `PermissionRequest`
+  declaration in `private_dot_claude/modify_settings.json` passes `--remind`, so the reminder arms again
+  and the existing `pns hook resolved` declarations clear it. The Codex installer at
+  `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh` gained its answered signal on the two
+  events that end a wait, `PostToolUse` and `Interrupt`, both pointing at `pns hook resolved` beside the
+  `Stop` and `PermissionRequest` rows it already wrote, reusing the same migration that preserves rows it
+  did not write and collapses duplicates it did. `private_dot_hermes/modify_private_config.yaml` gained a
+  `hooks` block wiring `pre_approval_request` to `pns hook blocked --remind` and `post_approval_response`
+  to `pns hook resolved`, each list written whole like the routes map beside it, with the pns path built
+  from the one `rust_tools` declaration and no producer prefix because hermes runs a hook command through
+  shlex.split with no shell. The event names were taken from hermes's own documentation in the checkout
+  at `~/.hermes/hermes-agent`, which lists both among VALID_HOOKS, and from `hermes hooks --help`; no
+  hermes command that sends anything was run. Both files are modify-templates over files their apps
+  rewrite themselves, so both were proven to keep reading the live file back: the Claude one was rendered
+  headless over a sample live settings.json and preserved an undeclared live key while emitting the flag,
+  and the hermes one was rendered with its vault reads stubbed and shown to leave a hermes-owned
+  `pre_tool_call` hook alone and to reproduce its stdin byte for byte on a no-op.
+  `test/unit/pns-codex-hook-migration.test.sh` grew the two new rows plus a twice-run idempotence check,
+  and `test/unit/hermes-config-modify-template.test.sh` grew the approval pair alongside a hermes-owned
+  sibling event. The risk is that both templates sit over app-owned files, and one full `chezmoi apply`
+  is the operator step that makes the reminder arm again; Codex and hermes each also need a one-time
+  trust or consent action before their new rows run. Dated 2026-09-17.
+
+  SLICE 26 DONE 2026-09-19, [PR #818](https://github.com/webdavis/dotfiles/pull/818), merged `a8f7ea894`.
+  Task 93 (slice 26, `remind` in the JSON) landed. Version 1 of the pns request envelope gained an
+  optional `remind` field that is either a boolean or a duration string: `true` uses the configured
+  delay, `"5m"` sets the delay for that request, `false` matches `--no-remind`, and absent still falls
+  through to `[producer.<name>] remind` and then to off. The switch type moved into pns-protocol so the
+  flag path and the JSON path share one value and one resolution: `remind_switch` builds it from argv,
+  the decoder builds it from JSON, and `remind_delay` now takes that switch rather than argv, which is
+  what keeps precedence, config reading and refusals from drifting apart. The delay's range moved to
+  pns-domain, so the config key, the flag and the JSON field are held to one bound of thirty seconds to
+  an hour. A value that is neither a boolean nor a valid duration is refused before effects with a
+  sentence naming the field, an absent field is omitted when encoding so unmarked requests keep their
+  canonical bytes, and the golden fixture gained the field. No in-tree producer sends it, so no caller
+  moved, and posture's copy of the wire contract was left alone because the field is optional and posture
+  never sends it. The submit path resolves the field but does not arm a reminder from it yet.
+  protocol-v1.md, producer-submission.md, configuration.md and reminding.md were updated.
+
+  SLICE 28 DONE 2026-09-19, [PR #811](https://github.com/webdavis/dotfiles/pull/811), merged `3006dd259`.
+  Done 2026-09-17. `pns quiet` became `pns mute` and `pns lights quiet` became `pns lights mute`,
+  aligning the command with the `bypass_mute` key the delivery-class tables already carried. Both old
+  words are refused with exit 2 and a sentence naming the replacement, following the same retired-word
+  pattern `pns pulse` and `pns click` already use, because a mute an operator believes is on is the
+  failure this command exists to prevent. `command_quiet.rs` became `command_mute.rs`,
+  `pns-domain/src/quiet.rs` and its calendar submodule became `mute.rs`, and
+  `pns-application/src/set_lights_quiet.rs` became `set_lights_mute.rs`, each moved with `git mv` so
+  history follows, and the identifiers, the operator-facing report wording, `pns --help`, the render
+  layout prose and the pns/docs/specs text moved with them. The daemon's calendar job argv became
+  `mute calendar` while its spool id stayed `quiet-calendar`, so a registration already in the spool is
+  replaced rather than orphaned. The shipped config template was regenerated from the new prose. Tests
+  pin that `pns mute 2h` mutes for two hours, that `pns lights mute "<place>" off` clears that place and
+  reports nothing muted, and that both retired words are refused. Left for the config-table slices: the
+  `[quiet]` table and its `calendar` child, `[focus] silence`, and the persisted file and table names,
+  which a rename would migrate rather than reword.
+
+  SLICE 34 DONE 2026-09-19, [PR #812](https://github.com/webdavis/dotfiles/pull/812), merged `b78939033`.
+  Slice 34 of the pns refactor ladder took the two test-only knobs out of production builds. The ring
+  lock's stall used to come off `PNS_RING_LOCK_TEST_DELAY_MS`, which unguarded production code read on
+  every ring append and slept on inside the locked section every event passes through, so a stray
+  variable exported in a real shell changed real behaviour; it became `ring::stall_inside_the_ring_lock`,
+  a `cfg(test)` thread-local injection point whose `cfg(not(test))` twin is a fixed zero, leaving a
+  release build with no environment read and nothing settable. SQLite's busy bound used to come off
+  `PNS_DB_BUSY_TIMEOUT_MS`, a variable whose own comment called it test-only while `busy_timeout()` read
+  it on every connection; it became the config key `[storage] busy_deadline`, a duration string through
+  the domain's one parser, bounded at 10 milliseconds (below SQLite's own busy-handler sleep granularity,
+  where a bound is indistinguishable from zero) and 60 seconds (a hook you are waiting on pays the bound
+  per lock acquisition), with "0s" turning the handler off and the shipped 5 seconds as the default, and
+  it reaches the store through `InstallSettings` beside `remote_deadline` rather than being threaded
+  through the twenty-odd `SqliteStore` construction sites. `duration_key` gained a `duration_value`
+  sibling that keeps the parsed `Duration` whole, because the `ms` unit the parser has accepted since
+  slice 33 (task 93's own slice 1 note) makes a sub-second bound expressible and its seconds count would
+  have read one as zero. The one test that set the retired variable now writes the key into its own
+  sandbox config. Three assertions were added: the ring stall is zero until a test asks for one, the key
+  parses to the millisecond with zero allowed and an out-of-range value refused by name, and a parsed
+  value reaches the connection's `busy_timeout` pragma. The config template was regenerated with
+  `just pns-config-render` and two stale passages in
+  `pns/docs/specs/persistence-and-process-lifecycle.md` were corrected, one of which already credited the
+  ring race test to a delay that test does not use. `just test-rust` and `just lint-check` both passed at
+  exit 0 from the worktree after `origin/main` was merged in.
+
+  SLICE 35 DONE 2026-09-19, [PR #820](https://github.com/webdavis/dotfiles/pull/820), merged `a7d51c5ce`.
+  Slice 35 of the pns refactor ladder landed, settling the condenser variable that slice 31 noted and
+  deferred. The recap's text shortener is the summarizer everywhere now: `condenser_prompt` and
+  `condenser_verdict` became `summarizer_prompt` and `summarizer_verdict` in the domain, `condense` and
+  `condenser_home` became `summarize` and `summarizer_home` in the codex adapter,
+  `pns-domain/src/condenser.rs` became `summarizer.rs`, and the same word moved through the render
+  layout, the configuration and return-recap specs, and every test name that carried it. The bound is
+  `[recap] summarizer_deadline`, which takes a duration string the way `[storage] busy_deadline` does and
+  replaces the bare-seconds `summarizer_deadline_secs`; the old spelling is refused by name at load, a
+  value outside the millisecond floor or the one-hour ceiling is refused by name too, and zero is still
+  accepted as the statement that the recap falls to its plain lists. `PNS_CONDENSER_DEADLINE_MS` and the
+  `PNS_CONDENSER_DEADLINE` spelling that replaced it are both gone, which settles plan item 87 for this
+  pair: the file the operator reads is the only place the bound is set, and it reaches the codex spawn
+  through `InstallSettings`, the seam slice 34 used for the database's busy bound. The turn summarizer
+  takes at most thirty seconds of that bound, because a Stop hook is blocked on that call while nothing
+  waits on the recap's own episode, and a unit test pins both halves of the cap. Three tests pin the
+  rest: the parsed duration reaches the summarizer's spawn, an out-of-range value is refused by name, and
+  the three retired variable spellings set in the environment leave the deadline at its default.
+  `dot_config/pns/private_config.toml.tmpl` was regenerated with `just pns-config-render`.
+  `just test-rust` and `just lint-check` both exit 0.
+
+  SLICE 36 DONE 2026-09-19, [PR #806](https://github.com/webdavis/dotfiles/pull/806), merged `58c7603af`.
+  Task 93 (plan item 90) shipped. The three vendor-named plugin tables now name their function with
+  `type` naming the vendor, which is the shape `[plugins.mobile] type = "moshi"` already used:
+  `[plugins.hue]` became `[plugins.lights] type = "hue"`, `[plugins.macos-banner]` became
+  `[plugins.banner] type = "macos"`, and `[plugins.router]` became
+  `[plugins.home_presence] type = "unifi"`. A plugin table's heading is its registered name, so the
+  rename carried through `registry::ROSTER`, `CORE` and `REQUIRES`, every doctor line and delivery leg,
+  the schema roster, the render layout, the committed values file, the regenerated config template and
+  the resolved-config snapshot, across 175 files in the four pns crates. Two refusals were added at load:
+  one names a config still holding an old heading, giving the new heading and the type it takes, because
+  a plugin table nothing registered keeps its settings free-form and would otherwise arm nothing
+  silently; the other refuses a `type` under `[plugins.lights]` or `[plugins.banner]` that no compiled-in
+  backend answers, naming the one that is accepted. `[plugins.home_presence]` kept its own type refusal
+  in `router_settings`, which is what lets the probe's diagnostic still report a router that is
+  configured and unreachable. An absent `type` under the two tables that gained one reads as their single
+  compiled-in vendor. The behavioural specifications under pns/docs/specs moved to the new spelling
+  wherever they quote a heading, a roster name or a doctor line. `just test-rust` and `just lint-check`
+  both exited 0.
+
+  SLICE 37 DONE 2026-09-19, [PR #819](https://github.com/webdavis/dotfiles/pull/819), merged `88e82fa32`.
+  Slice 37 of the pns refactor ladder (plan item 91) collapsed the two durable-log tables into one.
+  `[plugins.hermes]` and `[plugins.discord]` served one function and could only ever be one at a time, so
+  they became a single `[plugins.log]` table whose `type` names the transport, "hermes" or "discord",
+  with the sub-tables keeping their key names under the new heading: `[plugins.log.keys]` for the
+  per-route hermes signing keys and `[plugins.log.channels]` for the Discord channel map. The load-time
+  refusal that named both tables was deleted with its test, because one table cannot declare two logs and
+  the failure is now unrepresentable rather than caught. In its place the type is settled at load,
+  refused by name with both accepted transports listed whichever way the switch is set, and the table is
+  then filed under the transport it names, which is the name the roster registers, the delivery leg
+  carries and the ledger records, so nothing downstream of the config layer changed name. That settling
+  replaced `[plugins.discord] type = "bot"`, so the backend check and the refused reading it fed
+  (`discord_backend`, `BOT_TYPE`, `DiscordSettings::refused`, `refused_discord_line` and the switched-off
+  discord warning) went with it as unreachable. Both old headings are refused by name with the new
+  spelling. The shipped file carries the hermes keys and the Discord token and channel map in the one
+  table, so the cutover between transports is a single line and the rollback is that line back; the
+  per-route key names and the channel ids remain KeePassXC entry titles in
+  `dot_config/pns/config-values.toml` and did not change, and `dot_config/pns/private_config.toml.tmpl`
+  and the resolved-config snapshot were regenerated. Task 93 covers this work and is done.
+
+  SLICE 38 DONE 2026-09-20, [PR #824](https://github.com/webdavis/dotfiles/pull/824), merged `6bf8620be`.
+  Slice 38 of the pns refactor ladder gave the phone plugin the top-level `[phone]` table.
+  `[plugins.mobile] type = "moshi"` became `[plugins.phone] type = "moshi"`, and `[phone] marker_file`
+  moved under that heading keeping its name. Two keys lost a stutter and a unit at once:
+  `mobile_watch_card` became `card_while_watching`, and `submit_deadline_secs` became `ack_deadline`, a
+  duration string read through the config layer's `duration_value` helper over the range the count of
+  seconds already allowed, one second to one hour, with zero still refused by name because a deadline
+  that expires before the daemon can answer costs the phone card on every approval. `config/mobile.rs`
+  became `config/phone.rs` after the old top-level table module was removed, so the file's history
+  followed the plugin rather than the retired table. Both `[phone]` and `[plugins.mobile]` are refused at
+  load naming the new spelling, the second through the same renamed-tables row every other moved heading
+  uses, and the registered plugin name, the destination id and the ledger's leg name followed the heading
+  to `phone` the way they did for hue, router and macos-banner in slice 36; `Surface::Mobile` and the
+  decision input named for it were left alone. The shipped config template and the resolved-config
+  snapshot were regenerated. `just test-rust` and `just lint-check` both exited 0. Phone delivery was
+  down between the merge and the apply that followed it in the same sitting.
+
+  SLICE 40 DONE 2026-09-20, [PR #825](https://github.com/webdavis/dotfiles/pull/825), merged `a98cfd3da`.
+  Slice 40 of the pns refactor ladder renamed the `[plugins.presence]` settings to say what each one
+  measures. `exclude` became `excluded_rooms`, which the table documents as a subtraction from `rooms`,
+  keeping the rule that `desk_room` must be in `rooms` and not in `excluded_rooms` and refusing either
+  violation by name. `poll_secs`, `stale_after_secs` and `desk_stale_after_secs` became `poll_interval`,
+  `reading_max_age` and `desk_input_max_age`, each a duration string read through the config layer's own
+  duration helper, at the values the file already shipped ("5s", "15s", "2m") and inside the ranges the
+  code already enforced ("2s" to "1m" for the interval, never under the interval for the reading bound,
+  "1s" to "1h" for the desk bound). Each retired spelling is refused at load by the plugin roster's
+  unknown-key listing, which names the key that replaced it, so a config that missed the rename is
+  refused whole rather than read half-way at a default the operator believes they changed. The render
+  layout, the shipped values file, the regenerated config template, the resolved-configuration snapshot
+  and the two specs quoting the old keys all moved with the rename, and the presence tests pin the
+  subtraction, both desk-room refusals, the three durations reaching the settings the seconds used to, an
+  out-of-range and a bare-count value refused by name, and every old key refused by name. Task 93 stays
+  as filed. `just test-rust` and `just lint-check` both pass, before and after a merge of origin/main.
+
+  SLICE 41 DONE 2026-09-20, [PR #827](https://github.com/webdavis/dotfiles/pull/827), merged `3d9d0a627`.
+  Slice 41 of the pns config refactor moved the lights behaviour and state names. `[lights.github]`
+  became `[lights.checks]` and its two colour keys became `pass_color` and `fail_color`;
+  `[lights.unread]` became `[lights.unseen]`, the finished-run lamp; and the word a target declares
+  became `behaviours` rather than `shows`, pairing it with its sibling `dim_behaviours` (plan items 93
+  and 98 and the `[lights.unread]` rows of the Names table). The lamp behaviour enum, the config roster,
+  the target parser, the render layout and prose, the shipped values file, the regenerated template and
+  the resolved-config snapshot all moved together, and every retired heading, key and behaviour word is
+  now refused at load by name, with the spelling to write listed in the same sentence. The lamps are
+  pns's own, so no caller outside pns moved, and the GitHub notification source kept its own vocabulary.
+  Risk carried: the lamps go to their unconfigured state between the merge and the operator's apply, so
+  the apply belongs in the same sitting.
+
+  SLICE 44 DONE 2026-09-20, [PR #826](https://github.com/webdavis/dotfiles/pull/826), merged `1fcd5b086`.
+  Task 93, slice 44 of the pns refactor ladder, renamed the three `[delivery]` keys whose names disagreed
+  with what the code did with them (plan item 104). `max_attempts` was compared against the retry count
+  rather than the attempt count, so it became `max_retries`, and the boundary it sets is now pinned: N
+  retries run and the N+1th is refused, with zero permitting no retry at all. `retry_base_secs` was never
+  a base but the increment the retry count multiplies, so it became `retry_step` and now takes a duration
+  string bounded from a second to an hour. `max_age_secs` was measured against the original event's
+  creation epoch, which its name did not say, so it became `event_max_age` and now takes a duration
+  string bounded from a minute to thirty days, with the shipped default spelled "168h". None of the three
+  comparisons needed correcting; each read correctly under the new name and each is now pinned by its own
+  test, including that the age is judged against the original event rather than the retry about to run.
+  Every retired spelling is refused by name at load through the roster's own unknown-key listing, which
+  carries the word to write instead. The domain fields followed the keys, the two new durations carved
+  zero out the way every other duration key does, the render layout, the resolved-config snapshot, the
+  persistence spec and the delivery decision record followed, and the shipped config template was
+  regenerated. The values file needed no change because all three ship at their defaults. Gates green:
+  `just test-rust` and `just lint-check` both exit 0.
+
+  SLICE 45 DONE 2026-09-19, [PR #823](https://github.com/webdavis/dotfiles/pull/823), merged `1f0ba65c8`.
+  Task 93, slice 45 of the pns refactor ladder. The recap and failures tables now name what they control.
+  `[recap] digest` became `post_window_recap` (its value is whether the whole-window recap is posted,
+  inside a table already called recap), `min_events` became `minimum_events`, `repos` became
+  `repositories` (the parser reading it was already called that), and `review_notes` became
+  `review_notes_glob`, because it names a glob pattern rather than the notes. `[failures] serve` and
+  `port` configure an HTTP listener inside a table named for the failure record, and became
+  `page_enabled` and `page_port`. Every retired spelling is refused by name at load through the roster's
+  existing unknown-key listing, which prints the word to write instead, and two tests pin that one key at
+  a time across both tables. The struct fields, the refusal sentences, the render layout, the specs and
+  the shipped config template followed the keys, and the template was regenerated rather than hand
+  edited. Plan item 109. Gates: just test-rust and just lint-check, both exit 0 after merging origin/main
+  past slice 37. Operator step: one full chezmoi apply, because a deployed config still carrying an old
+  spelling is refused at load until it lands.
+
+  SLICE STATUS 2026-09-20: merged 1 to 19, 22 to 26, 28 to 38, 40, 41, 44, 45; in flight 20, 27, 39, 42;
+  the ladder is 55 slices since PR #828 appended the recap slices 50 to 55.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -6131,7 +6424,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   only by a regression: the gutted `recap_with_deadline` took 15.01 s where the passing test takes
   milliseconds.
 
-- [ ] 140. One wall-clock budget assertion outside task 101's spawn scope, filed 2026-09-17 from a lane
+- [x] 140. One wall-clock budget assertion outside task 101's spawn scope, filed 2026-09-17 from a lane
   failure the same night.
   `busy_ledger_writes_refuse_within_the_budget_without_recording_sensitive_content`
   (`pns/crates/pns-adapters/src/persistence/sqlite/ledger/tests/failures.rs:16`) asserts
@@ -6153,7 +6446,17 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   scope, and it is now observed on a GitHub runner rather than only under sibling-lane load, so the
   budget is too tight for CI and not only for a loaded laptop.
 
-- [ ] 141. A future timestamp reads as maximally fresh instead of unknown, filed 2026-09-17 out of B25's
+  DONE 2026-09-19 together with task 152, [PR #807](https://github.com/webdavis/dotfiles/pull/807),
+  merged `b9d2f6a12`. Posture fixtures across posture-adapters and the posture crate that built a scratch
+  directory from the process id alone, or from a pid plus an in-run counter but no epoch nanosecond,
+  collided with AlreadyExists on a recycled process id and never removed their directory; every affected
+  fixture root now folds in the epoch nanosecond and is removed by a Drop guard when its test ends. A
+  wall-clock budget assertion in the pns ledger's busy-write test, and a sibling with the same shape in
+  the ledger health test, were replaced with the typed refusal already available from each call, and a
+  sweep of both workspaces found no other duration assertion outside a process spawn or an
+  already-documented liveness bound.
+
+- [x] 141. A future timestamp reads as maximally fresh instead of unknown, filed 2026-09-17 out of B25's
   disposition. `age_of` (`pns/crates/pns-domain/src/decision/reading.rs:48`) `saturating_sub`s a
   `taken_at` that is in the future, which yields age 0, the freshest possible reading, where the
   function's own stated policy for a clock it cannot read is `None`, meaning unknown. In a presence
@@ -6168,7 +6471,19 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   verdict. WAITS ON THE OPERATOR: confirm or reject that disposition before a pull request implements it,
   since it changes what an unknown reading does to a delivery decision.
 
-- [ ] 142. The four posture test dispositions 60a deliberately deferred, filed 2026-09-17 with named
+  DONE 2026-09-19, [PR #805](https://github.com/webdavis/dotfiles/pull/805), merged `fe8ab37c0`. `age_of`
+  in pns-domain's surface reading (`pns/crates/pns-domain/src/decision/reading.rs`) returned `Some(0)`,
+  the freshest possible age, for a `taken_at` timestamp later than the decision clock, instead of the
+  function's own stated policy for an untrustworthy clock, `None`, unknown. A future marker or phone
+  timestamp, from a clock that went backwards, a marker restored from a backup, or a device with a skewed
+  clock, made the desk or phone look freshly touched, holding an alert on the banner that should have
+  reached the phone. The fix returns `None` when `taken_at` is later than now, scoped to `age_of` alone
+  per the disposition note, with unit tests for the future, equal and past `taken_at` cases plus a
+  decision-level test proving a future phone timestamp now routes to the phone getting carded instead of
+  being suppressed as already watching. The presence-and-visibility spec's readings section got one added
+  sentence naming the future case.
+
+- [x] 142. The four posture test dispositions 60a deliberately deferred, filed 2026-09-17 with named
   triggers so they stop reading as a vague remainder. All four are recorded in
   `posture/docs/test-baseline.tsv` with their own disposition field. (1) FIVE JQ AND PIPE FAULT-INJECTION
   PROPOSALS, disposition `proposed-disposition`, and NONE OF THEM HAS A RUST MECHANISM LEFT TO TEST:
@@ -6190,7 +6505,28 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   the same task 45b caller and exit acceptance the jq and pipe rows wait on, because that is where a
   second process gets a defined exit contract.
 
-- [ ] 143. The heartbeat cannot tell you it failed to deliver, filed 2026-09-17 from task 50a's evidence
+  DONE 2026-09-19, [PR #815](https://github.com/webdavis/dotfiles/pull/815), merged `e4e19eaf1`. Task 49
+  deleted the Bash queue on 2026-09-15, so every `retained-legacy` row named a test owner that no longer
+  exists, and each of the twenty rows was decided against posture's Rust shape rather than ported by
+  habit. Two rows became real two-process tests, because that is the only way their assertion means
+  anything: B001 now spawns a live child while `SingleRunLock` is held and proves a second run takes the
+  released lock while that child still runs
+  (`posture/crates/posture-adapters/src/results_cursor/tests.rs`), and B002 spawns two `posture alert`
+  children over one seeded results log and asserts exactly one producer call, exit 0 from both, and one
+  shared final cursor (`posture/crates/posture/tests/alert_contention.rs`). B002 did not stay `partial`:
+  task 45b closed and `posture alert` is a real subcommand with a documented exit contract, so the second
+  process could be driven to a defined exit. Five counter and probe rows map to the read-only queue
+  reader's own tests, whose successors the baseline had already recorded as pending. The other thirteen
+  retire with the Rust shape that made the Bash assertion meaningless named in each row: the four
+  drain-continuation rows because there is no drain loop, the four apostrophe rows because the queue
+  reader opens read-only and binds its one value as a parameter leaving no writer to corrupt, and the
+  five jq and pipe proposals because the encoder process, the candidate pipe and the severity subprocess
+  are all gone, replaced by one write of a complete line, a typed batch whose failed sink returns
+  retained with no checkpoint, and an in-process severity gate. B140 was recorded as a mechanism
+  retirement rather than restated as an atomic-write guarantee. The posture workspace is green on its
+  own.
+
+- [x] 143. The heartbeat cannot tell you it failed to deliver, filed 2026-09-17 from task 50a's evidence
   pass. `posture-application/src/heartbeat.rs` discards the submission result
   (`let _ = self.sink.submit(...)`), so the job exits 0 whether the page reached its destination or not,
   and `launchctl`'s last exit code is therefore NOT evidence of delivery. Both job logs are 0 bytes and
@@ -6201,7 +6537,22 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   local banner or both, and pin it with a test that a refused submission does not look like a successful
   run. Check `digest` and the other one-shot jobs for the same discarded result while you are in there.
 
-- [ ] 144. Adopt the three native macOS probes the 2026-09-17 measurements recommend, filed the same day.
+  DONE 2026-09-19, [PR #816](https://github.com/webdavis/dotfiles/pull/816), merged `a43bf469e`. Made
+  every posture one-shot job answer for its own delivery. `Heartbeat::run` returns its submission instead
+  of discarding it, and `posture heartbeat` lends its last-resort banner to the sink and takes it back: a
+  refused or failed submission writes one stderr line naming the route and the reason, raises that line
+  on the local banner, and exits 1, so launchctl's last exit code is now evidence of delivery rather than
+  of the process having started. A delivered heartbeat still exits 0 with empty streams. The cursor-reset
+  warning in the results judge now travels out beside the batch outcome and `posture alert` writes a line
+  when it reached nobody, keeping its documented exit 0 because the batch was judged and checkpointed on
+  its own terms. The funnel's corrupt-baseline warning is carried to the end of the run, so the repair
+  happens whatever the warning did and the job exits 1 with a line when the warning was lost.
+  `posture digest` and `posture alert` already branched on their sink's answer, so neither changed.
+  Pinned by library tests over a fixture producer command and a fixture alarm: a refused heartbeat exits
+  1 with the exact stderr line and the banner, a delivered one exits 0, a refused reset warning is
+  reported out, and a refused corruption warning fails the funnel run after the baseline was repaired.
+
+- [x] 144. Adopt the three native macOS probes the 2026-09-17 measurements recommend, filed the same day.
   The measurements and the per-probe verdicts are in
   `docs/superpowers/specs/2026-09-17-native-macos-probe-evaluation.md` and are not re-derived here: adopt
   the IOKit idle property in place of `ioreg -c IOHIDSystem` (44.47 ms to 0.0100 ms), the registry Root
@@ -6218,7 +6569,27 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   which field macOS pgrep itself matches against, since only the manual page's wording and one observed
   agreement support the current reading.
 
-- [ ] 146. Give the allowlist write lock an audit trail, filed 2026-09-17 from the approval-interface
+  DONE 2026-09-19, [PR #821](https://github.com/webdavis/dotfiles/pull/821), merged `d2a3f36f1`. Adopted
+  the three native macOS probes the measurements recommended, after the operator accepted the
+  interruptible-deadline trade on 2026-09-19. The desk idle reading now comes from the IOKit
+  `HIDIdleTime` property on the `IOHIDSystem` service and the console lock from `IOConsoleLocked` on the
+  registry Root node, both in process and neither through `CGSessionCopyCurrentDictionary`; the phone's
+  clients and their controlling terminals come from one libproc walk comparing `pbi_ppid` and resolving
+  `e_tdev` with `devname`, which retired the `ps -o tty=` spawn along with `pgrep -P`.
+  `pgrep -x mosh-server` stayed shelled as the evaluation asked. No dependency was added: five IOKit
+  symbols, six Core Foundation symbols and `devname` are declared in two extern blocks smaller than the
+  binding crates would have been. The five-second deadline was kept rather than traded away, by running
+  each native read on its own thread and taking the answer with a timed receive on the probe thread, so a
+  wedged call leaks one stack in a short-lived process and never holds the notification; the fall
+  direction is unchanged, with an unreadable property, a wrong type, a short record or a blown deadline
+  all reading as unknown. The four gates the evaluation left open were exercised: the lock transition
+  live in the locked state and both ways through an injected registry, an unreadable device and a stalled
+  call through injected readers, and a multi-user session against five concurrent mosh sessions whose
+  five terminal names the walk and the retired commands agreed on exactly. Measured on the same loaded
+  machine, the desk pair fell from 90.6 ms to 0.13 ms and the phone chain shed the 48.5 ms of its two
+  removed spawns.
+
+- [x] 146. Give the allowlist write lock an audit trail, filed 2026-09-17 from the approval-interface
   reconciliation. `AllowlistWriteLock` takes a blocking exclusive lock on a sidecar of the deployed
   allowlist and records NOTHING: no identity, no timestamp, no verb. That makes it a concurrency contract
   rather than an audit trail, which matters because the same reconciliation established that a grant
@@ -6231,6 +6602,19 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   approval mechanism; this is a record of what happened, not a gate on what may happen. Read the
   reconciliation document first, because it names the exact call sites and says why the announcement this
   was assumed to get for free does not exist.
+
+  DONE 2026-09-19, [PR #817](https://github.com/webdavis/dotfiles/pull/817), merged `f43b297f7`. The
+  allowlist write lock now carries an audit trail. A held `AllowlistWriteLock` guard appends one JSON
+  line to a sidecar audit file beside the existing lock sidecar, before the write it covers is published:
+  the RFC 3339 UTC instant, the verb (allow or deny), the label, the invoking uid and passwd name, and
+  the parent process name where the kernel still has one. The line is flushed to disk and a failed append
+  refuses the curation before the publisher runs, so a published write with no record cannot happen. The
+  record is a bound on the lock's own guard rather than a separate collaborator, so a caller cannot hold
+  the lock and skip it. It gates nothing: no acquisition is refused for want of an approval and no verb
+  is newly blocked, and `posture doctor` is unchanged. The audit file is not manifested, so its own
+  writes fall to a log-only integrity verdict rather than paging as tampering, exactly like the lock
+  sidecar. Four tests pin the behavior, two in the adapter and two in the application, all well under a
+  second.
 
 - [ ] 147. Decide the watchdog's dead-letter alarm shape, filed 2026-09-17 out of task 100's evidence.
   The watchdog reports only an INCREASE in the dead-letter population, never the standing count, so a
@@ -6262,7 +6646,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   decided, treat any agent on that platform as able to suppress a security finding. Evidence:
   `docs/superpowers/specs/2026-09-17-posture-approval-interface-reconciliation.md`.
 
-- [ ] 145. Say in the shared agent rules who the gh-axi preference binds, filed 2026-09-17 because TWO
+- [x] 145. Say in the shared agent rules who the gh-axi preference binds, filed 2026-09-17 because TWO
   LANES HAVE NOW HAD TO DERIVE IT FROM FIRST PRINCIPLES. `.chezmoitemplates/global-agent-rules.md` says
   to prefer the `gh-axi` skill over the raw `gh` CLI for every GitHub operation, and never to invoke `gh`
   directly. Read literally that sentence reaches the Rust products this repository ships, and twice now
@@ -6281,7 +6665,12 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   stated: if they intend the rule to reach shipped products too, the seam at `github_cli.rs` is the one
   place that would change, and the capability loss above is the price.
 
-- [ ] 149. The test capture helper takes its request count positionally behind the status, filed
+  DONE 2026-09-19, [PR #814](https://github.com/webdavis/dotfiles/pull/814), merged `f072ba291`, per the
+  operator's 2026-09-19 ruling that the gh-axi preference binds only the agent invoking a GitHub command,
+  not a Rust product this repository ships on its own merits. Two clarifying sentences were appended to
+  the gh-axi bullet in `.chezmoitemplates/global-agent-rules.md`.
+
+- [x] 149. The test capture helper takes its request count positionally behind the status, filed
   2026-09-17 from slice 6's evidence. `Capture::start` in the pns test support takes an optional status
   first and an optional request count second, so a call meaning "no status, two requests" passed in the
   other order makes the capture answer HTTP status 3 rather than refusing the call. It is silent: the
@@ -6289,7 +6678,17 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   from the home command to doctor. Give the two a shape that cannot swap, a named argument or a builder,
   and pin the refusal of a status that no caller asked for.
 
-- [ ] 150. One scalebar regression test hangs the whole suite, filed 2026-09-17 while building tasks 129
+  DONE 2026-09-19, [PR #813](https://github.com/webdavis/dotfiles/pull/813), merged `17a7aff0a`. The pns
+  test capture helper no longer takes its status and request count as a swappable positional pair.
+  `Capture::start(&sandbox, name, Option<&str>, Option<&str>)` became
+  `Capture::builder(&sandbox, name).status(u16).requests(usize).start()`, so each value is named by the
+  method that sets it and neither can take the other's place. The builder refuses a status outside 100 to
+  599 at the call site with a panic naming the value, and a capture that names no status still answers
+  200 as every previous caller relied on. Both arguments are passed to http-capture on every start, so
+  its positional pair is never read one argument short. All eight callers moved, and two twin tests pin
+  the refusal and the accepted status.
+
+- [x] 150. One scalebar regression test hangs the whole suite, filed 2026-09-17 while building tasks 129
   and 130. `node Tests/workflow-regressions.test.cjs` and `Tests/workflow-lifecycle.test.cjs` never
   return. The cause was bisected and it is NOT the size of the argument payload, which an earlier reading
   guessed: handing the identical payload to Obsidian from a file hangs the same way, and a 120 second
@@ -6300,7 +6699,11 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   and 131 were each verified through a filtered payload that runs one test at a time. Work lands as a
   pull request on `~/workspaces/Ivy/webdavis/scalebar`.
 
-- [ ] 151. The scalebar Swift catalog helper aborts on a nil unwrap, filed 2026-09-17 while building task
+  DONE 2026-09-19, [webdavis/scalebar PR #9](https://github.com/webdavis/scalebar/pull/9), merged
+  `1333384`. The root cause was Chromium's hidden-window nested-timer ceiling, not the modal: `settle()`
+  now drains microtasks, and the whole scalebar suite is green.
+
+- [x] 151. The scalebar Swift catalog helper aborts on a nil unwrap, filed 2026-09-17 while building task
   129\. `node Tests/workflow-core.test.cjs` reports 36 pass and 1 fail on untouched `main`, and the
   failure is the compiled helper `catalog-check` aborting with
   `main/main.swift:16: Fatal error: Unexpectedly found nil while unwrapping an Optional value`, killed by
@@ -6308,6 +6711,12 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   cannot go green, so no scalebar change can be gated on a clean run of it. Find what line 16 unwraps and
   why it is empty here, and either give it a real value or a refusal that names what is missing. Work
   lands as a pull request on `~/workspaces/Ivy/webdavis/scalebar`.
+
+  DONE 2026-09-19, [webdavis/scalebar PR #8](https://github.com/webdavis/scalebar/pull/8), merged
+  `f9be72b`. The catalog check asked for a frozen fixture date and now binds `todayDate`. The follow-up
+  [webdavis/scalebar PR #10](https://github.com/webdavis/scalebar/pull/10), merged `8d97082`, stopped the
+  hidden-window timers and `requestAnimationFrame` in the schedule-widget and run-obsidian-tests entry
+  points, pumps the frame queue explicitly and dispatches close events for closed panels.
 
 PROCESS NOTE, 2026-09-17: CI never starts on a head pushed while GitHub had the pull request marked
 dirty. Measured on pull requests 770 and 772. Both lanes hit a conflict after a sibling merge, merged
@@ -6323,7 +6732,7 @@ seconds. Any ship stage should therefore read the check runs for the NEW head sh
 conflict and pushing, rather than the pull request's check summary, and treat "no CI checks configured"
 on a repository that HAS a workflow as a missing trigger rather than as an absent pipeline.
 
-- [ ] 152. A pns rust test fixture names its directory by process id and never removes it, filed
+- [x] 152. A pns rust test fixture names its directory by process id and never removes it, filed
   2026-09-18 from the slice 2 lane's evidence. `posture/crates/posture/tests/usage.rs:147` names its
   fixture directory after `std::process::id()` with no cleanup, and 685 stale `posture-metadata-*`
   directories had piled up in the system temporary directory (counted 2026-09-17); a REUSED process id
@@ -6332,6 +6741,11 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   directory a unique name and remove it on completion, the way task 101's three fixtures were fixed; the
   685 existing directories need one `trash` by the operator, run non-destructively rather than by an
   agent.
+
+  DONE 2026-09-19 together with task 140, [PR #807](https://github.com/webdavis/dotfiles/pull/807),
+  merged `b9d2f6a12`. The posture fixture roots now fold in the epoch nanosecond and are removed by a
+  Drop guard when their test ends; see task 140's DONE line for the full evidence. The 685 existing stale
+  directories still need one `trash` by the operator, run non-destructively.
 
 - [x] 153. posture hardcodes an engine's argv verb in its own source, filed 2026-09-18 from the slice 2
   lane's evidence. `posture/crates/posture/src/lib.rs:90` composes a producer command by name, which the
@@ -6348,13 +6762,19 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   fixture command, not an engine. The `pns.result/1` schema tag in fixtures is the wire contract's name
   and is covered by the wire-crate task above.
 
-- [ ] 154. The three extracted herdr plugin repositories and the two Todoist plugin repositories have no
+- [x] 154. The three extracted herdr plugin repositories and the two Todoist plugin repositories have no
   CI, filed 2026-09-18. `just test-rust` used to run cargo test, fmt, clippy and doc over
   herdr-smart-nav, herdr-workspace-jump and herdr-process from this repository, and after task 68a's
   extraction nothing does. `webdavis/herdr-todoist` and `webdavis/todoist.nvim` never had a dotfiles gate
   either, and all five repositories' pull requests merge with "this PR has no CI checks configured";
   every gate run against them tonight was run by hand in a lane's worktree, which is real evidence but is
   not a gate anyone else's change has to pass. Each needs its own workflow.
+
+  DONE 2026-09-19: CI added in all five repositories. `webdavis/herdr-smart-nav PR #1`,
+  `webdavis/herdr-workspace-jump PR #1` and `webdavis/herdr-process PR #1` each added a workflow on
+  `macos-latest`. `webdavis/herdr-todoist PR #12` added one with `--workspace` so `crates/todoist` is
+  covered. `webdavis/todoist.nvim PR #13` added lint and test, with Neovim 0.12.5 pinned by sha256
+  tarball.
 
 - [ ] 155. A pin bump in the herdr plugin roster does not move an already-installed plugin, filed
   2026-09-18, raised as an open question by the task 68a lane. herdr v1 has no `plugin update`, so
@@ -6381,6 +6801,39 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   the complete write directly and asks nothing, so completing a parent from the picker silently closes
   its subtasks. The picker builds its entries from tasks rather than from the list buffer, so it has no
   tree to count children in; giving it one is its own change.
+
+- [ ] 159. A sandbox wall-clock assertion is measured tight under concurrent load, filed 2026-09-20.
+  `dispatch::hermes_lines::every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`
+  (`pns/crates/pns/tests/support/sandbox.rs`, 5000 ms ceiling) measured 5.1 to 9.6 seconds under fourteen
+  concurrent cargo runs on 2026-09-19, and passes in CI. Re-measure once the lanes are quiet and either
+  fix the fixture or give it an `allow_slow` reason; never raise the number.
+
+- [ ] 160. Collapse the hand-copied posture fixture guards onto the shared Sandbox type, filed
+  2026-09-20. Skipped by the PR #807 reviewer as a real refactor rather than a fix-round item: several
+  posture fixtures now carry their own epoch-nanosecond scratch-directory guard, duplicating logic the
+  shared pns Sandbox type already owns.
+
+- [ ] 161. Sweep every shelled CLI across pns, uu, posture and lights for native replacements, filed
+  2026-09-20 under the operator's 2026-09-19 prefer-native ruling. Task 144 was the first instalment,
+  replacing three shelled macOS probes with native IOKit and libproc calls; find the rest.
+
+- [ ] 162. The pns daemon log on dresden carries recurring state-error lines in bursts, cause unknown,
+  filed 2026-09-20. `state error (delivery ledger: database refused the operation)` and
+  `(decision: unreadable state record)` appear in bursts; eight parallel probes of
+  `sample_delivery_health` against the live store on 2026-09-20 never reproduced it, and deliveries are
+  healthy throughout. [PR #833](https://github.com/webdavis/dotfiles/pull/833)
+  (`fix/pns-state-diagnostics-name-the-error`), merged `45f82efc7`, makes each line carry the store
+  error's own sentence, so the next occurrence after the operator's apply names the refused operation.
+  Investigate from that line.
+
+- [ ] 163. Orphaned `pns failures serve` processes hold the port every new daemon's child needs, filed
+  2026-09-20. Three `pns failures serve` processes from 2026-09-16 and 2026-09-17 outlived their daemons
+  (parent pid 1), and the oldest holds `127.0.0.1:8646`, so every new daemon's child logs
+  `could not bind` every 30 seconds. A fix lane (`fix/pns-failures-page-dies-with-its-daemon`) had no
+  open or merged pull request as of 2026-09-20
+  (`gh-axi pr list --state all --head fix/pns-failures-page-dies-with-its-daemon` returned none), so this
+  is IN FLIGHT rather than done. The operator step either way is `kill <pid>` for each orphan and
+  `pns gateway restart`.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
