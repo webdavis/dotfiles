@@ -179,8 +179,13 @@ fn named(
         // Destination names come from the validated compiled registry.
         name: Name::new(destination).expect("a registered destination name"),
         outcome,
-        // A leg submitted to a destination's own default carries no route.
-        route: Name::new(route).ok(),
+        // A leg submitted to a destination's own default carries no route;
+        // any other route comes from the same validated compiled registry.
+        route: if route.is_empty() {
+            None
+        } else {
+            Some(Name::new(route).expect("a registered route name"))
+        },
         note,
         retry_at,
     }
