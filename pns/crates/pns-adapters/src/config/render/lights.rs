@@ -6,14 +6,14 @@ use super::*;
 /// EVERY CLUSTER AND DECLARATION MAP IS PULLED OUT OF `lights` FIRST, before
 /// any of it is written: `render_block`'s own leftover check would otherwise
 /// see the whole cluster sitting unclaimed under the bare `[lights]` heading,
-/// which serves only `arm_interval`, and refuse it as an unknown key before
-/// the walk ever reaches `[lights.done]`.
+/// which serves only `arm_interval` and `dim_window`, and refuse it as an
+/// unknown key before the walk ever reaches `[lights.done]`.
 pub(super) fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Result<(), String> {
     let present = remaining.contains_key("lights");
     let mut lights = take_table(remaining, "lights")?;
 
     let mut own_keys = toml::Table::new();
-    for key in ["note", "arm_interval"] {
+    for key in ["note", "arm_interval", "dim_window"] {
         if let Some(value) = lights.remove(key) {
             own_keys.insert(key.to_string(), value);
         }

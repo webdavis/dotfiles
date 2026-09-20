@@ -73,7 +73,7 @@ fn a_colour_pair_renders_as_floats_and_a_type_with_no_spelling_is_still_refused(
     let values = toml::toml! {
         [lights.checks]
         pass_color = [0.2, 0.295]
-        brightness = 60
+        brightness_percent = 60
     };
     let text = render(&values).expect("a colour pair renders");
     assert!(

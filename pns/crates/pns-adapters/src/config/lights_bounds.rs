@@ -89,6 +89,17 @@ pub(super) fn positive_duration(
     setting: &toml::Value,
     range: RangeInclusive<Duration>,
 ) -> Result<u64, ConfigError> {
+    Ok(positive_duration_value(table, key, setting, range)?.as_secs())
+}
+
+/// The same refusal for a duration whose range is finer than a second, kept
+/// whole so a caller can take the milliseconds it was written in.
+pub(super) fn positive_duration_value(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<Duration, ConfigError> {
     use pns_domain::duration::spelled;
     let (low, high) = (spelled(*range.start()), spelled(*range.end()));
     let stated = duration_value(table, key, setting, range)?;
@@ -97,7 +108,26 @@ pub(super) fn positive_duration(
             "`{table}` key `{key}` \"0s\" is outside {low} to {high}"
         )));
     }
-    Ok(stated.as_secs())
+    Ok(stated)
+}
+
+/// One fade or accent, in the milliseconds the driver issues it in.
+///
+/// ITS OWN RANGE IS THE ONLY ONE IN THE TABLE, so the range is not a parameter:
+/// every `duration` and `flare_duration` key across the six behaviour tables
+/// shares the fade bounds.
+pub(super) fn fade_duration(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+) -> Result<u64, ConfigError> {
+    let stated = positive_duration_value(table, key, setting, fade_range())?;
+    Ok(u64::try_from(stated.as_millis()).expect("bounded at MAX_FADE_MS, which fits a u64"))
+}
+
+/// The fade range, as the duration parser takes it.
+pub(super) fn fade_range() -> RangeInclusive<Duration> {
+    Duration::from_millis(MIN_FADE_MS)..=Duration::from_millis(MAX_FADE_MS)
 }
 
 /// How long ONE fade may take, in milliseconds.
@@ -125,11 +155,9 @@ pub(super) fn breath_key(
     breath: &mut Breath,
 ) -> Result<(), ConfigError> {
     match key {
-        "duration_ms" => {
-            breath.duration_ms = bounded(where_it_is, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
-        }
-        "high" => breath.high = percent(where_it_is, key, stated)?,
-        "low" => breath.low = percent(where_it_is, key, stated)?,
+        "duration" => breath.duration_ms = fade_duration(where_it_is, key, stated)?,
+        "high_percent" => breath.high = percent(where_it_is, key, stated)?,
+        "low_percent" => breath.low = percent(where_it_is, key, stated)?,
         _ => return Err(unknown_key(where_it_is, where_it_is, key)),
     }
     Ok(())
@@ -142,8 +170,9 @@ pub(super) fn breath_key(
 pub(super) fn ends_agree(where_it_is: &str, breath: &Breath) -> Result<(), ConfigError> {
     if breath.low > breath.high {
         return Err(ConfigError::Invalid(format!(
-            "`{where_it_is}` has low {} above high {}, so a fade to `high` would \
-             move the lamp down and one to `low` would move it up",
+            "`{where_it_is}` has low_percent {} above high_percent {}, so a fade \
+             to `high_percent` would move the lamp down and one to `low_percent` \
+             would move it up",
             breath.low, breath.high
         )));
     }
@@ -157,8 +186,8 @@ pub(super) fn ends_agree(where_it_is: &str, breath: &Breath) -> Result<(), Confi
 /// THE SECOND HALF ALSO HOLDS THE SCHEDULING MARGIN. A resumed breath may start
 /// as much as one leg's step into what is left of a tick's interval, so the
 /// worst case a config can produce is its LONGEST leg; keeping the accent under
-/// `duration_ms` keeps that longest leg the breath's own, exactly as it was
-/// before the accent existed. Without it, `flare_ms` would be a second way to
+/// `duration` keeps that longest leg the breath's own, exactly as it was
+/// before the accent existed. Without it, `flare_duration` would be a second way to
 /// write a leg too slow for the interval it runs in.
 pub(super) fn accent_agrees(
     where_it_is: &str,
@@ -166,16 +195,16 @@ pub(super) fn accent_agrees(
 ) -> Result<(), ConfigError> {
     if motion.flare <= motion.breath.high {
         return Err(ConfigError::Invalid(format!(
-            "`{where_it_is}` has flare {} at or below high {}, so the accent \
-             would not rise above the peak it is meant to accent",
+            "`{where_it_is}` has flare_percent {} at or below high_percent {}, \
+             so the accent would not rise above the peak it is meant to accent",
             motion.flare, motion.breath.high
         )));
     }
     if motion.flare_ms >= motion.breath.duration_ms {
         return Err(ConfigError::Invalid(format!(
-            "`{where_it_is}` has flare_ms {} at or above duration_ms {}, so the \
-             accent would be a third fade of the breath rather than a flash at \
-             its peak",
+            "`{where_it_is}` has flare_duration {} at or above duration {}, so \
+             the accent would be a third fade of the breath rather than a flash \
+             at its peak",
             motion.flare_ms, motion.breath.duration_ms
         )));
     }

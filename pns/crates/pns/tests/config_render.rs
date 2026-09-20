@@ -112,11 +112,11 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
         ),
         (
             "plugins.lights.bridge_host",
-            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
+            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\n",
         ),
         (
             "plugins.lights.api_key",
-            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
+            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\n",
         ),
         (
             "plugins.log.bot_token",
@@ -223,7 +223,7 @@ fn running_the_binary_twice_against_the_same_values_file_writes_identical_bytes(
     let second_path = scratch.path("second.tmpl");
     std::fs::write(
         &values_path,
-        "[plugins.lights]\nrooms = [\"Studio\", \"Kitchen\"]\n[remind]\n",
+        "[lights]\ndim_window = \"22:00-07:00\"\n[remind]\n",
     )
     .expect("write values");
 

@@ -117,7 +117,7 @@ fn a_place_the_config_does_not_name_is_refused_rather_than_silently_stored() {
 const ONE_HOUR: Option<u64> = Some(3_600);
 
 #[test]
-fn a_bare_mute_lasts_until_the_operators_quiet_hours_end() {
+fn a_bare_mute_lasts_until_the_house_dim_window_ends() {
     let known = places(&["3F - Studio"]);
     assert_eq!(
         mute_command(&[places(&["3F - Studio"])[0].clone()], &known, ONE_HOUR),
@@ -133,8 +133,8 @@ fn a_bare_mute_lasts_until_the_operators_quiet_hours_end() {
     assert_eq!(
         mute_command(&places(&["3F - Studio"]), &known, None),
         Err(
-            "pns: lights mute: a bare mute lasts until your quiet hours end, \
-             and `[plugins.lights] quiet_hours` states none; give a duration \
+            "pns: lights mute: a bare mute lasts until your dim window ends, \
+             and `[lights] dim_window` states none; give a duration \
              instead, or set that key"
                 .to_string()
         ),

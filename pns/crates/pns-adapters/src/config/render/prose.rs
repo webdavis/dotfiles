@@ -46,10 +46,10 @@ pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A d
      # level, and a behaviour word outside the six, are refused by name.\n\
      #\n\
      # `[lights]` IS INERT UNLESS `[plugins.lights] enabled` IS TRUE: hue is the\n\
-     # transport and this is the policy. WITH NO TABLE AT ALL the pulse is the\n\
-     # `rooms` array above and nothing else; uncommenting `[lights]` with no\n\
-     # declaration replaces that pulse with an empty lamp map, so name a place\n\
-     # before you do. Switching hue off while a lamp is held leaves that lamp\n\
+     # transport and this is the policy. WITH NO TABLE AT ALL the pulse reaches\n\
+     # the plugin's own default rooms and nothing else; uncommenting `[lights]`\n\
+     # with no declaration replaces that pulse with an empty lamp map, so name a\n\
+     # place before you do. Switching hue off while a lamp is held leaves that lamp\n\
      # to the wall switch, since putting it out takes a bridge.\n";
 
 /// The closing prose: the ad-hoc mute command, which reads about the config
@@ -58,7 +58,7 @@ pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A d
 pub(super) const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:\n\
      #\n\
      #   pns lights mute \"3F - Studio\" 2h   mute that place's lamps for two hours\n\
-     #   pns lights mute \"3F - Studio\"      mute them until quiet hours end\n\
+     #   pns lights mute \"3F - Studio\"      mute them until the dim window ends\n\
      #   pns lights mute \"3F - Studio\" off  loud again\n\
      #   pns lights mute                    what is muted right now\n\
      #\n\
@@ -66,13 +66,12 @@ pub(super) const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED,
      # lamp, room or zone and nothing else: cards, banners and the durable log\n\
      # carry on, and `pns mute`, which mutes all of them, is a different\n\
      # command with a different file that neither reads. A bare mute reads\n\
-     # `[plugins.lights] quiet_hours` above as the schedule and is refused when\n\
-     # none is set; an explicit duration is the same 1s to 24h `pns mute`\n\
-     # takes. A state file nobody can parse mutes EVERY lamp and says so: dark\n\
-     # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY\n\
-     # LAMP, ROOM AND ZONE, whether a declaration above writes it or the\n\
-     # bridge merely holds it, and a name neither knows is refused with the\n\
-     # list of the ones that work.\n";
+     # `[lights] dim_window` as the schedule and is refused when none is set;\n\
+     # an explicit duration is the same 1s to 24h `pns mute` takes. A state file\n\
+     # nobody can parse mutes EVERY lamp and says so: dark is the fail direction\n\
+     # on a lamp path. THE NAMES IT TAKES ARE EVERY LAMP, ROOM AND ZONE, whether\n\
+     # a declaration above writes it or the bridge merely holds it, and a name\n\
+     # neither knows is refused with the list of the ones that work.\n";
 
 /// The prose above the declarations, and the one commented declaration a
 /// fresh machine's operator can copy: the wizard never asks about the lamp
@@ -82,8 +81,9 @@ pub(super) const ROUTING: &str = "# The routing. `dim_window` is local wall cloc
      # which behaviours run their dim form inside it, and everything else that\n\
      # place carries is SUPPRESSED there. A window with an empty list therefore\n\
      # takes every behaviour away for the night and needs no mode of its own.\n\
-     # A place with no window is untouched at every hour; one that states\n\
-     # behaviours and no window keeps inheriting its room's window.\n";
+     # A place that states neither key runs `[lights] dim_window` above with\n\
+     # nothing dimmed; one that states `dim_behaviours` alone runs them inside\n\
+     # that same window.\n";
 
 /// Written commented, whichever way `[lights]` reads, and only when the
 /// caller declared no place of its own: a real declaration is a better
@@ -91,4 +91,8 @@ pub(super) const ROUTING: &str = "# The routing. `dim_window` is local wall cloc
 pub(super) const EXAMPLE_DECLARATION: &str = "# [lights.room.\"Studio\"]\n\
      # behaviours = [\"done\", \"failed\"]\n\
      # dim_window = \"22:00-07:00\"\n\
-     # dim_behaviours = [\"blocked\", \"unseen\", \"loop\"]\n\n";
+     # dim_behaviours = [\"blocked\", \"unseen\", \"loop\"]\n\
+     #\n\
+     # [lights.zone.\"Upstairs\"]\n\
+     # behaviours = [\"done\", \"failed\"]\n\
+     # dim_behaviours = [\"blocked\"]\n\n";
