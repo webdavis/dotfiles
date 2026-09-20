@@ -41,7 +41,7 @@ mod recap;
 pub use pns_domain::recap::Recap;
 use recap::{MAX_SUMMARIZER_DEADLINE_SECS, parse_recap};
 mod recap_values;
-use recap_values::{argv, seconds, threshold};
+use recap_values::{argv, threshold};
 mod recap_sources;
 use recap_sources::{note_glob, repositories};
 mod delivery;

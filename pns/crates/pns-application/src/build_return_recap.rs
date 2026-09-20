@@ -42,13 +42,13 @@ impl<A: ActivityRing, M: MergedPullRequestSource, N: ReviewNoteSource, S: Summar
             .map(|pattern| self.notes.notes(pattern, since, until));
         // ONE EPISODE, ONE BUDGET. The locked "the LLM runs once at the return
         // moment" is a moment rather than a call: this recap asks up to three
-        // questions (the night, the merges, the notes) and `summarizer_deadline_secs`
+        // questions (the night, the merges, the notes) and `summarizer_deadline`
         // is what the WHOLE episode may spend, so each call is bounded by what is
         // left of it. Per-call deadlines meant a 240-second key could hold two
         // processes for twelve minutes while the card had already said the recap
         // was in #pns, and a laptop that sleeps inside that window loses the recap
         // entirely. Adjudicated 2026-08-29.
-        let mut left = episode(Duration::from_secs(recap.summarizer_deadline_secs));
+        let mut left = episode(recap.summarizer_deadline);
         // THE ANSWER IS TAKEN BEFORE THE BODY IS COMPOSED and nothing else waits on
         // it: this process was started so that a model could be slow somewhere
         // nobody is standing.

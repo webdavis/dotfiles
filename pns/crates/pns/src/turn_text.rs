@@ -92,7 +92,7 @@ fn reread_interval_from(raw: Option<&str>) -> Duration {
 /// The name the refusal quotes, so the operator is sent to the variable they
 /// typed rather than to this function.
 const REREAD_INTERVAL_VARIABLE: &str = "PNS_REPLY_REREAD_INTERVAL";
-/// At most this much of a turn reaches the condenser or the notification.
+/// At most this much of a turn reaches the summarizer or the notification.
 const REPLY_MAX_CHARS: usize = 8000;
 /// The last few megabytes of a transcript parse in well under a second, and
 /// carry far more than one turn.

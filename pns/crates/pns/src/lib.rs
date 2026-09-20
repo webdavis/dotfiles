@@ -130,7 +130,7 @@ pub(crate) use moshi_submission::{blocking_event, gate_mode};
 use pns_adapters::focus_now;
 pub(crate) use pns_adapters::marker_files::renew_loop_lease;
 pub(crate) use pns_adapters::marker_files::update_blocked_marker;
-pub(crate) use pns_adapters::{MoshiApprovalForwarder, condense, spawn_recap};
+pub(crate) use pns_adapters::{MoshiApprovalForwarder, spawn_recap, summarize};
 pub(crate) use presence_runtime::{
     home_presence, last_narrowing, presence_snapshot, presence_status, system_probes,
 };
