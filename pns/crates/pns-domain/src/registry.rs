@@ -78,8 +78,8 @@ pub const NAME_MAX_CHARS: usize = 64;
 pub enum RegistryError {
     /// Two plugins claimed the same name.
     Duplicate(String),
-    /// A name no result envelope could carry: longer than [`NAME_MAX_CHARS`]
-    /// characters, or holding a control character.
+    /// A name no result envelope could carry: empty, longer than
+    /// [`NAME_MAX_CHARS`] characters, or holding a control character.
     UnencodableName { name: String, max_chars: usize },
     /// The config names a plugin nothing registered, enabled or not: the
     /// typo is the defect either way.
@@ -128,7 +128,10 @@ impl Registry {
         name: &'static str,
         kind: PluginKind,
     ) -> Result<(), RegistryError> {
-        if name.chars().count() > NAME_MAX_CHARS || name.chars().any(char::is_control) {
+        if name.is_empty()
+            || name.chars().count() > NAME_MAX_CHARS
+            || name.chars().any(char::is_control)
+        {
             return Err(RegistryError::UnencodableName {
                 name: name.to_string(),
                 max_chars: NAME_MAX_CHARS,

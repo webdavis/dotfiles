@@ -59,12 +59,12 @@ fn a_name_already_taken_is_refused_naming_it() {
 
 #[test]
 fn a_name_no_result_could_carry_is_refused_at_registration_naming_the_limit() {
-    // A name longer than the wire cap, and one carrying a control character,
-    // are both refused here, which is what keeps the delivery path's receipt
-    // free of a name it cannot encode.
+    // Empty, longer than the wire cap, and carrying a control character are
+    // all refused here, which is what keeps the delivery path's receipt free
+    // of a name it cannot encode.
     const TOO_LONG: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     assert_eq!(TOO_LONG.chars().count(), NAME_MAX_CHARS + 1);
-    for name in [TOO_LONG, "ban\tner"] {
+    for name in [TOO_LONG, "ban\tner", ""] {
         let mut registry = Registry::new();
         assert_eq!(
             registry.register_channel(name, LOCAL),
