@@ -20,7 +20,7 @@
 
 use crate::DEFAULT_REMOTE_DEADLINE_SECS;
 use pns_domain::lamps::config::{
-    Behaviour, Blocked, Breath, BreatheThenFlare, Github, Lights, Looping, Pulse, Target, Unread,
+    Behaviour, Blocked, Breath, BreatheThenFlare, Checks, Lights, Looping, Pulse, Target, Unseen,
 };
 use std::collections::BTreeMap;
 use std::ops::RangeInclusive;

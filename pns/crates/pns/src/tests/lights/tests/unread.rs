@@ -90,7 +90,7 @@ fn only_a_finished_or_a_dead_turn_is_news_and_a_wait_is_not() {
     // A WAIT IS NOT NEWS. It is a question still on screen, which is the
     // blocked lamp's own business; recording it here would arm the unread
     // lamp about something nobody has missed.
-    for not_news in [Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping] {
+    for not_news in [Behaviour::Blocked, Behaviour::Unseen, Behaviour::Looping] {
         assert_eq!(
             news_after(held, not_news, 2_000),
             None,

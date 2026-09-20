@@ -6,7 +6,7 @@ fn a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_d
     // swapped a fade to `high` would move the lamp down.
     for written in [
         "[lights.blocked]\nhigh = 20\nlow = 40\n",
-        "[lights.unread]\nhigh = 20\nlow = 40\n",
+        "[lights.unseen]\nhigh = 20\nlow = 40\n",
         "[lights.loop]\nhigh = 20\nlow = 40\n",
         "[lights.dim]\nhigh = 2\nlow = 4\n",
     ] {
@@ -58,7 +58,7 @@ fn an_accent_that_does_not_rise_above_the_peak_or_stay_brief_is_refused() {
     // have no accent at all: the knob exists only where it applies.
     for elsewhere in [
         "[lights.blocked]\nflare = 100\n",
-        "[lights.unread]\nflare_ms = 200\n",
+        "[lights.unseen]\nflare_ms = 200\n",
         "[lights.dim]\nflare = 100\n",
     ] {
         assert!(

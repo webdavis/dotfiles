@@ -273,7 +273,7 @@ Config {
                 },
                 give_up_after_secs: 57600,
             },
-            unread: Unread {
+            unseen: Unseen {
                 breath: Breath {
                     duration_ms: 4000,
                     high: 60,
@@ -281,16 +281,16 @@ Config {
                 },
                 after_secs: 300,
             },
-            github: Github {
+            checks: Checks {
                 pulse: Pulse {
                     duration_ms: 4000,
                     brightness: 100,
                 },
-                pass: PulseColor {
+                pass_color: PulseColor {
                     x: 0.2725,
                     y: 0.1283,
                 },
-                fail: PulseColor {
+                fail_color: PulseColor {
                     x: 0.5562,
                     y: 0.4084,
                 },
@@ -315,11 +315,11 @@ Config {
             },
             lamps: {
                 "1F - Front door - HCL1": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
                     dim_window: Some(
@@ -327,65 +327,65 @@ Config {
                     ),
                     dim_behaviours: [
                         Blocked,
-                        Unread,
+                        Unseen,
                         Looping,
                     ],
                 },
                 "2F - Kitchen - HCD5": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
-                            Github,
+                            Checks,
                         ],
                     ),
                     dim_window: None,
                     dim_behaviours: [],
                 },
                 "2F - Kitchen - HCD6": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
                     dim_window: None,
                     dim_behaviours: [],
                 },
                 "3F - MBedroom - HCL2": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
-                            Github,
+                            Checks,
                         ],
                     ),
                     dim_window: None,
                     dim_behaviours: [],
                 },
                 "3F - MBedroom - HCL3": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
                     dim_window: None,
                     dim_behaviours: [],
                 },
                 "3F - Studio - HCL2": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
-                            Github,
+                            Checks,
                         ],
                     ),
                     dim_window: None,
                     dim_behaviours: [],
                 },
                 "3F - Studio - HCL3": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
                     dim_window: None,
@@ -394,7 +394,7 @@ Config {
             },
             rooms: {
                 "2F - Kitchen": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Done,
                             Failed,
@@ -405,13 +405,13 @@ Config {
                     ),
                     dim_behaviours: [
                         Blocked,
-                        Unread,
+                        Unseen,
                         Looping,
-                        Github,
+                        Checks,
                     ],
                 },
                 "3F - MBedroom": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Done,
                             Failed,
@@ -423,7 +423,7 @@ Config {
                     dim_behaviours: [],
                 },
                 "3F - Studio": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Done,
                             Failed,
@@ -434,9 +434,9 @@ Config {
                     ),
                     dim_behaviours: [
                         Blocked,
-                        Unread,
+                        Unseen,
                         Looping,
-                        Github,
+                        Checks,
                     ],
                 },
             },

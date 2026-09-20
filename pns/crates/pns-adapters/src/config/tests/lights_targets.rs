@@ -9,9 +9,9 @@ fn a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys() {
     for level in ["lamp", "room", "zone"] {
         let held = lights(&format!(
             "[lights.{level}.\"3F - Studio\"]\n\
-                 shows = [\"done\", \"failed\"]\n\
+                 behaviours = [\"done\", \"failed\"]\n\
                  dim_window = \"22:00-07:00\"\n\
-                 dim_behaviours = [\"blocked\", \"unread\", \"loop\"]\n"
+                 dim_behaviours = [\"blocked\", \"unseen\", \"loop\"]\n"
         ));
         let table = match level {
             "lamp" => &held.lamps,
@@ -21,9 +21,9 @@ fn a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys() {
         assert_eq!(
             table.get("3F - Studio"),
             Some(&Target {
-                shows: Some(vec![Behaviour::Done, Behaviour::Failed]),
+                behaviours: Some(vec![Behaviour::Done, Behaviour::Failed]),
                 dim_window: Some("22:00-07:00".to_string()),
-                dim_behaviours: vec![Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping],
+                dim_behaviours: vec![Behaviour::Blocked, Behaviour::Unseen, Behaviour::Looping],
             }),
             "at the {level} level"
         );
@@ -37,10 +37,10 @@ fn a_declaration_that_states_nothing_states_nothing_rather_than_defaulting() {
     // room's window, and what tells a deliberate empty list from silence.
     let silent = lights("[lights.lamp.\"HCL1\"]\n");
     assert_eq!(silent.lamps["HCL1"], Target::default());
-    assert_eq!(silent.lamps["HCL1"].shows, None);
-    let emptied = lights("[lights.lamp.\"HCL1\"]\nshows = []\n");
+    assert_eq!(silent.lamps["HCL1"].behaviours, None);
+    let emptied = lights("[lights.lamp.\"HCL1\"]\nbehaviours = []\n");
     assert_eq!(
-        emptied.lamps["HCL1"].shows,
+        emptied.lamps["HCL1"].behaviours,
         Some(Vec::new()),
         "an empty list is an OVERRIDE, which is how one lamp is taken out of a \
              routed room"
@@ -53,7 +53,7 @@ fn a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named(
     // the failure it prevents is a lamp that stays dark while the operator
     // is sure they routed it, and their only evidence is a lamp doing
     // nothing.
-    for key in ["shows", "dim_behaviours"] {
+    for key in ["behaviours", "dim_behaviours"] {
         let said = refusal(&format!(
             "[lights.room.\"3F - Studio\"]\n{key} = [\"breathing\"]\n"
         ));
@@ -61,7 +61,7 @@ fn a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named(
             said,
             format!(
                 "`lights.room.3F - Studio` key `{key}` names `breathing`, which is \
-                     no behaviour; the lamps say done, failed, blocked, unread, loop, github"
+                     no behaviour; the lamps say done, failed, blocked, unseen, loop, checks"
             ),
         );
     }
@@ -77,7 +77,7 @@ fn dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_
     for stated in ["[\"blocked\"]", "[]"] {
         assert_eq!(
             refusal(&format!(
-                "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+                "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
                      dim_behaviours = {stated}\n"
             )),
             "`lights.room.3F - Studio` states `dim_behaviours` with no \
@@ -89,7 +89,7 @@ fn dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_
     // the refusal is about a missing window, never about an empty list.
     assert!(
         parse_config(
-            "[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
                  dim_window = \"22:00-07:00\"\ndim_behaviours = []\n"
         )
         .is_ok()
@@ -107,7 +107,7 @@ fn an_unknown_declaration_key_is_refused_by_name_with_the_path_the_operator_wrot
         "{said}"
     );
     assert!(
-        said.contains("dim_behaviours, dim_window, shows"),
+        said.contains("behaviours, dim_behaviours, dim_window"),
         "and it lists what the level does serve: {said}"
     );
 }
@@ -121,5 +121,23 @@ fn a_declaration_that_is_not_a_table_of_settings_is_refused_by_name() {
     ] {
         let said = refusal(written);
         assert!(!said.is_empty(), "{written:?} must be refused: {said}");
+    }
+}
+
+#[test]
+fn the_key_and_the_words_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
+    // THE OLD SPELLING STOPS WORKING LOUDLY. A declaration written before the
+    // rename is routing the operator believes they set, so the key and each
+    // behaviour word is named and the listing that comes back carries the
+    // word to write now.
+    let said = refusal("[lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n");
+    assert!(said.contains("`shows`"), "{said}");
+    assert!(said.contains("behaviours"), "{said}");
+    for (retired, replacement) in [("unread", "unseen"), ("github", "checks")] {
+        let said = refusal(&format!(
+            "[lights.room.\"3F - Studio\"]\nbehaviours = [\"{retired}\"]\n"
+        ));
+        assert!(said.contains(retired), "{said}");
+        assert!(said.contains(replacement), "{said}");
     }
 }

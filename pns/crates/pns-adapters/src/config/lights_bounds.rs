@@ -61,11 +61,11 @@ pub(super) const MAX_FADE_MS: u64 = 5000;
 
 /// Percent, so the two ends are the two ends. ZERO IS REFUSED rather than read
 /// as off: a dark signal is a lamp that says nothing, and the way to say
-/// nothing is to leave the behaviour off that lamp's `shows` list.
+/// nothing is to leave the behaviour off that lamp's `behaviours` list.
 pub(super) const MIN_BRIGHTNESS: u8 = 1;
 pub(super) const MAX_BRIGHTNESS: u8 = 100;
 
-/// The three keys every breathing shape shares, so `unread` and `loop` read
+/// The three keys every breathing shape shares, so `unseen` and `loop` read
 /// them through the same arm the two plain breaths do.
 pub(super) fn breath_key(
     where_it_is: &str,

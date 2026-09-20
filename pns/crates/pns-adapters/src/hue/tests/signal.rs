@@ -85,7 +85,7 @@ fn a_held_state_has_no_room_shaped_body_so_the_no_map_pulse_writes_nothing() {
     // falling back to one that has one. A lamp asked to breathe would
     // otherwise flash whatever shape was nearest, which is the lying lamp
     // this whole design exists to prevent.
-    for held in [Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping] {
+    for held in [Behaviour::Blocked, Behaviour::Unseen, Behaviour::Looping] {
         let hue = pulse();
         assert_eq!(hue.run(held), 0, "{held:?} has no room-shaped body");
         assert!(hue.bridge.puts.borrow().is_empty());

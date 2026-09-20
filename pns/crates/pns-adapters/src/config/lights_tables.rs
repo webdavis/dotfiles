@@ -27,8 +27,8 @@ pub(super) fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
                 lights.blocked = parse_blocked(&setting, lights.blocked)?;
             }
             "dim" => lights.dim = parse_breath("lights.dim", &setting, lights.dim)?,
-            "github" => lights.github = parse_github(&setting, lights.github)?,
-            "unread" => lights.unread = parse_unread(&setting, lights.unread)?,
+            "checks" => lights.checks = parse_checks(&setting, lights.checks)?,
+            "unseen" => lights.unseen = parse_unseen(&setting, lights.unseen)?,
             "loop" => lights.looping = parse_looping(&setting, lights.looping)?,
             "lamp" => lights.lamps = parse_targets("lamp", &setting)?,
             "room" => lights.rooms = parse_targets("room", &setting)?,
@@ -65,30 +65,30 @@ pub(super) fn parse_pulse(
     Ok(pulse)
 }
 
-/// `[lights.github]`: the one blink that carries its own two COLOURS.
+/// `[lights.checks]`: the one blink that carries its own two COLOURS.
 ///
 /// THE PAIR IS PARSED LIKE ANY OTHER KEY and refused by name, rather than
 /// being read as a bare array and validated later: a coordinate outside the
 /// unit square is not a colour the bridge can be asked for, and a lamp armed
 /// with one would either clamp somewhere nobody chose or not light at all.
-pub(super) fn parse_github(
+pub(super) fn parse_checks(
     setting: &toml::Value,
-    mut github: Github,
-) -> Result<Github, ConfigError> {
-    const WHERE: &str = "lights.github";
+    mut checks: Checks,
+) -> Result<Checks, ConfigError> {
+    const WHERE: &str = "lights.checks";
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
         match key.as_str() {
             "duration_ms" => {
-                github.pulse.duration_ms = bounded(WHERE, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
+                checks.pulse.duration_ms = bounded(WHERE, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
             }
-            "brightness" => github.pulse.brightness = percent(WHERE, key, stated)?,
-            "pass" => github.pass = coordinate(WHERE, key, stated)?,
-            "fail" => github.fail = coordinate(WHERE, key, stated)?,
+            "brightness" => checks.pulse.brightness = percent(WHERE, key, stated)?,
+            "pass_color" => checks.pass_color = coordinate(WHERE, key, stated)?,
+            "fail_color" => checks.fail_color = coordinate(WHERE, key, stated)?,
             _ => return Err(unknown_key(WHERE, WHERE, key)),
         }
     }
-    Ok(github)
+    Ok(checks)
 }
 
 pub(super) fn parse_breath(
@@ -127,24 +127,24 @@ pub(super) fn parse_blocked(
     Ok(blocked)
 }
 
-pub(super) fn parse_unread(
+pub(super) fn parse_unseen(
     setting: &toml::Value,
-    mut unread: Unread,
-) -> Result<Unread, ConfigError> {
-    const WHERE: &str = "lights.unread";
+    mut unseen: Unseen,
+) -> Result<Unseen, ConfigError> {
+    const WHERE: &str = "lights.unseen";
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
         if key == "after_secs" {
             // ZERO IS ALLOWED AND MEANS "AT ONCE", which is the failure
             // flavour's own behaviour spelled for the success one. It is not a
             // switch that turns anything off, so it needs no floor.
-            unread.after_secs = bounded(WHERE, key, stated, 0, MAX_THRESHOLD_SECS)?;
+            unseen.after_secs = bounded(WHERE, key, stated, 0, MAX_THRESHOLD_SECS)?;
             continue;
         }
-        breath_key(WHERE, key, stated, &mut unread.breath)?;
+        breath_key(WHERE, key, stated, &mut unseen.breath)?;
     }
-    ends_agree(WHERE, &unread.breath)?;
-    Ok(unread)
+    ends_agree(WHERE, &unseen.breath)?;
+    Ok(unseen)
 }
 
 pub(super) fn parse_looping(

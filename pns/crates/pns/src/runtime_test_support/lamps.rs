@@ -118,7 +118,7 @@ mod fixtures {
     pub(crate) fn held_lights() -> pns_domain::lamps::config::Lights {
         *pns_adapters::parse_config(
             "[lights]\nrefresh_secs = 10\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\", \"unread\", \"loop\"]\n",
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\", \"unseen\", \"loop\"]\n",
         )
         .expect("the test's own config parses")
         .lights
