@@ -42,7 +42,7 @@ impl<R: CommandRunner> SystemInspection<R> {
                 .extend_from_slice(b"posture: warning: ignored null byte in inspection output\n");
             bytes.retain(|byte| *byte != 0);
         }
-        // Command substitution strips all trailing newlines, including an empty raw plist value.
+        // Trailing newlines are never part of an inspection value.
         while bytes.last() == Some(&b'\n') {
             bytes.pop();
         }
