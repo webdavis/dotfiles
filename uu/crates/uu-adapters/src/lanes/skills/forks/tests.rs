@@ -25,26 +25,32 @@ impl CommandRunner for Git {
     fn run_with_input(&self, _: &str, _: &[&str], _: &str) -> Result<Ran, String> {
         unreachable!()
     }
-    fn run_with_deadline(
+    fn run_with_deadline(&self, _: &str, _: &[&str], _: Duration) -> Result<String, String> {
+        panic!("the comparison runs git in an environment of its own")
+    }
+    fn run_in(
         &self,
         program: &str,
         args: &[&str],
-        bound: Duration,
+        environment: &crate::lanes::Environment,
+        most: Option<Duration>,
     ) -> Result<String, String> {
-        assert_eq!(program, "/usr/bin/env");
-        assert_eq!(bound, Duration::from_secs(300));
-        assert_eq!(args[0], "-i");
-        for value in [
-            "GIT_CONFIG_GLOBAL=/dev/null",
-            "GIT_CONFIG_SYSTEM=/dev/null",
-            "GIT_CONFIG_COUNT=0",
-            "GIT_CONFIG_PARAMETERS=",
-            "GIT_TERMINAL_PROMPT=0",
+        // NO HELPER PROCESS: git itself is the program, and the isolated
+        // environment carries what `env -i VAR=...` used to spell in argv.
+        assert_eq!(program, "/usr/bin/git");
+        assert_eq!(most, Some(Duration::from_secs(300)));
+        assert!(environment.only_these);
+        assert_eq!(environment.variables["PATH"], "/usr/bin:/bin");
+        for (key, value) in [
+            ("GIT_CONFIG_GLOBAL", "/dev/null"),
+            ("GIT_CONFIG_SYSTEM", "/dev/null"),
+            ("GIT_CONFIG_COUNT", "0"),
+            ("GIT_CONFIG_PARAMETERS", ""),
+            ("GIT_TERMINAL_PROMPT", "0"),
         ] {
-            assert!(args.contains(&value), "{value}");
+            assert_eq!(environment.variables[key], value, "{key}");
         }
-        let home =
-            std::path::PathBuf::from(args.iter().find_map(|s| s.strip_prefix("HOME=")).unwrap());
+        let home = std::path::PathBuf::from(&environment.variables["HOME"]);
         self.homes.borrow_mut().push(home.clone());
         self.calls
             .borrow_mut()

@@ -31,8 +31,14 @@ impl CommandRunner for Installer {
         &self,
         program: &str,
         args: &[&str],
-        env: &BTreeMap<String, String>,
+        environment: &crate::lanes::Environment,
+        _most: Option<Duration>,
     ) -> Result<String, String> {
+        assert!(
+            environment.only_these,
+            "a clawhub child gets the named environment and nothing uu inherited"
+        );
+        let env = &environment.variables;
         let mut call = vec![program.to_string()];
         call.extend(args.iter().map(|s| s.to_string()));
         self.calls.borrow_mut().push(call);
@@ -137,7 +143,10 @@ fn a_present_clawhub_skill_is_refreshed_in_place_by_bare_name() {
             "gamma"
         ]]
     );
-    assert_eq!(runner.environments()[0]["CLAWHUB_DISABLE_TELEMETRY"], "1");
+    assert_eq!(
+        runner.environments()[0].variables["CLAWHUB_DISABLE_TELEMETRY"],
+        "1"
+    );
 }
 #[test]
 fn the_cli_refusing_over_our_own_overlay_is_retried_with_the_overlay_stripped() {

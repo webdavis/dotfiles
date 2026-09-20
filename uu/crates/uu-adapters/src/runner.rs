@@ -9,7 +9,7 @@ use std::io::Write;
 use std::process::{ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::lanes::{CommandRunner, Ran, Verdict, failure_reason};
+use crate::lanes::{CommandRunner, Environment, Ran, Verdict, failure_reason};
 use uu_protocol::{DEFERRED_EXIT_CODE, PENDING_EXIT_CODE};
 
 use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
@@ -18,6 +18,8 @@ mod bounds;
 mod environment;
 mod file_output;
 mod overrun;
+
+pub(crate) use environment::prefixed_path;
 
 /// The event handed to a command lane's child cannot exceed this, or
 /// `run_with_input`'s pre-filled pipe would have to write more than fits
@@ -55,6 +57,44 @@ impl SystemRunner {
             budget,
             declared,
             started: Instant::now(),
+        }
+    }
+
+    /// What a child printed and how it ended, with an overrun reported as a
+    /// failure that keeps its stdout.
+    fn reported(&self, finished: Finished) -> Ran {
+        let verdict = match finished.ended {
+            // AN OVERRUN IS A FAILURE THAT STILL KEEPS ITS STDOUT. Those lines
+            // are the record of how far the lane got before it stopped, which
+            // is the whole of what anyone has to diagnose a hang with.
+            ref ended @ (Ended::Stopped
+            | Ended::Escaped
+            | Ended::CleanupEscaped
+            | Ended::Interrupted
+            | Ended::InterruptedEscaped) => Verdict::Failed(self.overrun(ended, &finished.stderr)),
+            Ended::Exited(status) if status.success() => Verdict::Clean,
+            Ended::Exited(status) => {
+                let reason = failure_reason(
+                    &exit_description(&status),
+                    &String::from_utf8_lossy(&finished.stderr),
+                );
+                // DEFERRED_EXIT_CODE, not "any non-zero": the two weekly jobs
+                // this ported from use it to mean "nothing was attempted, try
+                // later", while 100 is successful work awaiting operator action. Other
+                // non-zero codes stay real failures.
+                if status.code() == Some(DEFERRED_EXIT_CODE) {
+                    Verdict::Deferred(reason)
+                } else if status.code() == Some(PENDING_EXIT_CODE) {
+                    Verdict::Pending(reason)
+                } else {
+                    Verdict::Failed(reason)
+                }
+            }
+        };
+        Ran {
+            stderr: String::from_utf8_lossy(&finished.stderr).to_string(),
+            stdout: String::from_utf8_lossy(&finished.stdout).to_string(),
+            verdict,
         }
     }
 
@@ -134,9 +174,19 @@ impl CommandRunner for SystemRunner {
         &self,
         program: &str,
         args: &[&str],
-        env: &std::collections::BTreeMap<String, String>,
+        env: &Environment,
+        most: Option<Duration>,
     ) -> Result<String, String> {
-        environment::run(self, program, args, env)
+        environment::run(self, program, args, env, most)
+    }
+
+    fn run_reporting_in(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &Environment,
+    ) -> Result<Ran, String> {
+        environment::run_reporting(self, program, args, env)
     }
 
     fn run(&self, program: &str, args: &[&str]) -> Result<String, String> {
@@ -174,39 +224,7 @@ impl CommandRunner for SystemRunner {
             .map_err(|error| format!("could not write {program}'s input: {error}"))?;
         drop(writer);
         let finished = self.spawn(program, args, Stdio::from(reader))?;
-        let verdict = match finished.ended {
-            // AN OVERRUN IS A FAILURE THAT STILL KEEPS ITS STDOUT. Those lines
-            // are the record of how far the lane got before it stopped, which
-            // is the whole of what anyone has to diagnose a hang with.
-            ref ended @ (Ended::Stopped
-            | Ended::Escaped
-            | Ended::CleanupEscaped
-            | Ended::Interrupted
-            | Ended::InterruptedEscaped) => Verdict::Failed(self.overrun(ended, &finished.stderr)),
-            Ended::Exited(status) if status.success() => Verdict::Clean,
-            Ended::Exited(status) => {
-                let reason = failure_reason(
-                    &exit_description(&status),
-                    &String::from_utf8_lossy(&finished.stderr),
-                );
-                // DEFERRED_EXIT_CODE, not "any non-zero": the two weekly jobs
-                // this ported from use it to mean "nothing was attempted, try
-                // later", while 100 is successful work awaiting operator action. Other
-                // non-zero codes stay real failures.
-                if status.code() == Some(DEFERRED_EXIT_CODE) {
-                    Verdict::Deferred(reason)
-                } else if status.code() == Some(PENDING_EXIT_CODE) {
-                    Verdict::Pending(reason)
-                } else {
-                    Verdict::Failed(reason)
-                }
-            }
-        };
-        Ok(Ran {
-            stderr: String::from_utf8_lossy(&finished.stderr).to_string(),
-            stdout: String::from_utf8_lossy(&finished.stdout).to_string(),
-            verdict,
-        })
+        Ok(self.reported(finished))
     }
 }
 
