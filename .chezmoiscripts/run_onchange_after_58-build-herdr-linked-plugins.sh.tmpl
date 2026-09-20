@@ -1,0 +1,264 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Clones, builds and links every herdr plugin this machine LINKS rather than
+# installing with `herdr plugin install`, from each plugin's own public
+# repository at a pinned revision.
+#
+# A linked plugin ships no herdr-plugin.toml. An install requires one committed
+# in the plugin repository, and these plugins' actions are one set per
+# declared configuration (herdr-process: process profiles; herdr-workspace-jump:
+# workspaces), so each manifest is rendered from the operator's own
+# configuration by the plugin's own `generate` subcommand. Committing that
+# render would put this machine's own settings in a public repository and
+# would still be wrong for anyone else, and herdr plugin v1 registers no
+# actions at runtime. So each manifest is generated here, between that
+# plugin's compile and its link.
+#
+# Build inputs, hashed so this run_onchange script re-fires when any of them
+# moves: every pinned revision, and every config file a `generate` subcommand
+# reads.
+{{ range .packages.herdr_linked_plugins -}}
+#   pinned revision ({{ .id }}) {{ .ref }}
+{{ end -}}
+#   .config/herdr/config.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/config.toml") | sha256sum }}
+#   .config/herdr/processes.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/processes.toml") | sha256sum }}
+#   .config/herdr/plugins/config/herdr-workspace-jump/config.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml") | sha256sum }}
+#
+# Retry state (embedded so a retryable non-success re-fires this run_onchange).
+# A missing toolchain or an unverified registration must NOT consume the trigger:
+# chezmoi records a run_onchange script as done on ANY exit 0, so a bare exit 0
+# on a skipped build makes the next apply believe the work is finished and never
+# retry. Those cases bump the marker below; because its contents are interpolated
+# HERE, bumping it changes this rendered script and chezmoi re-runs it on the next
+# apply. Success clears the marker so the trigger settles. (A hard build failure
+# is different: it exits non-zero, which chezmoi does not record, so it retries on
+# its own.)
+#
+# The interpolation is sanitized to the marker's LEADING DIGIT RUN only
+# (regexFind "^[0-9]+"): splicing raw file bytes into a rendered script is a
+# live-shell-injection channel (a marker of '1\nfalse\n' would render `false` as a
+# real command that runs at apply time). A non-numeric or empty marker renders as
+# nothing here (still a safe comment) and is normalized at run time by
+# bump_retry_marker below. One marker per plugin, its path already keyed by the
+# plugin's own id.
+{{ range .packages.herdr_linked_plugins -}}
+#   retry-attempts ({{ .id }}): {{ $rm := printf "%s/.cache/herdr-plugin-build/%s.retry" (env "HOME") .id }}{{ if stat $rm }}{{ (output "cat" $rm) | regexFind "^[0-9]+" }}{{ else }}0{{ end }}
+{{ end -}}
+#
+# G2 section headers.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+# cargo is rustup-managed at the deterministic ~/.cargo/bin/cargo (never a PATH
+# probe: a fresh machine provisions it during THIS apply but ~/.cargo/bin is not
+# on the apply shell's PATH yet, and a PATH probe could pick a stray toolchain).
+cargo_bin="$HOME/.cargo/bin/cargo"
+
+# Every herdr call goes through a bounded coreutils timeout, exactly as the
+# health-check partial does: a wedged herdr socket (accepts the connection, never
+# replies) would otherwise hang `plugin list` / `plugin link` forever. Resolve
+# `timeout`, then the macOS-Homebrew `gtimeout` (coreutils is a declared
+# formula). If neither is on PATH, registration cannot be bounded safely, so it
+# is deferred as a retryable non-success rather than risking an unbounded herdr
+# call that could hang the apply forever. 10s is generous for a healthy local
+# socket and short enough that a wedged one fails fast; an expiry surfaces as
+# exit code 124.
+herdr_timeout_bin=""
+if command -v timeout >/dev/null 2>&1; then
+  herdr_timeout_bin="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  herdr_timeout_bin="gtimeout"
+fi
+herdr_cli=()
+if [[ -n $herdr_timeout_bin ]]; then
+  herdr_cli=("$herdr_timeout_bin" 10 herdr)
+fi
+
+# bump_retry_marker <retry-marker-path>: leave the run_onchange trigger
+# un-consumed so the next apply retries. The stored value is a monotonic
+# attempt count, so each retry changes the rendered trigger (a boolean would
+# stop re-firing after one retry).
+bump_retry_marker() {
+  local retry_marker="$1" count=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if [[ -f $retry_marker ]]; then
+    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+    [[ $count =~ ^[0-9]+$ ]] || count=0
+  fi
+  printf '%d\n' "$((count + 1))" >"$retry_marker"
+}
+
+# plugin_registered <plugin-id>: 0 iff `herdr plugin list` confirms EXACTLY
+# this plugin id is registered. A herdr error envelope ({"error":{...}}) or an
+# empty/absent plugins array is NOT registered. The id is matched exactly
+# (never a substring), so a plugin whose id is a substring of another's cannot
+# false-positive. A timeout (exit 124) reads as not-registered, which is what
+# leaves the trigger retryable.
+plugin_registered() {
+  local plugin_id="$1" response
+  response="$("${herdr_cli[@]}" plugin list --plugin "$plugin_id" --json 2>/dev/null)" || return 1
+  if printf '%s' "$response" | jq -e '.error' >/dev/null 2>&1; then
+    return 1
+  fi
+  local count
+  count="$(printf '%s' "$response" |
+    jq --arg id "$plugin_id" '[.result.plugins[]? | select(.plugin_id == $id)] | length' 2>/dev/null ||
+    printf '0')"
+  [[ $count == "1" ]]
+}
+
+# register_plugin <plugin-id> <checkout>: 0 iff the plugin ends up registered
+# (exact id verified). `herdr plugin link` talks to the running herdr server (a
+# headless apply, server down, fails here) and may return a herdr error
+# ENVELOPE with exit 0, so its exit code is NOT trusted: the exact-id re-verify
+# via `plugin list` is the sole source of truth for "registered". The link is
+# re-issued on every run so a checkout moved to a new revision is re-read
+# rather than left at the registered one.
+register_plugin() {
+  local plugin_id="$1" checkout="$2"
+  # No coreutils timeout binary: herdr cannot be called safely, so defer as a
+  # retryable non-success rather than risk an unbounded call hanging the apply.
+  if [[ ${#herdr_cli[@]} -eq 0 ]]; then
+    printf 'no coreutils timeout binary (timeout/gtimeout absent); cannot bound herdr calls safely, %s registration deferred (trigger left retryable).\n' "$plugin_id" >&2
+    return 1
+  fi
+  local link_output link_error rc
+  link_output="$("${herdr_cli[@]}" plugin link "$checkout" 2>&1)" && rc=0 || rc=$?
+  if [[ $rc -eq 124 ]]; then
+    printf 'herdr plugin link timed out for %s (server wedged?); registration deferred (trigger left retryable).\n' "$plugin_id" >&2
+    return 1
+  fi
+  link_error="$(printf '%s' "$link_output" | jq -e -r '.error.message // empty' 2>/dev/null || true)"
+  if [[ -n $link_error ]]; then
+    printf 'herdr plugin link %s returned an error envelope: %s\n' "$plugin_id" "$link_error" >&2
+  fi
+  plugin_registered "$plugin_id"
+}
+
+# build_and_link_plugin <plugin-id> <repo-url> <pinned-ref>: clones, builds,
+# generates the manifest for and links one linked plugin. Every retryable
+# non-success returns 0 (this run_onchange's trigger stays retryable via the
+# marker, but the OTHER plugins in the loop still get their turn) rather than
+# exiting the whole script; only a hard build failure exits non-zero, since
+# that is a genuine defect the apply must surface.
+build_and_link_plugin() {
+  local plugin_id="$1" repo_url="$2" pinned_ref="$3"
+
+  # The checkout is a build product, not a chezmoi target, and it deliberately
+  # sits OUTSIDE ~/.local/share/herdr/plugins so that directory holds only
+  # what herdr itself put there.
+  local checkout="$HOME/.local/share/$plugin_id"
+
+  # The retry marker path MUST match the template's per-plugin $rm above
+  # ($HOME == homeDir at apply time) so the value the template reads is the
+  # value this script writes.
+  local retry_marker="$HOME/.cache/herdr-plugin-build/${plugin_id}.retry"
+
+  # Both paths below print, and both print to stderr (cargo puts even its
+  # do-nothing "Finished" line there), so one header on stderr owns the block.
+  report_section "herdr plugin" "$plugin_id" >&2
+
+  # A MISSING toolchain is a retryable non-success, not a satisfied trigger:
+  # warn loudly, leave the trigger retryable via the marker, and return 0 so
+  # the rest of the apply (and the other plugins in this loop) proceed.
+  if [[ ! -x $cargo_bin ]]; then
+    bump_retry_marker "$retry_marker"
+    printf 'cargo not found at %s; %s plugin build deferred (trigger left retryable).\n' "$cargo_bin" "$plugin_id" >&2
+    report_line 'rustup (run_once_before_20) has not provisioned it yet; the next chezmoi apply retries automatically once cargo exists.' >&2
+    return 0
+  fi
+
+  # --- checkout phase ---
+  # A network failure is retryable-quiet: a machine without the network on this
+  # apply must not abort it, and the next apply retries. Fetch every ref rather
+  # than the pinned object, because fetching a bare object depends on a server
+  # option this does not need.
+  #
+  # A stray non-git directory at $checkout (an interrupted clone, a manual mkdir)
+  # makes `git clone` fail into it on every apply with no self-heal, since this
+  # script owns no removal mechanism. Name it up front instead, so the message
+  # tells the operator exactly what to trash by hand.
+  if [[ -e $checkout && ! -d $checkout/.git ]]; then
+    bump_retry_marker "$retry_marker"
+    printf '%s exists and is not a git checkout; trash it by hand and the next apply reclones (trigger left retryable).\n' "$checkout" >&2
+    return 0
+  fi
+  if [[ ! -d $checkout/.git ]]; then
+    if ! git clone --quiet "$repo_url" "$checkout"; then
+      bump_retry_marker "$retry_marker"
+      printf 'git clone %s failed; %s build deferred (trigger left retryable).\n' "$repo_url" "$plugin_id" >&2
+      return 0
+    fi
+  fi
+  if ! git -C "$checkout" fetch --quiet --tags origin; then
+    bump_retry_marker "$retry_marker"
+    printf 'git fetch in %s failed; %s build deferred (trigger left retryable).\n' "$checkout" "$plugin_id" >&2
+    return 0
+  fi
+  # --force discards whatever the previous build left in the working tree; the
+  # generated manifest and target/ are untracked build output, not source.
+  if ! git -C "$checkout" checkout --quiet --force --detach "$pinned_ref"; then
+    bump_retry_marker "$retry_marker"
+    printf 'revision %s not found in %s; %s build deferred (trigger left retryable).\n' "$pinned_ref" "$repo_url" "$plugin_id" >&2
+    return 0
+  fi
+
+  # --- build phase ---
+  # --locked keeps the repository's Cargo.lock authoritative. A real build
+  # failure is a genuine defect that must surface, so it fails LOUDLY: exit
+  # non-zero aborts the apply (chezmoi does not record it, so it retries once
+  # the source is fixed).
+  if ! (cd "$checkout" && "$cargo_bin" build --release --locked); then
+    printf 'ERROR: cargo build failed for %s at %s.\n' "$plugin_id" "$pinned_ref" >&2
+    exit 1
+  fi
+
+  # --- manifest phase ---
+  # `herdr plugin link` reads herdr-plugin.toml and nothing else writes one, so
+  # the manifest is rendered here, from the operator's own configuration, with
+  # the binary just built. Every plugin here names its binary after its own
+  # id. Failure is retryable-quiet rather than loud: the inputs are config
+  # files, so a malformed one must not abort the whole apply. Leave the
+  # trigger retryable and skip registration, so a MISSING manifest is never
+  # linked (a manifest already registered from a prior successful generate
+  # stays linked, stale, until the next successful generate replaces it).
+  if ! (cd "$checkout" && "./target/release/$plugin_id" generate --output .); then
+    bump_retry_marker "$retry_marker"
+    printf 'herdr plugin %s built but manifest generation failed; registration skipped (trigger left retryable).\n' "$plugin_id" >&2
+    return 0
+  fi
+
+  # --- registration phase (its own failure envelope, separate from the build) ---
+  # Registration is retryable-quiet, NOT loud: it fails on a headless apply where
+  # the herdr server is not up, which is a legitimate "link later" condition, not a
+  # broken source.
+  if register_plugin "$plugin_id" "$checkout"; then
+    # Clearing the marker changes this script's rendered trigger one more time
+    # (success at marker N leaves a render that differs from the recorded one), so
+    # the NEXT apply runs this script once more; that run is idempotent (already
+    # checked out, already built, already registered) and re-records the settled
+    # render, so the trigger settles from then on. One extra no-op run is the
+    # by-design cost of the retry mechanism.
+    rm -f "$retry_marker"
+    printf 'herdr plugin %s built at %s and registered\n' "$plugin_id" "$pinned_ref"
+  else
+    bump_retry_marker "$retry_marker"
+    printf 'herdr plugin %s built but registration is unverified (herdr server unreachable?); trigger left retryable, the next apply retries.\n' "$plugin_id" >&2
+  fi
+}
+
+# One entry per linked plugin: id, clone URL, pinned revision. Rendered from
+# packages.herdr_linked_plugins so adding a plugin there is the only edit a
+# new one needs.
+linked_plugins=(
+{{ range .packages.herdr_linked_plugins -}}
+  {{ .id | quote }} "https://github.com/{{ .repo }}.git" {{ .ref | quote }}
+{{ end -}}
+)
+
+for ((i = 0; i < ${#linked_plugins[@]}; i += 3)); do
+  build_and_link_plugin "${linked_plugins[i]}" "${linked_plugins[i + 1]}" "${linked_plugins[i + 2]}"
+done
+{{ end -}}
