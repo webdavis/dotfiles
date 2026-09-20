@@ -75,7 +75,7 @@ fn a_rejection_becomes_a_rejected_result_carrying_the_recovered_id_and_the_code(
         reason: Rejection::Malformed("x".to_string()),
     });
     let wire: Value = serde_json::from_str(&anonymous.encode().unwrap()).unwrap();
-    assert_eq!(wire["request_id"], Value::Null);
+    assert_eq!(wire.get("request_id"), None);
     assert_eq!(wire["diagnostics"], json!(["malformed_json"]));
 }
 
@@ -152,6 +152,20 @@ fn an_absent_note_route_or_retry_time_is_omitted_rather_than_written_as_null() {
     );
     assert_eq!(wire["destinations"][1]["route"], json!("priority"));
     assert_eq!(wire["destinations"][1]["retry_at"], json!(1_758_153_600u64));
+}
+
+#[test]
+fn an_absent_optional_result_field_is_omitted_rather_than_written_as_null() {
+    let mut result = golden_result();
+    result.request_id = None;
+    result.ledger_sequence = None;
+    let text = result.encode().unwrap();
+    let wire: Value = serde_json::from_str(&text).unwrap();
+    for field in ["request_id", "ledger_sequence"] {
+        assert_eq!(wire.get(field), None, "{field}");
+    }
+    assert!(!text.contains("null"), "{text}");
+    assert_eq!(decode(text.as_bytes()).unwrap(), result);
 }
 
 #[test]
