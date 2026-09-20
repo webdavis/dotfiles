@@ -1,16 +1,20 @@
 //! The IO edge: the five probe traits implemented against the real machine.
 //!
-//! WHAT LIVES HERE AND WHAT DOES NOT. Everything here runs a command and hands
-//! the bytes to a parser; every parser is a free function taking `&str`, so a
-//! test drives fixture output and never spawns anything. The DECISIONS all live
-//! in `surface`, `presence` and `routing`, which is why nothing in this module
-//! compares, thresholds or judges: it says what the machine reported, and
-//! `surface` says what that means.
+//! WHAT LIVES HERE AND WHAT DOES NOT. Most of what lives here runs a command
+//! and hands the bytes to a parser, a free function taking `&str`, so a test
+//! drives fixture output and never spawns anything; the desk pair and the
+//! phone chain's process walk are the two exceptions, reading the machine
+//! natively through `ConsoleRegistry` and `ProcessTable`, seams a test drives
+//! the same way. The DECISIONS all live in `surface`, `presence` and
+//! `routing`, which is why nothing in this module compares, thresholds or
+//! judges: it says what the machine reported, and `surface` says what that
+//! means.
 //!
-//! The runner seam exists for the same reason: a test substitutes the command
-//! output, so the suite never reads the live machine. That matters more than
-//! usual here, because these readings are of the developer's own desk and
-//! phone, and a suite that took them would answer differently every run.
+//! The runner and native seams exist for the same reason: a test substitutes
+//! the command output or the registry/table answer, so the suite never reads
+//! the live machine. That matters more than usual here, because these
+//! readings are of the developer's own desk and phone, and a suite that took
+//! them would answer differently every run.
 
 use crate::macos::desk::{idle_reading, lock_reading};
 use crate::macos::phone::{TTY_DIR, phone_reading};

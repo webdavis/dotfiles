@@ -23,8 +23,8 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::ProbeStart for S
             // caller that already read the lock inline (nothing in
             // production does, but nothing forbade it either) filled
             // `screen_locked` before `start` ever ran, and the thread must
-            // not run `ioreg -n Root -d1` a second time for an answer
-            // `join_desk`'s `OnceCell::set` would only discard.
+            // not take a second registry read for an answer `join_desk`'s
+            // `OnceCell::set` would only discard.
             let lock_already_known = self.screen_locked.get().is_some();
             let handle = std::thread::Builder::new()
                 .spawn(move || {
@@ -88,7 +88,7 @@ impl<R: CommandRunner + Send + Sync + 'static> SystemProbes<R> {
     ///
     /// FILLING BOTH CELLS TOGETHER, even when the lock was never attempted
     /// (idle failed to parse), is what keeps a later `screen_locked()` read
-    /// from spawning a second `ioreg` for an answer the thread already
+    /// from taking a second registry read for an answer the thread already
     /// decided nothing could give: the cell holds `None` either way, and
     /// `None` already means "no reading" everywhere this crate reads it.
     pub(super) fn join_desk(&self) {
