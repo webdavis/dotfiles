@@ -146,7 +146,7 @@ Then empty is `Done`, all ASCII zeroes is `Done`, any other run of ASCII digits 
   code both answer with no machine read at all.
 - Forbidden side effects: `pns lights pulse` never consults the dim window. The gate lives at the event
   path's call site so the window stays checkable by hand while it is on
-  (`tests/dispatch.rs:the_hand_run_pulse_reaches_the_bridge_inside_the_quiet_window`).
+  (`tests/dispatch/dim_window.rs:the_hand_run_pulse_reaches_the_bridge_whatever_the_hour`).
 - Timeout and cancellation: each bridge call is bounded by `src/channels/hue.rs:BRIDGE_DEADLINE` = 10
   seconds.
 - Idempotency and duplicates: two pulses are two independent signals; the bridge ends each by itself.

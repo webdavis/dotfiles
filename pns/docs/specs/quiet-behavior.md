@@ -582,7 +582,7 @@ Then that string is parsed once into a `QuietWindow` and judged by one predicate
   `src/channels/hue.rs:a_lamp_no_declaration_dims_takes_the_house_window_with_nothing_dimmed`).
 - Forbidden side effects: a machine with NO `[lights]` table has no window to read at all, so its plain
   room pulse fires at every hour
-  (`tests/dispatch.rs:a_config_with_no_lamp_map_takes_the_plain_room_pulse_at_every_hour`).
+  (`crates/pns-application/src/lamp_signal_gate/tests.rs:a_config_with_no_lamp_map_takes_the_plain_room_pulse_at_every_hour`).
 - Timeout and cancellation: Not applicable to the gate. The pulse behind it dials under
   `src/channels/hue.rs:BRIDGE_DEADLINE` (10 seconds).
 - Idempotency and duplicates: the clock is read FRESH at the gate rather than at the run's start, because
