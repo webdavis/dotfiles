@@ -7,8 +7,7 @@ use super::*;
 /// any of it is written: `render_block`'s own leftover check would otherwise
 /// see the whole cluster sitting unclaimed under the bare `[lights]` heading,
 /// which serves only `arm_interval` and `dim_window`, and refuse it as an
-/// unknown key before
-/// the walk ever reaches `[lights.done]`.
+/// unknown key before the walk ever reaches `[lights.done]`.
 pub(super) fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Result<(), String> {
     let present = remaining.contains_key("lights");
     let mut lights = take_table(remaining, "lights")?;

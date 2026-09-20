@@ -134,7 +134,7 @@ fn lights_mute() -> i32 {
 /// the operator's own command for signalling the lights by hand, and for
 /// checking that a bridge and key in the config actually work. It ignores
 /// the dim window on purpose: the gate lives at the event path's call site
-/// in `fire_pulse_unless_quiet`, so a hand-run pulse still lights the room
+/// in `fire_pulse_for_event`, so a hand-run pulse still lights the room
 /// inside the window, which is what keeps the window checkable while it is on.
 ///
 /// THE WORD IS READ BEFORE THE CONFIG LOADS. `lights pulse --help` used to load

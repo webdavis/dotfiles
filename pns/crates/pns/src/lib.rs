@@ -124,7 +124,7 @@ pub(crate) use hook_observations::{
 };
 pub(crate) use hook_payload::{payload_is_whole, read_payload};
 pub(crate) use lamp_event_lease::clear_held_lamps;
-pub(crate) use lamp_pulse::{fire_pulse, fire_pulse_unless_quiet};
+pub(crate) use lamp_pulse::{fire_pulse, fire_pulse_for_event};
 pub(crate) use lights_tick_runtime::lights_tick;
 pub(crate) use moshi_submission::{blocking_event, gate_mode};
 use pns_adapters::focus_now;

@@ -1,7 +1,7 @@
 use crate::*;
 
 /// The event path's pulse, routed by the lamp map when the config carries one.
-pub(crate) fn fire_pulse_unless_quiet(
+pub(crate) fn fire_pulse_for_event(
     hue_table: Option<toml::Table>,
     lights: Option<&pns_domain::lamps::config::Lights>,
     flash: pns_domain::lights::flash::Flash,

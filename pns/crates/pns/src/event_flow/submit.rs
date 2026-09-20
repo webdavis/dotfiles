@@ -58,7 +58,7 @@ fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::
                 &payload,
                 attempt,
                 &|table, lights, flash, presence| {
-                    fire_pulse_unless_quiet(table, lights, flash, presence)
+                    fire_pulse_for_event(table, lights, flash, presence)
                 },
                 Some(producer),
             )
