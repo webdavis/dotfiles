@@ -162,7 +162,9 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a producer, event, route, destination, or session name, when constructed or decoded, then it must
 contain 1 through 64 Unicode characters and no control characters. Empty or over-cap names are refused.
-Valid names encode as plain JSON strings unchanged.
+Valid names encode as plain JSON strings unchanged. The plugin registry holds a registered name to that
+same cap and refuses one over it, or one carrying a control character, at registration, so a receipt
+never meets a destination name it cannot encode.
 
 Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src/identifiers.rs#L17),
 [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src/identifiers.rs#L44),

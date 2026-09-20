@@ -68,11 +68,19 @@ pub struct Registration {
     pub kind: PluginKind,
 }
 
+/// How long a registered name may be, and the cap the result envelope holds
+/// every name on the wire to. A name a receipt could not carry is refused at
+/// registration, so the delivery path has no unencodable name to meet.
+pub const NAME_MAX_CHARS: usize = 64;
+
 /// Why registration or selection was refused, always naming the offender.
 #[derive(Debug, PartialEq)]
 pub enum RegistryError {
     /// Two plugins claimed the same name.
     Duplicate(String),
+    /// A name no result envelope could carry: longer than [`NAME_MAX_CHARS`]
+    /// characters, or holding a control character.
+    UnencodableName { name: String, max_chars: usize },
     /// The config names a plugin nothing registered, enabled or not: the
     /// typo is the defect either way.
     UnknownPlugin(String),
@@ -120,6 +128,12 @@ impl Registry {
         name: &'static str,
         kind: PluginKind,
     ) -> Result<(), RegistryError> {
+        if name.chars().count() > NAME_MAX_CHARS || name.chars().any(char::is_control) {
+            return Err(RegistryError::UnencodableName {
+                name: name.to_string(),
+                max_chars: NAME_MAX_CHARS,
+            });
+        }
         if self.registrations.iter().any(|entry| entry.name == name) {
             return Err(RegistryError::Duplicate(name.to_string()));
         }
@@ -142,9 +156,10 @@ impl Registry {
 /// the slices its own tests hand it: an operator's config never reaches it.
 ///
 /// IT PANICS on a refused registration, naming the offender, and that is safe
-/// on an always-exit-0 path because the only reachable refusal is a duplicate
-/// name in a compiled-in const: deterministic, so it fires on the first call
-/// in every mode and every test run and cannot reach an operator's machine.
+/// on an always-exit-0 path because every reachable refusal is a defect in a
+/// compiled-in const, a duplicate name or one no result could carry:
+/// deterministic, so it fires on the first call in every mode and every test
+/// run and cannot reach an operator's machine.
 /// Logging and carrying on, which is what this replaced, drops a delivery leg
 /// silently and forever on the path whose job is to not be silent.
 fn build_registry(entries: &[Registration]) -> Registry {
