@@ -259,7 +259,7 @@ pub(super) const PLUGINS_HUE: Table = Table {
                          # inclusive and the end exclusive, and it may wrap midnight. A hand-run\n\
                          # `pns lights pulse` is exempt, so a bridge and key can be checked\n\
                          # in-window.\n\
-                         # A bare `pns lights quiet <place>` mutes until this window ends and is\n\
+                         # A bare `pns lights mute <place>` mutes until this window ends and is\n\
                          # refused when none is set. With a `[lights]` table below, each place's\n\
                          # own `dim_window` decides the night instead and this window is the\n\
                          # mute's schedule alone.\n",

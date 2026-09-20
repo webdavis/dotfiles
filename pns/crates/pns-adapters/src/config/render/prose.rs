@@ -55,17 +55,17 @@ pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A d
 /// armed, because the command exists whichever way that table reads.
 pub(super) const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:\n\
      #\n\
-     #   pns lights quiet \"3F - Studio\" 2h   quiet that place's lamps for two hours\n\
-     #   pns lights quiet \"3F - Studio\"      quiet them until quiet hours end\n\
-     #   pns lights quiet \"3F - Studio\" off  loud again\n\
-     #   pns lights quiet                    what is quiet right now\n\
+     #   pns lights mute \"3F - Studio\" 2h   mute that place's lamps for two hours\n\
+     #   pns lights mute \"3F - Studio\"      mute them until quiet hours end\n\
+     #   pns lights mute \"3F - Studio\" off  loud again\n\
+     #   pns lights mute                    what is muted right now\n\
      #\n\
      # It silences EVERY behaviour on the target and reaches the lamps of one\n\
      # lamp, room or zone and nothing else: cards, banners and the durable log\n\
-     # carry on, and `pns quiet`, which mutes all of them, is a different\n\
+     # carry on, and `pns mute`, which mutes all of them, is a different\n\
      # command with a different file that neither reads. A bare mute reads\n\
      # `[plugins.hue] quiet_hours` above as the schedule and is refused when\n\
-     # none is set; an explicit duration is the same 1s to 24h `pns quiet`\n\
+     # none is set; an explicit duration is the same 1s to 24h `pns mute`\n\
      # takes. A state file nobody can parse mutes EVERY lamp and says so: dark\n\
      # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY\n\
      # LAMP, ROOM AND ZONE, whether a declaration above writes it or the\n\

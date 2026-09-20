@@ -24,7 +24,7 @@ mod lights_command;
 // CRATE-VISIBLE, because `report` now takes a `Paint` and a report's paint is
 // this crate's own vocabulary. Nothing outside ever called it.
 pub(crate) use home_report::{rows as home_report, setup_row as home_setup_row};
-pub use lights_command::{LoopCommand, loop_command, quiet_command};
+pub use lights_command::{LoopCommand, loop_command, mute_command};
 
 pub(crate) use std::collections::BTreeMap;
 pub(crate) use std::path::Path;
@@ -64,8 +64,8 @@ mod command_quiet_calendar;
 pub(crate) use command_github::github_mode;
 mod command_lights;
 mod command_loop;
+mod command_mute;
 mod command_presence;
-mod command_quiet;
 mod command_recap;
 mod command_remind;
 mod command_setup;
@@ -109,8 +109,8 @@ pub(crate) use command_failures::failures_mode;
 pub(crate) use command_gateway::gateway_mode;
 pub(crate) use command_lights::lights_mode;
 pub(crate) use command_loop::loop_mode;
+pub(crate) use command_mute::{mute_mode, muted_now};
 pub(crate) use command_presence::presence_mode;
-pub(crate) use command_quiet::{muted_now, quiet_mode};
 pub(crate) use command_recap::recap_mode;
 pub(crate) use command_remind::remind_mode;
 pub(crate) use command_setup::setup_mode;

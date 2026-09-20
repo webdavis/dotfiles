@@ -57,8 +57,8 @@ fn muted(name: &str, tables: &str) -> Sandbox {
     ));
     sandbox.write_focus_store("com.apple.sleep", "Sleep");
     let quiet = pns_adapters::SqliteStore::for_records(sandbox.state());
-    quiet.set_quiet_expiry(Some(i64::MAX as u64)).unwrap();
-    assert_eq!(quiet.quiet_expiry().unwrap(), Some(i64::MAX as u64));
+    quiet.set_mute_expiry(Some(i64::MAX as u64)).unwrap();
+    assert_eq!(quiet.mute_expiry().unwrap(), Some(i64::MAX as u64));
     sandbox
 }
 

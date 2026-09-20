@@ -81,8 +81,8 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
     ));
     sandbox.write_focus_store("com.apple.donotdisturb.mode.fixture", "Fixture Focus");
     std::fs::create_dir_all(sandbox.state()).unwrap();
-    let quiet = run(sandbox.pns_stateful().args(["quiet", "1h"]));
-    assert!(stdout(&quiet).starts_with("pns: quiet for another"));
+    let quiet = run(sandbox.pns_stateful().args(["mute", "1h"]));
+    assert!(stdout(&quiet).starts_with("pns: muted for another"));
     pns_adapters::SqliteStore::for_records(sandbox.state())
         .remember_held(&[pns_domain::lights::phase::HeldEntry::bare("light/owned")])
         .expect("the held lamp after quiet initialized the database");

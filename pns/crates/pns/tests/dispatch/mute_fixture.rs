@@ -6,10 +6,10 @@ use super::*;
 ///
 /// `PNS_STATE_DIR` RIDES ON THE COMMAND, never through `set_var`: this binary
 /// is threaded, and a process-wide mutation would decide another test's mute.
-pub(super) fn quiet_command(sandbox: &Sandbox) -> std::process::Command {
+pub(super) fn mute_command(sandbox: &Sandbox) -> std::process::Command {
     let mut command = sandbox.pns();
     command.env("PNS_STATE_DIR", sandbox.path("state"));
-    command.arg("quiet");
+    command.arg("mute");
     command
 }
 
@@ -21,8 +21,8 @@ pub(super) fn quiet_command(sandbox: &Sandbox) -> std::process::Command {
 /// contention between short transactions, and a test staging a wedged writer
 /// is not that. The refusal is what is being pinned, and it is the same
 /// refusal at either bound.
-pub(super) fn refused_quiet_command(sandbox: &Sandbox) -> std::process::Command {
-    let mut command = quiet_command(sandbox);
+pub(super) fn refused_mute_command(sandbox: &Sandbox) -> std::process::Command {
+    let mut command = mute_command(sandbox);
     command.env("PNS_DB_BUSY_TIMEOUT_MS", "50");
     command
 }

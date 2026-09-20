@@ -106,7 +106,7 @@ still deployed, because the string in the source is the only thing that names th
 | house                    | `src/lights.rs:House`                                     | The whole lamp picture one tick reconciles                                           |
 | quiet window             | `src/channels/hue.rs:QuietWindow`                         | The configured hours in which the lamps stay dark                                    |
 | dim window               | `src/channels/hue.rs:DimWindow`                           | The configured hours in which the lamps are allowed on, but dimmer                   |
-| muting                   | `src/channels/hue.rs:Muting`, `src/lights.rs:Muted`       | Lamps the operator silenced by hand through `pns lights quiet`                       |
+| muting                   | `src/channels/hue.rs:Muting`, `src/lights.rs:Muted`       | Lamps the operator silenced by hand through `pns lights mute`                       |
 | fixture, lamp, inventory | `src/channels/hue.rs:Fixture`, `Lamp`, `Inventory`        | What the bridge reports it has                                                       |
 | bridge                   | `src/channels/hue.rs:Bridge`                              | The trait the Hue transport is behind, so tests never reach a real bridge            |
 

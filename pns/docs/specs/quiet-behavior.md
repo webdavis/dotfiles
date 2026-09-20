@@ -3,10 +3,10 @@
 ## Scope
 
 Every way `pns` is silenced, and exactly what each one silences. Five mechanisms are covered: the
-operator's own typed mute (`pns quiet`, state file `quiet-until`), macOS Focus read through the Do Not
+operator's own typed mute (`pns mute`, state file `quiet-until`), macOS Focus read through the Do Not
 Disturb store and filtered by `[focus] silence`, the quiet window (the config key is
 `[plugins.hue] quiet_hours`, and the parsed value is `hue::QuietWindow`), the dim window (per lamp, room
-or zone `dim_window` plus `dim_behaviours`), and the lamps' own by-hand mute (`pns lights quiet`, state
+or zone `dim_window` plus `dim_behaviours`), and the lamps' own by-hand mute (`pns lights mute`, state
 file `lights-quiet`). Two of those names turn out to be one mechanism and the evidence is in behavior 14.
 Everything below is derived from the crate at `pns` and its tests only. Where the code
 does not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
@@ -16,27 +16,27 @@ Approvals get their own behavior (9) because the exemption is structural rather 
 
 | Mechanism                                             | Where its state lives                                                                                                                                                                      | What it silences                                                                                                                                                            | What it does NOT silence                                                                                                                                                                        | How it expires                                                                                                               | Tests that pin it                                                                                                                                                                                                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Operator mute (`pns quiet <duration>`)                | `<state>/quiet-until`, one line holding an absolute epoch second, mode `0600` (`src/main.rs:QUIET_UNTIL`, `src/main.rs:STATE_FILE_MODE`)                                                   | The banner, the phone card and the pulse for one event, plus the blocked lamp's one flash (`src/engine.rs:decide`, `src/main.rs:blocked_lamp` gate at the composition root) | The durable log leg, the moshi approval forward, the decision ring, the journal, the activity ring, the news record, the blocked marker, the tick's sustained breath, `pns lights pulse`, `pns doctor` | Half open against the run's own clock: `now < expiry` (`src/quiet.rs:is_muted`). `pns quiet off` unlinks the file            | `src/quiet.rs` unit tests; `tests/dispatch.rs:a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge`; `tests/dispatch.rs:the_operators_own_mute_takes_the_blocked_lamp_with_everything_else`                                                                            |
+| Operator mute (`pns mute <duration>`)                | `<state>/quiet-until`, one line holding an absolute epoch second, mode `0600` (`src/main.rs:QUIET_UNTIL`, `src/main.rs:STATE_FILE_MODE`)                                                   | The banner, the phone card and the pulse for one event, plus the blocked lamp's one flash (`src/engine.rs:decide`, `src/main.rs:blocked_lamp` gate at the composition root) | The durable log leg, the moshi approval forward, the decision ring, the journal, the activity ring, the news record, the blocked marker, the tick's sustained breath, `pns lights pulse`, `pns doctor` | Half open against the run's own clock: `now < expiry` (`src/mute.rs:is_muted`). `pns mute off` unlinks the file            | `src/quiet.rs` unit tests; `tests/dispatch.rs:a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge`; `tests/dispatch.rs:the_operators_own_mute_takes_the_blocked_lamp_with_everything_else`                                                                            |
 | macOS Focus (`[focus] silence`)                       | Apple's own store at `$HOME/Library/DoNotDisturb/DB/{Assertions.json,ModeConfigurations.json}` (`src/main.rs:FOCUS_DB`); the policy list is config (`src/config.rs:Config::focus_silence`) | Exactly what the operator mute silences: the same `Overrides::silenced()` predicate (`src/engine.rs:Overrides::silenced`)                                                   | The same list as above, approvals included                                                                                                                                                      | Nothing pns owns. It ends when macOS moves the assertion record out of `storeAssertionRecords` (`src/focus.rs:active_modes`) | `tests/dispatch.rs:an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled`; `tests/hooks.rs:a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`                                                                                     |
 | Quiet window (config key `[plugins.hue] quiet_hours`) | The config file (`src/channels/hue.rs:quiet_window`)                                                                                                                                       | On a machine with NO `[lights]` table: the whole room pulse (`src/main.rs:fire_pulse_unless_quiet`). Nothing else, ever                                                     | Cards, banners, the durable log, and every routed lamp on a machine that DOES have a `[lights]` table                                                                                           | Minute of the local day, start inclusive and end exclusive, may wrap midnight (`src/channels/hue.rs:quiet_now`)              | `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`; `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`; `src/channels/hue.rs:a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end` |
 | Dim window (`dim_window`, `dim_behaviours`)           | The config file, per lamp, room or zone, arbitrated most specific first (`src/channels/hue.rs:DimWindow`)                                                                                  | Per lamp and per behavior: a behavior inside the window either runs its dim form or is taken away entirely (`src/channels/hue.rs:dim_showing`)                              | Cards, banners, the durable log, the pulse's decision, and any lamp that states no window                                                                                                       | The same minute-of-day rule, reusing `quiet_now` over its own `QuietWindow`                                                  | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`; `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg`                                                                                     |
-| Lamps' by-hand mute (`pns lights quiet <place>`)      | `<state>/lights-quiet`, one line per place as `<epoch> <place>`, at most 32 lines, mode `0600` (`src/main.rs:LIGHTS_QUIET`, `src/lights.rs:MAX_MUTED_PLACES`)                              | Every behavior on every lamp that answers to the named lamp, room or zone, on both the event flash and the tick's sustained breath (`src/channels/hue.rs:muted_now`)        | Cards, banners, the durable log, `pns quiet`'s file, the pulse's plan, lamps outside the named place                                                                                            | Per entry, half open on `quiet::is_muted`; expired entries are dropped on the next write (`src/lights.rs:muted_after`)       | `tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`; `tests/dispatch.rs:a_lights_mute_expires_off_this_run_s_own_clock_and_not_off_a_fixed_epoch`                                                                                               |
+| Lamps' by-hand mute (`pns lights mute <place>`)      | `<state>/lights-quiet`, one line per place as `<epoch> <place>`, at most 32 lines, mode `0600` (`src/main.rs:LIGHTS_QUIET`, `src/lights.rs:MAX_MUTED_PLACES`)                              | Every behavior on every lamp that answers to the named lamp, room or zone, on both the event flash and the tick's sustained breath (`src/channels/hue.rs:muted_now`)        | Cards, banners, the durable log, `pns mute`'s file, the pulse's plan, lamps outside the named place                                                                                            | Per entry, half open on `quiet::is_muted`; expired entries are dropped on the next write (`src/lights.rs:muted_after`)       | `tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`; `tests/dispatch.rs:a_lights_mute_expires_off_this_run_s_own_clock_and_not_off_a_fixed_epoch`                                                                                               |
 
 Two families, two opposite fail directions. The engine mutes (operator mute, Focus) FAIL OPEN: anything
 unreadable delivers. The lamp windows and the lamp mute FAIL CLOSED (dark): anything unreadable stays
-quiet. Both directions are stated in the source (`src/quiet.rs:is_muted`, `src/focus.rs` module comment,
+quiet. Both directions are stated in the source (`src/mute.rs:is_muted`, `src/focus.rs` module comment,
 `src/channels/hue.rs:quiet_now`, `src/main.rs:ad_hoc_quiet`).
 
 ## Behaviors
 
 ### 1. A typed duration publishes one absolute expiry
 
-Given the operator types `pns quiet 30m`
+Given the operator types `pns mute 30m`
 
 When the run can read a clock and write the state directory
 
 Then `<state>/quiet-until` holds `now + 1800` followed by one newline, and stdout reads
-`pns: quiet for another 30 minutes`
+`pns: muted for another 30 minutes`
 
 - Success: `src/main.rs:quiet_mode` parses through `src/duration.rs:parse_duration`, adds the seconds to
   `now_secs()` with `saturating_add`, and publishes through `src/main.rs:publish_state_line`. The
@@ -71,7 +71,7 @@ Then `<state>/quiet-until` holds `now + 1800` followed by one newline, and stdou
 
 ### 2. The bare command reports and mutes nothing
 
-Given the operator types `pns quiet` with no argument
+Given the operator types `pns mute` with no argument
 
 When the run completes
 
@@ -81,10 +81,10 @@ Then it prints the standing verdict and does not write the state file
   `src/quiet.rs:status_line` over `read_quiet_expiry()` and `now_secs()`. The report's verdict IS
   `is_muted`'s, never re-derived (`src/quiet.rs:status_line`).
 - Failure sources: a corrupt or unreadable state file, which is behavior 6.
-- Fail direction: open. Every state `is_muted` answers false to reports `pns: not quiet`
+- Fail direction: open. Every state `is_muted` answers false to reports `pns: not muted`
   (`src/quiet.rs:the_report_says_not_quiet_for_every_state_the_predicate_calls_quiet`).
 - Thresholds: minutes are rounded UP (`src/quiet.rs:minutes_left` uses `div_ceil(60)`), so 40 seconds
-  left reads `pns: quiet for another 1 minute` and 61 seconds reads `pns: quiet for another 2 minutes`.
+  left reads `pns: muted for another 1 minute` and 61 seconds reads `pns: muted for another 2 minutes`.
   The singular is used at exactly 1.
 - Required side effects: none.
 - Forbidden side effects: the report must not rewrite the mute it reports. Pinned on the modification
@@ -101,9 +101,9 @@ Then it prints the standing verdict and does not write the state file
 
 Given a mute is standing
 
-When the operator types `pns quiet off`
+When the operator types `pns mute off`
 
-Then the file is removed, stdout reads `pns: not quiet`, and the next event decorates again
+Then the file is removed, stdout reads `pns: not muted`, and the next event decorates again
 
 - Success: `src/main.rs:quiet_mode` calls `std::fs::remove_file` on the state path and ignores the
   result. Pinned end to end by
@@ -115,7 +115,7 @@ Then the file is removed, stdout reads `pns: not quiet`, and the next event deco
   (`src/main.rs:QUIET_UNTIL`).
 - Thresholds: Not applicable.
 - Required side effects: unlinking is ALSO the documented remedy for a file nothing can parse, and the
-  complaint names it: `clear it with pns quiet off` (`src/main.rs:quiet_mode`,
+  complaint names it: `clear it with pns mute off` (`src/main.rs:quiet_mode`,
   `src/quiet.rs:expiry_from_state`).
 - Forbidden side effects: nothing is overwritten with a past expiry or an "off" flag. An absent file is
   the only spelling of not muted
@@ -125,19 +125,19 @@ Then the file is removed, stdout reads `pns: not quiet`, and the next event deco
 - Privacy: Not applicable.
 - Process ownership and cleanup: this is the cleanup path.
 - Compatibility contract: `off` is a single word and no other spelling is accepted;
-  `pns quiet off please` is refused (behavior 4).
+  `pns mute off please` is refused (behavior 4).
 
 ### 4. A mistyped mute is refused with exit 2 and writes nothing
 
 Given the operator types a word the command does not serve
 
-When `pns quiet` parses argv
+When `pns mute` parses argv
 
 Then it prints a refusal quoting what was typed, then the usage line, exits 2, and writes no state
 
 - Success: `src/main.rs:quiet_mode` returns 2 from two arms: a duration `duration::parse_duration` refused, and any
   argument list of two or more words. The usage is verbatim
-  `pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h`
+  `pns: usage: pns mute [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h`
   (`src/main.rs:QUIET_USAGE`). Pinned over `tomorrow`, `30`, `off please` and `30m extra` by
   `tests/dispatch.rs:a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state`,
   which also asserts stdout is empty and no state file exists.
@@ -157,10 +157,10 @@ Then it prints a refusal quoting what was typed, then the usage line, exits 2, a
 - Idempotency and duplicates: pure.
 - Privacy: the operator's own typed word is echoed back, which is their own input.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `pns quiet` is hand typed, so it is outside the always-exit-0 contract that
+- Compatibility contract: `pns mute` is hand typed, so it is outside the always-exit-0 contract that
   covers the hook and notification paths
   (`tests/dispatch.rs:a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state`).
-  NOT ESTABLISHED: what `pns quiet --help` does. Reading `src/main.rs:main`, the `quiet` dispatch at the
+  NOT ESTABLISHED: what `pns mute --help` does. Reading `src/main.rs:main`, the `quiet` dispatch at the
   top of `main` precedes the `is_help_flag` check in `is_producer_argv`, and `src/main.rs:quiet_mode` has
   no help arm, so `--help` falls into the single-argument duration arm and is refused with exit 2. No
   test in `tests/dispatch.rs` or `tests/hooks.rs` covers it, so the behavior is code-derived and
@@ -170,7 +170,7 @@ Then it prints a refusal quoting what was typed, then the usage line, exits 2, a
 
 Given a live mute is on disk and the state directory is not writable
 
-When the operator types `pns quiet 30m`
+When the operator types `pns mute 30m`
 
 Then stderr says the write failed, stdout reports the OLD mute, the file is untouched, and the exit code
 is 1
@@ -178,11 +178,11 @@ is 1
 - Success: `src/main.rs:quiet_mode` sets `set_failed`, falls through to the report, reads the file back,
   and returns 1. Pinned by
   `tests/dispatch.rs:a_mute_that_could_not_be_written_reports_the_mute_that_still_stands`, which asserts
-  stdout is `pns: quiet for another 60 minutes` after a failed `30m`.
+  stdout is `pns: muted for another 60 minutes` after a failed `30m`.
 - Failure sources: a read-only state directory; a directory standing at the file's path.
 - Fail direction: loud, and truthful about the disk rather than about the intent. The measured defect
   behind this is quoted in the test: the failed write once said "nothing is muted" while a bare
-  `pns quiet` a second later reported sixty minutes left.
+  `pns mute` a second later reported sixty minutes left.
 - Thresholds: Not applicable.
 - Required side effects: exit code 1 and one stderr line beginning
   `pns: state error (quiet-until could not be written: `. Pinned separately by
@@ -212,7 +212,7 @@ complains once and reads as NOT muted
   cases: absent is silent, a read error complains, a parse failure complains.
 - Failure sources: contents that are not one epoch second; a file that cannot be read at all; a directory
   at the path; bytes that are not UTF-8.
-- Fail direction: OPEN, and deliberately the opposite of the lamp path. `src/quiet.rs:is_muted` answers
+- Fail direction: OPEN, and deliberately the opposite of the lamp path. `src/mute.rs:is_muted` answers
   false for a missing expiry, a missing clock, or both. The stated reason: a window failing closed costs
   one flash of a lamp, and a mute failing closed costs every notification including the card for a tool
   call the operator is blocked on, with no expiry and no way to discover it. Pinned by
@@ -228,9 +228,9 @@ complains once and reads as NOT muted
   153722867251113165 minutes left on it, which is why there is no `trim()`
   (`src/quiet.rs:a_state_file_holding_anything_else_is_a_complaint_naming_what_it_holds`).
 - Required side effects: exactly one complaint per event, not one per reader. The parse complaint is
-  `pns: state error (quiet-until is <contents>, not an expiry time); nothing is muted, clear it with pns quiet off`
+  `pns: state error (quiet-until is <contents>, not an expiry time); nothing is muted, clear it with pns mute off`
   and the read complaint is
-  `pns: state error (quiet-until could not be read: <error>); nothing is muted, clear it with pns quiet off`.
+  `pns: state error (quiet-until could not be read: <error>); nothing is muted, clear it with pns mute off`.
   Both name the file's own content or the error, because the operator has to find it to fix it.
 - Forbidden side effects: an ABSENT file says nothing at all, which is the ordinary state
   (`tests/dispatch.rs:an_absent_state_file_is_the_ordinary_state_and_says_nothing` asserts stderr is
@@ -241,7 +241,7 @@ complains once and reads as NOT muted
   This is the OPPOSITE of the lights-quiet complaint, which is said once (behavior 19).
 - Privacy: the complaint quotes the file's own bytes with debug formatting, and the file is a state file
   pns wrote.
-- Process ownership and cleanup: no reader repairs the file. `pns quiet off` is the stated remedy.
+- Process ownership and cleanup: no reader repairs the file. `pns mute off` is the stated remedy.
 - Compatibility contract: the verdict is `is_muted`'s and the report is derived from the same call, so a
   report and a behavior cannot disagree about whether a mute is on (`src/quiet.rs:status_line`).
 
@@ -267,7 +267,7 @@ Then the delivery plan becomes `banner: false, phone_card: false, pulse: false`
   arrives here as `false`.
 - Thresholds: Not applicable.
 - Required side effects: the decision ring records `muted=` and `focus=` as TWO separate fields, not one
-  (`src/decision_log.rs:line`), because "you have a `pns quiet` running" sends the operator somewhere
+  (`src/decision_log.rs:line`), because "you have a `pns mute` running" sends the operator somewhere
   completely different from "your Mac is in a Focus you told pns to respect". The Focus test asserts
   `muted=no focus=yes`, `force_phone=yes` and `plan=banner:no,card:no,pulse:no` in the same line.
 - Forbidden side effects: NEITHER FIELD MAY EVER BE SET FROM THE ENVIRONMENT.
@@ -342,7 +342,7 @@ Then the durable channel still receives it
 
 Given an agent blocked on a permission prompt, with the operator away
 
-When a `pns quiet` mute is live, or a Focus named in `[focus] silence` is asserted
+When a `pns mute` mute is live, or a Focus named in `[focus] silence` is asserted
 
 Then the moshi forward still happens, byte for byte, and moshi's own exit code is still passed through
 
@@ -513,9 +513,9 @@ Then no notification is silenced, and `pns doctor` prints which of the states th
   (`src/focus.rs:active_modes`, `src/main.rs:focus_line`). The doctor test builds a chmod-000 file
   precisely because `b"{}"` alone would take the fail-open path.
 - ESTABLISHED GAP, not a NOT ESTABLISHED: `pns doctor` reports the Focus state but has NO line about the
-  operator's own `pns quiet` mute. `src/main.rs:muted_now` and `src/main.rs:read_quiet_expiry` have
+  operator's own `pns mute` mute. `src/main.rs:muted_now` and `src/main.rs:read_quiet_expiry` have
   exactly two call sites in the whole crate, the composition root (`src/main.rs`, building `Overrides`)
-  and `src/main.rs:quiet_mode`'s own report; `pns quiet` with no argument is the only way to ask.
+  and `src/main.rs:quiet_mode`'s own report; `pns mute` with no argument is the only way to ask.
 
 ### 13. A mode catalog that cannot be read leaves NAME matching inert, and says so
 
@@ -564,7 +564,7 @@ Then that string is parsed once into a `QuietWindow` and judged by one predicate
 - Success: this is not two mechanisms. `src/channels/hue.rs:quiet_window` reads the key literally named
   `quiet_hours` from the `[plugins.hue]` settings table and returns
   `Result<Option<QuietWindow>, String>`; `src/channels/hue.rs:quiet_now` is the only predicate over it;
-  `src/channels/hue.rs:QuietWindow::ends_at` is the one field a bare `pns lights quiet` reads. There is
+  `src/channels/hue.rs:QuietWindow::ends_at` is the one field a bare `pns lights mute` reads. There is
   no separate "quiet hours" state, file, or code path anywhere in the crate. The two names are the CONFIG
   KEY (`quiet_hours`) and the parsed VALUE and its type (`QuietWindow`, "the window" throughout the
   source prose).
@@ -589,7 +589,7 @@ Then that string is parsed once into a `QuietWindow` and judged by one predicate
 - Forbidden side effects: on a machine WITH a `[lights]` table, `quiet_hours` is no longer a rung of the
   routed chain at all. A typo in the house key cannot darken a routed lamp
   (`tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`). Its only two
-  remaining jobs are the no-map pulse gate and the schedule a bare `pns lights quiet` reads.
+  remaining jobs are the no-map pulse gate and the schedule a bare `pns lights mute` reads.
 - Timeout and cancellation: Not applicable to the gate. The pulse behind it dials under
   `src/channels/hue.rs:BRIDGE_DEADLINE` (10 seconds).
 - Idempotency and duplicates: the clock is read FRESH at the gate rather than at the run's start, because
@@ -717,13 +717,13 @@ it for one that is not listed
   even though it reuses the `QuietWindow` type and the `quiet_now` predicate. It has its own key at its
   own scope, it answers three states instead of two, and the routed path never consults `quiet_hours`
   (`tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`). A bare
-  `pns lights quiet` reads `quiet_hours` and NEVER any room's `dim_window`, because a mute typed at
+  `pns lights mute` reads `quiet_hours` and NEVER any room's `dim_window`, because a mute typed at
   bedtime is about the operator's night and a room's window is a rendering rule that has nothing to say
   about how long a by-hand silence should last (`src/lights.rs:bare_mute_secs`).
 
-### 18. `pns lights quiet <place> [<duration>|off]` mutes one place's lamps and nothing else
+### 18. `pns lights mute <place> [<duration>|off]` mutes one place's lamps and nothing else
 
-Given the operator types `pns lights quiet "3F - Studio" 2h`
+Given the operator types `pns lights mute "3F - Studio" 2h`
 
 When the place is a name a mute can enforce
 
@@ -745,20 +745,20 @@ Then `lights-quiet` gains a line, the report prints what is quiet, and no other 
   set of bounds (`src/lights.rs:quiet_command`). The cap is `src/lights.rs:MAX_MUTED_PLACES` = 32, and a
   mute past it is REFUSED rather than written, because publishing one more line would have
   `muted_entries` reject the whole file at the next event and cancel every mute on the machine silently:
-  `pns: lights quiet: 32 places are already quiet, which is every line lights-quiet keeps; the mute was not set, and `pns
-  lights quiet <place> off` ends one` (`src/lights.rs:muted_after`). A bare mute runs from now to the
+  `pns: lights mute: 32 places are already muted, which is every line lights-quiet keeps; the mute was not set, and `pns
+  lights mute <place> off` ends one` (`src/lights.rs:muted_after`). A bare mute runs from now to the
   next end of `quiet_hours`, and NOW AT THE END MINUTE IS A WHOLE DAY rather than nothing, since a mute
   of zero seconds is not a mute (`src/lights.rs:bare_mute_secs`,
   `src/lights.rs:how_long_a_bare_mute_runs_is_the_minutes_from_now_to_the_windows_end`).
 - Required side effects: a place NO claim names is REFUSED rather than stored, because a mute would
   otherwise be a line in a file nothing will ever match while the lamp goes on flashing:
-  `pns: lights quiet: <place> is no lamp, room or zone this can quiet; a mute reaches <names>`, or
+  `pns: lights mute: <place> is no lamp, room or zone this can mute; a mute reaches <names>`, or
   `...; this config claims no lamp at all, so there is nothing a mute could reach` when the vocabulary is
   empty (`src/lights.rs:unmutable`). The vocabulary is the config's declarations PLUS the bridge's own
   lamps, rooms and zones (`src/channels/hue.rs:mutable_names`), and the bridge is dialled only on the
   MISS path (`src/main.rs:asks_the_bridge`), so muting a room the config routes costs no network at all.
   A bare mute with no schedule is refused rather than guessed:
-  `pns: lights quiet: a bare mute lasts until your quiet hours end, and `[plugins.hue]
+  `pns: lights mute: a bare mute lasts until your quiet hours end, and `[plugins.hue]
   quiet_hours` states none; give a duration instead, or set that key` (`src/lights.rs:NO_SCHEDULE`).
 - Forbidden side effects: `off` is allowed over ANY name, because it can only remove; a place muted
   yesterday and dropped from the config today would otherwise be a mute nothing could clear
@@ -767,8 +767,8 @@ Then `lights-quiet` gains a line, the report prints what is quiet, and no other 
   house that does not exist
   (`tests/dispatch.rs:a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built`, which
   asserts empty stdout). Any other arity is a refusal, never a silent fallthrough to the report:
-  `pns: lights quiet takes a place, optionally with a duration or off, or nothing at all`, followed by
-  `pns: usage: pns lights tick | pns lights quiet [<place> [<duration>|off]]`
+  `pns: lights mute takes a place, optionally with a duration or off, or nothing at all`, followed by
+  `pns: usage: pns lights tick | pns lights mute [<place> [<duration>|off]]`
   (`src/lights.rs:quiet_command`, `src/main.rs:LIGHTS_USAGE`), exit 2.
 - Timeout and cancellation: the bridge inventory read uses `src/channels/hue.rs:TYPED_COMMAND_DEADLINE`
   (1 second per call, three calls), which is the HUMAN'S deadline rather than the transport's: three
@@ -823,11 +823,11 @@ Then EVERY lamp is treated as muted, and the reason is said once rather than on 
   The report rounds minutes up through `src/quiet.rs:minutes_left`, the same rule the operator mute uses,
   so a room quiet for 40 more seconds never reads as zero (`src/lights.rs:muted_report`).
 - Required side effects: exactly two operator-facing sentences.
-  `pns: state error (lights-quiet holds <what>); nothing is quiet, and the next pns lights quiet write replaces the file`
+  `pns: state error (lights-quiet holds <what>); nothing is muted, and the next pns lights mute write replaces the file`
   for anything malformed (`src/lights.rs:quiet_state_error`), and
-  `pns: state error (lights-quiet could not be read: <error>); nothing is quiet` for a failed read
+  `pns: state error (lights-quiet could not be read: <error>); nothing is muted` for a failed read
   (`src/main.rs:muted_state`). On no clock the reason is
-  `pns lights: the clock cannot be read, so no mute can be judged live; every lamp is quiet until it can`
+  `pns lights: the clock cannot be read, so no mute can be judged live; every lamp is muted until it can`
   (`src/lights.rs:NO_CLOCK_FOR_THE_MUTE`), and the REPORT prints the same sentence rather than "nothing
   is quiet", which would tell the operator the opposite of what every lamp is about to do
   (`src/lights.rs:a_clock_that_will_not_answer_reports_the_reason_never_nothing_is_quiet`).
@@ -842,7 +842,7 @@ Then EVERY lamp is treated as muted, and the reason is said once rather than on 
   length of the mute, and it is what keeps ONE answer to "is this lamp muted"; a second, config-only copy
   of the question upstream of the listing is how a report and a lamp come to disagree
   (`tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`).
-- Idempotency and duplicates: the state repairs itself on the next `pns lights quiet` write, which
+- Idempotency and duplicates: the state repairs itself on the next `pns lights mute` write, which
   republishes the whole file (`src/main.rs:ad_hoc_quiet`).
 - Privacy: as behavior 18.
 - Process ownership and cleanup: the event path and the tick both read; only the command writes.
@@ -853,15 +853,15 @@ Then EVERY lamp is treated as muted, and the reason is said once rather than on 
 
 Given a lamp holding a state (a wait, a streak, unread news) written by `pns lights tick`
 
-When the operator's own `pns quiet` mute is live, or a named Focus is asserted
+When the operator's own `pns mute` mute is live, or a named Focus is asserted
 
-Then the breath is UNAFFECTED, and only `pns lights quiet` and the dim window can quiet it
+Then the breath is UNAFFECTED, and only `pns lights mute` and the dim window can quiet it
 
 - Success: `src/main.rs:lights_tick` reads `ad_hoc_quiet` and `dim_showing` and nothing else. It never
   calls `src/main.rs:muted_now` and never calls `src/main.rs:focus_now`: those two functions have exactly
   three call sites between them in the whole crate, the composition root building `Overrides`
   (`src/main.rs`, both), `src/main.rs:quiet_mode`'s report, and `src/main.rs:focus_line` for the doctor.
-  The composition root states the contract in prose: "That reading takes `pns lights quiet` and each
+  The composition root states the contract in prose: "That reading takes `pns lights mute` and each
   room's own dim window, and never this event's own silence or a macOS Focus: those gate the flash and
   the cards, not the sustained breath" (`src/main.rs:run_event`, above the `blocked_lamp` gate).
 - Failure sources: a held record that cannot be read; an unreachable bridge; a lock another tick holds.
@@ -903,12 +903,12 @@ Then the breath is UNAFFECTED, and only `pns lights quiet` and the dim window ca
 
 ## Gaps
 
-- NOT ESTABLISHED: `pns quiet --help`. Code-derived exit 2 (behavior 4); no test covers it.
+- NOT ESTABLISHED: `pns mute --help`. Code-derived exit 2 (behavior 4); no test covers it.
 - NOT ESTABLISHED: the tick's independence from the operator mute and from Focus is unpinned by any test
   (behavior 20).
 - NOT ESTABLISHED, and named in the source itself: the freshness of the clock read at
   `src/main.rs:fire_pulse_unless_quiet` ("HONEST LIMIT: no suite pins the freshness, because a test's
   clock does not advance mid-run"), behavior 14.
 - Established rather than a gap, but worth naming: `pns doctor` reports the Focus state in five sentences
-  and reports NOTHING about the operator's own `pns quiet` mute. Bare `pns quiet` is the only way to ask
+  and reports NOTHING about the operator's own `pns mute` mute. Bare `pns mute` is the only way to ask
   (behavior 12).

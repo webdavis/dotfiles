@@ -95,8 +95,8 @@ mod schedule_job;
 pub use schedule_job::{ScheduleJob, Until, cancel_job};
 
 pub use ports::lights::{LampMutes, LoopLeases};
-mod set_lights_quiet;
-pub use set_lights_quiet::{SetLightsQuiet, ad_hoc_quiet, quiet_names};
+mod set_lights_mute;
+pub use set_lights_mute::{SetLightsMute, ad_hoc_mute, mute_names};
 
 mod loop_lease;
 pub use loop_lease::AcquireLoopLease;

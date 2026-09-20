@@ -54,7 +54,7 @@ fn a_state_file_that_cannot_be_read_delivers_everything_and_complains_once_per_e
     // that text, and pinning it would fail on a kernel that reworded it.
     assert!(
         complaints[0].starts_with("pns: state error (quiet-until could not be read: ")
-            && complaints[0].ends_with("); nothing is muted, clear it with pns quiet off"),
+            && complaints[0].ends_with("); nothing is muted, clear it with pns mute off"),
         "the shape the parse complaint already uses, with the error inside: {}",
         complaints[0]
     );
@@ -75,10 +75,10 @@ fn a_mute_that_could_not_be_written_reports_the_mute_that_still_stands() {
         .as_secs()
         + 3_600;
     pns_adapters::SqliteStore::for_records(sandbox.state())
-        .set_quiet_expiry(Some(standing))
+        .set_mute_expiry(Some(standing))
         .expect("the standing mute");
     let writer = quiet_records::writer(&sandbox);
-    let output = refused_quiet_command(&sandbox)
+    let output = refused_mute_command(&sandbox)
         .arg("30m")
         .output()
         .expect("the engine runs");
@@ -94,7 +94,7 @@ fn a_mute_that_could_not_be_written_reports_the_mute_that_still_stands() {
     );
     assert_eq!(
         stdout(&output).trim_end(),
-        "pns: quiet for another 60 minutes",
+        "pns: muted for another 60 minutes",
         "the mute that still stands, not the one this run failed to set"
     );
     assert_eq!(
@@ -113,7 +113,7 @@ fn a_mute_that_could_not_be_written_exits_nonzero_and_leaves_no_state_behind() {
     let sandbox = Sandbox::new("quiet-write-fails");
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     set_state_mode(&sandbox, 0o500);
-    let output = quiet_command(&sandbox)
+    let output = mute_command(&sandbox)
         .arg("30m")
         .output()
         .expect("the engine runs");
@@ -140,10 +140,10 @@ fn a_publish_whose_rename_fails_leaves_no_pending_file_behind() {
     // A real competing writer prevents this command from acquiring ownership.
     let sandbox = Sandbox::new("quiet-rename-fails");
     pns_adapters::SqliteStore::for_records(sandbox.state())
-        .set_quiet_expiry(None)
+        .set_mute_expiry(None)
         .expect("the initialized empty mute");
     let writer = quiet_records::writer(&sandbox);
-    let output = refused_quiet_command(&sandbox)
+    let output = refused_mute_command(&sandbox)
         .arg("30m")
         .output()
         .expect("the engine runs");
