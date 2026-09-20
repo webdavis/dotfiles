@@ -108,7 +108,7 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
 
 #[test]
 fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
-    // `[plugins.hue] quiet_hours` IS NO LONGER A RUNG OF THE ROUTED CHAIN. It
+    // `[plugins.lights] quiet_hours` IS NO LONGER A RUNG OF THE ROUTED CHAIN. It
     // is now exactly one thing: the schedule a bare `pns lights mute` reads,
     // and the window the no-map pulse takes. A routed lamp states its own
     // `dim_window` or has none, so a typo in the house key cannot darken it.
@@ -201,7 +201,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     // THE BANNER IS OPT IN like every other channel, so the desk runs below
     // switch it on: without its table the surface has nothing to raise and the
     // assertion would pass on a channel that was never enabled.
-    let with_banner = format!("[plugins.macos-banner]\nenabled = true\n{STUDIO_MAP}");
+    let with_banner = format!("[plugins.banner]\nenabled = true\n{STUDIO_MAP}");
     assert_eq!(
         lamp_run(
             "lamps-adhoc-quiet-desk",

@@ -16,9 +16,9 @@ what was looked for. The operator's real config was never read, and no secret va
 this document.
 
 Two vocabulary notes that matter for reading the tables below. `quiet hours` is the config key
-`[plugins.hue] quiet_hours` and `quiet window` is the parsed value behind it; `dim window` is the
+`[plugins.lights] quiet_hours` and `quiet window` is the parsed value behind it; `dim window` is the
 per-target `dim_window` key. `unread` is one of the five behaviour words. `home probe` and `router` name
-the `[plugins.router]` sensor. The `config-change` hook event (`src/main.rs:config_change_detail`) is
+the `[plugins.home_presence]` sensor. The `config-change` hook event (`src/main.rs:config_change_detail`) is
 about the HARNESS's own settings file and has nothing to do with this file; it is out of scope here.
 
 ## Is the config versioned?
@@ -33,7 +33,7 @@ top level would be refused by `parse_config`'s `_` arm; `src/config.rs:Config` h
 `dot_config/pns/private_config.toml.tmpl` returns nothing at all. There is therefore no migration
 mechanism, no compatibility window and no way for a file to declare which schema it was written against.
 What stands in for one is the refusal itself: a table that MOVED (`[home]`, whose settings became
-`[plugins.router]`) is refused by name with the six live tables listed, which is a hand-executed
+`[plugins.home_presence]`) is refused by name with the six live tables listed, which is a hand-executed
 migration prompt rather than a versioned one
 (`src/config.rs:a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`,
 `src/config.rs:a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`).
@@ -104,15 +104,15 @@ assert_eq!(
             r#"pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}"#
         ),
         (
-            "plugins.hue".to_string(),
+            "plugins.lights".to_string(),
             r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#
         ),
         (
-            "plugins.hue".to_string(),
+            "plugins.lights".to_string(),
             r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#
         ),
         (
-            "plugins.router".to_string(),
+            "plugins.home_presence".to_string(),
             r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#
         ),
     ]
@@ -120,7 +120,7 @@ assert_eq!(
 ```
 
 The pin carries each line's TABLE as well as its text, and the test's own comment says why: "a bare line
-comparison cannot tell hermes's secret sitting under `[plugins.hue]` from hermes's secret sitting under
+comparison cannot tell hermes's secret sitting under `[plugins.lights]` from hermes's secret sitting under
 `[plugins.hermes]`, since the line text alone never says which heading it fell under (sol-1 finding 1)."
 
 The pin's stated ceiling, from the same doc comment: "THE STUB ONLY READS THE GRAMMAR of a secret
@@ -137,7 +137,7 @@ answers with one of five things.
 | Answer                                 | When                                                                    | Fail direction on the delivery path                                                        | Fail direction on the pulse path                                       |
 | -------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | `Ok(LoadOutcome::Loaded(config))`      | the file read and parsed                                                | the config is authoritative                                                                | the config is authoritative                                            |
-| `Ok(LoadOutcome::Missing)`             | `read_to_string` returned `NotFound` AND `symlink_metadata` also failed | the CORE selection (`mobile`, `macos-banner`), silently (`src/registry.rs:select_plugins`) | exit 0, silent (`src/main.rs`, `Ok(LoadOutcome::Missing) => return 0`) |
+| `Ok(LoadOutcome::Missing)`             | `read_to_string` returned `NotFound` AND `symlink_metadata` also failed | the CORE selection (`mobile`, `banner`), silently (`src/registry.rs:select_plugins`) | exit 0, silent (`src/main.rs`, `Ok(LoadOutcome::Missing) => return 0`) |
 | `Err(ConfigError::Malformed(detail))`  | the text is not TOML                                                    | the CORE plus one warning line                                                             | `pns: config error ({detail}); no pulse`, exit 0                       |
 | `Err(ConfigError::Invalid(detail))`    | well-formed TOML that violates the schema                               | the CORE plus one warning line                                                             | the same, exit 0                                                       |
 | `Err(ConfigError::Unreadable(detail))` | present but unreadable, a dangling symlink included                     | the CORE plus one warning line                                                             | the same, exit 0                                                       |
@@ -265,28 +265,28 @@ column, which lives outside this layer.
 | ------------------------------------- | ---------------- | ------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plugins.<any>.enabled`               | bool             | `false` (selection is explicit)      | none                                                    | no                                                                   | `` plugin `{name}` has a non-boolean `enabled` ``                                                                                                                          | `parse_config`                                                          | `an_absent_enabled_flag_reads_disabled_because_selection_is_explicit`, `a_non_boolean_enabled_flag_is_refused_naming_the_plugin`                    |
 | `plugins.hermes.keys.<route>`         | string           | unset                                | a route in `pns_domain::routes::ROUTES`                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/` at delivery                                             | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
-| `plugins.hue.bridge`                  | string           | unset                                | not judged here                                         | YES (the repo's values file takes it off a vault entry's `UserName`) | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
-| `plugins.hue.key`                     | string           | unset                                | not judged here                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
-| `plugins.hue.rooms`                   | array of strings | unset                                | not judged here                                         | no                                                                   | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
-| `plugins.hue.quiet_hours`             | string           | unset                                | not judged here                                         | no                                                                   | name-checked only at load; an unparsable window is handled at read time                                                                                                    | `src/channels/hue.rs:quiet_window`                                      | `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`                                                             |
-| `plugins.macos-banner.enabled`        | bool             | `false`                              | none                                                    | no                                                                   | as any `enabled`                                                                                                                                                           | `parse_config`                                                          | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
+| `plugins.lights.bridge`                  | string           | unset                                | not judged here                                         | YES (the repo's values file takes it off a vault entry's `UserName`) | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
+| `plugins.lights.key`                     | string           | unset                                | not judged here                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
+| `plugins.lights.rooms`                   | array of strings | unset                                | not judged here                                         | no                                                                   | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
+| `plugins.lights.quiet_hours`             | string           | unset                                | not judged here                                         | no                                                                   | name-checked only at load; an unparsable window is handled at read time                                                                                                    | `src/channels/hue.rs:quiet_window`                                      | `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`                                                             |
+| `plugins.banner.enabled`        | bool             | `false`                              | none                                                    | no                                                                   | as any `enabled`                                                                                                                                                           | `parse_config`                                                          | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
 | `plugins.mobile.type`                 | string           | unset                                | must equal `"moshi"` when the table is armed            | no                                                                   | `no type in [plugins.mobile]; the only type is "moshi"` or `[plugins.mobile] has type "{named}", which no compiled-in backend answers; the only type is "moshi"`           | `src/channels/moshi.rs:mobile_backend` via `src/config.rs:armed_mobile` | `a_mobile_table_naming_no_backend_contributes_no_settings_at_all`, `type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused`           |
 | `plugins.mobile.token`                | string           | unset (not set up, never an error)   | non-empty to count                                      | YES                                                                  | `src/channels/moshi.rs:moshi_secret` answers `None` for every failure shape                                                                                                | `src/channels/moshi.rs:moshi_secret`                                    | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
 | `plugins.mobile.mobile_watch_card`    | bool             | `false`                              | none                                                    | no                                                                   | loud, then off: `pns: config error ([plugins.mobile] mobile_watch_card is {type}, not a boolean); the mobile watching card stays off`                                      | `src/main.rs:watch_card`                                                | `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`                                                                       |
 | `plugins.mobile.submit_deadline_secs` | integer (`u64`)  | `5` (`DEFAULT_SUBMIT_DEADLINE_SECS`) | 1 to 3600 (`MAX_SUBMIT_DEADLINE_SECS`); zero is REFUSED | no                                                                   | three refusals, quoted in behavior 20                                                                                                                                      | `src/config.rs:submit_deadline`                                         | `the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five`, `a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name` |
 | `plugins.mobile.image_cards.<card type>` | bool | `false` for every card type | none; the keys are card types, which no roster enumerates | no | loud, then off: `pns: config error ([plugins.mobile.image_cards] {key} is {type}, not a boolean); that card type keeps its text card` | `pns-adapters/src/config/mobile.rs:moshi_image_cards` | `config/mobile.rs:a_card_type_whose_value_is_not_a_boolean_keeps_its_text_card` |
-| `plugins.router.type`                 | string           | unset                                | must equal `"unifi"`                                    | no                                                                   | `home: no type in [plugins.router] (the only type is "unifi")` / `home: [plugins.router] has type "{x}", which no compiled-in backend answers (the only type is "unifi")`  | `src/home.rs:setup_report`                                              | `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`                                                                     |
-| `plugins.router.router_url`           | string           | unset                                | non-empty string                                        | no                                                                   | `home: the [plugins.router] table is present but router_url is missing, empty, or not a string`                                                                            | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.device_hostname`      | string           | unset                                | at least one of the three device keys                   | no                                                                   | `home: no device to look for in [plugins.router] (set at least one of device_mac, device_hostname, device_ipv4)`                                                           | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.device_mac`           | string           | unset                                | six hex pairs under one separator                       | no                                                                   | `home: device_mac = "{x}" in [plugins.router] is not a MAC address (six hex pairs under one separator, e.g. "2e:11:ab:6d:b0:4f")`                                          | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.device_ipv4`          | string           | unset                                | a dotted quad                                           | no                                                                   | `home: device_ipv4 = "{x}" in [plugins.router] is not an IPv4 address (a dotted quad, e.g. "192.168.1.169")`                                                               | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.api_key`              | string           | unset                                | non-empty                                               | YES                                                                  | `home: no api_key in the [plugins.router] table (the probe is not set up)`                                                                                                 | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.stale_alert_channel`  | string           | unset (the default route)            | a usable route name                                     | no                                                                   | loud, then the default route: `pns: config error (stale_alert_channel = "{x}" in [plugins.router] is not a usable route name); the stale alert posts to the default route` | `src/home.rs`                                                           | `tests/dispatch.rs:an_unusable_stale_alert_route_complains_and_still_delivers_the_alert`                                                            |
+| `plugins.home_presence.type`                 | string           | unset                                | must equal `"unifi"`                                    | no                                                                   | `home: no type in [plugins.home_presence] (the only type is "unifi")` / `home: [plugins.home_presence] has type "{x}", which no compiled-in backend answers (the only type is "unifi")`  | `src/home.rs:setup_report`                                              | `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`                                                                     |
+| `plugins.home_presence.router_url`           | string           | unset                                | non-empty string                                        | no                                                                   | `home: the [plugins.home_presence] table is present but router_url is missing, empty, or not a string`                                                                            | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.device_hostname`      | string           | unset                                | at least one of the three device keys                   | no                                                                   | `home: no device to look for in [plugins.home_presence] (set at least one of device_mac, device_hostname, device_ipv4)`                                                           | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.device_mac`           | string           | unset                                | six hex pairs under one separator                       | no                                                                   | `home: device_mac = "{x}" in [plugins.home_presence] is not a MAC address (six hex pairs under one separator, e.g. "2e:11:ab:6d:b0:4f")`                                          | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.device_ipv4`          | string           | unset                                | a dotted quad                                           | no                                                                   | `home: device_ipv4 = "{x}" in [plugins.home_presence] is not an IPv4 address (a dotted quad, e.g. "192.168.1.169")`                                                               | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.api_key`              | string           | unset                                | non-empty                                               | YES                                                                  | `home: no api_key in the [plugins.home_presence] table (the probe is not set up)`                                                                                                 | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.stale_alert_channel`  | string           | unset (the default route)            | a usable route name                                     | no                                                                   | loud, then the default route: `pns: config error (stale_alert_channel = "{x}" in [plugins.home_presence] is not a usable route name); the stale alert posts to the default route` | `src/home.rs`                                                           | `tests/dispatch.rs:an_unusable_stale_alert_route_complains_and_still_delivers_the_alert`                                                            |
 | `plugins.<unregistered>.<anything>`   | any              | n/a                                  | NOT judged at this layer                                | no                                                                   | the NAME is refused one layer on: `` unknown plugin `{name}` ``                                                                                                            | `src/registry.rs:Registry::enabled`                                     | `an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name`                                                                |
 
 The secret-bearing key paths are declared once more, as data, at
 `src/bin/pns-config-render.rs`: four fixed paths in `SECRET_BEARING_KEYS`
-(`["plugins.mobile.token", "plugins.hue.bridge", "plugins.hue.key", "plugins.router.api_key"]`) plus one
+(`["plugins.mobile.token", "plugins.lights.bridge", "plugins.lights.key", "plugins.home_presence.api_key"]`) plus one
 `plugins.hermes.keys.<route>` per entry of `pns_domain::routes::ROUTES`, joined by
 `secret_bearing_keys()`. That list is what makes "secret" an enforced classification rather than a
 convention: in the committed values file each of those paths must hold a keepassxc marker table, never a
@@ -443,9 +443,9 @@ Then the answer is `Loaded`, `Missing`, or one of three named errors
   `Ok(LoadOutcome::Missing)` for a nonexistent path); anything else from the read is `Unreadable`
   (`src/config.rs:an_unreadable_path_is_an_error_never_a_silent_unconfigured`, which uses a DIRECTORY at
   the config path as the deterministic case).
-- Fail direction: delivery path, `Missing` selects the CORE (`mobile`, `macos-banner`) with no warning,
+- Fail direction: delivery path, `Missing` selects the CORE (`mobile`, `banner`) with no warning,
   and an error selects the CORE with the line
-  `pns: config error ({detail}); running the core plugins (mobile, macos-banner)`
+  `pns: config error ({detail}); running the core plugins (mobile, banner)`
   (`src/registry.rs:select_plugins`, `src/registry.rs:core_warning`). Pulse path, `Missing` exits 0 in
   silence and an error prints `pns: config error ({detail}); no pulse` and still exits 0 (`src/main.rs`,
   pinned by `tests/dispatch.rs:an_absent_config_stays_silent_in_pulse_mode` and
@@ -549,8 +549,8 @@ Then the file is refused whole, the offending name is quoted, and the six are li
   row for `src/config.rs:TOP_LEVEL` (the empty string) to build the list. Pinned by
   `src/config.rs:every_table_refuses_an_unknown_key_by_name_and_lists_what_it_serves`, which walks every
   row of `TABLE_KEYS` including the top-level one.
-- Failure sources: a misspelled table (`[plugin.hue]` for `[plugins.hue]`, `[recaps]` for `[recap]`), and
-  a MOVED table (`[home]`, whose settings became `[plugins.router]`).
+- Failure sources: a misspelled table (`[plugin.hue]` for `[plugins.lights]`, `[recaps]` for `[recap]`), and
+  a MOVED table (`[home]`, whose settings became `[plugins.home_presence]`).
 - Fail direction: the whole file is refused, which takes every plugin's secret with it. Delivery path,
   the machine falls to the CORE and prints the warning, so the phone and the banner keep working while
   hermes, hue and the home probe stop. Pulse path, no pulse. The home probe's own diagnostic prints the
@@ -611,7 +611,7 @@ Then `enabled` is REMOVED from the settings and becomes `PluginEntry::enabled`, 
 
 ### 6. A shipped plugin's keys are judged, an unregistered plugin's are not
 
-Given `[plugins.hue]` with `room = "x"` (a near miss for `rooms`)\
+Given `[plugins.lights]` with `room = "x"` (a near miss for `rooms`)\
 
 When `parse_config` runs\
 
@@ -630,8 +630,8 @@ Then it is refused with the table, the key and the whole vocabulary named
   this repo ships. If it stops loading, the machine falls back to the CORE with a warning nobody is
   standing in front of: the phone and the banner keep working, and the durable paper trail, the lights
   and the home probe all stop."
-- Thresholds: the six judged tables are `plugins.hermes`, `plugins.hue`, `plugins.macos-banner`,
-  `plugins.mobile`, `plugins.presence`, `plugins.router`. A table for a plugin nothing registered has NO roster row, so
+- Thresholds: the six judged tables are `plugins.hermes`, `plugins.lights`, `plugins.banner`,
+  `plugins.mobile`, `plugins.presence`, `plugins.home_presence`. A table for a plugin nothing registered has NO roster row, so
   `keys_of` returns `None` and `admits` passes everything
   (`src/config.rs:an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name`).
 - Required side effects: the positive control is its own test:
@@ -674,8 +674,8 @@ Then the name is refused, the warning is loud, and the selection widens to the W
   plugin`. On the PULSE path the same config fails CLOSED: `tests/dispatch.rs:an_unknown_plugin_never_resurrects_a_disabled_pulse`proves a deliberate`enabled
   = false\` on hue is not turned back on by an unrelated typo, by binding a listener the pulse must never
   reach.
-- Thresholds: the roster is six registrations (`src/registry.rs:ROSTER`): `router` (a sensor),
-  `presence` (a sensor), `mobile`, `macos-banner`, `hermes`, `hue`. The CORE is two names
+- Thresholds: the roster is six registrations (`src/registry.rs:ROSTER`): `home_presence` (a sensor),
+  `presence` (a sensor), `mobile`, `banner`, `hermes`, `lights`. The CORE is two names
   (`src/registry.rs:CORE`).
 - Required side effects: the warning is printed by the composition root, once.
 - Forbidden side effects: no third answer. "SELECTING ONLY THE KNOWN NAMES out of a config with one typo
@@ -686,7 +686,7 @@ Then the name is refused, the warning is loud, and the selection widens to the W
   `src/registry.rs:build_registry`, which is safe because the only reachable refusal is deterministic and
   compiled in.
 - Privacy: the plugin name only.
-- Process ownership and cleanup: `router` is registered as a `Sensor`, so no event is ever delivered to
+- Process ownership and cleanup: `home_presence` is registered as a `Sensor`, so no event is ever delivered to
   it (`tests/dispatch.rs:the_binarys_own_roster_knows_the_router_sensor`).
 - Compatibility contract: the config's names and the registry's names are two lists that must agree, and
   the only enforcement is this refusal at runtime plus
@@ -1136,7 +1136,7 @@ Then the answer is 30 seconds
   names `type`; the same test carries a positive control (`type = "moshi"` gives 30) and the switched-off
   case (a disabled table falls back to 5). A key written under ANOTHER plugin's table no longer even
   parses, because the roster judges each table's vocabulary: the same test asserts
-  `[plugins.hue]\nsubmit_deadline_secs = 30` is an error.
+  `[plugins.lights]\nsubmit_deadline_secs = 30` is an error.
 - Timeout and cancellation: the value IS a deadline. On expiry "the submission is killed and its pending
   card dies with it, and nothing is said either way" (`src/config_text.rs:LAYOUT`, the
   `submit_deadline_secs` prose). There is no off switch, "because an unbounded wait is the defect and
@@ -1318,7 +1318,7 @@ Then it crosses as one inert basic string and never as structure
 - Required side effects: `src/config_text.rs:write_note` gives EVERY `\n`-split line its own `# ` prefix,
   "which is what keeps a newline inside the operator's own text from opening a heading or an uncommented
   key." Pinned by `src/config_text.rs:a_note_holding_a_newline_stays_commented_on_every_line`, which
-  plants a full `[plugins.hue]` table inside a note and asserts the parsed config does not contain `hue`.
+  plants a full `[plugins.lights]` table inside a note and asserts the parsed config does not contain `lights`.
 - Forbidden side effects: `note` is a RESERVED key invisible to the roster. It never reaches the output
   as `note = "..."` and never round-trips into a parsed config
   (`src/config_text.rs:a_note_renders_above_its_heading_as_a_commented_line`).
@@ -1390,7 +1390,7 @@ Then nothing reaches the template path until every earlier step has succeeded
   using `[remind] delay = "61m"` ("`render` alone never bounds a duration"); the literal-secret check
   removed OR NARROWED, pinned by
   `tests/config_render.rs:a_literal_value_at_any_secret_bearing_key_is_refused_without_writing`, which
-  table-drives all five paths because "a single case covering only `plugins.hue.bridge` stays green if
+  table-drives all five paths because "a single case covering only `plugins.lights.bridge` stays green if
   the other four are removed from that list"; the roster refusal loosened, pinned by
   `tests/config_render.rs:an_unknown_values_entry_is_refused_without_writing`; the banner gutted, pinned
   by
@@ -1419,7 +1419,7 @@ Then nothing reaches the template path until every earlier step has succeeded
   none is needed for a hand-run developer tool.
 - Idempotency and duplicates: byte-identical across runs, pinned.
 - Privacy: `refuse_literal_secrets` names the PATH
-  (`` `plugins.hue.bridge` must be a keepassxc secret marker table, not a literal value ``) and never the
+  (`` `plugins.lights.bridge` must be a keepassxc secret marker table, not a literal value ``) and never the
   offending value, so a pasted credential that triggers the refusal is not echoed to stderr. That is the
   single most important privacy property of this binary, and it is a consequence of the message's shape
   rather than of an explicit test: the tests assert stderr CONTAINS the key path, not that it excludes
@@ -1515,7 +1515,7 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 
 | Mode                                                      | Missing                                                              | Error                                                 | Wording                                                                            |
 | --------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| event delivery                                            | CORE, silent                                                         | CORE, loud                                            | `pns: config error ({detail}); running the core plugins (mobile, macos-banner)`    |
+| event delivery                                            | CORE, silent                                                         | CORE, loud                                            | `pns: config error ({detail}); running the core plugins (mobile, banner)`    |
 | event delivery, unknown plugin name in a file that PARSED | n/a                                                                  | whole roster, loud                                    | `` pns: config error (unknown plugin `{name}`); running every built-in plugin ``   |
 | `pns lights pulse`                                               | exit 0, silent                                                       | exit 0, loud, no pulse                                | `pns: config error ({detail}); no pulse`                                           |
 | lights tick                                               | return 0, nothing armed                                              | return 0, nothing armed                               | silent (a line per tick would be a log the rotation job rotates a real log out of) |
@@ -1525,7 +1525,7 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 | the doctor's home rows                                    | a setup row                                                          | a setup row                                           | `home: config error ({detail})`                                                    |
 | `pns doctor`                                              | `no config file, so only the core runs` per skipped plugin           | `the config could not be read, so only the core runs` | as shown                                                                           |
 
-- Thresholds: the CORE is exactly two names, `mobile` and `macos-banner` (`src/registry.rs:CORE`), and
+- Thresholds: the CORE is exactly two names, `mobile` and `banner` (`src/registry.rs:CORE`), and
   the ruling behind that number is recorded: "Three of the five plugins cannot do anything until a
   credential is stood up for them... so a default that switched them on delivered nothing and reported
   three failures on a machine whose operator had asked for none of it."

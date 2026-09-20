@@ -47,17 +47,17 @@ pub(super) fn posted_recap(sandbox: &Sandbox) -> String {
 /// child after the event that triggered it has exited rather than inside it.
 pub(super) fn carded_recap(sandbox: &Sandbox) -> (serde_json::Value, Vec<serde_json::Value>) {
     let card = poll_until(|| {
-        events(sandbox, "macos-banner")
+        events(sandbox, "banner")
             .into_iter()
             .find(|event| event["state"] == "missed")
     })
     .unwrap_or_else(|| {
         panic!(
             "no recap card was dispatched: {:?}",
-            events(sandbox, "macos-banner")
+            events(sandbox, "banner")
         )
     });
-    (card, events(sandbox, "macos-banner"))
+    (card, events(sandbox, "banner"))
 }
 
 /// What a recap says when the summarizer it was told to use produced nothing.

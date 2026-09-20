@@ -20,7 +20,7 @@ fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_jour
     run(&mut focus_event(&sandbox));
 
     assert!(
-        events(&sandbox, "macos-banner").is_empty(),
+        events(&sandbox, "banner").is_empty(),
         "the Focus swallowed the banner"
     );
     assert!(
@@ -78,7 +78,7 @@ fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual()
     run(&mut focus_event(&sandbox));
 
     assert_eq!(
-        events(&sandbox, "macos-banner").len(),
+        events(&sandbox, "banner").len(),
         2,
         "the live send and its unconfirmed-send replay both bypass the unnamed Focus"
     );
@@ -130,7 +130,7 @@ fn a_focus_store_that_cannot_be_read_costs_no_notification_at_all() {
 
         run(&mut present_event(&sandbox));
 
-        assert_eq!(events(&sandbox, "macos-banner").len(), 1, "case: {label}");
+        assert_eq!(events(&sandbox, "banner").len(), 1, "case: {label}");
         assert!(
             journal(&sandbox).is_empty(),
             "and a delivered event is not a miss: {label}"

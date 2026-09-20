@@ -21,7 +21,7 @@ pub struct Muted {
 pub const MAX_MUTED_PLACES: usize = 32;
 /// How long a BARE mute lasts: from now until the operator's quiet hours end.
 ///
-/// THE SCHEDULE IS `[plugins.hue] quiet_hours` and there is no second one. A
+/// THE SCHEDULE IS `[plugins.lights] quiet_hours` and there is no second one. A
 /// mute typed at bedtime is about the operator's night, not about one room's
 /// own dim window, and a room's window is a rendering rule that has nothing to
 /// say about how long a by-hand silence should last.

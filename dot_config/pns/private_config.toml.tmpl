@@ -149,8 +149,11 @@ scalebar = {{ (keepassxc "Discord (Uriel) :: Channel ID (#scalebar-dev)").Passwo
 uu = {{ (keepassxc "Discord (Uriel) :: Channel ID (#uu-dev)").Password | toToml }}
 
 # The macOS banner, which is what a machine you are sitting at says.
-[plugins.macos-banner]
+[plugins.banner]
 enabled = true
+# Which compiled-in surface raises the banner. "macos" is the only one
+# today, and a table naming one nothing answers is refused out loud.
+type = "macos"
 # The terminal a banner click returns to, as a bundle id. Left out, the
 # one this process was started from is used, which is right on a machine
 # with one terminal; name it where a hook runs under launchd and
@@ -171,8 +174,11 @@ enabled = true
 # The light pulse: the named rooms flash green when work finishes and red
 # when it dies. Needs the bridge's address, a key it issued, and the rooms
 # spelled the way the bridge spells them.
-[plugins.hue]
+[plugins.lights]
 enabled = true
+# Which compiled-in bridge answers. "hue" is the only one today, and a
+# table naming one nothing answers is refused out loud.
+type = "hue"
 bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
 # The one certificate the bridge may present, as `sha256:<64 hex>`.
@@ -238,7 +244,7 @@ webhook_port = 8648
 # Which room you are in, read off the bridge's per-room motion roll-up so
 # the lamp that signals is the one beside you. A SENSOR, not a
 # destination: no event routes to it. It reads the bridge through
-# [plugins.hue] above, so switching this on with that one off is refused
+# [plugins.lights] above, so switching this on with that one off is refused
 # by name.
 [plugins.presence]
 enabled = true
@@ -281,7 +287,7 @@ stale_after_secs = 15
 # The home probe: whether the phone is on the home wifi, answered by the
 # router's own client list. A SENSOR rather than a destination, so no
 # event ever routes to it; `pns doctor` is how it is read.
-[plugins.router]
+[plugins.home_presence]
 enabled = true
 # Which compiled-in backend answers. "unifi" is the only one today, and
 # a table naming none, or naming one nothing answers, is refused out loud.
@@ -556,7 +562,7 @@ port = 8646
 # second such word (see `[lights.github]` below). An unknown key at any
 # level, and a behaviour word outside the six, are refused by name.
 #
-# `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE: hue is the
+# `[lights]` IS INERT UNLESS `[plugins.lights] enabled` IS TRUE: hue is the
 # transport and this is the policy. WITH NO TABLE AT ALL the pulse is the
 # `rooms` array above and nothing else; uncommenting `[lights]` with no
 # declaration replaces that pulse with an empty lamp map, so name a place
@@ -703,7 +709,7 @@ dim_behaviours = ["blocked", "unread", "loop", "github"]
 # lamp, room or zone and nothing else: cards, banners and the durable log
 # carry on, and `pns mute`, which mutes all of them, is a different
 # command with a different file that neither reads. A bare mute reads
-# `[plugins.hue] quiet_hours` above as the schedule and is refused when
+# `[plugins.lights] quiet_hours` above as the schedule and is refused when
 # none is set; an explicit duration is the same 1s to 24h `pns mute`
 # takes. A state file nobody can parse mutes EVERY lamp and says so: dark
 # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY

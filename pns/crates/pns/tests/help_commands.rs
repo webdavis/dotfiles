@@ -114,7 +114,7 @@ fn a_subcommands_help_reaches_no_channel_and_writes_no_state() {
         assert_eq!(output.status.code(), Some(0), "{argv:?}: {output:?}");
         assert!(!sandbox.fired("mobile"), "{argv:?}: {output:?}");
         assert!(!sandbox.fired("hermes"), "{argv:?}: {output:?}");
-        assert!(!sandbox.fired("macos-banner"), "{argv:?}: {output:?}");
+        assert!(!sandbox.fired("banner"), "{argv:?}: {output:?}");
         assert!(!sandbox.state().exists(), "{argv:?}: {output:?}");
     }
 }

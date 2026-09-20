@@ -176,8 +176,8 @@ const PLUGINS_HERMES_KEYS: Table = Table {
     children: &[],
     keys: &[],
 };
-pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
-    name: "plugins.macos-banner",
+pub(super) const PLUGINS_BANNER: Table = Table {
+    name: "plugins.banner",
     prose: "# The macOS banner, which is what a machine you are sitting at says.\n",
     opt_in: false,
     children: &[],
@@ -186,6 +186,12 @@ pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
             name: "enabled",
             prose: "",
             sample: Sample::Default("true"),
+        },
+        Key {
+            name: "type",
+            prose: "# Which compiled-in surface raises the banner. \"macos\" is the only one\n\
+                         # today, and a table naming one nothing answers is refused out loud.\n",
+            sample: Sample::Default("\"macos\""),
         },
         Key {
             name: "terminal_bundle_id",
@@ -214,8 +220,8 @@ pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
         },
     ],
 };
-pub(super) const PLUGINS_HUE: Table = Table {
-    name: "plugins.hue",
+pub(super) const PLUGINS_LIGHTS: Table = Table {
+    name: "plugins.lights",
     prose: "# The light pulse: the named rooms flash green when work finishes and red\n\
                  # when it dies. Needs the bridge's address, a key it issued, and the rooms\n\
                  # spelled the way the bridge spells them.\n",
@@ -226,6 +232,12 @@ pub(super) const PLUGINS_HUE: Table = Table {
             name: "enabled",
             prose: "",
             sample: Sample::Default("true"),
+        },
+        Key {
+            name: "type",
+            prose: "# Which compiled-in bridge answers. \"hue\" is the only one today, and a\n\
+                         # table naming one nothing answers is refused out loud.\n",
+            sample: Sample::Default("\"hue\""),
         },
         Key {
             name: "bridge",

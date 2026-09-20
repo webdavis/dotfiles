@@ -120,7 +120,7 @@ pub fn armed_discord(config: &Config) -> Result<Option<&toml::Table>, String> {
 pub fn enabled_hue_table(config: &Config) -> Option<toml::Table> {
     config
         .plugins
-        .get("hue")
+        .get("lights")
         .filter(|hue| hue.enabled)
         .map(|hue| hue.settings.clone())
 }

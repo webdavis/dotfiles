@@ -12,7 +12,7 @@ const DESK_HIDDEN: &str = "claude/config-change mode=none agent=none tool=none s
      locked=no fresh_window=120 long_running=no remind=no local_only=no remote_only=no pane=present \
      pane_dropped=no watch_card=no muted=no focus=no skip_phone=no force_phone=no idle_invalid=no \
      desk_invalid=no phone_invalid=no plan=banner:yes,card:no,pulse:no \
-     legs=macos-banner:delivered,hermes:delivered";
+     legs=banner:delivered,hermes:delivered";
 
 #[test]
 fn the_event_is_carried_through_as_the_ring_wrote_it() {
@@ -23,10 +23,7 @@ fn the_event_is_carried_through_as_the_ring_wrote_it() {
 #[test]
 fn delivered_legs_are_named_as_what_actually_happened() {
     assert_eq!(summarize(DESK_VISIBLE).outcome, "reached hermes");
-    assert_eq!(
-        summarize(DESK_HIDDEN).outcome,
-        "reached macos-banner and hermes"
-    );
+    assert_eq!(summarize(DESK_HIDDEN).outcome, "reached banner and hermes");
 }
 
 #[test]

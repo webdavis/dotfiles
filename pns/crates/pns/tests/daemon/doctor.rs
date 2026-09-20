@@ -10,7 +10,7 @@ use super::*;
 #[test]
 fn the_doctor_reports_a_dead_daemon_without_moving_its_exit_code() {
     let sandbox = Sandbox::new("daemon-doctor-line");
-    sandbox.write_config("[plugins.macos-banner]\nenabled = true\n");
+    sandbox.write_config("[plugins.banner]\nenabled = true\n");
     let mut command = sandbox.pns_stateful();
     command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     let output = run(command.arg("doctor"));
@@ -48,7 +48,7 @@ fn the_doctor_reports_a_dead_daemon_without_moving_its_exit_code() {
 fn a_heartbeat_that_is_not_a_regular_file_is_refused_rather_than_opened() {
     let sandbox = Sandbox::new("daemon-doctor-refuses-a-fifo");
     sandbox.write_config(
-        "[plugins.macos-banner]
+        "[plugins.banner]
 enabled = true
 ",
     );

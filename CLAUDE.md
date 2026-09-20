@@ -765,7 +765,7 @@ long-running threshold, and the lights are part of the engine's own delivery pla
 green on success and red otherwise off the same exit code the state came from. The shell used to make a
 second `pns lights pulse` call of its own, which meant the tier was decided twice and could disagree with
 itself. `pns lights pulse <exit-code>` still exists, but nothing in this repo calls it: it is the
-operator's manual command for signalling the lights by hand and for checking that a `[plugins.hue]`
+operator's manual command for signalling the lights by hand and for checking that a `[plugins.lights]`
 table's bridge and key actually work. Interactive TUIs are skipped by a prefix match on the command line:
 `vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The
 agent CLIs are on that list because they fire their own relay hooks.

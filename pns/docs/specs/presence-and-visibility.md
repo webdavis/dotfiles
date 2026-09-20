@@ -58,6 +58,10 @@ The marker and the wall clock are deliberately absent from `src/probes.rs:Wants`
 a subprocess", and the session view is absent "because it has exactly one production reader already, with
 nothing to overlap it against" (`src/probes.rs:Wants`).
 
+A marker mtime or phone atime later than the wall clock read is the same kind of untrustworthy reading as
+an unreadable clock, and ages the same way: unknown, never age zero
+(`src/decision/reading.rs:a_taken_at_one_second_in_the_future_ages_as_unknown`).
+
 ## Decision table
 
 `src/surface.rs:plan` maps `surface`, effective `visibility`, the `long_running` tier and the

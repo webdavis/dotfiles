@@ -77,7 +77,7 @@ fn off_removes_the_state_file_and_the_next_event_decorates_again() {
         ])
         .args(["--pane", "t1:p2"]));
     assert!(
-        sandbox.fired("macos-banner"),
+        sandbox.fired("banner"),
         "the banner is back the moment the mute is off"
     );
 }
@@ -89,9 +89,9 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     // row in the matrix, so it is the one worth silencing.
     let away_and_long = |sandbox: &Sandbox, port: u16| {
         sandbox.write_config(&format!(
-            "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+            "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
-             [plugins.macos-banner]\nenabled = true\n"
+             [plugins.banner]\nenabled = true\n"
         ));
         let mut event = sandbox.pns();
         event.env("PNS_STATE_DIR", sandbox.path("state"));
@@ -144,7 +144,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
          plan, so the durable log is exempt structurally and the mute is lossless"
     );
     assert!(!sandbox.fired("mobile"), "no card while muted");
-    assert!(!sandbox.fired("macos-banner"), "no banner while muted");
+    assert!(!sandbox.fired("banner"), "no banner while muted");
     assert!(
         !dialled_within(&listener, std::time::Duration::ZERO),
         "and no pulse, so slice 7's window is never even consulted"
@@ -181,7 +181,7 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
         ])
         .args(["--pane", "t1:p2"]));
 
-    assert!(sandbox.fired("macos-banner"), "a broken mute mutes nothing");
+    assert!(sandbox.fired("banner"), "a broken mute mutes nothing");
     assert!(sandbox.fired("mobile"), "including a forced card");
     assert!(sandbox.fired("hermes"));
     // ONE COMPLAINT PER EVENT, not one per reader: the file is broken until
@@ -223,7 +223,7 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     assert_eq!(stderr(&output), "", "no file, no news");
 }
 
@@ -352,7 +352,7 @@ fn the_argv_delivery_class_crosses_the_same_mute_edge_json_does() {
         "[delivery_class.security]\nbypass_mute = true\n",
     ));
     assert!(
-        sandbox.fired("macos-banner"),
+        sandbox.fired("banner"),
         "a class the config lists crosses the mute on the argv path too"
     );
 
@@ -362,7 +362,7 @@ fn the_argv_delivery_class_crosses_the_same_mute_edge_json_does() {
         "[delivery_class.security]\nbypass_mute = false\n",
     ));
     assert!(
-        !sandbox.fired("macos-banner"),
+        !sandbox.fired("banner"),
         "an unlisted class stays muted on the argv path too"
     );
 }

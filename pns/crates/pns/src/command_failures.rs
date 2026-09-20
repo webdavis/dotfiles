@@ -349,7 +349,7 @@ fn view(herdr_present: bool) -> Result<ClickView, String> {
     else {
         return Ok(ClickView::inferred(herdr_present));
     };
-    match crate::plugin_settings(&config, "macos-banner") {
+    match crate::plugin_settings(&config, "banner") {
         Some(settings) => pns_adapters::banner_click(settings, herdr_present),
         None => Ok(ClickView::inferred(herdr_present)),
     }

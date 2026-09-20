@@ -29,7 +29,7 @@ pub(super) fn present_event(sandbox: &Sandbox) -> std::process::Command {
 /// a channel fired at all and useless here: a replay is a SECOND notification
 /// on the same channel, and a truncating stub shows one file either way.
 pub(super) fn record_every_event(sandbox: &Sandbox) {
-    for channel in ["mobile", "hermes", "macos-banner"] {
+    for channel in ["mobile", "hermes", "banner"] {
         sandbox.stub_channel(
             channel,
             &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
@@ -70,7 +70,7 @@ pub(super) const ITS_NAME: &str = "Casually Concerned";
 pub(super) fn focus_config(silence: &str) -> String {
     format!(
         "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
-         [plugins.macos-banner]\nenabled = true\n[focus]\nsilence = [{silence}]\n"
+         [plugins.banner]\nenabled = true\n[focus]\nsilence = [{silence}]\n"
     )
 }
 

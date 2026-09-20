@@ -3,10 +3,20 @@ use serde_json::Value;
 use std::os::unix::fs::PermissionsExt;
 use std::{
     fs,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+
+/// Removes the fixture's home directory when the run ends. The epoch
+/// nanosecond in the name keeps a RECYCLED process id off an earlier run's
+/// leftovers; this guard is what stops a fresh one from ever becoming one.
+struct HomeGuard(PathBuf);
+impl Drop for HomeGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
 
 /// The liveness bound on one funnel run: the fixture requires an answer so a
 /// hang fails the row instead of wedging the suite, and NOTHING here reads the
@@ -47,8 +57,15 @@ pub fn compare(name: &str) {
         lines.push(format!("- …and {omitted} more"));
         case["expected"]["alerts"][0]["body"] = lines.join("\n").into();
     }
-    let home = std::env::temp_dir().join(format!("posture-funnel-{}-{name}", std::process::id()));
+    let home = std::env::temp_dir().join(format!(
+        "posture-funnel-{}-{}-{name}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos())
+    ));
     fs::create_dir(&home).unwrap();
+    let _home_guard = HomeGuard(home.clone());
     let home = home.canonicalize().unwrap();
     let state = home.join("state/baseline");
     fs::create_dir(state.parent().unwrap()).unwrap();
