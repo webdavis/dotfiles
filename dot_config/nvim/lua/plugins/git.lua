@@ -958,7 +958,29 @@ return {
         -- Stage current file → Amend last commit (no edit) → Force push:
         {
           "<C-g>!",
-          "<cmd>Gwrite|Git commit --amend --no-edit|Git push --force<cr>",
+          function()
+            -- The amend runs a pre-commit hook, seconds long. Pin the repo to
+            -- the buffer active now, so a buffer switch during that window
+            -- can't redirect the push to a different repository.
+            local bufnr = vim.api.nvim_get_current_buf()
+            vim.cmd("Gwrite")
+            vim.fn.FugitiveExecute({ "commit", "--amend", "--no-edit" }, function(result)
+              vim.schedule(function()
+                vim.api.nvim_buf_call(bufnr, function()
+                  vim.fn.FugitiveDidChange()
+                  if result.exit_status ~= 0 then
+                    vim.notify(
+                      "Amend failed\n\n" .. table.concat(result.stderr or {}, "\n"),
+                      log_warning,
+                      notify_fugitive_title
+                    )
+                    return
+                  end
+                  vim.cmd("Git! push --force")
+                end)
+              end)
+            end)
+          end,
           desc = "Fugitive: stage → amend (no edit) → force push",
           silent = true,
         },
@@ -1140,7 +1162,7 @@ return {
         { "<C-g>cc", "<cmd>Git commit --verbose<cr>", desc = "Fugitive: entire index (all staged changes)", silent = true },
         { "<C-g>cf", "<cmd>Git commit %<cr>", desc = "Fugitive: current file only", silent = true },
         { "<C-g>ca", "<cmd>Git commit --amend --verbose<cr>", desc = "Fugitive: amend latest (edit message)", silent = true },
-        { "<C-g>cn", "<cmd>Git commit --amend --no-edit<cr>", desc = "Fugitive: amend latest (don't edit message)", silent = true },
+        { "<C-g>cn", "<cmd>Git! commit --amend --no-edit<cr>", desc = "Fugitive: amend latest (don't edit message)", silent = true },
         -- stylua: ignore end
 
         {
@@ -1435,14 +1457,14 @@ return {
         },
 
         -- Fetch/Pull:
-        { "<C-g>Ff", "<cmd>Git fetch<cr>", desc = "Fugitive: fetch", silent = true },
-        { "<C-g>Fp", "<cmd>Git pull<cr>", desc = "Fugitive: pull", silent = true },
-        { "<C-g>Fr", "<cmd>Git pull --rebase<cr>", desc = "Fugitive: pull --rebase", silent = true },
+        { "<C-g>Ff", "<cmd>Git! fetch<cr>", desc = "Fugitive: fetch", silent = true },
+        { "<C-g>Fp", "<cmd>Git! pull<cr>", desc = "Fugitive: pull", silent = true },
+        { "<C-g>Fr", "<cmd>Git! pull --rebase<cr>", desc = "Fugitive: pull --rebase", silent = true },
 
         -- stylua: ignore start
         -- Push:
-        { "<C-g>pp", "<cmd>Git push<cr>", desc = "Fugitive: push", silent = true },
-        { "<C-g>pf", "<cmd>Git push --force-with-lease<cr>", desc = "Fugitive: push --force-with-lease", silent = true },
+        { "<C-g>pp", "<cmd>Git! push<cr>", desc = "Fugitive: push", silent = true },
+        { "<C-g>pf", "<cmd>Git! push --force-with-lease<cr>", desc = "Fugitive: push --force-with-lease", silent = true },
         -- stylua: ignore end
 
         -- An interactive `git push -u origin <current_branch>` implementation:
@@ -1470,7 +1492,7 @@ return {
               -- spliced in. The single quotes it replaces were not a defence: a
               -- branch name may legally contain one, and closing them early made
               -- the remainder into further `git push` flags.
-              vim.cmd("Git push -u origin HEAD")
+              vim.cmd("Git! push -u origin HEAD")
             end)
           end,
           desc = "Fugitive: push -u origin <branch>",

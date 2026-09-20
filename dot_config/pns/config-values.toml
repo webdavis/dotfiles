@@ -145,6 +145,17 @@ url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 
+# The reference implementer: dot_local/libexec/pns/executable_calendar-busy-window.sh,
+# deployed to ~/.local/libexec/pns/calendar-busy-window.sh. An absolute path
+# rather than the bare name the shipped example shows, because the daemon's
+# own PATH (com.webdavis.pns-daemon.plist.tmpl) carries ~/.local/bin and
+# /opt/homebrew/bin but not ~/.local/libexec/pns, and pns spawns argv[0]
+# through no shell, so a bare name here would never resolve. poll_interval and
+# deadline stay at their layout defaults.
+[quiet.calendar]
+enabled = true
+command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
+
 # "5m" is the layout default and the operator's real setting, written out
 # because a table states its settings rather than arming them by being here.
 [remind]
