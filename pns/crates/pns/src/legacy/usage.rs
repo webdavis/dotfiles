@@ -34,6 +34,8 @@ pns: usage:
   pns stale                        page about every session stuck past the window
   pns failures [<id>|open <id>]    what is not arriving, and one banner's click
   pns failures serve               the local page, run by the clock
+  pns recap --since <when> [--until <when>]
+                                   a date, a date-time or a duration ago
   pns recap --since-epoch <epoch> --until-epoch <epoch>
   pns recap agent --stdin          post a recap somebody else composed
   pns recap git                    print what only git, worktrunk and gh answer
