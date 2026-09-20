@@ -18,7 +18,7 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::ProbeStart for S
     /// thread or a `set_var`.
     fn start(&self, wants: pns_application::Wants) {
         if wants.desk && self.idle.get().is_none() && self.desk_handle_absent() {
-            let runner = Arc::clone(&self.runner);
+            let registry = Arc::clone(&self.registry);
             // CAPTURED BEFORE THE SPAWN, not read from inside the thread: a
             // caller that already read the lock inline (nothing in
             // production does, but nothing forbade it either) filled
@@ -32,11 +32,10 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::ProbeStart for S
                     // engine's rule is "the lock is read only where idle
                     // answered" (see `join_desk`), so running it here, gated
                     // on the SAME idle result, is what keeps a failed idle
-                    // read from spawning a second `ioreg` for an answer
-                    // nothing can use.
-                    let idle = idle_reading(&*runner);
+                    // read from taking a second reading nothing can use.
+                    let idle = idle_reading(&registry);
                     let lock = (!lock_already_known && idle.is_some())
-                        .then(|| lock_reading(&*runner))
+                        .then(|| lock_reading(&registry))
                         .flatten();
                     (idle, lock)
                 })
@@ -49,9 +48,10 @@ impl<R: CommandRunner + Send + Sync + 'static> pns_application::ProbeStart for S
         }
         if wants.phone && self.phone_atime.get().is_none() && self.phone_handle_absent() {
             let runner = Arc::clone(&self.runner);
+            let table = Arc::clone(&self.table);
             let tty_dir = self.tty_dir.clone();
             let handle = std::thread::Builder::new()
-                .spawn(move || phone_reading(&*runner, &tty_dir))
+                .spawn(move || phone_reading(&*runner, &table, &tty_dir))
                 .ok();
             self.phone_handle.set(handle);
         }

@@ -1,50 +1,11 @@
-// --- parse_screen_locked ------------------------------------------------
-
-/// The Root dictionary as `/usr/sbin/ioreg -n Root -d1` prints it, trimmed
-/// to the neighbourhood of the key.
-///
-/// The `"IOConsoleLocked"` LINES ARE LIVE SHAPES, each captured on dresden
-/// (Darwin 25.2.0) in the state it describes: `= Yes` while the screen was
-/// genuinely locked, `= No` while it was not, six leading spaces and all.
-/// The `"IOConsoleUsers"` line beside it is the captured one with the
-/// nested `CGSSessionScreenIsLocked` WRITTEN IN. That key is the decoy
-/// this fixture aims at rather than a claim about what the kernel prints
-/// next to a locked console, and what it pins is the parser reading the
-/// aggregate off its own line instead of anything in that per-session
-/// array.
-pub(super) const ROOT_LOCKED: &str = r#"+-o Root  <class IORegistryEntry, id 0x100000100, retain 28>
-    {
-      "OS Build Version" = "25C56"
-      "IOConsoleLocked" = Yes
-      "IOConsoleUsers" = ({"kCGSSessionOnConsoleKey"=Yes,"CGSSessionScreenIsLocked"=Yes,"kCGSSessionUserNameKey"="stephen"})
-    }
-"#;
-
-/// The unlocked shape carrying the same decoy: a parser reaching into the
-/// per-session array reads Yes here and reports a locked screen at a desk
-/// the operator is sitting at.
-///
-/// THE DECOY LINE COMES FIRST ON PURPOSE. The parser answers from the
-/// FIRST line carrying the key, so a search string loose enough to match
-/// the per-session flag has to meet that flag before the aggregate for
-/// this fixture to catch it. Put the aggregate back on top and the test
-/// below passes for any search string at all.
-pub(super) const ROOT_UNLOCKED_WITH_DECOY: &str = r#"+-o Root  <class IORegistryEntry, id 0x100000100, retain 28>
-    {
-      "OS Build Version" = "25C56"
-      "IOConsoleUsers" = ({"kCGSSessionOnConsoleKey"=Yes,"CGSSessionScreenIsLocked"=Yes,"kCGSSessionUserNameKey"="stephen"})
-      "IOConsoleLocked" = No
-    }
-"#;
-
-/// The live chain, recorded on dresden 2026-08-15: one detached
-/// `mosh-server`, the herdr client it forked, and that client's pty.
-pub(super) const DISCOVERY: [(&str, &str); 3] = [
-    ("/usr/bin/pgrep -x mosh-server", "14362\n"),
-    ("/usr/bin/pgrep -P 14362", "14363\n"),
-    // ps pads its column to a fixed width, which the parser trims.
-    ("/bin/ps -o tty= -p 14363", "ttys000 \n"),
-];
+/// The live chain's one remaining spawn, recorded on dresden 2026-08-15:
+/// the detached `mosh-server` whose child owns the pty. The child and its
+/// terminal come from the process table, which is what `DISCOVERY_TERMINAL`
+/// names.
+pub(super) const DISCOVERY: [(&str, &str); 1] = [("/usr/bin/pgrep -x mosh-server", "14362\n")];
+/// The terminal that live chain resolved to, and the server pid it hung off.
+pub(super) const DISCOVERY_TERMINAL: &str = "ttys000";
+pub(super) const DISCOVERY_SERVER: i32 = 14362;
 
 /// Two instants far enough apart that nothing but the freshest can win.
 pub(super) const PUT_DOWN_ATIME: u64 = 1_577_836_800;

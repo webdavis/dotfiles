@@ -14,6 +14,8 @@
 
 use crate::macos::desk::{idle_reading, lock_reading};
 use crate::macos::phone::{TTY_DIR, phone_reading};
+use crate::macos::proc_table::ProcessTable;
+use crate::macos::registry::ConsoleRegistry;
 use crate::readable_state_file;
 use pns_application::CommandRunner;
 use std::sync::Arc;
@@ -40,6 +42,13 @@ type DeskHandle = std::thread::JoinHandle<(Option<u64>, Option<bool>)>;
 /// between them, which cards a phone with no round trip behind it.
 pub struct SystemProbes<R: CommandRunner> {
     runner: Arc<R>,
+    /// The two desk readings' own seam, and the phone walk's. BEHIND `Arc<dyn>`
+    /// RATHER THAN A TYPE PARAMETER because every reading is taken once per
+    /// process: the one virtual call each costs nothing against the registry
+    /// read behind it, and a third and fourth parameter would reach every
+    /// caller of this type for no behavior at all.
+    registry: Arc<dyn ConsoleRegistry>,
+    table: Arc<dyn ProcessTable>,
     marker_path: Option<std::path::PathBuf>,
     /// Where a phone reading's terminal name resolves to. Always `TTY_DIR`
     /// in production; a test points it at a fixture directory instead of
