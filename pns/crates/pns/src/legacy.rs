@@ -5,8 +5,9 @@ use argv::parse_args;
 pub use argv::{is_help_flag, remind_switch};
 pub use usage::{SEND_USAGE, USAGE};
 
-/// The exit code for input pns will not honour, whoever asked: a retired flag,
-/// an unusable name, or a delivery class no config defines.
+/// The exit code for input pns will not honour, whoever asked: an unknown or
+/// retired flag, a flag given no value, an unusable name, or a delivery class
+/// no config defines.
 pub(crate) const REFUSED_INPUT: i32 = 2;
 
 /// One notification from argv, or a usage print when `--help`/`-h` reached
@@ -21,9 +22,6 @@ pub fn run(argv: &[String], submit: impl FnOnce(pns_domain::EventArgs, String) -
     if parsed.help {
         print!("{SEND_USAGE}");
         return 0;
-    }
-    for warning in &parsed.warnings {
-        eprintln!("pns: {warning}");
     }
     let session = parsed.session.clone();
     let event = match parsed.into_event() {
