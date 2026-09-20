@@ -4,7 +4,7 @@ use super::*;
 fn a_secret_marker_renders_as_the_chezmoi_action_and_a_literal_renders_quoted() {
     let mut mobile = toml::Table::new();
     mobile.insert(
-        "token".to_string(),
+        "device_token".to_string(),
         secret("Moshi :: Webhook Secret", "Password"),
     );
     let mut plugins = toml::Table::new();
@@ -14,7 +14,9 @@ fn a_secret_marker_renders_as_the_chezmoi_action_and_a_literal_renders_quoted() 
 
     let text = render(&values).expect("a secret marker renders");
     assert!(
-        text.contains("token = {{ (keepassxc \"Moshi :: Webhook Secret\").Password | toToml }}"),
+        text.contains(
+            "device_token = {{ (keepassxc \"Moshi :: Webhook Secret\").Password | toToml }}"
+        ),
         "{text}"
     );
     // AND A LITERAL RENDERS QUOTED, right beside it: `type` still comes
@@ -31,7 +33,7 @@ fn a_secret_marker_renders_as_the_chezmoi_action_and_a_literal_renders_quoted() 
             .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["phone"].settings["token"].as_str(),
+        config.plugins["phone"].settings["device_token"].as_str(),
         Some("from-the-vault")
     );
 }
@@ -44,10 +46,10 @@ fn a_username_secret_marker_renders_the_exact_action_and_round_trips_through_the
     // none of them exercises `UserName`.
     let mut hue = toml::Table::new();
     hue.insert(
-        "bridge".to_string(),
+        "bridge_host".to_string(),
         toml::Value::String("192.168.1.9".to_string()),
     );
-    hue.insert("key".to_string(), secret("Hue Bridge", "UserName"));
+    hue.insert("api_key".to_string(), secret("Hue Bridge", "UserName"));
     hue.insert(
         "rooms".to_string(),
         toml::Value::Array(vec![toml::Value::String("Studio".to_string())]),
@@ -67,7 +69,7 @@ fn a_username_secret_marker_renders_the_exact_action_and_round_trips_through_the
             .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["lights"].settings["key"].as_str(),
+        config.plugins["lights"].settings["api_key"].as_str(),
         Some("from-the-vault")
     );
 }
@@ -80,7 +82,7 @@ fn a_secret_holding_a_quote_and_a_backslash_round_trips_through_the_totoml_stub(
     // that exact TOML text rather than the raw secret.
     let mut mobile = toml::Table::new();
     mobile.insert(
-        "token".to_string(),
+        "device_token".to_string(),
         secret("Quote Backslash Secret", "Password"),
     );
     let mut plugins = toml::Table::new();
@@ -94,7 +96,7 @@ fn a_secret_holding_a_quote_and_a_backslash_round_trips_through_the_totoml_stub(
             .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["phone"].settings["token"].as_str(),
+        config.plugins["phone"].settings["device_token"].as_str(),
         Some("a\"b\\c")
     );
 }
@@ -102,7 +104,10 @@ fn a_secret_holding_a_quote_and_a_backslash_round_trips_through_the_totoml_stub(
 #[test]
 fn a_plain_secret_round_trips_through_the_totoml_stub_too() {
     let mut mobile = toml::Table::new();
-    mobile.insert("token".to_string(), secret("Plain Secret", "Password"));
+    mobile.insert(
+        "device_token".to_string(),
+        secret("Plain Secret", "Password"),
+    );
     let mut plugins = toml::Table::new();
     plugins.insert("phone".to_string(), toml::Value::Table(mobile));
     let mut values = toml::Table::new();
@@ -113,7 +118,7 @@ fn a_plain_secret_round_trips_through_the_totoml_stub_too() {
         .expect("a chezmoi-stub round trip stands in for a well-formed secret action");
     let config = parse_config(&rendered).unwrap_or_else(|error| panic!("{error:?}\n{rendered}"));
     assert_eq!(
-        config.plugins["phone"].settings["token"].as_str(),
+        config.plugins["phone"].settings["device_token"].as_str(),
         Some("plain")
     );
 }
@@ -155,10 +160,10 @@ fn an_attribute_secret_marker_renders_keepassxc_attribute_and_round_trips_throug
     // `keepassxcAttribute` or not at all.
     let mut hue = toml::Table::new();
     hue.insert(
-        "bridge".to_string(),
+        "bridge_host".to_string(),
         toml::Value::String("192.168.1.9".to_string()),
     );
-    hue.insert("key".to_string(), secret("Hue Bridge", "Password"));
+    hue.insert("api_key".to_string(), secret("Hue Bridge", "Password"));
     hue.insert(
         "certificate".to_string(),
         attribute_secret("Hue Bridge", "certificate-pin"),

@@ -89,7 +89,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     // row in the matrix, so it is the one worth silencing.
     let away_and_long = |sandbox: &Sandbox, port: u16| {
         sandbox.write_config(&format!(
-            "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+            "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
              [plugins.banner]\nenabled = true\n"
         ));

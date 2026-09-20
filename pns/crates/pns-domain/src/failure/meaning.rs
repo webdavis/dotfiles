@@ -41,7 +41,7 @@ pub fn hermes_key_named(route: &str) -> String {
 
 /// The config key holding the moshi token. Same commitment as
 /// [`hermes_key_named`].
-pub const PHONE_TOKEN: &str = "[plugins.phone] token";
+pub const PHONE_TOKEN: &str = "[plugins.phone] device_token";
 
 /// The `status` field: the code paired with its registered name, because a
 /// reader may know one and not the other.

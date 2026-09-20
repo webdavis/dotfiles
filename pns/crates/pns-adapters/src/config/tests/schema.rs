@@ -4,11 +4,12 @@ use super::*;
 
 #[test]
 fn a_plugin_table_with_enabled_true_is_selected_and_keeps_its_settings() {
-    let config = parse_config("[plugins.lights]\nenabled = true\nbridge = \"office\"\n").unwrap();
+    let config =
+        parse_config("[plugins.lights]\nenabled = true\nbridge_host = \"office\"\n").unwrap();
     let hue = &config.plugins["lights"];
     assert!(hue.enabled);
     assert_eq!(
-        hue.settings.get("bridge").and_then(|v| v.as_str()),
+        hue.settings.get("bridge_host").and_then(|v| v.as_str()),
         Some("office")
     );
     assert!(
@@ -19,7 +20,7 @@ fn a_plugin_table_with_enabled_true_is_selected_and_keeps_its_settings() {
 
 #[test]
 fn an_absent_enabled_flag_reads_disabled_because_selection_is_explicit() {
-    let config = parse_config("[plugins.lights]\nbridge = \"office\"\n").unwrap();
+    let config = parse_config("[plugins.lights]\nbridge_host = \"office\"\n").unwrap();
     assert!(!config.plugins["lights"].enabled);
 }
 
@@ -80,7 +81,7 @@ fn a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored() {
     // to the one table they have to move; admitting it as a key nothing
     // reads any more would leave the home probe reporting "not configured"
     // beside a file that plainly configures it.
-    let err = parse_config("[home]\nrouter_url = \"https://192.168.1.1\"\n").unwrap_err();
+    let err = parse_config("[home]\nurl = \"https://192.168.1.1\"\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => {
             assert!(message.contains("home"), "the offender is named: {message}")
@@ -109,7 +110,8 @@ fn a_non_table_plugins_value_is_refused_naming_the_key() {
 fn a_malformed_line_is_reported_without_echoing_its_value() {
     // The config carries plugin secrets, and error strings travel to
     // logs: the refusal names where and why, never the line's contents.
-    let err = parse_config("[plugins.phone]\ntoken = \"SUPERSECRET\" trailing\n").unwrap_err();
+    let err =
+        parse_config("[plugins.phone]\ndevice_token = \"SUPERSECRET\" trailing\n").unwrap_err();
     match err {
         ConfigError::Malformed(message) => {
             assert!(!message.is_empty(), "the cause is still named");

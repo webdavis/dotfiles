@@ -18,7 +18,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
 
     assert_eq!(
-        config.plugins["phone"].settings["token"].as_str(),
+        config.plugins["phone"].settings["device_token"].as_str(),
         Some("moshi-secret")
     );
     assert_eq!(
@@ -26,8 +26,8 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
         Some("hermes-secret")
     );
     let hue = &config.plugins["lights"].settings;
-    assert_eq!(hue["bridge"].as_str(), Some("192.168.1.9"));
-    assert_eq!(hue["key"].as_str(), Some("hue-secret"));
+    assert_eq!(hue["bridge_host"].as_str(), Some("192.168.1.9"));
+    assert_eq!(hue["api_key"].as_str(), Some("hue-secret"));
     assert_eq!(
         hue["rooms"]
             .as_array()
@@ -36,7 +36,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     );
     let router = &config.plugins["home_presence"].settings;
     assert_eq!(router["type"].as_str(), Some("unifi"));
-    assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
+    assert_eq!(router["url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
     assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
