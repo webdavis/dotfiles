@@ -238,8 +238,11 @@
 
        The path is absolute because hermes runs a hook command through
        shlex.split with shell=False: no PATH search beyond argv[0], no shell,
-       and no `VAR=value` prefix, which is why hermes sends no PNS_PRODUCER and
-       pns names this producer by its default.
+       and no bare `VAR=value` prefix. `/usr/bin/env PNS_PRODUCER=hermes <pns>`
+       names the producer anyway: env is a real argv[0] shlex.split accepts,
+       and it sets the variable for the command it execs. Without this pns
+       defaults to `claude`, which routes the hermes approval through moshi
+       and suppresses pns's own phone card.
 
        GOTCHA: each (event, command) pair needs the operator's first-use
        consent before hermes will run it, recorded in
@@ -247,9 +250,9 @@
        pair and prompts again. */ -}}
 {{- $pns := joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" -}}
 {{- $merged = setValueAtPath (list "hooks" "pre_approval_request")
-    (list (dict "command" (printf "%s hook blocked --remind" $pns))) $merged -}}
+    (list (dict "command" (printf "/usr/bin/env PNS_PRODUCER=hermes %s hook blocked --remind" $pns))) $merged -}}
 {{- $merged = setValueAtPath (list "hooks" "post_approval_response")
-    (list (dict "command" (printf "%s hook resolved" $pns))) $merged -}}
+    (list (dict "command" (printf "/usr/bin/env PNS_PRODUCER=hermes %s hook resolved" $pns))) $merged -}}
 
 {{- /* The ElevenLabs voice. Every other tts key, this one's sibling model_id
        included, passes through untouched. */ -}}

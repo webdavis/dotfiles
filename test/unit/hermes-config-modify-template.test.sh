@@ -127,6 +127,7 @@ hooks:
     - command: /bin/true
 LIVE
   )"
+  assert_contains '/usr/bin/env PNS_PRODUCER=hermes' "$rendered"
   assert_contains 'pns hook blocked --remind' "$rendered"
   assert_contains 'pns hook resolved' "$rendered"
   assert_contains 'pre_tool_call:' "$rendered"
