@@ -110,7 +110,7 @@ fn a_mode_name_that_is_the_empty_string_is_refused_by_name() {
 }
 
 #[test]
-fn an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off() {
+fn an_empty_modes_list_is_admitted_because_it_silences_nothing() {
     // THE BOUNDARY OF THE REFUSAL ABOVE. An empty LIST is a working,
     // readable setting that says exactly what it does, so a refusal that
     // reached it would refuse the one config the template's own commented
