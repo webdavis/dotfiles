@@ -1,17 +1,14 @@
-//! pns's legacy CLI contract is lenient; elapsed timing is validated separately.
+//! pns's CLI contract is strict: bad input is refused and named.
 //!
-//! Legacy arguments sit on an always-exit-0 notification path, so their
-//! problems WARN and degrade rather than abort. Elapsed timing refuses invalid
-//! input before notification. Four rules carry the
-//! contract: a value-taking flag whose next token is missing or is itself a
-//! RECOGNIZED flag is warned about and ignored WITHOUT consuming that token
-//! (consuming it would silently drop the real flag, e.g. leak an event a
-//! caller narrowed with `--pane --scope local_only`); an unrecognized next token
-//! IS taken as the value, the leniency the bash deliberately retained; any
-//! other unknown argument is skipped silently; and `--help`/`-h` sitting in
-//! FLAG position wins over all three and turns the event into a usage print,
-//! while the same word sitting where a flag's value belongs is still just a
-//! value, under the second rule.
+//! Four rules carry it: a value-taking flag whose next token is missing or is
+//! itself a RECOGNIZED flag is refused WITHOUT consuming that token (consuming
+//! it would silently drop the real flag, e.g. leak an event a caller narrowed
+//! with `--pane --scope local_only`); an unrecognized next token IS taken as
+//! the value, the leniency that lets a detail begin with a dash; any other
+//! unknown argument is refused and named; and `--help`/`-h` sitting in FLAG
+//! position wins over all three and turns the event into a usage print, while
+//! the same word sitting where a flag's value belongs is still just a value,
+//! under the second rule.
 
 use pns_domain::{DeliveryScope, EventArgs};
 use pns_protocol::{Remind, State};
@@ -63,12 +60,23 @@ const RETIRED_FLAGS: [(&str, &str, bool); 7] = [
 ];
 
 /// Whether a token is a producer flag. A retired flag counts, so a flag whose
-/// value is missing (`--detail --agent x`) is warned about rather than eating
-/// the retired flag as its value.
+/// value is missing (`--detail --agent x`) is refused rather than eating the
+/// retired flag as its value.
 fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token)
         || BARE_FLAGS.contains(&token)
         || RETIRED_FLAGS.iter().any(|(retired, ..)| *retired == token)
+}
+
+/// Whether a token is a flag pns takes that this parse acts on nowhere: the
+/// reminder switch, which `remind_switch` reads off the raw argv, and the
+/// tool-wide colour flag, which the composition root already answered. Each
+/// is recognized here so the strict unknown-argument rule does not refuse a
+/// flag pns takes.
+fn is_answered_elsewhere(token: &str) -> bool {
+    BARE_FLAGS.contains(&token)
+        || token.starts_with("--remind=")
+        || token == crate::invocation::NO_COLOR_FLAG
 }
 
 /// The reminder switch a hook's own argv carried, or `None` when it named
@@ -116,9 +124,9 @@ pub fn is_help_flag(token: &str) -> bool {
 pub(super) struct ParsedArgs {
     pub help: bool,
     pub event: EventArgs,
-    pub warnings: Vec<String>,
-    /// The first retired flag argv carried, already worded as its refusal.
-    retired: Option<String>,
+    /// The first flag-level refusal argv earned: a retired flag, a flag
+    /// given no value, or a word that is no flag of pns's at all.
+    flag_refusal: Option<String>,
     /// `--state`: what happened, in one of six words. A seventh word refuses
     /// the event rather than being delivered as itself, because the state is
     /// what the lamps, the routes and the recap all read and a word none of
@@ -148,8 +156,8 @@ impl ParsedArgs {
     /// The event, or the first refusal argv earned: said on stderr, and nothing
     /// is delivered.
     pub fn into_event(self) -> Result<Option<EventArgs>, String> {
-        if let Some(retired) = self.retired {
-            return Err(retired);
+        if let Some(refusal) = self.flag_refusal {
+            return Err(refusal);
         }
         if let Some(refusal) = self.state {
             return Err(refusal);
@@ -173,18 +181,17 @@ impl ParsedArgs {
     }
 }
 
-/// Parse argv, retaining legacy warnings and a separate elapsed refusal.
+/// Parse argv, keeping the first refusal of each kind rather than the last.
 pub(super) fn parse_args<I>(argv: I) -> ParsedArgs
 where
     I: IntoIterator<Item = String>,
 {
     let mut parsed = EventArgs::default();
     let mut help = false;
-    let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
     let mut identifiers = Ok(());
     let mut session = String::new();
-    let mut retired = None;
+    let mut flag_refusal = None;
     let mut state = None;
     let mut delivery_class = String::new();
     let mut scope = Ok(DeliveryScope::default());
@@ -281,9 +288,9 @@ where
             }
             flag if VALUE_FLAGS.contains(&flag) => {
                 // Missing, or a recognized flag standing where the value
-                // should be: warn and leave the token for its own arm.
+                // should be: refuse and leave the token for its own arm.
                 if tokens.peek().is_none_or(|next| is_producer_flag(next)) {
-                    warnings.push(format!("{flag} given without a value; ignoring"));
+                    flag_refusal.get_or_insert_with(|| format!("{flag} requires a value"));
                     continue;
                 }
                 let Some(value) = tokens.next() else { continue };
@@ -296,16 +303,25 @@ where
                     _ => parsed.pane = value,
                 }
             }
+            token if is_answered_elsewhere(token) => {}
             _ => {
-                if let Some((flag, replacement, takes_value)) =
-                    RETIRED_FLAGS.iter().find(|(flag, ..)| *flag == token)
-                {
-                    // ITS VALUE GOES WITH IT: leaving `codex` behind would
-                    // make the next unknown-token rule read it as a stray word.
-                    if *takes_value {
-                        tokens.next_if(|next| !is_producer_flag(next));
+                match RETIRED_FLAGS.iter().find(|(flag, ..)| *flag == token) {
+                    Some((flag, replacement, takes_value)) => {
+                        // ITS VALUE GOES WITH IT: leaving `codex` behind would
+                        // make the value a second refusal of its own.
+                        if *takes_value {
+                            tokens.next_if(|next| !is_producer_flag(next));
+                        }
+                        flag_refusal
+                            .get_or_insert_with(|| format!("{flag} was replaced by {replacement}"));
                     }
-                    retired.get_or_insert_with(|| format!("{flag} was replaced by {replacement}"));
+                    // STRICT, AND THE SAME SHAPE THE JSON PATH REFUSES AN
+                    // UNKNOWN FIELD WITH: a word pns skipped in silence was a
+                    // caller whose narrowing, detail or route went nowhere.
+                    None => {
+                        flag_refusal
+                            .get_or_insert_with(|| format!("{token} is not a flag pns takes"));
+                    }
                 }
             }
         }
@@ -313,8 +329,7 @@ where
     ParsedArgs {
         help,
         event: parsed,
-        warnings,
-        retired,
+        flag_refusal,
         state,
         elapsed,
         identifiers,
