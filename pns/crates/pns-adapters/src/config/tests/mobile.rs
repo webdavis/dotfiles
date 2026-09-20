@@ -97,7 +97,7 @@ fn a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name() {
     // REFUSED IN BOTH DIRECTIONS, and each refusal names the key, because
     // "config invalid" without a noun is a hunt.
     //
-    // ZERO IS A TRAP HERE, unlike `summarizer_deadline_secs`'s zero. A
+    // ZERO IS A TRAP HERE, unlike `summarizer_deadline`'s zero. A
     // deadline that fires before the daemon can possibly answer is this
     // feature switched off by accident: every approval would lose its
     // phone card while the operator believed they had merely tightened a

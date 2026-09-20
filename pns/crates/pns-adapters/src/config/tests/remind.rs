@@ -48,7 +48,7 @@ fn the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_
 ///
 /// THE FLOOR EXISTS because a nudge arriving before the operator could
 /// plausibly have reached their phone is exactly the stacking the design
-/// forbids; THE CEILING mirrors `summarizer_deadline_secs` and must sit
+/// forbids; THE CEILING mirrors `summarizer_deadline` and must sit
 /// inside the daemon's own registration window, which it does by three
 /// orders of magnitude.
 #[test]

@@ -22,6 +22,7 @@ fn an_unnamed_channels_directory_falls_through_and_a_refused_backend_precedes_di
             terminal_bundle_id: None,
             remote_deadline: None,
             busy_deadline: pns_adapters::DEFAULT_BUSY_DEADLINE,
+            summarizer_deadline: pns_domain::recap::Recap::default().summarizer_deadline,
         };
         let mut declarations = Registry::new();
         declarations.register_channel("mobile", ROUTING).unwrap();

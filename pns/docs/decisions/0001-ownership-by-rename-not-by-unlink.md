@@ -40,7 +40,7 @@ Two consequences that follow, and that the code depends on:
 ## What the rule does NOT fix, stated so nobody re-derives it
 
 One file per session carries no generation. In `src/main.rs:update_blocked_marker`, a blocked event that
-publishes a new wait while a previous Stop is still condensing loses that wait when the Stop reaches its
+publishes a new wait while a previous Stop is still summarizing loses that wait when the Stop reaches its
 removal. Telling the two apart would need a generation inside the marker and a compare-and-swap publish
 over it. The damage is bounded by the configured backstop and closed by the session's next event, which
 re-publishes the wait it is still in. This is an accepted limit, not an oversight.

@@ -192,7 +192,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
         "summarizer",
         "[\"ollama\", \"run\", \"qwen3.5:4b\"]",
     ),
-    ("recap", "summarizer_deadline_secs", "240"),
+    ("recap", "summarizer_deadline", "\"4m\""),
     ("focus", "silence", "[\"Sleep\"]"),
     ("daemon", "enabled", "true"),
     ("daemon", "service", "'com.example.pns-daemon'"),

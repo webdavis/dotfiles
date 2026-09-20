@@ -100,7 +100,7 @@ pub(super) fn configured() -> Recap {
         repos: vec!["owner/repo".into()],
         review_notes: Some("notes/*.md".into()),
         summarizer: Some(vec!["summary".into(), "--plain".into()]),
-        summarizer_deadline_secs: 6,
+        summarizer_deadline: std::time::Duration::from_secs(6),
         ..Recap::default()
     }
 }

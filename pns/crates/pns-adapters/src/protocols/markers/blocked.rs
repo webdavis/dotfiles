@@ -32,7 +32,7 @@ use std::path::Path;
 ///
 /// AN END NEVER REMOVES A WAIT ARMED AFTER ITS OWN MOMENT, which is what
 /// makes the unordered arms safe. Every clearing arm is asynchronous, so a
-/// Stop still condensing, or one question's own answer, can reach this line
+/// Stop still summarizing, or one question's own answer, can reach this line
 /// after the next `PermissionRequest` published a second wait. The marker
 /// holds the second it was armed and the caller states the moment it is
 /// clearing for, so the compare keeps the newer file. The removal is OWNED BY

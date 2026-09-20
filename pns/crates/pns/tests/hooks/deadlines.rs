@@ -72,12 +72,16 @@ fn the_retired_millisecond_deadline_names_state_nothing_at_all() {
     // ONE ROW FOR EVERY NAME THAT LEFT, set to the value that would be most
     // destructive under the old reading: a one-millisecond payload window
     // loses the payload outright, so a turn that still reports proves nothing
-    // reads these any more.
+    // reads these any more. The three summarizer rows are the two spellings
+    // of the retired variable plus the name its rename would have produced;
+    // `[recap] summarizer_deadline` is the only bound on that call now.
     let sandbox = Sandbox::new("hook-retired-deadline-names");
     let mut command = sandbox.pns();
     for retired in [
         "PNS_PAYLOAD_DEADLINE_MS",
         "PNS_CONDENSER_DEADLINE_MS",
+        "PNS_CONDENSER_DEADLINE",
+        "PNS_SUMMARIZER_DEADLINE",
         "PNS_MOSHI_JSON_DEADLINE_MS",
         "PNS_MOSHI_STATUS_DEADLINE_MS",
         "PNS_DAEMON_TICK_MS",
@@ -110,18 +114,21 @@ fn a_payload_nobody_finishes_writing_still_exits_on_the_contract() {
 }
 
 #[test]
-fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
+fn a_summarizer_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     // The case the old bound missed entirely: stdout closes, the read
     // finishes, and the wait then blocked with no deadline on it.
-    let sandbox = Sandbox::new("hook-condenser-sleeps");
+    let sandbox = Sandbox::new("hook-summarizer-sleeps");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "cat >/dev/null; exec 1>&-; sleep 30");
+    sandbox.write_config(&format!(
+        "{}[recap]\nsummarizer_deadline = \"300ms\"\n",
+        crate::support::STUB_CHANNELS
+    ));
     let mut command = sandbox.pns();
     command
         .env("PNS_CODEX_BIN", bin.join("codex"))
-        .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
-        .env("PNS_CONDENSER_DEADLINE", "300ms");
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     let mut child = spawn_hook(command, "stop");
     write_payload(
         &mut child,
@@ -131,23 +138,26 @@ fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     assert_eq!(
         sandbox.event("hermes")["detail"],
         "a turn",
-        "an expired condenser falls back to the reply"
+        "an expired summarizer falls back to the reply"
     );
 }
 
 #[test]
-fn a_condenser_that_never_reads_its_stdin_is_bounded_too() {
+fn a_summarizer_that_never_reads_its_stdin_is_bounded_too() {
     // The write is inside the window now: this child never drains the pipe,
     // which used to block before the clock started.
-    let sandbox = Sandbox::new("hook-condenser-deaf");
+    let sandbox = Sandbox::new("hook-summarizer-deaf");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "sleep 30");
+    sandbox.write_config(&format!(
+        "{}[recap]\nsummarizer_deadline = \"300ms\"\n",
+        crate::support::STUB_CHANNELS
+    ));
     let mut command = sandbox.pns();
     command
         .env("PNS_CODEX_BIN", bin.join("codex"))
-        .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
-        .env("PNS_CONDENSER_DEADLINE", "300ms");
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     let mut child = spawn_hook(command, "stop");
     let big = "x".repeat(200_000);
     let payload =

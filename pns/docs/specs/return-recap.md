@@ -146,10 +146,10 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
   route and it is the default one.
 - Thresholds: `Recap::default()` is written out rather than derived (`src/config.rs:Recap`):
   `replay_card: true`, `digest: true`, `min_events: 8`, `summarizer: None`,
-  `summarizer_deadline_secs: 240`, `repos: []`, `review_notes: None`. `summarizer_deadline_secs` is refused above
-  `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: 3600 is accepted, 3601 is refused by name
-  (`src/config.rs:seconds`), and the refusal exists because
-  `Instant::now() + Duration::from_secs(i64::MAX)` PANICS inside a process whose stderr is `/dev/null`.
+  `summarizer_deadline: 4m`, `repos: []`, `review_notes: None`. `summarizer_deadline` is refused above
+  `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: `"3600s"` is accepted, `"3601s"` is refused by name
+  (`config/recap.rs:summarizer_deadline_range`), and the refusal exists because a duration past the
+  ceiling PANICS at `Instant::now() + deadline` inside a process whose stderr is `/dev/null`.
   Zero is accepted and is not a trap: it simply cannot be met.
 - Required side effects: none. Reading the config writes nothing.
 - Forbidden side effects: no `gh` and no summarizer on the unreadable path, because both keys are absent
@@ -372,14 +372,14 @@ Then it lists exactly the pattern's parent directory, keeps regular files whose 
 
 ### 8. One recap spends one summarizer budget across up to three questions
 
-Given `[recap] summarizer = ["<program>", "<arg>", ...]` and `summarizer_deadline_secs`
+Given `[recap] summarizer = ["<program>", "<arg>", ...]` and `summarizer_deadline`
 
 When the recap composes
 
 Then an `episode` deadline is taken once, and each of the three possible calls (the night, the merges, the notes) is bounded by `left_of(episode)`, so the whole return moment spends that budget once
 
 - Success: `src/main.rs:recap_mode` computes
-  `episode = Instant::now() + Duration::from_secs(recap.summarizer_deadline_secs)`, then calls
+  `episode = Instant::now() + recap.summarizer_deadline`, then calls
   `summarize(argv, left_of(episode), &prompt)` for the night and, through `src/main.rs:summarized`, once
   for each external source that held anything. `src/main.rs:left_of` is
   `episode.saturating_duration_since(Instant::now())`, so it reaches zero and stays there.
@@ -397,8 +397,8 @@ Then an `episode` deadline is taken once, and each of the three possible calls (
   `...a_summarizer_still_thinking_at_its_deadline_falls_to_the_plain_list_and_says_so`,
   `...a_summarizer_that_is_not_installed_at_all_falls_to_the_plain_list_and_says_so`,
   `...a_summarizer_answering_in_bytes_that_are_not_text_falls_to_the_plain_list`.
-- Thresholds: `summarizer_deadline_secs` defaults to 240 and is refused above 3600
-  (`src/config.rs:DEFAULT_SUMMARIZER_DEADLINE_SECS`, `src/config.rs:MAX_SUMMARIZER_DEADLINE_SECS`). Zero
+- Thresholds: `summarizer_deadline` defaults to `"4m"` and is refused above an hour
+  (`recap/options.rs:DEFAULT_SUMMARIZER_DEADLINE`, `config/recap.rs:MAX_SUMMARIZER_DEADLINE_SECS`). Zero
   is accepted and means no call is ever spawned: `summarize` returns `None` when `deadline.is_zero()`,
   and "spawning one only to kill it on a zero-length window is a model load nobody reads"
   (`src/main.rs:summarize`). One second is the smallest budget that still spawns, which the tests rely on
@@ -930,7 +930,7 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
   in-process recap.
 - Timeout and cancellation: none from the parent. The parent never waits, so the child is reparented if
   the parent goes first, and "NOTHING SUPERVISES THE DETACHED RECAP CHILD", which is why
-  `summarizer_deadline_secs` is refused above an hour (`src/config.rs:seconds`).
+  `summarizer_deadline` is refused above an hour (`config/recap.rs:summarizer_deadline_range`).
 - Idempotency and duplicates: the return moment is claimed ONCE, by rename, before anything is counted
   (`src/main.rs:claim_moment`, `src/main.rs:Moment`), and a claim is taken to be stranded after
   `STALE_WINDOW_CLAIM_SECS` = 300 seconds (`src/main.rs:window_claim_is_free`). The marker advancing is

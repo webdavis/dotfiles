@@ -21,13 +21,13 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
     // that installs the PostToolBatch entry.
     clear_remind(&payload.session_id);
     let reply = turn_reply(payload);
-    // A STATE THE CONDENSER READ OFF THE TURN IS A GUESS, and says so, so the
+    // A STATE THE SUMMARIZER READ OFF THE TURN IS A GUESS, and says so, so the
     // submit path can withhold a blocked marker a live loop makes wrong. An
     // empty reply states nothing to read, so `done` there is not a guess.
     let (state, detail, guessed) = match reply.is_empty() {
         true => ("done".to_string(), String::new(), false),
         false => {
-            let (state, detail) = condense(&reply);
+            let (state, detail) = summarize(&reply);
             (state, detail, true)
         }
     };
@@ -60,7 +60,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
 /// pulse, so one API error promoted later short turns to the long-running tier
 /// for the rest of the session.
 ///
-/// NO CONDENSER AND NO TRANSCRIPT. The condenser is a model call on the one
+/// NO SUMMARIZER AND NO TRANSCRIPT. The summarizer is a model call on the one
 /// path where a model call has just failed, the reply's fallback re-reads the
 /// transcript in a bounded loop of sleeps, and neither recovers the news: the
 /// harness states it as a plain string that is never empty. The payload's

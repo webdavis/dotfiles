@@ -209,7 +209,7 @@ Config {
         digest: true,
         min_events: 8,
         summarizer: None,
-        summarizer_deadline_secs: 240,
+        summarizer_deadline: 240s,
         repos: [],
         review_notes: None,
     },

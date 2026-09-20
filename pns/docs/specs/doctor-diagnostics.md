@@ -711,7 +711,7 @@ between them is what keeps the two refusals distinguishable.
   writing.
 - Forbidden side effects: the check is made BEFORE either the parser or the line scan runs, which is the
   only point where it means anything. It is checked in `src/doctor.rs` rather than in the shared bounded
-  spawn because every other caller of that spawn reads a different tool, and one of them is a condenser
+  spawn because every other caller of that spawn reads a different tool, and one of them is a summarizer
   whose whole job is to answer at length.
 - Timeout and cancellation: see behavior 14.
 - Idempotency and duplicates: Not applicable.

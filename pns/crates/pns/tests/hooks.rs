@@ -130,7 +130,7 @@ const CLAUDE_APPROVAL: &str = r#"{"session_id":"s1","transcript_path":"/dev/null
 const CODEX_APPROVAL: &str = r#"{"hook_event_name":"PermissionRequest","session_id":"s1","cwd":"/a/dotfiles","tool_name":"shell","tool_input":{"command":["bash","-lc","rm -rf build"]}}"#;
 
 /// Stubs live here rather than in the shared harness: only this suite spawns
-/// a condenser or an approval round trip.
+/// a summarizer or an approval round trip.
 trait HookStubs {
     fn stub_codex(&self, command: &mut Command, line: &str);
     fn stub_moshi(&self, command: &mut Command, exit_code: i32);

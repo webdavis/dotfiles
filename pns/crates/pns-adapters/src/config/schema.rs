@@ -67,7 +67,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "repos",
             "review_notes",
             "summarizer",
-            "summarizer_deadline_secs",
+            "summarizer_deadline",
         ],
     ),
     ("focus", &["silence"]),

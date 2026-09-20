@@ -138,12 +138,14 @@ pub(super) const RECAP: Table = Table {
             ),
         },
         Key {
-            name: "summarizer_deadline_secs",
+            name: "summarizer_deadline",
             prose: "# How long that command may take before it is killed and the plain list\n\
                          # is posted instead. It is the whole recap's budget rather than each\n\
-                         # question's, and AN HOUR IS THE CEILING: a bigger number is refused by\n\
-                         # name.\n",
-            sample: Sample::Default("240"),
+                         # question's, and AN HOUR IS THE CEILING: a longer one is refused by\n\
+                         # name. It also bounds the turn summarizer that writes each\n\
+                         # notification's sentence, which takes at most thirty seconds of it\n\
+                         # because a Stop hook is waiting on that one.\n",
+            sample: Sample::Default("\"4m\""),
         },
         Key {
             name: "repos",
