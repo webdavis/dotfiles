@@ -56,7 +56,10 @@ Energize, falling back to Read); #628 dropped the `pns-recap` route so recaps po
 and #629 added five time-of-day lights presets (morning Energize, afternoon Concentrate, evening Relax,
 dusk Rest on F4, night Nightlight on F7). [PR #832](https://github.com/webdavis/dotfiles/pull/832),
 merged `d35b29ff5`, changed morning's section-heading color from violet to steel blue at the operator's
-request.
+request. On 2026-09-20 the operator ruled that `webdavis/damnit` is pre-1.0.0 and PR #1 merges only once
+it meets the clean-code standard and leaks no secret; three review registers found 12 SEV-1, 34 SEV-2 and
+33 SEV-3, all being fixed on the branch; the client specs are open as todoist.nvim PR #15 (`damnit.nvim`)
+and herdr-todoist PR #16 (`herdr-damnit`).
 
 ### Resume order and completion rules
 
@@ -3770,8 +3773,27 @@ is missing.
   which binary a replayed payload goes through and changes nothing about what pi and omp push in the
   moment, and the script's three warnings now say that instead.
 
-  SLICE STATUS 2026-09-20: merged 1 to 46, 48, 49; in flight 47; queued 50 to 55; the ladder is 55
-  slices.
+  SLICE 50 DONE 2026-09-20, [PR #859](https://github.com/webdavis/dotfiles/pull/859), merged `d8949bbb5`.
+  Slice 50 of task 93's pns refactor ladder landed, the first of the six recap slices. `pns gateway`
+  absorbed `pns daemon`: `run`, `retry`, `schedule` and `cancel` joined `start`, `stop`, `restart` and
+  `status`, `command_daemon.rs` was deleted with its body folded into a `command_gateway/` module
+  directory split by verb group, and `pns daemon <anything>` is now refused with exit 2 and a sentence
+  naming the gateway spelling rather than falling through to the event path. The `[daemon]` config table
+  became `[gateway]` with the same two keys, `config/daemon.rs` became `config/gateway.rs` with
+  `GatewayTable` and `parse_gateway`, `Config::daemon_enabled` and `daemon_service` became
+  `gateway_enabled` and `gateway_service`, and a config still holding `[daemon]` is refused by name with
+  `[gateway]` in the message. Every caller moved in the same commit so one apply closes the window: the
+  `com.webdavis.pns-daemon` LaunchAgent runs `gateway run` under its unchanged label, the osquery launchd
+  page allowlist records the new program string, `dot_config/pns/config-values.toml` moved its table and
+  the shipped template was regenerated, and the seven named pns spec documents plus decision 0013 took
+  the new command spellings, the new table name and the `pns gateway:` notice prefix. The daemon process
+  kept its name wherever the prose is about the process rather than the command, and so did the on-disk
+  job spool directory, because renaming that would orphan jobs already registered across the apply. Tests
+  pin the four moved verbs, the eight-verb usage, the exit-2 refusal of every `pns daemon` spelling,
+  `[gateway] enabled = false` stopping the clock, the refusal of the old heading, and the committed
+  values file resolving to the committed template.
+
+  SLICE STATUS 2026-09-20: merged 1 to 50; in flight 51 and 52; queued 53 to 55; the ladder is 55 slices.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -6987,7 +7009,7 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   bumping the pin in dotfiles and reinstalling, which is strictly more work than the vendored build this
   repository used to ship. Worth revisiting if the workspace set churns.
 
-- [ ] 157. A low-severity dependabot alert on herdr-todoist, GHSA-rhfx-m35p-ff5j, filed 2026-09-18. `lru`
+- [x] 157. A low-severity dependabot alert on herdr-todoist, GHSA-rhfx-m35p-ff5j, filed 2026-09-18. `lru`
   before 0.16.3 has a soundness issue in `IterMut`, which violates Stacked Borrows by invalidating an
   internal pointer. It is not a quick lockfile bump: the dependency is transitive through
   `ratatui v0.29.0`, which pins `lru = "^0.12.0"`, so `cargo update -p lru --precise 0.16.3` is refused
@@ -6995,18 +7017,31 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   wants its own task and its own test run rather than a drive-by. Severity is low and the crate is used
   only inside ratatui's own rendering.
 
-- [ ] 158. Give todoist.nvim's picker a subtask count so completing a parent can ask before it cascades,
+  DONE 2026-09-20: webdavis/herdr-todoist PR #15, merged `f45887b`. ratatui moved to 0.30.2, which
+  resolves lru at 0.18.4, past the 0.16.3 fix for GHSA-rhfx-m35p-ff5j; 299 tests green; dependabot PR #14
+  closed as superseded.
+
+- [x] 158. Give todoist.nvim's picker a subtask count so completing a parent can ask before it cascades,
   filed 2026-09-18 out of task 122's merge. `x` in the list asks before completing a parent with open
   subtasks, because `POST /tasks/{id}/close` cascades to subtasks server side; task 121's picker calls
   the complete write directly and asks nothing, so completing a parent from the picker silently closes
   its subtasks. The picker builds its entries from tasks rather than from the list buffer, so it has no
   tree to count children in; giving it one is its own change.
 
-- [ ] 159. A sandbox wall-clock assertion is measured tight under concurrent load, filed 2026-09-20.
+  DONE 2026-09-20: webdavis/todoist.nvim PR #14, merged `49f0ea2`. The picker asks before completing a
+  parent with open subtasks, through the same confirm the list path uses; the review's five findings were
+  fixed in place, 259 tests green.
+
+- [x] 159. A sandbox wall-clock assertion is measured tight under concurrent load, filed 2026-09-20.
   `dispatch::hermes_lines::every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`
   (`pns/crates/pns/tests/support/sandbox.rs`, 5000 ms ceiling) measured 5.1 to 9.6 seconds under fourteen
   concurrent cargo runs on 2026-09-19, and passes in CI. Re-measure once the lanes are quiet and either
   fix the fixture or give it an `allow_slow` reason; never raise the number.
+
+  DONE 2026-09-20: measured with one lane running,
+  `dispatch::hermes_lines::every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`
+  ran in 0.72, 0.74 and 0.79 s alone against the 5000 ms ceiling, so the fixture needs no change and the
+  2026-09-19 reading of 5.1 to 9.6 s was load; the class of load-sensitive budgets is task 164.
 
 - [x] 160. Collapse the hand-copied posture fixture guards onto the shared Sandbox type, filed
   2026-09-20. Skipped by the PR #807 reviewer as a real refactor rather than a fix-round item: several
@@ -7061,8 +7096,12 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   `d656e9a43`. Sweep slice 4, bounding the lights-to-pns spawn in process and dropping `gtimeout`, is
   [PR #849](https://github.com/webdavis/dotfiles/pull/849), merged `6d6c16998`. Sweep slice 5, giving
   uu's `CommandRunner` port an environment, is [PR #847](https://github.com/webdavis/dotfiles/pull/847),
-  merged `65c3349ac`. Sweep slice 3, the four one-call replacements, is in flight. Sweep slices 6, 7 and
-  8 are filed as tasks 165, 166 and 167 below.
+  merged `65c3349ac`. Sweep slice 3, the four one-call replacements, is
+  [PR #852](https://github.com/webdavis/dotfiles/pull/852), merged `e9c73273f`: posture's pid liveness
+  read moved from `kill -0` to `libc::kill` with signal 0, its LuLu launcher resolution from
+  `readlink -f` to `std::fs::canonicalize`, its Mach-O object test from `file` to a four-byte magic read,
+  and its quarantine read from `xattr -p com.apple.quarantine` to a sized `libc::getxattr`. Sweep slices
+  6, 7 and 8 closed as tasks 165, 166 and 167 below.
 
 - [ ] 162. The pns daemon log on dresden carries recurring state-error lines in bursts, cause unknown,
   filed 2026-09-20. `state error (delivery ledger: database refused the operation)` and
@@ -7114,26 +7153,75 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   Widen or restructure each so a loaded machine cannot fail it, following the task 101 method; never
   raise a number blindly.
 
-- [ ] 165. posture's `-fq` osqueryd liveness read, held out of sweep slice 1 because `-f` matches the
+- [x] 165. posture's `-fq` osqueryd liveness read, held out of sweep slice 1 because `-f` matches the
   whole command line rather than the executable, filed 2026-09-20 from
   [docs/research/2026-09-20-native-call-sweep.md](https://github.com/webdavis/dotfiles/blob/main/docs/research/2026-09-20-native-call-sweep.md)'s
   proposed slice 6. Pin which predicate the control actually means first, then replace it with
   `proc_pidpath` or `KERN_PROCARGS2`.
 
-- [ ] 166. Evaluate `codesign` against Security.framework, filed 2026-09-20 from the native call sweep's
+  DONE 2026-09-20: slice 6 of the native-call sweep landed, the last pgrep spawn in posture. The
+  watchdog's osqueryd liveness read ran `pgrep -fq '/opt/osquery/.*osqueryd'` on every tick; `-f` matches
+  the whole command line, which on the live machine also matched an unrelated shell whose arguments
+  merely quoted that path. The control means the vendor daemon itself, so the predicate is the executable
+  path, and the in-process walk slice 1 landed already read it through proc_pidpath. ProcessLookup gained
+  a directory filter, the watchdog reader gained a process table, and a match now means running while
+  both no match and an unreadable table mean not running, the same answer the failed spawn gave. Pinned
+  by tests over spawned fixtures: one selected by the directory it runs from, one in another directory
+  rejected, and the reader asking for exactly that name and directory across all four answer shapes. The
+  walk keeps posture's own deadline, and a grep for pgrep over posture's Rust sources now finds only
+  control key names and doc comments. [PR #855](https://github.com/webdavis/dotfiles/pull/855), merged
+  `ec5e09b83`.
+
+- [x] 166. Evaluate `codesign` against Security.framework, filed 2026-09-20 from the native call sweep's
   proposed slice 7. A measurement and a record-shape decision before any code: the framework calls are
   verified to exist, but the enrichment stores `codesign`'s text today and a signing-information
   dictionary is a different record shape.
 
-- [ ] 167. Find out whether the guest account and FileVault have public answers, filed 2026-09-20 from
+  DONE 2026-09-20: decided to build it as a slice, since the native call runs 9x to 24x faster and the
+  record shape stays unchanged.
+  [docs/research/2026-09-20-codesign-versus-security-framework.md](https://github.com/webdavis/dotfiles/blob/main/docs/research/2026-09-20-codesign-versus-security-framework.md)
+  measured `codesign -dv --verbose=2` against SecStaticCodeCreateWithPath plus
+  SecCodeCopySigningInformation on dresden over six paths (an Apple system binary, a Homebrew ad-hoc
+  binary, a scratch ad-hoc binary, the same file with its signature removed, an Apple bundle and a
+  Developer ID bundle), with a throwaway Rust program linking Security.framework through raw FFI because
+  neither security-framework 3.7.0 nor security-framework-sys 2.17.0 binds the signing-information call.
+  Parity holds on all three fields the classifier reads, since the absent kSecCodeInfoIdentifier key is
+  the header-documented unsigned signal, the 0x2 flag is the ad-hoc signal and the first certificate's
+  subject summary is the Authority line; only the rare "signed, no authority" branch could not be
+  reproduced and is marked UNVERIFIED. The native call costs 0.83 to 4.50 ms at the median against 14.4
+  to 40.8 ms for the spawn, and the p95 gap is wider than the median gap on every row. The record shape
+  decision is to keep Enrichment unchanged and move the inspection seam to return three facts instead of
+  codesign's text, so no reader and no page line changes, and the deadline wrapper is needed for file
+  input and output alone, since the copy call validates nothing and network access is an opt-in flag on
+  SecStaticCodeCheckValidity. Pinning five behaviours and carrying posture's own bounded-call wrapper is
+  the plan. [PR #856](https://github.com/webdavis/dotfiles/pull/856), merged `c9ba0929c`.
+
+- [x] 167. Find out whether the guest account and FileVault have public answers, filed 2026-09-20 from
   the native call sweep's proposed slice 8. A research slice, not a build: both are keeps today on the
   strength of a header search finding nothing, which is the weakest evidence in that document.
 
-- [ ] 168. `uu/crates/uu-adapters/src/lanes/herdr.rs` (around line 151 on main) still carries a comment
+  DONE 2026-09-20: the guest account is a replace through the login window property list, and FileVault
+  is a final keep because every interface that reports its state is private.
+  [docs/research/2026-09-20-guest-account-and-filevault-public-answers.md](https://github.com/webdavis/dotfiles/blob/main/docs/research/2026-09-20-guest-account-and-filevault-public-answers.md)
+  settles the two rows that were decided on a header search finding nothing.
+  `/Library/Preferences/com.apple.loginwindow` carries a GuestEnabled boolean that agrees with
+  sysadminctl on the live machine and sits in a property list posture already parses in process for the
+  automatic-login control, at 0.12 ms against a 26.32 ms spawn. FileVault.framework under
+  PrivateFrameworks and libcsfde exporting symbols with no header in the SDK are both private, and the
+  two public encryption properties were measured disagreeing with fdesetup in both directions on one
+  machine, for the reason Apple's own security documentation gives: the data volume is encrypted whether
+  FileVault is on or off, and FileVault changes only how the key is protected.
+  [PR #857](https://github.com/webdavis/dotfiles/pull/857), merged `c8474c757`.
+
+- [x] 168. `uu/crates/uu-adapters/src/lanes/herdr.rs` (around line 151 on main) still carries a comment
   claiming that installing over an existing herdr plugin duplicates it, filed 2026-09-20. Task 155's
   [PR #839](https://github.com/webdavis/dotfiles/pull/839), merged `dc5d58d34`, disproved that when
   `run_after_53` started reinstalling a drifted pin in place. The comment must say what the code does
   now.
+
+  DONE 2026-09-20: [PR #854](https://github.com/webdavis/dotfiles/pull/854), merged `bee58e61e`. The
+  comment in uu's herdr lane now says what a failed uninstall does: the installed copy is left as it was
+  and the report says so.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
