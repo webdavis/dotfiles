@@ -5,8 +5,8 @@ use crate::config::{DEFAULT_SUBMIT_DEADLINE_SECS, Recap, parse_config};
 /// head of a line: what the two ends of the walk are checked for.
 const DECLINABLE_TABLES: [&str; 5] = [
     "[plugins.hermes]",
-    "[plugins.hue]",
-    "[plugins.router]",
+    "[plugins.lights]",
+    "[plugins.home_presence]",
     "[focus]",
     "[remind]",
 ];

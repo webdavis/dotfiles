@@ -19,7 +19,7 @@ fn a_config_with_no_recap_table_leaves_every_switch_on() {
     // existed. The direction is STATED rather than derived, because a
     // derived default is all-off, and that would silently take the
     // catch-up card away from every machine whose config predates this.
-    let config = parse_config("[plugins.hue]\nenabled = true\n").unwrap();
+    let config = parse_config("[plugins.lights]\nenabled = true\n").unwrap();
     assert!(config.recap.replay_card, "the catch-up card");
     assert!(config.recap.digest, "the recap");
 }

@@ -22,7 +22,7 @@ pub struct InstallSettings {
     pub hermes_url: Option<String>,
     /// `[plugins.mobile] url`, else `PNS_MOSHI_URL`: the push endpoint.
     pub moshi_url: Option<String>,
-    /// `[plugins.macos-banner] terminal_bundle_id`, else
+    /// `[plugins.banner] terminal_bundle_id`, else
     /// `PNS_TERMINAL_BUNDLE_ID`: the terminal a banner click returns to.
     pub terminal_bundle_id: Option<String>,
     /// `[delivery] remote_deadline`: how long one remote call may take.
@@ -84,7 +84,7 @@ fn resolve(
             environment,
         ),
         terminal_bundle_id: setting(
-            plugin_setting(config, "macos-banner", "terminal_bundle_id"),
+            plugin_setting(config, "banner", "terminal_bundle_id"),
             "PNS_TERMINAL_BUNDLE_ID",
             environment,
         ),

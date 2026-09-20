@@ -122,6 +122,8 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             }
         }
     }
+    refusals::refuse_a_moved_plugin_table(&config)?;
+    refusals::refuse_a_plugin_type_nothing_answers(&config)?;
     refusals::refuse_two_durable_logs(&config)?;
     refusals::refuse_a_map_without_a_catch_all(&config)?;
     refusals::refuse_a_map_without_the_urgent_channel(&config)?;

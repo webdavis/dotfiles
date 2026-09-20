@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 #[test]
 fn missing_metadata_remains_not_applicable() {
     assert_eq!(
@@ -41,9 +42,8 @@ fn metadata_time_keeps_the_legacy_format() {
 
 #[test]
 fn metadata_describes_a_live_symlink_but_not_a_broken_one() {
-    let directory =
-        std::env::temp_dir().join(format!("posture-metadata-link-{}", std::process::id()));
-    std::fs::create_dir(&directory).expect("private fixture directory");
+    let sandbox = Sandbox::new("metadata-link");
+    let directory = sandbox.path();
     let target = directory.join("target");
     std::fs::write(&target, b"inert fixture").expect("fixture contents");
     let live = directory.join("live");

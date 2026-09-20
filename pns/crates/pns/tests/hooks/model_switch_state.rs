@@ -4,7 +4,7 @@ use super::*;
 fn an_observation_does_not_clear_a_live_wait() {
     // LOAD-BEARING. `blocked_marker_action("model-switch")` is `End`
     // (lights.rs:690-696), and the End arm removes the marker UNGATED
-    // (main.rs:571-573), so this needs no `[lights]`/`[plugins.hue]` table at
+    // (main.rs:571-573), so this needs no `[lights]`/`[plugins.lights]` table at
     // all: if the guard ever misrouted this as First, the marker would be
     // gone regardless of whether the lamps are configured.
     let sandbox = Sandbox::new("observation-live-wait");
@@ -264,7 +264,7 @@ fn an_observation_journals_no_missed_notification() {
 
 #[test]
 fn an_observation_replays_no_journal_entry() {
-    // SOL 2b: `should_replay` needs the plan to decorate (macos-banner or
+    // SOL 2b: `should_replay` needs the plan to decorate (banner or
     // mobile), which `remind_config`'s enabled plugins do at the desk, and a
     // seeded entry is what `claim_journal` would otherwise consume: without
     // one, "the journal survives" is true whether or not the guard works,
@@ -317,7 +317,7 @@ fn an_observation_replays_no_journal_entry() {
 fn an_observation_registers_no_lights_tick() {
     // SOL 2c: `remind_config`'s three channels enable no lamps at all, so tick
     // registration cannot run under it whichever attempt fires. This needs
-    // its own `[lights]`/`[plugins.hue]` table, LAMPS_ON's own fixture.
+    // its own `[lights]`/`[plugins.lights]` table, LAMPS_ON's own fixture.
     let sandbox = Sandbox::new("observation-no-lights-tick");
     sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
     counted_channels(&sandbox);

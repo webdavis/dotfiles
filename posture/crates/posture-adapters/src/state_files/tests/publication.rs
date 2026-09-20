@@ -8,7 +8,8 @@ fn captured(name: &str) -> serde_json::Value {
 fn baseline_publication_replaces_sibling_temporary_content_and_finishes_owner_only() {
     for name in ["normal", "existing-temporary"] {
         let c = captured(name);
-        let store = PollStateFiles::new(root().join("state"));
+        let sandbox = root();
+        let store = PollStateFiles::new(sandbox.join("state"));
         put(&store.baseline, "old\n", 0o600);
         if name == "existing-temporary" {
             put(&store.sibling(".tmp"), "stale", 0o644);
@@ -47,7 +48,8 @@ fn publication_failures_preserve_actual_pre_and_post_rename_file_outcomes() {
     drop(store);
     assert!(!temporary.exists());
     let c = captured("chmod-refused");
-    let store = PollStateFiles::new(root().join("state"));
+    let sandbox = root();
+    let store = PollStateFiles::new(sandbox.join("state"));
     put(&store.baseline, "old\n", 0o600);
     put(&store.sibling(".tmp"), "stale", 0o644);
     let result = store.write_with(c["baseline_json"].as_str().unwrap(), |path| {

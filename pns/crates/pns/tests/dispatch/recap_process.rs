@@ -146,7 +146,7 @@ fn a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
     let body = raised[1]["detail"].as_str().expect("a detail");
     assert!(

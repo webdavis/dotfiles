@@ -468,7 +468,7 @@ Then one marker file per waiting session is published, and a later event from th
 - Fail direction: fail toward the lamp going dark rather than staying lit. A closed set of STARTERS and
   everything else ENDS, so an unrecognized state word ends a wait rather than holding blue on a session
   nobody is waiting for (`src/lights.rs:blocked_marker_action`).
-- Thresholds: STARTING a wait rides behind the `[lights]` table AND an enabled `[plugins.hue]` table, the
+- Thresholds: STARTING a wait rides behind the `[lights]` table AND an enabled `[plugins.lights]` table, the
   `lamps_live` condition in `src/main.rs:run_event`, because a machine that never asked for the lamps
   must not start accumulating files nothing would sweep. ENDING one is unconditional, because a wait that
   ended while the lamps were off would otherwise keep its marker and put blocked on a lamp for a session
