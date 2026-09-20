@@ -8,7 +8,7 @@ pub(super) const PLUGINS_PHONE: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -102,7 +102,7 @@ pub(super) const PLUGINS_LOG: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -180,7 +180,7 @@ pub(super) const PLUGINS_BANNER: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -226,7 +226,7 @@ pub(super) const PLUGINS_LIGHTS: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",

@@ -178,15 +178,22 @@ pub(super) const FOCUS: Table = Table {
                  # phone cards. A Focus name matches however you capitalised\n\
                  # it, a mode's raw modeIdentifier works too, and an empty entry is refused\n\
                  # by name. An unreadable Focus store reads as no Focus, never as silence.\n\
-                 # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\
-                 # table at all.\n",
+                 # NAMING NO MODE SILENCES NOTHING, which is the same statement as no\n\
+                 # table at all; `enabled = false` keeps the list and stops it being read.\n",
     opt_in: true,
     children: &[],
-    keys: &[Key {
-        name: "silence",
-        prose: "",
-        sample: Sample::Example("[\"Sleep\"]"),
-    }],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "modes",
+            prose: "",
+            sample: Sample::Example("[\"Sleep\"]"),
+        },
+    ],
 };
 /// The mute's own section. IT HOLDS NO KEYS: the mute itself is typed
 /// (`pns mute 30m`) rather than configured, and the one thing there is to
@@ -258,8 +265,8 @@ pub(super) const REMIND: Table = Table {
                  # rather than your answer, so a tool approved at once that then runs\n\
                  # longer than this is reminded about anyway; if that bites, raise the\n\
                  # number. THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING, anything\n\
-                 # outside is refused by name; no table at all, and a delay of \"0s\", are\n\
-                 # the same statement.\n",
+                 # outside is refused by name, \"0s\" included: leaving the key out is the\n\
+                 # one way to say the reminder is off.\n",
     opt_in: true,
     children: &[],
     keys: &[Key {
@@ -302,11 +309,16 @@ pub(super) const STALE: Table = Table {
                  # screen locked for PART of the window still pages, which is the case\n\
                  # this exists for: you were here, you stepped away, and a session is\n\
                  # stuck. It needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE\n\
-                 # CEILING, anything outside is refused by name, and \"0s\" is the feature\n\
-                 # off.\n",
+                 # CEILING, anything outside is refused by name, \"0s\" included: the window\n\
+                 # is not the switch, `enabled` is.\n",
     opt_in: false,
     children: &[],
     keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
         Key {
             name: "escalate_after",
             prose: "",
