@@ -94,7 +94,7 @@ pub(super) const TOKYO_MINUTES_AHEAD: u16 = 9 * 60;
 /// states a 22:00-07:00 window, and a wall-clock window would make every case
 /// here answer differently depending on the hour the suite happened to run. The
 /// window's own behaviour is pinned by the tests that set a clock.
-pub(super) const STUDIO_MAP: &str = "[lights]\nrefresh_secs = 20\n\
+pub(super) const STUDIO_MAP: &str = "[lights]\narm_interval = \"20s\"\n\
      [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\", \"failed\"]\n\
      [lights.lamp.\"3F - Studio - HCL3\"]\nbehaviours = [\"loop\", \"blocked\", \"unseen\"]\n";
 

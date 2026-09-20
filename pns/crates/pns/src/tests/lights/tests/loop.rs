@@ -5,7 +5,7 @@ use super::fixtures::*;
 // --- the loop lamp ------------------------------------------------------
 
 const THRESHOLD: u64 = 360;
-const LEASE_TIMEOUT: u64 = 3_900;
+const LEASE_EXPIRY: u64 = 3_900;
 
 /// One reading, with everything not under test set to nothing happening.
 fn running<'reading>(
@@ -19,8 +19,8 @@ fn running<'reading>(
         shell_since: None,
         leases,
         now: NOW,
-        threshold_secs: THRESHOLD,
-        lease_timeout_secs: LEASE_TIMEOUT,
+        arm_after_secs: THRESHOLD,
+        lease_expiry_secs: LEASE_EXPIRY,
     }
 }
 
@@ -124,11 +124,11 @@ fn work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed() {
 fn a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not() {
     let idle = streak_from(0);
     assert!(
-        loop_running(&running(None, false, &[NOW - LEASE_TIMEOUT])),
+        loop_running(&running(None, false, &[NOW - LEASE_EXPIRY])),
         "exactly at the timeout is still live: both edges closed"
     );
     assert!(
-        !loop_running(&running(None, false, &[NOW - LEASE_TIMEOUT - 1])),
+        !loop_running(&running(None, false, &[NOW - LEASE_EXPIRY - 1])),
         "one second past it, an abandoned lease can no longer hold the lamp"
     );
     assert!(

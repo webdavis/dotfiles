@@ -57,7 +57,7 @@ fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
     // are each a SEPARATE `lights.<name>` entry here, not a `Key` of
     // `lights`, and `lamp`, `room` and `zone` are the hardcoded
     // declaration branch. So `lights`'s effective key set is its own
-    // `refresh_secs` plus the leaf name of every `lights.<x>` table this
+    // `arm_interval` plus the leaf name of every `lights.<x>` table this
     // layout declares, plus the three declaration levels.
     for table in every_table() {
         let (_, roster_keys) = crate::config::TABLE_KEYS

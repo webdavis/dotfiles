@@ -30,7 +30,7 @@ mod tap_install;
 pub use config::DaemonConfig;
 pub use config::{
     BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_ACK_DEADLINE, DEFAULT_BUSY_DEADLINE, Failures,
-    LoadOutcome, MAX_REFRESH_SECS, MIN_REFRESH_SECS, MOSHI_TYPE, PluginEntry, Presence,
+    LoadOutcome, MAX_ARM_INTERVAL_SECS, MIN_ARM_INTERVAL_SECS, MOSHI_TYPE, PluginEntry, Presence,
     QuietCalendar, Recap, TABLE_KEYS, TOP_LEVEL, ack_deadline, armed_phone, config_path,
     enabled_hue_table, identity_placeholder, load_config, moshi_image_cards, moshi_secret,
     parse_config, parse_presence, phone_backend, remind_delay_range, render, strip_chezmoi_actions,
