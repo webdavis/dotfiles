@@ -51,7 +51,7 @@ function test_pns_hook_migration_collapses_owned_duplicates_and_preserves_other_
   printf '%s\n' "$before" >"$fixture/.codex/hooks.json"
   expected="$(jq -Sc --arg root "$fixture" '
     .hooks.Stop[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop") |
-    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked") |
+    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked --remind") |
     del(.hooks.Stop[1], .hooks.PermissionRequest[1])'"$(pns_hook_migration_answered_rows)" <<<"$before")"
   warning="$(pns_hook_migration_run "$fixture" 2>&1)"
   actual="$(jq -Sc . "$fixture/.codex/hooks.json")"
@@ -73,7 +73,7 @@ function test_pns_hook_migration_retains_legacy_handler_metadata_without_a_curre
     >"$fixture/.codex/hooks.json"
   expected="$(jq -Sc --arg root "$fixture" '
     .hooks.Stop[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop") |
-    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked")'"$(pns_hook_migration_answered_rows)" "$fixture/.codex/hooks.json")"
+    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked --remind")'"$(pns_hook_migration_answered_rows)" "$fixture/.codex/hooks.json")"
   pns_hook_migration_run "$fixture" 2>/dev/null
   assert_same "$expected" "$(jq -Sc . "$fixture/.codex/hooks.json")"
 }
@@ -89,7 +89,7 @@ function assert_pns_hook_generation() {
   pns_hook_migration_run "$fixture" 2>/dev/null
   assert_same "PNS_PRODUCER=codex $fixture/.cargo/bin/pns hook stop" \
     "$(jq -r '.hooks.Stop[].hooks[].command' "$fixture/.codex/hooks.json")"
-  assert_same "PNS_PRODUCER=codex $fixture/.cargo/bin/pns hook blocked" \
+  assert_same "PNS_PRODUCER=codex $fixture/.cargo/bin/pns hook blocked --remind" \
     "$(jq -r '.hooks.PermissionRequest[].hooks[].command' "$fixture/.codex/hooks.json")"
 }
 

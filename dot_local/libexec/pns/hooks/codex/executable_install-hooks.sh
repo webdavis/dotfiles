@@ -11,7 +11,7 @@ agent="$HOME/.cargo/bin/pns"
 [[ -x $agent ]] || exit 0 # the engine is not deployed yet; nothing to wire
 
 done_cmd="PNS_PRODUCER=codex $agent hook stop"
-blocked_cmd="PNS_PRODUCER=codex $agent hook blocked"
+blocked_cmd="PNS_PRODUCER=codex $agent hook blocked --remind"
 # The answered signal, on both events that end a wait: PostToolUse fires once a
 # tool has produced output, including a non-zero exit, and Interrupt fires when
 # the operator ends the turn instead of answering.
@@ -71,6 +71,11 @@ merged="$(printf '%s' "$base" | jq \
           else . end) |
       if .owner == null then .entries + [{hooks: [{type: "command", command: $cmd}]}]
       else .entries end);
+  # PostToolUse carries no matcher, unlike the narrowed pair on Claude Code:
+  # Codex has no PostToolBatch to move the broad row to, so every tool call
+  # pays a synchronous but cheap resolved spawn (a payload read, a parse, two
+  # file operations). Deliberate, not an oversight -- do not copy the Claude
+  # Code matchers here, and do not copy this unmatched row back the other way.
   migrate("Stop"; $d; "stop") | migrate("PermissionRequest"; $b; "blocked") |
   migrate("PostToolUse"; $r; "resolved") | migrate("Interrupt"; $r; "resolved")
 ')" || exit 0
