@@ -1392,8 +1392,8 @@ Then nothing reaches the template path until every earlier step has succeeded
   using `[remind] delay = "61m"` ("`render` alone never bounds a duration"); the literal-secret check
   removed OR NARROWED, pinned by
   `tests/config_render.rs:a_literal_value_at_any_secret_bearing_key_is_refused_without_writing`, which
-  table-drives all five paths because "a single case covering only `plugins.lights.bridge_host` stays green if
-  the other four are removed from that list"; the roster refusal loosened, pinned by
+  table-drives every path because "a single case covering only `plugins.lights.bridge_host` stays green if
+  the others are removed from that list"; the roster refusal loosened, pinned by
   `tests/config_render.rs:an_unknown_values_entry_is_refused_without_writing`; the banner gutted, pinned
   by
   `tests/config_render.rs:the_written_template_starts_with_the_generated_banner_and_the_darwin_wrapper`,
