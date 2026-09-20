@@ -125,14 +125,14 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
     // here: a switched-off table naming a backend that DOES answer, with a
     // missing `router_url` under it, is a different edit and not this
     // warning's business.
-    if switched_off("router").is_some_and(|settings| {
+    if switched_off("home_presence").is_some_and(|settings| {
         matches!(
             pns_adapters::router_settings(settings),
             Err(pns_adapters::SetupFailure::NoType | pns_adapters::SetupFailure::UnknownType(_))
         )
     }) {
         warnings.push(disabled_backend_warning(
-            "router",
+            "home_presence",
             pns_domain::home::UNIFI_TYPE,
         ));
     }

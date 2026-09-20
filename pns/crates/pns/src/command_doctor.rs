@@ -72,7 +72,7 @@ pub(crate) fn doctor_mode() -> i32 {
             // `enabled_hue_table` cannot say: it answers `None` both for a
             // table nobody wrote and for one whose switch is off, and the
             // lamps' report tells those two apart.
-            config.plugins.contains_key("hue"),
+            config.plugins.contains_key("lights"),
             config.routes.clone(),
         ),
         // THE SWITCH FALLS BACK ON, which is the fallback `run_event` takes

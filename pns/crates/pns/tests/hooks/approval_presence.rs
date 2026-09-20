@@ -102,7 +102,7 @@ fn at_the_desk_a_blocked_approval_banners_a_hidden_pane_and_leaves_a_watched_one
             "the prompt is already on their screen: {label}"
         );
         assert_eq!(
-            sandbox.fired("macos-banner"),
+            sandbox.fired("banner"),
             banner_expected,
             "the desk banner: {label}"
         );

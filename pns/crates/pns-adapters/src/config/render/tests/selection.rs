@@ -102,7 +102,7 @@ fn a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor() {
     );
     let mut plugins = toml::Table::new();
     plugins.insert("presence".to_string(), toml::Value::Table(presence));
-    plugins.insert("hue".to_string(), toml::Value::Table(toml::Table::new()));
+    plugins.insert("lights".to_string(), toml::Value::Table(toml::Table::new()));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 

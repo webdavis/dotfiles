@@ -8,13 +8,13 @@ fn a_literal_string_at_a_secret_bearing_path_is_refused_by_name() {
         toml::Value::String("192.168.1.9".to_string()),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("hue".to_string(), toml::Value::Table(hue));
+    plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
     let error = refuse_literal_secrets(&values)
         .expect_err("a literal bridge address is not a secret marker");
-    assert!(error.contains("plugins.hue.bridge"), "{error}");
+    assert!(error.contains("plugins.lights.bridge"), "{error}");
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn lookup_stops_at_a_non_table_segment_rather_than_panicking() {
         "plugins".to_string(),
         toml::Value::String("not a table".to_string()),
     );
-    assert_eq!(lookup(&values, "plugins.hue.bridge"), None);
+    assert_eq!(lookup(&values, "plugins.lights.bridge"), None);
 }
 
 /// EVERY CHANNEL ID IS A SECRET, so every key of the open

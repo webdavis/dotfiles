@@ -77,7 +77,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
             let banner = banner(&notifier);
             let mut registry = Registry::new();
             registry
-                .register_channel("macos-banner", banner.capabilities())
+                .register_channel("banner", banner.capabilities())
                 .unwrap();
             let selection = registry.all();
             let mut destinations = Destinations::new();
@@ -106,7 +106,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
                 producer_request: Some(&encoded),
                 event: &event,
                 legs: &[Leg {
-                    name: "macos-banner",
+                    name: "banner",
                     mode: ReportMode::Silent,
                     decorative: false,
                 }],
@@ -157,7 +157,7 @@ fn security_sound_survives_a_failed_delivery_and_ledger_retry() {
             ..Default::default()
         },
         legs: vec![LedgerLeg {
-            destination: "macos-banner".into(),
+            destination: "banner".into(),
             route: String::new(),
             mode: ReportMode::Silent,
             decorative: false,

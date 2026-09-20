@@ -9,7 +9,7 @@ use super::pairing::PREFIX;
 pub enum LightsReport {
     /// No `[lights]` table: the state every machine was in before it existed.
     Off,
-    /// A table, and no `[plugins.hue]` table at all. Told apart from the
+    /// A table, and no `[plugins.lights]` table at all. Told apart from the
     /// switch below because they are different jobs: one config was never
     /// finished, the other was finished and turned off, and sending an
     /// operator to flip a switch that does not exist is a wrong direction
@@ -36,23 +36,23 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
     let routing = match report {
         LightsReport::Off => {
             return vec![format!(
-                "{PREFIX}lights: off in the config, so the pulse uses the [plugins.hue] rooms"
+                "{PREFIX}lights: off in the config, so the pulse uses the [plugins.lights] rooms"
             )];
         }
         LightsReport::HueMissing => {
             return vec![format!(
-                "{PREFIX}lights: configured, but there is no [plugins.hue] table to \
+                "{PREFIX}lights: configured, but there is no [plugins.lights] table to \
                  light them through"
             )];
         }
         LightsReport::HueDisabled => {
             return vec![format!(
-                "{PREFIX}lights: configured, but [plugins.hue] enabled is false, so nothing lights"
+                "{PREFIX}lights: configured, but [plugins.lights] enabled is false, so nothing lights"
             )];
         }
         LightsReport::NoBridge => {
             return vec![format!(
-                "{PREFIX}lights: no [plugins.hue] bridge and key, so no lamp could be resolved"
+                "{PREFIX}lights: no [plugins.lights] bridge and key, so no lamp could be resolved"
             )];
         }
         LightsReport::Unreachable => {

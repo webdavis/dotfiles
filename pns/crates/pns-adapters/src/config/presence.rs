@@ -3,7 +3,7 @@ use super::*;
 /// The `[plugins.presence]` settings, typed.
 ///
 /// THE ONLY BACKEND IS THE BRIDGE, so `type` is required and refused by name
-/// the way `[plugins.mobile]`'s and `[plugins.router]`'s are: a table naming a
+/// the way `[plugins.mobile]`'s and `[plugins.home_presence]`'s are: a table naming a
 /// backend nothing implements contributes no settings at all rather than
 /// having its numbers read as this one's.
 ///

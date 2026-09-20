@@ -13,7 +13,7 @@ fn every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers() {
     let config = parsed(&text);
     assert_eq!(
         config.plugins.keys().collect::<Vec<_>>(),
-        vec!["hermes", "hue", "macos-banner", "mobile", "router"]
+        vec!["banner", "hermes", "home_presence", "lights", "mobile"]
     );
     assert!(config.plugins.values().all(|plugin| plugin.enabled));
     assert_eq!(
@@ -24,7 +24,7 @@ fn every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers() {
         config.plugins["hermes"].settings["keys"]["pns-events"].as_str(),
         Some("hermes-secret")
     );
-    let hue = &config.plugins["hue"].settings;
+    let hue = &config.plugins["lights"].settings;
     assert_eq!(hue["bridge"].as_str(), Some("192.168.1.9"));
     assert_eq!(hue["key"].as_str(), Some("hue-secret"));
     assert_eq!(
@@ -33,7 +33,7 @@ fn every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers() {
             .map(|rooms| rooms.iter().filter_map(|room| room.as_str()).collect()),
         Some(vec!["Studio", "Kitchen"])
     );
-    let router = &config.plugins["router"].settings;
+    let router = &config.plugins["home_presence"].settings;
     assert_eq!(router["type"].as_str(), Some("unifi"));
     assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
@@ -53,17 +53,20 @@ fn a_credential_left_blank_declines_its_feature_rather_than_arming_an_empty_one(
             (|answers: &mut Answers| answers.hermes_key.clear()) as fn(&mut Answers),
             "hermes",
         ),
-        (|answers: &mut Answers| answers.hue_bridge.clear(), "hue"),
-        (|answers: &mut Answers| answers.hue_key.clear(), "hue"),
-        (|answers: &mut Answers| answers.hue_rooms.clear(), "hue"),
-        (|answers: &mut Answers| answers.router_url.clear(), "router"),
+        (|answers: &mut Answers| answers.hue_bridge.clear(), "lights"),
+        (|answers: &mut Answers| answers.hue_key.clear(), "lights"),
+        (|answers: &mut Answers| answers.hue_rooms.clear(), "lights"),
+        (
+            |answers: &mut Answers| answers.router_url.clear(),
+            "home_presence",
+        ),
         (
             |answers: &mut Answers| answers.router_api_key.clear(),
-            "router",
+            "home_presence",
         ),
         (
             |answers: &mut Answers| answers.router_device_hostname.clear(),
-            "router",
+            "home_presence",
         ),
     ] {
         let mut answers = every_feature_armed();
@@ -98,7 +101,7 @@ fn a_backend_the_home_probe_cannot_answer_declines_the_probe_rather_than_arming_
     // answers. WHAT ACCEPTS IT IS ASKED rather than restated: the day a
     // second backend lands, `router_settings` is what has to agree.
     let armed = parsed(&compose_config(&every_feature_armed()));
-    crate::config::router_settings(&armed.plugins["router"].settings)
+    crate::config::router_settings(&armed.plugins["home_presence"].settings)
         .expect("an armed walk writes a table the home probe can answer");
 
     let unanswerable = Answers {
@@ -107,7 +110,7 @@ fn a_backend_the_home_probe_cannot_answer_declines_the_probe_rather_than_arming_
     };
     let config = parsed(&compose_config(&unanswerable));
     assert!(
-        !config.plugins.contains_key("router"),
+        !config.plugins.contains_key("home_presence"),
         "a backend nothing answers was written as an armed probe"
     );
 }
