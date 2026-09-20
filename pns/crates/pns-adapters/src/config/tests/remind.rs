@@ -37,13 +37,6 @@ fn the_remind_table_reads_one_delay_and_defaults_off() {
     );
 }
 
-/// Every way a delay can fail to be one, each naming the offender.
-///
-/// THE FLOOR EXISTS because a nudge arriving before the operator could
-/// plausibly have reached their phone is exactly the stacking the design
-/// forbids; THE CEILING mirrors `summarizer_deadline` and must sit
-/// inside the daemon's own registration window, which it does by three
-/// orders of magnitude.
 /// ZERO IS REFUSED BY NAME, and the refusal says where off lives instead.
 #[test]
 fn a_zero_delay_is_refused_and_points_at_the_absent_key() {
@@ -54,6 +47,13 @@ fn a_zero_delay_is_refused_and_points_at_the_absent_key() {
     );
 }
 
+/// Every way a delay can fail to be one, each naming the offender.
+///
+/// THE FLOOR EXISTS because a nudge arriving before the operator could
+/// plausibly have reached their phone is exactly the stacking the design
+/// forbids; THE CEILING mirrors `summarizer_deadline` and must sit
+/// inside the daemon's own registration window, which it does by three
+/// orders of magnitude.
 #[test]
 fn a_delay_that_is_not_a_duration_is_refused_by_name() {
     for (case, text, named) in [
