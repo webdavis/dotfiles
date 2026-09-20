@@ -54,7 +54,10 @@ fn execute(
     };
     // AN UNDELIVERED HEARTBEAT PROVES NOTHING. Exiting 0 here would make
     // launchd's last exit code read as evidence of a live pipeline, which is
-    // the one claim this job exists to make.
+    // the one claim this job exists to make. A gateway outage lasting two
+    // consecutive runs will also surface as a watchdog crash-loop page; that
+    // is accepted, since the funnel already exits 1 on refusal under the
+    // same watch.
     let report = format!("the heartbeat reached no destination (route {route}): {failure:?}");
     let _ = writeln!(stderr, "posture heartbeat: {report}");
     let _ = banner.alarm(UNDELIVERED, &report);
