@@ -23,6 +23,7 @@
 
 mod codesign;
 mod private_directory;
+mod property_list;
 mod staging;
 pub use staging::{DesiredStaging, StagedTree};
 mod command;
