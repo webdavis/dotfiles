@@ -84,7 +84,7 @@ impl pns_application::DaemonSettings for DaemonConfig {
             Ok(LoadOutcome::Loaded(config)) => parse_presence(&config)
                 .ok()
                 .flatten()
-                .map(|presence| presence.poll_secs),
+                .map(|presence| presence.poll_interval_secs),
             _ => None,
         }
     }

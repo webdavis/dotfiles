@@ -190,13 +190,13 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "plugins.presence",
         &[
+            "desk_input_max_age",
             "desk_room",
-            "desk_stale_after_secs",
             "enabled",
-            "exclude",
-            "poll_secs",
+            "excluded_rooms",
+            "poll_interval",
+            "reading_max_age",
             "rooms",
-            "stale_after_secs",
             "type",
         ],
     ),
