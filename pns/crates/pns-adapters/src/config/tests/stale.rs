@@ -10,18 +10,32 @@ use super::*;
 /// waits to be asked for; an hour-old block is a session nobody is coming back
 /// to, and the default that does nothing is the one that lets it sit there.
 #[test]
-fn the_escalation_window_defaults_to_an_hour_and_zero_is_off_rather_than_an_error() {
+fn the_escalation_window_defaults_to_an_hour_and_the_switch_is_what_turns_it_off() {
     assert_eq!(
         parse_config("[stale]\n").unwrap().stale_escalate_after_secs,
         3600,
         "a table with nothing said carries the default window"
     );
+    assert!(
+        parse_config("[stale]\n").unwrap().stale_enabled,
+        "and the switch over it defaults on"
+    );
+    let off = parse_config("[stale]\nenabled = false\n").unwrap();
     assert_eq!(
-        parse_config("[stale]\nescalate_after = \"0s\"\n")
-            .unwrap()
-            .stale_escalate_after_secs,
+        off.stale_escalate_after_secs, 3600,
+        "the window is kept whole while the switch is off"
+    );
+    assert_eq!(
+        off.stale_window_secs(),
         0,
-        "zero is the feature off, and it is not an error"
+        "and the window read by the page is zero, which is the feature off"
+    );
+    // ZERO IS REFUSED BY NAME, because the window is not the switch: with
+    // an unset window meaning an hour there is nothing absence could say.
+    let said = refusal("[stale]\nescalate_after = \"0s\"\n");
+    assert!(
+        said.contains("stale") && said.contains("escalate_after") && said.contains("unset"),
+        "the refusal names the table, the key and the off statement: {said}"
     );
     assert_eq!(
         parse_config("[stale]\nescalate_after = \"1m\"\n")

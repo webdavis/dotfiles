@@ -23,7 +23,7 @@ fn every_table_armed() -> toml::Table {
         device_hostname = "phone"
 
         [focus]
-        silence = ["Sleep"]
+        modes = ["Sleep"]
 
         [remind]
     }

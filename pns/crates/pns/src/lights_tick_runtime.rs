@@ -55,7 +55,7 @@ pub(crate) fn lights_tick() -> i32 {
             )))
         },
         pns_application::LampReadings {
-            silenced: |now| status_lights_silenced(&records, &home, &config.focus_silence, now),
+            silenced: |now| status_lights_silenced(&records, &home, config.focus_silence(), now),
             minutes: local_minutes_since_midnight,
             presence: || {
                 presence_snapshot(
