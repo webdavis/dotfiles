@@ -1,3 +1,4 @@
+pub(in crate::config) use layout::REMIND_DELAY;
 #[cfg(test)]
 use layout::every_table;
 use layout::{EXAMPLE_CLASS, LAYOUT, Sample, Table};

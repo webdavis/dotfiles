@@ -265,3 +265,28 @@ fn a_note_above_the_bare_lights_heading_renders_like_any_other_tables() {
         crate::config::Lights::default()
     );
 }
+
+#[test]
+fn a_route_named_note_is_written_as_a_key_rather_than_stripped_into_a_comment() {
+    // AN OPEN TABLE HAS NO RESERVED NAMES: its keys are the routes the
+    // operator's own gateway serves, so one called `note` gets a key like
+    // every other rather than being turned into a comment nobody asked for.
+    let mut keys = toml::Table::new();
+    keys.insert(
+        "note".to_string(),
+        toml::Value::String("hermes-secret".to_string()),
+    );
+    let mut log = toml::Table::new();
+    log.insert("keys".to_string(), toml::Value::Table(keys));
+    let mut plugins = toml::Table::new();
+    plugins.insert("log".to_string(), toml::Value::Table(log));
+    let mut values = toml::Table::new();
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+    let text = render(&values).expect("a route named note renders");
+    let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+    assert_eq!(
+        config.plugins["hermes"].settings["keys"]["note"].as_str(),
+        Some("hermes-secret")
+    );
+}
