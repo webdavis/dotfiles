@@ -13,12 +13,12 @@ impl<R: CommandRunner> SystemWatchdogProcesses<R, LibprocProcesses> {
     pub fn new(runner: R, uid: u32) -> Self {
         Self::with_processes(runner, LibprocProcesses::default(), uid)
     }
-    pub fn current_user(runner: R) -> Self {
-        // getuid takes no pointers and always returns the calling process identity.
-        Self::new(runner, unsafe { libc::getuid() })
-    }
 }
 impl<R: CommandRunner, P: ProcessLookup> SystemWatchdogProcesses<R, P> {
+    pub fn current_user(runner: R, processes: P) -> Self {
+        // getuid takes no pointers and always returns the calling process identity.
+        Self::with_processes(runner, processes, unsafe { libc::getuid() })
+    }
     pub fn with_processes(runner: R, processes: P, uid: u32) -> Self {
         Self {
             runner,
