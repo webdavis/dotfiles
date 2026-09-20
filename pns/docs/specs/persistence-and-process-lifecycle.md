@@ -1370,10 +1370,11 @@ contracts run against a concrete in-memory repository and SQLite.
 Given an owned write transaction, when another process attempts a mutation, then its wait is bounded by
 the configured busy timeout, `[storage] busy_deadline` and 5 seconds by default. This is a lock-wait
 budget, not a disk-operation deadline. Tests that stage a wedged writer on purpose shorten that wait by
-writing that key, between 10 milliseconds and a minute, with "0s" refusing a contended write outright. A failed append or replacement rolls back its
-whole transaction. A killed writer leaves no uncommitted row, and a later writer can proceed.
-Delivery-facing record methods return without changing hook streams and report a bounded, non-secret miss
-through the existing daemon log when possible. Explicit mutations return failure and retain prior state.
+writing that key, between 10 milliseconds and a minute, with "0s" refusing a contended write outright. A
+failed append or replacement rolls back its whole transaction. A killed writer leaves no uncommitted row,
+and a later writer can proceed. Delivery-facing record methods return without changing hook streams and
+report a bounded, non-secret miss through the existing daemon log when possible. Explicit mutations
+return failure and retain prior state.
 
 ### 31. Return claims keep ownership until completed
 
