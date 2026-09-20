@@ -84,8 +84,8 @@ fn retry_age_preserves_zero_future_and_full_unsigned_original_epochs() {
                 .claim_retry(
                     lease(2, 12),
                     pns_domain::retry::RetryLimits {
-                        max_attempts: 20,
-                        max_age_secs: 0
+                        max_retries: 20,
+                        event_max_age_secs: 0
                     }
                 )
                 .unwrap()
