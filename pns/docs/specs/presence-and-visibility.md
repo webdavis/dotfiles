@@ -900,7 +900,7 @@ Then `SystemProbes` spawns one thread for the desk pair and one for the phone ch
 
 ### 22. A stated reading is trusted and its probe never runs
 
-Given `PNS_SCREEN_IDLE` or `PNS_PHONE_INPUT_AGE` set to a valid count
+Given `PNS_SCREEN_IDLE` set to a valid count, or `PNS_PHONE_INPUT_MAX_AGE` to a valid duration
 
 When `src/engine.rs:surface_reading` needs that reading
 
@@ -910,10 +910,12 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
   `src/engine.rs:a_stated_phone_input_age_spares_the_process_walk_behind_it` (phone reads 0). The module
   doc states the reason: "Every reading is a spawn on a path that must never stall, so a caller who
   already stated an answer never pays for the probe underneath it."
-- Failure sources: a variable present but not a count (behavior 23).
+- Failure sources: a variable present but not a count, or not a duration (behavior 23).
 - Fail direction: not applicable for a valid value; the caller's word is taken as given.
 - Thresholds: `src/lib.rs:parse_count` accepts plain ASCII digits only, rejects the empty string, rejects
   leading zeros beyond a single `0`, rejects signs and padding, and caps at `i64::MAX`.
+  `PNS_PHONE_INPUT_MAX_AGE` goes through `duration::parse_duration` instead, which takes
+  `<count><ms|s|m|h>` between `0s` and `24h` and refuses a bare number.
 - Required side effects: none.
 - Forbidden side effects: stating the desk clock also suppresses the lock probe, because the lock exists
   only to qualify the idle reading and "stating the desk clock states the desk's whole story, garbled
@@ -923,12 +925,12 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
   (`src/main.rs:overrides_from_env` collects `std::env::vars_os()` into one `BTreeMap`).
 - Privacy: Not applicable.
 - Process ownership and cleanup: fewer children, by design.
-- Compatibility contract: `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`, `PNS_PHONE_INPUT_AGE`, `PNS_SKIP_PHONE` and
+- Compatibility contract: `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`, `PNS_PHONE_INPUT_MAX_AGE`, `PNS_SKIP_PHONE` and
   `PNS_FORCE_PHONE` are the five presence-facing variables (`PNS_PHONE_MARKER_FILE` is gone; `[phone]
   marker_file` is the only source for that path now). `muted` and
   `focus_active` are unreachable from any of them (`src/engine.rs:Overrides::from_env`). The overrides
   steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_SCREEN_IDLE` and
-  `PNS_PHONE_INPUT_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unread`
+  `PNS_PHONE_INPUT_MAX_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unread`
   lamp always sees the machine's own probes."
 
 ### 23. A garbled override answers unknown outright, never a fallback

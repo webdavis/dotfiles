@@ -24,7 +24,7 @@ fn a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it() 
     let mut command = sandbox.pns();
     command
         .env("PNS_SCREEN_IDLE", "90")
-        .env("PNS_PHONE_INPUT_AGE", "5");
+        .env("PNS_PHONE_INPUT_MAX_AGE", "5s");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(42), "the operator's own answer");
