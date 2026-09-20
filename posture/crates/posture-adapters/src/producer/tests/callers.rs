@@ -112,7 +112,8 @@ fn an_oversized_judged_batch_reports_omission_without_advancing_its_cursor() {
             sink: &mut sink,
             occurred_at: Some(42),
         }
-        .run(),
+        .run()
+        .outcome,
         JudgeOutcome::Retained
     );
     assert_eq!(sink.runner.requests.len(), 1);

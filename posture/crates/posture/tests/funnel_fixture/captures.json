@@ -866,9 +866,9 @@
     "exit": 0,
     "missing": false,
     "expected": {
-      "code": 0,
+      "code": 1,
       "stdout": "",
-      "stderr": "",
+      "stderr": "posture funnel: could not queue the corrupt-baseline warning; the baseline was repaired anyway\n",
       "alerts": [
         {
           "severity": "CRIT",
