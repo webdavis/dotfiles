@@ -104,13 +104,12 @@ plugin_at_roster_revision() {
 # moves those to tip. 300s rather than 10s because the install clones the plugin
 # repository, which is a network operation and not a socket round trip.
 install_plugin() {
-  local plugin_id=$1 source_repo=$2 ref=${3:-}
+  local plugin_id=$1 source_repo=$2 ref=${3:-} previous
   local -a install_args=("$source_repo")
   if [[ -n $ref ]]; then
     install_args+=(--ref "$ref")
   fi
   install_args+=(--yes)
-  local previous=""
   if plugin_at_roster_revision "$plugin_id" "$ref"; then
     return 0
   fi
