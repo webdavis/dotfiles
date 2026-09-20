@@ -63,7 +63,12 @@ pub struct Heartbeat<C, L, S> {
     pub maximum_age: HeartbeatWindow,
 }
 impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
-    pub fn run(&mut self) {
+    /// Raise the daily observation and answer whether a destination took it.
+    ///
+    /// THE ANSWER IS THE POINT. The heartbeat exists to prove the pipeline is
+    /// alive, so a run that could not deliver has proven nothing and its
+    /// caller must say so rather than exit as though it had.
+    pub fn run(&mut self) -> Submission {
         let time = self.clock.now().ok();
         let freshness = time.as_ref().map(|time| {
             canary_freshness(
@@ -79,7 +84,7 @@ impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
         );
         // This daily observation advances no state. The sink owns durable delivery;
         // a refusal does not turn the heartbeat into a retry loop or a security page.
-        let _ = self.sink.submit(&Alert {
+        self.sink.submit(&Alert {
             occurrence_id: None,
             event: "heartbeat",
             signal: AlertSignal::Observation,
@@ -87,7 +92,7 @@ impl<C: Clock, L: SnapshotsLog, S: AlertSink> Heartbeat<C, L, S> {
             occurred_at: time.map(|time| time.seconds),
             title: text.title,
             detail: text.detail,
-        });
+        })
     }
 }
 #[cfg(test)]

@@ -53,6 +53,9 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
         Err(FunnelFailure::Exposure(_)) => {
             "posture funnel: could not queue the funnel-exposure page; baseline not advanced, retrying next tick\n"
         }
+        Err(FunnelFailure::CorruptBaseline(_)) => {
+            "posture funnel: could not queue the corrupt-baseline warning; the baseline was repaired anyway\n"
+        }
         Err(FunnelFailure::Persistence) => "posture funnel: could not persist the baseline\n",
     };
     let _ = stderr.write_all(message.as_bytes());
