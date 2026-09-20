@@ -151,15 +151,13 @@ fn the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrid
 }
 
 #[test]
-fn the_doctor_reaches_the_bridge_inside_the_lights_quiet_window() {
-    // The exemption `pns pulse` already has, for the same reason: gating the
-    // hand-run check would make the window uncheckable exactly while it is on.
+fn the_doctor_reaches_the_bridge_whatever_the_hour() {
+    // The exemption `pns lights pulse` already has, for the same reason: a
+    // hand-run check no window gates is checkable at every hour.
     let (listener, port) = bridge_spy();
-    let sandbox = Sandbox::new("doctor-quiet-window");
+    let sandbox = Sandbox::new("doctor-lights-pulse");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         quiet_hours = \"{}\"\n",
-        window_around(utc_minute_now(), 120)
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
     ));
     let mut command = sandbox.bare();
     command.env("TZ", "UTC");

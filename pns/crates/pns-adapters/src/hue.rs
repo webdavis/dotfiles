@@ -35,7 +35,7 @@ mod settings;
 pub use enroll::{Enrollment, enroll};
 pub use inventory::{bridge_inventory, grouped_light_ids_for_rooms, inventory};
 pub use mismatch::{Mismatch, refused_mismatch, unreported_mismatch};
-pub use settings::{DEFAULT_ROOMS, HueSettings, armed_hue, hue_settings, quiet_window};
+pub use settings::{DEFAULT_ROOMS, HueSettings, armed_hue, hue_settings};
 mod bodies;
 mod bridge;
 mod typed;

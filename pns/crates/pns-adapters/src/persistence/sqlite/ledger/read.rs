@@ -1,5 +1,5 @@
 use super::*;
-use pns_domain::{Event, retry::DeliveryOutcome, routing::ReportMode};
+use pns_domain::{Event, retry::TransportOutcome, routing::ReportMode};
 use rusqlite::{Connection, OptionalExtension, Row};
 
 pub(super) fn find(
@@ -90,7 +90,7 @@ fn completion(row: &Row<'_>, generation: u64) -> rusqlite::Result<LedgerCompleti
     if let Some(status) = row.get::<_, Option<u16>>(6)?
         && row.get::<_, u8>(3)? == 2
         && generation > 1
-        && DeliveryOutcome::Status(status).class().is_permanent()
+        && TransportOutcome::Status(status).class().is_permanent()
     {
         return Ok(LedgerCompletion::Rejected { status, detail });
     }

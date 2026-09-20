@@ -79,13 +79,6 @@ pub(super) fn walk(terminal: &impl Terminal) -> Result<Answers, String> {
 (sha256:...)",
             )?;
         }
-        if !answers.hue_certificate.is_empty() {
-            answers.hue_rooms = list(armed(
-                terminal,
-                "the light pulse",
-                "the rooms to flash, comma separated, spelled as the bridge spells them",
-            )?);
-        }
     }
     terminal.section("Home probe", "whether your phone is on the home wifi");
     if ask_yes(

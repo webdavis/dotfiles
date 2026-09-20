@@ -68,6 +68,7 @@ impl Subject {
                 42,
                 self.0.join("rules"),
                 self.0.join("preferences"),
+                self.0.join("loginwindow.plist"),
             ),
             runner("submit", ""),
             runner("alarm", ""),

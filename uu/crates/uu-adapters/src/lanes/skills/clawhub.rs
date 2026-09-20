@@ -75,7 +75,8 @@ impl SkillsCandidate {
                 "install",
                 slug,
             ],
-            env,
+            &crate::lanes::Environment::only(env),
+            None,
         ))?;
         let nested = work.join("skills").join(slug);
         let installed = if nested.exists() {
@@ -117,7 +118,8 @@ impl SkillsCandidate {
             "update",
             name,
         ];
-        let initial = runner.run_in(binary, &args, env);
+        let environment = crate::lanes::Environment::only(env);
+        let initial = runner.run_in(binary, &args, &environment, None);
         if !changed(&initial) {
             return clean(initial);
         }
@@ -125,7 +127,7 @@ impl SkillsCandidate {
         let Some(_) = overlay::strip_owned(&path)? else {
             return clean(initial);
         };
-        let retried = runner.run_in(binary, &args, env);
+        let retried = runner.run_in(binary, &args, &environment, None);
         overlay::reassert(&path)?;
         clean(retried)
     }

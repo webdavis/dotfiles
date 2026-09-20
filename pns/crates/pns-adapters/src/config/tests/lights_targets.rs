@@ -23,7 +23,11 @@ fn a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys() {
             Some(&Target {
                 behaviours: Some(vec![Behaviour::Done, Behaviour::Failed]),
                 dim_window: Some("22:00-07:00".to_string()),
-                dim_behaviours: vec![Behaviour::Blocked, Behaviour::Unseen, Behaviour::Looping],
+                dim_behaviours: Some(vec![
+                    Behaviour::Blocked,
+                    Behaviour::Unseen,
+                    Behaviour::Looping,
+                ]),
             }),
             "at the {level} level"
         );
@@ -68,12 +72,12 @@ fn a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named(
 }
 
 #[test]
-fn dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped() {
+fn dim_behaviours_with_no_window_anywhere_to_run_them_in_is_refused_rather_than_dropped() {
     // NO DEAD KNOBS, which is the config ruling applied to the one pair of
-    // keys that can be half written. The enables RIDE the window, so a
-    // declaration naming which behaviours run dimmed and never saying when
-    // is a list nothing will ever read: the operator gets a lamp that
-    // strobes all night and a file that says it should not.
+    // keys that can be half written. The enables RIDE a window, so a
+    // declaration naming which behaviours run dimmed with no window anywhere
+    // is a list nothing will ever read: the operator gets a lamp that strobes
+    // all night and a file that says it should not.
     for stated in ["[\"blocked\"]", "[]"] {
         assert_eq!(
             refusal(&format!(
@@ -81,7 +85,8 @@ fn dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_
                      dim_behaviours = {stated}\n"
             )),
             "`lights.room.3F - Studio` states `dim_behaviours` with no \
-                 `dim_window` for them to run in, so nothing would ever read them",
+                 `dim_window` of its own and no `lights` key `dim_window` for \
+                 them to run in, so nothing would ever read them",
             "dim_behaviours = {stated}"
         );
     }
@@ -91,6 +96,16 @@ fn dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_
         parse_config(
             "[lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
                  dim_window = \"22:00-07:00\"\ndim_behaviours = []\n"
+        )
+        .is_ok()
+    );
+    // AND THE HOUSE WINDOW IS A WINDOW: a place that names the behaviours and
+    // takes `[lights] dim_window` has one for them to run in.
+    assert!(
+        parse_config(
+            "[lights]\ndim_window = \"22:00-07:00\"\n\
+                 [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+                 dim_behaviours = [\"blocked\"]\n"
         )
         .is_ok()
     );

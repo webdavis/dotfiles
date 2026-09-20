@@ -8,7 +8,7 @@
 
 use super::channel_url;
 use pns_domain::doctor::RouteVerdict;
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 use pns_hermes::{PostOutcome, SignedPost};
 use std::time::Duration;
 
@@ -24,16 +24,16 @@ const PROBE_BODY: &str = "{}";
 /// Ask the gateway about one route.
 pub fn probe_route<P: SignedPost>(post: &P, base_url: &str, route: &str) -> RouteVerdict {
     let Some(url) = channel_url(base_url, route) else {
-        return RouteVerdict::read(DeliveryOutcome::NoStatus);
+        return RouteVerdict::read(TransportOutcome::NoStatus);
     };
     // NO SIGNATURE AND NO IDEMPOTENCY KEY. The empty signature is what makes
     // this a question rather than a delivery, and a key would enrol a probe in
     // the gateway's replay memory under an id no event owns.
     let outcome = post.post(&url, PROBE_BODY, "", None, Some(PROBE_DEADLINE));
     RouteVerdict::read(match outcome {
-        PostOutcome::Status(code) => DeliveryOutcome::Status(code),
-        PostOutcome::NoResponse => DeliveryOutcome::NoResponse,
-        PostOutcome::NoStatus => DeliveryOutcome::NoStatus,
+        PostOutcome::Status(code) => TransportOutcome::Status(code),
+        PostOutcome::NoResponse => TransportOutcome::NoResponse,
+        PostOutcome::NoStatus => TransportOutcome::NoStatus,
     })
 }
 

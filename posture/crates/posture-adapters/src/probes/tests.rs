@@ -21,7 +21,7 @@ impl CommandRunner for Scripted {
         assert_eq!(
             io,
             CommandIo::Inspection {
-                merge_stderr: !matches!(program, "/usr/bin/plutil" | "/usr/bin/readlink")
+                merge_stderr: program != "/usr/bin/readlink"
             }
         );
         self.calls.push(
@@ -73,6 +73,16 @@ fn control(reader: &str, target: &str) -> Control {
 fn captures() -> Vec<serde_json::Value> {
     serde_json::from_str(include_str!("captures.json")).unwrap()
 }
+/// Writes each named fixture property list, leaving out the ones declared absent.
+fn lay_out(case: &serde_json::Value, sandbox: &crate::test_sandbox::Sandbox) -> [PathBuf; 3] {
+    ["rules", "preferences", "login_window"].map(|role| {
+        let path = sandbox.join(format!("{role}.plist"));
+        if let Some(contents) = case["files"][role].as_str() {
+            std::fs::write(&path, contents).expect("fixture contents");
+        }
+        path
+    })
+}
 fn check(case: &serde_json::Value) {
     let controls: Vec<_> = case["controls"]
         .as_array()
@@ -80,14 +90,17 @@ fn check(case: &serde_json::Value) {
         .iter()
         .map(|x| control(x[0].as_str().unwrap(), x[1].as_str().unwrap()))
         .collect();
+    let sandbox = crate::test_sandbox::Sandbox::new("control-probes");
+    let [rules, preferences, login_window] = lay_out(case, &sandbox);
     let mut sut = ControlProbes {
         runner: Scripted {
             responses: case["responses"].as_array().unwrap().clone().into(),
             calls: vec![],
         },
         uid: case["uid"].as_u64().unwrap() as u32,
-        rules: "/fixture/rules.plist".into(),
-        preferences: "/fixture/preferences.plist".into(),
+        rules,
+        preferences,
+        login_window,
     };
     let (values, profile) = sut.read(&controls);
     let expected = case["fields"].as_array().unwrap();
@@ -131,7 +144,7 @@ fn failed_control_exits_never_believe_healthy_output_or_pid_mismatches() {
 }
 
 #[test]
-fn lulu_reads_keep_profile_refusal_resolution_order_and_exact_archive_matches() {
+fn lulu_reads_keep_profile_refusal_resolution_order_and_whole_string_archive_matches() {
     for case in &captures()[2..] {
         check(case);
     }
@@ -148,6 +161,7 @@ fn probe_launch_and_deadline_failures_remain_indeterminate() {
             uid: 501,
             rules: "/fixture/rules.plist".into(),
             preferences: "/fixture/preferences.plist".into(),
+            login_window: "/fixture/loginwindow.plist".into(),
         };
         assert_eq!(
             sut.read(&[control("fdesetup_status", "")]),

@@ -66,11 +66,16 @@ pub(super) fn window_around(centre: u16, radius: u16) -> String {
     )
 }
 
-/// The `[plugins.lights]` config the two halves below share, quiet hours apart.
-pub(super) fn hue_config(port: u16, quiet_hours: &str) -> String {
+/// The config the two zone halves below share, the house dim window apart.
+///
+/// THE WINDOW GOES AFTER EVERY PLUGIN TABLE, because a bare key in a TOML file
+/// belongs to whichever table was opened last: written inside
+/// `[plugins.lights]` it would be refused by name there.
+pub(super) fn hue_config(port: u16, dim_window: &str) -> String {
     format!(
         "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         quiet_hours = \"{quiet_hours}\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n\
+         [lights]\ndim_window = \"{dim_window}\"\n"
     )
 }
 
@@ -107,7 +112,6 @@ pub(super) const STUDIO_MAP: &str = "[lights]\narm_interval = \"20s\"\n\
 /// native path that resolves the binary by name.
 pub(super) fn lamp_run(
     name: &str,
-    hue_extra: &str,
     config: &str,
     args: &[&str],
     mute: Mute,
@@ -115,13 +119,11 @@ pub(super) fn lamp_run(
 ) -> (bool, bool, bool, bool, Option<i32>) {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
-    // `hue_extra` GOES INSIDE `[plugins.lights]` and the rest comes after every
-    // plugin table, because a bare key in a TOML file belongs to whichever
-    // table was opened last: appending `quiet_hours` to the end of this put it
-    // in `[plugins.log]`, where nothing reads it and nothing complains.
+    // `config` COMES AFTER EVERY PLUGIN TABLE, because a bare key in a TOML
+    // file belongs to whichever table was opened last.
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n{config}"
     ));
     // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
@@ -211,8 +213,7 @@ pub(super) fn lamp_submit(name: &str, config: &str, request: &str) -> (bool, Opt
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\n{config}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{config}"
     ));
     let mut command = sandbox.pns();
     command.env("TZ", "UTC");

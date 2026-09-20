@@ -12,7 +12,7 @@ fn hermes_404() -> Failure {
         // field is text a reader searches for rather than a command pns runs,
         // so it renders unchanged.
         command: "pns --producer posture --channel testpath".to_string(),
-        outcome: DeliveryOutcome::Status(404),
+        outcome: TransportOutcome::Status(404),
         retries: 1,
         max_attempts: 20,
     }
@@ -20,7 +20,7 @@ fn hermes_404() -> Failure {
 
 fn temporary() -> Failure {
     Failure {
-        outcome: DeliveryOutcome::Status(503),
+        outcome: TransportOutcome::Status(503),
         retries: 3,
         ..hermes_404()
     }
@@ -230,7 +230,7 @@ fn a_temporary_failure_says_to_stand_down_on_every_surface_and_counts_the_attemp
 #[test]
 fn the_same_code_from_two_destinations_names_two_different_secrets() {
     let hermes = Failure {
-        outcome: DeliveryOutcome::Status(401),
+        outcome: TransportOutcome::Status(401),
         ..hermes_404()
     };
     let mobile = Failure {
@@ -253,7 +253,7 @@ fn every_meaning_names_its_concrete_subject_rather_than_a_pronoun() {
     for code in [400, 401, 403, 404, 405, 410, 422, 502] {
         let failure = Failure {
             route: "uniquename".to_string(),
-            outcome: DeliveryOutcome::Status(code),
+            outcome: TransportOutcome::Status(code),
             ..hermes_404()
         };
         let meaning = notification(&failure, NotificationSurface::Banner)
@@ -276,11 +276,11 @@ fn every_meaning_names_its_concrete_subject_rather_than_a_pronoun() {
 #[test]
 fn the_two_answers_that_carry_no_status_are_told_apart_by_name() {
     let no_response = Failure {
-        outcome: DeliveryOutcome::NoResponse,
+        outcome: TransportOutcome::NoResponse,
         ..hermes_404()
     };
     let bad_url = Failure {
-        outcome: DeliveryOutcome::NoStatus,
+        outcome: TransportOutcome::NoStatus,
         ..hermes_404()
     };
     assert!(full(&no_response).contains("no response"));
@@ -310,11 +310,11 @@ fn two_failures_from_one_producer_carry_two_distinct_headings() {
 #[test]
 fn a_code_with_no_table_row_still_says_which_way_it_will_be_treated() {
     let permanent = Failure {
-        outcome: DeliveryOutcome::Status(451),
+        outcome: TransportOutcome::Status(451),
         ..hermes_404()
     };
     let temporary = Failure {
-        outcome: DeliveryOutcome::Status(507),
+        outcome: TransportOutcome::Status(507),
         ..hermes_404()
     };
     assert!(full(&permanent).contains("will not accept a repeat"));
