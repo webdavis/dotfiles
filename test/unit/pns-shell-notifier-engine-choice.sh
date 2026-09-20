@@ -100,6 +100,7 @@ test_prompt_captures_status_time_and_history_before_the_engine() {
       fc() { printf "  cargo build --private arg\n"; }
       SECONDS=10
       eval "printf %s \"$PS0\"" >"$CALLS_FILE.ps0"
+      [[ -n $__cmd_notify_start ]] || exit 3
       [[ $__cmd_notify_start == 10 ]] || exit 9
       SECONDS=39
       (exit 17)
