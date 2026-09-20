@@ -2313,7 +2313,7 @@ S203. On the daemon's exit, by SIGTERM or by the switch, a child mid-flight is o
       Source: `src/main.rs:7024-7080 daemon_run`, `src/main.rs:7357 spawn_job`.
       Pin: UNPINNED. `DaemonGuard` kills with SIGKILL and asserts nothing about children.
 
-S204. The daemon registers its own `presence` job (`presence poll --daemon`, every `poll_secs`, lease
+S204. The daemon registers its own `presence` job (`presence poll --daemon`, every `poll_interval`, lease
       300 s, due kept) when the presence table is armed, and cancels it when the table is absent,
       switched off or refused.
       Source: `src/main.rs:7522-7556 ensure_presence_poll`, `src/main.rs:7488 PRESENCE_JOB`,
@@ -2624,7 +2624,7 @@ S233. The presence poll reads the bridge's per-room `grouped_motion` roll-up for
 
 S234. `classify` turns the reading into `PresenceStatus`: a known room with the age of its edge,
       `nowhere` for a fresh poll that found nobody, and five ways of not knowing (no reading, no clock,
-      stale past `stale_after_secs`, a future epoch, an unwatched room).
+      stale past `reading_max_age`, a future epoch, an unwatched room).
       Source: `src/presence.rs:79-112 classify`, `src/presence.rs:40-49 PresenceStatus`.
       Pin: `a_known_room_is_named_with_the_age_of_its_motion_edge`
            at src/doctor.rs:888
@@ -3307,8 +3307,9 @@ S278. `[lights.lamp|room|zone.<name>]` declarations read exactly `shows`, `dim_w
       also `dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped`
            at src/config.rs:3620
 
-S279. `[plugins.presence]` (type `hue`, `rooms`, `exclude`, `poll_secs` 2 to 60 default 5,
-      `stale_after_secs` default 15 and at least `poll_secs`) parses into `Presence`; a refused table
+S279. `[plugins.presence]` (type `hue`, `rooms`, `excluded_rooms`, `poll_interval` "2s" to "1m"
+      default "5s", `reading_max_age` default "15s" and never under `poll_interval`,
+      `desk_input_max_age` "1s" to "1h" default "2m") parses into `Presence`; a refused table
       is `pns: config error (<detail>); the room sensor is unread`.
       Source: `src/config.rs:1946-2026 parse_presence`, `src/config.rs Presence`.
       Pin: `a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor`

@@ -48,11 +48,11 @@ mod fixtures {
     pub(crate) fn watching(rooms: &[&str], exclude: &[&str]) -> pns_adapters::Presence {
         pns_adapters::Presence {
             rooms: rooms.iter().map(|room| (*room).to_string()).collect(),
-            exclude: exclude.iter().map(|room| (*room).to_string()).collect(),
+            excluded_rooms: exclude.iter().map(|room| (*room).to_string()).collect(),
             desk_room: None,
-            desk_stale_after_secs: 120,
-            poll_secs: 5,
-            stale_after_secs: 15,
+            desk_input_max_age_secs: 120,
+            poll_interval_secs: 5,
+            reading_max_age_secs: 15,
         }
     }
     /// A snapshot with the desk warm and no room reading of its own, so the
