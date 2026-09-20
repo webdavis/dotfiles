@@ -1,4 +1,5 @@
 use super::*;
+use pns_application::SubmissionDelivery;
 use std::time::Duration;
 #[test]
 fn busy_ledger_writes_refuse_as_unavailable_without_recording_sensitive_content() {
@@ -17,8 +18,6 @@ fn busy_ledger_writes_refuse_as_unavailable_without_recording_sensitive_content(
     assert!(!log.contains("original-id"));
     assert!(!log.contains("second"));
 }
-
-use pns_application::SubmissionDelivery;
 
 /// One hermes leg the gateway refuses, submitted and then retried, which is
 /// what the classifier gives up on: a 404 is permanent, so the retry stops and
