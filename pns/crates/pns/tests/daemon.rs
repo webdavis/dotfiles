@@ -117,3 +117,6 @@ mod hooks;
 
 #[path = "daemon/spool.rs"]
 mod spool;
+
+#[path = "daemon/failures_page.rs"]
+mod failures_page;
