@@ -58,7 +58,7 @@ impl HttpPost for RecordingHttp {
 }
 
 /// The channel as the composition root builds it: the secret already
-/// extracted from the `[plugins.mobile]` settings, no file anywhere near it.
+/// extracted from the `[plugins.phone]` settings, no file anywhere near it.
 fn channel_with_settings(settings: &str) -> MoshiChannel<RecordingHttp> {
     channel_over(RecordingHttp::answering(true), settings)
 }
@@ -204,7 +204,7 @@ fn a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write() {
         assert_eq!(
             channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
             Delivery::Failed(
-                "push SKIPPED, no moshi token in the config ([plugins.mobile] token); \
+                "push SKIPPED, no moshi token in the config ([plugins.phone] token); \
                      nothing was sent"
                     .to_string()
             )

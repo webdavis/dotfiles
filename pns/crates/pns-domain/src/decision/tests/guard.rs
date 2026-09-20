@@ -34,7 +34,7 @@ fn a_garbage_desk_threshold_fails_toward_away_never_into_the_default() {
         ..EnvironmentSnapshot::default()
     };
     let decision = decide_with(&probes, &overrides, "");
-    assert!(names(&decision).contains(&"mobile"));
+    assert!(names(&decision).contains(&"phone"));
 }
 
 // --- the predicates `start` and the read guards share -------------------

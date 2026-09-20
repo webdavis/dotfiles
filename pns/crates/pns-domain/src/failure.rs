@@ -21,7 +21,7 @@ mod render;
 pub use click::{ClickView, ID_PLACEHOLDER, click_command, parse_view};
 pub use fix::{NotificationSurface, Surface};
 pub use meaning::{
-    DESTINATION_HERMES, DESTINATION_MOBILE, HERMES_KEYS_TABLE, MOBILE_TOKEN, hermes_key_named,
+    DESTINATION_HERMES, DESTINATION_PHONE, HERMES_KEYS_TABLE, PHONE_TOKEN, hermes_key_named,
 };
 pub use notify::warrants_notification;
 pub use render::{full, notification};
@@ -48,7 +48,7 @@ pub struct Failure {
     /// and type at a terminal.
     pub id: u64,
     /// Which destination refused it: [`DESTINATION_HERMES`] or
-    /// [`DESTINATION_MOBILE`]. The wording table is chosen by this, because a
+    /// [`DESTINATION_PHONE`]. The wording table is chosen by this, because a
     /// 401 from hermes and a 401 from moshi name different secrets.
     pub destination: String,
     /// The route the producer named.

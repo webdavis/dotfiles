@@ -5,7 +5,7 @@ use crate::config::parse_config;
 /// shape `Answers::values()` produces once every question is answered.
 fn every_table_armed() -> toml::Table {
     toml::toml! {
-        [plugins.mobile]
+        [plugins.phone]
         token = "moshi-secret"
 
         [plugins.log.keys]

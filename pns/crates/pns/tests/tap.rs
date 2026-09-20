@@ -31,7 +31,7 @@ fn tap_without_config_creates_the_default_marker_and_reports_mobile() {
         let mode = fs::metadata(s.path(created)).unwrap().permissions().mode();
         assert_eq!(mode & 0o077, 0, "{created} is not private: {mode:o}");
     }
-    for channel in ["mobile", "hermes", "banner"] {
+    for channel in ["phone", "hermes", "banner"] {
         assert!(!s.fired(channel));
     }
 }
@@ -59,11 +59,7 @@ fn the_json_marker_dates_the_recorded_tap() {
 fn tap_and_the_event_reader_share_the_configured_marker() {
     let s = Sandbox::new("tap-shared-config");
     let path = s.path("custom/attention");
-    s.write_config(&format!(
-        "{}\n[phone]\nmarker_file = {:?}\n",
-        support::STUB_CHANNELS,
-        path
-    ));
+    s.write_config(&support::stub_channels_with_marker(&path));
     let out = tap(&s, &["tap", "--json"]);
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(json(&out)["marker"]["source"], "config");
@@ -77,7 +73,7 @@ fn tap_and_the_event_reader_share_the_configured_marker() {
         "--detail",
         "tap",
     ]));
-    assert!(s.fired("mobile"));
+    assert!(s.fired("phone"));
     assert!(!s.fired("banner"));
     assert!(!s.path(".local/state/pns/phone-attention.marker").exists());
 }
@@ -113,7 +109,7 @@ fn info_preserves_missing_state_and_install_preserves_existing_state() {
     let marker = s.path("marker");
     fs::write(&marker, "keep").unwrap();
     let before = fs::metadata(&marker).unwrap().modified().unwrap();
-    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
     let out = s.pns().args(["tap", "install", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let answer = json(&out);
@@ -137,7 +133,7 @@ fn a_failed_directory_creation_is_an_operational_failure() {
     let s = Sandbox::without_config("tap-mkdir-fails");
     fs::write(s.path("blocked"), "keep").unwrap();
     s.write_config(&format!(
-        "[phone]\nmarker_file = {:?}\n",
+        "[plugins.phone]\nmarker_file = {:?}\n",
         s.path("blocked/marker")
     ));
     let out = s.pns().args(["tap", "--json"]).output().unwrap();
@@ -152,7 +148,7 @@ fn a_failed_directory_creation_is_an_operational_failure() {
 #[test]
 fn a_directory_at_the_marker_is_refused_without_claiming_success() {
     let s = Sandbox::without_config("tap-directory-marker");
-    s.write_config(&format!("[phone]\nmarker_file = {:?}\n", s.root));
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {:?}\n", s.root));
     let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["write_status"], "failed");
@@ -168,7 +164,7 @@ fn tap_preserves_contents_and_desk_wins_a_tie() {
         .unwrap()
         .set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(1))
         .unwrap();
-    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
     let out = s
         .pns()
         .env("PNS_SCREEN_IDLE", "0")
@@ -187,7 +183,7 @@ fn tap_preserves_contents_and_desk_wins_a_tie() {
 #[test]
 fn invalid_config_refuses_a_tap_without_falling_back_or_exposing_values() {
     let s = Sandbox::new("tap-invalid-config");
-    s.write_config("[phone]\nmarker_file = 42\n");
+    s.write_config("[plugins.phone]\nmarker_file = 42\n");
     let out = tap(&s, &["tap", "--json"]);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["error"]["code"], "config_error");
@@ -278,7 +274,7 @@ fn tap_updates_a_dangling_link_itself_without_creating_its_target() {
         },
         0
     );
-    s.write_config(&format!("[phone]\nmarker_file = {marker:?}\n"));
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
     let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(json(&out)["marker"]["mtime_epoch_secs"].as_u64().unwrap() > 1);
@@ -295,11 +291,7 @@ fn tap_updates_a_dangling_link_itself_without_creating_its_target() {
 fn doctor_reports_the_configured_tap_as_missing_fresh_or_stale_without_writing_it() {
     let s = Sandbox::new("doctor-tap-marker");
     let path = s.path("attention");
-    s.write_config(&format!(
-        "{}\n[phone]\nmarker_file = {:?}\n",
-        support::STUB_CHANNELS,
-        path
-    ));
+    s.write_config(&support::stub_channels_with_marker(&path));
     for state in ["never tapped", "fresh", "stale"] {
         if state != "never tapped" {
             fs::write(&path, "private contents").unwrap();

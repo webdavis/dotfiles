@@ -3,12 +3,12 @@ use super::*;
 /// The `[plugins.presence]` settings, typed.
 ///
 /// THE ONLY BACKEND IS THE BRIDGE, so `type` is required and refused by name
-/// the way `[plugins.mobile]`'s and `[plugins.home_presence]`'s are: a table naming a
+/// the way `[plugins.phone]`'s and `[plugins.home_presence]`'s are: a table naming a
 /// backend nothing implements contributes no settings at all rather than
 /// having its numbers read as this one's.
 ///
 /// `Ok(None)` IS THE INERT TABLE, absent or switched off, which is the reading
-/// `armed_mobile` and `enabled_hue_table` already give theirs.
+/// `armed_phone` and `enabled_hue_table` already give theirs.
 pub fn parse_presence(config: &Config) -> Result<Option<Presence>, ConfigError> {
     let Some(entry) = config
         .plugins

@@ -243,7 +243,7 @@ fn elapsed_still_obeys_the_presence_gate() {
         "t1:p2",
     ]));
     assert_eq!(output.status.code(), Some(0));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(!sandbox.fired("banner"));
     assert!(
         sandbox.fired("hermes"),

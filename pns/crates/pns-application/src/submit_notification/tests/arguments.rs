@@ -11,7 +11,7 @@ fn replay_and_edge_claim_receive_this_events_exact_legs_and_clock() {
         decision.inputs.now_secs = now;
         decision.legs = vec![
             Leg {
-                name: "mobile",
+                name: "phone",
                 mode: ReportMode::Silent,
                 decorative: true,
             },

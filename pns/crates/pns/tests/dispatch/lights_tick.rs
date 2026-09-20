@@ -38,7 +38,7 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
     // owns transport refusal; repeated silence needs two complete ticks.
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     plant_waiting_session(&sandbox);
     for run in 0..2 {
@@ -47,7 +47,7 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
         assert!(stdout(&output).is_empty(), "run {run}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "run {run}: {}", stderr(&output));
         assert!(
-            !sandbox.fired("hermes") && !sandbox.fired("mobile"),
+            !sandbox.fired("hermes") && !sandbox.fired("phone"),
             "run {run}: a tick is not an event and reaches no channel"
         );
     }
@@ -85,7 +85,7 @@ fn the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge
         assert!(stdout(&output).is_empty(), "{name}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "{name}: {}", stderr(&output));
         assert!(
-            !sandbox.fired("hermes") && !sandbox.fired("mobile"),
+            !sandbox.fired("hermes") && !sandbox.fired("phone"),
             "{name}: a tick is not an event and reaches no channel"
         );
     }

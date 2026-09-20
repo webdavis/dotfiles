@@ -21,7 +21,7 @@ impl Sandbox {
         std::fs::write(dir.join("config.toml"), contents).expect("config file");
     }
 
-    /// Where a tap lands with no `[phone] marker_file` override: the shipped
+    /// Where a tap lands with no `[plugins.phone] marker_file` override: the shipped
     /// default, inside this sandbox's own HOME. `PNS_PHONE_MARKER_FILE` used
     /// to let a test point the marker elsewhere; now HOME is the whole of the
     /// sandboxing a test needs, so this is the one path every test that just

@@ -9,7 +9,7 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
     std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
     std::fs::write(
         sandbox.path(".config/pns/config.toml"),
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\nmobile_watch_card = \"true\"\n\
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ncard_while_watching = \"true\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     )
     .expect("config");
@@ -28,11 +28,11 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
         ])
         .args(["--pane", "t1:p2", "--elapsed", "300s"]));
     assert!(
-        stderr(&output).contains("mobile_watch_card"),
+        stderr(&output).contains("card_while_watching"),
         "the refusal names the setting: {output:?}"
     );
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "and the card stays off, which is the default it fell back to"
     );
 }
@@ -48,7 +48,7 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
     let sandbox = Sandbox::new("typod-table-name");
     sandbox.write_config(
         "[plugins.hermess]\nenabled = true\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
     );
     // The fallback runs every built-in plugin, not just the three named
@@ -61,7 +61,7 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
             .args(["--project", "dotfiles", "--detail", "a summary"]),
     );
 
-    assert!(sandbox.fired("mobile"), "stderr: {}", stderr(&output));
+    assert!(sandbox.fired("phone"), "stderr: {}", stderr(&output));
     assert!(
         sandbox.fired("hermes"),
         "the durable route survives a typo in an unrelated table: {}",

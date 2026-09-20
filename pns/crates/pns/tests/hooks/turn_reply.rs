@@ -146,10 +146,7 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     let sandbox = Sandbox::new("hook-snapshot-timing");
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
-    sandbox.write_config(&format!(
-        "{}\n[phone]\nmarker_file = {marker:?}\n",
-        support::STUB_CHANNELS
-    ));
+    sandbox.write_config(&support::stub_channels_with_marker(&marker));
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("stub bin");
     // THE MARKER IS BACKDATED RATHER THAN WAITED PAST: the summarizer stub
@@ -177,7 +174,7 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
         "the banner belongs to the desk the operator went back to"
     );
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "and the tap that started this turn is no longer where they are"
     );
 }

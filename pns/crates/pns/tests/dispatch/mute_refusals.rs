@@ -34,7 +34,7 @@ fn a_state_file_that_cannot_be_read_delivers_everything_and_complains_once_per_e
         .args(["--pane", "t1:p2"]));
 
     assert!(sandbox.fired("banner"), "an unreadable mute mutes nothing");
-    assert!(sandbox.fired("mobile"), "including a forced card");
+    assert!(sandbox.fired("phone"), "including a forced card");
     assert!(sandbox.fired("hermes"));
     let complaints = stderr(&output)
         .lines()

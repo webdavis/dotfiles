@@ -125,7 +125,7 @@ fn an_away_event_delivers_no_replay_and_leaves_the_journal_byte_identical() {
         "x",
     ]));
 
-    let carded = events(&sandbox, "mobile");
+    let carded = events(&sandbox, "phone");
     assert_eq!(
         carded.len(),
         1,

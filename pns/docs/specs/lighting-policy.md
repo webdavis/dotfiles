@@ -690,7 +690,7 @@ Then it holds nothing in memory between runs, exits 0 on every path, and prints 
   nothing)
   (`tests/dispatch.rs:the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge`).
 - Fail direction: this is not the delivery path. A tick is not an event and reaches no channel; the tests
-  assert `!sandbox.fired("hermes") && !sandbox.fired("mobile")`.
+  assert `!sandbox.fired("hermes") && !sandbox.fired("phone")`.
 - Thresholds: `[lights] refresh_secs`, default `src/config.rs:DEFAULT_REFRESH_SECS` = 12, bounds 10
   (`MIN_REFRESH_SECS`, the transport deadline) to 30 (`MAX_REFRESH_SECS`).
 - Required side effects: `src/main.rs:sweep_legacy_state` runs first, then the house is derived, then the
