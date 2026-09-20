@@ -55,6 +55,27 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 Err(code) => code,
             };
         }
+        // THE ARM ALONE, for a harness whose own extension already raises a
+        // card for this wait through a road pns is not on. omp's generated
+        // `moshi-hooks.ts` reports `tool_approval_requested` to the moshi
+        // daemon socket directly, so the `blocked` arm above would raise a
+        // second, redundant notification for the same approval; this word
+        // schedules the nudge and nothing else. `resolved` already clears it,
+        // the same as any other armed wait.
+        "arm-remind" => {
+            let event = pns_domain::EventArgs {
+                agent: agent.clone(),
+                state: "blocked".to_string(),
+                detail: payload.message.clone(),
+                pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                ..attribution(&payload, &agent)
+            };
+            let reminder = match remind_after(&agent) {
+                Ok(reminder) => reminder,
+                Err(code) => return code,
+            };
+            arm_remind(&payload.session_id, &event, reminder);
+        }
         // EVERY CLEARING SIGNAL THE HARNESS HAS, on one arm. Five
         // declarations reach it: `PostToolBatch`, whichever way the operator
         // answered (a denial still produces a `tool_result` and so still
@@ -303,6 +324,6 @@ fn remind_after(agent: &str) -> Result<Reminder, i32> {
 
 /// What `pns hook` takes, which is one harness event per run.
 pub(crate) const HOOK_USAGE: &str = "pns: usage: pns hook prompt | stop | \
-stop-failure | blocked | asked | denied | waiting | resolved | model-switch | \
-quota | config-change [--remind[=<duration>] | --no-remind] \
+stop-failure | blocked | arm-remind | asked | denied | waiting | resolved | \
+model-switch | quota | config-change [--remind[=<duration>] | --no-remind] \
 (the harness payload arrives on stdin)";

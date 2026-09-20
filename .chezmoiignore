@@ -94,6 +94,10 @@ Library
 # a Linux machine permanently engine-less.
 .local/libexec/pns
 .config/pns
+# The pi and omp reminder extensions call that engine, so they have nothing to
+# call on a machine where it is never built.
+.pi
+.omp
 # And so is the /pns: plugin, which is nothing but commands for that engine.
 .claude/pns-marketplace
 # The /strategy: plugin is macOS-only for a different reason: it is a second

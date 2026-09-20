@@ -32,9 +32,8 @@
 # and run_once_after_60 runs `moshi-hook install`, which regenerates the very
 # extension files this repoints. A fresh machine therefore had no pns to point
 # at when this ran, and every apply that re-fired the 60 script undid the
-# repoint immediately afterwards. Both ended with pi and omp calling moshi-hook
-# directly, with no presence gate and no sound made about it. Keep this after
-# both.
+# repoint immediately afterwards. Both ended with the generated extensions
+# naming moshi-hook as their replay adapter again. Keep this after both.
 set -euo pipefail
 
 readonly SERVICE_LABEL='homebrew.mxcl.moshi-hook'
@@ -43,8 +42,8 @@ MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 
 [[ -x $MOSHI_HOOK_BIN ]] || exit 0
 
-# pns inserts itself between the agent harnesses and moshi-hook. A moshi-hook
-# upgrade can silently undo that in two ways, checked below in order:
+# pns sits beside moshi-hook on the agent harnesses. A moshi-hook upgrade can
+# silently undo that in two ways, checked below in order:
 #
 #   1. `moshi-hook install` rewrites its generated extension files, which
 #      removes the repoint at pns.
@@ -56,14 +55,18 @@ MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}}"
 MOSHI_EXTENSION_ROOT="${MOSHI_EXTENSION_ROOT:-$HOME}"
 
-# 1. THE REPOINT. pi and omp are driven by a TypeScript extension moshi
-# GENERATES, hard-coding `const helperBinary = "/opt/homebrew/bin/moshi-hook"`.
-# The field holds ONE pathname and no arguments, which is why the engine
-# answers a bare `<harness>-hook` first argument as the gate itself.
-# `moshi-hook install` and every upgrade rewrite that file, reverting the one
-# line pns owns. Nothing fails when it does; the symptom is unfiltered phone
-# pushes while the operator sits at the keyboard, which reads as moshi being
-# noisy rather than as a regression.
+# 1. THE REPOINT, AND WHAT IT IS AND IS NOT. pi and omp are driven by a
+# TypeScript extension moshi GENERATES, hard-coding
+# `const helperBinary = "/opt/homebrew/bin/moshi-hook"`. That file's own header
+# says the field is kept for debugging and manual replay: every live event is
+# written straight to the moshi daemon socket, so helperBinary is never
+# spawned. Repointing it decides which binary a REPLAYED payload goes through,
+# `pns pi-hook` and `pns omp-hook` being the presence-gated pass-through the
+# field holds one pathname for, and it changes nothing about what pi and omp
+# push in the moment. Presence filtering for those two lives in moshi;
+# reminders for them live in this repository's own extension,
+# `pns-reminders.ts`, beside the generated file. `moshi-hook install` and every
+# upgrade rewrite the generated file, reverting the one line pns owns.
 if [[ -x $PNS_MOSHI_GATE ]]; then
   for extension in \
     "$MOSHI_EXTENSION_ROOT/.pi/agent/extensions/moshi-hooks.ts" \
@@ -71,7 +74,7 @@ if [[ -x $PNS_MOSHI_GATE ]]; then
     [[ -f $extension ]] || continue
     current="$(sed -n 's/^const helperBinary = "\(.*\)"$/\1/p' "$extension" | head -1)"
     if [[ -z $current ]]; then
-      printf 'moshi-hook: WARNING: %s no longer declares a helperBinary line this script recognizes, so pns presence gating is OFF for that harness and its pushes are unfiltered.\n' \
+      printf 'moshi-hook: WARNING: %s no longer declares a helperBinary line this script recognizes, so a replayed payload for that harness stays on moshi-hook.\n' \
         "$extension" >&2
       continue
     fi
@@ -85,22 +88,21 @@ if [[ -x $PNS_MOSHI_GATE ]]; then
     if sed "s|^const helperBinary = \".*\"\$|const helperBinary = \"$PNS_MOSHI_GATE\"|" \
       "$extension" >"$tmp" && grep -q "helperBinary = \"$PNS_MOSHI_GATE\"" "$tmp"; then
       mv "$tmp" "$extension"
-      printf 'moshi-hook: repointed %s at the pns presence gate (it pointed at %s).\n' \
+      printf 'moshi-hook: repointed the replay adapter in %s at pns (it pointed at %s).\n' \
         "$extension" "$current"
     else
       rm -f "$tmp"
-      printf 'moshi-hook: WARNING: could not repoint %s at the pns presence gate; its pushes are unfiltered.\n' \
+      printf 'moshi-hook: WARNING: could not repoint the replay adapter in %s at pns; a replayed payload for that harness stays on moshi-hook.\n' \
         "$extension" >&2
     fi
   done
 else
-  # The third way to lose the gate, and the one that used to be silent. With no
-  # binary to point at there is nothing to repoint, so the extensions keep
-  # calling moshi-hook directly and the symptom is unfiltered pushes rather
-  # than a failure. This is expected to be unreachable now that the script runs
+  # No binary to point at means nothing to repoint, and it also means the pi
+  # and omp reminder extensions have no engine to call: both come out of the
+  # same build. This is expected to be unreachable now that the script runs
   # after the build, which is exactly why hearing it means the build did not
   # produce a binary.
-  printf 'moshi-hook: WARNING: no pns presence gate at %s, so the pi and omp extensions keep calling moshi-hook directly and their pushes are unfiltered.\n' \
+  printf 'moshi-hook: WARNING: no pns binary at %s, so the pi and omp replay adapters stay on moshi-hook and their reminder extensions have nothing to call.\n' \
     "$PNS_MOSHI_GATE" >&2
 fi
 
