@@ -107,6 +107,42 @@ fn a_schema_this_build_does_not_speak_is_malformed_on_both_envelopes() {
 }
 
 #[test]
+fn an_absent_optional_field_is_omitted_on_both_envelopes_rather_than_written_as_null() {
+    // The same rule the engine encodes by, pinned on posture's own reading:
+    // an optional field it says nothing about is a key that is not there.
+    let golden = Request::decode(REQUEST.as_bytes()).unwrap();
+    let bare = Request::new(golden.request_id, golden.producer, State::Observation);
+    let text = bare.encode().unwrap();
+    for field in [
+        "session",
+        "elapsed",
+        "project",
+        "branch",
+        "pane",
+        "route",
+        "delivery_class",
+    ] {
+        assert_eq!(value(&text).get(field), None, "{field}");
+    }
+    assert!(!text.contains("null"), "{text}");
+
+    let mut result = decode_result(RESULT.as_bytes()).unwrap();
+    result.request_id = None;
+    result.ledger_sequence = None;
+    let text = result.encode().unwrap();
+    for field in ["request_id", "ledger_sequence"] {
+        assert_eq!(value(&text).get(field), None, "{field}");
+    }
+    // A result that writes them as null still decodes as absent.
+    let mut nulled = value(RESULT);
+    nulled["request_id"] = Value::Null;
+    nulled["ledger_sequence"] = Value::Null;
+    let decoded = decode_result(nulled.to_string().as_bytes()).unwrap();
+    assert_eq!(decoded.request_id, None);
+    assert_eq!(decoded.ledger_sequence, None);
+}
+
+#[test]
 fn a_result_missing_its_status_is_malformed_rather_than_defaulted() {
     let mut without = value(RESULT);
     without.as_object_mut().unwrap().remove("status");

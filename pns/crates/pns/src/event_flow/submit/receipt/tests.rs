@@ -244,6 +244,27 @@ fn the_events_own_text_never_appears_anywhere_in_the_receipt() {
     assert!(!output.encode().unwrap().contains("private detail"));
 }
 
+/// EVERY REGISTERED NAME ENCODES, which is what the registry's own refusal
+/// buys: the receipt path holds no panic, and no planned leg drops out of the
+/// verdict list on the way to the producer.
+#[test]
+fn a_receipt_names_every_plugin_the_compiled_roster_registers() {
+    let names: Vec<&'static str> = pns_domain::registry::roster().names().into_iter().collect();
+    let output = result(Ok(Submitted::Attempted {
+        sequence: Some(7),
+        outcomes: names
+            .iter()
+            .map(|name| (leg(name), Delivery::Delivered("posted".into())))
+            .collect(),
+    }));
+    let reported: Vec<&str> = output
+        .destinations
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect();
+    assert_eq!(reported, names);
+}
+
 fn record(completion: LedgerCompletion) -> SubmissionRecord {
     SubmissionRecord {
         sequence: 7,
