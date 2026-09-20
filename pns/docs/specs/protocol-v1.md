@@ -174,6 +174,8 @@ Given a version 1 request, when decoded, then request_id, producer and state are
 their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent optional session,
 elapsed, route, delivery_class and remind become None; detail is empty, project, branch and pane are
 None, scope is automatic, and extensions is an empty object. Request::new supplies those same defaults.
+ONE RULE FOR AN ABSENT OPTIONAL FIELD, on this envelope and on the result: it is omitted when encoding
+rather than written as `null`, and a field written as `null` decodes as absent.
 The session is a plain name and the place of the work is three top-level fields, the same names the
 flags carry. `event`,
 `occurred_at` and `interaction` are no longer fields of this envelope: a decoded value carrying any of
@@ -181,8 +183,8 @@ them names it in DecodedRequest::ignored (S014), the same as any other unknown t
 
 `delivery_class` uses the same validated `Name` as the other short names: 1 through 64 Unicode
 characters, without controls. A wrong type or invalid name is refused before effects, retaining the
-correlated request identifier. An absent or null delivery class is omitted when encoding, preserving the
-exact canonical bytes of unmarked version 1 requests. A present delivery class survives canonical
+correlated request identifier. An absent or null delivery class is omitted like every other absent
+optional field. A present delivery class survives canonical
 encoding and the original producer request retained by the ledger; changed delivery-class metadata under
 the same identity conflicts. `kind` and `class`, the two fields it replaced, are REFUSED rather than
 ignored: a value carrying either is rejected before effects, and the refusal names the field and its
@@ -196,7 +198,7 @@ is held to the one range every spelling of the delay shares (thirty seconds to a
 disarms it whatever config says. A value that is neither a boolean nor a valid duration is refused
 before effects and the refusal names the field. An absent or null `remind` is a producer that said
 nothing, which falls through to the producer's own config entry and then to off, and it is omitted when
-encoding so an unmarked request keeps its canonical version 1 bytes. It decodes to the SAME switch the
+encoding like every other absent optional field. It decodes to the SAME switch the
 `--remind`, `--remind=<duration>` and `--no-remind` flags produce, so both paths hand one resolution one
 answer. The submit path arms from it on a `blocked` request, where an approval is waiting; on every other
 state it arms nothing, because the producer's `[producer.<name>] remind` entry states that producer's
@@ -276,8 +278,9 @@ own, so nothing in `diagnostics` changes the meaning of the entries beside it. T
 `interaction` field. Valid results round-trip through the curated public exports and the
 package-owned `result-v1.json` fixture. Each destination also carries the `route` it was submitted on,
 the `note` its destination offered about a leg it did not deliver, and the `retry_at` unix second the
-ledger will try it again. A missing note, route or retry time is omitted when encoded; a supplied one is
-preserved. The note is the destination's own sentence; the event's own text never comes back.
+ledger will try it again. An absent optional field is omitted when encoded rather than written as
+`null`, here and on the request: a result naming no request id, no ledger row, no note, no route and no
+retry time writes none of those keys, and a supplied one is preserved. The note is the destination's own sentence; the event's own text never comes back.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L68),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L59),

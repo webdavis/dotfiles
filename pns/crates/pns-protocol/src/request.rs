@@ -187,26 +187,26 @@ pub struct Request {
     /// The producer's session, for correlation. A plain id: it is one name at
     /// the top level, the same way the flag spells it, and the turn count
     /// inside the old wrapper was stored and never read.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<Name>,
     pub state: State,
     /// How long the work ran, written as `<count><s|m|h>`. pns decides the
     /// tier from it.
-    #[serde(default, with = "elapsed")]
+    #[serde(default, with = "elapsed", skip_serializing_if = "Option::is_none")]
     pub elapsed: Option<Duration>,
     #[serde(default)]
     pub detail: String,
     /// Where the work was happening, at the top level and one field per part,
     /// because not every producer has a project, a branch or a pane.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane: Option<String>,
     #[serde(default)]
     pub scope: DeliveryScope,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub route: Option<Name>,
     /// What this event is for delivery: which route it takes when it named
     /// none, and whether it passes a mute. ONE FIELD AND ONE VOCABULARY, the
