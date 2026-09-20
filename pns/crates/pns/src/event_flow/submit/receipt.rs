@@ -17,6 +17,7 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
                 ledger_sequence: None,
                 destinations: Vec::new(),
                 diagnostics: vec!["unknown_delivery_class".into(), class],
+                ignored_fields: Vec::new(),
             };
         }
         Err(NotSubmitted::Ledger(error)) => Err(error),
@@ -68,6 +69,7 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
                 })
                 .into(),
         ],
+        ignored_fields: Vec::new(),
     }
 }
 

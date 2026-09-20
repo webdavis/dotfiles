@@ -22,6 +22,7 @@ fn receipt(status: Status) -> ResultEnvelope {
             retry_at: Some(1_758_153_600),
         }],
         diagnostics: vec!["ledger_committed".into()],
+        ignored_fields: Vec::new(),
     }
 }
 #[test]

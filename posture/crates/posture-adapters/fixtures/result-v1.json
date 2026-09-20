@@ -13,5 +13,6 @@
       "retry_at": 1758153600
     }
   ],
-  "diagnostics": ["ignored_field:detial"]
+  "diagnostics": ["ledger_committed"],
+  "ignored_fields": ["detial"]
 }
