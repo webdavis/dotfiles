@@ -1,3 +1,6 @@
+mod sandbox;
+
+use sandbox::Sandbox;
 use std::ffi::OsString;
 use std::os::unix::{ffi::OsStringExt, fs::PermissionsExt};
 use std::process::{Command, Stdio};
@@ -10,30 +13,13 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// are compiling.
 const LIVENESS_BOUND: Duration = Duration::from_secs(15);
 
-/// Removes the fixture home when the run ends. The epoch nanosecond in the
-/// name keeps a RECYCLED process id off an earlier run's leftovers; this
-/// guard is what stops a fresh one from ever becoming one.
-struct HomeGuard(std::path::PathBuf);
-impl Drop for HomeGuard {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 #[test]
 fn heartbeat_ignores_trailing_operands_and_invokes_the_private_installed_engine_once() {
-    let home = std::env::temp_dir().join(format!(
-        "posture-heartbeat-edge-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |since| since.as_nanos())
-    ));
-    std::fs::create_dir(&home).unwrap();
-    let _home_guard = HomeGuard(home.clone());
+    let sandbox = Sandbox::new("heartbeat-edge");
+    let home = sandbox.path();
     let engine = home.join(".local/libexec/engine");
     std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
-    deliver_through(&home, &engine);
+    deliver_through(home, &engine);
     std::fs::write(&engine,br##"#!/bin/sh
 set -eu
 [ "$#" = 2 ] && [ "$1" = send ] && [ "$2" = --json ] || exit 42
@@ -62,10 +48,10 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagnos
     let deadline = Instant::now() + LIVENESS_BOUND;
     let mut child = Command::new(env!("CARGO_BIN_EXE_posture"))
         .env_clear()
-        .env("HOME", &home)
-        .env("TMPDIR", &home)
-        .env("TMP", &home)
-        .env("TEMP", &home)
+        .env("HOME", home)
+        .env("TMPDIR", home)
+        .env("TMP", home)
+        .env("TEMP", home)
         .env("XDG_CONFIG_HOME", home.join("config"))
         .env("XDG_CACHE_HOME", home.join("cache"))
         .env("XDG_DATA_HOME", home.join("data"))

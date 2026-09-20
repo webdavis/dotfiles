@@ -1,29 +1,22 @@
 use super::*;
 mod interrupt;
+use crate::test_sandbox::Sandbox;
 use posture_domain::SSH_LOCAL_ADDRESS_SAMPLES;
 use std::{
     fs,
     os::unix::fs::{PermissionsExt, symlink},
     path::PathBuf,
-    sync::atomic::{AtomicUsize, Ordering},
 };
 static INSTALLS: std::sync::Mutex<()> = std::sync::Mutex::new(());
-static NEXT: AtomicUsize = AtomicUsize::new(0);
 struct Fixture {
-    root: PathBuf,
+    /// These tests install real files, and the sandbox is what removes the
+    /// tree when the test drops the fixture.
+    root: Sandbox,
     config: Configuration,
 }
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "posture-ssh-flow-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos()),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = Sandbox::new("ssh-flow");
         fs::create_dir(root.join("dropins")).unwrap();
         fs::write(root.join("main"), "").unwrap();
         fs::write(
@@ -89,14 +82,6 @@ impl Fixture {
             String::from_utf8(out).unwrap(),
             String::from_utf8(err).unwrap(),
         )
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        // These tests install real files, so without an owner each run leaves another tree in the
-        // system temporary directory forever. Best effort on purpose: a panicking drop during a
-        // failing test would abort the run and hide the assertion that actually failed.
-        let _ = fs::remove_dir_all(&self.root);
     }
 }
 fn executable(path: &std::path::Path, text: &str) {

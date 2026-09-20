@@ -1,34 +1,26 @@
 use super::*;
 use crate::SystemRunner;
+use crate::test_sandbox::Sandbox;
 use std::{
     fs,
     os::unix::fs::PermissionsExt,
-    sync::atomic::{AtomicUsize, Ordering},
     time::{Duration, Instant},
 };
 
 struct Engine {
-    directory: PathBuf,
     executable: PathBuf,
+    /// Removes the command's directory when the test drops the engine.
+    _directory: Sandbox,
 }
 impl Engine {
     fn new(body: &str) -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let directory = std::env::temp_dir().join(format!(
-            "posture-engine-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos()),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&directory).unwrap();
+        let directory = Sandbox::new("engine");
         let executable = directory.join("engine");
         fs::write(&executable, format!("#!/bin/bash\nset -euo pipefail\n[[ $# == 2 && $1 == submit && $2 == --json ]]\n/bin/cat >\"$0.input\"\n{body}\n")).unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         Self {
-            directory,
             executable,
+            _directory: directory,
         }
     }
     fn producer(&self) -> ProducerCommand<SystemRunner, Alarm> {
@@ -39,11 +31,6 @@ impl Engine {
             None,
             Alarm::default(),
         )
-    }
-}
-impl Drop for Engine {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.directory);
     }
 }
 #[test]

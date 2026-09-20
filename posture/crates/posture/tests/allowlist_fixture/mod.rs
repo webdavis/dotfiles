@@ -1,9 +1,9 @@
+use crate::sandbox::Sandbox;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 /// The liveness bound on one `posture allowlist` run, the same bound and the
@@ -17,28 +17,14 @@ use std::time::{Duration, Instant};
 const LIVENESS_BOUND: Duration = Duration::from_secs(15);
 
 pub struct Fixture {
-    pub root: PathBuf,
+    /// Removes the tree when the test drops the fixture.
+    pub root: Sandbox,
     pub source: PathBuf,
     pub deployed: PathBuf,
 }
 impl Fixture {
     pub fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        // The epoch nanosecond keeps a RECYCLED process id off an earlier
-        // run's leftovers: nothing prunes what the Drop guard below misses (a
-        // run that aborts instead of unwinding), so a counter beside the id
-        // alone eventually rebuilds a path an earlier run already filled, and
-        // the `create_dir` below then answers AlreadyExists. Observed on this
-        // machine 2026-09-17, all six rows at once.
-        let root = std::env::temp_dir().join(format!(
-            "posture-curation-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos()),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = Sandbox::new("curation");
         for directory in ["h", "c", "d", "s", "k", "r", "e", "f", "cl", "t"] {
             fs::create_dir(root.join(directory)).unwrap();
         }
@@ -81,7 +67,7 @@ impl Fixture {
         command
             .env_clear()
             .env("PATH", "/usr/bin:/bin")
-            .env("FIXTURE", &self.root)
+            .env("FIXTURE", self.root.path())
             .env("OSQUERY_LAUNCHD_ALLOWLIST", &self.deployed)
             .env("OSQUERYI", self.root.join("osqueryi"))
             .env("CHEZMOI", self.root.join("chezmoi"))
@@ -128,11 +114,6 @@ impl Fixture {
             }
             std::thread::sleep(Duration::from_millis(1));
         }
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.root);
     }
 }
 fn script(path: &std::path::Path, body: &str) {
