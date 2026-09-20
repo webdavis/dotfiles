@@ -112,3 +112,23 @@ fn a_real_request_gets_a_real_response() {
     assert!(answered.contains("<pre>"), "{answered}");
 }
 
+/// THE LINE IS RATE LIMITED. A copy per retry wrote sixteen thousand of one
+/// sentence into the daemon's log; the repeat that survives is what keeps a
+/// standing refusal readable after a rotation.
+#[test]
+fn a_standing_bind_refusal_is_said_once_and_then_every_ten_minutes() {
+    let first = std::time::Instant::now();
+    assert!(say_now(None, first), "the first refusal is always said");
+    assert!(
+        !say_now(Some(first), first + REBIND_AFTER),
+        "the next retry repeats it"
+    );
+    assert!(
+        !say_now(Some(first), first + RESAY_AFTER - REBIND_AFTER),
+        "a retry inside the window repeats it"
+    );
+    assert!(
+        say_now(Some(first), first + RESAY_AFTER),
+        "a refusal still standing ten minutes on is said again"
+    );
+}

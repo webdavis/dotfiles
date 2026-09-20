@@ -27,6 +27,10 @@ const LISTING_LIMIT: u32 = 20;
 /// How long the child waits before trying a taken port again. See [`bind`].
 const REBIND_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
 
+/// How long the refusal above stays said before it is written again. See
+/// [`say_now`].
+const RESAY_AFTER: std::time::Duration = std::time::Duration::from_secs(600);
+
 /// Serve until the listener dies, which for the daemon's child means until the
 /// daemon stops it.
 ///
@@ -66,22 +70,34 @@ fn serve_on(listener: TcpListener) {
 /// process holding it exits, or the operator moves it. Exiting would leave the
 /// page permanently off with nothing to notice it and no second line to say so.
 fn bind(port: u16) -> TcpListener {
-    let mut said = false;
+    let mut said = None;
     loop {
         match TcpListener::bind(("127.0.0.1", port)) {
             Ok(listener) => return listener,
             Err(error) => {
-                if !said {
+                let now = std::time::Instant::now();
+                if say_now(said, now) {
                     eprintln!(
                         "pns failures: could not bind 127.0.0.1:{port}: {error}; \
                          waiting for the port"
                     );
-                    said = true;
+                    said = Some(now);
                 }
                 std::thread::sleep(REBIND_AFTER);
             }
         }
     }
+}
+
+/// Whether the refusal above is written on this attempt.
+///
+/// ONCE, THEN EVERY `RESAY_AFTER`. A line per retry wrote sixteen thousand
+/// copies of one sentence into the daemon's log; a line written once and never
+/// again leaves a page that has been down for days saying so only in a file
+/// that has since rotated. The repeat is what keeps a standing refusal
+/// readable in the log the operator actually has.
+fn say_now(said: Option<std::time::Instant>, now: std::time::Instant) -> bool {
+    said.is_none_or(|said| now.duration_since(said) >= RESAY_AFTER)
 }
 
 fn answer(store: &SqliteStore, mut stream: TcpStream) -> std::io::Result<()> {
