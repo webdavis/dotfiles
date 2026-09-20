@@ -11,7 +11,7 @@ use pns_application::{RECAP_USAGE, recap_bounds};
 /// IT REACHES ONE DESTINATION, the durable route, and never the phone or the
 /// banner. The phone layer was already delivered by the card that pointed here.
 ///
-/// EXIT 2 FOR A MISTYPED INVOCATION, in `quiet_mode`'s style rather than the
+/// EXIT 2 FOR A MISTYPED INVOCATION, in `mute_mode`'s style rather than the
 /// hook path's always-zero: this is hand-runnable, and a subcommand that
 /// swallows a typo is a recap the operator believes was posted. The spawner
 /// never reads the code.

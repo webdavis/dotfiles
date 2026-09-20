@@ -11,7 +11,7 @@
 //! shape rather than quoting what arrived, so a meeting's subject, its
 //! attendees and its identifier cannot reach a log line.
 
-use pns_domain::quiet::calendar::{CalendarState, Event};
+use pns_domain::mute::calendar::{CalendarState, Event};
 use std::path::Path;
 use std::time::Duration;
 

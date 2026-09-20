@@ -49,7 +49,7 @@ pub enum Move {
 /// One poll's whole decision: the events, the clock, the standing mute and
 /// what this feature did last, in; the move and the state to remember, out.
 ///
-/// A MANUAL `pns quiet` ALWAYS WINS, in both directions, and both directions
+/// A MANUAL `pns mute` ALWAYS WINS, in both directions, and both directions
 /// are here:
 ///
 /// - A mute this feature did not arm is never extended, shortened or cleared,
@@ -64,7 +64,7 @@ pub enum Move {
 pub fn decide(
     events: &[Event],
     now: u64,
-    quiet_expiry: Option<u64>,
+    mute_expiry: Option<u64>,
     state: CalendarState,
 ) -> (Move, CalendarState) {
     // THE LONGEST WINDOW COVERING NOW, because overlapping meetings are one
@@ -76,7 +76,7 @@ pub fn decide(
         .max();
     let owned = state
         .armed_until
-        .is_some_and(|until| quiet_expiry == Some(until));
+        .is_some_and(|until| mute_expiry == Some(until));
     let overruled = state.armed_until.is_some() && !owned;
     let Some(end) = busy_until else {
         // NOTHING IS ON. The mute this feature armed goes with the meeting,
@@ -94,12 +94,12 @@ pub fn decide(
             },
         );
     }
-    if !owned && is_muted(quiet_expiry, Some(now)) {
+    if !owned && is_muted(mute_expiry, Some(now)) {
         // A MUTE SOMEBODY ELSE SET, left alone and NOT declined: when it runs
         // out mid-meeting the next poll arms the rest of the event.
         return (Move::Leave, CalendarState::default());
     }
-    if quiet_expiry == Some(end) {
+    if mute_expiry == Some(end) {
         return (
             Move::Leave,
             CalendarState {

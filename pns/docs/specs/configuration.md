@@ -889,7 +889,7 @@ Then the first yields `None` and the second yields `Lights::default()` in full
 - Failure sources: `lights = 3` is refused as a non-table; anything inside is judged by the arms below.
 - Fail direction: on the lamp paths, CLOSED and dark. `src/main.rs:lights_tick` returns 0 on anything
   that is not `Loaded`, with the stated reason "a file nobody could parse routed no lamp, and a map this
-  could not read must not be replaced with a guess about which lamps carry what." `pns lights quiet`
+  could not read must not be replaced with a guess about which lamps carry what." `pns lights mute`
   likewise treats an unreadable config as naming no place, so every mute is refused by name while the
   report still runs (`src/main.rs:lights_quiet`). On the delivery path a broken file still leaves the
   phone and the banner running.
@@ -1520,7 +1520,7 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 | event delivery, unknown plugin name in a file that PARSED | n/a                                                                  | whole roster, loud                                    | `` pns: config error (unknown plugin `{name}`); running every built-in plugin ``   |
 | `pns lights pulse`                                               | exit 0, silent                                                       | exit 0, loud, no pulse                                | `pns: config error ({detail}); no pulse`                                           |
 | lights tick                                               | return 0, nothing armed                                              | return 0, nothing armed                               | silent (a line per tick would be a log the rotation job rotates a real log out of) |
-| `pns lights quiet`                                        | no place is known, every mute refused by name, the report still runs | same                                                  | the mute's own refusal                                                             |
+| `pns lights mute`                                        | no place is known, every mute refused by name, the report still runs | same                                                  | the mute's own refusal                                                             |
 | daemon enable check                                       | enabled                                                              | enabled, loud                                         | `pns daemon: the config could not be read ({detail}); carrying on enabled`         |
 | `submit_deadline`                                         | 5 seconds                                                            | 5 seconds, loud                                       | `pns: config error ({detail}); the moshi submission keeps its {n}-second bound`    |
 | the doctor's home rows                                    | a setup row                                                          | a setup row                                           | `home: config error ({detail})`                                                    |

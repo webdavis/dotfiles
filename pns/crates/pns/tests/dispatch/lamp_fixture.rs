@@ -1,6 +1,6 @@
 use super::*;
 
-// --- the lights quiet window ------------------------------------------------
+// --- the lights mute window ------------------------------------------------
 
 /// The pulse's whole visible effect at this boundary is whether it dialled, so
 /// a bare loopback listener IS the bridge: nothing here speaks CLIP and
@@ -129,8 +129,8 @@ pub(super) fn lamp_run(
     // so the expiry lands inside it and no other test can see it.
     let armed = match mute {
         Mute::Nothing => None,
-        Mute::Everything => Some(run(sandbox.pns().args(["quiet", "1h"]))),
-        Mute::Lights(place) => Some(run(sandbox.pns().args(["lights", "quiet", place, "1h"]))),
+        Mute::Everything => Some(run(sandbox.pns().args(["mute", "1h"]))),
+        Mute::Lights(place) => Some(run(sandbox.pns().args(["lights", "mute", place, "1h"]))),
     };
     if let Some(armed) = armed {
         assert_eq!(
@@ -277,9 +277,9 @@ pub(super) enum Presence {
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Mute {
     Nothing,
-    /// `pns quiet 1h`: the whole engine, cards included.
+    /// `pns mute 1h`: the whole engine, cards included.
     Everything,
-    /// `pns lights quiet <place> 1h`: that place's lamps and nothing else.
+    /// `pns lights mute <place> 1h`: that place's lamps and nothing else.
     Lights(&'static str),
 }
 

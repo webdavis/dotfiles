@@ -146,7 +146,7 @@ mod ssh_signals;
 pub use ssh_commands::{SshFileInstaller, SshKeyscan, SshLaunchd, SshdCommand};
 pub use ssh_signals::{SshSignals, ssh_install_cancelled};
 mod ssh_user;
-pub use ssh_user::{current_uid, ssh_current_user};
+pub use ssh_user::{current_uid, current_user_name};
 
 #[cfg(test)]
 mod test_gateway;

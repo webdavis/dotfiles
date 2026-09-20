@@ -4,7 +4,7 @@ use super::{super::scalar::Scalar, families::Family};
 pub(super) fn error(family: Family, body: &str) -> Option<&'static str> {
     let valid = match family {
         Family::Return => body.trim().parse::<u64>().is_ok(),
-        Family::Scalar(Scalar::Quiet) => pns_domain::quiet::expiry_from_state(body).is_ok(),
+        Family::Scalar(Scalar::Quiet) => pns_domain::mute::expiry_from_state(body).is_ok(),
         Family::Scalar(Scalar::News) => crate::lights_codec::parse_news(body).is_some(),
         Family::Scalar(Scalar::Streak) => crate::lights_codec::parse_streak(body).is_some(),
         Family::Muted => crate::lights_codec::muted_entries(body).is_ok(),

@@ -43,6 +43,40 @@ fn lock_parent_and_lock_file_setup_errors_both_fail_closed() {
             .is_err()
     );
 }
+#[test]
+fn a_recorded_write_names_the_caller_the_time_the_verb_and_the_label() {
+    let sandbox = Sandbox::new("lock");
+    let root = sandbox.path();
+    let deployed = root.join("allowlist");
+    let guard = AllowlistWriteLock::new(&deployed).acquire().unwrap();
+    guard.record("allow", "my.alpha").unwrap();
+    guard.record("deny", "my.alpha").unwrap();
+    let audit = fs::read_to_string(root.join("allowlist.audit")).unwrap();
+    let lines: Vec<serde_json::Value> = audit
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["verb"], "allow");
+    assert_eq!(lines[1]["verb"], "deny");
+    for line in &lines {
+        assert_eq!(line["label"], "my.alpha");
+        assert_eq!(line["uid"], crate::current_uid());
+        assert_eq!(line["user"], serde_json::json!(crate::current_user_name()));
+        let time = line["time"].as_str().unwrap();
+        assert_eq!(time.len(), 20, "{time} is not an RFC 3339 UTC instant");
+        assert!(time.ends_with('Z'));
+    }
+}
+#[test]
+fn a_write_whose_record_cannot_be_appended_is_refused() {
+    let sandbox = Sandbox::new("lock");
+    let root = sandbox.path();
+    let deployed = root.join("allowlist");
+    let guard = AllowlistWriteLock::new(&deployed).acquire().unwrap();
+    fs::create_dir(root.join("allowlist.audit")).unwrap();
+    assert_eq!(guard.record("allow", "my.alpha"), Err(RecordRefusal));
+}
 struct Owned(Child);
 impl Drop for Owned {
     fn drop(&mut self) {

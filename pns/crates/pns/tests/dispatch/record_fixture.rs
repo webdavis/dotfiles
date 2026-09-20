@@ -114,7 +114,7 @@ pub(super) const RING_KEPT: usize = 5;
 /// THE ONLY WAY AN EVENT IS MISSED IN A TEST, and not a shortcut: the mute is
 /// the one thing that zeroes a plan the matrix would have decorated, which is
 /// what the journal exists to queue. Written rather than spawned through
-/// `pns quiet`, because the engine reads one absolute expiry and a test can
+/// `pns mute`, because the engine reads one absolute expiry and a test can
 /// state one without a second process.
 pub(super) fn mute(sandbox: &Sandbox) {
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
@@ -125,7 +125,7 @@ pub(super) fn mute(sandbox: &Sandbox) {
         + 600;
     if sandbox.path("state/pns.db").exists() {
         pns_adapters::SqliteStore::for_records(sandbox.path("state"))
-            .set_quiet_expiry(Some(expiry))
+            .set_mute_expiry(Some(expiry))
             .expect("the mute");
     } else {
         std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n"))

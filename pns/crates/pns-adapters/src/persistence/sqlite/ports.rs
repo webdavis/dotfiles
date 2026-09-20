@@ -27,7 +27,7 @@ impl LampMutes for SqliteStore {
             Err(error) => (
                 Vec::new(),
                 vec![format!(
-                    "pns: state error (lights-quiet could not be read: {error}); nothing is quiet"
+                    "pns: state error (lights-quiet could not be read: {error}); nothing is muted"
                 )],
             ),
         }
