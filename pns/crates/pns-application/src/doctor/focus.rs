@@ -5,7 +5,7 @@
 /// second time by the doctor. A second read is a second moment, and the doctor
 /// would then be reporting on a file the decision never saw.
 pub struct FocusReading {
-    /// Whether a mode `[focus] silence` named is asserted right now.
+    /// Whether a mode `[focus] modes` named is asserted right now.
     pub silenced: bool,
     /// Why the mode catalog could not be read, when it could not. `Some` means
     /// NO display name resolved, so only a raw `modeIdentifier` in the config
