@@ -77,22 +77,21 @@ impl<R: CommandRunner> WatchdogProcesses for SystemWatchdogProcesses<R> {
         let Some(pid) = pid.filter(|_| field(&self.output, "state") == Some("running")) else {
             return DaemonHealth::NotRunning;
         };
-        if self
-            .runner
-            .run(
-                Path::new("/bin/kill"),
-                &[OsStr::new("-0"), OsStr::new(&pid.to_string())],
-                CommandIo::Inspection {
-                    merge_stderr: false,
-                },
-            )
-            .is_ok()
-        {
+        if alive(pid as libc::pid_t) {
             DaemonHealth::Running
         } else {
             DaemonHealth::NotRunning
         }
     }
+}
+/// Signal 0 asks only whether the process exists. A refusal to signal it
+/// (EPERM) is an existing process owned by somebody else.
+fn alive(pid: libc::pid_t) -> bool {
+    // kill takes no pointers and delivers nothing with signal 0.
+    if unsafe { libc::kill(pid, 0) } == 0 {
+        return true;
+    }
+    std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 fn field<'a>(output: &'a str, name: &str) -> Option<&'a str> {
     output.lines().find_map(|line| {
