@@ -83,20 +83,35 @@ test_a_shell_that_exits_without_another_prompt_leaves_no_marker_of_its_own() {
 
 # PS0 captures before preexec, including the first command. End receives the
 # captured status/time verbatim, even when engine startup itself refuses.
+#
+# BASH COUNTS SECONDS IN WHOLE SECONDS, and assigning to it restarts that count
+# from the assignment, so each window below owns a full second before the next
+# tick. A loaded machine can spend it anyway, and the elapsed time would then
+# read one second longer than the case set up. The shell detects the tick it
+# crossed and exits 9; this runs the case again rather than reading the extra
+# second as the notifier's arithmetic.
 test_prompt_captures_status_time_and_history_before_the_engine() {
-  ENGINE_STATUS=19 bash --noprofile --norc -c '
-    source "$NOTIFIER"
-    trap - EXIT
-    fc() { printf "  cargo build --private arg\n"; }
-    SECONDS=10
-    eval "printf %s \"$PS0\"" >"$CALLS_FILE.ps0"
-    [[ $__cmd_notify_start == 10 ]] || exit 3
-    SECONDS=39
-    (exit 17)
-    __cmd_notify_precmd
-    [[ -z $__cmd_notify_start ]] || exit 4
-    printf "%s\n" "$$" >"$CALLS_FILE.pid"
-  ' >"$scratch/precmd.stdout" 2>"$scratch/precmd.stderr"
+  local attempt status=9
+  for ((attempt = 0; attempt < 20; attempt++)); do
+    status=0
+    ENGINE_STATUS=19 bash --noprofile --norc -c '
+      source "$NOTIFIER"
+      trap - EXIT
+      fc() { printf "  cargo build --private arg\n"; }
+      SECONDS=10
+      eval "printf %s \"$PS0\"" >"$CALLS_FILE.ps0"
+      [[ $__cmd_notify_start == 10 ]] || exit 9
+      SECONDS=39
+      (exit 17)
+      __cmd_notify_precmd
+      [[ $SECONDS == 39 ]] || exit 9
+      [[ -z $__cmd_notify_start ]] || exit 4
+      printf "%s\n" "$$" >"$CALLS_FILE.pid"
+    ' >"$scratch/precmd.stdout" 2>"$scratch/precmd.stderr" || status=$?
+    [[ $status == 9 ]] || break
+  done
+  [[ $status != 9 ]] || fail 'the prompt window crossed a SECONDS tick on all 20 attempts'
+  [[ $status == 0 ]] || fail "the prompt callback exited $status"
   [[ ! -s $scratch/precmd.stdout && ! -s $scratch/precmd.stderr && ! -s $CALLS_FILE.ps0 ]] || fail 'prompt callback leaked output'
   diff -u <(printf '%s\n' shell end --pid "$(cat "$CALLS_FILE.pid")" --command 'cargo build --private arg' --exit-code 17 --elapsed 29s) "$CALLS_FILE"
 }
