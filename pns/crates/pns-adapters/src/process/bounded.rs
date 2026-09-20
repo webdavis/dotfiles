@@ -14,7 +14,35 @@ pub struct SystemCommandRunner;
 
 /// One window for every probe. All of them answer in milliseconds, so this is
 /// generous and still far short of a hang.
-const PROBE_DEADLINE: Duration = Duration::from_secs(5);
+pub const PROBE_DEADLINE: Duration = Duration::from_secs(5);
+
+/// Run a NATIVE, in-process read under the same deadline a spawned probe gets.
+///
+/// The call runs on a thread of its own and the answer comes back through a
+/// channel, so a registry or process-table call that never returns is left
+/// behind rather than waited on: no answer is the unknown every probe caller
+/// already fails to, exactly as a blown deadline is for a spawn.
+///
+/// THE THREAD IS NOT KILLABLE, which is the one thing the forked cleanup child
+/// gives a spawned probe and this cannot. A wedged call therefore costs a
+/// leaked thread in a process that is about to exit, and costs the
+/// notification nothing, which is the trade that matters: the notification is
+/// worth less than the turn it reports on, and a leaked stack in a
+/// short-lived process is worth less than either.
+pub fn bounded_call<T: Send + 'static>(
+    deadline: Duration,
+    call: impl FnOnce() -> T + Send + 'static,
+) -> Option<T> {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    // A thread the OS refuses is no reading, the same direction as a spawn
+    // it refuses.
+    std::thread::Builder::new()
+        .spawn(move || {
+            let _ = sender.send(call());
+        })
+        .ok()?;
+    receiver.recv_timeout(deadline).ok()
+}
 
 /// One ceiling for every probe's OUTPUT. A registry dump, a process list and a
 /// herdr layout are kilobytes, so a mebibyte is generous by three orders of

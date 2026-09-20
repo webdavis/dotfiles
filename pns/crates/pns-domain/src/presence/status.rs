@@ -19,14 +19,12 @@
 /// The unit the idle counter is read in.
 const NANOSECONDS_PER_SEC: u64 = 1_000_000_000;
 
-/// Seconds since the last human input, read from a nanosecond counter, or
-/// `None` when that cannot be read.
+/// Seconds since the last human input, from a nanosecond counter.
 ///
-/// None is the unknown verdict, and the phone rule reads unknown as away: a
-/// garbled probe line must never coerce to 0, which reads as "actively typing"
-/// and silently drops the push.
-pub fn idle_secs_from_ns(idle_nanoseconds: &str) -> Option<u64> {
-    crate::count::parse_count(idle_nanoseconds).map(|nanoseconds| nanoseconds / NANOSECONDS_PER_SEC)
+/// TRUNCATED, never rounded: a counter a shade under a second is not yet a
+/// second of absence.
+pub fn idle_secs_from_ns(idle_nanoseconds: u64) -> u64 {
+    idle_nanoseconds / NANOSECONDS_PER_SEC
 }
 
 /// Where the operator is, as far as the bridge can say.
