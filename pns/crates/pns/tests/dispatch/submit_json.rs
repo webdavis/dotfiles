@@ -1,10 +1,10 @@
 use super::*;
-use pns_protocol::{Name, Request, RequestId, State, Status};
+use pns_protocol::{Name, RequestEnvelope, RequestId, State, Status};
 use std::io::Write;
 use std::process::{Output, Stdio};
 
-fn request() -> Request {
-    let mut request = Request::new(
+fn request() -> RequestEnvelope {
+    let mut request = RequestEnvelope::new(
         RequestId::new("source-123").unwrap(),
         Name::new("posture").unwrap(),
         State::Observation,

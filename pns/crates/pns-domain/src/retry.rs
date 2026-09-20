@@ -26,7 +26,7 @@ impl Default for RetryLimits {
 /// crates carry their own outcome types; they map onto this so the rule below
 /// stays in a crate with no dependencies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeliveryOutcome {
+pub enum TransportOutcome {
     Status(u16),
     /// The request went out and nothing answered.
     NoResponse,
@@ -49,11 +49,11 @@ impl FailureClass {
     }
 }
 
-impl DeliveryOutcome {
+impl TransportOutcome {
     /// Whether this outcome is a delivery at all. 2xx and nothing else: a
     /// redirect was never followed, so it delivered nothing.
     pub fn delivered(self) -> bool {
-        matches!(self, DeliveryOutcome::Status(status) if (200..300).contains(&status))
+        matches!(self, TransportOutcome::Status(status) if (200..300).contains(&status))
     }
 
     /// The class of this outcome READ AS A FAILURE, whether or not it is one.
@@ -69,10 +69,10 @@ impl DeliveryOutcome {
     pub fn class(self) -> FailureClass {
         let status = match self {
             // Nothing answered, so the destination may simply be down.
-            DeliveryOutcome::NoResponse => return FailureClass::Temporary,
+            TransportOutcome::NoResponse => return FailureClass::Temporary,
             // Never reached the wire.
-            DeliveryOutcome::NoStatus => return FailureClass::Permanent,
-            DeliveryOutcome::Status(status) => status,
+            TransportOutcome::NoStatus => return FailureClass::Permanent,
+            TransportOutcome::Status(status) => status,
         };
         match status {
             408 | 429 => FailureClass::Temporary,
@@ -113,7 +113,7 @@ impl RetryLimits {
     /// it was permanently refused records what actually stopped it.
     pub fn verdict(
         self,
-        outcome: DeliveryOutcome,
+        outcome: TransportOutcome,
         retries: u64,
         created: u64,
         now: u64,

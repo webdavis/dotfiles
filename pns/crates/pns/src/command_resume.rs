@@ -245,8 +245,8 @@ fn notify(page: &ResumePage) -> i32 {
 ///
 /// NO BRANCH, PROJECT OR PANE. The page already names all three in its own
 /// body, and a branch on the envelope prefixes the recorded message with it.
-fn request_for(body: &str) -> Option<pns_protocol::Request> {
-    let mut request = pns_protocol::Request::new(
+fn request_for(body: &str) -> Option<pns_protocol::RequestEnvelope> {
+    let mut request = pns_protocol::RequestEnvelope::new(
         pns_protocol::RequestId::new(format!("resume-{}", crate::now_secs().unwrap_or_default()))
             .ok()?,
         pns_protocol::Name::new(PRODUCER).ok()?,

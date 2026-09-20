@@ -257,9 +257,9 @@ fn address(
 /// the registered name: the name is what teaches, and a listing is what scans.
 fn short_status(failure: &StoredFailure) -> String {
     match failure.outcome {
-        pns_domain::retry::DeliveryOutcome::Status(code) => format!("HTTP {code}"),
-        pns_domain::retry::DeliveryOutcome::NoResponse => "no response".to_string(),
-        pns_domain::retry::DeliveryOutcome::NoStatus => "bad URL".to_string(),
+        pns_domain::retry::TransportOutcome::Status(code) => format!("HTTP {code}"),
+        pns_domain::retry::TransportOutcome::NoResponse => "no response".to_string(),
+        pns_domain::retry::TransportOutcome::NoStatus => "bad URL".to_string(),
     }
 }
 

@@ -11,7 +11,7 @@
 //! failure names the STATUS and the config key, never the credential.
 //!
 //! CLASSIFICATION IS NOT THIS MODULE'S. A status is handed up as
-//! `Delivery::Rejected` and `DeliveryOutcome::class` decides whether it can be
+//! `Delivery::Rejected` and `TransportOutcome::class` decides whether it can be
 //! retried, which is what puts 429 and every 5xx on the ledger's backoff and
 //! dead-letters 401, 403 and 404 on the FIRST attempt. There is deliberately
 //! no `Retry-After` scheduler: a second schedule can disagree with the
@@ -21,7 +21,7 @@ use super::{Delivery, Event};
 use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
 use pns_domain::channel_map::{ChannelMap, channel_for};
 use pns_domain::registry::Routing;
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 
 mod request;
 mod threads;
@@ -175,15 +175,15 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
             return Delivery::Delivered(line);
         }
         match outcome {
-            // The channel REPORTS the status; `DeliveryOutcome::class` decides
+            // The channel REPORTS the status; `TransportOutcome::class` decides
             // whether trying again could ever help, once, where the outcome is
             // recorded, so a second destination cannot disagree with this one
             // about a 404.
-            DeliveryOutcome::Status(status) => Delivery::Rejected {
+            TransportOutcome::Status(status) => Delivery::Rejected {
                 status,
                 detail: line,
             },
-            DeliveryOutcome::NoStatus | DeliveryOutcome::NoResponse => Delivery::Failed(line),
+            TransportOutcome::NoStatus | TransportOutcome::NoResponse => Delivery::Failed(line),
         }
     }
 }
@@ -241,16 +241,16 @@ impl<P: DiscordPost> DiscordChannel<P> {
 
 /// What one attempt had to say, the STATUS and nothing else: the request
 /// carried the token, so nothing about the request is ever printed.
-fn outcome_line(outcome: DeliveryOutcome) -> String {
+fn outcome_line(outcome: TransportOutcome) -> String {
     match outcome {
-        DeliveryOutcome::Status(status) if outcome.delivered() => {
+        TransportOutcome::Status(status) if outcome.delivered() => {
             format!("posted to discord HTTP {status}")
         }
-        DeliveryOutcome::Status(status) => format!("discord post FAILED HTTP {status}"),
-        DeliveryOutcome::NoResponse => {
+        TransportOutcome::Status(status) => format!("discord post FAILED HTTP {status}"),
+        TransportOutcome::NoResponse => {
             "discord post FAILED (no response from discord.com)".to_string()
         }
-        DeliveryOutcome::NoStatus => {
+        TransportOutcome::NoStatus => {
             "discord post FAILED (the request was never sendable)".to_string()
         }
     }
