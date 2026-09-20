@@ -9,6 +9,7 @@ use std::{
     path::PathBuf,
     process::{Command, ExitCode, ExitStatus},
     sync::Arc,
+    time::Duration,
 };
 
 fn main() -> ExitCode {
@@ -33,7 +34,7 @@ fn main() -> ExitCode {
     let args = std::env::args().skip(1).collect::<Vec<_>>();
     let notifications = RefCell::new(Vec::new());
     let home = PathBuf::from(std::env::var_os("HOME").unwrap());
-    let notifier = PnsNotifier::with_runner(&home, |command: &mut Command| {
+    let notifier = PnsNotifier::with_runner(&home, |command: &mut Command, _: Duration| {
         let argv = std::iter::once(command.get_program())
             .chain(command.get_args())
             .map(|arg| arg.to_string_lossy().into_owned())

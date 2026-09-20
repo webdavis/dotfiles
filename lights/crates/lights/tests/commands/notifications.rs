@@ -7,13 +7,14 @@ use std::{
     os::unix::process::ExitStatusExt,
     process::{Command, ExitStatus},
     sync::Arc,
+    time::Duration,
 };
 
 fn notify(
     args: &[&str],
     settings: &str,
     replies: Vec<(u16, serde_json::Value)>,
-    runner: impl Fn(&mut Command) -> io::Result<ExitStatus>,
+    runner: impl Fn(&mut Command, Duration) -> io::Result<ExitStatus>,
 ) -> (lights::Response, usize) {
     let home = home();
     let root = home.path();
@@ -25,14 +26,14 @@ fn notify(
     let connector = ScriptedConnector::new(replies);
     let writes = Arc::clone(&connector.requests);
     let calls = Cell::new(0);
-    let notifier = PnsNotifier::with_runner(root, |command: &mut Command| {
+    let notifier = PnsNotifier::with_runner(root, |command: &mut Command, duration| {
         assert_eq!(
             writes.lock().unwrap().len(),
             requests,
             "every write must precede notification"
         );
         calls.set(calls.get() + 1);
-        runner(command)
+        runner(command, duration)
     });
     let response = lights::run(
         &args.iter().map(|s| (*s).into()).collect::<Vec<_>>(),
@@ -51,7 +52,7 @@ fn with_writes(count: usize) -> Vec<(u16, serde_json::Value)> {
     replies.extend((0..count).map(|_| (200, json!({"errors":[],"data":[]}))));
     replies
 }
-fn ok(_: &mut Command) -> io::Result<ExitStatus> {
+fn ok(_: &mut Command, _: Duration) -> io::Result<ExitStatus> {
     Ok(ExitStatus::from_raw(0))
 }
 fn original(response: &lights::Response) {
@@ -156,14 +157,14 @@ fn missing_pns_does_not_fail_action() {
 #[test]
 fn notification_status_never_changes_success() {
     for raw in [0, 125 << 8, 126 << 8, 127 << 8, 137 << 8, 42 << 8, 9] {
-        let (response, calls) = notify(&["toggle", "--notify"], config(), replies(), |_| {
+        let (response, calls) = notify(&["toggle", "--notify"], config(), replies(), |_, _| {
             Ok(ExitStatus::from_raw(raw))
         });
         original(&response);
         assert_eq!(calls, 1);
     }
     for kind in [io::ErrorKind::NotFound, io::ErrorKind::Other] {
-        let (response, calls) = notify(&["toggle", "--notify"], config(), replies(), |_| {
+        let (response, calls) = notify(&["toggle", "--notify"], config(), replies(), |_, _| {
             Err(io::Error::from(kind))
         });
         original(&response);
