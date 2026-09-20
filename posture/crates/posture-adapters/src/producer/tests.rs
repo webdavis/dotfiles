@@ -77,7 +77,9 @@ fn subject(status: Status, committed: bool) -> ProducerCommand<Runner, Alarm> {
         destinations: vec![DestinationOutcome {
             name: Name::new("hermes").unwrap(),
             outcome: DeliveryOutcome::Failed,
+            route: None,
             note: None,
+            retry_at: None,
         }],
         diagnostics: if committed {
             vec!["ledger_committed".into()]

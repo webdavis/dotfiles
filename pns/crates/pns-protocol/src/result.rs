@@ -43,19 +43,30 @@ pub enum Status {
 pub enum DeliveryOutcome {
     Delivered,
     Failed,
+    /// The channel ran and had nothing to say, which is its ordinary success.
     Silent,
     Unlaunched,
+    /// The engine never learned how the attempt ended and is still retrying it.
+    Unknown,
 }
 
-/// One destination's verdict, with the sentence it offered when it offered
-/// one. The note is the destination's own words about itself, never the
-/// event's text.
+/// One destination's verdict: the route it was submitted on, the sentence it
+/// offered when it offered one, and when the engine will try it again. The
+/// note is the destination's own words about itself, never the event's text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DestinationOutcome {
     pub name: Name,
     pub outcome: DeliveryOutcome,
+    /// The named route this leg was submitted on, absent on a leg submitted
+    /// to the destination's own default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub route: Option<Name>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Unix seconds at which the ledger will retry this leg, absent when it
+    /// will not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_at: Option<u64>,
 }
 
 /// One version 1 result.

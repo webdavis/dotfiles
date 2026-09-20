@@ -1,30 +1,39 @@
 use super::*;
-use pns_application::LedgerLeg;
-use pns_domain::routing::ReportMode;
+use pns_application::{
+    LedgerLeg, LedgerSubmission, LegAttempt, SubmissionIdentity, SubmissionRecord,
+};
+use pns_domain::{Event, routing::ReportMode};
 
 #[test]
 fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
+    // Each reply pairs its verdict with the note the receipt must carry: the
+    // destination's own sentence about a leg it did not deliver, and nothing
+    // for a leg that arrived.
     let replies = [
         (
             Delivery::Rejected {
                 status: 401,
-                detail: "private detail".into(),
+                detail: "the gateway said 401".into(),
             },
             DeliveryOutcome::Failed,
+            Some("the gateway said 401"),
         ),
         (
-            Delivery::Delivered("private detail".into()),
+            Delivery::Delivered("posted".into()),
             DeliveryOutcome::Delivered,
+            None,
         ),
         (
-            Delivery::Failed("private detail".into()),
+            Delivery::Failed("the gateway refused".into()),
             DeliveryOutcome::Failed,
+            Some("the gateway refused"),
         ),
         (
-            Delivery::Unlaunched("private detail".into()),
+            Delivery::Unlaunched("no such channel".into()),
             DeliveryOutcome::Unlaunched,
+            Some("no such channel"),
         ),
-        (Delivery::Silent, DeliveryOutcome::Silent),
+        (Delivery::Silent, DeliveryOutcome::Silent, None),
     ];
     for sequence in [None, Some(7)] {
         let output = result(Ok(Submitted::Attempted {
@@ -32,7 +41,7 @@ fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
             outcomes: replies
                 .iter()
                 .enumerate()
-                .map(|(index, (reply, _))| {
+                .map(|(index, (reply, ..))| {
                     (
                         LedgerLeg {
                             destination: format!("channel{index}"),
@@ -56,11 +65,26 @@ fn json_receipts_report_every_verdict_and_only_committed_work_is_accepted() {
                 .collect::<Vec<_>>(),
             replies
                 .iter()
-                .map(|(_, outcome)| *outcome)
+                .map(|(_, outcome, _)| *outcome)
                 .collect::<Vec<_>>()
         );
+        // THE DESTINATION'S OWN SENTENCE RIDES BACK, on the route the leg was
+        // submitted on.
+        assert_eq!(
+            output
+                .destinations
+                .iter()
+                .map(|entry| entry.note.as_deref())
+                .collect::<Vec<_>>(),
+            replies.iter().map(|(_, _, note)| *note).collect::<Vec<_>>()
+        );
+        assert!(
+            output
+                .destinations
+                .iter()
+                .all(|entry| entry.route.as_ref().map(Name::as_str) == Some("priority"))
+        );
         assert_eq!(output.ledger_sequence, sequence.map(|id| id.to_string()));
-        assert!(!output.encode().unwrap().contains("private detail"));
         assert_eq!(
             output
                 .diagnostics
@@ -133,5 +157,84 @@ fn leg(destination: &str) -> LedgerLeg {
         route: "priority".into(),
         mode: ReportMode::ReportOutcome,
         decorative: false,
+    }
+}
+
+/// A REPLAYED submission reports what the ledger stored: the destination's
+/// own sentence, the route the leg was submitted on, and the moment the next
+/// attempt is due. A leg whose answer the ledger never learned reads
+/// `unknown` rather than borrowing the quiet-success word.
+#[test]
+fn a_replayed_leg_carries_its_note_its_route_and_the_time_it_is_retried() {
+    let completions = [
+        (
+            LedgerCompletion::Retry {
+                outcome: UnconfirmedDelivery::Failed,
+                detail: "the gateway refused".into(),
+                retry_at: 1_758_153_600,
+            },
+            DeliveryOutcome::Failed,
+            Some(1_758_153_600),
+        ),
+        (
+            LedgerCompletion::Retry {
+                outcome: UnconfirmedDelivery::Unknown,
+                detail: "the gateway refused".into(),
+                retry_at: 1_758_153_600,
+            },
+            DeliveryOutcome::Unknown,
+            Some(1_758_153_600),
+        ),
+        (
+            LedgerCompletion::Rejected {
+                status: 401,
+                detail: "the gateway refused".into(),
+            },
+            DeliveryOutcome::Failed,
+            None,
+        ),
+    ];
+    for (completion, outcome, retry_at) in completions {
+        let output = result(Ok(Submitted::Existing(Box::new(record(completion)))));
+        let entry = &output.destinations[0];
+        assert_eq!(entry.outcome, outcome);
+        assert_eq!(entry.note.as_deref(), Some("the gateway refused"));
+        assert_eq!(entry.route.as_ref().map(Name::as_str), Some("priority"));
+        assert_eq!(entry.retry_at, retry_at);
+    }
+}
+
+/// THE EVENT'S OWN TEXT NEVER COMES BACK, whatever else the receipt carries:
+/// `note` is the destination's sentence, and a producer that wants its own
+/// detail back already has it.
+#[test]
+fn the_events_own_text_never_appears_anywhere_in_the_receipt() {
+    let mut stored = record(LedgerCompletion::Acknowledged {
+        detail: "accepted".into(),
+    });
+    stored.submission.event.detail = "private detail".into();
+    stored.submission.event.message = "private detail".into();
+    let output = result(Ok(Submitted::Existing(Box::new(stored))));
+    assert!(!output.encode().unwrap().contains("private detail"));
+}
+
+fn record(completion: LedgerCompletion) -> SubmissionRecord {
+    SubmissionRecord {
+        sequence: 7,
+        submission: LedgerSubmission {
+            identity: SubmissionIdentity {
+                producer: "nvim".into(),
+                request_id: "r-1".into(),
+            },
+            producer_request: None,
+            event: Event::default(),
+            legs: vec![leg("hermes")],
+        },
+        attempts: vec![LegAttempt {
+            destination: "hermes".into(),
+            generation: 1,
+            at: 1_758_153_000,
+            completion,
+        }],
     }
 }

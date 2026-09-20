@@ -22,12 +22,16 @@ fn golden_result() -> ResultEnvelope {
             DestinationOutcome {
                 name: name("banner"),
                 outcome: DeliveryOutcome::Delivered,
+                route: None,
                 note: None,
+                retry_at: None,
             },
             DestinationOutcome {
                 name: name("hermes"),
                 outcome: DeliveryOutcome::Failed,
+                route: Some(name("priority")),
                 note: Some("post FAILED HTTP 401".to_string()),
+                retry_at: Some(1_758_153_600),
             },
         ],
         diagnostics: vec!["ignored_field:detial".to_string()],
@@ -112,6 +116,7 @@ fn every_status_and_outcome_word_is_pinned_as_a_bare_string() {
         (DeliveryOutcome::Failed, "failed"),
         (DeliveryOutcome::Silent, "silent"),
         (DeliveryOutcome::Unlaunched, "unlaunched"),
+        (DeliveryOutcome::Unknown, "unknown"),
     ] {
         result.destinations[0].outcome = outcome;
         let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
@@ -134,13 +139,17 @@ fn the_ledger_row_and_each_destination_name_are_the_only_identifying_fields() {
 }
 
 #[test]
-fn an_absent_note_is_omitted_from_the_wire_rather_than_written_as_null() {
+fn an_absent_note_route_or_retry_time_is_omitted_rather_than_written_as_null() {
     let wire: Value = serde_json::from_str(&golden_result().encode().unwrap()).unwrap();
-    assert_eq!(wire["destinations"][0].get("note"), None);
+    for field in ["note", "route", "retry_at"] {
+        assert_eq!(wire["destinations"][0].get(field), None, "{field}");
+    }
     assert_eq!(
         wire["destinations"][1]["note"],
         json!("post FAILED HTTP 401")
     );
+    assert_eq!(wire["destinations"][1]["route"], json!("priority"));
+    assert_eq!(wire["destinations"][1]["retry_at"], json!(1_758_153_600u64));
 }
 
 #[test]

@@ -17,7 +17,9 @@ fn receipt(status: Status) -> ResultEnvelope {
         destinations: vec![DestinationOutcome {
             name: Name::new("hermes").unwrap(),
             outcome: DeliveryOutcome::Failed,
+            route: Some(Name::new("priority").unwrap()),
             note: Some("transport unavailable".into()),
+            retry_at: Some(1_758_153_600),
         }],
         diagnostics: vec!["ledger_committed".into()],
     }

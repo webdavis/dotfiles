@@ -272,8 +272,10 @@ Given a version 1 result, when decoded, then status is required; absent request_
 are None, and absent destination and diagnostic arrays are empty. `ledger_sequence` is the stringified
 ledger row this request committed as, and each destination names itself in `name`. The envelope carries
 no `interaction` field. Valid results round-trip through the curated public exports and the
-package-owned `result-v1.json` fixture. A missing destination note is omitted when encoded; a supplied
-note is preserved.
+package-owned `result-v1.json` fixture. Each destination also carries the `route` it was submitted on,
+the `note` its destination offered about a leg it did not deliver, and the `retry_at` unix second the
+ledger will try it again. A missing note, route or retry time is omitted when encoded; a supplied one is
+preserved. The note is the destination's own sentence; the event's own text never comes back.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L68),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L59),
@@ -284,7 +286,8 @@ Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/resu
 ## protocol-v1/S018: Result words
 
 Given a result, when encoded or decoded, then status is delivered, partial, undelivered or rejected, and
-destination outcome is delivered, failed, silent or unlaunched. Each is one bare word on the wire, never
+destination outcome is delivered, failed, silent, unlaunched or unknown. `silent` is a channel that ran
+and said nothing, `unknown` a leg whose answer the ledger never learned. Each is one bare word on the wire, never
 a one-key wrapper object, so a wrapped word is field_invalid the same way an unknown word is.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L27),
@@ -402,8 +405,9 @@ an output error; it does not fabricate acceptance or silently discard destinatio
 
 The status reports DELIVERY: `delivered` when every durable destination took the page, `partial` when
 some did, `undelivered` when none did, and `rejected` for input the engine will not honour. A silent
-destination is one that ran and had nothing to say, which counts as an arrival; a decorative destination
-(the banner, the phone card) does not decide the status, and its verdict is still listed.
+destination is one that ran and had nothing to say, which counts as an arrival, as does an `unknown`
+destination, whose attempt the ledger is still retrying; a decorative destination (the banner, the phone
+card) does not decide the status, and its verdict is still listed.
 
 The ledger is a fact of its own beside the status. `ledger_committed` in diagnostics means the ledger
 committed the request before dispatch and owns its delivery; a retained identical request qualifies

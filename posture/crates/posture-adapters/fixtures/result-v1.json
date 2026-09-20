@@ -5,7 +5,13 @@
   "ledger_sequence": "123",
   "destinations": [
     { "name": "macos-banner", "outcome": "delivered" },
-    { "name": "hermes", "outcome": "failed", "note": "post FAILED HTTP 401" }
+    {
+      "name": "hermes",
+      "outcome": "failed",
+      "route": "priority",
+      "note": "post FAILED HTTP 401",
+      "retry_at": 1758153600
+    }
   ],
   "diagnostics": ["ignored_field:detial"]
 }
