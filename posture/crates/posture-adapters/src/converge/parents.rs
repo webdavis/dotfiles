@@ -1,45 +1,32 @@
-use crate::{CommandIo, CommandRunner};
+use crate::ProcessLookup;
 use posture_application::{InspectionFailure, ProcessTable};
 use posture_domain::ParentPid;
 
-pub struct OsqueryParents<R>(pub(super) R);
-impl<R: CommandRunner> OsqueryParents<R> {
-    pub fn new(runner: R) -> Self {
-        Self(runner)
+/// The daemon's own parent, read out of the process table.
+pub struct OsqueryParents<P>(pub(super) P);
+impl<P: ProcessLookup> OsqueryParents<P> {
+    pub fn new(processes: P) -> Self {
+        Self(processes)
     }
 }
-impl<R: CommandRunner> ProcessTable for OsqueryParents<R> {
+impl<P: ProcessLookup> ProcessTable for OsqueryParents<P> {
     fn daemon_parent(&mut self) -> Result<Option<ParentPid>, InspectionFailure> {
-        let output = self.0.run_completed(
-            std::path::Path::new("/usr/bin/pgrep"),
-            &[
-                "-P".as_ref(),
-                "1".as_ref(),
-                "-x".as_ref(),
-                "osqueryd".as_ref(),
-            ],
-            CommandIo::Inspection {
-                merge_stderr: false,
-            },
-        )?;
-        match output.exit {
-            1 => Ok(None),
-            0 => {
-                let first = output
-                    .bytes
-                    .split(|byte| *byte == b'\n')
-                    .next()
-                    .unwrap_or_default();
-                std::str::from_utf8(first)
-                    .ok()
-                    .and_then(ParentPid::parse)
-                    .map(Some)
-                    .ok_or(InspectionFailure::Failed)
-            }
-            _ => Err(InspectionFailure::Failed),
-        }
+        let pids = self.0.matching(DAEMON, None, Some(LAUNCHD))?;
+        // THE LOWEST MATCHING ID, so a machine that somehow holds two
+        // launchd-parented daemons is judged on one of them rather than on
+        // whichever the kernel happened to list first.
+        let Some(pid) = pids.first() else {
+            return Ok(None);
+        };
+        ParentPid::parse(&pid.to_string())
+            .map(Some)
+            .ok_or(InspectionFailure::Failed)
     }
 }
+
+const DAEMON: &str = "osqueryd";
+/// `launchd`, the parent a supervised daemon must have.
+const LAUNCHD: u32 = 1;
 
 #[cfg(test)]
 mod tests;

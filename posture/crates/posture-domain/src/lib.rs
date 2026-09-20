@@ -115,8 +115,8 @@ mod poll;
 pub use poll::{
     BaselineUpdate, ControlObservation, ControlPrior, ControlReading, ControlsRead, LuluProfile,
     PollBaseline, PollPage, PollPlan, StoredControl, Trio, TrioReading, classify_autologin,
-    classify_filevault, classify_lulu_profile, classify_messages, classify_pgrep, plan_poll,
-    poll_persistence_gap, trusted_poll_baseline,
+    classify_filevault, classify_lulu_profile, classify_messages, plan_poll, poll_persistence_gap,
+    trusted_poll_baseline,
 };
 
 mod triage;

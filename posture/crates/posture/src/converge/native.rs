@@ -1,7 +1,7 @@
 use super::{Configuration, Failure, reporting};
 use posture_adapters::{
-    ConvergeInstaller, DesiredStaging, InstalledTree, OsqueryParents, OsqueryRestart, RestartTimer,
-    SystemRunner, resolve_osqueryctl, resolve_osqueryi,
+    ConvergeInstaller, DesiredStaging, InstalledTree, LibprocProcesses, OsqueryParents,
+    OsqueryRestart, RestartTimer, SystemRunner, resolve_osqueryctl, resolve_osqueryi,
 };
 use posture_application::{converge, restart_daemon};
 use std::{io::Write, time::Duration};
@@ -30,7 +30,7 @@ pub(super) fn run(config: &Configuration, stdout: &mut impl Write) -> Result<(),
         osqueryi,
         config.target.clone(),
     );
-    let mut processes = OsqueryParents::new(SystemRunner::per_command(COMMAND_BUDGET));
+    let mut processes = OsqueryParents::new(LibprocProcesses::default());
     let mut clock = RestartTimer::default();
     converge(
         &staging,
