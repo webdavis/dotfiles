@@ -111,3 +111,4 @@ fn a_real_request_gets_a_real_response() {
     );
     assert!(answered.contains("<pre>"), "{answered}");
 }
+

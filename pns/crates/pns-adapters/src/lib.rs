@@ -161,6 +161,9 @@ pub use protocols::spool::FileJobSpool;
 mod daemon_children;
 pub use daemon_children::DaemonChildren;
 
+mod daemon_shutdown;
+pub use daemon_shutdown::{catch_termination, stopping};
+
 pub use persistence::FileLampTick;
 
 pub use herdr::HerdrWork;

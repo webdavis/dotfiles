@@ -34,6 +34,7 @@ const REBIND_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
 /// time, and a thread per connection would be machinery guarding against a load
 /// this cannot have.
 pub(crate) fn serve(port: u16) {
+    parent_watch::exit_when_orphaned();
     serve_on(bind(port));
 }
 
@@ -181,6 +182,8 @@ fn ok(body: &str) -> String {
 fn not_found() -> String {
     response("404 Not Found", page("pns: this page serves / and /<id>\n"))
 }
+
+mod parent_watch;
 
 #[cfg(test)]
 #[path = "failures_page/tests.rs"]
