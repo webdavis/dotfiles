@@ -99,9 +99,9 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "lights",
         &[
             "blocked",
+            "checks",
             "dim",
             "done",
-            "checks",
             "failed",
             "lamp",
             "loop",
