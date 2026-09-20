@@ -103,8 +103,8 @@ impl ResultEnvelope {
     }
 
     /// The result as one JSON object, schema first, diagnostics and ignored
-    /// field names each bounded at the item cap. Other bound violations return a refusal; destination
-    /// outcomes are never silently discarded.
+    /// field names each bounded at the item cap. Other bound violations return
+    /// a refusal; destination outcomes are never silently discarded.
     pub fn encode(&self) -> Result<String, Rejected> {
         let mut bounded = self.clone();
         bounded.diagnostics.truncate(MAX_ITEMS);
