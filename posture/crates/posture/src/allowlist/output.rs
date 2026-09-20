@@ -49,6 +49,10 @@ pub(super) fn failure(
             "refused: the allowlist source holds a line that is not a single JSON tuple; repair {} by hand before curating it",
             source.display()
         ),
+        CurationFailure::Record => writeln!(
+            output,
+            "refused: could not append the write to the allowlist audit record ({target}.audit); nothing was published"
+        ),
         CurationFailure::Publication(error) => publication(error, deployed, output),
     }
 }
