@@ -111,3 +111,53 @@ fn a_real_request_gets_a_real_response() {
     );
     assert!(answered.contains("<pre>"), "{answered}");
 }
+
+/// A CLIENT THAT NEVER SENDS A LINE MUST NOT WEDGE THE LOOP. The server is
+/// single threaded, so without a read timeout the first, idle connection would
+/// block `answer` forever and every request behind it would hang too.
+#[test]
+fn a_stalled_connection_does_not_block_the_next_request() {
+    use std::io::Read;
+    let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let port = listener.local_addr().expect("its address").port();
+    std::thread::spawn(move || serve_on_within(listener, std::time::Duration::from_millis(50)));
+
+    // CONNECTS FIRST AND SENDS NOTHING, so it is the connection the loop is
+    // stuck answering when the second one arrives.
+    let stalled = std::net::TcpStream::connect(("127.0.0.1", port)).expect("a connection");
+
+    let mut second =
+        std::net::TcpStream::connect(("127.0.0.1", port)).expect("a second connection");
+    second
+        .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+        .expect("the request");
+    let mut answered = String::new();
+    second.read_to_string(&mut answered).expect("the response");
+
+    assert!(
+        answered.starts_with("HTTP/1.1 200 OK\r\n"),
+        "the second request was never answered: {answered:?}"
+    );
+    drop(stalled);
+}
+
+/// THE LINE IS RATE LIMITED. A copy per retry wrote sixteen thousand of one
+/// sentence into the daemon's log; the repeat that survives is what keeps a
+/// standing refusal readable after a rotation.
+#[test]
+fn a_standing_bind_refusal_is_said_once_and_then_every_ten_minutes() {
+    let first = std::time::Instant::now();
+    assert!(say_now(None, first), "the first refusal is always said");
+    assert!(
+        !say_now(Some(first), first + REBIND_AFTER),
+        "the next retry repeats it"
+    );
+    assert!(
+        !say_now(Some(first), first + RESAY_AFTER - REBIND_AFTER),
+        "a retry inside the window repeats it"
+    );
+    assert!(
+        say_now(Some(first), first + RESAY_AFTER),
+        "a refusal still standing ten minutes on is said again"
+    );
+}
