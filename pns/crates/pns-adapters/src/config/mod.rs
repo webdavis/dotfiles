@@ -120,7 +120,7 @@ use presence_values::{
 mod router;
 pub use router::{
     RouterSettings, SetupFailure, device_identity, enabled_router_table, router_api_key,
-    router_settings, stale_alert_channel,
+    router_settings, stale_alert_route,
 };
 
 mod banner;

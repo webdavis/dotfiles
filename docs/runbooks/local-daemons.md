@@ -302,7 +302,7 @@ own token and channel map sit in the same table ready, so the cutover is that on
 
 | Entry                                          | What reads it                                                       |
 | ---------------------------------------------- | ------------------------------------------------------------------- |
-| `Discord (Uriel) :: Bot Token (pns)`           | `[plugins.log] token`, in the `Authorization` header                |
+| `Discord (Uriel) :: Bot Token (pns)`           | `[plugins.log] bot_token`, in the `Authorization` header            |
 | `Discord (Uriel) :: Application/User ID (pns)` | guild-scoped command registration, when slash commands are built    |
 | `Discord (Uriel) :: Public Key (pns)`          | Ed25519 verification of interactions, when slash commands are built |
 
@@ -344,7 +344,7 @@ private guild's layout. Then apply with KeePassXC unlocked. Nothing restarts.
 ### What a failure says
 
 Every line names the status and the config key to fix, never the token and never a channel id. A missing
-or empty token posts nothing and says `[plugins.log] token`; a map that answered nothing says
+or empty token posts nothing and says `[plugins.log] bot_token`; a map that answered nothing says
 `[plugins.log.channels] default`, because every lookup ends at the catch-all. A 401, a 403 or a 404
 dead-letters on its first attempt and shows up in `pns failures`; a 429 or any 5xx is retried on the
 ledger's own linear backoff, and the `Retry-After` header is logged rather than obeyed so a second

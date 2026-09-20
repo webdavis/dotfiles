@@ -5,7 +5,7 @@ use super::*;
 /// `parse_presence`'S SHAPE AND FOR ITS REASONS: `Ok(None)` is the inert table
 /// (absent, or present with the switch off), which is the reading every other
 /// sensor's own table gives, and `Err` carries the reason so a report cannot
-/// name `token` for a fault that was the interval.
+/// name `personal_access_token` for a fault that was the interval.
 ///
 /// THE TOKEN IS REQUIRED, refused by name rather than defaulted to empty,
 /// because the notifications API answers 401 to an empty bearer and the poll
@@ -15,17 +15,19 @@ pub fn parse_github(config: &Config) -> Result<Option<GithubSource>, ConfigError
         return Ok(None);
     };
     let settings = &entry.settings;
-    let Some(token) = settings.get("token") else {
+    let Some(token) = settings.get("personal_access_token") else {
         return Err(ConfigError::Invalid(format!(
-            "no `token` in [plugins.{GITHUB}]; it is the classic personal access token \
-             with the `notifications` scope, which is the only token these endpoints take"
+            "no `personal_access_token` in [plugins.{GITHUB}]; it is the classic personal \
+             access token with the `notifications` scope, which is the only token these \
+             endpoints take"
         )));
     };
-    let token = text(GITHUB, "token", token)?;
+    let token = text(GITHUB, "personal_access_token", token)?;
     if token.is_empty() {
         return Err(ConfigError::Invalid(format!(
-            "`{GITHUB}` key `token` is empty; the notifications API answers 401 to that, \
-             so the poll would report a configuration problem this file could name itself"
+            "`{GITHUB}` key `personal_access_token` is empty; the notifications API answers \
+             401 to that, so the poll would report a configuration problem this file could \
+             name itself"
         )));
     }
     let poll_secs = match settings.get("poll_secs") {

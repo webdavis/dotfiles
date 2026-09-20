@@ -18,11 +18,11 @@ Config {
         "github": PluginEntry {
             enabled: true,
             settings: {
+                "personal_access_token": String(
+                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
+                ),
                 "poll_secs": Integer(
                     60,
-                ),
-                "token": String(
-                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
                 ),
                 "webhook_port": Integer(
                     8648,
@@ -32,6 +32,9 @@ Config {
         "hermes": PluginEntry {
             enabled: true,
             settings: {
+                "bot_token": String(
+                    "from-the-vault:Discord (Uriel) :: Bot Token (pns):Password",
+                ),
                 "channels": Table(
                     {
                         "casually-concerned": String(
@@ -94,9 +97,6 @@ Config {
                         ),
                     },
                 ),
-                "token": String(
-                    "from-the-vault:Discord (Uriel) :: Bot Token (pns):Password",
-                ),
                 "type": String(
                     "hermes",
                 ),
@@ -111,25 +111,25 @@ Config {
                 "device_hostname": String(
                     "mister",
                 ),
-                "router_url": String(
-                    "https://192.168.1.1",
-                ),
                 "type": String(
                     "unifi",
+                ),
+                "url": String(
+                    "https://192.168.1.1",
                 ),
             },
         },
         "lights": PluginEntry {
             enabled: true,
             settings: {
-                "bridge": String(
+                "api_key": String(
+                    "from-the-vault:OpenHue :: API Key (hue-bridge-pro):Password",
+                ),
+                "bridge_host": String(
                     "from-the-vault:OpenHue :: API Key (hue-bridge-pro):UserName",
                 ),
                 "certificate": String(
                     "from-the-vault:OpenHue :: API Key (hue-bridge-pro):attribute:certificate-pin",
-                ),
-                "key": String(
-                    "from-the-vault:OpenHue :: API Key (hue-bridge-pro):Password",
                 ),
                 "quiet_hours": String(
                     "22:00-07:00",
@@ -158,14 +158,14 @@ Config {
                 "card_while_watching": Boolean(
                     false,
                 ),
+                "device_token": String(
+                    "from-the-vault:moshi-hook :: Device Token:Password",
+                ),
                 "image_cards": Table(
                     {},
                 ),
                 "marker_file": String(
                     "~/.local/state/pns/phone-attention.marker",
-                ),
-                "token": String(
-                    "from-the-vault:moshi-hook :: Device Token:Password",
                 ),
                 "type": String(
                     "moshi",

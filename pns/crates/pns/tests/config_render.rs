@@ -107,20 +107,20 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
     });
     let fixed = [
         (
-            "plugins.phone.token",
-            "[plugins.phone]\ntoken = \"a-literal-token\"\n",
+            "plugins.phone.device_token",
+            "[plugins.phone]\ndevice_token = \"a-literal-token\"\n",
         ),
         (
-            "plugins.lights.bridge",
-            "[plugins.lights]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
+            "plugins.lights.bridge_host",
+            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
         ),
         (
-            "plugins.lights.key",
-            "[plugins.lights]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
+            "plugins.lights.api_key",
+            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
         ),
         (
-            "plugins.log.token",
-            "[plugins.log]\ntoken = \"a-literal-token\"\n",
+            "plugins.log.bot_token",
+            "[plugins.log]\nbot_token = \"a-literal-token\"\n",
         ),
         (
             "plugins.log.channels.default",

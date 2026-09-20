@@ -51,14 +51,14 @@ route = ""
 bypass_mute = true
 
 [plugins.phone]
-token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
+device_token = { keepassxc = "moshi-hook :: Device Token", field = "Password" }
 
 # The durable paper trail. ONE TABLE, so two of them cannot be declared: the
 # rendered `type` names which transport carries it, and the credentials for
 # the other one sit here ready, which makes the cutover that single line and
 # the rollback the same line back.
 [plugins.log]
-token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
+bot_token = { keepassxc = "Discord (Uriel) :: Bot Token (pns)", field = "Password" }
 
 # One key per hermes route, so a key leaked from any route cannot post to
 # every route. A route left out here posts nothing and says which key is
@@ -111,9 +111,9 @@ uu = { keepassxc = "Discord (Uriel) :: Channel ID (#uu-dev)", field = "Password"
 # the value with `pns lights enroll` on the machine and save the line it
 # prints onto that entry as the attribute named here.
 [plugins.lights]
-bridge = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }
+bridge_host = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }
 certificate = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", attribute = "certificate-pin" }
-key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }
+api_key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }
 rooms = ["3F - Studio", "2F - Kitchen"]
 quiet_hours = "22:00-07:00"
 
@@ -122,7 +122,7 @@ quiet_hours = "22:00-07:00"
 # header asks for today; from the first answer onwards the header decides and
 # this key is only the figure used before it.
 [plugins.github]
-token = { keepassxc = "GitHub (Webdavis) :: Personal Access Token (pns notifications)", field = "Password" }
+personal_access_token = { keepassxc = "GitHub (Webdavis) :: Personal Access Token (pns notifications)", field = "Password" }
 
 [plugins.presence]
 type = "hue"
@@ -131,7 +131,7 @@ exclude = []
 desk_room = "3F - Studio"
 
 [plugins.home_presence]
-router_url = "https://192.168.1.1"
+url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 

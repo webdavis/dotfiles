@@ -44,14 +44,14 @@ pub fn router_settings(router: &toml::Table) -> Result<RouterSettings, SetupFail
     // Present but empty is a hole, not a value, and present but the wrong
     // type is refused rather than coerced: both are one line for the operator
     // to fix, and neither is a router this probe could reach.
-    let router_url = router
-        .get("router_url")
+    let url = router
+        .get("url")
         .and_then(toml::Value::as_str)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
         .ok_or(SetupFailure::InvalidRouterTable)?;
     Ok(RouterSettings {
-        router_url,
+        url,
         device: device_identity(router)?,
     })
 }
@@ -136,8 +136,8 @@ pub fn router_api_key(router: &toml::Table) -> Option<String> {
 /// THE COMPLAINT IS RETURNED, not printed: this stays a value function, and
 /// the composition root decides that a warning goes to stderr, exactly as
 /// `select_plugins` hands its roster warning back.
-pub fn stale_alert_channel(router: &toml::Table) -> (String, Option<String>) {
-    let Some(value) = router.get("stale_alert_channel") else {
+pub fn stale_alert_route(router: &toml::Table) -> (String, Option<String>) {
+    let Some(value) = router.get("alert_route") else {
         return (String::new(), None);
     };
     match value
@@ -148,7 +148,7 @@ pub fn stale_alert_channel(router: &toml::Table) -> (String, Option<String>) {
         None => (
             String::new(),
             Some(format!(
-                "pns: config error (stale_alert_channel = {} in [plugins.home_presence] is not a \
+                "pns: config error (alert_route = {} in [plugins.home_presence] is not a \
                  usable route name); the stale alert posts to the default route",
                 spell(value)
             )),
@@ -177,7 +177,7 @@ pub enum SetupFailure {
 #[derive(Debug, PartialEq)]
 pub struct RouterSettings {
     /// Where the router answers, e.g. `https://192.168.1.1`.
-    pub router_url: String,
+    pub url: String,
     /// The device to look for in the router's client list.
     pub device: DeviceIdentity,
 }

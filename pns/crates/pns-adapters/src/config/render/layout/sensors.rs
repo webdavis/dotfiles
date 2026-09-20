@@ -92,7 +92,7 @@ pub(super) const PLUGINS_HOME_PRESENCE: Table = Table {
             sample: Sample::Default("\"unifi\""),
         },
         Key {
-            name: "router_url",
+            name: "url",
             prose: "",
             sample: Sample::Example("\"\""),
         },
@@ -121,7 +121,7 @@ pub(super) const PLUGINS_HOME_PRESENCE: Table = Table {
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "stale_alert_channel",
+            name: "alert_route",
             prose: "# The hermes route a stale-identifier alert posts to. UNSET IS THE\n\
                          # WORKING SETTING: the alert posts to the default route. Naming another\n\
                          # needs that hermes route prepared first, with the pns signing secret\n\
@@ -147,7 +147,7 @@ pub(super) const PLUGINS_GITHUB: Table = Table {
             sample: Sample::Default("true"),
         },
         Key {
-            name: "token",
+            name: "personal_access_token",
             prose: "# A CLASSIC personal access token with the `notifications` scope and\n\
                          # nothing else. A fine-grained token cannot call these endpoints at\n\
                          # all: the documentation states they \"only support authentication\n\

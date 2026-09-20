@@ -241,7 +241,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.log", "channels", "{ default = \"9001\" }"),
     ("plugins.log", "enabled", "true"),
     ("plugins.log", "keys", "{ pns-events = \"secret\" }"),
-    ("plugins.log", "token", "\"secret\""),
+    ("plugins.log", "bot_token", "\"secret\""),
     ("plugins.log", "type", "\"hermes\""),
     (
         "plugins.log",
@@ -250,14 +250,14 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ),
     ("plugins.log.channels", "default", "\"9001\""),
     ("plugins.phone.image_cards", "missed", "true"),
-    ("plugins.lights", "bridge", "\"192.168.1.10\""),
+    ("plugins.lights", "bridge_host", "\"192.168.1.10\""),
     (
         "plugins.lights",
         "certificate",
         "\"sha256:0000000000000000000000000000000000000000000000000000000000000001\"",
     ),
     ("plugins.lights", "enabled", "true"),
-    ("plugins.lights", "key", "\"secret\""),
+    ("plugins.lights", "api_key", "\"secret\""),
     ("plugins.lights", "quiet_hours", "\"22:00-07:00\""),
     ("plugins.lights", "rooms", "[\"3F - Studio\"]"),
     ("plugins.lights", "type", "\"hue\""),
@@ -275,7 +275,11 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.presence", "desk_stale_after_secs", "120"),
     ("plugins.presence", "exclude", "[\"3F - MBedroom\"]"),
     ("plugins.github", "enabled", "true"),
-    ("plugins.github", "token", "\"ghp-not-a-real-token\""),
+    (
+        "plugins.github",
+        "personal_access_token",
+        "\"ghp-not-a-real-token\"",
+    ),
     ("plugins.github", "poll_secs", "60"),
     ("plugins.github", "webhook_secret", "\"a-webhook-secret\""),
     ("plugins.github", "webhook_port", "8648"),
@@ -288,7 +292,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("plugins.phone", "card_while_watching", "false"),
     ("plugins.phone", "ack_deadline", "\"5s\""),
     ("plugins.phone", "marker_file", "'~/attention'"),
-    ("plugins.phone", "token", "\"secret\""),
+    ("plugins.phone", "device_token", "\"secret\""),
     (
         "plugins.phone",
         "url",
@@ -304,19 +308,12 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
         "\"2e:11:ab:6d:b0:4f\"",
     ),
     ("plugins.home_presence", "enabled", "true"),
-    (
-        "plugins.home_presence",
-        "router_url",
-        "\"https://192.168.1.1\"",
-    ),
-    (
-        "plugins.home_presence",
-        "stale_alert_channel",
-        "\"priority\"",
-    ),
+    ("plugins.home_presence", "url", "\"https://192.168.1.1\""),
+    ("plugins.home_presence", "alert_route", "\"priority\""),
     ("plugins.home_presence", "type", "\"unifi\""),
 ];
 
+mod credentials;
 mod daemon;
 mod delivery;
 mod failure_wording;
