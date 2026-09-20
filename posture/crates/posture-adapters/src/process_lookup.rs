@@ -1,9 +1,7 @@
 //! The process table read in process, through `libproc`.
 //!
 //! `libc` 0.2.189 declares every call here but the `PROC_ALL_PIDS` selector,
-//! so this costs no dependency. The crate keeps its own copy of the walk and
-//! of the deadline wrapper: posture ships on its own and borrows nothing from
-//! another tool's workspace.
+//! so this costs no dependency.
 
 use posture_application::InspectionFailure;
 use std::ffi::c_int;
@@ -65,22 +63,13 @@ impl ProcessLookup for LibprocProcesses {
     }
 }
 
-/// Run an in-process read under a deadline, or None when it does not answer
-/// inside the window.
-///
-/// The call runs on a thread of its own and the answer comes back through a
-/// channel, so a table read that never returns is left behind rather than
-/// waited on. The thread is not killable, which is what a process group gave
-/// a spawned read and this cannot: a wedged call costs a leaked stack in a
-/// process that is about to exit, and costs the tick nothing. No answer is
-/// the unknown every caller here already fails to.
+/// Runs the read on a thread of its own so a wedged table read is left
+/// behind rather than waited on; no answer is the caller's unknown.
 pub(crate) fn bounded_call<T: Send + 'static>(
     deadline: Duration,
     call: impl FnOnce() -> T + Send + 'static,
 ) -> Option<T> {
     let (sender, receiver) = std::sync::mpsc::channel();
-    // A thread the operating system refuses is no reading, the same direction
-    // as a spawn it refuses.
     std::thread::Builder::new()
         .spawn(move || {
             let _ = sender.send(call());
