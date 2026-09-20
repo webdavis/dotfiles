@@ -25,7 +25,7 @@ mod tests {
 
     /// DOCUMENTS THE RETIRED TABLE NAME, not a new code path.
     /// `[plugins.github.channels]` was the GitHub source design's own map and
-    /// is deleted in favour of the one `[plugins.discord.channels]`, so an
+    /// is deleted in favour of the one `[plugins.log.channels]`, so an
     /// operator whose local file still holds it has to be told it moved
     /// rather than left with a map that resolves nothing and a source that
     /// posts to the catch-all.

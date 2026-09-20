@@ -32,7 +32,7 @@ const SETTINGS: &[(&str, &str, &str, &str)] = &[
         "/from-environment/channels",
     ),
     (
-        "[plugins.hermes]\nurl = \"http://config.invalid/pns-events\"\n",
+        "[plugins.log]\ntype = \"hermes\"\nurl = \"http://config.invalid/pns-events\"\n",
         "PNS_HERMES_URL",
         "http://config.invalid/pns-events",
         "http://environment.invalid/pns-events",

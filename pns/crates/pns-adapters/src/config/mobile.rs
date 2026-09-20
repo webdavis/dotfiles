@@ -58,7 +58,7 @@ pub fn moshi_secret(settings: &toml::Table) -> Option<String> {
 /// (`missed` is the card a return moment raises, `failed` a turn that died).
 /// pns compiles in no roster of them, so nothing here can refuse a key by
 /// name; an unknown one is a card type that never fires rather than a
-/// refusal at load, the same trade `[plugins.discord.channels]` makes.
+/// refusal at load, the same trade `[plugins.log.channels]` makes.
 ///
 /// A NON-BOOLEAN IS REFUSED OUT LOUD, the way `mobile_watch_card` is one
 /// level down: reading `"true"` as off leaves the operator having asked for

@@ -24,7 +24,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         sandbox.write_config(&format!(
             "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              rooms = [\"3F - Studio\"]\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-             [plugins.hermes]\nenabled = true\n{lights}"
+             [plugins.log]\nenabled = true\ntype = \"hermes\"\n{lights}"
         ));
         let mut command = sandbox.pns();
         // POINTS NOWHERE, as it does in every binary case here: the operator's
@@ -95,7 +95,7 @@ fn a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_l
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"{}\"\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-         [plugins.hermes]\nenabled = true\n",
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
         window_around(utc_minute_now(), 120)
     ));
     let mut command = sandbox.pns();
@@ -128,7 +128,7 @@ fn a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due() {
     let sandbox = Sandbox::new("quiet-window-malformed");
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         quiet_hours = \"10pm-7am\"\n[plugins.hermes]\nenabled = true\n"
+         quiet_hours = \"10pm-7am\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
     ));
 
     // An event that earned no pulse says nothing about the window: a refusal

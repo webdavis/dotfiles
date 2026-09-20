@@ -83,13 +83,6 @@
   unparseable case, unlike ~/.claude/settings.json and ~/.codex/config.toml;
   hermes writes this file through an atomic replace, so a truncated write is
   not a shape it produces.
-
-  IN FLIGHT: until one apply has landed, the senders and this gateway disagree.
-  The deployed pns still signs every route with one `[plugins.hermes] key`,
-  so the four routes whose secret is not that one key answer 401 and the
-  message is dropped. This change adds the three route renames and the
-  `pns-recap` retirement to that same apply. See the hermes section of
-  docs/runbooks/local-daemons.md.
 */ -}}
 {{- /* Kept BOTH trimmed and raw. The trimmed copy is what gets parsed, and the
        raw copy is what a no-op apply emits back byte for byte, trailing

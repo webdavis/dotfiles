@@ -159,7 +159,7 @@ pub(super) const NO_CERTIFICATE_LINE: &str =
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
 pub(super) const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-     [plugins.banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n";
+     [plugins.banner]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n";
 
 /// The report's own sentences, with the presentation taken back off.
 ///

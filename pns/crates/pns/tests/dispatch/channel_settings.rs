@@ -10,7 +10,7 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
     std::fs::write(
         sandbox.path(".config/pns/config.toml"),
         "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\nmobile_watch_card = \"true\"\n\
-         [plugins.hermes]\nenabled = true\n",
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     )
     .expect("config");
     let mut command = sandbox.pns();
@@ -49,7 +49,7 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
     sandbox.write_config(
         "[plugins.hermess]\nenabled = true\n\
          [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.banner]\nenabled = true\n",
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
     );
     // The fallback runs every built-in plugin, not just the three named
     // here, so a channel this sandbox never stubbed is left undelivered.

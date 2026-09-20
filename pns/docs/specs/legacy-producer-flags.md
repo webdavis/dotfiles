@@ -602,7 +602,7 @@ Given `--channel log`\\
 
 When `hermes_url_for` resolves the endpoint\\
 
-Then `[plugins.hermes] url`, and `PNS_HERMES_URL` after it, win if set and non-empty; else an empty channel gives
+Then `[plugins.log] url`, and `PNS_HERMES_URL` after it, win if set and non-empty; else an empty channel gives
 `DEFAULT_HERMES_URL` (`http://127.0.0.1:8644/webhooks/pns-events`); else `channel_url` swaps the final
 path segment for the route.
 

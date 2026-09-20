@@ -269,7 +269,7 @@ fn a_machine_with_only_a_durable_channel_never_consumes_the_queue_it_cannot_show
     // raise it with, so every present event would quietly eat the queue.
     let sandbox = Sandbox::new("replay-durable-only");
     record_every_event(&sandbox);
-    sandbox.write_config("[plugins.hermes]\nenabled = true\n");
+    sandbox.write_config("[plugins.log]\nenabled = true\ntype = \"hermes\"\n");
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
     let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
 
