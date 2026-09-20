@@ -22,8 +22,19 @@ fn the_daemon_changes_nothing_about_a_hook() {
     let quiet = [run_hook(&sandbox, "stop"), run_hook(&sandbox, "blocked")];
 
     let guard = DaemonGuard::start(&sandbox, TICK_MS);
-    // Past a few ticks, so the daemon is unmistakably up and beating.
-    std::thread::sleep(Duration::from_millis(TICK_MS * 4));
+    // THE BEAT ITSELF, never a count of ticks: the daemon writes one every
+    // pass, so this ends on the evidence that it is up rather than on a number
+    // that has to grow every time the tick does.
+    assert!(
+        poll_until(|| sandbox
+            .state()
+            .join("daemon-heartbeat")
+            .exists()
+            .then_some(()))
+        .is_some(),
+        "the daemon never beat; it said: {}",
+        guard.said()
+    );
     let noisy = [run_hook(&sandbox, "stop"), run_hook(&sandbox, "blocked")];
 
     for (event, (before, after)) in ["stop", "blocked"]

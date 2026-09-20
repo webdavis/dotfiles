@@ -59,7 +59,11 @@ merged `d35b29ff5`, changed morning's section-heading color from violet to steel
 request. On 2026-09-20 the operator ruled that `webdavis/damnit` is pre-1.0.0 and PR #1 merges only once
 it meets the clean-code standard and leaks no secret; three review registers found 12 SEV-1, 34 SEV-2 and
 33 SEV-3, all being fixed on the branch; the client specs are open as todoist.nvim PR #15 (`damnit.nvim`)
-and herdr-todoist PR #16 (`herdr-damnit`).
+and herdr-todoist PR #16 (`herdr-damnit`). On 2026-09-20 the fugitive mappings in the Neovim config moved
+to `:Git!` for fetch, pull, push and the no-edit amend
+([PR #864](https://github.com/webdavis/dotfiles/pull/864), merged `55dd58091`), so a push no longer
+freezes the editor for the length of the pre-push lint-check. damnit PR #1 passed its round 6 and 7
+re-review with all 79 findings fixed and a clean secrets sweep and is merging.
 
 ### Resume order and completion rules
 
@@ -3793,7 +3797,41 @@ is missing.
   `[gateway] enabled = false` stopping the clock, the refusal of the old heading, and the committed
   values file resolving to the committed template.
 
-  SLICE STATUS 2026-09-20: merged 1 to 50; in flight 51 and 52; queued 53 to 55; the ladder is 55 slices.
+  SLICE 51 DONE 2026-09-20, [PR #863](https://github.com/webdavis/dotfiles/pull/863), merged `9afd65631`.
+  pns recap learned to name its window the way a person reads a calendar. `--since` and `--until` now
+  take a local date (`2026-09-19`), a local date-time (`2026-09-19T08:00`, seconds optional) or a
+  duration ago (`2h`, `30m`, `3d`), and an omitted `--until` means now. `--since-epoch` and
+  `--until-epoch` kept working unchanged, as an all-or-nothing pair, because the return moment spawns the
+  detached recap with them. `recap_bounds` took a `now` argument and an injected local-zone function, so
+  the window arithmetic stayed a total function of its arguments; the zone itself was read in one new
+  adapter built on `mktime`, beside the `localtime_r` one, which refuses a day the calendar does not have
+  rather than rolling February 30th forward. A duration reached pns-domain's one duration parser, with
+  days spelled as hours so that parser's `ms|s|m|h` ranges and refusal text were left alone. Every
+  refusal still exits 2 with the usage sentence, which now lists both spellings and all three value
+  forms, and the tool-wide listing and the return-recap spec were updated to match.
+  `pns gateway schedule --until +<duration>` and its `--until-epoch` were untouched. This covers task 93.
+
+  SLICE 52 DONE 2026-09-20, [PR #865](https://github.com/webdavis/dotfiles/pull/865), merged `7f7819c07`.
+  Slice 52 of the pns refactor ladder landed the activity store. pns keeps a durable `activity_events`
+  table beside the ledger, one row per harness hook event carrying the arrival, the harness, the state,
+  the project, the branch, the session and its title, the pane, the herdr workspace, the model, the card
+  title and the detail; the schema moved from version 10 to 11 behind an idempotent migration a running
+  store applies on first start after the apply, and a store from a later schema is still a refusal. The
+  session title is read from the harness transcript in the order the recap design states, and the order
+  was verified against real files rather than assumed: a Claude Code transcript writes the operator's own
+  name on a `custom-title` line and the harness's generated one on an `ai-title` line, so the store takes
+  the newest `customTitle`, then the newest `aiTitle`, then the title the sessions row already holds from
+  the first prompt, while a Codex rollout file carries neither and so shows no title. That finding is
+  written back into the recap design document. `[recap] retain` arrived as a duration string through
+  pns-domain's parser, defaulting to thirty days spelled `"720h"` because the parser has no day unit,
+  refusing zero by name the way `[remind] delay` does, with its roster row, its rendered config line, a
+  regenerated `dot_config/pns/private_config.toml.tmpl` and a regenerated resolved-config snapshot. The
+  gateway prunes rows older than the retention on its own tick, once an hour rather than once a second.
+  Nothing reads the table yet, which is slice 53's work, and the activity ring keeps running untouched.
+  Task 93 stays open until the recap engine reads this table. `just test-rust` and `just lint-check` both
+  passed.
+
+  SLICE STATUS 2026-09-20: merged 1 to 52; in flight 53; queued 54 and 55; the ladder is 55 slices.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -6818,7 +6856,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   sidecar. Four tests pin the behavior, two in the adapter and two in the application, all well under a
   second.
 
-- [ ] 147. Decide the watchdog's dead-letter alarm shape, filed 2026-09-17 out of task 100's evidence.
+- [x] 147. Decide the watchdog's dead-letter alarm shape, filed 2026-09-17 out of task 100's evidence.
   The watchdog reports only an INCREASE in the dead-letter population, never the standing count, so a
   population that stops growing stops being mentioned however large it is. It was 11 on 2026-09-13 and 17
   on 2026-09-17. Task 100 fixed the half that was a defect: `pns doctor` already printed the standing
@@ -6831,7 +6869,18 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   currently dead-lettered legs are drained, retried or accepted as a permanent floor, because the
   threshold means nothing until that is known.
 
-- [ ] 148. Decide whether the Discord platform toolset keeps unprompted shell authority, filed
+  Decided 2026-09-20. Policy: the watchdog keeps paging on GROWTH only; no standing-population threshold,
+  because the standing count now has two other homes: `pns doctor` (task 100) and one line in `pns recap`
+  (task 170, its own small PR once slice 53 has landed). The 20 dead-lettered legs measured on 2026-09-20
+  are an apply-window artefact, not a floor: all 20 are `bad URL` (`TransportOutcome::NoStatus`, empty
+  route and destination), 18 of them from 18:11 to 18:42 on 2026-09-19 inside the config-rename window
+  before the 01:26 apply and 2 from 09-17, with none since. They are drained, not retried: nothing they
+  carried can be delivered to an empty destination. `pns failures drain`
+  ([PR #861](https://github.com/webdavis/dotfiles/pull/861), merged `382a4dc04`) acknowledges
+  dead-lettered legs only and keeps every attempt row; the operator runs it once after the next apply.
+  The listing's id column now derives its width from the widest id on the page, in the same PR.
+
+- [x] 148. Decide whether the Discord platform toolset keeps unprompted shell authority, filed
   2026-09-17. THIS IS THE BOUNDARY THE RETIRED APPROVAL DESIGN WAS ACTUALLY ABOUT, and it was measured
   against the installed hermes rather than reasoned about: the live Discord platform toolset carries
   `terminal` with a local backend, `sudo -n true` exits 0, the managed shell puts the Rust tools' install
@@ -6847,6 +6896,13 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   re-derives the same finding and no later design assumes a boundary that is not there. Until it is
   decided, treat any agent on that platform as able to suppress a security finding. Evidence:
   `docs/superpowers/specs/2026-09-17-posture-approval-interface-reconciliation.md`.
+
+  Decided 2026-09-20: ACCEPTED. The Discord hermes platform toolset keeps unprompted shell and sudo
+  authority, unchanged. The operator's reason, verbatim: "accept, don't narrow. i'm okay with the agents
+  having access." Nothing is narrowed and no scope changes for any hermes slash command. Consequence
+  recorded so no later design assumes a boundary: every agent on the Discord platform can run shell
+  commands, including the posture allowlist writer's add verb, without a prompt, and the recovered
+  security investigator is not gated any differently from its neighbours.
 
 - [x] 145. Say in the shared agent rules who the gh-axi preference binds, filed 2026-09-17 because TWO
   LANES HAVE NOW HAD TO DERIVE IT FROM FIRST PRINCIPLES. `.chezmoitemplates/global-agent-rules.md` says
@@ -7004,10 +7060,27 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   no listing reports is installed, an unpinned entry is left alone, and a pin naming the recorded commit
   is held. [PR #839](https://github.com/webdavis/dotfiles/pull/839), merged `dc5d58d34`.
 
-- [ ] 156. herdr-workspace-jump's public manifest is one action per workspace, filed 2026-09-18, raised
+- [x] 156. herdr-workspace-jump's public manifest is one action per workspace, filed 2026-09-18, raised
   by the task 68a lane. Every new project workspace means editing a file in another repository, pushing,
   bumping the pin in dotfiles and reinstalling, which is strictly more work than the vendored build this
   repository used to ship. Worth revisiting if the workspace set churns.
+
+  DONE 2026-09-20: [PR #862](https://github.com/webdavis/dotfiles/pull/862), merged `056b5dd8d`, with the
+  plugin's own PR webdavis/herdr-workspace-jump #2 merged `37d8a3104`. herdr-workspace-jump moved onto
+  the link path alongside herdr-process, closing task 156. The plugin's own pull request
+  (feat/generate-manifest-from-config) adds a `generate` subcommand that renders its herdr-plugin.toml
+  from the operator's own [workspaces] config, so keys and workspace routes are no longer baked into a
+  committed manifest. In dotfiles, packages.herdr_linked_plugin became packages.herdr_linked_plugins (a
+  two-entry list), herdr-workspace-jump's entry left the herdr_plugins install roster, a new
+  dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml declares the nine workspace labels and
+  directories, and run_onchange_after_58-build-herdr-process-plugin.sh.tmpl was renamed to
+  run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl and generalized to loop the checkout, build,
+  manifest and registration phases over both plugins. CLAUDE.md's herdr sections were updated to match.
+  This dotfiles PR must not merge before the plugin's own pull request merges, since the pinned revision
+  is the tip of that still-open branch.
+
+  The operator runs `herdr plugin uninstall herdr-workspace-jump` before the next apply so the linked
+  build can own the id.
 
 - [x] 157. A low-severity dependabot alert on herdr-todoist, GHSA-rhfx-m35p-ff5j, filed 2026-09-18. `lru`
   before 0.16.3 has a soundness issue in `IterMut`, which violates Stacked Borrows by invalidating an
@@ -7222,6 +7295,25 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   DONE 2026-09-20: [PR #854](https://github.com/webdavis/dotfiles/pull/854), merged `bee58e61e`. The
   comment in uu's herdr lane now says what a failed uninstall does: the installed copy is left as it was
   and the report says so.
+
+- [ ] 169. A brew upgrade of `gh` blocks every GitHub call until the operator answers LuLu, filed
+  2026-09-20. uu's Sunday run upgraded gh to 2.101.0 at 12:31 (`/opt/homebrew/Cellar/gh/2.101.0/bin/gh`,
+  INSTALL_RECEIPT time); from that minute `gh api` and every gh-axi call failed with
+  `dial tcp 140.82.112.5:443: connect: bad file descriptor` or `i/o timeout` while curl, node and python
+  reached api.github.com in under a second, and `git ls-remote` over SSH answered. LuLu keys its rule to
+  the binary path, and the Cellar path carries the version, so every upgrade is a new binary waiting for
+  an Allow. Two ship agents (slice 51, ledger batch three) stalled on it. Fix is in LuLu's own settings,
+  not this repository: re-key the gh rule to its code-signing identity (LuLu offers that when the alert
+  is answered), and check the other Rust-and-Go CLIs uu upgrades weekly (`herdr`, `td`, `atuin`) for the
+  same trap. Evidence: this session's transcript, 2026-09-20 12:31 to 13:00.
+
+- [ ] 170. Give `pns recap` one line for the standing dead-letter count, filed 2026-09-20 out of task
+  147's ruling. The watchdog pages on growth only, so the standing population needs a home the operator
+  reads every day: the recap's `open` section (the one never shed from a delivered page) prints
+  `N legs dead-lettered, run pns failures` when N is nonzero and nothing when it is zero. Its own PR
+  after slice 53 lands, because slice 53 replaces the recap engine and is already the largest slice; the
+  line reads `SqliteStore::failing_legs` filtered to `deadlettered`, the same query `pns failures` lists,
+  so the two can never disagree. Add the line to the recap design's Sections table in the same PR.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.

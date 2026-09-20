@@ -467,7 +467,7 @@ applies = ["bash", "-c", "grep -E \"^(head|branch|result|exit_code):\" \"$HOME/.
 # modes = ["Sleep"]
 
 # The mute, `pns mute <duration>`, and what else may switch it.
-# [quiet]
+[quiet]
 
 # Quiet that follows your calendar: while an event marked busy is on, the
 # mute is on, and it ends when the event does. WHAT YOU TYPE ALWAYS WINS:
@@ -479,16 +479,16 @@ applies = ["bash", "-c", "grep -E \"^(head|branch|result|exit_code):\" \"$HOME/.
 # every event in the next hour or so, busy or not: pns picks the busy ones.
 # A command that fails, answers something else or runs long changes
 # nothing at all, and a mute already set stands until its own expiry.
-# [quiet.calendar]
-# enabled = false
+[quiet.calendar]
+enabled = true
 # ARGV, NEVER A SHELL STRING. It is your own command: pns names no
 # calendar and holds no credential of one.
-# command = ["calendar-busy-window"]
+command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
 # How often it is asked, bounded "30s" to "30m".
-# poll_interval = "2m"
+poll_interval = "2m"
 # How long one run may take before it is killed and the poll leaves
 # everything as it was, bounded "1s" to "30s".
-# deadline = "20s"
+deadline = "20s"
 
 # The reminder: one more card when an approval has been sitting unanswered.
 # IT IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the

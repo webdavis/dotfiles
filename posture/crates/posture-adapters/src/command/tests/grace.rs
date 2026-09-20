@@ -1,25 +1,60 @@
 use super::*;
 use crate::test_sandbox::Sandbox;
 use std::fs;
+use std::process::Command;
+
+/// A HANG GUARD RATHER THAN A MEASUREMENT: every wait below leaves on the
+/// event it waits for, and this only stops a wedged fixture.
+const HANG_GUARD: Duration = Duration::from_secs(30);
 
 #[test]
 fn the_deadline_sends_term_before_kill_and_retains_timeout_outcome() {
     let sandbox = Sandbox::new("term-marker");
-    let path = sandbox.path().join("signalled");
+    let signalled = sandbox.path().join("signalled");
+    let ready = sandbox.path().join("ready");
+    // THE STOP PATH IS ENTERED ONCE THE CHILD SAYS ITS TRAP IS INSTALLED. A
+    // 60ms deadline used to send the signal whether or not `sh` had reached
+    // its `trap` line, and a 30ms grace used to kill the handler mid-write;
+    // both read on a loaded machine as a marker this runner never sent.
+    let mut child = OwnedChild(Some(
+        Command::new("/bin/sh")
+            .args([
+                OsStr::new("-c"),
+                OsStr::new(
+                    "trap 'printf term >\"$1\"; exit 0' TERM; printf ready >\"$2\"; while :; do :; done",
+                ),
+                OsStr::new("fixture"),
+                signalled.as_os_str(),
+                ready.as_os_str(),
+            ])
+            .process_group(0)
+            .spawn()
+            .expect("the fixture child runs"),
+    ));
+    let until = Instant::now() + HANG_GUARD;
+    while !ready.exists() {
+        assert!(
+            Instant::now() < until,
+            "the fixture never installed its TERM trap"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    child.stop(HANG_GUARD);
+    assert_eq!(
+        fs::read(&signalled).ok().as_deref(),
+        Some(b"term".as_slice())
+    );
+
+    // AND THE DEADLINE ITSELF, which stops a child that never exits the same
+    // way and still reports the run as timed out.
     let mut runner = SystemRunner::per_command(Duration::from_millis(60))
         .with_termination_grace(Duration::from_millis(30));
     let result = runner.run_completed(
         Path::new("/bin/sh"),
-        &[
-            "-c".as_ref(),
-            "trap 'printf term >\"$1\"; exit 0' TERM; while :; do :; done".as_ref(),
-            "fixture".as_ref(),
-            path.as_os_str(),
-        ],
+        &["-c".as_ref(), "while :; do :; done".as_ref()],
         CommandIo::Inspection { merge_stderr: true },
     );
     assert_eq!(result, Err(InspectionFailure::TimedOut));
-    assert_eq!(fs::read(&path).ok().as_deref(), Some(b"term".as_slice()));
 }
 
 #[test]
