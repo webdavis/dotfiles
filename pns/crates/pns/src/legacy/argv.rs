@@ -126,7 +126,7 @@ pub(super) struct ParsedArgs {
     pub event: EventArgs,
     /// The first flag-level refusal argv earned: a retired flag, a flag
     /// given no value, or a word that is no flag of pns's at all.
-    flags: Option<String>,
+    flag_refusal: Option<String>,
     /// `--state`: what happened, in one of six words. A seventh word refuses
     /// the event rather than being delivered as itself, because the state is
     /// what the lamps, the routes and the recap all read and a word none of
@@ -156,7 +156,7 @@ impl ParsedArgs {
     /// The event, or the first refusal argv earned: said on stderr, and nothing
     /// is delivered.
     pub fn into_event(self) -> Result<Option<EventArgs>, String> {
-        if let Some(refusal) = self.flags {
+        if let Some(refusal) = self.flag_refusal {
             return Err(refusal);
         }
         if let Some(refusal) = self.state {
@@ -191,7 +191,7 @@ where
     let mut elapsed = Ok(None);
     let mut identifiers = Ok(());
     let mut session = String::new();
-    let mut flags = None;
+    let mut flag_refusal = None;
     let mut state = None;
     let mut delivery_class = String::new();
     let mut scope = Ok(DeliveryScope::default());
@@ -290,7 +290,7 @@ where
                 // Missing, or a recognized flag standing where the value
                 // should be: refuse and leave the token for its own arm.
                 if tokens.peek().is_none_or(|next| is_producer_flag(next)) {
-                    flags.get_or_insert_with(|| format!("{flag} requires a value"));
+                    flag_refusal.get_or_insert_with(|| format!("{flag} requires a value"));
                     continue;
                 }
                 let Some(value) = tokens.next() else { continue };
@@ -312,14 +312,15 @@ where
                         if *takes_value {
                             tokens.next_if(|next| !is_producer_flag(next));
                         }
-                        flags
+                        flag_refusal
                             .get_or_insert_with(|| format!("{flag} was replaced by {replacement}"));
                     }
                     // STRICT, AND THE SAME SHAPE THE JSON PATH REFUSES AN
                     // UNKNOWN FIELD WITH: a word pns skipped in silence was a
                     // caller whose narrowing, detail or route went nowhere.
                     None => {
-                        flags.get_or_insert_with(|| format!("{token} is not a flag pns takes"));
+                        flag_refusal
+                            .get_or_insert_with(|| format!("{token} is not a flag pns takes"));
                     }
                 }
             }
@@ -328,7 +329,7 @@ where
     ParsedArgs {
         help,
         event: parsed,
-        flags,
+        flag_refusal,
         state,
         elapsed,
         identifiers,
