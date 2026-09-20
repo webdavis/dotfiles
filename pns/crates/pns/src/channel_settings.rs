@@ -121,7 +121,7 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
     // type is what the table is filed under rather than a setting inside it.
     // `router_settings` settles the type before it reads anything else,
     // which is why only its two type refusals count here: a switched-off
-    // table naming a backend that DOES answer, with a missing `router_url`
+    // table naming a backend that DOES answer, with a missing `url`
     // under it, is a different edit and not this warning's business.
     if switched_off("home_presence").is_some_and(|settings| {
         matches!(

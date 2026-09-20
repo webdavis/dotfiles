@@ -36,7 +36,7 @@ impl DiscordSettings {
 /// not-set-up reading.
 pub fn discord_settings(settings: &toml::Table) -> DiscordSettings {
     DiscordSettings {
-        token: stated(settings.get("token")),
+        token: stated(settings.get("bot_token")),
         channels: channel_map(settings),
     }
 }
@@ -90,8 +90,8 @@ mod tests {
         for settings in [
             "",
             "other = \"x\"\n",
-            "token = \"\"\n",
-            "token = 42\n",
+            "bot_token = \"\"\n",
+            "bot_token = 42\n",
             "channels = \"c\"\n",
             "[channels]\n",
             "[channels]\ndefault = \"\"\n",
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn an_armed_table_states_both_the_token_and_every_channel_it_maps() {
         let read = discord_settings(
-            &"type = \"discord\"\ntoken = \"tok\"\n[channels]\ndefault = \"1234\"\ndotfiles = \"9001\"\nblank = \"\"\n"
+            &"type = \"discord\"\nbot_token = \"tok\"\n[channels]\ndefault = \"1234\"\ndotfiles = \"9001\"\nblank = \"\"\n"
                 .parse()
                 .unwrap(),
         );

@@ -73,7 +73,7 @@ fn an_unnamed_channels_directory_falls_through_and_a_refused_backend_precedes_di
             // the config key to write instead of launching anything.
             _ => {
                 assert!(
-                    matches!(&outcome, Delivery::Failed(line) if line.contains("[plugins.phone] token")),
+                    matches!(&outcome, Delivery::Failed(line) if line.contains("[plugins.phone] device_token")),
                     "{scenario}: {outcome:?}"
                 );
                 assert!(!directory.join("body").exists());

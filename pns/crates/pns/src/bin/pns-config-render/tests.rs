@@ -4,7 +4,7 @@ use super::{lookup, refuse_literal_secrets};
 fn a_literal_string_at_a_secret_bearing_path_is_refused_by_name() {
     let mut hue = toml::Table::new();
     hue.insert(
-        "bridge".to_string(),
+        "bridge_host".to_string(),
         toml::Value::String("192.168.1.9".to_string()),
     );
     let mut plugins = toml::Table::new();
@@ -14,7 +14,7 @@ fn a_literal_string_at_a_secret_bearing_path_is_refused_by_name() {
 
     let error = refuse_literal_secrets(&values)
         .expect_err("a literal bridge address is not a secret marker");
-    assert!(error.contains("plugins.lights.bridge"), "{error}");
+    assert!(error.contains("plugins.lights.bridge_host"), "{error}");
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn a_proper_secret_marker_table_is_accepted() {
         toml::Value::String("Password".to_string()),
     );
     let mut mobile = toml::Table::new();
-    mobile.insert("token".to_string(), toml::Value::Table(marker));
+    mobile.insert("device_token".to_string(), toml::Value::Table(marker));
     let mut plugins = toml::Table::new();
     plugins.insert("phone".to_string(), toml::Value::Table(mobile));
     let mut values = toml::Table::new();

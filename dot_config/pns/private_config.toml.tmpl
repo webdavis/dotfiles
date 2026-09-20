@@ -42,7 +42,7 @@ enabled = true
 type = "moshi"
 # Pair with moshi and put the webhook secret it issues here: that pairing
 # is what completes the phone card.
-token = {{ (keepassxc "moshi-hook :: Device Token").Password | toToml }}
+device_token = {{ (keepassxc "moshi-hook :: Device Token").Password | toToml }}
 # Whether a long command's card still fires while you are watching that
 # pane on the phone. OFF: a card describing the pane already filling the
 # screen is noise, and the light pulse alone marks the command finishing;
@@ -108,7 +108,7 @@ type = "hermes"
 # DISCORD ONLY: the bot token, from the Discord application's Bot page.
 # Every call carries it as `Authorization: Bot <token>`, and a discord
 # log with none posts nothing and says which key is missing.
-token = {{ (keepassxc "Discord (Uriel) :: Bot Token (pns)").Password | toToml }}
+bot_token = {{ (keepassxc "Discord (Uriel) :: Bot Token (pns)").Password | toToml }}
 
 # HERMES ONLY: one signing key per route, keyed by the route name and each
 # prepared in ~/.hermes/config.yaml under that same name. These keys are
@@ -180,8 +180,8 @@ enabled = true
 # Which compiled-in bridge answers. "hue" is the only one today, and a
 # table naming one nothing answers is refused out loud.
 type = "hue"
-bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
-key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
+bridge_host = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
+api_key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
 # The one certificate the bridge may present, as `sha256:<64 hex>`.
 # REQUIRED, and a table with none refuses to pulse rather than
 # trusting whatever answers the address: the bridge's certificate
@@ -217,7 +217,7 @@ enabled = true
 # notification source has no business holding. Not your `gh` login:
 # pns never reads that, and a daemon whose credentials change when
 # you re-authorize a CLI is a daemon nobody decided about.
-token = {{ (keepassxc "GitHub (Webdavis) :: Personal Access Token (pns notifications)").Password | toToml }}
+personal_access_token = {{ (keepassxc "GitHub (Webdavis) :: Personal Access Token (pns notifications)").Password | toToml }}
 # How often the poll runs BEFORE the first answer, bounded 60 to 3600.
 # From then on the server's own X-Poll-Interval decides, which the
 # documentation asks for by name, so this is only ever the starting
@@ -294,7 +294,7 @@ enabled = true
 # Which compiled-in backend answers. "unifi" is the only one today, and
 # a table naming none, or naming one nothing answers, is refused out loud.
 type = "unifi"
-router_url = "https://192.168.1.1"
+url = "https://192.168.1.1"
 # The device is named by device_mac, device_hostname or device_ipv4, at
 # least one of them; any one matching a client reads home, and on
 # disagreement the strongest, in that order, names the match. A phone is
@@ -308,7 +308,7 @@ api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}
 # WORKING SETTING: the alert posts to the default route. Naming another
 # needs that hermes route prepared first, with the pns signing secret
 # and a pns-shaped prompt, or the POST is rejected and the leg is silent.
-# stale_alert_channel = "priority"
+# alert_route = "priority"
 
 # The clock: what runs BETWEEN events, for the two things that are not
 # reactions to one, saying something when nothing happened and keeping a

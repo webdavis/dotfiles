@@ -33,7 +33,7 @@ const SCAN: u32 = 20;
 /// the banner is already in front of the operator and a card is the same news
 /// on a second screen, so there is nothing to carry and this is `None`.
 struct PhoneCard {
-    /// `[plugins.phone] token`, or `None` for a table that is off or unset.
+    /// `[plugins.phone] device_token`, or `None` for a table that is off or unset.
     /// Carried rather than checked, because the channel's own refusal names the
     /// config key and this module has no better sentence than that one.
     token: Option<String>,

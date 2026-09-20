@@ -73,6 +73,26 @@ fn the_no_key_refusal_quotes_a_key_the_schema_declares() {
     }
 }
 
+/// The lights and github doctor and error lines quote their keys through
+/// `pns_domain::config_keys` rather than a literal, so this is the same
+/// commitment `PHONE_TOKEN` makes, held for the keys that live in that module.
+#[test]
+fn the_lights_and_github_key_constants_are_keys_the_schema_declares() {
+    use pns_domain::config_keys::{
+        GITHUB_PERSONAL_ACCESS_TOKEN, LIGHTS_API_KEY, LIGHTS_BRIDGE_HOST,
+    };
+    for quoted in [
+        format!("[plugins.lights] {LIGHTS_BRIDGE_HOST}"),
+        format!("[plugins.lights] {LIGHTS_API_KEY}"),
+        format!("[plugins.github] {GITHUB_PERSONAL_ACCESS_TOKEN}"),
+    ] {
+        assert!(
+            declared(&quoted),
+            "{quoted} is quoted in a message but the schema declares no such key"
+        );
+    }
+}
+
 /// The guard above is only worth having if it can fail, and the shape it parses
 /// is easy to get subtly wrong. This pins that a key the schema does not declare
 /// is rejected, rather than the parse quietly returning true for everything.
