@@ -172,9 +172,10 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a version 1 request, when decoded, then request_id, producer and state are required and must have
 their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent optional session,
-elapsed, route, delivery_class and remind become None; detail is empty, project, branch and pane are None, scope is
-automatic, and extensions is an empty object. Request::new supplies those same defaults. The session is a
-plain name and the place of the work is three top-level fields, the same names the flags carry. `event`,
+elapsed, route, delivery_class and remind become None; detail is empty, project, branch and pane are
+None, scope is automatic, and extensions is an empty object. Request::new supplies those same defaults.
+The session is a plain name and the place of the work is three top-level fields, the same names the
+flags carry. `event`,
 `occurred_at` and `interaction` are no longer fields of this envelope: a decoded value carrying any of
 them names it in DecodedRequest::ignored (S014), the same as any other unknown top-level field.
 
@@ -197,7 +198,8 @@ before effects and the refusal names the field. An absent or null `remind` is a 
 nothing, which falls through to the producer's own config entry and then to off, and it is omitted when
 encoding so an unmarked request keeps its canonical version 1 bytes. It decodes to the SAME switch the
 `--remind`, `--remind=<duration>` and `--no-remind` flags produce, so both paths hand one resolution one
-answer.
+answer. The submit path does not read this field yet: only the flag path calls `remind_delay` today, so a
+JSON request that sets `remind` is decoded and validated but arms nothing.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),
