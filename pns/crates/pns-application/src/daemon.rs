@@ -130,32 +130,36 @@ const SWITCH_TICKS: u64 = 30;
 /// How long the loop sleeps between passes.
 ///
 /// A CONSTANT WITH A TEST HATCH rather than a config key, following
-/// `PNS_PAYLOAD_DEADLINE_MS`: the only party who has ever needed a different
+/// `PNS_PAYLOAD_DEADLINE`: the only party who has ever needed a different
 /// tick is a test, and a knob nobody turns is a knob that only ever holds a
 /// wrong value.
 ///
-/// STRICTLY PARSED, FLOORED AND CAPPED, and anything else falls back to the
-/// constant rather than being clamped towards it. A stray `1` in a launchd
-/// environment would spin the loop a thousand times a second, and clamping
-/// would honour a value nobody meant to write.
+/// STRICTLY PARSED, FLOORED AND CAPPED, and anything else is reported and
+/// falls back to the constant rather than being clamped towards it. A stray
+/// `1ms` in a launchd environment would spin the loop a thousand times a
+/// second, and clamping would honour a value nobody meant to write.
 pub fn daemon_tick(raw: Option<&str>) -> Duration {
-    let milliseconds = raw
-        .and_then(pns_domain::count::parse_count)
-        .filter(|milliseconds| (MIN_TICK_MS..=MAX_TICK_MS).contains(milliseconds))
-        .unwrap_or(DEFAULT_TICK_MS);
-    Duration::from_millis(milliseconds)
+    raw.and_then(|raw| {
+        pns_domain::duration::parse_duration(TICK_VARIABLE, raw, TICK_RANGE)
+            .inspect_err(|refusal| eprintln!("{refusal}"))
+            .ok()
+    })
+    .unwrap_or(DEFAULT_TICK)
 }
+
+/// The name the refusal quotes, so the operator is sent to the variable they
+/// typed rather than to this function.
+const TICK_VARIABLE: &str = "PNS_DAEMON_TICK_INTERVAL";
 
 /// One second: fast enough that a reminder is on time and a light re-arms before it
 /// lapses, slow enough that the idle cost is one `read_dir` of an empty
 /// directory per second.
-const DEFAULT_TICK_MS: u64 = 1000;
+const DEFAULT_TICK: Duration = Duration::from_secs(1);
 
-/// The floor, so no environment can spin the loop.
-const MIN_TICK_MS: u64 = 10;
-
-/// The ceiling, so no environment can park it.
-const MAX_TICK_MS: u64 = 60_000;
+/// The floor, so no environment can spin the loop, and the ceiling, so none
+/// can park it.
+const TICK_RANGE: std::ops::RangeInclusive<Duration> =
+    Duration::from_millis(10)..=Duration::from_secs(60);
 
 #[cfg(test)]
 mod tests;

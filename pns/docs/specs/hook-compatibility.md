@@ -119,9 +119,10 @@ Then the wait expires at `payload_deadline()` and the hook returns 0 having deli
   (`src/main.rs:hook_mode`,
   `tests/hooks.rs:a_payload_nobody_finishes_writing_still_exits_on_the_contract`, which also asserts
   nothing is sent on a guess).
-- Thresholds: 5 seconds by default (`payload_deadline`). `PNS_PAYLOAD_DEADLINE_MS` overrides it in
-  milliseconds through `env_deadline`, and the test drives it at 200 ms. A value that does not parse as
-  milliseconds falls back to the 5 second default rather than to no bound.
+- Thresholds: 5 seconds by default (`payload_deadline`). `PNS_PAYLOAD_DEADLINE` overrides it with a
+  `<count><ms|s|m|h>` duration through `env_duration`, and the test drives it at `200ms`. A value that
+  does not parse, or that falls outside `1ms` to `60s`, is reported on standard error and falls back to
+  the 5 second default rather than to no bound.
 - Required side effects: none.
 - Forbidden side effects: the hook must not hang. Hanging here would park the harness turn before any
   part of the exit contract could run, which is the regression the deadline exists for.
@@ -549,12 +550,13 @@ Then the transcript tail is read up to `1 + reread_attempts()` times, sleeping `
 - Fail direction: an empty string, reported the same as a turn that said nothing. "An expired window
   proves only that nothing readable arrived in time" (`src/main.rs:turn_reply`).
 - Thresholds: `DEFAULT_REREAD_ATTEMPTS` = 4 and `DEFAULT_REREAD_INTERVAL` = 150 ms, so the default is 5
-  reads across roughly 600 ms of sleeping. `MAX_REREAD_ATTEMPTS` = 10 and `MAX_REREAD_INTERVAL` = 5
-  seconds clamp the two environment knobs (`PNS_REPLY_REREAD_ATTEMPTS`, `PNS_REPLY_REREAD_INTERVAL`), so
-  the worst case is 11 reads across 50 seconds. A knob of `11` clamps to 10; a knob of `10` is taken as
-  10\. An interval of `6` clamps to 5 seconds; `5` is taken as 5. The caps exist because their PRODUCT is
-  how long a Stop can sit re-reading, so "a stray zero in either costs seconds, never hours"
-  (`src/main.rs:MAX_REREAD_ATTEMPTS`).
+  reads across roughly 600 ms of sleeping. `MAX_REREAD_ATTEMPTS` = 10 clamps `PNS_REPLY_REREAD_ATTEMPTS`,
+  and `MAX_REREAD_INTERVAL` = 5 seconds REFUSES `PNS_REPLY_REREAD_INTERVAL` rather than clamping it: an
+  out-of-range interval falls back to `DEFAULT_REREAD_INTERVAL` instead of to the ceiling, so the worst
+  case a bad knob produces is 11 reads across roughly 1.5 seconds of sleeping at the default. A knob of
+  `11` clamps to 10; a knob of `10` is taken as 10\. An interval of `6s` is refused and falls back to
+  150 ms; `5s` is taken as 5s. The caps exist so a stray or malformed value costs at most seconds, never
+  minutes (`src/main.rs:MAX_REREAD_ATTEMPTS`).
 - Required side effects: none, this is a read.
 - Forbidden side effects: a bad knob must not panic. `reread_attempts_from` falls back to the default
   rather than to no retries when the value does not parse. `reread_interval_from` uses
@@ -623,8 +625,8 @@ Then it spawns Codex against a private stripped home with a fixed prompt, bounde
   itself stands (same test, second half). A state with a blank summary used to count as a hit, which
   shipped a title-only notification over a turn that had text, live on 2026-08-12
   (`src/hooks.rs:condenser_verdict`).
-- Thresholds: `CONDENSER_DEADLINE` = 30 seconds, overridable in milliseconds by
-  `PNS_CONDENSER_DEADLINE_MS`. Output is capped at `PROBE_READ_MAX` = 1,048,576 bytes. The fallback
+- Thresholds: `CONDENSER_DEADLINE` = 30 seconds, overridable by a duration in
+  `PNS_CONDENSER_DEADLINE`. Output is capped at `PROBE_READ_MAX` = 1,048,576 bytes. The fallback
   preview is capped at `render::PREVIEW_MAX_CHARS` = 260 characters, cut at the last sentence end that
   fits and otherwise clipped with a trailing `…` (`src/render.rs:preview`, `src/render.rs:clipped`). The
   condenser prompt itself asks for a summary "up to 320 characters" (`src/hooks.rs:condenser_prompt`).
@@ -1108,10 +1110,10 @@ ______________________________________________________________________
 | `PNS_PRODUCER`                    | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
 | `HERDR_PANE_ID`                   | every delivering arm                       | the pane the card focuses on click, passed verbatim                                 |
 | `[paths] state_dir`, `PNS_STATE_DIR` | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
-| `PNS_PAYLOAD_DEADLINE_MS`         | `payload_deadline`                         | the standard-input wait; defaults to 5 s                                            |
+| `PNS_PAYLOAD_DEADLINE`            | `payload_deadline`                         | the standard-input wait, a duration; defaults to 5 s                                |
 | `PNS_REPLY_REREAD_ATTEMPTS`       | `reread_attempts`                          | extra transcript reads; default 4, clamped to 10                                    |
-| `PNS_REPLY_REREAD_INTERVAL`       | `reread_interval`                          | seconds between reads; default 0.15, clamped to 5                                   |
-| `PNS_CONDENSER_DEADLINE_MS`       | `condense`                                 | the condenser bound; defaults to 30 s                                               |
+| `PNS_REPLY_REREAD_INTERVAL`       | `reread_interval`                          | a duration between reads; default 150ms, refused above 5s                           |
+| `PNS_CONDENSER_DEADLINE`          | `condense`                                 | the condenser bound, a duration; defaults to 30 s                                   |
 | `PNS_SUMMARIZING`                 | `condense`                                 | the cheap re-entry guard                                                            |
 | `PNS_CODEX_BIN`, `PNS_CODEX_HOME` | `condense`, `condenser_home`               | the condenser binary and its private home                                           |
 | `HOME`                            | `state_dir`, `condenser_home`, `run_event` | the configuration and state roots                                                   |

@@ -1,5 +1,6 @@
-use crate::{PROBE_READ_MAX, env_deadline, resolve_path, run_bounded};
+use crate::{PROBE_READ_MAX, env_duration, resolve_path, run_bounded};
 use pns_domain::{condenser_prompt, condenser_verdict};
+use std::ops::RangeInclusive;
 use std::process::Command;
 use std::time::Duration;
 
@@ -26,7 +27,8 @@ pub fn condense(reply: &str) -> (String, String) {
         .args(["-s", "read-only", "-"])
         .env("PNS_SUMMARIZING", "1")
         .env("CODEX_HOME", &home);
-    let deadline = env_deadline("PNS_CONDENSER_DEADLINE_MS").unwrap_or(CONDENSER_DEADLINE);
+    let deadline = env_duration("PNS_CONDENSER_DEADLINE", CONDENSER_DEADLINE_RANGE)
+        .unwrap_or(CONDENSER_DEADLINE);
     match run_bounded(
         command,
         Some(&condenser_prompt(reply)),
@@ -79,6 +81,12 @@ fn condenser_home(user_home: &str, home_override: Option<&str>) -> Option<std::p
 /// The condenser is a model call on a notification path: worth a few seconds,
 /// never worth holding a turn's report.
 const CONDENSER_DEADLINE: Duration = Duration::from_secs(30);
+
+/// What the override may be set to: a millisecond at the floor, so a test can
+/// prove expiry without waiting, and five minutes at the ceiling, past which
+/// the turn it is condensing is long reported.
+const CONDENSER_DEADLINE_RANGE: RangeInclusive<Duration> =
+    Duration::from_millis(1)..=Duration::from_secs(300);
 
 #[cfg(test)]
 mod tests;
