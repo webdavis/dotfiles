@@ -6,7 +6,7 @@ use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
-/// The four Mach-O magics and their byte-swapped twins, read big-endian from
+/// The three Mach-O magics and their byte-swapped twins, read big-endian from
 /// the first four bytes of a file.
 const MACH_O_MAGICS: [u32; 6] = [
     0xfeed_face,
