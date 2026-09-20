@@ -29,28 +29,31 @@ fn a_retry_time_is_a_pure_function_of_the_clock_and_the_attempt_count() {
 fn every_classified_status_takes_the_class_the_design_gives_it() {
     for status in [400, 401, 403, 404, 405, 410, 422] {
         assert_eq!(
-            DeliveryOutcome::Status(status).class(),
+            TransportOutcome::Status(status).class(),
             FailureClass::Permanent,
             "status {status}"
         );
     }
     for status in [408, 429, 500, 502, 503, 504] {
         assert_eq!(
-            DeliveryOutcome::Status(status).class(),
+            TransportOutcome::Status(status).class(),
             FailureClass::Temporary,
             "status {status}"
         );
     }
-    assert_eq!(DeliveryOutcome::NoResponse.class(), FailureClass::Temporary);
-    assert_eq!(DeliveryOutcome::NoStatus.class(), FailureClass::Permanent);
+    assert_eq!(
+        TransportOutcome::NoResponse.class(),
+        FailureClass::Temporary
+    );
+    assert_eq!(TransportOutcome::NoStatus.class(), FailureClass::Permanent);
 }
 
 /// A malformed URL never reached the wire, so it carries no status, and it will
 /// not heal by being sent again.
 #[test]
 fn a_request_that_never_reached_the_wire_is_permanent_although_it_has_no_status() {
-    assert!(DeliveryOutcome::NoStatus.class().is_permanent());
-    assert!(!DeliveryOutcome::NoResponse.class().is_permanent());
+    assert!(TransportOutcome::NoStatus.class().is_permanent());
+    assert!(!TransportOutcome::NoResponse.class().is_permanent());
 }
 
 /// The classifier is total, so an unlisted code still answers. An unrecognized
@@ -61,14 +64,14 @@ fn a_request_that_never_reached_the_wire_is_permanent_although_it_has_no_status(
 fn an_unlisted_code_falls_to_the_class_of_its_family() {
     for status in [402, 418, 451, 499] {
         assert_eq!(
-            DeliveryOutcome::Status(status).class(),
+            TransportOutcome::Status(status).class(),
             FailureClass::Permanent,
             "status {status}"
         );
     }
     for status in [501, 507, 599] {
         assert_eq!(
-            DeliveryOutcome::Status(status).class(),
+            TransportOutcome::Status(status).class(),
             FailureClass::Temporary,
             "status {status}"
         );
@@ -82,18 +85,18 @@ fn an_unlisted_code_falls_to_the_class_of_its_family() {
 fn a_delivered_status_has_no_failure_class_at_all() {
     for status in [200, 201, 204, 299] {
         assert_eq!(
-            DeliveryOutcome::Status(status).failure_class(),
+            TransportOutcome::Status(status).failure_class(),
             None,
             "status {status}"
         );
     }
     assert_eq!(
-        DeliveryOutcome::Status(404).failure_class(),
+        TransportOutcome::Status(404).failure_class(),
         Some(FailureClass::Permanent)
     );
     // A redirect was never followed and never delivered, so it is a failure.
     assert_eq!(
-        DeliveryOutcome::Status(301).failure_class(),
+        TransportOutcome::Status(301).failure_class(),
         Some(FailureClass::Permanent)
     );
 }
@@ -104,16 +107,16 @@ fn a_delivered_status_has_no_failure_class_at_all() {
 fn a_permanent_outcome_deadletters_on_the_first_attempt_and_a_temporary_one_does_not() {
     let limits = RetryLimits::default();
     assert_eq!(
-        limits.verdict(DeliveryOutcome::Status(404), 1, 0, 0),
+        limits.verdict(TransportOutcome::Status(404), 1, 0, 0),
         Some(DeadletterReason::Permanent)
     );
-    assert_eq!(limits.verdict(DeliveryOutcome::Status(503), 1, 0, 0), None);
+    assert_eq!(limits.verdict(TransportOutcome::Status(503), 1, 0, 0), None);
     assert_eq!(
-        limits.verdict(DeliveryOutcome::Status(503), 20, 0, 0),
+        limits.verdict(TransportOutcome::Status(503), 20, 0, 0),
         Some(DeadletterReason::Attempts)
     );
     assert_eq!(
-        limits.verdict(DeliveryOutcome::Status(503), 1, 1, 604_802),
+        limits.verdict(TransportOutcome::Status(503), 1, 1, 604_802),
         Some(DeadletterReason::Age)
     );
 }
@@ -125,7 +128,7 @@ fn a_permanent_outcome_deadletters_on_the_first_attempt_and_a_temporary_one_does
 fn a_permanent_refusal_outranks_the_attempt_and_age_limits_in_the_recorded_reason() {
     let limits = RetryLimits::default();
     assert_eq!(
-        limits.verdict(DeliveryOutcome::Status(404), 99, 1, 604_802),
+        limits.verdict(TransportOutcome::Status(404), 99, 1, 604_802),
         Some(DeadletterReason::Permanent)
     );
 }
@@ -135,7 +138,7 @@ fn a_permanent_refusal_outranks_the_attempt_and_age_limits_in_the_recorded_reaso
 fn a_delivered_outcome_is_never_deadlettered_even_past_every_limit() {
     let limits = RetryLimits::default();
     assert_eq!(
-        limits.verdict(DeliveryOutcome::Status(200), 99, 1, 604_802),
+        limits.verdict(TransportOutcome::Status(200), 99, 1, 604_802),
         None
     );
 }

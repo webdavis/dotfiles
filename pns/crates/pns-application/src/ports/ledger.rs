@@ -135,7 +135,7 @@ pub struct StoredFailure {
     pub route: String,
     pub agent: String,
     pub state: String,
-    pub outcome: pns_domain::retry::DeliveryOutcome,
+    pub outcome: pns_domain::retry::TransportOutcome,
     /// When the current generation's attempt finished.
     pub failed_at: u64,
     /// Retries spent, which is the generation less the initial send.

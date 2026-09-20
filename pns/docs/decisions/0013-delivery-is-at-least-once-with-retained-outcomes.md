@@ -109,5 +109,5 @@ separate policies.
 
 The same change added the permanent-versus-temporary split in `pns_domain::retry`. A refused request
 dead-letters on its FIRST failure with `DeadletterReason::Permanent`, rather than consuming the twenty
-attempts a recoverable one is allowed. The rule is one function over a `DeliveryOutcome`, so every
+attempts a recoverable one is allowed. The rule is one function over a `TransportOutcome`, so every
 destination classifies identically and only the operator-facing wording varies.
