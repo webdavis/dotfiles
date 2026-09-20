@@ -405,9 +405,11 @@ an output error; it does not fabricate acceptance or silently discard destinatio
 
 The status reports DELIVERY: `delivered` when every durable destination took the page, `partial` when
 some did, `undelivered` when none did, and `rejected` for input the engine will not honour. A silent
-destination is one that ran and had nothing to say, which counts as an arrival, as does an `unknown`
-destination, whose attempt the ledger is still retrying; a decorative destination (the banner, the phone
-card) does not decide the status, and its verdict is still listed.
+destination is one that ran and had nothing to say, which counts as an arrival; a decorative destination
+(the banner, the phone card) does not decide the status, and its verdict is still listed. The ledger
+stores a live Silent leg the same way it stores an unresolved one, so a replayed Silent leg reads
+`silent`, the same arrival its first attempt reported; `unknown` is reserved for a case the ledger can
+tell apart from a quiet arrival.
 
 The ledger is a fact of its own beside the status. `ledger_committed` in diagnostics means the ledger
 committed the request before dispatch and owns its delivery; a retained identical request qualifies

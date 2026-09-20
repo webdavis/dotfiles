@@ -85,9 +85,11 @@ fn existing_outcomes(record: Box<SubmissionRecord>) -> Vec<(DestinationOutcome, 
         .into_iter()
         .map(|attempt| {
             let (verdict, note, retry_at) = match attempt.completion {
-                LedgerCompletion::Rejected { detail, .. } => {
-                    (DeliveryOutcome::Failed, Some(detail), None)
-                }
+                LedgerCompletion::Rejected { detail, .. } => (
+                    DeliveryOutcome::Failed,
+                    Some(detail).filter(|detail| !detail.is_empty()),
+                    None,
+                ),
                 LedgerCompletion::Acknowledged { .. } => (DeliveryOutcome::Delivered, None, None),
                 LedgerCompletion::Retry {
                     outcome,
@@ -97,12 +99,14 @@ fn existing_outcomes(record: Box<SubmissionRecord>) -> Vec<(DestinationOutcome, 
                     match outcome {
                         UnconfirmedDelivery::Failed => DeliveryOutcome::Failed,
                         UnconfirmedDelivery::Unlaunched => DeliveryOutcome::Unlaunched,
-                        // The ledger stores an unresolved attempt this way,
-                        // so the replay says the answer is still missing
-                        // rather than reporting it as a quiet arrival.
-                        UnconfirmedDelivery::Unknown => DeliveryOutcome::Unknown,
+                        // The ledger persists a live Silent as this retry outcome
+                        // (see sqlite/ledger/outcomes.rs), so replaying it back as
+                        // Silent here reports the same arrival the first attempt
+                        // did; the ledger keeps retrying it in the background
+                        // regardless.
+                        UnconfirmedDelivery::Unknown => DeliveryOutcome::Silent,
                     },
-                    Some(detail),
+                    Some(detail).filter(|detail| !detail.is_empty()),
                     Some(retry_at),
                 ),
             };
@@ -121,9 +125,7 @@ fn existing_outcomes(record: Box<SubmissionRecord>) -> Vec<(DestinationOutcome, 
 ///
 /// SILENT IS AN ARRIVAL. It is the verdict of an executable channel that ran
 /// and had nothing to say, which is the ordinary success on that path; only a
-/// destination that FAILED or was never launched received nothing. UNKNOWN
-/// counts with the arrivals on the same terms: the ledger is still retrying
-/// that leg, so its attempt is unresolved rather than proven to have missed.
+/// destination that FAILED or was never launched received nothing.
 ///
 /// DECORATIVE LEGS DO NOT DECIDE IT, on the same terms as `event_flow::landed`:
 /// a banner that could not spawn its notifier is a notification the operator
@@ -139,7 +141,7 @@ fn delivered(outcomes: &[(DestinationOutcome, bool)]) -> Status {
         .filter(|entry| {
             matches!(
                 entry.outcome,
-                DeliveryOutcome::Delivered | DeliveryOutcome::Silent | DeliveryOutcome::Unknown
+                DeliveryOutcome::Delivered | DeliveryOutcome::Silent
             )
         })
         .count();

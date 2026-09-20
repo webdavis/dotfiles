@@ -162,8 +162,9 @@ fn leg(destination: &str) -> LedgerLeg {
 
 /// A REPLAYED submission reports what the ledger stored: the destination's
 /// own sentence, the route the leg was submitted on, and the moment the next
-/// attempt is due. A leg whose answer the ledger never learned reads
-/// `unknown` rather than borrowing the quiet-success word.
+/// attempt is due. The ledger stores a live Silent leg as an unresolved
+/// retry with no detail, so replaying it back reports the same quiet
+/// arrival the first attempt did rather than the missing-answer word.
 #[test]
 fn a_replayed_leg_carries_its_note_its_route_and_the_time_it_is_retried() {
     let completions = [
@@ -174,15 +175,17 @@ fn a_replayed_leg_carries_its_note_its_route_and_the_time_it_is_retried() {
                 retry_at: 1_758_153_600,
             },
             DeliveryOutcome::Failed,
+            Some("the gateway refused"),
             Some(1_758_153_600),
         ),
         (
             LedgerCompletion::Retry {
                 outcome: UnconfirmedDelivery::Unknown,
-                detail: "the gateway refused".into(),
+                detail: String::new(),
                 retry_at: 1_758_153_600,
             },
-            DeliveryOutcome::Unknown,
+            DeliveryOutcome::Silent,
+            None,
             Some(1_758_153_600),
         ),
         (
@@ -191,16 +194,39 @@ fn a_replayed_leg_carries_its_note_its_route_and_the_time_it_is_retried() {
                 detail: "the gateway refused".into(),
             },
             DeliveryOutcome::Failed,
+            Some("the gateway refused"),
             None,
         ),
     ];
-    for (completion, outcome, retry_at) in completions {
+    for (completion, outcome, note, retry_at) in completions {
         let output = result(Ok(Submitted::Existing(Box::new(record(completion)))));
         let entry = &output.destinations[0];
         assert_eq!(entry.outcome, outcome);
-        assert_eq!(entry.note.as_deref(), Some("the gateway refused"));
+        assert_eq!(entry.note.as_deref(), note);
         assert_eq!(entry.route.as_ref().map(Name::as_str), Some("priority"));
         assert_eq!(entry.retry_at, retry_at);
+    }
+}
+
+/// A retried leg with no stored detail (the ledger's Silent shape, and a
+/// dead-lettered `Rejected` the destination gave no reason for) reports no
+/// note at all: an empty string is not a sentence, so it is omitted rather
+/// than sent as `note: ""`.
+#[test]
+fn a_replayed_leg_with_no_stored_detail_omits_the_note_rather_than_sending_an_empty_one() {
+    for completion in [
+        LedgerCompletion::Retry {
+            outcome: UnconfirmedDelivery::Unknown,
+            detail: String::new(),
+            retry_at: 1_758_153_600,
+        },
+        LedgerCompletion::Rejected {
+            status: 401,
+            detail: String::new(),
+        },
+    ] {
+        let output = result(Ok(Submitted::Existing(Box::new(record(completion)))));
+        assert_eq!(output.destinations[0].note, None);
     }
 }
 
