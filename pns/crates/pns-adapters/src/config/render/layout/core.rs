@@ -391,15 +391,27 @@ pub(super) const LIGHTS: Table = Table {
     prose: LIGHTS_PROSE,
     opt_in: true,
     children: &[],
-    keys: &[Key {
-        name: "arm_interval",
-        prose: "# How often the daemon re-arms the lamps, bounded \"10s\" to \"30s\". It is also\n\
-                     # the breath budget: a breathing lamp is faded by the tick itself, seamlessly,\n\
-                     # across the whole interval, so this decides how many fades fit between two\n\
-                     # ticks. The floor is one bridge call, so a tick cannot start while the last\n\
-                     # one is still dialling; the ceiling is what the daemon derives a tick's own\n\
-                     # lifetime from, and an interval past it would be a breath cut off part way\n\
-                     # through.\n",
-        sample: Sample::Default("\"12s\""),
-    }],
+    keys: &[
+        Key {
+            name: "arm_interval",
+            prose: "# How often the daemon re-arms the lamps, bounded \"10s\" to \"30s\". It is\n\
+                         # also the breath budget: a breathing lamp is faded by the tick itself,\n\
+                         # seamlessly, across the whole interval, so this decides how many fades\n\
+                         # fit between two ticks. The floor is one bridge call, so a tick cannot\n\
+                         # start while the last one is still dialling; the ceiling is what the\n\
+                         # daemon derives a tick's own lifetime from, and an interval past it\n\
+                         # would be a breath cut off part way through.\n",
+            sample: Sample::Default("\"12s\""),
+        },
+        Key {
+            name: "dim_window",
+            prose: "# THE HOUSE DIM WINDOW, and the only one in the vocabulary: local wall\n\
+                         # clock, the start inclusive and the end exclusive, and it may wrap\n\
+                         # midnight. Every place below that states no `dim_window` of its own\n\
+                         # runs this one, and a place that states one overrides it for that\n\
+                         # place alone. A bare `pns lights mute <place>` mutes until this\n\
+                         # window ends and is refused when none is set.\n",
+            sample: Sample::Example("\"22:00-07:00\""),
+        },
+    ],
 };
