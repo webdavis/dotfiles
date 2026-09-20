@@ -837,9 +837,151 @@ risk: medium, and it is the one slice whose target files are largely outside thi
 own extension docs before writing anything. The plan already allows omp to ship without reminders.
 size: medium
 
+SLICE 50: `pns gateway` absorbs `pns daemon`; `[gateway]` replaces `[daemon]`
+plan-items: recap design, Decisions in force item 5
+why-this-order: first of the six recap slices. It is orthogonal to the recap engine itself, so nothing
+after it depends on the split staying two subcommands, and doing it first keeps `pns daemon schedule`
+out of every later slice's own usage strings.
+files: `pns/crates/pns/src/command_gateway.rs` (gains `run`, `retry`, `schedule` and `cancel` beside
+`start`, `stop`, `restart` and `status`), `pns/crates/pns/src/command_daemon.rs` (deleted, its body
+folded in), `pns/crates/pns/src/invocation.rs` (the `"daemon" | "gateway"` dispatch at lines 187-196),
+`pns/crates/pns-adapters/src/config/daemon.rs` (renamed, `DaemonTable` and `parse_daemon` follow),
+`pns/crates/pns-adapters/src/config/schema.rs` (the `"daemon"` row at line 42 and the
+`("daemon", &["enabled", "service"])` roster entry at line 88), `config/render/layout/core.rs`,
+`dot_config/pns/config-values.toml` (the `[daemon]` table at line 19),
+`dot_config/pns/private_config.toml.tmpl` (regenerated)
+callers-to-update-in-the-same-slice: `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl`
+(`ProgramArguments` runs `daemon run` at lines 10-11; the label itself does not change), and its own
+comment at lines 16-17 naming `[daemon] enabled = false`
+behaviour-to-pin: `pns gateway run`, `pns gateway retry`, `pns gateway schedule` and `pns gateway cancel`
+do exactly what their `daemon` spellings did, `pns daemon <anything>` is refused with exit 2 rather than
+falling through, and `[gateway] enabled = false` is what stops the clock.
+risk: medium, apply window: the LaunchAgent's `ProgramArguments` must ship in the same apply as the
+binary that understands `gateway run`, or the running job execs a verb the old binary refused. Run
+`pns gateway restart` after the apply lands.
+size: small
+
+SLICE 51: `--since` and `--until` take dates, date-times and durations ago
+plan-items: recap design, Command surface (the `--since`/`--until` row) and Errors and exit codes
+why-this-order: after slice 50, so its usage strings and refusals are written against the final
+`pns gateway` name rather than `pns daemon`. Before slice 53, which is the first caller that needs a
+window built from a date rather than an epoch.
+files: `pns/crates/pns-application/src/build_return_recap/window.rs` (`recap_bounds` and
+`RECAP_USAGE`, today `--since-epoch <epoch> --until-epoch <epoch>` only), its
+`window/tests.rs`, `pns/crates/pns-domain/src/duration.rs` (the parser slice 1 promoted, reused for the
+"duration ago" form)
+callers-to-update-in-the-same-slice: `pns/crates/pns/src/command_recap.rs` (the flag names
+`recap_bounds` is called with), `pns/crates/pns/src/subcommand_usage.rs`
+behaviour-to-pin: `--since 2026-09-19` and `--since 2026-09-19T08:00` are read as local dates,
+`--since 2h` is read as a duration ago, `--until` defaults to now when omitted, and `--since-epoch`
+and `--until-epoch` keep working unchanged on `pns gateway schedule --until +<duration>` and
+`--until-epoch`, which are not touched by this slice.
+risk: low. The epoch flags stay valid, so nothing that already calls `pns recap` breaks.
+size: small
+
+SLICE 52: the activity table, the enriched hook record, `[recap] retain`, pruning on the gateway tick
+plan-items: recap design, The activity store and Decisions in force item 3
+why-this-order: after slice 50, since the pruning it adds runs on the gateway's tick rather than the
+daemon's. Before slice 53, which is the first reader of the table; the table exists and fills for one
+slice before anything reads it, so its own tests are the only ones this slice needs.
+files: `pns/crates/pns-adapters/src/persistence/sqlite/migrations.rs` (the new table), `store.rs`,
+a new `pns/crates/pns-adapters/src/persistence/sqlite/activity.rs` beside `sessions.rs` and
+`history.rs`, `pns/crates/pns/src/hook_dispatch.rs` (the write, one row per event, session title read
+from the transcript per the order in the spec's Testing note), `pns/crates/pns-adapters/src/config/recap.rs`
+(`retain`, a duration string through `pns-domain`'s parser), `config/schema.rs`, `config/render/layout/core.rs`,
+`dot_config/pns/private_config.toml.tmpl` (regenerated), `pns/crates/pns/src/command_gateway.rs`
+(the tick's prune call)
+callers-to-update-in-the-same-slice: none. `pns/crates/pns-adapters/src/persistence/rings/records.rs`
+(the activity ring) keeps running; nothing reads the new table yet.
+behaviour-to-pin: a hook event writes one row with `at`, `agent`, `state`, `project`, `branch`,
+`session`, `session_title`, `pane`, `workspace`, `model`, `title` and `detail`; `session_title` prefers
+the transcript's `customTitle`, falls back to `aiTitle`, then the first prompt cut to one line, per the
+"To verify" finding this slice must write back into the design document; and a row older than `retain`
+is pruned on the next gateway tick.
+risk: medium. It is a migration a running store must apply on first start after the apply; a store that
+cannot be opened is a refusal per the design's Errors section, so the migration must be idempotent and
+covered before this ships.
+size: medium
+
+SLICE 53: the recap engine: windows, sections, sources, `--section`, `--json`, `--toon`, `--schema`,
+`--to`, the return-card fold, `repos` retired
+plan-items: recap design, Command surface, Windows, Sections and sources, The agents section, Output
+and Delivery
+why-this-order: after slices 51 and 52, which give it dated bounds and a table to read. Last of the
+size-affecting slices because every other recap decision (the gateway rename, the date flags, the
+store) is a dependency this one assembles rather than a peer of it.
+files: `pns/crates/pns-domain/src/recap/sections.rs` and `night.rs` (generalized from one night's
+window to any named window), a new `pns/crates/pns-domain/src/recap/window.rs` (the four periods,
+`today`, `week`, `--previous`, the no-gap-no-overlap config check), `pns/crates/pns-adapters/src/recap.rs`
+and `recap/` (`github_cli.rs`, `merges.rs`, `worktree/`), `pns/crates/pns-adapters/src/config/recap_sources.rs`
+(the `repositories` parser at line 19 replaced by an argv-list `[recap.sources]` table: `pull_requests`,
+`commits`, `tasks`, `applies`), `config/recap_values.rs`, `config/recap.rs`, `config/schema.rs`,
+`config/render/layout/core.rs`, `pns/crates/pns/src/command_recap.rs` (the window/`open` dispatch,
+`--section`, `--json`, `--toon`, `--schema`, `--to`, `--limit`), `pns/crates/pns/src/recap_delivery_runtime.rs`
+(the return-card fold onto this engine), `pns/crates/pns-adapters/src/recap_card_wire.rs`,
+`dot_config/pns/config-values.toml` (new `[recap.sources]` entries for `tasks` and `applies`),
+`dot_config/pns/private_config.toml.tmpl` (regenerated)
+callers-to-update-in-the-same-slice: `pns/crates/pns-adapters/src/recap_child.rs` (spawns the detached
+window recap; its argv gains the window name), the dispatch tests the design's Testing section names as
+already pinning the return card, re-pointed at this engine
+behaviour-to-pin: bare `pns recap` picks the window that most recently ended; `pns recap open` prints
+only the `open` section with no window flags accepted; two span flags together, or `--previous` with no
+window, are refused with exit 2; `--schema` alone selects document output in the mask's own format and
+`--json`/`--toon` beside it overrides only the output format; `open` is never empty-omitted and is never
+shed from a delivered page; and a source command that fails renders one line naming its exit code
+rather than an empty section.
+risk: high. This is the largest slice and it replaces the return card's own renderer; a regression here
+changes what the operator sees on every return, not just on a `pns recap` typed by hand. Snapshot both
+the styled page and the JSON document before and after.
+size: large
+
+SLICE 54: morning removed
+plan-items: recap design, Removing morning and Decisions in force item 1
+why-this-order: after slice 53, so the recap engine already covers everything morning printed before
+morning is deleted; removing it earlier would leave a gap with nothing filling it.
+files: `morning/` (the whole workspace, deleted), `.chezmoiscripts/run_onchange_after_55-build-morning.sh.tmpl`
+(deleted), `dot_config/morning/` (deleted, including `config.toml.tmpl`), `.chezmoiignore` (the
+`morning` line at line 71), `justfile` (the four `morning` lines at 82-85), `CLAUDE.md` (the `morning/`
+paragraph under "The Rust monorepo")
+callers-to-update-in-the-same-slice: none. Nothing in this repository invokes `morning` outside the
+files above.
+behaviour-to-pin: `just test-rust` no longer builds, tests or lints a `morning` workspace, and the four
+Rust workspaces plus their own build scripts are unaffected by the removal.
+risk: medium. The deployed `~/.cargo/bin/morning` binary and `~/.config/morning/` stay on disk until
+the operator trashes them by hand, since this repository builds no removal mechanism; the pull request
+body carries the two `trash` commands per the design.
+size: medium
+
+SLICE 55: the summarizer: `[recap.summarizer]`, the known types and `custom`, the `summary` section,
+`--summarize`, `--with-transcripts`, `pregenerate` on the gateway tick, the doctor row, the prompt
+override
+plan-items: recap design, The summarizer
+why-this-order: after slice 53, whose document the summarizer reads and whose `open` section it must
+never rewrite; after slice 54 rather than before it, since the summarizer needs the engine and the
+store, not morning's removal, and slice 54 is small enough not to block on this one.
+files: `pns/crates/pns-adapters/src/recap/summarizer.rs` (the `claude`/`codex`/`ollama`/`hermes`/`custom`
+invocations), `pns/crates/pns-domain/src/recap/prompt.rs` (the fixed instruction, `prompt`/`prompt_file`
+override), `pns/crates/pns-adapters/src/config/tests/recap_summarizer.rs` (today's fixture, extended
+for the new type roster), `pns/crates/pns-adapters/src/config/recap.rs` (`[recap.summarizer]`, moving
+`summarizer_deadline` under it as `deadline`), `config/schema.rs`, `config/render/layout/core.rs`,
+a new `pns/crates/pns-adapters/src/doctor/summarizer.rs` beside `heartbeat.rs`, `pns/crates/pns/src/command_recap.rs`
+(`--summarize`, `--with-transcripts`), `pns/crates/pns/src/command_gateway.rs` (the tick's
+`pregenerate` pass), `dot_config/pns/private_config.toml.tmpl` (regenerated)
+callers-to-update-in-the-same-slice: `pns/crates/pns-adapters/src/doctor.rs` (registers the new row
+beside `pairing_report` and `daemon_heartbeat`)
+behaviour-to-pin: a golden test pins the exact argument vector for each known `type`; a summarizer that
+is missing, refuses, says nothing or runs past `deadline` leaves one visible line in the summary's
+place on every output form, not only under `-v`; the mechanical sections render unaffected by that
+failure; and `pregenerate` writes a stored summary that a later read shows with its written time,
+regenerated only when it is older than the window's last event.
+risk: medium. It spawns a model process from the gateway on a schedule (`pregenerate`) rather than only
+on a hand-typed command; a runaway or hung invocation is bounded by `deadline` and by the group watchdog
+the design already assigns to the window form.
+size: medium
+
 ---
 
-TOTAL SLICES: 49
+TOTAL SLICES: 55
 
 ## Operator rulings
 
