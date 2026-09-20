@@ -29,11 +29,11 @@ fn missing_and_empty_deployed_lists_both_print_nothing() {
 }
 #[test]
 fn deny_membership_is_a_raw_compact_substring_even_inside_a_comment() {
-    let (_object, object) = fixture(b"{\"label\": \"my.alpha\"}\n");
+    let (_object_sandbox, object) = fixture(b"{\"label\": \"my.alpha\"}\n");
     assert!(!contains_label_text(&object, "my.alpha"));
-    let (_commented, commented) = fixture(b"# {\"label\":\"my.alpha\"}\n{bad\n");
+    let (_commented_sandbox, commented) = fixture(b"# {\"label\":\"my.alpha\"}\n{bad\n");
     assert!(contains_label_text(&commented, "my.alpha"));
-    let (_torn, torn) = fixture(b"{bad\n");
+    let (_torn_sandbox, torn) = fixture(b"{bad\n");
     assert!(!contains_label_text(&torn, "my.alpha"));
 }
 #[test]
