@@ -188,12 +188,15 @@ grep -q 'claude-hook subcommand is gone' "$sandbox/out" ||
 [[ $status -eq 0 ]] ||
   fail "7: a renamed subcommand must WARN, not abort the apply, got $status"
 
-# --- 8: no pns gate on disk must be REPORTED, not skipped in silence --------
-# With no binary to point at, the pi and omp extensions keep calling moshi-hook
-# directly: the presence gate is off and the only symptom is pushes arriving
-# while the operator sits at the keyboard, which reads as moshi being noisy
-# rather than as a regression. Every other way of losing the gate already
+# --- 8: no pns binary on disk must be REPORTED, not skipped in silence ------
+# With no binary to point at, the generated extensions keep naming moshi-hook
+# as their replay adapter AND the pi and omp reminder extensions have nothing
+# to call, both out of the same build. Every other way of losing that already
 # warned; this one did not, and it is the way a fresh machine lost it.
+#
+# The report must also not claim what the repoint does not do: helperBinary is
+# the generated file's manual-replay constant, never spawned on a live event,
+# so no line here may promise presence gating or unfiltered pushes.
 
 cat >"$sandbox/fake-binary" <<'STUB'
 #!/bin/bash
@@ -207,18 +210,23 @@ status=0
 PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
   MOSHI_EXTENSION_ROOT="$sandbox/home" PNS_MOSHI_GATE="$sandbox/no-such-gate.sh" \
   bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
-grep -q 'no pns presence gate' "$sandbox/out" ||
-  fail "8: a missing pns gate must say so (out: $(cat "$sandbox/out"))"
-grep -q 'unfiltered' "$sandbox/out" ||
-  fail "8: the warning must say what the operator will actually see"
+grep -q 'no pns binary' "$sandbox/out" ||
+  fail "8: a missing pns binary must say so (out: $(cat "$sandbox/out"))"
+grep -q 'reminder extensions have nothing to call' "$sandbox/out" ||
+  fail "8: the warning must say what the operator will actually lose"
+if grep -qi 'presence gat\|unfiltered' "$sandbox/out"; then
+  fail "8: the report must not claim the dead gate (out: $(cat "$sandbox/out"))"
+fi
 [[ $status -eq 0 ]] ||
-  fail "8: a missing pns gate must WARN, not abort the apply, got $status"
+  fail "8: a missing pns binary must WARN, not abort the apply, got $status"
 grep -q '/opt/homebrew/bin/moshi-hook' "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts" ||
-  fail '8: with no gate to point at, the extension must be left exactly as it was'
+  fail '8: with no binary to point at, the extension must be left exactly as it was'
 
-# --- 9: a gate ON DISK is written into the extension --------------------------
+# --- 9: a binary ON DISK is written into the extension -----------------------
 # The other half of case 8, and the reason the script runs after the build:
-# given a binary, the repoint happens and the gate is back in the path.
+# given a binary, the repoint happens and a replayed payload goes through pns.
+# What the repoint is NOT is pinned here too: the success line names the replay
+# adapter rather than a presence gate the generated file never calls.
 
 printf '#!/bin/bash\n' >"$sandbox/gate.sh"
 chmod +x "$sandbox/gate.sh"
@@ -228,6 +236,11 @@ PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" \
   bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
 [[ $status -eq 0 ]] || fail "9: the repoint must not abort the apply, got $status"
 grep -q "helperBinary = \"$sandbox/gate.sh\"" "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts" ||
-  fail "9: the extension must end up pointing at the gate (file: $(cat "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts"))"
+  fail "9: the extension must end up pointing at pns (file: $(cat "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts"))"
+grep -q 'repointed the replay adapter' "$sandbox/out" ||
+  fail "9: the repoint must report what it repointed (out: $(cat "$sandbox/out"))"
+if grep -qi 'presence gat\|unfiltered' "$sandbox/out"; then
+  fail "9: the report must not claim the dead gate (out: $(cat "$sandbox/out"))"
+fi
 
-printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse, a stopped daemon does not abort the apply, a renamed hook subcommand is reported, a missing pns gate is reported and changes nothing, a present one is repointed)\n'
+printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse, a stopped daemon does not abort the apply, a renamed hook subcommand is reported, a missing pns binary is reported and changes nothing, a present one is repointed, and no report claims a presence gate the generated extension never calls)\n'
