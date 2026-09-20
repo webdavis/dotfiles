@@ -61,9 +61,13 @@ pub fn local_epoch(
     // -1 for a moment it cannot express.
     let seconds = unsafe { libc::mktime(&mut broken_down) };
     // Read back rather than trusted: the normalized fields are what say the
-    // day was a real one.
+    // moment was a real one. A DST gap normalizes the hour (and sometimes the
+    // minute) the same way an impossible date normalizes the day, so both are
+    // caught here.
     let kept = broken_down.tm_mon == i32::try_from(month).ok()? - 1
-        && broken_down.tm_mday == i32::try_from(day).ok()?;
+        && broken_down.tm_mday == i32::try_from(day).ok()?
+        && broken_down.tm_hour == i32::try_from(hour).ok()?
+        && broken_down.tm_min == i32::try_from(minute).ok()?;
     (seconds != -1 && kept).then(|| u64::try_from(seconds).ok())?
 }
 
