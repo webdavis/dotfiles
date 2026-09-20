@@ -68,7 +68,10 @@ pub fn local_epoch(
         && broken_down.tm_mday == i32::try_from(day).ok()?
         && broken_down.tm_hour == i32::try_from(hour).ok()?
         && broken_down.tm_min == i32::try_from(minute).ok()?;
-    (seconds != -1 && kept).then(|| u64::try_from(seconds).ok())?
+    if seconds == -1 || !kept {
+        return None;
+    }
+    u64::try_from(seconds).ok()
 }
 
 /// One epoch second as an RFC 3339 instant in UTC, or None when the system
