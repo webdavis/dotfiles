@@ -1,6 +1,7 @@
 use super::*;
 use lights_domain::RoomName;
-use std::{cell::Cell, os::unix::process::ExitStatusExt};
+use std::cell::Cell;
+mod bounded;
 mod lifecycle;
 
 fn action() -> Action {
@@ -13,44 +14,52 @@ fn action() -> Action {
 #[test]
 fn pns_arguments_are_local_only() {
     let calls = Cell::new(0);
-    let notifier = PnsNotifier::with_runner(Path::new("/owned/home"), |command: &mut Command| {
-        assert_eq!(command.get_program(), "gtimeout");
-        let args = command
-            .get_args()
-            .map(|s| s.to_str().unwrap())
-            .collect::<Vec<_>>();
-        assert_eq!(
-            args,
-            [
-                "--foreground",
-                "--signal=KILL",
-                "2s",
-                "/owned/home/.cargo/bin/pns",
-                "send",
-                "--producer",
-                "lights",
-                "--state",
-                "done",
-                "--project",
-                "Studio",
-                "--detail",
-                "Studio: on",
-                "--scope",
-                "local_only"
-            ]
-        );
-        calls.set(calls.get() + 1);
-        Ok(ExitStatus::from_raw(0))
-    });
+    let notifier = PnsNotifier::with_runner(
+        Path::new("/owned/home"),
+        |command: &mut Command, duration: Duration| {
+            assert_eq!(command.get_program(), "/owned/home/.cargo/bin/pns");
+            let args = command
+                .get_args()
+                .map(|s| s.to_str().unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                args,
+                [
+                    "send",
+                    "--producer",
+                    "lights",
+                    "--state",
+                    "done",
+                    "--project",
+                    "Studio",
+                    "--detail",
+                    "Studio: on",
+                    "--scope",
+                    "local_only"
+                ]
+            );
+            assert_eq!(duration, Duration::from_secs(2));
+            calls.set(calls.get() + 1);
+            Ok(ExitStatus::from_raw(0))
+        },
+    );
     notifier.announce(&action());
     assert_eq!(calls.get(), 1);
 }
 #[test]
-fn missing_timeout_monitor_does_not_spawn_pns() {
-    let fixture = lifecycle::Fixture::new("missing-monitor");
-    let mut notifier = PnsNotifier::new(&fixture.root);
-    notifier.pns = fixture.child.clone();
-    notifier.monitor = fixture.root.join("absent-monitor");
+fn no_external_monitor_appears_on_the_command_line() {
+    let notifier =
+        PnsNotifier::with_runner(Path::new("/owned/home"), |command: &mut Command, _| {
+            let words = std::iter::once(command.get_program())
+                .chain(command.get_args())
+                .map(|word| word.to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+            assert!(
+                !words.iter().any(|word| word.contains("timeout")),
+                "{words:?}"
+            );
+            Ok(ExitStatus::from_raw(0))
+        });
     notifier.announce(&action());
-    assert!(!fixture.ready.exists());
+    notifier.alarm("owned detail");
 }
