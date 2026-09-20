@@ -196,7 +196,7 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
     assert!(
         printed.contains(
             "lights: FAILED, pulse SKIPPED, no hue bridge and key in the config \
-             ([plugins.lights] bridge, key); nothing was signalled"
+             ([plugins.lights] bridge_host, api_key); nothing was signalled"
         ),
         "the line names the settings to write: {printed}"
     );

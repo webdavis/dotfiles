@@ -66,7 +66,7 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::NoBridge),
         vec![
-            "pns doctor: lights: no [plugins.lights] bridge and key, so no lamp \
+            "pns doctor: lights: no [plugins.lights] bridge_host and api_key, so no lamp \
                  could be resolved"
         ],
         "a config that named no bridge is not a bridge that answered nothing"

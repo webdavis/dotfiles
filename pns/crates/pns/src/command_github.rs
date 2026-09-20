@@ -202,9 +202,10 @@ fn report(
             published(state, stored, &advanced, launch)
         }
         pns_adapters::GithubPolled::Unauthorized { status } => {
+            let token_key = pns_domain::config_keys::GITHUB_PERSONAL_ACCESS_TOKEN;
             eprintln!(
                 "pns github: the notifications API answered {status}; \
-                 `[plugins.github] token` names the vault entry to check. \
+                 `[plugins.github] {token_key}` names the vault entry to check. \
                  It must be a CLASSIC personal access token carrying the \
                  `notifications` scope, which is the only token these \
                  endpoints accept."

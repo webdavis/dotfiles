@@ -1,4 +1,5 @@
 use super::pairing::PREFIX;
+use crate::config_keys::{LIGHTS_API_KEY, LIGHTS_BRIDGE_HOST};
 
 /// What the doctor found about the lamps.
 ///
@@ -52,7 +53,8 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
         }
         LightsReport::NoBridge => {
             return vec![format!(
-                "{PREFIX}lights: no [plugins.lights] bridge and key, so no lamp could be resolved"
+                "{PREFIX}lights: no [plugins.lights] {LIGHTS_BRIDGE_HOST} and {LIGHTS_API_KEY}, \
+                 so no lamp could be resolved"
             )];
         }
         LightsReport::Unreachable => {
