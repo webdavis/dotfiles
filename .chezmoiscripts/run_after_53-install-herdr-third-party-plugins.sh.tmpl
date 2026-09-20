@@ -11,7 +11,8 @@ set -euo pipefail
 #
 # Two of the roster entries are ours (herdr-workspace-jump and herdr-smart-nav),
 # which is the point of extracting them into their own public repositories: they
-# arrive by the same convention as everybody else's. The one plugin that does not
+# arrive by the same convention as everybody else's, and a `ref:` bump in the
+# roster reinstalls them at the next apply. The one plugin that does not
 # is herdr-process, whose manifest is generated from this machine's config;
 # run_onchange_after_58 clones, builds and links that one.
 #
@@ -19,9 +20,10 @@ set -euo pipefail
 # a running herdr server, which a scripted apply frequently does not have. A
 # run_onchange script records its trigger as satisfied on ANY exit 0, so one
 # apply with the server down would consume the trigger and the plugin would never
-# be installed. Running on every apply and installing only what is missing makes
-# the failure self-healing, at the cost of one bounded socket call per apply and
-# per plugin, and it costs no retry-marker machinery
+# be installed, which holds for a moved pin exactly as it holds for a missing
+# plugin. Running on every apply and installing whatever is not at its roster
+# revision makes the failure self-healing, at the cost of one bounded socket call
+# per apply and per plugin, and it costs no retry-marker machinery
 # (run_onchange_after_58 carries that for the one plugin this repo still builds,
 # which cannot be converged this cheaply).
 
@@ -41,28 +43,65 @@ else
   exit 0
 fi
 
-# 0 iff herdr reports exactly this plugin id registered. `herdr plugin list`
-# answers with a JSON envelope and returns exit 0 even when that envelope is an
-# error, so the exact-id count is the only trustworthy signal. An unreachable or
-# wedged server fails the call and is reported as not-registered by the caller,
-# which then declines to install rather than guessing.
-plugin_registered() {
-  local response count
+# What herdr records for one registered plugin: the revision its install asked
+# for and the commit that resolved to, tab separated, either field possibly
+# empty. Non-zero when herdr does not report exactly this plugin id. `herdr
+# plugin list` answers with a JSON envelope and returns exit 0 even when that
+# envelope is an error, so the exact-id match is the only trustworthy signal. An
+# unreachable or wedged server fails the call and reads as not-registered to the
+# caller, which then declines to install rather than guessing.
+plugin_source_record() {
+  local response
   response="$("$timeout_bin" 10 herdr plugin list --plugin "$1" --json 2>/dev/null)" || return 1
-  count="$(printf '%s' "$response" |
-    jq --arg id "$1" '[.result.plugins[]? | select(.plugin_id == $id)] | length' 2>/dev/null ||
-    printf '0')"
-  [[ $count == "1" ]]
+  printf '%s' "$response" | jq -e -r --arg id "$1" '
+    [.result.plugins[]? | select(.plugin_id == $id)] as $found
+    | if ($found | length) == 1
+      then [$found[0].source.requested_ref // "", $found[0].source.resolved_commit // ""] | @tsv
+      else empty
+      end' 2>/dev/null
 }
 
-# Install one plugin when it is absent. Quiet when it is already there, so a
-# no-op apply prints nothing. 300s rather than 10s because the install clones the
-# plugin repository, which is a network operation and not a socket round trip.
-# A pinned ref (uu's own `ref:` roster key) is passed through so a fresh install
-# lands at that revision instead of tip; the id-only presence gate above still
-# skips a plugin that is already registered, pinned or not. Nothing moves a
-# pinned plugin that is already installed: uu's weekly run reports the install
-# command for the revision it is not at, and the operator runs it.
+# 0 iff that record sits at the pinned revision. The requested revision answers
+# first, because a pin is usually a tag or a branch and that is the field herdr
+# records it in; a commit pin matches the resolved commit, by prefix from seven
+# characters up. Same rule as uu's weekly herdr lane, which reads the same
+# roster and the same listing.
+record_holds_pin() {
+  local requested=$1 commit=$2 pin=$3
+  if [[ $requested == "$pin" ]]; then
+    return 0
+  fi
+  if [[ -z $commit ]]; then
+    return 1
+  fi
+  if [[ $commit == "$pin" ]]; then
+    return 0
+  fi
+  [[ ${#pin} -ge 7 && $commit == "$pin"* ]]
+}
+
+# 0 iff the plugin is registered and, when the roster pins it, at that pin.
+plugin_at_roster_revision() {
+  local plugin_id=$1 pin=$2 record requested commit
+  record="$(plugin_source_record "$plugin_id")" || return 1
+  if [[ -z $pin ]]; then
+    return 0
+  fi
+  # Split on the tab rather than with `read`, which strips a LEADING tab and
+  # would read a plugin with no requested revision as having one.
+  requested=${record%%$'\t'*}
+  commit=${record#*$'\t'}
+  record_holds_pin "$requested" "$commit" "$pin"
+}
+
+# Install one plugin when it is absent, and reinstall it when the roster pins a
+# revision the installed copy is not at. herdr v1 has no `plugin update`, and an
+# install over a GitHub-managed plugin replaces that managed checkout in place,
+# so the pin bump lands at the next apply with no uninstall. Quiet when the
+# plugin already sits where the roster says, so a no-op apply prints nothing.
+# An unpinned entry is left wherever it was installed; uu's weekly run is what
+# moves those to tip. 300s rather than 10s because the install clones the plugin
+# repository, which is a network operation and not a socket round trip.
 install_plugin() {
   local plugin_id=$1 source_repo=$2 ref=${3:-}
   local -a install_args=("$source_repo")
@@ -70,12 +109,20 @@ install_plugin() {
     install_args+=(--ref "$ref")
   fi
   install_args+=(--yes)
-  if plugin_registered "$plugin_id"; then
+  local previous=""
+  if plugin_at_roster_revision "$plugin_id" "$ref"; then
     return 0
   fi
+  # A registered plugin that failed the gate is one the roster has moved, so the
+  # line below reports the move rather than a first install.
+  previous="$(plugin_source_record "$plugin_id" || true)"
   if "$timeout_bin" 300 herdr plugin install "${install_args[@]}" >/dev/null 2>&1 &&
-    plugin_registered "$plugin_id"; then
-    printf 'herdr plugin %s installed from %s\n' "$plugin_id" "$source_repo"
+    plugin_at_roster_revision "$plugin_id" "$ref"; then
+    if [[ -n $previous ]]; then
+      printf 'herdr plugin %s moved to %s\n' "$plugin_id" "$ref"
+    else
+      printf 'herdr plugin %s installed from %s\n' "$plugin_id" "$source_repo"
+    fi
   else
     printf 'herdr plugin install %s failed or is unverified (herdr server down?); the next apply retries.\n' \
       "$source_repo" >&2
@@ -88,13 +135,9 @@ install_plugin() {
 # `herdr api snapshot` subcommand 0.7.0-preview lacked. The sidebar source path
 # carries a subdirectory because its repository is a monorepo.
 #
-# herdr-workspace-jump and herdr-smart-nav must be unlinked BEFORE the apply that
-# first runs this loop: `herdr plugin unlink herdr-workspace-jump` and
-# `herdr plugin unlink herdr-smart-nav`. Both are still registered from the local
-# links this repo used to build; plugin_registered matches by id alone, so it
-# sees them present and install_plugin skips them, leaving every chord resolved
-# against the now-deleted ~/.local/share/herdr/plugins/* source until an unlink
-# and a second apply.
+# herdr refuses an install over a plugin registered from a LOCAL LINK, so a
+# roster id still linked from an older build reports the failure above every
+# apply until `herdr plugin unlink <id>` retires the link.
 {{ range .packages.herdr_plugins -}}
 install_plugin {{ .id }} {{ .repo }} {{ dig "ref" "" . | quote }}
 {{ end -}}
