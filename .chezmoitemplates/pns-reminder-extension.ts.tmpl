@@ -13,6 +13,13 @@ function firstString(...values) {
   return ""
 }
 
+// A per-session fallback for when nothing above answers, minted once as the
+// module loads: this process is one harness session, so it stays stable for
+// every event the session raises and distinct from any other session's. The
+// producer's bare name would not be: pns keys a wait by the session id, and
+// two concurrent sessions sharing one name would share one wait too.
+const fallbackSessionId = `${producer}-${Math.random().toString(36).slice(2)}`
+
 // The manager's own id when there is one, since that is what every other
 // extension on this harness reports and pns keys a wait by the session.
 function sessionId(event, ctx) {
@@ -23,7 +30,19 @@ function sessionId(event, ctx) {
       managerId = String(manager.getSessionId() ?? "")
     } catch {}
   }
-  return firstString(managerId, event?.session_id, event?.sessionId, producer)
+  let sessionFile = ""
+  if (typeof manager?.getSessionFile === "function") {
+    try {
+      sessionFile = String(manager.getSessionFile() ?? "")
+    } catch {}
+  }
+  return firstString(
+    managerId,
+    event?.session_id,
+    event?.sessionId,
+    sessionFile,
+    fallbackSessionId,
+  )
 }
 
 // Fire and forget: the child is detached and unref'd and every failure is

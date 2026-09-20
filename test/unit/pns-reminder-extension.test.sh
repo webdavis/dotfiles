@@ -101,3 +101,14 @@ function test_omp_approval_resolved_clears_the_reminder() {
   assert_contains "argv:hook resolved" "$(cat "$PNS_STUB_LOG")"
   assert_contains "producer:omp" "$(cat "$PNS_STUB_LOG")"
 }
+
+function test_a_session_with_no_id_anywhere_falls_back_to_a_per_session_id_not_the_bare_producer() {
+  # No sessionManager on ctx and no session id on the event: the bare
+  # producer name must never be the fallback, or two such sessions running at
+  # once would share one pns wait and clear each other's reminder.
+  fire omp tool_approval_requested '{"toolName":"bash"}'
+  local logged
+  logged="$(cat "$PNS_STUB_LOG")"
+  assert_contains '"session_id":"omp-' "$logged"
+  assert_not_contains '"session_id":"omp"' "$logged"
+}
