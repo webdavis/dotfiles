@@ -63,6 +63,11 @@ one-key wrapper object, and a wrapped word is refused rather than read as a deli
 result carries `ledger_sequence`, the engine's own durable row for this request, and a `destinations`
 array whose entries name themselves in `name`. A destination that still names itself in the retired
 `destination` field is refused, so a stale engine fails loudly instead of answering with a nameless leg.
+Each entry also states the `route` it was submitted on, the `note` the destination itself offered about a
+leg it did not deliver, and the `retry_at` unix second the engine will try it again; each is absent
+rather than null when it does not apply. The outcome words are `delivered`, `failed`, `silent` (the
+channel ran and said nothing), `unlaunched` and `unknown` (the engine never learned how the attempt ended
+and is still retrying it).
 
 Anything less leaves posture's own state where it was, so the next run re-reads the same findings. A
 correlated `status: rejected` is a protocol refusal and stays quiet; an engine that could not be run,
