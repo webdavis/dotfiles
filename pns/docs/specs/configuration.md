@@ -205,8 +205,7 @@ switches."
 | `remind.delay` | duration string | unset (`REMIND_OFF`, the feature off) | `"0s"` is off; otherwise 30s to 1h inclusive | no     | not a duration: `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``; outside: `` `remind` key `delay` "{text}" is outside 30s to 1h `` | `src/config.rs:remind_delay_range` | `the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
 The bounds live in the policy crate as `pns_domain::remind::DELAY_RANGE`, so the `[remind] delay` key,
-the `--remind=<duration>` flag and the JSON request's `remind` field are held to one range. The ceiling
-is an hour, the same number `MAX_SUMMARIZER_DEADLINE_SECS` carries.
+the `--remind=<duration>` flag and the JSON request's `remind` field are held to one range.
 
 ### `[lights]`
 

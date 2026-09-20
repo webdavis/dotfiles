@@ -31,8 +31,7 @@ pub(super) fn parse_remind(value: toml::Value) -> Result<u64, ConfigError> {
 /// schedule the operator meant and pns will not run.
 ///
 /// THE BOUNDS THEMSELVES ARE THE POLICY CRATE'S, so the file, the flag and the
-/// JSON field are held to one range. The ceiling is an hour, the same number
-/// `MAX_SUMMARIZER_DEADLINE_SECS` carries.
+/// JSON field are held to one range.
 pub fn remind_delay_range() -> RangeInclusive<Duration> {
     pns_domain::remind::DELAY_RANGE
 }
