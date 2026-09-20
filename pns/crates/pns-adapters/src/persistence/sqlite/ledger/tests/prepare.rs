@@ -80,6 +80,37 @@ fn conflicting_payload_or_any_resolved_leg_fact_is_refused_without_overwriting_t
     );
 }
 #[test]
+fn a_retry_re_encoding_the_same_request_in_the_newer_canonical_form_is_not_a_conflict() {
+    // The stored producer_request is the OLD shape, with absent optionals
+    // written as explicit null. A producer retrying with a stable request id
+    // after an upgrade sends the NEWER canonical bytes, which omit those
+    // same keys instead. Both decode to the identical request, so the retry
+    // must recognize it rather than conflict against itself.
+    let store = SqliteStore::new(state());
+    let mut input = submission();
+    input.producer_request = Some(
+        concat!(
+            "{\"schema\":\"pns.request/1\",\"request_id\":\"r-1\",\"producer\":\"shell\",",
+            "\"session\":null,\"state\":\"failed\",\"elapsed\":null,\"detail\":\"\",",
+            "\"project\":null,\"branch\":null,\"pane\":null,\"scope\":\"automatic\",",
+            "\"route\":null,\"delivery_class\":null,\"remind\":null,\"extensions\":{}}"
+        )
+        .into(),
+    );
+    created(&store, &input);
+    input.producer_request = Some(
+        concat!(
+            "{\"schema\":\"pns.request/1\",\"request_id\":\"r-1\",\"producer\":\"shell\",",
+            "\"state\":\"failed\",\"detail\":\"\",\"scope\":\"automatic\",\"extensions\":{}}"
+        )
+        .into(),
+    );
+    let PreparedSubmission::Existing(record) = store.prepare(&input, lease(11, 21)).unwrap() else {
+        panic!("a canonical re-encode of the same request must not conflict")
+    };
+    assert_eq!(record.attempts.len(), 2);
+}
+#[test]
 fn distinct_producer_or_request_ids_keep_identical_content_as_separate_monotonic_events() {
     let store = SqliteStore::new(state());
     let mut input = submission();

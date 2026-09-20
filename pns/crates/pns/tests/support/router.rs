@@ -15,7 +15,7 @@ pub const KEYS_DISAGREE: &str = r#"{"data":[
 /// router setting by writing one more line.
 pub fn router_table(router_url: &str) -> String {
     format!(
-        "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"{router_url}\"\n\
+        "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\nurl = \"{router_url}\"\n\
          device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
          device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n"
     )

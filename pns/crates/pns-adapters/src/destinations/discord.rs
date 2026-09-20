@@ -264,7 +264,7 @@ fn outcome_line(outcome: DeliveryOutcome) -> String {
 /// rather than a project nobody mapped.
 fn skipped_line(no_token: bool) -> String {
     let key = if no_token {
-        "[plugins.log] token"
+        "[plugins.log] bot_token"
     } else {
         "[plugins.log.channels] default"
     };

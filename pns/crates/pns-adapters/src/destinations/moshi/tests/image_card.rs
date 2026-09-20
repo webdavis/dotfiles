@@ -4,13 +4,16 @@
 
 use super::*;
 /// The card type `event()` raises, so a test arms exactly that one.
-const ARMED: &str = "token = \"tok-1\"\n[image_cards]\ndone = true\n";
+const ARMED: &str = "device_token = \"tok-1\"\n[image_cards]\ndone = true\n";
 
 #[test]
 fn a_card_type_nobody_armed_uploads_nothing_and_keeps_its_deep_link() {
     // SHIPPED OFF is the posture, and this is the whole of it: an empty
     // toggle table has to leave the channel byte for byte as it was.
-    let channel = channel_over(RecordingHttp::uploading("abcde1xy"), "token = \"tok-1\"\n");
+    let channel = channel_over(
+        RecordingHttp::uploading("abcde1xy"),
+        "device_token = \"tok-1\"\n",
+    );
     channel.deliver(&delivery_request(&event(), ReportMode::Silent));
     assert!(channel.http.uploads.lock().unwrap().is_empty());
     let posts = channel.http.posts.lock().unwrap();

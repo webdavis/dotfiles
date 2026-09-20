@@ -73,12 +73,12 @@ pub struct DestinationOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResultEnvelope {
     /// The request's own id, or `None` when the bytes never yielded one.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
     pub status: Status,
     /// The ledger row this request committed as, stringified, or `None` when
     /// no row committed.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ledger_sequence: Option<String>,
     #[serde(default)]
     pub destinations: Vec<DestinationOutcome>,

@@ -19,7 +19,7 @@ fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
                 default_route: DEFAULT_ROUTE.to_string(),
                 threads: Box::new(Remembered::default()),
             },
-            "[plugins.log] token",
+            "[plugins.log] bot_token",
         ),
         (
             armed_on("", ChannelMap::new(), DeliveryOutcome::Status(200)),

@@ -28,11 +28,11 @@ pub(super) fn result(submitted: Result<Submitted, NotSubmitted>) -> ResultEnvelo
             sequence,
             outcomes
                 .into_iter()
-                .map(|(leg, delivered)| {
-                    (
-                        outcome(leg.destination, leg.route, &delivered),
+                .filter_map(|(leg, delivered)| {
+                    Some((
+                        outcome(leg.destination, leg.route, &delivered)?,
                         leg.decorative,
-                    )
+                    ))
                 })
                 .collect(),
             None,
@@ -85,7 +85,7 @@ fn existing_outcomes(record: Box<SubmissionRecord>) -> Vec<(DestinationOutcome, 
     record
         .attempts
         .into_iter()
-        .map(|attempt| {
+        .filter_map(|attempt| {
             let (verdict, note, retry_at) = match attempt.completion {
                 LedgerCompletion::Rejected { detail, .. } => (
                     DeliveryOutcome::Failed,
@@ -113,10 +113,10 @@ fn existing_outcomes(record: Box<SubmissionRecord>) -> Vec<(DestinationOutcome, 
                 ),
             };
             let (route, decorative) = legs.get(&attempt.destination).cloned().unwrap_or_default();
-            (
-                named(attempt.destination, route, verdict, note, retry_at),
+            Some((
+                named(attempt.destination, route, verdict, note, retry_at)?,
                 decorative,
-            )
+            ))
         })
         .collect()
 }
@@ -159,7 +159,7 @@ fn delivered(outcomes: &[(DestinationOutcome, bool)]) -> Status {
 /// The sentence a destination offered about a leg it did not deliver. A
 /// delivery's own text is the event coming back, so only the three verdicts
 /// that explain a shortfall carry one.
-fn outcome(destination: String, route: String, delivered: &Delivery) -> DestinationOutcome {
+fn outcome(destination: String, route: String, delivered: &Delivery) -> Option<DestinationOutcome> {
     let (verdict, note) = match delivered {
         Delivery::Delivered(_) => (DeliveryOutcome::Delivered, None),
         Delivery::Failed(note) => (DeliveryOutcome::Failed, Some(note.clone())),
@@ -170,27 +170,34 @@ fn outcome(destination: String, route: String, delivered: &Delivery) -> Destinat
     named(destination, route, verdict, note, None)
 }
 
+/// One leg's verdict, or `None` for a destination name the envelope cannot
+/// carry.
+///
+/// THE REGISTRY REFUSES SUCH A NAME AT REGISTRATION, so a planned leg always
+/// yields a verdict here; this returns the absence rather than panicking on
+/// the delivery path, where the crash would take the whole submission with it.
+/// A route the envelope cannot carry is reported as no route instead, because
+/// the route is advisory and the verdict beside it is what says whether the
+/// event arrived.
 fn named(
     destination: String,
     route: String,
     outcome: DeliveryOutcome,
     note: Option<String>,
     retry_at: Option<u64>,
-) -> DestinationOutcome {
-    DestinationOutcome {
-        // Destination names come from the validated compiled registry.
-        name: Name::new(destination).expect("a registered destination name"),
+) -> Option<DestinationOutcome> {
+    Some(DestinationOutcome {
+        name: Name::new(destination).ok()?,
         outcome,
-        // A leg submitted to a destination's own default carries no route;
-        // any other route comes from the same validated compiled registry.
+        // A leg submitted to a destination's own default carries no route.
         route: if route.is_empty() {
             None
         } else {
-            Some(Name::new(route).expect("a registered route name"))
+            Name::new(route).ok()
         },
         note,
         retry_at,
-    }
+    })
 }
 
 #[cfg(test)]
