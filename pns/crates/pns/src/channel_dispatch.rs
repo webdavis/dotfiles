@@ -2,8 +2,7 @@ use crate::{Mobile, executable_in_path};
 use pns_adapters::{
     BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_UPLOAD_URL, DEFAULT_MOSHI_URL, DiscordChannel,
     DiscordSettings, HermesChannel, HermesKeys, InstallSettings, MoshiChannel, SystemCommandRunner,
-    UreqDiscordPost, UreqPost, channel_url, install_settings, refused_backend_line,
-    refused_discord_line, resolve_path,
+    UreqDiscordPost, UreqPost, channel_url, install_settings, refused_backend_line, resolve_path,
 };
 use pns_application::{Destinations, NotificationDestination};
 use pns_domain::{Event, EventArgs, registry::Selection, render, routes::Routes};
@@ -113,12 +112,7 @@ fn destinations_for_override(
             None,
             json,
         ),
-        registration::choose(
-            discord_channel(discord, route, routes),
-            forced,
-            discord.refusal().map(refused_discord_line),
-            json,
-        ),
+        registration::choose(discord_channel(discord, route, routes), forced, None, json),
     ];
     registration::assemble(selection, native, &channels, json)
 }

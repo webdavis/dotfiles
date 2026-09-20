@@ -99,21 +99,67 @@ pub const DEFAULT_SUBMIT_DEADLINE_SECS: u64 = 5;
 /// key whose only function is to restore it.
 pub(super) const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
 
-/// The `[plugins.discord]` settings, but ONLY when the table is ARMED:
-/// switched on, and naming a transport this binary answers.
+/// The heading the durable log is written under. ONE TABLE, which is what
+/// makes two durable logs at once unrepresentable rather than refused: the
+/// transports below are values of one `type` key, so a file can only name one
+/// of them.
+pub(super) const LOG_TABLE: &str = "log";
+
+/// The transports `[plugins.log] type` may name, in the order the refusal
+/// lists them. Each is also the name the roster registers and the ledger
+/// records the leg under, which is what `name_the_log_for_its_transport`
+/// relies on.
+pub(super) const LOG_TRANSPORTS: [&str; 2] = ["hermes", "discord"];
+
+/// Stores `[plugins.log]` under the name of the transport its `type` names,
+/// and refuses a type no compiled-in transport answers.
 ///
-/// `armed_mobile`'s shape exactly, and for its reasons: `discord` is the plugin
-/// and `type` is what is behind it, so a table naming none contributes no
-/// settings anywhere rather than being honoured on whichever path forgot to
-/// ask. `Ok(None)` is the inert table (absent, or present with the switch off),
-/// and `Err` carries the reason so a report cannot name `token` for a fault
-/// that was `type`.
-pub fn armed_discord(config: &Config) -> Result<Option<&toml::Table>, String> {
-    let Some(discord) = config.plugins.get("discord").filter(|entry| entry.enabled) else {
-        return Ok(None);
+/// THE TABLE IS THE FUNCTION AND THE TYPE IS THE TRANSPORT, so the one name
+/// the rest of the engine selects on (the roster registration, the delivery
+/// leg, the ledger row, the doctor's census) is the transport rather than the
+/// heading. Renaming here is what keeps that one name out of the operator's
+/// file without a second lookup on every path that reads it.
+///
+/// A SWITCHED-OFF TABLE IS JUDGED TOO, which is the one place the durable log
+/// departs from "a disabled table is inert": the `type` is what the table is
+/// filed under, not a setting inside it, and a name nothing registers is
+/// refused by the registry whether it is on or off.
+pub(super) fn name_the_log_for_its_transport(config: &mut Config) -> Result<(), ConfigError> {
+    let Some(entry) = config.plugins.remove(LOG_TABLE) else {
+        return Ok(());
     };
-    super::discord_backend(&discord.settings)?;
-    Ok(Some(&discord.settings))
+    let accepted = LOG_TRANSPORTS
+        .map(|transport| format!("{transport:?}"))
+        .join(" or ");
+    let named = entry.settings.get("type").and_then(toml::Value::as_str);
+    let Some(transport) = named.filter(|named| LOG_TRANSPORTS.contains(named)) else {
+        return Err(ConfigError::Invalid(match named {
+            Some(named) => format!(
+                "`[plugins.log]` has type {named:?}, which no compiled-in transport answers; \
+                 the types are {accepted}"
+            ),
+            None => format!(
+                "`[plugins.log]` names no `type`: the durable log is one table and `type` \
+                 names the transport carrying it, {accepted}"
+            ),
+        }));
+    };
+    config.plugins.insert(transport.to_string(), entry);
+    Ok(())
+}
+
+/// The durable log's settings when it is ARMED under the discord transport:
+/// switched on, and filed under `discord` by the rename above.
+///
+/// `None` IS THE INERT TABLE (absent, switched off, or carrying the other
+/// transport). There is no refusal left to carry: a `type` nothing answers
+/// never loads at all now, so the reading is the table or nothing.
+pub fn armed_discord(config: &Config) -> Option<&toml::Table> {
+    config
+        .plugins
+        .get("discord")
+        .filter(|entry| entry.enabled)
+        .map(|entry| &entry.settings)
 }
 
 /// Hue's settings, only when the operator enabled it explicitly.

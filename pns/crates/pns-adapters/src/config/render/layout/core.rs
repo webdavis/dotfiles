@@ -60,7 +60,7 @@ pub(super) const ROUTES: Table = Table {
             name: "default",
             prose: "# Where an event whose producer named no route lands, the return recap\n\
                          # included. It is also the last path segment of the gateway URL pns\n\
-                         # posts to unless [plugins.hermes] url names one outright.\n",
+                         # posts to unless [plugins.log] url names one outright.\n",
             sample: Sample::Default("\"pns-events\""),
         },
         Key {

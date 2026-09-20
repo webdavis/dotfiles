@@ -32,7 +32,7 @@ const FOOTER: &str = "{{- end }}\n";
 
 /// The fixed keys this repo's own values file treats as secret-bearing:
 /// present, each must hold a keepassxc marker table rather than a literal.
-/// `[plugins.hermes.keys]` adds one per route on top, READ OFF THE VALUES
+/// `[plugins.log.keys]` adds one per route on top, READ OFF THE VALUES
 /// FILE'S OWN TABLE rather than a roster: the route names are the operator's
 /// gateway's, so the only statement of which exist is the file being checked.
 ///
@@ -43,7 +43,7 @@ const FOOTER: &str = "{{- end }}\n";
 /// catch a pasted credential landing in the file this repo commits.
 const SECRET_BEARING_KEYS: &[&str] = &[
     "plugins.mobile.token",
-    "plugins.discord.token",
+    "plugins.log.token",
     "plugins.lights.bridge",
     "plugins.lights.certificate",
     "plugins.lights.key",
@@ -57,7 +57,7 @@ const SECRET_BEARING_KEYS: &[&str] = &[
 /// discord channels are one per project. Naming the TABLE rather than its
 /// keys is what covers a line the moment it is written rather than when
 /// somebody remembers to add it here too.
-const SECRET_BEARING_TABLES: &[&str] = &["plugins.hermes.keys", "plugins.discord.channels"];
+const SECRET_BEARING_TABLES: &[&str] = &["plugins.log.keys", "plugins.log.channels"];
 
 /// Every secret-bearing path, the open tables' own keys included.
 fn secret_bearing_keys(values: &toml::Table) -> impl Iterator<Item = String> {

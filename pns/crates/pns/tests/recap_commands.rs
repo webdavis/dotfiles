@@ -25,7 +25,7 @@ use support::{Capture, Sandbox, plugin_command, run, stderr, stdout};
 fn an_agent_recap_posts_once_on_the_default_route_and_exits_zero_when_refused() {
     let sandbox = Sandbox::new("recap-agent-route");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
     let capture = Capture::start(&sandbox, "recap-agent-route", Some("404"), Some("1"));
 

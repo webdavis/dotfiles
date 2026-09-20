@@ -17,7 +17,7 @@ fn the_binarys_own_roster_knows_the_router_sensor() {
         &format!("cat >\"{}/router.event\"", sandbox.display()),
     );
     sandbox.write_config(
-        "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n[plugins.hermes]\nenabled = true\n",
+        "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let output = run(sandbox.pns().args([
         "send",

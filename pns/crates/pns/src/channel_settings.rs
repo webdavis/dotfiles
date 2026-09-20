@@ -77,17 +77,13 @@ pub(crate) fn read_mobile(config: &pns_adapters::Config) -> Mobile {
         image_cards: pns_adapters::moshi_image_cards(settings),
     }
 }
-/// The one read of `[plugins.discord]`, and the one place its refusal reaches
-/// stderr. `read_mobile`'s shape exactly, and for its reasons.
+/// The one read of the durable log under its discord transport. NO REFUSAL TO
+/// PRINT: `[plugins.log] type` is settled at load, so the table is either the
+/// discord log's or it is not this reader's.
 pub(crate) fn read_discord(config: &pns_adapters::Config) -> DiscordSettings {
-    match pns_adapters::armed_discord(config) {
-        Err(reason) => {
-            eprintln!("pns: config error ({reason}); nothing is posted to discord");
-            DiscordSettings::refused(reason)
-        }
-        Ok(None) => DiscordSettings::default(),
-        Ok(Some(settings)) => pns_adapters::discord_settings(settings),
-    }
+    pns_adapters::armed_discord(config)
+        .map(pns_adapters::discord_settings)
+        .unwrap_or_default()
 }
 /// One line about a table the event path deliberately never refuses.
 ///
@@ -120,7 +116,9 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
             .map(|entry| &entry.settings)
     };
     let mut warnings = Vec::new();
-    // THE TYPE ALONE on both tables. `router_settings` settles the type before
+    // THE TYPE ALONE on both tables. The durable log is not among them: its
+    // `type` is refused at load whichever way its switch is set, because the
+    // type is what the table is filed under rather than a setting inside it. `router_settings` settles the type before
     // it reads anything else, which is why only its two type refusals count
     // here: a switched-off table naming a backend that DOES answer, with a
     // missing `router_url` under it, is a different edit and not this
@@ -138,9 +136,6 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
     }
     if switched_off("mobile").is_some_and(|settings| mobile_backend(settings).is_err()) {
         warnings.push(disabled_backend_warning("mobile", MOSHI_TYPE));
-    }
-    if switched_off("discord").is_some_and(|settings| discord_backend(settings).is_err()) {
-        warnings.push(disabled_backend_warning("discord", BOT_TYPE));
     }
     warnings
 }

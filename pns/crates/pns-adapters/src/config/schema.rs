@@ -139,16 +139,22 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         ],
     ),
     (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
-    ("plugins.discord", &["channels", "enabled", "token", "type"]),
+    // ONE ROW FOR BOTH TRANSPORTS, which is the union of what the two serve:
+    // the heading is the durable log and `type` names which transport carries
+    // it, so a file can hold the other one's credentials ready and cut over in
+    // one line.
+    (
+        "plugins.log",
+        &["channels", "enabled", "keys", "token", "type", "url"],
+    ),
     // AN OPEN TABLE: the row states the one key the SCHEMA requires, and the
     // rest of its vocabulary is the operator's own project names, which no
     // roster can enumerate. See `OPEN_TABLES`.
-    (DISCORD_CHANNELS, &["default"]),
-    ("plugins.hermes", &["enabled", "keys", "url"]),
+    (LOG_CHANNELS, &["default"]),
     // AN OPEN TABLE, and the one that decides which routes exist at all: its
     // keys are the ROUTE NAMES the operator's own gateway serves, which no
     // roster compiled into pns can enumerate. See `OPEN_TABLES`.
-    (HERMES_KEYS, &[]),
+    (LOG_KEYS, &[]),
     (
         "plugins.github",
         &[
@@ -245,10 +251,10 @@ pub(super) const TARGET_KEYS: &str = "lights.<level>";
 pub(super) const PRODUCER_KEYS: &str = "producer.<name>";
 
 /// The channel map, whose keys are PROJECT NAMES.
-pub(super) const DISCORD_CHANNELS: &str = "plugins.discord.channels";
+pub(super) const LOG_CHANNELS: &str = "plugins.log.channels";
 
 /// The per-route signing keys, whose keys are ROUTE NAMES.
-pub(super) const HERMES_KEYS: &str = "plugins.hermes.keys";
+pub(super) const LOG_KEYS: &str = "plugins.log.keys";
 
 /// The per-card-type image switches, whose keys are CARD TYPES.
 pub(super) const MOBILE_IMAGE_CARDS: &str = "plugins.mobile.image_cards";
@@ -282,7 +288,7 @@ pub(super) const DELIVERY_CLASS_KEYS: &str = "delivery_class.<name>";
 /// THE CARD TYPES ARE HERE FOR THE SAME REASON: a card type is the state word
 /// a producer sent, and producers are separate tools, so a mistyped one is a
 /// card type that never carries an image rather than a refusal at load.
-pub(super) const OPEN_TABLES: &[&str] = &[DISCORD_CHANNELS, HERMES_KEYS, MOBILE_IMAGE_CARDS];
+pub(super) const OPEN_TABLES: &[&str] = &[LOG_CHANNELS, LOG_KEYS, MOBILE_IMAGE_CARDS];
 
 /// Whether a table takes keys this schema never declared.
 pub(super) fn is_open(table: &str) -> bool {

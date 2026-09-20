@@ -82,15 +82,14 @@ const PLUGINS_MOBILE_IMAGE_CARDS: Table = Table {
         sample: Sample::Example("false"),
     }],
 };
-pub(super) const PLUGINS_DISCORD: Table = Table {
-    name: "plugins.discord",
-    prose: "# The durable paper trail, posted straight to Discord by pns's own bot with\n\
-                 # no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a\n\
-                 # companion: both enabled at once is refused at load, naming both tables,\n\
-                 # because two durable logs post every event twice. The cutover is two lines\n\
-                 # in one edit, and the rollback is the same two the other way.\n",
+pub(super) const PLUGINS_LOG: Table = Table {
+    name: "plugins.log",
+    prose: "# The durable paper trail: every event written where it can be read back\n\
+                 # later. ONE TABLE, so two of them cannot be declared: `type` names the\n\
+                 # transport that carries it, and the credentials for the other one can sit\n\
+                 # here ready so the cutover is that single line.\n",
     opt_in: true,
-    children: &[PLUGINS_DISCORD_CHANNELS],
+    children: &[PLUGINS_LOG_KEYS, PLUGINS_LOG_CHANNELS],
     keys: &[
         Key {
             name: "enabled",
@@ -99,62 +98,27 @@ pub(super) const PLUGINS_DISCORD: Table = Table {
         },
         Key {
             name: "type",
-            prose: "# Which compiled-in transport carries the post. \"bot\" is the only one\n\
-                         # today, and a table naming none, or naming one nothing answers, is\n\
-                         # refused out loud rather than read as this one.\n",
-            sample: Sample::Default("\"bot\""),
-        },
-        Key {
-            name: "token",
-            prose: "# The bot token, from the Discord application\u{27}s Bot page. Every call\n\
-                         # carries it as `Authorization: Bot <token>`, and a table with none\n\
-                         # posts nothing and says which key is missing.\n",
-            sample: Sample::Example("\"\""),
-        },
-    ],
-};
-/// The channels the bot posts to, keyed by PROJECT. An OPEN table: every key
-/// but `default` is a name the operator chose, so the render writes whatever
-/// the values file states rather than a roster of its own.
-const PLUGINS_DISCORD_CHANNELS: Table = Table {
-    name: "plugins.discord.channels",
-    prose: "# Where a post goes, looked up in this order, first hit wins: the route the\n\
-                 # event named (the urgent route carries anything critical, whatever the\n\
-                 # project), then its repository as `owner/name`, then the bare project\n\
-                 # name, then the default route for an event with no project at all, then\n\
-                 # `default`. The last two are deliberately different channels: an\n\
-                 # unmapped project and no project are two failures, in two places to\n\
-                 # look. `default` is REQUIRED and an armed table without it is refused at\n\
-                 # load. A channel id is the number Discord copies from a channel\u{27}s\n\
-                 # Copy Channel ID, and it is a secret like every other id here.\n",
-    opt_in: true,
-    children: &[],
-    keys: &[Key {
-        name: "default",
-        prose: "",
-        sample: Sample::Example("\"\""),
-    }],
-};
-pub(super) const PLUGINS_HERMES: Table = Table {
-    name: "plugins.hermes",
-    prose: "# The durable paper trail: every event posted to a hermes route, signed\n\
-                 # with the key that route verifies.\n",
-    opt_in: true,
-    children: &[PLUGINS_HERMES_KEYS],
-    keys: &[
-        Key {
-            name: "enabled",
-            prose: "",
-            sample: Sample::Default("true"),
+            prose: "# Which compiled-in transport carries the log. \"hermes\" posts one signed\n\
+                         # request per event to a hermes route; \"discord\" posts straight to a\n\
+                         # channel with pns\u{27}s own bot and no gateway in between. Anything\n\
+                         # else, and a table naming none, is refused out loud at load.\n",
+            sample: Sample::Default("\"hermes\""),
         },
         Key {
             name: "url",
-            prose: "# The gateway endpoint. Left out, each route posts to the shipped\n\
-                         # address with that route as its last path segment, so renaming a route\n\
-                         # moves the path and not the gateway. NAMED, this one address carries\n\
-                         # EVERY route verbatim, which is why it is a whole-install override\n\
-                         # rather than the usual way to point at your own gateway.\n",
+            prose: "# HERMES ONLY: the gateway endpoint. Left out, each route posts to the\n\
+                         # shipped address with that route as its last path segment, so renaming\n\
+                         # a route moves the path and not the gateway. NAMED, this one address\n\
+                         # carries EVERY route verbatim, which is why it is a whole-install\n\
+                         # override rather than the usual way to point at your own gateway.\n",
             sample: Sample::Example("\"http://127.0.0.1:8644/webhooks/pns-events\""),
+        },
+        Key {
+            name: "token",
+            prose: "# DISCORD ONLY: the bot token, from the Discord application\u{27}s Bot page.\n\
+                         # Every call carries it as `Authorization: Bot <token>`, and a discord\n\
+                         # log with none posts nothing and says which key is missing.\n",
+            sample: Sample::Example("\"\""),
         },
     ],
 };
@@ -166,15 +130,38 @@ pub(super) const PLUGINS_HERMES: Table = Table {
 /// is nothing to declare here: whatever the values file writes is what goes
 /// out, and a route with no key here posts nothing and says which key is
 /// missing rather than signing with somebody else's secret.
-const PLUGINS_HERMES_KEYS: Table = Table {
-    name: "plugins.hermes.keys",
-    prose: "# One signing key per route, keyed by the route name and each prepared in\n\
-                 # ~/.hermes/config.yaml under that same name. These keys are the whole\n\
-                 # roster: a route named here is a route this machine will post to, and\n\
-                 # one with no key posts nothing and says which key is missing.\n",
+const PLUGINS_LOG_KEYS: Table = Table {
+    name: "plugins.log.keys",
+    prose: "# HERMES ONLY: one signing key per route, keyed by the route name and each\n\
+                 # prepared in ~/.hermes/config.yaml under that same name. These keys are\n\
+                 # the whole roster: a route named here is a route this machine will post\n\
+                 # to, and one with no key posts nothing and says which key is missing.\n",
     opt_in: true,
     children: &[],
     keys: &[],
+};
+/// The channels the bot posts to, keyed by PROJECT. An OPEN table: every key
+/// but `default` is a name the operator chose, so the render writes whatever
+/// the values file states rather than a roster of its own.
+const PLUGINS_LOG_CHANNELS: Table = Table {
+    name: "plugins.log.channels",
+    prose: "# DISCORD ONLY: where a post goes, looked up in this order, first hit wins:\n\
+                 # the route the event named (the urgent route carries anything critical,\n\
+                 # whatever the project), then its repository as `owner/name`, then the\n\
+                 # bare project name, then the default route for an event with no project\n\
+                 # at all, then `default`. The last two are deliberately different\n\
+                 # channels: an unmapped project and no project are two failures, in two\n\
+                 # places to look. `default` is REQUIRED and an armed discord log without\n\
+                 # it is refused at load. A channel id is the number Discord copies from a\n\
+                 # channel\u{27}s Copy Channel ID, and it is a secret like every other id\n\
+                 # here.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "default",
+        prose: "",
+        sample: Sample::Example("\"\""),
+    }],
 };
 pub(super) const PLUGINS_BANNER: Table = Table {
     name: "plugins.banner",

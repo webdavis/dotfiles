@@ -46,7 +46,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
              recap, remind, routes, stale)",
         ),
         (
-            "[plugins.hermes]\nenabled = true\n",
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
             "home: not configured (no [plugins.home_presence] table)",
         ),
         (

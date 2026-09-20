@@ -70,7 +70,7 @@ pub(super) fn window_around(centre: u16, radius: u16) -> String {
 pub(super) fn hue_config(port: u16, quiet_hours: &str) -> String {
     format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         quiet_hours = \"{quiet_hours}\"\n[plugins.hermes]\nenabled = true\n"
+         quiet_hours = \"{quiet_hours}\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
     )
 }
 
@@ -118,11 +118,11 @@ pub(super) fn lamp_run(
     // `hue_extra` GOES INSIDE `[plugins.lights]` and the rest comes after every
     // plugin table, because a bare key in a TOML file belongs to whichever
     // table was opened last: appending `quiet_hours` to the end of this put it
-    // in `[plugins.hermes]`, where nothing reads it and nothing complains.
+    // in `[plugins.log]`, where nothing reads it and nothing complains.
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-         [plugins.hermes]\nenabled = true\n{config}"
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n{config}"
     ));
     // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
     // type rather than by writing its state file here: `HOME` is the sandbox,

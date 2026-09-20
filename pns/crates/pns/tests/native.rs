@@ -154,7 +154,7 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
 fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     let sandbox = Sandbox::new("native-hermes");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
     let capture = Capture::start(&sandbox, "hermes", None, None);
 
@@ -190,7 +190,7 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     // instead of rotating the key.
     let sandbox = Sandbox::new("hermes-401");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
     let capture = Capture::start(&sandbox, "hermes-401", Some("401"), None);
 
@@ -219,7 +219,7 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
     // hermes key, so that run returns before any outcome exists.
     let sandbox = Sandbox::new("hermes-async-silent");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
     let mut command = plugin_command(&sandbox);
     command
@@ -268,7 +268,7 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
     // alert at all.
     let capture = Capture::start(&sandbox, "stale-route", Some("200"), Some("2"));
     sandbox.write_config(&format!(
-        "[plugins.hermes]\nenabled = true\n\
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          keys = {{ pns-events = \"gate-signing-key\", priority = \"priority-signing-key\" }}\n\
          {}stale_alert_channel = \"priority\"\n",
         router_table(&router.localhost_url())
@@ -320,7 +320,7 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
     // that.
     let sandbox = Sandbox::new("recap-refused");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
 
     let mut command = plugin_command(&sandbox);
@@ -363,7 +363,7 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
 fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
     let sandbox = Sandbox::new("recap-route");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
     let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("1"));
 
@@ -416,7 +416,7 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
     let capture = Capture::start(&sandbox, "invented-routes", None, None);
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
-         [delivery_class.health]\nroute = \"sirens\"\n[plugins.hermes]\nenabled = true\n\
+         [delivery_class.health]\nroute = \"sirens\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          keys = { logbook = \"logbook-key\", sirens = \"sirens-key\" }\n",
     );
 
@@ -471,7 +471,7 @@ fn an_unrouted_event_takes_the_default_route_the_config_invented() {
     let capture = Capture::start(&sandbox, "invented-default", None, None);
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\n\
-         [plugins.hermes]\nenabled = true\nkeys = { logbook = \"logbook-key\" }\n",
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { logbook = \"logbook-key\" }\n",
     );
 
     let mut command = plugin_command(&sandbox);

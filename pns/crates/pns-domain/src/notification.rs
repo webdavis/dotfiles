@@ -63,7 +63,7 @@ pub struct EventArgs {
     pub detail: String,
     pub pane: String,
     /// The named hermes route this event posts to, resolved through the
-    /// config's `[plugins.hermes]` channels table; empty means the default
+    /// config's `[plugins.log]` channels table; empty means the default
     /// (alert) route. Names, not URLs: the caller says WHERE, the config
     /// says HOW to get there.
     pub channel: String,

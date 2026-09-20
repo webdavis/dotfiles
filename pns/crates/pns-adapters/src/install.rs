@@ -17,7 +17,7 @@ pub struct InstallSettings {
     /// channel executables. NAMING IT FORCES every channel onto its
     /// executable, which is what the variable has always meant.
     pub channels_dir: Option<String>,
-    /// `[plugins.hermes] url`, else `PNS_HERMES_URL`: the gateway endpoint,
+    /// `[plugins.log] url`, else `PNS_HERMES_URL`: the gateway endpoint,
     /// used verbatim for every route rather than per route.
     pub hermes_url: Option<String>,
     /// `[plugins.mobile] url`, else `PNS_MOSHI_URL`: the push endpoint.

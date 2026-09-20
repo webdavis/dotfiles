@@ -66,8 +66,8 @@ fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
             .unwrap_or_else(|| panic!("`{}` is not a table the roster serves", table.name));
         let mut layout_keys: Vec<&str> = table.keys.iter().map(|key| key.name).collect();
         // A NESTED TABLE IS A KEY OF ITS PARENT as far as the roster is
-        // concerned: `[plugins.hermes.keys]` is the `keys` the
-        // `plugins.hermes` row serves.
+        // concerned: `[plugins.log.keys]` is the `keys` the
+        // `plugins.log` row serves.
         layout_keys.extend(
             table
                 .children

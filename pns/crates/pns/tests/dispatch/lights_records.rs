@@ -11,7 +11,7 @@ fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() 
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\nquiet_hours = \"00:00-23:59\"\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.state()).expect("the state directory");
     std::fs::write(sandbox.state().join("lights-quiet"), "later 3F - Studio\n")
@@ -43,7 +43,7 @@ fn a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds() {
     let sandbox = Sandbox::new("lights-news-and-lease");
     sandbox.write_config(&format!(
         "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+         rooms = [\"3F - Studio\"]\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     let lease_dir = sandbox.state().join("lights-loop");
     std::fs::create_dir_all(&lease_dir).expect("the lease directory");
@@ -89,12 +89,12 @@ fn the_news_record_is_written_whatever_the_lamps_are_doing() {
     for (name, config) in [
         (
             "news-without-a-map",
-            "[plugins.hermes]\nenabled = true\n".to_string(),
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n".to_string(),
         ),
         (
             "news-with-hue-off",
             format!(
-                "[plugins.lights]\nenabled = false\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+                "[plugins.lights]\nenabled = false\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
             ),
         ),
     ] {

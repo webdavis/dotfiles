@@ -29,9 +29,11 @@ fn values(answers: &Answers) -> toml::Table {
                 .to_string(),
             toml::Value::String(answers.hermes_key.clone()),
         );
-        let mut hermes = toml::Table::new();
-        hermes.insert("keys".to_string(), toml::Value::Table(keys));
-        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        // UNDER THE DURABLE LOG'S OWN HEADING, with the transport named: the
+        // wizard asks about hermes, which is one of the two `type` may name.
+        let mut log = toml::Table::new();
+        log.insert("keys".to_string(), toml::Value::Table(keys));
+        plugins.insert("log".to_string(), toml::Value::Table(log));
     }
     if hue_is_armed(answers) {
         let mut hue = toml::Table::new();

@@ -19,11 +19,11 @@ fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
                 default_route: DEFAULT_ROUTE.to_string(),
                 threads: Box::new(Remembered::default()),
             },
-            "[plugins.discord] token",
+            "[plugins.log] token",
         ),
         (
             armed_on("", ChannelMap::new(), DeliveryOutcome::Status(200)),
-            "[plugins.discord.channels] default",
+            "[plugins.log.channels] default",
         ),
     ] {
         let Delivery::Failed(line) = delivered_by(&channel) else {

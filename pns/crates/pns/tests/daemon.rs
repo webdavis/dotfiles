@@ -75,8 +75,7 @@ fn schedule(sandbox: &Sandbox, flags: &[&str], args: &[&str]) -> std::process::O
 /// `[failures] serve = false` because a DAEMON runs against this, and the page
 /// binds one fixed port: a sandbox that opened it would take that port away
 /// from every other test in this suite running beside it.
-const ONE_CHANNEL: &str =
-    "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"k\" }\n[failures]\nserve = false\n";
+const ONE_CHANNEL: &str = "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"k\" }\n[failures]\nserve = false\n";
 
 /// An ordinary event for a scheduled job to deliver.
 const EVENT: [&str; 7] = [

@@ -34,7 +34,7 @@ pub(super) struct Table {
     /// The tables nested INSIDE this one, written after its own keys because
     /// a TOML sub-heading ends the table above it.
     ///
-    /// DATA, LIKE EVERY OTHER PART OF THIS LAYOUT: `[plugins.hermes.keys]` is
+    /// DATA, LIKE EVERY OTHER PART OF THIS LAYOUT: `[plugins.log.keys]` is
     /// a nested table whose vocabulary is the route names, and declaring it
     /// here is what keeps the walk in `render` one walk. A child inherits its
     /// parent's `present`, because a nested table under a commented-out
@@ -94,8 +94,7 @@ pub(super) const LAYOUT: &[Table] = &[
     // FIRST, because it names the routes every table below is keyed by.
     ROUTES,
     PLUGINS_MOBILE,
-    PLUGINS_HERMES,
-    PLUGINS_DISCORD,
+    PLUGINS_LOG,
     PLUGINS_BANNER,
     PLUGINS_LIGHTS,
     PLUGINS_GITHUB,
