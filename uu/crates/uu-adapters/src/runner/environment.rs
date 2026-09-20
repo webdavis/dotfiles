@@ -2,6 +2,7 @@
 //! adapter composes for it.
 
 use super::SystemRunner;
+use super::bounds::step_runner;
 use crate::lanes::{CommandRunner, Environment, Ran};
 use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn_in};
 use std::ffi::{OsStr, OsString};
@@ -15,13 +16,12 @@ pub(super) fn run(
     env: &Environment,
     most: Option<Duration>,
 ) -> Result<String, String> {
-    // A step's own bound is held by a second runner for that step alone, the
-    // way `bounds::run_step` does it, so every overrun sentence is composed
-    // in one place and the lane's clock still charges for the step.
+    // A step's own bound is held by a second runner for that step alone,
+    // `bounds::step_runner` shared with `run_step` so the bound arithmetic
+    // and label are composed in one place and the lane's clock still charges
+    // for the step.
     if let Some(most) = most {
-        let bound = most.min(runner.remaining());
-        return SystemRunner::for_lane(&format!("{} step {program}", runner.lane), bound, bound)
-            .run_in(program, args, env, None);
+        return step_runner(runner, program, most).run_in(program, args, env, None);
     }
     runner.clean_output(spawn(runner, program, args, env)?)
 }
