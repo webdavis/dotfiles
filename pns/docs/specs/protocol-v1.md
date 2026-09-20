@@ -179,20 +179,19 @@ None, scope is automatic, and extensions is an empty object. Request::new suppli
 ONE RULE FOR AN ABSENT OPTIONAL FIELD, on this envelope and on the result: it is omitted when encoding
 rather than written as `null`, and a field written as `null` decodes as absent.
 The session is a plain name and the place of the work is three top-level fields, the same names the
-flags carry. `event`,
-`occurred_at` and `interaction` are no longer fields of this envelope: a decoded value carrying any of
-them names it in DecodedRequest::ignored (S014), the same as any other unknown top-level field.
+flags carry. `event`, `occurred_at` and `interaction` are no longer fields of this envelope: a decoded
+value carrying any of them names it in DecodedRequest::ignored (S014), the same as any other unknown
+top-level field.
 
 `delivery_class` uses the same validated `Name` as the other short names: 1 through 64 Unicode
 characters, without controls. A wrong type or invalid name is refused before effects, retaining the
 correlated request identifier. An absent or null delivery class is omitted like every other absent
-optional field. A present delivery class survives canonical
-encoding and the original producer request retained by the ledger; changed delivery-class metadata under
-the same identity conflicts. `kind` and `class`, the two fields it replaced, are REFUSED rather than
-ignored: a value carrying either is rejected before effects, and the refusal names the field and its
-replacement. A field this envelope never defined is still ignored and named in
-`DecodedRequest::ignored`, because a newer producer must not break an older pns; one it used to honour
-is a producer whose word would otherwise go nowhere (S014).
+optional field. A present delivery class survives canonical encoding and the original producer request
+retained by the ledger; changed delivery-class metadata under the same identity conflicts. `kind` and
+`class`, the two fields it replaced, are REFUSED rather than ignored: a value carrying either is
+rejected before effects, and the refusal names the field and its replacement. A field this envelope
+never defined is still ignored and named in `DecodedRequest::ignored`, because a newer producer must not
+break an older pns; one it used to honour is a producer whose word would otherwise go nowhere (S014).
 
 `remind` is optional and says whether the approval this request reports waits for a second card:
 `true` arms it at the delay config carries, a duration string (`"5m"`) arms it at that delay instead and
@@ -273,16 +272,17 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 ## protocol-v1/S017: Result fields and public construction
 
 Given a version 1 result, when decoded, then status is required; absent request_id and ledger_sequence
-are None, and absent destination, diagnostic and ignored-field arrays are empty. `ledger_sequence` is the
-stringified ledger row this request committed as, and each destination names itself in `name`. The
+are None, and absent destination, diagnostic and ignored-field arrays are empty. `ledger_sequence` is
+the stringified ledger row this request committed as, and each destination names itself in `name`. The
 request's own top-level fields version 1 does not define are named in `ignored_fields`, a list of their
 own, so nothing in `diagnostics` changes the meaning of the entries beside it. The envelope carries no
-`interaction` field. Valid results round-trip through the curated public exports and the
-package-owned `result-v1.json` fixture. Each destination also carries the `route` it was submitted on,
-the `note` its destination offered about a leg it did not deliver, and the `retry_at` unix second the
-ledger will try it again. An absent optional field is omitted when encoded rather than written as
-`null`, here and on the request: a result naming no request id, no ledger row, no note, no route and no
-retry time writes none of those keys, and a supplied one is preserved. The note is the destination's own sentence; the event's own text never comes back.
+`interaction` field. Valid results round-trip through the curated public exports and the package-owned
+`result-v1.json` fixture. Each destination also carries the `route` it was submitted on, the `note` its
+destination offered about a leg it did not deliver, and the `retry_at` unix second the ledger will try
+it again. An absent optional field is omitted when encoded rather than written as `null`, here and on
+the request: a result naming no request id, no ledger row, no note, no route and no retry time writes
+none of those keys, and a supplied one is preserved. The note is the destination's own sentence; the
+event's own text never comes back.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L68),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L59),
