@@ -198,7 +198,7 @@ fn delivery_health_includes_committed_wal_rows_and_reports_recording_gaps_withou
     assert!(!store.delivery_health().unwrap().recording_gap);
 }
 #[test]
-fn delivery_health_lock_contention_is_bounded_and_never_an_empty_snapshot() {
+fn delivery_health_under_lock_contention_refuses_rather_than_returning_an_empty_snapshot() {
     let path = state();
     let mut store = SqliteStore::new(path.clone());
     store.busy_timeout = std::time::Duration::from_millis(10);

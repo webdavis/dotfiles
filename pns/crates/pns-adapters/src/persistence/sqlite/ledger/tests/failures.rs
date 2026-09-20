@@ -1,7 +1,7 @@
 use super::*;
 use std::time::Duration;
 #[test]
-fn busy_ledger_writes_refuse_within_the_budget_without_recording_sensitive_content() {
+fn busy_ledger_writes_refuse_as_unavailable_without_recording_sensitive_content() {
     let path = state();
     let mut store = SqliteStore::new(path.clone());
     store.busy_timeout = Duration::from_millis(5);
