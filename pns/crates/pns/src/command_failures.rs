@@ -89,6 +89,15 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     if failures.is_empty() {
         return "pns: nothing is failing to deliver\n".to_string();
     }
+    // DERIVED, not a fixed guess: a fixed width is filled by whatever id
+    // outgrows it, and ledger ids only grow (they are ledger_legs rowids).
+    let id_width = failures
+        .iter()
+        .map(|f| f.id.to_string().len())
+        .max()
+        .unwrap_or(2)
+        .max(2)
+        + 1;
     let mut out = String::new();
     out.push_str(&style::heading(
         paint,
@@ -99,7 +108,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     // THE COLUMN HEADER IS FAINT, not a mark: it names the columns rather than
     // reporting anything, and a row's own glyph is what carries the verdict.
     out.push_str(&paint.faint(&format!(
-        "    {:<6}{:<18}{:<14}{:<11}sent by",
+        "    {:<id_width$}{:<18}{:<14}{:<11}sent by",
         "id", "when", "status", "route"
     )));
     out.push('\n');
@@ -110,7 +119,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
             "·",
             2,
             &format!(
-                "{:<6}{:<18}{:<14}{:<11}{}",
+                "{:<id_width$}{:<18}{:<14}{:<11}{}",
                 failure.id,
                 when(failure.failed_at),
                 short_status(failure),
