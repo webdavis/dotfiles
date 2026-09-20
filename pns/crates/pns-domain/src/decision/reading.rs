@@ -47,12 +47,7 @@ pub fn surface_reading(
     // arbitration rather than making it infinitely fresh. A `taken_at` in
     // the future is the same kind of untrustworthy clock read, so it ages
     // nothing too, rather than saturating to age 0, the freshest reading.
-    let age_of = |taken_at: Option<u64>| {
-        now_secs.and_then(|now| {
-            let taken_at = taken_at?;
-            (taken_at <= now).then(|| now - taken_at)
-        })
-    };
+    let age_of = |taken_at: Option<u64>| now_secs.and_then(|now| now.checked_sub(taken_at?));
     let phone_input_age = if overrides.reads_phone() {
         age_of(snapshot.phone_atime)
     } else if overrides.phone_invalid {
