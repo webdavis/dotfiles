@@ -37,7 +37,9 @@ mod envelope;
 mod identifiers;
 mod request;
 mod result;
+mod resume;
 mod tap;
+pub use resume::ResumePage;
 pub use tap::{
     TapError, TapInstall, TapInstallStep, TapMarker, TapOperation, TapResult, TapWriteStatus,
 };

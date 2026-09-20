@@ -180,6 +180,12 @@ pub(crate) fn run() {
     if first == "recap" {
         std::process::exit(recap_mode());
     }
+    // Where the operator was, printed. A MODE for the reason the others are:
+    // it reads the state pns already keeps, prints, and reaches the event path
+    // only when `--notify` asks for the page to be delivered.
+    if first == "resume" {
+        std::process::exit(resume_mode());
+    }
     // The clock. A MODE for the reason the others are: `run` takes no event
     // and delivers nothing itself, and the two typed verbs beside it only move
     // a file. Nothing on the event path below reaches it, and nothing here
