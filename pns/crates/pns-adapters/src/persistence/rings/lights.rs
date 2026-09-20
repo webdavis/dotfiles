@@ -105,9 +105,9 @@ pub fn parse_held_token(token: &str) -> HeldEntry {
 ///
 /// IT REPORTS RATHER THAN GUESSES, and the fail DIRECTION is the caller's,
 /// which is why it is not stated here: the two callers take opposite ones and
-/// both are deliberate. `ad_hoc_quiet`, the lamp path, turns any complaint into
+/// both are deliberate. `ad_hoc_mute`, the lamp path, turns any complaint into
 /// `Muting::Everything`, because a house with every lamp loud is the 3am the
-/// mute was armed to prevent. `pns lights quiet`, the command, prints the
+/// mute was armed to prevent. `pns lights mute`, the command, prints the
 /// complaint and rebuilds from an empty list, because an operator standing in
 /// front of it is losing what the file held and gets to see that rather than a
 /// silent repair.
@@ -126,7 +126,7 @@ pub fn muted_entries(contents: &str) -> Result<Vec<Muted>, String> {
     let held = contents.strip_suffix('\n').unwrap_or(contents);
     let lines: Vec<&str> = held.split('\n').collect();
     if lines.len() > MAX_MUTED_PLACES {
-        return Err(quiet_state_error(format!(
+        return Err(mute_state_error(format!(
             "{} lines, more than the {MAX_MUTED_PLACES} places it keeps",
             lines.len()
         )));
@@ -136,7 +136,7 @@ pub fn muted_entries(contents: &str) -> Result<Vec<Muted>, String> {
 
 /// One line of it, or the complaint that quotes the line back.
 fn muted_entry(line: &str) -> Result<Muted, String> {
-    let refused = || quiet_state_error(format!("{line:?}, which is not an expiry and a place"));
+    let refused = || mute_state_error(format!("{line:?}, which is not an expiry and a place"));
     let (stated, place) = line.split_once(' ').ok_or_else(refused)?;
     if place.is_empty() || place.trim() != place {
         return Err(refused());
@@ -150,10 +150,10 @@ fn muted_entry(line: &str) -> Result<Muted, String> {
 /// One wording for every way the file can be wrong, since the operator's move
 /// is the same for all of them and a second sentence would only make two
 /// problems look like one.
-fn quiet_state_error(what: String) -> String {
+fn mute_state_error(what: String) -> String {
     format!(
-        "pns: state error (lights-quiet holds {what}); nothing is quiet, and \
-         the next pns lights quiet write replaces the file"
+        "pns: state error (lights-quiet holds {what}); nothing is muted, and \
+         the next pns lights mute write replaces the file"
     )
 }
 

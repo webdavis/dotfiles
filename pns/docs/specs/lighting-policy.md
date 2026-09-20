@@ -66,13 +66,13 @@ ______________________________________________________________________
 
 | Name         | What it is                                                                                                                                                                                                                                                                                                                     | Boundaries                                                                                                                                                                                                                                                         | What it changes about a lamp                                                                                                                                                                                                                     | Tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| quiet hours  | The `[plugins.lights] quiet_hours` key, `"HH:MM-HH:MM"`, parsed by `src/channels/hue.rs:quiet_window` into a `QuietWindow` of minutes since local midnight. It is the OPERATOR'S OWN schedule: it gates the no-map pulse, and it is the only source for how long a bare `pns lights quiet` lasts (`src/lights.rs:bare_mute_secs`) | Two-digit hours under 24 and minutes under 60 (`src/channels/hue.rs:minute_of_day`, `two_digits`). Absent or empty is no window; anything else is a refusal                                                                                                        | On a machine with NO `[lights]` table: inside it, no pulse fires at all. On a machine WITH a `[lights]` table it reaches no routed lamp: `src/main.rs:fire_pulse_unless_quiet` takes the routed branch before it ever calls `quiet_window`       | `src/channels/hue.rs:a_table_that_names_no_quiet_hours_has_no_window`, `a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name`, `a_blanked_quiet_hours_is_no_window_rather_than_a_refusal`, `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`, `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`, `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`         |
+| quiet hours  | The `[plugins.lights] quiet_hours` key, `"HH:MM-HH:MM"`, parsed by `src/channels/hue.rs:quiet_window` into a `QuietWindow` of minutes since local midnight. It is the OPERATOR'S OWN schedule: it gates the no-map pulse, and it is the only source for how long a bare `pns lights mute` lasts (`src/lights.rs:bare_mute_secs`) | Two-digit hours under 24 and minutes under 60 (`src/channels/hue.rs:minute_of_day`, `two_digits`). Absent or empty is no window; anything else is a refusal                                                                                                        | On a machine with NO `[lights]` table: inside it, no pulse fires at all. On a machine WITH a `[lights]` table it reaches no routed lamp: `src/main.rs:fire_pulse_unless_quiet` takes the routed branch before it ever calls `quiet_window`       | `src/channels/hue.rs:a_table_that_names_no_quiet_hours_has_no_window`, `a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name`, `a_blanked_quiet_hours_is_no_window_rather_than_a_refusal`, `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`, `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`, `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`         |
 | quiet window | The evaluated form of a `QuietWindow` at one minute of the local day, `src/channels/hue.rs:quiet_now`. One predicate, read by the house gate and by every per-lamp dim decision                                                                                                                                                | Half open, start inclusive and end exclusive: minute 1319 is loud, 1320 is quiet, 1379 is quiet, 1380 is loud. A window whose start is after its end wraps midnight and is an OR of the two halves. A window whose start equals its end is never quiet             | Decides whether the dim rendering applies at all                                                                                                                                                                                                 | `src/channels/hue.rs:a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end`, `a_window_whose_start_is_after_its_end_is_quiet_on_both_sides_of_midnight`, `a_window_whose_start_equals_its_end_is_never_quiet`, `a_clock_this_machine_cannot_read_is_treated_as_inside_the_window`, `tests/dispatch.rs:the_window_is_read_in_the_zone_the_child_was_given`                                                                                                                             |
 | dim window   | Per declaration: `dim_window = "HH:MM-HH:MM"` plus `dim_behaviours = [...]` on a `[lights.lamp/room/zone.<name>]` target, resolved to `src/channels/hue.rs:DimWindow`. The two keys travel together as ONE question so a lamp cannot take its room's window and a zone's enables                                               | Same `quiet_now` boundaries. Inside it a listed behaviour renders `Showing::Dimmed`, an unlisted one renders `Showing::Dark`; outside it everything renders `Showing::Full`. An EMPTY `dim_behaviours` suppresses every behaviour, with no second mode to spell it | Dimmed held state: same colour, the one shared `[lights.dim]` shape (default 3000 ms fades, high 7, low 1). Dimmed pulse: same colour and duration at `lights.dim.low`, since a blink has no low end to fade to. Dark: nothing is written at all | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`, `a_window_with_nothing_enabled_suppresses_every_behaviour_and_needs_no_mode`, `a_dim_window_nobody_can_parse_leaves_that_lamp_dark_and_says_which_lamp`, `a_dimmed_pulse_fires_at_the_dim_floor_and_a_suppressed_one_does_not_fire`, `each_held_state_renders_its_own_locked_colour_and_shape`, `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg` |
 
 A fourth silence exists and is NOT a window: the ad-hoc mute,
-`pns lights quiet <place> [<duration>|off]`, one line per place in `lights-quiet`, each
-`<expiry-epoch> <place>`. It is judged by `src/quiet.rs:is_muted`, half open, so a mute ends on the
+`pns lights mute <place> [<duration>|off]`, one line per place in `lights-quiet`, each
+`<expiry-epoch> <place>`. It is judged by `src/mute.rs:is_muted`, half open, so a mute ends on the
 second it names. See behaviours 30 to 32.
 
 ______________________________________________________________________
@@ -1004,31 +1004,31 @@ Then both read `src/pulse.rs:FAILURE_COLOR`.
 
 ## The ad-hoc mute
 
-### 27. `pns lights quiet` mutes one place, lights only, for a bounded while
+### 27. `pns lights mute` mutes one place, lights only, for a bounded while
 
-Given `pns lights quiet [<place> [<duration>|off]]`,
+Given `pns lights mute [<place> [<duration>|off]]`,
 
 When `src/main.rs:lights_quiet` runs,
 
 Then a bare command REPORTS and mutes nothing; `<place>` mutes until the operator's quiet hours end; `<place> <duration>` mutes for that duration; `<place> off` unmutes.
 
 - Success: exit 0 and one line per live place:
-  `` pns lights: `<place>` is quiet for another <n> minute(s) ``, or `"pns lights: nothing is quiet"`.
+  `` pns lights: `<place>` is muted for another <n> minute(s) ``, or `"pns lights: nothing is muted"`.
 - Failure sources: a place no lamp, room or zone name reaches
-  (`` pns: lights quiet: `<place>` is no lamp, room or zone this can quiet; a mute reaches <names> ``, or
+  (`` pns: lights mute: `<place>` is no lamp, room or zone this can mute; a mute reaches <names> ``, or
   `"this config claims no lamp at all, so there is nothing a mute could reach"`, exit 2); a duration
   outside `src/duration.rs:parse_duration`'s bounds (exit 2); any other arity
-  (`"pns: lights quiet takes a place, optionally with a duration or off, or nothing at all"`, exit 2); no
+  (`"pns: lights mute takes a place, optionally with a duration or off, or nothing at all"`, exit 2); no
   clock (`"pns: state error (the clock cannot be read); the mute was not set"`, exit 1); an unwritable
   file (`"pns: state error (lights-quiet could not be written: {error}); the mute was not set"`, exit 1).
 - Fail direction: an unreachable bridge does NOT refuse the command. The declared names alone are still a
   vocabulary a mute can enforce once the transport is back (`src/channels/hue.rs:mutable_names`,
   `src/main.rs:bridge_inventory`).
 - Thresholds: `src/lights.rs:MAX_MUTED_PLACES` = 32 lines. A file past it is refused WHOLE
-  (`"pns: state error (lights-quiet holds <n> lines, more than the 32 places it keeps); nothing is quiet, and the next pns lights quiet write replaces the file"`),
+  (`"pns: state error (lights-quiet holds <n> lines, more than the 32 places it keeps); nothing is muted, and the next pns lights mute write replaces the file"`),
   and a command that would write a 33rd line is REFUSED rather than truncating
-  (`"pns: lights quiet: 32 places are already quiet, which is every line lights-quiet keeps; the mute was not set, and `pns
-  lights quiet <place> off` ends one"`). Expiry is half open through `src/quiet.rs:is_muted`
+  (`"pns: lights mute: 32 places are already muted, which is every line lights-quiet keeps; the mute was not set, and `pns
+  lights mute <place> off` ends one"`). Expiry is half open through `src/mute.rs:is_muted`
   (`now < expiry`), so a mute ends ON the second it names.
 - Required side effects: complaints are printed BEFORE anything is written, because the write republishes
   the whole file and an operator whose file was unreadable is losing what it held. Expired entries are
@@ -1039,7 +1039,7 @@ Then a bare command REPORTS and mutes nothing; `<place>` mutes until the operato
   failed mute it would say the place is quiet when it is not, and for a failed `off` it would say nothing
   is quiet while the old mute is still on disk
   (`tests/dispatch.rs:a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built`). The
-  command must NOT touch `pns quiet`, cards, banners or the durable log: LIGHTS ONLY is the operator's
+  command must NOT touch `pns mute`, cards, banners or the durable log: LIGHTS ONLY is the operator's
   own scope, and the two mutes share a duration parser and nothing else
   (`tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`).
 - Timeout and cancellation: the bridge dial for a wider vocabulary uses
@@ -1065,7 +1065,7 @@ Then a bare command REPORTS and mutes nothing; `<place>` mutes until the operato
 
 ### 28. A bare mute lasts until the operator's quiet hours end
 
-Given `pns lights quiet "<place>"` with no duration,
+Given `pns lights mute "<place>"` with no duration,
 
 When `src/lights.rs:bare_mute_secs` computes the length,
 
@@ -1073,7 +1073,7 @@ Then it is the minutes from now to `[plugins.lights] quiet_hours`' END minute, t
 
 - Success: a mute that ends when the operator's night does.
 - Failure sources: no quiet hours configured, or a window nobody can parse. Both refuse:
-  `` pns: lights quiet: a bare mute lasts until your quiet hours end, and `[plugins.lights] quiet_hours` states none; give a duration instead, or set that key ``
+  `` pns: lights mute: a bare mute lasts until your quiet hours end, and `[plugins.lights] quiet_hours` states none; give a duration instead, or set that key ``
   (`src/lights.rs:NO_SCHEDULE`). No clock also refuses.
 - Fail direction: refusal, never a guessed duration: picking a length would be a mute the operator did
   not ask for, ending at an hour they cannot predict.
@@ -1089,7 +1089,7 @@ Then it is the minutes from now to `[plugins.lights] quiet_hours`' END minute, t
 - Idempotency and duplicates: not applicable.
 - Privacy: not applicable.
 - Process ownership and cleanup: not applicable.
-- Compatibility contract: there is deliberately no UNTIMED form, for `pns quiet`'s reason: a mute the
+- Compatibility contract: there is deliberately no UNTIMED form, for `pns mute`'s reason: a mute the
   operator forgets is a lamp that has silently stopped working (`src/lights.rs:QuietCommand` doc).
 
 ### 29. An unreadable mute record mutes everything, and says so once
@@ -1108,7 +1108,7 @@ Then it answers `src/channels/hue.rs:Muting::Everything` and one complaint.
   which is exactly the 3am the mute was armed to prevent, on the one night the machine could not tell
   anybody why. A missing file is the ORDINARY case and says nothing.
 - Thresholds: no clock also yields `Everything`, with the line
-  `"pns lights: the clock cannot be read, so no mute can be judged live; every lamp is quiet until it can"`
+  `"pns lights: the clock cannot be read, so no mute can be judged live; every lamp is muted until it can"`
   (`src/lights.rs:NO_CLOCK_FOR_THE_MUTE`), which is the SAME sentence `src/lights.rs:muted_report`
   prints, so an operator reading either sees one wording.
 - Required side effects: `src/main.rs:say_lights_once` remembers the joined line, so the complaint is
@@ -1126,7 +1126,7 @@ Then it answers `src/channels/hue.rs:Muting::Everything` and one complaint.
   `src/lights.rs:a_tick_says_a_complaint_once_and_says_it_again_only_when_it_changes`).
 - Privacy: the complaint quotes the offending line back, which is the operator's own place name.
 - Process ownership and cleanup: the memory file is removed on `Forget`; the state repairs itself on the
-  next `pns lights quiet` write, which republishes the whole file.
+  next `pns lights mute` write, which republishes the whole file.
 - Compatibility contract: the two readers of one complaint take OPPOSITE directions on purpose. The lamp
   path mutes everything; the typed command prints it and rebuilds from an empty list, because an operator
   standing in front of it is losing what the file held and gets to see that rather than a silent repair
@@ -1143,8 +1143,8 @@ When `src/channels/hue.rs:muted_now` is asked,
 
 Then any muted place matching the lamp's own name, its room, or any of its zones covers it.
 
-- Success: `pns lights quiet "3F - Studio"` reaches every lamp in the studio and
-  `pns lights quiet "3F - Studio - HCL3"` reaches one.
+- Success: `pns lights mute "3F - Studio"` reaches every lamp in the studio and
+  `pns lights mute "3F - Studio - HCL3"` reaches one.
 - Failure sources: none. `Muting::Everything` covers every lamp unconditionally.
 - Fail direction: not the delivery path. The map is still resolved and the muted lamps are simply not
   written to, which costs three reads for the length of the mute and keeps ONE answer to "is this lamp
@@ -1157,7 +1157,7 @@ Then any muted place matching the lamp's own name, its room, or any of its zones
 - Idempotency and duplicates: pure.
 - Privacy: name comparison only.
 - Process ownership and cleanup: not applicable.
-- Compatibility contract: the vocabulary `pns lights quiet` accepts is BOTH the declarations and the
+- Compatibility contract: the vocabulary `pns lights mute` accepts is BOTH the declarations and the
   bridge's own lamps, rooms and zones. Off the config alone it accepted a misspelled declaration (a mute
   that can never match a lamp) and refused a real inherited lamp the operator was reading off the
   bridge's own app (`src/channels/hue.rs:mutable_names`,

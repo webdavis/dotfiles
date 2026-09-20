@@ -1,10 +1,10 @@
 use crate::LampMutes;
-use pns_domain::lights::mute::QuietCommand;
+use pns_domain::lights::mute::MuteCommand;
 
 /// The lamps' own mute: one place, quiet for a bounded while, by hand.
 ///
 /// LIGHTS ONLY, and that is the operator's own scope: cards, banners, the
-/// durable log and `pns quiet` are untouched, so an agent that needs an answer
+/// durable log and `pns mute` are untouched, so an agent that needs an answer
 /// still reaches the phone while the bedroom lamp stays out of it. The two
 /// mutes share a duration parser and nothing else, and neither reads the
 /// other's file.
@@ -17,13 +17,13 @@ use pns_domain::lights::mute::QuietCommand;
 /// runs racing means an operator typing two commands in the same second, and
 /// the loser is one mute they can see is missing and retype. A lock between two
 /// interactive commands would be a mechanism with no reader.
-pub struct SetLightsQuiet<'a, M> {
+pub struct SetLightsMute<'a, M> {
     pub mutes: &'a M,
 }
-impl<M: LampMutes> SetLightsQuiet<'_, M> {
+impl<M: LampMutes> SetLightsMute<'_, M> {
     pub fn run(
         &self,
-        command: &QuietCommand,
+        command: &MuteCommand,
         now: Option<u64>,
         mut warn: impl FnMut(&str),
     ) -> Result<Vec<String>, String> {
@@ -35,18 +35,18 @@ impl<M: LampMutes> SetLightsQuiet<'_, M> {
             warn(complaint);
         }
         let rebuilt = match &command {
-            pns_domain::lights::mute::QuietCommand::Report => Ok(entries.clone()),
-            pns_domain::lights::mute::QuietCommand::Unmute { place } => {
+            pns_domain::lights::mute::MuteCommand::Report => Ok(entries.clone()),
+            pns_domain::lights::mute::MuteCommand::Unmute { place } => {
                 pns_domain::lights::mute::muted_after(&entries, place, None, now)
             }
-            pns_domain::lights::mute::QuietCommand::Mute { place, seconds } => {
+            pns_domain::lights::mute::MuteCommand::Mute { place, seconds } => {
                 match now.map(|now| now.saturating_add(*seconds)) {
                     Some(expiry) => {
                         pns_domain::lights::mute::muted_after(&entries, place, Some(expiry), now)
                     }
                     // THE CLOCK IS WHAT A MUTE IS MADE OF, so a run that cannot
                     // read one says the mute was not set rather than writing an
-                    // expiry it guessed. `pns quiet`'s own wording, one file over.
+                    // expiry it guessed. `pns mute`'s own wording, one file over.
                     None => Err(
                         "pns: state error (the clock cannot be read); the mute was not set"
                             .to_string(),
@@ -59,7 +59,7 @@ impl<M: LampMutes> SetLightsQuiet<'_, M> {
         // built from a list this run refused to publish would describe a house that
         // does not exist.
         let kept = rebuilt?;
-        if !matches!(command, pns_domain::lights::mute::QuietCommand::Report)
+        if !matches!(command, pns_domain::lights::mute::MuteCommand::Report)
             && let Err(error) = self.mutes.write(&kept)
         {
             // LOUD, because a human is waiting on the answer: reporting a mute that
@@ -70,7 +70,7 @@ impl<M: LampMutes> SetLightsQuiet<'_, M> {
             );
             // AND NO REPORT AFTER IT. `kept` is what the file WOULD have held: for
             // a failed mute it would say the place is quiet when it is not, and for
-            // a failed `off` it would say nothing is quiet while the old mute is
+            // a failed `off` it would say nothing is muted while the old mute is
             // still on disk and still taking the lamp. The disk is the answer and
             // this run did not change it.
             return Err(refusal);
@@ -80,10 +80,10 @@ impl<M: LampMutes> SetLightsQuiet<'_, M> {
 }
 
 mod names;
-pub use names::quiet_names;
+pub use names::mute_names;
 
 mod reading;
-pub use reading::ad_hoc_quiet;
+pub use reading::ad_hoc_mute;
 
 #[cfg(test)]
 mod tests;

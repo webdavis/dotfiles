@@ -17,7 +17,7 @@ pub use rings::{
     MISSED_NOTIFICATIONS,
 };
 pub use rings::{LIGHTS_HELD, held_lamps, read_held, read_news, record_news, remember_held};
-pub use rings::{QUIET_UNTIL, read_quiet_expiry};
+pub use rings::{QUIET_UNTIL, read_mute_expiry};
 pub use rings::{
     decisions as decision_codec, journal as journal_codec, presence as presence_journal,
 };

@@ -13,7 +13,7 @@ use crate::legacy::{SEND_USAGE, is_help_flag};
 pub(crate) const SUBCOMMAND_USAGE: &[(&str, &str)] = &[
     ("send", SEND_USAGE),
     ("hook", crate::hook_dispatch::HOOK_USAGE),
-    ("quiet", crate::command_quiet::QUIET_USAGE),
+    ("mute", crate::command_mute::MUTE_USAGE),
     ("daemon", crate::command_daemon::DAEMON_USAGE),
     ("gateway", crate::command_gateway::GATEWAY_USAGE),
     ("lights", crate::command_lights::LIGHTS_USAGE),
