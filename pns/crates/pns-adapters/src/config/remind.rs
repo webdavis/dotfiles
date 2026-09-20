@@ -23,31 +23,18 @@ pub(super) fn parse_remind(value: toml::Value) -> Result<u64, ConfigError> {
     Ok(delay)
 }
 
-/// `delay`, BOUNDED ON BOTH SIDES with zero carved out.
+/// `delay`'s range, WITH ZERO CARVED OUT by `parse_remind` above.
 ///
 /// ZERO IS NOT A SCHEDULE AND IS NOT AN ERROR: it is the same statement as
 /// writing no table, which is what makes this key the switch as well as the
 /// timing. Every other value under the floor IS an error, because it is a
 /// schedule the operator meant and pns will not run.
 ///
-/// THE FLOOR IS THIRTY SECONDS. A nudge arriving before the operator could
-/// plausibly have picked up their phone is the stacking this design forbids,
-/// and thirty is low enough that the feature can be drilled in half a minute.
-///
-/// THE CEILING IS AN HOUR, mirroring `MAX_SUMMARIZER_DEADLINE_SECS` rather than
-/// any harness number. It must also sit inside the daemon's own registration
-/// window (`daemon::DUE_WINDOW_SECS`, thirty days), which it does with room to
-/// spare, and it is what keeps `2 * delay` in the staleness cap far from any
-/// arithmetic edge.
+/// THE BOUNDS THEMSELVES ARE THE POLICY CRATE'S, so the file, the flag and the
+/// JSON field are held to one range.
 pub fn remind_delay_range() -> RangeInclusive<Duration> {
-    Duration::from_secs(MIN_REMIND_DELAY_SECS)..=Duration::from_secs(MAX_REMIND_DELAY_SECS)
+    pns_domain::remind::DELAY_RANGE
 }
-
-/// The shortest reminder anyone may schedule. See `remind_delay_range`.
-pub(super) const MIN_REMIND_DELAY_SECS: u64 = 30;
-
-/// The longest. See `remind_delay_range`.
-pub(super) const MAX_REMIND_DELAY_SECS: u64 = MAX_SUMMARIZER_DEADLINE_SECS;
 
 /// The one refusal that reads TWO tables, and the reason it cannot live in
 /// either of them: `[lights.blocked] give_up_after_secs` and `[remind] delay`
@@ -74,7 +61,7 @@ pub(super) const MAX_REMIND_DELAY_SECS: u64 = MAX_SUMMARIZER_DEADLINE_SECS;
 /// it is dead code rather than an untested branch. `REMIND_OFF` is zero and
 /// `give_up_after_secs` has a floor of 60, so the comparison below is already
 /// false for an off reminder; and `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16
-/// hours) sits far above `MAX_REMIND_DELAY_SECS` (one hour), so a config with
+/// hours) sits far above `MAX_DELAY_SECS` (one hour), so a config with
 /// no `[lights]` table could not trip the check even if it were read at its
 /// default. They stay because each states its own case out loud, and because
 /// what makes them dead is a coupling between two bounds that have nothing
