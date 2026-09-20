@@ -25,9 +25,10 @@ impl Fixture {
     pub fn new() -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         // The epoch nanosecond keeps a RECYCLED process id off an earlier
-        // run's leftovers: nothing removes these roots, so a counter beside
-        // the id alone rebuilds paths an earlier run already filled, and the
-        // `create_dir` below then answers AlreadyExists. Observed on this
+        // run's leftovers: nothing prunes what the Drop guard below misses (a
+        // run that aborts instead of unwinding), so a counter beside the id
+        // alone eventually rebuilds a path an earlier run already filled, and
+        // the `create_dir` below then answers AlreadyExists. Observed on this
         // machine 2026-09-17, all six rows at once.
         let root = std::env::temp_dir().join(format!(
             "posture-curation-{}-{}-{}",
@@ -127,6 +128,11 @@ impl Fixture {
             }
             std::thread::sleep(Duration::from_millis(1));
         }
+    }
+}
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.root);
     }
 }
 fn script(path: &std::path::Path, body: &str) {
