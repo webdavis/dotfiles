@@ -59,8 +59,9 @@ fn a_presence_table_naming_no_backend_is_refused_by_name() {
 
 #[test]
 fn a_presence_table_the_operator_switched_off_is_inert_settings_and_all() {
-    let config =
-        parse_config("[plugins.presence]\nenabled = false\ntype = \"aqara\"\npoll_secs = 900\n")
-            .unwrap();
+    let config = parse_config(
+        "[plugins.presence]\nenabled = false\ntype = \"aqara\"\npoll_interval = \"15m\"\n",
+    )
+    .unwrap();
     assert_eq!(parse_presence(&config).unwrap(), None);
 }

@@ -170,17 +170,20 @@ Config {
         "presence": PluginEntry {
             enabled: true,
             settings: {
+                "desk_input_max_age": String(
+                    "2m",
+                ),
                 "desk_room": String(
                     "3F - Studio",
                 ),
-                "desk_stale_after_secs": Integer(
-                    120,
-                ),
-                "exclude": Array(
+                "excluded_rooms": Array(
                     [],
                 ),
-                "poll_secs": Integer(
-                    5,
+                "poll_interval": String(
+                    "5s",
+                ),
+                "reading_max_age": String(
+                    "15s",
                 ),
                 "rooms": Array(
                     [
@@ -194,9 +197,6 @@ Config {
                             "3F - MBedroom",
                         ),
                     ],
-                ),
-                "stale_after_secs": Integer(
-                    15,
                 ),
                 "type": String(
                     "hue",

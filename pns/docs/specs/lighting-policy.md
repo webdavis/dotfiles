@@ -1244,7 +1244,7 @@ path's pulse (`src/main.rs:run_pulse_writes`) and on the tick (`src/main.rs:run_
 
 Then `src/presence_room.rs:chosen` weighs the desk's idle clock against the bridge's motion edge, and
 `src/presence_policy.rs:narrow` takes the room it answers to the lamp map. A WARM DESK IS A CLAIM ON THE
-OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_stale_after_secs` the keyboard
+OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_input_max_age` the keyboard
 says they are at the desk, while motion says A BODY moved in a room and never whose. So while the desk
 still speaks,
 
@@ -1278,9 +1278,9 @@ off the room listing.
   narrowing that would leave ZERO targets falls back to the whole routing rather than going silent
   (`src/presence_policy.rs:a_room_holding_no_routed_lamp_falls_back_to_the_whole_routing`).
 - Thresholds: the motion reading's freshness is `src/presence.rs:classify`'s, against
-  `[plugins.presence] stale_after_secs`; the desk's is `[plugins.presence] desk_stale_after_secs`
-  (default 120, `src/config.rs:DEFAULT_DESK_STALE_AFTER_SECS`, bounded 1 to
-  `src/config.rs:MAX_DESK_STALE_AFTER_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
+  `[plugins.presence] reading_max_age`; the desk's is `[plugins.presence] desk_input_max_age`
+  (default `"2m"`, `src/config.rs:DEFAULT_DESK_INPUT_MAX_AGE_SECS`, bounded `"1s"` to
+  `src/config.rs:MAX_DESK_INPUT_MAX_AGE_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
   good), past which a keyboard nobody has touched speaks for nothing. No dwell rule and no hysteresis of
   its own.
 - Required side effects: one JSON object per decision appended to the `presence-decisions` ring

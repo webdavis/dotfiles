@@ -110,7 +110,7 @@ fn a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor() {
         .expect("the table is on");
     assert_eq!(settings.rooms, vec!["3F - Studio".to_string()]);
     assert_eq!(
-        (settings.poll_secs, settings.stale_after_secs),
+        (settings.poll_interval_secs, settings.reading_max_age_secs),
         (5, 15),
         "the written defaults are the ones the reader takes"
     );
