@@ -16,7 +16,7 @@ pub fn expiry_from_state(contents: &str) -> Result<u64, String> {
     crate::count::parse_count(held).ok_or_else(|| {
         format!(
             "pns: state error (quiet-until is {held:?}, not an expiry time); \
-             nothing is muted, clear it with pns quiet off"
+             nothing is muted, clear it with pns mute off"
         )
     })
 }
@@ -39,7 +39,7 @@ pub fn is_muted(expiry: Option<u64>, now: Option<u64>) -> bool {
     }
 }
 
-/// What `pns quiet` says, for every state the predicate can be in.
+/// What `pns mute` says, for every state the predicate can be in.
 ///
 /// THE VERDICT IS `is_muted`'S, never re-derived here: one property read by
 /// two readers that each decide it is how a report and a behavior come to
@@ -49,9 +49,9 @@ pub fn status_line(expiry: Option<u64>, now: Option<u64>) -> String {
         (true, Some(expiry), Some(now)) => {
             let minutes = minutes_left(expiry, Some(now));
             let unit = if minutes == 1 { "minute" } else { "minutes" };
-            format!("pns: quiet for another {minutes} {unit}")
+            format!("pns: muted for another {minutes} {unit}")
         }
-        _ => "pns: not quiet".to_string(),
+        _ => "pns: not muted".to_string(),
     }
 }
 
@@ -65,7 +65,7 @@ pub fn minutes_left(expiry: u64, now: Option<u64>) -> u64 {
 }
 
 /// How long a mute may last: the range `duration::parse_duration` holds
-/// `pns quiet` and `pns lights quiet` to, since one spelling of "how long"
+/// `pns mute` and `pns lights mute` to, since one spelling of "how long"
 /// cannot have two sets of bounds.
 ///
 /// A ZERO would write a state file born expired. A DAY is the ceiling, and

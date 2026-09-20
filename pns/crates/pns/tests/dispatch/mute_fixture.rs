@@ -6,10 +6,10 @@ use super::*;
 ///
 /// `PNS_STATE_DIR` RIDES ON THE COMMAND, never through `set_var`: this binary
 /// is threaded, and a process-wide mutation would decide another test's mute.
-pub(super) fn quiet_command(sandbox: &Sandbox) -> std::process::Command {
+pub(super) fn mute_command(sandbox: &Sandbox) -> std::process::Command {
     let mut command = sandbox.pns();
     command.env("PNS_STATE_DIR", sandbox.path("state"));
-    command.arg("quiet");
+    command.arg("mute");
     command
 }
 
@@ -25,12 +25,12 @@ pub(super) fn quiet_command(sandbox: &Sandbox) -> std::process::Command {
 /// THE BOUND IS WRITTEN INTO THIS SANDBOX'S CONFIG, which is the only way to
 /// set it: `[storage] busy_deadline` replaced the environment variable that
 /// production code used to read.
-pub(super) fn refused_quiet_command(sandbox: &Sandbox) -> std::process::Command {
+pub(super) fn refused_mute_command(sandbox: &Sandbox) -> std::process::Command {
     sandbox.write_config(&format!(
         "{}[storage]\nbusy_deadline = \"50ms\"\n",
-        crate::support::STUB_CHANNELS
+        support::STUB_CHANNELS
     ));
-    quiet_command(sandbox)
+    mute_command(sandbox)
 }
 
 /// The state file the mute is published to.

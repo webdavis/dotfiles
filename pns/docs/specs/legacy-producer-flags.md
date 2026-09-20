@@ -73,13 +73,13 @@ subcommand itself is mistyped:
 
 - `src/lights.rs:LOOP_USAGE`: `pns: usage: pns loop begin [--pane <id>] | pns loop end [--pane <id>]`
 
-- `src/main.rs:LIGHTS_USAGE`: `pns: usage: pns lights tick | pns lights quiet [<place> [<duration>|off]]`
+- `src/main.rs:LIGHTS_USAGE`: `pns: usage: pns lights tick | pns lights mute [<place> [<duration>|off]]`
 
 - `src/main.rs:DAEMON_USAGE`:
   `pns: usage: pns daemon run | pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <event args> | pns daemon cancel --id <id>`
 
 - `src/main.rs:QUIET_USAGE`:
-  `pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h`
+  `pns: usage: pns mute [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h`
 
 - `src/main.rs:SETUP_USAGE`:
   `pns: usage: pns setup [--force]; --force replaces an existing config, keeping it beside`

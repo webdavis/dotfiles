@@ -43,7 +43,7 @@ fn lamp_repository_ports_preserve_unknown_reads_and_refuse_unwritten_changes() {
         .unwrap();
     let complaints = LampMutes::read(&healthy).1;
     assert_eq!(complaints[0].matches("pns: state error").count(), 1);
-    assert!(complaints[0].ends_with("the next pns lights quiet write replaces the stored record"));
+    assert!(complaints[0].ends_with("the next pns lights mute write replaces the stored record"));
 }
 #[test]
 fn a_busy_streak_publication_still_returns_the_computed_next_streak_without_claiming_it_was_stored()
