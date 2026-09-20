@@ -21,6 +21,9 @@ pub trait FunnelStore {
 pub enum FunnelFailure {
     ReadGap(SubmissionFailure),
     Exposure(SubmissionFailure),
+    /// The corrupt-baseline warning was raised and no destination took it.
+    /// Reported after the repair rather than instead of it.
+    CorruptBaseline(SubmissionFailure),
     Persistence,
 }
 pub struct Funnel<'a, M, S> {
@@ -34,6 +37,7 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
         baseline: FunnelBaseline,
         occurred_at: Option<u64>,
     ) -> Result<(), FunnelFailure> {
+        let mut corruption_lost = None;
         let value = reading.as_ref().unwrap_or(&FunnelReading::Gap);
         let plan = plan_funnel(value, baseline, self.store.covered(FunnelGap::Readings));
         if plan.clear_read_gap {
@@ -49,13 +53,16 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
                 .submit("page", body, occurred_at)
                 .map_err(FunnelFailure::Exposure)?,
             Some(FunnelAlert::CorruptBaseline) => {
-                // The Bash corruption warning is best effort; repair follows even a refused warning.
-                let _ = self.submit("gap", funnel_corruption_gap(), occurred_at);
+                // The repair follows even a refused warning, so the refusal is
+                // carried to the end of the run rather than short-circuiting it.
+                corruption_lost = self
+                    .submit("gap", funnel_corruption_gap(), occurred_at)
+                    .err();
             }
             None => {}
         }
         let Some(next) = plan.next else {
-            return Ok(());
+            return lost(corruption_lost);
         };
         if self.store.publish(next).is_err() {
             let _ = self.gap(
@@ -66,7 +73,7 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
             return Err(FunnelFailure::Persistence);
         }
         let _ = self.store.clear(FunnelGap::Persistence);
-        Ok(())
+        lost(corruption_lost)
     }
     fn gap(
         &mut self,
@@ -99,5 +106,78 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
             Submission::Accepted => Ok(()),
             Submission::NotAccepted(error) => Err(error),
         }
+    }
+}
+/// A run that finished its work still fails when its corruption warning did.
+fn lost(corruption: Option<SubmissionFailure>) -> Result<(), FunnelFailure> {
+    match corruption {
+        Some(failure) => Err(FunnelFailure::CorruptBaseline(failure)),
+        None => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+
+    #[derive(Default)]
+    struct Store {
+        published: RefCell<Vec<FunnelState>>,
+    }
+    impl FunnelStore for Store {
+        fn covered(&self, _gap: FunnelGap) -> bool {
+            false
+        }
+        fn remember(&self, _gap: FunnelGap) -> Result<(), FunnelStateFailure> {
+            Ok(())
+        }
+        fn clear(&self, _gap: FunnelGap) -> Result<(), FunnelStateFailure> {
+            Ok(())
+        }
+        fn publish(&self, state: FunnelState) -> Result<(), FunnelStateFailure> {
+            self.published.borrow_mut().push(state);
+            Ok(())
+        }
+    }
+    struct Sink(Submission);
+    impl AlertSink for Sink {
+        fn submit(&mut self, _alert: &Alert) -> Submission {
+            self.0
+        }
+    }
+
+    fn repair(result: Submission) -> (Result<(), FunnelFailure>, Vec<FunnelState>) {
+        let store = Store::default();
+        let mut sink = Sink(result);
+        let outcome = Funnel {
+            store: &store,
+            sink: &mut sink,
+        }
+        .run(
+            Ok(FunnelReading::Inactive),
+            FunnelBaseline::Corrupt,
+            Some(7),
+        );
+        let published = store.published.borrow().clone();
+        (outcome, published)
+    }
+
+    #[test]
+    fn a_repaired_baseline_whose_corruption_warning_was_refused_is_reported_as_a_failure() {
+        let (outcome, published) = repair(Submission::NotAccepted(SubmissionFailure::Refused));
+        assert_eq!(
+            outcome,
+            Err(FunnelFailure::CorruptBaseline(SubmissionFailure::Refused))
+        );
+        // The repair is what the warning must never block, so it still happened.
+        assert_eq!(published, [FunnelState::Inactive]);
+    }
+
+    #[test]
+    fn a_delivered_corruption_warning_leaves_the_run_successful() {
+        let (outcome, published) = repair(Submission::Accepted);
+        assert_eq!(outcome, Ok(()));
+        assert_eq!(published, [FunnelState::Inactive]);
     }
 }

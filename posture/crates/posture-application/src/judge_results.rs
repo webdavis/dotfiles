@@ -67,6 +67,16 @@ pub enum JudgeOutcome {
     Retained,
 }
 
+/// What one run did, and whether its own meta-warning reached anyone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JudgeReport {
+    pub outcome: JudgeOutcome,
+    /// A cursor-reset warning was raised and no destination took it. The
+    /// batch's own delivery is reported by `outcome`; this says the operator
+    /// was never told their alerting state had been disturbed.
+    pub reset_warning_lost: bool,
+}
+
 /// The alerter, over its log, its cursor, its judge and its sink.
 pub struct JudgeResults<'a, L, C, K, J> {
     pub lock: &'a dyn RunLock,
@@ -78,7 +88,16 @@ pub struct JudgeResults<'a, L, C, K, J> {
 }
 
 impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults<'_, L, C, K, J> {
-    pub fn run(&mut self) -> JudgeOutcome {
+    pub fn run(&mut self) -> JudgeReport {
+        let mut reset_warning_lost = false;
+        let outcome = self.judge_batch(&mut reset_warning_lost);
+        JudgeReport {
+            outcome,
+            reset_warning_lost,
+        }
+    }
+
+    fn judge_batch(&mut self, reset_warning_lost: &mut bool) -> JudgeOutcome {
         if !self.lock.taken() {
             return JudgeOutcome::Contended;
         }
@@ -90,7 +109,7 @@ impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults
             return JudgeOutcome::Quiet;
         };
         if reset {
-            self.report_reset(live);
+            *reset_warning_lost = self.report_reset(live);
         }
         let snapshot = self.log.span(from, live.size.saturating_sub(from));
         let records = complete_records(&snapshot);
@@ -147,13 +166,14 @@ impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults
         }
     }
 
-    /// Say out loud that the cursor was missing or unreadable.
+    /// Say out loud that the cursor was missing or unreadable, and answer
+    /// whether that warning was lost.
     ///
     /// A LOST CURSOR IS AN ALERTING FAILURE. The replay below re-surfaces every
     /// finding in the log on its own, so this is not about the findings: it is
     /// the meta-signal that the alerter's own state was disturbed, which is the
     /// first thing anyone tampering with this machine would reach for.
-    fn report_reset(&mut self, live: LiveLog) {
+    fn report_reset(&mut self, live: LiveLog) -> bool {
         let alert = Alert {
             // REPEATED RESETS OVER ONE LOG SHARE AN ID, so a machine resetting
             // every tick raises one page rather than a storm.
@@ -171,9 +191,10 @@ impl<L: ResultsLog, C: CursorStore, K: AlertSink, J: JudgeFindings> JudgeResults
                  - If you did not clear ~/.local/state, something else reset it. **Investigate now.**",
             ),
         };
-        // BEST EFFORT, DELIBERATELY. This warning must never stand between the
-        // batch and its own delivery, which has its own gate below.
-        let _ = self.sink.submit(&alert);
+        // THE BATCH STILL GOES, whatever happens here: this warning must never
+        // stand between it and its own delivery, which has its own gate below.
+        // A refusal is carried out to the caller instead of being dropped.
+        matches!(self.sink.submit(&alert), Submission::NotAccepted(_))
     }
 }
 

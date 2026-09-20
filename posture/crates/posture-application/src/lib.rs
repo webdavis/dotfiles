@@ -54,8 +54,8 @@ pub use poll::{Poll, PollFailure, PollMarkers, PollStateFailure};
 
 mod judge_results;
 pub use judge_results::{
-    BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeResults, JudgedBatch, ResultsLog,
-    RunLock,
+    BatchPage, CursorStore, JudgeFindings, JudgeOutcome, JudgeReport, JudgeResults, JudgedBatch,
+    ResultsLog, RunLock,
 };
 
 mod funnel;
