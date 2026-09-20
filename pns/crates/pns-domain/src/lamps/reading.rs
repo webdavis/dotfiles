@@ -5,6 +5,6 @@ use super::Muting;
 pub struct Reading<'reading> {
     pub minutes_now: Option<u16>,
     /// AN EMPTY `Places` IS THE ORDINARY CASE, and a machine that has never run
-    /// `pns lights quiet` reads an absent file as exactly that.
+    /// `pns lights mute` reads an absent file as exactly that.
     pub muted: &'reading Muting,
 }

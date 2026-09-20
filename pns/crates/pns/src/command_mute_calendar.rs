@@ -1,9 +1,9 @@
 use crate::*;
 use pns_adapters::{QuietCalendar, SqliteStore};
-use pns_domain::quiet::calendar::{CalendarState, Event, Move};
+use pns_domain::mute::calendar::{CalendarState, Event, Move};
 use std::time::Duration;
 
-/// `pns quiet calendar`: one read of the calendar the config names, and
+/// `pns mute calendar`: one read of the calendar the config names, and
 /// whatever that means for the mute.
 ///
 /// THE CLOCK RUNS IT. It is registered as a leased job like the room sensor
@@ -15,14 +15,14 @@ use std::time::Duration;
 /// The only lines it writes name what happened to the mute, never an event's
 /// subject, its attendees or its identifier, because these reach a log the
 /// operator is not the only reader of.
-pub(crate) fn quiet_calendar_mode() -> i32 {
+pub(crate) fn mute_calendar_mode() -> i32 {
     let home = std::env::var("HOME").unwrap_or_default();
     let calendar = match load_config(&config_path(&home)) {
         Ok(LoadOutcome::Loaded(config)) => config.quiet_calendar,
         Ok(LoadOutcome::Missing) => QuietCalendar::default(),
         Err(error) => {
             eprintln!(
-                "pns quiet: the config could not be read ({}); the calendar was not read",
+                "pns mute: the config could not be read ({}); the calendar was not read",
                 error.detail()
             );
             return 1;
@@ -34,38 +34,38 @@ pub(crate) fn quiet_calendar_mode() -> i32 {
     let outcome = poll(
         &calendar,
         now_secs(),
-        crate::command_quiet::read_quiet_expiry(&records),
+        crate::command_mute::read_mute_expiry(&records),
         held,
         &mut |argv, deadline| pns_adapters::read_calendar(argv, deadline),
     );
     let (chosen, next) = match outcome {
         Poll::Off => return 0,
         Poll::Unread(complaint) => {
-            eprintln!("pns quiet: {complaint}; the mute was left as it was");
+            eprintln!("pns mute: {complaint}; the mute was left as it was");
             return 1;
         }
         Poll::Decided(chosen, next) => (chosen, next),
     };
     let written = match chosen {
-        Move::Arm(until) => records.set_quiet_expiry(Some(until)),
-        Move::Clear => records.set_quiet_expiry(None),
+        Move::Arm(until) => records.set_mute_expiry(Some(until)),
+        Move::Clear => records.set_mute_expiry(None),
         Move::Leave => Ok(()),
     };
     if let Err(error) = written {
         // AND THE STATE IS NOT RECORDED, so the next poll tries the same move
         // again rather than believing it landed.
-        eprintln!("pns quiet: state error (quiet-until could not be written: {error})");
+        eprintln!("pns mute: state error (quiet-until could not be written: {error})");
         return 1;
     }
     if next != held
         && let Err(error) = pns_adapters::write_calendar_state(&state, &next)
     {
-        eprintln!("pns quiet: state error (the calendar state could not be written: {error})");
+        eprintln!("pns mute: state error (the calendar state could not be written: {error})");
         return 1;
     }
     match chosen {
-        Move::Arm(_) => println!("pns: quiet on for a calendar event"),
-        Move::Clear => println!("pns: quiet off, the calendar event has ended"),
+        Move::Arm(_) => println!("pns: muted for a calendar event"),
+        Move::Clear => println!("pns: unmuted, the calendar event has ended"),
         Move::Leave => {}
     }
     0
@@ -98,7 +98,7 @@ fn poll(
     match read(&calendar.command, calendar.deadline()) {
         Err(complaint) => Poll::Unread(complaint),
         Ok(events) => {
-            let (chosen, next) = pns_domain::quiet::calendar::decide(&events, now, expiry, held);
+            let (chosen, next) = pns_domain::mute::calendar::decide(&events, now, expiry, held);
             Poll::Decided(chosen, next)
         }
     }

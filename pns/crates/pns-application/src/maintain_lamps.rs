@@ -82,7 +82,7 @@ where
             records: self.records,
         }
         .read(lights, now, readings.last_interaction);
-        let (muted, mut complaints) = crate::ad_hoc_quiet(self.records, Some(now));
+        let (muted, mut complaints) = crate::ad_hoc_mute(self.records, Some(now));
         // A RECORD THIS CANNOT READ NAMES NOTHING TO CLEAR, and the tick is its
         // only writer, so it goes on: the pass below publishes the record it
         // derived, which is what repairs the file. The residue is stated: a lamp

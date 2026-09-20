@@ -1039,7 +1039,7 @@ a timer.
   when an approval has been sitting unanswered. IT IS A STATEMENT AND NEVER A SECOND PROMPT, so the card
   raised when the prompt appeared is still the one carrying Allow and Deny. It needs the daemon running
   and the PostToolBatch hook entry that tells pns an approval was dealt with; without that entry the only
-  clearing signal is the end of the turn. It respects every mute the first card respects, a `pns quiet`,
+  clearing signal is the end of the turn. It respects every mute the first card respects, a `pns mute`,
   a Focus, the quiet window, and a reminder held back is LOST rather than queued. Several approvals waiting
   are one card rather than several, each approval is reminded about at most once, and a card counts every
   approval outstanding at that moment, so a fresh one can be named early and is then done. The signal is

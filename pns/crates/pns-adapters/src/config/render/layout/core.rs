@@ -201,11 +201,11 @@ pub(super) const FOCUS: Table = Table {
     }],
 };
 /// The mute's own section. IT HOLDS NO KEYS: the mute itself is typed
-/// (`pns quiet 30m`) rather than configured, and the one thing there is to
+/// (`pns mute 30m`) rather than configured, and the one thing there is to
 /// configure about it is the calendar below.
 pub(super) const QUIET: Table = Table {
     name: "quiet",
-    prose: "# The mute, `pns quiet <duration>`, and what else may switch it.\n",
+    prose: "# The mute, `pns mute <duration>`, and what else may switch it.\n",
     opt_in: true,
     children: &[QUIET_CALENDAR],
     keys: &[],
@@ -262,7 +262,7 @@ pub(super) const REMIND: Table = Table {
                  # daemon running and the PostToolBatch hook entry that tells pns an\n\
                  # approval was dealt with; without that entry the only clearing signal\n\
                  # is the end of the turn. It respects every mute the first card respects,\n\
-                 # a `pns quiet`, a Focus, the quiet window, and a reminder held back is\n\
+                 # a `pns mute`, a Focus, the quiet window, and a reminder held back is\n\
                  # LOST rather than queued. Several approvals waiting are one card rather\n\
                  # than several, each approval is reminded about at most once, and a card\n\
                  # counts every approval outstanding at that moment, so a fresh one can be\n\

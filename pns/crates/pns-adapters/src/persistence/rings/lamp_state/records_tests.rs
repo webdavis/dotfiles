@@ -2,7 +2,7 @@ mod tests {
     use crate::FileLampState;
     use crate::persistence::rings::lamp_state::muted_state;
     use crate::state_fixtures::scratch;
-    use pns_application::ad_hoc_quiet;
+    use pns_application::ad_hoc_mute;
 
     #[test]
     fn an_unreadable_lights_quiet_complains_and_an_absent_one_says_nothing() {
@@ -42,7 +42,7 @@ mod tests {
         // record nobody can parse says nothing about which places are quiet,
         // and read as an empty list it was a house with every lamp loud.
         assert_eq!(
-            ad_hoc_quiet(&FileLampState::new(state.clone()), Some(1_000)).0,
+            ad_hoc_mute(&FileLampState::new(state.clone()), Some(1_000)).0,
             pns_domain::lamps::Muting::Everything
         );
         std::fs::write(&file, "9999999999 3F - Studio\n").expect("a file it can read");
@@ -52,7 +52,7 @@ mod tests {
             "the control: a file it can read complains about nothing"
         );
         assert_eq!(
-            ad_hoc_quiet(&FileLampState::new(state.clone()), Some(1_000)),
+            ad_hoc_mute(&FileLampState::new(state.clone()), Some(1_000)),
             (
                 pns_domain::lamps::Muting::Places(vec!["3F - Studio".to_string()]),
                 Vec::new()
@@ -65,13 +65,13 @@ mod tests {
         // THE LITERAL SENTENCE, never the constant: a mutation that renamed
         // or emptied `NO_CLOCK_FOR_THE_MUTE` and every reader of it together
         // would still pass a comparison against itself.
-        let (muting, complaints) = ad_hoc_quiet(&FileLampState::new(state.clone()), None);
+        let (muting, complaints) = ad_hoc_mute(&FileLampState::new(state.clone()), None);
         assert_eq!(muting, pns_domain::lamps::Muting::Everything);
         assert_eq!(
             complaints,
             vec![
                 "pns lights: the clock cannot be read, so no mute can be judged \
-                 live; every lamp is quiet until it can"
+                 live; every lamp is muted until it can"
                     .to_string()
             ]
         );

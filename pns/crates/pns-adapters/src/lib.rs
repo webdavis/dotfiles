@@ -78,7 +78,7 @@ pub use persistence::{
     HeldLock, RING_READ_MAX, STATE_FILE_MODE, append_ring_line, claim_lock, decision_codec,
     journal_codec, now_secs, presence_journal, publish_state_line, readable_state_file, state_dir,
 };
-pub use persistence::{QUIET_UNTIL, read_quiet_expiry};
+pub use persistence::{QUIET_UNTIL, read_mute_expiry};
 pub use persistence::{remember_staleness, remembered_staleness};
 
 mod protocols;

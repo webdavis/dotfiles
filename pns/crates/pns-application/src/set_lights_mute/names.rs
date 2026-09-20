@@ -1,4 +1,4 @@
-/// Every name `pns lights quiet` will take, for the command as it was typed.
+/// Every name `pns lights mute` will take, for the command as it was typed.
 ///
 /// THE GRAMMAR IS LAMP, ROOM AND ZONE, which are the BRIDGE'S nouns as much as
 /// the config's: a lamp that inherits its room's declaration has a real name no
@@ -11,7 +11,7 @@
 /// word neither this run's declarations nor `off` can account for is worth
 /// asking a bridge about, and `off` is allowed over any name because it can
 /// only remove.
-pub fn quiet_names(
+pub fn mute_names(
     lights: &pns_domain::lamps::config::Lights,
     arguments: &[String],
     inventory: impl FnOnce() -> Option<pns_domain::lamps::Inventory>,

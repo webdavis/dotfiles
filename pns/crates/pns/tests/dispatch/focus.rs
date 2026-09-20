@@ -46,7 +46,7 @@ fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_jour
     assert_eq!(ring.len(), 1, "one decision was recorded: {ring:?}");
     assert!(
         ring[0].contains("muted=no focus=yes"),
-        "TWO FIELDS RATHER THAN ONE: `pns quiet` and a macOS Focus send the \
+        "TWO FIELDS RATHER THAN ONE: `pns mute` and a macOS Focus send the \
          operator to completely different places: {}",
         ring[0]
     );

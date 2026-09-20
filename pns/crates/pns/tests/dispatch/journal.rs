@@ -185,7 +185,7 @@ fn a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing() {
     // Import the mute first, then reject the journal INSERT immediately. This
     // isolates publication failure from unreadable-mute policy and busy waits.
     pns_adapters::SqliteStore::for_records(sandbox.path("state"))
-        .quiet_expiry()
+        .mute_expiry()
         .unwrap();
     let writer = rusqlite::Connection::open_with_flags(
         sandbox.path("state/pns.db"),
