@@ -74,7 +74,7 @@ still deployed, because the string in the source is the only thing that names th
 | visibility               | `src/surface.rs:Visibility`                                | Whether the pane that produced the event is on screen                                       |
 | session view             | `src/surface.rs:SessionView`                               | The herdr reading a visibility decision is taken from                                       |
 | delivery plan            | `src/surface.rs:DeliveryPlan`                              | Which destinations the surface and visibility together allow                                |
-| home probe               | `src/home.rs`, sensor `router` in `src/registry.rs:ROSTER` | The router reading that answers whether the operator's devices are home                     |
+| home probe               | `src/home.rs`, sensor `home_presence` in `src/registry.rs:ROSTER` | The router reading that answers whether the operator's devices are home                     |
 | home presence (the type) | `src/home.rs:HomePresence`                                 | `Home`, `NotHome` or `Unknown`. `Unknown` is preserved separately from `NotHome` on purpose |
 | device key               | `src/home.rs:DeviceKey`                                    | Which identifier a configured device is matched by                                          |
 | staleness                | `src/home.rs:Staleness`                                    | How out of date a router listing is allowed to be before the reading is refused             |

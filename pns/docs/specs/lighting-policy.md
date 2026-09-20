@@ -66,7 +66,7 @@ ______________________________________________________________________
 
 | Name         | What it is                                                                                                                                                                                                                                                                                                                     | Boundaries                                                                                                                                                                                                                                                         | What it changes about a lamp                                                                                                                                                                                                                     | Tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| quiet hours  | The `[plugins.hue] quiet_hours` key, `"HH:MM-HH:MM"`, parsed by `src/channels/hue.rs:quiet_window` into a `QuietWindow` of minutes since local midnight. It is the OPERATOR'S OWN schedule: it gates the no-map pulse, and it is the only source for how long a bare `pns lights quiet` lasts (`src/lights.rs:bare_mute_secs`) | Two-digit hours under 24 and minutes under 60 (`src/channels/hue.rs:minute_of_day`, `two_digits`). Absent or empty is no window; anything else is a refusal                                                                                                        | On a machine with NO `[lights]` table: inside it, no pulse fires at all. On a machine WITH a `[lights]` table it reaches no routed lamp: `src/main.rs:fire_pulse_unless_quiet` takes the routed branch before it ever calls `quiet_window`       | `src/channels/hue.rs:a_table_that_names_no_quiet_hours_has_no_window`, `a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name`, `a_blanked_quiet_hours_is_no_window_rather_than_a_refusal`, `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`, `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`, `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`         |
+| quiet hours  | The `[plugins.lights] quiet_hours` key, `"HH:MM-HH:MM"`, parsed by `src/channels/hue.rs:quiet_window` into a `QuietWindow` of minutes since local midnight. It is the OPERATOR'S OWN schedule: it gates the no-map pulse, and it is the only source for how long a bare `pns lights quiet` lasts (`src/lights.rs:bare_mute_secs`) | Two-digit hours under 24 and minutes under 60 (`src/channels/hue.rs:minute_of_day`, `two_digits`). Absent or empty is no window; anything else is a refusal                                                                                                        | On a machine with NO `[lights]` table: inside it, no pulse fires at all. On a machine WITH a `[lights]` table it reaches no routed lamp: `src/main.rs:fire_pulse_unless_quiet` takes the routed branch before it ever calls `quiet_window`       | `src/channels/hue.rs:a_table_that_names_no_quiet_hours_has_no_window`, `a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name`, `a_blanked_quiet_hours_is_no_window_rather_than_a_refusal`, `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`, `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`, `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`         |
 | quiet window | The evaluated form of a `QuietWindow` at one minute of the local day, `src/channels/hue.rs:quiet_now`. One predicate, read by the house gate and by every per-lamp dim decision                                                                                                                                                | Half open, start inclusive and end exclusive: minute 1319 is loud, 1320 is quiet, 1379 is quiet, 1380 is loud. A window whose start is after its end wraps midnight and is an OR of the two halves. A window whose start equals its end is never quiet             | Decides whether the dim rendering applies at all                                                                                                                                                                                                 | `src/channels/hue.rs:a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end`, `a_window_whose_start_is_after_its_end_is_quiet_on_both_sides_of_midnight`, `a_window_whose_start_equals_its_end_is_never_quiet`, `a_clock_this_machine_cannot_read_is_treated_as_inside_the_window`, `tests/dispatch.rs:the_window_is_read_in_the_zone_the_child_was_given`                                                                                                                             |
 | dim window   | Per declaration: `dim_window = "HH:MM-HH:MM"` plus `dim_behaviours = [...]` on a `[lights.lamp/room/zone.<name>]` target, resolved to `src/channels/hue.rs:DimWindow`. The two keys travel together as ONE question so a lamp cannot take its room's window and a zone's enables                                               | Same `quiet_now` boundaries. Inside it a listed behaviour renders `Showing::Dimmed`, an unlisted one renders `Showing::Dark`; outside it everything renders `Showing::Full`. An EMPTY `dim_behaviours` suppresses every behaviour, with no second mode to spell it | Dimmed held state: same colour, the one shared `[lights.dim]` shape (default 3000 ms fades, high 7, low 1). Dimmed pulse: same colour and duration at `lights.dim.low`, since a blink has no low end to fade to. Dark: nothing is written at all | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`, `a_window_with_nothing_enabled_suppresses_every_behaviour_and_needs_no_mode`, `a_dim_window_nobody_can_parse_leaves_that_lamp_dark_and_says_which_lamp`, `a_dimmed_pulse_fires_at_the_dim_floor_and_a_suppressed_one_does_not_fire`, `each_held_state_renders_its_own_locked_colour_and_shape`, `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg` |
 
@@ -159,7 +159,7 @@ Then empty is `Done`, all ASCII zeroes is `Done`, any other run of ASCII digits 
 
 ### 3. A machine with no map pulses whole rooms and states no brightness
 
-Given `[plugins.hue]` with a bridge, a key and `rooms`, and no `[lights]` table,
+Given `[plugins.lights]` with a bridge, a key and `rooms`, and no `[lights]` table,
 
 When a pulse fires,
 
@@ -188,7 +188,7 @@ Then `src/channels/hue.rs:HuePulse::run` fetches the `room` listing, maps each w
   (`src/channels/hue.rs`, module doc). Nothing here snapshots or restores.
 - Compatibility contract: `src/channels/hue.rs:DEFAULT_ROOMS` = `["3F - Studio", "2F - Kitchen"]` when
   the settings `rooms` array names none. `HUE_PULSE_ROOMS` is gone;
-  `[plugins.hue] rooms` is the only source now
+  `[plugins.lights] rooms` is the only source now
   (`src/channels/hue.rs:hue_pulse_rooms_no_longer_selects_the_rooms_the_config_array_does`).
 
 ### 4. A machine with a map pulses per lamp, and skips muted and held lamps
@@ -361,7 +361,7 @@ Then `src/lights.rs:blocked_marker_action` reads the state: a word in `LAMP_BLOC
   that did not land costs one lamp its colour and never a card.
 - Thresholds: none here. The bound lives in the sweep, behaviour 10.
 - Required side effects: STARTING one is gated on both lamp switches (`lamps_live` = a `[lights]` table
-  AND `[plugins.hue]` enabled); a machine that never asked for the lamps must not accumulate files
+  AND `[plugins.lights]` enabled); a machine that never asked for the lamps must not accumulate files
   nothing will sweep. ENDING one is UNCONDITIONAL, because gating it too meant a wait that ended while
   the lamps were off kept its marker, and switching hue back on inside the backstop put `blocked` on a
   lamp for a session nobody was waiting on
@@ -941,7 +941,7 @@ Then a lamp with NO window is `Showing::Full`; outside the window it is `Full`; 
 - Privacy: a minute of the day.
 - Process ownership and cleanup: not applicable.
 - Compatibility contract: a lamp with no window pays NOTHING and behaves exactly as it did, which is what
-  makes the whole feature opt-in. `[plugins.hue] quiet_hours` is NOT a rung of the routed chain: a typo
+  makes the whole feature opt-in. `[plugins.lights] quiet_hours` is NOT a rung of the routed chain: a typo
   there cannot darken a routed lamp
   (`tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`).
 
@@ -1069,11 +1069,11 @@ Given `pns lights quiet "<place>"` with no duration,
 
 When `src/lights.rs:bare_mute_secs` computes the length,
 
-Then it is the minutes from now to `[plugins.hue] quiet_hours`' END minute, times 60.
+Then it is the minutes from now to `[plugins.lights] quiet_hours`' END minute, times 60.
 
 - Success: a mute that ends when the operator's night does.
 - Failure sources: no quiet hours configured, or a window nobody can parse. Both refuse:
-  `` pns: lights quiet: a bare mute lasts until your quiet hours end, and `[plugins.hue] quiet_hours` states none; give a duration instead, or set that key ``
+  `` pns: lights quiet: a bare mute lasts until your quiet hours end, and `[plugins.lights] quiet_hours` states none; give a duration instead, or set that key ``
   (`src/lights.rs:NO_SCHEDULE`). No clock also refuses.
 - Fail direction: refusal, never a guessed duration: picking a length would be a mute the operator did
   not ask for, ending at an hour they cannot predict.
