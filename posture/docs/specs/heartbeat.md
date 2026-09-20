@@ -36,9 +36,10 @@ Freshness still uses unsigned distances and the existing two-sided boundary.
 The command submits through whichever delivery path `~/.config/posture/config.toml` names, on the route
 `posture`. Heartbeat remains an observation without the security class. Submission has a five-second
 command budget; an independent runner gives the local failure banner ten seconds. Correlated
-`ledger_committed` acceptance is the only durable acknowledgement. Refusal, engine failure and alarm
-failure all leave the command's best-effort exit status at zero. Missing `HOME` refuses setup with a
-fixed diagnostic and exit 1.
+`ledger_committed` acceptance is the only durable acknowledgement. A submission no destination accepted
+writes one line naming the configured route and the failure, raises the same line on the last-resort
+banner, and exits 1. A delivered heartbeat exits 0 silently. Missing `HOME` refuses setup with a fixed
+diagnostic and exits 1.
 
 The route name is a deployment prerequisite, not an installed binding. The operator must configure the
 keyed Hermes route to preserve the silent daily Discord record and desktop banner before the held
