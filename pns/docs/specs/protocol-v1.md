@@ -198,8 +198,9 @@ before effects and the refusal names the field. An absent or null `remind` is a 
 nothing, which falls through to the producer's own config entry and then to off, and it is omitted when
 encoding so an unmarked request keeps its canonical version 1 bytes. It decodes to the SAME switch the
 `--remind`, `--remind=<duration>` and `--no-remind` flags produce, so both paths hand one resolution one
-answer. The submit path does not read this field yet: only the flag path calls `remind_delay` today, so a
-JSON request that sets `remind` is decoded and validated but arms nothing.
+answer. The submit path arms from it on a `blocked` request, where an approval is waiting; on every other
+state it arms nothing, because the producer's `[producer.<name>] remind` entry states that producer's
+approvals rather than every event it sends.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),

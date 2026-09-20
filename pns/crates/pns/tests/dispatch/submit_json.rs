@@ -213,3 +213,5 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
 
 #[path = "submit_json/observation.rs"]
 mod observation;
+#[path = "submit_json/remind.rs"]
+mod remind;

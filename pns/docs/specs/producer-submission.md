@@ -143,8 +143,9 @@ the range `[remind] delay` is held to, thirty seconds to an hour, refused by nam
 A JSON request states the same three things in its optional `remind` field (`true`, a duration string,
 `false`), and both spellings decode to one `pns_protocol::Remind` value, which is what
 `crates/pns/src/remind_schedule_runtime.rs:remind_delay` resolves against config
-(`crates/pns/src/remind_schedule_runtime/tests.rs`). Only the flag path calls `remind_delay` today; the
-JSON submit path decodes and validates the field but does not arm from it yet.
+(`crates/pns/src/remind_schedule_runtime/tests.rs`). The submit path resolves the field through that same
+`remind_delay` and arms from it, on a `blocked` request alone
+(`crates/pns/src/event_flow/submit/mapping.rs:reminder`).
 
 Given argv containing producer flags
 
