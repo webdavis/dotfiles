@@ -17,7 +17,7 @@ mod sandbox;
 // Each integration binary compiles this module and uses its own subset.
 #[allow(unused_imports)]
 pub use {
-    capture::{Capture, CaptureBuilder, plugin_command},
+    capture::{Capture, plugin_command},
     daemon_guard::DaemonGuard,
     process::{poll_until, run, stderr, stdout},
     router::{KEYS_DISAGREE, RouterStub, router_table},
