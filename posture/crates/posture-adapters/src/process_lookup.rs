@@ -13,7 +13,7 @@ use std::time::Duration;
 /// One window for a walk, the same generous bound the spawned reads had: the
 /// table answers in about a millisecond, so this is three orders of magnitude
 /// of headroom and still a bound.
-pub const WALK_DEADLINE: Duration = Duration::from_secs(5);
+const WALK_DEADLINE: Duration = Duration::from_secs(5);
 
 /// The process table, asked which process ids a name, a real user and a
 /// parent select together.

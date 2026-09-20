@@ -72,7 +72,7 @@ pub use controls_file::read_controls;
 mod probes;
 pub use probes::ControlProbes;
 mod process_lookup;
-pub use process_lookup::{LibprocProcesses, ProcessLookup, WALK_DEADLINE};
+pub use process_lookup::{LibprocProcesses, ProcessLookup};
 mod osqueryi;
 pub use osqueryi::{PostureQuery, PostureTrio};
 
