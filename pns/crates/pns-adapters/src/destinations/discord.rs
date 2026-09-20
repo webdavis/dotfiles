@@ -1,10 +1,9 @@
 //! The discord channel, native: the durable Discord log, one HTTPS POST
 //! straight to a channel with no gateway in between.
 //!
-//! THE ALTERNATIVE TO hermes, NEVER A COMPANION. Both declare the same
-//! routing, and enabling both is refused at config load, naming both tables,
-//! because two durable channels post every event twice while the recap follows
-//! whichever registered first.
+//! THE ALTERNATIVE TO hermes, NEVER A COMPANION: `[plugins.log] type` names
+//! one transport, so two durable logs are unrepresentable rather than
+//! refused.
 //!
 //! THE TOKEN'S PATH IS THE POINT. It is read from `[plugins.log]`, placed
 //! in the `Authorization` header of a type deriving no `Debug`, and never
