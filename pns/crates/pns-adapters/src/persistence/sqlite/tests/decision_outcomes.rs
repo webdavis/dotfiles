@@ -278,7 +278,8 @@ fn a_refused_revision_reports_failure_and_preserves_the_prior_outcome() {
     assert_eq!(DecisionRing::read(&store).unwrap(), before);
     assert_eq!(
         std::fs::read_to_string(&store.log).unwrap(),
-        "pns: state error (decision: database refused the operation); recording failed\n"
+        "pns: state error (decision: database refused the operation: state database: \
+         fixture refusal); recording failed\n"
     );
 }
 
