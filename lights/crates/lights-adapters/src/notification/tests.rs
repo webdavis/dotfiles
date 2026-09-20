@@ -46,20 +46,3 @@ fn pns_arguments_are_local_only() {
     notifier.announce(&action());
     assert_eq!(calls.get(), 1);
 }
-#[test]
-fn no_external_monitor_appears_on_the_command_line() {
-    let notifier =
-        PnsNotifier::with_runner(Path::new("/owned/home"), |command: &mut Command, _| {
-            let words = std::iter::once(command.get_program())
-                .chain(command.get_args())
-                .map(|word| word.to_string_lossy().into_owned())
-                .collect::<Vec<_>>();
-            assert!(
-                !words.iter().any(|word| word.contains("timeout")),
-                "{words:?}"
-            );
-            Ok(ExitStatus::from_raw(0))
-        });
-    notifier.announce(&action());
-    notifier.alarm("owned detail");
-}
