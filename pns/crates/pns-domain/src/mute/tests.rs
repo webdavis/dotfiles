@@ -36,7 +36,7 @@ fn a_state_file_holding_anything_else_is_a_complaint_naming_what_it_holds() {
             expiry_from_state(contents),
             Err(format!(
                 "pns: state error (quiet-until is {named}, not an expiry time); \
-                 nothing is muted, clear it with pns quiet off"
+                 nothing is muted, clear it with pns mute off"
             )),
             "contents: {contents:?}"
         );
@@ -73,19 +73,19 @@ fn the_report_counts_whole_minutes_up_so_a_live_mute_never_reads_as_zero() {
     let now = 1_000;
     assert_eq!(
         status_line(Some(now + 1_620), Some(now)),
-        "pns: quiet for another 27 minutes"
+        "pns: muted for another 27 minutes"
     );
     assert_eq!(
         status_line(Some(now + 40), Some(now)),
-        "pns: quiet for another 1 minute"
+        "pns: muted for another 1 minute"
     );
     assert_eq!(
         status_line(Some(now + 60), Some(now)),
-        "pns: quiet for another 1 minute"
+        "pns: muted for another 1 minute"
     );
     assert_eq!(
         status_line(Some(now + 61), Some(now)),
-        "pns: quiet for another 2 minutes"
+        "pns: muted for another 2 minutes"
     );
 }
 
@@ -104,7 +104,7 @@ fn the_report_says_not_quiet_for_every_state_the_predicate_calls_quiet() {
         assert!(!is_muted(expiry, now), "case: {expiry:?} {now:?}");
         assert_eq!(
             status_line(expiry, now),
-            "pns: not quiet",
+            "pns: not muted",
             "case: {expiry:?} {now:?}"
         );
     }

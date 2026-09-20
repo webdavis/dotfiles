@@ -15,7 +15,7 @@ fn the_first_consumer_read_imports_existing_records_without_changing_legacy_byte
         DecisionRing::read(&store).unwrap().as_deref(),
         Some(history)
     );
-    assert_eq!(store.quiet_expiry().unwrap(), Some(23));
+    assert_eq!(store.mute_expiry().unwrap(), Some(23));
     assert_eq!(Journal::read(&store).unwrap(), None);
     assert_eq!(
         fs::read(path.join("decisions")).unwrap(),
@@ -40,7 +40,7 @@ fn an_active_legacy_owner_refuses_consumer_reads_and_writes_without_an_empty_suc
         "refusal is not empty history"
     );
     assert!(
-        store.set_quiet_expiry(Some(99)).is_err(),
+        store.set_mute_expiry(Some(99)).is_err(),
         "do not mutate before import"
     );
     let connection = SqliteStore::new(path.clone()).connect().unwrap();
@@ -61,14 +61,14 @@ fn completed_consumer_import_ignores_later_legacy_edits_and_needs_no_writer_lock
     fs::write(path.join("decisions"), "retained decision\n").unwrap();
     fs::write(path.join("quiet-until"), "23\n").unwrap();
     let store = SqliteStore::for_records(path.clone());
-    assert_eq!(store.quiet_expiry().unwrap(), Some(23));
-    store.set_quiet_expiry(None).unwrap();
+    assert_eq!(store.mute_expiry().unwrap(), Some(23));
+    store.set_mute_expiry(None).unwrap();
     fs::write(path.join("quiet-until"), "99\n").unwrap();
     fs::write(path.join("decisions.lock"), "later old writer").unwrap();
     let connection = SqliteStore::new(path.clone()).connect().unwrap();
     connection.execute_batch("BEGIN IMMEDIATE").unwrap();
     let reopened = SqliteStore::for_records(path);
-    assert_eq!(reopened.quiet_expiry().unwrap(), None);
+    assert_eq!(reopened.mute_expiry().unwrap(), None);
     assert_eq!(
         DecisionRing::read(&reopened).unwrap().as_deref(),
         Some("retained decision\n")
@@ -85,7 +85,7 @@ fn consumer_import_retains_unknown_families_and_reports_them_without_blocking_ot
     let mut store = SqliteStore::for_records(path.clone());
     store.log = path.join("import.log");
     assert!(DecisionRing::read(&store).is_err());
-    assert_eq!(store.quiet_expiry().unwrap(), Some(23));
+    assert_eq!(store.mute_expiry().unwrap(), Some(23));
     assert_eq!(
         store
             .import_failures()

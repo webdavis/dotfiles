@@ -194,7 +194,7 @@ rooms = ["3F - Studio", "2F - Kitchen"]
 # inclusive and the end exclusive, and it may wrap midnight. A hand-run
 # `pns lights pulse` is exempt, so a bridge and key can be checked
 # in-window.
-# A bare `pns lights quiet <place>` mutes until this window ends and is
+# A bare `pns lights mute <place>` mutes until this window ends and is
 # refused when none is set. With a `[lights]` table below, each place's
 # own `dim_window` decides the night instead and this window is the
 # mute's schedule alone.
@@ -441,7 +441,7 @@ summarizer_deadline_secs = 240
 # [focus]
 # silence = ["Sleep"]
 
-# The mute, `pns quiet <duration>`, and what else may switch it.
+# The mute, `pns mute <duration>`, and what else may switch it.
 # [quiet]
 
 # Quiet that follows your calendar: while an event marked busy is on, the
@@ -471,7 +471,7 @@ summarizer_deadline_secs = 240
 # daemon running and the PostToolBatch hook entry that tells pns an
 # approval was dealt with; without that entry the only clearing signal
 # is the end of the turn. It respects every mute the first card respects,
-# a `pns quiet`, a Focus, the quiet window, and a reminder held back is
+# a `pns mute`, a Focus, the quiet window, and a reminder held back is
 # LOST rather than queued. Several approvals waiting are one card rather
 # than several, each approval is reminded about at most once, and a card
 # counts every approval outstanding at that moment, so a fresh one can be
@@ -713,17 +713,17 @@ dim_behaviours = ["blocked", "unread", "loop", "github"]
 
 # ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:
 #
-#   pns lights quiet "3F - Studio" 2h   quiet that place's lamps for two hours
-#   pns lights quiet "3F - Studio"      quiet them until quiet hours end
-#   pns lights quiet "3F - Studio" off  loud again
-#   pns lights quiet                    what is quiet right now
+#   pns lights mute "3F - Studio" 2h   mute that place's lamps for two hours
+#   pns lights mute "3F - Studio"      mute them until quiet hours end
+#   pns lights mute "3F - Studio" off  loud again
+#   pns lights mute                    what is muted right now
 #
 # It silences EVERY behaviour on the target and reaches the lamps of one
 # lamp, room or zone and nothing else: cards, banners and the durable log
-# carry on, and `pns quiet`, which mutes all of them, is a different
+# carry on, and `pns mute`, which mutes all of them, is a different
 # command with a different file that neither reads. A bare mute reads
 # `[plugins.lights] quiet_hours` above as the schedule and is refused when
-# none is set; an explicit duration is the same 1s to 24h `pns quiet`
+# none is set; an explicit duration is the same 1s to 24h `pns mute`
 # takes. A state file nobody can parse mutes EVERY lamp and says so: dark
 # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY
 # LAMP, ROOM AND ZONE, whether a declaration above writes it or the

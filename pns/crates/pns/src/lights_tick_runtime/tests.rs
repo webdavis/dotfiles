@@ -47,12 +47,12 @@ impl Drop for Fixture {
 fn quiet_silences_status_until_expiry_or_explicit_off() {
     let fixture = Fixture::new("status-quiet");
     assert!(!fixture.silenced(&[], 100));
-    fixture.records.set_quiet_expiry(Some(150)).unwrap();
+    fixture.records.set_mute_expiry(Some(150)).unwrap();
     assert!(fixture.silenced(&[], 149));
     assert!(!fixture.silenced(&[], 150));
-    fixture.records.set_quiet_expiry(Some(200)).unwrap();
+    fixture.records.set_mute_expiry(Some(200)).unwrap();
     assert!(fixture.silenced(&[], 150));
-    fixture.records.set_quiet_expiry(None).unwrap();
+    fixture.records.set_mute_expiry(None).unwrap();
     assert!(!fixture.silenced(&[], 150));
 }
 
@@ -72,7 +72,7 @@ fn focus_silences_only_explicit_names_or_identifiers_and_tracks_transitions() {
 #[test]
 fn both_mutes_must_end_before_status_can_resume() {
     let fixture = Fixture::new("status-both-mutes");
-    fixture.records.set_quiet_expiry(Some(150)).unwrap();
+    fixture.records.set_mute_expiry(Some(150)).unwrap();
     fixture.focus("fixture.sleep", "Sleep");
     assert!(fixture.silenced(&["Sleep"], 149));
     assert!(fixture.silenced(&["Sleep"], 150));
@@ -89,7 +89,7 @@ fn unknown_focus_keeps_its_fail_open_direction_without_overriding_quiet() {
     let assertions = fixture.home.join("Library/DoNotDisturb/DB/Assertions.json");
     fs::write(&assertions, "invalid").unwrap();
     assert!(!fixture.silenced(&["Sleep"], 100));
-    fixture.records.set_quiet_expiry(Some(150)).unwrap();
+    fixture.records.set_mute_expiry(Some(150)).unwrap();
     assert!(fixture.silenced(&["Sleep"], 100));
 }
 

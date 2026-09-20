@@ -12,8 +12,8 @@ use crate::LampMutes;
 /// THE COMPLAINT IS STILL THE OTHER HALF. Going dark silently would be a lamp
 /// that stopped working for a reason nobody can see, so the caller says it
 /// once through `say_lights_once` and the state is repaired by the next
-/// `pns lights quiet` write, which republishes the whole file.
-pub fn ad_hoc_quiet(
+/// `pns lights mute` write, which republishes the whole file.
+pub fn ad_hoc_mute(
     mutes: &impl LampMutes,
     now: Option<u64>,
 ) -> (pns_domain::lamps::Muting, Vec<String>) {

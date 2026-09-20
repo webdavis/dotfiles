@@ -29,7 +29,7 @@ fn first_run_import_preserves_raw_history_and_all_scalar_families_without_changi
         Some(files[0].1)
     );
     assert_eq!(Journal::read(&store).unwrap().as_deref(), Some(files[1].1));
-    assert_eq!(store.quiet_expiry().unwrap(), Some(23));
+    assert_eq!(store.mute_expiry().unwrap(), Some(23));
     assert_eq!(store.staleness().unwrap().as_deref(), Some("episode A"));
     assert_eq!(
         store.lights_complaint().unwrap().as_deref(),
@@ -73,11 +73,11 @@ fn a_completed_import_never_replays_old_files_over_newer_records_or_duplicates_h
             None,
         )
         .unwrap();
-    store.set_quiet_expiry(None).unwrap();
+    store.set_mute_expiry(None).unwrap();
     let before = Journal::read(&store).unwrap();
     fs::write(path.join("quiet-until"), "99\n").unwrap();
     store.import_legacy().unwrap();
-    assert_eq!(store.quiet_expiry().unwrap(), None);
+    assert_eq!(store.mute_expiry().unwrap(), None);
     assert_eq!(Journal::read(&store).unwrap(), before);
     assert!(before.unwrap().starts_with("old raw line\n"));
 }
@@ -165,13 +165,13 @@ fn unreadable_notification_and_history_imports_remain_diagnostic_until_replaced(
     }
     let store = SqliteStore::new(path);
     store.import_legacy().unwrap();
-    assert!(store.quiet_expiry().is_err());
+    assert!(store.mute_expiry().is_err());
     assert!(DecisionRing::read(&store).is_err());
     assert!(store.staleness().is_err());
     assert!(store.read_news().is_err());
-    store.set_quiet_expiry(Some(6)).unwrap();
+    store.set_mute_expiry(Some(6)).unwrap();
     store.remember_staleness(None).unwrap();
-    assert_eq!(store.quiet_expiry().unwrap(), Some(6));
+    assert_eq!(store.mute_expiry().unwrap(), Some(6));
     assert_eq!(store.staleness().unwrap(), None);
 }
 #[test]
@@ -265,7 +265,7 @@ fn malformed_imported_epochs_and_lamp_records_keep_their_original_fail_direction
         None,
         "an invalid edge cannot become epoch zero"
     );
-    assert!(store.quiet_expiry().is_err());
+    assert!(store.mute_expiry().is_err());
     assert!(store.read_news().is_err());
     assert!(store.read_muted().is_err());
     let claim = store.claim_return(Some(12), true).unwrap().unwrap();

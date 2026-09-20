@@ -17,7 +17,7 @@ const LISTING_LIMIT: u32 = 20;
 /// ever wanted, the interaction model arrives with it.
 ///
 /// IT IS NOT ON THE EVENT PATH, so the always-exit-0 contract does not reach it.
-/// A word it does not know is a refusal, the way `pns quiet` and `pns remind`
+/// A word it does not know is a refusal, the way `pns mute` and `pns remind`
 /// refuse one: a subcommand that swallows a typo answers a question the operator
 /// did not ask.
 pub(crate) fn failures_mode() -> i32 {

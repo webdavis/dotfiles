@@ -64,7 +64,7 @@ fn an_operator_mute_outranks_every_other_reason() {
     // muted and focus and Away are all true here; only the switch the operator
     // themselves flipped is worth naming, because it is the one they can undo.
     let summary = summarize("shell/done surface=Away muted=yes focus=yes legs=-");
-    assert_eq!(summary.because.as_deref(), Some("`pns quiet` was running"));
+    assert_eq!(summary.because.as_deref(), Some("`pns mute` was running"));
 }
 
 #[test]

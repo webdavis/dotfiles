@@ -73,7 +73,7 @@ pub fn line(record: &Record) -> String {
         watch_card = yes_no(inputs.mobile_watch_card),
         muted = yes_no(overrides.muted),
         // TWO FIELDS RATHER THAN ONE. The log exists to answer "why did no
-        // card fire", and "you have a `pns quiet` running" sends the operator
+        // card fire", and "you have a `pns mute` running" sends the operator
         // somewhere completely different from "your Mac is in a Focus you told
         // pns to respect".
         focus = yes_no(overrides.focus_active),

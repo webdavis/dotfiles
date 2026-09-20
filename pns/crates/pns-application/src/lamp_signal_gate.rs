@@ -51,7 +51,7 @@ pub fn signal_mapped<R: LampMutes + HeldLamps + LampComplaints>(
     // and no clock, and the composition root decides where a complaint goes.
     // A machine that has never typed the command reads no file and pays one
     // failed open.
-    let (muted, mut complaints) = crate::ad_hoc_quiet(records, now);
+    let (muted, mut complaints) = crate::ad_hoc_mute(records, now);
     let held = HeldLamps::read(records).map(|entries| {
         entries
             .into_iter()
