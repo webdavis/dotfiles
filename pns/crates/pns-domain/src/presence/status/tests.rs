@@ -4,25 +4,13 @@ use super::{Edge, PresenceStatus, RawPresence, Unreadable, classify, idle_secs_f
 
 #[test]
 fn a_nanosecond_counter_becomes_whole_seconds() {
-    assert_eq!(idle_secs_from_ns("5000000000"), Some(5));
+    assert_eq!(idle_secs_from_ns(5_000_000_000), 5);
 }
 
 #[test]
 fn a_partial_second_truncates_rather_than_rounding_up() {
-    assert_eq!(idle_secs_from_ns("1999999999"), Some(1));
-    assert_eq!(idle_secs_from_ns("0"), Some(0));
-}
-
-#[test]
-fn an_empty_reading_is_unknown_rather_than_zero_seconds_idle() {
-    // Zero would read as "actively typing" and silently drop the push.
-    assert_eq!(idle_secs_from_ns(""), None);
-}
-
-#[test]
-fn a_garbled_reading_is_unknown() {
-    assert_eq!(idle_secs_from_ns("HIDIdleTime"), None);
-    assert_eq!(idle_secs_from_ns("5000000000 "), None);
+    assert_eq!(idle_secs_from_ns(1_999_999_999), 1);
+    assert_eq!(idle_secs_from_ns(0), 0);
 }
 
 // --- classify -----------------------------------------------------------
