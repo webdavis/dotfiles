@@ -123,10 +123,10 @@ fn a_lock_whose_directory_cannot_be_made_refuses_rather_than_running_unlocked() 
 
 #[test]
 fn a_detached_child_outliving_this_run_never_wedges_the_lock() {
-    // O_CLOEXEC IS WHAT MAKES THIS TRUE. The lock belongs to an open file
-    // description, so a child that inherited the descriptor would keep the
-    // flock held after this run released it, and every later invocation would
-    // be a silent no-op with nobody judging the results log.
+    // Rust opens every file close-on-exec by default, so a detached child
+    // never inherits this descriptor; this is a liveness check on the
+    // process boundary, not a pin on the crate's own `.custom_flags` call,
+    // which a mutation test confirms is redundant with that std default.
     let cursor = scratch();
     let held = SingleRunLock::beside(&cursor);
     assert!(held.taken());
