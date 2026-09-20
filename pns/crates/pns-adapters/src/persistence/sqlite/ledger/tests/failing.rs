@@ -31,7 +31,7 @@ fn a_failing_leg_reports_its_route_producer_and_answer() {
     assert_eq!(failure.agent, "agent");
     assert_eq!(
         failure.outcome,
-        pns_domain::retry::DeliveryOutcome::Status(503)
+        pns_domain::retry::TransportOutcome::Status(503)
     );
     // The initial send consumes no retry, which is what the counted attempts in
     // the message have to agree with.

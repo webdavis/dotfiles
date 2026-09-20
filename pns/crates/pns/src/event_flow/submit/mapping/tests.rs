@@ -3,7 +3,7 @@ use pns_protocol::{Name, RequestId, State};
 
 #[test]
 fn normalized_state_scope_and_elapsed_choose_policy_without_using_source_event_name() {
-    let mut request = Request::new(
+    let mut request = RequestEnvelope::new(
         RequestId::new("id").unwrap(),
         Name::new("source").unwrap(),
         State::Done,
@@ -70,7 +70,7 @@ fn a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_
     // submission half of the same rule the `--delivery-class` flag carries on
     // the argv half, so a failed upgrade posted as an envelope pages the way
     // one spawned with flags does: both reach `sirens`.
-    let mut request = Request::new(
+    let mut request = RequestEnvelope::new(
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
         State::Failed,
@@ -98,7 +98,7 @@ fn a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_
 
 #[test]
 fn a_route_the_producer_named_still_outranks_the_delivery_class_it_stated() {
-    let mut request = Request::new(
+    let mut request = RequestEnvelope::new(
         RequestId::new("id").unwrap(),
         Name::new("uu").unwrap(),
         State::Failed,

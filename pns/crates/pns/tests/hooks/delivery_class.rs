@@ -1,9 +1,9 @@
 use super::captured_child::CapturedChild;
 use super::*;
-use pns_protocol::{Name, Request, RequestId, State, Status};
+use pns_protocol::{Name, RequestEnvelope, RequestId, State, Status};
 
 fn input(class: Option<&str>) -> String {
-    let mut request = Request::new(
+    let mut request = RequestEnvelope::new(
         RequestId::new("class-case").unwrap(),
         Name::new("independent-tool").unwrap(),
         State::Blocked,

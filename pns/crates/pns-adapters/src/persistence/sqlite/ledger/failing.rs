@@ -7,7 +7,7 @@
 
 use super::*;
 use pns_application::StoredFailure;
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 use rusqlite::{Connection, OptionalExtension, Row};
 
 /// The newest `limit` failing legs.
@@ -52,11 +52,11 @@ const SELECT: &str = "SELECT l.id, l.destination, l.route, e.agent, e.state,
 fn row(row: &Row<'_>) -> rusqlite::Result<StoredFailure> {
     let status: Option<u16> = row.get(7)?;
     let outcome = match (status, row.get::<_, u8>(8)?) {
-        (Some(code), _) => DeliveryOutcome::Status(code),
+        (Some(code), _) => TransportOutcome::Status(code),
         // Unlaunched: the request was never put on the wire, so it carries no
         // status by construction rather than by loss.
-        (None, 3) => DeliveryOutcome::NoStatus,
-        (None, _) => DeliveryOutcome::NoResponse,
+        (None, 3) => TransportOutcome::NoStatus,
+        (None, _) => TransportOutcome::NoResponse,
     };
     let generation: u64 = row.get(6)?;
     Ok(StoredFailure {
