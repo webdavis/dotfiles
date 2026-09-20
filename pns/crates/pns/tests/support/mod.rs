@@ -35,7 +35,7 @@ pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
 pub const STUB_CHANNELS: &str = "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
                                  [plugins.log]\nenabled = true\ntype = \"hermes\"\n\
                                  [plugins.banner]\nenabled = true\n\
-                                 [failures]\nserve = false\n";
+                                 [failures]\npage_enabled = false\n";
 
 /// `STUB_CHANNELS` with the phone's attention marker pointed at `marker`.
 ///

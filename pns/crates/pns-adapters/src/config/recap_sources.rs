@@ -1,6 +1,6 @@
 use super::*;
 
-/// `repos`, the repositories the merged pull requests are read from: a list of
+/// `repositories`, the repositories the merged pull requests are read from: a list of
 /// names in `gh`'s own `OWNER/REPO` spelling, passed to it as one argument
 /// each.
 ///
@@ -17,16 +17,21 @@ use super::*;
 /// anything; a name `gh` does not know costs the section one "unavailable"
 /// line, which is the same rung a missing `gh` takes.
 pub(super) fn repositories(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
-    let names = strings("recap", "repos", "a list of repository names", setting)?;
+    let names = strings(
+        "recap",
+        "repositories",
+        "a list of repository names",
+        setting,
+    )?;
     if names.is_empty() || names.iter().any(String::is_empty) {
         return Err(ConfigError::Invalid(
-            "`recap` key `repos` names no repository to read".to_string(),
+            "`recap` key `repositories` names no repository to read".to_string(),
         ));
     }
     Ok(names)
 }
 
-/// `review_notes`, the one pattern deciding which files the recap may open.
+/// `review_notes_glob`, the one pattern deciding which files the recap may open.
 ///
 /// THE GLOB IS THE WHOLE PERMISSION, which is why its shape is judged here
 /// rather than resolved generously at the read. Two spellings are refused by
@@ -44,24 +49,24 @@ pub(super) fn repositories(setting: &toml::Value) -> Result<Vec<String>, ConfigE
 pub(super) fn note_glob(setting: &toml::Value) -> Result<String, ConfigError> {
     let Some(pattern) = setting.as_str() else {
         return Err(ConfigError::Invalid(format!(
-            "`recap` key `review_notes` has type `{}`, not a path with a file name in it",
+            "`recap` key `review_notes_glob` has type `{}`, not a path with a file name in it",
             setting.type_str()
         )));
     };
     let (directory, name) = pattern.rsplit_once('/').unwrap_or(("", pattern));
     if name.is_empty() {
         return Err(ConfigError::Invalid(
-            "`recap` key `review_notes` names no file to read".to_string(),
+            "`recap` key `review_notes_glob` names no file to read".to_string(),
         ));
     }
     if !pattern.starts_with('/') && !pattern.starts_with("~/") {
         return Err(ConfigError::Invalid(format!(
-            "`recap` key `review_notes` is `{pattern}`, which is not an absolute path or a `~/` one"
+            "`recap` key `review_notes_glob` is `{pattern}`, which is not an absolute path or a `~/` one"
         )));
     }
     if directory.contains('*') {
         return Err(ConfigError::Invalid(format!(
-            "`recap` key `review_notes` is `{pattern}`, and only its file name may hold a `*`"
+            "`recap` key `review_notes_glob` is `{pattern}`, and only its file name may hold a `*`"
         )));
     }
     // AND EXACTLY ONE OF THEM, because that is all the matcher reads. A second
@@ -70,7 +75,7 @@ pub(super) fn note_glob(setting: &toml::Value) -> Result<String, ConfigError> {
     // turn into a sentence the operator can act on.
     if name.matches('*').count() > 1 {
         return Err(ConfigError::Invalid(format!(
-            "`recap` key `review_notes` is `{pattern}`, and its file name may hold only one `*`"
+            "`recap` key `review_notes_glob` is `{pattern}`, and its file name may hold only one `*`"
         )));
     }
     Ok(pattern.to_string())

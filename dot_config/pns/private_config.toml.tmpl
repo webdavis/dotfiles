@@ -384,12 +384,12 @@ replay_card = true
 # The recap of the whole window posted to hermes, rendered and posted
 # by a second process that nothing waits for. Off records the window
 # just the same; only the posting stops.
-digest = true
+post_window_recap = true
 # How many events a window needs before it is worth a recap rather than
 # the catch-up card alone. Every recap's header prints the window's real
 # count, which is how the number gets settled. One is the floor and
 # means any activity at all; zero is refused.
-min_events = 8
+minimum_events = 8
 # The command that turns the window into the night-in-order lines:
 # ARGV, NEVER A SHELL STRING, handed the timeline on stdin and answering
 # on stdout. UNSET IS A WORKING SETTING and posts the plain mechanical
@@ -418,19 +418,19 @@ summarizer_deadline = "4m"
 # environment without /opt/homebrew/bin reads `gh` as permanently
 # unavailable, and the section says so on every window until the harness's
 # own PATH carries it.
-# repos = ["owner/name"]
+# repositories = ["owner/name"]
 # The review notes whose findings become the recap's "caught by review"
 # section: ONE directory, named in full, and a file name that may hold
 # one `*`. A relative path and a `*` in a directory are both refused,
 # because this pattern is the whole of what pns is allowed to open. Only
 # files whose own clock falls inside the window are read, so a note you
 # had already seen before you left is not news. UNSET IS THE WORKING
-# SETTING and, as with `repos`, unset means the directory is never
+# SETTING and, as with `repositories`, unset means the directory is never
 # opened. Twenty-five notes is what one recap considers, NEWEST FIRST,
 # and a window holding more says "at least" in its own count rather than
 # printing a total it cannot back; a matched note that will not open is
 # named as one that could not be read rather than left out.
-# review_notes = "/absolute/path/notes-*.md"
+# review_notes_glob = "/absolute/path/notes-*.md"
 
 # The macOS Focus modes that pns reads as your own instruction not to be
 # interrupted. While one of them is active, banners, cards and light
@@ -550,12 +550,12 @@ busy_deadline = "5s"
 # narrowed scan-ports list adds this number to it. Two limits pns cannot
 # detect and does not pretend to: browser preview needs a moshi Pro
 # subscription, and the tunnel exists only while a terminal session is
-# open. serve = false is the fallback for either, and it costs nothing
+# open. page_enabled = false is the fallback for either, and it costs nothing
 # else: the notification stands alone, Discord still carries the full
 # form whenever the hermes leg worked, and `pns failures` is unchanged.
 [failures]
-serve = true
-port = 8646
+page_enabled = true
+page_port = 8646
 
 # The lamp map: WHICH LAMP says what. A declaration names a place at one
 # of three levels, `[lights.lamp."<name>"]`, `[lights.room."<name>"]` or

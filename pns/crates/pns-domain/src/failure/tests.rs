@@ -96,15 +96,15 @@ fn a_notification_holds_the_measured_budget_however_long_the_route_and_command_a
         for surface in [
             NotificationSurface::Banner,
             NotificationSurface::Phone {
-                serve: true,
+                page_enabled: true,
                 hermes_failed: false,
             },
             NotificationSurface::Phone {
-                serve: false,
+                page_enabled: false,
                 hermes_failed: false,
             },
             NotificationSurface::Phone {
-                serve: false,
+                page_enabled: false,
                 hermes_failed: true,
             },
         ] {
@@ -169,7 +169,7 @@ fn the_fix_line_points_at_the_surface_the_reader_is_standing_at() {
     );
     assert_eq!(
         fix(NotificationSurface::Phone {
-            serve: true,
+            page_enabled: true,
             hermes_failed: true
         }),
         "fix: open moshi's servers list, pick pns :8646",
@@ -177,14 +177,14 @@ fn the_fix_line_points_at_the_surface_the_reader_is_standing_at() {
     );
     assert_eq!(
         fix(NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: false
         }),
         "fix: full error in Discord, #priority"
     );
     assert_eq!(
         fix(NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: true
         }),
         "fix: run `pns failures` on dresden",
@@ -209,11 +209,11 @@ fn a_temporary_failure_says_to_stand_down_on_every_surface_and_counts_the_attemp
     for surface in [
         NotificationSurface::Banner,
         NotificationSurface::Phone {
-            serve: true,
+            page_enabled: true,
             hermes_failed: false,
         },
         NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: true,
         },
     ] {

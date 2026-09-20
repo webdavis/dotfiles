@@ -37,11 +37,11 @@ pub enum NotificationSurface {
     Banner,
     /// The phone card.
     Phone {
-        /// `[failures] serve`. pns cannot detect a moshi Pro subscription and
+        /// `[failures] page_enabled`. pns cannot detect a moshi Pro subscription and
         /// does not need to: an operator who cannot use browser preview sets
         /// this false, and that is the same switch that decides which pointer
         /// the phone gets.
-        serve: bool,
+        page_enabled: bool,
         /// Whether the hermes leg is the one that failed. When it is, the full
         /// form is not in Discord either, so there is nothing to point at.
         hermes_failed: bool,
@@ -78,11 +78,11 @@ pub(super) fn line(failure: &Failure, surface: Surface) -> String {
         // link, so a bare mention of a page they cannot open is worse than
         // saying nothing; this is something someone can follow with two taps
         // while holding the phone.
-        NotificationSurface::Phone { serve: true, .. } => {
-            "open moshi's servers list, pick pns :8646".to_string()
-        }
         NotificationSurface::Phone {
-            serve: false,
+            page_enabled: true, ..
+        } => "open moshi's servers list, pick pns :8646".to_string(),
+        NotificationSurface::Phone {
+            page_enabled: false,
             hermes_failed: false,
         } => "full error in Discord, #priority".to_string(),
         // THE HONEST FLOOR. The gateway leg is what broke and there is no page,
@@ -91,7 +91,7 @@ pub(super) fn line(failure: &Failure, surface: Surface) -> String {
         // rule about never reporting a failure through the destination that
         // failed, applied to the pointer.
         NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: true,
         } => "run `pns failures` on dresden".to_string(),
     }

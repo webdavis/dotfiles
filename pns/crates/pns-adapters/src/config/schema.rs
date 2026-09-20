@@ -60,11 +60,11 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "recap",
         &[
-            "digest",
-            "min_events",
+            "minimum_events",
+            "post_window_recap",
             "replay_card",
-            "repos",
-            "review_notes",
+            "repositories",
+            "review_notes_glob",
             "summarizer",
             "summarizer_deadline",
         ],
@@ -94,7 +94,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (PRODUCER_KEYS, &["remind"]),
     ("stale", &["escalate_after", "route"]),
     ("storage", &["busy_deadline"]),
-    ("failures", &["port", "serve"]),
+    ("failures", &["page_enabled", "page_port"]),
     (
         "lights",
         &[

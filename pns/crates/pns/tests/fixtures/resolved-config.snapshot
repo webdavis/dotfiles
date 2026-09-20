@@ -211,12 +211,12 @@ Config {
     },
     recap: Recap {
         replay_card: true,
-        digest: true,
-        min_events: 8,
+        post_window_recap: true,
+        minimum_events: 8,
         summarizer: None,
         summarizer_deadline: 240s,
-        repos: [],
-        review_notes: None,
+        repositories: [],
+        review_notes_glob: None,
     },
     focus_silence: [],
     delivery_classes: {
@@ -450,7 +450,7 @@ Config {
         deadline_secs: 20,
     },
     failures: Failures {
-        serve: true,
-        port: 8646,
+        page_enabled: true,
+        page_port: 8646,
     },
 }
