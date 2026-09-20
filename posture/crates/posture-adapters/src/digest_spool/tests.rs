@@ -2,28 +2,21 @@
 //! the part of the digest that must never lose a batch.
 
 use super::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::test_sandbox::Sandbox;
 #[path = "tests/concurrent_fold.rs"]
 mod concurrent_fold;
 #[path = "tests/read_failures.rs"]
 mod read_failures;
 
 struct Fixture {
-    root: PathBuf,
+    /// Removes the spool tree when the test drops the fixture.
+    root: Sandbox,
     store: PathBuf,
 }
 
 impl Fixture {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let root = std::env::temp_dir().join(format!(
-            "posture-digest-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos()),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
+        let root = Sandbox::new("digest");
         let store = root.join("state").join("digest-spool");
         prepare_spool_directory(&store).unwrap();
         Self { root, store }
@@ -55,12 +48,6 @@ impl Fixture {
             .collect();
         names.sort();
         names
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.root);
     }
 }
 

@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_application::{ClockUnavailable, WallTime};
 use std::os::unix::fs::PermissionsExt;
 
@@ -28,17 +29,10 @@ impl Clock for Time {
 
 #[test]
 fn an_integrity_page_carries_the_actual_hashes_and_upgrade_record() {
-    let root = std::path::PathBuf::from(format!(
-        "/private/tmp/posture-triage-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir(&root).unwrap();
+    let sandbox = Sandbox::new("triage");
+    let root = sandbox.path();
     let mut config =
-        Configuration::read(|name| (name == "HOME").then(|| root.clone().into())).unwrap();
+        Configuration::read(|name| (name == "HOME").then(|| root.to_path_buf().into())).unwrap();
     config.pipeline_manifest = root.join("pipeline-manifest");
     config.managed_bin_manifest = root.join("managed-manifest");
     config.alarm = "/usr/bin/false".into();
@@ -95,17 +89,10 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagno
 
 #[test]
 fn a_refused_reset_warning_is_reported_out_rather_than_discarded() {
-    let root = std::path::PathBuf::from(format!(
-        "/private/tmp/posture-cursor-reset-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir(&root).unwrap();
+    let sandbox = Sandbox::new("cursor-reset");
+    let root = sandbox.path();
     let mut config =
-        Configuration::read(|name| (name == "HOME").then(|| root.clone().into())).unwrap();
+        Configuration::read(|name| (name == "HOME").then(|| root.to_path_buf().into())).unwrap();
     config.pipeline_manifest = root.join("pipeline-manifest");
     config.managed_bin_manifest = root.join("managed-manifest");
     config.alarm = "/usr/bin/false".into();

@@ -1,10 +1,10 @@
 use super::*;
 use crate::CommandIo;
+use crate::test_sandbox::Sandbox;
 use posture_application::InspectionFailure;
 use std::ffi::OsStr;
 use std::fs;
-use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::path::{Path, PathBuf};
 
 struct Query {
     output: Result<Vec<u8>, InspectionFailure>,
@@ -42,15 +42,13 @@ impl CommandRunner for Query {
 fn table() -> SystemLaunchdTable {
     SystemLaunchdTable::new("/fixture/osqueryi".into(), Duration::from_millis(100))
 }
-fn fixture() -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let p = std::env::temp_dir().join(format!(
-        "posture-plist-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::write(&p, b"hello world").unwrap();
-    p
+/// A plist in a directory that removes itself. Hold the sandbox for as long
+/// as the path is used; dropping it early takes the plist with it.
+fn fixture() -> (Sandbox, PathBuf) {
+    let sandbox = Sandbox::new("plist");
+    let path = sandbox.join("agent.plist");
+    fs::write(&path, b"hello world").unwrap();
+    (sandbox, path)
 }
 fn query(path: &Path) -> Query {
     Query {
@@ -63,7 +61,7 @@ fn query(path: &Path) -> Query {
 }
 #[test]
 fn capture_uses_the_launchd_query_and_hashes_the_exact_first_plist_bytes() {
-    let path = fixture();
+    let (_sandbox, path) = fixture();
     let mut runner = query(&path);
     assert_eq!(
         table().capture_with("my.agent", &mut runner),
@@ -77,7 +75,7 @@ fn capture_uses_the_launchd_query_and_hashes_the_exact_first_plist_bytes() {
 }
 #[test]
 fn capture_follows_a_regular_plist_symlink_but_refuses_a_missing_or_nonregular_plist() {
-    let path = fixture();
+    let (_sandbox, path) = fixture();
     let link = path.with_extension("link");
     std::os::unix::fs::symlink(&path, &link).unwrap();
     assert!(table().capture_with("my.agent", &mut query(&link)).is_ok());

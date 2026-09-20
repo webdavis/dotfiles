@@ -2,6 +2,7 @@
 //! shares with the writer in `allowlist_file.rs`.
 
 use super::*;
+use crate::test_sandbox::Sandbox;
 
 const HOME: &str = "/Users/someone";
 
@@ -128,9 +129,9 @@ fn a_file_that_cannot_be_read_is_none_rather_than_an_empty_list() {
 #[test]
 fn a_file_that_reads_but_holds_nothing_usable_is_an_empty_list() {
     // It WAS consulted, and it vouched for nothing.
-    let path = std::env::temp_dir().join(format!("posture-allowlist-{}", std::process::id()));
+    let sandbox = Sandbox::new("allowlist");
+    let path = sandbox.join("allowlist");
     std::fs::write(&path, b"\n\nnot json\n").unwrap();
     let allowlist = AllowlistText::read(&path, HOME).expect("the file reads");
     assert!(allowlist.entries().is_empty());
-    let _ = std::fs::remove_file(&path);
 }

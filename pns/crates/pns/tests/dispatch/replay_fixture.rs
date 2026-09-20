@@ -70,7 +70,7 @@ pub(super) const ITS_NAME: &str = "Casually Concerned";
 pub(super) fn focus_config(silence: &str) -> String {
     format!(
         "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
-         [plugins.banner]\nenabled = true\n[focus]\nsilence = [{silence}]\n"
+         [plugins.banner]\nenabled = true\n[focus]\nmodes = [{silence}]\n"
     )
 }
 

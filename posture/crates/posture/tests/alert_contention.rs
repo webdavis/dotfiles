@@ -2,6 +2,9 @@
 //! them. The single-instance lock only means anything across real processes,
 //! so both halves of this are separate children of the built binary.
 
+mod sandbox;
+
+use sandbox::Sandbox;
 use std::os::unix::fs::PermissionsExt;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -12,14 +15,8 @@ const LIVENESS_BOUND: Duration = Duration::from_secs(15);
 
 #[test]
 fn two_parallel_runs_deliver_one_batch_once_and_share_its_final_cursor() {
-    let home = std::env::temp_dir().join(format!(
-        "posture-alert-contention-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
+    let sandbox = Sandbox::new("alert-contention");
+    let home = sandbox.path();
     let engine = home.join(".local/libexec/engine");
     let log = home.join(".local/log/osquery/osqueryd.results.log");
     let cursor = home.join(".local/state/osquery-results-offset");
@@ -68,8 +65,8 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagno
         .map(|_| {
             Command::new(env!("CARGO_BIN_EXE_posture"))
                 .env_clear()
-                .env("HOME", &home)
-                .env("TMPDIR", &home)
+                .env("HOME", home)
+                .env("TMPDIR", home)
                 // The manifests are absolute by default, so they are pointed
                 // inside the sandbox rather than left on the real machine's.
                 .env("OSQUERY_PIPELINE_MANIFEST", home.join("pipeline-manifest"))
@@ -105,7 +102,6 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagno
                 let _ = child.kill();
                 let _ = child.wait();
             }
-            let _ = std::fs::remove_dir_all(&home);
             panic!("alert exceeded its bound: {statuses:?}");
         }
         std::thread::sleep(Duration::from_millis(1));
@@ -113,7 +109,6 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagno
 
     let calls_content = std::fs::read_to_string(&calls).unwrap();
     let cursor_content = std::fs::read_to_string(&cursor).unwrap();
-    let _ = std::fs::remove_dir_all(&home);
 
     for status in statuses.into_iter().flatten() {
         assert_eq!(status.code(), Some(0), "a contended run is a clean no-op");
