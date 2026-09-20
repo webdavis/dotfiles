@@ -6,6 +6,8 @@
 
     platforms.webhook.extra.routes   the WHOLE map, six routes, whole value
     platform_toolsets.webhook        the WHOLE list, the webhook agent sandbox
+    hooks.pre_approval_request       the WHOLE list, one entry
+    hooks.post_approval_response     the WHOLE list, one entry
     tts.elevenlabs.voice_id          one key
 
   Hermes owns every other line of the file. It rewrites config.yaml from its
@@ -15,7 +17,7 @@
   was here before this template was an age capture of a moving target: every
   runtime write showed up as source drift, and every apply pushed a snapshot
   back over whatever hermes had just decided. This template reads the live file
-  on .chezmoi.stdin, overlays the three things above, and hands the rest back.
+  on .chezmoi.stdin, overlays the five things above, and hands the rest back.
 
   THE ROUTES MAP IS WRITTEN WHOLE, SO AN UNDECLARED ROUTE IS REMOVED. A live
   route this file does not name is gone after the next apply: that is how
@@ -225,6 +227,29 @@
        design (same file: the picker has no checkbox for it), so a picker
        session re-arms the servers until the next apply puts it back. */ -}}
 {{- $merged = setValueAtPath (list "platform_toolsets" "webhook") (list "no_mcp") $merged -}}
+
+{{- /* THE APPROVAL PAIR, hermes's waiting and answered events, each list
+       written WHOLE like the two above. `pre_approval_request` fires before an
+       approval prompt is sent and `post_approval_response` fires when the
+       operator answers or the prompt times out
+       (website/docs/user-guide/features/hooks.md in the hermes checkout lists
+       both among VALID_HOOKS). `--remind` is what arms pns's
+       unanswered-approval reminder, and the answered event is what clears it.
+
+       The path is absolute because hermes runs a hook command through
+       shlex.split with shell=False: no PATH search beyond argv[0], no shell,
+       and no `VAR=value` prefix, which is why hermes sends no PNS_PRODUCER and
+       pns names this producer by its default.
+
+       GOTCHA: each (event, command) pair needs the operator's first-use
+       consent before hermes will run it, recorded in
+       ~/.hermes/shell-hooks-allowlist.json. A changed command string is a new
+       pair and prompts again. */ -}}
+{{- $pns := joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" -}}
+{{- $merged = setValueAtPath (list "hooks" "pre_approval_request")
+    (list (dict "command" (printf "%s hook blocked --remind" $pns))) $merged -}}
+{{- $merged = setValueAtPath (list "hooks" "post_approval_response")
+    (list (dict "command" (printf "%s hook resolved" $pns))) $merged -}}
 
 {{- /* The ElevenLabs voice. Every other tts key, this one's sibling model_id
        included, passes through untouched. */ -}}

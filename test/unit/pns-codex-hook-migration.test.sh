@@ -11,6 +11,17 @@ function pns_hook_migration_fixture() {
   printf '%s' "$fixture"
 }
 
+# The two rows every run now adds, as a jq expression over the object under
+# test, so each expectation below states only what its own fixture carries.
+function pns_hook_migration_answered_rows() {
+  # SC2016 is the point: `$root` is a jq variable the caller binds with --arg.
+  # shellcheck disable=SC2016
+  printf '%s' ' |
+    ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook resolved") as $r |
+    .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [{hooks:[{type:"command",command:$r}]}]) |
+    .hooks.Interrupt = ((.hooks.Interrupt // []) + [{hooks:[{type:"command",command:$r}]}])'
+}
+
 function pns_hook_migration_run() {
   local repo
   repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -41,7 +52,7 @@ function test_pns_hook_migration_collapses_owned_duplicates_and_preserves_other_
   expected="$(jq -Sc --arg root "$fixture" '
     .hooks.Stop[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop") |
     .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked") |
-    del(.hooks.Stop[1], .hooks.PermissionRequest[1])' <<<"$before")"
+    del(.hooks.Stop[1], .hooks.PermissionRequest[1])'"$(pns_hook_migration_answered_rows)" <<<"$before")"
   warning="$(pns_hook_migration_run "$fixture" 2>&1)"
   actual="$(jq -Sc . "$fixture/.codex/hooks.json")"
   assert_same "$expected" "$actual"
@@ -62,7 +73,7 @@ function test_pns_hook_migration_retains_legacy_handler_metadata_without_a_curre
     >"$fixture/.codex/hooks.json"
   expected="$(jq -Sc --arg root "$fixture" '
     .hooks.Stop[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook stop") |
-    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked")' "$fixture/.codex/hooks.json")"
+    .hooks.PermissionRequest[0].hooks[0].command = ("PNS_PRODUCER=codex " + $root + "/.cargo/bin/pns hook blocked")'"$(pns_hook_migration_answered_rows)" "$fixture/.codex/hooks.json")"
   pns_hook_migration_run "$fixture" 2>/dev/null
   assert_same "$expected" "$(jq -Sc . "$fixture/.codex/hooks.json")"
 }
@@ -132,4 +143,29 @@ function test_pns_hook_migration_preserves_conflicting_duplicate_metadata_for_re
     assert_same "$before" "$(cat "$fixture/.codex/hooks.json")"
     assert_contains 'metadata' "$warning"
   done
+}
+
+function test_pns_hook_migration_wires_both_answered_events_beside_a_foreign_row() {
+  local fixture resolved
+  fixture="$(pns_hook_migration_fixture)"
+  resolved="PNS_PRODUCER=codex $fixture/.cargo/bin/pns hook resolved"
+  jq -n '{hooks:{PostToolUse:[{hooks:[{type:"command",command:"herdr tool"}]}]}}' \
+    >"$fixture/.codex/hooks.json"
+  pns_hook_migration_run "$fixture" 2>/dev/null
+  assert_same "herdr tool | $resolved" \
+    "$(jq -r '[.hooks.PostToolUse[].hooks[].command] | join(" | ")' "$fixture/.codex/hooks.json")"
+  assert_same "$resolved" \
+    "$(jq -r '[.hooks.Interrupt[].hooks[].command] | join(" | ")' "$fixture/.codex/hooks.json")"
+}
+
+function test_pns_hook_migration_writes_each_answered_row_once_across_two_runs() {
+  local fixture resolved
+  fixture="$(pns_hook_migration_fixture)"
+  resolved="PNS_PRODUCER=codex $fixture/.cargo/bin/pns hook resolved"
+  pns_hook_migration_run "$fixture" 2>/dev/null
+  pns_hook_migration_run "$fixture" 2>/dev/null
+  assert_same "$resolved" \
+    "$(jq -r '[.hooks.PostToolUse[].hooks[].command] | join(" | ")' "$fixture/.codex/hooks.json")"
+  assert_same "$resolved" \
+    "$(jq -r '[.hooks.Interrupt[].hooks[].command] | join(" | ")' "$fixture/.codex/hooks.json")"
 }

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# relay-codex-hooks: idempotently add relay's Codex notifications (done + blocked)
-# to ~/.codex/hooks.json, preserving herdr's integration entry. herdr owns its
-# SessionStart hook (and regenerates it on update); we only ever add our two.
+# relay-codex-hooks: idempotently add relay's Codex notifications (done, blocked
+# and the two answered signals) to ~/.codex/hooks.json, preserving herdr's
+# integration entry. herdr owns its SessionStart hook (and regenerates it on
+# update); we only ever add our four.
 # Safe to re-run; re-heals relay's entries after herdr re-installs its hook.
 set -euo pipefail
 
@@ -11,6 +12,10 @@ agent="$HOME/.cargo/bin/pns"
 
 done_cmd="PNS_PRODUCER=codex $agent hook stop"
 blocked_cmd="PNS_PRODUCER=codex $agent hook blocked"
+# The answered signal, on both events that end a wait: PostToolUse fires once a
+# tool has produced output, including a non-zero exit, and Interrupt fires when
+# the operator ends the turn instead of answering.
+resolved_cmd="PNS_PRODUCER=codex $agent hook resolved"
 
 # Read the existing config. Require EXACTLY one object root whose "hooks" is an object; heal an
 # empty/whitespace/absent file from the {"hooks":{}} default; on any OTHER malformed input (multiple
@@ -37,7 +42,7 @@ fi
 # Keep handler and group metadata; collapse duplicates only when both agree.
 # Conflicting customizations leave the original file untouched for review.
 merged="$(printf '%s' "$base" | jq \
-  --arg root "$HOME" --arg d "$done_cmd" --arg b "$blocked_cmd" '
+  --arg root "$HOME" --arg d "$done_cmd" --arg b "$blocked_cmd" --arg r "$resolved_cmd" '
   def migrate($event; $cmd; $action):
     (if $action == "stop" then "done" else $action end) as $legacy_action |
     [$cmd,
@@ -66,7 +71,8 @@ merged="$(printf '%s' "$base" | jq \
           else . end) |
       if .owner == null then .entries + [{hooks: [{type: "command", command: $cmd}]}]
       else .entries end);
-  migrate("Stop"; $d; "stop") | migrate("PermissionRequest"; $b; "blocked")
+  migrate("Stop"; $d; "stop") | migrate("PermissionRequest"; $b; "blocked") |
+  migrate("PostToolUse"; $r; "resolved") | migrate("Interrupt"; $r; "resolved")
 ')" || exit 0
 
 # Validate the merged candidate before writing: it must still be an object with an object "hooks".
