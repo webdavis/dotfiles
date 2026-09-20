@@ -63,16 +63,6 @@ impl Attempt {
         }
     }
 }
-/// One notification, end to end: decide, render, dispatch. THE one event path,
-/// whether the event came from argv or from a harness hook.
-///
-/// THE PAYLOAD RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split is
-/// the point: `EventArgs` is the ARGV contract, and argv has no spelling for a
-/// session id, a permission mode, a subagent id or a raw tool name. Every one
-/// of those arrives in a harness payload or not at all, so the hook arms pass
-/// what they were given and every other caller passes `HookPayload::default()`,
-/// which is honestly no identity rather than fields nothing can fill. The
-/// lamps' needs marker and the decision line are its readers.
 /// A harness hook's event: the durable activity row, then the ordinary event
 /// path.
 ///
@@ -90,6 +80,16 @@ pub(crate) fn hook_event(
     run_event(event, probes, payload, attempt)
 }
 
+/// One notification, end to end: decide, render, dispatch. THE one event path,
+/// whether the event came from argv or from a harness hook.
+///
+/// THE PAYLOAD RIDES BESIDE THE EVENT RATHER THAN INSIDE IT, and the split is
+/// the point: `EventArgs` is the ARGV contract, and argv has no spelling for a
+/// session id, a permission mode, a subagent id or a raw tool name. Every one
+/// of those arrives in a harness payload or not at all, so the hook arms pass
+/// what they were given and every other caller passes `HookPayload::default()`,
+/// which is honestly no identity rather than fields nothing can fill. The
+/// lamps' needs marker and the decision line are its readers.
 pub(crate) fn run_event(
     event: &pns_domain::EventArgs,
     probes: &SystemProbes<SystemCommandRunner>,
