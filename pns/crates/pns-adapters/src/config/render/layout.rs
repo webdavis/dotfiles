@@ -65,6 +65,7 @@ mod delivery;
 pub(super) use delivery::EXAMPLE_CLASS;
 use delivery::{DELIVERY, DELIVERY_CLASS};
 mod core;
+pub(in crate::config) use core::REMIND_DELAY;
 use core::*;
 mod destinations;
 use destinations::*;

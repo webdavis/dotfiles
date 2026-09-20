@@ -26,6 +26,7 @@ fn every_table_armed() -> toml::Table {
         modes = ["Sleep"]
 
         [remind]
+        delay = "5m"
     }
 }
 

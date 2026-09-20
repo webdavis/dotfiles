@@ -29,6 +29,10 @@ pub(super) fn render_core(
 
 /// An OPT-IN table: written commented, heading and all, when `container`
 /// never mentions it at all.
+///
+/// AN EMPTY TABLE IS THE SAME AS NO TABLE. A heading with nothing under it
+/// states no setting, so it cannot be the thing that turns one on: a values
+/// file asking for a default has to write that default out.
 pub(super) fn render_opt_in(
     out: &mut String,
     table: &Table,
@@ -36,7 +40,10 @@ pub(super) fn render_opt_in(
 ) -> Result<(), String> {
     match container.remove(last_segment(table.name)) {
         None => render_block(out, table, &mut toml::Table::new(), false),
-        Some(toml::Value::Table(mut settings)) => render_block(out, table, &mut settings, true),
+        Some(toml::Value::Table(mut settings)) => {
+            let present = !settings.is_empty();
+            render_block(out, table, &mut settings, present)
+        }
         Some(other) => Err(format!(
             "`{}` has type `{}`, not a table",
             table.name,

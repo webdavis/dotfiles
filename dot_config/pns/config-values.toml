@@ -147,10 +147,10 @@ url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 
-# Empty on purpose: an opt-in table's mere presence is what keeps its
-# defaults live rather than commented, and "5m" (the layout default) is the
-# operator's real setting.
+# "5m" is the layout default and the operator's real setting, written out
+# because a table states its settings rather than arming them by being here.
 [remind]
+delay = "5m"
 
 # The one lamp knob that differs from its layout default ("5m").
 [lights.loop]
