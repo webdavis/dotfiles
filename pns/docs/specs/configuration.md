@@ -1068,7 +1068,7 @@ Then it is refused, whether the list is empty or not
 
 ### 19. The backstop must outlast the reminder, and it is the one refusal that reads two tables
 
-Given `[remind] delay = "10m"` and `[lights.blocked] lease_expiry = 60`\
+Given `[remind] delay = "10m"` and `[lights.blocked] lease_expiry = "60s"`\
 
 When `parse_config` finishes every table\
 
