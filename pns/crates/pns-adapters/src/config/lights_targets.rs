@@ -31,7 +31,9 @@ pub(super) fn parse_targets(
         for (key, stated) in settings {
             admits(TARGET_KEYS, &where_it_is, key)?;
             match key.as_str() {
-                "shows" => target.shows = Some(behaviours(&where_it_is, key, stated)?),
+                "behaviours" => {
+                    target.behaviours = Some(behaviours(&where_it_is, key, stated)?);
+                }
                 "dim_window" => target.dim_window = Some(text(&where_it_is, key, stated)?),
                 "dim_behaviours" => {
                     target.dim_behaviours = behaviours(&where_it_is, key, stated)?;

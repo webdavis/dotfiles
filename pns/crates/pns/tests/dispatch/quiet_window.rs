@@ -79,7 +79,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         outcome(
             "lights-guard-with-a-table",
             "[lights]\nrefresh_secs = 20\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n",
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\", \"failed\"]\n",
         ),
         "same stdout, same stderr, same exit code, the bridge dialled either way, \
          and the same legs fired"

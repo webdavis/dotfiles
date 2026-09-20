@@ -3,17 +3,17 @@
 ## Scope
 
 The Hue lamps are not a notification destination. They are a stateful attention indicator: a small set of
-named states (`blocked`, `loop`, `unread` in its failure and success flavours) that the house HOLDS
+named states (`blocked`, `loop`, `unseen` in its failure and success flavours) that the house HOLDS
 between events, plus a transient `pulse` that blinks once for a finished or a dead turn. A separate
 repeating job (`pns lights tick`) re-derives every held state from the machine, resolves the operator's
 name-to-lamp map against the bridge, writes the lamps that should be showing something, puts out by name
 whatever it was holding and is not any more, and breathes each lit lamp for the rest of its interval.
-This document covers the pulse, the `unread` state, the leases, the breath phases, the quiet window and
+This document covers the pulse, the `unseen` state, the leases, the breath phases, the quiet window and
 the dim window, the precedence between lamp states, the tick's write order, held lamps, streaks, and the
 legacy `lights-glow` migration. Every claim below is derived from the code and its tests in this crate;
-gaps are marked `NOT ESTABLISHED:`. The lamp state is spelled `unread`
+gaps are marked `NOT ESTABLISHED:`. The lamp state is spelled `unseen`
 (`src/lights.rs:Held::UnreadFailure`, `src/lights.rs:Held::UnreadSuccess`,
-`src/config.rs:Behaviour::Unread`, whose config word is `"unread"` in `src/config.rs:BEHAVIOUR_WORDS`);
+`src/config.rs:Behaviour::Unseen`, whose config word is `"unseen"` in `src/config.rs:BEHAVIOUR_WORDS`);
 `glow` survives only as the legacy state directory name `lights-glow`, read once by
 `src/main.rs:sweep_legacy_state` and never written.
 
@@ -30,7 +30,7 @@ may hold all of them at once and different lamps may show different ones (`src/l
 | `Blocked` (`"blocked"`)       | An event whose state is in `src/pulse.rs:LAMP_BLOCKED` (`blocked`, `asked`, `plan-ready`, `denied`, `asking`) writes one marker per session, but only when both switches are live (`src/main.rs:update_blocked_marker`, gated on `lamps_live`) | Any other event from that session (`src/lights.rs:blocked_marker_action` returns `Action::End`), `src/main.rs:end_blocked_wait` from the `prompt` and `resolved` hooks, or the backstop sweeping a marker past `[lights.blocked] give_up_after_secs` (`src/main.rs:sweep_blocked`) | 1, highest           | `lights-blocked/<session-id>`, one epoch per file (`src/lights.rs:blocked_dir`, `src/lights.rs:blocked_marker`)                                 | `src/lights.rs:a_blocked_event_starts_a_wait_and_every_other_event_ends_one`, `src/lights.rs:a_live_wait_holds_the_blocked_lamp_and_an_abandoned_one_stops_holding_it`, `src/main.rs:a_wait_that_ended_loses_its_marker_whether_or_not_the_lamps_are_live`, `src/main.rs:a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop`, `tests/dispatch.rs:a_blocked_turn_lights_the_lamps_once_the_map_exists` |
 | `Looping` (`"loop"`)          | Any of three: an agent streak past `[lights.loop] threshold_secs`, a shell marker whose command started that long ago, or a live lease (`src/lights.rs:loop_running`)                                                                          | The streak clearing behind its grace, the shell marker being removed or its shell dying, `pns loop end`, or the lease timing out (`src/main.rs:sweep_leases`)                                                                                                                      | 2                    | `lights-streak` (one line, `since last_seen`), `lights-shell/<shell-pid>` (one epoch), `lights-loop/<pane>` (one epoch)                         | `src/lights.rs:work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed`, `src/lights.rs:a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not`, `src/lights.rs:a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak`, `src/main.rs:the_shell_reading_is_the_oldest_marker_a_live_shell_is_holding`                                                               |
 | `UnreadFailure` (`"failure"`) | A `failed_at` epoch newer than the last interaction and not in the future, with nothing working. No delay at all (`src/lights.rs:unread_arming`)                                                                                               | Any interaction (desk, phone input, phone marker) later than that epoch; anything working; the operator's return clearing the held record (`src/main.rs:clear_held_lamps`)                                                                                                         | 3                    | `lights-news`, one line of two epochs `done_at failed_at`, `0` for "not yet" (`src/lights.rs:render_news`)                                      | `src/lights.rs:unread_arms_on_news_the_operator_has_not_been_back_for_and_on_nothing_else`, `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                           |
-| `UnreadSuccess` (`"success"`) | A `done_at` epoch newer than the last interaction, at least `[lights.unread] after_secs` old, not in the future, with nothing working                                                                                                          | Same as `UnreadFailure`, and it is outranked by `UnreadFailure` whenever both are pending                                                                                                                                                                                          | 4, lowest            | `lights-news` (same file)                                                                                                                       | `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                                                                                                                       |
+| `UnreadSuccess` (`"success"`) | A `done_at` epoch newer than the last interaction, at least `[lights.unseen] after_secs` old, not in the future, with nothing working                                                                                                          | Same as `UnreadFailure`, and it is outranked by `UnreadFailure` whenever both are pending                                                                                                                                                                                          | 4, lowest            | `lights-news` (same file)                                                                                                                       | `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                                                                                                                       |
 | pulse (transient, not held)   | One event whose plan earned a pulse, or a `blocked` behaviour on a mapped machine that is not silenced (`src/main.rs`, the \`decision.plan.pulse                                                                                               |                                                                                                                                                                                                                                                                                    | blocked_lamp\` gate) | Nothing: the bridge runs the signal for its own duration and puts the lamp back itself (`src/channels/hue.rs`, module doc, measured 2026-09-01) | Not ranked. It is refused on any lamp currently holding a state (`src/lights.rs:pulse_fires`)                                                                                                                                                                                                                                                                                                                                    |
 
 The rank is the declaration order of `src/lights.rs:Held`, pushed in that fixed order by
@@ -104,7 +104,7 @@ When the composition root decides what the lamps say about it,
 
 Then `src/pulse.rs:state_behaviour` answers exactly once: `failed` is `Behaviour::Failed`; any word in `src/pulse.rs:LAMP_BLOCKED` (`"blocked"`, `"asked"`, `"plan-ready"`, `"denied"`, `"asking"`) is `Behaviour::Blocked` but only when a `[lights]` table exists; every other word, the empty string included, is `Behaviour::Done`.
 
-- Success: the colour a lamp flashes, the record that arms the `unread` lamp, and the gate that lets a
+- Success: the colour a lamp flashes, the record that arms the `unseen` lamp, and the gate that lets a
   pulse fire at all are all read off that ONE answer, so they cannot disagree about one event
   (`src/main.rs`, the `state_behaviour(&event.state, lights.is_some())` call).
 - Failure sources: an unrecognised state word. It reads as `Done`, deliberately
@@ -245,7 +245,7 @@ Then `src/lights.rs:pulse_fires` answers false for THAT lamp and true for every 
   (`src/lights.rs:pulse_fires` doc,
   `src/lights.rs:a_pulse_fires_on_a_lamp_it_is_routed_for_unless_a_held_state_has_that_lamp`).
 
-## The `unread` state
+## The `unseen` state
 
 ### 6. The news record is written whatever the delivery did
 
@@ -282,7 +282,7 @@ Then it merges that epoch into `lights-news` regardless of whether any card, ban
   `src/main.rs:the_news_record_is_written_for_a_finished_or_a_dead_turn_and_read_back_as_it_was`,
   `tests/dispatch.rs:a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds`).
 
-### 7. The `unread` state arms off news the operator has not been back for
+### 7. The `unseen` state arms off news the operator has not been back for
 
 Given a news record, a last-interaction epoch, and whether anything is working,
 
@@ -298,7 +298,7 @@ Then it answers `None` while anything is working, `None` with no interaction at 
 - Thresholds: the age test is CLOSED and the edge test is NOT. News exactly `after_secs` old HAS waited
   that long and arms; one second under does not. News exactly AT the interaction edge is not newer than
   it and arms nothing; one second past the edge arms. Default `after_secs` is
-  `src/config.rs:DEFAULT_UNREAD_AFTER_SECS` = 300 seconds; the config permits 0 (which means "at once")
+  `src/config.rs:DEFAULT_UNSEEN_AFTER_SECS` = 300 seconds; the config permits 0 (which means "at once")
   up to 86400.
 - Required side effects: none. Pure.
 - Forbidden side effects: never an edge at epoch zero; `None` means "nothing of that kind yet" and is
@@ -323,7 +323,7 @@ Then it answers the MAXIMUM of `now - desk_idle`, `phone_input_at` and `phone_ma
 
 - Success: one epoch, the operator's most recent touch by any road.
 - Failure sources: all three probes unreadable.
-- Fail direction: dark. `None` leaves the `unread` state unarmed.
+- Fail direction: dark. `None` leaves the `unseen` state unarmed.
 - Thresholds: the desk reading is an AGE and the other two are EPOCHS, which is why it is subtracted
   rather than compared. The subtraction saturates: an idle age longer than the clock reads as an
   interaction at the epoch, never a wrapped one in the far future.
@@ -332,7 +332,7 @@ Then it answers the MAXIMUM of `now - desk_idle`, `phone_input_at` and `phone_ma
   earlier than the true touch, and news the operator had already seen could arm the lamp. The order is
   load-bearing and is documented as not provable by a diff alone.
 - Forbidden side effects: `PNS_SCREEN_IDLE` and `PNS_PHONE_INPUT_MAX_AGE` are NOT consulted here. They steer
-  the delivery decision in `engine::decide`; the `unread` state always sees the machine's own probes.
+  the delivery decision in `engine::decide`; the `unseen` state always sees the machine's own probes.
 - Timeout and cancellation: four bounded spawns (one `ioreg`, then `pgrep`, `pgrep -P`, `ps`), each
   capped at `PROBE_DEADLINE` (5 seconds, `src/system.rs`). The residual makes the desk touch read YOUNGER
   than it was, never older, which is the dark direction.
@@ -602,11 +602,11 @@ Given a `House { blocked, looping, unread }`,
 
 When `src/lights.rs:active_held` runs,
 
-Then it returns every active state, most urgent first, and `src/lights.rs:shown` filters that list by one lamp's OWN `shows` routing and takes the first survivor.
+Then it returns every active state, most urgent first, and `src/lights.rs:shown` filters that list by one lamp's OWN `behaviours` routing and takes the first survivor.
 
 - Success: one blue lamp and one violet lamp can be lit at the same moment, because they are routed for
   different words.
-- Failure sources: an empty `shows` list leaves the lamp out of the walk entirely rather than costing a
+- Failure sources: an empty `behaviours` list leaves the lamp out of the walk entirely rather than costing a
   write that does nothing (`src/channels/hue.rs:Routing.lamps` doc).
 - Fail direction: not on the delivery path.
 - Thresholds: none. The rank is `Blocked` > `Looping` > `UnreadFailure` > `UnreadSuccess`, the
@@ -630,7 +630,7 @@ Given a bridge inventory and the config's `[lights.lamp/room/zone.<name>]` decla
 
 When `src/channels/hue.rs:resolve` runs,
 
-Then for each lamp it walks `src/channels/hue.rs:LEVELS` (`["lamp", "room", "zone"]`) INDEPENDENTLY for each question (`shows`, `dim_window`), and the winning level supplies the WHOLE answer to its question.
+Then for each lamp it walks `src/channels/hue.rs:LEVELS` (`["lamp", "room", "zone"]`) INDEPENDENTLY for each question (`behaviours`, `dim_window`), and the winning level supplies the WHOLE answer to its question.
 
 - Success: a `Routing` of lamps that carry something, plus `unresolved` names and `refusals`.
 - Failure sources: a name no lamp answers is reported as `Missing::NotOnBridge`
@@ -652,7 +652,7 @@ Then for each lamp it walks `src/channels/hue.rs:LEVELS` (`["lamp", "room", "zon
 - Forbidden side effects: two ZONES answering one question for one lamp is a REFUSAL naming both, never a
   guess:
   `"lights: `<lamp>`is covered by <n> zone declarations that each state`<question>` (<names>); there is nothing more specific to break the tie, so that lamp answers none of them"`.
-  A contested `shows` is an empty set (dark lamp); a contested `dim_window` skips the lamp entirely,
+  A contested `behaviours` is an empty set (dark lamp); a contested `dim_window` skips the lamp entirely,
   which is a THIRD answer distinct from silence, because collapsed into one `None` the refusal took the
   no-window path and ran the lamp at full brightness all night
   (`src/channels/hue.rs:a_lamp_two_zones_both_answer_for_is_refused_with_both_named`,
@@ -982,7 +982,7 @@ Then it returns that state's own locked colour with the ONE shared `[lights.dim]
 
 ### 26. `FAILURE_COLOR` carries two jobs and is one constant
 
-Given the failure pulse and the `unread` failure flavour,
+Given the failure pulse and the `unseen` failure flavour,
 
 When either renders,
 
@@ -1194,7 +1194,7 @@ Then it reads `lights-held`, writes `{"on":{"on":false}}` to each recorded path,
 - Idempotency and duplicates: a second return finds no file and does nothing.
 - Privacy: fixture paths only.
 - Process ownership and cleanup: `is_present` is the SAME predicate that advances the return edge the
-  `unread` state is derived from, so the lamp and the marker cannot disagree about whether the operator
+  `unseen` state is derived from, so the lamp and the marker cannot disagree about whether the operator
   came back.
 - Compatibility contract: STATED LIMIT, a tick can republish a state the return just cleared. The tick
   reads its condition before it reaches the bridge, so a present event that advances the edge and clears
@@ -1244,7 +1244,7 @@ path's pulse (`src/main.rs:run_pulse_writes`) and on the tick (`src/main.rs:run_
 
 Then `src/presence_room.rs:chosen` weighs the desk's idle clock against the bridge's motion edge, and
 `src/presence_policy.rs:narrow` takes the room it answers to the lamp map. A WARM DESK IS A CLAIM ON THE
-OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_stale_after_secs` the keyboard
+OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_input_max_age` the keyboard
 says they are at the desk, while motion says A BODY moved in a room and never whose. So while the desk
 still speaks,
 
@@ -1278,9 +1278,9 @@ off the room listing.
   narrowing that would leave ZERO targets falls back to the whole routing rather than going silent
   (`src/presence_policy.rs:a_room_holding_no_routed_lamp_falls_back_to_the_whole_routing`).
 - Thresholds: the motion reading's freshness is `src/presence.rs:classify`'s, against
-  `[plugins.presence] stale_after_secs`; the desk's is `[plugins.presence] desk_stale_after_secs`
-  (default 120, `src/config.rs:DEFAULT_DESK_STALE_AFTER_SECS`, bounded 1 to
-  `src/config.rs:MAX_DESK_STALE_AFTER_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
+  `[plugins.presence] reading_max_age`; the desk's is `[plugins.presence] desk_input_max_age`
+  (default `"2m"`, `pns-adapters/src/config/presence_values.rs:DEFAULT_DESK_INPUT_MAX_AGE_SECS`,
+  bounded `"1s"` to `MAX_DESK_INPUT_MAX_AGE_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
   good), past which a keyboard nobody has touched speaks for nothing. No dwell rule and no hysteresis of
   its own.
 - Required side effects: one JSON object per decision appended to the `presence-decisions` ring

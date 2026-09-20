@@ -74,6 +74,11 @@ pub struct ResultEnvelope {
     /// Stable codes, at most [`MAX_ITEMS`] of them on the wire.
     #[serde(default)]
     pub diagnostics: Vec<String>,
+    /// The request's own top-level fields this envelope does not define, by
+    /// name, empty when it carried none. Advisory like the diagnostics, and
+    /// bounded the same way, but a list of names rather than of codes.
+    #[serde(default)]
+    pub ignored_fields: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -93,15 +98,17 @@ impl ResultEnvelope {
             ledger_sequence: None,
             destinations: Vec::new(),
             diagnostics: vec![rejected.reason.code().to_string()],
+            ignored_fields: Vec::new(),
         }
     }
 
-    /// The result as one JSON object, schema first, diagnostics bounded at
-    /// the item cap. Other bound violations return a refusal; destination
-    /// outcomes are never silently discarded.
+    /// The result as one JSON object, schema first, diagnostics and ignored
+    /// field names each bounded at the item cap. Other bound violations return
+    /// a refusal; destination outcomes are never silently discarded.
     pub fn encode(&self) -> Result<String, Rejected> {
         let mut bounded = self.clone();
         bounded.diagnostics.truncate(MAX_ITEMS);
+        bounded.ignored_fields.truncate(MAX_ITEMS);
         let wire = Wire {
             schema: schema().to_string(),
             result: &bounded,

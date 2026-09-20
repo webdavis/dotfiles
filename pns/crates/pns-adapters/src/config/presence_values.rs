@@ -1,16 +1,18 @@
+use super::*;
+
 /// The `[plugins.presence]` settings this crate can act on.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Presence {
     /// The bridge's own room names, verbatim, that a reading may name.
     pub rooms: Vec<String>,
-    /// Rooms whose presence is discarded even when they are listed.
-    pub exclude: Vec<String>,
+    /// Rooms subtracted from `rooms`: a reading naming one is discarded.
+    pub excluded_rooms: Vec<String>,
     /// The room the desk is in, when the operator named one.
     pub desk_room: Option<String>,
     /// How long a desk reading still speaks for where the operator IS.
-    pub desk_stale_after_secs: u64,
-    pub poll_secs: u64,
-    pub stale_after_secs: u64,
+    pub desk_input_max_age_secs: u64,
+    pub poll_interval_secs: u64,
+    pub reading_max_age_secs: u64,
 }
 
 /// The only backend that fills the presence state file today.
@@ -19,7 +21,7 @@ pub(super) const PRESENCE_TYPE: &str = "hue";
 /// How often the daemon reads the bridge, and the range it is held to. THE
 /// FLOOR IS A COURTESY TO THE BRIDGE and the ceiling is the point at which a
 /// reading is older than the turn it would narrow.
-pub(super) const DEFAULT_PRESENCE_POLL_SECS: u64 = 5;
+pub(super) const DEFAULT_POLL_INTERVAL_SECS: u64 = 5;
 
 /// How long a desk reading still speaks for WHERE THE OPERATOR IS, as opposed
 /// to where their attention is. THE SAME 120 SECONDS `engine`'s
@@ -28,7 +30,7 @@ pub(super) const DEFAULT_PRESENCE_POLL_SECS: u64 = 5;
 /// touched says nothing about which room somebody is standing in, and fresh
 /// motion elsewhere wins. It is a knob because the right number is a property
 /// of a house and a habit, not of this code.
-pub(super) const DEFAULT_DESK_STALE_AFTER_SECS: u64 = 120;
+pub(super) const DEFAULT_DESK_INPUT_MAX_AGE_SECS: u64 = 120;
 
 /// The longest that knob may be turned. AN HOUR IS ALREADY THIRTY TIMES THE
 /// SHIPPED VALUE, and the reading it bounds is "seconds since a keystroke": an
@@ -36,11 +38,29 @@ pub(super) const DEFAULT_DESK_STALE_AFTER_SECS: u64 = 120;
 /// this is not a house with slower habits, it is a typo. The bound exists
 /// because the failure it prevents is silent and permanent, where a refusal is
 /// one line the operator reads at the next apply.
-pub(super) const MAX_DESK_STALE_AFTER_SECS: u64 = 3600;
-pub(super) const MIN_PRESENCE_POLL_SECS: u64 = 2;
-pub(super) const MAX_PRESENCE_POLL_SECS: u64 = 60;
+pub(super) const MAX_DESK_INPUT_MAX_AGE_SECS: u64 = 3600;
+pub(super) const MIN_POLL_INTERVAL_SECS: u64 = 2;
+pub(super) const MAX_POLL_INTERVAL_SECS: u64 = 60;
 
 /// How old a poll may be before there is no reading: three intervals at the
 /// default, which rides out two missed polls without claiming a room nobody
 /// refreshed.
-pub(super) const DEFAULT_PRESENCE_STALE_AFTER_SECS: u64 = 15;
+pub(super) const DEFAULT_READING_MAX_AGE_SECS: u64 = 15;
+
+/// `poll_interval`'s range, as the duration parser takes it.
+pub(super) fn poll_interval_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_POLL_INTERVAL_SECS)..=Duration::from_secs(MAX_POLL_INTERVAL_SECS)
+}
+
+/// `desk_input_max_age`'s range. The floor is one second, because a bound of
+/// none at all is the desk override switched off by accident.
+pub(super) fn desk_input_max_age_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(1)..=Duration::from_secs(MAX_DESK_INPUT_MAX_AGE_SECS)
+}
+
+/// `reading_max_age`'s range. THE FLOOR IS THE SHORTEST POLL ANYONE MAY SET,
+/// and the bound that matters is the one against the interval this file
+/// actually states, which `parse_presence` applies once both are read.
+pub(super) fn reading_max_age_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_POLL_INTERVAL_SECS)..=Duration::MAX
+}

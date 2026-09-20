@@ -76,7 +76,7 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
             let lamps = routing
                 .lamps
                 .iter()
-                .filter(|routed| routed.shows.contains(behaviour))
+                .filter(|routed| routed.behaviours.contains(behaviour))
                 .count();
             // THE NOUN IS WHAT THE NUMBER COUNTS. Written `done 10` this read
             // as ten things having finished, which is the opposite of the

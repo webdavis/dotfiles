@@ -47,6 +47,7 @@ fn refusal(code: &str) -> ResultEnvelope {
         ledger_sequence: None,
         destinations: Vec::new(),
         diagnostics: vec![code.into()],
+        ignored_fields: Vec::new(),
     }
 }
 

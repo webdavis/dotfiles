@@ -52,7 +52,7 @@ pub fn carried(routing: &Routing, name: &str) -> Option<Vec<Behaviour>> {
         .lamps
         .iter()
         .find(|routed| routed.lamp.name == name)
-        .map(|routed| routed.shows.clone())
+        .map(|routed| routed.behaviours.clone())
 }
 
 pub fn table(text: &str) -> toml::Table {

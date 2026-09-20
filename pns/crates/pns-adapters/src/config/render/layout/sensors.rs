@@ -28,47 +28,48 @@ pub(super) const PLUGINS_PRESENCE: Table = Table {
             sample: Sample::Example("[]"),
         },
         Key {
-            name: "exclude",
-            prose: "# Rooms whose presence is discarded even when they are listed above: a\n\
-                         # room you pass through, or one you never want lit.\n",
+            name: "excluded_rooms",
+            prose: "# Rooms subtracted from the list above: a reading naming one is\n\
+                         # discarded even though rooms names it. A room you pass through, or\n\
+                         # one you never want lit.\n",
             sample: Sample::Example("[]"),
         },
         Key {
             name: "desk_room",
             prose: "# The room the desk is in, spelled the way the bridge spells it, listed\n\
-                         # in rooms above and not in exclude. While the keyboard still speaks\n\
-                         # for where you are, this is the room the lamps narrow to, and motion\n\
-                         # in it agrees. Newer motion in ANOTHER room is two live readings that\n\
-                         # cannot both be you, and nothing narrows for as long as both stand: a\n\
-                         # keystroke ends it here, the motion going quiet ends it there. Unset,\n\
-                         # the keyboard names no room and motion answers alone, exactly as it\n\
-                         # does once the desk goes stale.\n",
+                         # in rooms above and not in excluded_rooms. While the keyboard still\n\
+                         # speaks for where you are, this is the room the lamps narrow to, and\n\
+                         # motion in it agrees. Newer motion in ANOTHER room is two live\n\
+                         # readings that cannot both be you, and nothing narrows for as long\n\
+                         # as both stand: a keystroke ends it here, the motion going quiet\n\
+                         # ends it there. Unset, the keyboard names no room and motion answers\n\
+                         # alone, exactly as it does once the desk goes stale.\n",
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "desk_stale_after_secs",
+            name: "desk_input_max_age",
             prose: "# How long the desk keeps speaking for where you ARE after the last\n\
-                         # keystroke, bounded 1 to 3600. Inside it a warm desk beats motion of\n\
-                         # the same age, so a cat crossing the kitchen cannot move the lamps off\n\
-                         # a keyboard being typed at; past it a keyboard nobody has touched says\n\
-                         # nothing about which room you are standing in, and fresher motion\n\
-                         # wins. The hour ceiling is what keeps a mistyped digit from parking\n\
-                         # the lamps in desk_room for good.\n",
-            sample: Sample::Default("120"),
+                         # keystroke, bounded \"1s\" to \"1h\". Inside it a warm desk beats motion\n\
+                         # of the same age, so a cat crossing the kitchen cannot move the lamps\n\
+                         # off a keyboard being typed at; past it a keyboard nobody has touched\n\
+                         # says nothing about which room you are standing in, and fresher\n\
+                         # motion wins. The hour ceiling is what keeps a mistyped digit from\n\
+                         # parking the lamps in desk_room for good.\n",
+            sample: Sample::Default("\"2m\""),
         },
         Key {
-            name: "poll_secs",
-            prose: "# How often the bridge is read, in seconds, bounded 2 to 60.\n",
-            sample: Sample::Default("5"),
+            name: "poll_interval",
+            prose: "# How often the bridge is read, bounded \"2s\" to \"1m\".\n",
+            sample: Sample::Default("\"5s\""),
         },
         Key {
-            name: "stale_after_secs",
+            name: "reading_max_age",
             prose: "# How old that read may be before there is no reading at all. A BRIDGE\n\
                          # THAT STOPPED ANSWERING IS UNKNOWN, never \"present\" and never \"away\":\n\
                          # presence only ever narrows which lamp signals, so not knowing costs\n\
-                         # the narrowing and nothing else. It may not be under poll_secs, or\n\
-                         # every reading would age out before the next read replaced it.\n",
-            sample: Sample::Default("15"),
+                         # the narrowing and nothing else. It may not be under poll_interval,\n\
+                         # or every reading would age out before the next read replaced it.\n",
+            sample: Sample::Default("\"15s\""),
         },
     ],
 };

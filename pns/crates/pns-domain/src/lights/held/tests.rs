@@ -68,12 +68,12 @@ fn every_held_state_is_active_at_once_and_they_rank_blocked_loop_then_unread() {
 fn one_lamp_shows_the_most_urgent_state_it_is_routed_for_and_nothing_it_is_not() {
     let active = active_held(&ALL_HELD);
     assert_eq!(
-        shown(&active, &shows(&[Behaviour::Blocked, Behaviour::Unread])),
+        shown(&active, &shows(&[Behaviour::Blocked, Behaviour::Unseen])),
         Some(Held::Blocked),
         "a lamp routed for both shows the more urgent"
     );
     assert_eq!(
-        shown(&active, &shows(&[Behaviour::Unread])),
+        shown(&active, &shows(&[Behaviour::Unseen])),
         Some(Held::UnreadFailure),
         "a lamp routed for only the calmer one shows that, which is how one \
          house state reaches two lamps saying different things"

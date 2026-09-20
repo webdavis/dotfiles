@@ -7,5 +7,6 @@
     { "name": "banner", "outcome": "delivered" },
     { "name": "hermes", "outcome": "failed", "note": "post FAILED HTTP 401" }
   ],
-  "diagnostics": ["ignored_field:detial"]
+  "diagnostics": ["ledger_committed"],
+  "ignored_fields": ["detial"]
 }
