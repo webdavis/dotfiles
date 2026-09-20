@@ -18,8 +18,8 @@ use crate::retry::DeliveryOutcome;
 pub const DESTINATION_HERMES: &str = "hermes";
 
 /// The destination id the moshi wording answers to. The plugin table is named
-/// `mobile` and the backend behind it is moshi.
-pub const DESTINATION_MOBILE: &str = "mobile";
+/// `phone` and the backend behind it is moshi.
+pub const DESTINATION_PHONE: &str = "phone";
 
 /// The config table holding the hermes signing keys, one per route.
 ///
@@ -41,7 +41,7 @@ pub fn hermes_key_named(route: &str) -> String {
 
 /// The config key holding the moshi token. Same commitment as
 /// [`hermes_key_named`].
-pub const MOBILE_TOKEN: &str = "[plugins.mobile] token";
+pub const PHONE_TOKEN: &str = "[plugins.phone] token";
 
 /// The `status` field: the code paired with its registered name, because a
 /// reader may know one and not the other.
@@ -85,7 +85,7 @@ fn name(code: u16) -> Option<&'static str> {
 pub(super) fn meaning(failure: &Failure) -> String {
     let route = &failure.route;
     let address = &failure.address;
-    if failure.destination == DESTINATION_MOBILE {
+    if failure.destination == DESTINATION_PHONE {
         return moshi(failure.outcome, address);
     }
     hermes(failure.outcome, route, address)
@@ -142,7 +142,7 @@ fn moshi(outcome: DeliveryOutcome, address: &str) -> String {
         DeliveryOutcome::Status(code) => code,
     };
     match code {
-        401 => format!("the {MOBILE_TOKEN} is wrong or expired"),
+        401 => format!("the {PHONE_TOKEN} is wrong or expired"),
         404 => format!("moshi has no endpoint at {address}"),
         _ if outcome.class().is_permanent() => {
             format!("moshi refused the card and will not accept a repeat, at {address}")

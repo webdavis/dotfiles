@@ -1,13 +1,13 @@
 use super::*;
 
-/// The `[plugins.mobile]` settings, but ONLY when the table is ARMED: switched
+/// The `[plugins.phone]` settings, but ONLY when the table is ARMED: switched
 /// on, and naming a backend this binary answers.
 ///
 /// THE ONE READER OF THAT TABLE. The push token, the watching-card toggle and
 /// the submission deadline all come through here, so a table naming a backend
 /// nothing implements contributes no settings ANYWHERE, rather than being
 /// refused on the paths that remembered to ask and honoured on the ones that
-/// did not. A `submit_deadline_secs` written under `type = "pushover"` is a
+/// did not. An `ack_deadline` written under `type = "pushover"` is a
 /// number for a backend this binary has never heard of, and reading it as
 /// moshi's is exactly the misattribution `type` exists to stop.
 ///
@@ -23,59 +23,56 @@ use super::*;
 /// `Err` CARRIES THE REASON, never a bare `None`. A caller that collapsed the
 /// two reported a missing token for a fault that was the type, and sent an
 /// operator whose token was already correct to go and check it.
-pub fn armed_mobile(config: &Config) -> Result<Option<&toml::Table>, String> {
-    let Some(mobile) = config.plugins.get("mobile").filter(|mobile| mobile.enabled) else {
+pub fn armed_phone(config: &Config) -> Result<Option<&toml::Table>, String> {
+    let Some(phone) = config.plugins.get("phone").filter(|phone| phone.enabled) else {
         return Ok(None);
     };
-    mobile_backend(&mobile.settings)?;
-    Ok(Some(&mobile.settings))
+    phone_backend(&phone.settings)?;
+    Ok(Some(&phone.settings))
 }
 
 /// How long pns waits for moshi to acknowledge a submission, from
-/// `[plugins.mobile] submit_deadline_secs`, with the default when no key states
-/// one.
+/// `[plugins.phone] ack_deadline`, with the default when no key states one.
 ///
-/// IT IS READ OFF THE ARMED MOBILE TABLE and nowhere else, through
-/// `armed_mobile`. Plugin settings reach this layer free-form, so every
+/// IT IS READ OFF THE ARMED PHONE TABLE and nowhere else, through
+/// `armed_phone`. Plugin settings reach this layer free-form, so every
 /// plugin's table would answer a key spelled this way, and a reader that asked
-/// the wrong one would take a number the operator wrote for something else.
+/// the wrong one would take a duration the operator wrote for something else.
 /// The backend is part of that same question: a deadline under a table naming
 /// no compiled-in backend is refused rather than read as moshi's.
 ///
 /// THE REFUSALS ARE LOUD AND NAMED, because the caller falls back to the
 /// default and a silent fallback is the operator asking for something, not
 /// getting it, and being told nothing.
-pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
-    let Some(mobile) = armed_mobile(config).map_err(ConfigError::Invalid)? else {
-        return Ok(Duration::from_secs(DEFAULT_SUBMIT_DEADLINE_SECS));
+///
+/// ZERO IS REFUSED rather than carved out the way `duration_value` carves it
+/// for the keys that are their own switch: a deadline that expires before the
+/// daemon can answer costs the phone card on every approval, and there is no
+/// off switch to mean.
+pub fn ack_deadline(config: &Config) -> Result<Duration, ConfigError> {
+    let Some(phone) = armed_phone(config).map_err(ConfigError::Invalid)? else {
+        return Ok(DEFAULT_ACK_DEADLINE);
     };
-    let Some(stated) = mobile.get("submit_deadline_secs") else {
-        return Ok(Duration::from_secs(DEFAULT_SUBMIT_DEADLINE_SECS));
+    let Some(stated) = phone.get("ack_deadline") else {
+        return Ok(DEFAULT_ACK_DEADLINE);
     };
-    let Some(count) = stated
-        .as_integer()
-        .and_then(|count| u64::try_from(count).ok())
-    else {
-        return Err(ConfigError::Invalid(format!(
-            "`mobile` key `submit_deadline_secs` has type `{}`, not a count of seconds",
-            stated.type_str()
-        )));
-    };
-    if count == 0 {
+    let deadline = duration_value("phone", "ack_deadline", stated, ack_deadline_range())?;
+    if deadline.is_zero() {
         return Err(ConfigError::Invalid(
-            "`mobile` key `submit_deadline_secs` is 0, which is the bound switched off by \
+            "`phone` key `ack_deadline` is 0, which is the bound switched off by \
              accident: a deadline that expires before the daemon can answer costs the phone \
              card on every approval"
                 .to_string(),
         ));
     }
-    if count > MAX_SUBMIT_DEADLINE_SECS {
-        return Err(ConfigError::Invalid(format!(
-            "`mobile` key `submit_deadline_secs` is {count}, past the \
-             {MAX_SUBMIT_DEADLINE_SECS}-second ceiling"
-        )));
-    }
-    Ok(Duration::from_secs(count))
+    Ok(deadline)
+}
+
+/// `ack_deadline`, BOUNDED ON BOTH SIDES. The floor is one second, which is
+/// the shortest wait the count of seconds this key replaced could state; see
+/// `MAX_ACK_DEADLINE_SECS` for the ceiling.
+fn ack_deadline_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(1)..=Duration::from_secs(MAX_ACK_DEADLINE_SECS)
 }
 
 /// How long pns waits for moshi to acknowledge a submission before returning
@@ -90,14 +87,14 @@ pub fn submit_deadline(config: &Config) -> Result<Duration, ConfigError> {
 /// road. So five seconds is about thirty times the observed round trip, and a
 /// wait past it is a daemon that stopped answering rather than an operator
 /// taking their time.
-pub const DEFAULT_SUBMIT_DEADLINE_SECS: u64 = 5;
+pub const DEFAULT_ACK_DEADLINE: Duration = Duration::from_secs(5);
 
 /// The most that wait may be given. ONE HOUR, mirroring the summarizer's
 /// ceiling rather than the harness's own PermissionRequest limit: another
 /// tool's number is not ours to hard-code, and Codex's differs. There is no
 /// off switch, because an unbounded wait is the defect and "off" would be a
 /// key whose only function is to restore it.
-pub(super) const MAX_SUBMIT_DEADLINE_SECS: u64 = 3600;
+const MAX_ACK_DEADLINE_SECS: u64 = 3600;
 
 /// The heading the durable log is written under. ONE TABLE, which is what
 /// makes two durable logs at once unrepresentable rather than refused: the

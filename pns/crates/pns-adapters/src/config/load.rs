@@ -28,7 +28,6 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     for (key, value) in document {
         match key.as_str() {
             "paths" => config.paths = paths::parse_paths(value)?,
-            "phone" => config.phone_marker_file = phone::parse_phone(value)?,
             "recap" => config.recap = parse_recap(value)?,
             "focus" => config.focus_silence = parse_focus(value)?,
             "quiet" => config.quiet_calendar = parse_quiet(value)?,
@@ -108,6 +107,17 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                         .insert(name, PluginEntry { enabled, settings });
                 }
             }
+            // MOVED, and refused by name rather than listed among the
+            // unknown tables: the attention marker is a setting of the phone
+            // plugin, so the operator is told the heading and the key to write
+            // rather than handed the whole top-level vocabulary to search.
+            "phone" => {
+                return Err(ConfigError::Invalid(
+                    "`[phone]` is now `[plugins.phone]`: the attention marker is one of the \
+                     phone plugin's settings. Move `marker_file` under that heading."
+                        .to_string(),
+                ));
+            }
             _ => {
                 // The admitted keys are listed off the roster's top-level row.
                 // This is the most operator-visible typo class there is (a
@@ -123,6 +133,13 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
         }
     }
     refusals::refuse_a_moved_plugin_table(&config)?;
+    // THE ONE KEY UNDER A PLUGIN TABLE THIS LAYER READS, because `pns tap`
+    // and the presence reader share the path whether or not the card is
+    // armed. It runs after the moved-heading refusal so a file still holding
+    // `[plugins.mobile]` is told which heading to write first.
+    if let Some(entry) = config.plugins.get("phone") {
+        config.phone_marker_file = phone::marker_file(&entry.settings)?;
+    }
     refusals::refuse_a_plugin_type_nothing_answers(&config)?;
     // AFTER THE MOVED-HEADING REFUSAL, so a file still holding the old
     // durable-log headings is told which heading to write rather than being

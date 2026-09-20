@@ -107,8 +107,8 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
     });
     let fixed = [
         (
-            "plugins.mobile.token",
-            "[plugins.mobile]\ntoken = \"a-literal-token\"\n",
+            "plugins.phone.token",
+            "[plugins.phone]\ntoken = \"a-literal-token\"\n",
         ),
         (
             "plugins.lights.bridge",
@@ -161,8 +161,7 @@ fn an_unknown_values_entry_is_refused_without_writing() {
     let scratch = Scratch::new("unknown-key-refusal");
     let values_path = scratch.path("config-values.toml");
     let template_path = scratch.path("private_config.toml.tmpl");
-    std::fs::write(&values_path, "[plugins.mobile]\nnot_a_real_key = true\n")
-        .expect("write values");
+    std::fs::write(&values_path, "[plugins.phone]\nnot_a_real_key = true\n").expect("write values");
     std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
     let output = run(&values_path, &template_path);

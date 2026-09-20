@@ -30,7 +30,7 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
         );
         assert!(sandbox.fired("hermes"), "{label}: observation log missing");
         assert!(
-            !sandbox.fired("mobile"),
+            !sandbox.fired("phone"),
             "{label}: observation must not card"
         );
         let connection = database(&sandbox);
@@ -75,7 +75,7 @@ fn json_progress_and_blocked_keep_presence_driven_phone_cards() {
                 "{stated:?}/{label}: {output:?}"
             );
             assert_eq!(sandbox.fired("banner"), banner, "{stated:?}/{label}");
-            assert_eq!(sandbox.fired("mobile"), phone, "{stated:?}/{label}");
+            assert_eq!(sandbox.fired("phone"), phone, "{stated:?}/{label}");
             assert!(sandbox.fired("hermes"));
         }
     }

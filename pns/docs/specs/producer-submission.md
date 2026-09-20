@@ -264,7 +264,7 @@ Given a producer event
 When `run_event` starts
 
 Then `load_config(&config_path(&home))` runs once, and hue's settings table, the `[lights]` table, the
-`[plugins.mobile]` verdict, the hermes key, the `[recap]` table and the `[focus] silence` list are read
+`[plugins.phone]` verdict, the hermes key, the `[recap]` table and the `[focus] silence` list are read
 off that one outcome before `select_plugins` takes ownership of it.
 
 - Success: six values (`hue_table`, `lights`, `mobile`, `hermes_key`, `recap`, `focus_silence`) come out
@@ -285,7 +285,7 @@ off that one outcome before `select_plugins` takes ownership of it.
   verbatim (`src/main.rs:run_event`). The two wordings are
   `pns: config error ({detail}); running every built-in plugin` for a parsed config naming an
   unregistered plugin, and
-  `pns: config error ({detail}); running the core plugins (mobile, banner)` for a config nobody
+  `pns: config error ({detail}); running the core plugins (phone, banner)` for a config nobody
   could read (`src/registry.rs:every_plugin_warning`, `src/registry.rs:core_warning`).
 - Forbidden side effects: no second config read anywhere on the event path. The comment names the reason:
   the catch-up dispatches on the same two secrets, so the hermes key is CLONED rather than re-read
@@ -302,28 +302,28 @@ off that one outcome before `select_plugins` takes ownership of it.
   plugin`. The core-fallback wording is pinned in the pulse mode by `tests/dispatch.rs:a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly`(substring`pns:
   config
   error`), and the absent-config silence by `tests/dispatch.rs:an_absent_config_stays_silent_in_pulse_mode`. NOT ESTABLISHED: no test in `tests/dispatch.rs`asserts the exact core-fallback sentence`running
-  the core plugins (mobile, banner)`on the EVENT path. I looked for`running the core`in`tests/\`;
+  the core plugins (phone, banner)`on the EVENT path. I looked for`running the core`in`tests/\`;
   the only integration coverage of an unreadable config on the event path is the pulse-mode test above.
 
-### 8. `[plugins.mobile]` is read exactly once, and its refusal travels with its token
+### 8. `[plugins.phone]` is read exactly once, and its refusal travels with its token
 
-Given a config carrying a `[plugins.mobile]` table
+Given a config carrying a `[plugins.phone]` table
 
-When `read_mobile` runs
+When `read_phone` runs
 
-Then one call to `config::armed_mobile` decides all three answers: the push token, the refusal (when the
-table is enabled and names a backend nothing compiled in answers), and the `mobile_watch_card` toggle.
+Then one call to `config::armed_phone` decides all three answers: the push token, the refusal (when the
+table is enabled and names a backend nothing compiled in answers), and the `card_while_watching` toggle.
 
-- Success: a `Mobile { token, refusal: None, watch_card }` (`src/main.rs:read_mobile`,
+- Success: a `Mobile { token, refusal: None, watch_card }` (`src/main.rs:read_phone`,
   `src/main.rs:Mobile`).
 - Failure sources: a `type` key that is absent, empty, or names anything but `moshi`
-  (`src/channels/moshi.rs:mobile_backend`, `src/channels/moshi.rs:MOSHI_TYPE`); a `mobile_watch_card` of
+  (`src/channels/moshi.rs:phone_backend`, `src/channels/moshi.rs:MOSHI_TYPE`); a `card_while_watching` of
   the wrong TOML type (`src/main.rs:watch_card`); a token key that is absent, of the wrong type, or
   empty, which is the not-set-up case rather than an error (`src/channels/moshi.rs:moshi_secret`).
 - Fail direction: fail-closed and loud for a refused backend. The refusal both prints
   `pns: config error ({reason}); no card is pushed` at the composition root AND rides out on the `Mobile`
-  value so `dispatch_legs` can fail the mobile leg with the same words wherever it would have been
-  dispatched (`src/main.rs:read_mobile`, `src/main.rs:dispatch_legs`). A wrong-typed `mobile_watch_card`
+  value so `dispatch_legs` can fail the phone leg with the same words wherever it would have been
+  dispatched (`src/main.rs:read_phone`, `src/main.rs:dispatch_legs`). A wrong-typed `card_while_watching`
   is fail-closed to `false` and loud (`src/main.rs:watch_card`). A missing token is fail-open at read
   time and becomes a `Delivery::Failed` at deliver time (behavior 13).
 - Thresholds: exactly one compiled-in mobile backend, `"moshi"` (`src/channels/moshi.rs:MOSHI_TYPE`).
@@ -340,8 +340,8 @@ table is enabled and names a backend nothing compiled in answers), and the `mobi
   wrote (`src/channels/moshi.rs:refused_backend_line`).
 - Process ownership and cleanup: not applicable.
 - Compatibility contract: `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`
-  pins that stderr names `mobile_watch_card` and that the card stays off. The refused-backend line
-  `mobile: FAILED, push SKIPPED -- no moshi token in the config ([plugins.mobile] token); nothing was sent`
+  pins that stderr names `card_while_watching` and that the card stays off. The refused-backend line
+  `phone: FAILED, push SKIPPED -- no moshi token in the config ([plugins.phone] token); nothing was sent`
   is pinned in the diagnostic by
   `tests/dispatch.rs:a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one` (the
   string at `tests/dispatch.rs:3239`), and
@@ -676,7 +676,7 @@ a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `p
   `src/main.rs:dispatch_legs`). The channels directory defaults to `$HOME/.local/libexec/pns/channels`,
   and an EMPTY value means the default as much as unset does (`src/main.rs:resolve_path`).
 - Required side effects: for a native leg, one outbound attempt. The banner spawns `terminal-notifier` by
-  NAME through PATH (`src/channels/banner.rs:deliver`); moshi posts JSON to `[plugins.mobile] url`, `PNS_MOSHI_URL` or the
+  NAME through PATH (`src/channels/banner.rs:deliver`); moshi posts JSON to `[plugins.phone] url`, `PNS_MOSHI_URL` or the
   compiled default (`src/main.rs:moshi_channel`); hermes posts a signed body to the URL from behavior 5
   (`src/channels/hermes.rs:deliver`).
 - Forbidden side effects: no `?` and no early return in the leg loop. A panic must not take the remaining

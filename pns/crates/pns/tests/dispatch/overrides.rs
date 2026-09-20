@@ -19,7 +19,7 @@ fn local_only_keeps_the_banner_and_reaches_nothing_off_the_machine() {
         ])
         .args(["--scope", "local_only"]));
     assert!(sandbox.fired("banner"));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(!sandbox.fired("hermes"));
 }
 
@@ -38,7 +38,7 @@ fn remote_only_delivers_through_hermes_alone() {
             "remote_only",
         ]));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(!sandbox.fired("banner"));
 }
 
@@ -74,7 +74,7 @@ fn at_the_desk_the_phone_is_skipped_and_only_the_phone() {
         "--detail",
         "x",
     ]));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("banner"));
 }
@@ -98,7 +98,7 @@ fn relay_skip_phone_drops_the_phone_and_only_the_phone() {
             "--detail",
             "x",
         ]));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"));
     assert!(sandbox.fired("banner"));
 }
@@ -122,7 +122,7 @@ fn relay_skip_phone_beats_relay_force_phone() {
             "--detail",
             "x",
         ]));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn relay_force_phone_overrides_presence() {
             "--detail",
             "x",
         ]));
-    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("phone"));
 }
 
 // --- a channel's own failures -----------------------------------------------
@@ -149,7 +149,7 @@ fn relay_force_phone_overrides_presence() {
 #[test]
 fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
     let sandbox = Sandbox::new("channel-fails");
-    sandbox.stub_channel("mobile", "exit 9");
+    sandbox.stub_channel("phone", "exit 9");
     run(sandbox.pns().env("PNS_SCREEN_IDLE", "0").args([
         "send",
         "--producer",

@@ -50,13 +50,13 @@ fn select(registry: &Registry, config_text: &str) -> Selection {
         .unwrap()
 }
 
-const ALL_THREE_ON: &str = "[plugins.mobile]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n";
+const ALL_THREE_ON: &str = "[plugins.phone]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n";
 
 fn three_enabled() -> Selection {
     select(&pns_domain::registry::roster(), ALL_THREE_ON)
 }
 
-const SENSOR_AND_THREE_ON: &str = "[plugins.home_presence]\nenabled = true\n[plugins.mobile]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n";
+const SENSOR_AND_THREE_ON: &str = "[plugins.home_presence]\nenabled = true\n[plugins.phone]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n";
 
 /// A selection holding an enabled sensor AND the three enabled channels,
 /// so every sensor assertion carries its own positive control. The real
@@ -86,7 +86,7 @@ fn the_alert_path_plans_phone_then_banner_then_log() {
             reaching(true, true)
         ),
         vec![
-            decorative("mobile", ReportMode::Silent),
+            decorative("phone", ReportMode::Silent),
             decorative("banner", ReportMode::Silent),
             logged("hermes", ReportMode::Silent),
         ]
@@ -107,7 +107,7 @@ fn a_selected_sensor_is_never_a_leg_on_the_alert_path() {
             reaching(true, true)
         ),
         vec![
-            decorative("mobile", ReportMode::Silent),
+            decorative("phone", ReportMode::Silent),
             decorative("banner", ReportMode::Silent),
             logged("hermes", ReportMode::Silent),
         ]
@@ -192,7 +192,7 @@ fn the_unconfigured_machine_knows_every_sensor_and_still_plans_channels_only() {
             reaching(true, true)
         ),
         vec![
-            decorative("mobile", ReportMode::Silent),
+            decorative("phone", ReportMode::Silent),
             decorative("banner", ReportMode::Silent),
             // BOTH DURABLE LOGS, because `all()` is the roster and the roster
             // holds two. It is the only path that plans both: a config naming

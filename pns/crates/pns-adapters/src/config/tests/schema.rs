@@ -109,7 +109,7 @@ fn a_non_table_plugins_value_is_refused_naming_the_key() {
 fn a_malformed_line_is_reported_without_echoing_its_value() {
     // The config carries plugin secrets, and error strings travel to
     // logs: the refusal names where and why, never the line's contents.
-    let err = parse_config("[plugins.mobile]\ntoken = \"SUPERSECRET\" trailing\n").unwrap_err();
+    let err = parse_config("[plugins.phone]\ntoken = \"SUPERSECRET\" trailing\n").unwrap_err();
     match err {
         ConfigError::Malformed(message) => {
             assert!(!message.is_empty(), "the cause is still named");

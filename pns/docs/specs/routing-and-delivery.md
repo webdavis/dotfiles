@@ -31,7 +31,7 @@ ______________________________________________________________________
 
 | Destination                        | How it is selected                                                                                                                                                     | Transport                                                                                                                                                                | Configuration keys                                                                                                                                                                             | Failure behavior                                                                                                                                                                                                                                                                  | Tests that pin it                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mobile` (moshi backend)           | `[plugins.mobile] enabled = true`, or the core fallback; then `channel_plan` keeps it only when `delivery.phone_card` is true, because it is `presence_gated`          | One HTTPS POST, `ureq`, `content-type: application/json`, `max_redirects(0)`, 10 s global deadline                                                                       | `[plugins.mobile] type` (must be `"moshi"`), `[plugins.mobile] token`; `[plugins.mobile] url`, else env `PNS_MOSHI_URL`, else `https://api.getmoshi.app/api/webhook`                                                    | `Delivery::Failed`; a refused `type` fails before either seam; no token fails naming the key; any non 2xx or unreachable endpoint fails. The sentence is unreachable from an event's stdout because the leg is never `ReportOutcome`                                              | `src/channels/moshi.rs:tests::a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_the_token`, `src/channels/moshi.rs:tests::a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write`, `tests/native.rs:native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output`, `tests/native.rs:a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token`                                                     |
+| `mobile` (moshi backend)           | `[plugins.phone] enabled = true`, or the core fallback; then `channel_plan` keeps it only when `delivery.phone_card` is true, because it is `presence_gated`          | One HTTPS POST, `ureq`, `content-type: application/json`, `max_redirects(0)`, 10 s global deadline                                                                       | `[plugins.phone] type` (must be `"moshi"`), `[plugins.phone] token`; `[plugins.phone] url`, else env `PNS_MOSHI_URL`, else `https://api.getmoshi.app/api/webhook`                                                    | `Delivery::Failed`; a refused `type` fails before either seam; no token fails naming the key; any non 2xx or unreachable endpoint fails. The sentence is unreachable from an event's stdout because the leg is never `ReportOutcome`                                              | `src/channels/moshi.rs:tests::a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_the_token`, `src/channels/moshi.rs:tests::a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write`, `tests/native.rs:native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output`, `tests/native.rs:a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token`                                                     |
 | `banner`                     | `[plugins.banner] enabled = true`, or the core fallback; then `channel_plan` keeps it only when `delivery.banner` is true, because it is `local`                 | Spawn of `terminal-notifier` by NAME through PATH, under `SystemCommandRunner` (5 s deadline, 1 MiB stdout ceiling)                                                      | `[plugins.banner] terminal_bundle_id`, else env `PNS_TERMINAL_BUNDLE_ID`, else inherited `__CFBundleIdentifier`, else `com.mitchellh.ghostty`; `herdr` resolved on PATH at construction                                                    | `Delivery::Failed("banner FAILED (terminal-notifier did not run)")` whenever the runner answers nothing, which covers not installed, non-zero exit and killed at the deadline alike                                                                                               | `src/channels/banner.rs:tests::a_spawn_that_answered_is_delivered_and_one_that_never_ran_names_the_notifier`, `src/channels/banner.rs:tests::nothing_but_the_notifier_is_ever_spawned`, `tests/native.rs:the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent`                                                                                                                                                                                                 |
 | `hermes`                           | `[plugins.log] enabled = true` with `type = "hermes"`; NOT in the core, so a machine with no readable config has no durable route. Kept under `--remote-only` because it is `durable`      | One signed POST, `ureq`, `content-type: application/json`, header `X-Webhook-Signature`, `max_redirects(0)`; 10 s deadline when silent, the sync deadline when reporting | `[plugins.log.keys]`, ONE KEY PER ROUTE (`pns-events`, `posture-pages`, `priority`, the roster in `pns_domain::routes::ROUTES`), so a key leaked from any route cannot post to every route; a route the table names no key for is refused before anything leaves the machine. `[plugins.log] url`, else env `PNS_HERMES_URL`, else `http://127.0.0.1:8644/webhooks/pns-events`; `[delivery] remote_deadline` sets the sync deadline; `--channel <route>` swaps the final path segment AND selects the key | `Delivery::Failed` with the outcome sentence: `post FAILED HTTP <code>`, `post FAILED HTTP 000 (no response; is the hermes gateway up?)`, `post FAILED (curl reported no HTTP status at all)`, or the no-key `post SKIPPED` line. On a `ReportOutcome` leg the failure IS printed | `src/channels/hermes.rs:tests::sync_outcomes_are_spelled_exactly_as_the_bash_spells_them`, `src/channels/hermes.rs:tests::no_key_means_no_post_in_either_mode_and_the_verdict_is_a_failure`, `tests/dispatch.rs:every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`, `tests/native.rs:sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent`, `tests/native.rs:a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway` |
 | Any executable channel `<name>.sh` | Reached for a planned leg when the native plugin does not win: always when `[paths] channels_dir`, or `PNS_CHANNELS_DIR` after it, is set non-empty, and for any leg name with no compiled-in arm otherwise | `Command::new(<dir>/<name>.sh)` with the event JSON plus a newline on stdin; stdout and stderr are INHERITED                                                             | `[paths] channels_dir`, else env `PNS_CHANNELS_DIR`, default `$HOME/.local/libexec/pns/channels`                                                                                                                            | Never an error for the caller. A spawn that failed is `Delivery::Unlaunched`; a channel that ran is `Delivery::Silent` whatever its exit status                                                                                                                                   | `tests/dispatch.rs:an_absent_channel_is_simply_not_installed`, `tests/dispatch.rs:a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings`, `tests/dispatch.rs:a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_made`                                                                                                                                                                                                                 |
@@ -279,7 +279,7 @@ could not be read selects the CORE with a warning.
 
 - **Success:** `src/registry.rs:select_plugins`. The two warning strings are exactly
   `pns: config error ({detail}); running every built-in plugin` and
-  `pns: config error ({detail}); running the core plugins (mobile, banner)`
+  `pns: config error ({detail}); running the core plugins (phone, banner)`
   (`src/registry.rs:every_plugin_warning`, `src/registry.rs:core_warning`, the latter joining `CORE` with
   `", "`).
 - **Failure sources:** An unreadable, malformed or invalid config file. A mistyped table name in an
@@ -345,7 +345,7 @@ Then it builds one `channels::Event` carrying `agent`, `state`, `project`, `bran
 - **Idempotency and duplicates:** Pure and deterministic.
 - **Privacy:** The `detail` is operator-supplied text and travels to every destination. No secret is
   composed into any rendered field: the moshi token and the hermes key are read separately at the
-  composition root and never reach `Event` (`src/main.rs:read_mobile`,
+  composition root and never reach `Event` (`src/main.rs:read_phone`,
   `src/main.rs:plugin_settings(config, "hermes")`).
 - **Process ownership and cleanup:** Not applicable.
 - **Compatibility contract:** `Event::to_json` emits the channel contract's object with the per-leg
@@ -522,7 +522,7 @@ in that pinned order, and spawns `terminal-notifier` by NAME through PATH.
 
 ### 13. The mobile leg is refused before either seam when the table names no compiled-in backend
 
-Given `[plugins.mobile]` switched on with a `type` that is absent, empty, or not `"moshi"`
+Given `[plugins.phone]` switched on with a `type` that is absent, empty, or not `"moshi"`
 
 When `dispatch_legs` reaches the `mobile` leg
 
@@ -530,20 +530,20 @@ Then it returns `Delivery::Failed(refused_backend_line(reason))` without choosin
 refusal holds whether the native plugin or an executable channel would have won.
 
 - **Success:** `src/main.rs:dispatch_legs` gates on `leg.name == "mobile" && mobile.refusal.is_some()`.
-  The reason comes from `src/channels/moshi.rs:mobile_backend` via `src/config.rs:armed_mobile` and
-  `src/main.rs:read_mobile`. The two reason strings are verbatim:
-  `no type in [plugins.mobile]; the only type is "moshi"` and
-  `[plugins.mobile] has type "<named>", which no compiled-in backend answers; the only type is "moshi"`
-  (`src/channels/moshi.rs:mobile_backend`, pinned by
+  The reason comes from `src/channels/moshi.rs:phone_backend` via `src/config.rs:armed_phone` and
+  `src/main.rs:read_phone`. The two reason strings are verbatim:
+  `no type in [plugins.phone]; the only type is "moshi"` and
+  `[plugins.phone] has type "<named>", which no compiled-in backend answers; the only type is "moshi"`
+  (`src/channels/moshi.rs:phone_backend`, pinned by
   `src/channels/moshi.rs:tests::the_table_has_to_name_a_backend_and_the_refusal_names_the_key` and
   `:a_type_no_compiled_in_backend_answers_is_refused_quoting_it`). The wrapper is
   `push SKIPPED -- {reason}; nothing was sent` (`src/channels/moshi.rs:refused_backend_line`).
 - **Failure sources:** A `type` key left blank reads the same as absent, deliberately, matching the
   reading `home::router_settings` gives the `home_presence` table's own `type`.
 - **Fail direction:** Nothing is sent, and the operator is told once on stderr by
-  `src/main.rs:read_mobile`: `pns: config error ({reason}); no card is pushed`.
+  `src/main.rs:read_phone`: `pns: config error ({reason}); no card is pushed`.
 - **Thresholds:** Not applicable.
-- **Required side effects:** Exactly one stderr line from `read_mobile`, because the table is read once
+- **Required side effects:** Exactly one stderr line from `read_phone`, because the table is read once
   and the token, the toggle and the refusal come out of one verdict.
 - **Forbidden side effects:** The gate must NOT sit on the token. It used to, and with an executable
   channel of the same name installed the card went out under a backend nobody named while stderr said "no
@@ -553,7 +553,7 @@ refusal holds whether the native plugin or an executable channel would have won.
 - **Idempotency and duplicates:** One read of the table per process.
 - **Privacy:** The refusal quotes the offending `type` value, never the `token`.
 - **Process ownership and cleanup:** Not applicable.
-- **Compatibility contract:** A SWITCHED-OFF `[plugins.mobile]` table is inert: nothing at load and
+- **Compatibility contract:** A SWITCHED-OFF `[plugins.phone]` table is inert: nothing at load and
   nothing on the event path refuses its `type` (operator ruling 2026-08-31). The hand-run check says it
   once instead, on stderr, in the words of `src/main.rs:disabled_backend_warning`:
   `pns: [plugins.<table>] is switched off and names no backend this binary answers (the only type is "<type>"); nothing refuses it until it is enabled`
@@ -564,7 +564,7 @@ refusal holds whether the native plugin or an executable channel would have won.
 
 ### 14. The mobile card is one HTTPS POST carrying the token in the body
 
-Given an armed `[plugins.mobile]` table with a non-empty `token`
+Given an armed `[plugins.phone]` table with a non-empty `token`
 
 When `MoshiChannel::deliver` runs
 
@@ -578,7 +578,7 @@ Then it POSTs `{"token": ..., "title": ..., "message": <preview>}` plus an optio
   verdict on success is `Delivery::Delivered("pushed the card")`.
 - **Failure sources:** No token; a refusal; an unreachable endpoint; a redirect.
 - **Fail direction:** No token is `Delivery::Failed` with
-  `push SKIPPED -- no moshi token in the config ([plugins.mobile] token); nothing was sent`
+  `push SKIPPED -- no moshi token in the config ([plugins.phone] token); nothing was sent`
   (`src/channels/moshi.rs:NO_TOKEN_LINE`). Anything else is `Delivery::Failed` with
   `push FAILED (the moshi endpoint refused it or could not be reached)`, which deliberately does not pick
   a reason because the seam answers a bool. Neither sentence can reach an event's stdout: the leg is
@@ -990,7 +990,7 @@ ______________________________________________________________________
 | flatten                       | `src/render.rs:flatten_reply`                                                   |
 | click command                 | `src/channels/banner.rs:click_command`                                          |
 | verbatim argument             | `src/channels/banner.rs:verbatim_argument`                                      |
-| mobile backend                | `src/channels/moshi.rs:mobile_backend`                                          |
+| mobile backend                | `src/channels/moshi.rs:phone_backend`                                          |
 | deep link                     | `src/channels/moshi.rs:herdr_link`                                              |
 | webhook body                  | `src/channels/moshi.rs:webhook_body`                                            |
 | post outcome                  | `src/channels/hermes.rs:PostOutcome`                                            |
@@ -1001,7 +1001,7 @@ ______________________________________________________________________
 | leg delivery                  | `src/main.rs:deliver_leg`                                                       |
 | executable channel invocation | `src/main.rs:deliver`                                                           |
 | executable discovery          | `src/main.rs:resolve_path`, `src/main.rs:executable_in_path`                    |
-| mobile verdict                | `src/main.rs:Mobile`, `src/main.rs:read_mobile`                                 |
+| mobile verdict                | `src/main.rs:Mobile`, `src/main.rs:read_phone`                                 |
 | rendered event                | `src/main.rs:rendered_event`                                                    |
 | bounded spawn                 | `src/system.rs:run_bounded`                                                     |
 | pane guard                    | `src/safety.rs:pane_is_safe`                                                    |

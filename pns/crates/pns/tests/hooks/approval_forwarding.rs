@@ -39,7 +39,7 @@ fn the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_pho
     hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert!(sandbox.fired("hermes"), "the paper trail is still written");
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "moshi is raising the card itself; pns pushing too is the same event twice"
     );
 }
@@ -58,7 +58,7 @@ fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
     assert_eq!(output.status.code(), Some(0));
     assert!(sandbox.fired("hermes"), "the notification still goes out");
     assert!(
-        sandbox.fired("mobile"),
+        sandbox.fired("phone"),
         "a forward that never spawned suppresses nothing"
     );
 }

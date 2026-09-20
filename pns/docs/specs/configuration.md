@@ -96,7 +96,7 @@ assert_eq!(
     secrets,
     [
         (
-            "plugins.mobile".to_string(),
+            "plugins.phone".to_string(),
             r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#
         ),
         (
@@ -137,7 +137,7 @@ answers with one of five things.
 | Answer                                 | When                                                                    | Fail direction on the delivery path                                                        | Fail direction on the pulse path                                       |
 | -------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | `Ok(LoadOutcome::Loaded(config))`      | the file read and parsed                                                | the config is authoritative                                                                | the config is authoritative                                            |
-| `Ok(LoadOutcome::Missing)`             | `read_to_string` returned `NotFound` AND `symlink_metadata` also failed | the CORE selection (`mobile`, `banner`), silently (`src/registry.rs:select_plugins`) | exit 0, silent (`src/main.rs`, `Ok(LoadOutcome::Missing) => return 0`) |
+| `Ok(LoadOutcome::Missing)`             | `read_to_string` returned `NotFound` AND `symlink_metadata` also failed | the CORE selection (`phone`, `banner`), silently (`src/registry.rs:select_plugins`) | exit 0, silent (`src/main.rs`, `Ok(LoadOutcome::Missing) => return 0`) |
 | `Err(ConfigError::Malformed(detail))`  | the text is not TOML                                                    | the CORE plus one warning line                                                             | `pns: config error ({detail}); no pulse`, exit 0                       |
 | `Err(ConfigError::Invalid(detail))`    | well-formed TOML that violates the schema                               | the CORE plus one warning line                                                             | the same, exit 0                                                       |
 | `Err(ConfigError::Unreadable(detail))` | present but unreadable, a dangling symlink included                     | the CORE plus one warning line                                                             | the same, exit 0                                                       |
@@ -270,11 +270,11 @@ column, which lives outside this layer.
 | `plugins.lights.rooms`                   | array of strings | unset                                | not judged here                                         | no                                                                   | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
 | `plugins.lights.quiet_hours`             | string           | unset                                | not judged here                                         | no                                                                   | name-checked only at load; an unparsable window is handled at read time                                                                                                    | `src/channels/hue.rs:quiet_window`                                      | `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`                                                             |
 | `plugins.banner.enabled`        | bool             | `false`                              | none                                                    | no                                                                   | as any `enabled`                                                                                                                                                           | `parse_config`                                                          | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
-| `plugins.mobile.type`                 | string           | unset                                | must equal `"moshi"` when the table is armed            | no                                                                   | `no type in [plugins.mobile]; the only type is "moshi"` or `[plugins.mobile] has type "{named}", which no compiled-in backend answers; the only type is "moshi"`           | `src/channels/moshi.rs:mobile_backend` via `src/config.rs:armed_mobile` | `a_mobile_table_naming_no_backend_contributes_no_settings_at_all`, `type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused`           |
-| `plugins.mobile.token`                | string           | unset (not set up, never an error)   | non-empty to count                                      | YES                                                                  | `src/channels/moshi.rs:moshi_secret` answers `None` for every failure shape                                                                                                | `src/channels/moshi.rs:moshi_secret`                                    | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
-| `plugins.mobile.mobile_watch_card`    | bool             | `false`                              | none                                                    | no                                                                   | loud, then off: `pns: config error ([plugins.mobile] mobile_watch_card is {type}, not a boolean); the mobile watching card stays off`                                      | `src/main.rs:watch_card`                                                | `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`                                                                       |
-| `plugins.mobile.submit_deadline_secs` | integer (`u64`)  | `5` (`DEFAULT_SUBMIT_DEADLINE_SECS`) | 1 to 3600 (`MAX_SUBMIT_DEADLINE_SECS`); zero is REFUSED | no                                                                   | three refusals, quoted in behavior 20                                                                                                                                      | `src/config.rs:submit_deadline`                                         | `the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five`, `a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name` |
-| `plugins.mobile.image_cards.<card type>` | bool | `false` for every card type | none; the keys are card types, which no roster enumerates | no | loud, then off: `pns: config error ([plugins.mobile.image_cards] {key} is {type}, not a boolean); that card type keeps its text card` | `pns-adapters/src/config/mobile.rs:moshi_image_cards` | `config/mobile.rs:a_card_type_whose_value_is_not_a_boolean_keeps_its_text_card` |
+| `plugins.phone.type`                 | string           | unset                                | must equal `"moshi"` when the table is armed            | no                                                                   | `no type in [plugins.phone]; the only type is "moshi"` or `[plugins.phone] has type "{named}", which no compiled-in backend answers; the only type is "moshi"`           | `src/channels/moshi.rs:phone_backend` via `src/config.rs:armed_phone` | `a_phone_table_naming_no_backend_contributes_no_settings_at_all`, `type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused`           |
+| `plugins.phone.token`                | string           | unset (not set up, never an error)   | non-empty to count                                      | YES                                                                  | `src/channels/moshi.rs:moshi_secret` answers `None` for every failure shape                                                                                                | `src/channels/moshi.rs:moshi_secret`                                    | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
+| `plugins.phone.card_while_watching`    | bool             | `false`                              | none                                                    | no                                                                   | loud, then off: `pns: config error ([plugins.phone] card_while_watching is {type}, not a boolean); the mobile watching card stays off`                                      | `src/main.rs:watch_card`                                                | `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`                                                                       |
+| `plugins.phone.ack_deadline` | duration string  | `"5s"` (`DEFAULT_ACK_DEADLINE`) | `"1s"` to `"1h"` (`MAX_ACK_DEADLINE_SECS`); zero is REFUSED | no                                                                   | three refusals, quoted in behavior 20                                                                                                                                      | `src/config.rs:ack_deadline`                                         | `the_acknowledgement_deadline_is_a_duration_defaulted_to_five_seconds`, `an_acknowledgement_deadline_outside_the_range_is_refused_by_name` |
+| `plugins.phone.image_cards.<card type>` | bool | `false` for every card type | none; the keys are card types, which no roster enumerates | no | loud, then off: `pns: config error ([plugins.phone.image_cards] {key} is {type}, not a boolean); that card type keeps its text card` | `pns-adapters/src/config/phone.rs:moshi_image_cards` | `config/phone.rs:a_card_type_whose_value_is_not_a_boolean_keeps_its_text_card` |
 | `plugins.home_presence.type`                 | string           | unset                                | must equal `"unifi"`                                    | no                                                                   | `home: no type in [plugins.home_presence] (the only type is "unifi")` / `home: [plugins.home_presence] has type "{x}", which no compiled-in backend answers (the only type is "unifi")`  | `src/home.rs:setup_report`                                              | `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`                                                                     |
 | `plugins.home_presence.router_url`           | string           | unset                                | non-empty string                                        | no                                                                   | `home: the [plugins.home_presence] table is present but router_url is missing, empty, or not a string`                                                                            | `src/home.rs`                                                           | same                                                                                                                                                |
 | `plugins.home_presence.device_hostname`      | string           | unset                                | at least one of the three device keys                   | no                                                                   | `home: no device to look for in [plugins.home_presence] (set at least one of device_mac, device_hostname, device_ipv4)`                                                           | `src/home.rs`                                                           | same                                                                                                                                                |
@@ -286,7 +286,7 @@ column, which lives outside this layer.
 
 The secret-bearing key paths are declared once more, as data, at
 `src/bin/pns-config-render.rs`: four fixed paths in `SECRET_BEARING_KEYS`
-(`["plugins.mobile.token", "plugins.lights.bridge", "plugins.lights.key", "plugins.home_presence.api_key"]`) plus one
+(`["plugins.phone.token", "plugins.lights.bridge", "plugins.lights.key", "plugins.home_presence.api_key"]`) plus one
 `plugins.log.keys.<route>` per entry of `pns_domain::routes::ROUTES`, joined by
 `secret_bearing_keys()`. That list is what makes "secret" an enforced classification rather than a
 convention: in the committed values file each of those paths must hold a keepassxc marker table, never a
@@ -339,9 +339,9 @@ marks an interpolation.
 | `dim_behaviours` with no `dim_window`                             | `` `{path}` states `dim_behaviours` with no `dim_window` for them to run in, so nothing would ever read them ``                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
 | a backstop shorter than the reminder                                   | `` `lights.blocked` key `give_up_after_secs` is {give_up}, below `remind` key `delay` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``                                                                              | `Invalid`                                                  | same                                                                                   |
 | a present but unreadable path                                     | `{path}: {io error}`                                                                                                                                                                                                                                            | `Unreadable`                                               | closed on the pulse path, open to the CORE on the delivery path                        |
-| `submit_deadline_secs` not a count                                | `` `mobile` key `submit_deadline_secs` has type `{type}`, not a count of seconds ``                                                                                                                                                                             | `Invalid` (returned by `submit_deadline`, not by the load) | open: the caller keeps the 5-second default and says so                                |
-| `submit_deadline_secs` zero                                       | `` `mobile` key `submit_deadline_secs` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``                                                                        | `Invalid`                                                  | same                                                                                   |
-| `submit_deadline_secs` over the ceiling                           | `` `mobile` key `submit_deadline_secs` is {count}, past the 3600-second ceiling ``                                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
+| `ack_deadline` not a duration                             | `` `phone` key `ack_deadline` has type `{type}`, not a duration like "5m" ``                                                                                                                                                                           | `Invalid` (returned by `ack_deadline`, not by the load)    | open: the caller keeps the 5-second default and says so                                |
+| `ack_deadline` zero                                       | `` `phone` key `ack_deadline` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``                                                                        | `Invalid`                                                  | same                                                                                   |
+| `ack_deadline` outside the range                          | the domain duration parser's own sentence, naming `` `phone` key `ack_deadline` `` and the range it allows ``                                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
 
 ### Rendering (`src/config_text.rs` and `src/config.rs:strip_chezmoi_actions`), all returning `Result<_, String>`
 
@@ -443,9 +443,9 @@ Then the answer is `Loaded`, `Missing`, or one of three named errors
   `Ok(LoadOutcome::Missing)` for a nonexistent path); anything else from the read is `Unreadable`
   (`src/config.rs:an_unreadable_path_is_an_error_never_a_silent_unconfigured`, which uses a DIRECTORY at
   the config path as the deterministic case).
-- Fail direction: delivery path, `Missing` selects the CORE (`mobile`, `banner`) with no warning,
+- Fail direction: delivery path, `Missing` selects the CORE (`phone`, `banner`) with no warning,
   and an error selects the CORE with the line
-  `pns: config error ({detail}); running the core plugins (mobile, banner)`
+  `pns: config error ({detail}); running the core plugins (phone, banner)`
   (`src/registry.rs:select_plugins`, `src/registry.rs:core_warning`). Pulse path, `Missing` exits 0 in
   silence and an error prints `pns: config error ({detail}); no pulse` and still exits 0 (`src/main.rs`,
   pinned by `tests/dispatch.rs:an_absent_config_stays_silent_in_pulse_mode` and
@@ -525,14 +525,14 @@ Then the refusal is `Malformed`, it names the cause and the line NUMBER, and it 
 - Idempotency and duplicates: deterministic for a given text.
 - Privacy: this is THE privacy behavior of the decode layer, and it is pinned.
   `src/config.rs:a_malformed_line_is_reported_without_echoing_its_value` writes
-  `[plugins.mobile]\ntoken = "SUPERSECRET" trailing\n` and asserts both that the cause is still named and
+  `[plugins.phone]\ntoken = "SUPERSECRET" trailing\n` and asserts both that the cause is still named and
   that the message does NOT contain `SUPERSECRET`. Exhaustively, the paths on which a config VALUE can
   reach a refusal string are: `review_notes` (echoes the glob pattern), `bounded` and `remind_delay_range` and
   `seconds` and `threshold` and `submit_deadline` (echo an integer), `behaviours` (echoes the offending
   behaviour word), `ends_agree` (echoes two brightness percentages), and `backstop_outlasts_the_reminder`
   (echoes two second counts). None of those keys is secret-bearing. Every other refusal echoes a TYPE
   NAME (`setting.type_str()`) or a KEY NAME, never a value. A secret's key NAME can appear (for example
-  \`\`unknown `plugins.mobile` key \`tokens\`\`\`), the value cannot.
+  \`\`unknown `plugins.phone` key \`tokens\`\`\`), the value cannot.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: the rebuilt message is the contract. Reverting to the parser's own `Display`
   would put secrets in `~/.local/log`.
@@ -631,7 +631,7 @@ Then it is refused with the table, the key and the whole vocabulary named
   standing in front of: the phone and the banner keep working, and the durable paper trail, the lights
   and the home probe all stop."
 - Thresholds: the six judged tables are `plugins.log`, `plugins.lights`, `plugins.banner`,
-  `plugins.mobile`, `plugins.presence`, `plugins.home_presence`. A table for a plugin nothing registered has NO roster row, so
+  `plugins.phone`, `plugins.presence`, `plugins.home_presence`. A table for a plugin nothing registered has NO roster row, so
   `keys_of` returns `None` and `admits` passes everything
   (`src/config.rs:an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name`).
 - Required side effects: the positive control is its own test:
@@ -675,7 +675,7 @@ Then the name is refused, the warning is loud, and the selection widens to the W
   = false\` on hue is not turned back on by an unrelated typo, by binding a listener the pulse must never
   reach.
 - Thresholds: the roster is six registrations (`src/registry.rs:ROSTER`): `home_presence` (a sensor),
-  `presence` (a sensor), `mobile`, `banner`, `hermes`, `lights`. The CORE is two names
+  `presence` (a sensor), `phone`, `banner`, `hermes`, `lights`. The CORE is two names
   (`src/registry.rs:CORE`).
 - Required side effects: the warning is printed by the composition root, once.
 - Forbidden side effects: no third answer. "SELECTING ONLY THE KNOWN NAMES out of a config with one typo
@@ -1102,49 +1102,49 @@ Then the file is refused, naming both keys and both values
   them dead is a coupling between two bounds that have nothing else to do with each other." The test
   still exercises both spellings of an off remind as accepted configs.
 
-### 20. The mobile submission deadline is read off the ARMED mobile table and nowhere else
+### 20. The moshi acknowledgement deadline is read off the ARMED phone table and nowhere else
 
-Given `[plugins.mobile]` switched on, naming `type = "moshi"`, with `submit_deadline_secs = 30`\
+Given `[plugins.phone]` switched on, naming `type = "moshi"`, with `ack_deadline = "30s"`\
 
-When `submit_deadline` is called\
+When `ack_deadline` is called\
 
 Then the answer is 30 seconds
 
-- Success: `src/config.rs:submit_deadline` goes through `src/config.rs:armed_mobile`, which returns
+- Success: `src/config.rs:ack_deadline` goes through `src/config.rs:armed_phone`, which returns
   `Ok(None)` for an absent or switched-off table and `Err(reason)` for a table naming a backend nothing
   implements. Pinned by
-  `src/config.rs:the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five`.
+  `src/config.rs:the_acknowledgement_deadline_is_a_duration_defaulted_to_five_seconds`.
 - Failure sources: seven refused values, table-driven in
-  `src/config.rs:a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name`: `0`, `-1`,
-  `"5s"`, `9.5`, `[5]`, `3601`, `9223372036854775807`.
-- Fail direction: OPEN with a loud line. `src/main.rs:configured_submit_deadline` falls back to
-  `DEFAULT_SUBMIT_DEADLINE_SECS` and prints
+  `src/config.rs:an_acknowledgement_deadline_outside_the_range_is_refused_by_name`: `"0s"`, `"500ms"`,
+  `"2h"`, `5`, `9.5`, `[5]`, `""`.
+- Fail direction: OPEN with a loud line. `src/main.rs:configured_ack_deadline` falls back to
+  `DEFAULT_ACK_DEADLINE` and prints
   `pns: config error ({detail}); the moshi submission keeps its {n}-second bound`, on the argument that
   "a silent fallback is the operator asking for something, not getting it, and being told nothing." There
   is no separate pulse-path reading of this key.
-- Thresholds: default 5, floor 1 (zero refused), ceiling 3600. Zero is a TRAP here where
+- Thresholds: default `"5s"`, floor `"1s"` (zero refused), ceiling `"1h"`. Zero is a TRAP here where
   `summarizer_deadline`'s zero is not, and the refusal says so:
-  `` `mobile` key `submit_deadline_secs` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``.
+  `` `phone` key `ack_deadline` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``.
   Five seconds is "about thirty times the observed round trip" (measured 2026-08-29,
-  `src/config.rs:DEFAULT_SUBMIT_DEADLINE_SECS`).
-- Required side effects: the table is read ONCE at the composition root (`src/main.rs:read_mobile`), so
+  `src/config.rs:DEFAULT_ACK_DEADLINE`).
+- Required side effects: the table is read ONCE at the composition root (`src/main.rs:read_phone`), so
   the token, the watch-card toggle and the refusal come out of one verdict.
-- Forbidden side effects: a `submit_deadline_secs` written under a table naming another backend must not
+- Forbidden side effects: an `ack_deadline` written under a table naming another backend must not
   be read as moshi's. Pinned by
-  `src/config.rs:a_mobile_table_naming_no_backend_contributes_no_settings_at_all`, which writes
-  `type = "pushover"` with `submit_deadline_secs = 1` and asserts the refusal quotes `"pushover"` and
+  `src/config.rs:a_phone_table_naming_no_backend_contributes_no_settings_at_all`, which writes
+  `type = "pushover"` with `ack_deadline = "1s"` and asserts the refusal quotes `"pushover"` and
   names `type`; the same test carries a positive control (`type = "moshi"` gives 30) and the switched-off
   case (a disabled table falls back to 5). A key written under ANOTHER plugin's table no longer even
   parses, because the roster judges each table's vocabulary: the same test asserts
-  `[plugins.lights]\nsubmit_deadline_secs = 30` is an error.
+  `[plugins.lights]\nack_deadline = 30` is an error.
 - Timeout and cancellation: the value IS a deadline. On expiry "the submission is killed and its pending
   card dies with it, and nothing is said either way" (`src/config_text.rs:LAYOUT`, the
-  `submit_deadline_secs` prose). There is no off switch, "because an unbounded wait is the defect and
+  `ack_deadline` prose). There is no off switch, "because an unbounded wait is the defect and
   'off' would be a key whose only function is to restore it."
 - Idempotency and duplicates: deterministic.
 - Privacy: the refusal quotes the `type` VALUE (`"pushover"`) and the deadline integer. Neither is
   secret. The `token` on the same table never reaches a refusal.
-- Process ownership and cleanup: `armed_mobile` returns a borrow of the settings table, so nothing is
+- Process ownership and cleanup: `armed_phone` returns a borrow of the settings table, so nothing is
   cloned on this path.
 - Compatibility contract: `type` is the one word that selects a backend under EVERY table that has one,
   and the retired router-only spelling `brand` is refused by name with `type` listed instead
@@ -1515,7 +1515,7 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 
 | Mode                                                      | Missing                                                              | Error                                                 | Wording                                                                            |
 | --------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| event delivery                                            | CORE, silent                                                         | CORE, loud                                            | `pns: config error ({detail}); running the core plugins (mobile, banner)`    |
+| event delivery                                            | CORE, silent                                                         | CORE, loud                                            | `pns: config error ({detail}); running the core plugins (phone, banner)`    |
 | event delivery, unknown plugin name in a file that PARSED | n/a                                                                  | whole roster, loud                                    | `` pns: config error (unknown plugin `{name}`); running every built-in plugin ``   |
 | `pns lights pulse`                                               | exit 0, silent                                                       | exit 0, loud, no pulse                                | `pns: config error ({detail}); no pulse`                                           |
 | lights tick                                               | return 0, nothing armed                                              | return 0, nothing armed                               | silent (a line per tick would be a log the rotation job rotates a real log out of) |
@@ -1525,7 +1525,7 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 | the doctor's home rows                                    | a setup row                                                          | a setup row                                           | `home: config error ({detail})`                                                    |
 | `pns doctor`                                              | `no config file, so only the core runs` per skipped plugin           | `the config could not be read, so only the core runs` | as shown                                                                           |
 
-- Thresholds: the CORE is exactly two names, `mobile` and `banner` (`src/registry.rs:CORE`), and
+- Thresholds: the CORE is exactly two names, `phone` and `banner` (`src/registry.rs:CORE`), and
   the ruling behind that number is recorded: "Three of the five plugins cannot do anything until a
   credential is stood up for them... so a default that switched them on delivered nothing and reported
   three failures on a machine whose operator had asked for none of it."
@@ -1570,7 +1570,7 @@ Every `NOT ESTABLISHED:` line above, gathered.
 | the top-level row                       | `src/config.rs:TOP_LEVEL`                                        |
 | the declaration row                     | `src/config.rs:TARGET_KEYS`                                      |
 | plugin entry                            | `src/config.rs:PluginEntry`                                      |
-| armed mobile table                      | `src/config.rs:armed_mobile`                                     |
+| armed phone table                       | `src/config.rs:armed_phone`                                     |
 | behaviour word                          | `src/config.rs:BEHAVIOUR_WORDS`                                  |
 | behaviour                               | `src/config.rs:Behaviour`                                        |
 | pulse (a blink)                         | `src/config.rs:Pulse`                                            |

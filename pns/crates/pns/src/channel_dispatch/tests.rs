@@ -128,8 +128,8 @@ fn an_explicit_channels_dir_means_executables_win() {
 #[test]
 fn a_backend_refusal_prevents_both_native_and_executable_delivery() {
     for forced in [false, true] {
-        let directory = fixture("mobile");
-        let (native, calls) = native("mobile", Delivery::Delivered("native".into()));
+        let directory = fixture("phone");
+        let (native, calls) = native("phone", Delivery::Delivered("native".into()));
         let selected = registration::choose(
             native,
             forced.then_some(directory.as_path()),

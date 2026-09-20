@@ -102,7 +102,7 @@ fn json_class_policy_crosses_the_real_mute_and_focus_edge_without_changing_herme
             allowed,
             "class={class:?}, {tables}"
         );
-        assert!(!sandbox.fired("mobile"), "presence still chose the desk");
+        assert!(!sandbox.fired("phone"), "presence still chose the desk");
         let hermes = sandbox.event("hermes");
         assert_eq!(hermes["detail"], "same private detail");
         assert_eq!(hermes["agent"], "independent-tool");
@@ -228,5 +228,5 @@ fn malformed_class_or_configuration_never_grants_a_mute_exception() {
     let output = invoke(&sandbox, &input(Some("security")));
     assert!(String::from_utf8_lossy(&output.stderr).contains("bypass_mute"));
     assert!(!sandbox.fired("banner"));
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
 }

@@ -26,12 +26,12 @@ fn a_registered_plugin_the_config_did_not_enable_is_a_skip_that_says_which() {
     assert_eq!(
         kind_for(
             "[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
-            "mobile"
+            "phone"
         ),
         CheckKind::Skipped(NOT_ENABLED)
     );
     assert_eq!(
-        kind_for("[plugins.mobile]\nenabled = false\n", "mobile"),
+        kind_for("[plugins.phone]\nenabled = false\n", "phone"),
         CheckKind::Skipped(NOT_ENABLED)
     );
 }
@@ -90,10 +90,10 @@ fn a_selected_channel_no_event_dispatches_is_a_pulse_rather_than_a_send() {
 
 #[test]
 fn a_selected_event_dispatched_channel_is_a_send() {
-    for plugin in ["mobile", "banner", "hermes"] {
+    for plugin in ["phone", "banner", "hermes"] {
         assert_eq!(
             kind_for(
-                "[plugins.mobile]\nenabled = true\n[plugins.banner]\nenabled = true\n\
+                "[plugins.phone]\nenabled = true\n[plugins.banner]\nenabled = true\n\
                      [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
                 plugin
             ),
