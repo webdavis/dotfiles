@@ -70,7 +70,7 @@ pub const LOOP_COLOR: PulseColor = PulseColor {
 ///
 /// IT IS THE ONLY COLOUR IN THIS FILE THAT IS CONFIGURABLE, and the asymmetry
 /// is deliberate: every other constant here was locked by observation on a
-/// real lamp, and this pair has never been on one. `[lights.checks] pass`
+/// real lamp, and this pair has never been on one. `[lights.checks] pass_color`
 /// overrides it.
 ///
 /// AND IT SITS 0.068 FROM `BLOCKED_COLOR`, which is the distance the
