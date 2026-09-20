@@ -33,3 +33,37 @@ fn the_utc_instant_is_the_same_second_wherever_the_suite_runs() {
         Some("2025-08-24T01:46:40Z")
     );
 }
+
+#[test]
+fn a_local_calendar_moment_reads_back_as_the_second_it_was_broken_down_from() {
+    // THE ZONE IS NOT PINNED HERE AND DOES NOT NEED TO BE: the property is
+    // that this is `localtime_r`'s inverse, which holds in whatever zone the
+    // suite runs in. The instant is months from either transition, so no
+    // hour it lands on is an ambiguous one.
+    let mut broken_down = std::mem::MaybeUninit::<libc::tm>::uninit();
+    let seconds = libc::time_t::try_from(AUGUST_INSTANT).expect("an expressible second");
+    let local = unsafe {
+        assert!(!libc::localtime_r(&seconds, broken_down.as_mut_ptr()).is_null());
+        broken_down.assume_init()
+    };
+    assert_eq!(
+        local_epoch(
+            u32::try_from(local.tm_year + 1900).expect("a year"),
+            u32::try_from(local.tm_mon + 1).expect("a month"),
+            u32::try_from(local.tm_mday).expect("a day"),
+            u32::try_from(local.tm_hour).expect("an hour"),
+            u32::try_from(local.tm_min).expect("a minute"),
+            u32::try_from(local.tm_sec).expect("a second"),
+        ),
+        Some(AUGUST_INSTANT)
+    );
+}
+
+#[test]
+fn a_day_the_calendar_does_not_have_is_refused_rather_than_rolled_forward() {
+    // A WINDOW SILENTLY MOVED is a window the operator believes they asked
+    // for, and `mktime` on its own rolls February 30th into March.
+    assert_eq!(local_epoch(2026, 2, 30, 0, 0, 0), None);
+    assert_eq!(local_epoch(2025, 2, 29, 0, 0, 0), None);
+    assert!(local_epoch(2024, 2, 29, 0, 0, 0).is_some());
+}
