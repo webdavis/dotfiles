@@ -6333,12 +6333,20 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   685 existing directories need one `trash` by the operator, run non-destructively rather than by an
   agent.
 
-- [ ] 153. posture hardcodes an engine's argv verb in its own source, filed 2026-09-18 from the slice 2
+- [x] 153. posture hardcodes an engine's argv verb in its own source, filed 2026-09-18 from the slice 2
   lane's evidence. `posture/crates/posture/src/lib.rs:90` composes a producer command by name, which the
   name-no-engine ruling argues against; it predates slice 2, which only renamed the word rather than
   redesigning it. posture should take the whole producer argv from its own config rather than composing a
   verb it knows by name, the way `[notify] mode = "command"` already lets it hand a page to a producer
   command its own config names.
+
+  DONE 2026-09-19, already satisfied on main: posture takes the whole producer argv from its own config,
+  `[notify.command] path` plus `arguments` passed verbatim
+  (`posture/crates/posture-adapters/src/notify/schema.rs`, `into_mode`), and a command mode with no
+  command is refused rather than defaulted to an engine's name. The only `send --json` left in posture
+  source is the `cfg(test)` fixture helper in `posture/crates/posture/src/lib.rs`, which drives an owned
+  fixture command, not an engine. The `pns.result/1` schema tag in fixtures is the wire contract's name
+  and is covered by the wire-crate task above.
 
 - [ ] 154. The three extracted herdr plugin repositories and the two Todoist plugin repositories have no
   CI, filed 2026-09-18. `just test-rust` used to run cargo test, fmt, clippy and doc over
