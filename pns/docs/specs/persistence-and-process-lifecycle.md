@@ -1569,7 +1569,8 @@ Given an eligible unacknowledged leg, the daemon stops retrying after 20 retry c
 interrupted claims. Generation 1 is the initial send and does not consume that retry budget. Attempts are
 checked first and the limit is inclusive. The original generation's positive start epoch expires only
 when its age exceeds 604800 seconds; zero and future epochs do not expire blindly. `[delivery]`
-`max_attempts` and `max_age_secs` override these defaults with nonnegative integer values.
+`max_retries` overrides the first with a nonnegative integer and `event_max_age` overrides the second
+with a duration.
 
 Schema 6 marks exhausted legs in place with their reason and time, retaining the original identity,
 canonical producer request, payload, route and attempt history. Active leases and acknowledged siblings

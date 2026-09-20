@@ -243,11 +243,11 @@ Config {
         urgent: "priority",
     },
     retry_limits: RetryLimits {
-        max_attempts: 20,
-        max_age_secs: 604800,
+        max_retries: 20,
+        event_max_age_secs: 604800,
     },
     retry_backoff: RetryBackoff {
-        base_secs: 60,
+        step_secs: 60,
     },
     producer_remind: {},
     remind_delay_secs: 300,

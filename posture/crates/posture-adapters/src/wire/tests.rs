@@ -37,7 +37,24 @@ fn the_golden_result_decodes_to_the_fields_posture_acts_on() {
     assert_eq!(result.destinations[0].outcome, DeliveryOutcome::Delivered);
     assert_eq!(result.ledger_sequence.as_deref(), Some("123"));
     assert_eq!(result.destinations[0].name.as_str(), "macos-banner");
+    let failed = &result.destinations[1];
+    assert_eq!(failed.outcome, DeliveryOutcome::Failed);
+    assert_eq!(failed.route.as_ref().map(Name::as_str), Some("priority"));
+    assert_eq!(failed.note.as_deref(), Some("post FAILED HTTP 401"));
+    assert_eq!(failed.retry_at, Some(1_758_153_600));
+    // A leg on a destination's own default route states neither a route nor
+    // a retry time, rather than writing them as null.
+    assert_eq!(result.destinations[0].route, None);
+    assert_eq!(result.destinations[0].retry_at, None);
     assert_eq!(result.ignored_fields, vec!["detial".to_string()]);
+}
+
+#[test]
+fn an_engine_that_never_learned_a_legs_answer_reads_unknown() {
+    let mut unresolved = value(RESULT);
+    unresolved["destinations"][1]["outcome"] = json!("unknown");
+    let result = decode_result(unresolved.to_string().as_bytes()).expect("an unknown leg");
+    assert_eq!(result.destinations[1].outcome, DeliveryOutcome::Unknown);
 }
 
 #[test]
@@ -158,7 +175,7 @@ fn an_unknown_or_wrapped_status_or_outcome_word_is_refused_rather_than_guessed()
         let mut hostile = value(RESULT);
         match field {
             "status" => hostile["status"] = json!("unknown"),
-            "outcome" => hostile["destinations"][0]["outcome"] = json!("unknown"),
+            "outcome" => hostile["destinations"][0]["outcome"] = json!("unreported"),
             "wrapped_status" => hostile["status"] = json!({ "kind": "partial" }),
             _ => hostile["destinations"][0]["outcome"] = json!({ "kind": "delivered" }),
         }
