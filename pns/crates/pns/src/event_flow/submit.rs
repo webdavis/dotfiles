@@ -27,8 +27,12 @@ pub(crate) fn submit_mode(args: &[String]) -> i32 {
 /// nothing but a process: reading the encoded bytes here runs the identical
 /// decode, ledger, policy and dispatch, which is what keeps the poll an
 /// ordinary producer rather than a privileged one.
+///
+/// THE RECEIPT IS DISCARDED, not printed: both callers (the GitHub poll, the
+/// `resume --notify` automation) already have the exit code, and a caller
+/// that wanted the page asked for `--json` or the terminal page instead.
 pub(crate) fn submit_encoded(encoded: &[u8]) -> i32 {
-    submit_reading(&["--json".to_string()], encoded, std::io::stdout().lock())
+    submit_reading(&["--json".to_string()], encoded, std::io::sink())
 }
 
 fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::io::Write) -> i32 {

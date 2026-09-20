@@ -27,6 +27,7 @@ pub(crate) const SUBCOMMAND_USAGE: &[(&str, &str)] = &[
     ("stale", crate::command_stale::STALE_USAGE),
     ("failures", crate::command_failures::FAILURES_USAGE),
     ("recap", pns_application::RECAP_USAGE),
+    ("resume", crate::command_resume::RESUME_USAGE),
     ("setup", pns_application::SETUP_USAGE),
     ("doctor", crate::command_doctor::DOCTOR_USAGE),
     ("tap", crate::command_tap::TAP_USAGE),
