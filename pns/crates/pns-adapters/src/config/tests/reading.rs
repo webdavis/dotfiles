@@ -11,11 +11,11 @@ fn a_missing_file_is_its_own_outcome_not_an_error_and_not_empty() {
 #[test]
 fn a_present_file_loads_through_the_parser() {
     let path = std::env::temp_dir().join(format!("pns-config-test-{}", std::process::id()));
-    std::fs::write(&path, "[plugins.hue]\nenabled = true\n").unwrap();
+    std::fs::write(&path, "[plugins.lights]\nenabled = true\n").unwrap();
     let outcome = load_config(&path);
     std::fs::remove_file(&path).ok();
     match outcome {
-        Ok(LoadOutcome::Loaded(config)) => assert!(config.plugins["hue"].enabled),
+        Ok(LoadOutcome::Loaded(config)) => assert!(config.plugins["lights"].enabled),
         other => panic!("expected Loaded, got {other:?}"),
     }
 }

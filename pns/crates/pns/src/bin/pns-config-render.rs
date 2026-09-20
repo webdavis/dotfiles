@@ -44,10 +44,10 @@ const FOOTER: &str = "{{- end }}\n";
 const SECRET_BEARING_KEYS: &[&str] = &[
     "plugins.mobile.token",
     "plugins.discord.token",
-    "plugins.hue.bridge",
-    "plugins.hue.certificate",
-    "plugins.hue.key",
-    "plugins.router.api_key",
+    "plugins.lights.bridge",
+    "plugins.lights.certificate",
+    "plugins.lights.key",
+    "plugins.home_presence.api_key",
 ];
 
 /// The OPEN tables whose every key is secret-bearing whatever it is called.

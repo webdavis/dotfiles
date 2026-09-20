@@ -51,7 +51,7 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
     let decoy = sandbox.path(".local/libexec/pns/channels");
     std::fs::create_dir_all(&decoy).expect("decoy dir");
     write_script(
-        &decoy.join("macos-banner.sh"),
+        &decoy.join("banner.sh"),
         &format!("cat >\"{}/decoy.event\"", sandbox.display()),
     );
 

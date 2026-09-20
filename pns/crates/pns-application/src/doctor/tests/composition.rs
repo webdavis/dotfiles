@@ -12,7 +12,7 @@ fn doctor_pairs_reordered_outcomes_by_name_and_prints_every_section_in_order() {
             "beta: sent, this channel reports no outcome"
         ]
     );
-    assert!(lines[2].starts_with("hue: signalled 1 room"));
+    assert!(lines[2].starts_with("lights: signalled 1 room"));
     assert!(lines[3].starts_with("room:"));
     assert_eq!(lines[4], "off: skipped, configured off");
     assert_eq!(lines[5], "pns doctor: 3 sent, 0 failed, 2 skipped");

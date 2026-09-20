@@ -43,7 +43,7 @@ pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A d
      # second such word (see `[lights.github]` below). An unknown key at any\n\
      # level, and a behaviour word outside the six, are refused by name.\n\
      #\n\
-     # `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE: hue is the\n\
+     # `[lights]` IS INERT UNLESS `[plugins.lights] enabled` IS TRUE: hue is the\n\
      # transport and this is the policy. WITH NO TABLE AT ALL the pulse is the\n\
      # `rooms` array above and nothing else; uncommenting `[lights]` with no\n\
      # declaration replaces that pulse with an empty lamp map, so name a place\n\
@@ -64,7 +64,7 @@ pub(super) const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED,
      # lamp, room or zone and nothing else: cards, banners and the durable log\n\
      # carry on, and `pns quiet`, which mutes all of them, is a different\n\
      # command with a different file that neither reads. A bare mute reads\n\
-     # `[plugins.hue] quiet_hours` above as the schedule and is refused when\n\
+     # `[plugins.lights] quiet_hours` above as the schedule and is refused when\n\
      # none is set; an explicit duration is the same 1s to 24h `pns quiet`\n\
      # takes. A state file nobody can parse mutes EVERY lamp and says so: dark\n\
      # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY\n\

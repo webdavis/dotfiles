@@ -244,7 +244,7 @@ fn elapsed_still_obeys_the_presence_gate() {
     ]));
     assert_eq!(output.status.code(), Some(0));
     assert!(!sandbox.fired("mobile"));
-    assert!(!sandbox.fired("macos-banner"));
+    assert!(!sandbox.fired("banner"));
     assert!(
         sandbox.fired("hermes"),
         "the existing recording destination remains enabled"

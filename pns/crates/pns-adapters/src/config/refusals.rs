@@ -113,6 +113,122 @@ pub(super) fn refuse_a_map_without_the_urgent_channel(config: &Config) -> Result
     )))
 }
 
+/// The plugin tables the function-naming rename moved, each with the vendor
+/// its `type` now names: the old heading, the new heading, the type.
+///
+/// ONE TABLE FOR BOTH REFUSALS BELOW, so the spelling an operator is told to
+/// write and the value that heading then admits cannot drift apart.
+const RENAMED_PLUGIN_TABLES: [(&str, &str, &str); 3] = [
+    ("hue", "lights", "hue"),
+    ("macos-banner", "banner", "macos"),
+    ("router", "home_presence", "unifi"),
+];
+
+/// Refuses a config still holding a plugin table under its old heading,
+/// naming the heading to write instead.
+///
+/// AT LOAD, WHICH BLOCKS THE WHOLE FILE, because the alternative is silence:
+/// a plugin table nothing registered keeps its settings free-form, so the old
+/// heading would load, arm nothing, and leave the operator with a destination
+/// that stopped working and no line saying why.
+pub(super) fn refuse_a_moved_plugin_table(config: &Config) -> Result<(), ConfigError> {
+    let Some((old, new, vendor)) = RENAMED_PLUGIN_TABLES
+        .iter()
+        .find(|(old, _, _)| config.plugins.contains_key(*old))
+    else {
+        return Ok(());
+    };
+    Err(ConfigError::Invalid(format!(
+        "`[plugins.{old}]` is now `[plugins.{new}]` with `type = \"{vendor}\"`: a plugin table \
+         is named for the function it serves and `type` names the vendor behind it. Rename the \
+         heading."
+    )))
+}
+
+/// Refuses an ARMED `[plugins.lights]` or `[plugins.banner]` whose `type`
+/// names a vendor nothing compiled in answers, naming the one that is
+/// accepted.
+///
+/// THE TWO THE RENAME GAVE A `type` TO. `[plugins.home_presence]` has carried
+/// one since before it, and `router_settings` refuses its own by name so the
+/// probe's diagnostic can report a router that is configured but unreachable;
+/// refusing it here too would take that whole report away.
+///
+/// AN ABSENT `type` IS THE ONE COMPILED-IN VENDOR, which is what the shipped
+/// file writes: these two tables gained the key in the rename, so a file
+/// without it is a file written before the key existed rather than one naming
+/// a backend nothing answers.
+pub(super) fn refuse_a_plugin_type_nothing_answers(config: &Config) -> Result<(), ConfigError> {
+    for (_, table, vendor) in RENAMED_PLUGIN_TABLES
+        .iter()
+        .filter(|(_, table, _)| *table != "home_presence")
+    {
+        let Some(entry) = config.plugins.get(*table).filter(|entry| entry.enabled) else {
+            continue;
+        };
+        let Some(named) = entry.settings.get("type").and_then(toml::Value::as_str) else {
+            continue;
+        };
+        if named != *vendor {
+            return Err(ConfigError::Invalid(format!(
+                "[plugins.{table}] has type {named:?}, which no compiled-in backend answers; \
+                 the only type is {vendor:?}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod renamed_table_tests {
+    use super::super::{ConfigError, parse_config};
+
+    #[test]
+    fn a_config_still_holding_an_old_plugin_heading_is_refused_naming_the_new_one() {
+        for (old, new) in [
+            ("hue", "lights"),
+            ("macos-banner", "banner"),
+            ("router", "home_presence"),
+        ] {
+            let Err(ConfigError::Invalid(said)) =
+                parse_config(&format!("[plugins.{old}]\nenabled = true\n"))
+            else {
+                panic!("`[plugins.{old}]` was accepted");
+            };
+            assert!(said.contains(old), "{said}");
+            assert!(said.contains(new), "{said}");
+        }
+    }
+
+    #[test]
+    fn a_renamed_table_naming_a_vendor_nothing_answers_is_refused_naming_the_one_that_is() {
+        for (table, vendor) in [("lights", "hue"), ("banner", "macos")] {
+            let Err(ConfigError::Invalid(said)) = parse_config(&format!(
+                "[plugins.{table}]\nenabled = true\ntype = \"aqara\"\n"
+            )) else {
+                panic!("`[plugins.{table}]` took a type nothing answers");
+            };
+            assert!(said.contains("aqara"), "{said}");
+            assert!(said.contains(vendor), "{said}");
+        }
+    }
+
+    #[test]
+    fn the_renamed_tables_arm_their_plugins_under_their_own_vendor() {
+        for (table, vendor) in [
+            ("lights", "hue"),
+            ("banner", "macos"),
+            ("home_presence", "unifi"),
+        ] {
+            let config = parse_config(&format!(
+                "[plugins.{table}]\nenabled = true\ntype = \"{vendor}\"\n"
+            ))
+            .unwrap_or_else(|error| panic!("`[plugins.{table}]` was refused: {error:?}"));
+            assert!(config.plugins[table].enabled, "`[plugins.{table}]` is off");
+        }
+    }
+}
+
 #[cfg(test)]
 mod urgent_channel_tests {
     use super::super::{ConfigError, parse_config};

@@ -24,7 +24,7 @@ fn a_bridge_and_key_are_required_and_their_absence_is_silence() {
 fn an_armed_table_with_no_certificate_is_refused_naming_the_key_and_the_command() {
     let refusal =
         hue_settings(&table("bridge = \"b\"\nkey = \"k\"")).expect_err("a config refusal");
-    assert!(refusal.contains("plugins.hue.certificate"), "{refusal}");
+    assert!(refusal.contains("plugins.lights.certificate"), "{refusal}");
     assert!(refusal.contains("pns lights enroll"), "{refusal}");
     assert!(refusal.contains("no pulse"), "{refusal}");
 }
@@ -35,7 +35,7 @@ fn a_malformed_certificate_is_refused_quoting_what_was_written() {
         "bridge = \"b\"\nkey = \"k\"\ncertificate = \"sha256:nope\"",
     ))
     .expect_err("a config refusal");
-    assert!(refusal.contains("plugins.hue.certificate"), "{refusal}");
+    assert!(refusal.contains("plugins.lights.certificate"), "{refusal}");
     assert!(refusal.contains("sha256:nope"), "{refusal}");
 }
 
@@ -72,7 +72,7 @@ fn a_refusal_reaches_the_caller_of_armed_hue_and_the_settings_do_not() {
         said = line.to_string();
     });
     assert!(armed.is_none());
-    assert!(said.contains("plugins.hue.certificate"), "{said}");
+    assert!(said.contains("plugins.lights.certificate"), "{said}");
 }
 
 // --- the CLIP parsers ---------------------------------------------------
