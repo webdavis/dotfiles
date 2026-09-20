@@ -38,9 +38,9 @@ pub(super) fn parse_backoff(
 /// `event_max_age`, BOUNDED ON BOTH SIDES with zero carved out, as every other
 /// duration key is.
 ///
-/// THE FLOOR IS A MINUTE. The wait before the first retry is `retry_step`
-/// itself, so a ceiling under a minute expires the event before the schedule
-/// its neighbour sets has run once.
+/// THE FLOOR IS A MINUTE, an operator bound rather than a derived one: under a
+/// minute is shorter than the shipped `retry_step`, so the default schedule
+/// would never run even once.
 ///
 /// THE CEILING IS THIRTY DAYS. Past that a queued leg outlives the machine
 /// state that would make its page mean anything, and the shipped week sits
