@@ -31,7 +31,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
             (state, detail, true)
         }
     };
-    run_event(
+    hook_event(
         &pns_domain::EventArgs {
             agent: agent.to_string(),
             state,
@@ -75,7 +75,7 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
     // The same free clear `end_of_turn` takes, for the same reason: StopFailure
     // fires INSTEAD of Stop, so without it a dead turn leaves its approval armed.
     clear_remind(&payload.session_id);
-    run_event(
+    hook_event(
         &pns_domain::EventArgs {
             agent: agent.to_string(),
             state: "failed".to_string(),

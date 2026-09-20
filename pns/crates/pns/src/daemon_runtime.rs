@@ -7,6 +7,9 @@ pub(crate) fn daemon_run() -> i32 {
         return 2;
     }
     pns_adapters::catch_termination();
+    // The first tick sweeps, so a gateway that has just started clears
+    // whatever the machine accumulated while it was down.
+    let mut next_sweep = 0;
     pns_application::RunDaemon {
         settings: &pns_adapters::DaemonConfig {
             home: std::env::var("HOME").unwrap_or_default(),
@@ -32,6 +35,7 @@ pub(crate) fn daemon_run() -> i32 {
             ))
         },
         |now, children| {
+            prune_activity(now, &mut next_sweep);
             start_retry(now, children)?;
             start_page(now, children)
         },
@@ -41,6 +45,40 @@ pub(crate) fn daemon_run() -> i32 {
         },
     )
 }
+
+/// Delete the activity rows that have outlived `[recap] retain`.
+///
+/// ONCE AN HOUR, NOT ONCE A TICK. The retention is measured in days, so a
+/// sweep every second would open the database 3,600 times an hour to delete
+/// nothing; an hour late on a thirty-day boundary is not late.
+///
+/// THE CONFIG IS READ AT THE SWEEP, like `start_page`'s own read, because the
+/// gateway outlives an edit: a shortened retention takes effect on the next
+/// sweep with no bounce.
+///
+/// AN UNREADABLE CONFIG KEEPS THE DEFAULT rather than deleting nothing: the
+/// table has no off switch, and a file that will not parse must not turn the
+/// store into a log that grows for good.
+fn prune_activity(now: u64, next_sweep: &mut u64) {
+    if now < *next_sweep {
+        return;
+    }
+    *next_sweep = now.saturating_add(SWEEP_INTERVAL_SECS);
+    let home = std::env::var("HOME").unwrap_or_default();
+    let retain = match pns_adapters::load_config(&pns_adapters::config_path(&home)) {
+        Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.recap.retain,
+        _ => pns_domain::recap::Recap::default().retain,
+    };
+    let Some(cutoff) = now.checked_sub(retain.as_secs()) else {
+        return;
+    };
+    if let Err(error) = pns_adapters::SqliteStore::new(state_dir()).prune_activity(cutoff) {
+        eprintln!("pns gateway: the activity store could not be pruned: {error}");
+    }
+}
+
+/// How long between two sweeps of the activity store. See `prune_activity`.
+const SWEEP_INTERVAL_SECS: u64 = 3600;
 
 fn start_retry(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
     // A leading dot cannot be a scheduled job id, so producer jobs cannot

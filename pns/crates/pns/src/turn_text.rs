@@ -35,7 +35,7 @@ pub(crate) fn turn_reply(payload: &HookPayload) -> String {
 /// The tail of a transcript, never the whole file: a long session grows it
 /// past 200MB, and the extraction only ever needs the last turn. Measured
 /// 2026-08-05: slurping the whole file held ~33MB resident and minutes of CPU.
-fn transcript_tail(path: &str) -> String {
+pub(crate) fn transcript_tail(path: &str) -> String {
     use std::io::{Read, Seek, SeekFrom};
     // CHECKED BEFORE OPENING, and on the link itself. Opening a FIFO blocks
     // until a writer appears and /dev/zero never ends; both hang a hook whose

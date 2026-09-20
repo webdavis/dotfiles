@@ -204,6 +204,7 @@ Config {
         summarizer_deadline: 240s,
         repositories: [],
         review_notes_glob: None,
+        retain: 2592000s,
     },
     focus_enabled: true,
     focus_modes: [],

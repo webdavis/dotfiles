@@ -131,3 +131,28 @@ fn the_keys_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
         }
     }
 }
+
+#[test]
+fn the_activity_stores_retention_is_a_duration_and_zero_is_refused_by_name() {
+    // THIRTY DAYS UNSET, spelled in hours because the parser's units are
+    // `<count><ms|s|m|h>`.
+    assert_eq!(
+        parse_config("[recap]\npost_window_recap = true\n")
+            .unwrap()
+            .recap
+            .retain,
+        Duration::from_secs(30 * 24 * 60 * 60)
+    );
+    assert_eq!(
+        parse_config("[recap]\nretain = \"48h\"\n")
+            .unwrap()
+            .recap
+            .retain,
+        Duration::from_secs(48 * 60 * 60)
+    );
+    // ZERO IS REFUSED THE WAY `[remind] delay` REFUSES IT: this store has no
+    // off switch, so a retention of nothing is a value nobody means.
+    let refusal = parse_config("[recap]\nretain = \"0s\"\n").unwrap_err();
+    let said = format!("{refusal:?}");
+    assert!(said.contains("retain"), "the refusal names the key: {said}");
+}

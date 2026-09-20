@@ -183,6 +183,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("recap", "post_window_recap", "true"),
     ("recap", "replay_card", "true"),
     ("recap", "repositories", "[\"webdavis/dotfiles\"]"),
+    ("recap", "retain", "\"720h\""),
     ("recap", "review_notes_glob", "\"~/.claude/checklist-*.md\""),
     (
         "recap",

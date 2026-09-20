@@ -63,6 +63,23 @@ impl Attempt {
         }
     }
 }
+/// A harness hook's event: the durable activity row, then the ordinary event
+/// path.
+///
+/// THE ROW IS WRITTEN FIRST, because it is the record that the event happened
+/// at all, and delivery is what can fail. It is the hooks' own door into
+/// `run_event`: an argv event and a producer submission take the plain call
+/// beneath it and write no activity row, since neither is agent activity.
+pub(crate) fn hook_event(
+    event: &pns_domain::EventArgs,
+    probes: &SystemProbes<SystemCommandRunner>,
+    payload: &HookPayload,
+    attempt: Attempt,
+) -> Landed {
+    crate::activity::record(event, payload);
+    run_event(event, probes, payload, attempt)
+}
+
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
 ///
