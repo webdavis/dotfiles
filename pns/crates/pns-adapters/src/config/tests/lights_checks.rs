@@ -12,7 +12,7 @@ fn the_checks_table_takes_a_colour_pair_and_falls_back_to_the_shipped_one() {
         "an absent table is the May pair at the done blink's own shape"
     );
     let stated = lights(
-        "[lights.checks]\nduration_ms = 2500\nbrightness = 60\n\
+        "[lights.checks]\nduration = \"2500ms\"\nbrightness_percent = 60\n\
          pass_color = [0.2, 0.295]\nfail_color = [0.6, 0.38]\n",
     );
     assert_eq!(
@@ -80,7 +80,7 @@ fn the_headings_and_colour_keys_these_replaced_are_refused_by_name() {
     // so each one is refused with the `[lights]` vocabulary that names the
     // heading to write instead.
     for (retired, replacement) in [("github", "checks"), ("unread", "unseen")] {
-        let said = refusal(&format!("[lights.{retired}]\nduration_ms = 2500\n"));
+        let said = refusal(&format!("[lights.{retired}]\nduration = \"2500ms\"\n"));
         assert!(said.contains(retired), "{said}");
         assert!(said.contains(replacement), "{said}");
     }

@@ -3,17 +3,19 @@ pub(super) const LIGHTS_DONE: Table = Table {
     name: "lights.done",
     prose: "# The five behaviour shapes. Every number below was set on a real lamp;\n\
                  # only the knobs that APPLY to a behaviour exist, so a blink has a\n\
-                 # duration and one brightness and a breath has a duration and two ends.\n",
+                 # duration and one brightness and a breath has a duration and two ends.\n\
+                 # A `duration` is a fade, bounded \"200ms\" to \"5s\"; a `_percent` key is 1\n\
+                 # to 100.\n",
     opt_in: true,
     children: &[],
     keys: &[
         Key {
-            name: "duration_ms",
+            name: "duration",
             prose: "",
-            sample: Sample::Default("4000"),
+            sample: Sample::Default("\"4s\""),
         },
         Key {
-            name: "brightness",
+            name: "brightness_percent",
             prose: "",
             sample: Sample::Default("100"),
         },
@@ -26,12 +28,12 @@ pub(super) const LIGHTS_FAILED: Table = Table {
     children: &[],
     keys: &[
         Key {
-            name: "duration_ms",
+            name: "duration",
             prose: "",
-            sample: Sample::Default("4000"),
+            sample: Sample::Default("\"4s\""),
         },
         Key {
-            name: "brightness",
+            name: "brightness_percent",
             prose: "",
             sample: Sample::Default("100"),
         },
@@ -44,17 +46,17 @@ pub(super) const LIGHTS_BLOCKED: Table = Table {
     children: &[],
     keys: &[
         Key {
-            name: "duration_ms",
+            name: "duration",
             prose: "",
-            sample: Sample::Default("2000"),
+            sample: Sample::Default("\"2s\""),
         },
         Key {
-            name: "high",
+            name: "high_percent",
             prose: "",
             sample: Sample::Default("100"),
         },
         Key {
-            name: "low",
+            name: "low_percent",
             prose: "",
             sample: Sample::Default("30"),
         },
@@ -78,17 +80,17 @@ pub(super) const LIGHTS_UNSEEN: Table = Table {
     children: &[],
     keys: &[
         Key {
-            name: "duration_ms",
+            name: "duration",
             prose: "",
-            sample: Sample::Default("4000"),
+            sample: Sample::Default("\"4s\""),
         },
         Key {
-            name: "high",
+            name: "high_percent",
             prose: "",
             sample: Sample::Default("60"),
         },
         Key {
-            name: "low",
+            name: "low_percent",
             prose: "",
             sample: Sample::Default("10"),
         },
@@ -116,12 +118,12 @@ pub(super) const LIGHTS_CHECKS: Table = Table {
     children: &[],
     keys: &[
         Key {
-            name: "duration_ms",
+            name: "duration",
             prose: "",
-            sample: Sample::Default("4000"),
+            sample: Sample::Default("\"4s\""),
         },
         Key {
-            name: "brightness",
+            name: "brightness_percent",
             prose: "",
             sample: Sample::Default("100"),
         },
@@ -145,32 +147,32 @@ pub(super) const LIGHTS_LOOP: Table = Table {
     children: &[],
     keys: &[
         Key {
-            name: "duration_ms",
+            name: "duration",
             prose: "",
-            sample: Sample::Default("4000"),
+            sample: Sample::Default("\"4s\""),
         },
         Key {
-            name: "high",
+            name: "high_percent",
             prose: "",
             sample: Sample::Default("80"),
         },
         Key {
-            name: "low",
+            name: "low_percent",
             prose: "",
             sample: Sample::Default("10"),
         },
         Key {
-            name: "flare",
+            name: "flare_percent",
             prose: "# The accent at the peak, which is the one shape that has one: the lamp\n\
-                         # rises to `high`, flashes to `flare` for `flare_ms`, then falls back\n\
-                         # to `low`. The flash must be brighter than `high` and briefer than\n\
-                         # `duration_ms`.\n",
+                         # rises to `high_percent`, flashes to `flare_percent` for\n\
+                         # `flare_duration`, then falls back to `low_percent`. The flash must be\n\
+                         # brighter than `high_percent` and briefer than `duration`.\n",
             sample: Sample::Default("100"),
         },
         Key {
-            name: "flare_ms",
+            name: "flare_duration",
             prose: "",
-            sample: Sample::Default("200"),
+            sample: Sample::Default("\"200ms\""),
         },
         Key {
             name: "arm_after",
@@ -191,23 +193,23 @@ pub(super) const LIGHTS_LOOP: Table = Table {
 pub(super) const LIGHTS_DIM: Table = Table {
     name: "lights.dim",
     prose: "# The DIM FORM: one shape, shared by every behaviour that runs dimmed, at\n\
-                 # the faintest levels the hardware has. A dimmed BLINK fires at `low`,\n\
-                 # since a blink has no low end to fade to.\n",
+                 # the faintest levels the hardware has. A dimmed BLINK fires at\n\
+                 # `low_percent`, since a blink has no low end to fade to.\n",
     opt_in: true,
     children: &[],
     keys: &[
         Key {
-            name: "duration_ms",
+            name: "duration",
             prose: "",
-            sample: Sample::Default("3000"),
+            sample: Sample::Default("\"3s\""),
         },
         Key {
-            name: "high",
+            name: "high_percent",
             prose: "",
             sample: Sample::Default("7"),
         },
         Key {
-            name: "low",
+            name: "low_percent",
             prose: "",
             sample: Sample::Default("1"),
         },

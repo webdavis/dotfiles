@@ -123,8 +123,6 @@ enabled = true
 bridge_host = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }
 certificate = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", attribute = "certificate-pin" }
 api_key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }
-rooms = ["3F - Studio", "2F - Kitchen"]
-quiet_hours = "22:00-07:00"
 
 # ARMED WITH THE TOKEN AND NOTHING ELSE. `poll_secs` ships at the layout
 # default (60), which is what the notifications API's own X-Poll-Interval
@@ -152,13 +150,17 @@ api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 [remind]
 delay = "5m"
 
+# THE HOUSE DIM WINDOW: every place below that states no `dim_window` of its
+# own runs this one, and it is also what a bare `pns lights mute` lasts until.
+[lights]
+dim_window = "22:00-07:00"
+
 # The one lamp knob that differs from its layout default ("5m").
 [lights.loop]
 arm_after = "6m"
 
 [lights.room."3F - Studio"]
 behaviours = ["done", "failed"]
-dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unseen", "loop", "checks"]
 
 [lights.lamp."3F - Studio - HCL2"]
@@ -169,7 +171,6 @@ behaviours = ["loop", "blocked", "unseen"]
 
 [lights.room."3F - MBedroom"]
 behaviours = ["done", "failed"]
-dim_window = "22:00-07:00"
 dim_behaviours = []
 
 [lights.lamp."3F - MBedroom - HCL2"]
@@ -180,7 +181,6 @@ behaviours = ["loop", "blocked", "unseen"]
 
 [lights.room."2F - Kitchen"]
 behaviours = ["done", "failed"]
-dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unseen", "loop", "checks"]
 
 [lights.lamp."2F - Kitchen - HCD5"]
@@ -191,5 +191,4 @@ behaviours = ["loop", "blocked", "unseen"]
 
 [lights.lamp."1F - Front door - HCL1"]
 behaviours = ["loop", "blocked", "unseen"]
-dim_window = "22:00-07:00"
 dim_behaviours = ["blocked", "unseen", "loop"]
