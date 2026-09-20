@@ -1,11 +1,30 @@
 use super::*;
 
 /// The most any summarizer may be given. ONE HOUR, which is fifteen times the
-/// default, so no honest backend on any machine meets it; see `seconds` for the
-/// two failures that live past it. Pinned to the reminder policy's own
-/// ceiling so the two stay one number by construction rather than two that
-/// agree by accident.
-pub(super) const MAX_SUMMARIZER_DEADLINE_SECS: u64 = pns_domain::remind::MAX_DELAY_SECS;
+/// default, so no honest backend on any machine meets it; see
+/// `summarizer_deadline_range` for the two failures that live past it.
+pub(super) const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
+
+/// `summarizer_deadline`, BOUNDED ON BOTH SIDES with zero carved out by
+/// `duration_value`: a deadline of nothing simply cannot be met, so the recap
+/// falls to the plain lists and says it did.
+///
+/// THE FLOOR IS ONE MILLISECOND, so a test can prove expiry without waiting on
+/// a real backend.
+///
+/// THE TOP END IS REFUSED BY NAME, and two things break past it, neither
+/// visible where it happens. NOTHING SUPERVISES THE DETACHED RECAP CHILD,
+/// which `spawn_recap` states outright: at four minutes that is fine, and at a
+/// day it is one child plus one wedged backend held for a day, with a second
+/// pair arriving at the next return moment. AND A DURATION PAST THE CEILING
+/// PANICS at `Instant::now() + deadline` (MEASURED: "overflow when adding
+/// duration to instant") inside a process whose stderr is /dev/null and whose
+/// exit code nobody reads, so the recap simply vanishes after the card has
+/// said it is coming. A refusal the operator reads beats a silence they
+/// cannot.
+fn summarizer_deadline_range() -> RangeInclusive<Duration> {
+    Duration::from_millis(1)..=Duration::from_secs(MAX_SUMMARIZER_DEADLINE_SECS)
+}
 
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
@@ -33,7 +52,14 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
             "repos" => recap.repos = repositories(&setting)?,
             "review_notes" => recap.review_notes = Some(note_glob(&setting)?),
             "summarizer" => recap.summarizer = Some(argv(&setting)?),
-            "summarizer_deadline_secs" => recap.summarizer_deadline_secs = seconds(&setting)?,
+            "summarizer_deadline" => {
+                recap.summarizer_deadline = duration_value(
+                    "recap",
+                    "summarizer_deadline",
+                    &setting,
+                    summarizer_deadline_range(),
+                )?;
+            }
             "replay_card" => recap.replay_card = flag(&key, &setting)?,
             "digest" => recap.digest = flag(&key, &setting)?,
             _ => {

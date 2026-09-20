@@ -57,12 +57,12 @@ fn a_dead_turn_consumes_the_marker_so_the_next_turn_is_not_measured_from_its_sta
 }
 
 #[test]
-fn a_dead_turn_spawns_no_condenser_and_reads_no_transcript() {
-    // The condenser is a model call on the one path where a model call has
+fn a_dead_turn_spawns_no_summarizer_and_reads_no_transcript() {
+    // The summarizer is a model call on the one path where a model call has
     // just failed, and the reply's transcript fallback is a bounded loop of
     // sleeps spent recovering text that is not the news. THE STUB IS THE
-    // TRIPWIRE for the condenser: it records having run, and its verdict would
-    // rewrite both the state and the detail, so a green here is a condenser
+    // TRIPWIRE for the summarizer: it records having run, and its verdict would
+    // rewrite both the state and the detail, so a green here is a summarizer
     // that never started.
     //
     // THE CLOCK IS THE TRIPWIRE for the transcript, because a read that finds
@@ -73,13 +73,13 @@ fn a_dead_turn_spawns_no_condenser_and_reads_no_transcript() {
     // loop. Both knobs are pinned rather than inherited: a default that moved
     // to one attempt or a shorter sleep would put that loop back under the
     // bound and make this green again on a path that reads.
-    let sandbox = Sandbox::new("hook-stop-failure-no-condenser");
+    let sandbox = Sandbox::new("hook-stop-failure-no-summarizer");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("stub bin");
     write_script(
         &bin.join("codex"),
         &format!(
-            "touch '{sandbox}/codex.ran'; cat >/dev/null; printf 'asking|the condenser ran\\n'",
+            "touch '{sandbox}/codex.ran'; cat >/dev/null; printf 'asking|the summarizer ran\\n'",
             sandbox = sandbox.display()
         ),
     );

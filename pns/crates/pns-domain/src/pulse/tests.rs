@@ -84,10 +84,10 @@ fn a_state_the_lamps_have_no_word_for_reports_done() {
 }
 
 #[test]
-fn the_condensers_own_waiting_word_lights_the_blocked_lamp() {
-    // `asking` IS A REAL STATE ON EVERY CONDENSED TURN, not a corner. The
-    // condenser classifies each one as done, asking or blocked
-    // (`hooks::condenser_prompt`), and `asking` is its word for a turn that
+fn the_summarizers_own_waiting_word_lights_the_blocked_lamp() {
+    // `asking` IS A REAL STATE ON EVERY SUMMARIZED TURN, not a corner. The
+    // summarizer classifies each one as done, asking or blocked
+    // (`hooks::summarizer_prompt`), and `asking` is its word for a turn that
     // wants the operator to answer or choose. Read as done, it flashed
     // GREEN, recorded a finished turn as unread SUCCESS news, and ENDED the
     // wait marker instead of starting one.

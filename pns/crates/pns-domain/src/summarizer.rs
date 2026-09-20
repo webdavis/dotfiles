@@ -1,11 +1,11 @@
-/// The condenser's verdict: the last `STATE|SUMMARY` line it printed.
+/// The summarizer's verdict: the last `STATE|SUMMARY` line it printed.
 ///
 /// THE SUMMARY HALF IS WHAT MAKES IT USABLE. A matched state with nothing
 /// after the pipe used to count as a hit, which shipped a title-only
 /// notification over a turn that had text (live 2026-08-12). A summary of
 /// spaces renders as blank as no summary, so it must carry one non-blank
 /// character or the whole line is a miss and the caller falls back.
-pub fn condenser_verdict(codex_output: &str) -> Option<(String, String)> {
+pub fn summarizer_verdict(codex_output: &str) -> Option<(String, String)> {
     codex_output
         .lines()
         .filter_map(|line| {
@@ -16,7 +16,7 @@ pub fn condenser_verdict(codex_output: &str) -> Option<(String, String)> {
         .rfind(|(_, summary)| summary.chars().any(|character| !character.is_whitespace()))
 }
 
-/// The prompt the condenser answers. One line out, so the caller can parse it
+/// The prompt the summarizer answers. One line out, so the caller can parse it
 /// without a model-shaped grammar.
 ///
 /// `asking` IS NARROWED TO A QUESTION FOR THE HUMAN, not a turn that merely
@@ -25,8 +25,8 @@ pub fn condenser_verdict(codex_output: &str) -> Option<(String, String)> {
 /// the looser wording (OBS-3), which lit the blocked lamp and carded the operator
 /// over a turn asking them nothing: the word "waiting" was enough to match,
 /// whoever the turn was waiting on. There is no keyword rule to fix; the
-/// condenser is a model call, and this sentence is the whole rule it reads.
-pub fn condenser_prompt(reply: &str) -> String {
+/// summarizer is a model call, and this sentence is the whole rule it reads.
+pub fn summarizer_prompt(reply: &str) -> String {
     format!(
         "Summarize this AI coding agent's last turn for a brief phone notification, then classify it.
 Output EXACTLY one line and nothing else: STATE|SUMMARY
@@ -42,9 +42,9 @@ Turn:
 mod tests {
     use super::*;
     #[test]
-    fn the_condensers_last_usable_line_wins() {
+    fn the_summarizers_last_usable_line_wins() {
         assert_eq!(
-            condenser_verdict("noise\ndone|first\nasking|second"),
+            summarizer_verdict("noise\ndone|first\nasking|second"),
             Some(("asking".to_string(), "second".to_string()))
         );
     }
@@ -53,20 +53,20 @@ mod tests {
     fn a_state_with_a_blank_summary_is_a_miss_not_a_hit() {
         // It used to count, which shipped a title-only notification over a
         // turn that had text.
-        assert_eq!(condenser_verdict("done|"), None);
-        assert_eq!(condenser_verdict("done|   "), None);
-        assert_eq!(condenser_verdict(""), None);
-        assert_eq!(condenser_verdict("just some prose"), None);
+        assert_eq!(summarizer_verdict("done|"), None);
+        assert_eq!(summarizer_verdict("done|   "), None);
+        assert_eq!(summarizer_verdict(""), None);
+        assert_eq!(summarizer_verdict("just some prose"), None);
     }
 
     #[test]
     fn a_state_the_prompt_never_offered_is_not_a_verdict() {
-        assert_eq!(condenser_verdict("finished|all good"), None);
+        assert_eq!(summarizer_verdict("finished|all good"), None);
     }
 
     #[test]
     fn the_prompt_carries_the_turn_and_asks_for_one_line() {
-        let prompt = condenser_prompt("what happened");
+        let prompt = summarizer_prompt("what happened");
         assert!(prompt.contains("EXACTLY one line"));
         assert!(prompt.ends_with("Turn:\nwhat happened"));
     }

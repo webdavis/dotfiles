@@ -189,7 +189,7 @@ mod git;
 mod moshi_hook;
 mod recap_card_wire;
 mod recap_child;
-pub use codex::condense;
+pub use codex::summarize;
 pub use git::{Checkout, git_checkout};
 pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_card_wire::{HandedCard, decode_handed_card};

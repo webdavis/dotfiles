@@ -399,9 +399,11 @@ min_events = 8
 # summarizer = ["ollama", "run", "qwen3.5:4b", "--think=false", "--hidethinking", "--nowordwrap"]
 # How long that command may take before it is killed and the plain list
 # is posted instead. It is the whole recap's budget rather than each
-# question's, and AN HOUR IS THE CEILING: a bigger number is refused by
-# name.
-summarizer_deadline_secs = 240
+# question's, and AN HOUR IS THE CEILING: a longer one is refused by
+# name. It also bounds the turn summarizer that writes each
+# notification's sentence, which takes at most thirty seconds of it
+# because a Stop hook is waiting on that one.
+summarizer_deadline = "4m"
 # The repositories whose merged pull requests become the recap's "what
 # it does now" section. UNSET IS THE WORKING SETTING and it is a fence:
 # with no repo named, no `gh` process is started at all. Named, the recap
@@ -638,7 +640,7 @@ brightness = 100
 pass = [0.2725, 0.1283]
 fail = [0.5562, 0.4084]
 
-# A live pane lease keeps the condenser's guessed waits from arming
+# A live pane lease keeps the summarizer's guessed waits from arming
 # blocked; real hook waits still take priority.
 [lights.loop]
 duration_ms = 4000
