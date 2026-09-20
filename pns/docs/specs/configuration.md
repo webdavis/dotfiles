@@ -746,11 +746,12 @@ When `parse_config` runs\
 Then it is refused by name with what is wrong, rather than clamped or silently dropped
 
 - Success: four judges, each with its own function. `src/config.rs:threshold` refuses a non-count and a
-  zero; `src/config.rs:seconds` refuses a non-count and anything over 3600; `src/config.rs:argv` refuses
-  an empty list and an empty FIRST word (only the first, because "an empty ARGUMENT is a real thing to
-  pass a program"); `src/config.rs:repositories` refuses an empty list and ANY empty entry;
-  `src/config.rs:note_glob` refuses a non-string, an empty file name, a relative path, a `*` in the
-  directory, and a second `*` in the file name.
+  zero; `config/recap.rs:summarizer_deadline_range` bounds `summarizer_deadline` to "1ms" through "1h",
+  refused by name past either end; `src/config.rs:argv` refuses an empty list and an empty FIRST word
+  (only the first, because "an empty ARGUMENT is a real thing to pass a program");
+  `src/config.rs:repositories` refuses an empty list and ANY empty entry; `src/config.rs:note_glob`
+  refuses a non-string, an empty file name, a relative path, a `*` in the directory, and a second `*` in
+  the file name.
 - Failure sources: for the glob, all five are pinned as a table in
   `src/config.rs:a_review_notes_glob_that_names_no_readable_file_is_refused_naming_the_key`, with these
   inputs and expected substrings: `3` and `not a path`; `""` and `names no file`;
@@ -759,11 +760,10 @@ Then it is refused by name with what is wrong, rather than clamped or silently d
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path. Within each key the
   argument is the same: "a silently corrected one is a threshold they believe they set"
   (`src/config.rs:threshold`).
-- Thresholds: `min_events` floor 1; `summarizer_deadline` ceiling 3600. `9223372036854775807` is
-  explicitly in the refused set, because it "is a plain TOML integer: it parses, and
-  `Instant::now() + Duration::from_secs` of it PANICS (MEASURED: 'overflow when adding duration to
-  instant') inside a process whose stderr is /dev/null and whose exit code nobody reads"
-  (`src/config.rs:seconds`).
+- Thresholds: `min_events` floor 1; `summarizer_deadline` ceiling "1h". A duration string past the
+  ceiling, e.g. `"2h"`, is explicitly in the refused set, because a duration past the ceiling "PANICS at
+  `Instant::now() + deadline` (MEASURED: 'overflow when adding duration to instant') inside a process
+  whose stderr is /dev/null and whose exit code nobody reads" (`config/recap.rs:summarizer_deadline_range`).
 - Required side effects: none.
 - Forbidden side effects: nothing is clamped anywhere in this file. Every out-of-range value is refused.
 - Timeout and cancellation: Not applicable at this layer.

@@ -147,9 +147,9 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
 - Thresholds: `Recap::default()` is written out rather than derived (`src/config.rs:Recap`):
   `replay_card: true`, `digest: true`, `min_events: 8`, `summarizer: None`,
   `summarizer_deadline: 4m`, `repos: []`, `review_notes: None`. `summarizer_deadline` is refused above
-  `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: 3600 is accepted, 3601 is refused by name
-  (`src/config.rs:seconds`), and the refusal exists because
-  `Instant::now() + Duration::from_secs(i64::MAX)` PANICS inside a process whose stderr is `/dev/null`.
+  `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: `"3600s"` is accepted, `"3601s"` is refused by name
+  (`config/recap.rs:summarizer_deadline_range`), and the refusal exists because a duration past the
+  ceiling PANICS at `Instant::now() + deadline` inside a process whose stderr is `/dev/null`.
   Zero is accepted and is not a trap: it simply cannot be met.
 - Required side effects: none. Reading the config writes nothing.
 - Forbidden side effects: no `gh` and no summarizer on the unreadable path, because both keys are absent
