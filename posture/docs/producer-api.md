@@ -58,6 +58,12 @@ status, because a page the engine owes and has committed to retrying is already 
 re-reading. Destination outcomes are not a substitute, because a page that reached no channel yet is
 still a page the engine owes.
 
+Every closed set in a result is one bare word (`status`, and each destination's `outcome`), never a
+one-key wrapper object, and a wrapped word is refused rather than read as a delivery. Beside `status` a
+result carries `ledger_sequence`, the engine's own durable row for this request, and a `destinations`
+array whose entries name themselves in `name`. A destination that still names itself in the retired
+`destination` field is refused, so a stale engine fails loudly instead of answering with a nameless leg.
+
 Anything less leaves posture's own state where it was, so the next run re-reads the same findings. A
 correlated `status: rejected` is a protocol refusal and stays quiet; an engine that could not be run,
 timed out, or answered bytes that are not a result envelope raises the local banner instead, because a
