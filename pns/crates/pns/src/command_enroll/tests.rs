@@ -61,6 +61,25 @@ fn bridge_id_or_an_explicit_opt_out_is_required_and_anything_else_refuses() {
 }
 
 #[test]
+fn bridge_address_reads_the_armed_bridge_host_key() {
+    let home = crate::runtime_test_support::scratch("enroll-bridge-address");
+    std::fs::create_dir_all(home.join(".config/pns")).expect("a config directory");
+    std::fs::write(
+        home.join(".config/pns/config.toml"),
+        "[plugins.lights]\n\
+         enabled = true\n\
+         bridge_host = \"192.0.2.1\"\n\
+         api_key = \"k\"\n\
+         certificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n",
+    )
+    .expect("a config file");
+    assert_eq!(
+        bridge_address(&home.to_string_lossy()),
+        Some("192.0.2.1".to_string())
+    );
+}
+
+#[test]
 fn the_readings_name_every_field_the_operator_compares() {
     let lines = readings(&enrollment("ABC123", Some("ABC123"))).join("\n");
     assert!(lines.contains("ABC123"), "{lines}");

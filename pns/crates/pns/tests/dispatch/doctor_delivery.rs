@@ -35,7 +35,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     assert!(
         printed.contains(
             "phone: FAILED, push SKIPPED, no moshi token in the config \
-             ([plugins.phone] token); nothing was sent"
+             ([plugins.phone] device_token); nothing was sent"
         ),
         "the first channel's own sentence, verbatim: {printed}"
     );
@@ -157,7 +157,7 @@ fn the_doctor_reaches_the_bridge_inside_the_lights_quiet_window() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("doctor-quiet-window");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          quiet_hours = \"{}\"\n",
         window_around(utc_minute_now(), 120)
     ));
@@ -187,7 +187,7 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("doctor-hue-unresolved");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\n"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\n"
     ));
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
@@ -196,7 +196,7 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
     assert!(
         printed.contains(
             "lights: FAILED, pulse SKIPPED, no hue bridge and key in the config \
-             ([plugins.lights] bridge, key); nothing was signalled"
+             ([plugins.lights] bridge_host, api_key); nothing was signalled"
         ),
         "the line names the settings to write: {printed}"
     );
@@ -216,7 +216,7 @@ fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_cho
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("doctor-hue-listed-nothing");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
     ));
     // SPAWNED, not run to completion: the spy has to accept while the engine
     // is still dialling, or the bridge deadline is what this test waits out.
