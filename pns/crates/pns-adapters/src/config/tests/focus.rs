@@ -56,7 +56,7 @@ fn a_mode_name_that_is_not_a_string_is_refused_naming_the_key() {
 fn a_mode_name_that_is_the_empty_string_is_refused_by_name() {
     // AN ENTRY THAT NAMES NO MODE is a policy the operator believes they
     // wrote and pns can never act on, which is the misspelled key's own
-    // failure one level down. `[recap] repos` refuses its empty entry for
+    // failure one level down. `[recap] repositories` refuses its empty entry for
     // this reason and this refusal is that rule, not a new one.
     let err = parse_config("[focus]\nsilence = [\"Sleep\", \"\"]\n").unwrap_err();
     match err {

@@ -1,7 +1,9 @@
 use super::*;
 use crate::herdr::view::{parse_focused_tab, parse_layout};
-use crate::macos::desk::{parse_idle_nanoseconds, parse_screen_locked};
-use crate::macos::phone::{newest_terminal_atime, parse_pids, parse_tty_names};
+use crate::macos::desk::{idle_reading_within, lock_reading_within};
+use crate::macos::phone::{newest_terminal_atime, parse_pids, phone_reading_within};
+use crate::macos::proc_table::{ProcessTable, plain_device_name};
+use crate::macos::registry::ConsoleRegistry;
 use pns_application::{IdleProbe, PhoneInputProbe, PhoneMarkerProbe, SessionViewProbe};
 use pns_domain::surface::{Visibility, visibility};
 use std::sync::Mutex;
@@ -14,7 +16,6 @@ mod files;
 use files::*;
 mod views;
 use views::*;
-mod desk_parse;
 mod desk_read;
 mod herdr;
 mod marker;
@@ -57,6 +58,23 @@ impl<R: CommandRunner> SystemProbes<R> {
     /// takes the `TTY_DIR` default set in `new`.
     pub fn with_tty_dir(mut self, dir: String) -> Self {
         self.tty_dir = dir;
+        self
+    }
+
+    /// Points the desk pair at a registry of the test's own, so a suite can
+    /// drive a locked console, an unreadable property or a read that never
+    /// returns without touching the machine it runs on.
+    ///
+    /// `cfg(test)`-ONLY, same as the seeds above: production always takes the
+    /// `IoKitRegistry` default set in `new`.
+    pub fn with_registry(mut self, registry: Arc<dyn ConsoleRegistry>) -> Self {
+        self.registry = registry;
+        self
+    }
+
+    /// The phone twin of `with_registry`.
+    pub fn with_table(mut self, table: Arc<dyn ProcessTable>) -> Self {
+        self.table = table;
         self
     }
 }

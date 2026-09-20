@@ -44,8 +44,8 @@ impl Replay {
             &returning(),
             pns_application::RecapPolicy {
                 replay_card: true,
-                digest: false,
-                min_events: 2,
+                post_window_recap: false,
+                minimum_events: 2,
             },
             false,
         );
@@ -84,7 +84,7 @@ impl RecapPublisher for Replay {
     type Started = ();
 
     fn publish(&self, _: u64, _: u64) -> Option<Self::Started> {
-        panic!("digest is disabled");
+        panic!("post_window_recap is disabled");
     }
 
     fn hand_card(&self, (): Self::Started, _: &pns_application::ReplayCard<'_>) -> bool {

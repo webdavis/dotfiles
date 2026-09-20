@@ -96,7 +96,7 @@ pub(super) fn recap_summarized_badly(name: &str, extra: &str, body: &str) -> Str
 /// A config naming a repository to read merged pull requests from, plus
 /// whatever else the test needs inside `[recap]`.
 pub(super) fn recap_sourced_from(extra: &str) -> String {
-    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\nrepos = [\"webdavis/dotfiles\"]\n{extra}")
+    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\nrepositories = [\"webdavis/dotfiles\"]\n{extra}")
 }
 
 /// A stub `gh` first on PATH, recording the argv it was called with so a test

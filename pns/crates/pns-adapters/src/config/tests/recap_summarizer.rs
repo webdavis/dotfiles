@@ -20,7 +20,7 @@ fn the_summarizer_is_an_argument_list_the_operator_states_word_by_word() {
         "the words the operator wrote, in order"
     );
     assert_eq!(
-        parse_config("[recap]\ndigest = true\n")
+        parse_config("[recap]\npost_window_recap = true\n")
             .unwrap()
             .recap
             .summarizer,
@@ -73,7 +73,7 @@ fn the_summarizers_deadline_is_a_duration_with_a_generous_default() {
     // model load cost about 5.5 seconds and was paid once. Nobody is
     // waiting: the caller is a process the event path never joined.
     assert_eq!(
-        parse_config("[recap]\ndigest = true\n")
+        parse_config("[recap]\npost_window_recap = true\n")
             .unwrap()
             .recap
             .summarizer_deadline,
@@ -96,7 +96,7 @@ fn the_summarizers_deadline_is_a_duration_with_a_generous_default() {
             .summarizer_deadline,
         Duration::from_millis(300)
     );
-    // ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `min_events`'s zero: a
+    // ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `minimum_events`'s zero: a
     // deadline of nothing cannot be met, so the recap falls to the plain
     // lists and says it did.
     assert_eq!(
@@ -106,7 +106,7 @@ fn the_summarizers_deadline_is_a_duration_with_a_generous_default() {
             .summarizer_deadline,
         Duration::ZERO
     );
-    // AND IT HAS A TOP END, refused by name for `min_events`'s own reason.
+    // AND IT HAS A TOP END, refused by name for `minimum_events`'s own reason.
     // An hour is already far past the default, and past it the two failures
     // are real: nothing supervises the detached recap child, so a wedged
     // backend holds one child and one backend process for as long as the

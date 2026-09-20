@@ -55,8 +55,8 @@ impl ActivityRing for World {
     }
 }
 impl MergedPullRequestSource for World {
-    fn merged(&self, repos: &[String], since: u64, until: u64) -> Option<Fetched> {
-        assert_eq!(repos, &["owner/repo"]);
+    fn merged(&self, repositories: &[String], since: u64, until: u64) -> Option<Fetched> {
+        assert_eq!(repositories, &["owner/repo"]);
         assert_eq!((since, until), (100, 200));
         self.log.borrow_mut().push("merges".into());
         self.available.then(|| Fetched {
@@ -97,8 +97,8 @@ impl Summarizer for World {
 
 pub(super) fn configured() -> Recap {
     Recap {
-        repos: vec!["owner/repo".into()],
-        review_notes: Some("notes/*.md".into()),
+        repositories: vec!["owner/repo".into()],
+        review_notes_glob: Some("notes/*.md".into()),
         summarizer: Some(vec!["summary".into(), "--plain".into()]),
         summarizer_deadline: std::time::Duration::from_secs(6),
         ..Recap::default()

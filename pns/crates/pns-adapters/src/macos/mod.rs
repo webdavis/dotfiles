@@ -5,5 +5,7 @@ mod clock;
 pub(crate) mod desk;
 mod launchd;
 pub(crate) mod phone;
+pub(crate) mod proc_table;
+pub(crate) mod registry;
 pub use clock::{local_minutes_since_midnight, utc_timestamp};
 pub use launchd::{LaunchdServiceController, SystemLaunchctlRunner};

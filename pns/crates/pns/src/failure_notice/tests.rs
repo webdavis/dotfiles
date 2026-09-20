@@ -99,21 +99,22 @@ fn a_hermes_failure_cards_the_phone_and_says_discord_is_empty() {
     assert_eq!(
         card_surface(&composed("hermes"), true),
         Some(NotificationSurface::Phone {
-            serve: true,
+            page_enabled: true,
             hermes_failed: true,
         })
     );
 }
 
-/// `serve` rides through untouched: it is the switch that decides which pointer
-/// the fix line carries, and this module decides nothing about the wording.
+/// `page_enabled` rides through untouched: it is the switch that decides which
+/// pointer the fix line carries, and this module decides nothing about the
+/// wording.
 #[test]
-fn the_serve_switch_reaches_the_card_as_written() {
-    for serve in [true, false] {
+fn the_page_switch_reaches_the_card_as_written() {
+    for page_enabled in [true, false] {
         assert_eq!(
-            card_surface(&composed("hermes"), serve),
+            card_surface(&composed("hermes"), page_enabled),
             Some(NotificationSurface::Phone {
-                serve,
+                page_enabled,
                 hermes_failed: true,
             })
         );
