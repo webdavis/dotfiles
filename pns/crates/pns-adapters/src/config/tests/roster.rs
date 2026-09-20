@@ -33,3 +33,60 @@ fn every_key_the_roster_declares_is_read_by_the_table_that_declares_it() {
         "every declared key is walked, and no more"
     );
 }
+
+/// The three level words `lights.<level>` stands for, each of them a table
+/// keyed by the operator's own lamp, room or zone name. They are asserted to
+/// be keys of `lights` below, so a level renamed in the roster and not here
+/// is red rather than unjudged.
+const TARGET_LEVELS: [&str; 3] = ["lamp", "room", "zone"];
+
+/// A name is plural when it ends in an `s` that is not the `ss` of a
+/// singular word (`delivery_class`), which is the whole test this vocabulary
+/// needs: every table name in the roster is one ASCII word or an underscored
+/// pair of them.
+fn is_plural(name: &str) -> bool {
+    name.ends_with('s') && !name.ends_with("ss")
+}
+
+/// The last segment of a roster row, which is the name an operator writes.
+fn last_segment(table: &str) -> &str {
+    table.rsplit('.').next().expect("a row has a segment")
+}
+
+#[test]
+fn the_plural_rule_holds_one_way_round_across_the_whole_roster() {
+    for (table, _) in super::super::TABLE_KEYS.iter().copied() {
+        // A TABLE HOLDING A SET IS PLURAL. The open tables are the
+        // set-holders the schema itself marks, so `is_open` is what this
+        // reads rather than a second list that could disagree with it.
+        if super::super::schema::is_open(table) {
+            assert!(
+                is_plural(last_segment(table)),
+                "`{table}` takes the operator's own keys and is singular"
+            );
+        }
+        // AND A TABLE KEYED BY ONE NAME IS SINGULAR. Those rows are the ones
+        // whose last segment is a placeholder for the operator's own name, so
+        // the segment the operator actually writes is the one before it.
+        if let Some(keyed) = table
+            .strip_suffix("<name>")
+            .map(|head| head.trim_end_matches('.'))
+        {
+            assert!(
+                !is_plural(last_segment(keyed)),
+                "`{keyed}` is keyed by one name and is plural"
+            );
+        }
+    }
+
+    // THE THREE LEVELS ARE THE SAME SHAPE one row further in: their own row
+    // is a prefix, so the names they are keyed by never appear in it.
+    let lights = super::super::keys_of("lights").expect("`lights` is a roster row");
+    for level in TARGET_LEVELS {
+        assert!(lights.contains(&level), "`lights` has no `{level}` key");
+        assert!(
+            !is_plural(level),
+            "`lights.{level}` is keyed by one name and is plural"
+        );
+    }
+}

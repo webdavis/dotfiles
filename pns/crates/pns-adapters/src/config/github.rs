@@ -30,8 +30,10 @@ pub fn parse_github(config: &Config) -> Result<Option<GithubSource>, ConfigError
              name itself"
         )));
     }
-    let poll_secs = match settings.get("poll_secs") {
-        Some(setting) => bounded(GITHUB, "poll_secs", setting, MIN_POLL_SECS, MAX_POLL_SECS)?,
+    let poll_secs = match settings.get("poll_interval") {
+        Some(setting) => {
+            nonzero_duration_key(GITHUB, "poll_interval", setting, poll_interval_range())?
+        }
         None => DEFAULT_POLL_SECS,
     };
     let webhook = parse_webhook(settings)?;
@@ -125,12 +127,17 @@ const MIN_POLL_SECS: u64 = 60;
 /// looking at the website, which is the thing it exists to replace.
 const MAX_POLL_SECS: u64 = 3600;
 
+/// `poll_interval`'s range, as the duration parser takes it.
+fn poll_interval_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_POLL_SECS)..=Duration::from_secs(MAX_POLL_SECS)
+}
+
 /// How often the poll's job runs: the interval the server last asked for,
 /// or the config's own key while it has asked for nothing (`asked_for` is
 /// zero on a fresh machine, and on one whose first poll has not answered).
 ///
 /// THE SERVER'S NUMBER IS CLAMPED TO THE KEY'S OWN BOUNDS, which is what
-/// keeps this module the one place either end is stated: a `poll_secs = 30`
+/// keeps this module the one place either end is stated: a `poll_interval = "30s"`
 /// the file refuses must not reach the scheduler through a header either,
 /// and an interval past the ceiling would leave the source alive and silent
 /// for as long as the header says, which is the one failure the whole source

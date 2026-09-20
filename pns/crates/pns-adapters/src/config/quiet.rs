@@ -59,6 +59,17 @@ const MIN_CALENDAR_DEADLINE_SECS: u64 = 1;
 /// the daemon kills the job itself.
 const MAX_CALENDAR_DEADLINE_SECS: u64 = 30;
 
+/// `poll_interval`'s range, as the duration parser takes it.
+fn poll_interval_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_CALENDAR_POLL_SECS)..=Duration::from_secs(MAX_CALENDAR_POLL_SECS)
+}
+
+/// `deadline`'s range, on the same terms.
+fn deadline_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(MIN_CALENDAR_DEADLINE_SECS)
+        ..=Duration::from_secs(MAX_CALENDAR_DEADLINE_SECS)
+}
+
 /// `[quiet]`, whose only member is the calendar table.
 pub(super) fn parse_quiet(value: toml::Value) -> Result<QuietCalendar, ConfigError> {
     let toml::Value::Table(table) = value else {
@@ -105,23 +116,13 @@ fn parse_quiet_calendar(value: toml::Value) -> Result<QuietCalendar, ConfigError
                     )));
                 }
             }
-            "poll_secs" => {
-                calendar.poll_secs = bounded(
-                    TABLE,
-                    "poll_secs",
-                    &setting,
-                    MIN_CALENDAR_POLL_SECS,
-                    MAX_CALENDAR_POLL_SECS,
-                )?;
+            "poll_interval" => {
+                calendar.poll_secs =
+                    nonzero_duration_key(TABLE, "poll_interval", &setting, poll_interval_range())?;
             }
-            "deadline_secs" => {
-                calendar.deadline_secs = bounded(
-                    TABLE,
-                    "deadline_secs",
-                    &setting,
-                    MIN_CALENDAR_DEADLINE_SECS,
-                    MAX_CALENDAR_DEADLINE_SECS,
-                )?;
+            "deadline" => {
+                calendar.deadline_secs =
+                    nonzero_duration_key(TABLE, "deadline", &setting, deadline_range())?;
             }
             _ => return Err(unknown_key(TABLE, TABLE, &key)),
         }

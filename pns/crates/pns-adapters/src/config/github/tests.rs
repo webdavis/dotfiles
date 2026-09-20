@@ -55,20 +55,35 @@ fn an_armed_table_with_no_usable_token_is_refused_by_name() {
 
 #[test]
 fn an_interval_outside_the_range_is_refused_by_name_and_the_ends_are_not() {
-    for stated in ["59", "3601", "0", "-1"] {
-        let Err(ConfigError::Invalid(said)) = loaded(&armed(&format!("poll_secs = {stated}\n")))
+    // A BARE COUNT IS REFUSED TOO: the interval is a duration, and a number
+    // with no unit is the ambiguity the duration vocabulary exists to end.
+    for stated in ["\"59s\"", "\"61m\"", "\"0s\"", "60"] {
+        let Err(ConfigError::Invalid(said)) =
+            loaded(&armed(&format!("poll_interval = {stated}\n")))
         else {
             panic!("case {stated} was not refused");
         };
-        assert!(said.contains("poll_secs"), "{said}");
+        assert!(said.contains("poll_interval"), "{said}");
     }
     // The positive control: both ends are settings, not refusals.
-    for stated in ["60", "3600"] {
-        let source = loaded(&armed(&format!("poll_secs = {stated}\n")))
+    for (stated, seconds) in [("\"60s\"", 60), ("\"1h\"", 3600)] {
+        let source = loaded(&armed(&format!("poll_interval = {stated}\n")))
             .expect("it reads")
             .expect("it is armed");
-        assert_eq!(source.poll_secs, stated.parse::<u64>().unwrap());
+        assert_eq!(source.poll_secs, seconds);
     }
+}
+
+/// THE MUTANT THIS PINS: the old spelling quietly admitted again, which
+/// would leave an operator's interval read as a key nothing serves.
+#[test]
+fn the_interval_key_is_refused_under_its_old_spelling_with_the_new_one_listed() {
+    let Err(ConfigError::Invalid(said)) = parse_config(&armed("poll_secs = 60\n")).map(|_| ())
+    else {
+        panic!("`poll_secs` was accepted");
+    };
+    assert!(said.contains("poll_secs"), "{said}");
+    assert!(said.contains("poll_interval"), "{said}");
 }
 
 #[test]

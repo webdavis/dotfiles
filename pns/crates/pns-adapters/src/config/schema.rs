@@ -73,7 +73,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("quiet", &["calendar"]),
     (
         "quiet.calendar",
-        &["command", "deadline_secs", "enabled", "poll_secs"],
+        &["command", "deadline", "enabled", "poll_interval"],
     ),
     (
         "delivery",
@@ -161,7 +161,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         &[
             "enabled",
             "personal_access_token",
-            "poll_secs",
+            "poll_interval",
             "webhook_port",
             "webhook_secret",
         ],

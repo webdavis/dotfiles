@@ -160,15 +160,15 @@ pub(super) const PLUGINS_GITHUB: Table = Table {
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "poll_secs",
-            prose: "# How often the poll runs BEFORE the first answer, bounded 60 to 3600.\n\
+            name: "poll_interval",
+            prose: "# How often the poll runs BEFORE the first answer, bounded \"60s\" to \"1h\".\n\
                          # From then on the server's own X-Poll-Interval decides, which the\n\
                          # documentation asks for by name, so this is only ever the starting\n\
                          # figure. The floor is 60 because that is what the header says today\n\
                          # and anything under it is a request to be rate-limited; the knob is\n\
                          # for polling SLOWER. Each request sends the stored Last-Modified, so\n\
                          # a quiet minute answers 304 and costs no rate limit at all.\n",
-            sample: Sample::Default("60"),
+            sample: Sample::Default("\"60s\""),
         },
         Key {
             name: "webhook_secret",
