@@ -39,7 +39,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
-    assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
+    assert_eq!(config.focus_modes, vec!["Sleep".to_string()]);
     assert_eq!(config.remind_delay_secs, 300);
     assert_eq!(
         config.stale_escalate_after_secs, 3600,
@@ -54,11 +54,13 @@ fn an_empty_walk_still_renders_the_core_at_its_defaults() {
     assert!(config.plugins["phone"].enabled);
     assert!(config.plugins["banner"].enabled);
     assert!(config.daemon_enabled);
+    assert!(config.focus_enabled);
+    assert!(config.stale_enabled);
     assert_eq!(config.recap, crate::config::Recap::default());
     for opt_in in ["hermes", "lights", "home_presence"] {
         assert!(!config.plugins.contains_key(opt_in));
     }
-    assert!(config.focus_silence.is_empty());
+    assert!(config.focus_modes.is_empty());
     assert_eq!(config.remind_delay_secs, 0);
     assert!(config.lights.is_none());
 }
@@ -108,6 +110,7 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
         "[plugins.phone]\nenabled = true\n",
         "[plugins.banner]\nenabled = true\n",
         "[daemon]\nenabled = true\n",
+        "[stale]\nenabled = true\n",
     ] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }

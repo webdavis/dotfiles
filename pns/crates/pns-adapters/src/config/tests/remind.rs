@@ -2,15 +2,15 @@ use super::*;
 
 // --- [remind] ---------------------------------------------------------------
 
-/// The reminder's one key, which is the switch AND the schedule.
+/// The reminder's one key, whose ABSENCE is the off statement.
 ///
-/// `[focus] silence`'S OWN PRECEDENT: naming nothing and switching off are
-/// one statement, so there is no second `enabled` key that can disagree
-/// with the first. DEFAULT OFF, unlike `[daemon]` beside it, because this
-/// table gates something that INTERRUPTS and because the feature needs a
-/// `chezmoi apply` and a running daemon before it works at all.
+/// NO KEY DOUBLES AS ITS OWN SWITCH, so `"0s"` is refused by name rather
+/// than read as off: the key not being there already says it. DEFAULT OFF,
+/// unlike `[daemon]` beside it, because this table gates something that
+/// INTERRUPTS and because the feature needs a `chezmoi apply` and a running
+/// daemon before it works at all.
 #[test]
-fn the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error() {
+fn the_remind_table_reads_one_delay_and_defaults_off() {
     assert_eq!(
         parse_config("").unwrap().remind_delay_secs,
         0,
@@ -21,13 +21,6 @@ fn the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_
             .unwrap()
             .remind_delay_secs,
         300
-    );
-    assert_eq!(
-        parse_config("[remind]\ndelay = \"0s\"\n")
-            .unwrap()
-            .remind_delay_secs,
-        0,
-        "zero is the same statement as no table, and it is not an error"
     );
     // The floor and the ceiling are admitted at their own edges.
     assert_eq!(
@@ -51,6 +44,16 @@ fn the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_
 /// forbids; THE CEILING mirrors `summarizer_deadline` and must sit
 /// inside the daemon's own registration window, which it does by three
 /// orders of magnitude.
+/// ZERO IS REFUSED BY NAME, and the refusal says where off lives instead.
+#[test]
+fn a_zero_delay_is_refused_and_points_at_the_absent_key() {
+    let said = refusal("[remind]\ndelay = \"0s\"\n");
+    assert!(
+        said.contains("remind") && said.contains("delay") && said.contains("unset"),
+        "the refusal names the table, the key and the off statement: {said}"
+    );
+}
+
 #[test]
 fn a_delay_that_is_not_a_duration_is_refused_by_name() {
     for (case, text, named) in [

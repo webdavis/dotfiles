@@ -38,7 +38,7 @@ fn every_armed_feature_reaches_the_parsed_config_carrying_its_own_answers() {
     assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
-    assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
+    assert_eq!(config.focus_modes, vec!["Sleep".to_string()]);
     assert_eq!(config.remind_delay_secs, 300);
 }
 

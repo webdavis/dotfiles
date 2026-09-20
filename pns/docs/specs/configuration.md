@@ -27,7 +27,7 @@ about the HARNESS's own settings file and has nothing to do with this file; it i
 Evidence, all negative and each checked: `src/config.rs:TABLE_KEYS` declares the top level as
 `&["daemon", "focus", "lights", "plugins", "recap", "remind", "stale"]` and nothing else, so a `version` key at the
 top level would be refused by `parse_config`'s `_` arm; `src/config.rs:Config` has six fields (`plugins`,
-`recap`, `focus_silence`, `daemon_enabled`, `remind_delay_secs`, `lights`) and none of them is a version;
+`recap`, `focus_modes`, `daemon_enabled`, `remind_delay_secs`, `lights`) and none of them is a version;
 `src/config_text.rs:LAYOUT` declares sixteen tables and no version key; and a case-insensitive grep for
 `version` over `src/config.rs`, `src/config_text.rs`, `dot_config/pns/config-values.toml` and
 `dot_config/pns/private_config.toml.tmpl` returns nothing at all. There is therefore no migration
@@ -180,12 +180,17 @@ this table existed, and it would do it silently."
 
 | Key path        | Type             | Default                | Bound                                   | Secret | Out of bounds or malformed                                                                                                                                                                                                      | Judged by                                          | Tests                                                                                                                                                                                                                                                                                                                |
 | --------------- | ---------------- | ---------------------- | --------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `focus.silence` | array of strings | `[]` (the feature off) | the LIST may be empty, an ENTRY may not | no     | not a list, or a non-string element: `` `focus` key `silence` has type `{type}`, not a list of Focus mode names ``; an empty entry: `` `focus` key `silence` names a mode that is the empty string, which is no Focus at all `` | `src/config.rs:modes` over `src/config.rs:strings` | `a_focus_table_names_the_modes_that_silence_pns`, `a_silence_list_that_is_not_a_list_is_refused_naming_the_key`, `a_mode_name_that_is_not_a_string_is_refused_naming_the_key`, `a_mode_name_that_is_the_empty_string_is_refused_by_name`, `an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off` |
+| `focus.modes` | array of strings | `[]` (nothing silenced) | the LIST may be empty, an ENTRY may not | no     | not a list, or a non-string element: `` `focus` key `modes` has type `{type}`, not a list of Focus mode names ``; an empty entry: `` `focus` key `modes` names a mode that is the empty string, which is no Focus at all `` | `src/config.rs:modes` over `src/config.rs:strings` | `a_focus_table_names_the_modes_that_silence_pns`, `a_silence_list_that_is_not_a_list_is_refused_naming_the_key`, `a_mode_name_that_is_not_a_string_is_refused_naming_the_key`, `a_mode_name_that_is_the_empty_string_is_refused_by_name`, `an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off` |
 
-There is no `enabled` key here, and the absence is deliberate: "naming no mode and switching the feature
-off are the same statement, so a second way to say it is a second thing that can disagree with the first"
-(`src/config.rs:parse_focus`). The mode NAME itself is not judged: a name matching no mode is an ordinary
-thing to write, and `pns doctor` is where the operator learns whether it matched.
+`focus.enabled` is a bool defaulting `true` (`config/focus.rs:DEFAULT_FOCUS_ENABLED`), refused as
+`` `focus` key `enabled` has type `{type}`, not boolean ``, and judged by `config/focus.rs:parse_focus`.
+It is the SWITCH and `modes` is the ROSTER: "a list the operator spent a while getting right stays
+written while the feature is off for a week." The two are read together through
+`Config::focus_silence`, which answers the roster while the switch is on and nothing while it is off,
+so no reader can forget one of them. The mode NAME itself is not judged: a name matching no mode is an
+ordinary thing to write, and `pns doctor` is where the operator learns whether it matched. Pinned by
+`config/tests/focus.rs:the_switch_off_silences_nothing_even_with_modes_named` and
+`config/tests/focus.rs:a_switch_that_is_not_a_boolean_is_refused_naming_the_key`.
 
 ### `[daemon]`
 
@@ -202,7 +207,7 @@ switches."
 
 | Key path       | Type            | Default                               | Bound                                        | Secret | Out of bounds or malformed                                                                                                                                | Judged by                          | Tests                                                                                                                                     |
 | -------------- | --------------- | ------------------------------------- | -------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `remind.delay` | duration string | unset (`REMIND_OFF`, the feature off) | `"0s"` is off; otherwise 30s to 1h inclusive | no     | not a duration: `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``; outside: `` `remind` key `delay` "{text}" is outside 30s to 1h `` | `src/config.rs:remind_delay_range` | `the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
+| `remind.delay` | duration string | unset (`REMIND_OFF`, the feature off) | 30s to 1h inclusive; `"0s"` is refused | no     | not a duration: `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``; outside: `` `remind` key `delay` "{text}" is outside 30s to 1h `` | `src/config.rs:remind_delay_range` | `the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
 The bounds live in the policy crate as `pns_domain::remind::DELAY_RANGE`, so the `[remind] delay` key,
 the `--remind=<duration>` flag and the JSON request's `remind` field are held to one range.
@@ -324,7 +329,7 @@ marks an interpolation.
 | `review_notes_glob` relative                                           | `` `recap` key `review_notes_glob` is `{pattern}`, which is not an absolute path or a `~/` one ``                                                                                                                                                                    | `Invalid`                                                  | same                                                                                   |
 | `review_notes_glob` with a `*` in a directory                          | `` `recap` key `review_notes_glob` is `{pattern}`, and only its file name may hold a `*` ``                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
 | `review_notes_glob` with two `*` in the file name                      | `` `recap` key `review_notes_glob` is `{pattern}`, and its file name may hold only one `*` ``                                                                                                                                                                        | `Invalid`                                                  | same                                                                                   |
-| a `silence` entry that is the empty string                        | `` `focus` key `silence` names a mode that is the empty string, which is no Focus at all ``                                                                                                                                                                     | `Invalid`                                                  | same                                                                                   |
+| a `modes` entry that is the empty string                        | `` `focus` key `modes` names a mode that is the empty string, which is no Focus at all ``                                                                                                                                                                     | `Invalid`                                                  | same                                                                                   |
 | a non-boolean `[daemon] enabled`                                  | `` `daemon` key `enabled` has type `{type}`, not boolean ``                                                                                                                                                                                                     | `Invalid`                                                  | open: the daemon carries on enabled (`src/main.rs:daemon_enabled`)                     |
 | `delay` not a duration                                            | `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``                                                                                                                                                                                          | `Invalid`                                                  | closed on the pulse path, open to the CORE on the delivery path                        |
 | `delay` outside its range                                         | `` `remind` key `delay` "{text}" is outside 30s to 1h ``                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
@@ -777,9 +782,9 @@ Then it is refused by name with what is wrong, rather than clamped or silently d
 - Compatibility contract: exactly one `*`, in the file name only, and one directory named in full. A
   looser matcher is a widening of what pns is allowed to open.
 
-### 10. `[focus] silence` is the feature switch and the policy in one key
+### 10. `[focus] modes` is the roster and `[focus] enabled` the switch
 
-Given `[focus] silence = []`\
+Given `[focus] modes = []`\
 
 When `parse_config` runs\
 
@@ -789,7 +794,7 @@ Then the feature is off and nothing is refused
   admitted (`src/config.rs:an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off`),
   and an empty ENTRY is refused
   (`src/config.rs:a_mode_name_that_is_the_empty_string_is_refused_by_name`).
-- Failure sources: `silence = "Sleep"` (a bare string, which "is what a hand writes first"), a non-string
+- Failure sources: `modes = "Sleep"` (a bare string, which "is what a hand writes first"), a non-string
   element, an empty entry, and a misspelled key (`silenced`).
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path. Within the feature, no
   mode named is the feature off, and "MEASURED on this operator's own machine, a Focus was asserted for
@@ -838,28 +843,30 @@ Then it runs
 - Compatibility contract: default ON is load-bearing for every clock-driven feature, and flipping it to
   default OFF would put both rider features behind two switches.
 
-### 12. `[remind] delay` is the switch AND the schedule, with zero carved out
+### 12. `[remind] delay` is off by being absent, and `"0s"` is refused
 
 Given `[remind] delay = "0s"`\
 
 When `parse_config` runs\
 
-Then the feature is off and it is not an error
+Then it is refused by name, and the refusal says to leave the key unset for off
 
-- Success: `schema.rs:duration_key` returns zero for a zero duration before the range check runs, then
-  refuses anything outside 30 seconds to an hour. Pinned by
-  `config/tests/remind.rs:the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`,
-  which asserts no table is 0, `"5m"` is 300, `"0s"` is 0, and both `"30s"` and `"1h"` are accepted at
-  their own edges.
+- Success: `schema.rs:nonzero_duration_key` refuses a zero duration with
+  `` `remind` key `delay` is 0, which is not a duration; leave the key unset for off ``, then bounds
+  anything else to 30 seconds through an hour. Pinned by
+  `config/tests/remind.rs:the_remind_table_reads_one_delay_and_defaults_off`, which asserts no table is
+  0, `"5m"` is 300, and both `"30s"` and `"1h"` are accepted at their own edges, and by
+  `config/tests/remind.rs:a_zero_delay_is_refused_and_points_at_the_absent_key`.
 - Failure sources: eight, table-driven in
   `config/tests/remind.rs:a_delay_that_is_not_a_duration_is_refused_by_name`: `300`, `"-1m"`, `"300"`,
   `["5m"]`, `"29s"`, `"61m"`, the misspelled `delay_secs`, and `remind = 300` at the top level.
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path.
 - Thresholds: floor `MIN_DELAY_SECS` 30, ceiling `MAX_DELAY_SECS` 3600. One step either side is
-  pinned in both directions: 30 and 3600 are accepted, 29 and 3601 are refused. Zero is a third state,
-  below the floor and accepted.
+  pinned in both directions: 30 and 3600 are accepted, 29 and 3601 are refused. Zero is refused with a
+  sentence of its own rather than read as a third state.
 - Required side effects: none.
-- Forbidden side effects: no `enabled` key, on `[focus] silence`'s own precedent.
+- Forbidden side effects: no `enabled` key, because the key's ABSENCE is the off statement and a second
+  way to say it is a second thing that can disagree with the first.
 - Timeout and cancellation: the ceiling "must also sit inside the daemon's own registration window
   (`daemon::DUE_WINDOW_SECS`, thirty days), which it does with room to spare, and it is what keeps
   `2 * the delay` in the staleness cap far from any arithmetic edge" (`src/config.rs:remind_delay_range`).
@@ -1213,8 +1220,11 @@ Then every recognised key and table is removed as it is written, and anything re
 - Required side effects: CORE tables are written LIVE whether or not the values mention them; OPT-IN
   tables are written COMMENTED, heading included, when the values never mention them at all. Pinned by
   `src/config_text.rs:an_opt_in_table_absent_renders_commented_and_present_renders_live`, which asserts
-  the exact text `# [plugins.log]\n# enabled = true\n` for the absent case and
-  `[plugins.log]\nenabled = true\n` for the present one, and confirms the parsed result each way. A
+  the exact text `# [plugins.log]\n# enabled = false\n` for the absent case and
+  `[plugins.log]\nenabled = true\n` for a values file that states the switch, and confirms the parsed
+  result each way. EVERY `enabled` IS WRITTEN AT ITS OWN DEFAULT, which for a plugin is off: a table is
+  on because a line says so and never because the table showed up, pinned end to end by
+  `tests/config_render.rs:the_written_template_carries_one_enabled_line_per_table_that_declares_one`. A
   `Sample::Example` key stays commented even inside a live table unless the values supply a value for it
   (`src/config_text.rs:render_block`).
 - Forbidden side effects: the `[lights]` cluster is the ONE hardcoded branch, because its seven headings

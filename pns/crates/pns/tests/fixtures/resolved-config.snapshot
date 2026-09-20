@@ -218,7 +218,8 @@ Config {
         repositories: [],
         review_notes_glob: None,
     },
-    focus_silence: [],
+    focus_enabled: true,
+    focus_modes: [],
     delivery_classes: {
         "default": DeliveryClass {
             route: "",
@@ -251,6 +252,7 @@ Config {
     },
     producer_remind: {},
     remind_delay_secs: 300,
+    stale_enabled: true,
     stale_escalate_after_secs: 3600,
     stale_route: None,
     storage_busy_deadline: 5s,

@@ -90,7 +90,7 @@ fn values(answers: &Answers) -> toml::Table {
     if !answers.focus_modes.is_empty() {
         let mut focus = toml::Table::new();
         focus.insert(
-            "silence".to_string(),
+            "modes".to_string(),
             toml::Value::Array(
                 answers
                     .focus_modes

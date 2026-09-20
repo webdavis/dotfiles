@@ -64,7 +64,7 @@ pub(crate) fn doctor_mode() -> i32 {
                 .unwrap_or_default(),
             read_discord(config),
             config.recap.replay_card,
-            config.focus_silence.clone(),
+            config.focus_silence().to_vec(),
             config.daemon_enabled,
             config.remind_delay_secs,
             config.lights.clone(),
