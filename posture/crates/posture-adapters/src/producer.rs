@@ -100,11 +100,12 @@ impl<R: CommandRunner, A: IndependentAlarm> ProducerCommand<R, A> {
             }
             return Submission::NotAccepted(SubmissionFailure::Refused);
         }
-        if output.exit != 0 {
-            return self.failed_engine(alert, SubmissionFailure::Failed);
-        }
+        // Delivered, Partial and Undelivered all mean the engine took durable
+        // ownership of the request; only the diagnostic proves it committed.
+        // A non-zero exit here (pns exits 1 for Partial/Undelivered) reports
+        // the destination outcome, not a broken engine.
         match result.status {
-            Status::Accepted
+            Status::Delivered | Status::Partial | Status::Undelivered
                 if result
                     .diagnostics
                     .iter()

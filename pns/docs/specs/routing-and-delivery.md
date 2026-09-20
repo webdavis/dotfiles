@@ -853,13 +853,14 @@ Then `std::panic::catch_unwind` converts the panic into
 - **Compatibility contract:** The catch sits at the one site that dispatches any leg at all, so the
   backend refusal and the panic catch are the same fence.
 
-### 20. A notification never fails the work it reports on
+### 20. A notification never fails the harness turn it reports on
 
-Given any event delivered through the producer path
+Given any event delivered through a harness hook path
 
 When the process finishes, whatever every destination did
 
-Then it exits 0.
+Then it exits 0. A producer calling `pns send` hears the delivery instead: 0 when every durable
+destination took the page and 1 when one did not.
 
 - **Success:** `src/main.rs:main` falls through to `event_mode(&argv)`, which returns `()`; no
   `std::process::exit` is on the event path (`src/main.rs:main` lines 48 to 155). Every mode that DOES
@@ -868,17 +869,17 @@ Then it exits 0.
 - **Failure sources:** A non-UTF-8 byte in argv, which would panic `std::env::args()`. It is avoided by
   one lossy read through `args_os` (`src/main.rs:main`), pinned by
   `tests/dispatch.rs:a_non_unicode_argument_never_breaks_the_exit_zero_edge`.
-- **Fail direction:** Always exit 0 for an event. The exceptions are stated and narrow: a word that names
-  no command is a typo, not an event, and earns usage on stderr and exit 2 (`src/main.rs:main`); the
-  hand-run check exits 1 when a channel failed
+- **Fail direction:** Always exit 0 for a hook. A `pns send` call exits 1 when a durable destination took
+  nothing, and a word that names no command is a typo rather than an event and earns usage on stderr and
+  exit 2 (`src/main.rs:main`); the hand-run check exits 1 when a channel failed
   (`tests/dispatch.rs:a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one`);
   and `pns recap` exits 0 even when the gateway refused, because that contract is the binary's and not
   the mode's to break
   (`tests/native.rs:a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero`).
 - **Thresholds:** Not applicable.
 - **Required side effects:** None. Silence is the ordinary outcome of a successful event.
-- **Forbidden side effects:** No destination's failure may propagate as a non-zero status, a panic that
-  escapes, or an early return that skips a sibling. `catch_unwind` (behavior 19) and the no-`?` loop
+- **Forbidden side effects:** No destination's failure may propagate out of a hook as a non-zero status,
+  and none anywhere may propagate as a panic that escapes or an early return that skips a sibling. `catch_unwind` (behavior 19) and the no-`?` loop
   (behavior 18) are the two mechanisms.
 - **Timeout and cancellation:** Each leg is individually bounded except an executable channel; see
   behavior 11's Thresholds for the one gap.
@@ -886,8 +887,9 @@ Then it exits 0.
 - **Privacy:** Not applicable.
 - **Process ownership and cleanup:** Every spawned child is either reaped by `run_bounded` or by
   `deliver`'s `child.wait()`.
-- **Compatibility contract:** The always-exit-0 contract governs EVENT deliveries, and a word naming no
-  command never becomes one, so refusing an unknown argv[1] contradicts nothing (`src/main.rs:main`).
+- **Compatibility contract:** The always-exit-0 contract governs HARNESS HOOKS, and a word naming no
+  command never becomes an event, so refusing an unknown argv[1] contradicts nothing
+  (`src/main.rs:main`).
 
 ### 21. Three callers dispatch legs, and each spells its own report
 

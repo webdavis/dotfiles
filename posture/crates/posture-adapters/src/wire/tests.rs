@@ -31,7 +31,7 @@ fn the_golden_result_decodes_to_the_fields_posture_acts_on() {
         result.request_id.as_ref().map(RequestId::as_str),
         Some("nvim-7f3a9c2e-0001")
     );
-    assert_eq!(result.status, Status::Degraded);
+    assert_eq!(result.status, Status::Partial);
     assert_eq!(result.diagnostics, vec!["ignored_field:detial".to_string()]);
     assert_eq!(result.destinations.len(), 2);
     assert_eq!(result.destinations[0].outcome, DeliveryOutcome::Delivered);

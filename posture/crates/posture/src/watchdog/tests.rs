@@ -93,7 +93,7 @@ impl CommandRunner for Runner {
                 if effects.pns_failed {
                     return Err(InspectionFailure::TimedOut);
                 }
-                Ok(CommandOutput { bytes:format!(r#"{{"schema":"pns.result/1","request_id":"{identity}","status":"accepted","diagnostics":["ledger_committed"]}}"#).into_bytes(),exit:0 })
+                Ok(CommandOutput { bytes:format!(r#"{{"schema":"pns.result/1","request_id":"{identity}","status":"delivered","diagnostics":["ledger_committed"]}}"#).into_bytes(),exit:0 })
             }
             _ => panic!("unexpected command {program:?}"),
         }

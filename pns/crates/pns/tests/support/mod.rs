@@ -19,7 +19,7 @@ mod sandbox;
 pub use {
     capture::{Capture, plugin_command},
     daemon_guard::DaemonGuard,
-    process::{poll_until, run, stderr, stdout},
+    process::{poll_until, run, run_expecting, stderr, stdout},
     router::{KEYS_DISAGREE, RouterStub, router_table},
     sandbox::Sandbox,
 };

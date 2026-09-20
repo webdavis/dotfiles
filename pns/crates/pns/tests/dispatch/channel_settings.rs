@@ -51,10 +51,15 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
          [plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
     );
-    let output = run(sandbox
-        .pns()
-        .args(["send", "--producer", "claude", "--state", "done"])
-        .args(["--project", "dotfiles", "--detail", "a summary"]));
+    // The fallback runs every built-in plugin, not just the three named
+    // here, so a channel this sandbox never stubbed is left undelivered.
+    let output = run_expecting(
+        1,
+        sandbox
+            .pns()
+            .args(["send", "--producer", "claude", "--state", "done"])
+            .args(["--project", "dotfiles", "--detail", "a summary"]),
+    );
 
     assert!(sandbox.fired("phone"), "stderr: {}", stderr(&output));
     assert!(

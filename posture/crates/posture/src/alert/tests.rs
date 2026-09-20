@@ -72,7 +72,7 @@ set -eu
 IFS= read -r request
 printf '%s\n' "$request" >'{}'
 identity="$(printf '%s' "$request" | /usr/bin/sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')"
-printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":["ledger_committed"]}}\n' "$identity"
+printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagnostics":["ledger_committed"]}}\n' "$identity"
 "##, request.display())).unwrap();
     std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
 
