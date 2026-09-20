@@ -958,7 +958,23 @@ return {
         -- Stage current file → Amend last commit (no edit) → Force push:
         {
           "<C-g>!",
-          "<cmd>Gwrite|Git commit --amend --no-edit|Git push --force<cr>",
+          function()
+            vim.cmd("Gwrite")
+            vim.fn.FugitiveExecute({ "commit", "--amend", "--no-edit" }, function(result)
+              vim.schedule(function()
+                vim.fn.FugitiveDidChange()
+                if result.exit_status ~= 0 then
+                  vim.notify(
+                    "Amend failed\n\n" .. table.concat(result.stderr or {}, "\n"),
+                    log_warning,
+                    notify_fugitive_title
+                  )
+                  return
+                end
+                vim.cmd("Git! push --force")
+              end)
+            end)
+          end,
           desc = "Fugitive: stage → amend (no edit) → force push",
           silent = true,
         },

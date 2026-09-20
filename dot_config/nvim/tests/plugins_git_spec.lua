@@ -350,6 +350,84 @@ cases["the two guarded key lists cover exactly the twelve affected keys"] = func
   assert(#names == 12, ("%d keys covered, expected 12: %s"):format(#names, table.concat(names, " ")))
 end
 
+-- `<C-g>!` stages, amends and force-pushes through `FugitiveExecute` rather
+-- than a synchronous `:Git` chain, so its sequencing is driven directly:
+-- `FugitiveExecute` and `FugitiveDidChange` are faked, `vim.schedule` runs its
+-- callback immediately, and `vim.cmd` records the command strings it received.
+local function press_amend_and_push(exit_status, stderr)
+  local real_cmd = vim.cmd
+  local real_notify = vim.notify
+  local real_schedule = vim.schedule
+  local real_execute = vim.fn.FugitiveExecute
+  local real_did_change = vim.fn.FugitiveDidChange
+
+  local cmds = {}
+  local notifications = {}
+  local execute_args
+
+  vim.cmd = function(command)
+    table.insert(cmds, command)
+  end
+  vim.notify = function(message, level)
+    table.insert(notifications, { message = message, level = level })
+  end
+  vim.schedule = function(fn)
+    fn()
+  end
+  local did_change_calls = 0
+  vim.fn.FugitiveDidChange = function()
+    did_change_calls = did_change_calls + 1
+  end
+  vim.fn.FugitiveExecute = function(args, callback)
+    execute_args = args
+    callback({ exit_status = exit_status, stderr = stderr })
+  end
+
+  local ok, err = pcall(captured["<C-g>!"].rhs)
+
+  vim.cmd = real_cmd
+  vim.notify = real_notify
+  vim.schedule = real_schedule
+  vim.fn.FugitiveExecute = real_execute
+  vim.fn.FugitiveDidChange = real_did_change
+
+  assert(ok, "<C-g>! raised: " .. tostring(err))
+  return {
+    cmds = cmds,
+    notifications = notifications,
+    execute_args = execute_args,
+    did_change_calls = did_change_calls,
+  }
+end
+
+cases["<C-g>! stages, amends, and force-pushes in order on success"] = function()
+  local answer = press_amend_and_push(0, {})
+  assert(
+    #answer.cmds == 2 and answer.cmds[1] == "Gwrite" and answer.cmds[2] == "Git! push --force",
+    "expected Gwrite then Git! push --force, got: " .. table.concat(answer.cmds, " | ")
+  )
+  assert(
+    answer.execute_args[1] == "commit" and answer.execute_args[2] == "--amend" and answer.execute_args[3] == "--no-edit",
+    "FugitiveExecute did not receive the amend args"
+  )
+  assert(answer.did_change_calls == 1, "expected one FugitiveDidChange call")
+  assert(#answer.notifications == 0, "expected no notifications on success")
+end
+
+cases["<C-g>! stages then warns and stops when the amend fails"] = function()
+  local answer = press_amend_and_push(1, { "error: nothing to commit" })
+  assert(
+    #answer.cmds == 1 and answer.cmds[1] == "Gwrite",
+    "expected only Gwrite to run, got: " .. table.concat(answer.cmds, " | ")
+  )
+  assert(#answer.notifications == 1, ("expected one warning, got %d"):format(#answer.notifications))
+  assert(
+    answer.notifications[1].message:find("error: nothing to commit", 1, true),
+    "warning did not carry the amend's stderr"
+  )
+  assert(answer.notifications[1].level == vim.log.levels.WARN, "expected a WARN-level notification")
+end
+
 -- Paths that exist nowhere: every name below is set on a scratch buffer, and
 -- nothing here reads or writes the filesystem.
 local ROOT = "/private/tmp/plugins-git-spec/repo"
