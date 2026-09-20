@@ -87,11 +87,8 @@ mod tests {
     #[test]
     fn a_path_entry_this_identity_cannot_execute_is_not_the_tailscale_binary() {
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
-        let root = std::env::temp_dir().join(format!("posture-funnel-path-{}", std::process::id()));
-        // A pid comes round again, and a failed run leaves the file below
-        // unwritable, so the tree is cleared rather than reused.
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
+        let sandbox = crate::test_sandbox::Sandbox::new("funnel-path");
+        let root = sandbox.path();
         let candidate = root.join("tailscale");
         std::fs::write(&candidate, "#!/bin/sh\n").unwrap();
         let vars = |name: &str| match name {

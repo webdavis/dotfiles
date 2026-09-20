@@ -698,8 +698,11 @@ namespacing, so the `plugin_action` keybindings in `dot_config/herdr/config.toml
 move.
 
 Two arrive by `herdr plugin install` from the `packages.herdr_plugins` roster. herdr v1 has no
-`plugin update`, so bumping a `ref` there does not move a plugin that is already installed: uu's weekly
-herdr lane reports the install command for the revision it is not at, and the operator runs it.
+`plugin update`, so bumping a `ref` there is carried out as a reinstall: `run_after_53` compares each
+roster revision with the one `herdr plugin list --json` records and reinstalls whatever drifted, which an
+install over a GitHub-managed plugin does by replacing its managed checkout. So a pin bump lands on the
+next full apply, and uu's weekly herdr lane keeps reporting the same comparison for the week between
+applies.
 
 `herdr-process` is the exception and stays on the LINK path, driven by
 `.chezmoiscripts/run_onchange_after_58` and the `packages.herdr_linked_plugin` pin beside that roster. It

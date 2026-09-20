@@ -140,16 +140,12 @@ fn a_backstop_that_gives_up_before_the_reminder_nudges_is_refused_naming_both_ke
     );
 
     // A REMINDER THAT IS OFF CONTRADICTS NOTHING, because no nudge ever fires
-    // for the backstop to run in front of. Both spellings of off.
-    for written in [
-        "[lights.blocked]\nlease_expiry = \"60s\"\n",
-        "[remind]\ndelay = \"0s\"\n[lights.blocked]\nlease_expiry = \"60s\"\n",
-    ] {
-        assert!(
-            parse_config(written).is_ok(),
-            "{written:?} names no schedule to contradict and must be accepted"
-        );
-    }
+    // for the backstop to run in front of, and off is the key left out.
+    let written = "[lights.blocked]\nlease_expiry = \"60s\"\n";
+    assert!(
+        parse_config(written).is_ok(),
+        "{written:?} names no schedule to contradict and must be accepted"
+    );
 }
 
 #[test]

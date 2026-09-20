@@ -1189,7 +1189,7 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
 - Success: `src/setup.rs:a_walk_that_armed_nothing_still_writes_the_core` parses the composed text and
   asserts `plugins["banner"].enabled`, `plugins["mobile"].enabled`,
   `mobile.settings["type"] == "moshi"`, that `hermes`, `lights` and `home_presence` are absent, that `lights` is
-  `None`, that `focus_silence` is empty and that `remind_delay_secs` is 0. The reason every default is
+  `None`, that `focus_modes` is empty and that `remind_delay_secs` is 0. The reason every default is
   written OUT rather than left implicit is that a loaded config is authoritative and an absent `enabled`
   reads FALSE, so a wizard that left the core implicit would hand a fresh machine a file that turns the
   banner and the card off (`src/setup.rs:compose_config`).
@@ -1204,7 +1204,7 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
   `Recap::default()`, `daemon_enabled`, `card_while_watching` and `DEFAULT_ACK_DEADLINE`).
 - Required side effects: one config file.
 - Forbidden side effects: a declined table must be COMMENTED OUT, never written with empty values:
-  `silence = []` loads to the same nothing an absent table does and READS as a feature set
+  `modes = []` loads to the same nothing an absent table does and READS as a feature set
   up (`src/setup.rs:a_walk_that_armed_nothing_still_writes_the_core`, which scans for five headings
   standing uncommented at the head of a line).
 - Timeout and cancellation: Not applicable.

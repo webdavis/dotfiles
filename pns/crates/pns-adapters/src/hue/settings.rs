@@ -6,11 +6,12 @@ use pns_domain::CertificatePin;
 pub const DEFAULT_ROOMS: &[&str] = &["3F - Studio", "2F - Kitchen"];
 
 /// Everything the pulse needs from the config, or None for the not-set-up
-/// silence: a bridge, a key and the certificate they answer behind.
+/// silence: a bridge host, an API key and the certificate they answer
+/// behind.
 #[derive(Debug, PartialEq)]
 pub struct HueSettings {
-    pub bridge: String,
-    pub key: String,
+    pub bridge_host: String,
+    pub api_key: String,
     /// The one certificate the bridge may present. REQUIRED, which is why it
     /// is a value here rather than an option: the bridge's certificate carries
     /// no name a verifier can check, so its fingerprint is the whole of what
@@ -21,10 +22,10 @@ pub struct HueSettings {
 /// The settings, the not-set-up silence, or the refusal that names the key.
 ///
 /// THREE ANSWERS RATHER THAN TWO, and the third is the fail-closed pin. A
-/// bridge and key with no `certificate` is a table somebody armed and did not
-/// finish, so it refuses by name instead of pulsing through a connection that
-/// verifies nothing. A table with no bridge and key at all is still the silence
-/// it always was.
+/// bridge host and API key with no `certificate` is a table somebody armed
+/// and did not finish, so it refuses by name instead of pulsing through a
+/// connection that verifies nothing. A table with no bridge host and API key
+/// at all is still the silence it always was.
 pub fn hue_settings(settings: &toml::Table) -> Result<Option<HueSettings>, String> {
     let text = |key: &str| -> Option<String> {
         settings
@@ -33,7 +34,7 @@ pub fn hue_settings(settings: &toml::Table) -> Result<Option<HueSettings>, Strin
             .filter(|value| !value.is_empty())
             .map(String::from)
     };
-    let (Some(bridge), Some(key)) = (text("bridge"), text("key")) else {
+    let (Some(bridge_host), Some(api_key)) = (text("bridge_host"), text("api_key")) else {
         return Ok(None);
     };
     let Some(stated) = text("certificate") else {
@@ -41,8 +42,8 @@ pub fn hue_settings(settings: &toml::Table) -> Result<Option<HueSettings>, Strin
     };
     let certificate = CertificatePin::parse(&stated).map_err(|why| certificate_refusal(&why))?;
     Ok(Some(HueSettings {
-        bridge,
-        key,
+        bridge_host,
+        api_key,
         certificate,
     }))
 }

@@ -29,24 +29,28 @@ waiting. Nothing else is added: the design rejected `ledger_events`, which has n
 timestamp and is never pruned, and rejected a file per session, which would need a sweeper where a row
 replaced in place needs none.
 
-## 1. The window is the switch and the schedule
+## 1. The window is the schedule and `[stale] enabled` is the switch
 
 Given an operator who wants to hear about a session nobody came back to
 
 When `[stale] escalate_after` is read out of the configuration file
 
-Then 1m to 24h arms the feature at that window, `"0s"` is the feature off, and every other value is
-refused by name.
+Then 1m to 24h arms the feature at that window, `enabled = false` is the feature off, and every other
+value, `"0s"` included, is refused by name.
 
-- Success: an armed `[stale]` table with nothing said carries the default, 3600
-  (`config/tests/stale.rs:the_escalation_window_defaults_to_an_hour_and_zero_is_off_rather_than_an_error`),
-  and the shipped template writes it uncommented at that default, per the defaults-visible ruling of
-  2026-08-31.
+- Success: an armed `[stale]` table with nothing said carries the default, 3600, and the switch over it
+  defaults true
+  (`config/tests/stale.rs:the_escalation_window_defaults_to_an_hour_and_the_switch_is_what_turns_it_off`),
+  and the shipped template writes both uncommented at those defaults, per the defaults-visible ruling of
+  2026-08-31. `Config::stale_window_secs` is what the page reads: the window while the switch is on and
+  zero while it is off, which is `WINDOW_OFF`'s own reading.
 - Failure sources: a negative number, an integer, 59, and 86401, each refused with the offender named
   (`config/tests/stale.rs:an_escalation_window_that_is_not_a_duration_is_refused_by_name`).
 - Fail direction: an unreadable config reads as OFF (`wait_runtime.rs:stale_settings`), the same
   direction `remind_delay_secs` takes and for its reason.
-- Thresholds: 60 admitted, 59 refused; 86400 admitted, 86401 refused; zero carved out and not an error.
+- Thresholds: 60 admitted, 59 refused; 86400 admitted, 86401 refused; zero refused with a sentence
+  naming the key and pointing at the switch, because an unset window is an hour rather than off and
+  there is nothing absence could say.
 - Compatibility contract: DEFAULT ON at an hour, where `[remind] delay` beside it is default off. The two
   defaults make different mistakes: a nudge nobody asked for interrupts a session the operator is
   already watching, and a page nobody asked for arrives about a session stuck for an hour, which is the

@@ -154,7 +154,7 @@ pub(super) const LIGHTS_OFF_LINE: &str =
 /// And what it says about the pinned certificate on a machine whose config
 /// names no bridge: there is no address to pin one against.
 pub(super) const NO_CERTIFICATE_LINE: &str =
-    "certificate: no [plugins.lights] bridge, so no certificate is pinned";
+    "certificate: no [plugins.lights] bridge_host, so no certificate is pinned";
 
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.

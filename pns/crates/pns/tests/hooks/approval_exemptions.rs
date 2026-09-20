@@ -233,7 +233,7 @@ fn a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() 
     sandbox.write_focus_store("com.apple.sleep.sleep-mode", "Sleep");
     sandbox.write_config(
         "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
-         [plugins.banner]\nenabled = true\n[focus]\nsilence = [\"Sleep\"]\n",
+         [plugins.banner]\nenabled = true\n[focus]\nmodes = [\"Sleep\"]\n",
     );
 
     let payload = "{\"message\":\"may I\",\"session_id\":\"s1\"}\n";

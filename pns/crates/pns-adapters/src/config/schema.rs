@@ -15,7 +15,7 @@ use super::*;
 ///
 /// THE PLUGIN TABLES ARE IN IT and their settings are no longer free-form,
 /// which is the one behaviour change: a plugin's near miss (`room` for `rooms`,
-/// `tokens` for `token`) used to reach the plugin as a setting it did not
+/// `tokens` for `device_token`) used to reach the plugin as a setting it did not
 /// recognize and cost a destination silently. A table for a plugin nothing
 /// registered is NOT here and stays free-form, because this layer has no
 /// vocabulary to judge a plugin that does not exist; the registry refuses the
@@ -69,7 +69,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "summarizer_deadline",
         ],
     ),
-    ("focus", &["silence"]),
+    ("focus", &["enabled", "modes"]),
     ("quiet", &["calendar"]),
     (
         "quiet.calendar",
@@ -92,7 +92,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // carries the producer's own name, so the roster holds the part that is
     // the schema's and the refusal names the whole path.
     (PRODUCER_KEYS, &["remind"]),
-    ("stale", &["escalate_after", "route"]),
+    ("stale", &["enabled", "escalate_after", "route"]),
     ("storage", &["busy_deadline"]),
     ("failures", &["page_enabled", "page_port"]),
     (
@@ -146,7 +146,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     // one line.
     (
         "plugins.log",
-        &["channels", "enabled", "keys", "token", "type", "url"],
+        &["bot_token", "channels", "enabled", "keys", "type", "url"],
     ),
     // AN OPEN TABLE: the row states the one key the SCHEMA requires, and the
     // rest of its vocabulary is the operator's own project names, which no
@@ -160,15 +160,15 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         "plugins.github",
         &[
             "enabled",
+            "personal_access_token",
             "poll_secs",
-            "token",
             "webhook_port",
             "webhook_secret",
         ],
     ),
     (
         "plugins.lights",
-        &["bridge", "certificate", "enabled", "key", "type"],
+        &["api_key", "bridge_host", "certificate", "enabled", "type"],
     ),
     (
         "plugins.banner",
@@ -198,10 +198,10 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         &[
             "ack_deadline",
             "card_while_watching",
+            "device_token",
             "enabled",
             "image_cards",
             "marker_file",
-            "token",
             "type",
             "url",
         ],
@@ -214,14 +214,14 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         "plugins.home_presence",
         &[
+            "alert_route",
             "api_key",
             "device_hostname",
             "device_ipv4",
             "device_mac",
             "enabled",
-            "router_url",
-            "stale_alert_channel",
             "type",
+            "url",
         ],
     ),
 ];
@@ -343,10 +343,11 @@ pub(super) fn unknown_key(roster_table: &str, shown_table: &str, key: &str) -> C
 /// writes for a terminal is dropped, because a config refusal already carries
 /// its own framing.
 ///
-/// ZERO IS CARVED OUT AND IS NOT AN ERROR, for the callers whose key is the
-/// switch as well as the timing: `"0s"` is the same statement as leaving the
-/// key out, while every other value under the floor is a schedule the
-/// operator meant and pns will not run.
+/// ZERO IS CARVED OUT AND IS NOT AN ERROR, for the callers whose zero is a
+/// real bound: no wait for the database lock, an event that expires the
+/// moment it has any age, a lamp armed at once. A key whose zero would mean
+/// the FEATURE off reads through `nonzero_duration_key` instead, where it is
+/// refused by name.
 pub(super) fn duration_key(
     table: &str,
     key: &str,
@@ -354,6 +355,28 @@ pub(super) fn duration_key(
     range: RangeInclusive<Duration>,
 ) -> Result<u64, ConfigError> {
     duration_value(table, key, setting, range).map(|duration| duration.as_secs())
+}
+
+/// One duration key whose OFF STATEMENT IS THE ABSENT KEY, refusing `"0s"`
+/// by name and saying where off lives instead.
+///
+/// A KEY IS NEVER ITS OWN SWITCH. A zero that means "off" is a value every
+/// reader has to decode and every writer has to remember, and the key not
+/// being there already says it; `[stale]`, whose unset window is an hour
+/// rather than off, carries an `enabled` key for the same reason.
+pub(super) fn nonzero_duration_key(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<u64, ConfigError> {
+    let stated = duration_value(table, key, setting, range)?;
+    if stated.is_zero() {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` is 0, which is not a duration; leave the key unset for off"
+        )));
+    }
+    Ok(stated.as_secs())
 }
 
 /// The same key kept whole, for the settings whose range is finer than a

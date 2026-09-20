@@ -73,7 +73,7 @@ pub(super) fn window_around(centre: u16, radius: u16) -> String {
 /// `[plugins.lights]` it would be refused by name there.
 pub(super) fn hue_config(port: u16, dim_window: &str) -> String {
     format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          [lights]\ndim_window = \"{dim_window}\"\n"
     )
@@ -122,7 +122,7 @@ pub(super) fn lamp_run(
     // `config` COMES AFTER EVERY PLUGIN TABLE, because a bare key in a TOML
     // file belongs to whichever table was opened last.
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          [plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\n{config}"
     ));
@@ -213,7 +213,7 @@ pub(super) fn lamp_submit(name: &str, config: &str, request: &str) -> (bool, Opt
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{config}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{config}"
     ));
     let mut command = sandbox.pns();
     command.env("TZ", "UTC");

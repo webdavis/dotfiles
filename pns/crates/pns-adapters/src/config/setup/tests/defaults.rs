@@ -21,11 +21,11 @@ fn a_walk_that_armed_nothing_still_writes_the_core() {
         );
     }
     assert!(config.lights.is_none());
-    assert!(config.focus_silence.is_empty());
+    assert!(config.focus_modes.is_empty());
     assert_eq!(config.remind_delay_secs, 0);
     // AND A DECLINED TABLE IS COMMENTED OUT rather than written with empty
     // values, which is the same rule stated about the text rather than
-    // about what it parses to: `silence = []` and `rooms = []` load to the
+    // about what it parses to: `modes = []` and `rooms = []` load to the
     // same nothing an absent table does, and read as a feature set up.
     for declined in DECLINABLE_TABLES {
         assert!(
@@ -56,10 +56,14 @@ fn the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to() {
 #[test]
 fn a_skipped_token_is_commented_out_rather_than_written_empty() {
     // MOBILE STAYS ON EITHER WAY: pairing is what completes it, and a
-    // `token = ""` would read as configured while carding nothing.
+    // `device_token = ""` would read as configured while carding nothing.
     let text = compose_config(&Answers::default());
-    assert!(text.contains("# token = \"\""), "{text}");
+    assert!(text.contains("# device_token = \"\""), "{text}");
     let config = parsed(&text);
     assert!(config.plugins["phone"].enabled);
-    assert!(!config.plugins["phone"].settings.contains_key("token"));
+    assert!(
+        !config.plugins["phone"]
+            .settings
+            .contains_key("device_token")
+    );
 }

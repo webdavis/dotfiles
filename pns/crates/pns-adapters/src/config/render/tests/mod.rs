@@ -6,23 +6,23 @@ use crate::config::parse_config;
 fn every_table_armed() -> toml::Table {
     toml::toml! {
         [plugins.phone]
-        token = "moshi-secret"
+        device_token = "moshi-secret"
 
         [plugins.log.keys]
         pns-events = "hermes-secret"
 
         [plugins.lights]
-        bridge = "192.168.1.9"
-        key = "hue-secret"
+        bridge_host = "192.168.1.9"
+        api_key = "hue-secret"
 
         [plugins.home_presence]
         type = "unifi"
-        router_url = "https://192.168.1.1"
+        url = "https://192.168.1.1"
         api_key = "router-secret"
         device_hostname = "phone"
 
         [focus]
-        silence = ["Sleep"]
+        modes = ["Sleep"]
 
         [remind]
     }

@@ -18,7 +18,7 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
 
     assert_eq!(
-        config.plugins["phone"].settings["token"].as_str(),
+        config.plugins["phone"].settings["device_token"].as_str(),
         Some("moshi-secret")
     );
     assert_eq!(
@@ -26,14 +26,14 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
         Some("hermes-secret")
     );
     let hue = &config.plugins["lights"].settings;
-    assert_eq!(hue["bridge"].as_str(), Some("192.168.1.9"));
-    assert_eq!(hue["key"].as_str(), Some("hue-secret"));
+    assert_eq!(hue["bridge_host"].as_str(), Some("192.168.1.9"));
+    assert_eq!(hue["api_key"].as_str(), Some("hue-secret"));
     let router = &config.plugins["home_presence"].settings;
     assert_eq!(router["type"].as_str(), Some("unifi"));
-    assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
+    assert_eq!(router["url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
-    assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
+    assert_eq!(config.focus_modes, vec!["Sleep".to_string()]);
     assert_eq!(config.remind_delay_secs, 300);
     assert_eq!(
         config.stale_escalate_after_secs, 3600,
@@ -45,14 +45,19 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
 fn an_empty_walk_still_renders_the_core_at_its_defaults() {
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
-    assert!(config.plugins["phone"].enabled);
-    assert!(config.plugins["banner"].enabled);
+    // EVERY SWITCH AT ITS OWN DEFAULT, which is what a walk that said
+    // nothing asked for: the core plugin tables are written, and written
+    // off, because `[plugins.*] enabled` defaults false.
+    assert!(!config.plugins["phone"].enabled);
+    assert!(!config.plugins["banner"].enabled);
     assert!(config.daemon_enabled);
+    assert!(config.focus_enabled);
+    assert!(config.stale_enabled);
     assert_eq!(config.recap, crate::config::Recap::default());
     for opt_in in ["hermes", "lights", "home_presence"] {
         assert!(!config.plugins.contains_key(opt_in));
     }
-    assert!(config.focus_silence.is_empty());
+    assert!(config.focus_modes.is_empty());
     assert_eq!(config.remind_delay_secs, 0);
     assert!(config.lights.is_none());
 }
@@ -100,9 +105,10 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     // table's line.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     for expected in [
-        "[plugins.phone]\nenabled = true\n",
-        "[plugins.banner]\nenabled = true\n",
+        "[plugins.phone]\nenabled = false\n",
+        "[plugins.banner]\nenabled = false\n",
         "[daemon]\nenabled = true\n",
+        "[stale]\nenabled = true\n",
     ] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }

@@ -67,7 +67,7 @@ fn a_real_install_interrupt_stops_verification_descendants_restores_files_and_re
         ),
     );
     let mut child=Command::new(std::env::current_exe().unwrap()).args(["--exact","ssh::native::tests::interrupt::a_real_install_interrupt_stops_verification_descendants_restores_files_and_reraises","--nocapture"])
-        .env_clear().env(MARKER,&f.root).env("TMPDIR",std::env::temp_dir()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        .env_clear().env(MARKER, f.root.path()).env("TMPDIR",std::env::temp_dir()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
     // The fixture's own verification budget ends it in tens of milliseconds. This is a watchdog
     // rather than a bound on that: a regression that never terminates the group would otherwise
     // hang the suite, and no load on this machine puts a signalled exit ten seconds out.

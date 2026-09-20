@@ -204,7 +204,7 @@ fn a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write() {
         assert_eq!(
             channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
             Delivery::Failed(
-                "push SKIPPED, no moshi token in the config ([plugins.phone] token); \
+                "push SKIPPED, no moshi token in the config ([plugins.phone] device_token); \
                      nothing was sent"
                     .to_string()
             )
@@ -230,7 +230,7 @@ fn a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_th
     ] {
         let channel = channel_over(
             RecordingHttp::answering(answered),
-            "token = \"tok-secret-9\"\n",
+            "device_token = \"tok-secret-9\"\n",
         );
         assert_eq!(
             channel.deliver(&delivery_request(&event(), ReportMode::Silent)),
@@ -242,7 +242,7 @@ fn a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_th
 
 #[test]
 fn a_token_posts_once_to_the_url_with_the_preview_never_the_message() {
-    let channel = channel_with_settings("token = \"tok-1\"\n");
+    let channel = channel_with_settings("device_token = \"tok-1\"\n");
     channel.deliver(&delivery_request(&event(), ReportMode::Silent));
     let posts = channel.http.posts.lock().unwrap();
     assert_eq!(posts.len(), 1);
@@ -277,7 +277,7 @@ fn the_posted_card_links_to_the_origin_pane_and_a_paneless_one_ships_plain() {
         ("", None),
         ("wW:p21 evil&workspace=x", None),
     ] {
-        let channel = channel_with_settings("token = \"tok-1\"\n");
+        let channel = channel_with_settings("device_token = \"tok-1\"\n");
         channel.deliver(&delivery_request(
             &Event {
                 pane: pane.to_string(),

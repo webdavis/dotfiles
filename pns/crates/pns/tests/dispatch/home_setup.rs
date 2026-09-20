@@ -39,7 +39,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // `[plugins.home_presence]`, so a config written before that move is
             // refused whole, which takes every plugin's secret with it, and
             // "unknown" on its own leaves nowhere to go.
-            "[home]\nrouter_url = \"https://192.168.1.1\"\nphone = \"mister\"\n",
+            "[home]\nurl = \"https://192.168.1.1\"\nphone = \"mister\"\n",
             "home: config error (unknown top-level key `home`; the file serves \
              daemon, delivery, delivery_class, failures, focus, lights, paths, plugins, \
              producer, quiet, \
@@ -51,17 +51,17 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
         ),
         (
             "[plugins.home_presence]\nenabled = false\ntype = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
+             url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: [plugins.home_presence] is present but enabled = false",
         ),
         (
             "[plugins.home_presence]\nenabled = true\n\
-             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
+             url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: no type in [plugins.home_presence] (the only type is \"unifi\")",
         ),
         (
             "[plugins.home_presence]\nenabled = true\ntype = \"asus\"\n\
-             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
+             url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\napi_key = \"k-123\"\n",
             "home: [plugins.home_presence] has type \"asus\", which no compiled-in backend answers \
              (the only type is \"unifi\")",
         ),
@@ -70,7 +70,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // keeps its own line, and that line no longer names them.
             "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
              device_hostname = \"mister\"\napi_key = \"k-123\"\n",
-            "home: the [plugins.home_presence] table is present but router_url is missing, empty, \
+            "home: the [plugins.home_presence] table is present but url is missing, empty, \
              or not a string",
         ),
         (
@@ -78,7 +78,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // keys to set rather than any key that went away, since there is
             // no back-compat here.
             "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\napi_key = \"k-123\"\n",
+             url = \"https://192.168.1.1\"\napi_key = \"k-123\"\n",
             "home: no device to look for in [plugins.home_presence] \
              (set at least one of device_mac, device_hostname, device_ipv4)",
         ),
@@ -88,20 +88,20 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // at load, so the key that went away is named where the operator
             // wrote it, with the keys that replaced it in the same sentence.
             "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
+             url = \"https://192.168.1.1\"\nphone = \"mister\"\napi_key = \"k-123\"\n",
             "home: config error (unknown `plugins.home_presence` key `phone`; the table serves \
-             api_key, device_hostname, device_ipv4, device_mac, enabled, router_url, \
-             stale_alert_channel, type)",
+             alert_route, api_key, device_hostname, device_ipv4, device_mac, enabled, \
+             type, url)",
         ),
         (
             "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\ndevice_ipv4 = \"192.168.1\"\napi_key = \"k-123\"\n",
+             url = \"https://192.168.1.1\"\ndevice_ipv4 = \"192.168.1\"\napi_key = \"k-123\"\n",
             "home: device_ipv4 = \"192.168.1\" in [plugins.home_presence] is not an IPv4 address \
              (a dotted quad, e.g. \"192.168.1.169\")",
         ),
         (
             "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\ndevice_mac = \"2e11ab6db04f\"\napi_key = \"k-123\"\n",
+             url = \"https://192.168.1.1\"\ndevice_mac = \"2e11ab6db04f\"\napi_key = \"k-123\"\n",
             "home: device_mac = \"2e11ab6db04f\" in [plugins.home_presence] is not a MAC address \
              (six hex pairs under one separator, e.g. \"2e:11:ab:6d:b0:4f\")",
         ),
@@ -109,7 +109,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             // Everything else is in order, so the key is the only thing left
             // to be missing, and the probe stops before it reaches a router.
             "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n\
-             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
+             url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n",
             "home: no api_key in the [plugins.home_presence] table (the probe is not set up)",
         ),
     ] {

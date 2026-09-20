@@ -91,7 +91,7 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
 
 /// THE MUTANT THIS PINS: the literal-secret refusal check removed, OR
 /// narrowed by dropping any one path out of `secret_bearing_keys`. A single
-/// case covering only `plugins.lights.bridge` stays green if the others are
+/// case covering only `plugins.lights.bridge_host` stays green if the others are
 /// removed from that list; table-driving across all of them is what catches a
 /// narrowed roster. THE HERMES ROUTES ARE READ OFF THE VALUES FILE'S OWN KEY
 /// TABLE, so a route line added there is covered the moment it is written.
@@ -107,20 +107,20 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
     });
     let fixed = [
         (
-            "plugins.phone.token",
-            "[plugins.phone]\ntoken = \"a-literal-token\"\n",
+            "plugins.phone.device_token",
+            "[plugins.phone]\ndevice_token = \"a-literal-token\"\n",
         ),
         (
-            "plugins.lights.bridge",
-            "[plugins.lights]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\n",
+            "plugins.lights.bridge_host",
+            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\n",
         ),
         (
-            "plugins.lights.key",
-            "[plugins.lights]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\n",
+            "plugins.lights.api_key",
+            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\n",
         ),
         (
-            "plugins.log.token",
-            "[plugins.log]\ntoken = \"a-literal-token\"\n",
+            "plugins.log.bot_token",
+            "[plugins.log]\nbot_token = \"a-literal-token\"\n",
         ),
         (
             "plugins.log.channels.default",
@@ -129,6 +129,10 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
         (
             "plugins.home_presence.api_key",
             "[plugins.home_presence]\napi_key = \"a-literal-key\"\n",
+        ),
+        (
+            "plugins.github.personal_access_token",
+            "[plugins.github]\npersonal_access_token = \"a-literal-token\"\n",
         ),
     ]
     .into_iter()
@@ -291,4 +295,47 @@ fn checking_a_changed_resolved_configuration_refuses_without_writing() {
     );
     assert_eq!(std::fs::read_to_string(&values_path).unwrap(), values);
     assert_eq!(std::fs::read_dir(&scratch.root).unwrap().count(), 1);
+}
+
+/// THE MUTANT THIS PINS: an `enabled` key dropped from the layout, or one
+/// turned into an `Example` so the switch ships with no value a reader can
+/// see. Every table the schema gives an `enabled` key writes exactly one
+/// line for it, live in a live table and commented in a commented one, and
+/// always at its own default.
+#[test]
+fn the_written_template_carries_one_enabled_line_per_table_that_declares_one() {
+    let scratch = Scratch::new("enabled-lines");
+    let values_path = scratch.path("config-values.toml");
+    let template_path = scratch.path("private_config.toml.tmpl");
+    std::fs::write(&values_path, "").expect("write values");
+
+    let output = run(&values_path, &template_path);
+    assert!(output.status.success(), "{output:?}");
+    let written = std::fs::read_to_string(&template_path).expect("read written template");
+    let declared = pns_adapters::TABLE_KEYS
+        .iter()
+        .filter(|(_, keys)| keys.contains(&"enabled"))
+        .count();
+    let lines: Vec<&str> = written
+        .lines()
+        .filter(|line| {
+            line.trim_start()
+                .trim_start_matches("# ")
+                .starts_with("enabled = ")
+        })
+        .collect();
+    assert_eq!(
+        lines.len(),
+        declared,
+        "one `enabled` line per table that declares one: {lines:?}"
+    );
+    // AND EVERY ONE OF THEM CARRIES A VALUE, which is what tells a written
+    // default from a commented example the reader has to guess at.
+    for line in lines {
+        let stated = line.trim_start().trim_start_matches("# ");
+        assert!(
+            stated == "enabled = true" || stated == "enabled = false",
+            "an `enabled` line states a boolean: {line:?}"
+        );
+    }
 }

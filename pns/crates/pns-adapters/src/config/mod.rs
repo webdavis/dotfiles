@@ -49,7 +49,7 @@ mod delivery_class;
 use delivery_class::parse_delivery_classes;
 pub use delivery_class::{DEFAULT_DELIVERY_CLASS, DeliveryClass};
 mod focus;
-use focus::parse_focus;
+use focus::{DEFAULT_FOCUS_ENABLED, parse_focus};
 mod quiet;
 pub use quiet::QuietCalendar;
 use quiet::parse_quiet;
@@ -67,7 +67,7 @@ use remind::{REMIND_OFF, backstop_outlasts_the_reminder, parse_remind};
 mod producer;
 use producer::parse_producer;
 mod stale;
-use stale::{DEFAULT_ESCALATE_AFTER_SECS, parse_stale};
+use stale::{DEFAULT_ESCALATE_AFTER_SECS, DEFAULT_STALE_ENABLED, parse_stale};
 mod storage;
 pub use storage::DEFAULT_BUSY_DEADLINE;
 use storage::parse_storage;
@@ -81,7 +81,7 @@ mod schema;
 use schema::DELIVERY_CLASS_KEYS;
 use schema::{
     PRODUCER_KEYS, TARGET_KEYS, admits, admits_flat, duration_key, duration_value, keys_of,
-    unknown_key,
+    nonzero_duration_key, unknown_key,
 };
 pub use schema::{TABLE_KEYS, TOP_LEVEL};
 mod routes;
@@ -121,7 +121,7 @@ use presence_values::{
 mod router;
 pub use router::{
     RouterSettings, SetupFailure, device_identity, enabled_router_table, router_api_key,
-    router_settings, stale_alert_channel,
+    router_settings, stale_alert_route,
 };
 
 mod banner;

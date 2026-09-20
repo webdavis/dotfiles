@@ -2,20 +2,18 @@
 //! round trip is checked against the reader that actually consumes the file.
 
 use super::*;
+use crate::test_sandbox::Sandbox;
 use std::os::unix::fs::MetadataExt;
-use std::sync::atomic::{AtomicUsize, Ordering};
 #[path = "tests/rename_race.rs"]
 mod rename_race;
 
-fn store() -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let root = std::env::temp_dir().join(format!(
-        "posture-append-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    root.join("digest.ndjson")
+/// A spool path inside a directory the appender has to make for itself, so
+/// that the mode it installs is the one these tests read back. Hold the
+/// sandbox for as long as the path is used.
+fn store() -> (Sandbox, PathBuf) {
+    let sandbox = Sandbox::new("append");
+    let path = sandbox.join("spool").join("digest.ndjson");
+    (sandbox, path)
 }
 
 fn record(detector: &str) -> posture_protocol::DigestRecord {
@@ -34,7 +32,7 @@ fn a_record_survives_the_round_trip_to_the_reader_that_consumes_it() {
     // THE TWO ENDS NEVER CALL EACH OTHER. What keeps them agreeing is that both
     // build the line from one crate, so this asserts against the decoder rather
     // than against a string this test wrote.
-    let store = store();
+    let (_sandbox, store) = store();
     let appender = DigestAppendFile::new(store.clone());
     assert!(appender.append(&record("persistence_launchd"), &mut std::io::sink()));
     let read = posture_protocol::decode_spool(&std::fs::read_to_string(&store).unwrap());
@@ -45,7 +43,7 @@ fn a_record_survives_the_round_trip_to_the_reader_that_consumes_it() {
 fn every_appended_record_is_kept_and_none_replaces_another() {
     // A day's spool is many findings, and an append that truncated would leave
     // the digest reporting the last one as the whole day.
-    let store = store();
+    let (_sandbox, store) = store();
     let appender = DigestAppendFile::new(store.clone());
     for detector in ["new_admin_user", "suid_bin_unexpected", "recent_logins"] {
         assert!(appender.append(&record(detector), &mut std::io::sink()));
@@ -61,7 +59,7 @@ fn every_appended_record_is_kept_and_none_replaces_another() {
 
 #[test]
 fn each_record_is_one_whole_line_so_a_reader_can_split_on_newlines() {
-    let store = store();
+    let (_sandbox, store) = store();
     let appender = DigestAppendFile::new(store.clone());
     appender.append(&record("a"), &mut std::io::sink());
     appender.append(&record("b"), &mut std::io::sink());
@@ -74,7 +72,7 @@ fn each_record_is_one_whole_line_so_a_reader_can_split_on_newlines() {
 #[test]
 fn the_spool_and_its_directory_are_readable_by_nobody_else() {
     // IT HOLDS FULL FILESYSTEM PATHS, and it outlives the alert by a day.
-    let store = store();
+    let (_sandbox, store) = store();
     assert!(DigestAppendFile::new(store.clone()).append(&record("a"), &mut std::io::sink()));
     assert_eq!(
         std::fs::metadata(&store).unwrap().mode() & 0o777,
@@ -92,7 +90,7 @@ fn the_spool_and_its_directory_are_readable_by_nobody_else() {
 fn a_spool_something_else_loosened_is_tightened_rather_than_left_open() {
     // `mode` on the open says nothing about a file that already exists, so a
     // spool that was made world-readable would stay that way for its whole life.
-    let store = store();
+    let (_sandbox, store) = store();
     let appender = DigestAppendFile::new(store.clone());
     appender.append(&record("a"), &mut std::io::sink());
     std::fs::set_permissions(&store, std::fs::Permissions::from_mode(0o644)).unwrap();
@@ -104,8 +102,8 @@ fn a_spool_something_else_loosened_is_tightened_rather_than_left_open() {
 fn a_spool_that_cannot_be_written_is_reported_rather_than_claimed() {
     // A SPOOL FAILURE IS NOT A PAGE FAILURE, but it is not a success either:
     // the caller is told, and what it does with that is the caller's rule.
-    let blocked = std::env::temp_dir().join(format!("posture-append-file-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&blocked);
+    let sandbox = Sandbox::new("append-file");
+    let blocked = sandbox.join("blocked");
     std::fs::write(&blocked, b"not a directory\n").unwrap();
     let store = blocked.join("digest.ndjson");
     let appender = DigestAppendFile::new(store.clone());
@@ -119,13 +117,12 @@ fn a_spool_that_cannot_be_written_is_reported_rather_than_claimed() {
         said.contains(&format!("{}: ", store.display())),
         "no cause after the path: {said}"
     );
-    let _ = std::fs::remove_file(&blocked);
 }
 
 #[test]
 fn appending_into_a_directory_that_does_not_exist_yet_makes_it_first() {
     // The alerter can be the first thing on a fresh machine to write here.
-    let store = store();
+    let (_sandbox, store) = store();
     assert!(!store.parent().unwrap().exists());
     assert!(DigestAppendFile::new(store.clone()).append(&record("a"), &mut std::io::sink()));
     assert!(store.exists());

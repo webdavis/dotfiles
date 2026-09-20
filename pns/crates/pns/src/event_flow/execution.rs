@@ -74,13 +74,13 @@ pub(super) fn execute(
                 .unwrap_or_default(),
             read_discord(config),
             config.recap.clone(),
-            config.focus_silence.clone(),
+            config.focus_silence().to_vec(),
             // A TABLE NOBODY COULD PARSE IS NO READING, never a room: the
             // refusal was already printed, and inventing a room out of
             // settings nobody could read is the fail-open the whole reading is
             // shaped to avoid.
             pns_adapters::parse_presence(config).ok().flatten(),
-            config.stale_escalate_after_secs,
+            config.stale_window_secs(),
             config.routes.clone(),
         ),
         // A config that is absent or could not be read falls back to the

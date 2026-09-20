@@ -4,16 +4,18 @@ pub(super) const HEADER: &str = "# The pns engine's plugin selection, as `pns se
      # file until it is fixed: pns falls back to its built-in roster, every\n\
      # secret in here goes unread, and the refusal on stderr names the key.\n\
      #\n\
-     # THE BANNER AND THE PHONE CARD ARE THE CORE and are written on. Three of\n\
-     # the plugins below are OPT-INS you arm with a credential first: hue needs\n\
-     # a bridge and key, hermes needs a signed route, and the home probe needs\n\
-     # a router API key, so switching them on by default would deliver nothing\n\
-     # and report three failures. Focus, the reminder and the lamp map are\n\
-     # separate opt-ins below `[plugins]` and need no credential at all. A\n\
-     # commented-out block below is a feature nothing is set up for yet: fill\n\
-     # its values in and uncomment it. A plugin names its backend with `type`,\n\
-     # and the key is required: nothing guesses which implementation a table\n\
-     # meant.\n";
+     # EVERY SWITCH IS WRITTEN OUT AT ITS OWN DEFAULT, which for a plugin is\n\
+     # off: a table is on because a line here says so and never because the\n\
+     # table exists. The banner and the phone card are the core two, and this\n\
+     # machine arms them. Three of the plugins below are OPT-INS you arm with\n\
+     # a credential first: hue needs a bridge and key, hermes needs a signed\n\
+     # route, and the home probe needs a router API key, so arming one\n\
+     # without its credential would deliver nothing and report a failure.\n\
+     # Focus, the reminder and the lamp map are separate opt-ins below\n\
+     # `[plugins]` and need no credential at all. A commented-out block\n\
+     # below is a feature nothing is set up for yet: fill its values in and\n\
+     # uncomment it. A plugin names its backend with `type`, and the key is\n\
+     # required: nothing guesses which implementation a table meant.\n";
 
 pub(super) const DAEMON_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
      # reactions to one, saying something when nothing happened and keeping a\n\

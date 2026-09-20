@@ -47,7 +47,7 @@ pub struct GithubNotifications {
     agent: ureq::Agent,
     /// The API root, `https://api.github.com` in production.
     base: String,
-    /// The classic personal access token, from `[plugins.github] token`.
+    /// The classic personal access token, from `[plugins.github] personal_access_token`.
     token: String,
 }
 

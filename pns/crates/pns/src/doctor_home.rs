@@ -54,7 +54,7 @@ pub(crate) fn rows() -> Vec<pns_domain::doctor::Item> {
     // typed on this path; this one names the key in the file, and it is said
     // on every run of the report instead of only on the run that happens
     // to have something to deliver.
-    let (alert_route, complaint) = pns_adapters::stale_alert_channel(router_table);
+    let (alert_route, complaint) = pns_adapters::stale_alert_route(router_table);
     if let Some(complaint) = complaint {
         eprintln!("{complaint}");
     }
@@ -67,7 +67,7 @@ pub(crate) fn rows() -> Vec<pns_domain::doctor::Item> {
     let Some(key) = pns_adapters::router_api_key(router_table) else {
         return vec![setup_row(&SetupFailure::NoApiKey)];
     };
-    let router = pns_adapters::UniFiRouter::new(settings.router_url, key);
+    let router = pns_adapters::UniFiRouter::new(settings.url, key);
     let mut rows = Vec::new();
     pns_application::ReadHomeProbe {
         router: &router,

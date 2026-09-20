@@ -22,7 +22,7 @@ fn a_lights_table_changes_nothing_about_an_ordinary_notification() {
         // table that cost the operator their card would otherwise sit inside
         // a leg nobody switched on.
         sandbox.write_config(&format!(
-            "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+            "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              [plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
              [plugins.log]\nenabled = true\ntype = \"hermes\"\n{lights}"
         ));
@@ -126,7 +126,7 @@ fn a_bare_lights_mute_with_no_house_dim_window_is_refused_and_sets_nothing() {
     let (_listener, port) = bridge_spy();
     let sandbox = Sandbox::new("dim-window-bare-mute-unset");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          [lights]\narm_interval = \"20s\"\n\
          [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n"
     ));

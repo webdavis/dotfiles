@@ -104,9 +104,9 @@ fn unsuccessful_install_outcomes_remain_typed_failures() {
 
 #[test]
 fn test_a_missing_log_directory_is_created_because_the_daemon_logs_into_it() {
-    let root = Scratch::new();
-    let log = root.0.join("private/log");
-    let target = root.0.join("target");
+    let root = scratch();
+    let log = root.path().join("private/log");
+    let target = root.path().join("target");
     let mut install = ConvergeInstaller::new(
         Script::default(),
         "/fixture/sudo".into(),
@@ -122,13 +122,13 @@ fn test_a_missing_log_directory_is_created_because_the_daemon_logs_into_it() {
 
 #[test]
 fn an_uncreatable_log_directory_is_not_reported_as_created() {
-    let root = Scratch::new();
-    let log = root.0.join("file");
+    let root = scratch();
+    let log = root.path().join("file");
     std::fs::write(&log, "retained").unwrap();
     let mut install = ConvergeInstaller::new(
         Script::default(),
         "/fixture/sudo".into(),
-        root.0.join("target"),
+        root.path().join("target"),
         log.clone(),
     );
     assert_eq!(install.log_directory(), Err(InspectionFailure::Failed));

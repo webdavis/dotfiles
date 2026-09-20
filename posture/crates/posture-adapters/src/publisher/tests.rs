@@ -1,9 +1,9 @@
 use super::*;
 use crate::CommandIo;
+use crate::test_sandbox::Sandbox;
 use posture_application::InspectionFailure;
 use std::ffi::{OsStr, OsString};
 use std::fs;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 struct Scripted {
     source: PathBuf,
@@ -65,22 +65,14 @@ impl CommandRunner for Scripted {
     }
 }
 struct Fixture {
-    root: PathBuf,
+    /// Removes the published tree when the test drops the fixture.
+    root: Sandbox,
     publisher: AllowlistPublisher,
     runner: Scripted,
 }
 impl Fixture {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let root = std::env::temp_dir().join(format!(
-            "posture-publish-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos()),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = Sandbox::new("publish");
         let tree = root.join("tree");
         fs::create_dir_all(tree.join(".chezmoiscripts")).unwrap();
         fs::write(
@@ -120,11 +112,6 @@ impl Fixture {
             &source,
             &[CuratedLine::Preserved(b"new source")],
         )
-    }
-}
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.root);
     }
 }
 #[test]
