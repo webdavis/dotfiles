@@ -21,6 +21,7 @@
 
 pub mod certificate_pin;
 pub mod channel_map;
+pub mod config_keys;
 pub mod count;
 mod decision;
 mod decision_record;

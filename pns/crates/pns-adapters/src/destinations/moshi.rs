@@ -214,7 +214,7 @@ impl<H: HttpPost> MoshiChannel<H> {
 /// config key to write, the way hermes's does, because "not set up" without an
 /// address sends the operator hunting.
 const NO_TOKEN_LINE: &str =
-    "push SKIPPED, no moshi token in the config ([plugins.phone] token); nothing was sent";
+    "push SKIPPED, no moshi token in the config ([plugins.phone] device_token); nothing was sent";
 
 /// The line for a mobile leg refused before either delivery seam: the table
 /// names a backend nothing compiled in answers.

@@ -10,7 +10,7 @@ fn the_doctor_reads_the_room_off_the_state_file_and_judges_it_against_the_config
     // every other test in this crate green.
     let sandbox = Sandbox::new("doctor-presence-reading");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"{DEAD_BRIDGE}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          [plugins.presence]\nenabled = true\ntype = \"hue\"\nrooms = [\"3F - Studio\"]\n"
     ));
     std::fs::create_dir_all(sandbox.state()).expect("the state directory");

@@ -57,7 +57,7 @@ pub use config::{ROOM_MAX, room_fits};
 
 pub use config::{
     RouterSettings, SetupFailure, device_identity, enabled_router_table, router_api_key,
-    router_settings, stale_alert_channel,
+    router_settings, stale_alert_route,
 };
 
 pub use config::banner_click;

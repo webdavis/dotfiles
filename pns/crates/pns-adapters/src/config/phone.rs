@@ -57,7 +57,7 @@ pub const MOSHI_TYPE: &str = "moshi";
 /// composition root for its one line on stderr, so one fault has one wording
 /// wherever it is said.
 ///
-/// IT IS RETURNED, NOT PRINTED, exactly as `stale_alert_channel`'s complaint
+/// IT IS RETURNED, NOT PRINTED, exactly as `stale_alert_route`'s complaint
 /// is: this stays a value function, and the composition root is where a
 /// warning becomes a line.
 pub fn phone_backend(settings: &toml::Table) -> Result<(), String> {
@@ -75,11 +75,12 @@ pub fn phone_backend(settings: &toml::Table) -> Result<(), String> {
     Ok(())
 }
 
-/// The moshi token out of the `[plugins.phone]` settings, or None for every
-/// way the config can fail to provide one: no `token` key, the wrong type,
-/// or an empty value. All of them mean "not set up", never an error.
+/// The moshi device token out of the `[plugins.phone]` settings, or None for
+/// every way the config can fail to provide one: no `device_token` key, the
+/// wrong type, or an empty value. All of them mean "not set up", never an
+/// error.
 pub fn moshi_secret(settings: &toml::Table) -> Option<String> {
-    let token = settings.get("token")?.as_str()?;
+    let token = settings.get("device_token")?.as_str()?;
     (!token.is_empty()).then(|| token.to_string())
 }
 
@@ -195,7 +196,9 @@ mod tests {
     fn the_one_compiled_in_type_is_accepted_and_its_token_is_read() {
         // The positive control: a refusal that fired on every table would pass
         // the two tests above and take the phone card away entirely.
-        let settings: toml::Table = "type = \"moshi\"\ntoken = \"tok-1\"\n".parse().unwrap();
+        let settings: toml::Table = "type = \"moshi\"\ndevice_token = \"tok-1\"\n"
+            .parse()
+            .unwrap();
         assert_eq!(phone_backend(&settings), Ok(()));
         assert_eq!(moshi_secret(&settings), Some("tok-1".to_string()));
     }
@@ -205,7 +208,7 @@ mod tests {
     #[test]
     fn the_secret_is_the_non_empty_token_setting() {
         assert_eq!(
-            moshi_secret(&"token = \"tok-1\"\nother = \"x\"\n".parse().unwrap()),
+            moshi_secret(&"device_token = \"tok-1\"\nother = \"x\"\n".parse().unwrap()),
             Some("tok-1".to_string())
         );
     }

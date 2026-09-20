@@ -4,7 +4,7 @@ use pns_application::DeliveryRequest;
 #[test]
 fn the_original_request_id_rides_a_card_that_has_an_action_to_carry_it() {
     for original in ["original-42", "second-19"] {
-        let channel = channel_with_settings(r#"token = "tok-1""#);
+        let channel = channel_with_settings(r#"device_token = "tok-1""#);
         let event = Event {
             pane: "wW:p21".into(),
             ..event()
@@ -47,7 +47,7 @@ fn a_card_with_no_action_carries_no_data_object_at_all() {
     // no action has no tap, so it costs nothing to leave out and costs every
     // paneless notification to leave in.
     for pane in ["", "bad&pane"] {
-        let channel = channel_with_settings(r#"token = "tok-1""#);
+        let channel = channel_with_settings(r#"device_token = "tok-1""#);
         let event = Event {
             pane: pane.into(),
             ..event()

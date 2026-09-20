@@ -11,7 +11,7 @@ fn values(answers: &Answers) -> toml::Table {
     if !answers.mobile_token.is_empty() {
         let mut mobile = toml::Table::new();
         mobile.insert(
-            "token".to_string(),
+            "device_token".to_string(),
             toml::Value::String(answers.mobile_token.clone()),
         );
         plugins.insert("phone".to_string(), toml::Value::Table(mobile));
@@ -38,11 +38,11 @@ fn values(answers: &Answers) -> toml::Table {
     if hue_is_armed(answers) {
         let mut hue = toml::Table::new();
         hue.insert(
-            "bridge".to_string(),
+            "bridge_host".to_string(),
             toml::Value::String(answers.hue_bridge.clone()),
         );
         hue.insert(
-            "key".to_string(),
+            "api_key".to_string(),
             toml::Value::String(answers.hue_key.clone()),
         );
         hue.insert(
@@ -69,7 +69,7 @@ fn values(answers: &Answers) -> toml::Table {
             toml::Value::String(answers.router_type.clone()),
         );
         router.insert(
-            "router_url".to_string(),
+            "url".to_string(),
             toml::Value::String(answers.router_url.clone()),
         );
         router.insert(

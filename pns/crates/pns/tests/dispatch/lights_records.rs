@@ -9,7 +9,7 @@ fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() 
     // memory of its own.
     let sandbox = Sandbox::new("lights-quiet-say-once");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"{DEAD_BRIDGE}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\nquiet_hours = \"00:00-23:59\"\n\
          [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
@@ -42,7 +42,7 @@ fn a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds() {
     // delivery did, which is why the bridge here is dead on purpose.
     let sandbox = Sandbox::new("lights-news-and-lease");
     sandbox.write_config(&format!(
-        "[plugins.lights]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+        "[plugins.lights]\nenabled = true\nbridge_host = \"{DEAD_BRIDGE}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
          rooms = [\"3F - Studio\"]\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     let lease_dir = sandbox.state().join("lights-loop");
