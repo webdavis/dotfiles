@@ -250,8 +250,9 @@ build_and_link_plugin() {
 }
 
 # One entry per linked plugin: id, clone URL, pinned revision. Rendered from
-# packages.herdr_linked_plugins so adding a plugin there is the only edit a
-# new one needs.
+# packages.herdr_linked_plugins, so adding a plugin there is one edit; its
+# config file, if any, also needs its own hash line in the build-inputs
+# block above, or a change to it never re-fires this trigger.
 linked_plugins=(
 {{ range .packages.herdr_linked_plugins -}}
   {{ .id | quote }} "https://github.com/{{ .repo }}.git" {{ .ref | quote }}
