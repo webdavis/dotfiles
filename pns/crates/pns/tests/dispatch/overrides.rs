@@ -167,15 +167,20 @@ fn a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings() {
 fn an_absent_channel_is_simply_not_installed() {
     let sandbox = Sandbox::new("absent-channel");
     std::fs::remove_file(sandbox.root.join("channels/hermes.sh")).expect("remove the channel");
-    let output = run(sandbox.pns().env("PNS_SCREEN_IDLE", "0").args([
-        "send",
-        "--producer",
-        "claude",
-        "--state",
-        "done",
-        "--detail",
-        "x",
-    ]));
+    // hermes never delivers once its channel script is gone, so the exit
+    // code reports the undelivered leg even though the banner still fires.
+    let output = run_expecting(
+        1,
+        sandbox.pns().env("PNS_SCREEN_IDLE", "0").args([
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "done",
+            "--detail",
+            "x",
+        ]),
+    );
     assert!(sandbox.fired("macos-banner"));
     // AND IT IS STILL A NON-EVENT. hermes runs sync on this path, so a launch
     // failure that reported itself would print here; the hand-run check is the

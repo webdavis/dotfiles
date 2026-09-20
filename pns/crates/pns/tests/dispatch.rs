@@ -22,7 +22,8 @@ use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, PermissionsExt};
 use support::{
-    KEYS_DISAGREE, RouterStub, Sandbox, poll_until, router_table, run, stderr, stdout, write_script,
+    KEYS_DISAGREE, RouterStub, Sandbox, poll_until, router_table, run, run_expecting, stderr,
+    stdout, write_script,
 };
 
 #[path = "dispatch/activity.rs"]

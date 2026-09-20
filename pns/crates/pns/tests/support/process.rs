@@ -1,15 +1,18 @@
 use std::process::{Command, Output};
 
-/// Run to completion, asserting only that the engine ANSWERED: 0 when every
-/// destination took the page and 1 when one did not, which is the exit code
-/// every caller hears now. A refusal (2), a crash or a signal is still a
-/// failure here, and a test that cares which of 0 and 1 it got says so itself.
+/// Run to completion, asserting the exit-0 edge: a failed notification must
+/// never fail the caller. Every call site here is a hook path, which always
+/// answers 0; a caller that expects a different code uses [`run_expecting`].
 pub fn run(command: &mut Command) -> Output {
+    run_expecting(0, command)
+}
+
+/// Run to completion, asserting the exit code named here. For the few
+/// callers on the delivery path whose page never lands, so `run`'s default
+/// stays pinned to the success edge everywhere else.
+pub fn run_expecting(code: i32, command: &mut Command) -> Output {
     let output = command.output().expect("the engine runs");
-    assert!(
-        matches!(output.status.code(), Some(0 | 1)),
-        "the engine must answer 0 or 1 on a delivery path: {output:?}"
-    );
+    assert_eq!(output.status.code(), Some(code), "{output:?}");
     output
 }
 

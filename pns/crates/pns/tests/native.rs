@@ -10,8 +10,8 @@ mod support;
 
 use hmac::{Hmac, KeyInit, Mac};
 use support::{
-    Capture, KEYS_DISAGREE, RouterStub, Sandbox, plugin_command, router_table, run, stderr, stdout,
-    write_script,
+    Capture, KEYS_DISAGREE, RouterStub, Sandbox, plugin_command, router_table, run, run_expecting,
+    stderr, stdout, write_script,
 };
 
 const SINCE: &str = "1756499000"; // an arbitrary recap window, SINCE < UNTIL
@@ -186,8 +186,7 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
 
 #[test]
 fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
-    // "No response" would send the operator to restart a healthy gateway
-    // instead of rotating the key.
+    // "No response" would send the operator to restart a healthy gateway.
     let sandbox = Sandbox::new("hermes-401");
     sandbox.write_config(
         "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
@@ -197,19 +196,19 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     let mut command = plugin_command(&sandbox);
     command.env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
-    let output = run(command
-        .args([
-            "send",
-            "--producer",
-            "weekly",
-            "--state",
-            "done",
-            "--detail",
-            "ran",
-        ])
-        .args(["--scope", "remote_only"]));
+    command.args([
+        "send",
+        "--producer",
+        "weekly",
+        "--state",
+        "done",
+        "--detail",
+        "ran",
+        "--scope",
+        "remote_only",
+    ]);
+    let output = run_expecting(1, &mut command);
     capture.finish();
-
     assert_eq!(stdout(&output), "pns: post FAILED HTTP 401\n");
 }
 
@@ -226,7 +225,7 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
         .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_HERMES_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
-    let output = run(command.args([
+    command.args([
         "send",
         "--producer",
         "claude",
@@ -234,7 +233,8 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
         "done",
         "--detail",
         "x",
-    ]));
+    ]);
+    let output = run_expecting(1, &mut command);
     assert!(
         stdout(&output).is_empty(),
         "an async delivery printed an outcome; async legs must be silent: {output:?}"

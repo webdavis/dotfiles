@@ -37,17 +37,21 @@ fn every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before
         sandbox.write_config(config);
         let mut command = sandbox.bare();
         command.env("PNS_HERMES_URL", url);
-        let output = run(command
-            .args([
-                "send",
-                "--producer",
-                "weekly",
-                "--state",
-                "done",
-                "--detail",
-                "ran",
-            ])
-            .args(["--scope", "remote_only"]));
+        // hermes is the only channel here and it never delivers.
+        let output = run_expecting(
+            1,
+            command
+                .args([
+                    "send",
+                    "--producer",
+                    "weekly",
+                    "--state",
+                    "done",
+                    "--detail",
+                    "ran",
+                ])
+                .args(["--scope", "remote_only"]),
+        );
         assert_eq!(stdout(&output), expected, "case: {case}");
     }
 }
