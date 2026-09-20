@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
+pub(super) fn event(request: &RequestEnvelope) -> (pns_domain::EventArgs, Attempt) {
     let state = request.state.as_str();
     let attempt = Attempt::of_state(state);
     (
@@ -59,7 +59,7 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
 /// answered, and the producer's config entry states that producer's approvals
 /// rather than every event it sends, so every other state resolves to off
 /// whatever the table says.
-pub(super) fn reminder(request: &Request) -> Result<Reminder, String> {
+pub(super) fn reminder(request: &RequestEnvelope) -> Result<Reminder, String> {
     match request.state {
         State::Blocked => remind_delay(request.remind, request.producer.as_str()),
         _ => Ok(Reminder {

@@ -176,10 +176,10 @@ impl<'de> Deserialize<'de> for Remind {
     }
 }
 
-/// One version 1 request. Construct with [`Request::new`] and set what the
-/// producer knows beyond the four required parts.
+/// One version 1 request. Construct with [`RequestEnvelope::new`] and set
+/// what the producer knows beyond the four required parts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Request {
+pub struct RequestEnvelope {
     pub request_id: RequestId,
     pub producer: Name,
     /// The producer's session, for correlation. A plain id: it is one name at
@@ -232,14 +232,14 @@ pub struct Request {
 struct Wire<'a> {
     schema: String,
     #[serde(flatten)]
-    request: &'a Request,
+    request: &'a RequestEnvelope,
 }
 
-impl Request {
+impl RequestEnvelope {
     /// A request with the four required parts set and every optional part at
     /// its default.
     pub fn new(request_id: RequestId, producer: Name, state: State) -> Self {
-        Request {
+        RequestEnvelope {
             request_id,
             producer,
             session: None,
@@ -273,14 +273,14 @@ impl Request {
 /// Every field version 1 defines is acted on today, so the list is empty on
 /// every accepted request; a field version 1 does not define is refused.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Decoded {
-    pub request: Request,
+pub struct DecodedRequest {
+    pub request: RequestEnvelope,
     pub ignored: Vec<String>,
 }
 
 /// Decode one request from its bytes, applying every shared envelope check
 /// first.
-pub fn decode(bytes: &[u8]) -> Result<Decoded, Rejected> {
+pub fn decode(bytes: &[u8]) -> Result<DecodedRequest, Rejected> {
     let Opened { value, request_id } = open(bytes, &schema())?;
     if let Some((retired, replacement)) = retired_field(&value) {
         return Err(Rejected {
@@ -298,7 +298,7 @@ pub fn decode(bytes: &[u8]) -> Result<Decoded, Rejected> {
         request_id,
         reason: Rejection::Invalid(error.to_string()),
     })?;
-    Ok(Decoded {
+    Ok(DecodedRequest {
         request,
         ignored: Vec::new(),
     })

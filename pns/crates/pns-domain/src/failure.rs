@@ -10,7 +10,7 @@
 //! this module owns is the WORDING, which varies by destination, and the fix
 //! line, which varies by the surface the reader is standing at.
 
-use crate::retry::{DeliveryOutcome, FailureClass};
+use crate::retry::{FailureClass, TransportOutcome};
 
 mod click;
 mod fix;
@@ -62,7 +62,7 @@ pub struct Failure {
     /// ran and failed, never an instruction to run one.
     pub command: String,
     /// What the destination answered.
-    pub outcome: DeliveryOutcome,
+    pub outcome: TransportOutcome,
     /// Attempts spent and allowed, which is what the temporary variant's fix
     /// line counts off.
     pub retries: u64,
