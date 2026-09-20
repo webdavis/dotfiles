@@ -19,4 +19,4 @@ pub fn doctor_pulse(resolves: bool, pulse: impl FnOnce() -> usize) -> pns_domain
 /// settings to write, the way moshi's and hermes's do, because "no rooms"
 /// without an address sends the operator to a bridge nothing dialled.
 const NO_HUE_BRIDGE_LINE: &str = "pulse SKIPPED, no hue bridge and key in the config \
-     ([plugins.hue] bridge, key); nothing was signalled";
+     ([plugins.lights] bridge, key); nothing was signalled";

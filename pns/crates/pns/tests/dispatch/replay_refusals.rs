@@ -21,7 +21,7 @@ fn a_fifo_at_the_journals_path_is_refused_untouched_and_never_parks_the_replay()
         Some(0),
         "a journal nobody could read costs the event nothing"
     );
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(raised.len(), 1, "the live event alone: {raised:?}");
     assert_eq!(raised[0]["state"], "done", "{raised:?}");
     assert_eq!(stdout(&output), "", "nothing is said about the journal");
@@ -52,7 +52,7 @@ fn an_event_with_nothing_waiting_delivers_and_leaves_exactly_what_it_did_before(
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
     assert_eq!(stdout(&output), "", "the run gained a line");
     assert_eq!(stderr(&output), "", "the run gained stderr");
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         1,
@@ -88,7 +88,7 @@ fn an_event_refused_at_the_argv_leaves_the_journal_where_it_found_it() {
         "the refusal really was reached: {output:?}"
     );
     assert!(
-        events(&sandbox, "macos-banner").is_empty(),
+        events(&sandbox, "banner").is_empty(),
         "nothing was delivered, replay included"
     );
     assert_eq!(
@@ -112,7 +112,7 @@ fn a_queued_replay_releases_its_journal_after_attempts_and_preserves_it_on_inter
     std::fs::write(journal_path(&delivered), planted_journal(2)).expect("the journal");
     run(&mut present_event(&delivered));
     assert_eq!(
-        events(&delivered, "macos-banner").len(),
+        events(&delivered, "banner").len(),
         2,
         "the replay really was delivered"
     );
@@ -124,9 +124,9 @@ fn a_queued_replay_releases_its_journal_after_attempts_and_preserves_it_on_inter
     let killed = Sandbox::new("replay-claim-killed");
     record_every_event(&killed);
     killed.stub_channel(
-        "macos-banner",
+        "banner",
         &format!(
-            "payload=$(cat)\nprintf '%s\\n' \"$payload\" >>\"{root}/macos-banner.events\"\n\
+            "payload=$(cat)\nprintf '%s\\n' \"$payload\" >>\"{root}/banner.events\"\n\
              case \"$payload\" in\n  *'\"state\":\"missed\"'*) : >\"{root}/inside.the.replay\"; \
              for _ in $(seq 1 1000); do [ -e \"{root}/the.test.is.over\" ] && break; sleep 0.01; done; : >\"{root}/channel.finished\" ;;\nesac",
             root = killed.display()
@@ -191,7 +191,7 @@ fn a_queued_replay_releases_its_journal_after_attempts_and_preserves_it_on_inter
              ON e.producer='pns-return' AND e.request_id=c.request_id
              JOIN ledger_legs l ON l.event=e.seq
              JOIN ledger_attempts a ON a.leg=l.id AND a.generation=l.generation
-             WHERE c.owner=?1 AND e.state='missed' AND l.destination='macos-banner'
+             WHERE c.owner=?1 AND e.state='missed' AND l.destination='banner'
              AND l.acknowledged=0 AND a.finished IS NULL AND a.outcome=0",
             [child.child.id()],
             |row| row.get(0),

@@ -8,8 +8,6 @@ fn an_unreadable_config_names_the_error_and_exactly_the_core_plugins() {
     );
     assert_eq!(
         warning.as_deref(),
-        Some(
-            "pns: config error (permission denied); running the core plugins (mobile, macos-banner)"
-        )
+        Some("pns: config error (permission denied); running the core plugins (mobile, banner)")
     );
 }

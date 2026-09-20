@@ -13,7 +13,11 @@ fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
     use crate::home_report::setup_report;
     use pns_adapters::SetupFailure;
     use pns_domain::home::DeviceKey;
-    let serves = super::keys_of("plugins.router").expect("the router table is in the roster");
+    // THE TABLE'S OWN NAME carries an underscore too, and a report naming the
+    // heading is pointing at the table rather than at a key inside it.
+    const HEADING: &str = "home_presence";
+    let serves =
+        super::keys_of("plugins.home_presence").expect("the router table is in the roster");
     let quoted = "\"x\"".to_string();
     for (failure, sends_the_operator_to_a_key) in [
         (SetupFailure::NoConfigFile, false),
@@ -55,7 +59,10 @@ fn the_doctors_own_wording_names_only_keys_the_router_table_serves() {
         // this vocabulary: the prose around it is English. So one that the
         // table does not serve is a key renamed in the code and left
         // standing here.
-        for word in words.iter().filter(|word| word.contains('_')) {
+        for word in words
+            .iter()
+            .filter(|word| word.contains('_') && **word != HEADING)
+        {
             assert!(
                 serves.contains(word),
                 "the report says `{word}`, which the router table does not serve: {said}"

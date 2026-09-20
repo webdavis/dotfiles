@@ -44,7 +44,7 @@ pub(crate) fn fire_pulse_unless_quiet(
 /// check is what it exists for, since the bridge acknowledges no write and a
 /// room that was addressed is the last observable fact on this path.
 ///
-/// `[plugins.hue] rooms` IS THE PATH WITHOUT A `[lights]` TABLE, and it is also
+/// `[plugins.lights] rooms` IS THE PATH WITHOUT A `[lights]` TABLE, and it is also
 /// `pns lights pulse`'s path with one. That is deliberate: the hand-run pulse is the
 /// bridge-and-key check, not a feature, and keeping it room-based means it
 /// stays one write to one obvious place while the routing map grows.

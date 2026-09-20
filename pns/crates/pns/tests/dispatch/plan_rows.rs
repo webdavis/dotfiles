@@ -14,7 +14,7 @@ fn away_from_the_desk_cards_the_phone_and_logs_but_raises_no_banner() {
         .args(["--project", "dotfiles", "--detail", "a summary"]));
     assert!(sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("macos-banner"), "away raises no banner");
+    assert!(!sandbox.fired("banner"), "away raises no banner");
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     assert!(sandbox.fired("hermes"));
     assert!(!sandbox.fired("mobile"), "the desk gets no card");
 }
@@ -60,7 +60,7 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(!sandbox.fired("macos-banner"), "the pane is in plain sight");
+    assert!(!sandbox.fired("banner"), "the pane is in plain sight");
     assert!(!sandbox.fired("mobile"));
     assert!(sandbox.fired("hermes"));
 }

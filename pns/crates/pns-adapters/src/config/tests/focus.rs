@@ -15,7 +15,7 @@ fn a_config_with_no_focus_table_names_no_mode_at_all() {
     // before the table existed. MEASURED on this operator's own machine, a
     // Focus was asserted for 95% of one day, so a feature that shipped on
     // would have silenced almost everything pns raised that day.
-    let config = parse_config("[plugins.hue]\nenabled = true\n").unwrap();
+    let config = parse_config("[plugins.lights]\nenabled = true\n").unwrap();
     assert!(config.focus_silence.is_empty());
 }
 

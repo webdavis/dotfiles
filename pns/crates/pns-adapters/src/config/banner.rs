@@ -1,6 +1,6 @@
 use pns_domain::failure::{ClickView, parse_view};
 
-/// The click view out of the `[plugins.macos-banner]` settings.
+/// The click view out of the `[plugins.banner]` settings.
 ///
 /// TWO FLAT KEYS RATHER THAN A NESTED TABLE. The design writes them as
 /// `[banner.click] type` and `command`; the banner already has a table in this

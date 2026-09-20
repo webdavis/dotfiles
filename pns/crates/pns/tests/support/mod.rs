@@ -34,7 +34,7 @@ pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
 /// something else writes over it with `write_config`.
 pub const STUB_CHANNELS: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
                                  [plugins.hermes]\nenabled = true\n\
-                                 [plugins.macos-banner]\nenabled = true\n\
+                                 [plugins.banner]\nenabled = true\n\
                                  [failures]\nserve = false\n";
 
 pub fn write_script(path: &Path, body: &str) {

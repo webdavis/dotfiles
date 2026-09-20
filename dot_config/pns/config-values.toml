@@ -110,7 +110,7 @@ uu = { keepassxc = "Discord (Uriel) :: Channel ID (#uu-dev)", field = "Password"
 # public, and its own rule already treats an id as a vault reference. Produce
 # the value with `pns lights enroll` on the machine and save the line it
 # prints onto that entry as the attribute named here.
-[plugins.hue]
+[plugins.lights]
 bridge = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "UserName" }
 certificate = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", attribute = "certificate-pin" }
 key = { keepassxc = "OpenHue :: API Key (hue-bridge-pro)", field = "Password" }
@@ -130,7 +130,7 @@ rooms = ["3F - Studio", "2F - Kitchen", "3F - MBedroom"]
 exclude = []
 desk_room = "3F - Studio"
 
-[plugins.router]
+[plugins.home_presence]
 router_url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }

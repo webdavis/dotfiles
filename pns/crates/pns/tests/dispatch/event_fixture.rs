@@ -11,7 +11,7 @@ use super::*;
 /// the operator at the desk, which is where the banner is the delivery.
 pub(super) fn desk_with_a_native_banner(name: &str) -> (Sandbox, std::process::Command) {
     let sandbox = Sandbox::without_config(name);
-    sandbox.write_config("[plugins.macos-banner]\nenabled = true\n");
+    sandbox.write_config("[plugins.banner]\nenabled = true\n");
     let mut command = sandbox.bare();
     command
         .env("PNS_STATE_DIR", sandbox.state())

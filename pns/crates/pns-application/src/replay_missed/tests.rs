@@ -123,7 +123,7 @@ fn entry(at: u64) -> Entry {
 
 fn leg(decorative: bool) -> Leg {
     Leg {
-        name: if decorative { "macos-banner" } else { "hermes" },
+        name: if decorative { "banner" } else { "hermes" },
         mode: ReportMode::Silent,
         decorative,
     }

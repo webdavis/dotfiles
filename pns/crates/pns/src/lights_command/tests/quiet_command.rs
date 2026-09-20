@@ -136,7 +136,7 @@ fn a_bare_mute_lasts_until_the_operators_quiet_hours_end() {
         quiet_command(&places(&["3F - Studio"]), &known, None),
         Err(
             "pns: lights quiet: a bare mute lasts until your quiet hours end, \
-             and `[plugins.hue] quiet_hours` states none; give a duration \
+             and `[plugins.lights] quiet_hours` states none; give a duration \
              instead, or set that key"
                 .to_string()
         ),
