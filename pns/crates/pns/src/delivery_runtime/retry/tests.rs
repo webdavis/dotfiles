@@ -41,8 +41,8 @@ fn daemon_retry_uses_limits_and_retained_route_and_continues_after_a_failed_heal
         .unwrap();
     let calls = Cell::new(0);
     let limits = RetryLimits {
-        max_attempts: 20,
-        max_age_secs: 10,
+        max_retries: 20,
+        event_max_age_secs: 10,
     };
     let result = retry_once(
         &store,

@@ -329,20 +329,22 @@ service = "com.webdavis.pns-daemon"
 # How a delivery that did not land is retried. Exhausted delivery
 # retries remain available for operator review.
 [delivery]
-# Retry claims after the initial send, including interrupted retries. Zero permits no retries.
-max_attempts = 20
-# Stop retrying only after this original age is exceeded. Zero and future epochs do not expire.
-max_age_secs = 604800
+# Stop retrying once the ORIGINAL EVENT is older than this. An event with no
+# recorded creation epoch, or one in the future, never expires.
+event_max_age = "168h"
+# Retries allowed after the initial send, including interrupted ones. Zero
+# permits no retry at all.
+max_retries = 20
 # How long ONE remote call may take, in seconds, before the caller stops
 # waiting on it. Short because a hook or a shell prompt is blocked on it.
 # Zero is no deadline at all, which is your instruction rather than a
 # default: a wedged gateway then holds that caller for as long as it
 # takes.
 remote_deadline = 5
-# Queued retries wait this many seconds times their retry count. The wait is
-# exact: there is no random spread, because one local daemon draining one queue
-# has no herd to spread.
-retry_base_secs = 60
+# Queued retries wait this step times their retry count. The wait is exact:
+# there is no random spread, because one local daemon draining one queue has
+# no herd to spread.
+retry_step = "1m"
 
 # What each delivery class DOES, one table per class, named by the word
 # a producer sends as `--delivery-class` or JSON `delivery_class`.

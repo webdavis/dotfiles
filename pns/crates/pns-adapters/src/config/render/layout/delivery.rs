@@ -8,14 +8,14 @@ pub(super) const DELIVERY: Table = Table {
     children: &[],
     keys: &[
         Key {
-            name: "max_attempts",
-            prose: "# Retry claims after the initial send, including interrupted retries. Zero permits no retries.\n",
-            sample: Sample::Default("20"),
+            name: "event_max_age",
+            prose: "# Stop retrying once the ORIGINAL EVENT is older than this. An event with no\n# recorded creation epoch, or one in the future, never expires.\n",
+            sample: Sample::Default("\"168h\""),
         },
         Key {
-            name: "max_age_secs",
-            prose: "# Stop retrying only after this original age is exceeded. Zero and future epochs do not expire.\n",
-            sample: Sample::Default("604800"),
+            name: "max_retries",
+            prose: "# Retries allowed after the initial send, including interrupted ones. Zero\n# permits no retry at all.\n",
+            sample: Sample::Default("20"),
         },
         Key {
             name: "remote_deadline",
@@ -27,9 +27,9 @@ pub(super) const DELIVERY: Table = Table {
             sample: Sample::Default("5"),
         },
         Key {
-            name: "retry_base_secs",
-            prose: "# Queued retries wait this many seconds times their retry count. The wait is\n# exact: there is no random spread, because one local daemon draining one queue\n# has no herd to spread.\n",
-            sample: Sample::Default("60"),
+            name: "retry_step",
+            prose: "# Queued retries wait this step times their retry count. The wait is exact:\n# there is no random spread, because one local daemon draining one queue has\n# no herd to spread.\n",
+            sample: Sample::Default("\"1m\""),
         },
     ],
 };
