@@ -111,12 +111,9 @@ fn accept(
     };
     let mut result = receipt::result(submit(&request, &producer));
     result.request_id = Some(request.request_id);
-    // Unknown field names are already bounded by the decoder. Keep them verbatim,
-    // without a prefix that could push an otherwise valid name beyond the text cap.
-    if !decoded.ignored.is_empty() {
-        result.diagnostics.push("ignored_fields".into());
-        result.diagnostics.extend(decoded.ignored);
-    }
+    // Verbatim: the decoder already bounded these names, and a prefix could
+    // push an otherwise valid one beyond the text cap.
+    result.ignored_fields = decoded.ignored;
     result
 }
 
@@ -130,5 +127,50 @@ mod exit_code_tests {
         assert_eq!(exit_code(Status::Partial), 1);
         assert_eq!(exit_code(Status::Undelivered), 1);
         assert_eq!(exit_code(Status::Rejected), 2);
+    }
+}
+
+#[cfg(test)]
+mod accept_tests {
+    use super::{NotSubmitted, ResultEnvelope, accept};
+
+    fn answered(request: &str) -> ResultEnvelope {
+        let decoded = pns_protocol::decode_request(request.as_bytes()).expect("a valid request");
+        accept(decoded, |_, _| {
+            Err(NotSubmitted::UnknownDeliveryClass("never-used".into()))
+        })
+    }
+
+    #[test]
+    fn an_unrecognized_field_is_named_in_its_own_list_and_never_in_the_diagnostics() {
+        let result = answered(
+            r#"{"schema":"pns.request/1","request_id":"r-1","producer":"test","state":"observation","detial":"typo"}"#,
+        );
+        assert_eq!(result.ignored_fields, vec!["detial".to_string()]);
+        assert!(
+            result.diagnostics.iter().all(|code| code != "detial"),
+            "{:?}",
+            result.diagnostics
+        );
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|code| code != "ignored_fields"),
+            "{:?}",
+            result.diagnostics
+        );
+    }
+
+    #[test]
+    fn a_request_with_only_known_fields_answers_an_empty_ignored_list() {
+        let result = answered(
+            r#"{"schema":"pns.request/1","request_id":"r-1","producer":"test","state":"observation"}"#,
+        );
+        assert!(
+            result.ignored_fields.is_empty(),
+            "{:?}",
+            result.ignored_fields
+        );
     }
 }

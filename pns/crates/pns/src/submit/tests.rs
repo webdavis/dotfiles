@@ -20,6 +20,7 @@ fn receipt(status: Status) -> ResultEnvelope {
             note: Some("transport unavailable".into()),
         }],
         diagnostics: vec!["ledger_committed".into()],
+        ignored_fields: Vec::new(),
     }
 }
 #[test]

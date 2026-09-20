@@ -65,6 +65,10 @@ pub struct ResultEnvelope {
     /// Stable codes the engine chose to report.
     #[serde(default)]
     pub diagnostics: Vec<String>,
+    /// The request's own top-level fields the envelope does not define, by
+    /// name, empty when it carried none.
+    #[serde(default)]
+    pub ignored_fields: Vec<String>,
 }
 
 #[cfg(test)]
