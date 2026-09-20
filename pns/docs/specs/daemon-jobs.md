@@ -42,7 +42,7 @@ four routes above writes the same record shape (`src/daemon.rs:Job`, `src/daemon
 `lights`, `remind:<session-id>`, `presence` and `github` jobs are the only ids the crate itself ever
 writes. The `github` poll is registered the way `presence` is, on the same `SWITCH_TICKS` sweep and by
 `ensure_github_poll`, and its `every` is the interval the notifications API's own `X-Poll-Interval`
-header last asked for rather than a config figure: `[plugins.github] poll_secs` is only the interval
+header last asked for rather than a config figure: `[plugins.github] poll_interval` is only the interval
 used before the first answer.
 
 **The open fact behind the `presence` poll.** The poll reads the bridge's `grouped_motion` roll-up, which

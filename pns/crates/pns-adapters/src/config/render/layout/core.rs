@@ -237,15 +237,15 @@ pub(super) const QUIET_CALENDAR: Table = Table {
             sample: Sample::Example("[\"calendar-busy-window\"]"),
         },
         Key {
-            name: "poll_secs",
-            prose: "# How often it is asked, in seconds, from 30 to 1800.\n",
-            sample: Sample::Default("120"),
+            name: "poll_interval",
+            prose: "# How often it is asked, bounded \"30s\" to \"30m\".\n",
+            sample: Sample::Default("\"2m\""),
         },
         Key {
-            name: "deadline_secs",
+            name: "deadline",
             prose: "# How long one run may take before it is killed and the poll leaves\n\
-                         # everything as it was, in seconds, from 1 to 120.\n",
-            sample: Sample::Default("20"),
+                         # everything as it was, bounded \"1s\" to \"30s\".\n",
+            sample: Sample::Default("\"20s\""),
         },
     ],
 };
