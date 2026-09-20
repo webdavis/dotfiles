@@ -52,3 +52,23 @@ fn a_busy_setting_change_reports_failure_and_keeps_the_previous_expiry() {
     assert!(store.set_quiet_expiry(Some(9)).is_err());
     assert_eq!(store.quiet_expiry().unwrap(), Some(7));
 }
+#[test]
+fn the_configured_busy_deadline_reaches_the_connection_that_waits_on_the_lock() {
+    // THE WHOLE PATH IN ONE ASSERTION: `[storage] busy_deadline` parses, the
+    // install settings carry it, and the connection's own `busy_timeout`
+    // pragma answers with it in milliseconds. The bound used to come off
+    // `PNS_DB_BUSY_TIMEOUT_MS`, which production code read on every
+    // connection, so a stray variable on a real machine decided how long a
+    // wedged writer was waited on.
+    let config = crate::parse_config("[storage]\nbusy_deadline = \"250ms\"\n").expect("the config");
+    let settings = crate::install_settings_of(Some(&config), "/nonexistent-home");
+    let mut store = SqliteStore::new(state());
+    store.busy_timeout = settings.busy_deadline;
+    let connection = store.connect().expect("the database");
+    assert_eq!(
+        connection
+            .pragma_query_value(None, "busy_timeout", |row| row.get::<_, i64>(0))
+            .expect("the connection's busy bound"),
+        250
+    );
+}

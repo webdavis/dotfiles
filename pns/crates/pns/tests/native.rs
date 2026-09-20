@@ -87,7 +87,7 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
     sandbox.write_config(
         "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
     );
-    let capture = Capture::start(&sandbox, "mobile", None, None);
+    let capture = Capture::builder(&sandbox, "mobile").start();
 
     let mut command = plugin_command(&sandbox);
     command
@@ -156,7 +156,7 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     sandbox.write_config(
         "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "hermes", None, None);
+    let capture = Capture::builder(&sandbox, "hermes").start();
 
     let mut command = plugin_command(&sandbox);
     command.env("PNS_HERMES_URL", capture.url());
@@ -192,7 +192,7 @@ fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
     sandbox.write_config(
         "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "hermes-401", Some("401"), None);
+    let capture = Capture::builder(&sandbox, "hermes-401").status(401).start();
 
     let mut command = plugin_command(&sandbox);
     command.env("PNS_HERMES_URL", capture.url());
@@ -266,7 +266,7 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
     // TWO REQUESTS, because the report posts its own test send before it
     // reads the router: the capture has to stay up past that one to see the
     // alert at all.
-    let capture = Capture::start(&sandbox, "stale-route", Some("200"), Some("2"));
+    let capture = Capture::builder(&sandbox, "stale").requests(2).start();
     sandbox.write_config(&format!(
         "[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          keys = {{ pns-events = \"gate-signing-key\", priority = \"priority-signing-key\" }}\n\
@@ -365,7 +365,7 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
     sandbox.write_config(
         "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("1"));
+    let capture = Capture::builder(&sandbox, "recap").status(404).start();
 
     let mut command = plugin_command(&sandbox);
     command
@@ -413,7 +413,7 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
 #[test]
 fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_that_routes_key() {
     let sandbox = Sandbox::new("invented-routes");
-    let capture = Capture::start(&sandbox, "invented-routes", None, None);
+    let capture = Capture::builder(&sandbox, "invented-routes").start();
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
          [delivery_class.health]\nroute = \"sirens\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
@@ -468,7 +468,7 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
 #[test]
 fn an_unrouted_event_takes_the_default_route_the_config_invented() {
     let sandbox = Sandbox::new("invented-default-route");
-    let capture = Capture::start(&sandbox, "invented-default", None, None);
+    let capture = Capture::builder(&sandbox, "invented-default").start();
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\n\
          [plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { logbook = \"logbook-key\" }\n",
