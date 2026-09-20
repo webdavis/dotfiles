@@ -5,7 +5,6 @@ use crate::{
     SkillsRoster, Verdict,
 };
 use std::cell::RefCell;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 pub(in crate::lanes::skills) struct Fixture {
@@ -161,22 +160,27 @@ impl CommandRunner for Effects {
             },
         })
     }
-    fn run_with_deadline(&self, _: &str, args: &[&str], _: Duration) -> Result<String, String> {
-        self.calls.borrow_mut().push("fork comparison".into());
-        Ok(if args.last() == Some(&"HEAD^{tree}") {
-            "new-tree"
-        } else {
-            "head"
-        }
-        .into())
+    fn run_with_deadline(&self, _: &str, _: &[&str], _: Duration) -> Result<String, String> {
+        unreachable!("every bounded child of this lane runs in an environment")
     }
     fn run_in(
         &self,
         program: &str,
         args: &[&str],
-        env: &BTreeMap<String, String>,
+        environment: &crate::lanes::Environment,
+        _most: Option<Duration>,
     ) -> Result<String, String> {
+        let env = &environment.variables;
         let name = Path::new(program).file_name().unwrap().to_str().unwrap();
+        if name == "git" {
+            self.calls.borrow_mut().push("fork comparison".into());
+            return Ok(if args.last() == Some(&"HEAD^{tree}") {
+                "new-tree"
+            } else {
+                "head"
+            }
+            .into());
+        }
         self.calls.borrow_mut().push(name.into());
         let home = PathBuf::from(&env["HOME"]);
         assert!(home.starts_with(self.root.join(".agents/.skills-generations")));
