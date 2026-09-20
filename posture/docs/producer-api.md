@@ -51,10 +51,12 @@ for an engine that keys on it.
 
 An accepted submission must be the engine's promise of a retriable obligation for THIS request, taken
 before any destination is tried. Posture reads that as all three of: a `request_id` equal to the one it
-sent, `status: delivered`, and a `ledger_committed` diagnostic. The status says what the destinations did
-(`delivered`, `partial`, `undelivered`, or `rejected` for a refusal), and the diagnostic says the engine
-took the obligation; posture needs both, because a page the engine owes and has not placed anywhere is
-not yet a page delivered.
+sent, `status: delivered`, `partial` or `undelivered`, and a `ledger_committed` diagnostic. The status
+says what the destinations did (`delivered`, `partial`, `undelivered`, or `rejected` for a refusal), and
+the diagnostic says the engine took the obligation; posture needs the diagnostic and not a particular
+status, because a page the engine owes and has committed to retrying is already a page posture can stop
+re-reading. Destination outcomes are not a substitute, because a page that reached no channel yet is
+still a page the engine owes.
 
 Anything less leaves posture's own state where it was, so the next run re-reads the same findings. A
 correlated `status: rejected` is a protocol refusal and stays quiet; an engine that could not be run,

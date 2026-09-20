@@ -400,7 +400,8 @@ When storage is unavailable and delivery runs without a committed row, the diagn
 `ledger_unavailable` and the status still reports what the destinations did. A committed row whose every
 destination failed is `undelivered` beside `ledger_committed`.
 
-Posture advances its own state only on a matching `delivered` result containing `ledger_committed`.
+Posture advances its own state on a matching `delivered`, `partial` or `undelivered` result containing
+`ledger_committed`; a correlated `rejected` result stays quiet.
 Acceptance is durable ownership, not proof of a destination acknowledgement. Per-destination outcomes
 state the attempts separately, and retries retain the original identifier. Main dispatch, receipt
 classification and the event workflow are composed by the existing root callback.

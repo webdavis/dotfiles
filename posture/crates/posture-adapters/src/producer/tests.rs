@@ -119,17 +119,28 @@ fn the_configured_arguments_reach_the_command_verbatim_and_nothing_is_added() {
     }
 }
 #[test]
-fn only_a_matching_accepted_committed_receipt_advances_acceptance() {
+fn only_a_matching_committed_receipt_advances_acceptance() {
     let mut sut = subject(Status::Delivered, true);
     assert_eq!(sut.submit(&alert()), Submission::Accepted);
     assert!(sut.alarm.calls.is_empty());
     assert_eq!(sut.runner.requests.len(), 1);
 }
 #[test]
-fn rejection_degradation_and_missing_commitment_do_not_trigger_an_engine_alarm() {
+fn delivered_partial_and_undelivered_all_advance_acceptance_once_committed() {
+    // Status reports what the destinations did; the ledger diagnostic reports
+    // what the engine owes. A partial or undelivered page is still the
+    // engine's obligation once it is committed, so posture stops re-reading it.
+    for status in [Status::Delivered, Status::Partial, Status::Undelivered] {
+        let mut sut = subject(status, true);
+        assert_eq!(sut.submit(&alert()), Submission::Accepted);
+        assert!(sut.alarm.calls.is_empty());
+    }
+}
+#[test]
+fn rejection_and_missing_commitment_do_not_trigger_an_engine_alarm() {
     for (status, committed, failure) in [
         (Status::Rejected, true, SubmissionFailure::Refused),
-        (Status::Undelivered, true, SubmissionFailure::NotCommitted),
+        (Status::Undelivered, false, SubmissionFailure::NotCommitted),
         (Status::Delivered, false, SubmissionFailure::NotCommitted),
     ] {
         let mut sut = subject(status, committed);

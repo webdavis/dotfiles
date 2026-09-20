@@ -19,14 +19,13 @@ fn unavailable_failed_and_timed_out_engines_each_attempt_one_independent_alarm()
     }
 }
 #[test]
-fn a_nonzero_engine_exit_cannot_be_accepted_even_with_a_valid_receipt() {
+fn a_nonzero_engine_exit_does_not_override_a_correlated_committed_receipt() {
+    // pns exits 1 for partial/undelivered while still owning the request;
+    // the decoded, correlated status and diagnostic are what decide acceptance.
     let mut sut = subject(Status::Delivered, true);
     sut.runner.response.as_mut().unwrap().exit = 42;
-    assert_eq!(
-        sut.submit(&alert()),
-        Submission::NotAccepted(SubmissionFailure::Failed)
-    );
-    assert_eq!(sut.alarm.calls.len(), 1);
+    assert_eq!(sut.submit(&alert()), Submission::Accepted);
+    assert!(sut.alarm.calls.is_empty());
 }
 #[test]
 fn empty_garbage_and_multiple_receipts_attempt_one_alarm_without_retrying() {
