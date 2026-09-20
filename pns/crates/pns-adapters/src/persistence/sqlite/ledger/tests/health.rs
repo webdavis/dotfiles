@@ -61,8 +61,8 @@ fn deadlettering_preserves_metadata_routes_history_acknowledged_siblings_and_act
     let active = one(&store, "active");
     let before = store.inspect(&input.identity).unwrap().unwrap();
     let limits = RetryLimits {
-        max_attempts: 0,
-        max_age_secs: 0,
+        max_retries: 0,
+        event_max_age_secs: 0,
     };
     assert!(store.claim_retry(lease(19, 30), limits).unwrap().is_none());
     assert_eq!(
@@ -127,8 +127,8 @@ fn delivery_deadletter_update_and_alarm_are_atomic_and_do_not_starve_a_later_eli
     let connection = store.connect().unwrap();
     connection.execute_batch("CREATE TRIGGER reject_alarm BEFORE UPDATE ON delivery_health BEGIN SELECT RAISE(ABORT,'private injected failure'); END;").unwrap();
     let limits = RetryLimits {
-        max_attempts: 20,
-        max_age_secs: 30,
+        max_retries: 20,
+        event_max_age_secs: 30,
     };
     assert!(store.claim_retry(lease(41, 51), limits).is_err());
     assert_eq!(

@@ -59,7 +59,7 @@ fn a_file_defining_no_class_defines_none_rather_than_a_shipped_set() {
     // pns COMPILES IN NO CLASS WORDS: an empty file leaves every class
     // undefined, which is what makes the shipped config the one statement of
     // which classes this machine serves.
-    for text in ["", "[delivery]", "[delivery]\nmax_attempts = 3"] {
+    for text in ["", "[delivery]", "[delivery]\nmax_retries = 3"] {
         let config = parse_config(text).unwrap_or_else(|error| panic!("{text}: {error:?}"));
         assert!(config.delivery_classes.is_empty(), "{text}");
         assert_eq!(
@@ -94,6 +94,6 @@ fn the_retired_bypass_list_is_refused_by_name_rather_than_ignored() {
     // is in force and is not is a page held back by a mute they set.
     let refused = refusal("[delivery]\nbypass_silence_classes = [\"security\"]");
     assert!(refused.contains("bypass_silence_classes"), "{refused}");
-    assert!(refused.contains("max_attempts"), "{refused}");
+    assert!(refused.contains("max_retries"), "{refused}");
     assert!(refusal("delivery = false").contains("delivery"));
 }
