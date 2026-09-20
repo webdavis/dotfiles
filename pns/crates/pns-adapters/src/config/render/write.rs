@@ -126,9 +126,9 @@ pub(super) fn render_block(
 /// Removes and returns `note` off `settings`, refusing by name when it is
 /// there but not a string.
 ///
-/// A RESERVED KEY, invisible to the roster: it never reaches the output as
-/// `note = "..."`, only as the comment `write_note` turns it into, so a
-/// parsed config never carries one.
+/// A RESERVED KEY IN A TABLE WITH A DECLARED ROSTER: there it never reaches
+/// the output as `note = "..."`, only as the comment `write_note` turns it
+/// into. In an open table it is a key like any other (see `render_block`).
 pub(super) fn take_note(settings: &mut toml::Table) -> Result<Option<String>, String> {
     match settings.remove("note") {
         None => Ok(None),
