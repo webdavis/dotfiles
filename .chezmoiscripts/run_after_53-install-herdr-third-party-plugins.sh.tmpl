@@ -9,12 +9,12 @@ set -euo pipefail
 # script makes reproducible is the DECLARATION: a fresh machine ends up with the
 # same plugin set without anyone remembering the command.
 #
-# Two of the roster entries are ours (herdr-workspace-jump and herdr-smart-nav),
-# which is the point of extracting them into their own public repositories: they
-# arrive by the same convention as everybody else's, and a `ref:` bump in the
-# roster reinstalls them at the next apply. The one plugin that does not
-# is herdr-process, whose manifest is generated from this machine's config;
-# run_onchange_after_58 clones, builds and links that one.
+# One of the roster entries is ours (herdr-smart-nav), which is the point of
+# extracting it into its own public repository: it arrives by the same
+# convention as everybody else's, and a `ref:` bump in the roster reinstalls
+# it at the next apply. herdr-process and herdr-workspace-jump do not, because
+# each plugin's manifest is generated from this machine's own config;
+# run_onchange_after_58 clones, builds and links those two.
 #
 # run_after, not run_onchange, on purpose. Both the probe and the install talk to
 # a running herdr server, which a scripted apply frequently does not have. A
@@ -24,8 +24,8 @@ set -euo pipefail
 # plugin. Running on every apply and installing whatever is not at its roster
 # revision makes the failure self-healing, at the cost of one bounded socket call
 # per apply and per plugin, and it costs no retry-marker machinery
-# (run_onchange_after_58 carries that for the one plugin this repo still builds,
-# which cannot be converged this cheaply).
+# (run_onchange_after_58 carries that for the two linked plugins this repo
+# still builds, which cannot be converged this cheaply).
 
 command -v herdr >/dev/null 2>&1 || exit 0 # run_onchange_before_15 installs it.
 command -v jq >/dev/null 2>&1 || exit 0    # jq reads the plugin-list envelope.
