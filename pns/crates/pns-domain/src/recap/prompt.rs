@@ -1,18 +1,11 @@
 //! What a summarizer is asked, and what is taken from its answer.
 
+use super::activity::Event;
 use super::budget::Clock;
 use super::external::Sourced;
-use super::night::night_section;
+use super::night::{described, mark};
 use super::sanitize::safe_line;
-use super::sections::Timeline;
-use crate::missed::Entry;
 
-/// The merges as the summarizer is handed them, one per line behind its own
-/// receipt. `prompt`'s rules hold here unchanged: the wording is not the
-/// defence, and what comes back is bounded by where it may land.
-pub fn merge_prompt(sources: &[Sourced]) -> String {
-    external_prompt(MERGE_INSTRUCTION, sources)
-}
 /// The review notes as the summarizer is handed them. THE ONLY SECTION WHOSE
 /// SOURCE IS UNREADABLE WITHOUT A MODEL: a note is a report somebody wrote for
 /// a person, so a mechanical line can name it and nothing more.
@@ -29,42 +22,33 @@ pub(super) fn external_prompt(instruction: &str, sources: &[Sourced]) -> String 
     }
     text
 }
-/// The four sentences one external section says about itself, held together so
+/// The four sentences one list section says about itself, held together so
 /// that a section cannot be given another section's words.
+///
+/// BUILT FROM THE SECTION'S OWN CONFIG KEY rather than written out per
+/// section, because the sections are now whatever `[recap.sources]` names.
+/// One function means the heading a reader sees, the key they wrote and the
+/// field in the document cannot drift apart.
 pub(super) struct Voice {
-    pub(super) heading: &'static str,
-    pub(super) unconfigured: &'static str,
-    pub(super) unavailable: &'static str,
-    pub(super) nothing: &'static str,
+    pub(super) heading: String,
+    pub(super) unconfigured: String,
+    pub(super) unavailable: String,
+    pub(super) nothing: String,
 }
-/// Section 4. The unconfigured line is unchanged from the recap that had no
-/// source at all, so a machine that never writes the key reads exactly as it
-/// did.
-pub(super) const MERGES: Voice = Voice {
-    heading: "NEW BEHAVIOR",
-    unconfigured: "NEW BEHAVIOR: not configured (no merged pull request source).",
-    unavailable: "NEW BEHAVIOR: unavailable (the merged pull requests could not be read).",
-    nothing: "NEW BEHAVIOR: nothing merged in this window.",
-};
-/// Section 5.
-pub(super) const NOTES: Voice = Voice {
-    heading: "CAUGHT BY REVIEW, AND IMPLEMENTED",
-    unconfigured: "CAUGHT BY REVIEW, AND IMPLEMENTED: not configured (no review notes source).",
-    unavailable: "CAUGHT BY REVIEW, AND IMPLEMENTED: unavailable (the review notes could not be read).",
-    nothing: "CAUGHT BY REVIEW, AND IMPLEMENTED: nothing was noted in this window.",
-};
-/// What the summarizer is asked of the merges. `INSTRUCTION`'s rules hold: the
-/// wording is not the defence, and the receipts check is.
-pub(super) const MERGE_INSTRUCTION: &str = "Below are the pull requests merged into one machine's \
-     repositories while nobody was watching, one per line, each behind the number that \
-     identifies it.\n\n\
-     Rewrite them as the list somebody reads to find out what the software DOES now that it \
-     did not do before: one line each, at most 4 lines, present tense, saying what the \
-     change does rather than what was edited. START EVERY LINE WITH THE NUMBER IT CAME \
-     FROM, exactly as written below. Select and compress only: never state anything that is \
-     not below, and never count anything. Answer with the lines alone, no heading, no \
-     numbering and no commentary.\n\n";
-/// And of the review notes.
+
+/// The four sentences for one section name.
+pub(super) fn voice(name: &str) -> Voice {
+    let heading = name.replace('_', " ").to_uppercase();
+    Voice {
+        unconfigured: format!("{heading}: not configured."),
+        unavailable: format!("{heading}: unavailable (the command could not be run)."),
+        nothing: format!("{heading}: nothing in this window."),
+        heading,
+    }
+}
+
+/// What the summarizer is asked of the review notes. `INSTRUCTION`'s rules
+/// hold: the wording is not the defence, and the receipts check is.
 pub(super) const NOTE_INSTRUCTION: &str = "Below are the review notes written while nobody was watching, \
      each behind the name of the file it came from.\n\n\
      Rewrite them as the list somebody reads to find out what review caught and what was then \
@@ -87,15 +71,15 @@ pub(super) const NOTE_INSTRUCTION: &str = "Below are the review notes written wh
 /// `night_section` prefixes every line it writes and cuts the list to the
 /// window's own length, so an answer that reads as a heading renders as content
 /// and an answer longer than the night cannot be counted as one.
-pub fn prompt(entries: &[Entry], clock: Clock) -> String {
+pub fn prompt(events: &[Event], clock: Clock) -> String {
     let mut text = String::from(INSTRUCTION);
-    for line in night_section(entries, clock, Timeline::Mechanical)
-        .lines
-        .iter()
-        .skip(1)
-    {
-        text.push_str(line);
-        text.push('\n');
+    for event in events {
+        text.push_str(&format!(
+            "{} {} {}\n",
+            clock(Some(event.at)),
+            mark(&event.state),
+            described(event)
+        ));
     }
     text
 }
@@ -174,10 +158,6 @@ pub const MAX_ANSWER_BYTES: usize = 16 * 1024;
 /// mechanical one would have, so it is held to the same width and the character
 /// budget behaves the same either way.
 pub(super) const SUMMARIZED_MAX_CHARS: usize = 120;
-/// Where the part that did not fit still lives, in full. Every event in the
-/// window already reached the durable log when it happened, which is what
-/// makes cutting lines here safe at all.
-pub(super) const TAIL: &str = "Every event above is in #pns in full.";
 /// What the summarizer is asked to do, ahead of the window itself.
 ///
 /// SELECT AND COMPRESS, NEVER INVENT, said plainly because a backend that

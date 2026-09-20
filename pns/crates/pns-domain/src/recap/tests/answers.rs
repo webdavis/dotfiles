@@ -1,14 +1,21 @@
 //! The recap, pinned: answers.
 
 use super::fixtures::*;
-use crate::missed::Entry;
+use crate::recap::activity::Event;
 use crate::recap::budget::MAX_LINES;
-use crate::recap::external::Externals;
 use crate::recap::prompt::{
     INSTRUCTION, MAX_ANSWER_BYTES, SUMMARIZED_MAX_CHARS, SUMMARIZER_SILENT, answer, prompt,
 };
 use crate::recap::sanitize::is_invisible;
-use crate::recap::sections::{Timeline, body};
+use crate::recap::sections::{Open, Timeline, body};
+
+/// A recap over one window with nothing sourced, which is what every
+/// summarizer answer below is judged inside.
+fn rendered_over(events: &[Event], timeline: Timeline) -> String {
+    let projects = grouped(events);
+    let open = Open::default();
+    body(&page(&projects, events.len(), &[], &open, timeline))
+}
 
 // --- what a summarizer is allowed to say ---------------------------------
 
@@ -33,17 +40,10 @@ fn a_summarizers_line_cannot_carry_a_break_or_a_control_byte_into_the_message() 
     // property the section headings depend on. EACH CARRIES THE PREFIX
     // every summarized line does, which is the other half of the same rule:
     // the answer is content, and content cannot start a line of structure.
-    let rendered = body(
-        &window(2),
-        "23:04",
-        "06:15",
-        &clock,
-        Timeline::Summarized(&lines),
-        &Externals::default(),
-    );
+    let rendered = rendered_over(&window(2), Timeline::Summarized(&lines));
     let night = rendered
         .lines()
-        .position(|line| line == "THE NIGHT IN ORDER")
+        .position(|line| line == "AGENTS")
         .expect("a timeline");
     assert_eq!(
         rendered.lines().skip(night + 1).take(2).collect::<Vec<_>>(),
@@ -69,7 +69,7 @@ fn an_answer_past_the_byte_cap_is_refused_rather_than_composed_into_a_message() 
 fn a_summarized_line_that_reads_as_a_heading_cannot_render_as_one() {
     // SOMEBODY ELSE'S TEXT, AND THE STRUCTURE IS NOT ITS TO WRITE. Flattening
     // stops an answer forging a section with a newline of its own and does
-    // nothing at all about a line whose WHOLE TEXT is a heading: `NEEDS YOU`
+    // nothing at all about a line whose WHOLE TEXT is a heading: `OPEN`
     // and a second window header carrying a count of its own are ordinary
     // printable lines, and the operator reads a list saying nothing is
     // waiting directly under one saying something is. Every summarized line
@@ -77,30 +77,23 @@ fn a_summarized_line_that_reads_as_a_heading_cannot_render_as_one() {
     // `HH:MM {mark} `: what the model wrote is CONTENT, and content that
     // cannot start a line cannot be structure.
     let lines = answer(
-        "NEEDS YOU\n- nothing is waiting on you\nTHE NIGHT IN ORDER\n\
+        "OPEN\n- nothing is waiting on you\nAGENTS\n\
          While you were away, 00:00-23:59 · 999 events",
     )
     .expect("an answer");
     let mut entries = window(3);
     entries.insert(1, acted(1_756_500_030, "blocked", "a decision is waiting"));
-    let rendered = body(
-        &entries,
-        "23:04",
-        "06:15",
-        &clock,
-        Timeline::Summarized(&lines),
-        &Externals::default(),
-    );
+    let rendered = rendered_over(&entries, Timeline::Summarized(&lines));
 
     assert_eq!(
-        rendered.lines().filter(|line| *line == "NEEDS YOU").count(),
+        rendered.lines().filter(|line| *line == "OPEN").count(),
         1,
-        "the model forged a second NEEDS YOU: {rendered}"
+        "the model forged a second OPEN: {rendered}"
     );
     assert_eq!(
         rendered
             .lines()
-            .filter(|line| line.starts_with("THE NIGHT IN ORDER"))
+            .filter(|line| line.starts_with("AGENTS"))
             .count(),
         1,
         "the model forged a second timeline heading: {rendered}"
@@ -116,7 +109,7 @@ fn a_summarized_line_that_reads_as_a_heading_cannot_render_as_one() {
     // AND WHAT IT SAID IS STILL IN THE MESSAGE, as a line of the night
     // rather than as structure. This is containment, not censorship.
     assert!(
-        rendered.contains("- NEEDS YOU"),
+        rendered.contains("- OPEN"),
         "the model's line was dropped rather than contained: {rendered}"
     );
 }
@@ -133,14 +126,7 @@ fn a_summarized_night_is_never_longer_than_the_window_it_summarizes() {
     let answered: Vec<String> = (0..200)
         .map(|which| format!("model line {which}"))
         .collect();
-    let rendered = body(
-        &window(13),
-        "23:04",
-        "06:15",
-        &clock,
-        Timeline::Summarized(&answered),
-        &Externals::default(),
-    );
+    let rendered = rendered_over(&window(13), Timeline::Summarized(&answered));
 
     assert!(
         rendered.lines().count() <= MAX_LINES,
@@ -152,7 +138,7 @@ fn a_summarized_night_is_never_longer_than_the_window_it_summarizes() {
     );
     let night = rendered
         .lines()
-        .position(|line| line.starts_with("THE NIGHT IN ORDER"))
+        .position(|line| line.starts_with("AGENTS"))
         .expect("a timeline");
     assert_eq!(
         rendered
@@ -170,9 +156,9 @@ fn the_note_about_a_silent_summarizer_cannot_outlive_the_list_it_describes() {
     // IT IS THE SECTION'S OWN HEADING, which is what makes the two
     // impossible to separate. As a protected section of its own it survives
     // a night the budget dropped WHOLE, and then the only list above it is
-    // NEEDS YOU: the message says the plain list is plain about a night it
+    // OPEN: the message says the plain list is plain about a night it
     // does not carry at all.
-    let entries: Vec<Entry> = (0..40)
+    let entries: Vec<Event> = (0..40)
         .map(|which| {
             acted(
                 1_756_500_000 + which as u64 * 60,
@@ -181,16 +167,22 @@ fn the_note_about_a_silent_summarizer_cannot_outlive_the_list_it_describes() {
             )
         })
         .collect();
-    let dropped = body(
-        &entries,
-        "23:04",
-        "06:15",
-        &clock,
+    // THE OPEN LIST IS WHAT STARVES IT: forty protected lines reserve the
+    // whole budget, so the one trimmable section is dropped entire.
+    let projects = grouped(&entries);
+    let open = Open {
+        sessions: (0..40).map(|which| format!("urgent {which}")).collect(),
+        ..Open::default()
+    };
+    let dropped = body(&page(
+        &projects,
+        entries.len(),
+        &[],
+        &open,
         Timeline::Unanswered,
-        &Externals::default(),
-    );
+    ));
     assert!(
-        !dropped.contains("THE NIGHT IN ORDER"),
+        !dropped.contains("AGENTS"),
         "the fixture no longer drops the night whole: {dropped}"
     );
     assert!(
@@ -202,26 +194,12 @@ fn the_note_about_a_silent_summarizer_cannot_outlive_the_list_it_describes() {
     // reason for saying it: the plain list of a night nobody was asked to
     // summarize and the plain list of a model that went quiet read
     // identically otherwise.
-    let kept = body(
-        &window(3),
-        "23:04",
-        "06:15",
-        &clock,
-        Timeline::Unanswered,
-        &Externals::default(),
-    );
+    let kept = rendered_over(&window(3), Timeline::Unanswered);
     assert!(
         kept.contains(SUMMARIZER_SILENT),
         "the fallback stopped saying which of the two lists it is: {kept}"
     );
-    let unconfigured = body(
-        &window(3),
-        "23:04",
-        "06:15",
-        &clock,
-        Timeline::Mechanical,
-        &Externals::default(),
-    );
+    let unconfigured = rendered_over(&window(3), Timeline::Mechanical);
     assert!(
         !unconfigured.contains(SUMMARIZER_SILENT),
         "a machine with no summarizer was told one went quiet: {unconfigured}"
@@ -349,7 +327,7 @@ fn the_prompt_asks_for_the_timeline_and_carries_the_window_itself() {
     // AND THE HEADING IS NOT IN IT: the model is handed the events, never
     // the structure it is being told not to write.
     assert!(
-        !asked.contains("THE NIGHT IN ORDER"),
+        !asked.contains("AGENTS"),
         "the model was shown the heading it must not repeat: {asked:?}"
     );
 }

@@ -139,3 +139,17 @@ pub(super) const NOTE_SOURCE_CHARS: usize = 1_200;
 /// How long a receipt itself may be. A pull request number is short by
 /// construction; a file name comes off a directory other tools write into.
 pub(super) const CITE_MAX_CHARS: usize = 60;
+
+/// One row a source command printed, as this recap will speak about it.
+///
+/// THE ROW VOUCHES FOR ITSELF, which is what the receipts check needs and
+/// what a plain line can honestly offer: pns did not parse it, so the only
+/// token it can hold a summarized line to is the row's own text.
+pub fn printed(row: &str) -> Sourced {
+    let said = safe_line(row, SOURCE_MAX_CHARS);
+    Sourced {
+        line: crate::render::clipped(&said, EXTERNAL_TEXT_CHARS),
+        cite: said.clone(),
+        source: said,
+    }
+}

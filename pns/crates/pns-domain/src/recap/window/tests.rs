@@ -14,11 +14,7 @@ fn moment(day: u32, hour: u32, minute: u32) -> LocalCivilTime {
     }
 }
 
-fn span(
-    window: Window,
-    previous: bool,
-    now: LocalCivilTime,
-) -> (LocalCivilTime, LocalCivilTime) {
+fn span(window: Window, previous: bool, now: LocalCivilTime) -> (LocalCivilTime, LocalCivilTime) {
     resolve(
         window,
         previous,
