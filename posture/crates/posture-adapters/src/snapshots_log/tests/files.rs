@@ -1,22 +1,17 @@
 use super::*;
-use std::os::unix::fs::DirBuilderExt;
-use std::{
-    fs, io,
-    sync::atomic::{AtomicUsize, Ordering},
-};
-static NEXT: AtomicUsize = AtomicUsize::new(0);
-fn directory() -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "canary-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
-    path
+use crate::test_sandbox::Sandbox;
+use std::fs;
+use std::io;
+use std::os::unix::fs::PermissionsExt;
+fn directory() -> Sandbox {
+    let sandbox = Sandbox::new("canary");
+    fs::set_permissions(&sandbox, fs::Permissions::from_mode(0o700)).unwrap();
+    sandbox
 }
 #[test]
 fn real_file_reads_a_canary_after_more_than_one_read_buffer() {
-    let path = directory().join("snapshots.log");
+    let dir = directory();
+    let path = dir.join("snapshots.log");
     let mut bytes = b"torn\n".repeat(4000);
     bytes.extend_from_slice(b"{\"name\":\"heartbeat_canary\",\"unixTime\":9970}\n");
     fs::write(&path, bytes).unwrap();
@@ -36,7 +31,7 @@ fn absent_log_and_directory_fail_without_a_false_canary() {
         Err(SnapshotReadFailure)
     );
     assert_eq!(
-        SnapshotsFile::new(dir).newest_canary(),
+        SnapshotsFile::new(dir.to_path_buf()).newest_canary(),
         Err(SnapshotReadFailure)
     );
 }
@@ -44,7 +39,8 @@ fn absent_log_and_directory_fail_without_a_false_canary() {
 fn a_fifo_log_refuses_without_waiting_for_a_writer() {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
-    let path = directory().join("snapshots.log");
+    let dir = directory();
+    let path = dir.join("snapshots.log");
     let cpath = CString::new(path.as_os_str().as_bytes()).unwrap();
     // The owned private path is NUL-terminated and remains alive for mkfifo.
     assert_eq!(unsafe { libc::mkfifo(cpath.as_ptr(), 0o600) }, 0);

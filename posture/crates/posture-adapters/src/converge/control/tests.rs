@@ -25,7 +25,7 @@ fn vendor_plist_inspection_refuses_links_and_non_files_without_any_command() {
     // Distinct owned fixtures keep the previous link and its referent unchanged.
     let regular = Scratch::new();
     std::fs::write(regular.0.join("io.osquery.agent.plist"), "plist").unwrap();
-    control.target = regular.0;
+    control.target = regular.0.clone();
     assert_eq!(control.vendor_plist(), VendorPlist::Regular);
     assert!(control.runner.calls.is_empty());
 }

@@ -1,27 +1,16 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use std::fs::{self, OpenOptions};
 use std::io::Read;
 use std::os::fd::AsRawFd;
 use std::process::{Child, Command, Stdio};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    mpsc,
-};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-fn root() -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let path = std::env::temp_dir().join(format!(
-        "posture-lock-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&path).unwrap();
-    path
-}
 #[test]
 fn lock_setup_creates_the_same_deployed_sibling_and_blocks_a_second_writer() {
-    let root = root();
+    let sandbox = Sandbox::new("lock");
+    let root = sandbox.path();
     let deployed = root.join("nested/allowlist");
     let first = AllowlistWriteLock::new(&deployed).acquire().unwrap();
     assert!(root.join("nested/allowlist.lock").is_file());
@@ -39,7 +28,8 @@ fn lock_setup_creates_the_same_deployed_sibling_and_blocks_a_second_writer() {
 }
 #[test]
 fn lock_parent_and_lock_file_setup_errors_both_fail_closed() {
-    let root = root();
+    let sandbox = Sandbox::new("lock");
+    let root = sandbox.path();
     fs::write(root.join("blocked"), b"file").unwrap();
     assert!(
         AllowlistWriteLock::new(&root.join("blocked/allowlist"))
@@ -94,7 +84,8 @@ impl Drop for Owned {
 }
 #[test]
 fn an_exec_child_cannot_keep_the_write_lock_after_the_writer_releases_it() {
-    let root = root();
+    let sandbox = Sandbox::new("lock");
+    let root = sandbox.path();
     let path = root.join("allowlist");
     let guard = AllowlistWriteLock::new(&path).acquire().unwrap();
     let mut child = Owned(
