@@ -73,3 +73,22 @@ fn a_ring_that_vanished_under_the_append_is_never_republished_over() {
         );
     }
 }
+
+#[test]
+fn the_stall_inside_the_ring_lock_is_zero_until_a_test_asks_for_one() {
+    // THE STRUCTURAL FACT a release build needs: the append's delay comes
+    // off a function with a fixed zero in it, not off the environment, so
+    // `PNS_RING_LOCK_TEST_DELAY_MS` exported on a real machine no longer
+    // sleeps inside the lock every event passes through. A build without
+    // `cfg(test)` cannot be asserted on from inside a test, so what is pinned
+    // here is the injection point both builds go through and the zero it
+    // starts at.
+    assert_eq!(super::lock_test_delay(), std::time::Duration::ZERO);
+    super::stall_inside_the_ring_lock(std::time::Duration::from_millis(3));
+    assert_eq!(
+        super::lock_test_delay(),
+        std::time::Duration::from_millis(3),
+        "a test that asks for a stall gets it"
+    );
+    super::stall_inside_the_ring_lock(std::time::Duration::ZERO);
+}
