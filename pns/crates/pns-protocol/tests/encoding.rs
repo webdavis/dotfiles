@@ -53,7 +53,9 @@ fn result_encoding_refuses_a_destination_note_over_the_wire_cap() {
     result.destinations.push(DestinationOutcome {
         name: Name::new("banner").unwrap(),
         outcome: DeliveryOutcome::Failed,
+        route: None,
         note: Some("x".repeat(8_000)),
+        retry_at: None,
     });
     assert!(result.encode().is_ok());
     result.destinations[0].note.as_mut().unwrap().push('x');
@@ -69,7 +71,9 @@ fn result_encoding_refuses_too_many_destinations() {
     let destination = DestinationOutcome {
         name: Name::new("banner").unwrap(),
         outcome: DeliveryOutcome::Delivered,
+        route: None,
         note: None,
+        retry_at: None,
     };
     for count in [63, 64] {
         result.destinations = vec![destination.clone(); count];

@@ -129,7 +129,7 @@ fn unknown_or_wrapped_result_status_and_outcome_words_are_refused() {
         let mut value: Value = serde_json::from_str(RESULT).unwrap();
         match field {
             "status" => value["status"] = json!("unknown"),
-            "outcome" => value["destinations"][0]["outcome"] = json!("unknown"),
+            "outcome" => value["destinations"][0]["outcome"] = json!("unreported"),
             "wrapped_status" => value["status"] = json!({ "kind": "partial" }),
             _ => value["destinations"][0]["outcome"] = json!({ "kind": "delivered" }),
         }
