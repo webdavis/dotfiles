@@ -100,4 +100,6 @@ pub(crate) fn command_notify(command: &Path) -> posture_adapters::Notify {
 }
 
 #[cfg(test)]
+mod test_sandbox;
+#[cfg(test)]
 mod tests;

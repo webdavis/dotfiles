@@ -1,13 +1,7 @@
 use super::*;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::InspectionFailure;
-use std::{
-    cell::RefCell,
-    ffi::OsStr,
-    path::Path,
-    rc::Rc,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::{cell::RefCell, ffi::OsStr, path::Path, rc::Rc};
 
 pub(super) const HEALTHY: &str = r#"[{"firewall":"1","gatekeeper":"1","screenlock":"1"}]"#;
 pub(super) const EXPOSED: &str = r#"[{"firewall":"0","gatekeeper":"1","screenlock":"1"}]"#;
@@ -18,17 +12,10 @@ pub(super) struct Effects {
     pub requests: Vec<String>,
     pub baselines_at_submit: Vec<Option<Vec<u8>>>,
 }
-pub(super) struct Subject(PathBuf);
+pub(super) struct Subject(crate::test_sandbox::Sandbox);
 impl Subject {
     pub fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let root = std::env::temp_dir().join(format!(
-            "posture-poll-cli-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
-        let subject = Self(root);
+        let subject = Self(crate::test_sandbox::Sandbox::new("poll-cli"));
         fs::create_dir_all(subject.controls().parent().unwrap()).unwrap();
         fs::write(subject.controls(), br#"[{"id":"vault","tier":"verify","reader":"fdesetup_status","expect":"on","description":"FileVault","remedy":"Enable FileVault"}]"#).unwrap();
         subject

@@ -111,6 +111,10 @@ pub struct Config {
     /// `[stale] route`: the route that page takes, or None for the one the
     /// health kind resolves to against `[routes]`.
     pub stale_route: Option<String>,
+    /// `[storage] busy_deadline`: how long a writer waits for the state
+    /// database's write lock before the operation is refused. ZERO IS NO WAIT
+    /// AT ALL, which is what SQLite's own busy handler does when it is off.
+    pub storage_busy_deadline: Duration,
     /// `[lights]`: the lamp policy, or None when no table was written.
     ///
     /// Boxed because this is the largest optional policy. Configurations
@@ -148,6 +152,7 @@ impl Default for Config {
             remind_delay_secs: REMIND_OFF,
             stale_escalate_after_secs: DEFAULT_ESCALATE_AFTER_SECS,
             stale_route: None,
+            storage_busy_deadline: DEFAULT_BUSY_DEADLINE,
             lights: None,
             quiet_calendar: QuietCalendar::default(),
             failures: Failures::default(),
