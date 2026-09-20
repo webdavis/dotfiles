@@ -27,8 +27,8 @@ pub(crate) fn attribution(payload: &HookPayload, agent: &str) -> pns_domain::Eve
 /// NO GIT AND NO NETWORK, because this runs inside the synchronous prompt
 /// hook: one local row write, and the checkout is left to the first event
 /// that actually reads it.
-pub(crate) fn name_session(payload: &HookPayload, agent: &str) {
-    named(&sessions(), payload, agent);
+pub(crate) fn name_session(payload: &HookPayload, agent: &str) -> String {
+    named(&sessions(), payload, agent)
 }
 
 fn sessions() -> SqliteStore {
@@ -59,8 +59,8 @@ fn attributed(store: &SqliteStore, payload: &HookPayload, agent: &str) -> pns_do
     }
 }
 
-fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) {
-    drop(noted(
+fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) -> String {
+    noted(
         store,
         &SessionNote {
             id: tracked(&payload.session_id).unwrap_or_default(),
@@ -70,7 +70,7 @@ fn named(store: &SqliteStore, payload: &HookPayload, agent: &str) {
             title: &session_label(payload),
             now: stamp(),
         },
-    ));
+    )
 }
 
 /// Record the session and answer the title it is known by. An id pns cannot

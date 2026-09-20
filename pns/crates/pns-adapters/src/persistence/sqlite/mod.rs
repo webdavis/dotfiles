@@ -1,3 +1,5 @@
+mod activity;
+pub use activity::ActivityEvent;
 mod decisions;
 mod diagnostics;
 mod error;

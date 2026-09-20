@@ -15,7 +15,7 @@ mod transcript;
 pub use message::flattened;
 pub use payload::{HookPayload, parse_payload};
 pub use routing::{is_harness_subcommand, moshi_subcommand};
-pub use transcript::transcript_reply;
+pub use transcript::{SessionFacts, session_facts, transcript_reply};
 
 #[cfg(test)]
 mod tests;
