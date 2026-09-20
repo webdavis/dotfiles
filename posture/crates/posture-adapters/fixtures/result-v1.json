@@ -1,7 +1,7 @@
 {
   "schema": "pns.result/1",
   "request_id": "nvim-7f3a9c2e-0001",
-  "status": "degraded",
+  "status": "partial",
   "decision_id": "d-000123",
   "interaction": { "kind": "no_opinion" },
   "destinations": [

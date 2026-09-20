@@ -18,12 +18,12 @@ fn name(text: &str) -> Name {
 fn golden_result() -> ResultEnvelope {
     ResultEnvelope {
         request_id: Some(id("nvim-7f3a9c2e-0001")),
-        status: Status::Degraded,
+        status: Status::Partial,
         decision_id: Some("d-000123".to_string()),
         interaction: Some(InteractionResult::NoOpinion),
         destinations: vec![
             DestinationOutcome {
-                destination: name("macos-banner"),
+                destination: name("banner"),
                 outcome: DeliveryOutcome::Delivered,
                 note: None,
             },
@@ -101,8 +101,9 @@ fn diagnostics_are_bounded_at_the_item_cap_when_encoded() {
 fn every_status_outcome_and_interaction_word_is_pinned() {
     let mut result = golden_result();
     for (status, word) in [
-        (Status::Accepted, "accepted"),
-        (Status::Degraded, "degraded"),
+        (Status::Delivered, "delivered"),
+        (Status::Partial, "partial"),
+        (Status::Undelivered, "undelivered"),
         (Status::Rejected, "rejected"),
     ] {
         result.status = status;

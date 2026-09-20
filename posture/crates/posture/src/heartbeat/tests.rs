@@ -18,7 +18,7 @@ struct Effects {
 enum Reply {
     Committed,
     Refused,
-    Degraded,
+    Undelivered,
     TimedOut,
     Malformed,
 }
@@ -64,9 +64,9 @@ impl CommandRunner for Runner {
             .to_owned();
         self.effects.borrow_mut().requests.push(request);
         let (status, diagnostics, exit) = match reply {
-            Reply::Committed => ("accepted", "\"ledger_committed\"", 0),
+            Reply::Committed => ("delivered", "\"ledger_committed\"", 0),
             Reply::Refused => ("rejected", "", 2),
-            Reply::Degraded => ("degraded", "\"ledger_unavailable\"", 0),
+            Reply::Undelivered => ("undelivered", "\"ledger_unavailable\"", 0),
             Reply::TimedOut => return Err(InspectionFailure::TimedOut),
             Reply::Malformed => {
                 return Ok(CommandOutput {
@@ -166,7 +166,7 @@ fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observ
 fn an_undelivered_heartbeat_exits_nonzero_and_says_so_on_stderr_and_the_banner() {
     for (reply, sink_alarms, reason) in [
         (Reply::Refused, 0, "Refused"),
-        (Reply::Degraded, 0, "NotCommitted"),
+        (Reply::Undelivered, 0, "NotCommitted"),
         (Reply::TimedOut, 1, "TimedOut"),
         (Reply::Malformed, 1, "Unparseable"),
     ] {
