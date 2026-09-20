@@ -73,22 +73,22 @@ fn the_config_selects_and_registration_order_beats_config_order() {
     // The config lists banner before mobile; the plan order is still the
     // registered one, because delivery order is policy, not preference.
     let config =
-        parse_config("[plugins.banner]\nenabled = true\n[plugins.mobile]\nenabled = true\n")
+        parse_config("[plugins.banner]\nenabled = true\n[plugins.phone]\nenabled = true\n")
             .unwrap();
     let enabled = roster().enabled(&config.plugin_switches()).unwrap();
     let names: Vec<&str> = enabled.iter().map(|r| r.name).collect();
-    assert_eq!(names, vec!["mobile", "banner"]);
+    assert_eq!(names, vec!["phone", "banner"]);
 }
 
 #[test]
 fn a_disabled_or_omitted_plugin_is_simply_not_selected() {
     let config = parse_config(
-        "[plugins.mobile]\nenabled = true\n[plugins.log]\nenabled = false\ntype = \"hermes\"\n",
+        "[plugins.phone]\nenabled = true\n[plugins.log]\nenabled = false\ntype = \"hermes\"\n",
     )
     .unwrap();
     let enabled = roster().enabled(&config.plugin_switches()).unwrap();
     let names: Vec<&str> = enabled.iter().map(|r| r.name).collect();
-    assert_eq!(names, vec!["mobile"]);
+    assert_eq!(names, vec!["phone"]);
 }
 
 #[test]

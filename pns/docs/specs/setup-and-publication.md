@@ -1203,7 +1203,7 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
   against literals held beside them, so a default moved in `config` and left standing in the wizard would
   fail rather than ship yesterday's number
   (`src/setup.rs:the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to`, which checks
-  `Recap::default()`, `daemon_enabled`, `mobile_watch_card` and `DEFAULT_SUBMIT_DEADLINE_SECS`).
+  `Recap::default()`, `daemon_enabled`, `card_while_watching` and `DEFAULT_ACK_DEADLINE`).
 - Required side effects: one config file.
 - Forbidden side effects: a declined table must be COMMENTED OUT, never written with empty values:
   `silence = []` and `rooms = []` load to the same nothing an absent table does and READ as a feature set
@@ -1223,7 +1223,7 @@ Then the machine gets the macOS banner and the phone card, both enabled, and not
 The tap command creates the parent directory and updates the same marker object its presence probe reads,
 without truncating contents or following a final symlink. It refuses directories and special files.
 Repeated and concurrent taps require no daemon, journal or lock. Missing configuration uses
-`$HOME/.local/state/pns/phone-attention.marker`; `[phone] marker_file` is the only override. The config
+`$HOME/.local/state/pns/phone-attention.marker`; `[plugins.phone] marker_file` is the only override. The config
 value accepts an absolute path or `~/` and rejects empty, relative and control-containing paths.
 Unusable configuration never silently redirects a write to the default. These filesystem operations
 have no timeout on a hung filesystem; no background worker or new retry mechanism is introduced.

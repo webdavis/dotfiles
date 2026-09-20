@@ -45,7 +45,7 @@ impl Sandbox {
             created: Instant::now(),
             excused: Cell::new(false),
         };
-        for channel in ["mobile", "hermes", "banner"] {
+        for channel in ["phone", "hermes", "banner"] {
             sandbox.stub_channel(
                 channel,
                 &format!("cat >\"{}/{channel}.event\"", sandbox.display()),

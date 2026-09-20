@@ -118,7 +118,7 @@ fn no_plan_over_the_real_roster_hands_the_phone_or_the_banner_a_reporting_leg() 
                 let plan = channel_plan(&every_plugin, scope, reaching(banner, card));
                 for planned in plan {
                     assert!(
-                        !(matches!(planned.name, "mobile" | "banner")
+                        !(matches!(planned.name, "phone" | "banner")
                             && planned.mode == ReportMode::ReportOutcome),
                         "the plan handed {} a reporting leg with scope={scope:?}, banner={banner}, card={card}: its \
                              sentence would reach an event's stdout",

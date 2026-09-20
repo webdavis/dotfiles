@@ -15,7 +15,7 @@ this area writes into them, or the `home probe` and `router` (`src/home.rs`). Ev
 from the crate's own source and tests; gaps are marked `NOT ESTABLISHED:`.
 
 The marker path is now resolved by `crates/pns-adapters/src/phone_marker.rs` for tap, doctor and
-every system probe caller: `[phone] marker_file`, then `~/.local/state/pns/phone-attention.marker`. The
+every system probe caller: `[plugins.phone] marker_file`, then `~/.local/state/pns/phone-attention.marker`. The
 config value expands `~/`. A missing config uses the default. An unusable config leaves the marker
 unread. This does not change the arbitration or delivery rules below.
 
@@ -68,7 +68,7 @@ an unreadable clock, and ages the same way: unknown, never age zero
 ## Decision table
 
 `src/surface.rs:plan` maps `surface`, effective `visibility`, the `long_running` tier and the
-`mobile_watch_card` config toggle onto a `DeliveryPlan`. Every row below is a case in
+`card_while_watching` config toggle onto a `DeliveryPlan`. Every row below is a case in
 `src/surface.rs:every_delivery_row_in_the_confirmed_matrix_plans_correctly`.
 
 | Surface | Visibility | long_running | mobile_watch_card | banner | phone_card | pulse |
@@ -411,7 +411,7 @@ Then the delivery decision runs on `Visibility::Hidden` whatever any client's di
 
 ### 10. The plan is the surface, the visibility, the tier and one toggle
 
-Given a surface, an effective visibility, a `long_running` tier and the `mobile_watch_card` config toggle
+Given a surface, an effective visibility, a `long_running` tier and the `card_while_watching` config toggle
 
 When `src/surface.rs:plan` decides
 
@@ -434,7 +434,7 @@ Then the banner belongs to the desk with the pane out of sight, the card belongs
   `pns::pulse::session_was_long(elapsed, Some(pulse::DEFAULT_LONG_SESSION_SECS))`, a fixed **300 seconds**
   inclusive with no override, `[lights.loop] threshold_secs` arms the loop lamp on a separate clock: 300
   is long, 299 is not (`src/pulse.rs` asserts both).
-  `mobile_watch_card` defaults to false (`src/main.rs:watch_card`).
+  `card_while_watching` defaults to false (`src/main.rs:watch_card`).
 - Required side effects: none. `plan` returns a value; `src/routing.rs:channel_plan` turns it into legs.
 - Forbidden side effects: no banner on Mobile, ever
   (`src/surface.rs:no_plan_row_can_ever_banner_on_the_mobile_surface`); no long-running event without a
@@ -444,9 +444,9 @@ Then the banner belongs to the desk with the pane out of sight, the card belongs
 - Privacy: three booleans out. The `decision ring` writes
   `plan=banner:{yes|no},card:{yes|no},pulse:{yes|no}` (`src/decision_log.rs:line`).
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: a value of the wrong type under `[plugins.mobile] mobile_watch_card` is refused
+- Compatibility contract: a value of the wrong type under `[plugins.phone] card_while_watching` is refused
   out loud rather than read as false, with
-  `pns: config error ([plugins.mobile] mobile_watch_card is {type}, not a boolean); the mobile watching card stays off`
+  `pns: config error ([plugins.phone] card_while_watching is {type}, not a boolean); the mobile watching card stays off`
   (`src/main.rs:watch_card`,
   `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`).
 
@@ -664,7 +664,7 @@ registry read.
 
 ### 16. The Back Tap marker is read as the link's own modification time
 
-Given a marker path from `[phone] marker_file` or the default `$HOME/.local/state/pns/phone-attention.marker`
+Given a marker path from `[plugins.phone] marker_file` or the default `$HOME/.local/state/pns/phone-attention.marker`
 
 When `PhoneMarkerProbe::marker_mtime_secs` reads it
 
@@ -942,8 +942,8 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
 - Privacy: Not applicable.
 - Process ownership and cleanup: fewer children, by design.
 - Compatibility contract: `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`, `PNS_PHONE_INPUT_MAX_AGE`, `PNS_SKIP_PHONE` and
-  `PNS_FORCE_PHONE` are the five presence-facing variables (`PNS_PHONE_MARKER_FILE` is gone; `[phone]
-  marker_file` is the only source for that path now). `muted` and
+  `PNS_FORCE_PHONE` are the five presence-facing variables (`PNS_PHONE_MARKER_FILE` is gone;
+  `[plugins.phone] marker_file` is the only source for that path now). `muted` and
   `focus_active` are unreachable from any of them (`src/engine.rs:Overrides::from_env`). The overrides
   steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_SCREEN_IDLE` and
   `PNS_PHONE_INPUT_MAX_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unread`

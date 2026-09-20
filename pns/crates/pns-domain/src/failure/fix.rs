@@ -7,7 +7,7 @@
 //! as an instruction they cannot follow.
 
 use super::Failure;
-use super::meaning::{DESTINATION_HERMES, MOBILE_TOKEN, hermes_key_named};
+use super::meaning::{DESTINATION_HERMES, PHONE_TOKEN, hermes_key_named};
 use crate::retry::DeliveryOutcome;
 
 /// Where the reader is standing when they read this.
@@ -104,7 +104,7 @@ fn repair(failure: &Failure) -> String {
     if failure.destination != DESTINATION_HERMES {
         return match failure.outcome {
             DeliveryOutcome::Status(401) => {
-                format!("put a current moshi token in {MOBILE_TOKEN}")
+                format!("put a current moshi token in {PHONE_TOKEN}")
             }
             DeliveryOutcome::Status(404) => {
                 "check the moshi URL, then restart the moshi daemon".to_string()

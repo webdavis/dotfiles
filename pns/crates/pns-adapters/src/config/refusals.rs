@@ -68,12 +68,13 @@ pub(super) fn refuse_a_map_without_the_urgent_channel(config: &Config) -> Result
 ///
 /// ONE TABLE FOR BOTH REFUSALS BELOW, so the spelling an operator is told to
 /// write and the value that heading then admits cannot drift apart.
-const RENAMED_PLUGIN_TABLES: [(&str, &str, &str); 5] = [
+const RENAMED_PLUGIN_TABLES: [(&str, &str, &str); 6] = [
     ("hue", "lights", "hue"),
     ("macos-banner", "banner", "macos"),
     ("router", "home_presence", "unifi"),
     ("hermes", "log", "hermes"),
     ("discord", "log", "discord"),
+    ("mobile", "phone", "moshi"),
 ];
 
 /// Refuses a config still holding a plugin table under its old heading,
@@ -147,6 +148,7 @@ mod renamed_table_tests {
             ("hue", "lights"),
             ("macos-banner", "banner"),
             ("router", "home_presence"),
+            ("mobile", "phone"),
         ] {
             let Err(ConfigError::Invalid(said)) =
                 parse_config(&format!("[plugins.{old}]\nenabled = true\n"))

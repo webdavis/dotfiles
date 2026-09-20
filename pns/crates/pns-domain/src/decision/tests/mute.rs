@@ -86,7 +86,7 @@ fn the_mute_beats_a_forced_phone_card_because_a_producer_cannot_overrule_the_ope
         ..Overrides::default()
     };
     assert!(
-        names(&decide_with(&probes(), &forced, "wW:p1")).contains(&"mobile"),
+        names(&decide_with(&probes(), &forced, "wW:p1")).contains(&"phone"),
         "unmuted control: force still reaches the phone"
     );
     let forced_and_muted = Overrides {
@@ -148,7 +148,7 @@ fn an_unmuted_decision_is_the_one_that_shipped_before_the_mute_existed() {
             Some(9_000),
             Some(watching("wW:p1")),
             false,
-            vec!["mobile", "hermes"],
+            vec!["phone", "hermes"],
             false,
         ),
         (
@@ -156,7 +156,7 @@ fn an_unmuted_decision_is_the_one_that_shipped_before_the_mute_existed() {
             Some(9_000),
             Some(elsewhere("wW:p1")),
             false,
-            vec!["mobile", "hermes"],
+            vec!["phone", "hermes"],
             false,
         ),
         (
@@ -164,7 +164,7 @@ fn an_unmuted_decision_is_the_one_that_shipped_before_the_mute_existed() {
             Some(9_000),
             Some(elsewhere("wW:p1")),
             true,
-            vec!["mobile", "hermes"],
+            vec!["phone", "hermes"],
             true,
         ),
     ];

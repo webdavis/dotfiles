@@ -61,12 +61,12 @@ fn observation_scope_and_disabled_plugins_still_narrow_delivery() {
         );
         assert_eq!(names(&selected), expected);
     }
-    for enabled in ["hermes", "banner", "mobile"] {
+    for enabled in ["hermes", "banner", "phone"] {
         let selection = crate::registry::roster()
             .enabled(&std::collections::BTreeMap::from([
                 ("hermes".into(), enabled == "hermes"),
                 ("banner".into(), enabled == "banner"),
-                ("mobile".into(), enabled == "mobile"),
+                ("phone".into(), enabled == "phone"),
             ]))
             .unwrap();
         let selected = crate::decide(
@@ -75,7 +75,7 @@ fn observation_scope_and_disabled_plugins_still_narrow_delivery() {
             &Overrides::default(),
             request(),
         );
-        let expected = if enabled == "mobile" {
+        let expected = if enabled == "phone" {
             vec![]
         } else {
             vec![enabled]

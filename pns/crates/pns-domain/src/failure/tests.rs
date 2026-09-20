@@ -234,14 +234,14 @@ fn the_same_code_from_two_destinations_names_two_different_secrets() {
         ..hermes_404()
     };
     let mobile = Failure {
-        destination: DESTINATION_MOBILE.to_string(),
+        destination: DESTINATION_PHONE.to_string(),
         address: "http://127.0.0.1:8646".to_string(),
         ..hermes.clone()
     };
     let hermes_key = hermes_key_named(&hermes.route);
     assert!(full(&hermes).contains(&hermes_key));
-    assert!(full(&mobile).contains(MOBILE_TOKEN));
-    assert!(!full(&hermes).contains(MOBILE_TOKEN));
+    assert!(full(&mobile).contains(PHONE_TOKEN));
+    assert!(!full(&hermes).contains(PHONE_TOKEN));
     assert!(!full(&mobile).contains(&hermes_key));
 }
 

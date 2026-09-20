@@ -38,7 +38,7 @@ const SETTINGS: &[(&str, &str, &str, &str)] = &[
         "http://environment.invalid/pns-events",
     ),
     (
-        "[plugins.mobile]\nurl = \"http://config.invalid/push\"\n",
+        "[plugins.phone]\nurl = \"http://config.invalid/push\"\n",
         "PNS_MOSHI_URL",
         "http://config.invalid/push",
         "http://environment.invalid/push",

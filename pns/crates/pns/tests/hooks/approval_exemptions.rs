@@ -12,7 +12,7 @@ fn an_approval_is_forwarded_even_when_the_mobile_channel_is_switched_off() {
     // RED at the endpoint switch for item 25 to rewrite.
     let sandbox = Sandbox::new("hook-blocked-channel-off");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = false\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
+        "[plugins.phone]\nenabled = false\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let mut command = sandbox.pns();
     command.env("PNS_SCREEN_IDLE", "99999");
@@ -29,7 +29,7 @@ fn an_approval_is_forwarded_even_when_the_mobile_channel_is_switched_off() {
     // file at all (measured, three ways). This line pins that no second card
     // appeared, and nothing about what silenced it; the exit code and the
     // submission above are what carry the selection exemption.
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"), "the paper trail is still written");
 }
 
@@ -97,7 +97,7 @@ fn the_forward_reads_the_surface_and_never_the_card_overrides() {
         "the override buys a card, and a card is not a question anyone can answer"
     );
     assert!(
-        forced.fired("mobile"),
+        forced.fired("phone"),
         "the push it does buy still has to arrive"
     );
 
@@ -118,7 +118,7 @@ fn the_forward_reads_the_surface_and_never_the_card_overrides() {
     // pins that no second card appeared and nothing about what silenced it;
     // the submissions line above is this row's real pin, and the one the
     // `&& !overrides.skip_phone` mutation kills.
-    assert!(!skipped.fired("mobile"));
+    assert!(!skipped.fired("phone"));
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
     // card appeared, and nothing about what silenced it; the pins above are
     // what carry the exemption.
     assert!(sandbox.fired("hermes"), "the durable log is never muted");
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
     assert!(
         std::fs::read_to_string(&quiet_until)
             .expect("the mute survives")
@@ -201,7 +201,7 @@ fn a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() {
         "a muted operator gets no banner about a nudge"
     );
     assert_eq!(
-        deliveries(&sandbox, "mobile"),
+        deliveries(&sandbox, "phone"),
         0,
         "and no phone card either: escalation is not an exemption"
     );
@@ -232,7 +232,7 @@ fn a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer() 
     sandbox.stub_moshi(&mut command, 42);
     sandbox.write_focus_store("com.apple.sleep.sleep-mode", "Sleep");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          [plugins.banner]\nenabled = true\n[focus]\nsilence = [\"Sleep\"]\n",
     );
 

@@ -120,5 +120,5 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
             .expect("the actual held rows"),
         0
     );
-    assert!(!sandbox.fired("hermes") && !sandbox.fired("mobile"));
+    assert!(!sandbox.fired("hermes") && !sandbox.fired("phone"));
 }

@@ -54,7 +54,7 @@ fn a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_show
         sandbox.fired("hermes"),
         "the durable log is exempt from the mute and still has the event in full"
     );
-    assert!(!sandbox.fired("mobile"), "and the card the mute swallowed");
+    assert!(!sandbox.fired("phone"), "and the card the mute swallowed");
 
     let waiting = journal(&sandbox);
     assert_eq!(waiting.len(), 1, "exactly one entry: {waiting:?}");

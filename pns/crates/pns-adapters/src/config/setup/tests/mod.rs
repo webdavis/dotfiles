@@ -1,5 +1,5 @@
 use super::{Answers, compose_config};
-use crate::config::{DEFAULT_SUBMIT_DEADLINE_SECS, Recap, parse_config};
+use crate::config::{DEFAULT_ACK_DEADLINE, Recap, parse_config};
 
 /// Every table a walk can decline, spelled as a heading standing at the
 /// head of a line: what the two ends of the walk are checked for.

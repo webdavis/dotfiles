@@ -30,7 +30,7 @@ fn a_forwarded_gate_leaves_the_state_markers_untouched() {
             .map(|entry| entry.expect("state entry").path())
             .collect();
         assert_eq!(entries, [existing], "a gate creates no state marker");
-        for channel in ["mobile", "hermes", "banner"] {
+        for channel in ["phone", "hermes", "banner"] {
             assert!(!sandbox.fired(channel), "a gate raised {channel}");
         }
     }

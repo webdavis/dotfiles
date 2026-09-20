@@ -23,7 +23,7 @@ pub fn enabled_router_table(config: &Config) -> Result<&toml::Table, SetupFailur
 /// be had. The TYPE is settled first, because every setting under it belongs
 /// to whichever router it names.
 ///
-/// THE SAME QUESTION `channels::moshi::mobile_backend` ASKS OF THE MOBILE
+/// THE SAME QUESTION `channels::moshi::phone_backend` ASKS OF THE MOBILE
 /// TABLE, and the two refusals are worded to match on purpose: name the table,
 /// quote what was written, name the one type that answers. Reword one and
 /// reword the other, or the rename that gave both tables one word leaves them

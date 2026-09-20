@@ -14,7 +14,7 @@ fn identity() -> SubmissionIdentity {
 fn a_handed_card_survives_the_pipe_unchanged() {
     let legs = [
         Leg {
-            name: "mobile",
+            name: "phone",
             mode: ReportMode::Silent,
             decorative: true,
         },
