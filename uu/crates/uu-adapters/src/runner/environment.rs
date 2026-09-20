@@ -171,6 +171,22 @@ mod children {
     }
 
     #[test]
+    fn an_isolated_environment_prefixed_with_a_path_never_leaks_the_inherited_one() {
+        // `only_these` and `prepending_path` together must still isolate: the
+        // prefix joins against `variables["PATH"]`, never uu's own inherited
+        // PATH, or the isolation the flag promises would be defeated.
+        let composed = runner()
+            .run_in(
+                "/bin/sh",
+                &PRINT_PATH,
+                &Environment::only(&std::collections::BTreeMap::new()).prepending_path("/fnm/bin"),
+                None,
+            )
+            .expect("the child runs");
+        assert_eq!(composed, "/fnm/bin");
+    }
+
+    #[test]
     fn a_reporting_child_keeps_both_pipes_and_its_verdict() {
         let ran = runner()
             .run_reporting_in(
