@@ -115,8 +115,9 @@ fn accept(
     };
     let mut result = receipt::result(submit(&request, &producer));
     result.request_id = Some(request.request_id);
-    // Verbatim: the decoder already bounded these names, and a prefix could
-    // push an otherwise valid one beyond the text cap.
+    // The fields this envelope recognizes but acts on nowhere. Verbatim: the
+    // decoder already bounded these names, and a prefix could push an
+    // otherwise valid one beyond the text cap.
     result.ignored_fields = decoded.ignored;
     result
 }
@@ -145,24 +146,17 @@ mod accept_tests {
         })
     }
 
+    /// A field version 1 does not define never reaches this path: the decode
+    /// refuses it by name, so nothing here can name it in a list instead.
     #[test]
-    fn an_unrecognized_field_is_named_in_its_own_list_and_never_in_the_diagnostics() {
-        let result = answered(
-            r#"{"schema":"pns.request/1","request_id":"r-1","producer":"test","state":"observation","detial":"typo"}"#,
-        );
-        assert_eq!(result.ignored_fields, vec!["detial".to_string()]);
+    fn an_unrecognized_field_is_refused_by_the_decode_rather_than_answered() {
+        let refusal = pns_protocol::decode_request(
+            br#"{"schema":"pns.request/1","request_id":"r-1","producer":"test","state":"observation","detial":"typo"}"#,
+        )
+        .expect_err("an unknown field is refused");
         assert!(
-            result.diagnostics.iter().all(|code| code != "detial"),
-            "{:?}",
-            result.diagnostics
-        );
-        assert!(
-            result
-                .diagnostics
-                .iter()
-                .all(|code| code != "ignored_fields"),
-            "{:?}",
-            result.diagnostics
+            format!("{:?}", refusal.reason).contains("detial"),
+            "{refusal:?}"
         );
     }
 

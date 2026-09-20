@@ -68,12 +68,10 @@ fn silence_clears_an_active_effect_and_resumes_without_touching_ordinary_lamps()
     assert_eq!(*world.writes.borrow(), [("light/status".into(), "clear")]);
     assert_eq!(world.held.borrow().as_deref(), Some([].as_slice()));
     assert!(!world.log.borrow().contains(&"inventory".into()));
-    assert!(
-        world
-            .log
-            .borrow()
-            .contains(&format!("schedule({},401,101)", 101 + lights.refresh_secs))
-    );
+    assert!(world.log.borrow().contains(&format!(
+        "schedule({},401,101)",
+        101 + lights.arm_interval_secs
+    )));
 
     world.writes.borrow_mut().clear();
     world.run(Some(&lights), Some(102), true);

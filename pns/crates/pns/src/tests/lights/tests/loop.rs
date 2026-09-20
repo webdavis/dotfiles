@@ -4,8 +4,8 @@ use super::fixtures::*;
 
 // --- the loop lamp ------------------------------------------------------
 
-const THRESHOLD: u64 = 360;
-const LEASE_TIMEOUT: u64 = 3_900;
+const ARM_AFTER: u64 = 360;
+const LEASE_EXPIRY: u64 = 3_900;
 
 /// One reading, with everything not under test set to nothing happening.
 fn running<'reading>(
@@ -19,8 +19,8 @@ fn running<'reading>(
         shell_since: None,
         leases,
         now: NOW,
-        threshold_secs: THRESHOLD,
-        lease_timeout_secs: LEASE_TIMEOUT,
+        arm_after_secs: ARM_AFTER,
+        lease_expiry_secs: LEASE_EXPIRY,
     }
 }
 
@@ -36,7 +36,7 @@ fn a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak(
     // gap, so a fresh five-second command starting inside that grace
     // inherited the streak and armed the lamp at once; and a build that had
     // already been running for ten minutes when the streak was empty was
-    // clocked from now and had to wait out the whole threshold again.
+    // clocked from now and had to wait out the whole arm_after delay again.
     let stale = Streak {
         since: NOW - 5_000,
         last_seen: NOW - 60,
@@ -50,15 +50,15 @@ fn a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak(
     );
     assert!(
         loop_running(&Loop {
-            shell_since: Some(NOW - THRESHOLD),
+            shell_since: Some(NOW - ARM_AFTER),
             ..running(None, false, &[])
         }),
-        "and a build already past the threshold arms from its OWN start, \
+        "and a build already past arm_after arms from its OWN start, \
          with no streak behind it and nothing to wait out again"
     );
     assert!(
         !loop_running(&Loop {
-            shell_since: Some(NOW - THRESHOLD + 1),
+            shell_since: Some(NOW - ARM_AFTER + 1),
             ..running(None, false, &[])
         }),
         "one second under it is not a loop yet: the same closed edge"
@@ -66,7 +66,7 @@ fn a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak(
     // AND THE AGENT'S OWN RUN IS NOT DESTROYED BY A FRESH COMMAND, which is
     // the mirror of the first case and the reason this is two readings
     // rather than one taken over the earlier of them.
-    let long = streak_from(THRESHOLD);
+    let long = streak_from(ARM_AFTER);
     assert!(
         loop_running(&Loop {
             shell_since: Some(NOW),
@@ -86,8 +86,8 @@ fn a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak(
 
 #[test]
 fn work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed() {
-    let under = streak_from(THRESHOLD - 1);
-    let at = streak_from(THRESHOLD);
+    let under = streak_from(ARM_AFTER - 1);
+    let at = streak_from(ARM_AFTER);
     assert!(
         !loop_running(&running(Some(&under), true, &[])),
         "one second under the threshold is not a loop yet"
@@ -124,11 +124,11 @@ fn work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed() {
 fn a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not() {
     let idle = streak_from(0);
     assert!(
-        loop_running(&running(None, false, &[NOW - LEASE_TIMEOUT])),
+        loop_running(&running(None, false, &[NOW - LEASE_EXPIRY])),
         "exactly at the timeout is still live: both edges closed"
     );
     assert!(
-        !loop_running(&running(None, false, &[NOW - LEASE_TIMEOUT - 1])),
+        !loop_running(&running(None, false, &[NOW - LEASE_EXPIRY - 1])),
         "one second past it, an abandoned lease can no longer hold the lamp"
     );
     assert!(

@@ -37,16 +37,22 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
 }
 
 #[test]
-fn a_non_unicode_argument_never_breaks_the_exit_zero_edge() {
-    // The engine sits on an always-exit-0 path; a stray byte in argv must
-    // degrade like any unknown token, not abort the notification.
+fn a_non_unicode_argument_is_refused_like_any_other_unknown_word() {
+    // A stray byte in argv is read lossily and refused as the word it is,
+    // rather than aborting the process.
     let sandbox = Sandbox::new("non-unicode");
-    let output = run(sandbox
-        .pns()
-        .arg("send")
-        .arg(OsStr::from_bytes(&[0xff]))
-        .args(["--scope", "local_only"]));
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let output = run_expecting(
+        2,
+        sandbox
+            .pns()
+            .arg("send")
+            .arg(OsStr::from_bytes(&[0xff]))
+            .args(["--scope", "local_only"]),
+    );
+    assert!(
+        stderr(&output).contains("is not a flag pns takes"),
+        "{output:?}"
+    );
 }
 
 #[test]
@@ -218,15 +224,15 @@ fn help_in_value_position_is_still_just_a_value() {
 }
 
 #[test]
-fn a_missing_value_warning_keeps_its_exact_sentence() {
-    let sandbox = Sandbox::new("missing-value-warning");
-    let output = run(sandbox
-        .pns()
-        .args(["send", "--detail", "--scope", "local_only"]));
-    assert_eq!(
-        stderr(&output),
-        "pns: --detail given without a value; ignoring\n"
+fn a_missing_value_refusal_keeps_its_exact_sentence() {
+    let sandbox = Sandbox::new("missing-value-refusal");
+    let output = run_expecting(
+        2,
+        sandbox
+            .pns()
+            .args(["send", "--detail", "--scope", "local_only"]),
     );
+    assert_eq!(stderr(&output), "pns: --detail requires a value\n");
     assert!(!sandbox.fired("phone"));
     assert!(!sandbox.fired("hermes"));
 }

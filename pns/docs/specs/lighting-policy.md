@@ -27,10 +27,10 @@ may hold all of them at once and different lamps may show different ones (`src/l
 
 | State                         | What arms it                                                                                                                                                                                                                                   | What clears it                                                                                                                                                                                                                                                                     | Rank                 | State file                                                                                                                                      | Tests                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Blocked` (`"blocked"`)       | An event whose state is in `src/pulse.rs:LAMP_BLOCKED` (`blocked`, `asked`, `plan-ready`, `denied`, `asking`) writes one marker per session, but only when both switches are live (`src/main.rs:update_blocked_marker`, gated on `lamps_live`) | Any other event from that session (`src/lights.rs:blocked_marker_action` returns `Action::End`), `src/main.rs:end_blocked_wait` from the `prompt` and `resolved` hooks, or the backstop sweeping a marker past `[lights.blocked] give_up_after_secs` (`src/main.rs:sweep_blocked`) | 1, highest           | `lights-blocked/<session-id>`, one epoch per file (`src/lights.rs:blocked_dir`, `src/lights.rs:blocked_marker`)                                 | `src/lights.rs:a_blocked_event_starts_a_wait_and_every_other_event_ends_one`, `src/lights.rs:a_live_wait_holds_the_blocked_lamp_and_an_abandoned_one_stops_holding_it`, `src/main.rs:a_wait_that_ended_loses_its_marker_whether_or_not_the_lamps_are_live`, `src/main.rs:a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop`, `tests/dispatch.rs:a_blocked_turn_lights_the_lamps_once_the_map_exists` |
-| `Looping` (`"loop"`)          | Any of three: an agent streak past `[lights.loop] threshold_secs`, a shell marker whose command started that long ago, or a live lease (`src/lights.rs:loop_running`)                                                                          | The streak clearing behind its grace, the shell marker being removed or its shell dying, `pns loop end`, or the lease timing out (`src/main.rs:sweep_leases`)                                                                                                                      | 2                    | `lights-streak` (one line, `since last_seen`), `lights-shell/<shell-pid>` (one epoch), `lights-loop/<pane>` (one epoch)                         | `src/lights.rs:work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed`, `src/lights.rs:a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not`, `src/lights.rs:a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak`, `src/main.rs:the_shell_reading_is_the_oldest_marker_a_live_shell_is_holding`                                                               |
+| `Blocked` (`"blocked"`)       | An event whose state is in `src/pulse.rs:LAMP_BLOCKED` (`blocked`, `asked`, `plan-ready`, `denied`, `asking`) writes one marker per session, but only when both switches are live (`src/main.rs:update_blocked_marker`, gated on `lamps_live`) | Any other event from that session (`src/lights.rs:blocked_marker_action` returns `Action::End`), `src/main.rs:end_blocked_wait` from the `prompt` and `resolved` hooks, or the backstop sweeping a marker past `[lights.blocked] lease_expiry` (`src/main.rs:sweep_blocked`) | 1, highest           | `lights-blocked/<session-id>`, one epoch per file (`src/lights.rs:blocked_dir`, `src/lights.rs:blocked_marker`)                                 | `src/lights.rs:a_blocked_event_starts_a_wait_and_every_other_event_ends_one`, `src/lights.rs:a_live_wait_holds_the_blocked_lamp_and_an_abandoned_one_stops_holding_it`, `src/main.rs:a_wait_that_ended_loses_its_marker_whether_or_not_the_lamps_are_live`, `src/main.rs:a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop`, `tests/dispatch.rs:a_blocked_turn_lights_the_lamps_once_the_map_exists` |
+| `Looping` (`"loop"`)          | Any of three: an agent streak past `[lights.loop] arm_after`, a shell marker whose command started that long ago, or a live lease (`src/lights.rs:loop_running`)                                                                          | The streak clearing behind its grace, the shell marker being removed or its shell dying, `pns loop end`, or the lease timing out (`src/main.rs:sweep_leases`)                                                                                                                      | 2                    | `lights-streak` (one line, `since last_seen`), `lights-shell/<shell-pid>` (one epoch), `lights-loop/<pane>` (one epoch)                         | `src/lights.rs:work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed`, `src/lights.rs:a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not`, `src/lights.rs:a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak`, `src/main.rs:the_shell_reading_is_the_oldest_marker_a_live_shell_is_holding`                                                               |
 | `UnreadFailure` (`"failure"`) | A `failed_at` epoch newer than the last interaction and not in the future, with nothing working. No delay at all (`src/lights.rs:unread_arming`)                                                                                               | Any interaction (desk, phone input, phone marker) later than that epoch; anything working; the operator's return clearing the held record (`src/main.rs:clear_held_lamps`)                                                                                                         | 3                    | `lights-news`, one line of two epochs `done_at failed_at`, `0` for "not yet" (`src/lights.rs:render_news`)                                      | `src/lights.rs:unread_arms_on_news_the_operator_has_not_been_back_for_and_on_nothing_else`, `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                           |
-| `UnreadSuccess` (`"success"`) | A `done_at` epoch newer than the last interaction, at least `[lights.unseen] after_secs` old, not in the future, with nothing working                                                                                                          | Same as `UnreadFailure`, and it is outranked by `UnreadFailure` whenever both are pending                                                                                                                                                                                          | 4, lowest            | `lights-news` (same file)                                                                                                                       | `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                                                                                                                       |
+| `UnreadSuccess` (`"success"`) | A `done_at` epoch newer than the last interaction, at least `[lights.unseen] arm_after` old, not in the future, with nothing working                                                                                                          | Same as `UnreadFailure`, and it is outranked by `UnreadFailure` whenever both are pending                                                                                                                                                                                          | 4, lowest            | `lights-news` (same file)                                                                                                                       | `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                                                                                                                       |
 | pulse (transient, not held)   | One event whose plan earned a pulse, or a `blocked` behaviour on a mapped machine that is not silenced (`src/main.rs`, the \`decision.plan.pulse                                                                                               |                                                                                                                                                                                                                                                                                    | blocked_lamp\` gate) | Nothing: the bridge runs the signal for its own duration and puts the lamp back itself (`src/channels/hue.rs`, module doc, measured 2026-09-01) | Not ranked. It is refused on any lamp currently holding a state (`src/lights.rs:pulse_fires`)                                                                                                                                                                                                                                                                                                                                    |
 
 The rank is the declaration order of `src/lights.rs:Held`, pushed in that fixed order by
@@ -47,16 +47,16 @@ ______________________________________________________________________
 
 | Name                                                           | Duration constant                                                                                                                                                                        | Who takes it                                                                                                                                            | Who renews it                                                                                                       | How it expires                                                                                        | A stranded one                                                                                                                                                                                                                 |
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Loop lease (`lights-loop/<pane>`)                              | `[lights.loop] lease_timeout_secs`, default `src/config.rs:DEFAULT_LEASE_TIMEOUT_SECS` = 3900 seconds (65 minutes); bounds 60 (`MIN_LEASE_TIMEOUT_SECS`) to 86400 (`MAX_THRESHOLD_SECS`) | `pns loop begin` (`src/main.rs:loop_mode`), writing one epoch keyed to `HERDR_PANE_ID` or `--pane`                                                      | That pane's own ordinary event traffic, through `src/main.rs:renew_loop_lease`. Nothing else in the crate renews it | `src/lights.rs:marker_is_live`, both edges closed: exactly `lease_timeout_secs` old is still live     | The tick's `src/main.rs:sweep_leases` removes it on the pass after it expires. Until then it holds the loop lamp with nothing behind it, which is why `pns loop end` reports a failed removal loudly (`src/main.rs:end_lease`) |
+| Loop lease (`lights-loop/<pane>`)                              | `[lights.loop] lease_expiry`, default `src/config.rs:DEFAULT_LOOP_LEASE_EXPIRY_SECS` = 3900 seconds (65 minutes); bounds 60 (`MIN_LEASE_EXPIRY_SECS`) to 86400 (`MAX_LIGHTS_TIMING_SECS`) | `pns loop begin` (`src/main.rs:loop_mode`), writing one epoch keyed to `HERDR_PANE_ID` or `--pane`                                                      | That pane's own ordinary event traffic, through `src/main.rs:renew_loop_lease`. Nothing else in the crate renews it | `src/lights.rs:marker_is_live`, both edges closed: exactly `lease_expiry` old is still live     | The tick's `src/main.rs:sweep_leases` removes it on the pass after it expires. Until then it holds the loop lamp with nothing behind it, which is why `pns loop end` reports a failed removal loudly (`src/main.rs:end_lease`) |
 | Tick job lease, ordinary (`daemon/lights`, the `until=` field) | `src/main.rs:ORDINARY_LEASE_SECS` = 300 seconds                                                                                                                                          | Every event, through `src/main.rs:register_lights_tick`                                                                                                 | Every subsequent event, and the tick itself while `standing.in_flight` (`src/main.rs:lights_tick`)                  | The daemon drops the job once `now` passes `until`                                                    | The tick simply stops running: no lamp is re-armed, and whatever the last tick wrote stays lit until an event's `clear_held_lamps` puts it out                                                                                 |
 | Tick job lease, journalled                                     | `src/main.rs:JOURNALLED_LEASE_SECS` = 12 hours                                                                                                                                           | The same call, when `missed_notifications::was_missed` says the event was journalled (the operator is away or muted)                                    | Same                                                                                                                | Same                                                                                                  | Same                                                                                                                                                                                                                           |
-| Tick job lease, hand-taken loop                                | `[lights.loop] lease_timeout_secs`                                                                                                                                                       | `pns loop begin` calls `src/main.rs:schedule_lights_tick` with the loop lease length, because event traffic will not refresh a pane that has gone quiet | Same                                                                                                                | Same                                                                                                  | Same                                                                                                                                                                                                                           |
-| Lights tick lock (`lights-tick.lock`)                          | `src/main.rs:lights_tick_stale_secs` = `MAX_REFRESH_SECS` (30) + `tick_bridge_deadline(30)` (6) + 1 = 37 seconds                                                                         | The tick, before it resolves anything (`src/main.rs:run_tick_writes`, via `claim_lock`)                                                                 | Nobody. It is held for one tick and released by `src/main.rs:HeldLock`'s `Drop`                                     | Age: a lock older than the stale window is taken by rename and republished (`src/main.rs:claim_lock`) | A later tick stands down for one interval, then steals it. A lock whose own mtime cannot be read counts as live (`src/main.rs:lock_aged_out`)                                                                                  |
+| Tick job lease, hand-taken loop                                | `[lights.loop] lease_expiry`                                                                                                                                                       | `pns loop begin` calls `src/main.rs:schedule_lights_tick` with the loop lease length, because event traffic will not refresh a pane that has gone quiet | Same                                                                                                                | Same                                                                                                  | Same                                                                                                                                                                                                                           |
+| Lights tick lock (`lights-tick.lock`)                          | `src/main.rs:lights_tick_stale_secs` = `MAX_ARM_INTERVAL_SECS` (30) + `tick_bridge_deadline(30)` (6) + 1 = 37 seconds                                                                         | The tick, before it resolves anything (`src/main.rs:run_tick_writes`, via `claim_lock`)                                                                 | Nobody. It is held for one tick and released by `src/main.rs:HeldLock`'s `Drop`                                     | Age: a lock older than the stale window is taken by rename and republished (`src/main.rs:claim_lock`) | A later tick stands down for one interval, then steals it. A lock whose own mtime cannot be read counts as live (`src/main.rs:lock_aged_out`)                                                                                  |
 | News claim (`lights-news.claim.<pid>`)                         | Not a duration. `src/main.rs:NEWS_CLAIM_ATTEMPTS` = 2 tries, `src/main.rs:NEWS_CLAIM_WAIT` = 2 milliseconds between them                                                                 | `src/main.rs:record_news`, by renaming the record aside for the merge                                                                                   | Nobody                                                                                                              | Removed unconditionally by the claiming run after it publishes                                        | A run whose second attempt also misses merges blind, against whatever it can read at the published path. Cost is one lamp colour (stated in `src/main.rs:record_news`)                                                         |
 
-Also relevant, though not a lease: the blocked backstop `[lights.blocked] give_up_after_secs`, default
-`src/config.rs:DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` = 16 hours, bounds 60 seconds to 7 days
-(`MAX_GIVE_UP_AFTER_SECS`). Configuration refuses a `give_up_after_secs` below `[remind] delay` because
+Also relevant, though not a lease: the blocked backstop `[lights.blocked] lease_expiry`, default
+`src/config.rs:DEFAULT_BLOCKED_LEASE_EXPIRY_SECS` = 16 hours, bounds 60 seconds to 7 days
+(`MAX_BLOCKED_LEASE_EXPIRY_SECS`). Configuration refuses a `lease_expiry` below `[remind] delay` because
 that is a config that gives up on a wait before it ever nudges about it (`src/config.rs`, the
 `give_up`/`remind_delay_secs` comparison).
 
@@ -295,10 +295,10 @@ Then it answers `None` while anything is working, `None` with no interaction at 
   reading of true.
 - Fail direction: dark. A machine that cannot prove the operator was ever here cannot prove this news is
   unseen either.
-- Thresholds: the age test is CLOSED and the edge test is NOT. News exactly `after_secs` old HAS waited
+- Thresholds: the age test is CLOSED and the edge test is NOT. News exactly `arm_after` old HAS waited
   that long and arms; one second under does not. News exactly AT the interaction edge is not newer than
-  it and arms nothing; one second past the edge arms. Default `after_secs` is
-  `src/config.rs:DEFAULT_UNSEEN_AFTER_SECS` = 300 seconds; the config permits 0 (which means "at once")
+  it and arms nothing; one second past the edge arms. Default `arm_after` is
+  `src/config.rs:DEFAULT_UNSEEN_ARM_AFTER_SECS` = 300 seconds; the config permits 0 (which means "at once")
   up to 86400.
 - Required side effects: none. Pure.
 - Forbidden side effects: never an edge at epoch zero; `None` means "nothing of that kind yet" and is
@@ -310,7 +310,7 @@ Then it answers `None` while anything is working, `None` with no interaction at 
 - Compatibility contract: RED WINS when both are pending, whichever is fresher, because showing the
   calmer of the two would hide the one that needs answering (operator ruling, stated in
   `src/lights.rs:unread_arming`). News with an epoch AHEAD of `now` arms nothing of either flavour,
-  including through an `after_secs` of zero
+  including through an `arm_after` of zero
   (`src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`).
 
 ### 8. The interaction edge is the freshest of three roads
@@ -388,7 +388,7 @@ Given the `lights-blocked` directory at tick time,
 
 When `src/main.rs:blocked_lamp` runs,
 
-Then `src/main.rs:sweep_blocked` removes every marker past `[lights.blocked] give_up_after_secs` on the way through and returns the live epochs, and `src/lights.rs:any_blocked` lights the lamp if any survive.
+Then `src/main.rs:sweep_blocked` removes every marker past `[lights.blocked] lease_expiry` on the way through and returns the live epochs, and `src/lights.rs:any_blocked` lights the lamp if any survive.
 
 - Success: `House.blocked` is true while any session is genuinely waiting.
 - Failure sources: an epoch nobody can read (swept, for the same reason as an expired one: nothing could
@@ -398,7 +398,7 @@ Then `src/main.rs:sweep_blocked` removes every marker past `[lights.blocked] giv
   one second past it is swept. A marker from the FUTURE is live too, because a clock that stepped
   backwards is not a wait that ended (saturating subtraction reads it as zero seconds old). Default bound
   16 hours; bounds 60 seconds to 7 days.
-- Required side effects: the sweep and the aggregate take the SAME `give_up_after_secs`, both handed one
+- Required side effects: the sweep and the aggregate take the SAME `lease_expiry`, both handed one
   value (`src/main.rs:blocked_lamp`), so a marker the aggregate ignored cannot be one the sweep kept
   (`src/main.rs:the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves`).
 - Forbidden side effects: no second spelling of "expired" anywhere in the module
@@ -429,15 +429,15 @@ Given agent statuses from `herdr workspace list`, a shell marker epoch, and the 
 
 When `src/lights.rs:loop_running` is asked,
 
-Then it is an OR of three: an agent run whose STREAK started at least `threshold_secs` ago AND is still working, a shell command whose OWN published start is at least `threshold_secs` ago, or any live lease.
+Then it is an OR of three: an agent run whose STREAK started at least `arm_after` ago AND is still working, a shell command whose OWN published start is at least `arm_after` ago, or any live lease.
 
 - Success: `House.looping` is true.
 - Failure sources: a herdr that is missing, wedged, or answering something unparseable yields no working
   workspace (`src/lights.rs:workspace_agent_statuses` returns an empty vector on any parse failure, and a
   workspace with no `agent_status` field answers the empty string, which is not `working`).
 - Fail direction: dark, and not on the delivery path.
-- Thresholds: `elapsed >= threshold_secs`, so exactly at the threshold arms and one second under does
-  not. Default `src/config.rs:DEFAULT_LOOP_THRESHOLD_SECS` = 300 seconds; bounds 1 to 86400. A `now`
+- Thresholds: `elapsed >= arm_after_secs`, so exactly at the threshold arms and one second under does
+  not. Default `src/config.rs:DEFAULT_LOOP_ARM_AFTER_SECS` = 300 seconds; bounds 1 to 86400. A `now`
   BEHIND a start has no elapsed time in it (`checked_sub`), so a clock that stepped backwards cannot wrap
   into a number that passes every threshold.
 - Required side effects: none. Pure, over a `Loop` struct rather than six positional values, four of them
@@ -528,7 +528,7 @@ Given `pns loop begin` typed in a herdr pane, or with `--pane <id>`,
 
 When `src/main.rs:loop_mode` runs,
 
-Then it writes `now` to `lights-loop/<pane>` and registers the lights tick for the WHOLE lease length (`[lights.loop] lease_timeout_secs`, not the ordinary 300 seconds).
+Then it writes `now` to `lights-loop/<pane>` and registers the lights tick for the WHOLE lease length (`[lights.loop] lease_expiry`, not the ordinary 300 seconds).
 
 - Success: exit 0, a lease file, and a spool record whose `until` outlasts the lease.
 - Failure sources: no `HERDR_PANE_ID` and no `--pane` (refusal
@@ -574,7 +574,7 @@ Then it writes `<now>\n` THROUGH an existing handle opened without `create`, the
 - Failure sources: no lease file, an unsafe pane id, no clock, an unwritable file. All silent: a lease
   that did not renew costs the lamp one timeout and this process has no reader for a complaint.
 - Fail direction: not on the delivery path.
-- Thresholds: expiry is `marker_is_live` against `lease_timeout_secs`, both edges closed. Default 3900
+- Thresholds: expiry is `marker_is_live` against `lease_expiry`, both edges closed. Default 3900
   seconds, chosen because the harness's own wakeup scheduler clamps a sleep to 3600 seconds, so the
   longest legitimate gap between two events from a live loop is an hour and a timeout AT the hour would
   drop a lease that was about to be renewed.
@@ -691,8 +691,8 @@ Then it holds nothing in memory between runs, exits 0 on every path, and prints 
   (`tests/dispatch.rs:the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge`).
 - Fail direction: this is not the delivery path. A tick is not an event and reaches no channel; the tests
   assert `!sandbox.fired("hermes") && !sandbox.fired("phone")`.
-- Thresholds: `[lights] refresh_secs`, default `src/config.rs:DEFAULT_REFRESH_SECS` = 12, bounds 10
-  (`MIN_REFRESH_SECS`, the transport deadline) to 30 (`MAX_REFRESH_SECS`).
+- Thresholds: `[lights] arm_interval`, default `src/config.rs:DEFAULT_ARM_INTERVAL_SECS` = 12, bounds 10
+  (`MIN_ARM_INTERVAL_SECS`, the transport deadline) to 30 (`MAX_ARM_INTERVAL_SECS`).
 - Required side effects: `src/main.rs:sweep_legacy_state` runs first, then the house is derived, then the
   writes. NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE CALL AT ALL, which keeps an idle machine
   off the network several times a minute.
@@ -700,8 +700,8 @@ Then it holds nothing in memory between runs, exits 0 on every path, and prints 
   CONSUMES a queue; a tick that claimed it would delete the misses the operator has not seen yet
   (`src/main.rs:lights_tick` doc).
 - Timeout and cancellation: each bridge call is bounded by `src/main.rs:tick_bridge_deadline` =
-  `refresh_secs / 5`, at least 1 second. The daemon bounds the whole child by `src/main.rs:child_bound`,
-  which for `LIGHTS_JOB` is at least `MAX_REFRESH_SECS` + the per-call deadline at that interval + one
+  `arm_interval / 5`, at least 1 second. The daemon bounds the whole child by `src/main.rs:child_bound`,
+  which for `LIGHTS_JOB` is at least `MAX_ARM_INTERVAL_SECS` + the per-call deadline at that interval + one
   reap tick (37 seconds at the production clock).
 - Idempotency and duplicates: every state is re-derived from scratch. A divergence between what a process
   believes and what the disk says is the class this crate keeps paying for (`src/lights.rs` module doc).
@@ -727,7 +727,7 @@ Then the order is: claim the lock, resolve, compute what breathes, re-read the r
   `"pns lights: the held record could not be written ({error}); no lamp was armed, because nothing would have been able to put one out"`,
   and NOTHING is armed).
 - Fail direction: not the delivery path.
-- Thresholds: the breath budget is `refresh_secs * 1000` LESS what the resolve already spent.
+- Thresholds: the breath budget is `arm_interval * 1000` LESS what the resolve already spent.
 - Required side effects: a clear computed before the arm, or a record written before the clear, is a lamp
   left lit with nothing that knows its name. Every held body is a plain state write that does NOT expire.
 - Forbidden side effects: the pre-arm record is BARE, deliberately dropping any phase this tick read: a
@@ -773,7 +773,7 @@ Then it calls `src/main.rs:schedule_lights_tick` with `ORDINARY_LEASE_SECS`.
   (`tests/dispatch.rs:a_registration_that_cannot_be_written_costs_the_event_nothing`).
 - Fail direction: not the delivery path.
 - Thresholds: `until = due.max(now + lease_secs)`, at least as far as the due second, because a lease
-  that ended before its own job's first run is a record `validate_shape` refuses. `MAX_REFRESH_SECS` is
+  that ended before its own job's first run is a record `validate_shape` refuses. `MAX_ARM_INTERVAL_SECS` is
   under the ordinary lease precisely so a long refresh cannot EXTEND that lease
   (`tests/dispatch.rs:an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer` asserts 300
   and 43200 EXACTLY).
@@ -906,7 +906,7 @@ Then all fades are pooled into ONE schedule sorted by `(due_ms, path)` and issue
 - Idempotency and duplicates: one landing per lamp, replaced as later fades are issued.
 - Privacy: brightness and duration.
 - Process ownership and cleanup: the child exits inside its budget with its last fade still running.
-- Compatibility contract: `src/config.rs:DEFAULT_REFRESH_SECS` = 12 is a BREATH BUDGET rather than a
+- Compatibility contract: `src/config.rs:DEFAULT_ARM_INTERVAL_SECS` = 12 is a BREATH BUDGET rather than a
   round number: twelve seconds carries seven of the locked two-second shape, and three or four of the
   four-second one depending on what that tick's resolve took off the budget first.
 

@@ -17,9 +17,9 @@ pub(super) fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
     for (key, setting) in table {
         admits_flat("lights", &key)?;
         match key.as_str() {
-            "refresh_secs" => {
-                lights.refresh_secs =
-                    bounded("lights", &key, &setting, MIN_REFRESH_SECS, MAX_REFRESH_SECS)?;
+            "arm_interval" => {
+                lights.arm_interval_secs =
+                    positive_duration("lights", &key, &setting, arm_interval_range())?;
             }
             "done" => lights.done = parse_pulse("lights.done", &setting, lights.done)?,
             "failed" => lights.failed = parse_pulse("lights.failed", &setting, lights.failed)?,
@@ -111,14 +111,9 @@ pub(super) fn parse_blocked(
     const WHERE: &str = "lights.blocked";
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
-        if key == "give_up_after_secs" {
-            blocked.give_up_after_secs = bounded(
-                WHERE,
-                key,
-                stated,
-                MIN_LEASE_TIMEOUT_SECS,
-                MAX_GIVE_UP_AFTER_SECS,
-            )?;
+        if key == "lease_expiry" {
+            blocked.lease_expiry_secs =
+                positive_duration(WHERE, key, stated, blocked_lease_expiry_range())?;
             continue;
         }
         breath_key(WHERE, key, stated, &mut blocked.breath)?;
@@ -134,11 +129,11 @@ pub(super) fn parse_unseen(
     const WHERE: &str = "lights.unseen";
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
-        if key == "after_secs" {
+        if key == "arm_after" {
             // ZERO IS ALLOWED AND MEANS "AT ONCE", which is the failure
             // flavour's own behaviour spelled for the success one. It is not a
             // switch that turns anything off, so it needs no floor.
-            unseen.after_secs = bounded(WHERE, key, stated, 0, MAX_THRESHOLD_SECS)?;
+            unseen.arm_after_secs = duration_key(WHERE, key, stated, unseen_arm_after_range())?;
             continue;
         }
         breath_key(WHERE, key, stated, &mut unseen.breath)?;
@@ -155,18 +150,13 @@ pub(super) fn parse_looping(
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
         match key.as_str() {
-            "threshold_secs" => {
-                looping.threshold_secs =
-                    bounded(WHERE, key, stated, MIN_THRESHOLD_SECS, MAX_THRESHOLD_SECS)?;
+            "arm_after" => {
+                looping.arm_after_secs =
+                    positive_duration(WHERE, key, stated, loop_arm_after_range())?;
             }
-            "lease_timeout_secs" => {
-                looping.lease_timeout_secs = bounded(
-                    WHERE,
-                    key,
-                    stated,
-                    MIN_LEASE_TIMEOUT_SECS,
-                    MAX_THRESHOLD_SECS,
-                )?;
+            "lease_expiry" => {
+                looping.lease_expiry_secs =
+                    positive_duration(WHERE, key, stated, loop_lease_expiry_range())?;
             }
             "flare" => {
                 looping.breathe_then_flare.flare = percent(WHERE, key, stated)?;
