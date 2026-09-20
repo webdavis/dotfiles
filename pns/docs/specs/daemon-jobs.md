@@ -95,25 +95,25 @@ accidental, so they are named here as accepted costs rather than as defects:
 
 ## The tick arithmetic
 
-| Value            | Symbol                        | Milliseconds |
-| ---------------- | ----------------------------- | ------------ |
-| Default          | `src/main.rs:DEFAULT_TICK_MS` | 1000         |
-| Minimum accepted | `src/main.rs:MIN_TICK_MS`     | 10           |
-| Maximum accepted | `src/main.rs:MAX_TICK_MS`     | 60000        |
+| Value            | Symbol                            | Duration |
+| ---------------- | ---------------------------------- | -------- |
+| Default          | `daemon.rs:DEFAULT_TICK`           | 1s       |
+| Minimum accepted | `daemon.rs:TICK_RANGE` (start)     | 10ms     |
+| Maximum accepted | `daemon.rs:TICK_RANGE` (end)       | 60s      |
 
-`src/main.rs:daemon_tick` reads `PNS_DAEMON_TICK_MS`, parses it with `pns::parse_count`, and keeps the
-value only when `(MIN_TICK_MS..=MAX_TICK_MS).contains(&milliseconds)`. Anything else FALLS BACK to
-`DEFAULT_TICK_MS` and is never clamped towards it, because a stray `1` in a launchd environment would
-spin the loop a thousand times a second and clamping would honour a value nobody meant to write.
+`daemon.rs:daemon_tick` reads `PNS_DAEMON_TICK_INTERVAL`, parses it with
+`pns_domain::duration::parse_duration` as `<count><ms|s|m|h>`, and keeps the value only when it falls
+inside `TICK_RANGE`. Anything else is REFUSED, reported on stderr, and FALLS BACK to `DEFAULT_TICK`
+rather than being clamped towards it, because a stray `1ms` in a launchd environment would spin the loop
+a thousand times a second and clamping would honour a value nobody meant to write.
 
 One step either side of each edge:
 
-- `9` is out of range, so the tick is 1000ms. `10` is in range, so the tick is 10ms.
-- `60000` is in range, so the tick is 60000ms. `60001` is out of range, so the tick is 1000ms.
-- `0` is out of range, so the tick is 1000ms.
-- Anything `parse_count` refuses is the same fallback: an empty string, a leading `+`, a leading zero on
-  a multi-digit numeral, surrounding whitespace, a non-digit byte, and any value above `i64::MAX`
-  (`src/lib.rs:parse_count`, `src/lib.rs:SHELL_ARITHMETIC_MAX`).
+- `9ms` is out of range, so the tick is 1s. `10ms` is in range, so the tick is 10ms.
+- `60s` is in range, so the tick is 60s. `60001ms` is out of range, so the tick is 1s.
+- `0s` is out of range, so the tick is 1s.
+- A bare number, with no unit, is refused the same way: `parse_duration` never guesses whether it means
+  milliseconds or seconds.
 - An unset variable is the fallback too.
 
 Three constants scale WITH the tick rather than being stated in seconds, so one knob moves them all:
@@ -296,7 +296,7 @@ re-reads the switch, then runs one pass
 - Process ownership and cleanup: the `children` vector and the `reported` set live for the life of the
   loop and are passed by mutable reference into every pass.
 - Compatibility contract: the tick is a constant with a test hatch rather than a config key, following
-  `PNS_PAYLOAD_DEADLINE_MS`: the only party who has ever needed a different tick is a test, and a knob
+  `PNS_PAYLOAD_DEADLINE`: the only party who has ever needed a different tick is a test, and a knob
   nobody turns is a knob that only ever holds a wrong value (`src/main.rs:daemon_tick` doc comment).
 
 ### 6. The switch is re-read every thirtieth tick and stops a daemon that is already running

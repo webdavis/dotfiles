@@ -14,7 +14,7 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
     )
     .expect("config");
     let mut command = sandbox.pns();
-    command.env("PNS_PHONE_INPUT_AGE", "0");
+    command.env("PNS_PHONE_INPUT_MAX_AGE", "0s");
     sandbox.stub_herdr(&mut command, true);
     let output = run(command
         .args([

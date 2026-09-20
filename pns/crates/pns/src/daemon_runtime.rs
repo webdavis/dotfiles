@@ -20,8 +20,9 @@ pub(crate) fn daemon_run() -> i32 {
             {
                 return Err(refusal);
             }
-            let tick =
-                pns_application::daemon_tick(std::env::var("PNS_DAEMON_TICK_MS").ok().as_deref());
+            let tick = pns_application::daemon_tick(
+                std::env::var("PNS_DAEMON_TICK_INTERVAL").ok().as_deref(),
+            );
             Ok((
                 pns_adapters::FileJobSpool::new(state),
                 pns_adapters::DaemonChildren::new(tick),

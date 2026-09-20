@@ -119,7 +119,7 @@ fn a_phone_in_hand_watching_the_pane_gets_nothing_but_the_log() {
     // pane already filling the phone's screen.
     let sandbox = Sandbox::new("watched-pane");
     let mut command = sandbox.pns();
-    command.env("PNS_PHONE_INPUT_AGE", "0");
+    command.env("PNS_PHONE_INPUT_MAX_AGE", "0s");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args([
@@ -142,7 +142,7 @@ fn a_phone_in_hand_showing_another_tab_still_cards() {
     // Matrix row "mobile, origin hidden: card only".
     let sandbox = Sandbox::new("other-pane");
     let mut command = sandbox.pns();
-    command.env("PNS_PHONE_INPUT_AGE", "0");
+    command.env("PNS_PHONE_INPUT_MAX_AGE", "0s");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([

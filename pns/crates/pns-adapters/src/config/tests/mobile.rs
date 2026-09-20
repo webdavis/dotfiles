@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five() {
     // FIVE SECONDS, the crate's own house number for a local pipe that
-    // should have been instant: it is `PNS_PAYLOAD_DEADLINE_MS`'s default,
+    // should have been instant: it is `PNS_PAYLOAD_DEADLINE`'s default,
     // bounding the same kind of thing on the same hook. The submission is
     // a registration with a daemon, measured at roughly a tenth of a
     // second, so five is about thirty times the observed round trip.

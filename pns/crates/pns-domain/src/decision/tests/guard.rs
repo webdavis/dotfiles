@@ -104,3 +104,33 @@ fn idle_overrides_read_their_pns_prefixed_names_and_ignore_the_old_ones() {
     assert_eq!(overrides.idle_secs, Some(5));
     assert_eq!(overrides.desk_idle_secs, Some(9));
 }
+
+#[test]
+fn the_phone_age_override_is_a_duration_under_its_max_age_name() {
+    let vars = BTreeMap::from([
+        ("PNS_PHONE_INPUT_MAX_AGE".to_string(), "90s".to_string()),
+        ("PNS_PHONE_INPUT_AGE".to_string(), "5".to_string()),
+    ]);
+    let overrides = Overrides::from_env(&vars);
+    assert_eq!(overrides.phone_input_age, Some(90));
+    assert!(!overrides.phone_invalid);
+}
+
+#[test]
+fn the_retired_phone_age_name_states_nothing_at_all() {
+    // Not "reads as garbled": a name nobody reads must leave the guard free
+    // to take the live reading, the way an unset variable does.
+    let vars = BTreeMap::from([("PNS_PHONE_INPUT_AGE".to_string(), "5".to_string())]);
+    let overrides = Overrides::from_env(&vars);
+    assert_eq!(overrides.phone_input_age, None);
+    assert!(!overrides.phone_invalid);
+    assert!(overrides.reads_phone());
+}
+
+#[test]
+fn a_phone_age_without_a_unit_is_refused_rather_than_read_as_seconds() {
+    let vars = BTreeMap::from([("PNS_PHONE_INPUT_MAX_AGE".to_string(), "5".to_string())]);
+    let overrides = Overrides::from_env(&vars);
+    assert_eq!(overrides.phone_input_age, None);
+    assert!(overrides.phone_invalid);
+}

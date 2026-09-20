@@ -229,7 +229,7 @@ fn help_still_wins_over_elapsed_refusal_without_delivery() {
 fn elapsed_still_obeys_the_presence_gate() {
     let sandbox = Sandbox::new("elapsed-presence");
     let mut command = command(&sandbox);
-    command.env("PNS_PHONE_INPUT_AGE", "0");
+    command.env("PNS_PHONE_INPUT_MAX_AGE", "0s");
     sandbox.stub_herdr(&mut command, true);
     let output = run(command.args([
         "send",

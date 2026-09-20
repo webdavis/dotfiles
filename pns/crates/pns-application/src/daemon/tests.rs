@@ -89,13 +89,16 @@ fn a_daemon_without_a_wall_clock_still_reaps_and_reloads_but_never_registers_a_p
 fn the_daemon_tick_accepts_both_bounds_and_refuses_the_adjacent_values() {
     for (raw, expected) in [
         (None, 1000),
-        (Some("9"), 1000),
-        (Some("10"), 10),
-        (Some("11"), 11),
-        (Some("59999"), 59999),
-        (Some("60000"), 60000),
-        (Some("60001"), 1000),
+        (Some("9ms"), 1000),
+        (Some("10ms"), 10),
+        (Some("11ms"), 11),
+        (Some("59999ms"), 59999),
+        (Some("60s"), 60000),
+        (Some("60001ms"), 1000),
         (Some("garbage"), 1000),
+        // A BARE NUMBER IS NOT A TICK: it meant milliseconds here and seconds
+        // to the reader beside it, which is the ambiguity the unit removes.
+        (Some("500"), 1000),
     ] {
         assert_eq!(daemon_tick(raw), Duration::from_millis(expected), "{raw:?}");
     }

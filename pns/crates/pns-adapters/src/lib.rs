@@ -174,7 +174,7 @@ mod doctor;
 pub use doctor::{ANSWER_MAX, pairing_report};
 
 pub use doctor::{daemon_heartbeat, doctor_bridge, hue_resolves, read_pairing};
-pub use process::{env_deadline, moshi_hook_bin};
+pub use process::{env_duration, moshi_hook_bin};
 
 mod terminal;
 pub use terminal::ConsoleTerminal;

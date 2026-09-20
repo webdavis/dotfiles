@@ -37,5 +37,12 @@ pub(crate) fn payload_is_whole(payload_json: &str) -> bool {
 /// How long the payload may take to arrive. Generous, because a harness
 /// writing a large transcript path is normal and a hang is not.
 fn payload_deadline() -> Duration {
-    env_deadline("PNS_PAYLOAD_DEADLINE_MS").unwrap_or(Duration::from_secs(5))
+    env_duration("PNS_PAYLOAD_DEADLINE", PAYLOAD_DEADLINE_RANGE).unwrap_or(DEFAULT_PAYLOAD_DEADLINE)
 }
+const DEFAULT_PAYLOAD_DEADLINE: Duration = Duration::from_secs(5);
+
+/// What the override may be set to: a millisecond at the floor, so a test can
+/// prove the hang path without waiting, and a minute at the ceiling, past
+/// which a harness that never wrote is not going to.
+const PAYLOAD_DEADLINE_RANGE: std::ops::RangeInclusive<Duration> =
+    Duration::from_millis(1)..=Duration::from_secs(60);

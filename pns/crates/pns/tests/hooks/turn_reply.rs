@@ -220,7 +220,7 @@ fn a_turn_whose_transcript_lands_late_is_re_read_until_it_does() {
     let mut command = sandbox.pns();
     command
         .env("PNS_REPLY_REREAD_ATTEMPTS", "8")
-        .env("PNS_REPLY_REREAD_INTERVAL", "0.05");
+        .env("PNS_REPLY_REREAD_INTERVAL", "50ms");
     let mut child = spawn_hook(command, "stop");
     write_payload(
         &mut child,
