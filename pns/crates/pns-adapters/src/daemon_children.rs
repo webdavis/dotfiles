@@ -52,10 +52,11 @@ const STOP_POLL: Duration = Duration::from_millis(20);
 
 /// One child asked to stop, then made to.
 ///
-/// SIGTERM AND THEN A BOUNDED WAIT, because the page closes its own listener
-/// on the way out and a child killed outright would be the daemon deciding it
-/// cannot. The group is signalled for `kill_group`'s reason: the direct child
-/// alone leaves anything it spawned running.
+/// SIGTERM AND THEN A BOUNDED WAIT, because asking first and killing only if
+/// it does not go is what lets a child that could clean up do so; a child
+/// killed outright would be the daemon deciding in advance that it cannot.
+/// The group is signalled for `kill_group`'s reason: the direct child alone
+/// leaves anything it spawned running.
 fn stop(mut bounded: Bounded) {
     signal_group(bounded.child.id(), libc::SIGTERM);
     let deadline = std::time::Instant::now() + STOP_GRACE;
