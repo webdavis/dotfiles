@@ -2,6 +2,7 @@
 //! installs, and when the two daily ones fire.
 
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_domain::DailyTime;
 
 /// The labels the `[jobs]` half of one config file states.
@@ -60,7 +61,7 @@ fn a_job_this_build_does_not_run_leaves_every_label_it_does_run_alone() {
 
 #[test]
 fn the_labels_the_watchdog_searches_for_come_off_the_config_file_on_disk() {
-    let home = std::env::temp_dir().join(format!("posture-jobs-{}", std::process::id()));
+    let home = Sandbox::new("jobs");
     let directory = home.join(".config/posture");
     std::fs::create_dir_all(&directory).expect("a sandbox home");
     std::fs::write(
@@ -68,8 +69,7 @@ fn the_labels_the_watchdog_searches_for_come_off_the_config_file_on_disk() {
         "[notify]\nmode = \"off\"\n[jobs]\nheartbeat = \"com.example.pulse\"\n",
     )
     .expect("a config file");
-    let configured = agent_labels(&home);
-    std::fs::remove_dir_all(&home).expect("the sandbox is removable");
+    let configured = agent_labels(home.path());
     assert_eq!(configured.label(Agent::Heartbeat), "com.example.pulse");
 }
 
@@ -123,7 +123,7 @@ fn an_unread_daily_key_is_reported_without_voiding_the_times_beside_it() {
 
 #[test]
 fn the_daily_times_and_the_labels_come_off_the_same_file_on_disk() {
-    let home = std::env::temp_dir().join(format!("posture-job-settings-{}", std::process::id()));
+    let home = Sandbox::new("job-settings");
     let directory = home.join(".config/posture");
     std::fs::create_dir_all(&directory).expect("a sandbox home");
     std::fs::write(
@@ -131,8 +131,7 @@ fn the_daily_times_and_the_labels_come_off_the_same_file_on_disk() {
         "[notify]\nmode = \"off\"\n[jobs]\ndigest = \"com.example.roundup\"\n[jobs.daily]\ndigest = \"21:05\"\n",
     )
     .expect("a config file");
-    let settings = job_settings(&home);
-    std::fs::remove_dir_all(&home).expect("the sandbox is removable");
+    let settings = job_settings(home.path());
     assert_eq!(settings.labels.label(Agent::Digest), "com.example.roundup");
     assert_eq!(
         settings.daily.digest,

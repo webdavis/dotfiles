@@ -1,3 +1,4 @@
+use crate::test_sandbox::Sandbox;
 use crate::{CommandIo, CommandOutput, CommandRunner};
 use posture_application::InspectionFailure;
 use std::{
@@ -5,7 +6,6 @@ use std::{
     fs,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicUsize, Ordering},
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -49,25 +49,10 @@ pub(in crate::converge) fn call(program: &str, args: &[&str], io: CommandIo<'_>)
         io: format!("{io:?}"),
     }
 }
-static NEXT: AtomicUsize = AtomicUsize::new(0);
-pub(in crate::converge) struct Scratch(pub PathBuf);
-impl Scratch {
-    pub fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
-            "converge-native-{}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |since| since.as_nanos()),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
-        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
-        Self(root)
-    }
-}
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
+/// A private scratch directory, 0700 like the staging tree the converge
+/// reads, removed when the test drops it.
+pub(in crate::converge) fn scratch() -> Sandbox {
+    let sandbox = Sandbox::new("converge-native");
+    fs::set_permissions(sandbox.path(), fs::Permissions::from_mode(0o700)).unwrap();
+    sandbox
 }
