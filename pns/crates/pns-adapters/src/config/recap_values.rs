@@ -1,6 +1,6 @@
 use super::*;
 
-/// `min_events`, the volume threshold. A negative or fractional value is
+/// `minimum_events`, the volume threshold. A negative or fractional value is
 /// refused BY NAME rather than clamped: the operator asked for a threshold, and
 /// a silently corrected one is a threshold they believe they set.
 pub(super) fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
@@ -9,7 +9,7 @@ pub(super) fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
         .and_then(|count| usize::try_from(count).ok())
     else {
         return Err(ConfigError::Invalid(format!(
-            "`recap` key `min_events` has type `{}`, not a count",
+            "`recap` key `minimum_events` has type `{}`, not a count",
             setting.type_str()
         )));
     };
@@ -22,7 +22,8 @@ pub(super) fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
     // activity at all".
     if count == 0 {
         return Err(ConfigError::Invalid(
-            "`recap` key `min_events` is 0, which is not a threshold; 1 is the floor".to_string(),
+            "`recap` key `minimum_events` is 0, which is not a threshold; 1 is the floor"
+                .to_string(),
         ));
     }
     Ok(count)

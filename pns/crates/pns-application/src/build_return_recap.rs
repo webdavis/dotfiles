@@ -34,10 +34,10 @@ impl<A: ActivityRing, M: MergedPullRequestSource, N: ReviewNoteSource, S: Summar
         // directory read; neither belongs anywhere near the card, and neither is
         // allowed to cost the rest of the recap anything when it does not come
         // back.
-        let fetched_merges =
-            (!recap.repos.is_empty()).then(|| self.merges.merged(&recap.repos, since, until));
+        let fetched_merges = (!recap.repositories.is_empty())
+            .then(|| self.merges.merged(&recap.repositories, since, until));
         let fetched_notes = recap
-            .review_notes
+            .review_notes_glob
             .as_deref()
             .map(|pattern| self.notes.notes(pattern, since, until));
         // ONE EPISODE, ONE BUDGET. The locked "the LLM runs once at the return

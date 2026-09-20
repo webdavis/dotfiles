@@ -12,7 +12,7 @@
 #
 # `gh` JOINED THAT ROSTER with the recap's merged-pull-request section, and it
 # is the first entry gated by a config key: nothing runs it unless `[recap]
-# repos` names a repository. One read-only `gh pr list`, bounded in count, in
+# repositories` names a repository. One read-only `gh pr list`, bounded in count, in
 # time and in bytes, with no token read and no credential passed; `gh` carries
 # its own auth and pns never touches it.
 #

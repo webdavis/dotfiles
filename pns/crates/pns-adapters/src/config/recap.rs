@@ -48,9 +48,9 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         // gate is the only check.
         admits_flat("recap", &key)?;
         match key.as_str() {
-            "min_events" => recap.min_events = threshold(&setting)?,
-            "repos" => recap.repos = repositories(&setting)?,
-            "review_notes" => recap.review_notes = Some(note_glob(&setting)?),
+            "minimum_events" => recap.minimum_events = threshold(&setting)?,
+            "repositories" => recap.repositories = repositories(&setting)?,
+            "review_notes_glob" => recap.review_notes_glob = Some(note_glob(&setting)?),
             "summarizer" => recap.summarizer = Some(argv(&setting)?),
             "summarizer_deadline" => {
                 recap.summarizer_deadline = duration_value(
@@ -61,7 +61,7 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
                 )?;
             }
             "replay_card" => recap.replay_card = flag(&key, &setting)?,
-            "digest" => recap.digest = flag(&key, &setting)?,
+            "post_window_recap" => recap.post_window_recap = flag(&key, &setting)?,
             _ => {
                 return Err(unknown_key("recap", "recap", &key));
             }

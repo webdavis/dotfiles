@@ -140,7 +140,7 @@ fn plural(count: usize) -> String {
 /// dies is restarted on the next tick, and an operator who wants the page
 /// without the daemon can still run this by hand.
 ///
-/// `serve = false` EXITS 0 RATHER THAN REFUSING. The daemon does not start this
+/// `page_enabled = false` EXITS 0 RATHER THAN REFUSING. The daemon does not start this
 /// child when the page is off, so reaching here with it off means the operator
 /// typed the command themselves, and the honest answer is that the page is
 /// switched off in their config rather than that they typed something wrong.
@@ -150,13 +150,13 @@ fn serve() -> i32 {
         Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.failures,
         _ => pns_adapters::Failures::default(),
     };
-    if !settings.serve {
-        println!("pns: the failure page is off; set `[failures] serve = true` to serve it");
+    if !settings.page_enabled {
+        println!("pns: the failure page is off; set `[failures] page_enabled = true` to serve it");
         return 0;
     }
     // NEVER RETURNS while the daemon is up: the listener waits for its port
     // and then serves forever, so the exit below is what a stopped child gets.
-    crate::failures_page::serve(settings.port);
+    crate::failures_page::serve(settings.page_port);
     0
 }
 

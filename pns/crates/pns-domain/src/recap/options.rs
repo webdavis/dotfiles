@@ -11,7 +11,7 @@
 /// whose config was written before this table existed, and it would do it
 /// silently.
 ///
-/// `min_events` IS A KEY RATHER THAN A CONSTANT because nobody can calibrate it
+/// `minimum_events` IS A KEY RATHER THAN A CONSTANT because nobody can calibrate it
 /// yet: the locked volume threshold carries a tilde, and the machine it was
 /// written for has no history to measure. The recap prints the window's real
 /// count in its own header every time, so one week of real recaps settles the
@@ -23,7 +23,7 @@
 /// different array. UNSET IS A WORKING SETTING, and the common one: with no
 /// summarizer the recap posts the plain mechanical lists.
 ///
-/// `repos` AND `review_notes` ARE THE TWO SOURCES PNS CANNOT FIND ON ITS OWN,
+/// `repositories` AND `review_notes_glob` ARE THE TWO SOURCES PNS CANNOT FIND ON ITS OWN,
 /// which is why they are keys and why an absent one is the working setting.
 /// The engine knows project NAMES off a working directory and nothing about
 /// which repository they are, and the review notes are one operator's own
@@ -39,31 +39,31 @@
 #[derive(Debug, Clone, PartialEq)]
 pub struct Recap {
     pub replay_card: bool,
-    pub digest: bool,
-    pub min_events: usize,
+    pub post_window_recap: bool,
+    pub minimum_events: usize,
     pub summarizer: Option<Vec<String>>,
     pub summarizer_deadline: std::time::Duration,
-    pub repos: Vec<String>,
-    pub review_notes: Option<String>,
+    pub repositories: Vec<String>,
+    pub review_notes_glob: Option<String>,
 }
 
 impl Default for Recap {
     fn default() -> Self {
         Recap {
             replay_card: true,
-            digest: true,
-            min_events: DEFAULT_MIN_EVENTS,
+            post_window_recap: true,
+            minimum_events: DEFAULT_MINIMUM_EVENTS,
             summarizer: None,
             summarizer_deadline: DEFAULT_SUMMARIZER_DEADLINE,
-            repos: Vec::new(),
-            review_notes: None,
+            repositories: Vec::new(),
+            review_notes_glob: None,
         }
     }
 }
 
 /// How many events a window needs before a recap is worth the operator's
 /// attention. The operator's own stated figure; see `Recap`.
-const DEFAULT_MIN_EVENTS: usize = 8;
+const DEFAULT_MINIMUM_EVENTS: usize = 8;
 
 /// How long the summarizer may take before the recap gives up on it and posts
 /// the plain lists.
@@ -83,7 +83,7 @@ const DEFAULT_MIN_EVENTS: usize = 8;
 /// no test encodes one. A backend that generates less is what makes this
 /// faster, and the config file's own comment carries how.
 ///
-/// ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `min_events`'s zero. A deadline
+/// ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `minimum_events`'s zero. A deadline
 /// of nothing simply cannot be met, so the recap falls to the plain lists and
 /// SAYS it did, which is the same outcome as any other summarizer that does not
 /// answer. Nothing silently changes shape, so there is nothing to refuse.
