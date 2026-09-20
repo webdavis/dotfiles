@@ -2,11 +2,10 @@
   "schema": "pns.result/1",
   "request_id": "nvim-7f3a9c2e-0001",
   "status": "partial",
-  "decision_id": "d-000123",
-  "interaction": { "kind": "no_opinion" },
+  "ledger_sequence": "123",
   "destinations": [
-    { "destination": "macos-banner", "outcome": "delivered" },
-    { "destination": "hermes", "outcome": "failed", "note": "post FAILED HTTP 401" }
+    { "name": "macos-banner", "outcome": "delivered" },
+    { "name": "hermes", "outcome": "failed", "note": "post FAILED HTTP 401" }
   ],
   "diagnostics": ["ignored_field:detial"]
 }

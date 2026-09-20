@@ -44,8 +44,7 @@ fn refusal(code: &str) -> ResultEnvelope {
     ResultEnvelope {
         request_id: None,
         status: Status::Rejected,
-        decision_id: None,
-        interaction: None,
+        ledger_sequence: None,
         destinations: Vec::new(),
         diagnostics: vec![code.into()],
     }

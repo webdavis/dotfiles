@@ -127,7 +127,7 @@ token = { keepassxc = "GitHub (Webdavis) :: Personal Access Token (pns notificat
 [plugins.presence]
 type = "hue"
 rooms = ["3F - Studio", "2F - Kitchen", "3F - MBedroom"]
-exclude = []
+excluded_rooms = []
 desk_room = "3F - Studio"
 
 [plugins.home_presence]

@@ -17,11 +17,11 @@ mod tests {
         let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
         let settings = pns_adapters::Presence {
             rooms: vec!["3F - Studio".to_string()],
-            exclude: Vec::new(),
+            excluded_rooms: Vec::new(),
             desk_room: None,
-            desk_stale_after_secs: 120,
-            poll_secs: 5,
-            stale_after_secs: 15,
+            desk_input_max_age_secs: 120,
+            poll_interval_secs: 5,
+            reading_max_age_secs: 15,
         };
         let snapshot = presence_snapshot(
             Some(&settings),
@@ -59,11 +59,11 @@ mod tests {
         let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
         let settings = pns_adapters::Presence {
             rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
-            exclude: Vec::new(),
+            excluded_rooms: Vec::new(),
             desk_room: None,
-            desk_stale_after_secs: 120,
-            poll_secs: 5,
-            stale_after_secs: 15,
+            desk_input_max_age_secs: 120,
+            poll_interval_secs: 5,
+            reading_max_age_secs: 15,
         };
         // The decision's own clock read, which every age below is judged
         // against, and then the readings the lamps narrow by beside it.

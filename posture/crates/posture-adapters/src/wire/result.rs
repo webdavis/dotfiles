@@ -1,7 +1,7 @@
 //! The result an engine answers a producer with, in version 1 of the
-//! `pns.result` envelope: whether the request was taken, what each destination
-//! said, and the operator's decision where one was awaited. It never echoes
-//! the event's own text: a producer that wants its detail back already has it.
+//! `pns.result` envelope: whether the request was taken and what each
+//! destination said. It never echoes the event's own text: a producer that
+//! wants its detail back already has it.
 
 use serde::{Deserialize, Serialize};
 
@@ -23,19 +23,10 @@ pub enum Status {
     Rejected,
 }
 
-/// The answer to an awaited decision. `NoOpinion` is the expiry, the missing
-/// forwarder and the surface that declined, all of which leave the producer
-/// to prompt as usual; `Answered` passes the decider's own code through
-/// untouched.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum InteractionResult {
-    NoOpinion,
-    Answered { code: i32 },
-}
-
 /// What one destination said, as a closed set of verdicts: the variant is
-/// the verdict, never a word inside a sentence.
+/// the verdict, never a word inside a sentence. A plain word on the wire,
+/// never a one-key wrapper object, so a producer that still wraps it is
+/// refused rather than read as a delivery.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeliveryOutcome {
@@ -50,7 +41,9 @@ pub enum DeliveryOutcome {
 /// event's text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DestinationOutcome {
-    pub destination: Name,
+    /// REQUIRED, so a producer still writing the retired `destination` fails
+    /// loudly here rather than answering with a nameless leg.
+    pub name: Name,
     pub outcome: DeliveryOutcome,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
@@ -63,10 +56,10 @@ pub struct ResultEnvelope {
     #[serde(default)]
     pub request_id: Option<RequestId>,
     pub status: Status,
+    /// The engine's durable row for this request, stringified, or `None` when
+    /// no row committed.
     #[serde(default)]
-    pub decision_id: Option<String>,
-    #[serde(default)]
-    pub interaction: Option<InteractionResult>,
+    pub ledger_sequence: Option<String>,
     #[serde(default)]
     pub destinations: Vec<DestinationOutcome>,
     /// Stable codes the engine chose to report.

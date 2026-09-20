@@ -51,7 +51,7 @@ fn request_encoding_refuses_text_over_the_wire_cap() {
 fn result_encoding_refuses_a_destination_note_over_the_wire_cap() {
     let mut result = result();
     result.destinations.push(DestinationOutcome {
-        destination: Name::new("banner").unwrap(),
+        name: Name::new("banner").unwrap(),
         outcome: DeliveryOutcome::Failed,
         note: Some("x".repeat(8_000)),
     });
@@ -67,7 +67,7 @@ fn result_encoding_refuses_a_destination_note_over_the_wire_cap() {
 fn result_encoding_refuses_too_many_destinations() {
     let mut result = result();
     let destination = DestinationOutcome {
-        destination: Name::new("banner").unwrap(),
+        name: Name::new("banner").unwrap(),
         outcome: DeliveryOutcome::Delivered,
         note: None,
     };
