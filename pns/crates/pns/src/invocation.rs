@@ -253,6 +253,12 @@ pub(crate) fn run() {
     if first == pns_domain::stale::FIRE_WORD {
         std::process::exit(stale_mode());
     }
+    // The one-time Google consent, typed once per machine. A MODE for the
+    // reason the others are: it takes no decision from any event and delivers
+    // nothing. It mints a credential and prints it, and writes it nowhere.
+    if first == "calendar" {
+        std::process::exit(calendar_mode(&second_argument(&flagless)));
+    }
     // The first-run walk. A MODE that has to be reachable with NO CONFIG AT
     // ALL, which is the state it exists to end, and that is why it sits above
     // everything that loads one. Nothing on the event path reaches it and it
