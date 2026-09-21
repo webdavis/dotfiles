@@ -5,9 +5,9 @@ use super::prompt::{SUMMARIZER_SILENT, Voice};
 use super::sections::Section;
 
 mod sources;
-pub use sources::{Sourced, noted, printed, unreadable};
 #[cfg(test)]
 pub use sources::merged;
+pub use sources::{Sourced, noted, printed, unreadable};
 
 /// What an external section found, which is three different claims about the
 /// night and never one.
