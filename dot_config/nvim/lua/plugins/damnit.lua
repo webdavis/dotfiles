@@ -1,4 +1,4 @@
--- todoist.nvim: Todoist from inside the editor, and the other half of the
+-- damnit.nvim: Todoist from inside the editor, and the other half of the
 -- herdr-damnit pane, which enters `nvim +"Todoist task <id>"` on `e`.
 --
 -- `views` carries the same names as the herdr pane's `[[views]]` entries
@@ -12,8 +12,12 @@
 -- never resolve here. The macOS keychain is read non-interactively instead;
 -- KeePassXC stays the entry of record (see the herdr-damnit config for the
 -- one-time operator setup).
+--
+-- Pinned to the last commit before the plugin's own rename PR, which is also
+-- the last commit that registers a user command. Move this pin forward only
+-- once the dam cutover lands and damnit.nvim answers to something again.
 return {
-  "webdavis/todoist.nvim",
+  "webdavis/damnit.nvim",
   commit = "f52aee6002e9dadbab9c608f7747ba012ad8aa9d",
   cmd = "Todoist",
   opts = {
