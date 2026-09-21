@@ -145,21 +145,20 @@ url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 
-# The reference implementer: dot_local/libexec/pns/executable_calendar-busy-window.sh,
-# deployed to ~/.local/libexec/pns/calendar-busy-window.sh. An absolute path
-# rather than the bare name the shipped example shows, because the daemon's
-# own PATH (com.webdavis.pns-daemon.plist.tmpl) carries ~/.local/bin and
-# /opt/homebrew/bin but not ~/.local/libexec/pns, and pns spawns argv[0]
-# through no shell, so a bare name here would never resolve; the literal home
-# is fine on that basis too, this machine is single-user. poll_interval and
-# deadline stay at their layout defaults.
+# No reference implementer exists yet; the Rust replacement is a pending PR.
+# `command` names a script the operator places by hand at the path below. An
+# absolute path rather than the bare name the shipped example shows, because
+# the daemon's own PATH (com.webdavis.pns-daemon.plist.tmpl) carries
+# ~/.local/bin and /opt/homebrew/bin but not ~/.local/libexec/pns, and pns
+# spawns argv[0] through no shell, so a bare name here would never resolve;
+# the literal home is fine on that basis too, this machine is single-user.
+# poll_interval and deadline stay at their layout defaults.
 #
 # enabled stays false until a live run against the real gog token is proven:
 # `gog auth list` currently times out opening the login keychain item
 # (macOS wants an interactive "Always Allow" click to clear it) and account
-# resolution has never succeeded on this machine. Flip to true once
-# ~/.local/libexec/pns/calendar-busy-window.sh prints the documented
-# document by hand.
+# resolution has never succeeded on this machine. Flip to true once the
+# script at the path below prints the documented document by hand.
 [quiet.calendar]
 enabled = false
 command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
