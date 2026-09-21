@@ -162,6 +162,16 @@ type = "plugin_action"
 command = "herdr-workspace-jump.last_workspace"
 description = "last workspace (MRU toggle)"
 
+# Picker popup: herdr binds one key combo per binding (a BindingTrigger is
+# Direct or Prefix of one KeyCombo, and prefix mode exits after one key), so
+# a workspace's second letter can't be a chord. The plugin reads it itself
+# inside this popup instead.
+[[keys.command]]
+key = "prefix+ctrl+o"
+type = "popup"
+command = "~/.local/share/herdr-workspace-jump/target/release/herdr-workspace-jump pick"
+description = "pick a workspace by letter"
+
 # ╭───────────────────╮
 # │  herdr-smart-nav  │
 # ╰───────────────────╯
