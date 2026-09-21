@@ -9,6 +9,8 @@
 
 mod admission;
 pub use admission::{Admits, Profile};
+mod codec;
+pub use codec::{format_override, parse_override};
 
 /// The profile a machine with no rules matching is on, and the one a config
 /// with no `[profiles]` table has.
