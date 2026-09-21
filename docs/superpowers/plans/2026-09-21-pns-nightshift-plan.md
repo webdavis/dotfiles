@@ -2067,6 +2067,10 @@ pub(crate) enum Outcome {
 /// THE PROFILE IS SELECTED LAST. A handoff that did not start must leave the
 /// machine loud: the operator is asleep either way, and a quiet machine with
 /// nothing running on it is the one state nobody notices until morning.
+///
+/// THE GUARANTEE STOPS AT A FAILED EXEC: `spawner.spawn` succeeds the moment
+/// the program execs, so a script that execs and then exits (a missing
+/// worktree, gnhf's own refusal) is not caught here.
 pub(crate) fn hand_off(
     goal_text: &str,
     table: &Nightshift,

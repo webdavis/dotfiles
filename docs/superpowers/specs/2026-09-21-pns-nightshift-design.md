@@ -72,6 +72,16 @@ A handoff that did not start must not leave the machine quiet: the operator is a
 the failure mode of selecting first is a silenced machine with nothing running on it, which is the one
 state nobody notices until morning.
 
+THE GUARANTEE STOPS AT A FAILED EXEC. Launching is `Command::spawn` on the argv `launch` names, and a
+spawn succeeds the moment the program execs, whatever it does after that. For the shipped config that
+program is `bash`, and exec of `/bin/bash` succeeds whether the script it runs finds its worktree,
+leaves the tree clean, or gnhf accepts the goal at all: a missing worktree, a dirty tree, or gnhf's own
+refusal (`docs/runbooks/local-agents.md`) all report a launched pid and still select `night`, which is
+exactly the silenced-machine state this ordering exists to prevent. The launcher's own log is the only
+place a handoff that started and then died shows up; the operator's `--dry-run` acceptance run at
+bedtime is what this design relies on to catch a launcher misconfigured this way before the first
+unattended night, not a check this command makes.
+
 ## The composed goal
 
 One file, and its exact shape. Paragraphs are single lines, unwrapped, because the goal is a prompt
