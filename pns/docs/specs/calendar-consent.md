@@ -63,6 +63,10 @@ the secret goes instead: a secret in argv is readable by every process on the ma
 given together or neither is; half of a stated client, a flag this walk does not take, and a verb that is
 not `consent` each earn the usage text on stderr and exit 2, which is `pns resume`'s code.
 
+`--client-secret-stdin` reads standard input whole, with no echo suppression of its own, so a secret
+typed by hand lands in scrollback and any pane capture. Pipe it instead:
+`keepassxc-cli show -a Password <entry> | pns calendar consent --client-id <id> --client-secret-stdin`.
+
 ## Fail-closed, exactly as the poll is
 
 Every failure is one fixed sentence naming the step, so no response body, client secret, authorization

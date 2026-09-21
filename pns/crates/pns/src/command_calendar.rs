@@ -6,7 +6,11 @@ pns: usage:
   pns calendar consent             mint the refresh token `[quiet.calendar]` reads
   pns calendar consent --client-id <id> --client-secret-stdin
                                    the same walk for a client the config does
-                                   not name yet, its secret read from stdin
+                                   not name yet, its secret piped on stdin so it
+                                   is never typed where the terminal echoes it,
+                                   e.g. keepassxc-cli show -a Password <entry> |
+                                   pns calendar consent --client-id <id> \\
+                                     --client-secret-stdin
 ";
 
 /// The flag that names the OAuth client when the config does not.
