@@ -27,6 +27,7 @@ process ownership and cleanup, and which outputs or exit codes are compatibility
 | `routing-and-delivery.md`              | Legs, destinations, executable channels, and delivery outcomes                                         |
 | `presence-and-visibility.md`           | The probes, their fail directions, and how a delivery plan is reached                                  |
 | `quiet-behavior.md`                    | Every mechanism that silences pns, and exactly what each one silences                                  |
+| `calendar-quiet-source.md`             | `[quiet.calendar]`: which reader answers it, and what one poll refuses                                 |
 | `missed-notifications.md`              | Journalling a notification the operator could not perceive, and replaying it                           |
 | `return-recap.md`                      | Composing and posting the account of an absence                                                        |
 | `reminding.md`                         | The repeat card about an approval nobody answered                                                      |

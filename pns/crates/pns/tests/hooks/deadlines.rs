@@ -74,7 +74,7 @@ fn the_retired_millisecond_deadline_names_state_nothing_at_all() {
     // loses the payload outright, so a turn that still reports proves nothing
     // reads these any more. The three summarizer rows are the two spellings
     // of the retired variable plus the name its rename would have produced;
-    // `[recap] summarizer_deadline` is the only bound on that call now.
+    // `[recap.summarizer] deadline` is the only bound on that call now.
     let sandbox = Sandbox::new("hook-retired-deadline-names");
     let mut command = sandbox.pns();
     for retired in [
@@ -122,7 +122,7 @@ fn a_summarizer_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "cat >/dev/null; exec 1>&-; sleep 30");
     sandbox.write_config(&format!(
-        "{}[recap]\nsummarizer_deadline = \"300ms\"\n",
+        "{}[recap.summarizer]\ndeadline = \"300ms\"\n",
         crate::support::STUB_CHANNELS
     ));
     let mut command = sandbox.pns();
@@ -151,7 +151,7 @@ fn a_summarizer_that_never_reads_its_stdin_is_bounded_too() {
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "sleep 30");
     sandbox.write_config(&format!(
-        "{}[recap]\nsummarizer_deadline = \"300ms\"\n",
+        "{}[recap.summarizer]\ndeadline = \"300ms\"\n",
         crate::support::STUB_CHANNELS
     ));
     let mut command = sandbox.pns();

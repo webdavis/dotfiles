@@ -1,6 +1,0 @@
-[package]
-name = "morning-domain"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]

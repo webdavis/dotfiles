@@ -41,9 +41,11 @@ use pns_domain::recap::window::{Period, WeekStart};
 pub use pns_domain::recap::{Recap, Sources};
 use recap::parse_recap;
 mod recap_values;
-use recap_values::{argv, period, rows_per_section, threshold, week_start};
+use recap_values::{period, rows_per_section, threshold, week_start};
 mod recap_sources;
+mod recap_summarizer;
 use recap_sources::{note_glob, parse_recap_sources};
+use recap_summarizer::parse_recap_summarizer;
 mod delivery;
 use delivery::parse_delivery;
 mod delivery_class;
@@ -52,8 +54,8 @@ pub use delivery_class::{DEFAULT_DELIVERY_CLASS, DeliveryClass};
 mod focus;
 use focus::{DEFAULT_FOCUS_ENABLED, parse_focus};
 mod quiet;
-pub use quiet::QuietCalendar;
 use quiet::parse_quiet;
+pub use quiet::{CalendarSource, GoogleCalendar, QuietCalendar};
 mod github;
 pub use github::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,

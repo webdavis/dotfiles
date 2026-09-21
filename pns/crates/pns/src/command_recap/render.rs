@@ -64,6 +64,14 @@ pub(super) fn run(
             move || end.saturating_duration_since(std::time::Instant::now())
         },
     );
+    let mut assembled = assembled;
+    super::summary::attach(&mut assembled, options, recap, window, &store);
+    // A PREGENERATING RUN PRINTS NOTHING AND DELIVERS NOTHING. It is the
+    // gateway writing this window's paragraph into the store ahead of whoever
+    // reads it next, so rendering a page would be a page nobody is looking at.
+    if options.pregenerate {
+        return 0;
+    }
     let clock =
         |at: Option<u64>| pns_application::recap_wall_clock(at, local_minutes_since_midnight);
     let externals = assembled.externals();

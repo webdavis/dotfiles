@@ -146,7 +146,8 @@ pub const RECAP_USAGE: &str = "pns: usage: pns recap [<window>] [--previous]\n\
                                pns: windows: overnight, morning, afternoon, evening, today, \
                                yesterday, week, last-week\n\
                                pns: modifiers: -v, --section <name>, --limit <n>, --json, --toon, \
-                               --schema <file|->, --to <destination>";
+                               --schema <file|->, --to <destination>, --summarize, \
+                               --with-transcripts";
 
 /// What a line shows for a moment whose clock could not be read: the same width
 /// as a time, so the timeline still lines up.

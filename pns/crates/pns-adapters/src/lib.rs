@@ -29,11 +29,12 @@ mod phone_marker;
 mod tap_install;
 pub use config::DaemonConfig;
 pub use config::{
-    BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_ACK_DEADLINE, DEFAULT_BUSY_DEADLINE, Failures,
-    LoadOutcome, MAX_ARM_INTERVAL_SECS, MIN_ARM_INTERVAL_SECS, MOSHI_TYPE, PluginEntry, Presence,
-    QuietCalendar, Recap, TABLE_KEYS, TOP_LEVEL, ack_deadline, armed_phone, config_path,
-    enabled_hue_table, identity_placeholder, load_config, moshi_image_cards, moshi_secret,
-    parse_config, parse_presence, phone_backend, remind_delay_range, render, strip_chezmoi_actions,
+    BEHAVIOUR_WORDS, CalendarSource, Config, ConfigError, DEFAULT_ACK_DEADLINE,
+    DEFAULT_BUSY_DEADLINE, Failures, GoogleCalendar, LoadOutcome, MAX_ARM_INTERVAL_SECS,
+    MIN_ARM_INTERVAL_SECS, MOSHI_TYPE, PluginEntry, Presence, QuietCalendar, Recap, TABLE_KEYS,
+    TOP_LEVEL, ack_deadline, armed_phone, config_path, enabled_hue_table, identity_placeholder,
+    load_config, moshi_image_cards, moshi_secret, parse_config, parse_presence, phone_backend,
+    remind_delay_range, render, strip_chezmoi_actions,
 };
 pub use config::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,
@@ -176,12 +177,15 @@ pub use protocols::markers::FileLampMarkers;
 mod recap;
 pub use recap_document_wire::{Wire, read_mask};
 mod recap_document_wire;
-pub use recap::{ProcessSourceCommands, ProcessSummarizer, ReviewNotes, git_facts};
+pub use recap::{
+    ProcessSourceCommands, ProcessSummarizer, ReviewNotes, SummarizerFailure, git_facts,
+    run_summarizer, transcript_excerpt,
+};
 
 mod doctor;
 pub use doctor::{ANSWER_MAX, pairing_report};
 
-pub use doctor::{daemon_heartbeat, doctor_bridge, hue_resolves, read_pairing};
+pub use doctor::{daemon_heartbeat, doctor_bridge, hue_resolves, read_pairing, summarizer_report};
 pub use process::{env_duration, moshi_hook_bin};
 
 mod terminal;
@@ -204,6 +208,7 @@ pub use recap_child::{CARD_ON_STDIN, DURABLE, hand_recap_card, run_recap_bounded
 
 pub use persistence::{
     ActivityEvent, DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError,
+    StoredSummary,
 };
 
 mod harness;

@@ -52,7 +52,6 @@ includes = [
   "uu/**/*.rs",
   "posture/**/*.rs",
   "lights/**/*.rs",
-  "morning/crates/**/*.rs",
 ]
 
 # RULE: skill/agent/command markdown is authored prose with YAML frontmatter;
