@@ -1,4 +1,5 @@
 mod jobs;
+pub(crate) mod pregenerate;
 mod service;
 
 /// `pns gateway <verb>`: the clock, the two typed commands that feed it, the

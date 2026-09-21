@@ -11,7 +11,10 @@ pub(super) const SUMMARIZER: &str = "recap-summarizer";
 /// A config naming that stub as the summarizer, plus whatever else the test
 /// needs inside `[recap]`.
 pub(super) fn recap_summarized_by(extra: &str) -> String {
-    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\nsummarizer = [\"{SUMMARIZER}\"]\n{extra}")
+    format!(
+        "{EVERY_DISPATCHED_CHANNEL}[recap]\n{extra}\
+         [recap.summarizer]\ncommand = [\"{SUMMARIZER}\"]\n"
+    )
 }
 
 /// A summarizer stub first on PATH. EVERY BODY DRAINS STDIN FIRST, because the

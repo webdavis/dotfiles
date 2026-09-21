@@ -14,6 +14,7 @@ mod options;
 pub mod prompt;
 pub mod sanitize;
 pub mod sections;
+pub mod summarizer;
 pub mod window;
 pub use options::{Recap, SECTION_NAMES, Sources};
 

@@ -56,6 +56,7 @@ pub(crate) fn doctor_mode() -> i32 {
         lights,
         hue_declared,
         routes,
+        recap_summarizer,
     ) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
             enabled_hue_table(config),
@@ -76,6 +77,7 @@ pub(crate) fn doctor_mode() -> i32 {
             // lamps' report tells those two apart.
             config.plugins.contains_key("lights"),
             config.routes.clone(),
+            config.recap.summarizer.clone(),
         ),
         // THE SWITCH FALLS BACK ON, which is the fallback `run_event` takes
         // for the same reading. The two must agree or the doctor describes a
@@ -100,6 +102,10 @@ pub(crate) fn doctor_mode() -> i32 {
             // takes for the same reading: the two must agree or the doctor
             // names routes the event path would not post to.
             pns_domain::routes::Routes::default(),
+            // AND NO SUMMARIZER, because a config nobody could read named no
+            // command: the row says so rather than running one the operator
+            // never wrote.
+            pns_domain::recap::summarizer::Settings::default(),
         ),
     };
     // THE SWITCHED-OFF TABLES THE EVENT PATH SAYS NOTHING ABOUT, said here
@@ -247,6 +253,7 @@ pub(crate) fn doctor_mode() -> i32 {
                     pns_adapters::job_spool::job_count(&state),
                 )
             },
+            summarizer: Box::new(move || pns_adapters::summarizer_report(&recap_summarizer)),
             delivery_health: || {
                 pns_adapters::SqliteStore::new(state_dir())
                     .delivery_health()

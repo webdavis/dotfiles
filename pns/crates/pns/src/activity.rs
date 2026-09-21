@@ -63,6 +63,7 @@ fn store(
         model,
         title: pns_domain::render::title(&event.agent, &event.state, &event.project),
         detail: event.detail.clone(),
+        transcript_path: payload.transcript_path.clone(),
     };
     if let Err(error) = SqliteStore::new(state_dir()).record_activity_event(&row) {
         eprintln!("pns: state error (this event could not be recorded: {error})");

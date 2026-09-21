@@ -1,5 +1,7 @@
 mod activity;
 pub use activity::ActivityEvent;
+mod recap_summaries;
+pub use recap_summaries::StoredSummary;
 mod decisions;
 mod diagnostics;
 mod error;
