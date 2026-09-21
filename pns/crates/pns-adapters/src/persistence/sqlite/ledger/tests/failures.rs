@@ -84,3 +84,16 @@ fn draining_a_ledger_with_nothing_dead_lettered_reports_none() {
     let store = SqliteStore::new(state());
     assert_eq!(store.drain_deadlettered_legs().unwrap(), 0);
 }
+
+/// The count the recap reads: one for a dead-lettered leg, none once drained,
+/// and none for a leg still inside its retry budget.
+#[test]
+fn dead_lettered_leg_count_tracks_the_drain() {
+    let (store, _path) = refused(404);
+    assert_eq!(store.dead_lettered_leg_count().unwrap(), 1);
+    store.drain_deadlettered_legs().unwrap();
+    assert_eq!(store.dead_lettered_leg_count().unwrap(), 0);
+
+    let (retrying, _path) = refused(503);
+    assert_eq!(retrying.dead_lettered_leg_count().unwrap(), 0);
+}

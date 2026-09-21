@@ -131,6 +131,7 @@ The page has these sections, in this order. `--limit <n>` caps every list at `n`
 | `review_notes` | `[recap] review_notes_glob`, carried over from the return card | yes, by file mtime |
 | `summary` | the summarizer over the assembled document | yes, it summarizes the window |
 | `open` | the activity store plus the `pull_requests` and `applies` commands | no |
+| `open`'s dead-letter line | the delivery ledger, the read `pns failures` lists filtered to the dead-lettered legs | no |
 
 A source command is an argv list. Before it runs, `{since}` and `{until}` in any argument are
 replaced with the window bounds as RFC 3339 timestamps with the local offset
@@ -143,7 +144,10 @@ command that fails or times out renders as one line naming the exit code, never 
 exists to carry, and it is also the whole page under `pns recap open`. It holds sessions whose last state
 is `blocked`, `asked` or `waiting` with no later `resolved` for the same session; open pull requests as
 the `pull_requests` command reports them when given no window; and applies owed as the `applies` command
-reports them. When neither command is configured, `open` holds only the sessions.
+reports them. When neither command is configured, `open` holds only the sessions. It also carries one
+line for the standing dead-letter count, `N legs dead-lettered, run pns failures`, and nothing at all
+when that count is zero: the delivery watchdog pages on growth, so the standing population needs a home
+the operator reads every day.
 
 Empty windowed sections are omitted unless `-v` is given.
 
@@ -229,7 +233,8 @@ Verbose detail is always present in the document. The shape:
     "applies": { "rows": [ "..." ], "more": 0, "at_least": false },
     "review_notes": { "rows": [ "..." ], "more": 0, "at_least": false },
     "summary": { "text": "...", "written_at": "...", "source": "claude" },
-    "open": { "sessions": [ "..." ], "pull_requests": [ "..." ], "applies": [ "..." ] }
+    "open": { "sessions": [ "..." ], "pull_requests": [ "..." ], "applies": [ "..." ],
+              "dead_lettered": 0 }
   }
 }
 ```

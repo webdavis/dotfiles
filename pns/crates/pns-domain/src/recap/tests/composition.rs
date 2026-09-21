@@ -312,6 +312,7 @@ fn an_open_list_longer_than_the_whole_budget_is_still_never_cut() {
     // failed at the one job the phone card could not do for it.
     let open = Open {
         sessions: (0..40).map(|which| format!("urgent {which}")).collect(),
+        dead_lettered: 7,
         ..Open::default()
     };
     let lines = fitted(&window(40), &open);
@@ -323,7 +324,53 @@ fn an_open_list_longer_than_the_whole_budget_is_still_never_cut() {
             "urgent {which} was cut"
         );
     }
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "- 7 legs dead-lettered, run pns failures"),
+        "the dead-letter line was cut: {lines:?}"
+    );
     assert!(lines[0].ends_with("· 40 events"), "{}", lines[0]);
+}
+
+#[test]
+fn no_dead_lettered_legs_says_nothing_about_them() {
+    // A ZERO SAID OUT LOUD IS A LINE THE OPERATOR READS PAST every day, which
+    // is how a standing count stops being read at all.
+    let rendered = rendered_body(&window(2), &Open::default());
+    assert!(!rendered.contains("dead-lettered"), "{rendered}");
+    assert!(
+        rendered.contains("OPEN\n- nothing is waiting on you"),
+        "{rendered}"
+    );
+}
+
+#[test]
+fn one_dead_lettered_leg_is_singular_and_several_are_plural() {
+    let one = rendered_body(
+        &window(2),
+        &Open {
+            dead_lettered: 1,
+            ..Open::default()
+        },
+    );
+    assert!(
+        one.contains("- 1 leg dead-lettered, run pns failures"),
+        "{one}"
+    );
+    // The section is no longer empty, so its all-clear must be gone with it.
+    assert!(!one.contains("nothing is waiting on you"), "{one}");
+    let many = rendered_body(
+        &window(2),
+        &Open {
+            dead_lettered: 12,
+            ..Open::default()
+        },
+    );
+    assert!(
+        many.contains("- 12 legs dead-lettered, run pns failures"),
+        "{many}"
+    );
 }
 
 #[test]

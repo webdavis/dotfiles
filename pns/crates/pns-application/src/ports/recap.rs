@@ -47,3 +47,11 @@ pub trait Summarizer {
         prompt: &str,
     ) -> Option<Vec<String>>;
 }
+
+/// How many delivery legs the retry policy gave up on and nobody has cleared.
+///
+/// THE SAME LISTING `pns failures` PRINTS, filtered to the dead-lettered rows,
+/// so the recap's count and the command it points at cannot disagree.
+pub trait DeadLetteredLegs {
+    fn dead_lettered(&self) -> usize;
+}
