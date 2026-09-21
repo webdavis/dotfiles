@@ -279,6 +279,13 @@ pub(super) const TARGET_KEYS: &str = "lights.<level>";
 /// wrote it.
 pub(super) const PRODUCER_KEYS: &str = "producer.<name>";
 
+/// The roster row every `[profiles.<name>]` table shares.
+///
+/// A PREFIX, like `delivery_class.<name>`: the second segment is the
+/// operator's own profile name, so the roster holds the part that is the
+/// schema's and each refusal names the whole path the operator wrote.
+pub(super) const PROFILE_KEYS: &str = "profiles.<name>";
+
 /// The channel map, whose keys are PROJECT NAMES.
 pub(super) const LOG_CHANNELS: &str = "plugins.log.channels";
 
