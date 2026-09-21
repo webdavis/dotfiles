@@ -54,6 +54,9 @@ tailnet-pin/target/
 # Same, for the chord workspace.
 chord/target/
 
+# Same, for the morning workspace.
+morning/target/
+
 # Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
 *config.yaml.bak*
 *config.yaml.corrupt*
