@@ -70,3 +70,23 @@ fn an_invalid_state_report_names_its_sentence() {
          a decision line without a legs field); recording failed\n"
     );
 }
+
+#[test]
+fn a_store_on_a_temporary_root_writes_its_diagnostics_inside_that_root() {
+    let path = state();
+    std::fs::create_dir(&path).unwrap();
+    let store = SqliteStore::new(path.clone());
+    store.report("decision", &StoreError::InvalidState("provoked".into()));
+    assert_eq!(
+        std::fs::read_to_string(path.join("pns-daemon.log")).unwrap(),
+        "pns: state error (decision: unreadable state record: provoked); recording failed\n"
+    );
+}
+
+#[test]
+fn the_daemon_layout_keeps_its_log_where_the_launch_agent_writes() {
+    assert_eq!(
+        SqliteStore::new(std::path::PathBuf::from("/stub-home/.local/state/pns")).log,
+        std::path::PathBuf::from("/stub-home/.local/log/pns-daemon.log")
+    );
+}
