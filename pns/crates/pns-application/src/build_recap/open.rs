@@ -5,7 +5,7 @@
 //! the two commands that fill it run with nothing to substitute and the
 //! sessions are read out of the window's own events.
 
-use crate::SourceCommands;
+use crate::{DeadLetteredLegs, SourceCommands};
 use pns_domain::recap::{Recap, activity::Event, sections::Open};
 
 /// What is open, from the three places that know.
@@ -14,11 +14,17 @@ use pns_domain::recap::{Recap, activity::Event, sections::Open};
 /// oldest first, so the last state per session is the one that counts, and a
 /// later `resolved` for the same session takes it off the list without a rule
 /// of its own.
-pub(super) fn gather(commands: &impl SourceCommands, recap: &Recap, events: &[Event]) -> Open {
+pub(super) fn gather(
+    commands: &impl SourceCommands,
+    failures: &impl DeadLetteredLegs,
+    recap: &Recap,
+    events: &[Event],
+) -> Open {
     Open {
         sessions: waiting(events),
         pull_requests: unbounded(commands, recap.sources.pull_requests.as_deref()),
         applies: unbounded(commands, recap.sources.applies.as_deref()),
+        dead_lettered: failures.dead_lettered(),
     }
 }
 

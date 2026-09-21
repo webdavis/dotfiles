@@ -143,3 +143,19 @@ impl pns_application::StaleWaits for SqliteStore {
         }
     }
 }
+impl pns_application::DeadLetteredLegs for SqliteStore {
+    /// A COUNT over the same WHERE clause `pns failures` lists against, so
+    /// the recap's number never falls behind a backlog of still-retrying
+    /// legs the way a bounded row scan would.
+    ///
+    /// A LEDGER THAT WILL NOT READ COUNTS AS NONE. The recap is printed by an
+    /// unlock automation with nobody watching stderr, and the three other
+    /// sections still have news; the doctor is where an unreadable ledger is
+    /// reported.
+    fn dead_lettered(&self) -> usize {
+        self.dead_lettered_leg_count()
+            .unwrap_or_default()
+            .try_into()
+            .unwrap_or(usize::MAX)
+    }
+}

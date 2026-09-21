@@ -20,6 +20,7 @@ pub(crate) const SUBCOMMAND_USAGE: &[(&str, &str)] = &[
     ("lights enroll", crate::command_enroll::ENROLL_USAGE),
     ("presence", crate::command_presence::PRESENCE_USAGE),
     ("profile", crate::command_profile::PROFILE_USAGE),
+    ("codex", crate::command_codex::CODEX_USAGE),
     ("github", crate::command_github::GITHUB_USAGE),
     ("shell", crate::shell::SHELL_USAGE),
     ("loop", crate::lights_command::LOOP_USAGE),

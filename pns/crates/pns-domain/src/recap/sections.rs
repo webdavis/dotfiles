@@ -81,18 +81,35 @@ pub struct Open {
     pub sessions: Vec<String>,
     pub pull_requests: Vec<String>,
     pub applies: Vec<String>,
+    /// The standing population of delivery legs the retry policy gave up on.
+    /// The watchdog pages on growth, so the number itself is read here.
+    pub dead_lettered: usize,
 }
 
 impl Open {
     fn is_empty(&self) -> bool {
-        self.sessions.is_empty() && self.pull_requests.is_empty() && self.applies.is_empty()
+        self.sessions.is_empty()
+            && self.pull_requests.is_empty()
+            && self.applies.is_empty()
+            && self.dead_lettered == 0
     }
     fn lines(&self) -> Vec<String> {
         [&self.sessions, &self.pull_requests, &self.applies]
             .into_iter()
             .flatten()
             .map(|item| format!("{LINE_PREFIX}{item}"))
+            .chain(dead_letter_line(self.dead_lettered).map(|line| format!("{LINE_PREFIX}{line}")))
             .collect()
+    }
+}
+
+/// One line for the dead-lettered legs, and nothing at all when there are
+/// none: a zero said out loud is a line the operator reads past every day.
+fn dead_letter_line(count: usize) -> Option<String> {
+    match count {
+        0 => None,
+        1 => Some("1 leg dead-lettered, run pns failures".to_string()),
+        many => Some(format!("{many} legs dead-lettered, run pns failures")),
     }
 }
 

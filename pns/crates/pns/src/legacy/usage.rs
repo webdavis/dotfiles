@@ -28,6 +28,7 @@ pns: usage:
   pns profile [<name>|clear]       which bundle of delivery settings is active
   pns github poll [--daemon]       one notifications read, submitted as events
   pns github receive               the push receiver: a delivery polls now
+  pns codex install-hooks          merge pns's four hooks into Codex's hooks file
   pns shell begin --pid <pid> --command <line>
   pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <duration>
   pns loop begin|end               take the loop lamp by hand, and give it back

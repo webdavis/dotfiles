@@ -54,6 +54,7 @@ pub(crate) use pns_domain::render;
 mod certificate_notice;
 mod channel_dispatch;
 mod channel_settings;
+mod command_codex;
 mod command_doctor;
 mod command_enroll;
 mod command_failures;
@@ -106,6 +107,7 @@ mod wait_runtime;
 pub(crate) use channel_settings::{
     Mobile, disabled_backend_warnings, plugin_settings, read_discord, read_mobile,
 };
+pub(crate) use command_codex::codex_mode;
 pub(crate) use command_doctor::doctor_mode;
 pub(crate) use command_failures::failures_mode;
 pub(crate) use command_gateway::{GATEWAY_USAGE, gateway_mode};
