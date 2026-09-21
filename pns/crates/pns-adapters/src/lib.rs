@@ -192,11 +192,15 @@ pub use config::{SetupRenderer, compose_config};
 pub use config::FileConfigPublisher;
 
 mod codex;
+mod codex_hooks;
 mod git;
 mod moshi_hook;
 mod recap_card_wire;
 mod recap_child;
 pub use codex::summarize;
+pub use codex_hooks::{
+    CodexHooksInstall, codex_hooks_path, install_codex_hooks, merge_codex_hooks,
+};
 pub use git::{Checkout, git_checkout};
 pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_card_wire::{HandedCard, decode_handed_card};
