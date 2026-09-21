@@ -7,7 +7,7 @@ mod state_dir;
 pub use publish::publish_state_line;
 pub use read::readable_state_file;
 pub use ring::append_ring_line;
-pub use state_dir::{now_secs, state_dir};
+pub use state_dir::{DAEMON_STATE_SUFFIX, now_secs, state_dir};
 mod limits;
 pub use limits::{RING_READ_MAX, STATE_FILE_MODE};
 pub use locks::{HeldLock, claim_lock};

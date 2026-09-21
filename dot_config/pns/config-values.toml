@@ -163,6 +163,47 @@ api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 enabled = false
 command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
 
+[profiles.default]
+note = """
+Today's behaviour, which is also what a machine with no profiles at all
+has."""
+quiet = false
+banner = "all"
+discord = "all"
+phone = "all"
+lights = "all"
+
+[profiles.work]
+note = """
+At the desk on somebody else's clock: the screen in front of you still
+talks, the phone and Discord only for a page, and nothing else posts or
+pulses."""
+quiet = true
+banner = "all"
+discord = "priority"
+phone = "priority"
+lights = "none"
+
+[profiles.night]
+note = """
+Asleep. Only a page gets through, on the phone and in Discord, and
+everything else is held and delivered as one roll-up when the profile
+next admits it."""
+quiet = true
+banner = "none"
+discord = "priority"
+phone = "priority"
+lights = "none"
+
+[[profiles.rules]]
+profile = "night"
+hours = "22:00-06:00"
+
+[[profiles.rules]]
+profile = "work"
+days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+hours = "09:00-17:00"
+
 # "5m" is the layout default and the operator's real setting, written out
 # because a table states its settings rather than arming them by being here.
 [remind]

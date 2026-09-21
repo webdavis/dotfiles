@@ -324,7 +324,9 @@ if [[ $- == *i* ]]; then
   # control. (A detailed explanation can be found at https://stackoverflow.com/questions/791765
   stty -ixon
 
-  # Custom Bash Bindings:
+  # Custom Bash Bindings: the functions and helper macros first, then the
+  # bindings `chord render bash` generates from dot_config/chord/bindings.toml.
+  [[ -s "$HOME/.bash_bindings_functions" ]] && . "$HOME/.bash_bindings_functions"
   [[ -s "$HOME/.bash_bindings" ]] && . "$HOME/.bash_bindings"
   [[ -s "$HOME/.fzf_bindings" ]] && . "$HOME/.fzf_bindings"
 

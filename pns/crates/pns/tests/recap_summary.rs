@@ -96,7 +96,11 @@ fn a_summarizer_that_fails_leaves_one_visible_line_on_every_output_form() {
         (
             "recap-summary-hung",
             "cat >/dev/null; sleep 30",
-            "gave no answer",
+            // THE TIMELINE'S OWN CALL SPENDS THE WHOLE EPISODE HANGING, so
+            // this one finds no budget left rather than hanging a second
+            // time: "answered nothing" is `Failure::Silent`'s wording for
+            // both an empty answer and a spent budget.
+            "answered nothing",
         ),
     ] {
         let (sandbox, script) = sandbox_with(name, body);
@@ -165,10 +169,7 @@ fn a_pregenerated_summary_is_stored_shown_and_regenerated_only_when_it_is_stale(
     let shown = stdout(&run(sandbox
         .pns_stateful()
         .args(["recap", "today", "--json"])));
-    assert!(
-        shown.contains(&stored.text) || !shown.contains("SUMMARY"),
-        "{shown}"
-    );
+    assert!(shown.contains(&stored.text), "{shown}");
     let again = pns_adapters::SqliteStore::for_records(sandbox.state())
         .recap_summary("today")
         .expect("the store")

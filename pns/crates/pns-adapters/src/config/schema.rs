@@ -48,6 +48,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "paths",
             "plugins",
             "producer",
+            "profiles",
             "quiet",
             "recap",
             "remind",
@@ -110,6 +111,11 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
             "type",
         ],
     ),
+    (
+        PROFILE_KEYS,
+        &["banner", "discord", "lights", "phone", "quiet"],
+    ),
+    (PROFILES, &["location_poll", "locations", "rules"]),
     (
         "delivery",
         &[
@@ -278,6 +284,17 @@ pub(super) const TARGET_KEYS: &str = "lights.<level>";
 /// The roster row every `[producer.<name>]` table shares, whichever producer
 /// wrote it.
 pub(super) const PRODUCER_KEYS: &str = "producer.<name>";
+
+/// The roster row every `[profiles.<name>]` table shares.
+///
+/// A PREFIX, like `delivery_class.<name>`: the second segment is the
+/// operator's own profile name, so the roster holds the part that is the
+/// schema's and each refusal names the whole path the operator wrote.
+pub(super) const PROFILE_KEYS: &str = "profiles.<name>";
+
+/// The heading those tables are written under, whose own keys are the one
+/// knob, the named networks and the ordered rules.
+pub(super) const PROFILES: &str = "profiles";
 
 /// The channel map, whose keys are PROJECT NAMES.
 pub(super) const LOG_CHANNELS: &str = "plugins.log.channels";

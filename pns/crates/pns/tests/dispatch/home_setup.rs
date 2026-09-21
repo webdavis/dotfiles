@@ -42,7 +42,7 @@ fn every_way_the_home_probe_is_not_set_up_says_which_one_it_is() {
             "[home]\nurl = \"https://192.168.1.1\"\nphone = \"mister\"\n",
             "home: config error (unknown top-level key `home`; the file serves \
              delivery, delivery_class, failures, focus, gateway, lights, paths, plugins, \
-             producer, quiet, \
+             producer, profiles, quiet, \
              recap, remind, routes, stale, storage)",
         ),
         (
