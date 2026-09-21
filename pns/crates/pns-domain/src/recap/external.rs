@@ -5,7 +5,9 @@ use super::prompt::{SUMMARIZER_SILENT, Voice};
 use super::sections::Section;
 
 mod sources;
-pub use sources::{Sourced, merged, noted, printed, unreadable};
+pub use sources::{Sourced, noted, printed, unreadable};
+#[cfg(test)]
+pub use sources::merged;
 
 /// What an external section found, which is three different claims about the
 /// night and never one.
@@ -96,18 +98,6 @@ pub struct External<'sources> {
     /// own limit and a glob matching more files than one recap considers are
     /// both counts that would otherwise read as totals.
     pub truncated: bool,
-}
-/// The two sections whose source is not pns, named rather than passed as a
-/// pair.
-///
-/// ONE NAMED VALUE, for `config::Recap`'s reason: both halves have the same
-/// type, so as two arguments they would sit adjacent and transposable, and a
-/// swap would file the night's merges under the review notes with nothing to
-/// catch it.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Externals<'sources> {
-    pub merges: External<'sources>,
-    pub notes: External<'sources>,
 }
 /// One external section, in whichever of its four states it is in.
 ///

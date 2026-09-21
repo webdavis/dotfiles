@@ -23,7 +23,11 @@ pub struct Sourced {
     pub source: String,
 }
 
-/// One merged pull request as this recap will speak about it.
+/// One merged pull request as the retired `gh` adapter used to speak about
+/// it. TEST-ONLY: no production source builds a `Sourced` from a title and a
+/// body any more, every `[recap.sources]` command is a plain argv list whose
+/// rows go through `printed`. Kept for the fixtures that still pin the
+/// receipt and vouching machinery over a body's own Summary section.
 ///
 /// WHAT IT DOES NOW COMES OUT OF THE BODY'S OWN SUMMARY, which is the section
 /// the author wrote to answer exactly that question, and the title is the
@@ -35,6 +39,7 @@ pub struct Sourced {
 /// THE NUMBER LEADS, because it is the receipt. Every line the operator reads
 /// here names the pull request it came from, so the tail pointer is followable
 /// per line rather than per message.
+#[cfg(test)]
 pub fn merged(number: u64, title: &str, body: &str) -> Sourced {
     let summary = summary_of(body);
     let said = safe_line(
@@ -101,7 +106,8 @@ pub(super) const UNREADABLE: &str = "could not be read";
 /// and `safe_line` makes one line of it: a summary somebody wrote as three
 /// sentences is still what the section wants to say, cut to a line's width by
 /// the same rule every other line here is.
-pub(super) fn summary_of(body: &str) -> String {
+#[cfg(test)]
+fn summary_of(body: &str) -> String {
     body.lines()
         .skip_while(|line| !summary_heading(line))
         .skip(1)
@@ -109,7 +115,8 @@ pub(super) fn summary_of(body: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
-pub(super) fn summary_heading(line: &str) -> bool {
+#[cfg(test)]
+fn summary_heading(line: &str) -> bool {
     let text = line.trim_start();
     text.starts_with('#')
         && text
