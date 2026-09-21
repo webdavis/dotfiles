@@ -57,6 +57,7 @@ pub(super) fn page<'a>(
     timeline: Timeline<'a>,
 ) -> Page<'a> {
     Page {
+        summary: None,
         heading: Heading::WhileYouWereAway,
         from: "23:04",
         to: "06:15",

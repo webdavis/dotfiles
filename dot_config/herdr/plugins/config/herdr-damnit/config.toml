@@ -1,4 +1,4 @@
-# herdr-todoist (webdavis/herdr-todoist), installed by run_after_53.
+# herdr-damnit (webdavis/herdr-damnit), installed by run_after_53.
 #
 # The token is an indirection: this file names the source it comes from and
 # never holds the value, which the plugin enforces by refusing to parse a

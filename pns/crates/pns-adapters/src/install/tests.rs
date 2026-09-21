@@ -138,7 +138,7 @@ fn a_config_nobody_could_load_leaves_every_setting_to_its_variable() {
 #[test]
 fn the_summarizer_deadline_is_the_config_key_and_the_retired_variables_change_nothing() {
     // `PNS_CONDENSER_DEADLINE_MS` AND ITS TWO LATER SPELLINGS ARE GONE. They
-    // named the same bound `[recap] summarizer_deadline` carries, under a
+    // named the same bound `[recap.summarizer] deadline` carries, under a
     // second word for one thing and in a unit the key never used, so a
     // machine still exporting any of them must see exactly the default.
     let exported = settings(
@@ -151,10 +151,10 @@ fn the_summarizer_deadline_is_the_config_key_and_the_retired_variables_change_no
     );
     assert_eq!(
         exported.summarizer_deadline,
-        pns_domain::recap::Recap::default().summarizer_deadline
+        pns_domain::recap::Recap::default().summarizer.deadline
     );
     let configured = settings(
-        "[recap]\nsummarizer_deadline = \"3s\"\n",
+        "[recap.summarizer]\ndeadline = \"3s\"\n",
         &[("PNS_CONDENSER_DEADLINE_MS", "1")],
     );
     assert_eq!(configured.summarizer_deadline, Duration::from_secs(3));

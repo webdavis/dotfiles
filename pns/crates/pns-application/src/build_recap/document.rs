@@ -34,6 +34,9 @@ pub fn document(assembled: &Assembled, wall_clock: impl Fn(u64) -> String) -> No
     for gathered in &assembled.sources {
         sections.push((gathered.name.to_string(), rows_node(&gathered.sourcing)));
     }
+    if let Some(summary) = &assembled.summary {
+        sections.push((SUMMARY.to_string(), summary_node(summary)));
+    }
     if wanted(&assembled.sections, OPEN) {
         sections.push((OPEN.to_string(), open_node(&assembled.open)));
     }
@@ -142,6 +145,24 @@ fn rows_node(sourcing: &Sourcing) -> Node {
         ("rows", Node::rows(&rows)),
     ])
 }
+
+/// The summary, whether a model wrote it or a failure stands in its place.
+///
+/// `failed` IS A FIELD RATHER THAN AN ABSENT SECTION, which is what makes the
+/// failure legible to a consumer: the text is the one visible line either way,
+/// and a tool reading this can tell a paragraph from an apology without
+/// matching on its wording.
+fn summary_node(summary: &pns_domain::recap::summarizer::Summary) -> Node {
+    Node::map([
+        ("text", Node::text(&summary.lines.join(" "))),
+        ("written_at", Node::text(&summary.written_at)),
+        ("source", Node::text(&summary.source)),
+        ("failed", Node::Flag(summary.failed)),
+    ])
+}
+
+/// The section name the summary takes in the document and on the page.
+pub const SUMMARY: &str = "summary";
 
 fn open_node(open: &Open) -> Node {
     Node::map([
