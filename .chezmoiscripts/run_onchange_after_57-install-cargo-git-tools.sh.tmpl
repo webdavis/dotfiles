@@ -1,0 +1,72 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+# Installs CLI tools built from repositories OTHER than this one, at a pinned
+# revision, into the same ~/.cargo/bin every in-tree Rust builder uses. dam
+# (webdavis/damnit) is the first entry: the herdr-damnit and damnit.nvim
+# plugins spawn it and have nothing to run until this installs it.
+#
+# Build inputs: one line per roster entry, so bumping any field (most often
+# `ref`) re-fires this run_onchange script.
+{{ range .packages.cargo_git_tools -}}
+#   {{ .name }}: {{ .repo }} package={{ .package }} ref={{ .ref }}
+{{ end -}}
+#
+# Retry state, the mechanism the sibling Rust builders use: chezmoi records a
+# run_onchange script as done on ANY exit 0, so a deferred install (no cargo,
+# no network) must change this rendered script to re-fire on the next apply.
+# retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+# Deterministic path, never a PATH probe: a fresh machine provisions rustup
+# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
+cargo_bin="$HOME/.cargo/bin/cargo"
+crates_toml="$HOME/.cargo/.crates.toml"
+retry_marker="$HOME/.cache/cargo-git-tools/retry"
+
+if [[ ! -x $cargo_bin ]]; then
+  report_line 'cargo-git-tools: cargo not found at ~/.cargo/bin/cargo; install deferred to the next apply.' >&2
+  mkdir -p "$(dirname "$retry_marker")"
+  touch "$retry_marker"
+  exit 0
+fi
+
+# already_installed <repo> <rev>: 0 iff ~/.cargo/.crates.toml already records
+# this exact git revision installed. `cargo install --git <url> --rev <rev>`
+# keys each line "<pkg> <version> (git+<url>?rev=<rev>#<rev>)" with the URL
+# byte-for-byte as passed (measured: no trailing .git added), so this passes
+# the identical URL and a repo+rev substring match is exact enough without a
+# TOML parser.
+already_installed() {
+  local repo="$1" rev="$2"
+  [[ -f $crates_toml ]] || return 1
+  grep -qF "(git+https://github.com/${repo}?rev=${rev}" "$crates_toml"
+}
+
+deferred=0
+{{ range .packages.cargo_git_tools }}
+if already_installed {{ .repo | quote }} {{ .ref | quote }}; then
+  :
+else
+  report_section 'cargo-git-tools' {{ .name | quote }}
+  report_line 'installing {{ .name }} from {{ .repo }}@{{ .ref }}'
+  if "$cargo_bin" install --git {{ printf "https://github.com/%s" .repo | quote }} --rev {{ .ref | quote }} --locked --root "$HOME/.cargo" {{ .package | quote }}; then
+    report_line "installed $HOME/.cargo/bin/{{ .name }}"
+  else
+    report_line 'install failed (network unreachable, or cargo itself failed); deferred to the next apply.' >&2
+    deferred=1
+  fi
+fi
+{{ end -}}
+
+if [[ $deferred -eq 1 ]]; then
+  mkdir -p "$(dirname "$retry_marker")"
+  touch "$retry_marker"
+  exit 0
+fi
+
+rm -f "$retry_marker"
+{{ end -}}
