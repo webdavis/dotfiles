@@ -34,7 +34,10 @@ fn both_together_arm_the_poll_at_its_interval() {
     .unwrap()
     .quiet_calendar;
     assert_eq!(calendar.armed(), Some(300));
-    assert_eq!(calendar.command, ["busy-window", "--json"]);
+    assert_eq!(
+        calendar.source,
+        CalendarSource::Command(vec!["busy-window".into(), "--json".into()])
+    );
 }
 
 #[test]
@@ -98,4 +101,96 @@ fn the_new_spellings_resolve_to_what_the_old_ones_did() {
     .unwrap()
     .quiet_calendar;
     assert_eq!((calendar.poll_secs, calendar.deadline_secs), (300, 20));
+}
+
+/// The table every machine already has: no `type` at all reads as the command
+/// source, so a file written before the google reader existed means the same
+/// thing it did.
+#[test]
+fn a_table_naming_no_type_reads_as_the_command_source() {
+    let calendar = parse_config("[quiet.calendar]\ncommand = [\"busy-window\"]\n")
+        .unwrap()
+        .quiet_calendar;
+    assert_eq!(
+        calendar.source,
+        CalendarSource::Command(vec!["busy-window".into()])
+    );
+}
+
+#[test]
+fn a_google_table_carrying_all_three_credentials_arms_the_poll() {
+    let calendar = parse_config(
+        "[quiet.calendar]\nenabled = true\ntype = \"google\"\ncalendars = [\"primary\", \"team\"]\n\
+         client_id = \"id\"\nclient_secret = \"secret\"\nrefresh_token = \"refresh\"\n",
+    )
+    .unwrap()
+    .quiet_calendar;
+    assert_eq!(calendar.armed(), Some(DEFAULT_CALENDAR_POLL_SECS));
+    assert_eq!(
+        calendar.source,
+        CalendarSource::Google(GoogleCalendar {
+            calendars: vec!["primary".into(), "team".into()],
+            client_id: "id".into(),
+            client_secret: "secret".into(),
+            refresh_token: "refresh".into(),
+        })
+    );
+}
+
+/// A GOOGLE TABLE NAMING NO CALENDAR READS THE ONE EVERY ACCOUNT HAS, which is
+/// what the shipped file states and what a table that leaves the key out means.
+#[test]
+fn a_google_table_naming_no_calendar_reads_the_primary_one() {
+    let calendar = parse_config(
+        "[quiet.calendar]\ntype = \"google\"\nclient_id = \"id\"\nclient_secret = \"secret\"\n\
+         refresh_token = \"refresh\"\n",
+    )
+    .unwrap()
+    .quiet_calendar;
+    assert_eq!(
+        calendar.source,
+        CalendarSource::Google(GoogleCalendar {
+            calendars: vec!["primary".into()],
+            client_id: "id".into(),
+            client_secret: "secret".into(),
+            refresh_token: "refresh".into(),
+        })
+    );
+}
+
+/// EVERY MISMATCH NAMES THE KEY. A table half-written is a calendar that
+/// silently does not mute, so it is refused at load rather than at the first
+/// poll.
+#[test]
+fn a_table_mixing_the_two_readers_or_missing_a_credential_is_refused_by_key() {
+    for (file, named) in [
+        (
+            "[quiet.calendar]\ntype = \"google\"\nclient_secret = \"secret\"\nrefresh_token = \"refresh\"\n",
+            "client_id",
+        ),
+        (
+            "[quiet.calendar]\ntype = \"google\"\nclient_id = \"id\"\nrefresh_token = \"refresh\"\n",
+            "client_secret",
+        ),
+        (
+            "[quiet.calendar]\ntype = \"google\"\nclient_id = \"id\"\nclient_secret = \"secret\"\n",
+            "refresh_token",
+        ),
+        (
+            "[quiet.calendar]\ntype = \"command\"\ncommand = [\"busy-window\"]\nclient_id = \"id\"\n",
+            "client_id",
+        ),
+        (
+            "[quiet.calendar]\ntype = \"google\"\ncommand = [\"busy-window\"]\nclient_id = \"id\"\n\
+             client_secret = \"secret\"\nrefresh_token = \"refresh\"\n",
+            "command",
+        ),
+        ("[quiet.calendar]\ntype = \"dam\"\n", "type"),
+    ] {
+        let refusal = parse_config(file).unwrap_err();
+        assert!(
+            refusal.detail().contains(named),
+            "the refusal names `{named}`: {refusal:?}"
+        );
+    }
 }
