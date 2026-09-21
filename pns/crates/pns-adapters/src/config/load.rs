@@ -35,6 +35,13 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                 config.focus_modes = focus.modes;
             }
             "quiet" => config.quiet_calendar = parse_quiet(value)?,
+            "profiles" => {
+                let profiles = parse_profiles(value)?;
+                config.profiles = profiles.profiles;
+                config.profile_locations = profiles.locations;
+                config.profile_rules = profiles.rules;
+                config.location_poll_secs = profiles.location_poll_secs;
+            }
             "gateway" => {
                 let gateway = parse_gateway(value)?;
                 config.gateway_enabled = gateway.enabled;

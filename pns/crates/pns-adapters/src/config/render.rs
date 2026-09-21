@@ -1,7 +1,9 @@
 pub(in crate::config) use layout::REMIND_DELAY;
 #[cfg(test)]
 use layout::every_table;
-use layout::{EXAMPLE_CLASS, LAYOUT, Sample, Table};
+use layout::{
+    EXAMPLE_CLASS, LAYOUT, LOCATIONS_PROSE, PROFILE, PROFILES, RULES_PROSE, Sample, Table,
+};
 use prose::*;
 mod layout;
 mod prose;
@@ -13,6 +15,8 @@ mod lights;
 use lights::render_lights;
 mod delivery_class;
 use delivery_class::render_delivery_classes;
+mod profiles;
+use profiles::render_profiles;
 mod secret;
 use secret::{SECRET_FIELDS, secret_action};
 
@@ -39,6 +43,8 @@ pub fn render(values: &toml::Table) -> Result<String, String> {
     for table in LAYOUT {
         if table.name == crate::config::schema::DELIVERY_CLASS_KEYS {
             render_delivery_classes(&mut out, table, &mut remaining)?;
+        } else if table.name == "profiles" {
+            render_profiles(&mut out, &mut remaining)?;
         } else if table.name == "lights" {
             render_lights(&mut out, &mut remaining)?;
         } else if table.name.starts_with("lights.") {

@@ -34,6 +34,7 @@ fn header_for(table: &str) -> String {
         // it.
         super::DELIVERY_CLASS_KEYS => "delivery_class.security".to_string(),
         super::PRODUCER_KEYS => "producer.claude".to_string(),
+        super::PROFILE_KEYS => "profiles.night".to_string(),
         other => other.to_string(),
     }
 }
@@ -65,6 +66,10 @@ fn companion(table: &str, key: &str) -> &'static str {
         // THE DURABLE LOG IS FILED UNDER ITS TRANSPORT, so every other key of
         // that table needs the `type` naming one or the file is refused before
         // the key under test is read at all.
+        // A RULE NAMES A PROFILE THE FILE DEFINES, so the sample writes the
+        // one it names beside it rather than being read as a rule pointing
+        // at nothing.
+        ("profiles", "rules") => "default = { quiet = false }\n",
         ("plugins.log", "type") => "",
         ("plugins.log", _) => "type = \"hermes\"\n",
         // THE THREE GOOGLE CREDENTIALS ARE READ TOGETHER OR NOT AT ALL, so a
@@ -191,6 +196,19 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
         "plugins",
         "{ log = { enabled = true, type = \"hermes\" } }",
     ),
+    (
+        super::TOP_LEVEL,
+        "profiles",
+        "{ default = { quiet = false } }",
+    ),
+    ("profiles", "location_poll", "\"30s\""),
+    ("profiles", "locations", "{ home = \"00:11:22:aa:bb:cc\" }"),
+    ("profiles", "rules", "[{ profile = \"default\" }]"),
+    (super::PROFILE_KEYS, "quiet", "true"),
+    (super::PROFILE_KEYS, "banner", "\"all\""),
+    (super::PROFILE_KEYS, "discord", "\"priority\""),
+    (super::PROFILE_KEYS, "phone", "\"all\""),
+    (super::PROFILE_KEYS, "lights", "\"none\""),
     (super::TOP_LEVEL, "recap", "{ post_window_recap = true }"),
     (super::TOP_LEVEL, "routes", "{ urgent = \"sirens\" }"),
     ("routes", "default", "\"logbook\""),

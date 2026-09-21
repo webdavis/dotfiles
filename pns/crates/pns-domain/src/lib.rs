@@ -36,6 +36,7 @@ pub mod missed;
 pub mod mute;
 mod notification;
 mod presence;
+pub mod profiles;
 pub mod pulse;
 pub mod recap;
 pub mod registry;
