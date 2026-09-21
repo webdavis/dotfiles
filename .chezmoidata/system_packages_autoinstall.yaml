@@ -319,7 +319,7 @@ packages:
     - name: dam
       repo: webdavis/damnit
       package: damnit
-      ref: dfe31427f7bc41a289aa0b48f9c3a75eb7689a0a
+      ref: bae8a19a6e268ce0a06b67620eb8b9b80c2eee2c
 
   # The herdr plugins this machine builds and LINKS rather than installing from
   # GitHub. `herdr plugin install` requires a herdr-plugin.toml committed in the
