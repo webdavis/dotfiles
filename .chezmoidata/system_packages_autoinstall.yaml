@@ -326,7 +326,7 @@ packages:
       ref: c587dda54e2fa71722630ae53974101cdf76989f
     - id: herdr-workspace-jump
       repo: webdavis/herdr-workspace-jump
-      ref: f71e8e791259da7cba3e490de68e3711d6670221
+      ref: 37621d26fff3d10fbb719e231d0cd891e75358d1
 
   herdr_plugins:
     # One roster, two consumers: run_after_53 installs a missing plugin at apply
