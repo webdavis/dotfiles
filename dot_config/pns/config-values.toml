@@ -145,24 +145,64 @@ url = "https://192.168.1.1"
 device_hostname = "mister"
 api_key = { keepassxc = "UniFi :: API Key (dresden-udr)", field = "Password" }
 
-# The reference implementer: dot_local/libexec/pns/executable_calendar-busy-window.sh,
-# deployed to ~/.local/libexec/pns/calendar-busy-window.sh. An absolute path
-# rather than the bare name the shipped example shows, because the daemon's
-# own PATH (com.webdavis.pns-daemon.plist.tmpl) carries ~/.local/bin and
-# /opt/homebrew/bin but not ~/.local/libexec/pns, and pns spawns argv[0]
-# through no shell, so a bare name here would never resolve; the literal home
-# is fine on that basis too, this machine is single-user. poll_interval and
-# deadline stay at their layout defaults.
+# No reference implementer exists yet; the Rust replacement is a pending PR.
+# `command` names a script the operator places by hand at the path below. An
+# absolute path rather than the bare name the shipped example shows, because
+# the daemon's own PATH (com.webdavis.pns-daemon.plist.tmpl) carries
+# ~/.local/bin and /opt/homebrew/bin but not ~/.local/libexec/pns, and pns
+# spawns argv[0] through no shell, so a bare name here would never resolve;
+# the literal home is fine on that basis too, this machine is single-user.
+# poll_interval and deadline stay at their layout defaults.
 #
 # enabled stays false until a live run against the real gog token is proven:
 # `gog auth list` currently times out opening the login keychain item
 # (macOS wants an interactive "Always Allow" click to clear it) and account
-# resolution has never succeeded on this machine. Flip to true once
-# ~/.local/libexec/pns/calendar-busy-window.sh prints the documented
-# document by hand.
+# resolution has never succeeded on this machine. Flip to true once the
+# script at the path below prints the documented document by hand.
 [quiet.calendar]
 enabled = false
 command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
+
+[profiles.default]
+note = """
+Today's behaviour, which is also what a machine with no profiles at all
+has."""
+quiet = false
+banner = "all"
+discord = "all"
+phone = "all"
+lights = "all"
+
+[profiles.work]
+note = """
+At the desk on somebody else's clock: the screen in front of you still
+talks, the phone and Discord only for a page, and nothing else posts or
+pulses."""
+quiet = true
+banner = "all"
+discord = "priority"
+phone = "priority"
+lights = "none"
+
+[profiles.night]
+note = """
+Asleep. Only a page gets through, on the phone and in Discord, and
+everything else is held and delivered as one roll-up when the profile
+next admits it."""
+quiet = true
+banner = "none"
+discord = "priority"
+phone = "priority"
+lights = "none"
+
+[[profiles.rules]]
+profile = "night"
+hours = "22:00-06:00"
+
+[[profiles.rules]]
+profile = "work"
+days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+hours = "09:00-17:00"
 
 # "5m" is the layout default and the operator's real setting, written out
 # because a table states its settings rather than arming them by being here.

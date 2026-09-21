@@ -42,6 +42,12 @@ impl SqliteStore {
         self.failing(|connection| failing::newest(connection, limit))
     }
 
+    /// How many failing legs are dead-lettered, unbounded by any listing
+    /// depth: what the recap's open section counts.
+    pub fn dead_lettered_leg_count(&self) -> Result<u64, LedgerFailure> {
+        self.failing(failing::dead_lettered_count)
+    }
+
     /// One failing leg by the id a listing showed, or `None` when that id names
     /// nothing failing: a leg that has since been acknowledged answers here the
     /// same way one that never existed does, because to the reader they are the

@@ -533,8 +533,8 @@ script beneath them is an implementation detail. Today that leaves three files i
 there by every caller. They left because the rule sorts private helpers of this checkout, and these are
 products other people install with `cargo install`; putting them where cargo puts everything else means
 one destination whether they arrived by apply or by install. The exemption is exactly those four. Every
-bash script under `libexec` keeps the rule, `pns/hooks/codex/install-hooks.sh` included, which is why
-`~/.local/libexec/pns` still exists with no binary in it.
+bash script under `libexec` keeps the rule. Nothing of pns lives under `libexec` any more: the Codex
+hooks are wired by `pns codex install-hooks`, run by `run_after_72`.
 
 Tools built from OTHER repositories install through the same `~/.cargo/bin`, from a pinned revision in
 the `cargo_git_tools` roster in `.chezmoidata/system_packages_autoinstall.yaml`, via
@@ -581,8 +581,8 @@ reads the harness payload on stdin and runs the one event path, and the bare `pn
 because it is what moshi's own generated pi and omp extensions are stuck with: their `helperBinary` field
 holds one pathname and has no room for a subcommand. A `pns gate <harness>-hook` spelling existed
 alongside it and is gone; a hook-shaped word the gate will not vouch for is refused with exit 2 and a
-sentence, never an exit 0 that forwarded nothing. `hooks/codex/install-hooks.sh` is the last bash left
-under `pns/`, because writing another tool's config file is what it does.
+sentence, never an exit 0 that forwarded nothing. `pns codex install-hooks` merges pns's four Codex hooks
+into `~/.codex/hooks.json`, and `run_after_72` is what runs it; pns ships no bash at all.
 
 **The shipped config template is a GENERATED FILE.** `dot_config/pns/private_config.toml.tmpl` is
 `render`'s own output over the committed `dot_config/pns/config-values.toml`, produced by

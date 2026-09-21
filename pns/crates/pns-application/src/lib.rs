@@ -139,7 +139,9 @@ pub use build_recap::{
     RECAP_USAGE, REVIEW_NOTES as REVIEW_NOTES_SECTION, Request as RecapRequest,
     SUMMARY as SUMMARY_SECTION, document, recap_bounds, recap_wall_clock,
 };
-pub use ports::recap::{ActivityEvents, Fetched, ReviewNoteSource, SourceCommands, Summarizer};
+pub use ports::recap::{
+    ActivityEvents, DeadLetteredLegs, Fetched, ReviewNoteSource, SourceCommands, Summarizer,
+};
 pub use post_return_recap::post_return_recap;
 
 mod calendar_registration;

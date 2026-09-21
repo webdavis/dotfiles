@@ -175,6 +175,7 @@ packages:
         - xcode-build-server
         - xcodegen
         - xcp
+        - xonsh
         - xz
         - yakitrak/yakitrak/notesmd-cli
         - yq

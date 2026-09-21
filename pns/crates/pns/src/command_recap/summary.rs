@@ -19,12 +19,17 @@ use pns_domain::recap::summarizer::{Settings, Summary};
 /// A MACHINE WITH NO SUMMARIZER GETS NO SECTION AT ALL, which is the working
 /// setting and the common one: the recap is the mechanical sections, as it was
 /// before the table existed.
+///
+/// `deadline` IS WHAT IS LEFT OF THE EPISODE, not `settings.deadline` again:
+/// the caller has already spent part of it on the timeline and the review
+/// notes, and this is the same budget's last call rather than a second one.
 pub(super) fn attach(
     assembled: &mut pns_application::Assembled,
     options: &Options,
     recap: &pns_adapters::Recap,
     window: &Resolved,
     store: &pns_adapters::SqliteStore,
+    deadline: std::time::Duration,
 ) {
     let settings = &recap.summarizer;
     if !settings.configured() {
@@ -37,18 +42,14 @@ pub(super) fn attach(
         return;
     }
     let asked = options.summarize || options.pregenerate;
-    // WITHOUT BEING ASKED, ONLY WHEN THE RECAP IS DELIVERED. `--summarize`
-    // asks for it on the terminal, and `--pregenerate` is the gateway writing
-    // one in the background.
-    if !asked && options.to.is_none() {
-        return;
-    }
     let stored = window
         .name
         .as_deref()
         .and_then(|name| store.recap_summary(name).ok().flatten());
     // A STORED SUMMARY IS SHOWN WITH THE TIME IT WAS WRITTEN, unless it is
     // older than the window's last event or the caller asked for a new one.
+    // THIS COSTS NO MODEL CALL, so it is shown on a bare terminal recap too,
+    // not only a delivered one.
     if let Some(held) = stored.filter(|held| !asked && held.covers >= assembled.last_event_at()) {
         assembled.with_summary(Summary {
             lines: vec![held.text],
@@ -58,9 +59,17 @@ pub(super) fn attach(
         });
         return;
     }
+    // WITHOUT BEING ASKED, A NEW SUMMARY IS WRITTEN ONLY WHEN THE RECAP IS
+    // DELIVERED. `--summarize` asks for it on the terminal, and
+    // `--pregenerate` is the gateway writing one in the background; a bare
+    // terminal recap with nothing stored gets no section rather than a model
+    // call it never asked for.
+    if !asked && options.to.is_none() {
+        return;
+    }
     let now = now_secs().unwrap_or_default();
     let written_at = pns_adapters::local_timestamp(now).unwrap_or_default();
-    let summary = match write(assembled, options, settings) {
+    let summary = match write(assembled, options, settings, deadline) {
         Ok(lines) => Summary {
             lines,
             written_at,
@@ -98,6 +107,7 @@ fn write(
     assembled: &pns_application::Assembled,
     options: &Options,
     settings: &Settings,
+    deadline: std::time::Duration,
 ) -> Result<Vec<String>, String> {
     let invocation = settings
         .invocation()
@@ -117,11 +127,10 @@ fn write(
             settings.transcript_bytes_total,
         ));
     }
-    let answered = pns_adapters::run_summarizer(&invocation, settings.deadline, &prompt)
-        .map_err(|failure| failure.line(settings.kind.word(), settings.deadline))?;
-    pns_domain::recap::prompt::summary_answer(&answered).ok_or_else(|| {
-        pns_adapters::SummarizerFailure::Silent.line(settings.kind.word(), settings.deadline)
-    })
+    let answered = pns_adapters::run_summarizer(&invocation, deadline, &prompt)
+        .map_err(|failure| failure.line(settings.kind.word(), deadline))?;
+    pns_domain::recap::prompt::summary_answer(&answered)
+        .ok_or_else(|| pns_adapters::SummarizerFailure::Silent.line(settings.kind.word(), deadline))
 }
 
 /// The instruction ahead of the document: the operator's own, or the one pns

@@ -10,6 +10,7 @@ pub(super) struct World {
     pub left: Cell<u64>,
     pub events: Vec<Event>,
     pub available: bool,
+    pub dead_lettered: usize,
 }
 impl World {
     pub fn one() -> Self {
@@ -17,6 +18,7 @@ impl World {
             log: RefCell::new(Vec::new()),
             left: Cell::new(0),
             available: true,
+            dead_lettered: 0,
             events: vec![Event {
                 at: 150,
                 agent: "agent".into(),
@@ -41,6 +43,7 @@ impl World {
             commands: self,
             notes: self,
             summarizer: self,
+            failures: self,
         }
         .assemble(
             &Request {
@@ -82,6 +85,11 @@ impl SourceCommands for World {
                 false,
             ),
         }
+    }
+}
+impl crate::DeadLetteredLegs for World {
+    fn dead_lettered(&self) -> usize {
+        self.dead_lettered
     }
 }
 impl ReviewNoteSource for World {

@@ -48,6 +48,11 @@ pub(super) fn run(
         eprintln!("pns: the activity store could not be opened, so there is no recap to give");
         return 2;
     }
+    // THE EPISODE'S END IS ONE INSTANT, SHARED WITH THE SUMMARY SECTION
+    // BELOW. `assemble` spends `[recap.summarizer] deadline` on the timeline
+    // and the review notes; the summary section is a second call over the
+    // same budget, not a second full deadline of its own.
+    let episode_ends_at = std::time::Instant::now() + recap.summarizer.deadline;
     let assembled = pns_application::BuildRecap {
         activity: &store,
         commands: &pns_adapters::ProcessSourceCommands,
@@ -55,17 +60,16 @@ pub(super) fn run(
             home: home.to_string(),
         },
         summarizer: &pns_adapters::ProcessSummarizer,
+        failures: &store,
     }
     .assemble(
         &request(options, recap, window),
         |at| pns_application::recap_wall_clock(at, local_minutes_since_midnight),
-        |budget| {
-            let end = std::time::Instant::now() + budget;
-            move || end.saturating_duration_since(std::time::Instant::now())
-        },
+        move |_budget| move || episode_ends_at.saturating_duration_since(std::time::Instant::now()),
     );
     let mut assembled = assembled;
-    super::summary::attach(&mut assembled, options, recap, window, &store);
+    let remaining = episode_ends_at.saturating_duration_since(std::time::Instant::now());
+    super::summary::attach(&mut assembled, options, recap, window, &store, remaining);
     // A PREGENERATING RUN PRINTS NOTHING AND DELIVERS NOTHING. It is the
     // gateway writing this window's paragraph into the store ahead of whoever
     // reads it next, so rendering a page would be a page nobody is looking at.
