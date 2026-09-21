@@ -227,12 +227,16 @@ pub(super) const QUIET_CALENDAR: Table = Table {
             # mute is on, and it ends when the event does. WHAT YOU TYPE ALWAYS WINS:\n\
             # a mute you set by hand is never shortened or cleared by this, and quiet\n\
             # you switch off during a meeting stays off for the rest of it.\n\
-            # THE CALENDAR IS WHATEVER `command` READS. It is run read-only on the\n\
-            # interval below, handed no input, and must answer on stdout with\n\
+            # `type` PICKS THE READER. Under \"command\" the calendar is whatever\n\
+            # `command` reads: it is run read-only on the interval below, handed no\n\
+            # input, and must answer on stdout with\n\
             # {\"events\": [{\"start\": <epoch>, \"end\": <epoch>, \"busy\": <true|false>}]},\n\
             # every event in the next hour or so, busy or not: pns picks the busy ones.\n\
-            # A command that fails, answers something else or runs long changes\n\
-            # nothing at all, and a mute already set stands until its own expiry.\n",
+            # Under \"google\" pns asks Google Calendar for the next hour of busy\n\
+            # intervals itself, over the calendars named below, with the three\n\
+            # credentials below. A poll that fails, answers something else or runs\n\
+            # long changes nothing at all, and a mute already set stands until its\n\
+            # own expiry.\n",
     opt_in: true,
     children: &[],
     keys: &[
@@ -242,10 +246,37 @@ pub(super) const QUIET_CALENDAR: Table = Table {
             sample: Sample::Default("false"),
         },
         Key {
+            name: "type",
+            prose: "# Which reader answers: \"command\" or \"google\".\n",
+            sample: Sample::Default("\"command\""),
+        },
+        Key {
             name: "command",
-            prose: "# ARGV, NEVER A SHELL STRING. It is your own command: pns names no\n\
-                         # calendar and holds no credential of one.\n",
+            prose: "# `type = \"command\"` only. ARGV, NEVER A SHELL STRING. It is your own\n\
+                         # command: pns names no calendar and holds no credential of one.\n",
             sample: Sample::Example("[\"calendar-busy-window\"]"),
+        },
+        Key {
+            name: "calendars",
+            prose: "# `type = \"google\"` only. The calendar ids read, as one union.\n",
+            sample: Sample::Default("[\"primary\"]"),
+        },
+        Key {
+            name: "client_id",
+            prose: "# `type = \"google\"` only, and all three are required together: the\n\
+                         # OAuth client and the refresh token minted for it. They travel into\n\
+                         # a request body and never into a log line.\n",
+            sample: Sample::Example("\"<oauth client id>\""),
+        },
+        Key {
+            name: "client_secret",
+            prose: "",
+            sample: Sample::Example("\"<oauth client secret>\""),
+        },
+        Key {
+            name: "refresh_token",
+            prose: "",
+            sample: Sample::Example("\"<oauth refresh token>\""),
         },
         Key {
             name: "poll_interval",

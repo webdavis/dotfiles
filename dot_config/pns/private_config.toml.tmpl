@@ -452,17 +452,31 @@ retain = "720h"
 # mute is on, and it ends when the event does. WHAT YOU TYPE ALWAYS WINS:
 # a mute you set by hand is never shortened or cleared by this, and quiet
 # you switch off during a meeting stays off for the rest of it.
-# THE CALENDAR IS WHATEVER `command` READS. It is run read-only on the
-# interval below, handed no input, and must answer on stdout with
+# `type` PICKS THE READER. Under "command" the calendar is whatever
+# `command` reads: it is run read-only on the interval below, handed no
+# input, and must answer on stdout with
 # {"events": [{"start": <epoch>, "end": <epoch>, "busy": <true|false>}]},
 # every event in the next hour or so, busy or not: pns picks the busy ones.
-# A command that fails, answers something else or runs long changes
-# nothing at all, and a mute already set stands until its own expiry.
+# Under "google" pns asks Google Calendar for the next hour of busy
+# intervals itself, over the calendars named below, with the three
+# credentials below. A poll that fails, answers something else or runs
+# long changes nothing at all, and a mute already set stands until its
+# own expiry.
 [quiet.calendar]
 enabled = false
-# ARGV, NEVER A SHELL STRING. It is your own command: pns names no
-# calendar and holds no credential of one.
+# Which reader answers: "command" or "google".
+type = "command"
+# `type = "command"` only. ARGV, NEVER A SHELL STRING. It is your own
+# command: pns names no calendar and holds no credential of one.
 command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
+# `type = "google"` only. The calendar ids read, as one union.
+calendars = ["primary"]
+# `type = "google"` only, and all three are required together: the
+# OAuth client and the refresh token minted for it. They travel into
+# a request body and never into a log line.
+# client_id = "<oauth client id>"
+# client_secret = "<oauth client secret>"
+# refresh_token = "<oauth refresh token>"
 # How often it is asked, bounded "30s" to "30m".
 poll_interval = "2m"
 # How long one run may take before it is killed and the poll leaves
