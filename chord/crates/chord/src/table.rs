@@ -62,6 +62,16 @@ pub enum RowFault {
     SeveralActions,
 }
 
+impl std::fmt::Display for RowFault {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            RowFault::NoAction => "names no action",
+            RowFault::SeveralActions => "names more than one action",
+        };
+        formatter.write_str(message)
+    }
+}
+
 impl Binding {
     pub fn action(&self) -> Result<Action<'_>, RowFault> {
         let candidates = [
