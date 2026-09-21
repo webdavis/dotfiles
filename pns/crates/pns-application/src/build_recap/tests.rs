@@ -178,3 +178,109 @@ fn the_document_is_the_golden_fixture_for_its_own_schema_version() {
         "the document's shape moved without its schema version moving with it"
     );
 }
+
+/// The page with a summary written over it, byte for byte.
+const SUMMARIZED_PAGE_GOLDEN: &str = include_str!("tests/recap-page-summarized.golden");
+/// And the document of the same recap, schema 1.
+const SUMMARIZED_DOCUMENT_GOLDEN: &str =
+    include_str!("tests/recap-document-schema-1-summarized.golden");
+/// The page when the summarizer left its one visible line instead.
+const FAILED_PAGE_GOLDEN: &str = include_str!("tests/recap-page-summary-failed.golden");
+/// And the document of that one.
+const FAILED_DOCUMENT_GOLDEN: &str =
+    include_str!("tests/recap-document-schema-1-summary-failed.golden");
+
+/// One summary, written or failed, as the composition root attaches it.
+fn summary(failed: bool) -> pns_domain::recap::summarizer::Summary {
+    pns_domain::recap::summarizer::Summary {
+        lines: vec![match failed {
+            true => "the claude summarizer could not be started".to_string(),
+            false => "Twelve sessions ran and one is blocked on p4; the review note is \
+                          waiting on you."
+                .to_string(),
+        }],
+        written_at: "2026-09-19T06:00:00-04:00".to_string(),
+        source: "claude".to_string(),
+        failed,
+    }
+}
+
+fn written(name: &str, body: &str) {
+    if std::env::var_os("PNS_WRITE_GOLDEN").is_some() {
+        std::fs::write(
+            format!(
+                "{}/src/build_recap/tests/{name}",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+            body,
+        )
+        .expect("the golden");
+    }
+}
+
+/// A SUMMARY AND ITS FAILURE ARE BOTH ONE VISIBLE THING, on the page and in
+/// the document alike, and the mechanical sections are identical either way.
+#[test]
+fn the_summary_and_its_failure_line_are_both_golden_on_the_page_and_in_the_document() {
+    for (failed, page_golden, page_name, document_golden, document_name) in [
+        (
+            false,
+            SUMMARIZED_PAGE_GOLDEN,
+            "recap-page-summarized.golden",
+            SUMMARIZED_DOCUMENT_GOLDEN,
+            "recap-document-schema-1-summarized.golden",
+        ),
+        (
+            true,
+            FAILED_PAGE_GOLDEN,
+            "recap-page-summary-failed.golden",
+            FAILED_DOCUMENT_GOLDEN,
+            "recap-document-schema-1-summary-failed.golden",
+        ),
+    ] {
+        let (world, recap) = golden_world();
+        let mut assembled = world.assemble(&recap, Vec::new());
+        assembled.with_summary(summary(failed));
+        let externals = assembled.externals();
+        let clock = |at: Option<u64>| format!("{}", at.unwrap_or_default());
+        let page = pns_domain::recap::sections::body(&assembled.page(&externals, &clock));
+        let node = document(&assembled, |at| format!("2026-09-19T00:00:{at:02}-04:00"));
+        written(page_name, &format!("{page}\n"));
+        written(document_name, &format!("{node:#?}\n"));
+        assert_eq!(page, page_golden.trim_end_matches('\n'));
+        assert_eq!(format!("{node:#?}\n"), document_golden);
+    }
+}
+
+/// THE MECHANICAL SECTIONS ARE UNAFFECTED BY A FAILED SUMMARY, which is the
+/// whole point of composing the paragraph into a section of its own: every
+/// line below it is built from the store and the source commands.
+#[test]
+fn a_failed_summary_changes_nothing_below_it_and_never_rewrites_open() {
+    let (world, recap) = golden_world();
+    let plain = world.build(&recap);
+    let (world, recap) = golden_world();
+    let mut assembled = world.assemble(&recap, Vec::new());
+    assembled.with_summary(summary(true));
+    let externals = assembled.externals();
+    let clock = |at: Option<u64>| format!("{}", at.unwrap_or_default());
+    let failed = pns_domain::recap::sections::body(&assembled.page(&externals, &clock));
+    let below = |body: &str| {
+        body.lines()
+            .skip_while(|line| *line != "AGENTS")
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(below(&failed), below(&plain), "{failed}");
+    assert!(
+        failed.contains("the claude summarizer could not be started"),
+        "the failure is visible with no -v asked for: {failed}"
+    );
+    // AND `open` IS COMPOSED WHATEVER THE SUMMARIZER SAID, which is why the
+    // paragraph is a section rather than a rewrite.
+    assert_eq!(
+        failed.lines().last(),
+        plain.lines().last(),
+        "the summarizer moved what is waiting on a person: {failed}"
+    );
+}

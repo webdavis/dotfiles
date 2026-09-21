@@ -1,5 +1,16 @@
+use super::command::{NO_ANSWER, NOT_THE_DOCUMENT, parse_calendar};
 use super::*;
 use crate::state_fixtures::scratch;
+
+/// One command source through the dispatch, which is the only way in.
+fn read_calendar(argv: &[String], deadline: Duration) -> Result<Vec<Event>, String> {
+    super::read_calendar(
+        &CalendarSource::Command(argv.to_vec()),
+        &scratch("quiet-calendar-dispatch"),
+        1_789_658_187,
+        deadline,
+    )
+}
 
 /// A doubled calendar command: `sh -c <script>`, which is how a test states a
 /// command that fails, stalls or answers nonsense without a fixture file.

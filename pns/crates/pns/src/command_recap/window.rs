@@ -61,7 +61,7 @@ pub(crate) fn resolve(
 }
 
 /// One named window's bounds, as the zone states them.
-fn named(
+pub(crate) fn named(
     window: Window,
     previous: bool,
     recap: &pns_adapters::Recap,

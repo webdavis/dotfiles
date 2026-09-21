@@ -23,6 +23,9 @@ pub struct Event {
     pub model: String,
     pub title: String,
     pub detail: String,
+    /// Where this session's own transcript lives, which `--with-transcripts`
+    /// reads and nothing else does. Empty for a harness that sends none.
+    pub transcript_path: String,
 }
 
 /// One session's events inside one window, in the order they arrived.
@@ -40,6 +43,8 @@ pub struct Session {
     /// truthful zero rather than a guess at how long the turn took.
     pub duration_secs: u64,
     pub last_state: String,
+    /// This session's own transcript, which `--with-transcripts` reads.
+    pub transcript_path: String,
     pub events: Vec<Event>,
 }
 
@@ -106,6 +111,7 @@ impl Session {
             model: event.model.clone(),
             duration_secs: 0,
             last_state: event.state.clone(),
+            transcript_path: event.transcript_path.clone(),
             events: vec![event.clone()],
         }
     }
@@ -116,6 +122,7 @@ impl Session {
         keep_latest(&mut self.workspace, &event.workspace);
         keep_latest(&mut self.model, &event.model);
         keep_latest(&mut self.harness, &event.agent);
+        keep_latest(&mut self.transcript_path, &event.transcript_path);
         if !event.state.is_empty() {
             self.last_state = event.state.clone();
         }
