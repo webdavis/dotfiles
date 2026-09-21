@@ -38,21 +38,24 @@ if [[ ! -x $cargo_bin ]]; then
   exit 0
 fi
 
-# already_installed <repo> <rev>: 0 iff ~/.cargo/.crates.toml already records
-# this exact git revision installed. `cargo install --git <url> --rev <rev>`
-# keys each line "<pkg> <version> (git+<url>?rev=<rev>#<rev>)" with the URL
-# byte-for-byte as passed (measured: no trailing .git added), so this passes
-# the identical URL and a repo+rev substring match is exact enough without a
-# TOML parser.
+# already_installed <repo> <rev> <name>: 0 iff the binary is present AND
+# ~/.cargo/.crates.toml already records this exact git revision installed. The
+# binary check catches a record surviving a removed binary (a hand rm, a
+# partial restore), which would otherwise leave the record alone and never
+# reinstall it. `cargo install --git <url> --rev <rev>` keys each crates.toml
+# line "<pkg> <version> (git+<url>?rev=<rev>#<rev>)" with the URL byte-for-byte
+# as passed (measured: no trailing .git added), so this passes the identical
+# URL and a repo+rev substring match is exact enough without a TOML parser.
 already_installed() {
-  local repo="$1" rev="$2"
+  local repo="$1" rev="$2" name="$3"
+  [[ -x "$install_root/bin/$name" ]] || return 1
   [[ -f $crates_toml ]] || return 1
   grep -qF "(git+https://github.com/${repo}?rev=${rev}" "$crates_toml"
 }
 
 deferred=0
 {{ range .packages.cargo_git_tools }}
-if already_installed {{ .repo | quote }} {{ .ref | quote }}; then
+if already_installed {{ .repo | quote }} {{ .ref | quote }} {{ .name | quote }}; then
   :
 else
   report_section 'cargo-git-tools' {{ .name | quote }}
