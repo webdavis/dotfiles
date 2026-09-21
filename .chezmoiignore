@@ -96,7 +96,6 @@ Library
 # The pns notification stack is macOS-only: the builder is darwin-gated, the
 # banner needs macOS, and shipping binary callers with no binary would leave
 # a Linux machine permanently engine-less.
-.local/libexec/pns
 .config/pns
 # The pi and omp reminder extensions call that engine, so they have nothing to
 # call on a machine where it is never built.
