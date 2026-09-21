@@ -320,6 +320,16 @@ packages:
   # via its own `generate` subcommand. The shared builder,
   # .chezmoiscripts/run_onchange_after_58, clones each pinned revision,
   # compiles it, generates its manifest and links the result.
+  # Tools built from someone else's git repository rather than this one, and
+  # installed into rust_tools.install_dir with `cargo install --git`. dam is
+  # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn;
+  # bumping `ref` reinstalls it on the next apply.
+  cargo_git_tools:
+    - name: dam
+      repo: webdavis/damnit
+      package: damnit
+      ref: dfe31427f7bc41a289aa0b48f9c3a75eb7689a0a
+
   herdr_linked_plugins:
     - id: herdr-process
       repo: webdavis/herdr-process
