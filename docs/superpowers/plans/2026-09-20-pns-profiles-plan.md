@@ -27,8 +27,8 @@ flushes the held roll-up through the replay path that already exists.
 - The three surface words are `"all"`, `"priority"` and `"none"`, and nothing else parses.
 - The five profile keys are `quiet`, `banner`, `discord`, `phone`, `lights`. No sixth.
 - The three shipped profiles are `default` (`quiet = false`, every surface `"all"`), `work`
-  (`quiet = true`, `banner = "all"`, `discord = "none"`, `phone = "priority"`, `lights = "none"`) and
-  `night` (`quiet = true`, `banner = "none"`, `discord = "none"`, `phone = "priority"`,
+  (`quiet = true`, `banner = "all"`, `discord = "priority"`, `phone = "priority"`, `lights = "none"`) and
+  `night` (`quiet = true`, `banner = "none"`, `discord = "priority"`, `phone = "priority"`,
   `lights = "none"`).
 - The five rule inputs are `days`, `hours`, `location`, `focus` and `calendar_busy`. First match wins;
   no match is `default`; a rule naming no input matches always.
@@ -40,7 +40,9 @@ flushes the held roll-up through the replay path that already exists.
 - A priority page is an event whose resolved route equals `[routes] urgent`, which on this machine is
   `priority`.
 - A profile's `quiet` never applies to a priority page. A surface at `"priority"` admits one. A profile
-  whose four surfaces are all `"none"` is a load error.
+  whose `discord` is `"none"` is a load error: banner and phone are already conditioned on presence
+  (`pns_domain::surface::plan`), so `discord`, the one leg `channel_plan` never masks by presence, is
+  the floor.
 - `pns mute` is unchanged and is not bound by the priority floor.
 - `calendar_busy` PARSES AND RESOLVES here and is read as `None` by the composition root: the live
   value is ledger task 126's to supply, and until it does, a rule naming `calendar_busy` matches
@@ -121,7 +123,7 @@ files: `pns/crates/pns-domain/src/profiles.rs`, `profiles/admission.rs` (and its
 `dot_config/pns/config-values.toml`, `dot_config/pns/private_config.toml.tmpl` (regenerated)
 callers-to-update-in-the-same-slice: none. Nothing reads the new fields yet.
 behaviour-to-pin: the three profiles and the two rules parse; a rule naming an undefined profile, a
-profile with four `"none"` surfaces, an unknown surface word, a malformed `hours` and an unknown
+profile whose `discord` is `"none"`, an unknown surface word, a malformed `hours` and an unknown
 weekday are each refused by their own message; the template regenerates byte-for-byte.
 risk: low. The config gains tables and the binary's behaviour does not change. The one sharp edge is
 the renderer: `[[profiles.rules]]` is the first array of tables in the layout, so it needs its own
@@ -176,8 +178,10 @@ behaviour-to-pin: a surface at `"none"` drops that leg; a surface at `"priority"
 ordinary event and keeps it for a priority page; a profile's `quiet` silences an ordinary event and
 never a priority page; `default` changes nothing about today's plan.
 risk: medium, and the highest in the ladder. This is the slice that can silence a notification. The
-guard is the floor test over every surface combination the config admits, plus the `default` test that
-pins today's behaviour exactly.
+guard is the floor test over every surface combination the config admits, composed with
+`crate::surface::plan` at the desk while watching the origin pane, the one presence state that zeroes
+both the banner and the phone card before a profile is even applied, plus the `default` test that pins
+today's behaviour exactly.
 size: medium
 
 SLICE 5: the transition record, the held record and the roll-up
@@ -242,7 +246,7 @@ fn the_three_words_are_the_whole_vocabulary() {
 }
 
 #[test]
-fn a_profile_with_every_surface_off_admits_no_page() {
+fn only_discord_is_the_floor_because_the_other_three_are_presence_gated() {
     let silent = Profile {
         quiet: true,
         banner: Admits::None,
@@ -253,8 +257,16 @@ fn a_profile_with_every_surface_off_admits_no_page() {
     assert!(!silent.admits_a_page());
     assert!(Profile::default().admits_a_page());
     assert!(
-        Profile { phone: Admits::Priority, ..silent.clone() }.admits_a_page(),
-        "one surface at priority is the whole floor"
+        !Profile { phone: Admits::Priority, ..silent.clone() }.admits_a_page(),
+        "phone alone is not the floor: it never fires at the desk"
+    );
+    assert!(
+        !Profile { banner: Admits::Priority, ..silent.clone() }.admits_a_page(),
+        "banner alone is not the floor: it never fires off the desk"
+    );
+    assert!(
+        Profile { discord: Admits::Priority, ..silent.clone() }.admits_a_page(),
+        "discord alone is the floor: channel_plan never masks it by presence"
     );
 }
 
@@ -382,15 +394,21 @@ impl Default for Profile {
 }
 
 impl Profile {
-    /// Whether a priority page reaches anything at all under this profile.
+    /// Whether a priority page reaches anything at all under this profile,
+    /// WHEREVER THE OPERATOR IS.
     ///
-    /// THE FLOOR, and it is checked at LOAD rather than at delivery: a config
-    /// that cannot express a silenced page is one no rule and no override can
-    /// select into silence.
+    /// THE FLOOR IS `discord` ALONE, and it is checked at LOAD rather than at
+    /// delivery: a config that cannot express a silenced page is one no rule
+    /// and no override can select into silence. `banner` and `phone` are not
+    /// part of this check because they are already conditioned on presence
+    /// before a profile ever sees them (`pns_domain::surface::plan`): banner
+    /// fires only at the desk, phone never fires at the desk. A profile
+    /// checked against "any one of the four" could pass this test while
+    /// still silencing a page in practice, if the operator happened to be
+    /// wherever the admitting surface does not reach. `discord` is the one
+    /// leg `channel_plan` never masks by presence.
     pub fn admits_a_page(&self) -> bool {
-        [self.banner, self.discord, self.phone, self.lights]
-            .iter()
-            .any(|surface| *surface != Admits::None)
+        self.discord != Admits::None
     }
 
     /// Whether this profile's own hush applies to an event.
@@ -454,7 +472,7 @@ fn the_five_keys_parse() {
     let night = parse_profile(
         "night",
         &table(
-            "quiet = true\nbanner = \"none\"\ndiscord = \"none\"\n\
+            "quiet = true\nbanner = \"none\"\ndiscord = \"priority\"\n\
              phone = \"priority\"\nlights = \"none\"\n",
         ),
     )
@@ -464,7 +482,7 @@ fn the_five_keys_parse() {
         Profile {
             quiet: true,
             banner: Admits::None,
-            discord: Admits::None,
+            discord: Admits::Priority,
             phone: Admits::Priority,
             lights: Admits::None,
         }
@@ -487,16 +505,24 @@ fn an_unknown_surface_word_is_refused_with_the_three_words() {
 }
 
 #[test]
-fn a_profile_that_silences_every_surface_is_refused_by_name() {
-    let refusal = parse_profile(
-        "night",
-        &table("banner = \"none\"\ndiscord = \"none\"\nphone = \"none\"\nlights = \"none\"\n"),
-    )
-    .expect_err("refused");
+fn a_profile_whose_discord_is_none_is_refused_by_name() {
+    let refusal = parse_profile("night", &table("discord = \"none\"\n")).expect_err("refused");
     assert_eq!(
         refusal.to_string(),
-        "profile `night` admits no priority page; at least one of banner, discord, phone, lights \
-         must be \"all\" or \"priority\""
+        "profile `night`'s `discord` is \"none\"; a priority page has to reach the durable log \
+         wherever you are, so `discord` must be \"all\" or \"priority\""
+    );
+}
+
+#[test]
+fn banner_and_phone_at_none_alone_do_not_trip_the_floor() {
+    let banner_and_phone_off = parse_profile(
+        "work",
+        &table("banner = \"none\"\nphone = \"none\"\ndiscord = \"priority\"\n"),
+    );
+    assert!(
+        banner_and_phone_off.is_ok(),
+        "the floor is discord alone, not any one of the four"
     );
 }
 
@@ -562,8 +588,8 @@ pub(super) fn parse_profile(name: &str, value: &toml::Value) -> Result<Profile, 
     // THE FLOOR, refused here rather than at delivery: see `admits_a_page`.
     if !profile.admits_a_page() {
         return Err(ConfigError::Invalid(format!(
-            "profile `{name}` admits no priority page; at least one of banner, discord, phone, \
-             lights must be \"all\" or \"priority\""
+            "profile `{name}`'s `discord` is \"none\"; a priority page has to reach the durable \
+             log wherever you are, so `discord` must be \"all\" or \"priority\""
         )));
     }
     Ok(profile)
@@ -632,7 +658,7 @@ fn the_shipped_shape_parses() {
     let read = parsed(
         "location_poll = \"30s\"\n\
          [default]\nquiet = false\n\
-         [night]\nquiet = true\nbanner = \"none\"\ndiscord = \"none\"\n\
+         [night]\nquiet = true\nbanner = \"none\"\ndiscord = \"priority\"\n\
          phone = \"priority\"\nlights = \"none\"\n\
          [locations]\nhome = \"00:11:22:aa:bb:cc\"\n\
          [[rules]]\nprofile = \"night\"\nhours = \"22:00-06:00\"\n\
@@ -913,7 +939,7 @@ Append to `pns/crates/pns-adapters/src/config/tests/loading.rs`:
 fn the_profiles_table_reaches_the_config() {
     let config = parse_config(
         "[profiles.default]\nquiet = false\n\
-         [profiles.night]\nquiet = true\nbanner = \"none\"\ndiscord = \"none\"\n\
+         [profiles.night]\nquiet = true\nbanner = \"none\"\ndiscord = \"priority\"\n\
          phone = \"priority\"\nlights = \"none\"\n\
          [[profiles.rules]]\nprofile = \"night\"\nhours = \"22:00-06:00\"\n",
     )
@@ -1069,9 +1095,8 @@ pub(super) const PROFILES: Table = Table {
             # hand. Each surface takes \"all\" (everything that surface would have\n\
             # shown), \"priority\" (pages on the [routes] urgent route and nothing\n\
             # else) or \"none\". A profile only ever SUBTRACTS from what presence\n\
-            # already decided, so it can never card a phone you are not near, and a\n\
-            # profile whose four surfaces are all \"none\" is refused: no profile can\n\
-            # silence a page.\n",
+            # already decided, so it can never card a phone you are not near, and\n\
+            # `discord` may never be \"none\": no profile can silence a page.\n",
     opt_in: false,
     children: &[],
     keys: &[Key {
@@ -1236,20 +1261,22 @@ phone = "all"
 lights = "all"
 
 # At the desk on somebody else's clock: the screen in front of you still
-# talks, the phone only for a page, and nothing pulses or posts.
+# talks, the phone and Discord only for a page, and nothing else posts or
+# pulses.
 [profiles.work]
 quiet = true
 banner = "all"
-discord = "none"
+discord = "priority"
 phone = "priority"
 lights = "none"
 
-# Asleep. Only a page gets through, and everything else is held and delivered
-# as one roll-up when the profile next admits it.
+# Asleep. Only a page gets through, on the phone and in Discord, and
+# everything else is held and delivered as one roll-up when the profile next
+# admits it.
 [profiles.night]
 quiet = true
 banner = "none"
-discord = "none"
+discord = "priority"
 phone = "priority"
 lights = "none"
 
@@ -2861,7 +2888,7 @@ fn pns_profile_work() -> crate::profiles::Profile {
     crate::profiles::Profile {
         quiet: true,
         banner: crate::profiles::Admits::All,
-        discord: crate::profiles::Admits::None,
+        discord: crate::profiles::Admits::Priority,
         phone: crate::profiles::Admits::Priority,
         lights: crate::profiles::Admits::None,
     }
@@ -2947,7 +2974,12 @@ Create `pns/crates/pns-domain/src/routing/profile_tests.rs`:
 use super::*;
 use crate::profiles::{Admits, Profile};
 
-fn night() -> Profile {
+/// A synthetic profile for exercising the mask mechanics in isolation. NOT
+/// the shipped `night`: the shipped one carries `discord = "priority"`, which
+/// is what the floor requires. This one keeps `discord = "none"` on purpose,
+/// to prove `SurfaceMask::of` masks whatever the profile says, whether or not
+/// the result would pass `admits_a_page`.
+fn heavily_masked() -> Profile {
     Profile {
         quiet: true,
         banner: Admits::None,
@@ -2960,7 +2992,7 @@ fn night() -> Profile {
 #[test]
 fn a_surface_at_none_drops_its_leg_and_all_keeps_it() {
     assert_eq!(
-        SurfaceMask::of(&night(), false),
+        SurfaceMask::of(&heavily_masked(), false),
         SurfaceMask { banner: false, discord: false, phone: false }
     );
     assert_eq!(
@@ -2973,13 +3005,13 @@ fn a_surface_at_none_drops_its_leg_and_all_keeps_it() {
 #[test]
 fn a_surface_at_priority_opens_only_for_a_page() {
     assert_eq!(
-        SurfaceMask::of(&night(), true),
+        SurfaceMask::of(&heavily_masked(), true),
         SurfaceMask { banner: false, discord: false, phone: true }
     );
 }
 
 #[test]
-fn every_profile_the_config_admits_lets_a_page_through_somewhere() {
+fn every_profile_the_config_admits_lets_a_page_through_discord() {
     let words = [Admits::All, Admits::Priority, Admits::None];
     for banner in words {
         for discord in words {
@@ -2990,15 +3022,77 @@ fn every_profile_the_config_admits_lets_a_page_through_somewhere() {
                         continue; // refused at load, which has its own test
                     }
                     let mask = SurfaceMask::of(&profile, true);
-                    let lit = profile.lights.admits(true);
                     assert!(
-                        mask.banner || mask.discord || mask.phone || lit,
-                        "{profile:?} silenced a priority page"
+                        mask.discord,
+                        "{profile:?} passed admits_a_page but did not mask discord open"
                     );
                 }
             }
         }
     }
+}
+
+/// THE COMPOSED PROOF. `SurfaceMask` alone cannot show the floor holds,
+/// because `delivery.banner` and `delivery.phone_card` are ALREADY false in
+/// the worst presence states before a profile ever sees them
+/// (`crate::surface::plan`): banner only at the desk with the origin pane not
+/// already on screen, phone never at the desk at all. This composes the real
+/// `channel_plan` the way `arbitration.rs` does, at the desk, watching the
+/// origin pane, which is the one state that zeroes both `delivery.banner` and
+/// `delivery.phone_card` at once, and proves the shipped `night` profile
+/// still reaches something: the durable leg.
+#[test]
+fn night_still_reaches_discord_at_the_desk_while_watching_the_origin_pane() {
+    use crate::registry::{Registry, Routing};
+
+    let mut registry = Registry::new();
+    registry
+        .register_channel(
+            "banner",
+            Routing { local: true, presence_gated: false, durable: false, event_dispatched: true },
+        )
+        .expect("registers");
+    registry
+        .register_channel(
+            "phone",
+            Routing { local: false, presence_gated: true, durable: false, event_dispatched: true },
+        )
+        .expect("registers");
+    registry
+        .register_channel(
+            "discord",
+            Routing { local: false, presence_gated: false, durable: true, event_dispatched: true },
+        )
+        .expect("registers");
+    let switches = ["banner", "phone", "discord"]
+        .into_iter()
+        .map(|name| (name.to_string(), true))
+        .collect();
+    let selection = registry.enabled(&switches).expect("enabled");
+
+    let night = Profile {
+        quiet: true,
+        banner: Admits::None,
+        discord: Admits::Priority,
+        phone: Admits::Priority,
+        lights: Admits::None,
+    };
+    let delivery = crate::surface::plan(
+        crate::surface::Surface::Desk,
+        crate::surface::Visibility::Visible,
+        false,
+        false,
+    );
+    assert!(!delivery.banner, "watching the origin pane at the desk silences the banner");
+    assert!(!delivery.phone_card, "the phone card never fires at the desk");
+
+    let mask = SurfaceMask::of(&night, true);
+    let legs = channel_plan(&selection, crate::DeliveryScope::Automatic, delivery, &mask);
+    assert_eq!(
+        legs.iter().map(|leg| leg.name).collect::<Vec<_>>(),
+        vec!["discord"],
+        "a priority page at the desk while watching still reaches the durable log"
+    );
 }
 ```
 
@@ -3103,7 +3197,7 @@ them; the production caller is `arbitration.rs` above, and the rest are tests th
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cargo test --manifest-path pns/Cargo.toml -p pns-domain`
-Expected: PASS, three new tests and every existing routing test.
+Expected: PASS, four new tests and every existing routing test.
 
 - [ ] **Step 5: Commit**
 
@@ -3896,8 +3990,11 @@ After the slice-5 apply, on dresden, with the gateway running:
 3. Add a rule naming that location, apply, and move the machine to another network.
 4. Watch the gateway's log for the transition line within one `location_poll`, and read the row back
    with the store query in Task 18's test.
-5. Send a priority page under `night` (`pns send --producer drill --state failed
-   --delivery-class health --detail "floor drill"`) and confirm it lands on the phone.
+5. Send a priority page under `night` while the machine reads as away (`pns send --producer drill
+   --state failed --delivery-class health --detail "floor drill"`) and confirm it lands on the phone.
+6. Send the same page while sitting at the desk with the originating pane on screen, the one state a
+   unit test cannot reach, and confirm it still lands in Discord even though neither the banner nor the
+   phone fires.
 
-That fifth step is the one no unit test stands in for: the floor is what the whole feature is judged
-on.
+Steps 5 and 6 are the ones no unit test stands in for: the floor is what the whole feature is judged on,
+and it has to hold in both presence states, not only the one where the phone was already going to fire.

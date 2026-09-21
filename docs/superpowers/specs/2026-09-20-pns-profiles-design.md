@@ -78,20 +78,22 @@ phone = "all"
 lights = "all"
 
 # At the desk on somebody else's clock: the screen in front of you still
-# talks, the phone only for a page, and nothing pulses or posts.
+# talks, the phone and Discord only for a page, and nothing else posts or
+# pulses.
 [profiles.work]
 quiet = true
 banner = "all"
-discord = "none"
+discord = "priority"
 phone = "priority"
 lights = "none"
 
-# Asleep. Only a page gets through, and everything else is held and delivered
-# as one roll-up when the profile next admits it.
+# Asleep. Only a page gets through, on the phone and in Discord, and
+# everything else is held and delivered as one roll-up when the profile next
+# admits it.
 [profiles.night]
 quiet = true
 banner = "none"
-discord = "none"
+discord = "priority"
 phone = "priority"
 lights = "none"
 ```
@@ -109,9 +111,15 @@ A profile chooses HOW a priority page arrives and never WHETHER. Three rules car
    `bypass_mute = true` class crosses a timed mute today.
 2. A surface at `"priority"` admits a priority page. A surface at `"none"` does not, which is how a
    profile chooses phone over banner or the other way round.
-3. A profile in which EVERY surface is `"none"` admits no page at all, and is a load error naming the
-   profile. This is the floor made structural: the config cannot express a profile that silences a
-   page, so no rule and no override can select one.
+3. `discord` may never be `"none"`, which is a load error naming the profile. This is the floor made
+   structural, and it names `discord` rather than "any one of the four" because banner and phone are
+   already conditioned on presence before a profile ever sees them (`pns_domain::surface::plan`):
+   banner fires only at the desk and only when the origin pane is not already the one on screen, and
+   the phone card never fires at the desk at all. Neither can promise a page reaches anything wherever
+   the operator happens to be, so a profile whose floor rested on them could still silence a page in
+   practice while passing a load check that only looked at the profile in isolation. `discord` is the
+   one leg `channel_plan` never masks by presence (it is the durable log every event reaches), so it is
+   the one surface no profile may turn off.
 
 GAP DECISION (the operator's own mute is sovereign). The floor binds profiles, rules and
 `pns profile <name>`. It does not bind `pns mute`, which is the operator typing a hush by hand with an
@@ -372,8 +380,8 @@ Bare, with an override standing:
 
 ```
 pns: profile `night` (manual, until 17:30)
-     quiet on; banner none, Discord none, phone priority, lights none
-     holding since 22:04: 2 done
+     quiet on; banner none, Discord priority, phone priority, lights none
+     held while `night`: 2 done
 ```
 
 Bare, chosen by a rule:
@@ -400,7 +408,7 @@ intended, which is `pns mute`'s own rule: the line cannot claim a profile that n
 | Situation | Where | Message | Exit |
 | --- | --- | --- | --- |
 | A rule names an undefined profile | config load | ``rule 2 names profile `meeting`, which no `[profiles.meeting]` table defines`` | load error |
-| A profile's surfaces are all `"none"` | config load | ``profile `night` admits no priority page; at least one of banner, discord, phone, lights must be "all" or "priority"`` | load error |
+| A profile's `discord` is `"none"` | config load | ``profile `night`'s `discord` is "none"; a priority page has to reach the durable log wherever you are, so `discord` must be "all" or "priority"`` | load error |
 | A surface word is not one of the three | config load | ``unknown `profiles.night` value for `phone`; a surface is "all", "priority" or "none"`` | load error |
 | `hours` is not `HH:MM-HH:MM` | config load | ``rule 1 has hours "22:00", which is not a HH:MM-HH:MM window`` | load error |
 | `days` names no weekday | config load | ``rule 1 has day "Funday"; a day is Mon, Tue, Wed, Thu, Fri, Sat or Sun`` | load error |
@@ -424,9 +432,13 @@ Unit tests, all pure, all in the domain crate:
   matches always.
 - The override: it beats every rule; an expired one does not; an unbounded one stands; an unreadable
   clock leaves an override standing; a malformed stored body reads as no override.
-- The priority floor: for EVERY shipped profile and for a generated profile of every surface
-  combination the config admits, a priority page reaches at least one surface. The all-`"none"` profile
-  is refused at load, which is the other half and has its own test.
+- The priority floor: for EVERY shipped profile, and for a generated profile of every surface
+  combination the config admits, a priority page reaches Discord. A profile with `discord = "none"` is
+  refused at load whatever the other three surfaces are, which is the other half and has its own test.
+  Composed with `pns_domain::surface::plan` at the desk with the origin pane already on screen, the one
+  presence state that zeroes both the banner and the phone card before a profile is even applied, the
+  same page still reaches Discord through the composed `channel_plan`, which is what proves the floor
+  holds against presence and not only against the profile read in isolation.
 - The fingerprint: the two refusal cases, and the octet normalization.
 - The roll-up wording: blocked first, singular and plural, a state with no events omitted, the profile
   named is the one that held.
