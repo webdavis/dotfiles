@@ -39,11 +39,12 @@ pub(super) fn summarize_notes(
     sourcing: &Sourcing,
     prompt: fn(&[Sourced]) -> String,
 ) -> Option<Vec<String>> {
-    let (Some(argv), Sourcing::Read(sources, _)) = (recap.summarizer.as_deref(), sourcing) else {
+    let (Some(invocation), Sourcing::Read(sources, _)) = (recap.summarizer.invocation(), sourcing)
+    else {
         return None;
     };
     if sources.is_empty() {
         return None;
     }
-    summarizer.summarize(argv, left(), &prompt(sources))
+    summarizer.summarize(&invocation, left(), &prompt(sources))
 }

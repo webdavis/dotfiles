@@ -139,6 +139,14 @@ pub(super) const DAEMON_NEVER_RAN_LINE: &str = "the daemon is enabled and has no
 /// fires): the two read as one paragraph.
 pub(super) const REMIND_OFF_LINE: &str = "the reminder is off (no `[remind] delay`)";
 
+/// And what it says about the summarizer on a machine whose `[recap.summarizer]`
+/// is the shipped `custom` with no command, which is every machine until an
+/// operator names a backend: the recap is then its mechanical sections and
+/// writes no paragraph. IT IS A NOTE, not a warning, for `HOME_UNCONFIGURED_LINE`'s
+/// reason: nobody asked for a summary here.
+pub(super) const SUMMARIZER_UNCONFIGURED_LINE: &str =
+    "no summarizer is configured, so a recap has no summary";
+
 /// And what it says about the home probe on a machine whose config names no
 /// router. IT IS A NOTE, not a warning: nobody asked for a home reading here,
 /// and grading that choice as a fault would withhold the report's all-clear on

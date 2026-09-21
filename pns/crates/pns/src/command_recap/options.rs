@@ -23,6 +23,16 @@ pub(crate) struct Options {
     pub verbose: bool,
     /// The internal hand-off: this child's stdin carries the return card.
     pub card_on_stdin: bool,
+    /// `--summarize`: ask the summarizer on the terminal too, and regenerate
+    /// a stored summary rather than show it.
+    pub summarize: bool,
+    /// `--with-transcripts`: append each session's own assistant turns to what
+    /// the summarizer is handed, over and above `[recap.summarizer]
+    /// transcripts`.
+    pub with_transcripts: bool,
+    /// The gateway's own background pass: write this window's summary into the
+    /// store and print nothing.
+    pub pregenerate: bool,
 }
 
 /// How the window was named. THE FOUR SPELLINGS ARE ONE FIELD, which is what
@@ -66,6 +76,9 @@ pub(crate) fn options(arguments: &[String]) -> Option<Options> {
             "-v" | "--verbose" => options.verbose = true,
             "--previous" => previous = true,
             pns_adapters::CARD_ON_STDIN => options.card_on_stdin = true,
+            "--summarize" => options.summarize = true,
+            "--with-transcripts" => options.with_transcripts = true,
+            PREGENERATE => options.pregenerate = true,
             "--json" => options.format = Some(Wire::Json),
             "--toon" => options.format = Some(Wire::Toon),
             "--section" => options.sections.push(words.next()?.clone()),
@@ -133,6 +146,12 @@ pub(crate) fn options(arguments: &[String]) -> Option<Options> {
 
 /// The verb that prints what is waiting on a person, with no window.
 pub(crate) const OPEN: &str = "open";
+
+/// The gateway's own flag: write the window's summary into the store and
+/// print nothing. IT IS NOT A SECOND VERB, because everything else about the
+/// run is a recap of that window and a verb would be a second path to keep in
+/// step with this one.
+pub(crate) const PREGENERATE: &str = "--pregenerate";
 
 #[cfg(test)]
 #[path = "options/tests.rs"]

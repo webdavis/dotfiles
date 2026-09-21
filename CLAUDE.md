@@ -236,7 +236,7 @@ rather than a deployed copy. That is why none of them carries a "crate source is
 deferral any more: the builder's own hash comment `include`s each manifest at render time, so a missing
 one aborts the apply before the script is ever written.
 
-`chord/` is a fifth workspace of the same shape, and the only one nothing installs: it is a generator
+`chord/` is another workspace of the same shape, and the only one nothing installs: it is a generator
 this repository runs at development time, the way `pns-config-render` is. `chord render bash` turns the
 shell-agnostic binding table at `dot_config/chord/bindings.toml` (target `~/.config/chord/bindings.toml`)
 into readline `bind` calls, so the chords are written once in a plain notation rather than in each
@@ -245,13 +245,8 @@ config template uses: regenerate it with `just chord-render`, and a hand edit fa
 line in `just test-rust`. The shell those bindings call, and the `\C-x0` helper macro they start with,
 live in `dot_bash_bindings_functions`, which `~/.bashrc` sources first.
 
-`morning/` is another workspace of the same shape, built by
-`.chezmoiscripts/run_onchange_after_55-build-morning.sh.tmpl`. It prints one framed page (the last apply,
-the applies the ledger owes, the open pull requests, the newest overnight recap, the operator's own items
-and today's tasks) and exits. It reads and prints only: it never applies, merges or edits anything. Every
-source it reads is named in `~/.config/morning/config.toml`, including the ledger path, so the binary
-works on a machine where this repository does not exist. `gh` and `td` are spawned with their own
-credentials; morning reads no secret.
+`pns recap` prints the day's brief now, folding in the last apply, the applies the ledger owes, the open
+pull requests, the newest overnight recap, the operator's own items and today's tasks.
 
 The layout exists so that lifting a tool into its own public repository later is a `git subtree split`
 rather than a rewrite. NOTHING inside a workspace may assume this repository exists: these are tools

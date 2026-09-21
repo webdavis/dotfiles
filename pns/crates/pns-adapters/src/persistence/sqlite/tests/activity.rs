@@ -15,6 +15,7 @@ fn event(at: u64) -> ActivityEvent {
         model: "claude-opus-5".to_string(),
         title: "claude blocked in dotfiles".to_string(),
         detail: "Bash(rm -rf build)".to_string(),
+        transcript_path: "/transcripts/s1.jsonl".to_string(),
     }
 }
 
@@ -61,7 +62,9 @@ fn a_store_on_the_previous_schema_migrates_once_and_reopening_it_changes_nothing
     let store = SqliteStore::new(state.clone());
     let connection = store.connect().unwrap();
     connection
-        .execute_batch("DROP TABLE activity_events; PRAGMA user_version = 10;")
+        .execute_batch(
+            "DROP TABLE activity_events; DROP TABLE recap_summaries; PRAGMA user_version = 10;",
+        )
         .unwrap();
     drop(connection);
 

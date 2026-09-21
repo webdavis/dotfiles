@@ -171,3 +171,54 @@ pub(super) const INSTRUCTION: &str = "Below are the events of one stretch of una
      about. Select and compress only: never state anything that is not below, and never \
      count anything. Answer with the timeline lines alone, no heading, no numbering and no \
      commentary.\n\n";
+/// What the summarizer is asked of the whole recap, ahead of the document
+/// itself.
+///
+/// ONE PARAGRAPH OVER THE MECHANICAL DOCUMENT, which is the section's whole
+/// job: the counts, the rows and the open list stay exact underneath it, so
+/// the model is asked to say what matters rather than to restate them.
+///
+/// `open` IS NAMED AS OFF LIMITS, and, as `INSTRUCTION` says of its own
+/// wording, that sentence is not the defence. The summary is composed into a
+/// section of its own and `open` is built from the store and the source
+/// commands whatever the model answers, so an answer that rewrote it would
+/// render as part of the paragraph and move nothing.
+pub const SUMMARY_INSTRUCTION: &str = "Below is one machine's recap of a window of work, as a JSON \
+     document.\n\n\
+     Write ONE short paragraph, at most 5 sentences, saying what moved, what is waiting, and what \
+     the operator should look at first. Select and compress only: never state anything that is not \
+     below, never count anything, and never restate the `open` list, which the reader is shown in \
+     full underneath you. Answer with the paragraph alone, no heading and no commentary.\n\n";
+
+/// The summary prompt: the instruction, then the document it is about.
+///
+/// THE INSTRUCTION IS A PARAMETER because `[recap.summarizer] prompt` and
+/// `prompt_file` replace it. pns still appends the document, so the operator
+/// writes the instruction and never the plumbing.
+pub fn summary_prompt(instruction: &str, document: &str) -> String {
+    format!("{instruction}{document}\n")
+}
+
+/// What one summary answer becomes: its lines, flattened and capped, or None
+/// for every way of saying nothing usable.
+///
+/// THE SAME TREATMENT A TIMELINE LINE GETS, for the same reason: this is text
+/// pns did not write, arriving in a message pns signs its name to and in a
+/// document another tool parses. THE WIDTH IS THE PARAGRAPH'S OWN, because a
+/// summary is prose rather than a row, and the timeline's row width would cut
+/// an honest answer to its first sentence.
+pub fn summary_answer(raw: &str) -> Option<Vec<String>> {
+    if raw.len() > MAX_ANSWER_BYTES || raw.contains('\u{FFFD}') {
+        return None;
+    }
+    let lines: Vec<String> = raw
+        .lines()
+        .map(|line| safe_line(line, SUMMARY_MAX_CHARS))
+        .filter(|line| !line.is_empty())
+        .collect();
+    (!lines.is_empty()).then_some(lines)
+}
+
+/// How wide one line of a summary may be. FIVE SENTENCES OF PROSE, which is
+/// what the instruction asks for and roughly four times a timeline row.
+const SUMMARY_MAX_CHARS: usize = 480;
