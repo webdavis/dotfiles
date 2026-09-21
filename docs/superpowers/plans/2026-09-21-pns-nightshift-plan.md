@@ -1906,8 +1906,10 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): plan the night's handoff from the led
 
 **Interfaces:**
 - Consumes: `pns_application::DetachedSpawner`, `pns_adapters::SystemDetachedSpawner`,
-  `pns_adapters::{LoadOutcome, config_path, load_config, local_civil}`, `crate::{now_secs, state_dir}`,
-  and the profile override setter `pns profile <name> --until <HH:MM>` calls.
+  `pns_adapters::{LoadOutcome, config_path, load_config, local_civil, SqliteStore}`,
+  `pns_domain::profiles::Override`, `crate::{now_secs, state_dir}`, and
+  `crate::command_profile::{parse_bound, report}` and `crate::profile_runtime::minutes_now`, the
+  override path `pns profile <name> --until <HH:MM>` already uses.
 - Produces: `nightshift_mode()` in full, and `hand_off(...)` which the tests drive with a scripted
   spawner.
 
@@ -2196,7 +2198,18 @@ pub(crate) fn nightshift_mode() -> i32 {
         return 0;
     }
     let goal = goal_path(&table, &crate::state_dir().display().to_string(), &date);
-    let mut select = crate::command_profile::selector();
+    let records = pns_adapters::SqliteStore::for_records(crate::state_dir());
+    let mut select = |profile: &str, until: &str| -> Result<(), String> {
+        let bound = crate::command_profile::parse_bound(
+            &["--until".to_string(), until.to_string()],
+            crate::now_secs(),
+            crate::profile_runtime::minutes_now(),
+        )?;
+        let standing = pns_domain::profiles::Override { profile: profile.to_string(), until: bound };
+        records
+            .set_profile_override(Some(&standing))
+            .map_err(|error| error.to_string())
+    };
     match hand_off(
         &plan.goal,
         &table,
@@ -2221,7 +2234,7 @@ pub(crate) fn nightshift_mode() -> i32 {
             // READ BACK rather than rendered from what the run intended, which
             // is `pns mute`'s rule and `pns profile`'s: the line cannot claim
             // a profile that never landed.
-            println!("     {}", crate::command_profile::active_line());
+            let _ = crate::command_profile::report(&records);
             0
         }
     }
@@ -2239,11 +2252,13 @@ fn read(path: &str, home: &str) -> std::io::Result<String> {
 }
 ```
 
-`crate::command_profile::selector()` and `crate::command_profile::active_line()` are the two functions
-this task adds to the profiles command module: the first is the override setter `pns profile <name>
---until <HH:MM>` already calls, handed out as a closure over the same store; the second is the one line
-`pns profile` prints about the active profile, read back from the store. Neither is new behaviour and
-neither is tested again here; profiles slice 2's own tests pin both.
+The closure is built here over two seams profiles slice 2 already ships: `command_profile::parse_bound`
+turns `--until <HH:MM>` into the same epoch bound `pns profile <name> --until <HH:MM>` computes, and
+`SqliteStore::set_profile_override` is the one write either verb makes. Nightshift never learns how an
+override is stored. `command_profile::report`, the two lines `pns profile` itself prints, is turned
+`pub(crate)` so this task can call it for the read-back; that is the one visibility change this task
+makes to `command_profile.rs`. Nothing here is tested again: profiles slice 2's own tests already pin
+`parse_bound`, `set_profile_override` and `report`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
