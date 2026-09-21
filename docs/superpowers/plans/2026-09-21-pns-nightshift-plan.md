@@ -1449,8 +1449,9 @@ use super::*;
 
 #[test]
 fn a_started_child_writes_to_the_log_and_reports_its_own_id() {
-    let directory = tempfile::tempdir().expect("a temporary directory");
-    let log = directory.path().join("night.log");
+    let directory = std::env::temp_dir().join(format!("pns-nightshift-detached-write-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let log = directory.join("night.log");
     let id = SystemDetachedSpawner
         .spawn("/bin/sh", &["-c", "printf started"], &log)
         .expect("/bin/sh starts");
@@ -1469,12 +1470,13 @@ fn a_started_child_writes_to_the_log_and_reports_its_own_id() {
 
 #[test]
 fn a_program_that_is_not_there_is_a_sentence_rather_than_a_panic() {
-    let directory = tempfile::tempdir().expect("a temporary directory");
+    let directory = std::env::temp_dir().join(format!("pns-nightshift-detached-missing-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
     let error = SystemDetachedSpawner
         .spawn(
             "/nonexistent/launcher",
             &[],
-            &directory.path().join("night.log"),
+            &directory.join("night.log"),
         )
         .expect_err("a missing program does not start");
     assert!(!error.is_empty(), "the refusal says why");
@@ -1582,8 +1584,8 @@ mod process;
 pub use process::detached::SystemDetachedSpawner;
 ```
 
-with `pns/crates/pns-adapters/src/process.rs` holding `pub mod detached;`. `libc` and `tempfile` are
-already dependencies of this crate; add neither.
+with `pns/crates/pns-adapters/src/process.rs` holding `pub mod detached;`. `libc` is already a
+dependency of this crate; add nothing new.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1924,8 +1926,9 @@ fn launching() -> Nightshift {
 
 #[test]
 fn a_handoff_writes_the_goal_then_launches_then_selects_the_profile() {
-    let directory = tempfile::tempdir().expect("a temporary directory");
-    let goal = directory.path().join("tonight.md");
+    let directory = std::env::temp_dir().join(format!("pns-nightshift-handoff-write-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let goal = directory.join("tonight.md");
     let spawner = ScriptedSpawner { answer: Ok(4242), seen: RefCell::new(Vec::new()) };
     let mut selected: Option<(String, String)> = None;
     let outcome = hand_off(
@@ -1950,7 +1953,8 @@ fn a_handoff_writes_the_goal_then_launches_then_selects_the_profile() {
 
 #[test]
 fn a_launch_that_did_not_start_leaves_the_machine_loud() {
-    let directory = tempfile::tempdir().expect("a temporary directory");
+    let directory = std::env::temp_dir().join(format!("pns-nightshift-handoff-noloud-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
     let spawner = ScriptedSpawner {
         answer: Err("no such file".to_string()),
         seen: RefCell::new(Vec::new()),
@@ -1959,7 +1963,7 @@ fn a_launch_that_did_not_start_leaves_the_machine_loud() {
     let outcome = hand_off(
         "goal\n",
         &launching(),
-        &directory.path().join("tonight.md"),
+        &directory.join("tonight.md"),
         &spawner,
         &mut |_, _| {
             selected = true;
@@ -1975,8 +1979,9 @@ fn a_launch_that_did_not_start_leaves_the_machine_loud() {
 
 #[test]
 fn no_launcher_writes_the_goal_and_still_selects_the_profile() {
-    let directory = tempfile::tempdir().expect("a temporary directory");
-    let goal = directory.path().join("tonight.md");
+    let directory = std::env::temp_dir().join(format!("pns-nightshift-handoff-nolauncher-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let goal = directory.join("tonight.md");
     let spawner = ScriptedSpawner { answer: Ok(1), seen: RefCell::new(Vec::new()) };
     let mut selected = false;
     let outcome = hand_off(
