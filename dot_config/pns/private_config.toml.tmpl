@@ -555,6 +555,8 @@ deadline = "20s"
 # A network change moves the profile within one poll.
 location_poll = "30s"
 
+# Today's behaviour, which is also what a machine with no profiles at all
+# has.
 [profiles.default]
 quiet = false
 banner = "all"
@@ -562,6 +564,9 @@ discord = "all"
 phone = "all"
 lights = "all"
 
+# Asleep. Only a page gets through, on the phone and in Discord, and
+# everything else is held and delivered as one roll-up when the profile
+# next admits it.
 [profiles.night]
 quiet = true
 banner = "none"
@@ -569,6 +574,9 @@ discord = "priority"
 phone = "priority"
 lights = "none"
 
+# At the desk on somebody else's clock: the screen in front of you still
+# talks, the phone and Discord only for a page, and nothing else posts or
+# pulses.
 [profiles.work]
 quiet = true
 banner = "all"
