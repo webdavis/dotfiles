@@ -231,3 +231,30 @@ fn an_open_that_loses_the_wal_conversion_still_records() {
         )
         .expect("the open that lost the conversion still writes records");
 }
+
+#[test]
+fn the_profile_override_round_trips_and_clears() {
+    let store = SqliteStore::new(state());
+    assert_eq!(store.profile_override().expect("a read"), None);
+    let standing = pns_domain::profiles::Override {
+        profile: "night".to_string(),
+        until: Some(1_758_420_600),
+    };
+    store.set_profile_override(Some(&standing)).expect("a write");
+    assert_eq!(store.profile_override().expect("a read"), Some(standing));
+    store.set_profile_override(None).expect("a clear");
+    assert_eq!(store.profile_override().expect("a read"), None);
+}
+
+#[test]
+fn a_body_nothing_can_read_is_no_override_rather_than_an_error() {
+    let store = SqliteStore::new(state());
+    store
+        .write_profile_override_body("night tomorrow")
+        .expect("a write");
+    assert_eq!(
+        store.profile_override().expect("a read"),
+        None,
+        "an unreadable body puts the rules back in charge"
+    );
+}

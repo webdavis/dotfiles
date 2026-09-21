@@ -11,6 +11,7 @@ pub(super) enum Scalar {
     QuietComplaint,
     News,
     Streak,
+    Profile,
 }
 impl Scalar {
     pub(super) fn file(self) -> &'static str {
@@ -21,6 +22,7 @@ impl Scalar {
             Self::QuietComplaint => "lights-quiet-said",
             Self::News => "lights-news",
             Self::Streak => "lights-streak",
+            Self::Profile => "profile-override",
         }
     }
     pub(super) fn table(self) -> &'static str {
@@ -31,6 +33,7 @@ impl Scalar {
             Self::QuietComplaint => "quiet_complaint",
             Self::News => "lamp_news",
             Self::Streak => "lamp_streak",
+            Self::Profile => "profile_override",
         }
     }
     pub(super) fn read(self, connection: &Connection) -> Result<Option<String>, StoreError> {
