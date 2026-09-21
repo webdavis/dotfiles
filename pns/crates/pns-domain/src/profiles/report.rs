@@ -1,4 +1,4 @@
-use super::{Admits, Chose, Profile};
+use super::{Chose, Profile};
 
 /// Why this profile is the active one, in one clause.
 ///

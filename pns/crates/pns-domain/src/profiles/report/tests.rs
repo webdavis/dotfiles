@@ -1,4 +1,5 @@
 use super::*;
+use crate::profiles::Admits;
 
 #[test]
 fn every_way_a_profile_can_be_chosen_reads_back() {

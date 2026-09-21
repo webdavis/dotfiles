@@ -184,7 +184,10 @@ fn a_rule_naming_two_inputs_does_not_match_when_one_of_them_does_not() {
         focus: Some("Sleep".to_string()),
         ..rule("work")
     }];
-    assert_eq!(resolve(&rules, &inputs(), None, Some(0)).profile, DEFAULT_PROFILE);
+    assert_eq!(
+        resolve(&rules, &inputs(), None, Some(0)).profile,
+        DEFAULT_PROFILE
+    );
 }
 
 #[test]

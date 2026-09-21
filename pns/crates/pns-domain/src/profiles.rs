@@ -40,3 +40,8 @@ pub struct Override {
     /// The epoch second it ends at, or None for one that stands until cleared.
     pub until: Option<u64>,
 }
+
+/// `HH:MM` as minutes since local midnight, the lamps' own reader.
+pub fn minute_of_clock(clock: &str) -> Option<u16> {
+    crate::lamps::parse_window(&format!("{clock}-{clock}")).map(|window| window.ends_at())
+}

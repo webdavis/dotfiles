@@ -25,6 +25,7 @@ pns: usage:
   pns lights pulse <exit-code>     signal the lamps by hand
   pns lights enroll                pair a bridge, once per machine
   pns presence poll [--daemon]     one bridge read, published for the sensor
+  pns profile [<name>|clear]       which bundle of delivery settings is active
   pns github poll [--daemon]       one notifications read, submitted as events
   pns github receive               the push receiver: a delivery polls now
   pns shell begin --pid <pid> --command <line>

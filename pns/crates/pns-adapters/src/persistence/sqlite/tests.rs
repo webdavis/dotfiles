@@ -240,7 +240,9 @@ fn the_profile_override_round_trips_and_clears() {
         profile: "night".to_string(),
         until: Some(1_758_420_600),
     };
-    store.set_profile_override(Some(&standing)).expect("a write");
+    store
+        .set_profile_override(Some(&standing))
+        .expect("a write");
     assert_eq!(store.profile_override().expect("a read"), Some(standing));
     store.set_profile_override(None).expect("a clear");
     assert_eq!(store.profile_override().expect("a read"), None);
