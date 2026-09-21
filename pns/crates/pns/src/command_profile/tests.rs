@@ -31,14 +31,32 @@ fn a_clock_time_that_has_passed_today_means_tomorrow() {
 }
 
 #[test]
-fn a_bad_bound_says_what_is_wrong() {
-    assert!(parse_bound(&words(&["--for", "900h"]), Some(0), Some(0)).is_err());
-    assert!(parse_bound(&words(&["--until", "25:00"]), Some(0), Some(0)).is_err());
-    assert!(parse_bound(&words(&["--for"]), Some(0), Some(0)).is_err());
-    assert!(parse_bound(&words(&["--soon", "2h"]), Some(0), Some(0)).is_err());
+fn a_bad_bound_is_a_usage_error() {
+    assert!(matches!(
+        parse_bound(&words(&["--for", "900h"]), Some(0), Some(0)),
+        Err(BoundError::Usage(_))
+    ));
+    assert!(matches!(
+        parse_bound(&words(&["--until", "25:00"]), Some(0), Some(0)),
+        Err(BoundError::Usage(_))
+    ));
+    assert!(matches!(
+        parse_bound(&words(&["--for"]), Some(0), Some(0)),
+        Err(BoundError::Usage(_))
+    ));
+    assert!(matches!(
+        parse_bound(&words(&["--soon", "2h"]), Some(0), Some(0)),
+        Err(BoundError::Usage(_))
+    ));
 }
 
 #[test]
-fn a_bound_needs_a_clock() {
-    assert!(parse_bound(&words(&["--for", "2h"]), None, None).is_err());
+fn a_bound_that_needs_a_clock_is_a_clock_error_not_a_usage_error() {
+    // A CLOCK ERROR IS EXIT 1, a state error like every other one in this
+    // command, never exit 2's usage refusal for a typo the operator did not
+    // make.
+    assert!(matches!(
+        parse_bound(&words(&["--for", "2h"]), None, None),
+        Err(BoundError::Clock(_))
+    ));
 }

@@ -3,7 +3,7 @@ use pns_adapters::{Config, SqliteStore};
 use pns_domain::profiles::{Chose, Override, because, surfaces_line};
 
 pub(crate) const PROFILE_USAGE: &str =
-    "usage: pns profile [<name> [--for <duration> | --until HH:MM] | clear]";
+    "pns: usage: pns profile [<name> [--for <duration> | --until HH:MM] | clear]";
 
 /// The `profile` mode: which bundle of delivery settings is active.
 ///
@@ -47,7 +47,11 @@ fn select(records: &SqliteStore, config: &Config, name: &str, rest: &[String]) -
     }
     let until = match parse_bound(rest, now_secs(), crate::profile_runtime::minutes_now()) {
         Ok(until) => until,
-        Err(refusal) => {
+        Err(BoundError::Clock(refusal)) => {
+            eprintln!("{refusal}");
+            return 1;
+        }
+        Err(BoundError::Usage(refusal)) => {
             eprintln!("{refusal}");
             eprintln!("{PROFILE_USAGE}");
             return 2;
@@ -97,6 +101,15 @@ fn report(records: &SqliteStore, config: &Config) -> i32 {
     0
 }
 
+/// Why a bound could not be parsed: a typo, refused at exit 2 alongside the
+/// usage line, or an unreadable clock, refused at exit 1 like every other
+/// state error here.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum BoundError {
+    Usage(String),
+    Clock(String),
+}
+
 /// `--for <duration>` or `--until HH:MM`, or no bound at all.
 ///
 /// `--until` PAST TODAY'S CLOCK MEANS TOMORROW. Asked at 17:00 to run until
@@ -106,15 +119,19 @@ pub(crate) fn parse_bound(
     words: &[String],
     now_secs: Option<u64>,
     minutes_now: Option<u16>,
-) -> Result<Option<u64>, String> {
+) -> Result<Option<u64>, BoundError> {
     let [flag, value] = words else {
         if words.is_empty() {
             return Ok(None);
         }
-        return Err(format!("pns profile: {PROFILE_USAGE}"));
+        return Err(BoundError::Usage(
+            "pns profile: expected `--for <duration>` or `--until HH:MM`".to_string(),
+        ));
     };
     let (Some(now), Some(minutes)) = (now_secs, minutes_now) else {
-        return Err("pns: state error (the clock cannot be read); no bound was set".to_string());
+        return Err(BoundError::Clock(
+            "pns: state error (the clock cannot be read); no bound was set".to_string(),
+        ));
     };
     match flag.as_str() {
         "--for" => {
@@ -122,12 +139,16 @@ pub(crate) fn parse_bound(
                 "profile duration",
                 value,
                 pns_domain::mute::MUTE_RANGE,
-            )?;
+            )
+            .map_err(BoundError::Usage)?;
             Ok(Some(now.saturating_add(held.as_secs())))
         }
         "--until" => {
-            let wanted = pns_domain::profiles::minute_of_clock(value)
-                .ok_or_else(|| format!("pns profile: {value:?} is not an HH:MM time of day"))?;
+            let wanted = pns_domain::profiles::minute_of_clock(value).ok_or_else(|| {
+                BoundError::Usage(format!(
+                    "pns profile: {value:?} is not an HH:MM time of day"
+                ))
+            })?;
             let ahead = if wanted > minutes {
                 u64::from(wanted - minutes)
             } else {
@@ -135,7 +156,9 @@ pub(crate) fn parse_bound(
             };
             Ok(Some(now.saturating_add(ahead * 60)))
         }
-        _ => Err(format!("pns profile: {PROFILE_USAGE}")),
+        _ => Err(BoundError::Usage(format!(
+            "pns profile: unrecognized option `{flag}`"
+        ))),
     }
 }
 
