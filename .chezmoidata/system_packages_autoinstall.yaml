@@ -136,7 +136,6 @@ packages:
         - pinentry-mac
         - pnpm
         - portaudio
-        - postgresql@17
         - procs
         - pv
         - restic
