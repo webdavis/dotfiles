@@ -111,21 +111,47 @@ deadline_secs = 21600
 # The exit code is the verdict, and a week with nothing to upgrade records one
 # ok line; an npm that is not at this path is a FAILURE rather than the quiet
 # skip the old weekly job made of it.
+#
+# `declared` is THE REPORT'S REFERENCE AND NOTHING ELSE. Every name below is
+# one this machine's package declarations install; the lane lists what is
+# installed after the upgrade and records `undeclared: <name> <version>` for
+# anything else it finds, so a package that arrived by hand is on the record
+# instead of living there unnoticed. NOTHING IS EVER REMOVED, by this lane or
+# any other: the answer to an undeclared line is to declare the package or to
+# leave it installed. node's own `npm` and `corepack` are never reported.
 [lanes.npm]
 type = "npm"
 binary = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/npm"
+declared = [
+{{- range .packages.macos.fnm }}
+{{- range .packages }}
+  {{ regexReplaceAll "@[0-9][^/]*$" . "" | quote }},
+{{- end }}
+{{- end }}
+]
 deadline_secs = 21600
 
 # Every tool uv installed, upgraded in place, weekly: `uv tool upgrade --all`
-# is already the whole roster, so there is nothing to list here. uv narrates on
+# is already every tool, so no roster is upgraded from. uv narrates on
 # stderr, which a clean run drops, so a clean week records one ok line and
 # nothing else; the exit code is the verdict. A uv that is not installed at the
 # path below is a FAILURE rather than the quiet skip the old weekly job made of
 # it, because a declared lane that upgrades nothing is the thing worth hearing
 # about.
+#
+# `declared` is THE REPORT'S REFERENCE AND NOTHING ELSE, exactly as in the npm
+# block above: the lane lists installed tools after the upgrade and records
+# `undeclared: <name> <version>` for anything the list does not name. NOTHING
+# IS EVER REMOVED. Each name below is the tool's own, so an extras suffix a
+# declaration installs with is not part of it.
 [lanes.uv]
 type = "uv"
 binary = "/opt/homebrew/bin/uv"
+declared = [
+{{- range .packages.macos.uv }}
+  {{ regexReplaceAll "\\[.*\\]$" . "" | quote }},
+{{- end }}
+]
 deadline_secs = 21600
 
 # Refresh the app-owned Claude skill after uv in lane-name order. CLAUDE_CONFIG_DIR
