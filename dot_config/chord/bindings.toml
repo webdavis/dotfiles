@@ -1,0 +1,934 @@
+# Shell key bindings, written once and rendered into each shell's own syntax
+# by `chord render <shell> --table <this file>`. Today `bash` is the only
+# shell; `just chord-render` regenerates `dot_bash_bindings` from this file.
+#
+# A key is space-separated tokens, each one of:
+#   ctrl-<char>   alt-<char>   esc   enter   tab   space   backspace
+# or a single literal character. So `ctrl-g a a` is Ctrl-G then a then a.
+#
+# A row names exactly one action:
+#   insert = "text"       type the text and leave it on the line for editing
+#   run = "text"          type the text and run it
+#   function = "name"     call a shell function (readline's `bind -x`)
+#   command = "name"      run a readline command, such as beginning-of-line
+#   macro = "body"        a readline macro body in readline's own escapes,
+#                         emitted verbatim, for the chords the kinds above
+#                         cannot express
+#
+# `modes` lists the editing modes the row binds in. Left out it means both vi
+# modes, where the command-mode binding enters insert mode first. An empty
+# list binds in whatever keymap is current, with no mode flag at all.
+#
+# The shell functions these rows call live in `dot_bash_bindings_functions`.
+
+[[group]]
+name = "editing"
+description = "Editing-mode switching and the readline motions that make vi-insert\nfeel like emacs where that is quicker."
+
+[[group.binding]]
+key = "alt-e"
+modes = ["emacs"]
+command = "vi-editing-mode"
+
+[[group.binding]]
+key = "alt-e"
+modes = ["vi-insert", "vi-command"]
+command = "emacs-editing-mode"
+
+[[group.binding]]
+key = "ctrl-a"
+modes = ["vi-insert"]
+command = "beginning-of-line"
+
+[[group.binding]]
+key = "ctrl-e"
+modes = ["vi-insert"]
+command = "end-of-line"
+
+[[group.binding]]
+key = "ctrl-b"
+modes = ["vi-insert"]
+command = "backward-char"
+
+[[group.binding]]
+key = "ctrl-f"
+modes = ["vi-insert"]
+command = "forward-char"
+
+[[group.binding]]
+key = "alt-k"
+modes = ["vi-insert"]
+command = "kill-line"
+
+[[group.binding]]
+key = "ctrl-l"
+modes = ["vi-insert"]
+command = "clear-screen"
+
+[[group.binding]]
+key = "C o n t r o l - l"
+description = "Quoting the words makes this the literal character sequence rather than Ctrl-L."
+modes = ["vi-command"]
+command = "clear-screen"
+
+[[group.binding]]
+key = "C o n t r o l - o"
+description = "Quoting the words makes this the literal character sequence rather than Ctrl-O."
+modes = ["emacs"]
+command = "redraw-current-line"
+
+[[group.binding]]
+key = "ctrl-o"
+command = "redraw-current-line"
+
+[[group.binding]]
+key = "alt-o"
+command = "magic-space"
+
+[[group.binding]]
+key = "ctrl-n"
+command = "next-history"
+
+[[group.binding]]
+key = "ctrl-p"
+command = "previous-history"
+
+[[group.binding]]
+key = "ctrl-u"
+command = "unix-line-discard"
+
+[[group.binding]]
+key = "alt-m"
+modes = ["vi-insert"]
+command = "menu-complete"
+
+[[group.binding]]
+key = "alt-w"
+command = "unix-filename-rubout"
+
+[[group.binding]]
+key = "alt-u"
+command = "capitalize-word"
+
+[[group.binding]]
+key = "ctrl-d"
+command = "delete-char"
+
+[[group.binding]]
+key = "alt-]"
+modes = ["vi-insert"]
+command = "character-search"
+
+[[group.binding]]
+key = "alt-["
+modes = ["vi-insert"]
+command = "character-search-backward"
+
+[[group.binding]]
+key = "C o n t r o l - w"
+description = "Quoting the words makes this the literal character sequence rather than Ctrl-W."
+modes = ["emacs"]
+command = "unix-word-rubout"
+
+[[group.binding]]
+key = "ctrl-w"
+command = "unix-word-rubout"
+
+[[group]]
+name = "completion"
+description = "Tab completion that cycles through the possible options."
+
+[[group.binding]]
+key = "tab"
+description = "Tab completion of commands that cycles through possible options:"
+modes = []
+function = "menu-complete"
+
+[[group.binding]]
+key = "tab"
+modes = ["vi-insert", "vi-command"]
+command = "menu-complete"
+
+[[group.binding]]
+key = "esc [ Z"
+modes = []
+function = "menu-complete-backward"
+
+[[group.binding]]
+key = "esc [ Z"
+modes = ["vi-insert", "vi-command"]
+command = "menu-complete-backward"
+
+[[group]]
+name = "sudo"
+description = "Prepend sudo to the line in place."
+
+[[group.binding]]
+key = "ctrl-s"
+description = "Insert 'sudo ' at the beginning of a command."
+modes = []
+function = "sudo_insert"
+
+[[group]]
+name = "listing"
+description = "Directory listings through eza, and re-sourcing ~/.bashrc."
+
+[[group.binding]]
+key = "alt-l"
+description = "ls/eza"
+run = "eza -ahlrs date"
+
+[[group.binding]]
+key = "alt-L"
+insert = "eza -ahlrs date "
+
+[[group.binding]]
+key = "alt-i"
+description = "List directories."
+run = "eza -alD"
+
+[[group.binding]]
+key = "alt-I"
+modes = ["vi-insert"]
+insert = "eza -alD "
+
+[[group.binding]]
+key = "alt-I"
+modes = ["vi-command"]
+macro = "i\\C-x1eza -alD "
+
+[[group.binding]]
+key = "ctrl-x t"
+description = "List files sorted by time."
+modes = ["vi-insert"]
+run = "eza -hl --sort=age"
+
+[[group.binding]]
+key = "ctrl-x t"
+modes = ["vi-command"]
+macro = "\\C-x0eza -hl --sort=age\\r"
+
+[[group.binding]]
+key = "ctrl-x T"
+insert = "eza -ahl --sort=age "
+
+[[group.binding]]
+key = "alt-t"
+description = "eza tree"
+run = "eza --tree"
+
+[[group.binding]]
+key = "alt-T"
+insert = "eza -lT "
+
+[[group.binding]]
+key = "ctrl-x u"
+description = "`eza tree` with detailed file info."
+run = "eza --tree --color=always --header --group --links --bytes --long --ignore-glob=.git"
+
+[[group.binding]]
+key = "ctrl-x ctrl-u"
+insert = "eza -lThgB --color=always -I .git "
+
+[[group.binding]]
+key = "ctrl-x ctrl-s"
+description = "Source ~/.bashrc"
+run = "source ~/.bashrc"
+
+[[group]]
+name = "navigation"
+description = "Jumping to the directories used most often, and to a project root."
+
+[[group.binding]]
+key = "ctrl-x -"
+description = "Navigation bindings:\n`cd -`"
+run = "cd -"
+
+[[group.binding]]
+key = "ctrl-x d c"
+description = "cd ~/.config/"
+run = "cd ~/.config"
+
+[[group.binding]]
+key = "ctrl-x d d"
+description = "cd ~/Documents/"
+run = "cd ~/Documents"
+
+[[group.binding]]
+key = "ctrl-x d D"
+description = "cd ~/Downloads/"
+run = "cd ~/Downloads"
+
+[[group.binding]]
+key = "ctrl-x d n"
+description = "cd ~/.config/nvim/"
+run = "cd ~/.config/nvim"
+
+[[group.binding]]
+key = "ctrl-x d s"
+description = "cd ~/Pictures/screenshots/"
+run = "cd ~/Pictures/screenshots"
+
+[[group.binding]]
+key = "ctrl-x d p"
+description = "cd ~/workspaces/Ivy/webdavis/"
+run = "cd ~/workspaces/Ivy/webdavis"
+
+[[group.binding]]
+key = "ctrl-x d t"
+description = "cd ~/workspaces/tools/"
+run = "cd ~/workspaces/tools"
+
+[[group.binding]]
+key = "ctrl-g d r"
+run = "__bash_bindings_go_to_project_root"
+
+[[group]]
+name = "git"
+description = "git, gh and the GitHub pages of the repository in the current directory."
+
+[[group.binding]]
+key = "ctrl-g v"
+description = "git --version"
+run = "git --version"
+
+[[group.binding]]
+key = "ctrl-g s s"
+description = "git status"
+run = "git status"
+
+[[group.binding]]
+key = "ctrl-g s h"
+description = "git status --short"
+run = "git status --short"
+
+[[group.binding]]
+key = "ctrl-g s u"
+description = "git ls-files --others --exclude-standard | grep --color=always '.*'"
+run = "git ls-files --others --exclude-standard | grep --color=always '.*'"
+
+[[group.binding]]
+key = "ctrl-g l l"
+description = "git log"
+run = "git log"
+
+[[group.binding]]
+key = "ctrl-g l o"
+description = "git log --oneline"
+run = "git log --oneline"
+
+[[group.binding]]
+key = "ctrl-g d d"
+description = "Print the current git working diff."
+run = "git diff"
+
+[[group.binding]]
+key = "ctrl-g d i"
+description = "Print the current git diff of the latest commit."
+run = "git diff HEAD^"
+
+[[group.binding]]
+key = "ctrl-g d l"
+description = "alt: (C-g di)"
+run = "git diff HEAD^"
+
+[[group.binding]]
+key = "ctrl-g d p"
+description = "Print the diff of the current and previous commit."
+run = "if ! git diff --quiet; then clear; git --no-pager diff --patch-with-stat; else echo 'git-diff: No changes have been made'; fi"
+
+[[group.binding]]
+key = "ctrl-g d c"
+description = "git diff --cached"
+run = "git diff --cached"
+
+[[group.binding]]
+key = "ctrl-g k h"
+description = "`git checkout `"
+insert = "git checkout "
+
+[[group.binding]]
+key = "ctrl-g k n"
+description = "`git checkout -b `"
+insert = "git checkout -b "
+
+[[group.binding]]
+key = "ctrl-g k -"
+description = "git checkout -"
+run = "git checkout -"
+
+[[group.binding]]
+key = "ctrl-g k m"
+description = "git checkout main"
+run = "git checkout main"
+
+[[group.binding]]
+key = "ctrl-g k t"
+description = "Switch to an existing remote branch:\ngit checkout --track <remote_name/branch_name>"
+insert = "git checkout --track "
+
+[[group.binding]]
+key = "ctrl-g c c"
+description = "git commit --verbose"
+run = "git commit --verbose"
+
+[[group.binding]]
+key = "ctrl-g c m"
+description = "git commit --verbose -m '<cursor>'"
+modes = ["vi-insert"]
+macro = "\\C-x0git commit --verbose -m ''\\e[D"
+
+[[group.binding]]
+key = "ctrl-g c m"
+modes = ["vi-command"]
+macro = "i\\C-x0git commit --verbose -m ''\\e[D"
+
+[[group.binding]]
+key = "ctrl-g c a"
+description = "git commit --verbose --amend"
+run = "git commit --verbose --amend"
+
+[[group.binding]]
+key = "ctrl-g c A"
+description = "git commit --verbose --all"
+run = "git commit --verbose --all"
+
+[[group.binding]]
+key = "ctrl-g c n"
+description = "git commit --amend --no-edit"
+run = "git commit --amend --no-edit"
+
+[[group.binding]]
+key = "ctrl-g c N"
+description = "git commit --amend --no-edit --all"
+run = "git commit --amend --no-edit --all"
+
+[[group.binding]]
+key = "ctrl-g c y"
+run = "__bash_bindings_copy_latest_git_commit_message_to_clipboard"
+
+[[group.binding]]
+key = "ctrl-g r u"
+description = "git reset commands:\nUnstage index"
+insert = "git reset"
+
+[[group.binding]]
+key = "ctrl-g r U"
+description = "Unstage index (file)"
+insert = "git reset -- <file>"
+
+[[group.binding]]
+key = "ctrl-g r s"
+description = "Undo last commit (keep index)"
+insert = "git reset --soft HEAD~1"
+
+[[group.binding]]
+key = "ctrl-g r r"
+description = "Delete working (all)"
+insert = "git restore"
+
+[[group.binding]]
+key = "ctrl-g r f"
+description = "Delete working (file)"
+insert = "git restore -- <file>"
+
+[[group.binding]]
+key = "ctrl-g r i"
+description = "Delete index, keep working (all)"
+insert = "git restore --staged"
+
+[[group.binding]]
+key = "ctrl-g r F"
+description = "Delete index (file)"
+insert = "git restore --staged <file>"
+
+[[group.binding]]
+key = "ctrl-g r h"
+description = "DANGEROUS: Rewind to HEAD (working + index)"
+insert = "git reset --hard"
+
+[[group.binding]]
+key = "ctrl-g r H"
+description = "DANGEROUS: Rewind to <commit> (working + index)"
+insert = "git reset --hard <commit>"
+
+[[group.binding]]
+key = "ctrl-g i i"
+description = "git init"
+modes = ["vi-insert"]
+run = "git init"
+
+[[group.binding]]
+key = "ctrl-g i i"
+modes = ["vi-command"]
+macro = "i\\C-xgit init\\r"
+
+[[group.binding]]
+key = "ctrl-g i c"
+description = "git init && gh repo create"
+run = "if ! git rev-parse --is-inside-work-tree &>/dev/null; then git init; gh repo create; fi"
+
+[[group.binding]]
+key = "ctrl-g f e"
+description = "git fetch"
+run = "git fetch"
+
+[[group.binding]]
+key = "ctrl-g f p"
+description = "git pull"
+run = "git pull"
+
+[[group.binding]]
+key = "ctrl-g f r"
+description = "git pull --rebase"
+run = "git pull --rebase"
+
+[[group.binding]]
+key = "ctrl-g p p"
+description = "git push"
+run = "git push"
+
+[[group.binding]]
+key = "ctrl-g p f"
+description = "git push --force-with-lease"
+run = "git push --force-with-lease"
+
+[[group.binding]]
+key = "ctrl-g p r"
+description = "Delete remote_branch branch from the origin remote.\n`git push origin :remote_branch`"
+insert = "git push origin :"
+
+[[group.binding]]
+key = "ctrl-_ I"
+description = "Open GitHub Feed (https://github.com) in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'feed'"
+
+[[group.binding]]
+key = "ctrl-g o f"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_I\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o f"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_I\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ J"
+description = "Open repo's GitHub Home page in browser."
+modes = []
+function = "__bash_bindings_open_github_page '' 'Home'"
+
+[[group.binding]]
+key = "ctrl-g o o"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_J\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o o"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_J\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ K"
+description = "Open repo's GitHub Issues page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'issues'"
+
+[[group.binding]]
+key = "ctrl-g o i"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_K\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o i"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_K\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ R"
+description = "Open repo's GitHub Pull Requests page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'pulls' 'Pull Requests'"
+
+[[group.binding]]
+key = "ctrl-g o p"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_R\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o p"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_R\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ S"
+description = "Open repo's GitHub Actions page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'actions'"
+
+[[group.binding]]
+key = "ctrl-g o a"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_S\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o a"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_S\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ T"
+description = "Open repo's GitHub Projects page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'projects'"
+
+[[group.binding]]
+key = "ctrl-g o P"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_T\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o P"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_T\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ U"
+description = "Open repo's GitHub Wiki page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'wiki'"
+
+[[group.binding]]
+key = "ctrl-g o w"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_U\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o w"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_U\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ V"
+description = "Open repo's GitHub Security page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'security'"
+
+[[group.binding]]
+key = "ctrl-g o S"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_V\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o S"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_V\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ W"
+description = "Open repo's GitHub Insights page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'pulse' 'Insights'"
+
+[[group.binding]]
+key = "ctrl-g o I"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_W\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o I"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_W\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ X"
+description = "Open repo's GitHub Settings page in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'settings'"
+
+[[group.binding]]
+key = "ctrl-g o s"
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_X\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o s"
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_X\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-_ Y"
+description = "Open My GitHub Profile in browser."
+modes = []
+function = "__bash_bindings_open_github_page 'profile'"
+
+[[group.binding]]
+key = "ctrl-g o ."
+modes = ["vi-insert"]
+macro = "\\C-x0\\C-_Y\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g o ."
+modes = ["vi-command"]
+macro = "i\\C-x0\\C-_Y\\C-x1\\C-x2\\b"
+
+[[group.binding]]
+key = "ctrl-g t l"
+run = "__bash_bindings_git_list_tags"
+
+[[group.binding]]
+key = "ctrl-g a a"
+description = "`git add `"
+insert = "git add "
+
+[[group.binding]]
+key = "ctrl-g a u"
+description = "git add --update"
+run = "git add --update"
+
+[[group.binding]]
+key = "ctrl-g a ."
+description = "git add ."
+run = "git add ."
+
+[[group.binding]]
+key = "ctrl-g b b"
+description = "git branch"
+run = "git branch"
+
+[[group.binding]]
+key = "ctrl-g b c"
+description = "git branch --show-current"
+run = "git branch --show-current"
+
+[[group.binding]]
+key = "ctrl-g b v"
+description = "Show all local branches with upstream tracking:\ngit branch -vv"
+run = "git branch -vv"
+
+[[group.binding]]
+key = "ctrl-g b r"
+description = "Show all remote branches with commits:\ngit branch -rv"
+run = "git branch -rv"
+
+[[group.binding]]
+key = "ctrl-g b a"
+description = "Shows pretty split of local and remote branches with commits:\ngit branch -vv; git branch -rv (Shows pretty split of local and remote branches.)"
+run = "echo 'Local:'; git branch -vv; echo -e '\nRemotes:'; git branch -rv"
+
+[[group.binding]]
+key = "ctrl-g b m"
+description = "git branch -m"
+insert = "git branch -m "
+
+[[group.binding]]
+key = "ctrl-g ctrl-r o"
+description = "git remote show origin"
+run = "git remote show origin"
+
+[[group.binding]]
+key = "ctrl-g ctrl-r u"
+description = "git remote show upstream"
+run = "git remote show upstream"
+
+[[group.binding]]
+key = "ctrl-g h i"
+description = "gh issue list"
+run = "gh issue list"
+
+[[group.binding]]
+key = "ctrl-g h p"
+description = "gh pr list"
+run = "gh pr list"
+
+[[group]]
+name = "packages"
+description = "The system package manager."
+
+[[group.binding]]
+key = "ctrl-x o u"
+run = "__bash_bindings_update_package_manager"
+
+[[group.binding]]
+key = "ctrl-x o s"
+description = "`brew search `"
+insert = "brew search "
+
+[[group.binding]]
+key = "ctrl-x o i"
+description = "`brew install `"
+insert = "brew install "
+
+[[group]]
+name = "files"
+description = "Repository files, newest commit first."
+
+[[group.binding]]
+key = "ctrl-x l"
+run = "__bash_bindings_git_ls_files_with_last_modified"
+
+[[group]]
+name = "network-host"
+description = "Host Bindings: what this machine is on the network."
+
+[[group.binding]]
+key = "ctrl-x n h h"
+description = "╭───────────────╮\n│ Host Bindings │\n╰───────────────╯\nPrint the hostname of the current machine."
+run = "hostname"
+
+[[group.binding]]
+key = "ctrl-x n h m"
+run = "__bash_bindings_print_mac_address"
+
+[[group.binding]]
+key = "ctrl-x n h i"
+run = "__bash_bindings_show_current_network_interface"
+
+[[group.binding]]
+key = "ctrl-x n h p"
+description = "Show all active network connections and listening ports for troubleshooting."
+run = "lsof -nP -iTCP -sTCP:LISTEN"
+
+[[group]]
+name = "network-lan"
+description = "LAN Bindings: the local network, its gateway and its reachability."
+
+[[group.binding]]
+key = "ctrl-x n l l"
+description = "╭──────────────╮\n│ LAN Bindings │\n╰──────────────╯\nShows your local IP address on the current network (LAN)."
+run = "ipconfig getifaddr en0"
+
+[[group.binding]]
+key = "ctrl-x n l g"
+run = "__bash_bindings_show_ip_address_of_default_gateway"
+
+[[group.binding]]
+key = "ctrl-x n l b"
+run = "__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface"
+
+[[group.binding]]
+key = "ctrl-x n l r"
+run = "__bash_bindings_ping_default_gateway"
+
+[[group.binding]]
+key = "ctrl-x n l t"
+run = "__bash_bindings_check_protocol_connectivity"
+
+[[group.binding]]
+key = "ctrl-x n l 2"
+run = "__bash_bindings_check_protocol_connectivity 22"
+
+[[group.binding]]
+key = "ctrl-x n l 4"
+run = "__bash_bindings_check_protocol_connectivity 443"
+
+[[group.binding]]
+key = "ctrl-x n l 5"
+run = "__bash_bindings_check_protocol_connectivity 53"
+
+[[group.binding]]
+key = "ctrl-x n l 8"
+run = "__bash_bindings_check_protocol_connectivity 80"
+
+[[group.binding]]
+key = "ctrl-x n l 0"
+run = "__bash_bindings_check_protocol_connectivity 8080"
+
+[[group.binding]]
+key = "ctrl-x n l s"
+run = "__bash_bindings_scan_common_ports"
+
+[[group.binding]]
+key = "ctrl-x n l c"
+run = "__bash_bindings_capture_packets_on_default_network_interface"
+
+[[group.binding]]
+key = "ctrl-x n 4"
+description = "Shows your public IPv4 address (the address visible to the internet)."
+run = "curl --ipv4 https://ifconfig.me/all"
+
+[[group.binding]]
+key = "ctrl-x n 6"
+description = "Shows your public IPv6 address (the address visible to the internet)."
+run = "curl --ipv6 https://ifconfig.me/all"
+
+[[group.binding]]
+key = "ctrl-x n i"
+description = "Displays your ISP and other public network details."
+run = "curl -s https://ipinfo.io | jq ."
+
+[[group]]
+name = "network-dns"
+description = "DNS Bindings: resolution, the servers in use and a summary."
+
+[[group.binding]]
+key = "ctrl-x n d d"
+run = "__bash_bindings_dns_lookup"
+
+[[group.binding]]
+key = "ctrl-x n d r"
+run = "__bash_bindings_reverse_dns_lookup"
+
+[[group.binding]]
+key = "ctrl-x n d a"
+run = "__bash_bindings_system_dns_servers"
+
+[[group.binding]]
+key = "ctrl-x n d t"
+modes = ["vi-insert"]
+macro = "\\__bash_bindings_test_dns_resolution_for_common_domains\\r"
+
+[[group.binding]]
+key = "ctrl-x n d t"
+modes = ["vi-command"]
+macro = "i\\C-x0__bash_bindings_test_dns_resolution_for_common_domains\\r"
+
+[[group.binding]]
+key = "ctrl-x n d s"
+run = "__bash_bindings_dns_summary"
+
+[[group]]
+name = "network-wan"
+description = "WAN Bindings: the path out to the internet."
+
+[[group.binding]]
+key = "ctrl-x n w l"
+description = "╭──────────────╮\n│ WAN Bindings │\n╰──────────────╯\nMeasure internet connection latency to Cloudflare DNS (1.1.1.1) with three pings."
+run = "ping -c 3 1.1.1.1 | tail -1"
+
+[[group.binding]]
+key = "ctrl-x n w p"
+description = "Ping Google's DNS server once to check basic internet connectivity."
+run = "ping -c 1 8.8.8.8"
+
+[[group.binding]]
+key = "ctrl-x n w P"
+description = "Ping (custom) server once to check basic internet connectivity."
+insert = "ping -c 1 "
+
+[[group.binding]]
+key = "ctrl-x n w t"
+description = "Perform a traceroute to google.com to see the network path and detect routing issues."
+insert = "traceroute google.com"
+
+[[group.binding]]
+key = "ctrl-x n w L"
+run = "__bash_bindings_latency_traceroute_test"
+
+[[group.binding]]
+key = "ctrl-x n w h"
+run = "__bash_bindings_network_health_check"
+
+[[group.binding]]
+key = "ctrl-x n w s"
+run = "__bash_bindings_network_summary"
+
+[[group]]
+name = "bindings-help"
+description = "List every binding these files declare."
+
+[[group.binding]]
+key = "ctrl-x v"
+run = "__bash_bindings_list_bash_bindings"
