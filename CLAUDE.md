@@ -536,6 +536,11 @@ one destination whether they arrived by apply or by install. The exemption is ex
 bash script under `libexec` keeps the rule, `pns/hooks/codex/install-hooks.sh` included, which is why
 `~/.local/libexec/pns` still exists with no binary in it.
 
+Tools built from OTHER repositories install through the same `~/.cargo/bin`, from a pinned revision in
+the `cargo_git_tools` roster in `.chezmoidata/system_packages_autoinstall.yaml`, via
+`run_onchange_after_57-install-cargo-git-tools.sh.tmpl`. `dam` (`webdavis/damnit`) is the first entry:
+the herdr-damnit and damnit.nvim plugins spawn it and have nothing to run until this installs it.
+
 Four rules decide the shape below `libexec`, in this order:
 
 1. **A directory names a DOMAIN, a SYSTEM, or a FUNCTION**, never a dependency and never a vendor.
