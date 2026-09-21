@@ -245,8 +245,8 @@ config template uses: regenerate it with `just chord-render`, and a hand edit fa
 line in `just test-rust`. The shell those bindings call, and the `\C-x0` helper macro they start with,
 live in `dot_bash_bindings_functions`, which `~/.bashrc` sources first.
 
-`pns recap` prints the day's brief now, folding in the last apply, the applies the ledger owes, the open
-pull requests, the newest overnight recap, the operator's own items and today's tasks.
+`pns recap` prints the day's brief now: the activity window, today's tasks and the last apply, from the
+source commands named in `[recap.sources]`.
 
 The layout exists so that lifting a tool into its own public repository later is a `git subtree split`
 rather than a rewrite. NOTHING inside a workspace may assume this repository exists: these are tools
