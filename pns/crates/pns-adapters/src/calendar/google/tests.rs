@@ -174,6 +174,19 @@ fn a_refused_freebusy_call_evicts_the_cached_token() {
     );
 }
 
+/// THE MUTANT THIS PINS: `new` handing the full table deadline to each of
+/// the two calls, which lets a poll run twice as long as `deadline` states
+/// and past the daemon's own child-kill bound.
+#[test]
+fn the_production_agent_rides_half_the_table_deadline_per_call() {
+    let source = GoogleCalendarSource::new(settings(&["primary"]), Duration::from_secs(20));
+    assert_eq!(
+        source.agent.config().timeouts().global,
+        Some(Duration::from_secs(10)),
+        "each call gets half the table's deadline, so the pair together never exceeds it"
+    );
+}
+
 #[test]
 fn a_refused_exchange_is_the_whole_poll_refused_naming_the_step() {
     let state = scratch("google-refused-token");

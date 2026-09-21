@@ -47,11 +47,17 @@ pub(super) struct GoogleCalendarSource {
 
 impl GoogleCalendarSource {
     /// The production wiring: TLS verified (these are public hosts with real
-    /// certificates), no redirects, and the table's own deadline on every
+    /// certificates), no redirects, and HALF the table's deadline on every
     /// call.
+    ///
+    /// A POLL IS TWO CALLS, not one. `timeout_global` bounds each request the
+    /// agent sends, so the full `deadline` on both would let a poll run up to
+    /// twice as long as the table states, past the daemon's own child-kill
+    /// bound. Halving keeps the documented `deadline` a bound on the whole
+    /// poll rather than on either call alone.
     pub(super) fn new(settings: GoogleCalendar, deadline: Duration) -> Self {
         Self::with_agent(
-            Self::production_config(deadline).new_agent(),
+            Self::production_config(deadline / 2).new_agent(),
             TOKEN_ENDPOINT.to_string(),
             FREEBUSY_ENDPOINT.to_string(),
             settings,
