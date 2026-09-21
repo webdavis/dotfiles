@@ -31,7 +31,10 @@ fn a_summarizer_past_a_short_deadline_returns_no_partial_answer() {
     // None. The unchanged CLI cases below own the plain-list notice and body.
     assert_eq!(
         summarizer.summarize(
-            &["/bin/echo".into(), "a complete answer".into()],
+            &pns_domain::recap::summarizer::Invocation {
+                argv: vec!["/bin/echo".into(), "a complete answer".into()],
+                prompt_in_argv: false,
+            },
             std::time::Duration::from_millis(300),
             "the window",
         ),
@@ -40,11 +43,14 @@ fn a_summarizer_past_a_short_deadline_returns_no_partial_answer() {
     let started = std::time::Instant::now();
     assert_eq!(
         summarizer.summarize(
-            &[
-                "/bin/sh".into(),
-                "-c".into(),
-                "printf 'a partial answer\\n'; exec /bin/sleep 30".into(),
-            ],
+            &pns_domain::recap::summarizer::Invocation {
+                argv: vec![
+                    "/bin/sh".into(),
+                    "-c".into(),
+                    "printf 'a partial answer\\n'; exec /bin/sleep 30".into(),
+                ],
+                prompt_in_argv: false,
+            },
             std::time::Duration::from_millis(40),
             "the window",
         ),
@@ -140,7 +146,7 @@ fn a_summarizer_that_is_not_installed_at_all_falls_to_the_plain_list_and_says_so
     let sandbox = Sandbox::new("recap-summarizer-not-installed");
     record_every_event(&sandbox);
     sandbox.write_config(&format!(
-        "{EVERY_DISPATCHED_CHANNEL}[recap]\nsummarizer = [\"pns-no-such-summarizer\"]\n"
+        "{EVERY_DISPATCHED_CHANNEL}[recap.summarizer]\ncommand = [\"pns-no-such-summarizer\"]\n"
     ));
     loud_window(&sandbox);
 
