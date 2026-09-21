@@ -87,9 +87,10 @@ fn print_lines(lines: &[String]) -> i32 {
 
 /// The OAuth client the flags name, or `None` for the one the config names.
 ///
-/// `--client-secret` IS REFUSED BY NAME rather than read: a secret in argv is
-/// readable by every process on the machine, and a flag that merely fails to
-/// parse would read to the operator as a typo rather than as the reason.
+/// `--client-secret` and `--client-secret=<value>` ARE BOTH REFUSED BY NAME
+/// rather than read: a secret in argv is readable by every process on the
+/// machine, and a flag that merely fails to parse would read to the operator
+/// as a typo rather than as the reason.
 fn stated_client(arguments: &[String]) -> Result<Option<String>, String> {
     let mut id: Option<String> = None;
     let mut stdin_secret = false;
@@ -102,7 +103,7 @@ fn stated_client(arguments: &[String]) -> Result<Option<String>, String> {
                 })?);
             }
             CLIENT_SECRET_STDIN_FLAG => stdin_secret = true,
-            "--client-secret" => {
+            word if word == "--client-secret" || word.starts_with("--client-secret=") => {
                 return Err(format!(
                     "`--client-secret` would put the secret in argv, where every process on this \
                      machine can read it; pass it on standard input with \

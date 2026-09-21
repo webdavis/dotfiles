@@ -58,10 +58,10 @@ body cap.
 | `pns calendar consent`                                       | `[quiet.calendar]`, when it states `type = "google"`    |
 | `pns calendar consent --client-id <id> --client-secret-stdin` | argv for the id, standard input for the secret          |
 
-`--client-secret <value>` is REFUSED BY NAME, and the refusal says where the secret goes instead: a
-secret in argv is readable by every process on the machine. The two flags are given together or neither
-is; half of a stated client, a flag this walk does not take, and a verb that is not `consent` each earn
-the usage text on stderr and exit 2, which is `pns resume`'s code.
+`--client-secret <value>` and `--client-secret=<value>` are REFUSED BY NAME, and the refusal says where
+the secret goes instead: a secret in argv is readable by every process on the machine. The two flags are
+given together or neither is; half of a stated client, a flag this walk does not take, and a verb that is
+not `consent` each earn the usage text on stderr and exit 2, which is `pns resume`'s code.
 
 ## Fail-closed, exactly as the poll is
 

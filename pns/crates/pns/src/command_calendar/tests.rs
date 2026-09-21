@@ -17,13 +17,17 @@ fn a_stated_client_takes_both_flags_or_neither() {
 /// which writes the secret into a command line every process can read.
 #[test]
 fn an_argv_secret_is_refused_by_name_and_told_where_the_secret_goes() {
-    let complaint = stated_client(&strings(&["--client-secret", "a-secret"]))
-        .expect_err("an argv secret is refused");
-    assert!(
-        complaint.contains("--client-secret-stdin") && complaint.contains("standard input"),
-        "{complaint}"
-    );
-    assert!(!complaint.contains("a-secret"), "{complaint}");
+    for arguments in [
+        strings(&["--client-secret", "a-secret"]),
+        strings(&["--client-secret=a-secret"]),
+    ] {
+        let complaint = stated_client(&arguments).expect_err("an argv secret is refused");
+        assert!(
+            complaint.contains("--client-secret-stdin") && complaint.contains("standard input"),
+            "{complaint}"
+        );
+        assert!(!complaint.contains("a-secret"), "{complaint}");
+    }
 }
 
 #[test]
