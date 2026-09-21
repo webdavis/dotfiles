@@ -295,8 +295,9 @@ available through `launch` for an operator who wants one.
 
 Nightshift calls the same function `pns profile <name> --until <HH:MM>` calls, with the same bounds,
 the same store row and the same read-back. It writes no row of its own and knows nothing about how an
-override is stored. A profile name no `[profiles.<name>]` defines is refused by that code path, and
-Nightshift reports the refusal and exits 2 without launching having been undone.
+override is stored. A `[nightshift] profile` naming no `[profiles.<name>]` table is refused when the
+config loads, the same cross-table check that refuses an undefined name in `[[profiles.rules]]`, so a
+typo never reaches the launch step at all.
 
 It does not clear the override in the morning and nothing schedules a clear: the `until` bound is what
 ends it, which is the same reason `pns profile --until` exists. Under `night` the events the run raises
@@ -314,9 +315,9 @@ holds no state the morning needs.
 | --- | --- | --- |
 | A word or flag that is not `--dry-run` | the usage | 2 |
 | `[nightshift] ledger` is empty | ``pns nightshift: set `[nightshift] ledger` to your ledger's path; the handoff has nothing to read`` | 2 |
-| `[nightshift] profile` names no profile | ``pns nightshift: no profile named `night`; this config defines default, work`` | 2 |
 | A `launch` element holds an unknown placeholder | ``unknown `nightshift.launch` placeholder `{tasks}`; the one placeholder is {goal}`` | load error |
 | A malformed `until` | ``nightshift.until "6am" is not an HH:MM time`` | load error |
+| `[nightshift] profile` names no profile | ``[nightshift] profile` names `meeting`, which no `[profiles.<name>]` table defines; this config defines default, night, work`` | load error |
 | The ledger could not be read | ``pns: state error (the ledger at <path> could not be read: <error>); nothing was handed off`` | 1 |
 | The rules file could not be read | ``pns: state error (the standing rules at <path> could not be read: <error>); nothing was handed off`` | 1 |
 | The goal file could not be written | ``pns: state error (the goal at <path> could not be written: <error>); nothing was handed off`` | 1 |
