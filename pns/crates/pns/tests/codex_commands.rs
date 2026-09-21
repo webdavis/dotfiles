@@ -32,6 +32,15 @@ fn the_first_run_writes_the_hooks_and_the_second_says_nothing() {
 }
 
 #[test]
+fn an_unset_home_is_refused_rather_than_defaulted_to_the_cwd() {
+    let sandbox = Sandbox::without_config("codex-install-hooks-no-home");
+    let mut command = sandbox.pns();
+    command.env_remove("HOME");
+    let output = run_expecting(2, command.args(["codex", "install-hooks"]));
+    assert!(stderr(&output).contains("HOME is unset"), "{output:?}");
+}
+
+#[test]
 fn a_hooks_file_this_cannot_read_is_refused_and_left_alone() {
     let sandbox = Sandbox::without_config("codex-install-hooks-refusal");
     let path = hooks_file(&sandbox);

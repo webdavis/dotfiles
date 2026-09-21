@@ -26,7 +26,13 @@ fn install_hooks() -> i32 {
         eprintln!("{CODEX_USAGE}");
         return 2;
     }
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = match std::env::var("HOME") {
+        Ok(home) if !home.is_empty() => home,
+        _ => {
+            eprintln!("pns: HOME is unset, so there is no Codex hooks file to merge into");
+            return 2;
+        }
+    };
     let Some(binary) = running_binary() else {
         eprintln!("pns: cannot resolve this binary's own path, so there is no command to install");
         return 2;
