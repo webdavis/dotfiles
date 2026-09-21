@@ -601,6 +601,7 @@ Create `pns/crates/pns-domain/src/nightshift/compose/tests.rs`:
 
 ```rust
 use super::*;
+use crate::nightshift::parse_ledger;
 
 const LEDGER: &str = include_str!("../fixtures/ledger.md");
 const GOAL: &str = include_str!("../fixtures/goal.md");
