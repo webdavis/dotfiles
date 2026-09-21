@@ -169,10 +169,7 @@ fn a_pregenerated_summary_is_stored_shown_and_regenerated_only_when_it_is_stale(
     let shown = stdout(&run(sandbox
         .pns_stateful()
         .args(["recap", "today", "--json"])));
-    assert!(
-        shown.contains(&stored.text) || !shown.contains("SUMMARY"),
-        "{shown}"
-    );
+    assert!(shown.contains(&stored.text), "{shown}");
     let again = pns_adapters::SqliteStore::for_records(sandbox.state())
         .recap_summary("today")
         .expect("the store")
