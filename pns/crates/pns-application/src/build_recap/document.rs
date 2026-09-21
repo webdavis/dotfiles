@@ -105,12 +105,16 @@ fn session_node(session: &Session, wall_clock: &impl Fn(u64) -> String) -> Node 
     ])
 }
 
-/// One list section: the rows it holds and how many more there were.
+/// One list section: the rows it holds, and whether a cap upstream stopped
+/// the fetch before every row was read.
 ///
-/// `more` IS ZERO FOR EVERY STATE BUT A CAPPED READ, and the three states
-/// that carry no rows say so in `state` rather than by being absent, because
-/// a consumer that could not tell a broken command from a quiet window would
-/// report the wrong news.
+/// `more` IS ALWAYS ZERO: the document applies no cap of its own and prints
+/// every row `sourcing` holds, so it has no omitted count to report. A
+/// fetch's own ceiling is a different fact, and `at_least` is that one, true
+/// when the rows read cannot be called a total. The three states that carry
+/// no rows say so in `state` rather than by being absent, because a consumer
+/// that could not tell a broken command from a quiet window would report the
+/// wrong news.
 fn rows_node(sourcing: &Sourcing) -> Node {
     let rows = sourcing.rows();
     Node::map([
@@ -131,6 +135,10 @@ fn rows_node(sourcing: &Sourcing) -> Node {
             },
         ),
         ("more", Node::Number(0)),
+        (
+            "at_least",
+            Node::Flag(matches!(sourcing, Sourcing::Read(_, true))),
+        ),
         ("rows", Node::rows(&rows)),
     ])
 }
