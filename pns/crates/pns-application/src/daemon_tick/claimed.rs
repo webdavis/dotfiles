@@ -22,13 +22,13 @@ impl<S: DaemonSpool, C: JobChildren> RunDaemonTick<'_, S, C> {
             // ignored, because the alternative is a claim held forever.
             SpoolReading::Irregular => {
                 notice(DaemonNotice::Output(format!(
-                    "pns daemon: dropped `{id}`: it is not a regular file"
+                    "pns gateway: dropped `{id}`: it is not a regular file"
                 )));
                 self.release(claim, notice);
             }
             SpoolReading::Unusable(refusal) => {
                 notice(DaemonNotice::Output(format!(
-                    "pns daemon: dropped `{id}`: {refusal}"
+                    "pns gateway: dropped `{id}`: {refusal}"
                 )));
                 self.release(claim, notice);
             }
@@ -48,14 +48,14 @@ impl<S: DaemonSpool, C: JobChildren> RunDaemonTick<'_, S, C> {
                         Ok(_) => self.release(claim, notice),
                         Err(error) => {
                             notice(DaemonNotice::Error(format!(
-                                "pns daemon: `{id}` could not be put back ({error})"
+                                "pns gateway: `{id}` could not be put back ({error})"
                             )));
                             self.release(claim, notice);
                         }
                     },
                     pns_domain::jobs::Verdict::Drop(reason) => {
                         notice(DaemonNotice::Output(format!(
-                            "pns daemon: dropped `{id}` because {}",
+                            "pns gateway: dropped `{id}` because {}",
                             reason.said()
                         )));
                         self.release(claim, notice);
@@ -77,7 +77,7 @@ impl<S: DaemonSpool, C: JobChildren> RunDaemonTick<'_, S, C> {
     fn release(&self, claim: &S::Entry, notice: &mut impl FnMut(DaemonNotice)) {
         if let Err(error) = self.spool.release(claim) {
             notice(DaemonNotice::Error(format!(
-                "pns daemon: the working file {} could not be removed ({error}); it is left behind",
+                "pns gateway: the working file {} could not be removed ({error}); it is left behind",
                 self.spool.describe(claim)
             )));
         }
@@ -104,11 +104,11 @@ impl<S: DaemonSpool, C: JobChildren> RunDaemonTick<'_, S, C> {
             match self.spool.hand_back(&next) {
                 Ok(true) => {}
                 Ok(false) => notice(DaemonNotice::Output(format!(
-                    "pns daemon: `{}` was registered again while it ran, so its repeat stands down",
+                    "pns gateway: `{}` was registered again while it ran, so its repeat stands down",
                     job.id
                 ))),
                 Err(error) => notice(DaemonNotice::Error(format!(
-                    "pns daemon: `{}` will not repeat ({error})",
+                    "pns gateway: `{}` will not repeat ({error})",
                     job.id
                 ))),
             }
@@ -126,7 +126,7 @@ impl<S: DaemonSpool, C: JobChildren> RunDaemonTick<'_, S, C> {
         // is the daemon's now.
         if let Err(error) = self.children.start(job) {
             notice(DaemonNotice::Error(format!(
-                "pns daemon: `{}` could not start ({error})",
+                "pns gateway: `{}` could not start ({error})",
                 job.id
             )));
         }

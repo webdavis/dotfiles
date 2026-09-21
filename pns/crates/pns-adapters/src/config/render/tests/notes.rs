@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn a_note_renders_above_its_heading_as_a_commented_line() {
-    let mut hermes = toml::Table::new();
-    hermes.insert(
+    let mut log = toml::Table::new();
+    log.insert(
         "note".to_string(),
         toml::Value::String("armed for the pns-events route".to_string()),
     );
@@ -12,15 +12,15 @@ fn a_note_renders_above_its_heading_as_a_commented_line() {
         "pns-events".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
     let text = render(&values).expect("a noted table renders");
     assert!(
-        text.contains("# armed for the pns-events route\n[plugins.hermes]"),
+        text.contains("# armed for the pns-events route\n[plugins.log]"),
         "{text}"
     );
     // AND `note` NEVER REACHES THE PARSED CONFIG: it is a renderer
@@ -35,11 +35,11 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
     // THE INJECTION CASE. A note that could open a live heading or an
     // uncommented key on its second line would let a values file smuggle
     // arbitrary config text past every other refusal in this module.
-    let mut hermes = toml::Table::new();
-    hermes.insert(
+    let mut log = toml::Table::new();
+    log.insert(
         "note".to_string(),
         toml::Value::String(
-            "line one\n[plugins.hue]\nenabled = true\nbridge = \"hostile\"".to_string(),
+            "line one\n[plugins.lights]\nenabled = true\nbridge_host = \"hostile\"".to_string(),
         ),
     );
     let mut keys = toml::Table::new();
@@ -47,9 +47,9 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
         "pns-events".to_string(),
         toml::Value::String("hermes-secret".to_string()),
     );
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -63,9 +63,9 @@ fn a_note_holding_a_newline_stays_commented_on_every_line() {
         }
     }
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
-    // AND THE INJECTED TABLE NEVER ARRIVED: a real `[plugins.hue]` armed
+    // AND THE INJECTED TABLE NEVER ARRIVED: a real `[plugins.lights]` armed
     // by the note would be the exact failure this test exists to catch.
-    assert!(!config.plugins.contains_key("hue"));
+    assert!(!config.plugins.contains_key("lights"));
 }
 
 #[test]
@@ -159,13 +159,13 @@ fn a_note_holding_a_chezmoi_action_opening_is_refused_by_name() {
     // brace-splitting cannot protect it: chezmoi's template engine reads
     // `{{ ... }}` inside a comment exactly like anywhere else in the file, so
     // the only safe answer is refusing the note outright.
-    let mut hermes = toml::Table::new();
-    hermes.insert(
+    let mut log = toml::Table::new();
+    log.insert(
         "note".to_string(),
         toml::Value::String("safe {{ printf \"pwned\" }} unsafe".to_string()),
     );
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -186,16 +186,16 @@ fn a_note_holding_a_forbidden_control_character_is_refused_by_name() {
         "bad\u{7f}byte",
         "lone\rcarriage",
     ] {
-        let mut hermes = toml::Table::new();
-        hermes.insert("note".to_string(), toml::Value::String(hostile.to_string()));
+        let mut log = toml::Table::new();
+        log.insert("note".to_string(), toml::Value::String(hostile.to_string()));
         let mut keys = toml::Table::new();
         keys.insert(
             "pns-events".to_string(),
             toml::Value::String("hermes-secret".to_string()),
         );
-        hermes.insert("keys".to_string(), toml::Value::Table(keys));
+        log.insert("keys".to_string(), toml::Value::Table(keys));
         let mut plugins = toml::Table::new();
-        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        plugins.insert("log".to_string(), toml::Value::Table(log));
         let mut values = toml::Table::new();
         values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -220,8 +220,8 @@ fn a_note_holding_a_forbidden_control_character_is_refused_by_name() {
 fn the_recap_prose_keeps_the_hook_path_and_note_limit_facts_the_template_carries() {
     // X2's template-prose rule: the shipped template's facts win except
     // where they name the operator's own environment. Dropping the hook
-    // PATH explanation on `repos` or the twenty-five note limit on
-    // `review_notes` loses a real fact nothing else states.
+    // PATH explanation on `repositories` or the twenty-five note limit on
+    // `review_notes_glob` loses a real fact nothing else states.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     assert!(text.contains("FOUND ON PATH"), "{text}");
     assert!(text.contains("Twenty-five notes"), "{text}");
@@ -229,7 +229,7 @@ fn the_recap_prose_keeps_the_hook_path_and_note_limit_facts_the_template_carries
 
 #[test]
 fn the_header_scopes_the_credential_arming_claim_to_the_plugins_it_names() {
-    // Focus, the nag and the lamp map are opt-in tables that need no
+    // Focus, the reminder and the lamp map are opt-in tables that need no
     // credential at all; only three of the plugins do (hue, hermes,
     // router), so a blanket "everything else is armed with a
     // credential" misstates all three of them.
@@ -244,7 +244,7 @@ fn the_header_scopes_the_credential_arming_claim_to_the_plugins_it_names() {
 #[test]
 fn a_note_above_the_bare_lights_heading_renders_like_any_other_tables() {
     // `lights` IS TAKEN APART BEFORE IT IS WRITTEN, so its own `note` has
-    // to be pulled out with `refresh_secs` or the leftover check refuses
+    // to be pulled out with `arm_interval` or the leftover check refuses
     // it as an unknown key, the one table a values file could not comment.
     let mut lights = toml::Table::new();
     lights.insert(
@@ -263,5 +263,30 @@ fn a_note_above_the_bare_lights_heading_renders_like_any_other_tables() {
     assert_eq!(
         *config.lights.expect("lights was armed"),
         crate::config::Lights::default()
+    );
+}
+
+#[test]
+fn a_route_named_note_is_written_as_a_key_rather_than_stripped_into_a_comment() {
+    // AN OPEN TABLE HAS NO RESERVED NAMES: its keys are the routes the
+    // operator's own gateway serves, so one called `note` gets a key like
+    // every other rather than being turned into a comment nobody asked for.
+    let mut keys = toml::Table::new();
+    keys.insert(
+        "note".to_string(),
+        toml::Value::String("hermes-secret".to_string()),
+    );
+    let mut log = toml::Table::new();
+    log.insert("keys".to_string(), toml::Value::Table(keys));
+    let mut plugins = toml::Table::new();
+    plugins.insert("log".to_string(), toml::Value::Table(log));
+    let mut values = toml::Table::new();
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
+
+    let text = render(&values).expect("a route named note renders");
+    let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
+    assert_eq!(
+        config.plugins["hermes"].settings["keys"]["note"].as_str(),
+        Some("hermes-secret")
     );
 }

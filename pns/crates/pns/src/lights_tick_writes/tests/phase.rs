@@ -12,8 +12,8 @@ mod tests {
         // breath over before this one had finished it: exactly the pause this
         // slice exists to remove, reintroduced through the record.
         let lights = *pns_adapters::parse_config(
-            "[lights]\nrefresh_secs = 12\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n",
+            "[lights]\narm_interval = \"12s\"\n\
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -64,8 +64,8 @@ mod tests {
         // and records it; tick two reads that record and picks the breath
         // back up from exactly where it left off.
         let lights = *pns_adapters::parse_config(
-            "[lights]\nrefresh_secs = 12\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\"]\n",
+            "[lights]\narm_interval = \"12s\"\n\
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\"]\n",
         )
         .expect("the test's own config parses")
         .lights
@@ -154,8 +154,8 @@ mod tests {
         // every tick is the one that carries the colour. The same delay hits an
         // unread lamp that has to turn red.
         let lights = *pns_adapters::parse_config(
-            "[lights]\nrefresh_secs = 12\n\
-             [lights.room.\"3F - Studio\"]\nshows = [\"blocked\", \"loop\"]\n",
+            "[lights]\narm_interval = \"12s\"\n\
+             [lights.room.\"3F - Studio\"]\nbehaviours = [\"blocked\", \"loop\"]\n",
         )
         .expect("the test's own config parses")
         .lights

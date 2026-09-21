@@ -11,7 +11,7 @@ code back untouched. Every path on which it declines to forward exits 0, which i
 opinion, prompt as usual", so a pns that cannot reach moshi costs the operator a phone card and never a
 refused tool call. The pns hook path adds two things the gate does not have: its own notification about
 the block (raised after the forward starts, with the phone leg suppressed when the forward really began),
-and the durable state a wait leaves behind (the blocked marker, the nag record, the decision ring line).
+and the durable state a wait leaves behind (the blocked marker, the reminder record, the decision ring line).
 
 Vocabulary note: throughout, "submission" is the `moshi-hook` child process pns spawns, and "the approval
 card" is what moshi raises on the phone from the forwarded payload. pns never sees that card and never
@@ -103,12 +103,12 @@ When `src/main.rs:forward_to_moshi` is asked whether to start a round trip
 Then it forwards for every surface EXCEPT `Desk`, because at the desk the harness prompt in front of them
 already is the question.
 
-- Success: away (`PNS_IDLE_SECS=99999`) forwards, pinned by
+- Success: away (`PNS_SCREEN_IDLE=99999`) forwards, pinned by
   `tests/hooks.rs:a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decision`. A
   desk touched 90 seconds ago against a phone touched 5 seconds ago also forwards, because newest signal
   wins, pinned by
   `tests/hooks.rs:a_phone_used_more_recently_than_the_desk_gets_the_approval_forwarded_to_it`.
-- Failure sources: a presence reading nobody can parse. A garbled `PNS_IDLE_SECS` is refused rather than
+- Failure sources: a presence reading nobody can parse. A garbled `PNS_SCREEN_IDLE` is refused rather than
   defaulted (`src/engine.rs:surface_reading`), which leaves no fresh desk reading, so the surface is not
   `Desk` and the approval IS forwarded, pinned by
   `tests/hooks.rs:a_presence_reading_nobody_can_parse_still_forwards_the_approval`.
@@ -119,7 +119,7 @@ already is the question.
   `tests/hooks.rs:at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual` and
   `tests/hooks.rs:at_the_desk_the_gate_submits_nothing_and_exits_zero`.
 - Thresholds: the freshness window is `src/engine.rs:DEFAULT_DESK_IDLE_SECS`, 120 seconds, overridable
-  with `PNS_DESK_IDLE_SECS`. `src/surface.rs:fresh_age` filters on `age < fresh_secs` strictly, so an age
+  with `PNS_DESK_IDLE`. `src/surface.rs:fresh_age` filters on `age < fresh_secs` strictly, so an age
   of 119 seconds is fresh and speaks for its surface while an age of exactly 120 is not fresh at all. A
   tie between desk and phone ages goes to the desk (`src/surface.rs:surface`), so a desk and a phone both
   last touched 5 seconds ago read `Desk` and do not forward.
@@ -143,7 +143,7 @@ already is the question.
   that deadline serially" (`src/engine.rs:surface_reading`).
 - Idempotency and duplicates: one reading per invocation.
 - Privacy: the phone marker path is `$HOME/.local/state/pns/phone-attention.marker` unless
-  `PNS_PHONE_MARKER_FILE` overrides it (`src/main.rs:system_probes`). Only file times are read, never
+  `[plugins.phone] marker_file` overrides it (`src/main.rs:system_probes`). Only file times are read, never
   content.
 - Process ownership and cleanup: Not applicable, the presence check spawns no child of its own.
 - Compatibility contract: none, this is pns's own policy.
@@ -216,12 +216,11 @@ whether pns could parse them.
   `tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, whose own arithmetic asserts the
   length; a 1.2 megabyte payload is not. The reader takes `MAX_PAYLOAD_BYTES + 1` bytes on purpose, so a
   payload that HIT the cap is distinguishable from one that merely reached it
-  (`src/main.rs:read_payload`). The read deadline is 5 seconds by default, overridable in milliseconds
-  with `PNS_PAYLOAD_DEADLINE_MS` (`src/main.rs:payload_deadline`). Unlike the submit deadline,
-  `payload_deadline` applies NO zero filter, so `PNS_PAYLOAD_DEADLINE_MS=0` is a zero-length read window
-  (derived from `src/main.rs:payload_deadline` and `src/main.rs:env_deadline`; NOT ESTABLISHED: no test
-  drives a zero payload deadline, I grepped `tests/hooks.rs` and `tests/dispatch.rs` for
-  `PNS_PAYLOAD_DEADLINE_MS` and found only the 200 millisecond case).
+  (`src/main.rs:read_payload`). The read deadline is 5 seconds by default, overridable with a
+  `<count><ms|s|m|h>` duration in `PNS_PAYLOAD_DEADLINE` (`src/main.rs:payload_deadline`). The window
+  the variable may state runs from `1ms` to `60s`, so a zero-length read window can no longer be
+  asked for, and a value outside that range or written without a unit is reported and dropped for the
+  default rather than honoured (`src/main.rs:payload_deadline` and `process::settings::env_duration`).
 - Required side effects: none beyond the write.
 - Forbidden side effects: no truncated object may reach moshi, and no payload may be rewritten on the way
   through.
@@ -267,7 +266,7 @@ raised and before the one bounded wait.
   `tests/hooks.rs:the_submission_inherits_the_callers_environment`.
 - Process ownership and cleanup: pns owns the direct child. Only stdin is piped, so the child's stdout
   and stderr are pns's own inherited streams, see behavior 7.
-- Compatibility contract: the binary's location is `MOSHI_HOOK_BIN` if set, else
+- Compatibility contract: the binary's location is `PNS_MOSHI_HOOK_BIN` if set, else
   `src/main.rs:DEFAULT_MOSHI_HOOK_BIN`, which is `/opt/homebrew/bin/moshi-hook`, Homebrew's own prefix
   where the cask puts it. `src/main.rs:moshi_hook_bin` is the single lookup for every caller, and the
   override is how every test points a caller at a stub instead of at the operator's own moshi.
@@ -288,22 +287,19 @@ killing and reaping the child on expiry.
   performed. All three return 0.
 - Fail direction: fail-open, and precisely: exit 0 is NO OPINION and never a decision. The harness draws
   the prompt and the operator answers at the pane. Nothing pns does on this path can deny a tool call.
-- Thresholds: the deadline is `src/main.rs:submit_deadline`, resolved in three steps.
-  1. `PNS_MOSHI_SUBMIT_DEADLINE_MS`, in milliseconds, the test hatch. A LITERAL ZERO here is filtered out
-     and falls through to the config exactly as an unset variable would, because a zero is not a bound,
-     it is this wait switched off by accident.
-  1. `[plugins.mobile] submit_deadline_secs`, read off the ARMED mobile table only, meaning the table is
-     present, `enabled` is true, and `type = "moshi"` (`src/config.rs:armed_mobile`,
-     `src/config.rs:submit_deadline`).
-  1. `src/config.rs:DEFAULT_SUBMIT_DEADLINE_SECS`, which is 5 seconds. One step either side of the
-     accepted range: `submit_deadline_secs = 1` is accepted, and `submit_deadline_secs = 0` is refused by
-     name with the message "`mobile` key `submit_deadline_secs` is 0, which is the bound switched off by
+- Thresholds: the deadline is `src/main.rs:submit_deadline`, resolved in two steps.
+  1. `[plugins.phone] ack_deadline`, read off the ARMED phone table only, meaning the table is
+     present, `enabled` is true, and `type = "moshi"` (`src/config.rs:armed_phone`,
+     `src/config.rs:ack_deadline`).
+  1. `src/config.rs:DEFAULT_ACK_DEADLINE`, which is 5 seconds. One step either side of the
+     accepted range: `ack_deadline = 1` is accepted, and `ack_deadline = 0` is refused by
+     name with the message "`phone` key `ack_deadline` is 0, which is the bound switched off by
      accident: a deadline that expires before the daemon can answer costs the phone card on every
-     approval". `submit_deadline_secs = 3600` is accepted and `3601` is refused against
-     `src/config.rs:MAX_SUBMIT_DEADLINE_SECS`. A refusal is LOUD:
-     `src/main.rs:configured_submit_deadline` prints "pns: config error ({detail}); the moshi submission
-     keeps its {n}-second bound" to stderr and takes the 5 second default, because an operator who asked
-     for something, did not get it and was told nothing is the defect one level down. The poll interval
+     approval". `ack_deadline = 3600` is accepted and `3601` is refused against
+     `src/config.rs:MAX_ACK_DEADLINE_SECS`. A refusal is LOUD: `src/main.rs:submit_deadline` prints
+     "pns: config error ({detail}); the moshi submission keeps its {n}-second bound" to stderr and takes
+     the 5 second default, because an operator who asked for something, did not get it and was told
+     nothing is the defect one level down. The poll interval
      is `src/main.rs:SUBMISSION_POLL_INTERVAL`, 10 milliseconds, short enough to add no latency an
      operator could notice on a submission answered in roughly 150 milliseconds, long enough not to spin
      a core.
@@ -387,17 +383,17 @@ then the notification is raised.
 
 - Success: with the forward started, the durable leg still fires and the phone leg does not, pinned by
   `tests/hooks.rs:the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_phone`
-  asserting `fired("hermes")` and `!fired("mobile")`.
+  asserting `fired("hermes")` and `!fired("phone")`.
 - Failure sources: a forward that never spawned. The suppression used to be applied to the INTENT to
   forward, so an away operator whose `moshi-hook` could not spawn lost the one notification still able to
   reach them (`src/main.rs:blocking_event`). Now `PNS_SKIP_PHONE=1` is set only inside the
   `forwarded.is_some()` branch, and
-  `tests/hooks.rs:moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero` asserts `fired("mobile")`
+  `tests/hooks.rs:moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero` asserts `fired("phone")`
   on that path.
 - Fail direction: fail toward telling the operator. When in doubt the card goes out.
 - Thresholds: Not applicable.
 - Required side effects: the ORDER is the behavior. The forward's spawn is first and nothing may sit in
-  front of it; `arm_nag` is second, so the nag clock starts at the true prompt time and a notification
+  front of it; `arm_remind` is second, so the reminder clock starts at the true prompt time and a notification
   that dies still leaves a timer armed; `run_event` is third; the bounded wait is last
   (`src/main.rs:blocking_event`). The card's own content is state `blocked`, project taken as the last
   non-empty segment of the payload's `cwd` (`src/main.rs:project_of`), detail from the payload's message
@@ -410,7 +406,7 @@ then the notification is raised.
   `tests/hooks.rs:a_codex_approval_is_submitted_as_codex_hook_and_names_the_tool_that_wants_to_run`. An
   unparseable payload names no tool and the detail is the empty string, because inventing one would be
   worse (`tests/hooks.rs:a_payload_pns_cannot_parse_is_still_submitted_verbatim`).
-- Forbidden side effects: `PNS_SKIP_PHONE` is set in THIS PROCESS ONLY. The nag fire is a different
+- Forbidden side effects: `PNS_SKIP_PHONE` is set in THIS PROCESS ONLY. The reminder fire is a different
   process minutes later that never inherits it, so the nudge reaches the phone the first card was
   suppressed from, deliberately (`src/main.rs`, line 4500). Suppression must not be applied by the
   delivery plan, because the card moshi is raising is something the surface model cannot know about.
@@ -472,7 +468,7 @@ Then one marker file per waiting session is published, and a later event from th
 - Fail direction: fail toward the lamp going dark rather than staying lit. A closed set of STARTERS and
   everything else ENDS, so an unrecognized state word ends a wait rather than holding blue on a session
   nobody is waiting for (`src/lights.rs:blocked_marker_action`).
-- Thresholds: STARTING a wait rides behind the `[lights]` table AND an enabled `[plugins.hue]` table, the
+- Thresholds: STARTING a wait rides behind the `[lights]` table AND an enabled `[plugins.lights]` table, the
   `lamps_live` condition in `src/main.rs:run_event`, because a machine that never asked for the lamps
   must not start accumulating files nothing would sweep. ENDING one is unconditional, because a wait that
   ended while the lamps were off would otherwise keep its marker and put blocked on a lamp for a session
@@ -481,7 +477,7 @@ Then one marker file per waiting session is published, and a later event from th
   `src/main.rs:hook_mode`: `prompt`, because the operator typing answers any live wait their session
   could be holding, and `resolved`, guarded on `!payload.in_subagent` because a batch carrying an
   `agent_id` key resolved a subagent's tool and not the parent's own wait. Beside the marker, `run_event`
-  also writes the decision ring line and the news record that arms the `unread` lamp
+  also writes the decision ring line and the news record that arms the `unseen` lamp
   (`src/main.rs:record_news`). The decision ring line for a forwarded approval carries `claude/blocked`,
   `skip_phone=yes` and `mode=default agent=agent_01 tool=Bash`, pinned by
   `tests/hooks.rs:an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed` and
@@ -491,8 +487,8 @@ Then one marker file per waiting session is published, and a later event from th
   answered hours ago; the same test asserts the journal file does not exist. An approval must also leave
   the TURN MARKER alone, because the harness resumes the tool call and the turn ends later at the Stop
   that follows (`tests/hooks.rs:an_approval_leaves_the_turn_marker_alone`).
-- Timeout and cancellation: the marker's own backstop is `[lights.blocked] give_up_after_secs`, which
-  configuration refuses to set shorter than `[nag] after_secs`, because that is a configuration that
+- Timeout and cancellation: the marker's own backstop is `[lights.blocked] lease_expiry`, which
+  configuration refuses to set shorter than `[remind] delay`, because that is a configuration that
   gives up on a wait before it ever nudges about it (`src/main.rs:update_blocked_marker`,
   `src/config.rs:parse_config`).
 - Idempotency and duplicates: one file per SESSION carries no generation, so an OLDER Stop can remove a
@@ -510,17 +506,17 @@ Then one marker file per waiting session is published, and a later event from th
   `a_forwarded_gate_leaves_the_state_markers_untouched` verifies a real forward for both bare and
   explicit pi gate forms, then checks the existing marker bytes and exact state-directory entries.
 
-### 11. The nag armed with the wait
+### 11. The reminder armed with the wait
 
 Given an approval nobody answers should be nudged once, and the clock should start at the true prompt
 time
 
 When `src/main.rs:blocking_event` runs, after the spawn and before the notification
 
-Then `src/main.rs:arm_nag` publishes a record for that session, and clears any previous approval's
+Then `src/main.rs:arm_remind` publishes a record for that session, and clears any previous approval's
 answered marker first.
 
-- Success: `arm_nag` writes a record holding agent, project, branch, detail, pane and the arming time.
+- Success: `arm_remind` writes a record holding agent, project, branch, detail, pane and the arming time.
   `tests/hooks.rs:an_unanswered_approval_is_nudged_once_through_the_ordinary_paths` and
   `tests/hooks.rs:three_unanswered_approvals_produce_one_card_that_says_three` drive the fire.
 - Failure sources: no clock reading, an unsafe session id, or a schedule that could not be created. The
@@ -528,17 +524,19 @@ answered marker first.
   `tests/hooks.rs:an_approval_whose_nudge_could_not_be_scheduled_leaves_no_record_behind`.
 - Fail direction: fail toward not nudging. A record whose arming time nothing could read would be judged
   stale on the first fire anyway, so not writing it is the same answer one step earlier.
-- Thresholds: `[nag] after_secs`, with `src/main.rs:NAG_OFF` (zero) meaning the nag is off and nothing is
+- Thresholds: `[remind] delay`, with `src/main.rs:REMIND_OFF` (zero) meaning the reminder is off and nothing is
   armed.
 - Required side effects: the answered marker is removed BEFORE the record is published, and the order is
   load bearing twice over. The marker name is constant per session, so one left by the previous approval
   would make the new job drop silently; and published first, the new record could be claimed by a
   concurrent fire that then finds the previous approval's marker and drops it as answered.
-- Forbidden side effects: NO NAG ON CODEX, and the gate is positive (an agent that is not
-  `src/main.rs:CLAUDE_AGENT` returns immediately) so an empty or unknown `PNS_PRODUCER` arms nothing either.
-  Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no batch-level one, and
-  agent turns routinely run tens of minutes: a Codex nag would be wrong in the common case rather than at
-  an edge (`src/main.rs:arm_nag`).
+- Forbidden side effects: NO REMINDER FOR A PRODUCER NOBODY SWITCHED ONE ON FOR. The name is a label,
+  never a feature switch: the call's own `--remind` beats `[producer.<name>] remind`, which beats the
+  default of off, so an empty or unknown `PNS_PRODUCER` arms nothing either
+  (`crates/pns/src/remind_schedule_runtime.rs:remind_delay`). Whether a producer should ask is
+  behavioral: Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no
+  batch-level one, and agent turns routinely run tens of minutes, which makes a Codex reminder wrong in
+  the common case rather than at an edge.
 - Timeout and cancellation: the nudge is a separate process minutes later, see behavior 8's note on
   `PNS_SKIP_PHONE`.
 - Idempotency and duplicates: one card whatever the count. Three waiting approvals produce ONE nudge card
@@ -589,16 +587,16 @@ Given the operator answers from their phone
 
 When the forward succeeds
 
-Then moshi raises the actionable card itself from the forwarded payload, and pns's own mobile leg is the
+Then moshi raises the actionable card itself from the forwarded payload, and pns's own phone leg is the
 one that is suppressed.
 
 - Success: moshi mints the card's action identifier inside itself and answers pns with an exit code. The
   `skip_phone=yes` field in the decision ring line is THE ONLY TRACE of a forward anywhere in pns's
   records, pinned by
   `tests/hooks.rs:an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed`.
-- Failure sources: on the paths where pns DOES raise a phone card (no forward started), the mobile leg
+- Failure sources: on the paths where pns DOES raise a phone card (no forward started), the phone leg
   can still fail. `src/channels/moshi.rs:MoshiChannel::deliver` returns "push SKIPPED -- no moshi token
-  in the config ([plugins.mobile] token); nothing was sent" for a missing or empty token, and "push
+  in the config ([plugins.phone] token); nothing was sent" for a missing or empty token, and "push
   FAILED (the moshi endpoint refused it or could not be reached)" for a non-2xx or unreachable endpoint.
   `src/channels/moshi.rs:refused_backend_line` wraps a `type` fault as "push SKIPPED -- {reason}; nothing
   was sent".
@@ -622,13 +620,13 @@ one that is suppressed.
 - Timeout and cancellation: the post follows no redirects (`max_redirects(0)`), because following one
   would send the token to whatever host the endpoint names.
 - Idempotency and duplicates: one post, no retry.
-- Privacy: THE SECRET'S PATH IS THE POINT. The token is read from the `[plugins.mobile]` table's `token`
+- Privacy: THE SECRET'S PATH IS THE POINT. The token is read from the `[plugins.phone]` table's `token`
   key, placed in the request BODY, and never touches argv, the environment of a child, or an error string
   (module documentation of `src/channels/moshi.rs`). The delivery verdict says whether the push landed
   and never what it carried.
 - Process ownership and cleanup: Not applicable, the post is in-process.
 - Compatibility contract: yes. `src/channels/moshi.rs:DEFAULT_MOSHI_URL` is
-  `https://api.getmoshi.app/api/webhook`, overridable with `PNS_MOSHI_URL`; the body shape is moshi's;
+  `https://api.getmoshi.app/api/webhook`, set by `[plugins.phone] url`, else `PNS_MOSHI_URL`; the body shape is moshi's;
   the deep-link scheme `moshi://herdr?workspace=&tab=&pane=&session=` is moshi's, with tab and pane
   available since moshi 3.13.0; and a tap resumes a card moshi ALREADY HOLDS. It looks for an active card
   matching server session and workspace, else resumes the most recently minimized card for that session,

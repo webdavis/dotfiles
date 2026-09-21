@@ -1,7 +1,7 @@
 use crate::*;
 pub(crate) use pns_adapters::{now_secs, state_dir};
 
-pub(crate) use pns_adapters::env_deadline;
+pub(crate) use pns_adapters::env_duration;
 /// Every override the engine reads, out of the process environment.
 pub(crate) fn overrides_from_env() -> Overrides {
     Overrides::from_env(

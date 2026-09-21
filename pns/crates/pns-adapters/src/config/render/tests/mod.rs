@@ -5,27 +5,27 @@ use crate::config::parse_config;
 /// shape `Answers::values()` produces once every question is answered.
 fn every_table_armed() -> toml::Table {
     toml::toml! {
-        [plugins.mobile]
-        token = "moshi-secret"
+        [plugins.phone]
+        device_token = "moshi-secret"
 
-        [plugins.hermes.keys]
+        [plugins.log.keys]
         pns-events = "hermes-secret"
 
-        [plugins.hue]
-        bridge = "192.168.1.9"
-        key = "hue-secret"
-        rooms = ["Studio", "Kitchen"]
+        [plugins.lights]
+        bridge_host = "192.168.1.9"
+        api_key = "hue-secret"
 
-        [plugins.router]
+        [plugins.home_presence]
         type = "unifi"
-        router_url = "https://192.168.1.1"
+        url = "https://192.168.1.1"
         api_key = "router-secret"
         device_hostname = "phone"
 
         [focus]
-        silence = ["Sleep"]
+        modes = ["Sleep"]
 
-        [nag]
+        [remind]
+        delay = "5m"
     }
 }
 

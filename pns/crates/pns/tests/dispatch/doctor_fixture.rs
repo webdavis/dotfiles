@@ -17,13 +17,13 @@ pub(super) fn doctor_command(sandbox: &Sandbox) -> std::process::Command {
 /// one: a path inside the sandbox that does not exist.
 ///
 /// WITHOUT THIS THE SUITE READS THE DEVELOPER'S OWN MACHINE. The doctor
-/// resolves the binary through `MOSHI_HOOK_BIN` over a Homebrew path, so an
+/// resolves the binary through `PNS_MOSHI_HOOK_BIN` over a Homebrew path, so an
 /// unstubbed run would spawn the real moshi-hook, contact the moshi API, take
 /// about five seconds doing it, and answer differently on every machine.
 /// Absent is also a real state rather than a flag, and the check is inert on
 /// the exit code for it, so no test here has its verdict decided by the stub.
 pub(super) fn no_moshi_hook(sandbox: &Sandbox, command: &mut std::process::Command) {
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
 }
 
 /// A moshi-hook that answers both shapes of `status` from canned bytes and
@@ -67,7 +67,7 @@ pub(super) fn stub_moshi_hook(
             sandbox = sandbox.display()
         ),
     );
-    command.env("MOSHI_HOOK_BIN", &script);
+    command.env("PNS_MOSHI_HOOK_BIN", &script);
 }
 
 /// Every argv the stub was ever handed, one vector per invocation, with the
@@ -132,33 +132,34 @@ pub(super) const FOCUS_OFF_LINE: &str =
 /// defaults ON and no daemon has ever written a beat here.
 pub(super) const DAEMON_NEVER_RAN_LINE: &str = "the daemon is enabled and has not run yet";
 
-/// And what it says about the nag on a machine whose config has no `[nag]`
+/// And what it says about the reminder on a machine whose config has no `[remind]`
 /// table, which is every machine until an operator writes one: the feature
 /// ships OFF. It sits IMMEDIATELY BELOW the daemon's line, which is the whole
-/// mitigation for the one thing it does not say (a nag with a dead daemon never
+/// mitigation for the one thing it does not say (a reminder with a dead daemon never
 /// fires): the two read as one paragraph.
-pub(super) const NAG_OFF_LINE: &str = "the nag is off (no `[nag] after_secs`)";
+pub(super) const REMIND_OFF_LINE: &str = "the reminder is off (no `[remind] delay`)";
 
 /// And what it says about the home probe on a machine whose config names no
 /// router. IT IS A NOTE, not a warning: nobody asked for a home reading here,
 /// and grading that choice as a fault would withhold the report's all-clear on
 /// every such machine forever.
-pub(super) const HOME_UNCONFIGURED_LINE: &str = "home: not configured (no [plugins.router] table)";
+pub(super) const HOME_UNCONFIGURED_LINE: &str =
+    "home: not configured (no [plugins.home_presence] table)";
 
 /// And what it says about the lamps on a machine whose config has no `[lights]`
 /// table, which is every machine that never wrote one.
 pub(super) const LIGHTS_OFF_LINE: &str =
-    "lights: off in the config, so the pulse uses the [plugins.hue] rooms";
+    "lights: off in the config, so the pulse flashes the plugin's own default rooms";
 
 /// And what it says about the pinned certificate on a machine whose config
 /// names no bridge: there is no address to pin one against.
 pub(super) const NO_CERTIFICATE_LINE: &str =
-    "certificate: no [plugins.hue] bridge, so no certificate is pinned";
+    "Hue bridge certificate: no [plugins.lights] bridge_host, so no certificate is pinned";
 
 /// Every channel an event dispatches, switched on. The sensor and the lights
 /// are deliberately absent: the report has to name them anyway.
-pub(super) const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-     [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n";
+pub(super) const EVERY_DISPATCHED_CHANNEL: &str = "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+     [plugins.banner]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n";
 
 /// The report's own sentences, with the presentation taken back off.
 ///

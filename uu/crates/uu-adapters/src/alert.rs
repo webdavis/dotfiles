@@ -7,9 +7,9 @@
 //! that is the engine's whole job.
 //!
 //! NO `--channel`, deliberately, and none is coming: uu says what the event IS
-//! with `--kind health`, and pns maps that kind to the route it pages on
-//! (operator ruling, 2026-09-15). A tool that named a route would be a tool
-//! that had to know which Discord channels exist, and the record path is
+//! with `--delivery-class health`, and pns maps that class to the route it
+//! pages on (operator ruling, 2026-09-15). A tool that named a route would be a
+//! tool that had to know which Discord channels exist, and the record path is
 //! already where the quiet weekly entry goes.
 //!
 //! FAIL OPEN. An absent or refusing engine is reported on stderr and the run
@@ -24,7 +24,7 @@ pub fn alert_argv(host: &str, lane: &str, summary: &str) -> Vec<String> {
         uu_protocol::AGENT,
         "--state",
         "failed",
-        "--kind",
+        "--delivery-class",
         "health",
         "--project",
         host,
@@ -56,7 +56,7 @@ mod tests {
                 "uu",
                 "--state",
                 "failed",
-                "--kind",
+                "--delivery-class",
                 "health",
                 "--project",
                 "dresden",
@@ -90,14 +90,14 @@ mod tests {
     #[test]
     fn a_failed_lane_is_a_health_event_because_a_failed_upgrade_pages() {
         let argv = alert_argv("dresden", "herdr", "x");
-        let kind = argv
+        let delivery_class = argv
             .iter()
-            .position(|a| a == "--kind")
+            .position(|a| a == "--delivery-class")
             .map(|at| &argv[at + 1]);
         assert_eq!(
-            kind.map(String::as_str),
+            delivery_class.map(String::as_str),
             Some("health"),
-            "an alert with no kind lands on the routine route nobody watches"
+            "an alert with no delivery class lands on the routine route nobody watches"
         );
     }
 

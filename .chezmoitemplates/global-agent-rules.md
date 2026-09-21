@@ -222,7 +222,10 @@ Prefer local CLI tools over MCP servers when both work. MCP only for SaaS APIs w
 
 - Prefer the `gh-axi` skill over the raw `gh` CLI for every GitHub operation: issues, pull requests,
   workflow runs, releases, everything. `gh` stays installed and authenticated purely as `gh-axi`'s
-  runtime dependency; never invoke it directly.
+  runtime dependency; never invoke it directly. This preference binds the agent doing the GitHub work,
+  the process that would type the command. A Rust product this repository ships spawns whichever
+  subprocess suits it on its own merits, the way it chooses `git`, so `pns recap git` keeps calling `gh`
+  for the fields gh-axi does not expose.
 - Prefer the `chrome-devtools-axi` skill over other browser automation (Claude-in-Chrome, Playwright, raw
   `chrome-devtools-mcp`) whenever DevTools-based automation is needed.
 - Home Assistant work uses both skills together: `home-assistant` (runtime control: entity states,

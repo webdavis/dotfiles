@@ -1,6 +1,6 @@
 use super::*;
 
-/// `min_events`, the volume threshold. A negative or fractional value is
+/// `minimum_events`, the volume threshold. A negative or fractional value is
 /// refused BY NAME rather than clamped: the operator asked for a threshold, and
 /// a silently corrected one is a threshold they believe they set.
 pub(super) fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
@@ -9,7 +9,7 @@ pub(super) fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
         .and_then(|count| usize::try_from(count).ok())
     else {
         return Err(ConfigError::Invalid(format!(
-            "`recap` key `min_events` has type `{}`, not a count",
+            "`recap` key `minimum_events` has type `{}`, not a count",
             setting.type_str()
         )));
     };
@@ -22,43 +22,9 @@ pub(super) fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
     // activity at all".
     if count == 0 {
         return Err(ConfigError::Invalid(
-            "`recap` key `min_events` is 0, which is not a threshold; 1 is the floor".to_string(),
+            "`recap` key `minimum_events` is 0, which is not a threshold; 1 is the floor"
+                .to_string(),
         ));
-    }
-    Ok(count)
-}
-
-/// `summarizer_deadline_secs`, in whole seconds. See `min_events` for why a
-/// value that is not a count is refused rather than corrected; zero is a
-/// deadline nothing can meet, which is the fallback saying so, not a shape
-/// this layer has to judge.
-///
-/// THE TOP END IS REFUSED BY NAME TOO, and unlike zero it really is a shape
-/// this layer has to judge. Two things break past the ceiling and neither is
-/// visible where it happens. NOTHING SUPERVISES THE DETACHED RECAP CHILD, which
-/// `spawn_recap` states outright: at four minutes that is fine, and at a day it
-/// is one child plus one wedged backend held for a day, with a second pair
-/// arriving at the next return moment. AND `9223372036854775807` IS A PLAIN
-/// TOML INTEGER: it parses, and `Instant::now() + Duration::from_secs` of it
-/// PANICS (MEASURED: "overflow when adding duration to instant") inside a
-/// process whose stderr is /dev/null and whose exit code nobody reads, so the
-/// recap simply vanishes after the card has said it is coming. A refusal the
-/// operator reads beats a silence they cannot.
-pub(super) fn seconds(setting: &toml::Value) -> Result<u64, ConfigError> {
-    let Some(count) = setting
-        .as_integer()
-        .and_then(|count| u64::try_from(count).ok())
-    else {
-        return Err(ConfigError::Invalid(format!(
-            "`recap` key `summarizer_deadline_secs` has type `{}`, not a count of seconds",
-            setting.type_str()
-        )));
-    };
-    if count > MAX_SUMMARIZER_DEADLINE_SECS {
-        return Err(ConfigError::Invalid(format!(
-            "`recap` key `summarizer_deadline_secs` is {count}, past the \
-             {MAX_SUMMARIZER_DEADLINE_SECS}-second ceiling"
-        )));
     }
     Ok(count)
 }

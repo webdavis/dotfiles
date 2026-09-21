@@ -15,12 +15,13 @@ pns: usage:
                                    model-switch, quota, config-change
   pns <harness>-hook               presence-gated pass-through to moshi-hook,
                                    spelled the way moshi's extension calls it
-  pns quiet [<duration>|off]       the operator's mute
-  pns quiet calendar               one calendar read, run by the clock
-  pns daemon run|schedule|cancel   the clock
-  pns daemon retry                 one sweep of the retry queue, run by the clock
+  pns mute [<duration>|off]        the operator's mute
+  pns mute calendar                one calendar read, run by the clock
+  pns gateway run|schedule|cancel  the clock
+  pns gateway retry                one sweep of the retry queue, run by the clock
+  pns gateway start|stop|restart|status
   pns lights tick                  the lamps' upkeep, run by the clock
-  pns lights quiet                 the lamps' own mute, one place at a time
+  pns lights mute                  the lamps' own mute, one place at a time
   pns lights pulse <exit-code>     signal the lamps by hand
   pns lights enroll                pair a bridge, once per machine
   pns presence poll [--daemon]     one bridge read, published for the sensor
@@ -29,13 +30,16 @@ pns: usage:
   pns shell begin --pid <pid> --command <line>
   pns shell end --pid <pid> --command <line> --exit-code <code> --elapsed <duration>
   pns loop begin|end               take the loop lamp by hand, and give it back
-  pns nag                          card every outstanding approval
+  pns remind                          card every outstanding approval
   pns stale                        page about every session stuck past the window
   pns failures [<id>|open <id>]    what is not arriving, and one banner's click
   pns failures serve               the local page, run by the clock
-  pns recap --since <epoch> --until <epoch>
+  pns recap --since <when> [--until <when>]
+                                   a date, a date-time or a duration ago
+  pns recap --since-epoch <epoch> --until-epoch <epoch>
   pns recap agent --stdin          post a recap somebody else composed
   pns recap git                    print what only git, worktrunk and gh answer
+  pns resume [--json|--notify]     where you were, printed, or sent as a page
   pns setup [--force]              write a first config, one question at a time
   pns doctor [--raw]               one test send through every channel
   pns tap [info|install] [--json]  record phone attention or inspect its setup
@@ -44,9 +48,9 @@ pns: usage:
   pns --version, -V                the package version
 
 machine-called:  pns send, pns hook <event>, pns shell begin, pns shell end,
-                 pns daemon retry, pns lights tick, pns quiet calendar,
-                 pns nag, pns stale,
-                 pns failures serve, pns recap --since, pns recap agent,
+                 pns gateway retry, pns lights tick, pns mute calendar,
+                 pns remind, pns stale,
+                 pns failures serve, pns recap --since-epoch, pns recap agent,
                  pns recap git, pns presence poll [--daemon] and
                  pns github poll [--daemon] are called by hooks, by launchd, by
                  the clock and by the shell notifier rather than typed.
@@ -61,9 +65,11 @@ pns: usage:
 
 producer flags: --producer <name> --state <word> --project <name> --branch <name>
                 --detail <text> --pane <id> --route <name> --elapsed <duration>
-                --request-id <id> --session <id> --kind <agent|health>
-                --scope <automatic|local_only|remote_only> --long-running
-                --require-delivery
+                --request-id <id> --session <id> --delivery-class <name>
+                --scope <automatic|local_only|remote_only>
+
+exit codes:     0 every destination took the page, 1 any destination did not,
+                2 a field pns will not honour.
 
 durations:      a count and a unit, `30s`, `5m`, `2h`. A bare number is
                 refused: one reader takes it as seconds and the next as
@@ -78,8 +84,12 @@ scopes:         automatic, the default, lets presence decide; local_only keeps
                 the event on this machine; remote_only sends it off the machine
                 alone.
 
-kinds:          agent, the default, is a session event and takes the route
-                `[routes] default` names; health is a machine's own health and
-                takes `[routes] urgent` when its --state is one somebody has to
-                answer, unless --route already named one.
+delivery class: what the event IS for delivery. A
+                `[delivery_class.<name>]` table in your config says where each
+                class goes and whether it passes a mute; its route is taken
+                when --state is one somebody has to answer, unless --route
+                already named one. Naming none reads
+                `[delivery_class.default]`, and a class no table defines is
+                refused. The same word the JSON request's `delivery_class`
+                carries.
 ";

@@ -162,7 +162,7 @@ impl SqliteStore {
     /// it a compare-and-swap that SQLite arbitrates, so two fires woken in one
     /// tick produce one page between them without a lock file of their own.
     ///
-    /// STAMPED ON ATTEMPT, NEVER ON SUCCESS, which matches the nag's own
+    /// STAMPED ON ATTEMPT, NEVER ON SUCCESS, which matches the reminder's own
     /// honesty: a mute, a Focus or an empty plan can suppress the delivery,
     /// and a page that retried every hour because the first one was muted is
     /// the failure mode worth avoiding.
@@ -174,5 +174,45 @@ impl SqliteStore {
                 rusqlite::params![session_id, now],
             )? == 1)
         })
+    }
+}
+
+// --- the wait a report reads -------------------------------------------------
+
+impl SqliteStore {
+    /// The session waiting on the operator now, the newest wait first.
+    ///
+    /// NEWEST RATHER THAN OLDEST, where `stale_blocks` takes the oldest: the
+    /// escalation pages about the wait that has gone unanswered longest, and a
+    /// report answering "where was I" means the one they walked away from.
+    ///
+    /// EVERY WAIT, ESCALATED OR NOT. A page already sent about a block does
+    /// not make the block answered, and this read arms nothing.
+    ///
+    /// READ ONLY, AND EVERY FAILURE IS NO WAIT AT ALL. A report must not
+    /// create, import or migrate a database, and a store it cannot open says
+    /// nothing rather than refusing to print.
+    pub fn newest_wait(&self) -> Option<pns_domain::stale::Blocked> {
+        let connection = self.read_only().ok()?;
+        connection
+            .query_row(
+                "SELECT id, harness, project, branch, title, blocked_since
+                   FROM sessions
+                  WHERE blocked_since IS NOT NULL
+                  ORDER BY blocked_since DESC, id
+                  LIMIT 1",
+                [],
+                |row| {
+                    Ok(pns_domain::stale::Blocked {
+                        session: row.get(0)?,
+                        harness: row.get(1)?,
+                        project: row.get(2)?,
+                        branch: row.get(3)?,
+                        title: row.get(4)?,
+                        since: row.get(5)?,
+                    })
+                },
+            )
+            .ok()
     }
 }

@@ -1,12 +1,18 @@
 {
   "schema": "pns.result/1",
   "request_id": "nvim-7f3a9c2e-0001",
-  "status": "degraded",
-  "decision_id": "d-000123",
-  "interaction": { "kind": "no_opinion" },
+  "status": "partial",
+  "ledger_sequence": "123",
   "destinations": [
-    { "destination": "macos-banner", "outcome": "delivered" },
-    { "destination": "hermes", "outcome": "failed", "note": "post FAILED HTTP 401" }
+    { "name": "macos-banner", "outcome": "delivered" },
+    {
+      "name": "hermes",
+      "outcome": "failed",
+      "route": "priority",
+      "note": "post FAILED HTTP 401",
+      "retry_at": 1758153600
+    }
   ],
-  "diagnostics": ["ignored_field:detial"]
+  "diagnostics": ["ledger_committed"],
+  "ignored_fields": ["detial"]
 }

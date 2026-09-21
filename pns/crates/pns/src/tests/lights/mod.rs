@@ -15,5 +15,5 @@ mod phase_tests;
 #[path = "tests/mute.rs"]
 mod mute_tests;
 
-#[path = "tests/quiet_command.rs"]
-mod quiet_command_tests;
+#[path = "tests/mute_command.rs"]
+mod mute_command_tests;

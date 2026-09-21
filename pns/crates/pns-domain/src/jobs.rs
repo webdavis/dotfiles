@@ -14,9 +14,18 @@
 /// a prefix on it, short enough that a spool filename stays a filename.
 pub const ID_MAX: usize = 64;
 
+/// The failure page's job id.
+///
+/// A LEADING DOT CANNOT BE A SCHEDULED ID, so nothing an operator registers
+/// can collide with it. It is named here rather than only where it is started
+/// because the daemon's shutdown has to name the one child it takes with it:
+/// every other child is a delivery in flight, which is orphaned on purpose,
+/// and this one is a listener holding a port.
+pub const PAGE_JOB: &str = ".failures-page";
+
 /// One leased job: the whole of what the daemon knows how to do.
 ///
-/// ONE PRIMITIVE, not two. The nag ("say something at T unless an answer
+/// ONE PRIMITIVE, not two. The reminder ("say something at T unless an answer
 /// arrived") and the animation upkeep ("keep re-arming a short effect while a
 /// loop is alive") reduce to the same record, so the daemon has one concept and
 /// neither rider adds a second.
@@ -48,7 +57,7 @@ pub const RECORD_MAX: usize = 8192;
 ///
 /// ITS OWN RULE rather than either of `safety`'s two, and the difference is
 /// the point in both directions. `session_id_is_safe` refuses the colon, which
-/// a job id needs (`nag:sess-123`); `pane_is_safe` admits `..` and a leading
+/// a job id needs (`remind:sess-123`); `pane_is_safe` admits `..` and a leading
 /// dot, which a filename must not have. Sharing either would couple this rule
 /// to a change made for a different reason.
 pub fn name_is_safe(name: &str) -> bool {

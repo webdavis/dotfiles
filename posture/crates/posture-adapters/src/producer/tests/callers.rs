@@ -23,7 +23,7 @@ impl PollMarkers for Markers {
 
 #[test]
 fn an_oversized_poll_gap_reports_omission_without_marking_or_publishing() {
-    let mut sink = subject(Status::Accepted, true);
+    let mut sink = subject(Status::Delivered, true);
     let id = "control_".repeat(1500);
     let records = [ControlRecord {
         id: &id,
@@ -54,9 +54,11 @@ fn an_oversized_poll_gap_reports_omission_without_marking_or_publishing() {
     );
     assert_eq!(outcome, Err(PollFailure::Gap(SubmissionFailure::Refused)));
     assert_eq!(sink.runner.requests.len(), 1);
-    assert_eq!(
-        sink.runner.requests[0].event.as_str(),
-        "notification-omitted"
+    assert!(
+        sink.runner.requests[0]
+            .detail
+            .starts_with("Posture security alert omitted"),
+        "the omission notice stands in for the finding"
     );
 }
 
@@ -100,7 +102,7 @@ impl JudgeFindings for Batch {
 
 #[test]
 fn an_oversized_judged_batch_reports_omission_without_advancing_its_cursor() {
-    let mut sink = subject(Status::Accepted, true);
+    let mut sink = subject(Status::Delivered, true);
     assert_eq!(
         JudgeResults {
             lock: &Batch,
@@ -110,12 +112,15 @@ fn an_oversized_judged_batch_reports_omission_without_advancing_its_cursor() {
             sink: &mut sink,
             occurred_at: Some(42),
         }
-        .run(),
+        .run()
+        .outcome,
         JudgeOutcome::Retained
     );
     assert_eq!(sink.runner.requests.len(), 1);
-    assert_eq!(
-        sink.runner.requests[0].event.as_str(),
-        "notification-omitted"
+    assert!(
+        sink.runner.requests[0]
+            .detail
+            .starts_with("Posture security alert omitted"),
+        "the omission notice stands in for the finding"
     );
 }

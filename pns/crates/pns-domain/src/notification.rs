@@ -63,7 +63,7 @@ pub struct EventArgs {
     pub detail: String,
     pub pane: String,
     /// The named hermes route this event posts to, resolved through the
-    /// config's `[plugins.hermes]` channels table; empty means the default
+    /// config's `[plugins.log]` channels table; empty means the default
     /// (alert) route. Names, not URLs: the caller says WHERE, the config
     /// says HOW to get there.
     pub channel: String,
@@ -82,12 +82,13 @@ pub struct EventArgs {
     /// The >=300s tier: the lights signal rides on top of whatever else the
     /// plan decides.
     pub long_running: bool,
-    /// What this event IS, which is what picks its route when `channel` is
-    /// empty. Producers name a kind; nobody outside this crate names a route
-    /// it has not been told.
-    pub kind: crate::routes::Kind,
+    /// The delivery class this event carries, which is what picks its route
+    /// when `channel` is empty and what a configured bypass is matched
+    /// against. Empty means the producer named none. Producers name a class;
+    /// nobody outside this crate names a route it has not been told.
+    pub delivery_class: String,
     /// Whether this event's `state` was READ OFF THE TURN'S TEXT by the
-    /// condenser rather than stated by a harness hook. A guess is the model's
+    /// summarizer rather than stated by a harness hook. A guess is the model's
     /// reading of prose, so it can call a turn a wait that is asking nobody
     /// anything; a hook fired because the harness itself stopped for an
     /// answer.
@@ -96,17 +97,20 @@ pub struct EventArgs {
 
 impl EventArgs {
     /// This event with its route settled: the one its producer named, else the
-    /// one its kind names, else the default.
+    /// one its delivery class names, else the default.
     ///
     /// THE NAMED ROUTE WINS. A producer that said where already answered the
-    /// question the kind is here to answer.
+    /// question the delivery class is here to answer.
+    ///
+    /// `class_route` IS WHAT THE CONFIGURED CLASS SAYS, resolved by the caller
+    /// that holds the file: this crate reads no config and knows no class.
     ///
     /// RESOLVED ONCE, AND EARLY. `channel` is what the ledger row, the retry
     /// that rebuilds off it and every destination read, so a route filled in
     /// later would leave a page recorded on one route and posted to another.
-    pub fn routed(mut self, routes: &crate::routes::Routes) -> Self {
+    pub fn routed(mut self, class_route: Option<&str>) -> Self {
         if self.channel.is_empty()
-            && let Some(route) = self.kind.route(routes, &self.state)
+            && let Some(route) = crate::routes::route_for(class_route, &self.state)
         {
             self.channel = route.to_string();
         }
@@ -117,21 +121,20 @@ impl EventArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::routes::{Kind, Routes};
 
     /// A failed upgrade, which is the health event this repository actually
-    /// raises: uu spawns `pns send --kind health --state failed`.
+    /// raises: uu spawns `pns send --delivery-class health --state failed`.
     fn health() -> EventArgs {
         EventArgs {
-            kind: Kind::Health,
+            delivery_class: "health".to_string(),
             state: "failed".to_string(),
             ..EventArgs::default()
         }
     }
 
     #[test]
-    fn a_failed_health_event_is_routed_to_the_urgent_route_the_config_named() {
-        let routed = health().routed(&Routes::named("logbook", "sirens"));
+    fn a_failed_health_event_is_routed_to_the_route_its_class_names() {
+        let routed = health().routed(Some("sirens"));
         assert_eq!(routed.channel, "sirens");
     }
 
@@ -141,7 +144,7 @@ mod tests {
             state: "done".to_string(),
             ..health()
         }
-        .routed(&Routes::named("logbook", "sirens"));
+        .routed(Some("sirens"));
         assert!(
             routed.channel.is_empty(),
             "a healthy machine paged the operator: {}",
@@ -150,21 +153,21 @@ mod tests {
     }
 
     #[test]
-    fn a_route_the_producer_named_survives_its_kind() {
+    fn a_route_the_producer_named_survives_its_delivery_class() {
         let named = EventArgs {
             channel: "posture-pages".to_string(),
             ..health()
         };
         assert_eq!(
-            named.routed(&Routes::named("logbook", "sirens")).channel,
+            named.routed(Some("sirens")).channel,
             "posture-pages",
-            "the kind overrode a route the producer had already named"
+            "the delivery class overrode a route the producer had already named"
         );
     }
 
     #[test]
     fn a_session_event_is_left_on_the_empty_route_every_path_reads_as_default() {
-        let routed = EventArgs::default().routed(&Routes::named("logbook", "sirens"));
+        let routed = EventArgs::default().routed(None);
         assert!(
             routed.channel.is_empty(),
             "an agent event was pinned to a route name: {}",

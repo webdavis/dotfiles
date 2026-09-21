@@ -7,8 +7,11 @@ fn a_recap_table_is_read_rather_than_refused_and_each_switch_stands_alone() {
     // ONE KEY STATED, THE OTHER UNTOUCHED. The two deliveries are
     // independent, so an operator who silenced the recap must not find
     // they also silenced the catch-up card, or the other way round.
-    let config = parse_config("[recap]\ndigest = false\n").unwrap();
-    assert!(!config.recap.digest, "the stated switch was read");
+    let config = parse_config("[recap]\npost_window_recap = false\n").unwrap();
+    assert!(
+        !config.recap.post_window_recap,
+        "the stated switch was read"
+    );
     assert!(config.recap.replay_card, "the card kept its default");
 }
 
@@ -19,9 +22,9 @@ fn a_config_with_no_recap_table_leaves_every_switch_on() {
     // existed. The direction is STATED rather than derived, because a
     // derived default is all-off, and that would silently take the
     // catch-up card away from every machine whose config predates this.
-    let config = parse_config("[plugins.hue]\nenabled = true\n").unwrap();
+    let config = parse_config("[plugins.lights]\nenabled = true\n").unwrap();
     assert!(config.recap.replay_card, "the catch-up card");
-    assert!(config.recap.digest, "the recap");
+    assert!(config.recap.post_window_recap, "the recap");
 }
 
 #[test]
@@ -43,13 +46,13 @@ fn a_misspelled_recap_key_is_refused_by_name_rather_than_left_at_its_default() {
 
 #[test]
 fn a_non_boolean_recap_switch_is_refused_naming_the_key() {
-    // `digest = "yes"` read as a switch is the same defect one level down
+    // `post_window_recap = "yes"` read as a switch is the same defect one level down
     // from a non-boolean `enabled`: the operator asked for something, did
     // not get it, and was told nothing.
-    let err = parse_config("[recap]\ndigest = \"yes\"\n").unwrap_err();
+    let err = parse_config("[recap]\npost_window_recap = \"yes\"\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => assert!(
-            message.contains("digest"),
+            message.contains("post_window_recap"),
             "the offender is named: {message}"
         ),
         other => panic!("expected Invalid, got {other:?}"),
@@ -63,7 +66,7 @@ fn a_top_level_key_that_merely_looks_like_recap_is_still_refused_by_name() {
     // to name itself rather than sit there as a table nothing reads. The
     // retired `[home]` table's test guards the same arm from the other
     // side, and both must stay green as the arm grows.
-    let err = parse_config("[recaps]\ndigest = false\n").unwrap_err();
+    let err = parse_config("[recaps]\npost_window_recap = false\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => assert!(
             message.contains("recaps"),
@@ -98,4 +101,58 @@ fn a_non_table_recap_value_is_refused_naming_the_key() {
         }
         other => panic!("expected Invalid, got {other:?}"),
     }
+}
+
+#[test]
+fn the_keys_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
+    // THE OLD SPELLING STOPS WORKING LOUDLY. A key the roster dropped is an
+    // instruction the operator believes they gave, so each of the four is
+    // named and the listing that comes back carries the word to write now.
+    for (retired, replacement) in [
+        ("digest = false", "post_window_recap"),
+        ("min_events = 3", "minimum_events"),
+        ("repos = [\"owner/name\"]", "repositories"),
+        ("review_notes = \"/tmp/notes-*.md\"", "review_notes_glob"),
+    ] {
+        let err = parse_config(&format!("[recap]\n{retired}\n")).unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => {
+                let named = retired.split(' ').next().expect("a key");
+                assert!(
+                    message.contains(&format!("`{named}`")),
+                    "the offender is named for {retired}: {message}"
+                );
+                assert!(
+                    message.contains(replacement),
+                    "and the listing carries the new spelling for {retired}: {message}"
+                );
+            }
+            other => panic!("expected Invalid for {retired}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn the_activity_stores_retention_is_a_duration_and_zero_is_refused_by_name() {
+    // THIRTY DAYS UNSET, spelled in hours because the parser's units are
+    // `<count><ms|s|m|h>`.
+    assert_eq!(
+        parse_config("[recap]\npost_window_recap = true\n")
+            .unwrap()
+            .recap
+            .retain,
+        Duration::from_secs(30 * 24 * 60 * 60)
+    );
+    assert_eq!(
+        parse_config("[recap]\nretain = \"48h\"\n")
+            .unwrap()
+            .recap
+            .retain,
+        Duration::from_secs(48 * 60 * 60)
+    );
+    // ZERO IS REFUSED THE WAY `[remind] delay` REFUSES IT: this store has no
+    // off switch, so a retention of nothing is a value nobody means.
+    let refusal = parse_config("[recap]\nretain = \"0s\"\n").unwrap_err();
+    let said = format!("{refusal:?}");
+    assert!(said.contains("retain"), "the refusal names the key: {said}");
 }

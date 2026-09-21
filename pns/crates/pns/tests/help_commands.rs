@@ -41,11 +41,11 @@ fn the_tool_wide_help_lists_every_subcommand_and_exits_zero() {
         assert_eq!(output.status.code(), Some(0), "{spelling}: {output:?}");
         let listed = listed_subcommands(&stdout(&output));
         // The machine-called subcommands are in here as much as the typed
-        // ones: a reader who cannot find `failures` or `daemon retry` in the
+        // ones: a reader who cannot find `failures` or `gateway retry` in the
         // help concludes they do not exist.
         for expected in [
-            "send", "hook", "daemon", "failures", "recap", "presence", "github", "shell", "lights",
-            "nag", "stale",
+            "send", "hook", "gateway", "failures", "recap", "presence", "github", "shell",
+            "lights", "remind", "stale",
         ] {
             assert!(
                 listed.iter().any(|word| word == expected),
@@ -53,7 +53,7 @@ fn the_tool_wide_help_lists_every_subcommand_and_exits_zero() {
             );
         }
         for machine_called in [
-            "pns daemon retry",
+            "pns gateway retry",
             "pns recap agent",
             "pns recap git",
             "pns presence poll [--daemon]",
@@ -112,9 +112,9 @@ fn a_subcommands_help_reaches_no_channel_and_writes_no_state() {
     ] {
         let output = run(sandbox.pns().args(argv));
         assert_eq!(output.status.code(), Some(0), "{argv:?}: {output:?}");
-        assert!(!sandbox.fired("mobile"), "{argv:?}: {output:?}");
+        assert!(!sandbox.fired("phone"), "{argv:?}: {output:?}");
         assert!(!sandbox.fired("hermes"), "{argv:?}: {output:?}");
-        assert!(!sandbox.fired("macos-banner"), "{argv:?}: {output:?}");
+        assert!(!sandbox.fired("banner"), "{argv:?}: {output:?}");
         assert!(!sandbox.state().exists(), "{argv:?}: {output:?}");
     }
 }
@@ -123,7 +123,7 @@ fn a_subcommands_help_reaches_no_channel_and_writes_no_state() {
 fn a_verb_asks_for_its_own_subcommands_help() {
     let sandbox = Sandbox::new("help-behind-a-verb");
     for argv in [
-        ["daemon", "schedule", "--help"],
+        ["gateway", "schedule", "--help"],
         ["lights", "pulse", "-h"],
         ["recap", "agent", "--help"],
         ["presence", "poll", "--help"],
@@ -142,7 +142,7 @@ fn a_genuine_argument_error_still_refuses_with_exit_two() {
     // same usage text.
     let sandbox = Sandbox::new("help-versus-refusal");
     for argv in [
-        ["daemon", "stpo"].as_slice(),
+        ["gateway", "stpo"].as_slice(),
         ["lights", "stpo"].as_slice(),
         ["presence", "stpo"].as_slice(),
         ["github", "stpo"].as_slice(),
@@ -154,5 +154,27 @@ fn a_genuine_argument_error_still_refuses_with_exit_two() {
     ] {
         let output = sandbox.pns().args(argv).output().expect("the engine runs");
         assert_eq!(output.status.code(), Some(2), "{argv:?}: {output:?}");
+    }
+}
+
+/// The old subcommand, refused rather than falling through to the event path.
+///
+/// EXIT 2 AND A SENTENCE NAMING THE NEW SPELLING: an operator (or a stale
+/// plist, or a script) still typing `pns daemon <verb>` otherwise gets a
+/// command they believe ran.
+#[test]
+fn the_retired_daemon_subcommand_is_refused_naming_the_gateway_one() {
+    let sandbox = Sandbox::new("retired-daemon-subcommand");
+    for argv in [
+        ["daemon", "run"].as_slice(),
+        ["daemon", "schedule"].as_slice(),
+        ["daemon"].as_slice(),
+        ["daemon", "stpo"].as_slice(),
+    ] {
+        let output = sandbox.pns().args(argv).output().expect("the engine runs");
+        assert_eq!(output.status.code(), Some(2), "{argv:?}: {output:?}");
+        let said = stderr(&output);
+        assert!(said.contains("pns gateway"), "{argv:?}: {said}");
+        assert_eq!(stdout(&output), "", "{argv:?}: {output:?}");
     }
 }

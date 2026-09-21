@@ -11,7 +11,7 @@ use pns_application::{RECAP_USAGE, recap_bounds};
 /// IT REACHES ONE DESTINATION, the durable route, and never the phone or the
 /// banner. The phone layer was already delivered by the card that pointed here.
 ///
-/// EXIT 2 FOR A MISTYPED INVOCATION, in `quiet_mode`'s style rather than the
+/// EXIT 2 FOR A MISTYPED INVOCATION, in `mute_mode`'s style rather than the
 /// hook path's always-zero: this is hand-runnable, and a subcommand that
 /// swallows a typo is a recap the operator believes was posted. The spawner
 /// never reads the code.
@@ -101,7 +101,9 @@ fn git_recap() -> i32 {
 /// the writer is the process that spawned this one and writes at once.
 fn recap() -> i32 {
     let (arguments, card) = handed_card(crate::arguments_after_subcommand());
-    let Some((since, until)) = recap_bounds(&arguments) else {
+    let Some((since, until)) =
+        pns_adapters::now_secs().and_then(|now| recap_bounds(&arguments, now, local_epoch_of))
+    else {
         eprintln!("{RECAP_USAGE}");
         return 2;
     };
@@ -134,6 +136,19 @@ fn recap() -> i32 {
         },
     );
     post(&body, &home, &hermes_keys, &discord, &routes)
+}
+
+/// One calendar moment in the operator's own zone, which is the one thing the
+/// window parser cannot work out for itself.
+fn local_epoch_of(civil: pns_application::LocalCivilTime) -> Option<u64> {
+    pns_adapters::local_epoch(
+        civil.year,
+        civil.month,
+        civil.day,
+        civil.hour,
+        civil.minute,
+        civil.second,
+    )
 }
 
 /// The card this child was handed, and the arguments with its flag removed.

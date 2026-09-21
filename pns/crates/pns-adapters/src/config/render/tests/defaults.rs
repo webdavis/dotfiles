@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_phone_marker_override_survives_rendering_and_parsing() {
-    let values = "[phone]\nmarker_file = '~/custom/attention'"
+    let values = "[plugins.phone]\nmarker_file = '~/custom/attention'"
         .parse()
         .unwrap();
     let text = render(&values).expect("phone override renders");
@@ -18,31 +18,25 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
 
     assert_eq!(
-        config.plugins["mobile"].settings["token"].as_str(),
+        config.plugins["phone"].settings["device_token"].as_str(),
         Some("moshi-secret")
     );
     assert_eq!(
         config.plugins["hermes"].settings["keys"]["pns-events"].as_str(),
         Some("hermes-secret")
     );
-    let hue = &config.plugins["hue"].settings;
-    assert_eq!(hue["bridge"].as_str(), Some("192.168.1.9"));
-    assert_eq!(hue["key"].as_str(), Some("hue-secret"));
-    assert_eq!(
-        hue["rooms"]
-            .as_array()
-            .map(|rooms| rooms.iter().filter_map(|room| room.as_str()).collect()),
-        Some(vec!["Studio", "Kitchen"])
-    );
-    let router = &config.plugins["router"].settings;
+    let hue = &config.plugins["lights"].settings;
+    assert_eq!(hue["bridge_host"].as_str(), Some("192.168.1.9"));
+    assert_eq!(hue["api_key"].as_str(), Some("hue-secret"));
+    let router = &config.plugins["home_presence"].settings;
     assert_eq!(router["type"].as_str(), Some("unifi"));
-    assert_eq!(router["router_url"].as_str(), Some("https://192.168.1.1"));
+    assert_eq!(router["url"].as_str(), Some("https://192.168.1.1"));
     assert_eq!(router["api_key"].as_str(), Some("router-secret"));
     assert_eq!(router["device_hostname"].as_str(), Some("phone"));
-    assert_eq!(config.focus_silence, vec!["Sleep".to_string()]);
-    assert_eq!(config.nag_after_secs, 300);
+    assert_eq!(config.focus_modes, vec!["Sleep".to_string()]);
+    assert_eq!(config.remind_delay_secs, 300);
     assert_eq!(
-        config.stale_after_secs, 3600,
+        config.stale_escalate_after_secs, 3600,
         "a defaulted key ships uncommented at its default (operator ruling, 2026-08-31)"
     );
 }
@@ -51,15 +45,20 @@ fn every_answered_table_renders_and_parses_back_carrying_its_own_values() {
 fn an_empty_walk_still_renders_the_core_at_its_defaults() {
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
-    assert!(config.plugins["mobile"].enabled);
-    assert!(config.plugins["macos-banner"].enabled);
-    assert!(config.daemon_enabled);
+    // EVERY SWITCH AT ITS OWN DEFAULT, which is what a walk that said
+    // nothing asked for: the core plugin tables are written, and written
+    // off, because `[plugins.*] enabled` defaults false.
+    assert!(!config.plugins["phone"].enabled);
+    assert!(!config.plugins["banner"].enabled);
+    assert!(config.gateway_enabled);
+    assert!(config.focus_enabled);
+    assert!(config.stale_enabled);
     assert_eq!(config.recap, crate::config::Recap::default());
-    for opt_in in ["hermes", "hue", "router"] {
+    for opt_in in ["hermes", "lights", "home_presence"] {
         assert!(!config.plugins.contains_key(opt_in));
     }
-    assert!(config.focus_silence.is_empty());
-    assert_eq!(config.nag_after_secs, 0);
+    assert!(config.focus_modes.is_empty());
+    assert_eq!(config.remind_delay_secs, 0);
     assert!(config.lights.is_none());
 }
 
@@ -78,8 +77,8 @@ fn an_armed_but_unspecified_lights_table_renders_every_locked_default_uncommente
     let lights = config.lights.expect("lights was armed");
     assert_eq!(*lights, crate::config::Lights::default());
     assert_eq!(
-        lights.blocked.give_up_after_secs,
-        pns_domain::lamps::config::DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS
+        lights.blocked.lease_expiry_secs,
+        pns_domain::lamps::config::DEFAULT_BLOCKED_LEASE_EXPIRY_SECS
     );
 }
 
@@ -89,8 +88,8 @@ fn recap_defaults_are_asserted_against_the_code_rather_than_copied_literals() {
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert_eq!(config.recap, crate::config::Recap::default());
     assert_eq!(
-        config.plugins["mobile"].settings["submit_deadline_secs"].as_integer(),
-        Some(crate::config::DEFAULT_SUBMIT_DEADLINE_SECS as i64)
+        crate::config::ack_deadline(&config).unwrap(),
+        crate::config::DEFAULT_ACK_DEADLINE
     );
 }
 
@@ -102,21 +101,23 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     // reads the parsed config cannot tell a live default line from a
     // commented one that happens to match. This test reads the rendered
     // TEXT, scoped to each table's own heading so a shared key name
-    // (`duration_ms`, `high`, `low`) cannot borrow another table's line.
+    // (`duration`, `high_percent`, `low_percent`) cannot borrow another
+    // table's line.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     for expected in [
-        "[plugins.mobile]\nenabled = true\n",
-        "[plugins.macos-banner]\nenabled = true\n",
-        "[daemon]\nenabled = true\n",
+        "[plugins.phone]\nenabled = false\n",
+        "[plugins.banner]\nenabled = false\n",
+        "[gateway]\nenabled = true\n",
+        "[stale]\nenabled = true\n",
     ] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }
-    for expected in ["\nreplay_card = true\n", "\ndigest = true\n"] {
+    for expected in ["\nreplay_card = true\n", "\npost_window_recap = true\n"] {
         assert!(text.contains(expected), "{expected} should be live: {text}");
     }
     // AND, WHILE LIGHTS IS ABSENT, none of its own defaults leak out live.
     assert!(
-        !text.contains("\nduration_ms ="),
+        !text.contains("\nduration ="),
         "a lights default rendered live while lights is absent: {text}"
     );
 
@@ -126,27 +127,22 @@ fn core_and_armed_lights_defaults_are_written_live_never_commented() {
     // HEADINGS PLUS THEIR PROSE-FREE KEYS, contiguous lines with nothing
     // between them.
     for expected in [
-        "[lights.done]\nduration_ms = 4000\nbrightness = 100\n",
-        "[lights.failed]\nduration_ms = 4000\nbrightness = 100\n",
-        "[lights.blocked]\nduration_ms = 2000\nhigh = 100\nlow = 30\n",
-        "[lights.unread]\nduration_ms = 4000\nhigh = 60\nlow = 10\n",
-        "[lights.loop]\nduration_ms = 4000\nhigh = 80\nlow = 10\n",
-        "[lights.dim]\nduration_ms = 3000\nhigh = 7\nlow = 1\n",
+        "[lights.done]\nduration = \"4s\"\nbrightness_percent = 100\n",
+        "[lights.failed]\nduration = \"4s\"\nbrightness_percent = 100\n",
+        "[lights.blocked]\nduration = \"2s\"\nhigh_percent = 100\nlow_percent = 30\n",
+        "[lights.unseen]\nduration = \"4s\"\nhigh_percent = 60\nlow_percent = 10\n",
+        "[lights.loop]\nduration = \"4s\"\nhigh_percent = 80\nlow_percent = 10\n",
+        "[lights.dim]\nduration = \"3s\"\nhigh_percent = 7\nlow_percent = 1\n",
     ] {
         assert!(
             armed.contains(expected),
             "{expected} should be live once lights is armed: {armed}"
         );
     }
-    // THE KEYS THAT CARRY THEIR OWN COMMENT (`after_secs`,
-    // `threshold_secs`, `lease_timeout_secs`) sit behind that prose
-    // rather than right after the previous key's line, so they are
-    // checked on their own.
-    for expected in [
-        "\nafter_secs = 300\n",
-        "\nthreshold_secs = 300\n",
-        "\nlease_timeout_secs = 3900\n",
-    ] {
+    // THE KEYS THAT CARRY THEIR OWN COMMENT (`arm_after` on both tables,
+    // and `lease_expiry`) sit behind that prose rather than right after
+    // the previous key's line, so they are checked on their own.
+    for expected in ["\narm_after = \"5m\"\n", "\nlease_expiry = \"65m\"\n"] {
         assert!(
             armed.contains(expected),
             "{expected} should be live once lights is armed: {armed}"
@@ -205,7 +201,7 @@ fn the_routing_prose_is_always_written_and_the_example_only_when_nothing_is_decl
         let text = render(&values).expect("every lights shape renders");
         assert!(text.contains("# The routing. `dim_window` is"), "{text}");
         assert_eq!(
-            text.contains("# [lights.room.\"Studio\"]\n# shows = "),
+            text.contains("# [lights.room.\"Studio\"]\n# behaviours = "),
             example_expected,
             "{text}"
         );
@@ -226,4 +222,18 @@ fn the_phone_marker_note_points_at_the_tap_install_subcommand() {
     let text = render(&"".parse().unwrap()).expect("the shipped posture renders");
     assert!(text.contains("Setup guide: pns tap install."), "{text}");
     assert!(!text.contains("pns tap --install"), "{text}");
+}
+
+#[test]
+fn an_empty_opt_in_table_renders_exactly_like_no_table_at_all() {
+    // A HEADING WITH NOTHING UNDER IT IS NOT A SETTING. `[remind]` shipped
+    // empty for one render's worth of side effect, keeping `delay` live; a
+    // values file that wants the default now writes the default.
+    let mut values = toml::Table::new();
+    values.insert("remind".to_string(), toml::Value::Table(toml::Table::new()));
+    let empty = render(&values).expect("an empty opt-in table renders");
+    let absent = render(&toml::Table::new()).expect("an empty walk still renders");
+    assert_eq!(empty, absent);
+    let config = parse_config(&empty).unwrap_or_else(|error| panic!("{error:?}\n{empty}"));
+    assert_eq!(config.remind_delay_secs, 0);
 }

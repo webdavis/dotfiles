@@ -162,7 +162,9 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 Given a producer, event, route, destination, or session name, when constructed or decoded, then it must
 contain 1 through 64 Unicode characters and no control characters. Empty or over-cap names are refused.
-Valid names encode as plain JSON strings unchanged.
+Valid names encode as plain JSON strings unchanged. The plugin registry holds a registered name to that
+same cap and refuses one over it, or one carrying a control character, at registration, so a receipt
+never meets a destination name it cannot encode.
 
 Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src/identifiers.rs#L17),
 [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src/identifiers.rs#L44),
@@ -170,35 +172,43 @@ Source: [`crates/pns-protocol/src/identifiers.rs`](../../crates/pns-protocol/src
 
 ## protocol-v1/S011: Request fields and defaults
 
-Given a version 1 request, when decoded, then request_id, producer, event and state are required and
-must have their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent
-optional session, times, route, kind and class become None; detail is empty, project, branch and pane
-are None, scope is automatic, interaction is none, and extensions is an empty object. Request::new
-supplies those same defaults. The session is a plain name and the place of the work is three top-level
-fields, the same names the flags carry.
+Given a version 1 request, when decoded, then request_id, producer and state are required and must have
+their declared types. Invalid identifiers anywhere are refused as field_invalid. Absent optional session,
+elapsed, route, delivery_class and remind become None; detail is empty, project, branch and pane are
+None, scope is automatic, and extensions is an empty object. RequestEnvelope::new supplies those
+same defaults.
+ONE RULE FOR AN ABSENT OPTIONAL FIELD, on this envelope and on the result: it is omitted when encoding
+rather than written as `null`, and a field written as `null` decodes as absent.
+The session is a plain name and the place of the work is three top-level fields, the same names the
+flags carry. `event`, `occurred_at` and `interaction` are no longer fields of this envelope: a decoded
+value carrying any of them is refused and named (S014), the same as any other unknown top-level field.
 
-`class` uses the same validated `Name` as the other short names: 1 through 64 Unicode characters, without
-controls. A wrong type or invalid name is refused before effects, retaining the correlated request
-identifier. An absent or null class is omitted when encoding, preserving the exact canonical bytes of
-unmarked version 1 requests. A present class survives canonical encoding and the original producer
-request retained by the ledger; changed class metadata under the same identity conflicts.
+`delivery_class` uses the same validated `Name` as the other short names: 1 through 64 Unicode
+characters, without controls. A wrong type or invalid name is refused before effects, retaining the
+correlated request identifier. An absent or null delivery class is omitted like every other absent
+optional field. A present delivery class survives canonical encoding and the original producer request
+retained by the ledger; changed delivery-class metadata under the same identity conflicts. `kind` and
+`class`, the two fields it replaced, are refused with their replacement named: a value carrying either is
+rejected before effects. A field this envelope never defined is refused too, named as `` `<field>` is not
+a field pns takes``, because a field pns would drop is a producer saying something that goes nowhere
+(S014).
+
+`remind` is optional and says whether the approval this request reports waits for a second card:
+`true` arms it at the delay config carries, a duration string (`"5m"`) arms it at that delay instead and
+is held to the one range every spelling of the delay shares (thirty seconds to an hour), and `false`
+disarms it whatever config says. A value that is neither a boolean nor a valid duration is refused
+before effects and the refusal names the field. An absent or null `remind` is a producer that said
+nothing, which falls through to the producer's own config entry and then to off, and it is omitted when
+encoding like every other absent optional field. It decodes to the SAME switch the
+`--remind`, `--remind=<duration>` and `--no-remind` flags produce, so both paths hand one resolution one
+answer. The submit path arms from it on a `blocked` request, where an approval is waiting; on every other
+state it arms nothing, because the producer's `[producer.<name>] remind` entry states that producer's
+approvals rather than every event it sends.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L95),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L147),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186).
-
-## protocol-v1/S011b: Kind words
-
-Given a request kind, when encoded or decoded, then it is exactly `agent` or `health`. Any other word,
-including an empty string or a differently cased one, is refused as field_invalid with the correlated
-request identifier, because a kind guessed from a typo is a misrouted page. An absent or null kind stays
-None and is omitted when encoding, preserving the exact canonical bytes of a version 1 request written
-before the field existed. What a kind means for delivery is not this codec's business: it states what the
-event IS, and pns maps that to one of its own routes.
-
-Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L75),
-[`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L154).
 
 ## protocol-v1/S012: State words
 
@@ -210,23 +220,24 @@ missing state is not defaulted.
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L52),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186).
 
-## protocol-v1/S013: Scope and interaction words
+## protocol-v1/S013: Scope words
 
-Given a request scope or interaction, when encoded or decoded, then scope is exactly automatic,
-local_only or remote_only, and interaction.kind is exactly none or await_decision. Defaults are automatic
-and none. Unknown words are refused. These fields describe a request; this codec performs no delivery or
-blocking wait.
+Given a request scope, when encoded or decoded, then it is exactly automatic, local_only or remote_only.
+The default is automatic. An unknown word is refused. This field describes a request; the codec performs
+no delivery. The `interaction` field this section once covered is gone from both envelopes: `pns submit`
+always answered it with "no opinion" regardless of what a caller sent, so it changed nothing.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L65),
-[`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L77),
 [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L9).
 
 ## protocol-v1/S014: Additive fields and inert content
 
-Given a known-major envelope with bounded unknown fields, when decoded, then unknown fields are ignored;
-unknown request top-level fields are also returned by name in DecodedRequest::ignored. Parsed values
-under request.extensions and text within bounds are preserved without sanitizing or interpretation.
-Unknown fields and extensions remain subject to all shared bounds.
+Given a known-major envelope with bounded unknown fields, when decoded, then unknown fields are ignored,
+except at a request's top level, where the first one is refused as field_invalid and named in the
+refusal. DecodedRequest::ignored names the top-level fields this envelope recognizes but acts on
+nowhere; every field version 1 defines is acted on today, so it is empty on every accepted request.
+Parsed values under request.extensions and text within bounds are preserved without sanitizing or
+interpretation. Unknown fields and extensions remain subject to all shared bounds.
 
 Source: [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L18),
 [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L22),
@@ -234,23 +245,26 @@ Source: [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L196),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107).
 
-## protocol-v1/S015: Request times
+## protocol-v1/S015: Request elapsed
 
-Given occurred_at, when decoded, then supplied values must be unsigned integral epoch seconds; negative
-or fractional values are field_invalid. Given elapsed, when decoded, then the value is a duration written
-as a count and a unit (`90s`, `5m`, `2h`), inside zero to thirty days. A bare number, any other
-text and any non-string are field_invalid, because one reader takes `90` as seconds and the next as
-minutes. Omission remains None for both. The codec does not choose a notification tier from elapsed
-time.
+Given elapsed, when decoded, then the value is a duration written as a count and a unit (`90s`, `5m`,
+`2h`), inside zero to thirty days. A bare number, any other text and any non-string are field_invalid,
+because one reader takes `90` as seconds and the next as minutes. Omission remains None. The codec itself
+does not choose a notification tier from elapsed time; the caller that maps a request onto an event does
+(`pns/crates/pns/src/event_flow/submit/mapping.rs`, long_running at or above
+`pns_domain::pulse::DEFAULT_LONG_SESSION_SECS`). `occurred_at`, the wire field this section once covered,
+is gone: it was stored and never read, apart from the unrelated `github` extension's own `occurred_at`
+inside `extensions`, which this section never specified and which stays.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L107),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L8).
 
 ## protocol-v1/S016: Request fixture and public construction
 
-Given a valid Request built through the curated public exports or the package-owned `request-v1.json`
-fixture, when encoded and decoded, then every defined request field and extension value round-trips
-unchanged. The fixture decodes to its explicitly asserted request. Schema is supplied by the codec.
+Given a valid RequestEnvelope built through the curated public exports or the package-owned
+`request-v1.json` fixture, when encoded and decoded, then every defined request field and extension
+value round-trips unchanged. The fixture decodes to its explicitly asserted request. Schema is
+supplied by the codec.
 
 Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L167),
 [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/request.rs#L186),
@@ -260,10 +274,19 @@ Source: [`crates/pns-protocol/src/request.rs`](../../crates/pns-protocol/src/req
 
 ## protocol-v1/S017: Result fields and public construction
 
-Given a version 1 result, when decoded, then status is required; absent request_id, decision_id and
-interaction are None, and absent destination and diagnostic arrays are empty. Valid results round-trip
-through the curated public exports and the package-owned `result-v1.json` fixture. A missing destination
-note is omitted when encoded; a supplied note is preserved.
+Given a version 1 result, when decoded, then status is required; absent request_id and ledger_sequence
+are None, and absent destination, diagnostic and ignored-field arrays are empty. `ledger_sequence` is the
+stringified ledger row this request committed as, and each destination names itself in `name`. The
+request's own top-level fields this envelope recognizes but acts on nowhere are named in
+`ignored_fields`, a list of their own, so nothing in `diagnostics` changes the meaning of the entries
+beside it. A field version 1 does not define never reaches this list: the decode refuses it (S014). The
+envelope carries no `interaction` field. Valid results round-trip through the curated public exports and
+the package-owned `result-v1.json` fixture. Each destination also carries the `route` it was submitted
+on, the `note` its destination offered about a leg it did not deliver, and the `retry_at` unix second the
+ledger will try it again. An absent optional field is omitted when encoded rather than written as `null`,
+here and on the request: a result naming no request id, no ledger row, no note, no route and no retry
+time writes none of those keys, and a supplied one is preserved. The note is the destination's own
+sentence; the event's own text never comes back.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L68),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L59),
@@ -271,12 +294,12 @@ Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/resu
 [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L45),
 [`crates/pns-protocol/src/result/tests.rs`](../../crates/pns-protocol/src/result/tests.rs#L41).
 
-## protocol-v1/S018: Result words and decision codes
+## protocol-v1/S018: Result words
 
-Given a result, when encoded or decoded, then status is accepted, degraded or rejected, destination
-outcome is delivered, failed, silent or unlaunched, and interaction.kind is no_opinion or answered.
-Answered carries its signed 32-bit code unchanged. Unknown status, outcome or interaction words are
-field_invalid.
+Given a result, when encoded or decoded, then status is delivered, partial, undelivered or rejected, and
+destination outcome is delivered, failed, silent, unlaunched or unknown. `silent` is a channel that ran
+and said nothing, `unknown` a leg whose answer the ledger never learned. Each is one bare word on the
+wire, never a one-key wrapper object, so a wrapped word is field_invalid the same way an unknown word is.
 
 Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L27),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L48),
@@ -288,7 +311,7 @@ Source: [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/resu
 Given an object that passes parse and shared bounds, when schema or typed-field decoding fails, then a
 valid request_id is retained for correlation; an invalid identifier is not recovered. Malformed or
 over-bound input has no recovered identifier. ResultEnvelope::rejected returns status rejected, that
-optional identifier, one stable diagnostic code, and no decision, interaction or destination outcomes.
+optional identifier, one stable diagnostic code, no ledger row and no destination outcomes.
 
 Source: [`crates/pns-protocol/src/envelope.rs`](../../crates/pns-protocol/src/envelope.rs#L53),
 [`crates/pns-protocol/src/envelope.rs`](../../crates/pns-protocol/src/envelope.rs#L107),
@@ -299,9 +322,10 @@ Source: [`crates/pns-protocol/src/envelope.rs`](../../crates/pns-protocol/src/en
 ## protocol-v1/S020: Advisory diagnostics
 
 Given a constructed result with advisory diagnostic codes, when encoded, then the first 64 codes are kept
-in order; 63 or 64 remain unchanged and 65 loses only its last code. Encoding does not mutate the caller
-or change other result fields. This deliberate version 1 policy permits bounded advisory summaries; it is
-not a legacy-compatibility requirement. The retained codes still obey text and total-byte bounds.
+in order; 63 or 64 remain unchanged and 65 loses only its last code. `ignored_fields` is bounded the same
+way and in the same place. Encoding does not mutate the caller or change other result fields. This
+deliberate version 1 policy permits bounded advisory summaries; it is not a legacy-compatibility
+requirement. The retained codes still obey text and total-byte bounds.
 
 Source: [`crates/pns-protocol/src/lib.rs`](../../crates/pns-protocol/src/lib.rs#L28),
 [`crates/pns-protocol/src/result.rs`](../../crates/pns-protocol/src/result.rs#L108),
@@ -391,13 +415,23 @@ an output error; it does not fabricate acceptance or silently discard destinatio
 
 ## protocol-v1/S029: Durable submission receipt
 
-An `accepted` result with `ledger_committed` in diagnostics means the ledger committed the request before
-dispatch and owns its delivery. A retained identical request qualifies through the existing ledger row.
-The request identifier remains the producer's original identifier. A successful live send alone does not
-qualify: when storage is unavailable and delivery runs without a committed row, the result is `degraded`
-and does not contain `ledger_committed`. A decoded refusal is `rejected`.
+The status reports DELIVERY: `delivered` when every durable destination took the page, `partial` when
+some did, `undelivered` when none did, and `rejected` for input the engine will not honour. A silent
+destination is one that ran and had nothing to say, which counts as an arrival; a decorative destination
+(the banner, the phone card) does not decide the status, and its verdict is still listed. The ledger
+stores a live Silent leg the same way it stores an unresolved one, so a replayed Silent leg reads
+`silent`, the same arrival its first attempt reported; `unknown` is reserved for a case the ledger can
+tell apart from a quiet arrival.
 
-Posture advances its own state only on a matching `accepted` result containing `ledger_committed`.
+The ledger is a fact of its own beside the status. `ledger_committed` in diagnostics means the ledger
+committed the request before dispatch and owns its delivery; a retained identical request qualifies
+through the existing ledger row, and the request identifier remains the producer's original identifier.
+When storage is unavailable and delivery runs without a committed row, the diagnostic is
+`ledger_unavailable` and the status still reports what the destinations did. A committed row whose every
+destination failed is `undelivered` beside `ledger_committed`.
+
+Posture advances its own state on a matching `delivered`, `partial` or `undelivered` result containing
+`ledger_committed`; a correlated `rejected` result stays quiet.
 Acceptance is durable ownership, not proof of a destination acknowledgement. Per-destination outcomes
 state the attempts separately, and retries retain the original identifier. Main dispatch, receipt
 classification and the event workflow are composed by the existing root callback.
@@ -415,12 +449,14 @@ time selects the existing 300-second long-running tier without suppressing a sho
 
 JSON stdout contains exactly one result line. Human delivery lines and executable-channel stdout go to
 stderr for that invocation, including its replay tail. Legacy stdout and the flat executable stdin body
-remain unchanged. Accepted and degraded results exit zero; rejected requests and output errors exit two.
-Destination results carry typed verdicts without echoing private transport text. Unknown top-level field
-names follow an `ignored_fields` diagnostic. An awaited decision receives `no_opinion` because this
-entrypoint has no applicable interaction forwarder; this does not complete the separate hook and approval
-migration. The encrypted Hermes formatter and operator route configuration remain a separate deployment
-gate. The configured class policy is specified in `quiet-behavior.md`, behavior 7.
+remain unchanged. A `delivered` result exits zero, `partial` and `undelivered` exit one, and rejected
+requests and output errors exit two. Destination results carry typed verdicts without echoing private
+transport text. An unknown top-level field name is refused by the decode rather than delivered, and the
+result's `ignored_fields` list, which names recognized fields acted on nowhere, carries those names
+rather than diagnostic codes. An awaited decision receives `no_opinion` because this entrypoint has no
+applicable interaction forwarder; this does not complete the separate hook and approval migration. The
+encrypted Hermes formatter and operator route configuration remain a separate deployment gate. The
+configured delivery-class policy is specified in `quiet-behavior.md`, behavior 7.
 
 When legacy identity generation or the system clock is unavailable, the same application delivery body
 attempts the planned channels without inventing an identifier or lease time. Native transports omit the
@@ -434,13 +470,13 @@ A normalized `Observation` requests the local banner and durable Hermes log on D
 including a visible origin pane. The banner omits sound. It never requests a phone card or lamp pulse,
 even with a phone override or a long elapsed time, and its marker-neutral tail does not queue return
 replay. Explicit scope, disabled destinations, mute and named Focus still narrow delivery; an authorized
-class exception follows the existing silence policy without adding a phone card or pulse.
+delivery-class exception follows the existing silence policy without adding a phone card or pulse.
 
 The retained `observation` state carries quiet presentation through delivery retries. `Progress` and
 legacy model-switch, quota and configuration-change events retain their existing presence-driven cards
 and normal banner sound. `Blocked` retains ordinary presence and visibility gating.
 
-A validated request with class `security` and state `blocked` uses Sosumi for its native banner,
+A validated request with delivery class `security` and state `blocked` uses Sosumi for its native banner,
 preserving posture's ordinary critical-page sound. Other classes and states keep the default sound;
 observations remain silent. The same selection applies to initial delivery, unretained fallback and
 ledger retry. Missing or invalid retained metadata keeps the legacy default. This adds no sound option to

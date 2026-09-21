@@ -84,7 +84,7 @@ pub(super) fn three_selection() -> Selection {
     pns_domain::registry::roster()
         .enabled(
             &parse_config(
-                "[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+                "[plugins.phone]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
             )
             .unwrap()
             .plugin_switches(),

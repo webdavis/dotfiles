@@ -7,7 +7,7 @@ fn a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decisi
     let sandbox = Sandbox::new("hook-blocked-forward");
     let mut command = sandbox.pns();
     // Away, so the phone is the only way to answer.
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let payload = "{\"message\":\"may I\",\"session_id\":\"s1\"}\n";
     let output = hook_with(command, &sandbox, "blocked", payload);
@@ -34,12 +34,12 @@ fn a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decisi
 fn the_notification_still_goes_out_while_moshi_holds_the_card_but_not_to_the_phone() {
     let sandbox = Sandbox::new("hook-blocked-notifies");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 0);
     hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert!(sandbox.fired("hermes"), "the paper trail is still written");
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "moshi is raising the card itself; pns pushing too is the same event twice"
     );
 }
@@ -52,13 +52,13 @@ fn moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero() {
     let sandbox = Sandbox::new("hook-blocked-no-moshi");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
-        .env("MOSHI_HOOK_BIN", "/nonexistent/moshi-hook");
+        .env("PNS_SCREEN_IDLE", "99999")
+        .env("PNS_MOSHI_HOOK_BIN", "/nonexistent/moshi-hook");
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(0));
     assert!(sandbox.fired("hermes"), "the notification still goes out");
     assert!(
-        sandbox.fired("mobile"),
+        sandbox.fired("phone"),
         "a forward that never spawned suppresses nothing"
     );
 }
@@ -68,7 +68,7 @@ fn a_harness_pns_does_not_register_for_is_never_handed_to_moshi() {
     let sandbox = Sandbox::new("hook-blocked-unknown-agent");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_PRODUCER", "pi");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
@@ -96,7 +96,7 @@ fn one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve(
     // not a regression.
     let sandbox = Sandbox::new("hook-blocked-single-submitter");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 0);
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(
@@ -135,8 +135,8 @@ fn the_submission_inherits_the_callers_environment() {
     );
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
-        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"))
+        .env("PNS_SCREEN_IDLE", "99999")
+        .env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"))
         .env("MOSHI_ENV_PROBE", "inherited");
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(42));
@@ -172,8 +172,8 @@ fn what_moshi_says_on_stdout_reaches_the_harness_unchanged() {
     );
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
-        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+        .env("PNS_SCREEN_IDLE", "99999")
+        .env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(output.status.code(), Some(42));
     let printed = String::from_utf8_lossy(&output.stdout);
@@ -213,8 +213,8 @@ fn a_submission_that_dies_without_answering_is_not_a_decision() {
     );
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
-        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+        .env("PNS_SCREEN_IDLE", "99999")
+        .env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     let output = hook_with(command, &sandbox, "blocked", r#"{"message":"may I"}"#);
     assert_eq!(
         output.status.code(),

@@ -3,7 +3,7 @@
 
 use super::double::*;
 use super::*;
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 
 const SESSION: &str = "0199c0de-face-7000-8000-abcdef012345";
 
@@ -17,15 +17,15 @@ fn session_event() -> Event {
 
 /// A message post that succeeds and answers the id a thread opens on, then a
 /// thread creation that succeeds and answers the thread's own id.
-fn opens_a_thread(message_id: &str, thread_id: &str) -> Vec<(DeliveryOutcome, String)> {
+fn opens_a_thread(message_id: &str, thread_id: &str) -> Vec<(TransportOutcome, String)> {
     vec![
-        (DeliveryOutcome::Status(200), object(message_id)),
-        (DeliveryOutcome::Status(201), object(thread_id)),
+        (TransportOutcome::Status(200), object(message_id)),
+        (TransportOutcome::Status(201), object(thread_id)),
     ]
 }
 
 fn armed_with(
-    answers: Vec<(DeliveryOutcome, String)>,
+    answers: Vec<(TransportOutcome, String)>,
     threads: &Remembered,
 ) -> DiscordChannel<Recorder> {
     holding(
@@ -115,7 +115,7 @@ fn a_thread_that_is_gone_is_dropped_and_reopened_before_the_verdict_is_answered(
     for code in [10003, 50083, 160005] {
         let threads = Remembered::default();
         threads.remember(SESSION, "dotfiles-dev", "t-gone");
-        let mut answers = vec![(DeliveryOutcome::Status(404), refusal(code))];
+        let mut answers = vec![(TransportOutcome::Status(404), refusal(code))];
         answers.extend(opens_a_thread("m-3", "t-3"));
         let channel = armed_with(answers, &threads);
         let verdict = delivered_about(&channel, &session_event());
@@ -167,7 +167,7 @@ fn a_recap_with_no_project_reaches_the_engine_channel() {
     recap.state = "recap".to_string();
     recap.project = String::new();
     let channel = holding(
-        Recorder::answering(DeliveryOutcome::Status(200)),
+        Recorder::answering(TransportOutcome::Status(200)),
         "",
         channels(&[
             ("default", "catch-all"),

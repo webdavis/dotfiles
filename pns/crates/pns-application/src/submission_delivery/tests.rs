@@ -183,7 +183,7 @@ where
         decision: &decision,
         overrides: &overrides,
         legs: &[],
-        nag: false,
+        remind: false,
         permission_mode: "original-mode",
         agent_id: "original-agent",
         tool_name: "original-tool",

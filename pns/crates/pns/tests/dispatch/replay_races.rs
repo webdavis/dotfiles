@@ -41,7 +41,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
 
     // THE DESK ROW EARNS THE BANNER AND NOT THE CARD, so the two legs below
     // are what every racer reached and the phone is the control.
-    for channel in ["macos-banner", "hermes"] {
+    for channel in ["banner", "hermes"] {
         let delivered = events(&sandbox, channel);
         assert_eq!(
             delivered.len(),
@@ -58,7 +58,7 @@ fn racing_present_events_deliver_exactly_one_replay_between_them() {
         );
     }
     assert!(
-        events(&sandbox, "mobile").is_empty(),
+        events(&sandbox, "phone").is_empty(),
         "the phone is not a leg for an operator at the desk"
     );
     stored_records::assert_consumed(&sandbox);
@@ -106,7 +106,7 @@ fn racing_present_events_adopt_one_stranded_claim_exactly_once() {
         assert!(done.status.success(), "a racer failed: {}", stderr(&done));
     }
 
-    for channel in ["macos-banner", "hermes"] {
+    for channel in ["banner", "hermes"] {
         let delivered = events(&sandbox, channel);
         assert_eq!(
             delivered

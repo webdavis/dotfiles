@@ -2,7 +2,6 @@ use super::*;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::{ClockUnavailable, InspectionFailure, WallTime};
 use posture_domain::HeartbeatWindow;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     cell::RefCell,
     ffi::{OsStr, OsString},
@@ -19,7 +18,7 @@ struct Effects {
 enum Reply {
     Committed,
     Refused,
-    Degraded,
+    Undelivered,
     TimedOut,
     Malformed,
 }
@@ -65,9 +64,9 @@ impl CommandRunner for Runner {
             .to_owned();
         self.effects.borrow_mut().requests.push(request);
         let (status, diagnostics, exit) = match reply {
-            Reply::Committed => ("accepted", "\"ledger_committed\"", 0),
+            Reply::Committed => ("delivered", "\"ledger_committed\"", 0),
             Reply::Refused => ("rejected", "", 2),
-            Reply::Degraded => ("degraded", "\"ledger_unavailable\"", 0),
+            Reply::Undelivered => ("undelivered", "\"ledger_unavailable\"", 0),
             Reply::TimedOut => return Err(InspectionFailure::TimedOut),
             Reply::Malformed => {
                 return Ok(CommandOutput {
@@ -88,29 +87,28 @@ impl Clock for Time {
         })
     }
 }
-fn subject(bound: &str) -> (Configuration, Rc<RefCell<Effects>>) {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    let home = std::env::temp_dir().join(format!(
-        "posture-heartbeat-cli-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    std::fs::create_dir(&home).unwrap();
+fn subject(
+    bound: &str,
+) -> (
+    crate::test_sandbox::Sandbox,
+    Configuration,
+    Rc<RefCell<Effects>>,
+) {
+    let sandbox = crate::test_sandbox::Sandbox::new("heartbeat-cli");
+    let home = sandbox.path();
     let snapshots = home.join("selected snapshot");
     std::fs::write(
         &snapshots,
         b"{\"name\":\"heartbeat_canary\",\"unixTime\":9983}\n",
     )
     .unwrap();
-    (
-        Configuration {
-            snapshots,
-            notify: crate::command_notify(&home.join("engine")),
-            alarm: home.join("osascript"),
-            maximum_age: HeartbeatWindow::from_override(Some(bound)),
-        },
-        Rc::default(),
-    )
+    let config = Configuration {
+        notify: crate::command_notify(&home.join("engine")),
+        alarm: home.join("osascript"),
+        maximum_age: HeartbeatWindow::from_override(Some(bound)),
+        snapshots,
+    };
+    (sandbox, config, Rc::default())
 }
 fn run_case(
     config: Configuration,
@@ -135,7 +133,7 @@ fn run_case(
 }
 #[test]
 fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observation() {
-    let (config, effects) = subject("1800");
+    let (_sandbox, config, effects) = subject("1800");
     let path = config.snapshots.clone();
     let before = std::fs::read(&path).unwrap();
     let mut stderr = vec![];
@@ -149,15 +147,13 @@ fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observ
     let request = &effect.requests[0];
     for field in [
         "\"producer\":\"posture\"",
-        "\"event\":\"heartbeat\"",
         "\"state\":\"observation\"",
-        "\"occurred_at\":10000",
         "\"route\":\"posture-pages\"",
         "canary 17s ago",
     ] {
         assert!(request.contains(field), "{field}: {request}");
     }
-    assert!(!request.contains("\"class\""));
+    assert!(!request.contains("\"delivery_class\""));
     assert!(request.ends_with('\n'));
     assert!(stderr.is_empty());
     assert_eq!(std::fs::read(&path).unwrap(), before);
@@ -167,20 +163,33 @@ fn the_command_reads_the_selected_canary_and_submits_one_unmarked_posture_observ
     );
 }
 #[test]
-fn engine_failure_attempts_an_independent_alarm_but_never_changes_best_effort_status() {
-    for (reply, alarms) in [
-        (Reply::Refused, 0),
-        (Reply::Degraded, 0),
-        (Reply::TimedOut, 1),
-        (Reply::Malformed, 1),
+fn an_undelivered_heartbeat_exits_nonzero_and_says_so_on_stderr_and_the_banner() {
+    for (reply, sink_alarms, reason) in [
+        (Reply::Refused, 0, "Refused"),
+        (Reply::Undelivered, 0, "NotCommitted"),
+        (Reply::TimedOut, 1, "TimedOut"),
+        (Reply::Malformed, 1, "Unparseable"),
     ] {
-        let (config, effects) = subject("1800");
+        let (_sandbox, config, effects) = subject("1800");
         let mut stderr = vec![];
-        assert_eq!(run_case(config, effects.clone(), reply, &mut stderr), 0);
+        assert_eq!(run_case(config, effects.clone(), reply, &mut stderr), 1);
         let effect = effects.borrow();
         assert_eq!(effect.requests.len(), 1);
-        assert_eq!(effect.alarms.len(), alarms);
-        assert!(stderr.is_empty());
+        // The sink alarms only when delivery itself broke; the run's own
+        // report is the last one and is raised however it failed.
+        assert_eq!(effect.alarms.len(), sink_alarms + 1);
+        assert_eq!(
+            String::from_utf8(stderr).unwrap(),
+            format!(
+                "posture heartbeat: the heartbeat reached no destination (route posture-pages): \
+                 {reason}\n"
+            )
+        );
+        let banner = effect.alarms.last().unwrap()[1]
+            .to_string_lossy()
+            .into_owned();
+        assert!(banner.contains(UNDELIVERED), "{banner}");
+        assert!(banner.contains(reason), "{banner}");
         for args in &effect.alarms {
             assert_eq!(args[0], "-e");
             assert!(args[1].to_string_lossy().contains("sound name \"Sosumi\""));
@@ -189,7 +198,7 @@ fn engine_failure_attempts_an_independent_alarm_but_never_changes_best_effort_st
 }
 #[test]
 fn invalid_literal_emits_one_fixed_diagnostic_and_still_submits_the_default_observation() {
-    let (config, effects) = subject("08");
+    let (_sandbox, config, effects) = subject("08");
     let mut stderr = vec![];
     assert_eq!(
         run_case(config, effects.clone(), Reply::Committed, &mut stderr),

@@ -15,17 +15,17 @@ fn routing() -> pns_hue::Routing {
         lamps: vec![
             pns_hue::Routed {
                 lamp: lamp("HCL1"),
-                shows: vec![Behaviour::Done, Behaviour::Failed],
+                behaviours: vec![Behaviour::Done, Behaviour::Failed],
                 dim: None,
             },
             pns_hue::Routed {
                 lamp: lamp("HCL2"),
-                shows: vec![Behaviour::Done, Behaviour::Failed],
+                behaviours: vec![Behaviour::Done, Behaviour::Failed],
                 dim: None,
             },
             pns_hue::Routed {
                 lamp: lamp("HCL3"),
-                shows: vec![Behaviour::Blocked, Behaviour::Unread],
+                behaviours: vec![Behaviour::Blocked, Behaviour::Unseen],
                 dim: None,
             },
         ],
@@ -39,15 +39,15 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::Off),
         vec![
-            "pns doctor: lights: off in the config, so the pulse uses the \
-                 [plugins.hue] rooms"
+            "pns doctor: lights: off in the config, so the pulse flashes the \
+                 plugin's own default rooms"
         ],
         "no table is the state every machine was in before this table existed"
     );
     assert_eq!(
         lights_lines(&LightsReport::HueMissing),
         vec![
-            "pns doctor: lights: configured, but there is no [plugins.hue] \
+            "pns doctor: lights: configured, but there is no [plugins.lights] \
                  table to light them through"
         ],
         "A TABLE THAT WAS NEVER WRITTEN IS NOT A SWITCH SOMEONE TURNED OFF. \
@@ -58,7 +58,7 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::HueDisabled),
         vec![
-            "pns doctor: lights: configured, but [plugins.hue] enabled is false, \
+            "pns doctor: lights: configured, but [plugins.lights] enabled is false, \
                  so nothing lights"
         ],
         "ONE SWITCH, and the doctor is where an operator sees it is off"
@@ -66,7 +66,7 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::NoBridge),
         vec![
-            "pns doctor: lights: no [plugins.hue] bridge and key, so no lamp \
+            "pns doctor: lights: no [plugins.lights] bridge_host and api_key, so no lamp \
                  could be resolved"
         ],
         "a config that named no bridge is not a bridge that answered nothing"
@@ -79,7 +79,7 @@ fn the_lights_section_says_which_of_its_six_states_the_config_is_in() {
     assert_eq!(
         lights_lines(&LightsReport::Resolved(routing())),
         vec![
-            "pns doctor: 3 lamps are routed: 2 on done, 2 on failed, 1 on blocked, 1 on unread, 0 on loop, 0 on github"
+            "pns doctor: 3 lamps are routed: 2 on done, 2 on failed, 1 on blocked, 1 on unseen, 0 on loop, 0 on checks"
         ],
         "PER BEHAVIOUR, which is the question an operator opens this section \
              with: did the thing I routed reach a bulb. A behaviour nothing carries \
@@ -106,7 +106,7 @@ fn an_unresolved_name_and_a_refused_declaration_each_get_their_own_line() {
     assert_eq!(
         lights_lines(&LightsReport::Resolved(map)),
         vec![
-            "pns doctor: 3 lamps are routed: 2 on done, 2 on failed, 1 on blocked, 1 on unread, 0 on loop, 0 on github",
+            "pns doctor: 3 lamps are routed: 2 on done, 2 on failed, 1 on blocked, 1 on unseen, 0 on loop, 0 on checks",
             "pns doctor: lights: `3F - Studio - HCL9` (lamp) is not on the bridge",
             "pns doctor: lights: `3F - Cupboard` (room) is on the bridge, but it \
                  holds no lamp",

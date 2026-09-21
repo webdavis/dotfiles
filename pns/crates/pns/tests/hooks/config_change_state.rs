@@ -4,11 +4,11 @@ use super::*;
 fn a_config_change_does_not_clear_a_live_wait_on_its_own_session() {
     // LOAD-BEARING, in `an_observation_does_not_clear_a_live_wait`'s own
     // style: `blocked_marker_action("config-change")` is `End`, and the End
-    // arm removes the marker UNGATED, so no `[lights]`/`[plugins.hue]` table
+    // arm removes the marker UNGATED, so no `[lights]`/`[plugins.lights]` table
     // is needed for a misrouted `Attempt::First` to clear it regardless of
     // whether the lamps are configured.
     let sandbox = Sandbox::new("config-change-no-clear-own-wait");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state/lights-blocked")).expect("lights-blocked dir");
     std::fs::write(sandbox.path("state/lights-blocked/s1"), "1700000000")
@@ -51,7 +51,7 @@ fn a_config_change_does_not_clear_a_live_wait_on_its_own_session() {
 #[test]
 fn a_config_change_writes_no_activity_line() {
     let sandbox = Sandbox::new("config-change-no-activity");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let activity_before = state_lines(&sandbox, "activity");
 
@@ -90,7 +90,7 @@ fn a_config_change_writes_no_activity_line() {
 #[test]
 fn a_config_change_renews_no_loop_lease() {
     let sandbox = Sandbox::new("config-change-no-lease");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let lease_dir = sandbox.path("state/lights-loop");
     std::fs::create_dir_all(&lease_dir).expect("lease dir");
@@ -135,13 +135,13 @@ fn a_config_change_moves_no_presence_edge() {
     // the control before the observation would let a misrouted `Attempt::First`
     // pass for the wrong reason under `mark_present`'s own `held >= now` guard.
     let sandbox = Sandbox::new("config-change-no-presence-edge");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -162,7 +162,7 @@ fn a_config_change_moves_no_presence_edge() {
     );
 
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert_ne!(
         stored_records::present(&sandbox),
@@ -174,7 +174,9 @@ fn a_config_change_moves_no_presence_edge() {
 #[test]
 fn a_config_change_registers_no_lights_tick() {
     let sandbox = Sandbox::new("config-change-no-lights-tick");
-    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    sandbox.write_config(&format!(
+        "{LAMPS_ON}[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
+    ));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -210,7 +212,7 @@ fn a_config_change_registers_no_lights_tick() {
 #[test]
 fn a_config_change_observation_journals_no_missed_notification() {
     let sandbox = Sandbox::new("config-change-journals-no-miss");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     let expiry = std::time::SystemTime::now()
@@ -253,7 +255,7 @@ fn a_config_change_observation_journals_no_missed_notification() {
 #[test]
 fn a_config_change_observation_replays_no_journal_entry() {
     let sandbox = Sandbox::new("config-change-replays-no-entry");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let journal = sandbox.path("state/missed-notifications");
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
@@ -262,7 +264,7 @@ fn a_config_change_observation_replays_no_journal_entry() {
     std::fs::write(&journal, seeded).expect("the journal");
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -283,7 +285,7 @@ fn a_config_change_observation_replays_no_journal_entry() {
     );
 
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert!(
         stored_records::text(&sandbox, "journal").is_empty(),

@@ -115,7 +115,7 @@ it right: unreadable becomes absent. It says nothing about the other input (`tak
 future), and the code does not apply the same direction there. There is no other clamp, filter, or
 future-timestamp check anywhere in `pns/crates/pns-domain/src/decision/` (confirmed by grep for
 `future` and `clamp` in that directory: the only hit is the unrelated comment at line 35 about
-`PNS_IDLE_SECS`).
+`PNS_SCREEN_IDLE`).
 
 **Why age `0` is the wrong answer, in this function's own terms.** `age_of`'s two callers feed
 presence arbitration: `phone_input_age` (line 51) and `marker_age` (line 57) both flow into

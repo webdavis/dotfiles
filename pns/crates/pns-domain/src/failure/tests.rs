@@ -12,7 +12,7 @@ fn hermes_404() -> Failure {
         // field is text a reader searches for rather than a command pns runs,
         // so it renders unchanged.
         command: "pns --producer posture --channel testpath".to_string(),
-        outcome: DeliveryOutcome::Status(404),
+        outcome: TransportOutcome::Status(404),
         retries: 1,
         max_attempts: 20,
     }
@@ -20,7 +20,7 @@ fn hermes_404() -> Failure {
 
 fn temporary() -> Failure {
     Failure {
-        outcome: DeliveryOutcome::Status(503),
+        outcome: TransportOutcome::Status(503),
         retries: 3,
         ..hermes_404()
     }
@@ -96,15 +96,15 @@ fn a_notification_holds_the_measured_budget_however_long_the_route_and_command_a
         for surface in [
             NotificationSurface::Banner,
             NotificationSurface::Phone {
-                serve: true,
+                page_enabled: true,
                 hermes_failed: false,
             },
             NotificationSurface::Phone {
-                serve: false,
+                page_enabled: false,
                 hermes_failed: false,
             },
             NotificationSurface::Phone {
-                serve: false,
+                page_enabled: false,
                 hermes_failed: true,
             },
         ] {
@@ -169,7 +169,7 @@ fn the_fix_line_points_at_the_surface_the_reader_is_standing_at() {
     );
     assert_eq!(
         fix(NotificationSurface::Phone {
-            serve: true,
+            page_enabled: true,
             hermes_failed: true
         }),
         "fix: open moshi's servers list, pick pns :8646",
@@ -177,14 +177,14 @@ fn the_fix_line_points_at_the_surface_the_reader_is_standing_at() {
     );
     assert_eq!(
         fix(NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: false
         }),
         "fix: full error in Discord, #priority"
     );
     assert_eq!(
         fix(NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: true
         }),
         "fix: run `pns failures` on dresden",
@@ -209,11 +209,11 @@ fn a_temporary_failure_says_to_stand_down_on_every_surface_and_counts_the_attemp
     for surface in [
         NotificationSurface::Banner,
         NotificationSurface::Phone {
-            serve: true,
+            page_enabled: true,
             hermes_failed: false,
         },
         NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: true,
         },
     ] {
@@ -230,18 +230,18 @@ fn a_temporary_failure_says_to_stand_down_on_every_surface_and_counts_the_attemp
 #[test]
 fn the_same_code_from_two_destinations_names_two_different_secrets() {
     let hermes = Failure {
-        outcome: DeliveryOutcome::Status(401),
+        outcome: TransportOutcome::Status(401),
         ..hermes_404()
     };
     let mobile = Failure {
-        destination: DESTINATION_MOBILE.to_string(),
+        destination: DESTINATION_PHONE.to_string(),
         address: "http://127.0.0.1:8646".to_string(),
         ..hermes.clone()
     };
     let hermes_key = hermes_key_named(&hermes.route);
     assert!(full(&hermes).contains(&hermes_key));
-    assert!(full(&mobile).contains(MOBILE_TOKEN));
-    assert!(!full(&hermes).contains(MOBILE_TOKEN));
+    assert!(full(&mobile).contains(PHONE_TOKEN));
+    assert!(!full(&hermes).contains(PHONE_TOKEN));
     assert!(!full(&mobile).contains(&hermes_key));
 }
 
@@ -253,7 +253,7 @@ fn every_meaning_names_its_concrete_subject_rather_than_a_pronoun() {
     for code in [400, 401, 403, 404, 405, 410, 422, 502] {
         let failure = Failure {
             route: "uniquename".to_string(),
-            outcome: DeliveryOutcome::Status(code),
+            outcome: TransportOutcome::Status(code),
             ..hermes_404()
         };
         let meaning = notification(&failure, NotificationSurface::Banner)
@@ -276,11 +276,11 @@ fn every_meaning_names_its_concrete_subject_rather_than_a_pronoun() {
 #[test]
 fn the_two_answers_that_carry_no_status_are_told_apart_by_name() {
     let no_response = Failure {
-        outcome: DeliveryOutcome::NoResponse,
+        outcome: TransportOutcome::NoResponse,
         ..hermes_404()
     };
     let bad_url = Failure {
-        outcome: DeliveryOutcome::NoStatus,
+        outcome: TransportOutcome::NoStatus,
         ..hermes_404()
     };
     assert!(full(&no_response).contains("no response"));
@@ -310,11 +310,11 @@ fn two_failures_from_one_producer_carry_two_distinct_headings() {
 #[test]
 fn a_code_with_no_table_row_still_says_which_way_it_will_be_treated() {
     let permanent = Failure {
-        outcome: DeliveryOutcome::Status(451),
+        outcome: TransportOutcome::Status(451),
         ..hermes_404()
     };
     let temporary = Failure {
-        outcome: DeliveryOutcome::Status(507),
+        outcome: TransportOutcome::Status(507),
         ..hermes_404()
     };
     assert!(full(&permanent).contains("will not accept a repeat"));

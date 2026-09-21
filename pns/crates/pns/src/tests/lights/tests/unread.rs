@@ -90,7 +90,7 @@ fn only_a_finished_or_a_dead_turn_is_news_and_a_wait_is_not() {
     // A WAIT IS NOT NEWS. It is a question still on screen, which is the
     // blocked lamp's own business; recording it here would arm the unread
     // lamp about something nobody has missed.
-    for not_news in [Behaviour::Blocked, Behaviour::Unread, Behaviour::Looping] {
+    for not_news in [Behaviour::Blocked, Behaviour::Unseen, Behaviour::Looping] {
         assert_eq!(
             news_after(held, not_news, 2_000),
             None,
@@ -227,7 +227,7 @@ fn success_news_waits_out_its_delay_and_failure_news_does_not() {
         None,
         "a failure the clock says has not happened yet arms no lamp"
     );
-    // AND STILL NOT WITH NO DELAY AT ALL. `after_secs` may be zero, and a
+    // AND STILL NOT WITH NO DELAY AT ALL. `arm_after_secs` may be zero, and a
     // saturated age of zero passes a zero threshold, so this edge is where
     // "no elapsed time" and "an elapsed time of zero" stop agreeing.
     assert_eq!(

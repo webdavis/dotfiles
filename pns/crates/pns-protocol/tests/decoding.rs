@@ -96,7 +96,7 @@ fn unknown_fields_cannot_bypass_the_shared_decode_bounds() {
 
 #[test]
 fn every_required_request_field_must_be_present() {
-    for field in ["request_id", "producer", "event", "state"] {
+    for field in ["request_id", "producer", "state"] {
         let mut value: Value = serde_json::from_str(REQUEST).unwrap();
         value.as_object_mut().unwrap().remove(field);
         assert!(
@@ -124,13 +124,14 @@ fn a_result_must_state_its_status() {
 }
 
 #[test]
-fn unknown_result_status_outcome_and_interaction_words_are_refused() {
-    for field in ["status", "outcome", "interaction"] {
+fn unknown_or_wrapped_result_status_and_outcome_words_are_refused() {
+    for field in ["status", "outcome", "wrapped_status", "wrapped_outcome"] {
         let mut value: Value = serde_json::from_str(RESULT).unwrap();
         match field {
             "status" => value["status"] = json!("unknown"),
-            "outcome" => value["destinations"][0]["outcome"] = json!("unknown"),
-            _ => value["interaction"] = json!({ "kind": "unknown" }),
+            "outcome" => value["destinations"][0]["outcome"] = json!("unreported"),
+            "wrapped_status" => value["status"] = json!({ "kind": "partial" }),
+            _ => value["destinations"][0]["outcome"] = json!({ "kind": "delivered" }),
         }
         assert!(
             matches!(

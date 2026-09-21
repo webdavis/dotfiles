@@ -1,34 +1,69 @@
 use super::*;
 
-// --- the Focus modes that mean it ---------------------------------------
+// --- the Focus modes that mean it, and the switch over them -------------
 
 #[test]
 fn a_focus_table_names_the_modes_that_silence_pns() {
-    let config = parse_config("[focus]\nsilence = [\"Sleep\", \"Coding\"]\n").unwrap();
-    assert_eq!(config.focus_silence, ["Sleep", "Coding"]);
+    let config = parse_config("[focus]\nmodes = [\"Sleep\", \"Coding\"]\n").unwrap();
+    assert_eq!(config.focus_modes, ["Sleep", "Coding"]);
+    assert!(config.focus_enabled, "the switch defaults on");
+    assert_eq!(
+        config.focus_silence(),
+        ["Sleep", "Coding"],
+        "so the roster is what silences"
+    );
+}
+
+/// THE ROSTER IS NOT THE SWITCH, which is the whole of this slice for this
+/// table: a list the operator spent a while getting right stays written while
+/// the feature is off for a week.
+#[test]
+fn the_switch_off_silences_nothing_even_with_modes_named() {
+    let config = parse_config("[focus]\nenabled = false\nmodes = [\"Sleep\"]\n").unwrap();
+    assert!(!config.focus_enabled);
+    assert_eq!(config.focus_modes, ["Sleep"], "the roster is kept whole");
+    assert!(
+        config.focus_silence().is_empty(),
+        "and nothing is read off it while the switch is off"
+    );
+}
+
+#[test]
+fn a_switch_that_is_not_a_boolean_is_refused_naming_the_key() {
+    let err = parse_config("[focus]\nenabled = \"yes\"\n").unwrap_err();
+    match err {
+        ConfigError::Invalid(message) => {
+            assert!(
+                message.contains("focus") && message.contains("enabled"),
+                "the table and the key are named: {message}"
+            );
+        }
+        other => panic!("expected Invalid, got {other:?}"),
+    }
 }
 
 #[test]
 fn a_config_with_no_focus_table_names_no_mode_at_all() {
-    // OFF IS THE DEFAULT, and it is the whole reason there is no `enabled`
-    // key: a machine that never wrote the table behaves exactly as it did
-    // before the table existed. MEASURED on this operator's own machine, a
-    // Focus was asserted for 95% of one day, so a feature that shipped on
-    // would have silenced almost everything pns raised that day.
-    let config = parse_config("[plugins.hue]\nenabled = true\n").unwrap();
-    assert!(config.focus_silence.is_empty());
+    // NOTHING SILENCED IS THE DEFAULT, whatever the switch says: a machine
+    // that never wrote the table behaves exactly as it did before the table
+    // existed. MEASURED on this operator's own machine, a Focus was asserted
+    // for 95% of one day, so a roster that shipped with a mode in it would
+    // have silenced almost everything pns raised that day.
+    let config = parse_config("[plugins.lights]\nenabled = true\n").unwrap();
+    assert!(config.focus_modes.is_empty());
+    assert!(config.focus_silence().is_empty());
 }
 
 #[test]
 fn a_silence_list_that_is_not_a_list_is_refused_naming_the_key() {
-    // `silence = "Sleep"` is what a hand writes first. Read as one name it
+    // `modes = "Sleep"` is what a hand writes first. Read as one name it
     // would work by accident; read as anything else it silences nothing
     // and says nothing, which is the state the operator cannot discover.
-    let err = parse_config("[focus]\nsilence = \"Sleep\"\n").unwrap_err();
+    let err = parse_config("[focus]\nmodes = \"Sleep\"\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => {
             assert!(
-                message.contains("silence"),
+                message.contains("modes"),
                 "the offender is named: {message}"
             );
             assert!(
@@ -42,10 +77,10 @@ fn a_silence_list_that_is_not_a_list_is_refused_naming_the_key() {
 
 #[test]
 fn a_mode_name_that_is_not_a_string_is_refused_naming_the_key() {
-    let err = parse_config("[focus]\nsilence = [\"Sleep\", 5]\n").unwrap_err();
+    let err = parse_config("[focus]\nmodes = [\"Sleep\", 5]\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => assert!(
-            message.contains("silence"),
+            message.contains("modes"),
             "the offender is named: {message}"
         ),
         other => panic!("expected Invalid, got {other:?}"),
@@ -56,13 +91,13 @@ fn a_mode_name_that_is_not_a_string_is_refused_naming_the_key() {
 fn a_mode_name_that_is_the_empty_string_is_refused_by_name() {
     // AN ENTRY THAT NAMES NO MODE is a policy the operator believes they
     // wrote and pns can never act on, which is the misspelled key's own
-    // failure one level down. `[recap] repos` refuses its empty entry for
+    // failure one level down. `[recap] repositories` refuses its empty entry for
     // this reason and this refusal is that rule, not a new one.
-    let err = parse_config("[focus]\nsilence = [\"Sleep\", \"\"]\n").unwrap_err();
+    let err = parse_config("[focus]\nmodes = [\"Sleep\", \"\"]\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => {
             assert!(
-                message.contains("silence"),
+                message.contains("modes"),
                 "the offender is named: {message}"
             );
             assert!(
@@ -75,13 +110,13 @@ fn a_mode_name_that_is_the_empty_string_is_refused_by_name() {
 }
 
 #[test]
-fn an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off() {
+fn an_empty_modes_list_is_admitted_because_it_silences_nothing() {
     // THE BOUNDARY OF THE REFUSAL ABOVE. An empty LIST is a working,
     // readable setting that says exactly what it does, so a refusal that
     // reached it would refuse the one config the template's own commented
     // block turns into when a mode is deleted from it.
-    let config = parse_config("[focus]\nsilence = []\n").unwrap();
-    assert!(config.focus_silence.is_empty());
+    let config = parse_config("[focus]\nmodes = []\n").unwrap();
+    assert!(config.focus_modes.is_empty());
 }
 
 #[test]

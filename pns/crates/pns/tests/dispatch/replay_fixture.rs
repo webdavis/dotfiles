@@ -11,7 +11,9 @@ use super::*;
 /// away event is the one row that must NOT flush the queue.
 pub(super) fn present_event(sandbox: &Sandbox) -> std::process::Command {
     let mut command = logged_event(sandbox);
-    command.env("PNS_IDLE_SECS", "0").env("PNS_SKIP_PHONE", "1");
+    command
+        .env("PNS_SCREEN_IDLE", "0")
+        .env("PNS_SKIP_PHONE", "1");
     // The caller already saw this event, so the test isolates its planted queue.
     // Executable stubs report no acknowledgement and cannot establish perception.
     sandbox.stub_herdr(&mut command, false);
@@ -27,7 +29,7 @@ pub(super) fn present_event(sandbox: &Sandbox) -> std::process::Command {
 /// a channel fired at all and useless here: a replay is a SECOND notification
 /// on the same channel, and a truncating stub shows one file either way.
 pub(super) fn record_every_event(sandbox: &Sandbox) {
-    for channel in ["mobile", "hermes", "macos-banner"] {
+    for channel in ["phone", "hermes", "banner"] {
         sandbox.stub_channel(
             channel,
             &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
@@ -67,8 +69,8 @@ pub(super) const ITS_NAME: &str = "Casually Concerned";
 /// these two tests differ in.
 pub(super) fn focus_config(silence: &str) -> String {
     format!(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
-         [plugins.macos-banner]\nenabled = true\n[focus]\nsilence = [{silence}]\n"
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
+         [plugins.banner]\nenabled = true\n[focus]\nmodes = [{silence}]\n"
     )
 }
 
@@ -79,7 +81,7 @@ pub(super) fn focus_config(silence: &str) -> String {
 /// `present_event` asserted against a silenced card and a silenced pulse is
 /// asserting what the surface had already decided: the Focus clause could be
 /// deleted outright and both would still read as held. `PNS_FORCE_PHONE` puts
-/// the card back on the plan and `--long-running` puts the pulse there, and
+/// the card back on the plan and a long `--elapsed` puts the pulse there, and
 /// the sibling test below shows all three firing in this same world.
 ///
 /// THE FORCE IS ALSO THE POINT, not just the setup. It is a producer's opinion
@@ -91,7 +93,7 @@ pub(super) fn focus_event(sandbox: &Sandbox) -> std::process::Command {
     command
         .env_remove("PNS_SKIP_PHONE")
         .env("PNS_FORCE_PHONE", "1")
-        .arg("--long-running");
+        .args(["--elapsed", "300s"]);
     command
 }
 
@@ -119,7 +121,7 @@ pub(super) const RACERS: usize = 8;
 /// `the_marker_advances_when_the_recap_fires_so_a_second_event_recaps_nothing`
 /// pins; here the recap is simply not what is being measured.
 pub(super) fn recap_switched_off() -> String {
-    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\ndigest = false\n")
+    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\npost_window_recap = false\n")
 }
 
 /// MORE RACERS THAN THE JOURNAL TEST USES: they all take the SAME adoption

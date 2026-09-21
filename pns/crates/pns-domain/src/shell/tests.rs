@@ -43,8 +43,7 @@ fn shell_tiers_keep_both_boundaries_and_their_neighbors() {
             continue;
         }
         let event = event.unwrap();
-        assert_eq!(event.long_running, elapsed >= 300);
-        assert_eq!(event.detail, format!("cargo ({elapsed}s)"));
+        assert_eq!(event.detail, "cargo");
         assert_eq!(event.agent, "shell");
         assert_eq!(event.state, "done");
         assert_eq!(event.project, "project");
@@ -63,17 +62,16 @@ fn a_failed_command_names_its_status_without_exposing_arguments() {
         String::new(),
     )
     .unwrap();
-    assert_eq!(event.detail, "deploy (301s, exit 137)");
+    assert_eq!(event.detail, "deploy, exit 137");
     assert_eq!(event.state, "failed");
-    assert!(event.long_running);
 }
 
 #[test]
 fn command_display_keeps_the_legacy_literal_space_boundary() {
     for (line, expected) in [
-        ("", " (30s)"),
-        (" leading", " (30s)"),
-        ("cargo\tbuild arg", "cargo\tbuild (30s)"),
+        ("", ""),
+        (" leading", ""),
+        ("cargo\tbuild arg", "cargo\tbuild"),
     ] {
         assert_eq!(
             shell_event(line, 0, 30, String::new(), String::new())

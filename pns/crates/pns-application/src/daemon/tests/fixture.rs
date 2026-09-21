@@ -34,6 +34,7 @@ impl World {
         RunDaemon {
             settings: self,
             clock: self,
+            stopping: &|| false,
         }
         .run(
             || {
@@ -118,6 +119,9 @@ impl JobChildren for World {
     }
     fn start(&mut self, _: &Job) -> Result<(), String> {
         panic!("empty spool");
+    }
+    fn terminate(&mut self, id: &str) {
+        self.log.borrow_mut().push(format!("terminate({id})"));
     }
 }
 impl DaemonSpool for World {

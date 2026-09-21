@@ -54,7 +54,7 @@ fn a_missed_event_appends_exactly_one_entry_carrying_what_a_card_would_have_show
         sandbox.fired("hermes"),
         "the durable log is exempt from the mute and still has the event in full"
     );
-    assert!(!sandbox.fired("mobile"), "and the card the mute swallowed");
+    assert!(!sandbox.fired("phone"), "and the card the mute swallowed");
 
     let waiting = journal(&sandbox);
     assert_eq!(waiting.len(), 1, "exactly one entry: {waiting:?}");
@@ -185,7 +185,7 @@ fn a_state_directory_that_cannot_be_written_costs_a_missed_event_nothing() {
     // Import the mute first, then reject the journal INSERT immediately. This
     // isolates publication failure from unreadable-mute policy and busy waits.
     pns_adapters::SqliteStore::for_records(sandbox.path("state"))
-        .quiet_expiry()
+        .mute_expiry()
         .unwrap();
     let writer = rusqlite::Connection::open_with_flags(
         sandbox.path("state/pns.db"),

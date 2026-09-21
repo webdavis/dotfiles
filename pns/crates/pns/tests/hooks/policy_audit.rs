@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn a_policy_settings_change_is_recorded_to_a_bounded_audit_trail() {
     let sandbox = Sandbox::new("config-change-policy-audit-write");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -40,7 +40,7 @@ fn a_non_policy_config_change_writes_no_policy_audit_entry() {
     // sources are still logged as ordinary observations, but they must not
     // start a second durable file this binary has no bound in mind for.
     let sandbox = Sandbox::new("config-change-no-policy-audit-for-others");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     for source in [
@@ -94,7 +94,7 @@ fn the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry() {
     // held. Twenty is `main.rs`'s `POLICY_SETTINGS_AUDIT_KEPT`.
     const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
     let sandbox = Sandbox::new("config-change-policy-audit-bound");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     let planted: String = (0..POLICY_SETTINGS_AUDIT_KEPT)
@@ -150,7 +150,7 @@ fn two_policy_settings_changes_racing_the_prune_lose_neither_line() {
     // test on scheduling rather than on the behavior it pins.
     const POLICY_SETTINGS_AUDIT_KEPT: usize = 20;
     let sandbox = Sandbox::new("config-change-policy-audit-two-racers");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     let planted: String = (0..POLICY_SETTINGS_AUDIT_KEPT)
@@ -226,7 +226,7 @@ fn an_enormous_file_path_cannot_wipe_the_policy_audit_trail() {
     // oversized path destroy every policy change recorded before it, which is
     // the exact loss the audit trail exists to prevent.
     let sandbox = Sandbox::new("config-change-policy-audit-huge-path");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     std::fs::write(
@@ -285,7 +285,7 @@ fn a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry() {
     // The trail is one record per line, so a raw newline in a payload field
     // would let one received change write a second entry that never happened.
     let sandbox = Sandbox::new("config-change-policy-audit-newline");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -318,7 +318,7 @@ fn an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_t
     // `policy_settings` is the one source that writes both, so this is the
     // one event that checks them together.
     let sandbox = Sandbox::new("config-change-arabic-letter-mark");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(

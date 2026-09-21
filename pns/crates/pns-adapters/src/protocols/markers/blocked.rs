@@ -32,7 +32,7 @@ use std::path::Path;
 ///
 /// AN END NEVER REMOVES A WAIT ARMED AFTER ITS OWN MOMENT, which is what
 /// makes the unordered arms safe. Every clearing arm is asynchronous, so a
-/// Stop still condensing, or one question's own answer, can reach this line
+/// Stop still summarizing, or one question's own answer, can reach this line
 /// after the next `PermissionRequest` published a second wait. The marker
 /// holds the second it was armed and the caller states the moment it is
 /// clearing for, so the compare keeps the newer file. The removal is OWNED BY
@@ -46,9 +46,9 @@ use std::path::Path;
 /// closed by the session's next event, which re-publishes the wait it is
 /// still in.
 ///
-/// THE BACKSTOP CANNOT SWEEP A MARKER THE NAG HAS NOT YET NUDGED, and that is
-/// held at CONFIG LOAD rather than here: `[lights.blocked] give_up_after_secs`
-/// shorter than `[nag] after_secs` is refused by name (`config::parse_config`),
+/// THE BACKSTOP CANNOT SWEEP A MARKER THE REMINDER HAS NOT YET NUDGED, and that is
+/// held at CONFIG LOAD rather than here: `[lights.blocked] lease_expiry`
+/// shorter than `[remind] delay` is refused by name (`config::parse_config`),
 /// because it is a config that gives up on a wait before it ever nudges about
 /// it. Nothing at this level re-publishes a swept marker, so nothing here has
 /// to tell an abandoned session from a live one.
@@ -83,7 +83,7 @@ pub fn update_blocked_marker(
     }
 }
 /// End this session's wait on the operator directly: a state-only file move
-/// in `clear_nag`'s style, with no event built, no config loaded and no
+/// in `clear_remind`'s style, with no event built, no config loaded and no
 /// decision made.
 ///
 /// TWO CALLERS NEED EXACTLY THIS, both in `hook_mode`: `prompt`, because the

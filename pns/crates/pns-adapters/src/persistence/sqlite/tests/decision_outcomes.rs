@@ -38,7 +38,7 @@ fn record<T>(now: u64, legs: &[(Leg, Delivery)], use_record: impl FnOnce(&Record
         decision: &decision,
         overrides: &overrides,
         legs,
-        nag: false,
+        remind: false,
         permission_mode: "",
         agent_id: "",
         tool_name: "",
@@ -47,7 +47,7 @@ fn record<T>(now: u64, legs: &[(Leg, Delivery)], use_record: impl FnOnce(&Record
 fn delivered() -> Vec<(Leg, Delivery)> {
     vec![(
         Leg {
-            name: "mobile",
+            name: "phone",
             mode: ReportMode::ReportOutcome,
             decorative: true,
         },
@@ -60,7 +60,7 @@ fn a_duplicate_begin_keeps_the_recorded_outcome_and_distinct_submission_keys_sta
     let store = SqliteStore::new(state());
     let first = identity("one");
     record(1, &[], |r| store.begin(&first, r)).unwrap();
-    assert!(store.revise(&first, "mobile", &delivered()[0].1).unwrap());
+    assert!(store.revise(&first, "phone", &delivered()[0].1).unwrap());
     record(2, &[], |r| store.begin(&first, r)).unwrap();
     let second = SubmissionIdentity {
         producer: "another producer".into(),
@@ -71,7 +71,7 @@ fn a_duplicate_begin_keeps_the_recorded_outcome_and_distinct_submission_keys_sta
         delivered()[0].0,
         Delivery::Failed("private failure receipt".into()),
     )];
-    assert!(store.revise(&second, "mobile", &failed[0].1).unwrap());
+    assert!(store.revise(&second, "phone", &failed[0].1).unwrap());
     let expected = format!(
         "{}\n{}\n",
         record(1, &delivered(), crate::decision_codec::line),
@@ -90,7 +90,7 @@ fn a_per_leg_revision_keeps_arrival_order_and_uses_the_existing_private_codec() 
     // not replace the facts recorded by the initial event.
     assert!(
         store
-            .revise(&identity("0"), "mobile", &delivered()[0].1)
+            .revise(&identity("0"), "phone", &delivered()[0].1)
             .unwrap()
     );
     let outcome = delivered();
@@ -122,7 +122,7 @@ fn a_per_leg_revision_keeps_arrival_order_and_uses_the_existing_private_codec() 
         store
             .revise(
                 &identity("0"),
-                "mobile",
+                "phone",
                 &Delivery::Unlaunched("secret launch".into())
             )
             .unwrap()
@@ -139,7 +139,7 @@ fn a_per_leg_revision_keeps_arrival_order_and_uses_the_existing_private_codec() 
             .unwrap()
             .0
     );
-    assert!(first.ends_with("legs=mobile:unlaunched,new.destination:failed"));
+    assert!(first.ends_with("legs=phone:unlaunched,new.destination:failed"));
     assert_eq!(
         after.lines().skip(1).collect::<Vec<_>>(),
         actual.lines().skip(1).collect::<Vec<_>>()
@@ -153,7 +153,7 @@ fn a_per_leg_revision_keeps_arrival_order_and_uses_the_existing_private_codec() 
             barrier.wait();
             store.revise(
                 &identity("0"),
-                "mobile",
+                "phone",
                 &Delivery::Delivered("private".into()),
             )
         });
@@ -171,7 +171,7 @@ fn a_per_leg_revision_keeps_arrival_order_and_uses_the_existing_private_codec() 
             .lines()
             .next()
             .unwrap()
-            .ends_with("legs=mobile:delivered,new.destination:silent"),
+            .ends_with("legs=phone:delivered,new.destination:silent"),
         "independent completed legs must both remain: {after}"
     );
     for destination in ["", "x:y", "x,y", "x=y", "x y", "x\ny", "x\u{1b}y"] {
@@ -195,12 +195,12 @@ fn a_late_revision_never_resurrects_a_pruned_decision_or_reorders_remaining_even
     record(5, &[], |r| store.record_decision(r)).unwrap();
     assert!(
         !store
-            .revise(&identity("0"), "mobile", &delivered()[0].1)
+            .revise(&identity("0"), "phone", &delivered()[0].1)
             .unwrap()
     );
     assert!(
         store
-            .revise(&identity("1"), "mobile", &delivered()[0].1)
+            .revise(&identity("1"), "phone", &delivered()[0].1)
             .unwrap()
     );
     let outcome = delivered();
@@ -219,7 +219,7 @@ fn a_late_revision_never_resurrects_a_pruned_decision_or_reorders_remaining_even
     assert_eq!(DecisionRing::read(&store).unwrap().unwrap(), expected);
     assert!(
         !store
-            .revise(&identity("never existed"), "mobile", &delivered()[0].1)
+            .revise(&identity("never existed"), "phone", &delivered()[0].1)
             .unwrap()
     );
 }
@@ -256,7 +256,7 @@ fn appending_keyed_decisions_preserves_legacy_separator_and_pruning_bytes() {
         }
         assert!(
             store
-                .revise(&identity("7"), "mobile", &delivered()[0].1)
+                .revise(&identity("7"), "phone", &delivered()[0].1)
                 .unwrap()
         );
     }
@@ -272,13 +272,14 @@ fn a_refused_revision_reports_failure_and_preserves_the_prior_outcome() {
     connection.execute_batch("CREATE TRIGGER refuse_decision BEFORE UPDATE ON decisions BEGIN SELECT RAISE(ABORT, 'fixture refusal'); END;").unwrap();
     assert!(
         store
-            .revise(&identity("one"), "mobile", &delivered()[0].1)
+            .revise(&identity("one"), "phone", &delivered()[0].1)
             .is_err()
     );
     assert_eq!(DecisionRing::read(&store).unwrap(), before);
     assert_eq!(
         std::fs::read_to_string(&store.log).unwrap(),
-        "pns: state error (decision: database refused the operation); recording failed\n"
+        "pns: state error (decision: database refused the operation: state database: \
+         fixture refusal); recording failed\n"
     );
 }
 
@@ -288,7 +289,7 @@ fn a_retry_refuses_malformed_duplicate_or_missing_leg_fields_without_changing_th
         "1 original facts without a legs field\n",
         "1 original legs=hermes:failed,hermes:delivered\n",
         "1 original legs=hermes:invented\n",
-        "1 original legs=mobile:delivered legs=hermes:failed\n",
+        "1 original legs=phone:delivered legs=hermes:failed\n",
     ] {
         let store = SqliteStore::new(state());
         let key = identity("one");
@@ -299,7 +300,7 @@ fn a_retry_refuses_malformed_duplicate_or_missing_leg_fields_without_changing_th
             .execute("UPDATE decisions SET line = ?1", [line])
             .unwrap();
         assert!(
-            store.revise(&key, "mobile", &delivered()[0].1).is_err(),
+            store.revise(&key, "phone", &delivered()[0].1).is_err(),
             "a malformed or missing outcome field cannot be rewritten: {line:?}"
         );
         assert_eq!(DecisionRing::read(&store).unwrap().as_deref(), Some(line));

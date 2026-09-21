@@ -2,6 +2,13 @@ use crate::*;
 
 /// A harness event, from the payload on stdin.
 ///
+/// THE REMINDER IS SWITCHED ON BY THE CALL. `--remind`, `--remind=<duration>`
+/// and `--no-remind` sit after the event word, and a switch this binary cannot
+/// honour is REFUSED with exit 2 before anything is delivered: it is argv the
+/// caller typed wrong, which is the one thing this path treats as an error.
+/// The two arming arms resolve it and nothing else pays for the read, which
+/// keeps `resolved` to a payload read, a parse and two file operations.
+///
 /// THE EXIT CONTRACT AND ITS ONE EXCEPTION. Every path here is a notification,
 /// and a notification that cannot be delivered must never fail the turn it
 /// reports on, so every path returns 0. The forwarded blocking path is the
@@ -38,11 +45,45 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         "prompt" => {
             start_of_turn(&payload);
             end_blocked_wait(&payload.session_id, now_secs());
-            name_session(&payload, &agent);
+            let title = name_session(&payload, &agent);
+            // NO GIT ON THIS PATH, which the session write states as its own
+            // rule, so the row carries no project or branch: a prompt is the
+            // operator typing, and the events around it are what say which
+            // checkout the session is in.
+            activity::record(&session_only_event(&agent, event, title), &payload);
         }
         "stop" => end_of_turn(&payload, &agent),
         "stop-failure" => failed_turn(&payload, &agent),
-        "blocked" => return blocking_event(&payload, &agent, &payload_json),
+        "blocked" => {
+            return match remind_after(&agent) {
+                Ok(reminder) => blocking_event(&payload, &agent, &payload_json, reminder),
+                Err(code) => code,
+            };
+        }
+        // THE ARM ALONE, for a harness whose own extension already raises a
+        // card for this wait through a road pns is not on. omp's generated
+        // `moshi-hooks.ts` reports `tool_approval_requested` to the moshi
+        // daemon socket directly, so the `blocked` arm above would raise a
+        // second, redundant notification for the same approval; this word
+        // schedules the nudge and nothing else. `resolved` already clears it,
+        // the same as any other armed wait.
+        "arm-remind" => {
+            let event = pns_domain::EventArgs {
+                agent: agent.clone(),
+                state: "blocked".to_string(),
+                detail: payload.message.clone(),
+                pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+                ..attribution(&payload, &agent)
+            };
+            let reminder = match remind_after(&agent) {
+                Ok(reminder) => reminder,
+                Err(code) => return code,
+            };
+            arm_remind(&payload.session_id, &event, reminder);
+            // THE WAIT STILL HAPPENED, even though this arm raises nothing:
+            // the harness's own extension carded it by a road pns is not on.
+            activity::record(&event, &payload);
+        }
         // EVERY CLEARING SIGNAL THE HARNESS HAS, on one arm. Five
         // declarations reach it: `PostToolBatch`, whichever way the operator
         // answered (a denial still produces a `tool_result` and so still
@@ -76,10 +117,12 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // wait armed after the moment being cleared for, which is what keeps a
         // late clear from taking a newer wait's marker.
         "resolved" => {
-            clear_nag(&payload.session_id);
+            clear_remind(&payload.session_id);
             if !payload.in_subagent || payload.hook_event_name == "SubagentStop" {
                 end_blocked_wait(&payload.session_id, now_secs());
             }
+            let title = stored_title(&payload, &agent);
+            activity::record_session_only(&session_only_event(&agent, event, title), &payload);
         }
         // MID-TURN NEWS FROM A SERVER THAT STOPPED TO ASK. It reports
         // something that happened INSIDE a turn that is still running, so it
@@ -94,7 +137,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // re-armed a wait the operator had just ended and carded them with
         // their own choice read back to them; both are declared to `resolved`.
         // `Elicitation` is the one genuine pre-answer wait of the three.
-        "asked" => drop(run_event(
+        "asked" => drop(hook_event(
             &pns_domain::EventArgs {
                 agent: agent.clone(),
                 state: event.to_string(),
@@ -113,7 +156,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // waiting and what stops it taking a wait a real question armed beside
         // it. It states no message of its own, so its detail resolves through
         // `parse_payload`'s existing chain to the tool request.
-        "denied" => drop(run_event(
+        "denied" => drop(hook_event(
             &pns_domain::EventArgs {
                 agent: agent.clone(),
                 state: event.to_string(),
@@ -132,7 +175,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // ordinary tool approval's type, so the declaration's matcher cannot
         // separate the two and `sandbox_network_detail` is what does. Routed
         // as a wait through `Attempt::First` with a `LAMP_BLOCKED` state word,
-        // so `run_event` arms the marker itself, plus the nag, which is
+        // so `run_event` arms the marker itself, plus the reminder, which is
         // `blocking_event`'s shape without the moshi forward: there is no
         // permission-request payload to hand moshi, and Claude Code already
         // carries this dialog to a phone over its own remote-control bridge.
@@ -153,8 +196,12 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 // `RequestApproval`'s own order: the record this arms is what
                 // a later answer clears, and an answer landing between the
                 // card and the arming would leave a record nothing clears.
-                arm_nag(&payload.session_id, &event);
-                let _ = run_event(&event, &system_probes(), &payload, Attempt::First);
+                let reminder = match remind_after(&agent) {
+                    Ok(reminder) => reminder,
+                    Err(code) => return code,
+                };
+                arm_remind(&payload.session_id, &event, reminder);
+                let _ = hook_event(&event, &system_probes(), &payload, Attempt::First);
             }
         }
         // `PostModelSwitch`, restricted to the one `source` that is news:
@@ -172,7 +219,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
         // and stripped, or either side empty.
         "model-switch" if payload.source == "auto" => {
             if let Some(detail) = model_switch_detail(&payload.from_model, &payload.to_model) {
-                run_event(
+                hook_event(
                     &pns_domain::EventArgs {
                         agent: agent.clone(),
                         state: event.to_string(),
@@ -209,7 +256,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 if payload.notification_type == "quota_auto_resume_stale" {
                     arm_quota_stale_wait(&payload.session_id, &probes);
                 }
-                run_event(
+                hook_event(
                     &pns_domain::EventArgs {
                         agent: agent.clone(),
                         state: event.to_string(),
@@ -250,7 +297,7 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                         probes.now_secs(),
                     );
                 }
-                run_event(
+                hook_event(
                     &pns_domain::EventArgs {
                         agent: agent.clone(),
                         state: event.to_string(),
@@ -271,7 +318,37 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
     0
 }
 
+/// This call's resolved reminder, or the exit code to answer with once the
+/// refusal has been said.
+///
+/// ON STDERR, NEVER STDOUT, like every other line this path writes: Claude
+/// Code reads this hook's stdout as moshi's decision object.
+fn remind_after(agent: &str) -> Result<Reminder, i32> {
+    legacy::remind_switch(&crate::arguments_after_verb())
+        .and_then(|switch| remind_delay(switch, agent))
+        .map_err(|refusal| {
+            eprintln!("pns: {refusal}");
+            2
+        })
+}
+
 /// What `pns hook` takes, which is one harness event per run.
 pub(crate) const HOOK_USAGE: &str = "pns: usage: pns hook prompt | stop | \
-stop-failure | blocked | asked | denied | waiting | resolved | model-switch | \
-quota | config-change (the harness payload arrives on stdin)";
+stop-failure | blocked | arm-remind | asked | denied | waiting | resolved | \
+model-switch | quota | config-change [--remind[=<duration>] | --no-remind] \
+(the harness payload arrives on stdin)";
+
+/// The two arms that notify nobody, as an event for the activity store alone:
+/// the prompt that starts a turn and the signal that answers a wait.
+///
+/// THE HOOK WORD IS THE STATE, because neither arm has a pns state word of its
+/// own: nothing is delivered for either, so no state ever names them.
+fn session_only_event(agent: &str, event: &str, session_title: String) -> pns_domain::EventArgs {
+    pns_domain::EventArgs {
+        agent: agent.to_string(),
+        state: event.to_string(),
+        session_title,
+        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
+        ..Default::default()
+    }
+}

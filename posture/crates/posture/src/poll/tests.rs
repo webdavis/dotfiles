@@ -69,9 +69,8 @@ fn an_exposure_is_stored_before_the_baseline_changes_and_refusal_retains_it() {
     let effects = effects.borrow();
     assert_eq!(effects.requests.len(), 1);
     assert_eq!(effects.baselines_at_submit, [Some(before.clone())]);
-    assert!(effects.requests[0].contains("\"class\":\"security\""));
+    assert!(effects.requests[0].contains("\"delivery_class\":\"security\""));
     assert!(effects.requests[0].contains("\"route\":\"posture-pages\""));
-    assert!(effects.requests[0].contains("\"occurred_at\":10000"));
     assert_captured_detail(&effects.requests[0], "exposure:0");
     let (status, error, effects) = subject.run(EXPOSED, "FileVault is On.", true);
     assert_eq!(status, 0);
@@ -94,8 +93,8 @@ fn refused_controls_never_run_probes_and_the_gap_precedes_the_exposure() {
     let effects = effects.borrow();
     assert_eq!(effects.commands, ["query", "submit", "submit"]);
     assert_eq!(effects.requests.len(), 2);
-    assert!(effects.requests[0].contains("\"event\":\"gap\""));
-    assert!(effects.requests[1].contains("\"event\":\"page\""));
+    assert!(effects.requests[0].contains("Security-posture monitoring gap"));
+    assert!(!effects.requests[1].contains("Security-posture monitoring gap"));
     assert_captured_detail(&effects.requests[0], "refused-controls:0");
     assert_captured_detail(&effects.requests[1], "refused-controls:1");
     assert_eq!(effects.baselines_at_submit, [None, None]);
@@ -167,8 +166,8 @@ fn a_timed_out_query_keeps_the_trusted_trio_and_still_updates_clean_controls() {
     assert!(error.is_empty());
     let effects = effects.borrow();
     assert_eq!(effects.requests.len(), 2);
-    assert!(effects.requests[0].contains("\"event\":\"gap\""));
-    assert!(effects.requests[1].contains("\"event\":\"page\""));
+    assert!(effects.requests[0].contains("Security-posture monitoring gap"));
+    assert!(!effects.requests[1].contains("Security-posture monitoring gap"));
     let state = fs::read_to_string(subject.state()).unwrap();
     assert!(state.contains("\"firewall\":\"1\""), "{state}");
     assert!(state.contains("\"vault\":\"off\""), "{state}");

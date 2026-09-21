@@ -12,7 +12,7 @@ fn doctor_pairs_reordered_outcomes_by_name_and_prints_every_section_in_order() {
             "beta: sent, this channel reports no outcome"
         ]
     );
-    assert!(lines[2].starts_with("hue: signalled 1 room"));
+    assert!(lines[2].starts_with("lights: signalled 1 room"));
     assert!(lines[3].starts_with("room:"));
     assert_eq!(lines[4], "off: skipped, configured off");
     assert_eq!(lines[5], "pns doctor: 3 sent, 0 failed, 2 skipped");
@@ -20,11 +20,11 @@ fn doctor_pairs_reordered_outcomes_by_name_and_prints_every_section_in_order() {
     assert_eq!(lines[7], "pns doctor: moshi says: fixture server");
     assert_eq!(lines[8], "tap fixture");
     assert_eq!(&lines[9..11], ["focus fixture", "daemon fixture"]);
-    assert!(lines[11].starts_with("pns doctor: the nag "));
+    assert!(lines[11].starts_with("pns doctor: the reminder "));
     assert!(lines[12].starts_with("pns doctor: lights:"));
     // AND THE PIN ROW AT THE FOOT OF THAT SECTION, below the dial whose refusal
     // it reports.
-    assert!(lines[13].contains("certificate:"));
+    assert!(lines[13].contains("Hue bridge certificate:"));
     // The ledger, then the routes it would post to, then history. The fixture
     // has posted to no route, so the route section is its summary alone.
     assert!(lines[15].contains("no routes to check"));

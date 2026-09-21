@@ -189,6 +189,8 @@ mod sessions;
 
 mod session_threads;
 
+mod activity;
+
 #[test]
 fn an_open_that_loses_the_wal_conversion_still_records() {
     // MEASURED: `PRAGMA journal_mode=WAL` answers SQLITE_BUSY instantly when

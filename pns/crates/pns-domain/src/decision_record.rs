@@ -41,7 +41,7 @@ pub struct Record<'a> {
     /// an operator can see, and "why did I get two cards for one prompt" is the
     /// exact question this log exists to answer. It is a BOOLEAN and no free
     /// text is added, so the file's privacy rule is untouched.
-    pub nag: bool,
+    pub remind: bool,
     /// The harness payload's own permission mode, empty when the event carries
     /// none: see `HookPayload::permission_mode`.
     pub permission_mode: &'a str,

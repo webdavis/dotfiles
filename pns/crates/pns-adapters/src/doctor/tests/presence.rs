@@ -61,9 +61,12 @@ fn the_selected_room_sensor_is_a_reading_rather_than_the_sensor_skip() {
     // this one has a reading, and a bare "a sensor" line would leave a
     // machine whose bridge died looking like one that is fine.
     let config = "[plugins.presence]\nenabled = true\ntype = \"hue\"\n\
-                      [plugins.hue]\nenabled = true\n";
+                      [plugins.lights]\nenabled = true\n";
     assert_eq!(kind_for(config, "presence"), CheckKind::Presence);
-    assert_eq!(kind_for(config, "router"), CheckKind::Skipped(NOT_ENABLED));
+    assert_eq!(
+        kind_for(config, "home_presence"),
+        CheckKind::Skipped(NOT_ENABLED)
+    );
 }
 
 #[test]
@@ -71,7 +74,10 @@ fn a_room_sensor_the_config_never_switched_on_is_still_a_skip() {
     // NOT SELECTED IS ASKED FIRST, or a plugin nobody enabled would print
     // a reading and read as switched on.
     assert_eq!(
-        kind_for("[plugins.hermes]\nenabled = true\n", "presence"),
+        kind_for(
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
+            "presence"
+        ),
         CheckKind::Skipped(NOT_ENABLED)
     );
 }

@@ -4,6 +4,9 @@
 //! are every planned subcommand from the specification's section 1 table, the
 //! help spellings, and a word that will never exist.
 
+mod sandbox;
+
+use sandbox::Sandbox;
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Output, Stdio};
@@ -146,8 +149,7 @@ fn enrich_with_an_absent_or_empty_path_is_successful_and_silent() {
 
 #[test]
 fn enrich_inspects_a_private_non_code_file_and_ignores_trailing_operands() {
-    let directory = std::env::temp_dir().join(format!("posture-metadata-{}", std::process::id()));
-    std::fs::create_dir(&directory).expect("private fixture directory");
+    let directory = Sandbox::new("metadata");
     let path = directory.join("file with spaces");
     std::fs::write(&path, b"inert non-code fixture").expect("fixture contents");
     let output = run(

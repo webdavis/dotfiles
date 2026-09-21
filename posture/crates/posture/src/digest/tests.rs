@@ -1,7 +1,7 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::{ClockUnavailable, InspectionFailure, WallTime};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     cell::RefCell,
     ffi::{OsStr, OsString},
@@ -61,7 +61,7 @@ impl CommandRunner for Runner {
             .to_owned();
         self.effects.borrow_mut().requests.push(request);
         let (status, diagnostics, exit) = match reply {
-            Reply::Committed => ("accepted", "\"ledger_committed\"", 0),
+            Reply::Committed => ("delivered", "\"ledger_committed\"", 0),
             Reply::Refused => ("rejected", "", 2),
         };
         Ok(CommandOutput {
@@ -92,19 +92,15 @@ impl Clock for StoppedClock {
 }
 
 struct Fixture {
-    home: PathBuf,
+    /// Removes the tree when the test drops the fixture.
+    home: Sandbox,
     store: PathBuf,
     effects: Rc<RefCell<Effects>>,
 }
 
 impl Fixture {
     fn new(spool: &str) -> Self {
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        let home = std::env::temp_dir().join(format!(
-            "posture-digest-cli-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
+        let home = Sandbox::new("digest-cli");
         let store = home.join("state").join("digest.ndjson");
         prepare_spool_directory(&store).unwrap();
         if !spool.is_empty() {
@@ -155,12 +151,6 @@ impl Fixture {
     }
 }
 
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.home);
-    }
-}
-
 fn finding(detector: &str, identity: &str) -> String {
     format!(
         "{{\"detector\":\"{detector}\",\"identity\":\"{identity}\",\"summary\":\"{detector} saw {identity}\"}}\n"
@@ -182,11 +172,9 @@ fn a_day_of_findings_becomes_one_silent_grouped_observation_and_a_forensic_copy(
     let request = &effects.requests[0];
     for field in [
         "\"producer\":\"posture\"",
-        "\"event\":\"digest\"",
         // AN OBSERVATION, NEVER A PAGE: the digest is by definition everything
         // that did not earn one.
         "\"state\":\"observation\"",
-        "\"occurred_at\":10000",
         "\"route\":\"posture-pages\"",
         "2026-09-08",
         "2 item(s)",

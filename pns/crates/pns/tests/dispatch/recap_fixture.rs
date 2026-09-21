@@ -47,17 +47,17 @@ pub(super) fn posted_recap(sandbox: &Sandbox) -> String {
 /// child after the event that triggered it has exited rather than inside it.
 pub(super) fn carded_recap(sandbox: &Sandbox) -> (serde_json::Value, Vec<serde_json::Value>) {
     let card = poll_until(|| {
-        events(sandbox, "macos-banner")
+        events(sandbox, "banner")
             .into_iter()
             .find(|event| event["state"] == "missed")
     })
     .unwrap_or_else(|| {
         panic!(
             "no recap card was dispatched: {:?}",
-            events(sandbox, "macos-banner")
+            events(sandbox, "banner")
         )
     });
-    (card, events(sandbox, "macos-banner"))
+    (card, events(sandbox, "banner"))
 }
 
 /// What a recap says when the summarizer it was told to use produced nothing.
@@ -96,7 +96,7 @@ pub(super) fn recap_summarized_badly(name: &str, extra: &str, body: &str) -> Str
 /// A config naming a repository to read merged pull requests from, plus
 /// whatever else the test needs inside `[recap]`.
 pub(super) fn recap_sourced_from(extra: &str) -> String {
-    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\nrepos = [\"webdavis/dotfiles\"]\n{extra}")
+    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\nrepositories = [\"webdavis/dotfiles\"]\n{extra}")
 }
 
 /// A stub `gh` first on PATH, recording the argv it was called with so a test

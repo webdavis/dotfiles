@@ -19,13 +19,12 @@ impl CommandRunner for &Notifier {
 }
 
 fn request(class: Option<&str>, state: &str) -> String {
-    let mut request = pns_protocol::Request::new(
+    let mut request = pns_protocol::RequestEnvelope::new(
         pns_protocol::RequestId::new("page-123").unwrap(),
         pns_protocol::Name::new("posture").unwrap(),
-        pns_protocol::Name::new("gap").unwrap(),
         pns_protocol::State::from_word(state).expect("the tests state one of the six words"),
     );
-    request.class = class.map(|name| pns_protocol::Name::new(name).unwrap());
+    request.delivery_class = class.map(|name| pns_protocol::Name::new(name).unwrap());
     request.encode().unwrap()
 }
 
@@ -78,7 +77,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
             let banner = banner(&notifier);
             let mut registry = Registry::new();
             registry
-                .register_channel("macos-banner", banner.capabilities())
+                .register_channel("banner", banner.capabilities())
                 .unwrap();
             let selection = registry.all();
             let mut destinations = Destinations::new();
@@ -107,7 +106,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
                 producer_request: Some(&encoded),
                 event: &event,
                 legs: &[Leg {
-                    name: "macos-banner",
+                    name: "banner",
                     mode: ReportMode::Silent,
                     decorative: false,
                 }],
@@ -158,7 +157,7 @@ fn security_sound_survives_a_failed_delivery_and_ledger_retry() {
             ..Default::default()
         },
         legs: vec![LedgerLeg {
-            destination: "macos-banner".into(),
+            destination: "banner".into(),
             route: String::new(),
             mode: ReportMode::Silent,
             decorative: false,

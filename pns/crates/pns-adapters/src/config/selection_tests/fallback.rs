@@ -10,7 +10,7 @@ fn a_machine_with_no_config_runs_the_core_and_nothing_that_needs_arming() {
     // three failures.
     use crate::config::LoadOutcome;
     let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Missing));
-    assert_eq!(selection_names(&selection), vec!["mobile", "macos-banner"]);
+    assert_eq!(selection_names(&selection), vec!["phone", "banner"]);
     assert_eq!(warning, None);
 }
 
@@ -22,13 +22,13 @@ fn the_core_is_two_registered_plugins_and_the_config_still_beats_it() {
     // asserted against the REAL roster, both members named.
     assert_eq!(
         selection_names(&roster().core()),
-        vec!["mobile", "macos-banner"],
+        vec!["phone", "banner"],
         "every core name is a registered plugin"
     );
     // AND IT IS ONLY A FALLBACK. A config that exists says what runs, so
     // writing one that omits a core plugin turns that plugin off; nothing
     // is quietly always-on.
-    let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+    let config = parse_config("[plugins.log]\nenabled = true\ntype = \"hermes\"\n").unwrap();
     let selection = roster().enabled(&config.plugin_switches()).unwrap();
     assert_eq!(selection_names(&selection), vec!["hermes"]);
 }
@@ -36,7 +36,7 @@ fn the_core_is_two_registered_plugins_and_the_config_still_beats_it() {
 #[test]
 fn a_loaded_config_is_authoritative() {
     use crate::config::LoadOutcome;
-    let config = parse_config("[plugins.hermes]\nenabled = true\n").unwrap();
+    let config = parse_config("[plugins.log]\nenabled = true\ntype = \"hermes\"\n").unwrap();
     let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
     assert_eq!(selection_names(&selection), vec!["hermes"]);
     assert_eq!(warning, None);
@@ -54,7 +54,7 @@ fn a_broken_config_is_loud_but_never_turns_notifications_off() {
             "key with no value at line 1".to_string(),
         )),
     );
-    assert_eq!(selection_names(&selection), vec!["mobile", "macos-banner"]);
+    assert_eq!(selection_names(&selection), vec!["phone", "banner"]);
     let warning = warning.expect("a broken config must be said aloud");
     assert!(warning.contains("key with no value"));
 }
@@ -69,9 +69,10 @@ fn a_config_naming_an_unknown_plugin_is_loud_and_falls_back_to_the_roster() {
     // configured machine its durable paper trail and its lights, which is
     // a blast radius no ruling asked for.
     use crate::config::LoadOutcome;
-    let config =
-        parse_config("[plugins.mosih]\nenabled = true\n[plugins.hermes]\nenabled = true\n")
-            .unwrap();
+    let config = parse_config(
+        "[plugins.mosih]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
+    )
+    .unwrap();
     let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
     assert_eq!(
         selection_names(&selection),
@@ -92,10 +93,12 @@ fn a_hue_table_selects_hue_like_any_other_plugin_and_warns_about_nothing() {
     // refusal. It is a registration now, so configuring the pulse is
     // ordinary and costs the operator no part of their event selection.
     use crate::config::LoadOutcome;
-    let config =
-        parse_config("[plugins.hermes]\nenabled = true\n[plugins.hue]\nenabled = true\n").unwrap();
+    let config = parse_config(
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.lights]\nenabled = true\n",
+    )
+    .unwrap();
     let (selection, warning) = select_plugins(&roster(), Ok(LoadOutcome::Loaded(Box::new(config))));
-    assert_eq!(selection_names(&selection), vec!["hermes", "hue"]);
+    assert_eq!(selection_names(&selection), vec!["hermes", "lights"]);
     assert_eq!(warning, None);
 }
 
@@ -120,9 +123,9 @@ fn the_old_moshi_table_name_is_refused_and_the_mobile_one_is_served() {
         "the operator is told which name stopped working"
     );
 
-    let new = parse_config("[plugins.mobile]\nenabled = true\n").unwrap();
+    let new = parse_config("[plugins.phone]\nenabled = true\n").unwrap();
     let selection = roster().enabled(&new.plugin_switches()).unwrap();
-    assert_eq!(selection_names(&selection), vec!["mobile"]);
+    assert_eq!(selection_names(&selection), vec!["phone"]);
 }
 
 #[test]

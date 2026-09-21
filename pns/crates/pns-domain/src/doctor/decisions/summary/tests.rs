@@ -3,16 +3,16 @@ use super::*;
 /// A real entry off this machine's ring, trimmed of its epoch.
 const DESK_VISIBLE: &str = "shell/done mode=none agent=none tool=none surface=Desk \
      visibility=Visible session_visibility=Visible desk_age=0 phone_age=11760 tap_age=33085 \
-     locked=no fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
+     locked=no fresh_window=120 long_running=no remind=no local_only=no remote_only=no pane=present \
      pane_dropped=no watch_card=no muted=no focus=no skip_phone=no force_phone=no idle_invalid=no \
      desk_invalid=no phone_invalid=no plan=banner:no,card:no,pulse:no legs=hermes:delivered";
 
 const DESK_HIDDEN: &str = "claude/config-change mode=none agent=none tool=none surface=Desk \
      visibility=Hidden session_visibility=Hidden desk_age=2 phone_age=11713 tap_age=33038 \
-     locked=no fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
+     locked=no fresh_window=120 long_running=no remind=no local_only=no remote_only=no pane=present \
      pane_dropped=no watch_card=no muted=no focus=no skip_phone=no force_phone=no idle_invalid=no \
      desk_invalid=no phone_invalid=no plan=banner:yes,card:no,pulse:no \
-     legs=macos-banner:delivered,hermes:delivered";
+     legs=banner:delivered,hermes:delivered";
 
 #[test]
 fn the_event_is_carried_through_as_the_ring_wrote_it() {
@@ -23,10 +23,7 @@ fn the_event_is_carried_through_as_the_ring_wrote_it() {
 #[test]
 fn delivered_legs_are_named_as_what_actually_happened() {
     assert_eq!(summarize(DESK_VISIBLE).outcome, "reached hermes");
-    assert_eq!(
-        summarize(DESK_HIDDEN).outcome,
-        "reached macos-banner and hermes"
-    );
+    assert_eq!(summarize(DESK_HIDDEN).outcome, "reached banner and hermes");
 }
 
 #[test]
@@ -67,7 +64,7 @@ fn an_operator_mute_outranks_every_other_reason() {
     // muted and focus and Away are all true here; only the switch the operator
     // themselves flipped is worth naming, because it is the one they can undo.
     let summary = summarize("shell/done surface=Away muted=yes focus=yes legs=-");
-    assert_eq!(summary.because.as_deref(), Some("`pns quiet` was running"));
+    assert_eq!(summary.because.as_deref(), Some("`pns mute` was running"));
 }
 
 #[test]
@@ -96,9 +93,9 @@ fn a_scoped_event_names_the_scope_rather_than_the_surface() {
 }
 
 #[test]
-fn a_nag_says_it_is_a_repeat() {
+fn a_remind_says_it_is_a_repeat() {
     assert_eq!(
-        summarize("claude/asked surface=Away nag=yes")
+        summarize("claude/asked surface=Away remind=yes")
             .because
             .as_deref(),
         Some("it was a repeat of an approval nobody answered")

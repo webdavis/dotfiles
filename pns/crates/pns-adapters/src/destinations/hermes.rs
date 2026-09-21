@@ -42,7 +42,7 @@ pub const DEFAULT_HERMES_URL: &str = "http://127.0.0.1:8644/webhooks/pns-events"
 /// line is byte for byte the one the first attempt sent. The ledger keeps no
 /// session, so a retried dim line names the agent alone rather than the
 /// session and its title; adding a session column to the delivery ledger is
-/// deliberately out of scope (design, 2026-09-14). The nag's coalesced
+/// deliberately out of scope (design, 2026-09-14). The reminder's coalesced
 /// nudge names the agent alone for a different reason, and deliberately: it
 /// stands for every outstanding approval at once, so naming one of their
 /// sessions would say something false.
@@ -94,21 +94,18 @@ pub fn channel_url(base_url: &str, route: &str) -> Option<String> {
 const ASYNC_DEADLINE: Duration = Duration::from_secs(10);
 
 /// The default SYNC deadline, the one a caller waits out. Short because the
-/// caller is blocked on it, and configurable for the same reason.
-const DEFAULT_SYNC_DEADLINE_SECS: u64 = 5;
+/// caller is blocked on it, and configurable for the same reason: it is what
+/// `[delivery] remote_deadline` ships at.
+pub const DEFAULT_REMOTE_DEADLINE_SECS: u64 = 5;
 
 /// The ceiling a configured sync deadline is clamped to: a day is already
 /// longer than any notification can matter, and it keeps an absurd value out
 /// of ureq's deadline arithmetic.
 const MAX_SYNC_DEADLINE_SECS: u64 = 86_400;
 
-/// The sync deadline: `PNS_REMOTE_TIMEOUT` validated as a count, else 5
-/// seconds, because a garbled deadline must not become zero or forever.
-pub fn remote_deadline(env_value: Option<&str>) -> Option<Duration> {
-    let seconds = env_value
-        .and_then(pns_domain::count::parse_count)
-        .unwrap_or(DEFAULT_SYNC_DEADLINE_SECS);
-    // Zero is curl's `-m 0`: no deadline at all, and caller intent rather
+/// The sync deadline `[delivery] remote_deadline` asked for, clamped.
+pub fn remote_deadline(seconds: u64) -> Option<Duration> {
+    // Zero is curl's `-m 0`: no deadline at all, and operator intent rather
     // than a default.
     (seconds != 0).then(|| Duration::from_secs(seconds.min(MAX_SYNC_DEADLINE_SECS)))
 }
@@ -120,7 +117,7 @@ pub struct HermesChannel<P: SignedPost> {
     /// never empty: it is what `url` was built from and what `key` was looked
     /// up by, so the two cannot name different routes.
     pub route: String,
-    /// The signing key FOR THAT ROUTE, looked up in `[plugins.hermes.keys]`
+    /// The signing key FOR THAT ROUTE, looked up in `[plugins.log.keys]`
     /// at the composition root. None is the not-set-up case, which for a
     /// route is now its own state rather than the whole channel's.
     pub key: Option<String>,

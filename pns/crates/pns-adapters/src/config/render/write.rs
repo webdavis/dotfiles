@@ -29,6 +29,10 @@ pub(super) fn render_core(
 
 /// An OPT-IN table: written commented, heading and all, when `container`
 /// never mentions it at all.
+///
+/// AN EMPTY TABLE IS THE SAME AS NO TABLE. A heading with nothing under it
+/// states no setting, so it cannot be the thing that turns one on: a values
+/// file asking for a default has to write that default out.
 pub(super) fn render_opt_in(
     out: &mut String,
     table: &Table,
@@ -36,7 +40,10 @@ pub(super) fn render_opt_in(
 ) -> Result<(), String> {
     match container.remove(last_segment(table.name)) {
         None => render_block(out, table, &mut toml::Table::new(), false),
-        Some(toml::Value::Table(mut settings)) => render_block(out, table, &mut settings, true),
+        Some(toml::Value::Table(mut settings)) => {
+            let present = !settings.is_empty();
+            render_block(out, table, &mut settings, present)
+        }
         Some(other) => Err(format!(
             "`{}` has type `{}`, not a table",
             table.name,
@@ -56,7 +63,12 @@ pub(super) fn render_block(
     present: bool,
 ) -> Result<(), String> {
     out.push_str(table.prose);
-    write_note(out, take_note(settings)?);
+    // AN OPEN TABLE'S KEYS ARE THE OPERATOR'S OWN NAMES, so `note` there is a
+    // route or a project like any other and is written out as one; only a
+    // table with a declared roster turns it into a comment.
+    if !crate::config::schema::is_open(table.name) {
+        write_note(out, take_note(settings)?);
+    }
     if present {
         out.push_str(&format!("[{}]\n", table.name));
     } else {
@@ -114,9 +126,9 @@ pub(super) fn render_block(
 /// Removes and returns `note` off `settings`, refusing by name when it is
 /// there but not a string.
 ///
-/// A RESERVED KEY, invisible to the roster: it never reaches the output as
-/// `note = "..."`, only as the comment `write_note` turns it into, so a
-/// parsed config never carries one.
+/// A RESERVED KEY IN A TABLE WITH A DECLARED ROSTER: there it never reaches
+/// the output as `note = "..."`, only as the comment `write_note` turns it
+/// into. In an open table it is a key like any other (see `render_block`).
 pub(super) fn take_note(settings: &mut toml::Table) -> Result<Option<String>, String> {
     match settings.remove("note") {
         None => Ok(None),

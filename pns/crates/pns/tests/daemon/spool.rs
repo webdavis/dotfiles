@@ -55,7 +55,7 @@ fn an_irregular_spool_entry_is_left_alone_and_never_opened() {
 /// The decision function's boolean was unit tested, and `marker_exists` and
 /// `marker_dir` had no reference in any test at all, so pointing the markers
 /// directory at a name that does not exist survived the whole suite. This is
-/// the nag's entire cancellation primitive, and the nag slice is queued
+/// the reminder's entire cancellation primitive, and the reminder slice is queued
 /// directly on top of this one.
 #[test]
 fn a_marker_on_disk_cancels_a_scheduled_job_end_to_end() {
@@ -69,7 +69,7 @@ fn a_marker_on_disk_cancels_a_scheduled_job_end_to_end() {
     assert!(
         schedule(
             &sandbox,
-            &["--id", "nag", "--in", "0", "--unless-marker", "answered"],
+            &["--id", "remind", "--in", "0", "--unless-marker", "answered"],
             &EVENT,
         )
         .status
@@ -100,7 +100,7 @@ fn a_marker_on_disk_cancels_a_scheduled_job_end_to_end() {
         "the unmarked control never fired; the daemon said: {}",
         guard.said()
     );
-    std::thread::sleep(Duration::from_millis(TICK_MS * 8));
+    std::thread::sleep(Duration::from_millis(TICK_MS * SETTLE_TICKS));
     assert_eq!(
         fires(&sandbox),
         1,
@@ -167,8 +167,8 @@ fn a_spool_that_is_not_a_directory_refuses_the_start_and_exits_zero() {
 
     let output = sandbox
         .pns_stateful()
-        .env("PNS_DAEMON_TICK_MS", TICK_MS.to_string())
-        .args(["daemon", "run"])
+        .env("PNS_DAEMON_TICK_INTERVAL", format!("{TICK_MS}ms"))
+        .args(["gateway", "run"])
         .output()
         .expect("the engine runs");
     assert_eq!(

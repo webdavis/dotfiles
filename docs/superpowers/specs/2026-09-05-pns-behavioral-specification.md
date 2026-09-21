@@ -438,7 +438,7 @@ Eleven event words reach `pns hook <event>` (`src/main.rs:488-679 hook_mode`). T
 across all of them and are stated once.
 
 S047. The payload is read from stdin on a thread, at most `MAX_PAYLOAD_BYTES + 1` = 1,000,001 bytes,
-      inside `PNS_PAYLOAD_DEADLINE_MS` (default 5,000 ms); a payload nobody finishes writing yields no
+      inside `PNS_PAYLOAD_DEADLINE` (default 5,000 ms); a payload nobody finishes writing yields no
       notification and exit 0; a payload over the cap is not whole and is never forwarded, but still
       notifies.
       Source: `src/main.rs:2727-2798 read_payload`, `src/main.rs:2799 MAX_PAYLOAD_BYTES`,
@@ -576,7 +576,7 @@ S057. `stop`: the reply is the payload's `last_assistant_message`, else the tran
 
 S058. `stop`: a non-empty reply is condensed by `codex exec --ephemeral --skip-git-repo-check -C
       <home> -s read-only -` against a private 0700 home with `PNS_SUMMARIZING=1`, bounded by
-      `CONDENSER_DEADLINE` (30 s, `PNS_CONDENSER_DEADLINE_MS`); the last usable `STATE|SUMMARY` line
+      `CONDENSER_DEADLINE` (30 s, `PNS_CONDENSER_DEADLINE`); the last usable `STATE|SUMMARY` line
       wins, only `done`, `asking` and `blocked` are verdicts, and anything else falls back to
       `("done", preview(reply))`.
       Source: `src/main.rs:2225-2263 condense`, `src/main.rs:2264-2298 condenser_home`,
@@ -809,7 +809,7 @@ S075. Only `claude` and `codex` map to a moshi subcommand on the hook path; any 
 
 S076. The payload crosses to `moshi-hook <sub>` byte for byte on the child's stdin, written from a
       separate thread, whether or not pns could parse it; the child inherits the whole environment;
-      the binary is `MOSHI_HOOK_BIN` else `/opt/homebrew/bin/moshi-hook`.
+      the binary is `PNS_MOSHI_HOOK_BIN` else `/opt/homebrew/bin/moshi-hook`.
       Source: `src/main.rs:2564-2595 spawn_moshi_hook`, `src/main.rs:2596 DEFAULT_MOSHI_HOOK_BIN`.
       Pin: `a_payload_pns_cannot_parse_is_still_submitted_verbatim`
            at tests/hooks.rs:1034
@@ -973,7 +973,7 @@ S090. Every reading on one probe set is memoized, the empty answer included, and
       also `an_unreadable_clock_ages_no_marker_rather_than_treating_it_as_fresh`
            at src/engine.rs:1526
 
-S091. A stated override (`PNS_IDLE_SECS`, `PNS_PHONE_INPUT_AGE`) is trusted and its probe never runs;
+S091. A stated override (`PNS_SCREEN_IDLE`, `PNS_PHONE_INPUT_MAX_AGE`) is trusted and its probe never runs;
       a garbled one sets an `_invalid` flag and answers unknown outright rather than a fallback.
       Source: `src/engine.rs:101-129 Overrides::from_env`, `src/engine.rs:341-420 surface_reading`.
       Pin: `a_stated_phone_input_age_spares_the_process_walk_behind_it`
@@ -1013,7 +1013,7 @@ S093. `surface(desk_age, phone_age, marker_age, fresh_secs, locked)` answers `De
       phone 30 s reads `Desk`; desk 2 s locked with no phone reads `Away`; desk 600 s and phone 600 s
       reads `Away`; a 3600 s marker beside a 30 s pty still reads `Mobile`.
 
-S094. The freshness window is `DEFAULT_DESK_IDLE_SECS` = 120, overridable only by `PNS_DESK_IDLE_SECS`;
+S094. The freshness window is `DEFAULT_DESK_IDLE_SECS` = 120, overridable only by `PNS_DESK_IDLE`;
       119 is fresh, 120 is not. There is no config key for it.
       Source: `src/engine.rs:29 DEFAULT_DESK_IDLE_SECS`, `src/surface.rs:89 fresh_age`.
       Pin: `every_surface_case_in_the_matrix_arbitrates_correctly`
@@ -2228,8 +2228,9 @@ S194. `com.webdavis.pns-daemon` runs `<home>/.local/libexec/pns/pns daemon run` 
       Source: `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:7-52`.
       Pin: UNPINNED. A declaration, out of test scope by the 2026-08-05 ruling.
 
-S195. `daemon run` reads the tick once from `PNS_DAEMON_TICK_MS` (10 to 60,000 ms, anything else the
-      1,000 ms default, never clamped), exits 0 printing `pns daemon: disabled in the config; exiting`
+S195. `daemon run` reads the tick once from `PNS_DAEMON_TICK_INTERVAL` (`<count><ms|s|m|h>`, 10ms to
+      60s, anything else refused and the 1s default kept, never clamped), exits 0 printing
+      `pns daemon: disabled in the config; exiting`
       when `[daemon] enabled = false`, refuses permanently and exits 0 when the spool path is not a
       directory, and otherwise loops: sleep one tick, count, every thirtieth tick re-read the switch
       and reconcile the presence poll job, then one pass.
@@ -2312,7 +2313,7 @@ S203. On the daemon's exit, by SIGTERM or by the switch, a child mid-flight is o
       Source: `src/main.rs:7024-7080 daemon_run`, `src/main.rs:7357 spawn_job`.
       Pin: UNPINNED. `DaemonGuard` kills with SIGKILL and asserts nothing about children.
 
-S204. The daemon registers its own `presence` job (`presence poll --daemon`, every `poll_secs`, lease
+S204. The daemon registers its own `presence` job (`presence poll --daemon`, every `poll_interval`, lease
       300 s, due kept) when the presence table is armed, and cancels it when the table is absent,
       switched off or refused.
       Source: `src/main.rs:7522-7556 ensure_presence_poll`, `src/main.rs:7488 PRESENCE_JOB`,
@@ -2333,7 +2334,7 @@ S205. A registration is refused when `due` is more than 30 days from now in eith
       also `an_argv_that_renders_past_the_record_cap_is_refused_by_name`
            at src/daemon.rs:1296
 
-S206. The `HEARTBEAT_STALE_SECS` (10) does not scale with `PNS_DAEMON_TICK_MS`, so a daemon run above a
+S206. The `HEARTBEAT_STALE_SECS` (10) does not scale with `PNS_DAEMON_TICK_INTERVAL`, so a daemon run above a
       10 s tick reads as not running.
       Source: `src/daemon.rs HEARTBEAT_STALE_SECS`, `src/daemon.rs DEFAULT_TICK_SECS`.
       Pin: UNPINNED. Recorded in `docs/specs/daemon-jobs.md`.
@@ -2623,7 +2624,7 @@ S233. The presence poll reads the bridge's per-room `grouped_motion` roll-up for
 
 S234. `classify` turns the reading into `PresenceStatus`: a known room with the age of its edge,
       `nowhere` for a fresh poll that found nobody, and five ways of not knowing (no reading, no clock,
-      stale past `stale_after_secs`, a future epoch, an unwatched room).
+      stale past `reading_max_age`, a future epoch, an unwatched room).
       Source: `src/presence.rs:79-112 classify`, `src/presence.rs:40-49 PresenceStatus`.
       Pin: `a_known_room_is_named_with_the_age_of_its_motion_edge`
            at src/doctor.rs:888
@@ -3306,8 +3307,9 @@ S278. `[lights.lamp|room|zone.<name>]` declarations read exactly `shows`, `dim_w
       also `dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped`
            at src/config.rs:3620
 
-S279. `[plugins.presence]` (type `hue`, `rooms`, `exclude`, `poll_secs` 2 to 60 default 5,
-      `stale_after_secs` default 15 and at least `poll_secs`) parses into `Presence`; a refused table
+S279. `[plugins.presence]` (type `hue`, `rooms`, `excluded_rooms`, `poll_interval` "2s" to "1m"
+      default "5s", `reading_max_age` default "15s" and never under `poll_interval`,
+      `desk_input_max_age` "1s" to "1h" default "2m") parses into `Presence`; a refused table
       is `pns: config error (<detail>); the room sensor is unread`.
       Source: `src/config.rs:1946-2026 parse_presence`, `src/config.rs Presence`.
       Pin: `a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor`

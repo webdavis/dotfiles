@@ -22,7 +22,8 @@ use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{FileTypeExt, PermissionsExt};
 use support::{
-    KEYS_DISAGREE, RouterStub, Sandbox, poll_until, router_table, run, stderr, stdout, write_script,
+    KEYS_DISAGREE, RouterStub, Sandbox, poll_until, router_table, run, run_expecting, stderr,
+    stdout, write_script,
 };
 
 #[path = "dispatch/activity.rs"]
@@ -80,6 +81,8 @@ mod lights_routes;
 mod lights_tick;
 #[path = "dispatch/loop_lease.rs"]
 mod loop_lease;
+#[path = "dispatch/mute_fixture.rs"]
+mod mute_fixture;
 #[path = "dispatch/mute_refusals.rs"]
 mod mute_refusals;
 #[path = "dispatch/mutes.rs"]
@@ -94,11 +97,9 @@ mod plan_rows;
 mod producer_argv;
 #[path = "dispatch/producer_events.rs"]
 mod producer_events;
-#[path = "dispatch/quiet_fixture.rs"]
-mod quiet_fixture;
-use quiet_fixture::*;
-#[path = "dispatch/quiet_window.rs"]
-mod quiet_window;
+use mute_fixture::*;
+#[path = "dispatch/dim_window.rs"]
+mod dim_window;
 #[path = "dispatch/recap_card.rs"]
 mod recap_card;
 #[path = "dispatch/recap_fixture.rs"]

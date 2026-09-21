@@ -4,7 +4,7 @@
 //! notification and event types, the normalized signal, the delivery plan,
 //! surface, presence and visibility arbitration, quiet and dim windows, pulse
 //! and lighting precedence, home-probe identity and staleness, missed
-//! notification replay, recap timeline and budget, nag cadence, job
+//! notification replay, recap timeline and budget, reminder cadence, job
 //! scheduling, and the value types that make an invalid combination
 //! unrepresentable.
 //!
@@ -21,6 +21,7 @@
 
 pub mod certificate_pin;
 pub mod channel_map;
+pub mod config_keys;
 pub mod count;
 mod decision;
 mod decision_record;
@@ -32,13 +33,13 @@ pub mod jobs;
 pub mod lamps;
 pub mod lights;
 pub mod missed;
-pub mod nag;
+pub mod mute;
 mod notification;
 mod presence;
 pub mod pulse;
-pub mod quiet;
 pub mod recap;
 pub mod registry;
+pub mod remind;
 pub mod render;
 pub mod routes;
 pub mod routing;
@@ -79,8 +80,8 @@ pub use setup::{
     means_yes as setup_affirmed, router_backend as setup_router_backend, router_is_armed,
 };
 
-mod condenser;
-pub use condenser::{condenser_prompt, condenser_verdict};
+mod summarizer;
+pub use summarizer::{summarizer_prompt, summarizer_verdict};
 
 pub mod retry;
 

@@ -1,9 +1,8 @@
 use crate::{Mobile, executable_in_path};
 use pns_adapters::{
     BannerChannel, DEFAULT_HERMES_URL, DEFAULT_MOSHI_UPLOAD_URL, DEFAULT_MOSHI_URL, DiscordChannel,
-    DiscordSettings, HermesChannel, HermesKeys, MoshiChannel, SystemCommandRunner, UreqDiscordPost,
-    UreqPost, channel_url, refused_backend_line, refused_discord_line, remote_deadline,
-    resolve_path,
+    DiscordSettings, HermesChannel, HermesKeys, InstallSettings, MoshiChannel, SystemCommandRunner,
+    UreqDiscordPost, UreqPost, channel_url, install_settings, refused_backend_line, resolve_path,
 };
 use pns_application::{Destinations, NotificationDestination};
 use pns_domain::{Event, EventArgs, registry::Selection, render, routes::Routes};
@@ -52,7 +51,7 @@ pub(crate) fn destinations_with_output(
     json: bool,
 ) -> Destinations<Box<dyn NotificationDestination>> {
     destinations_for_override(
-        std::env::var("PNS_CHANNELS_DIR").ok().as_deref(),
+        &install_settings(home),
         selection,
         route,
         home,
@@ -64,16 +63,16 @@ pub(crate) fn destinations_with_output(
     )
 }
 
-// THE `PNS_CHANNELS_DIR` READ IS THE ONLY THING ABOVE THIS LINE, so the
+// THE CONFIG-AND-ENVIRONMENT READ IS THE ONLY THING ABOVE THIS LINE, so the
 // decision the override drives (a blank value falls through to the default
 // directory, a set one forces every channel onto its executable, and a
-// refused backend precedes both) is reachable with the value handed in. It is
+// refused backend precedes both) is reachable with the values handed in. It is
 // what keeps the test of that decision a plain call instead of a re-exec of
 // the test binary with a scrubbed environment, which could only be bounded by
 // a wall-clock deadline and reddened `main` under load when a spawn outran it.
 #[allow(clippy::too_many_arguments)]
 fn destinations_for_override(
-    channels_override: Option<&str>,
+    install: &InstallSettings,
     selection: &Selection,
     route: &str,
     home: &str,
@@ -83,36 +82,37 @@ fn destinations_for_override(
     routes: &Routes,
     json: bool,
 ) -> Destinations<Box<dyn NotificationDestination>> {
-    let override_dir = channels_override.filter(|dir| !dir.is_empty());
+    let override_dir = install.channels_dir.as_deref();
     let channels = resolve_path(override_dir, &format!("{home}/.local/libexec/pns/channels"));
     let forced = override_dir.map(|_| channels.as_path());
     let native = vec![
         registration::choose(
-            moshi_channel(mobile.token.clone(), mobile.image_cards.clone()),
+            moshi_channel(
+                mobile.token.clone(),
+                mobile.image_cards.clone(),
+                install.moshi_url.as_deref(),
+            ),
             forced,
             mobile.refusal.as_deref().map(refused_backend_line),
             json,
         ),
-        registration::choose(banner_channel(), forced, None, json),
         registration::choose(
-            hermes_channel(
-                hermes_keys,
-                hermes_target(
-                    route,
-                    std::env::var("PNS_HERMES_URL").ok().as_deref(),
-                    routes,
-                ),
-            ),
+            banner_channel(install.terminal_bundle_id.as_deref()),
             forced,
             None,
             json,
         ),
         registration::choose(
-            discord_channel(discord, route, routes),
+            hermes_channel(
+                hermes_keys,
+                hermes_target(route, install.hermes_url.as_deref(), routes),
+                install.remote_deadline,
+            ),
             forced,
-            discord.refusal().map(refused_discord_line),
+            None,
             json,
         ),
+        registration::choose(discord_channel(discord, route, routes), forced, None, json),
     ];
     registration::assemble(selection, native, &channels, json)
 }
@@ -154,14 +154,13 @@ pub(crate) fn rendered_event_quiet(event: &EventArgs, pane_dropped: bool) -> Eve
     }
 }
 /// The banner, which now only needs to know where to send the click.
-fn banner_channel() -> BannerChannel<SystemCommandRunner> {
+fn banner_channel(terminal_bundle_id: Option<&str>) -> BannerChannel<SystemCommandRunner> {
     BannerChannel {
         runner: SystemCommandRunner,
-        // An EMPTY override falls through, so an exported-but-blank variable
-        // cannot shadow the inherited bundle id.
-        terminal_id: std::env::var("PNS_TERMINAL_BUNDLE_ID")
-            .ok()
-            .filter(|id| !id.is_empty())
+        // The inherited bundle id is the fallback, so a machine naming neither
+        // the config key nor the variable still returns to its own terminal.
+        terminal_id: terminal_bundle_id
+            .map(str::to_string)
             .or_else(|| {
                 std::env::var("__CFBundleIdentifier")
                     .ok()
@@ -176,11 +175,14 @@ fn banner_channel() -> BannerChannel<SystemCommandRunner> {
 pub(crate) fn moshi_channel(
     token: Option<String>,
     image_cards: Vec<String>,
+    url: Option<&str>,
 ) -> MoshiChannel<UreqPost> {
     MoshiChannel {
         http: UreqPost::default(),
         token,
-        url: url_from_env("PNS_MOSHI_URL", DEFAULT_MOSHI_URL),
+        url: url
+            .map(str::to_string)
+            .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string()),
         upload_url: url_from_env("PNS_MOSHI_UPLOAD_URL", DEFAULT_MOSHI_UPLOAD_URL),
         image_cards,
     }
@@ -193,13 +195,14 @@ pub(crate) fn moshi_channel(
 fn hermes_channel(
     keys: &HermesKeys,
     (route, url): (String, String),
+    sync_deadline: Option<Duration>,
 ) -> HermesChannel<UreqSignedPost> {
     HermesChannel {
         post: UreqSignedPost,
         key: keys.key_for(&route).map(str::to_string),
         route,
         url,
-        sync_deadline: remote_deadline(std::env::var("PNS_REMOTE_TIMEOUT").ok().as_deref()),
+        sync_deadline,
     }
 }
 /// The bot post, with the token and the channel the config already provided.
@@ -239,7 +242,7 @@ fn discord_channel(
 /// names the gateway, and a function that answered only the second let the key
 /// be chosen from a name the URL had already fallen away from.
 ///
-/// The env override wins for the URL (an explicit URL, the tests' escape
+/// A configured URL wins (an explicit endpoint, and the tests' escape
 /// hatch); the route is the `--route` name, and the DEFAULT ROUTE THE CONFIG
 /// NAMED when nothing named one. The URL's final segment is swapped for that
 /// route, so renaming the default route moves the path and not the gateway.
@@ -247,7 +250,7 @@ fn discord_channel(
 /// with no route named goes. An unusable name is said out loud and falls
 /// back LOUD-WARD to the default route, key and all: a misrouted
 /// notification on the default route beats a silently dropped one.
-fn hermes_target(channel: &str, env_override: Option<&str>, routes: &Routes) -> (String, String) {
+fn hermes_target(channel: &str, configured: Option<&str>, routes: &Routes) -> (String, String) {
     let route = if channel.is_empty() {
         routes.default_route()
     } else if pns_domain::safety::route_name_is_usable(channel) {
@@ -258,7 +261,7 @@ fn hermes_target(channel: &str, env_override: Option<&str>, routes: &Routes) -> 
         );
         routes.default_route()
     };
-    let url = match env_override.filter(|url| !url.is_empty()) {
+    let url = match configured {
         Some(url) => url.to_string(),
         // The route is already usable and the default URL already carries a
         // path, so this fallback is unreachable; it stands rather than an

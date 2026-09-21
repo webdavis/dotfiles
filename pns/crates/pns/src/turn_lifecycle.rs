@@ -19,19 +19,19 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
     // for a batch payload over the 1MB cap, an operator who escaped the prompt
     // instead of answering it, and the window between this merge and the apply
     // that installs the PostToolBatch entry.
-    clear_nag(&payload.session_id);
+    clear_remind(&payload.session_id);
     let reply = turn_reply(payload);
-    // A STATE THE CONDENSER READ OFF THE TURN IS A GUESS, and says so, so the
+    // A STATE THE SUMMARIZER READ OFF THE TURN IS A GUESS, and says so, so the
     // submit path can withhold a blocked marker a live loop makes wrong. An
     // empty reply states nothing to read, so `done` there is not a guess.
     let (state, detail, guessed) = match reply.is_empty() {
         true => ("done".to_string(), String::new(), false),
         false => {
-            let (state, detail) = condense(&reply);
+            let (state, detail) = summarize(&reply);
             (state, detail, true)
         }
     };
-    run_event(
+    hook_event(
         &pns_domain::EventArgs {
             agent: agent.to_string(),
             state,
@@ -40,7 +40,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
-                Some(pulse_threshold_secs()),
+                Some(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
             ),
             ..attribution(payload, agent)
         },
@@ -60,7 +60,7 @@ pub(crate) fn end_of_turn(payload: &HookPayload, agent: &str) {
 /// pulse, so one API error promoted later short turns to the long-running tier
 /// for the rest of the session.
 ///
-/// NO CONDENSER AND NO TRANSCRIPT. The condenser is a model call on the one
+/// NO SUMMARIZER AND NO TRANSCRIPT. The summarizer is a model call on the one
 /// path where a model call has just failed, the reply's fallback re-reads the
 /// transcript in a bounded loop of sleeps, and neither recovers the news: the
 /// harness states it as a plain string that is never empty. The payload's
@@ -74,8 +74,8 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
     );
     // The same free clear `end_of_turn` takes, for the same reason: StopFailure
     // fires INSTEAD of Stop, so without it a dead turn leaves its approval armed.
-    clear_nag(&payload.session_id);
-    run_event(
+    clear_remind(&payload.session_id);
+    hook_event(
         &pns_domain::EventArgs {
             agent: agent.to_string(),
             state: "failed".to_string(),
@@ -83,7 +83,7 @@ pub(crate) fn failed_turn(payload: &HookPayload, agent: &str) {
             pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
             long_running: pns_domain::pulse::session_was_long(
                 elapsed,
-                Some(pulse_threshold_secs()),
+                Some(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS),
             ),
             ..attribution(payload, agent)
         },
@@ -116,14 +116,6 @@ pub(crate) fn named_project(repository: &str, cwd: &str) -> String {
         true => project_of(cwd),
         false => repository.to_string(),
     }
-}
-
-/// How long a turn must run to earn the lights.
-fn pulse_threshold_secs() -> u64 {
-    std::env::var("PNS_PULSE_THRESHOLD_SECS")
-        .ok()
-        .and_then(|raw| raw.parse().ok())
-        .unwrap_or(pns_domain::pulse::DEFAULT_LONG_SESSION_SECS)
 }
 
 #[cfg(test)]

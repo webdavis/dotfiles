@@ -3,7 +3,7 @@
 /// where the operator reads it as complete.
 pub fn doctor_pulse(resolves: bool, pulse: impl FnOnce() -> usize) -> pns_domain::doctor::Outcome {
     if !resolves {
-        return pns_domain::doctor::Outcome::Failed(NO_HUE_BRIDGE_LINE.into());
+        return pns_domain::doctor::Outcome::Failed(no_hue_bridge_line());
     }
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(pulse)) {
         Ok(rooms) => pns_domain::doctor::Outcome::Signalled(rooms),
@@ -18,5 +18,10 @@ pub fn doctor_pulse(resolves: bool, pulse: impl FnOnce() -> usize) -> pns_domain
 /// The line for lights that were selected and never set up. It names the
 /// settings to write, the way moshi's and hermes's do, because "no rooms"
 /// without an address sends the operator to a bridge nothing dialled.
-const NO_HUE_BRIDGE_LINE: &str = "pulse SKIPPED, no hue bridge and key in the config \
-     ([plugins.hue] bridge, key); nothing was signalled";
+fn no_hue_bridge_line() -> String {
+    use pns_domain::config_keys::{LIGHTS_API_KEY, LIGHTS_BRIDGE_HOST};
+    format!(
+        "pulse SKIPPED, no hue bridge and key in the config \
+         ([plugins.lights] {LIGHTS_BRIDGE_HOST}, {LIGHTS_API_KEY}); nothing was signalled"
+    )
+}

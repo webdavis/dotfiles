@@ -25,14 +25,14 @@ fn asking(sandbox: &Sandbox) {
 }
 
 #[test]
-fn a_live_pane_loop_keeps_a_condensed_question_from_arming_blocked() {
+fn a_live_pane_loop_keeps_a_summarized_question_from_arming_blocked() {
     let sandbox = setup("loop-asking-live", Some(("wW:p1", FUTURE)));
     asking(&sandbox);
     assert!(waiting_sessions(&sandbox).is_empty());
 }
 
 #[test]
-fn a_condensed_question_without_a_loop_arms_blocked() {
+fn a_summarized_question_without_a_loop_arms_blocked() {
     let sandbox = setup("loop-asking-absent", None);
     asking(&sandbox);
     assert_eq!(waiting_sessions(&sandbox), ["s1"]);
@@ -50,14 +50,14 @@ fn an_expired_loop_does_not_hide_a_question_even_though_the_event_renews_it() {
 }
 
 #[test]
-fn an_invalid_loop_epoch_does_not_hide_a_condensed_question() {
+fn an_invalid_loop_epoch_does_not_hide_a_summarized_question() {
     let sandbox = setup("loop-asking-invalid", Some(("wW:p1", "invalid\n")));
     asking(&sandbox);
     assert_eq!(waiting_sessions(&sandbox), ["s1"]);
 }
 
 #[test]
-fn another_panes_live_loop_does_not_hide_a_condensed_question() {
+fn another_panes_live_loop_does_not_hide_a_summarized_question() {
     let sandbox = setup("loop-asking-other-pane", Some(("wW:p2", FUTURE)));
     asking(&sandbox);
     assert_eq!(waiting_sessions(&sandbox), ["s1"]);
@@ -83,7 +83,7 @@ fn a_live_loop_does_not_suppress_real_hook_waits() {
 }
 
 #[test]
-fn a_condensed_question_does_not_clear_or_renew_an_existing_real_wait_during_a_loop() {
+fn a_summarized_question_does_not_clear_or_renew_an_existing_real_wait_during_a_loop() {
     let sandbox = setup("loop-asking-existing-wait", Some(("wW:p1", FUTURE)));
     let directory = sandbox.path("state/lights-blocked");
     std::fs::create_dir_all(&directory).unwrap();

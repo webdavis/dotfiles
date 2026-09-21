@@ -24,13 +24,13 @@ pub(super) struct Sent {
 /// Answers what it was armed with, in order where a script was given, and
 /// keeps every request it saw.
 pub(super) struct Recorder {
-    answer: DeliveryOutcome,
-    scripted: Mutex<VecDeque<(DeliveryOutcome, String)>>,
+    answer: TransportOutcome,
+    scripted: Mutex<VecDeque<(TransportOutcome, String)>>,
     pub(super) seen: Mutex<Vec<Sent>>,
 }
 
 impl Recorder {
-    pub(super) fn answering(answer: DeliveryOutcome) -> Self {
+    pub(super) fn answering(answer: TransportOutcome) -> Self {
         Self {
             answer,
             scripted: Mutex::new(VecDeque::new()),
@@ -40,9 +40,9 @@ impl Recorder {
 
     /// One answer per call, in order, falling back to a bare 200 once the
     /// script runs out.
-    pub(super) fn scripted(answers: Vec<(DeliveryOutcome, String)>) -> Self {
+    pub(super) fn scripted(answers: Vec<(TransportOutcome, String)>) -> Self {
         Self {
-            answer: DeliveryOutcome::Status(200),
+            answer: TransportOutcome::Status(200),
             scripted: Mutex::new(answers.into()),
             seen: Mutex::new(Vec::new()),
         }
@@ -154,14 +154,14 @@ pub(super) fn channels(entries: &[(&str, &str)]) -> ChannelMap {
         .collect()
 }
 
-pub(super) fn armed(answer: DeliveryOutcome) -> DiscordChannel<Recorder> {
+pub(super) fn armed(answer: TransportOutcome) -> DiscordChannel<Recorder> {
     armed_on("", channels(&[("default", "9001")]), answer)
 }
 
 pub(super) fn armed_on(
     route: &str,
     channels: ChannelMap,
-    answer: DeliveryOutcome,
+    answer: TransportOutcome,
 ) -> DiscordChannel<Recorder> {
     holding(
         Recorder::answering(answer),

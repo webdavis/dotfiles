@@ -5,7 +5,7 @@
 //! at the read: nothing panics, nothing errors, and every unreadable shape
 //! answers "no Focus is silencing anything".
 //!
-//! FAIL OPEN, which is `quiet::is_muted`'s direction and deliberately the
+//! FAIL OPEN, which is `mute::is_muted`'s direction and deliberately the
 //! opposite of `hue::quiet_now`'s. A schema Apple changes on any macOS update
 //! would, failing closed, silence every banner, card and pulse on the morning
 //! after an upgrade with nothing on screen to say why. Failing open costs one
@@ -14,7 +14,7 @@
 //!
 //! POLICY IS PER MODE AND NEVER "a Focus is on". Measured on this operator's
 //! own machine, a Focus was asserted for 95% of one day, so a gate that fired
-//! on any Focus at all would be a mute with no expiry. `[focus] silence` names
+//! on any Focus at all would be a mute with no expiry. `[focus] modes` names
 //! the modes that mean it, and a mode nobody named silences nothing.
 
 use std::collections::{BTreeMap, BTreeSet};

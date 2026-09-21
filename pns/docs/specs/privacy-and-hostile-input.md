@@ -32,14 +32,14 @@ appears in a test file.
 | `home::client_label`, `home::spell` | Rust `{:?}` Debug formatting, which quotes and escapes control bytes and quotes                                                                                                                                                                  | Nothing dropped                                                                                | The home probe's staleness evidence printed to stdout; every `SetupFailure` and config refusal that echoes what the operator wrote                                                                              | The alert BODY, which is built from config KEY NAMES only, so no router text can ride out to a channel                                                                                                                                                                                                                                                                                     | `tests/dispatch.rs:the_alert_carries_no_secret_and_no_raw_router_text`                                                                                                                                                                                                                                                                |
 | `safety::pane_is_safe`              | Refuses (answers false), never rewrites. Allowlist: non-empty, every character ASCII alphanumeric or one of `.`, `_`, `:`, `-`                                                                                                                   | Nothing is edited; a safe pane passes through byte for byte                                    | `engine::decide` computes `pane_dropped`; `channels::moshi::herdr_link` asks again at the link                                                                                                                  | Not asked of the `-execute` string directly; the composition root substitutes `""` for a dropped pane once, before any channel is handed it                                                                                                                                                                                                                                                | `src/safety.rs:a_pane_id_carrying_a_single_metacharacter_is_refused`; `src/safety.rs:a_herdr_pane_id_is_safe_colon_and_all_or_no_banner_can_focus_a_pane`; `src/safety.rs:the_allowlist_is_ascii_so_a_letter_from_outside_it_is_refused`                                                                                              |
 | `safety::pane_file_is_safe`         | `pane_is_safe` AND no `..` anywhere AND `lights::working_owner` finds no working-file shape                                                                                                                                                      | Same                                                                                           | `lights::lease_marker`, `lights::release_lease`                                                                                                                                                                 | Not used where a pane becomes a shell word or a URL query value, where `..` is inert                                                                                                                                                                                                                                                                                                       | `src/safety.rs:a_pane_id_that_names_a_file_keeps_its_colon_and_loses_its_parent_reference`; `src/safety.rs:a_pane_id_shaped_like_a_working_file_never_names_a_lease`                                                                                                                                                                  |
-| `safety::session_id_is_safe`        | Non-empty, no `..`, every character ASCII alphanumeric or `.`, `_`, `-` (no colon), and no working-file shape                                                                                                                                    | Same                                                                                           | `main::turn_marker`, `lights::blocked_marker`, `nag`'s job id check                                                                                                                                             | Not used for the nag job id itself, which needs the colon (`src/daemon.rs`)                                                                                                                                                                                                                                                                                                                | `src/safety.rs:a_session_id_carrying_a_path_separator_is_refused`; `src/safety.rs:a_session_id_carrying_a_parent_reference_is_refused_even_though_dots_are_allowed`; `src/safety.rs:a_session_id_carrying_a_colon_is_refused_unlike_a_pane_id`; `src/safety.rs:the_session_allowlist_is_ascii_too_because_a_filename_gets_normalised` |
+| `safety::session_id_is_safe`        | Non-empty, no `..`, every character ASCII alphanumeric or `.`, `_`, `-` (no colon), and no working-file shape                                                                                                                                    | Same                                                                                           | `main::turn_marker`, `lights::blocked_marker`, `remind`'s job id check                                                                                                                                             | Not used for the reminder job id itself, which needs the colon (`src/daemon.rs`)                                                                                                                                                                                                                                                                                                                | `src/safety.rs:a_session_id_carrying_a_path_separator_is_refused`; `src/safety.rs:a_session_id_carrying_a_parent_reference_is_refused_even_though_dots_are_allowed`; `src/safety.rs:a_session_id_carrying_a_colon_is_refused_unlike_a_pane_id`; `src/safety.rs:the_session_allowlist_is_ascii_too_because_a_filename_gets_normalised` |
 | `safety::route_name_is_usable`      | Non-empty and every BYTE ASCII alphanumeric or `-` or `_`                                                                                                                                                                                        | Same                                                                                           | `channels::hermes::channel_url`; `home::stale_alert_channel`                                                                                                                                                    | ONE rule for both readers on purpose: two spellings "would mean a value one waved through and the other refused, which is a route silently swapped for the default"                                                                                                                                                                                                                        | `src/channels/hermes.rs:one_rule_judges_a_route_name_wherever_it_is_read`; `src/channels/hermes.rs:a_name_that_could_not_be_a_path_segment_is_refused_not_glued`                                                                                                                                                                      |
 
 ## Ceilings
 
 | Field or read                                                          | Ceiling                                                                                                             | At the ceiling                                | One step past it                                                                                                                                                                                                    |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Harness payload on stdin (`main::read_payload`)                        | `MAX_PAYLOAD_BYTES` = 1,000,000 bytes, plus a `payload_deadline()` of 5 s (`PNS_PAYLOAD_DEADLINE_MS`)               | Whole. Forwarded to moshi and carded normally | `payload_is_whole` answers false. The payload is NOT forwarded (nothing reaches moshi); the notification still goes out. The reader asks for `MAX_PAYLOAD_BYTES + 1` bytes precisely so the two are distinguishable |
+| Harness payload on stdin (`main::read_payload`)                        | `MAX_PAYLOAD_BYTES` = 1,000,000 bytes, plus a `payload_deadline()` of 5 s (`PNS_PAYLOAD_DEADLINE`)               | Whole. Forwarded to moshi and carded normally | `payload_is_whole` answers false. The payload is NOT forwarded (nothing reaches moshi); the notification still goes out. The reader asks for `MAX_PAYLOAD_BYTES + 1` bytes precisely so the two are distinguishable |
 | A turn's reply (`main::turn_reply`)                                    | `REPLY_MAX_CHARS` = 8,000 characters                                                                                | Left whole                                    | The TAIL of 8,000 characters survives; the head is dropped                                                                                                                                                          |
 | Phone card and banner preview (`render::preview`)                      | `PREVIEW_MAX_CHARS` = 260 characters                                                                                | Passes through untouched                      | Cut at the last sentence end that still fits, else `clipped` with an `…`                                                                                                                                            |
 | `ConfigChange` `file_path` (`main::config_field`)                      | `CONFIG_PATH_MAX_CHARS` = 1,024 characters                                                                          | Whole                                         | Head kept, `…` appended. macOS `PATH_MAX`; a long Linux path IS visibly clipped, with the cut marked                                                                                                                |
@@ -71,14 +71,14 @@ appears in a test file.
 
 | Secret                                           | Comes from                                                                                       | Legitimately goes to                                                                                                                                                                                                    | Must never go to                                                                                                                                                                                                                                                        | Test that pins the prohibition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| moshi token                                      | `[plugins.mobile] token` in `~/.config/pns/config.toml`, read by `channels::moshi::moshi_secret` | The JSON request body of one HTTPS POST, as `"token"` (`channels::moshi::webhook_body`)                                                                                                                                 | argv, a child's environment, any printed line, any error string, any log or ring entry                                                                                                                                                                                  | `tests/native.rs:native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output` (asserts absence from stdout AND stderr); `tests/native.rs:a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token`; `tests/dispatch.rs:the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token` (a `type` fault names `type`, never `token`)                                                                                                                                                          |
-| hermes signing key                               | `[plugins.hermes.keys] <route>`, one key per route, read by `config::hermes::hermes_keys`                                | Nowhere on the wire. It is consumed IN PROCESS by `channels::hermes::sign` to produce a lowercase hex HMAC (hash-based message authentication code) over the exact body bytes, sent as the `X-Webhook-Signature` header | argv, a child's environment, any printed line, the request body, an error string. `outcome_line` and `skipped_line` name the CONFIG KEY (`[plugins.hermes.keys] <route>`) and never a value                                                                                      | `tests/dispatch.rs:the_alert_carries_no_secret_and_no_raw_router_text` (asserts `hermes-signing-secret` is absent from the delivered event, stdout and stderr)                                                                                                                                                                                                                                                                                                                                                                               |
-| router API key                                   | `[plugins.router] api_key`, read by `home::router_api_key`                                       | The `X-API-KEY` header of one LAN GET to the router (`home::UniFiRouter`)                                                                                                                                               | argv, a child's environment, an error string, any type deriving `Debug`. The doc comment states the rule: "the key never enters a type that derives Debug, so it cannot ride a formatted dump into a log line"                                                          | `tests/dispatch.rs:the_alert_carries_no_secret_and_no_raw_router_text` (asserts `k-123` is absent from the delivered event, stdout and stderr)                                                                                                                                                                                                                                                                                                                                                                                               |
-| hue application key                              | `[plugins.hue] key`, read by `channels::hue::hue_settings`                                       | The `hue-application-key` header of LAN GET and PUT calls to the bridge (`channels::hue::UreqBridge`)                                                                                                                   | argv, a child's environment, a printed line                                                                                                                                                                                                                             | `NOT ESTABLISHED:` no test found that asserts the hue key is absent from stdout, stderr, or an event. Searched `tests/` for the key names used in hue fixtures (`"k"`, `do-not-echo-this-hue-key`) and for absence assertions; the only one is `tests/setup.rs:a_secret_typed_into_setup_never_reaches_the_pty_output`, which covers the WIZARD path only, not the delivery path. The structural argument (the key is held in `UreqBridge.key` and only ever passed to `.header(...)`, and hue delivery reports nothing) is code, not a test |
+| moshi token                                      | `[plugins.phone] token` in `~/.config/pns/config.toml`, read by `channels::moshi::moshi_secret` | The JSON request body of one HTTPS POST, as `"token"` (`channels::moshi::webhook_body`)                                                                                                                                 | argv, a child's environment, any printed line, any error string, any log or ring entry                                                                                                                                                                                  | `tests/native.rs:native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output` (asserts absence from stdout AND stderr); `tests/native.rs:a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token`; `tests/dispatch.rs:the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token` (a `type` fault names `type`, never `token`)                                                                                                                                                          |
+| hermes signing key                               | `[plugins.log.keys] <route>`, one key per route, read by `config::hermes::hermes_keys`                                | Nowhere on the wire. It is consumed IN PROCESS by `channels::hermes::sign` to produce a lowercase hex HMAC (hash-based message authentication code) over the exact body bytes, sent as the `X-Webhook-Signature` header | argv, a child's environment, any printed line, the request body, an error string. `outcome_line` and `skipped_line` name the CONFIG KEY (`[plugins.log.keys] <route>`) and never a value                                                                                      | `tests/dispatch.rs:the_alert_carries_no_secret_and_no_raw_router_text` (asserts `hermes-signing-secret` is absent from the delivered event, stdout and stderr)                                                                                                                                                                                                                                                                                                                                                                               |
+| router API key                                   | `[plugins.home_presence] api_key`, read by `home::router_api_key`                                       | The `X-API-KEY` header of one LAN GET to the router (`home::UniFiRouter`)                                                                                                                                               | argv, a child's environment, an error string, any type deriving `Debug`. The doc comment states the rule: "the key never enters a type that derives Debug, so it cannot ride a formatted dump into a log line"                                                          | `tests/dispatch.rs:the_alert_carries_no_secret_and_no_raw_router_text` (asserts `k-123` is absent from the delivered event, stdout and stderr)                                                                                                                                                                                                                                                                                                                                                                                               |
+| hue application key                              | `[plugins.lights] key`, read by `channels::hue::hue_settings`                                       | The `hue-application-key` header of LAN GET and PUT calls to the bridge (`channels::hue::UreqBridge`)                                                                                                                   | argv, a child's environment, a printed line                                                                                                                                                                                                                             | `NOT ESTABLISHED:` no test found that asserts the hue key is absent from stdout, stderr, or an event. Searched `tests/` for the key names used in hue fixtures (`"k"`, `do-not-echo-this-hue-key`) and for absence assertions; the only one is `tests/setup.rs:a_secret_typed_into_setup_never_reaches_the_pty_output`, which covers the WIZARD path only, not the delivery path. The structural argument (the key is held in `UreqBridge.key` and only ever passed to `.header(...)`, and hue delivery reports nothing) is code, not a test |
 | Every plugin secret, as text in the config file  | The config file itself                                                                           | Parsed into `PluginEntry::settings`                                                                                                                                                                                     | A `ConfigError` detail, which travels to log lines. `config::parse_config` rebuilds a TOML parse failure from the cause and the LINE NUMBER alone, because "the parser's Display echoes the offending source line, and this file carries plugin secrets into log lines" | `src/config.rs:a_malformed_line_is_reported_without_echoing_its_value` (plants `SUPERSECRET` in a malformed line and asserts the refusal does not contain it)                                                                                                                                                                                                                                                                                                                                                                                |
 | Every secret typed into `pns setup`              | The operator's keystrokes on a terminal                                                          | The published `~/.config/pns/config.toml`, mode `0600` (`main::CONFIG_FILE_MODE`)                                                                                                                                       | The terminal. `main::ask_hidden` clears `ECHO` and sets `ECHONL` via `tcsetattr` with `TCSAFLUSH`, arming BEFORE the prompt prints, and restores the terminal when its guard drops                                                                                      | `tests/setup.rs:a_secret_typed_into_setup_never_reaches_the_pty_output`, which arms all four secret branches with distinct sentinels, asserts `ECHO` is already off while the first prompt is visible, asserts none of the four reaches the pseudoterminal transcript, asserts an ordinary `[y/N]` answer DOES still echo, asserts the published file is `0600`, and asserts echo is restored after exit                                                                                                                                     |
 | The chezmoi-managed config template's secrets    | KeePassXC, resolved at apply time                                                                | A `{{ ... \| toToml }}` action in `dot_config/pns/private_config.toml.tmpl`                                                                                                                                             | `dot_config/pns/config-values.toml`, which carries only the keepassxc ENTRY NAME and FIELD, never a value (`config_text::secret_action` admits exactly the keys `keepassxc` and `field`, and `field` only from `SECRET_FIELDS`)                                         | `src/config_text.rs:a_secret_tables_unknown_member_is_named_rather_than_only_counted`; `src/config_text.rs:a_secrets_field_is_whitelisted_to_the_two_chezmoi_methods`; `src/config.rs:the_shipped_template_names_the_entry_and_field_of_every_secret`                                                                                                                                                                                                                                                                                        |
-| The condenser's access to live Codex credentials | `~/.config/pns/codex-home`, a stripped Codex home with the live auth SYMLINKED                   | The condenser child, which runs `codex exec --ephemeral --skip-git-repo-check -s read-only`                                                                                                                             | Any other reader: the directory is created with mode `0700` (`main::condenser_home`) and the config inside it with `0o600`                                                                                                                                              | `NOT ESTABLISHED:` no test found asserting the mode of the condenser home or its config file. The modes are set at `src/main.rs:condenser_home` and `src/main.rs:2306`; nothing in `tests/` reads them back                                                                                                                                                                                                                                                                                                                                  |
+| The summarizer's access to live Codex credentials | `~/.config/pns/codex-home`, a stripped Codex home with the live auth SYMLINKED                   | The summarizer child, which runs `codex exec --ephemeral --skip-git-repo-check -s read-only`                                                                                                                             | Any other reader: the directory is created with mode `0700` (`main::summarizer_home`) and the config inside it with `0o600`                                                                                                                                              | `NOT ESTABLISHED:` no test found asserting the mode of the summarizer home or its config file. The modes are set at `src/main.rs:summarizer_home` and `src/main.rs:2306`; nothing in `tests/` reads them back                                                                                                                                                                                                                                                                                                                                  |
 
 ## Behaviors
 
@@ -428,7 +428,7 @@ answers false for the oversized case, and nothing is submitted to moshi
   blocked either way".
 - Forbidden side effects: nothing reaches moshi. Half an object must never be submitted.
 - Timeout and cancellation: `payload_deadline()` defaults to 5 s, overridable by
-  `PNS_PAYLOAD_DEADLINE_MS`. The reader thread outlives a refusal, which is accepted because "the process
+  `PNS_PAYLOAD_DEADLINE`. The reader thread outlives a refusal, which is accepted because "the process
   is about to exit, and it holds nothing but its own buffer".
 - Idempotency and duplicates: the single-submitter rule holds at both entry points
   (`tests/hooks.rs:the_gate_submits_one_prompt_exactly_once`).
@@ -559,7 +559,7 @@ visibly inside the one line pns wrote
 
 ### 14. A route name that could not be a URL path segment is refused rather than glued
 
-Given `--channel` or `[plugins.router] stale_alert_channel` names `a/b`, `../x`, `a b`, `a?x=1`, `a#f`,
+Given `--channel` or `[plugins.home_presence] stale_alert_channel` names `a/b`, `../x`, `a b`, `a?x=1`, `a#f`,
 `.`, `a\nb`, `%2e%2e`, `café` or the empty string
 
 When the hermes URL is built
@@ -592,7 +592,7 @@ Then `channel_url` answers `None` and the post goes to the DEFAULT route
   single source of truth in the hermes config".
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: `home::stale_alert_channel` returns its complaint rather than printing it,
-  matching `moshi::mobile_backend`; the composition root decides that a warning goes to stderr.
+  matching `moshi::phone_backend`; the composition root decides that a warning goes to stderr.
 
 ### 15. Every ring read is bounded, and a ring that cannot be read back heals rather than growing
 
@@ -643,7 +643,7 @@ written
 
 ### 16. Every child `run_bounded` starts is bounded in time AND in bytes, and past the ceiling is no answer
 
-Given a probe, the condenser, a summarizer, `gh` or `moshi-hook` that hangs, writes without end, or exits
+Given a probe, the summarizer, a summarizer, `gh` or `moshi-hook` that hangs, writes without end, or exits
 non-zero
 
 When `system::run_bounded` runs it
@@ -662,7 +662,7 @@ and reaped, and the caller gets `None`
   lost its last rows and a JSON listing has stopped mid-object, and both arrive at a caller looking
   exactly like a complete short answer".
 - Thresholds: `PROBE_DEADLINE` = 5 s and `PROBE_READ_MAX` = 1 MiB for every probe; `GH_DEADLINE` = 30 s
-  and `GH_READ_MAX` = 512 KiB; `CONDENSER_DEADLINE` with `PROBE_READ_MAX`; `PAIRING_READ_MAX` = 2 MiB;
+  and `GH_READ_MAX` = 512 KiB; `SUMMARIZER_DEADLINE` with `PROBE_READ_MAX`; `PAIRING_READ_MAX` = 2 MiB;
   `recap::MAX_ANSWER_BYTES + 1` for a summarizer. At `max_bytes` the answer is returned, at
   `max_bytes + 1` it is not, and the reader is asked for the extra byte "so the bound stays inclusive
   like every other bound in this crate".
@@ -674,7 +674,7 @@ and reaped, and the caller gets `None`
 - Timeout and cancellation: on expiry the child is killed and waited on; the answer is discarded.
 - Idempotency and duplicates: `PNS_SUMMARIZING` plus a Codex home with NO hooks installed are the
   re-entry guard against a pns-to-codex-to-pns loop, the stripped home being "the hard guarantee".
-- Privacy: the condenser is handed the turn's reply on stdin (up to `REPLY_MAX_CHARS`) and runs
+- Privacy: the summarizer is handed the turn's reply on stdin (up to `REPLY_MAX_CHARS`) and runs
   `-s read-only`. Its home is created `0700` "because it points at the live Codex credentials". Bytes are
   read, not a string: "the size that matters is the size on the wire, and a lossy conversion grows an
   invalid byte into three"; the lossy conversion happens only after the size has been judged.
@@ -683,12 +683,12 @@ and reaped, and the caller gets `None`
   channel (`src/main.rs:deliver`), recorded as findings U1 and U2 in
   `persistence-and-process-lifecycle.md`. The heading is scoped to this function for that reason.
 - Compatibility contract: `doctor::within_cap` is checked in the DOCTOR rather than in the shared spawn,
-  "every other caller of that spawn reads a different tool, and one of them is a condenser whose whole
+  "every other caller of that spawn reads a different tool, and one of them is a summarizer whose whole
   job is to answer at length".
 
 ### 17. The moshi token reaches the request body and nothing else
 
-Given `[plugins.mobile] token = "tok-integration"` and a delivered event
+Given `[plugins.phone] token = "tok-integration"` and a delivered event
 
 When the moshi channel posts
 
@@ -704,7 +704,7 @@ stdout or stderr
 - Failure sources: no `token` key, the wrong TOML type, or an empty value, all of which read as "not set
   up" and never as an error.
 - Fail direction: fail-closed and NAMED. `NO_TOKEN_LINE` reads
-  `push SKIPPED -- no moshi token in the config ([plugins.mobile] token); nothing was sent`, naming the
+  `push SKIPPED -- no moshi token in the config ([plugins.phone] token); nothing was sent`, naming the
   config key rather than a value.
 - Thresholds: `POST_DEADLINE` = 10 s. `DELIVERED_STATUS` is `200..300`, spelled separately from hermes's
   identical range "because the two channels answer to different endpoints and a range moved for one of
@@ -726,7 +726,7 @@ stdout or stderr
 
 ### 18. The hermes signing key never leaves the process; the signature does
 
-Given `[plugins.hermes.keys] pns-events = "gate-signing-key"`
+Given `[plugins.log.keys] pns-events = "gate-signing-key"`
 
 When the hermes channel posts
 
@@ -744,11 +744,11 @@ environment and no printed line
   silent skip: "from the record's point of view it reads the same as a refusal: the entry is not there".
 - Fail direction: fail-LOUD in sync mode, silent in async. Sync mode prints the HTTP status, and
   `skipped_line()` reads
-  `post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent`, naming the key
+  `post SKIPPED -- no hermes key for the <route> route ([plugins.log.keys] <route>); nothing was sent`, naming the key
   rather than a value. "a 401 swallowed silently leaves the Discord channel empty, and an empty channel
   looks like the jobs stopped running".
 - Thresholds: `ASYNC_DEADLINE` = 10 s; sync default 5 s, clamped to `MAX_SYNC_DEADLINE_SECS` = 86,400.
-  `PNS_REMOTE_TIMEOUT` of `0` is curl's `-m 0`, no deadline, and is treated as explicit caller intent.
+  `[delivery] remote_deadline` of `0` is curl's `-m 0`, and is treated as explicit operator intent, no deadline, and is treated as explicit caller intent.
 - Required side effects: one POST carrying agent, state, project and the FULL message as `detail`,
   "because Discord has no length ceiling for the preview to serve".
 - Forbidden side effects: `max_redirects(0)`, because "following one would send the signed body to
@@ -761,7 +761,7 @@ environment and no printed line
   (`http://127.0.0.1:8644/webhooks/pns-events` by default). Where hermes forwards it from there is
   hermes's business, not this crate's.
 - Process ownership and cleanup: in-process HTTP, no child.
-- Compatibility contract: `hermes_secret` reads `key` off `[plugins.hermes]`, non-empty, else `None`,
+- Compatibility contract: `hermes_secret` reads `key` off `[plugins.log]`, non-empty, else `None`,
   "Silent, like every not-set-up reading".
 
 ### 19. What leaves this machine, and what rides with it
@@ -773,11 +773,11 @@ When events, alerts and recaps are delivered
 Then exactly five outbound destinations exist and each carries a stated payload
 
 - Success: the destinations, from the code:
-  1. moshi, `https://api.getmoshi.app/api/webhook` or `PNS_MOSHI_URL`. Carries the token, the title
+  1. moshi, `https://api.getmoshi.app/api/webhook`, or `[plugins.phone] url` or `PNS_MOSHI_URL`. Carries the token, the title
      (`agent · state · project`), the message (the PREVIEW, at most 260 characters, which is the reply or
      detail text), and an optional `moshi://herdr?pane=<pane>` deep link built only from a `pane_is_safe`
      pane. This is the one destination outside the local network by default.
-  1. hermes, `http://127.0.0.1:8644/webhooks/pns-events` or `PNS_HERMES_URL`, or the same base with its
+  1. hermes, `http://127.0.0.1:8644/webhooks/pns-events`, or `[plugins.log] url` or `PNS_HERMES_URL`, or the same base with its
      final path segment swapped for a `route_name_is_usable` route. Carries agent, state, project and the
      FULL message as `detail`, signed. Local by default.
   1. The hue bridge on the local network, `hue-application-key` header, carrying lamp state bodies only.
@@ -801,13 +801,13 @@ Then exactly five outbound destinations exist and each carries a stated payload
   it". Both are local-network addresses the operator configured, and neither carries event text. It is
   not disabled for moshi or hermes.
 - Process ownership and cleanup: `gh` runs as a bounded child; the four HTTP clients are in process.
-- Compatibility contract: the summarizer and the condenser are CHILD processes handed prompt text on
-  stdin. Whether either reaches a network is the child's own business; the condenser is `codex exec`,
+- Compatibility contract: the summarizer and the summarizer are CHILD processes handed prompt text on
+  stdin. Whether either reaches a network is the child's own business; the summarizer is `codex exec`,
   which is a model call, and the recap's summarizer is whatever argv the operator configured.
 
 ### 20. A config refusal names the fault without echoing the value
 
-Given `~/.config/pns/config.toml` contains `[plugins.mobile]\ntoken = "SUPERSECRET" trailing`
+Given `~/.config/pns/config.toml` contains `[plugins.phone]\ntoken = "SUPERSECRET" trailing`
 
 When `config::parse_config` refuses it
 
@@ -931,14 +931,14 @@ When that message interpolates a captured request, a process output, a transcrip
 Then every value in it came from the test's own sandbox, never from the operator's config or state
 
 - Success: `tests/support/mod.rs:Sandbox::bare` calls `env_clear()` and restores only `HOME` (pointed at
-  the sandbox root), `PATH`, and `MOSHI_HOOK_BIN` (pointed at a path inside the sandbox that nothing ever
-  creates). `Sandbox::pns` adds `CODEX_BIN=/nonexistent/codex`. Every secret that appears in a failure
+  the sandbox root), `PATH`, and `PNS_MOSHI_HOOK_BIN` (pointed at a path inside the sandbox that nothing ever
+  creates). `Sandbox::pns` adds `PNS_CODEX_BIN=/nonexistent/codex`. Every secret that appears in a failure
   message is a literal written in a test file: `tok-integration` (`tests/native.rs`), `k-123` and
   `hermes-signing-secret` (`tests/dispatch.rs`), `do-not-echo-this-token` and its three siblings
   (`tests/setup.rs`), `SUPERSECRET` (`src/config.rs`).
 - Failure sources: a test that forgets to stub. This happened: "a test that forgot to stub raised a real
   card on a real phone during slice 11, and a second one was found by review in the daemon suite", which
-  is why `MOSHI_HOOK_BIN` is fenced off BY DEFAULT rather than per test.
+  is why `PNS_MOSHI_HOOK_BIN` is fenced off BY DEFAULT rather than per test.
 - Fail direction: fail-closed by default. The old harness named the variables to REMOVE, "which meant
   every new override had to be added here too or it would leak in silently"; it now states what a test
   keeps, "and a new override is excluded by default".
@@ -962,6 +962,7 @@ Then every value in it came from the test's own sandbox, never from the operator
   in `test/validate-tests.sh`'s remit either, which polices file placement rather than file access.
 - Process ownership and cleanup: a `Sandbox` prints a "test budget" line to stderr on drop when it lived
   past the review line.
-- Compatibility contract: `PNS_STATE_DIR`, `PNS_CHANNELS_DIR`, `PNS_MOSHI_URL`, `PNS_HERMES_URL`,
-  `MOSHI_HOOK_BIN`, `CODEX_BIN` and `PNS_IDLE_SECS` are the seams that make the sandbox possible. A new
+- Compatibility contract: `PNS_STATE_DIR`, `PNS_CHANNELS_DIR`, `PNS_MOSHI_URL`, `PNS_HERMES_URL` (each
+  the fallback behind its own config key now),
+  `PNS_MOSHI_HOOK_BIN`, `PNS_CODEX_BIN` and `PNS_SCREEN_IDLE` are the seams that make the sandbox possible. A new
   world-reading seam without an override is a test that cannot be sandboxed.

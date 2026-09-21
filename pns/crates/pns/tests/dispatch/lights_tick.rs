@@ -37,8 +37,8 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
     // The missing bridge credentials refuse immediately. The companion case
     // owns transport refusal; repeated silence needs two complete ticks.
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\n\
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     plant_waiting_session(&sandbox);
     for run in 0..2 {
@@ -47,7 +47,7 @@ fn the_tick_says_nothing_at_all_however_many_times_it_runs() {
         assert!(stdout(&output).is_empty(), "run {run}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "run {run}: {}", stderr(&output));
         assert!(
-            !sandbox.fired("hermes") && !sandbox.fired("mobile"),
+            !sandbox.fired("hermes") && !sandbox.fired("phone"),
             "run {run}: a tick is not an event and reaches no channel"
         );
     }
@@ -60,18 +60,18 @@ fn the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge
     // nobody is watching, and every one of these is a machine that has simply
     // not asked for the lamps yet.
     let unreachable = format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}",
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}",
         closed_port()
     );
     for (name, config) in [
         ("lights-tick-no-config", None),
         (
             "lights-tick-no-table",
-            Some("[plugins.hue]\nenabled = true\n".to_string()),
+            Some("[plugins.lights]\nenabled = true\n".to_string()),
         ),
         (
             "lights-tick-hue-off",
-            Some(format!("[plugins.hue]\nenabled = false\n{STUDIO_MAP}")),
+            Some(format!("[plugins.lights]\nenabled = false\n{STUDIO_MAP}")),
         ),
         ("lights-tick-bridge-down", Some(unreachable)),
     ] {
@@ -85,7 +85,7 @@ fn the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge
         assert!(stdout(&output).is_empty(), "{name}: {}", stdout(&output));
         assert!(stderr(&output).is_empty(), "{name}: {}", stderr(&output));
         assert!(
-            !sandbox.fired("hermes") && !sandbox.fired("mobile"),
+            !sandbox.fired("hermes") && !sandbox.fired("phone"),
             "{name}: a tick is not an event and reaches no channel"
         );
     }
@@ -101,8 +101,8 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("lights-held-cleared-on-return");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     pns_adapters::SqliteStore::for_records(sandbox.state())
@@ -113,7 +113,7 @@ fn the_operators_return_puts_out_a_glow_without_any_daemon_running() {
     // AT THE DESK, which is what makes this event the operator's return. An
     // event that finds them away proves nothing about whether they have seen
     // the news the lamp is glowing about.
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     let child = command
         .args([
@@ -152,11 +152,11 @@ fn an_event_holding_no_glow_reaches_the_bridge_for_nothing() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("lights-held-nothing-held");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     let mut command = logged_event(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([
@@ -225,7 +225,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         held_after(
             "lights-feature-off-clears",
             &|port| format!(
-                "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
+                "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
             ),
             true,
         ),
@@ -237,7 +237,7 @@ fn switching_the_lamps_off_puts_out_a_held_glow_and_switching_hue_off_keeps_the_
         held_after(
             "lights-hue-off-keeps",
             &|port| format!(
-                "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+                "[plugins.lights]\nenabled = false\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
                  {STUDIO_MAP}"
             ),
             false,
@@ -260,7 +260,7 @@ fn a_tick_with_nothing_left_to_show_puts_out_the_glow_it_was_holding() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("lights-tick-clears-its-glow");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     pns_adapters::SqliteStore::for_records(sandbox.state())

@@ -23,11 +23,11 @@ impl Fixture {
         for leaf in [".config/pns", "channels", "bin"] {
             std::fs::create_dir_all(root.join(leaf)).unwrap();
         }
-        std::fs::write(root.join(".config/pns/config.toml"), "[plugins.hermes]\nenabled = true\n[plugins.mobile]\nenabled = false\n[plugins.macos-banner]\nenabled = false\n").unwrap();
+        std::fs::write(root.join(".config/pns/config.toml"), "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.phone]\nenabled = false\n[plugins.banner]\nenabled = false\n").unwrap();
         let channel = root.join("channels/hermes.sh");
         std::fs::write(&channel, "#!/bin/sh\ncat >\"$HOME/hermes.event\"\n").unwrap();
         std::fs::set_permissions(channel, std::fs::Permissions::from_mode(0o700)).unwrap();
-        for name in ["herdr", "terminal-notifier", "ioreg", "pgrep", "ps"] {
+        for name in ["herdr", "terminal-notifier", "pgrep"] {
             let path = root.join("bin").join(name);
             std::fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
@@ -44,10 +44,10 @@ impl Fixture {
             .env("HOME", &self.root)
             .env("PNS_STATE_DIR", self.root.join("state"))
             .env("PNS_CHANNELS_DIR", self.root.join("channels"))
-            .env("PNS_IDLE_SECS", "99999")
-            .env("PNS_PHONE_INPUT_AGE", "99999")
-            .env("MOSHI_HOOK_BIN", self.root.join("no-moshi"))
-            .env("CODEX_BIN", self.root.join("no-codex"))
+            .env("PNS_SCREEN_IDLE", "99999")
+            .env("PNS_PHONE_INPUT_MAX_AGE", "24h")
+            .env("PNS_MOSHI_HOOK_BIN", self.root.join("no-moshi"))
+            .env("PNS_CODEX_BIN", self.root.join("no-codex"))
             .env("PWD", "/owned/logical project")
             .env("HERDR_PANE_ID", "t1:p2")
             .env(

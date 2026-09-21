@@ -61,7 +61,15 @@ pub trait Publisher {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LockRefusal;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RecordRefusal;
+/// The audit record a held write lock appends before the write it covers is
+/// published, so a grant that silences an integrity finding names who asked,
+/// when, and for which label. It records what happened; it gates nothing.
+pub trait WriteRecord {
+    fn record(&self, verb: &str, label: &str) -> Result<(), RecordRefusal>;
+}
 pub trait WriteLock {
-    type Guard;
+    type Guard: WriteRecord;
     fn acquire(&self) -> Result<Self::Guard, LockRefusal>;
 }

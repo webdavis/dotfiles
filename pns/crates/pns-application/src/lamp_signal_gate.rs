@@ -1,41 +1,28 @@
 use crate::{Clock, HeldLamps, LampComplaint, LampComplaints, LampMutes};
-use pns_domain::lamps::{QuietWindow, Reading, config::Lights, quiet_now};
+use pns_domain::lamps::{Reading, config::Lights};
 
+/// The pulse the event path earned, routed by the map when there is one.
+///
+/// THE DIM WINDOW IS THE MAP'S QUESTION, and `[lights] dim_window` lives inside
+/// that table, so a machine with no `[lights]` table has no window to read and
+/// its plain room pulse fires at every hour.
 pub fn signal_after_delivery(
     clock: &impl Clock,
     minutes: impl FnOnce(u64) -> Option<u16>,
     lights: Option<&Lights>,
-    window: impl FnOnce() -> Result<Option<QuietWindow>, String>,
     rooms: impl FnOnce(),
     mapped: impl FnOnce(&Lights, Option<u64>, Option<u16>),
-    mut report: impl FnMut(&str),
 ) {
     // FRESH, not the run's start: the legs above dial the network under their
     // own deadlines, so a run can cross into a dim window between starting and
     // reaching the moment a lamp would actually light, and the older reading
-    // would flash it just inside quiet hours. The clock is injected so the gate can be observed after delivery advances it.
+    // would flash it just inside the window. The clock is injected so the gate
+    // can be observed after delivery advances it.
     let now = clock.now_secs();
     let minutes_now = now.and_then(minutes);
-    if let Some(lights) = lights {
-        mapped(lights, now, minutes_now);
-    } else {
-        // TODAY'S PATH, UNCHANGED, and it is the compatibility claim of this
-        // whole change: one house window for the whole pulse, one write per room
-        // in `[plugins.hue] rooms`, and one refusal that costs the pulse when
-        // nobody can read the window. A machine that never wrote a `[lights]`
-        // table reaches nothing new.
-        match window() {
-            Ok(window) => {
-                if !quiet_now(window.as_ref(), minutes_now) {
-                    rooms();
-                }
-            }
-            // FAIL CLOSED, the direction the pulse takes on every unreadable
-            // reading: a window nobody can parse is an operator who asked for
-            // quiet hours and cannot be told which ones, so the room stays
-            // dark and the refusal says why.
-            Err(refusal) => report(&refusal),
-        }
+    match lights {
+        Some(lights) => mapped(lights, now, minutes_now),
+        None => rooms(),
     }
 }
 
@@ -51,7 +38,7 @@ pub fn signal_mapped<R: LampMutes + HeldLamps + LampComplaints>(
     // and no clock, and the composition root decides where a complaint goes.
     // A machine that has never typed the command reads no file and pays one
     // failed open.
-    let (muted, mut complaints) = crate::ad_hoc_quiet(records, now);
+    let (muted, mut complaints) = crate::ad_hoc_mute(records, now);
     let held = HeldLamps::read(records).map(|entries| {
         entries
             .into_iter()

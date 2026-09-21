@@ -2,7 +2,7 @@
 //!
 //! This crate is responsible for orchestrating one operator-meaningful
 //! operation at a time (submitting a notification, requesting an approval,
-//! replaying missed notifications, building a return recap, running a nag,
+//! replaying missed notifications, building a return recap, running a reminder,
 //! reading the home probe, reconciling the lights, taking a loop lease,
 //! running a daemon tick, scheduling or cancelling a job, running the doctor,
 //! running setup) by combining pns-domain policy with capabilities it declares
@@ -58,13 +58,14 @@ pub use ports::records::{
     ActivityRing, BlockedMarker, Claim, DecisionRing, JobSpool, Journal, LampRecords, LightsTick,
     LoopLease, ReplayBatch, ReplayState, ReturnMoment, SessionWait,
 };
+pub use ports::service::{ServiceController, ServiceError, ServiceState};
 pub use replay_missed::{RecapPolicy, ReplayMissedNotifications};
 pub use request_approval::RequestApproval;
 pub use selection::{ConfigOutcome, select_plugins};
 pub use submission_delivery::{SubmissionDelivery, Submitted};
 pub use submit_notification::{Attempt, Submission, SubmitNotification};
 
-pub use ports::nag::{Claimed, NagRecords, NagSchedule};
+pub use ports::remind::{Claimed, RemindRecords, RemindSchedule};
 pub use ports::stale::{SessionWaits, StaleWaits};
 
 mod escalate_stale;
@@ -75,16 +76,16 @@ pub use track_wait::{end_wait, track_wait};
 mod poll_presence;
 pub use poll_presence::{PollClaim, Polled, PresencePoll, poll_presence};
 
-mod nag;
-pub use nag::{Outcome as NagOutcome, RunNag};
+mod remind;
+pub use remind::{Outcome as RemindOutcome, RunRemind};
 
 mod read_home_probe;
 pub use read_home_probe::{ReadHomeProbe, read_home};
 
-mod arm_nag;
-pub use arm_nag::ArmNag;
-mod clear_nag;
-pub use clear_nag::clear_nag;
+mod arm_remind;
+pub use arm_remind::ArmRemind;
+mod clear_remind;
+pub use clear_remind::clear_remind;
 
 mod daemon_tick;
 pub use daemon_tick::RunDaemonTick;
@@ -94,8 +95,8 @@ mod schedule_job;
 pub use schedule_job::{ScheduleJob, Until, cancel_job};
 
 pub use ports::lights::{LampMutes, LoopLeases};
-mod set_lights_quiet;
-pub use set_lights_quiet::{SetLightsQuiet, ad_hoc_quiet, quiet_names};
+mod set_lights_mute;
+pub use set_lights_mute::{SetLightsMute, ad_hoc_mute, mute_names};
 
 mod loop_lease;
 pub use loop_lease::AcquireLoopLease;
@@ -133,7 +134,9 @@ pub use maintain_lamps::{LampReadings, MaintainLamps};
 
 mod build_return_recap;
 mod post_return_recap;
-pub use build_return_recap::{BuildReturnRecap, RECAP_USAGE, recap_bounds, recap_wall_clock};
+pub use build_return_recap::{
+    BuildReturnRecap, LocalCivilTime, RECAP_USAGE, recap_bounds, recap_wall_clock,
+};
 pub use ports::recap::{Fetched, MergedPullRequestSource, ReviewNoteSource, Summarizer};
 pub use post_return_recap::post_return_recap;
 

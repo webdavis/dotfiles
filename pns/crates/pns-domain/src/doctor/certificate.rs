@@ -6,13 +6,14 @@
 
 use super::{Item, Mark};
 use crate::CertificatePin;
+use crate::config_keys::LIGHTS_BRIDGE_HOST;
 
 /// What this process learned about the pin while it ran.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PinState {
-    /// No `[plugins.hue]` table with a bridge, so no pin was read.
+    /// No `[plugins.lights]` table with a bridge, so no pin was read.
     Unconfigured,
-    /// A `[plugins.hue]` table names a bridge and key but its certificate is
+    /// A `[plugins.lights]` table names a bridge and key but its certificate is
     /// unset or malformed, so config loading refused it before any handshake
     /// could run. Carries the refusal `hue_settings` produced.
     Refused(String),
@@ -36,13 +37,15 @@ pub enum PinState {
 /// reason to name a fingerprint at all.
 pub fn certificate_row(state: &PinState) -> Item {
     match state {
-        PinState::Unconfigured => Item::note(
-            "certificate: no [plugins.hue] bridge, so no certificate is pinned".to_string(),
-        ),
-        PinState::Refused(reason) => Item::row(Mark::Bad, format!("certificate: {reason}")),
+        PinState::Unconfigured => Item::note(format!(
+            "Hue bridge certificate: no [plugins.lights] {LIGHTS_BRIDGE_HOST}, so no certificate is pinned"
+        )),
+        PinState::Refused(reason) => {
+            Item::row(Mark::Bad, format!("Hue bridge certificate: {reason}"))
+        }
         PinState::Held => Item::row(
             Mark::Good,
-            "certificate: pinned, and no handshake was refused".to_string(),
+            "Hue bridge certificate: pinned, and no handshake was refused".to_string(),
         ),
         PinState::Mismatched {
             address,
@@ -51,7 +54,7 @@ pub fn certificate_row(state: &PinState) -> Item {
         } => Item::row(
             Mark::Bad,
             format!(
-                "certificate: the bridge at {address} presented {presented}, not the pinned \
+                "Hue bridge certificate: the bridge at {address} presented {presented}, not the pinned \
 {expected}; every lamp call is refused. Run `pns lights enroll`, check the printed common name \
 is the bridge you expect, and save the line it prints"
             ),
@@ -109,7 +112,7 @@ mod tests {
     #[test]
     fn a_bridge_and_key_with_no_certificate_is_an_issue_not_a_no_bridge_reading() {
         let item = certificate_row(&PinState::Refused(
-            "pns: config error (plugins.hue.certificate is unset)".to_string(),
+            "pns: config error (plugins.lights.certificate is unset)".to_string(),
         ));
         assert!(matches!(
             item,
@@ -118,6 +121,6 @@ mod tests {
                 ..
             }
         ));
-        assert!(item.text().contains("plugins.hue.certificate is unset"));
+        assert!(item.text().contains("plugins.lights.certificate is unset"));
     }
 }

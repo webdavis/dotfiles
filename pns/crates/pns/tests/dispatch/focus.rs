@@ -20,11 +20,11 @@ fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_jour
     run(&mut focus_event(&sandbox));
 
     assert!(
-        events(&sandbox, "macos-banner").is_empty(),
+        events(&sandbox, "banner").is_empty(),
         "the Focus swallowed the banner"
     );
     assert!(
-        events(&sandbox, "mobile").is_empty(),
+        events(&sandbox, "phone").is_empty(),
         "and the card PNS_FORCE_PHONE asked for with it: a mute a producer can \
          override is not a mute"
     );
@@ -39,14 +39,14 @@ fn an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_jour
     assert_eq!(waiting.len(), 1, "exactly one miss was queued: {waiting:?}");
     assert_eq!(
         field(waiting.last().expect("a journal"), "detail"),
-        "the live turn",
+        "the live turn (300s)",
         "and it is this event's: {waiting:?}"
     );
     let ring = decisions(&sandbox);
     assert_eq!(ring.len(), 1, "one decision was recorded: {ring:?}");
     assert!(
         ring[0].contains("muted=no focus=yes"),
-        "TWO FIELDS RATHER THAN ONE: `pns quiet` and a macOS Focus send the \
+        "TWO FIELDS RATHER THAN ONE: `pns mute` and a macOS Focus send the \
          operator to completely different places: {}",
         ring[0]
     );
@@ -78,7 +78,7 @@ fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual()
     run(&mut focus_event(&sandbox));
 
     assert_eq!(
-        events(&sandbox, "macos-banner").len(),
+        events(&sandbox, "banner").len(),
         2,
         "the live send and its unconfirmed-send replay both bypass the unnamed Focus"
     );
@@ -96,7 +96,7 @@ fn an_event_raised_inside_a_focus_the_config_never_named_is_delivered_as_usual()
     // all three decorations really were on this plan, so the three `no`s next
     // door are a Focus holding them and not a surface that never offered them.
     assert_eq!(
-        events(&sandbox, "mobile").len(),
+        events(&sandbox, "phone").len(),
         2,
         "the forced live card and replay fired here"
     );
@@ -130,7 +130,7 @@ fn a_focus_store_that_cannot_be_read_costs_no_notification_at_all() {
 
         run(&mut present_event(&sandbox));
 
-        assert_eq!(events(&sandbox, "macos-banner").len(), 1, "case: {label}");
+        assert_eq!(events(&sandbox, "banner").len(), 1, "case: {label}");
         assert!(
             journal(&sandbox).is_empty(),
             "and a delivered event is not a miss: {label}"

@@ -1,9 +1,40 @@
 Config {
-    phone_marker_file: None,
+    phone_marker_file: Some(
+        "~/.local/state/pns/phone-attention.marker",
+    ),
+    paths: Paths {
+        state_dir: None,
+        channels_dir: None,
+    },
     plugins: {
-        "discord": PluginEntry {
-            enabled: false,
+        "banner": PluginEntry {
+            enabled: true,
             settings: {
+                "type": String(
+                    "macos",
+                ),
+            },
+        },
+        "github": PluginEntry {
+            enabled: true,
+            settings: {
+                "personal_access_token": String(
+                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
+                ),
+                "poll_interval": String(
+                    "60s",
+                ),
+                "webhook_port": Integer(
+                    8648,
+                ),
+            },
+        },
+        "hermes": PluginEntry {
+            enabled: true,
+            settings: {
+                "bot_token": String(
+                    "from-the-vault:Discord (Uriel) :: Bot Token (pns):Password",
+                ),
                 "channels": Table(
                     {
                         "casually-concerned": String(
@@ -53,31 +84,6 @@ Config {
                         ),
                     },
                 ),
-                "token": String(
-                    "from-the-vault:Discord (Uriel) :: Bot Token (pns):Password",
-                ),
-                "type": String(
-                    "bot",
-                ),
-            },
-        },
-        "github": PluginEntry {
-            enabled: true,
-            settings: {
-                "poll_secs": Integer(
-                    60,
-                ),
-                "token": String(
-                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
-                ),
-                "webhook_port": Integer(
-                    8648,
-                ),
-            },
-        },
-        "hermes": PluginEntry {
-            enabled: true,
-            settings: {
                 "keys": Table(
                     {
                         "pns-events": String(
@@ -91,53 +97,62 @@ Config {
                         ),
                     },
                 ),
+                "type": String(
+                    "hermes",
+                ),
             },
         },
-        "hue": PluginEntry {
+        "home_presence": PluginEntry {
             enabled: true,
             settings: {
-                "bridge": String(
+                "api_key": String(
+                    "from-the-vault:UniFi :: API Key (dresden-udr):Password",
+                ),
+                "device_hostname": String(
+                    "mister",
+                ),
+                "type": String(
+                    "unifi",
+                ),
+                "url": String(
+                    "https://192.168.1.1",
+                ),
+            },
+        },
+        "lights": PluginEntry {
+            enabled: true,
+            settings: {
+                "api_key": String(
+                    "from-the-vault:OpenHue :: API Key (hue-bridge-pro):Password",
+                ),
+                "bridge_host": String(
                     "from-the-vault:OpenHue :: API Key (hue-bridge-pro):UserName",
                 ),
                 "certificate": String(
                     "from-the-vault:OpenHue :: API Key (hue-bridge-pro):attribute:certificate-pin",
                 ),
-                "key": String(
-                    "from-the-vault:OpenHue :: API Key (hue-bridge-pro):Password",
-                ),
-                "quiet_hours": String(
-                    "22:00-07:00",
-                ),
-                "rooms": Array(
-                    [
-                        String(
-                            "3F - Studio",
-                        ),
-                        String(
-                            "2F - Kitchen",
-                        ),
-                    ],
+                "type": String(
+                    "hue",
                 ),
             },
         },
-        "macos-banner": PluginEntry {
-            enabled: true,
-            settings: {},
-        },
-        "mobile": PluginEntry {
+        "phone": PluginEntry {
             enabled: true,
             settings: {
+                "ack_deadline": String(
+                    "5s",
+                ),
+                "card_while_watching": Boolean(
+                    false,
+                ),
+                "device_token": String(
+                    "from-the-vault:moshi-hook :: Device Token:Password",
+                ),
                 "image_cards": Table(
                     {},
                 ),
-                "mobile_watch_card": Boolean(
-                    false,
-                ),
-                "submit_deadline_secs": Integer(
-                    5,
-                ),
-                "token": String(
-                    "from-the-vault:moshi-hook :: Device Token:Password",
+                "marker_file": String(
+                    "~/.local/state/pns/phone-attention.marker",
                 ),
                 "type": String(
                     "moshi",
@@ -147,17 +162,20 @@ Config {
         "presence": PluginEntry {
             enabled: true,
             settings: {
+                "desk_input_max_age": String(
+                    "2m",
+                ),
                 "desk_room": String(
                     "3F - Studio",
                 ),
-                "desk_stale_after_secs": Integer(
-                    120,
-                ),
-                "exclude": Array(
+                "excluded_rooms": Array(
                     [],
                 ),
-                "poll_secs": Integer(
-                    5,
+                "poll_interval": String(
+                    "5s",
+                ),
+                "reading_max_age": String(
+                    "15s",
                 ),
                 "rooms": Array(
                     [
@@ -172,62 +190,63 @@ Config {
                         ),
                     ],
                 ),
-                "stale_after_secs": Integer(
-                    15,
-                ),
                 "type": String(
                     "hue",
-                ),
-            },
-        },
-        "router": PluginEntry {
-            enabled: true,
-            settings: {
-                "api_key": String(
-                    "from-the-vault:UniFi :: API Key (dresden-udr):Password",
-                ),
-                "device_hostname": String(
-                    "mister",
-                ),
-                "router_url": String(
-                    "https://192.168.1.1",
-                ),
-                "type": String(
-                    "unifi",
                 ),
             },
         },
     },
     recap: Recap {
         replay_card: true,
-        digest: true,
-        min_events: 8,
+        post_window_recap: true,
+        minimum_events: 8,
         summarizer: None,
-        summarizer_deadline_secs: 240,
-        repos: [],
-        review_notes: None,
+        summarizer_deadline: 240s,
+        repositories: [],
+        review_notes_glob: None,
+        retain: 2592000s,
     },
-    focus_silence: [],
-    bypass_silence_classes: [
-        "security",
-    ],
-    daemon_enabled: true,
+    focus_enabled: true,
+    focus_modes: [],
+    delivery_classes: {
+        "default": DeliveryClass {
+            route: "",
+            bypass_mute: false,
+        },
+        "health": DeliveryClass {
+            route: "priority",
+            bypass_mute: false,
+        },
+        "security": DeliveryClass {
+            route: "",
+            bypass_mute: true,
+        },
+    },
+    remote_deadline_secs: 5,
+    gateway_enabled: true,
+    gateway_service: Some(
+        "com.webdavis.pns-daemon",
+    ),
     routes: Routes {
         default: "pns-events",
         urgent: "priority",
     },
     retry_limits: RetryLimits {
-        max_attempts: 20,
-        max_age_secs: 604800,
+        max_retries: 20,
+        event_max_age_secs: 604800,
     },
     retry_backoff: RetryBackoff {
-        base_secs: 60,
+        step_secs: 60,
     },
-    nag_after_secs: 300,
-    stale_after_secs: 3600,
+    producer_remind: {},
+    remind_delay_secs: 300,
+    stale_enabled: true,
+    stale_escalate_after_secs: 3600,
+    stale_route: None,
+    storage_busy_deadline: 5s,
     lights: Some(
         Lights {
-            refresh_secs: 12,
+            arm_interval_secs: 12,
             done: Pulse {
                 duration_ms: 4000,
                 brightness: 100,
@@ -242,26 +261,26 @@ Config {
                     high: 100,
                     low: 30,
                 },
-                give_up_after_secs: 57600,
+                lease_expiry_secs: 57600,
             },
-            unread: Unread {
+            unseen: Unseen {
                 breath: Breath {
                     duration_ms: 4000,
                     high: 60,
                     low: 10,
                 },
-                after_secs: 300,
+                arm_after_secs: 300,
             },
-            github: Github {
+            checks: Checks {
                 pulse: Pulse {
                     duration_ms: 4000,
                     brightness: 100,
                 },
-                pass: PulseColor {
+                pass_color: PulseColor {
                     x: 0.2725,
                     y: 0.1283,
                 },
-                fail: PulseColor {
+                fail_color: PulseColor {
                     x: 0.5562,
                     y: 0.4084,
                 },
@@ -276,139 +295,142 @@ Config {
                     flare: 100,
                     flare_ms: 200,
                 },
-                threshold_secs: 360,
-                lease_timeout_secs: 3900,
+                arm_after_secs: 360,
+                lease_expiry_secs: 3900,
             },
             dim: Breath {
                 duration_ms: 3000,
                 high: 7,
                 low: 1,
             },
+            dim_window: Some(
+                "22:00-07:00",
+            ),
             lamps: {
                 "1F - Front door - HCL1": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [
+                            Blocked,
+                            Unseen,
+                            Looping,
+                        ],
                     ),
-                    dim_behaviours: [
-                        Blocked,
-                        Unread,
-                        Looping,
-                    ],
                 },
                 "2F - Kitchen - HCD5": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
-                            Github,
+                            Checks,
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "2F - Kitchen - HCD6": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - MBedroom - HCL2": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
-                            Github,
+                            Checks,
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - MBedroom - HCL3": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - Studio - HCL2": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
-                            Github,
+                            Checks,
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
                 "3F - Studio - HCL3": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Looping,
                             Blocked,
-                            Unread,
+                            Unseen,
                         ],
                     ),
                     dim_window: None,
-                    dim_behaviours: [],
+                    dim_behaviours: None,
                 },
             },
             rooms: {
                 "2F - Kitchen": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Done,
                             Failed,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [
+                            Blocked,
+                            Unseen,
+                            Looping,
+                            Checks,
+                        ],
                     ),
-                    dim_behaviours: [
-                        Blocked,
-                        Unread,
-                        Looping,
-                        Github,
-                    ],
                 },
                 "3F - MBedroom": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Done,
                             Failed,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [],
                     ),
-                    dim_behaviours: [],
                 },
                 "3F - Studio": Target {
-                    shows: Some(
+                    behaviours: Some(
                         [
                             Done,
                             Failed,
                         ],
                     ),
-                    dim_window: Some(
-                        "22:00-07:00",
+                    dim_window: None,
+                    dim_behaviours: Some(
+                        [
+                            Blocked,
+                            Unseen,
+                            Looping,
+                            Checks,
+                        ],
                     ),
-                    dim_behaviours: [
-                        Blocked,
-                        Unread,
-                        Looping,
-                        Github,
-                    ],
                 },
             },
             zones: {},
@@ -416,12 +438,14 @@ Config {
     ),
     quiet_calendar: QuietCalendar {
         enabled: false,
-        command: [],
+        command: [
+            "/Users/stephen/.local/libexec/pns/calendar-busy-window.sh",
+        ],
         poll_secs: 120,
         deadline_secs: 20,
     },
     failures: Failures {
-        serve: true,
-        port: 8646,
+        page_enabled: true,
+        page_port: 8646,
     },
 }

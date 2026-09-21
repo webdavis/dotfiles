@@ -79,7 +79,7 @@ fn each_presence_verdict_reports_its_own_sentence() {
         verdict_line(&HomePresence::Unknown),
         concat!(
             "unknown: the router returned no readable client list, so nothing was established; ",
-            "check router_url and api_key in [plugins.router] ",
+            "check url and api_key in [plugins.home_presence] ",
             "(a rejected key reads the same here as an unreachable router)"
         )
     );
@@ -222,11 +222,11 @@ fn every_setup_failure_line_names_what_to_look_at() {
             SetupFailure::ConfigError("bad at line 3".to_string()),
             "bad at line 3",
         ),
-        (SetupFailure::NoRouterPlugin, "[plugins.router]"),
-        (SetupFailure::RouterDisabled, "[plugins.router]"),
+        (SetupFailure::NoRouterPlugin, "[plugins.home_presence]"),
+        (SetupFailure::RouterDisabled, "[plugins.home_presence]"),
         (SetupFailure::NoType, "type"),
         (SetupFailure::UnknownType("asus".to_string()), "asus"),
-        (SetupFailure::InvalidRouterTable, "router_url"),
+        (SetupFailure::InvalidRouterTable, "url"),
         (SetupFailure::NoDeviceIdentifier, "device_hostname"),
         (
             SetupFailure::InvalidDeviceKey {
@@ -246,7 +246,7 @@ fn every_setup_failure_line_names_what_to_look_at() {
 #[test]
 fn a_probe_nobody_set_up_is_a_note_and_one_set_up_wrong_is_a_warning() {
     // GRADING A CHOICE AS A FAULT is how a reader learns to skim the marks: a
-    // machine with no [plugins.router] table never asked for a home reading,
+    // machine with no [plugins.home_presence] table never asked for a home reading,
     // and a warning there would withhold the report's all-clear on every run
     // forever. A table that WAS written and does not work is an edit waiting
     // to be made, so it is a warning.

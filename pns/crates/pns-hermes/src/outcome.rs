@@ -36,7 +36,7 @@ pub fn outcome_line(outcome: PostOutcome) -> String {
 pub fn skipped_line(route: &str) -> String {
     format!(
         "post SKIPPED, no hermes key for the {route} route \
-         ([plugins.hermes.keys] {route}); nothing was sent"
+         ([plugins.log.keys] {route}); nothing was sent"
     )
 }
 

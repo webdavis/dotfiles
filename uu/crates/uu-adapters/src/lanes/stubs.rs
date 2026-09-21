@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 use std::time::Duration;
 
-use crate::lanes::{CommandRunner, Ran, Verdict};
+use crate::lanes::{CommandRunner, Environment, Ran, Verdict};
 use uu_domain::{Marker, RunFacts};
 
 /// A runner that answers from a script and records every call. The script
@@ -27,7 +27,7 @@ pub(crate) struct ScriptedRunner {
     stdout: String,
     calls: RefCell<Vec<Vec<String>>>,
     inputs: RefCell<Vec<String>>,
-    environments: RefCell<Vec<std::collections::BTreeMap<String, String>>>,
+    environments: RefCell<Vec<Environment>>,
     /// Every bounded call, with the bound it was given: what a lane test
     /// asserts a step's own deadline against without a real clock.
     deadlines: RefCell<Vec<(Vec<String>, Duration)>>,
@@ -92,7 +92,7 @@ impl ScriptedRunner {
         self
     }
 
-    pub(crate) fn environments(&self) -> Vec<std::collections::BTreeMap<String, String>> {
+    pub(crate) fn environments(&self) -> Vec<Environment> {
         self.environments.borrow().clone()
     }
     pub(crate) fn calls(&self) -> Vec<Vec<String>> {
@@ -116,10 +116,24 @@ impl CommandRunner for ScriptedRunner {
         &self,
         program: &str,
         args: &[&str],
-        env: &std::collections::BTreeMap<String, String>,
+        env: &Environment,
+        most: Option<Duration>,
     ) -> Result<String, String> {
         self.environments.borrow_mut().push(env.clone());
-        self.run(program, args)
+        match most {
+            Some(most) => self.run_with_deadline(program, args, most),
+            None => self.run(program, args),
+        }
+    }
+
+    fn run_reporting_in(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &Environment,
+    ) -> Result<Ran, String> {
+        self.environments.borrow_mut().push(env.clone());
+        self.run_with_input(program, args, "")
     }
 
     fn run_with_deadline(

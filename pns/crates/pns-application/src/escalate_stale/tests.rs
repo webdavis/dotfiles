@@ -74,7 +74,7 @@ fn fired(recorder: &Recorder, reading: &SurfaceReading) -> StaleOutcome {
         waits: recorder,
         notifier: recorder,
     }
-    .run(NOW, WINDOW, reading)
+    .run(NOW, WINDOW, "", reading)
 }
 
 #[test]
@@ -87,11 +87,11 @@ fn a_stale_block_is_claimed_before_it_is_paged_about() {
     assert_eq!(*recorder.claimed.borrow(), ["s1"]);
     let pages = recorder.pages.borrow();
     assert_eq!(pages.len(), 1);
-    // THE PAGE NAMES A KIND, NEVER A ROUTE: the route it lands on is the one
-    // `[routes] urgent` spells, resolved on the event path this fire raises
-    // the page through.
+    // THE PAGE NAMES A CLASS, NEVER A ROUTE: the route it lands on is the one
+    // that class's own table names, resolved on the event path this fire
+    // raises the page through.
     assert!(pages[0].channel.is_empty(), "{}", pages[0].channel);
-    assert_eq!(pages[0].kind, pns_domain::routes::Kind::Health);
+    assert_eq!(pages[0].delivery_class, pns_domain::stale::DELIVERY_CLASS);
     assert_eq!(pages[0].detail, "blocked 60 minutes, no answer");
     assert_eq!(pages[0].session, "s1");
 }
@@ -146,7 +146,7 @@ fn a_window_of_zero_reads_no_rows_at_all() {
         waits: &recorder,
         notifier: &recorder,
     }
-    .run(NOW, 0, &at_the_desk());
+    .run(NOW, 0, "", &at_the_desk());
     assert_eq!(outcome, StaleOutcome::Off);
     assert!(recorder.claimed.borrow().is_empty());
     assert!(recorder.pages.borrow().is_empty());

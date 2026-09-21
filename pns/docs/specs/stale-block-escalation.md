@@ -1,6 +1,6 @@
 # The stale-block escalation: one page about a session nobody came back to
 
-The nag's sibling, and the second path in pns that speaks about an event long after it happened. When a
+The reminder's sibling, and the second path in pns that speaks about an event long after it happened. When a
 session is waiting on the operator, the event that started that wait records the second it began on the
 session's own row and registers one leased job with the daemon. An hour later the daemon re-executes this
 binary as `pns stale`, and that run (the "fire") pages ONCE about every session still waiting, on
@@ -16,7 +16,7 @@ silently dead on a machine with no `[lights]` table. Fourth, the wait's start an
 rather than copied.
 
 Vocabulary. A **block** is one session's wait on the operator, `blocked_since` on its `sessions` row. The
-**window** is `[nag] stale_after_secs`, "how long a session stays blocked before ONE page about it goes
+**window** is `[stale] escalate_after`, "how long a session stays blocked before ONE page about it goes
 to the priority route". The **fire** is one run of `pns stale`. The **claim** is the `escalated_at` stamp,
 taken under `escalated_at IS NULL` inside the write, which is a compare-and-swap the database arbitrates.
 The **gate** is `stale::gate`, the total function that says whether this moment earns a page.
@@ -29,25 +29,29 @@ waiting. Nothing else is added: the design rejected `ledger_events`, which has n
 timestamp and is never pruned, and rejected a file per session, which would need a sweeper where a row
 replaced in place needs none.
 
-## 1. The window is the switch and the schedule
+## 1. The window is the schedule and `[stale] enabled` is the switch
 
 Given an operator who wants to hear about a session nobody came back to
 
-When `[nag] stale_after_secs` is read out of the configuration file
+When `[stale] escalate_after` is read out of the configuration file
 
-Then 60 to 86400 seconds arms the feature at that window, zero is the feature off, and every other value
-is refused by name.
+Then 1m to 24h arms the feature at that window, `enabled = false` is the feature off, and every other
+value, `"0s"` included, is refused by name.
 
-- Success: an armed `[nag]` table with nothing said carries the default, 3600
-  (`config/tests/nag.rs:the_escalation_window_defaults_to_an_hour_and_zero_is_off_rather_than_an_error`),
-  and the shipped template writes it uncommented at that default, per the defaults-visible ruling of
-  2026-08-31.
-- Failure sources: a negative number, a duration string, 59, and 86401, each refused with the offender
-  named (`config/tests/nag.rs:an_escalation_window_that_is_not_a_count_of_seconds_is_refused_by_name`).
-- Fail direction: an unreadable config reads as OFF (`wait_runtime.rs:stale_after_secs`), the same
-  direction `nag_after_secs` takes and for its reason.
-- Thresholds: 60 admitted, 59 refused; 86400 admitted, 86401 refused; zero carved out and not an error.
-- Compatibility contract: DEFAULT ON at an hour, where `after_secs` beside it is default off. The two
+- Success: an armed `[stale]` table with nothing said carries the default, 3600, and the switch over it
+  defaults true
+  (`config/tests/stale.rs:the_escalation_window_defaults_to_an_hour_and_the_switch_is_what_turns_it_off`),
+  and the shipped template writes both uncommented at those defaults, per the defaults-visible ruling of
+  2026-08-31. `Config::stale_window_secs` is what the page reads: the window while the switch is on and
+  zero while it is off, which is `WINDOW_OFF`'s own reading.
+- Failure sources: a negative number, an integer, 59, and 86401, each refused with the offender named
+  (`config/tests/stale.rs:an_escalation_window_that_is_not_a_duration_is_refused_by_name`).
+- Fail direction: an unreadable config reads as OFF (`wait_runtime.rs:stale_settings`), the same
+  direction `remind_delay_secs` takes and for its reason.
+- Thresholds: 60 admitted, 59 refused; 86400 admitted, 86401 refused; zero refused with a sentence
+  naming the key and pointing at the switch, because an unset window is an hour rather than off and
+  there is nothing absence could say.
+- Compatibility contract: DEFAULT ON at an hour, where `[remind] delay` beside it is default off. The two
   defaults make different mistakes: a nudge nobody asked for interrupts a session the operator is
   already watching, and a page nobody asked for arrives about a session stuck for an hour, which is the
   one thing they would want to know.
@@ -62,21 +66,21 @@ Then `blocked_since` is stamped on that session's row and one leased job `stale:
 with `due = now + window`, `until = due + window`, no `unless_marker` and args `["stale"]`.
 
 - Success: every state in `pulse::LAMP_BLOCKED` arms it, for EVERY harness
-  (`track_wait/tests.rs`, `tests/hooks/stale_arming.rs`). The nag's claude-only gate does not carry
+  (`track_wait/tests.rs`, `tests/hooks/stale_arming.rs`). The reminder's claude-only gate does not carry
   over: it exists because a five-minute nudge would be wrong in the common case for a Codex turn that
   runs tens of minutes, and an hour is past any normal turn.
 - Where it happens: inside the same call as the blocked marker (`SessionWait` beside `BlockedMarker` in
   the record tail), because the row and the job are one fact stated to two readers. Arming from the hook
   arms instead would put them in different places, where an event reaching one and not the other leaves
   a row nothing pages about or a job with no row to find.
-- No `unless_marker`: the nag's answered marker is written by every Stop and StopFailure, so sharing it
+- No `unless_marker`: the reminder's answered marker is written by every Stop and StopFailure, so sharing it
   would cancel almost every escalation before it fired. The row is the authority instead, and the cost is
   one no-op spawn per answered block, an hour after it was answered.
 - Failure sources: a window of zero arms nothing; no clock arms nothing, never a wait at epoch zero; a
   session id that cannot be a filename records nothing at all; a row that cannot be written schedules no
   job and says so on stderr.
 - Required side effects: none beyond the row and the spool entry. Both are local disk writes on a
-  synchronous hook path, in `ArmNag`'s budget: no network, no subprocess, no wait.
+  synchronous hook path, in `ArmRemind`'s budget: no network, no subprocess, no wait.
 - Forbidden side effects: nothing here delivers, and no free text reaches the spool. The fire reads the
   row, so the argv is the subcommand and nothing else.
 - Idempotency: the job id is the spool filename, so a second wait in one session REPLACES the job rather
@@ -112,8 +116,8 @@ oldest first, stamps each row it is about to page, and pages once per row it sta
   (`sqlite/tests/sessions.rs:a_block_as_old_as_the_window_is_selected_and_one_second_short_of_it_is_not`).
 - The claim is the stamp. Two fires woken in one tick produce one page between them, because the write
   carries its own `escalated_at IS NULL`; no lock file of its own is taken, which is where this differs
-  from the nag's `fire.lock`.
-- Stamped on ATTEMPT, never on success, which matches the nag's honesty: a mute, a Focus or an empty plan
+  from the reminder's `fire.lock`.
+- Stamped on ATTEMPT, never on success, which matches the reminder's honesty: a mute, a Focus or an empty plan
   can suppress delivery, and a page that retried every hour because the first one was muted is the
   failure mode worth avoiding.
 - `pns stale` takes no argument, and one is a refusal with exit 2: one fire covers every stuck session,
@@ -140,8 +144,8 @@ window is silent, and anything else pages.
 - The gate is read BEFORE any claim, so a suppressed fire leaves every row as it found it and a later
   fire can still escalate the block. It says how many it held back, and why, on stderr, because that is
   the stream the daemon keeps.
-- ACCEPTED LIMIT: the job is a one-shot, the shape `arm_nag` already uses and for its reason (a
-  held-back nag is lost rather than queued), so a fire suppressed while the operator is away does not
+- ACCEPTED LIMIT: the job is a one-shot, the shape `arm_remind` already uses and for its reason (a
+  held-back remind is lost rather than queued), so a fire suppressed while the operator is away does not
   fire again by itself. What reaches that row is the NEXT wait-starting event of that session, another
   session's fire sweeping every row at once, or `pns stale` typed at the desk, and nothing at all until
   one of those happens: a block that stands through a night on an idle machine is never paged about. The

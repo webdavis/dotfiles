@@ -10,11 +10,11 @@ and this document is posture's reading of it. Any program may implement it.
 
 A producer runs one command and exchanges two JSON documents with it.
 
-| Direction | Carrier                 | Document                    |
-| --------- | ----------------------- | --------------------------- |
-| in        | the command's stdin     | one request envelope        |
-| out       | the command's stdout    | one result envelope         |
-| out       | the command's exit code | whether the run itself held |
+| Direction | Carrier                 | Document                      |
+| --------- | ----------------------- | ----------------------------- |
+| in        | the command's stdin     | one request envelope          |
+| out       | the command's stdout    | one result envelope           |
+| out       | the command's exit code | 0 delivered, 1 not, 2 refused |
 
 The command's arguments are not part of the contract. An engine spells its own submit path however it
 likes, so both the command and its arguments come from config, passed verbatim.
@@ -33,26 +33,42 @@ than a delivery.
 
 ## What posture puts in a request
 
-| Field         | posture's value                                                    |
-| ------------- | ------------------------------------------------------------------ |
-| `request_id`  | `posture-<32 hex>`, derived from the finding's own occurrence seed |
-| `producer`    | `posture`                                                          |
-| `event`       | the source event, such as `alert` or `heartbeat`                   |
-| `state`       | `blocked` for a page, `observation` otherwise                      |
-| `occurred_at` | when the finding happened, where that is known                     |
-| `detail`      | the title, a newline, then the body                                |
-| `route`       | the route the page's own tier names (see below)                    |
-| `class`       | `security`, on a page and never on an observation                  |
+| Field            | posture's value                                                    |
+| ---------------- | ------------------------------------------------------------------ |
+| `request_id`     | `posture-<32 hex>`, derived from the finding's own occurrence seed |
+| `producer`       | `posture`                                                          |
+| `state`          | `blocked` for a page, `observation` otherwise                      |
+| `detail`         | the title, a newline, then the body                                |
+| `route`          | the route the page's own tier names (see below)                    |
+| `delivery_class` | `security`, on a page and never on an observation                  |
 
-Nothing else is set. A repeat submission of the same finding carries the ORIGINAL `request_id`, which is
-what makes a retry idempotent for an engine that keys on it.
+Nothing else is set. The finding's own event name and time still exist inside posture, feeding the
+request-id seed and the hermes body, but they are no longer fields on the request itself. A repeat
+submission of the same finding carries the ORIGINAL `request_id`, which is what makes a retry idempotent
+for an engine that keys on it.
 
 ## What posture requires of a result
 
 An accepted submission must be the engine's promise of a retriable obligation for THIS request, taken
 before any destination is tried. Posture reads that as all three of: a `request_id` equal to the one it
-sent, `status: accepted`, and a `ledger_committed` diagnostic. Destination outcomes are not a substitute,
-because a page that reached no channel yet is still a page the engine owes.
+sent, `status: delivered`, `partial` or `undelivered`, and a `ledger_committed` diagnostic. The status
+says what the destinations did (`delivered`, `partial`, `undelivered`, or `rejected` for a refusal), and
+the diagnostic says the engine took the obligation; posture needs the diagnostic and not a particular
+status, because a page the engine owes and has committed to retrying is already a page posture can stop
+re-reading. Destination outcomes are not a substitute, because a page that reached no channel yet is
+still a page the engine owes.
+
+Every closed set in a result is one bare word (`status`, and each destination's `outcome`), never a
+one-key wrapper object, and a wrapped word is refused rather than read as a delivery. Beside `status` a
+result carries `ledger_sequence`, the engine's own durable row for this request, and a `destinations`
+array whose entries name themselves in `name`. A destination that still names itself in the retired
+`destination` field is refused, so a stale engine fails loudly instead of answering with a nameless leg.
+Each entry also states the `route` it was submitted on, the `note` the destination itself offered about a
+leg it did not deliver, and the `retry_at` unix second the engine will try it again. An absent optional
+field is absent rather than null wherever it appears, on the result and on the request posture writes, so
+`request_id` and `ledger_sequence` are keys a result without them omits. The outcome words are
+`delivered`, `failed`, `silent` (the channel ran and said nothing), `unlaunched` and `unknown` (the
+engine never learned how the attempt ended and is still retrying it).
 
 Anything less leaves posture's own state where it was, so the next run re-reads the same findings. A
 correlated `status: rejected` is a protocol refusal and stays quiet; an engine that could not be run,

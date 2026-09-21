@@ -19,7 +19,7 @@ pub(super) fn acknowledged_banner(sandbox: &Sandbox) -> std::process::Command {
     // its own and every caller adds the rest of the send behind it.
     command
         .env_remove("PNS_CHANNELS_DIR")
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args(["send", "--scope", "local_only"]);
     sandbox.stub_notifier(&mut command);
     sandbox.stub_herdr(&mut command, false);
@@ -114,7 +114,7 @@ pub(super) const RING_KEPT: usize = 5;
 /// THE ONLY WAY AN EVENT IS MISSED IN A TEST, and not a shortcut: the mute is
 /// the one thing that zeroes a plan the matrix would have decorated, which is
 /// what the journal exists to queue. Written rather than spawned through
-/// `pns quiet`, because the engine reads one absolute expiry and a test can
+/// `pns mute`, because the engine reads one absolute expiry and a test can
 /// state one without a second process.
 pub(super) fn mute(sandbox: &Sandbox) {
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
@@ -125,7 +125,7 @@ pub(super) fn mute(sandbox: &Sandbox) {
         + 600;
     if sandbox.path("state/pns.db").exists() {
         pns_adapters::SqliteStore::for_records(sandbox.path("state"))
-            .set_quiet_expiry(Some(expiry))
+            .set_mute_expiry(Some(expiry))
             .expect("the mute");
     } else {
         std::fs::write(sandbox.path("state/quiet-until"), format!("{expiry}\n"))

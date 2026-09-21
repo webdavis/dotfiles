@@ -122,7 +122,7 @@ fn execute<R: posture_adapters::CommandRunner>(
         },
     };
 
-    let outcome = JudgeResults {
+    let report = JudgeResults {
         lock: &lock,
         log: &log,
         cursor: &cursor,
@@ -132,9 +132,18 @@ fn execute<R: posture_adapters::CommandRunner>(
     }
     .run();
 
-    if let JudgeOutcome::Retained = outcome {
+    if let JudgeOutcome::Retained = report.outcome {
         let _ = stderr.write_all(
             b"posture alert: the page could not be delivered; the cursor stays put for a retry\n",
+        );
+    }
+    // A LOST WARNING IS NOT A LOST BATCH. The rows were still judged and the
+    // cursor still moved on their own terms, so this is said rather than
+    // exited on; the run's exit code answers for the batch alone.
+    if report.reset_warning_lost {
+        let _ = stderr.write_all(
+            b"posture alert: the cursor-reset warning reached no destination; \
+              the disturbed alerting state was not reported\n",
         );
     }
     0

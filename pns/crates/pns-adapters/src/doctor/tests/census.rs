@@ -24,11 +24,14 @@ fn a_registered_plugin_the_config_did_not_enable_is_a_skip_that_says_which() {
     // switched off. Neither is an error and both have to be visible, or
     // the operator reads a short report as a complete one.
     assert_eq!(
-        kind_for("[plugins.hermes]\nenabled = true\n", "mobile"),
+        kind_for(
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
+            "phone"
+        ),
         CheckKind::Skipped(NOT_ENABLED)
     );
     assert_eq!(
-        kind_for("[plugins.mobile]\nenabled = false\n", "mobile"),
+        kind_for("[plugins.phone]\nenabled = false\n", "phone"),
         CheckKind::Skipped(NOT_ENABLED)
     );
 }
@@ -72,7 +75,7 @@ fn a_plugin_the_selection_left_out_is_skipped_in_words_true_of_this_machine() {
 #[test]
 fn a_selected_sensor_is_a_skip_because_no_leg_can_ever_reach_one() {
     assert_eq!(
-        kind_for("[plugins.router]\nenabled = true\n", "router"),
+        kind_for("[plugins.home_presence]\nenabled = true\n", "home_presence"),
         CheckKind::Skipped(A_SENSOR)
     );
 }
@@ -80,18 +83,18 @@ fn a_selected_sensor_is_a_skip_because_no_leg_can_ever_reach_one() {
 #[test]
 fn a_selected_channel_no_event_dispatches_is_a_pulse_rather_than_a_send() {
     assert_eq!(
-        kind_for("[plugins.hue]\nenabled = true\n", "hue"),
+        kind_for("[plugins.lights]\nenabled = true\n", "lights"),
         CheckKind::Pulse
     );
 }
 
 #[test]
 fn a_selected_event_dispatched_channel_is_a_send() {
-    for plugin in ["mobile", "macos-banner", "hermes"] {
+    for plugin in ["phone", "banner", "hermes"] {
         assert_eq!(
             kind_for(
-                "[plugins.mobile]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n\
-                     [plugins.hermes]\nenabled = true\n",
+                "[plugins.phone]\nenabled = true\n[plugins.banner]\nenabled = true\n\
+                     [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
                 plugin
             ),
             CheckKind::Send,

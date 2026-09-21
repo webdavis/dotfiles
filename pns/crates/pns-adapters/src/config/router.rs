@@ -2,13 +2,13 @@ use super::Config;
 use pns_domain::home::{DeviceIdentity, DeviceIdentityError, DeviceKey, UNIFI_TYPE};
 
 /// The enabled router sensor's settings table, or the cause it could not be
-/// had. The probe's config home is `[plugins.router]`, the sensor registered
+/// had. The probe's config home is `[plugins.home_presence]`, the sensor registered
 /// in the roster, so the whole file is read by one schema and the operator has
 /// one spelling to get right.
 pub fn enabled_router_table(config: &Config) -> Result<&toml::Table, SetupFailure> {
     let entry = config
         .plugins
-        .get("router")
+        .get("home_presence")
         .ok_or(SetupFailure::NoRouterPlugin)?;
     // A probe the operator SWITCHED OFF is not one they never wrote: one is
     // fixed by flipping the flag in front of them, the other by writing a
@@ -23,7 +23,7 @@ pub fn enabled_router_table(config: &Config) -> Result<&toml::Table, SetupFailur
 /// be had. The TYPE is settled first, because every setting under it belongs
 /// to whichever router it names.
 ///
-/// THE SAME QUESTION `channels::moshi::mobile_backend` ASKS OF THE MOBILE
+/// THE SAME QUESTION `channels::moshi::phone_backend` ASKS OF THE MOBILE
 /// TABLE, and the two refusals are worded to match on purpose: name the table,
 /// quote what was written, name the one type that answers. Reword one and
 /// reword the other, or the rename that gave both tables one word leaves them
@@ -44,14 +44,14 @@ pub fn router_settings(router: &toml::Table) -> Result<RouterSettings, SetupFail
     // Present but empty is a hole, not a value, and present but the wrong
     // type is refused rather than coerced: both are one line for the operator
     // to fix, and neither is a router this probe could reach.
-    let router_url = router
-        .get("router_url")
+    let url = router
+        .get("url")
         .and_then(toml::Value::as_str)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
         .ok_or(SetupFailure::InvalidRouterTable)?;
     Ok(RouterSettings {
-        router_url,
+        url,
         device: device_identity(router)?,
     })
 }
@@ -136,8 +136,8 @@ pub fn router_api_key(router: &toml::Table) -> Option<String> {
 /// THE COMPLAINT IS RETURNED, not printed: this stays a value function, and
 /// the composition root decides that a warning goes to stderr, exactly as
 /// `select_plugins` hands its roster warning back.
-pub fn stale_alert_channel(router: &toml::Table) -> (String, Option<String>) {
-    let Some(value) = router.get("stale_alert_channel") else {
+pub fn stale_alert_route(router: &toml::Table) -> (String, Option<String>) {
+    let Some(value) = router.get("alert_route") else {
         return (String::new(), None);
     };
     match value
@@ -148,7 +148,7 @@ pub fn stale_alert_channel(router: &toml::Table) -> (String, Option<String>) {
         None => (
             String::new(),
             Some(format!(
-                "pns: config error (stale_alert_channel = {} in [plugins.router] is not a \
+                "pns: config error (alert_route = {} in [plugins.home_presence] is not a \
                  usable route name); the stale alert posts to the default route",
                 spell(value)
             )),
@@ -177,7 +177,7 @@ pub enum SetupFailure {
 #[derive(Debug, PartialEq)]
 pub struct RouterSettings {
     /// Where the router answers, e.g. `https://192.168.1.1`.
-    pub router_url: String,
+    pub url: String,
     /// The device to look for in the router's client list.
     pub device: DeviceIdentity,
 }

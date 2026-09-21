@@ -47,7 +47,7 @@ impl<W: AgentWork, M: LampMarkers, R: LampHouseRecords> ReadLampHouse<'_, W, M, 
         // command inherit an agent's finished run and a long build restart its own.
         let agents_working = pns_domain::lights::streak::any_working(&statuses, None);
         let streak = self.records.advance_streak(agents_working, now);
-        let leases = self.markers.leases(now, lights.looping.lease_timeout_secs);
+        let leases = self.markers.leases(now, lights.looping.lease_expiry_secs);
         Standing {
             // WORK THAT HAS NOT REACHED ITS THRESHOLD IS STILL IN FLIGHT, and this
             // is the reading that keeps the tick alive long enough to see it get
@@ -57,9 +57,9 @@ impl<W: AgentWork, M: LampMarkers, R: LampHouseRecords> ReadLampHouse<'_, W, M, 
             in_flight: streak.is_some() || shell_since.is_some() || !leases.is_empty(),
             house: pns_domain::lights::held::House {
                 blocked: pns_domain::lights::held::any_blocked(
-                    &self.markers.blocked(now, lights.blocked.give_up_after_secs),
+                    &self.markers.blocked(now, lights.blocked.lease_expiry_secs),
                     now,
-                    lights.blocked.give_up_after_secs,
+                    lights.blocked.lease_expiry_secs,
                 ),
                 looping: pns_domain::lights::looping::loop_running(
                     &pns_domain::lights::looping::Loop {
@@ -68,8 +68,8 @@ impl<W: AgentWork, M: LampMarkers, R: LampHouseRecords> ReadLampHouse<'_, W, M, 
                         shell_since,
                         leases: &leases,
                         now,
-                        threshold_secs: lights.looping.threshold_secs,
-                        lease_timeout_secs: lights.looping.lease_timeout_secs,
+                        arm_after_secs: lights.looping.arm_after_secs,
+                        lease_expiry_secs: lights.looping.lease_expiry_secs,
                     },
                 ),
                 unread: pns_domain::lights::unread::unread_arming(
@@ -77,7 +77,7 @@ impl<W: AgentWork, M: LampMarkers, R: LampHouseRecords> ReadLampHouse<'_, W, M, 
                     last_interaction(),
                     working,
                     now,
-                    lights.unread.after_secs,
+                    lights.unseen.arm_after_secs,
                 ),
             },
         }

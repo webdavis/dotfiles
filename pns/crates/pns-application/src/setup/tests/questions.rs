@@ -10,7 +10,6 @@ fn setup_keeps_every_credential_hidden_and_delivers_all_other_answers_to_the_ren
         "bridge",
         "hue secret",
         "sha256:0000000000000000000000000000000000000000000000000000000000000001",
-        "Studio, Kitchen",
         "yes",
         "UniFi",
         "router url",
@@ -42,13 +41,12 @@ fn setup_keeps_every_credential_hidden_and_delivers_all_other_answers_to_the_ren
             hue_key: "hue secret".into(),
             hue_certificate:
                 "sha256:0000000000000000000000000000000000000000000000000000000000000001".into(),
-            hue_rooms: vec!["Studio".into(), "Kitchen".into()],
             router_type: "unifi".into(),
             router_url: "router url".into(),
             router_api_key: "router secret".into(),
             router_device_hostname: "phone".into(),
             focus_modes: vec!["Sleep".into(), "Work".into()],
-            nag: true
+            remind: true
         })
     );
     for credential in [
@@ -92,7 +90,6 @@ fn a_certificate_parse_refuses_re_asks_instead_of_composing_a_config_that_fails_
         "hue secret",
         "not-a-pin",
         "sha256:0000000000000000000000000000000000000000000000000000000000000001",
-        "Studio",
         "no",
         "no",
         "no",

@@ -7,7 +7,7 @@ use crate::*;
 /// PUBLISHED ONCE rather than threaded, for the same reason the color answer
 /// is. Fifteen commands used to reach for `std::env::args_os()` themselves,
 /// which is what made a flag typed BEFORE the subcommand shift every position
-/// after it: `pns --no-color daemon start` handed `daemon` to the daemon as its
+/// after it: `pns --no-color gateway start` handed `gateway` to the gateway as its
 /// verb, and `pns --no-color doctor` looked to the doctor like a stray word to
 /// refuse. Reading one filtered answer is what makes the flag mean the same
 /// thing wherever it is typed.
@@ -57,8 +57,10 @@ fn take_tool_wide_flags(argv: &[String]) -> (Vec<String>, bool) {
     (kept, forced_plain)
 }
 
-/// The one flag every printing command answers to.
-const NO_COLOR_FLAG: &str = "--no-color";
+/// The one flag every printing command answers to. `pub(crate)` so the strict
+/// producer parse recognizes it rather than refusing a flag pns takes: the
+/// event path is handed the original argv, colour flag included.
+pub(crate) const NO_COLOR_FLAG: &str = "--no-color";
 /// What a harness word moshi's extension spells ends in. SHAPE ONLY: whether
 /// the word itself is acceptable is `gate_mode`'s to say.
 const HARNESS_HOOK_SUFFIX: &str = "-hook";
@@ -67,7 +69,7 @@ const HARNESS_HOOK_SUFFIX: &str = "-hook";
 /// ONE, NOT TWO. Two is what this mode already returns for argv it will not
 /// accept, and a producer that could not tell a lost page from a mistyped
 /// command would have to guess which of the two it was looking at.
-const EVENT_NOT_DELIVERED: i32 = 1;
+pub(crate) const EVENT_NOT_DELIVERED: i32 = 1;
 
 /// The event mode's exit code, which is the ONE thing a synchronous producer
 /// can read.
@@ -88,17 +90,21 @@ pub(crate) fn event_mode(argv: &[String]) -> i32 {
         match run_event(&event, &system_probes(), &payload, attempt) {
             event_flow::Landed::Yes => 0,
             event_flow::Landed::No => EVENT_NOT_DELIVERED,
+            // BAD INPUT, on the same exit code every other refused field
+            // earns, and the one case on this path that is the caller's own
+            // mistake rather than a delivery that did not land.
+            event_flow::Landed::Rejected => crate::legacy::REFUSED_INPUT,
         }
     })
 }
 
 pub(crate) fn run() {
     // ONE READ OF ARGV, lossy rather than validating: `std::env::args()`
-    // panics on non-UTF-8, and a stray byte degrading into an unknown token
-    // (which the lenient parser already skips) is the honest failure mode
-    // for an always-exit-0 notification path. `first`, the producer check
-    // and the event parse each used to read `std::env::args_os()` on their
-    // own; this is the one collection they share now.
+    // panics on non-UTF-8, and a stray byte degrading into an unknown token,
+    // which the producer parse then refuses by name, says more than an
+    // abort. `first`, the producer check and the event parse each used to
+    // read `std::env::args_os()` on their own; this is the one collection
+    // they share now.
     let argv: Vec<String> = std::env::args_os()
         .skip(1)
         .map(|argument| argument.to_string_lossy().into_owned())
@@ -144,8 +150,12 @@ pub(crate) fn run() {
     }
     // The operator's mute, typed and timed. Also a MODE: it writes the state
     // the event path reads, and delivers nothing itself.
+    if first == "mute" {
+        std::process::exit(mute_mode());
+    }
+    // The word the mute used to answer to.
     if first == "quiet" {
-        std::process::exit(quiet_mode());
+        std::process::exit(crate::command_mute::retired_quiet());
     }
     // One test send through every configured channel, and one line per
     // registered plugin about it. A MODE for the same reason the others are:
@@ -172,12 +182,27 @@ pub(crate) fn run() {
     if first == "recap" {
         std::process::exit(recap_mode());
     }
-    // The clock. A MODE for the reason the others are: `run` takes no event
-    // and delivers nothing itself, and the two typed verbs beside it only move
-    // a file. Nothing on the event path below reaches it, and nothing here
-    // reaches the event path except by re-executing this binary.
+    // Where the operator was, printed. A MODE for the reason the others are:
+    // it reads the state pns already keeps, prints, and reaches the event path
+    // only when `--notify` asks for the page to be delivered.
+    if first == "resume" {
+        std::process::exit(resume_mode());
+    }
+    // The clock and its own launchd service. A MODE for the reason the others
+    // are: `run` takes no event and delivers nothing itself, the typed verbs
+    // beside it only move a file, and the four service verbs only talk to
+    // launchd about the label `[gateway] service` names. Nothing on the event
+    // path below reaches it, and nothing here reaches the event path except by
+    // re-executing this binary.
+    if first == "gateway" {
+        std::process::exit(gateway_mode(&second_argument(&flagless)));
+    }
+    // THE OLD SPELLING, REFUSED BY NAME rather than falling through to the
+    // event path: `pns daemon <verb>` is a command the operator believes ran.
     if first == "daemon" {
-        std::process::exit(daemon_mode(&second_argument(&flagless)));
+        eprintln!("`pns daemon` is now `pns gateway`");
+        eprintln!("{GATEWAY_USAGE}");
+        std::process::exit(2);
     }
     // The lamps' upkeep. A MODE beside the daemon's for the same reason: it
     // takes no decision and delivers nothing, and the daemon is what runs it.
@@ -208,10 +233,14 @@ pub(crate) fn run() {
     // takes NO SESSION ARGUMENT either, because coalescing means it looks at
     // every outstanding record rather than at the one whose timer woke it, so
     // an argument would be a value it had to ignore.
-    if first == "nag" {
-        std::process::exit(nag_mode());
+    if first == "remind" {
+        std::process::exit(remind_mode());
     }
-    // The page about a session nobody came back to. A MODE beside the nag's
+    // The reminder is `pns remind` now, matching `[remind]` and `--remind`.
+    if first == "nag" {
+        std::process::exit(crate::command_remind::retired_nag());
+    }
+    // The page about a session nobody came back to. A MODE beside the reminder's
     // for the same reasons: it reads no stdin, takes no decision from an
     // event, and takes NO SESSION ARGUMENT, because one fire covers every
     // session stuck past the window rather than the one whose timer woke it.
@@ -365,7 +394,7 @@ mod tests {
 
     #[test]
     fn argv_without_the_flag_is_passed_through_unchanged() {
-        let argv = strings(&["daemon", "schedule", "--id", "x"]);
+        let argv = strings(&["gateway", "schedule", "--id", "x"]);
         let (flagless, forced_plain) = take_tool_wide_flags(&argv);
         assert!(!forced_plain);
         assert_eq!(flagless, argv);
@@ -382,14 +411,14 @@ mod tests {
     #[test]
     fn a_verb_keeps_its_position_when_the_flag_was_typed_before_the_subcommand() {
         // The bug this exists to prevent: reading the verb off the environment
-        // handed `daemon` to the daemon as its own verb.
-        let (flagless, _) = take_tool_wide_flags(&strings(&["--no-color", "daemon", "start"]));
+        // handed `gateway` to the gateway as its own verb.
+        let (flagless, _) = take_tool_wide_flags(&strings(&["--no-color", "gateway", "start"]));
         assert_eq!(second_argument(&flagless), "start");
     }
 
     #[test]
     fn a_word_that_merely_contains_the_flag_is_not_the_flag() {
-        let argv = strings(&["recap", "--since=--no-color"]);
+        let argv = strings(&["recap", "--since-epoch=--no-color"]);
         let (flagless, forced_plain) = take_tool_wide_flags(&argv);
         assert!(!forced_plain);
         assert_eq!(flagless, argv);

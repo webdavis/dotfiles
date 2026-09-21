@@ -12,18 +12,18 @@ fn a_table_with_no_token_refuses_by_name_and_posts_nothing() {
     for (channel, key) in [
         (
             DiscordChannel {
-                post: Recorder::answering(DeliveryOutcome::Status(200)),
+                post: Recorder::answering(TransportOutcome::Status(200)),
                 token: None,
                 channels: channels(&[("default", "9001")]),
                 route: String::new(),
                 default_route: DEFAULT_ROUTE.to_string(),
                 threads: Box::new(Remembered::default()),
             },
-            "[plugins.discord] token",
+            "[plugins.log] bot_token",
         ),
         (
-            armed_on("", ChannelMap::new(), DeliveryOutcome::Status(200)),
-            "[plugins.discord.channels] default",
+            armed_on("", ChannelMap::new(), TransportOutcome::Status(200)),
+            "[plugins.log.channels] default",
         ),
     ] {
         let Delivery::Failed(line) = delivered_by(&channel) else {
@@ -52,15 +52,15 @@ fn a_401_dead_letters_on_its_first_attempt_while_429_and_5xx_stay_retryable() {
         (500, false),
         (502, false),
     ] {
-        let channel = armed(DeliveryOutcome::Status(status));
+        let channel = armed(TransportOutcome::Status(status));
         let Delivery::Rejected { status: seen, .. } = delivered_by(&channel) else {
             panic!("a refused post is Rejected with its status, not a bare failure");
         };
         assert_eq!(seen, status);
-        let class = DeliveryOutcome::Status(seen).class();
+        let class = TransportOutcome::Status(seen).class();
         assert_eq!(class.is_permanent(), permanent, "status {status}");
         assert_eq!(
-            limits.verdict(DeliveryOutcome::Status(seen), 0, 0, 0)
+            limits.verdict(TransportOutcome::Status(seen), 0, 0, 0)
                 == Some(DeadletterReason::Permanent),
             permanent,
             "status {status} on its first attempt"
@@ -68,7 +68,10 @@ fn a_401_dead_letters_on_its_first_attempt_while_429_and_5xx_stay_retryable() {
     }
     // And a dead network is the destination's to report and the ledger's to
     // keep retrying.
-    assert_eq!(DeliveryOutcome::NoResponse.class(), FailureClass::Temporary);
+    assert_eq!(
+        TransportOutcome::NoResponse.class(),
+        FailureClass::Temporary
+    );
 }
 
 #[test]
@@ -76,11 +79,11 @@ fn the_token_appears_in_no_rendered_line_whatever_happened() {
     // THE MUTANT THIS PINS: a failure line built from the request rather than
     // the status, which is how a credential reaches a log and a failure page.
     for answer in [
-        DeliveryOutcome::Status(200),
-        DeliveryOutcome::Status(401),
-        DeliveryOutcome::Status(429),
-        DeliveryOutcome::NoResponse,
-        DeliveryOutcome::NoStatus,
+        TransportOutcome::Status(200),
+        TransportOutcome::Status(401),
+        TransportOutcome::Status(429),
+        TransportOutcome::NoResponse,
+        TransportOutcome::NoStatus,
     ] {
         let channel = armed(answer);
         let line = match delivered_by(&channel) {
@@ -95,7 +98,7 @@ fn the_token_appears_in_no_rendered_line_whatever_happened() {
 
 #[test]
 fn the_composed_request_carries_the_bot_authorization_the_user_agent_and_no_mentions() {
-    let channel = armed(DeliveryOutcome::Status(200));
+    let channel = armed(TransportOutcome::Status(200));
     delivered_by(&channel);
     let seen = channel.post.seen.lock().unwrap();
     let sent = seen.first().expect("one post went out");
@@ -182,7 +185,7 @@ fn the_event_picks_its_channel_and_the_route_picks_it_first() {
         ("", nothing_mapped, "catch-all"),
         ("", no_project, "engine"),
     ] {
-        let channel = armed_on(route, map.clone(), DeliveryOutcome::Status(200));
+        let channel = armed_on(route, map.clone(), TransportOutcome::Status(200));
         assert!(
             matches!(delivered_about(&channel, &event), Delivery::Delivered(_)),
             "route {route:?} delivered"
@@ -204,7 +207,7 @@ fn a_github_event_and_a_session_event_about_one_repository_reach_one_channel() {
     from_github.branch = "lint".to_string();
     from_github.state = "failed".to_string();
     for subject in [event(), from_github] {
-        let channel = armed_on("", map.clone(), DeliveryOutcome::Status(200));
+        let channel = armed_on("", map.clone(), TransportOutcome::Status(200));
         assert!(
             matches!(delivered_about(&channel, &subject), Delivery::Delivered(_)),
             "project {:?} delivered",

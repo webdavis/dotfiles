@@ -14,6 +14,8 @@ use std::time::{Duration, Instant};
 mod drain;
 mod wait;
 
+use crate::lanes::Environment;
+use crate::runner::prefixed_path;
 use drain::Drain;
 use wait::{TERM_GRACE, wait_bounded};
 
@@ -66,7 +68,7 @@ pub fn bounded_spawn_in(
     args: &[&str],
     stdin: Stdio,
     budget: Duration,
-    env: &std::collections::BTreeMap<String, String>,
+    env: &Environment,
 ) -> Spawned {
     spawn_with_environment(program, args, stdin, budget, Some(env.clone()), None)
 }
@@ -85,7 +87,7 @@ fn spawn_with_environment(
     args: &[&str],
     stdin: Stdio,
     budget: Duration,
-    env: Option<std::collections::BTreeMap<String, String>>,
+    env: Option<Environment>,
     output_file: Option<File>,
 ) -> Spawned {
     if let Some(why) = crate::interruption::refusal() {
@@ -102,7 +104,22 @@ fn spawn_with_environment(
         let started = Instant::now();
         let mut command = Command::new(&owned_program);
         if let Some(env) = env {
-            command.env_clear().envs(env);
+            if env.only_these {
+                command.env_clear();
+            }
+            command.envs(&env.variables);
+            if let Some(prefix) = &env.path_prefix {
+                // AN ISOLATED ENVIRONMENT PREFIXES ITS OWN PATH, never uu's
+                // inherited one: `only_these` exists to keep the child from
+                // seeing what uu was started with, and joining against the
+                // real environment here would hand it back regardless.
+                let inherited = if env.only_these {
+                    env.variables.get("PATH").map(std::ffi::OsString::from)
+                } else {
+                    std::env::var_os("PATH")
+                };
+                command.env("PATH", prefixed_path(prefix, inherited.as_deref()));
+            }
         }
         let spawned = command
             .args(&owned_args)

@@ -1,5 +1,5 @@
 use super::*;
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 
 fn stored(id: u64, failed_at: u64, retries: u64, deadlettered: bool) -> StoredFailure {
     StoredFailure {
@@ -8,7 +8,7 @@ fn stored(id: u64, failed_at: u64, retries: u64, deadlettered: bool) -> StoredFa
         route: "testpath".into(),
         agent: "posture".into(),
         state: "failed".into(),
-        outcome: DeliveryOutcome::Status(404),
+        outcome: TransportOutcome::Status(404),
         failed_at,
         retries,
         deadlettered,
@@ -73,10 +73,14 @@ fn a_pass_speaks_only_for_the_rows_it_recorded() {
 }
 
 fn composed(destination: &str) -> Failure {
-    crate::command_failures::compose(&StoredFailure {
-        destination: destination.into(),
-        ..stored(1, PASS_BEGAN, 0, false)
-    })
+    crate::command_failures::compose(
+        &StoredFailure {
+            destination: destination.into(),
+            ..stored(1, PASS_BEGAN, 0, false)
+        },
+        None,
+        None,
+    )
 }
 
 /// NEVER THROUGH THE DESTINATION THAT FAILED. A card about a push that was
@@ -84,7 +88,7 @@ fn composed(destination: &str) -> Failure {
 /// arrives nowhere and the operator learns nothing.
 #[test]
 fn a_mobile_failure_pushes_no_card_about_itself() {
-    assert_eq!(card_surface(&composed("mobile"), true), None);
+    assert_eq!(card_surface(&composed("phone"), true), None);
 }
 
 /// hermes carries the full form, so a hermes failure means there is nothing in
@@ -95,21 +99,22 @@ fn a_hermes_failure_cards_the_phone_and_says_discord_is_empty() {
     assert_eq!(
         card_surface(&composed("hermes"), true),
         Some(NotificationSurface::Phone {
-            serve: true,
+            page_enabled: true,
             hermes_failed: true,
         })
     );
 }
 
-/// `serve` rides through untouched: it is the switch that decides which pointer
-/// the fix line carries, and this module decides nothing about the wording.
+/// `page_enabled` rides through untouched: it is the switch that decides which
+/// pointer the fix line carries, and this module decides nothing about the
+/// wording.
 #[test]
-fn the_serve_switch_reaches_the_card_as_written() {
-    for serve in [true, false] {
+fn the_page_switch_reaches_the_card_as_written() {
+    for page_enabled in [true, false] {
         assert_eq!(
-            card_surface(&composed("hermes"), serve),
+            card_surface(&composed("hermes"), page_enabled),
             Some(NotificationSurface::Phone {
-                serve,
+                page_enabled,
                 hermes_failed: true,
             })
         );

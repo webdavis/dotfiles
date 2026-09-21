@@ -29,25 +29,25 @@ fn every_surface_and_visibility_pair_dispatches_the_legs_its_row_planned() {
             "at the desk, pane on another tab: banner",
             Some(2),
             Some(elsewhere("wW:p1")),
-            vec!["macos-banner", "hermes"],
+            vec!["banner", "hermes"],
         ),
         (
             "at the desk, view unreadable: banner, never suppressed on doubt",
             Some(2),
             None,
-            vec!["macos-banner", "hermes"],
+            vec!["banner", "hermes"],
         ),
         (
             "away, pane on screen: the card still fires",
             Some(9_000),
             Some(watching("wW:p1")),
-            vec!["mobile", "hermes"],
+            vec!["phone", "hermes"],
         ),
         (
             "away, pane hidden: card, and no banner for an empty room",
             Some(9_000),
             Some(elsewhere("wW:p1")),
-            vec!["mobile", "hermes"],
+            vec!["phone", "hermes"],
         ),
     ];
     for (label, idle, view, expected) in matrix {
@@ -77,8 +77,8 @@ fn a_phone_used_more_recently_than_the_desk_never_gets_a_banner() {
     };
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
-    assert!(!legs.contains(&"macos-banner"), "got {legs:?}");
-    assert!(legs.contains(&"mobile"), "got {legs:?}");
+    assert!(!legs.contains(&"banner"), "got {legs:?}");
+    assert!(legs.contains(&"phone"), "got {legs:?}");
 }
 
 #[test]
@@ -94,7 +94,7 @@ fn what_put_the_operator_on_mobile_decides_whether_the_watched_pane_suppresses()
             "D6: tapped, moshi never opened, so nothing is being watched",
             Some(999_990),
             None,
-            vec!["mobile", "hermes"],
+            vec!["phone", "hermes"],
         ),
         (
             "D5: moshi open on the pane, which is watching it for real",
@@ -131,8 +131,8 @@ fn a_tap_with_moshi_closed_cards_even_when_the_session_view_cannot_be_read() {
     };
     let decision = decide_with(&probes, &Overrides::default(), "wW:p1");
     let legs = names(&decision);
-    assert!(legs.contains(&"mobile"), "got {legs:?}");
-    assert!(!legs.contains(&"macos-banner"), "mobile never banners");
+    assert!(legs.contains(&"phone"), "got {legs:?}");
+    assert!(!legs.contains(&"banner"), "mobile never banners");
 }
 
 #[test]
@@ -183,7 +183,7 @@ fn the_mobile_watch_card_toggle_adds_the_card_only_when_it_is_on() {
             true,
             on,
         );
-        decision.legs.iter().any(|leg| leg.name == "mobile")
+        decision.legs.iter().any(|leg| leg.name == "phone")
     };
     assert!(!with_toggle(false), "default off: the pulse says it alone");
     assert!(with_toggle(true), "on: the card joins the pulse");

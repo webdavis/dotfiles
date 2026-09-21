@@ -60,8 +60,7 @@ fn presence_poll(launch: Launch) -> i32 {
     ) else {
         return 0;
     };
-    let Some(hue) = pns_adapters::armed_hue(&settings, None, |refusal| eprintln!("{refusal}"))
-    else {
+    let Some(hue) = pns_adapters::armed_hue(&settings, |refusal| eprintln!("{refusal}")) else {
         return 0;
     };
     // THE TRANSPORT'S OWN DEADLINE, twice, which is what keeps the whole poll
@@ -89,7 +88,7 @@ pub(crate) fn write_presence_reading<B: pns_adapters::Bridge>(
     pns_application::poll_presence(
         &pns_adapters::BridgePresencePoll { bridge, state },
         &presence.rooms,
-        &presence.exclude,
+        &presence.excluded_rooms,
         now,
     )
 }
@@ -132,7 +131,7 @@ fn ensure_presence_poll(state: &Path, presence: Option<&pns_adapters::Presence>,
     pns_application::ensure_presence_poll(
         &pns_adapters::FileJobSpool::new(state.to_path_buf()),
         presence.map_or(pns_application::PollSetting::Off, |presence| {
-            pns_application::PollSetting::Every(presence.poll_secs)
+            pns_application::PollSetting::Every(presence.poll_interval_secs)
         }),
         now,
     );

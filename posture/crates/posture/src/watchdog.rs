@@ -1,8 +1,9 @@
 mod configuration;
 use configuration::Configuration;
 use posture_adapters::{
-    CommandRunner, GatewayProbe, LastResortBanner, QueueDatabase, SnapshotsFile, SystemClock,
-    SystemRunner, SystemWatchdogProcesses, WatchdogAudit, WatchdogStateFile, alert_sink,
+    CommandRunner, GatewayProbe, LastResortBanner, LibprocProcesses, ProcessLookup, QueueDatabase,
+    SnapshotsFile, SystemClock, SystemRunner, SystemWatchdogProcesses, WatchdogAudit,
+    WatchdogStateFile, alert_sink,
 };
 use posture_application::{Clock, GatewayHealth, Watchdog, WatchdogOutcome};
 use std::{ffi::OsString, io::Write, time::Duration};
@@ -26,6 +27,7 @@ pub(super) fn run(args: &[OsString], stderr: &mut impl Write) -> u8 {
             fallback: SystemRunner::per_command(Duration::from_secs(10)),
             independent: SystemRunner::per_command(Duration::from_secs(10)),
         },
+        LibprocProcesses::default(),
         &mut gateway,
         stderr,
     )
@@ -40,6 +42,7 @@ fn execute(
     config: Configuration,
     mut clock: impl Clock,
     runners: Runners<impl CommandRunner>,
+    process_table: impl ProcessLookup,
     gateway: &mut dyn GatewayHealth,
     stderr: &mut impl Write,
 ) -> u8 {
@@ -52,7 +55,7 @@ fn execute(
     let outcome = Watchdog {
         clock: &mut clock,
         snapshots: &mut SnapshotsFile::new(config.snapshots),
-        processes: &mut SystemWatchdogProcesses::current_user(runners.processes),
+        processes: &mut SystemWatchdogProcesses::current_user(runners.processes, process_table),
         gateway,
         legacy_queue: &mut QueueDatabase::legacy(config.legacy_queue),
         pns_ledger: &mut QueueDatabase::pns(config.pns_ledger),

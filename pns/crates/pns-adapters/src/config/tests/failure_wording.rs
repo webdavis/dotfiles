@@ -8,7 +8,7 @@
 //! and look for it. These cases turn that into a build failure.
 
 use crate::config::schema::{TABLE_KEYS, is_open};
-use pns_domain::failure::{MOBILE_TOKEN, hermes_key_named};
+use pns_domain::failure::{PHONE_TOKEN, hermes_key_named};
 use pns_domain::routes::Routes;
 
 /// Every route a message in these cases is composed about: the two this
@@ -42,7 +42,7 @@ fn declared(quoted: &str) -> bool {
 
 #[test]
 fn every_config_key_a_failure_message_quotes_is_a_key_the_schema_declares() {
-    let mut quoted = vec![MOBILE_TOKEN.to_string()];
+    let mut quoted = vec![PHONE_TOKEN.to_string()];
     // ONE PER ROUTE, because the hermes wording names the route's own key and
     // a table that stopped serving them is a message pointing at a key the
     // config refuses.
@@ -73,17 +73,37 @@ fn the_no_key_refusal_quotes_a_key_the_schema_declares() {
     }
 }
 
+/// The lights and github doctor and error lines quote their keys through
+/// `pns_domain::config_keys` rather than a literal, so this is the same
+/// commitment `PHONE_TOKEN` makes, held for the keys that live in that module.
+#[test]
+fn the_lights_and_github_key_constants_are_keys_the_schema_declares() {
+    use pns_domain::config_keys::{
+        GITHUB_PERSONAL_ACCESS_TOKEN, LIGHTS_API_KEY, LIGHTS_BRIDGE_HOST,
+    };
+    for quoted in [
+        format!("[plugins.lights] {LIGHTS_BRIDGE_HOST}"),
+        format!("[plugins.lights] {LIGHTS_API_KEY}"),
+        format!("[plugins.github] {GITHUB_PERSONAL_ACCESS_TOKEN}"),
+    ] {
+        assert!(
+            declared(&quoted),
+            "{quoted} is quoted in a message but the schema declares no such key"
+        );
+    }
+}
+
 /// The guard above is only worth having if it can fail, and the shape it parses
 /// is easy to get subtly wrong. This pins that a key the schema does not declare
 /// is rejected, rather than the parse quietly returning true for everything.
 #[test]
 fn a_quoted_key_the_schema_does_not_declare_is_rejected() {
-    assert!(!declared("[plugins.hermes] key"));
-    assert!(!declared("[plugins.hermes.nested] pns"));
-    assert!(!declared("[plugins.hermes.keys]pns"));
-    assert!(!declared("plugins.hermes.keys pns"));
+    assert!(!declared("[plugins.log] key"));
+    assert!(!declared("[plugins.log.nested] pns"));
+    assert!(!declared("[plugins.log.keys]pns"));
+    assert!(!declared("plugins.log.keys pns"));
     assert!(
-        !declared("[plugins.mobile] tokens"),
+        !declared("[plugins.phone] tokens"),
         "a closed table still refuses a key it does not serve"
     );
 }

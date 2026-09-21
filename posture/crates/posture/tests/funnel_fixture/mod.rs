@@ -1,3 +1,4 @@
+use crate::sandbox::Sandbox;
 use posture_domain::FUNNEL_EXPOSURE_KEY_LIMIT;
 use serde_json::Value;
 use std::os::unix::fs::PermissionsExt;
@@ -47,9 +48,10 @@ pub fn compare(name: &str) {
         lines.push(format!("- …and {omitted} more"));
         case["expected"]["alerts"][0]["body"] = lines.join("\n").into();
     }
-    let home = std::env::temp_dir().join(format!("posture-funnel-{}-{name}", std::process::id()));
-    fs::create_dir(&home).unwrap();
-    let home = home.canonicalize().unwrap();
+    let sandbox = Sandbox::new(&format!("funnel-{name}"));
+    // Canonical, because a run reports the paths it resolved and a symlinked
+    // temporary directory would not match them.
+    let home = sandbox.path().canonicalize().unwrap();
     let state = home.join("state/baseline");
     fs::create_dir(state.parent().unwrap()).unwrap();
     if let Some(prior) = case["prior"].as_str() {
@@ -94,7 +96,7 @@ pub fn compare(name: &str) {
     let (status, diagnostics, exit) = if case["reject"] == true {
         ("rejected", "", 2)
     } else {
-        ("accepted", "\"ledger_committed\"", 0)
+        ("delivered", "\"ledger_committed\"", 0)
     };
     executable(
         &engine,
@@ -209,7 +211,7 @@ exit {exit}
     assert_eq!(requests.len(), alerts.len(), "{name} submissions");
     for (index, (request, alert)) in requests.iter().zip(alerts).enumerate() {
         assert_eq!(request["producer"], "posture");
-        assert_eq!(request["class"], "security");
+        assert_eq!(request["delivery_class"], "security");
         assert_eq!(request["route"], "posture-pages");
         assert_eq!(request["state"], "blocked");
         assert_eq!(

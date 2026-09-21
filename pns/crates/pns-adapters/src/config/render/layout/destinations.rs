@@ -1,14 +1,14 @@
 use super::*;
-pub(super) const PLUGINS_MOBILE: Table = Table {
-    name: "plugins.mobile",
+pub(super) const PLUGINS_PHONE: Table = Table {
+    name: "plugins.phone",
     prose: "",
     opt_in: false,
-    children: &[PLUGINS_MOBILE_IMAGE_CARDS],
+    children: &[PLUGINS_PHONE_IMAGE_CARDS],
     keys: &[
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
@@ -18,13 +18,13 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
             sample: Sample::Default("\"moshi\""),
         },
         Key {
-            name: "token",
+            name: "device_token",
             prose: "# Pair with moshi and put the webhook secret it issues here: that pairing\n\
                          # is what completes the phone card.\n",
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "mobile_watch_card",
+            name: "card_while_watching",
             prose: "# Whether a long command's card still fires while you are watching that\n\
                          # pane on the phone. OFF: a card describing the pane already filling the\n\
                          # screen is noise, and the light pulse alone marks the command finishing;\n\
@@ -32,21 +32,36 @@ pub(super) const PLUGINS_MOBILE: Table = Table {
             sample: Sample::Default("false"),
         },
         Key {
-            name: "submit_deadline_secs",
+            name: "url",
+            prose: "# Where the card is pushed. Left out it is moshi\u{27}s own webhook endpoint,\n\
+                         # which is what a paired phone answers at; name one to point this\n\
+                         # install at a gateway of your own.\n",
+            sample: Sample::Example("\"https://api.getmoshi.app/api/webhook\""),
+        },
+        Key {
+            name: "ack_deadline",
             prose: "# How long pns waits for moshi to acknowledge a submitted permission\n\
-                         # prompt, in seconds. The harness draws the prompt only once the hook\n\
-                         # returns, so this is time the question is off your screen. On expiry\n\
-                         # the submission is killed and its pending card dies with it, and\n\
-                         # nothing is said either way. There is no off switch: zero, a negative,\n\
-                         # a fraction and anything past 3600 are refused by name.\n",
-            sample: Sample::Default("5"),
+                         # prompt. The harness draws the prompt only once the hook returns, so\n\
+                         # this is time the question is off your screen. On expiry the\n\
+                         # submission is killed and its pending card dies with it, and nothing\n\
+                         # is said either way. There is no off switch: \"0s\", anything under a\n\
+                         # second and anything past \"1h\" are refused by name.\n",
+            sample: Sample::Default("\"5s\""),
+        },
+        Key {
+            name: "marker_file",
+            prose: "# Where `pns tap` writes the phone's attention marker and the presence\n\
+                         # reader looks for it: an absolute path or a ~/ path. Read whether or\n\
+                         # not the card is switched on, and missing config uses this default\n\
+                         # too. Setup guide: pns tap install.\n",
+            sample: Sample::Default("\"~/.local/state/pns/phone-attention.marker\""),
         },
     ],
 };
 /// Which card types carry an image, keyed by card type. An OPEN table, shipped
 /// with every card type off.
-const PLUGINS_MOBILE_IMAGE_CARDS: Table = Table {
-    name: "plugins.mobile.image_cards",
+const PLUGINS_PHONE_IMAGE_CARDS: Table = Table {
+    name: "plugins.phone.image_cards",
     prose: "# Which card types carry an IMAGE of the whole message, keyed by card type\n\
                  # and off for every one of them until you name it here. A card type is the\n\
                  # state word the event carried: `missed` is the card a return raises,\n\
@@ -75,70 +90,45 @@ const PLUGINS_MOBILE_IMAGE_CARDS: Table = Table {
         sample: Sample::Example("false"),
     }],
 };
-pub(super) const PLUGINS_DISCORD: Table = Table {
-    name: "plugins.discord",
-    prose: "# The durable paper trail, posted straight to Discord by pns's own bot with\n\
-                 # no gateway in between. THE ALTERNATIVE TO [plugins.hermes] ABOVE, never a\n\
-                 # companion: both enabled at once is refused at load, naming both tables,\n\
-                 # because two durable logs post every event twice. The cutover is two lines\n\
-                 # in one edit, and the rollback is the same two the other way.\n",
+pub(super) const PLUGINS_LOG: Table = Table {
+    name: "plugins.log",
+    prose: "# The durable paper trail: every event written where it can be read back\n\
+                 # later. ONE TABLE, so two of them cannot be declared: `type` names the\n\
+                 # transport that carries it, and the credentials for the other one can sit\n\
+                 # here ready so the cutover is that single line.\n",
     opt_in: true,
-    children: &[PLUGINS_DISCORD_CHANNELS],
+    children: &[PLUGINS_LOG_KEYS, PLUGINS_LOG_CHANNELS],
     keys: &[
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
             name: "type",
-            prose: "# Which compiled-in transport carries the post. \"bot\" is the only one\n\
-                         # today, and a table naming none, or naming one nothing answers, is\n\
-                         # refused out loud rather than read as this one.\n",
-            sample: Sample::Default("\"bot\""),
+            prose: "# Which compiled-in transport carries the log. \"hermes\" posts one signed\n\
+                         # request per event to a hermes route; \"discord\" posts straight to a\n\
+                         # channel with pns\u{27}s own bot and no gateway in between. Anything\n\
+                         # else, and a table naming none, is refused out loud at load.\n",
+            sample: Sample::Default("\"hermes\""),
         },
         Key {
-            name: "token",
-            prose: "# The bot token, from the Discord application\u{27}s Bot page. Every call\n\
-                         # carries it as `Authorization: Bot <token>`, and a table with none\n\
-                         # posts nothing and says which key is missing.\n",
+            name: "url",
+            prose: "# HERMES ONLY: the gateway endpoint. Left out, each route posts to the\n\
+                         # shipped address with that route as its last path segment, so renaming\n\
+                         # a route moves the path and not the gateway. NAMED, this one address\n\
+                         # carries EVERY route verbatim, which is why it is a whole-install\n\
+                         # override rather than the usual way to point at your own gateway.\n",
+            sample: Sample::Example("\"http://127.0.0.1:8644/webhooks/pns-events\""),
+        },
+        Key {
+            name: "bot_token",
+            prose: "# DISCORD ONLY: the bot token, from the Discord application\u{27}s Bot page.\n\
+                         # Every call carries it as `Authorization: Bot <token>`, and a discord\n\
+                         # log with none posts nothing and says which key is missing.\n",
             sample: Sample::Example("\"\""),
         },
     ],
-};
-/// The channels the bot posts to, keyed by PROJECT. An OPEN table: every key
-/// but `default` is a name the operator chose, so the render writes whatever
-/// the values file states rather than a roster of its own.
-const PLUGINS_DISCORD_CHANNELS: Table = Table {
-    name: "plugins.discord.channels",
-    prose: "# Where a post goes, looked up in this order, first hit wins: the route the\n\
-                 # event named (the urgent route carries anything critical, whatever the\n\
-                 # project), then its repository as `owner/name`, then the bare project\n\
-                 # name, then the default route for an event with no project at all, then\n\
-                 # `default`. The last two are deliberately different channels: an\n\
-                 # unmapped project and no project are two failures, in two places to\n\
-                 # look. `default` is REQUIRED and an armed table without it is refused at\n\
-                 # load. A channel id is the number Discord copies from a channel\u{27}s\n\
-                 # Copy Channel ID, and it is a secret like every other id here.\n",
-    opt_in: true,
-    children: &[],
-    keys: &[Key {
-        name: "default",
-        prose: "",
-        sample: Sample::Example("\"\""),
-    }],
-};
-pub(super) const PLUGINS_HERMES: Table = Table {
-    name: "plugins.hermes",
-    prose: "# The durable paper trail: every event posted to a hermes route, signed\n\
-                 # with the key that route verifies.\n",
-    opt_in: true,
-    children: &[PLUGINS_HERMES_KEYS],
-    keys: &[Key {
-        name: "enabled",
-        prose: "",
-        sample: Sample::Default("true"),
-    }],
 };
 /// One signing key per route, because one key for all of them means a key
 /// leaked from any route can post to every route.
@@ -148,18 +138,41 @@ pub(super) const PLUGINS_HERMES: Table = Table {
 /// is nothing to declare here: whatever the values file writes is what goes
 /// out, and a route with no key here posts nothing and says which key is
 /// missing rather than signing with somebody else's secret.
-const PLUGINS_HERMES_KEYS: Table = Table {
-    name: "plugins.hermes.keys",
-    prose: "# One signing key per route, keyed by the route name and each prepared in\n\
-                 # ~/.hermes/config.yaml under that same name. These keys are the whole\n\
-                 # roster: a route named here is a route this machine will post to, and\n\
-                 # one with no key posts nothing and says which key is missing.\n",
+const PLUGINS_LOG_KEYS: Table = Table {
+    name: "plugins.log.keys",
+    prose: "# HERMES ONLY: one signing key per route, keyed by the route name and each\n\
+                 # prepared in ~/.hermes/config.yaml under that same name. These keys are\n\
+                 # the whole roster: a route named here is a route this machine will post\n\
+                 # to, and one with no key posts nothing and says which key is missing.\n",
     opt_in: true,
     children: &[],
     keys: &[],
 };
-pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
-    name: "plugins.macos-banner",
+/// The channels the bot posts to, keyed by PROJECT. An OPEN table: every key
+/// but `default` is a name the operator chose, so the render writes whatever
+/// the values file states rather than a roster of its own.
+const PLUGINS_LOG_CHANNELS: Table = Table {
+    name: "plugins.log.channels",
+    prose: "# DISCORD ONLY: where a post goes, looked up in this order, first hit wins:\n\
+                 # the route the event named (the urgent route carries anything critical,\n\
+                 # whatever the project), then its repository as `owner/name`, then the\n\
+                 # bare project name, then the default route for an event with no project\n\
+                 # at all, then `default`. The last two are deliberately different\n\
+                 # channels: an unmapped project and no project are two failures, in two\n\
+                 # places to look. `default` is REQUIRED and an armed discord log without\n\
+                 # it is refused at load. A channel id is the number Discord copies from a\n\
+                 # channel\u{27}s Copy Channel ID, and it is a secret like every other id\n\
+                 # here.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "default",
+        prose: "",
+        sample: Sample::Example("\"\""),
+    }],
+};
+pub(super) const PLUGINS_BANNER: Table = Table {
+    name: "plugins.banner",
     prose: "# The macOS banner, which is what a machine you are sitting at says.\n",
     opt_in: false,
     children: &[],
@@ -167,7 +180,21 @@ pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
+        },
+        Key {
+            name: "type",
+            prose: "# Which compiled-in surface raises the banner. \"macos\" is the only one\n\
+                         # today, and a table naming one nothing answers is refused out loud.\n",
+            sample: Sample::Default("\"macos\""),
+        },
+        Key {
+            name: "terminal_bundle_id",
+            prose: "# The terminal a banner click returns to, as a bundle id. Left out, the\n\
+                         # one this process was started from is used, which is right on a machine\n\
+                         # with one terminal; name it where a hook runs under launchd and\n\
+                         # inherits none.\n",
+            sample: Sample::Example("\"com.mitchellh.ghostty\""),
         },
         Key {
             name: "click_type",
@@ -188,26 +215,32 @@ pub(super) const PLUGINS_MACOS_BANNER: Table = Table {
         },
     ],
 };
-pub(super) const PLUGINS_HUE: Table = Table {
-    name: "plugins.hue",
-    prose: "# The light pulse: the named rooms flash green when work finishes and red\n\
-                 # when it dies. Needs the bridge's address, a key it issued, and the rooms\n\
-                 # spelled the way the bridge spells them.\n",
+pub(super) const PLUGINS_LIGHTS: Table = Table {
+    name: "plugins.lights",
+    prose: "# The light pulse: the TRANSPORT alone, which needs the bridge's address,\n\
+                 # a key it issued and the certificate it presents. WHICH lamp shows what,\n\
+                 # and when it runs dimmed, is the `[lights]` policy below.\n",
     opt_in: true,
     children: &[],
     keys: &[
         Key {
             name: "enabled",
             prose: "",
-            sample: Sample::Default("true"),
+            sample: Sample::Default("false"),
         },
         Key {
-            name: "bridge",
+            name: "type",
+            prose: "# Which compiled-in bridge answers. \"hue\" is the only one today, and a\n\
+                         # table naming one nothing answers is refused out loud.\n",
+            sample: Sample::Default("\"hue\""),
+        },
+        Key {
+            name: "bridge_host",
             prose: "",
             sample: Sample::Example("\"\""),
         },
         Key {
-            name: "key",
+            name: "api_key",
             prose: "",
             sample: Sample::Example("\"\""),
         },
@@ -221,23 +254,6 @@ pub(super) const PLUGINS_HUE: Table = Table {
                          # value from `pns lights enroll`, which prints this line ready to\n\
                          # paste; it changes only when the bridge hardware does.\n",
             sample: Sample::Example("\"\""),
-        },
-        Key {
-            name: "rooms",
-            prose: "",
-            sample: Sample::Example("[]"),
-        },
-        Key {
-            name: "quiet_hours",
-            prose: "# The hours the room pulse stays dark: local wall clock, the start\n\
-                         # inclusive and the end exclusive, and it may wrap midnight. A hand-run\n\
-                         # `pns lights pulse` is exempt, so a bridge and key can be checked\n\
-                         # in-window.\n\
-                         # A bare `pns lights quiet <place>` mutes until this window ends and is\n\
-                         # refused when none is set. With a `[lights]` table below, each place's\n\
-                         # own `dim_window` decides the night instead and this window is the\n\
-                         # mute's schedule alone.\n",
-            sample: Sample::Example("\"22:00-07:00\""),
         },
     ],
 };

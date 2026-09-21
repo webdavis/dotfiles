@@ -1,14 +1,14 @@
 use super::{Answers, compose_config};
-use crate::config::{DEFAULT_SUBMIT_DEADLINE_SECS, Recap, parse_config};
+use crate::config::{DEFAULT_ACK_DEADLINE, Recap, parse_config};
 
 /// Every table a walk can decline, spelled as a heading standing at the
 /// head of a line: what the two ends of the walk are checked for.
 const DECLINABLE_TABLES: [&str; 5] = [
-    "[plugins.hermes]",
-    "[plugins.hue]",
-    "[plugins.router]",
+    "[plugins.log]",
+    "[plugins.lights]",
+    "[plugins.home_presence]",
     "[focus]",
-    "[nag]",
+    "[remind]",
 ];
 
 /// A walk that armed everything it was offered.
@@ -20,13 +20,12 @@ fn every_feature_armed() -> Answers {
         hue_key: "hue-secret".to_string(),
         hue_certificate: "sha256:0000000000000000000000000000000000000000000000000000000000000001"
             .to_string(),
-        hue_rooms: vec!["Studio".to_string(), "Kitchen".to_string()],
         router_type: "unifi".to_string(),
         router_url: "https://192.168.1.1".to_string(),
         router_api_key: "router-secret".to_string(),
         router_device_hostname: "phone".to_string(),
         focus_modes: vec!["Sleep".to_string()],
-        nag: true,
+        remind: true,
     }
 }
 

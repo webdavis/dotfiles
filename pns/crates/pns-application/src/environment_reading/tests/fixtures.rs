@@ -81,9 +81,9 @@ pub(super) fn watching(origin: &str) -> SessionView {
 pub(super) fn three_selection() -> Selection {
     pns_domain::registry::roster()
         .enabled(&std::collections::BTreeMap::from([
-            ("mobile".to_string(), true),
+            ("phone".to_string(), true),
             ("hermes".to_string(), true),
-            ("macos-banner".to_string(), true),
+            ("banner".to_string(), true),
         ]))
         .unwrap()
 }

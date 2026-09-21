@@ -61,7 +61,7 @@ fn report(
             kind: CheckKind::Send,
         },
         Check {
-            plugin: "hue",
+            plugin: "lights",
             kind: CheckKind::Pulse,
         },
         Check {
@@ -80,7 +80,7 @@ fn report(
         records: history,
         clock: &|| Some(100),
         replay_card: false,
-        nag_after_secs: 0,
+        remind_delay_secs: 0,
     }
     .run(
         DoctorActions {

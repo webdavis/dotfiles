@@ -1,14 +1,13 @@
 use pns_protocol::{
-    DeliveryOutcome, DestinationOutcome, Name, Rejected, Rejection, Request, RequestId,
+    DeliveryOutcome, DestinationOutcome, Name, Rejected, Rejection, RequestEnvelope, RequestId,
     ResultEnvelope, State, Violation, decode_request, decode_result,
 };
 use serde_json::{Value, json};
 
-fn request() -> Request {
-    Request::new(
+fn request() -> RequestEnvelope {
+    RequestEnvelope::new(
         RequestId::new("r-1").unwrap(),
         Name::new("shell").unwrap(),
-        Name::new("finished").unwrap(),
         State::Done,
     )
 }
@@ -52,9 +51,11 @@ fn request_encoding_refuses_text_over_the_wire_cap() {
 fn result_encoding_refuses_a_destination_note_over_the_wire_cap() {
     let mut result = result();
     result.destinations.push(DestinationOutcome {
-        destination: Name::new("banner").unwrap(),
+        name: Name::new("banner").unwrap(),
         outcome: DeliveryOutcome::Failed,
+        route: None,
         note: Some("x".repeat(8_000)),
+        retry_at: None,
     });
     assert!(result.encode().is_ok());
     result.destinations[0].note.as_mut().unwrap().push('x');
@@ -68,9 +69,11 @@ fn result_encoding_refuses_a_destination_note_over_the_wire_cap() {
 fn result_encoding_refuses_too_many_destinations() {
     let mut result = result();
     let destination = DestinationOutcome {
-        destination: Name::new("banner").unwrap(),
+        name: Name::new("banner").unwrap(),
         outcome: DeliveryOutcome::Delivered,
+        route: None,
         note: None,
+        retry_at: None,
     };
     for count in [63, 64] {
         result.destinations = vec![destination.clone(); count];
@@ -101,7 +104,7 @@ fn request_encoding_refuses_too_many_extension_fields() {
 fn request_encoding_refuses_extensions_beyond_the_depth_cap() {
     let mut request = request();
     let mut nested = json!({});
-    // Request and extensions occupy two of the eight container levels.
+    // RequestEnvelope and extensions occupy two of the eight container levels.
     for _ in 0..5 {
         nested = json!({ "next": nested });
     }

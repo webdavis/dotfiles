@@ -1,11 +1,10 @@
 use super::*;
 use pns_protocol::{
-    DeliveryOutcome, DestinationOutcome, InteractionResult, MAX_BYTES, MAX_ITEMS, Name, RequestId,
-    decode_result,
+    DeliveryOutcome, DestinationOutcome, MAX_BYTES, MAX_ITEMS, Name, RequestId, decode_result,
 };
 use std::cell::Cell;
 
-const REQUEST: &[u8] = br#"{"schema":"pns.request/1","request_id":"posture-occurrence","producer":"posture","event":"heartbeat","state":"observation","session":"session","occurred_at":42,"elapsed":"7s","detail":"private body","project":"repo","branch":"topic","pane":"pane","scope":"remote_only","route":"posture","interaction":{"kind":"none"},"extensions":{"posture":{"count":2}},"future":true}"#;
+const REQUEST: &[u8] = br#"{"schema":"pns.request/1","request_id":"posture-occurrence","producer":"posture","state":"observation","session":"session","elapsed":"7s","detail":"private body","project":"repo","branch":"topic","pane":"pane","scope":"remote_only","route":"posture","extensions":{"posture":{"count":2}}}"#;
 fn args() -> Vec<String> {
     vec!["--json".into()]
 }
@@ -13,14 +12,16 @@ fn receipt(status: Status) -> ResultEnvelope {
     ResultEnvelope {
         request_id: Some(RequestId::new("posture-occurrence").unwrap()),
         status,
-        decision_id: Some("d-17".into()),
-        interaction: Some(InteractionResult::NoOpinion),
+        ledger_sequence: Some("17".into()),
         destinations: vec![DestinationOutcome {
-            destination: Name::new("hermes").unwrap(),
+            name: Name::new("hermes").unwrap(),
             outcome: DeliveryOutcome::Failed,
+            route: Some(Name::new("priority").unwrap()),
             note: Some("transport unavailable".into()),
+            retry_at: Some(1_758_153_600),
         }],
         diagnostics: vec!["ledger_committed".into()],
+        ignored_fields: Vec::new(),
     }
 }
 #[test]
@@ -30,13 +31,13 @@ fn one_valid_request_reaches_the_callback_with_every_decoded_field_intact() {
     let status = run(&args(), REQUEST, &mut output, |decoded| {
         calls.set(calls.get() + 1);
         assert_eq!(decoded, pns_protocol::decode_request(REQUEST).unwrap());
-        assert_eq!(decoded.ignored, ["future"]);
-        receipt(Status::Accepted)
+        assert!(decoded.ignored.is_empty(), "{:?}", decoded.ignored);
+        receipt(Status::Delivered)
     })
     .unwrap();
     assert_eq!(calls.get(), 1, "a valid request must be submitted once");
-    assert_eq!(status, Status::Accepted);
-    assert_eq!(decode_result(&output).unwrap(), receipt(Status::Accepted));
+    assert_eq!(status, Status::Delivered);
+    assert_eq!(decode_result(&output).unwrap(), receipt(Status::Delivered));
 }
 #[test]
 fn decoder_refusals_remain_correlated_without_submitting_or_echoing_private_text() {
@@ -57,6 +58,28 @@ fn decoder_refusals_remain_correlated_without_submitting_or_echoing_private_text
     assert_eq!(decoded.diagnostics, ["field_invalid"]);
     assert!(decoded.destinations.is_empty());
     assert!(!String::from_utf8(output).unwrap().contains("private body"));
+}
+/// A FIELD version 1 does not define is refused and named, the same way the
+/// flag path refuses a word that is no flag of pns's. Nothing is delivered
+/// and the result is a rejection, which is exit 2.
+#[test]
+fn an_unknown_top_level_field_is_refused_and_named_without_reaching_delivery() {
+    let unknown = String::from_utf8(REQUEST.to_vec())
+        .unwrap()
+        .replace(r#""detail""#, r#""detial""#);
+    let mut output = Vec::new();
+    let status = run(&args(), unknown.as_bytes(), &mut output, |_| {
+        panic!("an unknown field must not reach delivery")
+    })
+    .unwrap();
+    assert_eq!(status, Status::Rejected);
+    let result = decode_result(&output).unwrap();
+    assert_eq!(result.diagnostics, ["field_invalid"]);
+    assert!(
+        result.ignored_fields.is_empty(),
+        "{:?}",
+        result.ignored_fields
+    );
 }
 #[test]
 fn malformed_and_multiple_envelopes_are_refused_before_the_callback() {
@@ -79,7 +102,7 @@ fn the_byte_ceiling_accepts_its_edge_and_reads_only_one_byte_beyond_it() {
         let calls = Cell::new(0);
         let status = run(&args(), &mut input, &mut output, |_| {
             calls.set(calls.get() + 1);
-            receipt(Status::Accepted)
+            receipt(Status::Delivered)
         })
         .unwrap();
         assert_eq!(size - input.len(), size.min(MAX_BYTES + 1));
@@ -87,7 +110,7 @@ fn the_byte_ceiling_accepts_its_edge_and_reads_only_one_byte_beyond_it() {
         assert_eq!(
             status,
             if size <= MAX_BYTES {
-                Status::Accepted
+                Status::Delivered
             } else {
                 Status::Rejected
             }

@@ -16,13 +16,13 @@ pub const ROSTER: [Registration; 8] = [
         // state and sits ahead of the channels, whose order is delivery order.
         // `pns doctor` reads it; no event can route to it, because a sensor
         // carries no routing for a plan to read.
-        name: "router",
+        name: "home_presence",
         kind: PluginKind::Sensor,
     },
     Registration {
         // Which ROOM the operator is in, read off the state file the daemon
         // publishes. A second INPUT, beside the router and ahead of the
-        // channels for the same reason. It borrows `[plugins.hue]`'s bridge
+        // channels for the same reason. It borrows `[plugins.lights]`'s bridge
         // and key rather than declaring its own, which is what `REQUIRES`
         // above holds it to.
         name: PRESENCE,
@@ -39,10 +39,10 @@ pub const ROSTER: [Registration; 8] = [
     },
     Registration {
         // The phone. NAMED FOR THE DESTINATION, not for the service behind it:
-        // `[plugins.mobile] type` names which backend carries the card (moshi
+        // `[plugins.phone] type` names which backend carries the card (moshi
         // today), so a second one is a value the operator writes rather than a
         // second plugin name and a second table to move settings into.
-        name: "mobile",
+        name: "phone",
         kind: PluginKind::Channel(Routing {
             local: false,
             presence_gated: true,
@@ -56,7 +56,7 @@ pub const ROSTER: [Registration; 8] = [
         // the operator is at dispatch, and hermes can post synchronously
         // against a deadline; delivering the banner after it would show the
         // operator a decision taken about a moment that had passed.
-        name: "macos-banner",
+        name: "banner",
         kind: PluginKind::Channel(Routing {
             local: true,
             presence_gated: false,
@@ -96,7 +96,7 @@ pub const ROSTER: [Registration; 8] = [
         // A local surface the binary drives in its own `pulse` mode. It
         // registers so the config can select it and so a typo in its name is
         // still refused, but no event ever routes to it.
-        name: "hue",
+        name: "lights",
         kind: PluginKind::Channel(Routing {
             local: true,
             presence_gated: false,
@@ -113,7 +113,7 @@ pub const ROSTER: [Registration; 8] = [
 ///
 /// DATA BESIDE `CORE`, for the same reason: this is selection policy, and the
 /// roster states what a plugin IS.
-pub(super) const REQUIRES: [(&str, &str); 1] = [(PRESENCE, "hue")];
+pub(super) const REQUIRES: [(&str, &str); 1] = [(PRESENCE, "lights")];
 
 /// The GitHub source's config name, spelled once, for `PRESENCE`'s reason:
 /// the roster, the settings reader and the daemon's registration all select
@@ -131,4 +131,4 @@ pub const PRESENCE: &str = "presence";
 /// nothing, which is what `the_core_is_two_registered_plugins_and_the_config_
 /// still_beats_it` is for. IN REGISTRATION ORDER, so the warning that lists it
 /// reads in the order the legs run.
-pub const CORE: [&str; 2] = ["mobile", "macos-banner"];
+pub const CORE: [&str; 2] = ["phone", "banner"];

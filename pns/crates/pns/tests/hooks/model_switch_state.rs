@@ -4,11 +4,11 @@ use super::*;
 fn an_observation_does_not_clear_a_live_wait() {
     // LOAD-BEARING. `blocked_marker_action("model-switch")` is `End`
     // (lights.rs:690-696), and the End arm removes the marker UNGATED
-    // (main.rs:571-573), so this needs no `[lights]`/`[plugins.hue]` table at
+    // (main.rs:571-573), so this needs no `[lights]`/`[plugins.lights]` table at
     // all: if the guard ever misrouted this as First, the marker would be
     // gone regardless of whether the lamps are configured.
     let sandbox = Sandbox::new("observation-live-wait");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state/lights-blocked")).expect("lights-blocked dir");
     std::fs::write(sandbox.path("state/lights-blocked/s1"), "1700000000").expect("the marker");
@@ -51,7 +51,7 @@ fn an_observation_arms_no_unread_news() {
     // needs no lamp config either: an observation must not write it whether
     // or not the machine has lamps at all.
     let sandbox = Sandbox::new("observation-no-unread-news");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let missed_before = state_lines(&sandbox, "missed-notifications");
     let spool_before = spool_entries(&sandbox);
@@ -84,7 +84,7 @@ fn an_observation_arms_no_unread_news() {
 #[test]
 fn an_observation_writes_no_activity_line() {
     let sandbox = Sandbox::new("observation-no-activity-line");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let activity_before = state_lines(&sandbox, "activity");
     let missed_before = state_lines(&sandbox, "missed-notifications");
@@ -114,10 +114,10 @@ fn an_observation_writes_no_activity_line() {
 
 #[test]
 fn an_observation_moves_no_presence_edge() {
-    // S3: `Sandbox::pns` sets PNS_IDLE_SECS=99999 (Away), and `mark_present`
+    // S3: `Sandbox::pns` sets PNS_SCREEN_IDLE=99999 (Away), and `mark_present`
     // returns before writing while away, so a First-routed observation would
     // ALSO leave `last-present` alone under the suite's default env. Force
-    // Present with PNS_IDLE_SECS=0.
+    // Present with PNS_SCREEN_IDLE=0.
     //
     // THE OBSERVATION IS CHECKED AGAINST THE STALE SEED DIRECTLY, never
     // against a marker a same-second control call just wrote: two hook
@@ -129,7 +129,7 @@ fn an_observation_moves_no_presence_edge() {
     // green). Seeding a stale epoch and asserting it is UNCHANGED avoids the
     // race regardless of timing.
     let sandbox = Sandbox::new("observation-no-presence-edge");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     std::fs::write(sandbox.path("state/last-present"), "1").expect("seed");
@@ -137,7 +137,7 @@ fn an_observation_moves_no_presence_edge() {
     let spool_before = spool_entries(&sandbox);
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -164,7 +164,7 @@ fn an_observation_moves_no_presence_edge() {
     // marker, so the assertion above is not vacuously true under every
     // attempt.
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert_ne!(
         stored_records::present(&sandbox),
@@ -176,7 +176,7 @@ fn an_observation_moves_no_presence_edge() {
 #[test]
 fn an_observation_renews_no_loop_lease() {
     let sandbox = Sandbox::new("observation-no-lease-renewal");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let lease_dir = sandbox.path("state/lights-loop");
     std::fs::create_dir_all(&lease_dir).expect("lease dir");
@@ -219,7 +219,7 @@ fn an_observation_journals_no_missed_notification() {
     // own mute is the one thing that zeroes both unconditionally, which is
     // what a First-attempt control proves is reachable under it.
     let sandbox = Sandbox::new("observation-no-journal-write");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
     let expiry = std::time::SystemTime::now()
@@ -264,13 +264,13 @@ fn an_observation_journals_no_missed_notification() {
 
 #[test]
 fn an_observation_replays_no_journal_entry() {
-    // SOL 2b: `should_replay` needs the plan to decorate (macos-banner or
-    // mobile), which `nag_config`'s enabled plugins do at the desk, and a
+    // SOL 2b: `should_replay` needs the plan to decorate (banner or
+    // mobile), which `remind_config`'s enabled plugins do at the desk, and a
     // seeded entry is what `claim_journal` would otherwise consume: without
     // one, "the journal survives" is true whether or not the guard works,
     // because there is nothing in it to lose.
     let sandbox = Sandbox::new("observation-no-journal-replay");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
     let journal = sandbox.path("state/missed-notifications");
     std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
@@ -279,7 +279,7 @@ fn an_observation_replays_no_journal_entry() {
     std::fs::write(&journal, seeded).expect("the journal");
 
     let mut command = with_state_dir(&sandbox);
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let output = hook_with(
         command,
         &sandbox,
@@ -305,7 +305,7 @@ fn an_observation_replays_no_journal_entry() {
     // `stop` event under this exact env DOES consume it, so the assertion
     // above is not vacuously true under every attempt.
     let mut control = with_state_dir(&sandbox);
-    control.env("PNS_IDLE_SECS", "0");
+    control.env("PNS_SCREEN_IDLE", "0");
     hook_with(control, &sandbox, "stop", r#"{"session_id":"s-control"}"#);
     assert!(
         stored_records::text(&sandbox, "journal").is_empty(),
@@ -315,11 +315,13 @@ fn an_observation_replays_no_journal_entry() {
 
 #[test]
 fn an_observation_registers_no_lights_tick() {
-    // SOL 2c: `nag_config`'s three channels enable no lamps at all, so tick
+    // SOL 2c: `remind_config`'s three channels enable no lamps at all, so tick
     // registration cannot run under it whichever attempt fires. This needs
-    // its own `[lights]`/`[plugins.hue]` table, LAMPS_ON's own fixture.
+    // its own `[lights]`/`[plugins.lights]` table, LAMPS_ON's own fixture.
     let sandbox = Sandbox::new("observation-no-lights-tick");
-    sandbox.write_config(&format!("{LAMPS_ON}[plugins.hermes]\nenabled = true\n"));
+    sandbox.write_config(&format!(
+        "{LAMPS_ON}[plugins.log]\nenabled = true\ntype = \"hermes\"\n"
+    ));
     counted_channels(&sandbox);
 
     let output = hook_with(

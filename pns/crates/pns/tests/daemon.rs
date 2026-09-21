@@ -14,14 +14,32 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use support::{DaemonGuard, Sandbox, poll_until, run, stdout};
 
-/// A tick fast enough that a whole test costs a fraction of a second.
-const TICK_MS: u64 = 25;
+/// A tick fast enough that a whole test costs a fraction of a second, and slow
+/// enough that a job CHILD finishes inside the bound the daemon derives from it.
+///
+/// THE CHILD BOUND SETS THIS NUMBER, not the loop's latency. A spawned job is
+/// killed at `CHILD_TICKS` (30) ticks and the kill says nothing, so a one-shot
+/// killed mid-delivery is already out of the spool and never fires again: the
+/// test then polls to its own deadline against an empty daemon log. At 25 ms
+/// that bound was 750 ms for a process start plus a whole delivery, which a
+/// loaded CI runner exceeded. THREE SECONDS is where no loaded run reaches it,
+/// measured: a delivery held at one second fails the scheduling test at 25 ms
+/// and passes here.
+const TICK_MS: u64 = 100;
+
+/// How many ticks a test lets pass to prove something did NOT happen: a second
+/// firing, a late log line.
+///
+/// FOUR OF THIS TICK IS TWICE THE WALL CLOCK eight of a 25 ms one bought, and a
+/// re-armed one-shot fires on the very next tick, so the window catches one
+/// four times over while the test stays inside its budget.
+const SETTLE_TICKS: u64 = 4;
 
 /// The floor `main.rs`'s `MIN_TICK_MS` accepts: below this the daemon
 /// silently falls back to its one-SECOND production default, which would
 /// make a test slower rather than faster. Used only by the two tests whose
 /// cost is `SWITCH_TICKS` or `CHILD_TICKS` (both 30) ticks deep, where
-/// `TICK_MS` costs 750 ms; at this floor the same wait is 300 ms.
+/// `TICK_MS` costs 3 s; at this floor the same wait is 300 ms.
 const FAST_TICK_MS: u64 = 10;
 
 fn now_secs() -> u64 {
@@ -58,7 +76,7 @@ fn fires(sandbox: &Sandbox) -> usize {
 /// a rider will make.
 fn schedule(sandbox: &Sandbox, flags: &[&str], args: &[&str]) -> std::process::Output {
     let mut command = sandbox.pns_stateful();
-    command.args(["daemon", "schedule"]);
+    command.args(["gateway", "schedule"]);
     command.args(flags);
     command.arg("--");
     command.args(args);
@@ -70,13 +88,12 @@ fn schedule(sandbox: &Sandbox, flags: &[&str], args: &[&str]) -> std::process::O
 /// A CONFIG IS NOT OPTIONAL here: with none, the re-executed child selects no
 /// plugin at all, so the daemon would report a job run and nothing would be
 /// delivered. HERMES rather than the banner, because the sandbox pins the
-/// operator AWAY (`PNS_IDLE_SECS` at a day), and a banner on a screen nobody is
+/// operator AWAY (`PNS_SCREEN_IDLE` at a day), and a banner on a screen nobody is
 /// sitting at is exactly what the engine declines to raise.
-/// `[failures] serve = false` because a DAEMON runs against this, and the page
-/// binds one fixed port: a sandbox that opened it would take that port away
-/// from every other test in this suite running beside it.
-const ONE_CHANNEL: &str =
-    "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"k\" }\n[failures]\nserve = false\n";
+/// `[failures] page_enabled = false` because a DAEMON runs against this, and
+/// the page binds one fixed port: a sandbox that opened it would take that
+/// port away from every other test in this suite running beside it.
+const ONE_CHANNEL: &str = "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"k\" }\n[failures]\npage_enabled = false\n";
 
 /// An ordinary event for a scheduled job to deliver.
 const EVENT: [&str; 7] = [
@@ -118,3 +135,6 @@ mod hooks;
 
 #[path = "daemon/spool.rs"]
 mod spool;
+
+#[path = "daemon/failures_page.rs"]
+mod failures_page;

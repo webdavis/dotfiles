@@ -1,20 +1,18 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
-fn fixture(bytes: &[u8]) -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let path = std::env::temp_dir().join(format!(
-        "posture-source-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
+/// A list file in a directory that removes itself. Hold the sandbox for as
+/// long as the path is used; dropping it early takes the file with it.
+fn fixture(bytes: &[u8]) -> (Sandbox, PathBuf) {
+    let sandbox = Sandbox::new("source");
+    let path = sandbox.join("allowlist");
     fs::write(&path, bytes).unwrap();
-    path
+    (sandbox, path)
 }
 #[test]
 fn listing_preserves_entry_bytes_and_only_skips_empty_or_leading_comment_lines() {
-    let path = fixture(b"# ignored\n\n  # retained\n{bad\n\xff\r\nlast");
+    let (_sandbox, path) = fixture(b"# ignored\n\n  # retained\n{bad\n\xff\r\nlast");
     assert_eq!(
         listed_bytes(&path),
         Ok(b"  # retained\n{bad\n\xff\r\nlast\n".to_vec())
@@ -22,30 +20,26 @@ fn listing_preserves_entry_bytes_and_only_skips_empty_or_leading_comment_lines()
 }
 #[test]
 fn missing_and_empty_deployed_lists_both_print_nothing() {
-    assert_eq!(listed_bytes(&fixture(b"")), Ok(Vec::new()));
+    let (_sandbox, empty) = fixture(b"");
+    assert_eq!(listed_bytes(&empty), Ok(Vec::new()));
     assert_eq!(
-        listed_bytes(&fixture(b"").with_extension("absent")),
+        listed_bytes(&empty.with_extension("absent")),
         Ok(Vec::new())
     );
 }
 #[test]
 fn deny_membership_is_a_raw_compact_substring_even_inside_a_comment() {
-    assert!(!contains_label_text(
-        &fixture(b"{\"label\": \"my.alpha\"}\n"),
-        "my.alpha"
-    ));
-    assert!(contains_label_text(
-        &fixture(b"# {\"label\":\"my.alpha\"}\n{bad\n"),
-        "my.alpha"
-    ));
-    assert!(!contains_label_text(&fixture(b"{bad\n"), "my.alpha"));
+    let (_object_sandbox, object) = fixture(b"{\"label\": \"my.alpha\"}\n");
+    assert!(!contains_label_text(&object, "my.alpha"));
+    let (_commented_sandbox, commented) = fixture(b"# {\"label\":\"my.alpha\"}\n{bad\n");
+    assert!(contains_label_text(&commented, "my.alpha"));
+    let (_torn_sandbox, torn) = fixture(b"{bad\n");
+    assert!(!contains_label_text(&torn, "my.alpha"));
 }
 #[test]
 fn listing_matches_bash_read_nul_discard_before_comment_and_blank_detection() {
-    assert_eq!(
-        listed_bytes(&fixture(b"\0# ignored\nA\0B\n\0\n")),
-        Ok(b"AB\n".to_vec())
-    );
+    let (_sandbox, path) = fixture(b"\0# ignored\nA\0B\n\0\n");
+    assert_eq!(listed_bytes(&path), Ok(b"AB\n".to_vec()));
 }
 
 use crate::{CommandIo, CommandRunner};
@@ -101,7 +95,7 @@ fn source_resolution_preserves_argument_boundaries_and_command_substitution_byte
 }
 #[test]
 fn source_read_preserves_blank_lines_and_torn_final_entry_with_typed_projection() {
-    let path = fixture(b"# retained\n\n{\"label\":\"my.alpha\",\"unused\":NaN}\n{bad");
+    let (_sandbox, path) = fixture(b"# retained\n\n{\"label\":\"my.alpha\",\"unused\":NaN}\n{bad");
     let f = adapter("/deployed".into());
     assert_eq!(
         f.read(&path),

@@ -21,10 +21,10 @@ fn an_unknown_key_is_refused_by_name_wherever_it_appears() {
     let error = render(&values).expect_err("an unknown plugin name must be refused");
     assert!(error.contains("zzz_not_a_plugin"), "{error}");
 
-    let mut daemon = toml::Table::new();
-    daemon.insert("zzz_not_a_key".to_string(), toml::Value::Boolean(true));
+    let mut gateway = toml::Table::new();
+    gateway.insert("zzz_not_a_key".to_string(), toml::Value::Boolean(true));
     let mut values = toml::Table::new();
-    values.insert("daemon".to_string(), toml::Value::Table(daemon));
+    values.insert("gateway".to_string(), toml::Value::Table(gateway));
     let error = render(&values).expect_err("an unknown key inside a table must be refused");
     assert!(error.contains("zzz_not_a_key"), "{error}");
 
@@ -56,35 +56,33 @@ fn an_unknown_table_is_refused_by_name() {
 #[test]
 fn an_opt_in_table_absent_renders_commented_and_present_renders_live() {
     // ABSENT: the heading, `enabled` and every key are commented, and the
-    // table never reaches the parsed config at all.
+    // table never reaches the parsed config at all. `enabled` is commented
+    // AT ITS OWN DEFAULT, which for a plugin is off.
     let text = render(&toml::Table::new()).expect("an empty walk still renders");
     assert!(
-        text.contains("# [plugins.hermes]\n# enabled = true\n"),
+        text.contains("# [plugins.log]\n# enabled = false\n"),
         "{text}"
     );
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert!(!config.plugins.contains_key("hermes"));
 
-    // PRESENT: the heading and `enabled = true` are LIVE even though the
-    // caller never stated `enabled` itself, which is X7's own ruling: an
-    // opt-in table's `enabled` is written true the moment the table shows
-    // up at all, and the parser is what reads its absence as off.
-    let mut hermes = toml::Table::new();
+    // PRESENT AND ARMED: the switch is the caller's own statement rather
+    // than the render's reading of a table having shown up, so a plugin is
+    // on in the file because a line says so.
+    let mut log = toml::Table::new();
+    log.insert("enabled".to_string(), toml::Value::Boolean(true));
     let mut keys = toml::Table::new();
     keys.insert(
         "pns-events".to_string(),
         toml::Value::String("secret".to_string()),
     );
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
     let text = render(&values).expect("an armed table renders");
-    assert!(
-        text.contains("[plugins.hermes]\nenabled = true\n"),
-        "{text}"
-    );
+    assert!(text.contains("[plugins.log]\nenabled = true\n"), "{text}");
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert!(config.plugins["hermes"].enabled);
 }
@@ -100,9 +98,12 @@ fn a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor() {
         "rooms".to_string(),
         toml::Value::Array(vec![toml::Value::String("3F - Studio".to_string())]),
     );
+    presence.insert("enabled".to_string(), toml::Value::Boolean(true));
+    let mut hue = toml::Table::new();
+    hue.insert("enabled".to_string(), toml::Value::Boolean(true));
     let mut plugins = toml::Table::new();
     plugins.insert("presence".to_string(), toml::Value::Table(presence));
-    plugins.insert("hue".to_string(), toml::Value::Table(toml::Table::new()));
+    plugins.insert("lights".to_string(), toml::Value::Table(hue));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -113,7 +114,7 @@ fn a_rendered_presence_block_parses_back_and_the_registry_selects_the_sensor() {
         .expect("the table is on");
     assert_eq!(settings.rooms, vec!["3F - Studio".to_string()]);
     assert_eq!(
-        (settings.poll_secs, settings.stale_after_secs),
+        (settings.poll_interval_secs, settings.reading_max_age_secs),
         (5, 15),
         "the written defaults are the ones the reader takes"
     );

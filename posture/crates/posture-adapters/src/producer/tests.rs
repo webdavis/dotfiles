@@ -73,18 +73,20 @@ fn subject(status: Status, committed: bool) -> ProducerCommand<Runner, Alarm> {
     let result = ResultEnvelope {
         request_id: None,
         status,
-        decision_id: Some("17".into()),
-        interaction: None,
+        ledger_sequence: Some("17".into()),
         destinations: vec![DestinationOutcome {
-            destination: Name::new("hermes").unwrap(),
+            name: Name::new("hermes").unwrap(),
             outcome: DeliveryOutcome::Failed,
+            route: None,
             note: None,
+            retry_at: None,
         }],
         diagnostics: if committed {
             vec!["ledger_committed".into()]
         } else {
             vec![]
         },
+        ignored_fields: Vec::new(),
     };
     ProducerCommand::new(
         Runner {
@@ -109,7 +111,7 @@ fn the_configured_arguments_reach_the_command_verbatim_and_nothing_is_added() {
         vec!["submit".to_string(), "--json".to_string()],
         vec!["page".to_string(), "--in=json".to_string(), "-".to_string()],
     ] {
-        let mut sut = subject(Status::Accepted, true);
+        let mut sut = subject(Status::Delivered, true);
         sut.arguments = arguments.iter().cloned().map(OsString::from).collect();
         assert_eq!(sut.submit(&alert()), Submission::Accepted);
         assert_eq!(
@@ -119,18 +121,29 @@ fn the_configured_arguments_reach_the_command_verbatim_and_nothing_is_added() {
     }
 }
 #[test]
-fn only_a_matching_accepted_committed_receipt_advances_acceptance() {
-    let mut sut = subject(Status::Accepted, true);
+fn only_a_matching_committed_receipt_advances_acceptance() {
+    let mut sut = subject(Status::Delivered, true);
     assert_eq!(sut.submit(&alert()), Submission::Accepted);
     assert!(sut.alarm.calls.is_empty());
     assert_eq!(sut.runner.requests.len(), 1);
 }
 #[test]
-fn rejection_degradation_and_missing_commitment_do_not_trigger_an_engine_alarm() {
+fn delivered_partial_and_undelivered_all_advance_acceptance_once_committed() {
+    // Status reports what the destinations did; the ledger diagnostic reports
+    // what the engine owes. A partial or undelivered page is still the
+    // engine's obligation once it is committed, so posture stops re-reading it.
+    for status in [Status::Delivered, Status::Partial, Status::Undelivered] {
+        let mut sut = subject(status, true);
+        assert_eq!(sut.submit(&alert()), Submission::Accepted);
+        assert!(sut.alarm.calls.is_empty());
+    }
+}
+#[test]
+fn rejection_and_missing_commitment_do_not_trigger_an_engine_alarm() {
     for (status, committed, failure) in [
         (Status::Rejected, true, SubmissionFailure::Refused),
-        (Status::Degraded, true, SubmissionFailure::NotCommitted),
-        (Status::Accepted, false, SubmissionFailure::NotCommitted),
+        (Status::Undelivered, false, SubmissionFailure::NotCommitted),
+        (Status::Delivered, false, SubmissionFailure::NotCommitted),
     ] {
         let mut sut = subject(status, committed);
         assert_eq!(sut.submit(&alert()), Submission::NotAccepted(failure));
@@ -144,7 +157,7 @@ fn an_accepted_receipt_for_another_or_missing_identity_cannot_advance_acceptance
         None,
         Some(crate::wire::RequestId::new("different").unwrap()),
     ] {
-        let mut sut = subject(Status::Accepted, true);
+        let mut sut = subject(Status::Delivered, true);
         sut.runner.matching = false;
         let output = sut.runner.response.as_mut().unwrap();
         let mut receipt = crate::wire::decode_result(&output.bytes).unwrap();

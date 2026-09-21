@@ -123,7 +123,7 @@ fn entry(at: u64) -> Entry {
 
 fn leg(decorative: bool) -> Leg {
     Leg {
-        name: if decorative { "macos-banner" } else { "hermes" },
+        name: if decorative { "banner" } else { "hermes" },
         mode: ReportMode::Silent,
         decorative,
     }
@@ -160,8 +160,8 @@ fn returning(legs: Vec<Leg>) -> Decision {
 fn policy() -> RecapPolicy {
     RecapPolicy {
         replay_card: true,
-        digest: true,
-        min_events: 2,
+        post_window_recap: true,
+        minimum_events: 2,
     }
 }
 
@@ -339,7 +339,7 @@ fn a_card_the_operator_turned_off_is_not_raised_though_the_digest_still_is() {
 fn a_return_with_no_digest_and_nothing_waiting_says_nothing_at_all() {
     let recorder = Recorder::new(Some(claim_of(Some(1_000), Vec::new())));
     let quiet = RecapPolicy {
-        digest: false,
+        post_window_recap: false,
         ..policy()
     };
     ports(&recorder).run(&returning(vec![leg(true)]), quiet, true);
@@ -353,10 +353,10 @@ fn a_return_with_no_digest_and_nothing_waiting_says_nothing_at_all() {
 #[test]
 fn entries_waiting_with_no_digest_are_summarized_rather_than_dropped() {
     let mut recorder = Recorder::new(Some(claim_of(Some(1_000), vec![entry(1_500)])));
-    // A loud window would publish if the digest switch were ignored.
+    // A loud window would publish if the post_window_recap switch were ignored.
     recorder.entries = vec![entry(1_100), entry(1_200)];
     let quiet = RecapPolicy {
-        digest: false,
+        post_window_recap: false,
         ..policy()
     };
     ports(&recorder).run(&returning(vec![leg(true)]), quiet, true);
@@ -406,7 +406,7 @@ fn the_card_is_composed_from_the_journal_and_not_from_the_decision() {
     // of the sentence.
     let recorder = Recorder::new(Some(claim_of(Some(1_000), vec![entry(1_500)])));
     let quiet = RecapPolicy {
-        digest: false,
+        post_window_recap: false,
         ..policy()
     };
     ports(&recorder).run(&returning(vec![leg(true)]), quiet, true);

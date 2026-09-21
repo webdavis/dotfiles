@@ -2,36 +2,42 @@ use lights_application::Notifier;
 use lights_domain::Action;
 use std::{
     io,
+    os::unix::process::{CommandExt, ExitStatusExt},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
-    time::Duration,
+    process::{Child, Command, ExitStatus, Stdio},
+    time::{Duration, Instant},
 };
 
-type RunMonitor = fn(&mut Command) -> io::Result<ExitStatus>;
+type RunBounded = fn(&mut Command, Duration) -> io::Result<ExitStatus>;
 
-pub struct PnsNotifier<F = RunMonitor> {
+/// The exit code an overrun reports: 128 plus the signal that ended the group.
+const TIMED_OUT: i32 = 128 + libc::SIGKILL;
+/// What the group gets between SIGTERM and SIGKILL.
+const GRACE: Duration = Duration::from_millis(250);
+/// How often the wait looks at the child.
+const POLL: Duration = Duration::from_millis(1);
+
+pub struct PnsNotifier<F = RunBounded> {
     pns: PathBuf,
-    monitor: PathBuf,
     duration: Duration,
     run: F,
 }
 
 impl PnsNotifier {
     pub fn new(home: &Path) -> Self {
-        Self::with_runner(home, run_monitor)
+        Self::with_runner(home, run_bounded)
     }
 }
-impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> PnsNotifier<F> {
+impl<F: Fn(&mut Command, Duration) -> io::Result<ExitStatus>> PnsNotifier<F> {
     pub fn with_runner(home: &Path, run: F) -> Self {
         Self {
             pns: home.join(".cargo/bin/pns"),
-            monitor: PathBuf::from("gtimeout"),
             duration: Duration::from_secs(2),
             run,
         }
     }
 }
-impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> Notifier for PnsNotifier<F> {
+impl<F: Fn(&mut Command, Duration) -> io::Result<ExitStatus>> Notifier for PnsNotifier<F> {
     fn alarm(&self, detail: &str) {
         self.send(&[
             "--state",
@@ -60,44 +66,64 @@ impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> Notifier for PnsNotifier<F> 
         ]);
     }
 }
-impl<F: Fn(&mut Command) -> io::Result<ExitStatus>> PnsNotifier<F> {
+impl<F: Fn(&mut Command, Duration) -> io::Result<ExitStatus>> PnsNotifier<F> {
     /// One bounded invocation, whatever it is saying.
     fn send(&self, what: &[&str]) {
-        let mut command = Command::new(&self.monitor);
+        let mut command = Command::new(&self.pns);
         command
-            .args(["--foreground", "--signal=KILL"])
-            .arg(format!("{}s", self.duration.as_secs_f64()))
-            .arg(&self.pns)
             .args(["send", "--producer", "lights"])
             .args(what)
             .args(["--scope", "local_only"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        // No status is delivery acknowledgement. All outcomes preserve the action.
-        let status = match (self.run)(&mut command) {
-            Ok(status) => status,
-            Err(_) => return, // Spawn or wait failure, with no unbounded fallback.
-        };
-        match status.code() {
-            Some(0) => (),         // The invocation finished.
-            Some(125) => (),       // Monitor failure (or the child's same exit code).
-            Some(126 | 127) => (), // Unable to run, or the child's same exit code.
-            Some(137) => (),       // Timeout, signal kill, or the child's same exit code.
-            Some(_) | None => (),
-        }
+        // No status is delivery acknowledgement, and a spawn or wait failure
+        // has no unbounded fallback. All outcomes preserve the action.
+        let _ = (self.run)(&mut command, self.duration);
     }
 }
-fn run_monitor(command: &mut Command) -> io::Result<ExitStatus> {
-    let mut child = command.spawn()?;
-    match child.wait() {
-        Ok(status) => Ok(status),
-        Err(error) => {
-            let _ = child.kill();
-            let _ = child.wait();
-            Err(error)
+
+/// Spawns the child as its own group leader and waits up to `duration`, then
+/// ends the group and reports the timeout exit code.
+fn run_bounded(command: &mut Command, duration: Duration) -> io::Result<ExitStatus> {
+    let mut child = command.process_group(0).spawn()?;
+    let deadline = Instant::now() + duration;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Ok(status),
+            Ok(None) => {}
+            Err(error) => {
+                terminate(&mut child);
+                return Err(error);
+            }
+        }
+        if Instant::now() >= deadline {
+            terminate(&mut child);
+            return Ok(ExitStatus::from_raw(TIMED_OUT << 8));
+        }
+        std::thread::sleep(POLL);
+    }
+}
+
+/// SIGTERM the group, allow the grace, then SIGKILL whatever is still there.
+fn terminate(child: &mut Child) {
+    signal_group(child, libc::SIGTERM);
+    let grace = Instant::now() + GRACE;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => return,
+            Ok(None) if Instant::now() < grace => std::thread::sleep(POLL),
+            _ => break,
         }
     }
+    signal_group(child, libc::SIGKILL);
+    let _ = child.wait();
+}
+
+/// The unreaped child still owns the process group created at spawn.
+fn signal_group(child: &Child, signal: i32) {
+    // SAFETY: a signal to the group of a child this process has not reaped.
+    unsafe { libc::kill(-(child.id() as i32), signal) };
 }
 
 #[cfg(test)]

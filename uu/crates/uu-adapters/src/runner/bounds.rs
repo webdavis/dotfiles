@@ -36,9 +36,18 @@ pub fn run_step(
     args: &[&str],
     most: Duration,
 ) -> Result<String, String> {
+    step_runner(lane, program, most).run(program, args)
+}
+
+/// The runner one step runs under: the smaller of its own bound and what is
+/// left of the lane's, labeled so an overrun names the step and not the lane.
+///
+/// SHARED with `environment::run`'s own step-bound arm, so the bound
+/// arithmetic and the label live in one place regardless of which
+/// `CommandRunner` method the caller then reaches for.
+pub(super) fn step_runner(lane: &SystemRunner, program: &str, most: Duration) -> SystemRunner {
     let bound = most.min(lane.remaining());
     SystemRunner::for_lane(&format!("{} step {program}", lane.lane), bound, bound)
-        .run(program, args)
 }
 
 #[cfg(test)]

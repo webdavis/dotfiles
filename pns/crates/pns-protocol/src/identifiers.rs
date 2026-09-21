@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 pub const REQUEST_ID_MAX_CHARS: usize = 128;
 /// A name is shown to the operator (`agent · state · project`) and used as a
 /// key. Unicode is welcome; a control character is not. 64 characters matches
-/// the daemon's own job-id cap.
-pub const NAME_MAX_CHARS: usize = 64;
+/// the daemon's own job-id cap, and it is ONE number with the cap the plugin
+/// registry refuses a registration over, so a registered name always encodes.
+pub const NAME_MAX_CHARS: usize = pns_domain::registry::NAME_MAX_CHARS;
 
 /// Why an identifier was refused. Three states, because a producer fixing
 /// its request needs to know which rule it broke.

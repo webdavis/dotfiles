@@ -22,7 +22,7 @@ fn an_ordinary_stop_never_reaches_moshi() {
     // switch that causes it.
     let sandbox = Sandbox::new("hook-stop-no-round-trip");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(
         command,
@@ -83,4 +83,24 @@ fn a_hook_word_this_binary_does_not_serve_says_so_and_notifies_nobody() {
         !sandbox.fired("hermes"),
         "an event nobody serves reaches no channel"
     );
+}
+
+/// THE ALWAYS-EXIT-0 CONTRACT, against the exit code the sending paths now
+/// report on every call. A destination that took nothing answers 1 to a
+/// producer; a harness hook still answers 0, because a notification must never
+/// fail the turn it reports on.
+#[test]
+fn a_hook_whose_destination_took_nothing_still_exits_zero() {
+    let sandbox = Sandbox::new("hook-undelivered");
+    sandbox.stub_channel(
+        "hermes",
+        &format!("cat >'{}'\nexit 9", sandbox.path("hermes.event").display()),
+    );
+    let output = hook(
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"done here"}"#,
+    );
+    assert!(sandbox.fired("hermes"), "the destination must be attempted");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
 }

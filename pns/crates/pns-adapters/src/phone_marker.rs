@@ -1,5 +1,5 @@
 use crate::{LoadOutcome, config_path, load_config};
-use std::ffi::{CString, OsStr};
+use std::ffi::CString;
 use std::fs;
 use std::io;
 use std::os::unix::ffi::OsStrExt;
@@ -29,34 +29,27 @@ impl TapFailure {
     }
 }
 
-pub fn phone_marker_path(
-    home: &str,
-    environment: Option<&OsStr>,
-) -> Result<PhoneMarkerPath, TapFailure> {
+pub fn phone_marker_path(home: &str) -> Result<PhoneMarkerPath, TapFailure> {
     let config_file = config_path(home);
-    let (path, source) = if let Some(path) = environment.filter(|path| !path.is_empty()) {
-        (PathBuf::from(path), "environment")
-    } else {
-        let configured = match load_config(&config_file) {
-            Ok(LoadOutcome::Missing) => None,
-            Ok(LoadOutcome::Loaded(config)) => config.phone_marker_file,
-            Err(error) => return Err(TapFailure::new("config_error", error.detail())),
-        };
-        match configured {
-            Some(path) => {
-                let path = match path.strip_prefix("~/") {
-                    Some(tail) if !home.is_empty() => Path::new(home).join(tail),
-                    Some(_) => return Err(TapFailure::new("path_error", "HOME is unavailable")),
-                    None => PathBuf::from(path),
-                };
-                (path, "config")
-            }
-            None if !home.is_empty() => (
-                Path::new(home).join(".local/state/pns/phone-attention.marker"),
-                "default",
-            ),
-            None => return Err(TapFailure::new("path_error", "HOME is unavailable")),
+    let configured = match load_config(&config_file) {
+        Ok(LoadOutcome::Missing) => None,
+        Ok(LoadOutcome::Loaded(config)) => config.phone_marker_file,
+        Err(error) => return Err(TapFailure::new("config_error", error.detail())),
+    };
+    let (path, source) = match configured {
+        Some(path) => {
+            let path = match path.strip_prefix("~/") {
+                Some(tail) if !home.is_empty() => Path::new(home).join(tail),
+                Some(_) => return Err(TapFailure::new("path_error", "HOME is unavailable")),
+                None => PathBuf::from(path),
+            };
+            (path, "config")
         }
+        None if !home.is_empty() => (
+            Path::new(home).join(".local/state/pns/phone-attention.marker"),
+            "default",
+        ),
+        None => return Err(TapFailure::new("path_error", "HOME is unavailable")),
     };
     if path.as_os_str().as_bytes().contains(&0) {
         return Err(TapFailure::new(

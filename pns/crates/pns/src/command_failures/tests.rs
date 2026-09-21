@@ -1,6 +1,6 @@
 use super::*;
 
-fn stored(id: u64, outcome: pns_domain::retry::DeliveryOutcome) -> StoredFailure {
+fn stored(id: u64, outcome: pns_domain::retry::TransportOutcome) -> StoredFailure {
     StoredFailure {
         id,
         destination: failure::DESTINATION_HERMES.to_string(),
@@ -18,7 +18,11 @@ fn stored(id: u64, outcome: pns_domain::retry::DeliveryOutcome) -> StoredFailure
 /// the reader searches for, so it has to be the one they would actually find.
 #[test]
 fn the_shown_command_is_the_routing_flags_that_produced_this_leg() {
-    let failure = compose(&stored(47, pns_domain::retry::DeliveryOutcome::Status(404)));
+    let failure = compose(
+        &stored(47, pns_domain::retry::TransportOutcome::Status(404)),
+        None,
+        None,
+    );
     assert_eq!(
         failure.command,
         "pns send --producer posture --state failed --route testpath"
@@ -29,7 +33,7 @@ fn the_shown_command_is_the_routing_flags_that_produced_this_leg() {
 /// flag with an empty value that would not reproduce the send.
 #[test]
 fn a_leg_with_no_state_or_route_leaves_those_flags_out_entirely() {
-    let mut bare = stored(1, pns_domain::retry::DeliveryOutcome::NoResponse);
+    let mut bare = stored(1, pns_domain::retry::TransportOutcome::NoResponse);
     bare.state = String::new();
     bare.route = String::new();
     assert_eq!(command(&bare), "pns send --producer posture");
@@ -39,7 +43,7 @@ fn a_leg_with_no_state_or_route_leaves_those_flags_out_entirely() {
 /// printed command entirely, so the suggestion the reader is shown always runs.
 #[test]
 fn an_internal_state_word_is_left_out_of_the_printed_command() {
-    let mut recap = stored(2, pns_domain::retry::DeliveryOutcome::NoResponse);
+    let mut recap = stored(2, pns_domain::retry::TransportOutcome::NoResponse);
     recap.state = "recap".to_string();
     recap.route = String::new();
     assert_eq!(command(&recap), "pns send --producer posture");
@@ -50,15 +54,15 @@ fn an_internal_state_word_is_left_out_of_the_printed_command() {
 #[test]
 fn the_listing_status_is_the_code_alone_and_names_each_silence() {
     assert_eq!(
-        short_status(&stored(1, pns_domain::retry::DeliveryOutcome::Status(404))),
+        short_status(&stored(1, pns_domain::retry::TransportOutcome::Status(404))),
         "HTTP 404"
     );
     assert_eq!(
-        short_status(&stored(1, pns_domain::retry::DeliveryOutcome::NoResponse)),
+        short_status(&stored(1, pns_domain::retry::TransportOutcome::NoResponse)),
         "no response"
     );
     assert_eq!(
-        short_status(&stored(1, pns_domain::retry::DeliveryOutcome::NoStatus)),
+        short_status(&stored(1, pns_domain::retry::TransportOutcome::NoStatus)),
         "bad URL"
     );
 }
@@ -77,28 +81,22 @@ fn the_listing_clock_is_cut_at_the_minute_whatever_the_seconds_are() {
     assert_eq!(when(minute + 60), "2025-09-04 15:34Z");
 }
 
-/// The address is where the reader would type it, and it follows the override
-/// the gateway itself honours, so the message names the gateway THIS machine
-/// posts to rather than the shipped default.
+/// The address is where the reader would type it, and it follows the resolved
+/// setting the caller hands down rather than reading the live config, so the
+/// message names the gateway THIS machine posts to without the test touching
+/// whatever `~/.config/pns/config.toml` an operator happens to have.
 #[test]
-fn the_address_follows_the_gateway_override_the_channel_itself_reads() {
-    // SAFETY: single-threaded test process; the variable is restored below.
-    let previous = std::env::var("PNS_HERMES_URL").ok();
-    unsafe {
-        std::env::set_var(
-            "PNS_HERMES_URL",
-            "http://127.0.0.1:9999/webhooks/pns-events",
-        )
-    };
+fn the_address_follows_the_gateway_setting_the_caller_resolved() {
     assert_eq!(
-        address(failure::DESTINATION_HERMES, "testpath"),
+        address(
+            failure::DESTINATION_HERMES,
+            "testpath",
+            None,
+            Some("http://127.0.0.1:9999/webhooks/pns-events"),
+        ),
         "http://127.0.0.1:9999/webhooks/testpath"
     );
-    unsafe { std::env::remove_var("PNS_HERMES_URL") };
-    assert!(address(failure::DESTINATION_HERMES, "testpath").ends_with("/testpath"));
-    if let Some(previous) = previous {
-        unsafe { std::env::set_var("PNS_HERMES_URL", previous) };
-    }
+    assert!(address(failure::DESTINATION_HERMES, "testpath", None, None).ends_with("/testpath"));
 }
 
 /// This binary's own path, never a bare name: a click has no PATH to resolve
@@ -136,4 +134,15 @@ fn the_banners_stored_click_command_names_the_open_verb() {
 #[test]
 fn the_usage_line_names_the_open_verb_and_its_argument() {
     assert!(FAILURES_USAGE.contains("open <id>"), "{FAILURES_USAGE}");
+}
+
+/// The id column holds the widest id the ledger hands out without running into
+/// the timestamp: a four-wide column was filled by a four-digit id, and the two
+/// facts ran together as one word.
+#[test]
+fn a_long_id_still_leaves_a_gap_before_the_timestamp() {
+    let failure = stored(12345, pns_domain::retry::TransportOutcome::Status(404));
+    let when = when(failure.failed_at);
+    let listing = listing(Paint::Plain, std::slice::from_ref(&failure));
+    assert!(listing.contains(&format!("12345 {when}")), "{listing}");
 }

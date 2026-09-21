@@ -9,9 +9,8 @@ fn a_corrupt_lights_quiet_is_complained_about_once_rather_than_on_every_event() 
     // memory of its own.
     let sandbox = Sandbox::new("lights-quiet-say-once");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\nquiet_hours = \"00:00-23:59\"\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"{DEAD_BRIDGE}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     std::fs::create_dir_all(sandbox.state()).expect("the state directory");
     std::fs::write(sandbox.state().join("lights-quiet"), "later 3F - Studio\n")
@@ -42,15 +41,15 @@ fn a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds() {
     // delivery did, which is why the bridge here is dead on purpose.
     let sandbox = Sandbox::new("lights-news-and-lease");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"{DEAD_BRIDGE}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"{DEAD_BRIDGE}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+         rooms = [\"3F - Studio\"]\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     let lease_dir = sandbox.state().join("lights-loop");
     std::fs::create_dir_all(&lease_dir).expect("the lease directory");
     std::fs::write(lease_dir.join("t1:p2"), "500\n").expect("a lease taken by hand");
     let mut command = sandbox.pns_stateful();
     command.env("TZ", "UTC");
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     sandbox.stub_herdr(&mut command, false);
     let outcome = run(command.args(LONG_DONE));
     assert_eq!(outcome.status.code(), Some(0), "{}", stderr(&outcome));
@@ -89,12 +88,12 @@ fn the_news_record_is_written_whatever_the_lamps_are_doing() {
     for (name, config) in [
         (
             "news-without-a-map",
-            "[plugins.hermes]\nenabled = true\n".to_string(),
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n".to_string(),
         ),
         (
             "news-with-hue-off",
             format!(
-                "[plugins.hue]\nenabled = false\n[plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+                "[plugins.lights]\nenabled = false\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
             ),
         ),
     ] {
@@ -102,7 +101,7 @@ fn the_news_record_is_written_whatever_the_lamps_are_doing() {
         sandbox.write_config(&config);
         let mut command = sandbox.pns_stateful();
         command.env("TZ", "UTC");
-        command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+        command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
         sandbox.stub_herdr(&mut command, false);
         let outcome = run(command.args(LONG_DONE));
         assert_eq!(
@@ -142,7 +141,7 @@ fn a_lights_mute_expires_off_this_run_s_own_clock_and_not_off_a_fixed_epoch() {
         .as_secs();
     let muted = run(sandbox
         .pns_stateful()
-        .args(["lights", "quiet", "3F - Studio", "1h"]));
+        .args(["lights", "mute", "3F - Studio", "1h"]));
     assert_eq!(muted.status.code(), Some(0), "{}", stderr(&muted));
 
     let published = stored_records::database(&sandbox)
@@ -168,7 +167,7 @@ fn a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built()
     // THE WORST OUTCOME THIS COMMAND HAS: telling a human a mute is in effect
     // that is not. `kept` is what the file WOULD have held, so a report printed
     // after a failed write describes a house that does not exist, and for a
-    // failed `off` it says nothing is quiet while the old mute is still on disk
+    // failed `off` it says nothing is muted while the old mute is still on disk
     // and still taking the lamp.
     let sandbox = Sandbox::new("lights-quiet-unwritable");
     sandbox.write_config(STUDIO_MAP);
@@ -178,7 +177,7 @@ fn a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built()
         .expect("a state directory this run cannot write");
     let refused = sandbox
         .pns_stateful()
-        .args(["lights", "quiet", "3F - Studio", "1h"])
+        .args(["lights", "mute", "3F - Studio", "1h"])
         .output()
         .expect("the engine runs");
     // RESTORED BEFORE THE ASSERTIONS, so a failure here still leaves a sandbox
@@ -200,5 +199,35 @@ fn a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built()
         stdout(&refused),
         "",
         "and reports NOTHING, because nothing on disk changed"
+    );
+}
+
+#[test]
+fn off_clears_one_places_mute_and_the_report_says_nothing_is_muted() {
+    let sandbox = Sandbox::new("lights-mute-off");
+    sandbox.write_config(STUDIO_MAP);
+    let muted = run(sandbox
+        .pns_stateful()
+        .args(["lights", "mute", "3F - Studio", "1h"]));
+    assert_eq!(muted.status.code(), Some(0), "{}", stderr(&muted));
+
+    let cleared = run(sandbox
+        .pns_stateful()
+        .args(["lights", "mute", "3F - Studio", "off"]));
+    assert_eq!(cleared.status.code(), Some(0), "{}", stderr(&cleared));
+    // THE ROW IS GONE, not left holding a past expiry: the report below is
+    // read back from the record, so a stale row would print as a live mute.
+    assert!(
+        stored_records::database(&sandbox)
+            .query_row("SELECT count(*) FROM lamp_mutes", [], |row| row
+                .get::<_, u64>(0))
+            .expect("the mute table answers")
+            == 0,
+        "the cleared place leaves no stored line"
+    );
+    assert!(
+        stdout(&cleared).contains("nothing is muted"),
+        "and the report says so: {}",
+        stdout(&cleared)
     );
 }

@@ -1,19 +1,25 @@
 //! The IO edge: the five probe traits implemented against the real machine.
 //!
-//! WHAT LIVES HERE AND WHAT DOES NOT. Everything here runs a command and hands
-//! the bytes to a parser; every parser is a free function taking `&str`, so a
-//! test drives fixture output and never spawns anything. The DECISIONS all live
-//! in `surface`, `presence` and `routing`, which is why nothing in this module
-//! compares, thresholds or judges: it says what the machine reported, and
-//! `surface` says what that means.
+//! WHAT LIVES HERE AND WHAT DOES NOT. Most of what lives here runs a command
+//! and hands the bytes to a parser, a free function taking `&str`, so a test
+//! drives fixture output and never spawns anything; the desk pair and the
+//! phone chain's process walk are the two exceptions, reading the machine
+//! natively through `ConsoleRegistry` and `ProcessTable`, seams a test drives
+//! the same way. The DECISIONS all live in `surface`, `presence` and
+//! `routing`, which is why nothing in this module compares, thresholds or
+//! judges: it says what the machine reported, and `surface` says what that
+//! means.
 //!
-//! The runner seam exists for the same reason: a test substitutes the command
-//! output, so the suite never reads the live machine. That matters more than
-//! usual here, because these readings are of the developer's own desk and
-//! phone, and a suite that took them would answer differently every run.
+//! The runner and native seams exist for the same reason: a test substitutes
+//! the command output or the registry/table answer, so the suite never reads
+//! the live machine. That matters more than usual here, because these
+//! readings are of the developer's own desk and phone, and a suite that took
+//! them would answer differently every run.
 
 use crate::macos::desk::{idle_reading, lock_reading};
 use crate::macos::phone::{TTY_DIR, phone_reading};
+use crate::macos::proc_table::ProcessTable;
+use crate::macos::registry::ConsoleRegistry;
 use crate::readable_state_file;
 use pns_application::CommandRunner;
 use std::sync::Arc;
@@ -40,6 +46,13 @@ type DeskHandle = std::thread::JoinHandle<(Option<u64>, Option<bool>)>;
 /// between them, which cards a phone with no round trip behind it.
 pub struct SystemProbes<R: CommandRunner> {
     runner: Arc<R>,
+    /// The two desk readings' own seam, and the phone walk's. BEHIND `Arc<dyn>`
+    /// RATHER THAN A TYPE PARAMETER because every reading is taken once per
+    /// process: the one virtual call each costs nothing against the registry
+    /// read behind it, and a third and fourth parameter would reach every
+    /// caller of this type for no behavior at all.
+    registry: Arc<dyn ConsoleRegistry>,
+    table: Arc<dyn ProcessTable>,
     marker_path: Option<std::path::PathBuf>,
     /// Where a phone reading's terminal name resolves to. Always `TTY_DIR`
     /// in production; a test points it at a fixture directory instead of

@@ -21,7 +21,7 @@ mod report;
 mod routes;
 pub use census::checks;
 pub use certificate::{PinState, certificate_row};
-pub use daemon::{daemon_line, nag_line};
+pub use daemon::{daemon_line, remind_line};
 pub use lights::{LightsReport, lights_lines};
 pub use outcome::{Check, CheckKind, ConfigState, Outcome, exit_code, line, outcome_mark, summary};
 pub use pairing::{Pairing, PairingReport, pairing_lines, pairing_mark};

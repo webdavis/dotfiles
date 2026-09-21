@@ -11,7 +11,7 @@ fn a_garbage_idle_override_is_unknown_without_a_probe_read() {
     // Bash keeps a non-empty override and never runs the probe. Falling
     // back to the probe would both pay the read and let a live reading
     // hold the operator at a desk the override said nothing about.
-    let vars = BTreeMap::from([("PNS_IDLE_SECS".to_string(), "not-a-number".to_string())]);
+    let vars = BTreeMap::from([("PNS_SCREEN_IDLE".to_string(), "not-a-number".to_string())]);
     let overrides = Overrides::from_env(&vars);
     let probes = CountingProbes {
         idle: Some(5),
@@ -20,7 +20,7 @@ fn a_garbage_idle_override_is_unknown_without_a_probe_read() {
     let decision = decide_with(&probes, &overrides, "");
     assert_eq!(probes.idle_reads.get(), 0);
     assert!(
-        names(&decision).contains(&"mobile"),
+        names(&decision).contains(&"phone"),
         "an unknown desk reading falls toward away, which cards"
     );
 }

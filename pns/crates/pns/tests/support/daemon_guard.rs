@@ -2,7 +2,7 @@ use super::Sandbox;
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 
-/// A `pns daemon run` that is KILLED ON EVERY EXIT PATH, including a panicking
+/// A `pns gateway run` that is KILLED ON EVERY EXIT PATH, including a panicking
 /// test.
 ///
 /// THE SUITE'S FIRST LONG-LIVED CHILD, and the reason this is a guard rather
@@ -50,8 +50,8 @@ impl DaemonGuard {
         let errors = out.try_clone().expect("the daemon log again");
         let child = sandbox
             .pns_stateful()
-            .env("PNS_DAEMON_TICK_MS", tick_ms.to_string())
-            .args(["daemon", "run"])
+            .env("PNS_DAEMON_TICK_INTERVAL", format!("{tick_ms}ms"))
+            .args(["gateway", "run"])
             .stdin(std::process::Stdio::null())
             .stdout(out)
             .stderr(errors)
@@ -61,6 +61,12 @@ impl DaemonGuard {
             .spawn()
             .expect("the daemon starts");
         DaemonGuard { child, log }
+    }
+
+    /// The daemon's own process ID, for a test that signals it or asks what
+    /// it has spawned.
+    pub fn pid(&self) -> i32 {
+        i32::try_from(self.child.id()).expect("an owned process ID")
     }
 
     /// Everything the daemon has said, both streams together.

@@ -1,18 +1,20 @@
 use super::*;
 
 #[test]
-fn a_producer_invocation_led_by_a_stray_word_still_delivers() {
-    // THE MIRROR OF THE REFUSAL ABOVE. Leniency lives INSIDE `send` now: the
-    // subcommand says this is a notification, and from there the parser
-    // deliberately skips an unrecognized token in front of the real flags, so
-    // a stray word degrades instead of dropping the notification.
+fn a_producer_invocation_led_by_a_stray_word_is_refused_and_names_it() {
+    // A word pns skipped in silence was a caller whose real flags may have
+    // gone nowhere, so `send` refuses it by name and delivers nothing.
     let sandbox = Sandbox::new("stray-leading-word");
-    run(sandbox
-        .pns()
-        .args(["send", "stray", "--producer", "claude", "--state", "done"])
-        .args(["--detail", "a summary"]));
-    assert!(sandbox.fired("mobile"));
-    assert!(sandbox.fired("hermes"));
+    let output = run_expecting(
+        2,
+        sandbox
+            .pns()
+            .args(["send", "stray", "--producer", "claude", "--state", "done"])
+            .args(["--detail", "a summary"]),
+    );
+    assert_eq!(stderr(&output), "pns: stray is not a flag pns takes\n");
+    assert!(!sandbox.fired("phone"));
+    assert!(!sandbox.fired("hermes"));
 }
 
 #[test]
@@ -22,7 +24,7 @@ fn a_bare_send_is_still_the_empty_event_the_contract_calls_valid() {
     // is what asked for a notification.
     let sandbox = Sandbox::new("bare-send");
     run(sandbox.pns().arg("send"));
-    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"));
 }
 
@@ -35,7 +37,7 @@ fn producer_flags_with_no_subcommand_are_refused_rather_than_delivered() {
         let output = sandbox.pns().args(argv).output().expect("the engine runs");
         assert_eq!(output.status.code(), Some(2), "{argv:?}: {output:?}");
         assert!(stderr(&output).contains("usage"), "{argv:?}: {output:?}");
-        assert!(!sandbox.fired("mobile"), "{argv:?}: {output:?}");
+        assert!(!sandbox.fired("phone"), "{argv:?}: {output:?}");
         assert!(!sandbox.fired("hermes"), "{argv:?}: {output:?}");
     }
 }

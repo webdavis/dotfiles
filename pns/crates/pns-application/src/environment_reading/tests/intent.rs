@@ -54,7 +54,7 @@ fn a_garbage_phone_override_is_unknown_without_a_probe_read() {
     // value is refused rather than falling back to the live reading,
     // which would let a probe answer a question the caller overrode.
     let vars = BTreeMap::from([(
-        "PNS_PHONE_INPUT_AGE".to_string(),
+        "PNS_PHONE_INPUT_MAX_AGE".to_string(),
         "not-a-number".to_string(),
     )]);
     let overrides = Overrides::from_env(&vars);
@@ -66,7 +66,7 @@ fn a_garbage_phone_override_is_unknown_without_a_probe_read() {
     let decision = decide_with(&probes, &overrides, "");
     assert_eq!(probes.phone_reads.get(), 0);
     assert!(
-        names(&decision).contains(&"mobile"),
+        names(&decision).contains(&"phone"),
         "an unknown phone reading falls toward away, which cards"
     );
 }
@@ -80,7 +80,7 @@ fn the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading() {
     // stating the desk clock states the desk's whole story, garbled value
     // included.
     let garbled = Overrides::from_env(&BTreeMap::from([(
-        "PNS_IDLE_SECS".to_string(),
+        "PNS_SCREEN_IDLE".to_string(),
         "not-a-number".to_string(),
     )]));
     // (label, overrides, what the idle probe answers, idle reads, lock reads)

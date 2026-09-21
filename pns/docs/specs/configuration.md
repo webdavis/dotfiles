@@ -16,24 +16,24 @@ what was looked for. The operator's real config was never read, and no secret va
 this document.
 
 Two vocabulary notes that matter for reading the tables below. `quiet hours` is the config key
-`[plugins.hue] quiet_hours` and `quiet window` is the parsed value behind it; `dim window` is the
-per-target `dim_window` key. `unread` is one of the five behaviour words. `home probe` and `router` name
-the `[plugins.router]` sensor. The `config-change` hook event (`src/main.rs:config_change_detail`) is
+`[lights] dim_window` and `quiet window` is the parsed value behind it; `dim window` is that same
+window, overridden per target by a declaration's own `dim_window` key. `unseen` is one of the five behaviour words. `home probe` and `router` name
+the `[plugins.home_presence]` sensor. The `config-change` hook event (`src/main.rs:config_change_detail`) is
 about the HARNESS's own settings file and has nothing to do with this file; it is out of scope here.
 
 ## Is the config versioned?
 
 `NOT ESTABLISHED:` there is no version key and no schema-version concept anywhere in the config surface.
 Evidence, all negative and each checked: `src/config.rs:TABLE_KEYS` declares the top level as
-`&["daemon", "focus", "lights", "nag", "plugins", "recap"]` and nothing else, so a `version` key at the
+`&["daemon", "focus", "lights", "plugins", "recap", "remind", "stale"]` and nothing else, so a `version` key at the
 top level would be refused by `parse_config`'s `_` arm; `src/config.rs:Config` has six fields (`plugins`,
-`recap`, `focus_silence`, `daemon_enabled`, `nag_after_secs`, `lights`) and none of them is a version;
+`recap`, `focus_modes`, `daemon_enabled`, `remind_delay_secs`, `lights`) and none of them is a version;
 `src/config_text.rs:LAYOUT` declares sixteen tables and no version key; and a case-insensitive grep for
 `version` over `src/config.rs`, `src/config_text.rs`, `dot_config/pns/config-values.toml` and
 `dot_config/pns/private_config.toml.tmpl` returns nothing at all. There is therefore no migration
 mechanism, no compatibility window and no way for a file to declare which schema it was written against.
 What stands in for one is the refusal itself: a table that MOVED (`[home]`, whose settings became
-`[plugins.router]`) is refused by name with the six live tables listed, which is a hand-executed
+`[plugins.home_presence]`) is refused by name with the six live tables listed, which is a hand-executed
 migration prompt rather than a versioned one
 (`src/config.rs:a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`,
 `src/config.rs:a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`).
@@ -96,23 +96,23 @@ assert_eq!(
     secrets,
     [
         (
-            "plugins.mobile".to_string(),
+            "plugins.phone".to_string(),
             r#"token = {{ (keepassxc "Moshi :: Webhook Secret").Password | toToml }}"#
         ),
         (
-            "plugins.hermes.keys".to_string(),
+            "plugins.log.keys".to_string(),
             r#"pns-events = {{ (keepassxc "Hermes :: Webhook Secret (#pns-events)").Password | toToml }}"#
         ),
         (
-            "plugins.hue".to_string(),
+            "plugins.lights".to_string(),
             r#"bridge = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}"#
         ),
         (
-            "plugins.hue".to_string(),
+            "plugins.lights".to_string(),
             r#"key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}"#
         ),
         (
-            "plugins.router".to_string(),
+            "plugins.home_presence".to_string(),
             r#"api_key = {{ (keepassxc "UniFi :: API Key (dresden-udr)").Password | toToml }}"#
         ),
     ]
@@ -120,8 +120,8 @@ assert_eq!(
 ```
 
 The pin carries each line's TABLE as well as its text, and the test's own comment says why: "a bare line
-comparison cannot tell hermes's secret sitting under `[plugins.hue]` from hermes's secret sitting under
-`[plugins.hermes]`, since the line text alone never says which heading it fell under (sol-1 finding 1)."
+comparison cannot tell hermes's secret sitting under `[plugins.lights]` from hermes's secret sitting under
+`[plugins.log]`, since the line text alone never says which heading it fell under (sol-1 finding 1)."
 
 The pin's stated ceiling, from the same doc comment: "THE STUB ONLY READS THE GRAMMAR of a secret
 action... It reads neither WHICH entry a line names nor WHICH field it takes off that entry, so pointing
@@ -137,7 +137,7 @@ answers with one of five things.
 | Answer                                 | When                                                                    | Fail direction on the delivery path                                                        | Fail direction on the pulse path                                       |
 | -------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | `Ok(LoadOutcome::Loaded(config))`      | the file read and parsed                                                | the config is authoritative                                                                | the config is authoritative                                            |
-| `Ok(LoadOutcome::Missing)`             | `read_to_string` returned `NotFound` AND `symlink_metadata` also failed | the CORE selection (`mobile`, `macos-banner`), silently (`src/registry.rs:select_plugins`) | exit 0, silent (`src/main.rs`, `Ok(LoadOutcome::Missing) => return 0`) |
+| `Ok(LoadOutcome::Missing)`             | `read_to_string` returned `NotFound` AND `symlink_metadata` also failed | the CORE selection (`phone`, `banner`), silently (`src/registry.rs:select_plugins`) | exit 0, silent (`src/main.rs`, `Ok(LoadOutcome::Missing) => return 0`) |
 | `Err(ConfigError::Malformed(detail))`  | the text is not TOML                                                    | the CORE plus one warning line                                                             | `pns: config error ({detail}); no pulse`, exit 0                       |
 | `Err(ConfigError::Invalid(detail))`    | well-formed TOML that violates the schema                               | the CORE plus one warning line                                                             | the same, exit 0                                                       |
 | `Err(ConfigError::Unreadable(detail))` | present but unreadable, a dangling symlink included                     | the CORE plus one warning line                                                             | the same, exit 0                                                       |
@@ -155,10 +155,10 @@ shape, the registry interprets the contents").
 
 ### Top level
 
-| Key path                                               | Type  | Default | Bound             | Secret | Out of bounds or malformed                                                                                 | Judged by                  | Tests                                                                                                                                                                                                                                                                                                                             |
-| ------------------------------------------------------ | ----- | ------- | ----------------- | ------ | ---------------------------------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `daemon`, `focus`, `lights`, `nag`, `plugins`, `recap` | table | absent  | closed set of six | no     | `Invalid`: `` unknown top-level key `{key}`; the file serves daemon, focus, lights, nag, plugins, recap `` | `parse_config`             | `an_unknown_top_level_key_is_refused_so_a_typo_cannot_disable_a_channel`, `a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`, `a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`, `a_top_level_key_that_merely_looks_like_recap_is_still_refused_by_name`                                 |
-| any of the six written as a scalar                     | table | n/a     | must be a table   | no     | `Invalid`: `` `{name}` is not a table ``                                                                   | each table's own parse arm | `a_non_table_recap_value_is_refused_naming_the_key`, `a_non_table_focus_value_is_refused_naming_the_arm_rather_than_the_key`, `a_non_table_plugins_value_is_refused_naming_the_key`, `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, `a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name` |
+| Key path                                                  | Type  | Default | Bound             | Secret | Out of bounds or malformed                                                                                    | Judged by                  | Tests                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------- | ----- | ------- | ----------------- | ------ | ------------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `daemon`, `focus`, `lights`, `remind`, `plugins`, `recap` | table | absent  | closed set of six | no     | `Invalid`: `` unknown top-level key `{key}`; the file serves daemon, focus, lights, remind, plugins, recap `` | `parse_config`             | `an_unknown_top_level_key_is_refused_so_a_typo_cannot_disable_a_channel`, `a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does`, `a_stale_top_level_home_table_is_refused_by_name_rather_than_ignored`, `a_top_level_key_that_merely_looks_like_recap_is_still_refused_by_name`                      |
+| any of the six written as a scalar                        | table | n/a     | must be a table   | no     | `Invalid`: `` `{name}` is not a table ``                                                                      | each table's own parse arm | `a_non_table_recap_value_is_refused_naming_the_key`, `a_non_table_focus_value_is_refused_naming_the_arm_rather_than_the_key`, `a_non_table_plugins_value_is_refused_naming_the_key`, `the_gateway_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
 ### `[recap]`
 
@@ -166,46 +166,51 @@ Absent is ALL ON. `src/config.rs:Recap::default` is written out rather than deri
 bool is false and that "would take every delivery away from every machine whose config was written before
 this table existed, and it would do it silently."
 
-| Key path                         | Type              | Default                                         | Bound                                                                                            | Secret | Out of bounds or malformed                                                                                                                                                                                                                                                                                                                                                       | Judged by                                         | Tests                                                                                                                                                                                                                |
-| -------------------------------- | ----------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `recap.replay_card`              | bool              | `true`                                          | none                                                                                             | no     | `Invalid`: `` `recap` key `replay_card` has type `{type}`, not boolean ``                                                                                                                                                                                                                                                                                                        | `src/config.rs:flag`                              | `a_recap_table_is_read_rather_than_refused_and_each_switch_stands_alone`, `a_config_with_no_recap_table_leaves_every_switch_on`                                                                                      |
-| `recap.digest`                   | bool              | `true`                                          | none                                                                                             | no     | same wording, key `digest`                                                                                                                                                                                                                                                                                                                                                       | `src/config.rs:flag`                              | `a_non_boolean_recap_switch_is_refused_naming_the_key`                                                                                                                                                               |
-| `recap.min_events`               | integer (`usize`) | `8` (`DEFAULT_MIN_EVENTS`)                      | floor 1, NO ceiling below `usize`                                                                | no     | not a count: `` `recap` key `min_events` has type `{type}`, not a count ``; zero: `` `recap` key `min_events` is 0, which is not a threshold; 1 is the floor ``                                                                                                                                                                                                                  | `src/config.rs:threshold`                         | `the_recaps_volume_threshold_is_a_count_the_operator_can_state`, `a_volume_threshold_of_zero_is_refused_by_name_rather_than_read_as_every_event`, `a_volume_threshold_that_is_not_a_count_is_refused_naming_the_key` |
-| `recap.summarizer`               | array of strings  | `None` (unset, and unset is a working setting)  | non-empty, first word non-empty                                                                  | no     | not a list: `` `recap` key `summarizer` has type `{type}`, not a list of command words ``; a non-string element: `` `recap` key `summarizer` has a `{type}` in it, not a list of command words ``; `[]`: `` `recap` key `summarizer` is empty, so it names no command to run ``; `[""]`: `` `recap` key `summarizer` starts with an empty word, so it names no command to run `` | `src/config.rs:argv` over `src/config.rs:strings` | `the_summarizer_is_an_argument_list_the_operator_states_word_by_word`, `a_summarizer_that_is_not_a_list_of_words_is_refused_naming_the_key`                                                                          |
-| `recap.summarizer_deadline_secs` | integer (`u64`)   | `240` (`DEFAULT_SUMMARIZER_DEADLINE_SECS`)      | 0 to 3600 inclusive; zero IS accepted                                                            | no     | not a count: `` `recap` key `summarizer_deadline_secs` has type `{type}`, not a count of seconds ``; over: `` `recap` key `summarizer_deadline_secs` is {count}, past the 3600-second ceiling ``                                                                                                                                                                                 | `src/config.rs:seconds`                           | `the_summarizers_deadline_is_a_count_of_seconds_with_a_generous_default`                                                                                                                                             |
-| `recap.repos`                    | array of strings  | `[]` (unset, no `gh` process is started at all) | non-empty, every entry non-empty                                                                 | no     | not a list, or a non-string element: `... not a list of repository names`; `[]` or an empty entry: `` `recap` key `repos` names no repository to read ``                                                                                                                                                                                                                         | `src/config.rs:repositories`                      | `the_two_external_sources_are_named_by_the_operator_or_not_read_at_all`, `a_repos_value_that_is_not_repository_names_is_refused_naming_the_key`                                                                      |
-| `recap.review_notes`             | string            | `None` (unset, the directory is never opened)   | absolute or `~/`; no `*` in the directory; at most one `*` in the file name; file name non-empty | no     | four distinct refusals, quoted in behavior 9                                                                                                                                                                                                                                                                                                                                     | `src/config.rs:note_glob`                         | `a_review_notes_glob_that_names_no_readable_file_is_refused_naming_the_key`                                                                                                                                          |
+| Key path                    | Type              | Default                                         | Bound                                                                                            | Secret | Out of bounds or malformed                                                                                                                                                                                                                                                                                                                                                       | Judged by                                         | Tests                                                                                                                                                                                                                |
+| --------------------------- | ----------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recap.replay_card`         | bool              | `true`                                          | none                                                                                             | no     | `Invalid`: `` `recap` key `replay_card` has type `{type}`, not boolean ``                                                                                                                                                                                                                                                                                                        | `src/config.rs:flag`                              | `a_recap_table_is_read_rather_than_refused_and_each_switch_stands_alone`, `a_config_with_no_recap_table_leaves_every_switch_on`                                                                                      |
+| `recap.post_window_recap`   | bool              | `true`                                          | none                                                                                             | no     | same wording, key `post_window_recap`                                                                                                                                                                                                                                                                                                                                            | `src/config.rs:flag`                              | `a_non_boolean_recap_switch_is_refused_naming_the_key`                                                                                                                                                               |
+| `recap.minimum_events`      | integer (`usize`) | `8` (`DEFAULT_MINIMUM_EVENTS`)                  | floor 1, NO ceiling below `usize`                                                                | no     | not a count: `` `recap` key `minimum_events` has type `{type}`, not a count ``; zero: `` `recap` key `minimum_events` is 0, which is not a threshold; 1 is the floor ``                                                                                                                                                                                                          | `src/config.rs:threshold`                         | `the_recaps_volume_threshold_is_a_count_the_operator_can_state`, `a_volume_threshold_of_zero_is_refused_by_name_rather_than_read_as_every_event`, `a_volume_threshold_that_is_not_a_count_is_refused_naming_the_key` |
+| `recap.summarizer`          | array of strings  | `None` (unset, and unset is a working setting)  | non-empty, first word non-empty                                                                  | no     | not a list: `` `recap` key `summarizer` has type `{type}`, not a list of command words ``; a non-string element: `` `recap` key `summarizer` has a `{type}` in it, not a list of command words ``; `[]`: `` `recap` key `summarizer` is empty, so it names no command to run ``; `[""]`: `` `recap` key `summarizer` starts with an empty word, so it names no command to run `` | `src/config.rs:argv` over `src/config.rs:strings` | `the_summarizer_is_an_argument_list_the_operator_states_word_by_word`, `a_summarizer_that_is_not_a_list_of_words_is_refused_naming_the_key`                                                                          |
+| `recap.summarizer_deadline` | duration string   | `"4m"` (`DEFAULT_SUMMARIZER_DEADLINE`)          | "1ms" to "1h" inclusive; "0s" IS accepted                                                        | no     | not a count: `` `recap` key `summarizer_deadline` has type `{type}`, not a duration like "5m" ``; over: `` `recap` key `summarizer_deadline` must be at most 1h ``                                                                                                                                                                                                               | `config/recap.rs:parse_recap`                     | `the_summarizers_deadline_is_a_duration_with_a_generous_default`                                                                                                                                                     |
+| `recap.repositories`        | array of strings  | `[]` (unset, no `gh` process is started at all) | non-empty, every entry non-empty                                                                 | no     | not a list, or a non-string element: `... not a list of repository names`; `[]` or an empty entry: `` `recap` key `repositories` names no repository to read ``                                                                                                                                                                                                                  | `src/config.rs:repositories`                      | `the_two_external_sources_are_named_by_the_operator_or_not_read_at_all`, `a_repos_value_that_is_not_repository_names_is_refused_naming_the_key`                                                                      |
+| `recap.review_notes_glob`   | string            | `None` (unset, the directory is never opened)   | absolute or `~/`; no `*` in the directory; at most one `*` in the file name; file name non-empty | no     | four distinct refusals, quoted in behavior 9                                                                                                                                                                                                                                                                                                                                     | `src/config.rs:note_glob`                         | `a_review_notes_glob_that_names_no_readable_file_is_refused_naming_the_key`                                                                                                                                          |
 
 ### `[focus]`
 
 | Key path        | Type             | Default                | Bound                                   | Secret | Out of bounds or malformed                                                                                                                                                                                                      | Judged by                                          | Tests                                                                                                                                                                                                                                                                                                                |
 | --------------- | ---------------- | ---------------------- | --------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `focus.silence` | array of strings | `[]` (the feature off) | the LIST may be empty, an ENTRY may not | no     | not a list, or a non-string element: `` `focus` key `silence` has type `{type}`, not a list of Focus mode names ``; an empty entry: `` `focus` key `silence` names a mode that is the empty string, which is no Focus at all `` | `src/config.rs:modes` over `src/config.rs:strings` | `a_focus_table_names_the_modes_that_silence_pns`, `a_silence_list_that_is_not_a_list_is_refused_naming_the_key`, `a_mode_name_that_is_not_a_string_is_refused_naming_the_key`, `a_mode_name_that_is_the_empty_string_is_refused_by_name`, `an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off` |
+| `focus.modes` | array of strings | `[]` (nothing silenced) | the LIST may be empty, an ENTRY may not | no     | not a list, or a non-string element: `` `focus` key `modes` has type `{type}`, not a list of Focus mode names ``; an empty entry: `` `focus` key `modes` names a mode that is the empty string, which is no Focus at all `` | `src/config.rs:modes` over `src/config.rs:strings` | `a_focus_table_names_the_modes_that_silence_pns`, `a_silence_list_that_is_not_a_list_is_refused_naming_the_key`, `a_mode_name_that_is_not_a_string_is_refused_naming_the_key`, `a_mode_name_that_is_the_empty_string_is_refused_by_name`, `an_empty_modes_list_is_admitted_because_it_silences_nothing` |
 
-There is no `enabled` key here, and the absence is deliberate: "naming no mode and switching the feature
-off are the same statement, so a second way to say it is a second thing that can disagree with the first"
-(`src/config.rs:parse_focus`). The mode NAME itself is not judged: a name matching no mode is an ordinary
-thing to write, and `pns doctor` is where the operator learns whether it matched.
+`focus.enabled` is a bool defaulting `true` (`config/focus.rs:DEFAULT_FOCUS_ENABLED`), refused as
+`` `focus` key `enabled` has type `{type}`, not boolean ``, and judged by `config/focus.rs:parse_focus`.
+It is the SWITCH and `modes` is the ROSTER: "a list the operator spent a while getting right stays
+written while the feature is off for a week." The two are read together through
+`Config::focus_silence`, which answers the roster while the switch is on and nothing while it is off,
+so no reader can forget one of them. The mode NAME itself is not judged: a name matching no mode is an
+ordinary thing to write, and `pns doctor` is where the operator learns whether it matched. Pinned by
+`config/tests/focus.rs:the_switch_off_silences_nothing_even_with_modes_named` and
+`config/tests/focus.rs:a_switch_that_is_not_a_boolean_is_refused_naming_the_key`.
 
-### `[daemon]`
+### `[gateway]`
 
 | Key path         | Type | Default                           | Bound | Secret | Out of bounds or malformed                                             | Judged by                    | Tests                                                                        |
 | ---------------- | ---- | --------------------------------- | ----- | ------ | ---------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------- |
-| `daemon.enabled` | bool | `true` (`DEFAULT_DAEMON_ENABLED`) | none  | no     | `Invalid`: `` `daemon` key `enabled` has type `{type}`, not boolean `` | `src/config.rs:parse_daemon` | `the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name` |
+| `gateway.enabled` | bool | `true` (`DEFAULT_GATEWAY_ENABLED`) | none  | no     | `Invalid`: `` `gateway` key `enabled` has type `{type}`, not boolean `` | `src/config.rs:parse_gateway` | `the_gateway_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name` |
 
 Default ON, which is the opposite of `[focus]` and of every plugin. The reason given at
-`src/config.rs:Config::daemon_enabled`: this switch delivers nothing by itself, "an idle daemon reads one
+`src/config.rs:Config::gateway_enabled`: this switch delivers nothing by itself, "an idle daemon reads one
 empty directory a second," and default OFF "would put every feature that rides the clock behind TWO
 switches."
 
-### `[nag]`
+### `[remind]`
 
-| Key path         | Type            | Default                          | Bound                                    | Secret | Out of bounds or malformed                                                                                                                                                                       | Judged by                    | Tests                                                                                                                                                |
-| ---------------- | --------------- | -------------------------------- | ---------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nag.after_secs` | integer (`u64`) | `0` (`NAG_OFF`, the feature off) | 0 is off; otherwise 30 to 3600 inclusive | no     | not a count: `` `nag` key `after_secs` has type `{type}`, not a count of seconds ``; outside: `` `nag` key `after_secs` is {count}, outside the 30 to 3600 second range; 0 is the feature off `` | `src/config.rs:nag_schedule` | `the_nag_table_reads_one_schedule_defaults_off_and_zero_is_off_rather_than_an_error`, `a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name` |
+| Key path       | Type            | Default                               | Bound                                        | Secret | Out of bounds or malformed                                                                                                                                | Judged by                          | Tests                                                                                                                                     |
+| -------------- | --------------- | ------------------------------------- | -------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `remind.delay` | duration string | unset (`REMIND_OFF`, the feature off) | 30s to 1h inclusive; `"0s"` is refused | no     | not a duration: `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``; outside: `` `remind` key `delay` "{text}" is outside 30s to 1h `` | `src/config.rs:remind_delay_range` | `the_remind_table_reads_one_delay_defaults_off_and_zero_is_off_rather_than_an_error`, `a_delay_that_is_not_a_duration_is_refused_by_name` |
 
-`MAX_NAG_AFTER_SECS` is defined as `MAX_SUMMARIZER_DEADLINE_SECS`, so the two ceilings are one number by
-construction rather than two that agree by accident.
+The bounds live in the policy crate as `pns_domain::remind::DELAY_RANGE`, so the `[remind] delay` key,
+the `--remind=<duration>` flag and the JSON request's `remind` field are held to one range.
 
 ### `[lights]`
 
@@ -214,29 +219,30 @@ keeps the room-based pulse it has always had; a machine with an empty one has as
 named no lamp yet. Those are different states and the doctor says different things about them"
 (`src/config.rs:Lights`).
 
-| Key path                            | Type            | Default                                                  | Bound                                                                                                                        | Secret | Out of bounds or malformed                                                                                                                       | Judged by                                                                | Tests                                                                                                                                                            |
-| ----------------------------------- | --------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lights.refresh_secs`               | integer (`u64`) | `12` (`DEFAULT_REFRESH_SECS`)                            | 10 (`MIN_REFRESH_SECS`) to 30 (`MAX_REFRESH_SECS`)                                                                           | no     | `` `lights` key `refresh_secs` is {count}, outside the 10 to 30 range ``; wrong type: `` ... has type `{type}`, not a count between 10 and 30 `` | `src/config.rs:bounded`                                                  | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`, `a_lights_value_of_the_wrong_type_is_refused_by_name_and_by_type`               |
-| `lights.done.duration_ms`           | integer         | `4000`                                                   | 200 (`MIN_FADE_MS`) to 5000 (`MAX_FADE_MS`)                                                                                  | no     | `bounded` refusal naming `lights.done`                                                                                                           | `src/config.rs:parse_pulse`                                              | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`                                                                                  |
-| `lights.done.brightness`            | integer (`u8`)  | `100`                                                    | 1 (`MIN_BRIGHTNESS`) to 100 (`MAX_BRIGHTNESS`)                                                                               | no     | `bounded` refusal; zero is refused rather than read as off                                                                                       | `src/config.rs:percent`                                                  | same                                                                                                                                                             |
-| `lights.failed.duration_ms`         | integer         | `4000`                                                   | 200 to 5000                                                                                                                  | no     | as `lights.done`                                                                                                                                 | `parse_pulse`                                                            | same                                                                                                                                                             |
-| `lights.failed.brightness`          | integer         | `100`                                                    | 1 to 100                                                                                                                     | no     | as `lights.done`                                                                                                                                 | `percent`                                                                | same                                                                                                                                                             |
-| `lights.blocked.duration_ms`        | integer         | `2000`                                                   | 200 to 5000                                                                                                                  | no     | `bounded` refusal naming `lights.blocked`                                                                                                        | `src/config.rs:breath_key`                                               | `no_lights_table_is_none_and_an_empty_one_is_every_locked_default`                                                                                               |
-| `lights.blocked.high`               | integer         | `100`                                                    | 1 to 100, and `low <= high`                                                                                                  | no     | `bounded`, plus `ends_agree`                                                                                                                     | `breath_key`, `src/config.rs:ends_agree`                                 | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                               |
-| `lights.blocked.low`                | integer         | `30`                                                     | 1 to 100, and `low <= high`                                                                                                  | no     | same                                                                                                                                             | same                                                                     | same                                                                                                                                                             |
-| `lights.blocked.give_up_after_secs` | integer         | `57600` (`DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`, 16 hours) | 60 (`MIN_LEASE_TIMEOUT_SECS`) to 604800 (`MAX_GIVE_UP_AFTER_SECS`, a week), AND at least `nag.after_secs` when the nag is on | no     | `bounded` refusal; the cross-table one is quoted in behavior 19                                                                                  | `src/config.rs:parse_blocked`, `src/config.rs:backstop_outlasts_the_nag` | `the_blocked_backstop_reads_the_configured_number_rather_than_a_hardcoded_default`, `a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys` |
-| `lights.unread.duration_ms`         | integer         | `4000`                                                   | 200 to 5000                                                                                                                  | no     | `bounded` naming `lights.unread`                                                                                                                 | `breath_key`                                                             | `a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values`                                                                          |
-| `lights.unread.high`                | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                      | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                               | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                               |
-| `lights.unread.low`                 | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                      | no     | same                                                                                                                                             | same                                                                     | same                                                                                                                                                             |
-| `lights.unread.after_secs`          | integer         | `300` (`DEFAULT_UNREAD_AFTER_SECS`)                      | 0 to 86400 (`MAX_THRESHOLD_SECS`); zero means "at once"                                                                      | no     | `bounded` refusal naming `lights.unread`                                                                                                         | `src/config.rs:parse_unread`                                             | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`                                                                                  |
-| `lights.loop.duration_ms`           | integer         | `4000`                                                   | 200 to 5000                                                                                                                  | no     | `bounded` naming `lights.loop`                                                                                                                   | `breath_key`                                                             | same                                                                                                                                                             |
-| `lights.loop.high`                  | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                      | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                               | same                                                                                                                                                             |
-| `lights.loop.low`                   | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                      | no     | same                                                                                                                                             | same                                                                     | same                                                                                                                                                             |
-| `lights.loop.threshold_secs`        | integer         | `300` (`DEFAULT_LOOP_THRESHOLD_SECS`)                    | 1 (`MIN_THRESHOLD_SECS`) to 86400                                                                                            | no     | `bounded` naming `lights.loop`                                                                                                                   | `src/config.rs:parse_looping`                                            | same                                                                                                                                                             |
-| `lights.loop.lease_timeout_secs`    | integer         | `3900` (`DEFAULT_LEASE_TIMEOUT_SECS`, 65 minutes)        | 60 to 86400                                                                                                                  | no     | `bounded` naming `lights.loop`                                                                                                                   | `parse_looping`                                                          | same                                                                                                                                                             |
-| `lights.dim.duration_ms`            | integer         | `3000`                                                   | 200 to 5000                                                                                                                  | no     | `bounded` naming `lights.dim`                                                                                                                    | `src/config.rs:parse_breath`                                             | `no_lights_table_is_none_and_an_empty_one_is_every_locked_default`                                                                                               |
-| `lights.dim.high`                   | integer         | `7`                                                      | 1 to 100, `low <= high`                                                                                                      | no     | `bounded`, `ends_agree`                                                                                                                          | `parse_breath`, `ends_agree`                                             | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                               |
-| `lights.dim.low`                    | integer         | `1`                                                      | 1 to 100, `low <= high`                                                                                                      | no     | same                                                                                                                                             | same                                                                     | same                                                                                                                                                             |
+| Key path                            | Type            | Default                                                  | Bound                                                                                                                           | Secret | Out of bounds or malformed                                                                                                                       | Judged by                                                                     | Tests                                                                                                                                                                 |
+| ----------------------------------- | --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lights.arm_interval`               | duration        | `"12s"` (`DEFAULT_ARM_INTERVAL_SECS`)                         | `"10s"` (`MIN_ARM_INTERVAL_SECS`) to `"30s"` (`MAX_ARM_INTERVAL_SECS`)                                                                    | no     | `` `lights` key `arm_interval` "31s" is outside 10s to 30s ``; wrong type: `` ... has type `{type}`, not a duration like "5m" `` | `src/config.rs:positive_duration`                                             | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`, `a_lights_value_of_the_wrong_type_is_refused_by_name_and_by_type`                    |
+| `lights.dim_window`                 | string          | unset                                                   | not parsed here (the window's own grammar is `src/channels/hue.rs`'s)                                                          | no     | `` `lights` key `dim_window` has type `{type}`, not a string ``                                                                  | `src/config.rs:text`                                                          | `a_place_that_states_no_window_runs_the_house_one_and_its_own_overrides_it`                                                                                            |
+| `lights.done.duration`           | integer         | `4000`                                                   | 200 (`MIN_FADE_MS`) to 5000 (`MAX_FADE_MS`)                                                                                     | no     | `bounded` refusal naming `lights.done`                                                                                                           | `src/config.rs:parse_pulse`                                                   | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`                                                                                       |
+| `lights.done.brightness_percent`            | integer (`u8`)  | `100`                                                    | 1 (`MIN_BRIGHTNESS`) to 100 (`MAX_BRIGHTNESS`)                                                                                  | no     | `bounded` refusal; zero is refused rather than read as off                                                                                       | `src/config.rs:percent`                                                       | same                                                                                                                                                                  |
+| `lights.failed.duration`         | integer         | `4000`                                                   | 200 to 5000                                                                                                                     | no     | as `lights.done`                                                                                                                                 | `parse_pulse`                                                                 | same                                                                                                                                                                  |
+| `lights.failed.brightness_percent`          | integer         | `100`                                                    | 1 to 100                                                                                                                        | no     | as `lights.done`                                                                                                                                 | `percent`                                                                     | same                                                                                                                                                                  |
+| `lights.blocked.duration`        | integer         | `2000`                                                   | 200 to 5000                                                                                                                     | no     | `bounded` refusal naming `lights.blocked`                                                                                                        | `src/config.rs:breath_key`                                                    | `no_lights_table_is_none_and_an_empty_one_is_every_locked_default`                                                                                                    |
+| `lights.blocked.high_percent`               | integer         | `100`                                                    | 1 to 100, and `low <= high`                                                                                                     | no     | `bounded`, plus `ends_agree`                                                                                                                     | `breath_key`, `src/config.rs:ends_agree`                                      | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                                    |
+| `lights.blocked.low_percent`                | integer         | `30`                                                     | 1 to 100, and `low <= high`                                                                                                     | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
+| `lights.blocked.lease_expiry` | duration        | `"16h"` (`DEFAULT_BLOCKED_LEASE_EXPIRY_SECS`) | `"1m"` (`MIN_LEASE_EXPIRY_SECS`) to `"168h"` (`MAX_BLOCKED_LEASE_EXPIRY_SECS`, a week), AND at least `remind.delay` when the reminder is on | no     | `positive_duration` refusal; the cross-table one is quoted in behavior 19                                                                                  | `src/config.rs:parse_blocked`, `src/config.rs:backstop_outlasts_the_reminder` | `the_blocked_backstop_reads_the_configured_number_rather_than_a_hardcoded_default`, `a_backstop_that_gives_up_before_the_reminder_nudges_is_refused_naming_both_keys` |
+| `lights.unseen.duration`         | integer         | `4000`                                                   | 200 to 5000                                                                                                                     | no     | `bounded` naming `lights.unseen`                                                                                                                 | `breath_key`                                                                  | `a_behaviour_table_moves_the_keys_it_states_and_leaves_the_rest_at_their_locked_values`                                                                               |
+| `lights.unseen.high_percent`                | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                                    | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                                    |
+| `lights.unseen.low_percent`                 | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
+| `lights.unseen.arm_after`           | duration        | `"5m"` (`DEFAULT_UNSEEN_ARM_AFTER_SECS`)                     | `"0s"` to `"24h"` (`MAX_LIGHTS_TIMING_SECS`); `"0s"` means "at once"                                                                         | no     | `duration_key` refusal naming `lights.unseen`                                                                                                         | `src/config.rs:parse_unseen`                                                  | `every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`                                                                                       |
+| `lights.loop.duration`           | integer         | `4000`                                                   | 200 to 5000                                                                                                                     | no     | `bounded` naming `lights.loop`                                                                                                                   | `breath_key`                                                                  | same                                                                                                                                                                  |
+| `lights.loop.high_percent`                  | integer         | `60`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | `bounded`, `ends_agree`                                                                                                                          | `breath_key`, `ends_agree`                                                    | same                                                                                                                                                                  |
+| `lights.loop.low_percent`                   | integer         | `10`                                                     | 1 to 100, `low <= high`                                                                                                         | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
+| `lights.loop.arm_after`        | duration        | `"5m"` (`DEFAULT_LOOP_ARM_AFTER_SECS`)                   | `"1s"` (`MIN_ARM_AFTER_SECS`) to `"24h"`                                                                                               | no     | `positive_duration` naming `lights.loop`                                                                                                                   | `src/config.rs:parse_looping`                                                 | same                                                                                                                                                                  |
+| `lights.loop.lease_expiry`    | duration        | `"65m"` (`DEFAULT_LOOP_LEASE_EXPIRY_SECS`)                   | `"1m"` to `"24h"`                                                                                                                     | no     | `positive_duration` naming `lights.loop`                                                                                                                   | `parse_looping`                                                               | same                                                                                                                                                                  |
+| `lights.dim.duration`            | integer         | `3000`                                                   | 200 to 5000                                                                                                                     | no     | `bounded` naming `lights.dim`                                                                                                                    | `src/config.rs:parse_breath`                                                  | `no_lights_table_is_none_and_an_empty_one_is_every_locked_default`                                                                                                    |
+| `lights.dim.high_percent`                   | integer         | `7`                                                      | 1 to 100, `low <= high`                                                                                                         | no     | `bounded`, `ends_agree`                                                                                                                          | `parse_breath`, `ends_agree`                                                  | `a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`                                                                                    |
+| `lights.dim.low_percent`                    | integer         | `1`                                                      | 1 to 100, `low <= high`                                                                                                         | no     | same                                                                                                                                             | same                                                                          | same                                                                                                                                                                  |
 
 ### `[lights.lamp."<name>"]`, `[lights.room."<name>"]`, `[lights.zone."<name>"]`
 
@@ -246,9 +252,9 @@ The refusal names the PATH THE OPERATOR WROTE, not the roster row.
 
 | Key path         | Type                     | Default                                                     | Bound                                                                                          | Secret | Out of bounds or malformed                                                                                                                      | Judged by                     | Tests                                                                                                                                                                                                                           |
 | ---------------- | ------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shows`          | array of behaviour words | `None` (said nothing, which is distinct from an empty list) | the closed set `done`, `failed`, `blocked`, `unread`, `loop` (`src/config.rs:BEHAVIOUR_WORDS`) | no     | `` `{path}` key `shows` names `{word}`, which is no behaviour; the lamps say done, failed, blocked, unread, loop ``                             | `src/config.rs:behaviours`    | `a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys`, `a_declaration_that_states_nothing_states_nothing_rather_than_defaulting`, `a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named` |
+| `behaviours`          | array of behaviour words | `None` (said nothing, which is distinct from an empty list) | the closed set `done`, `failed`, `blocked`, `unseen`, `loop`, `checks` (`src/config.rs:BEHAVIOUR_WORDS`) | no     | `` `{path}` key `behaviours` names `{word}`, which is no behaviour; the lamps say done, failed, blocked, unseen, loop, checks ``                             | `src/config.rs:behaviours`    | `a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys`, `a_declaration_that_states_nothing_states_nothing_rather_than_defaulting`, `a_behaviour_word_the_lamps_do_not_speak_is_refused_with_the_closed_set_named` |
 | `dim_window`     | string                   | `None`                                                      | not parsed here (the layer reads a file; the window's own grammar is `src/channels/hue.rs`'s)  | no     | `` `{path}` key `dim_window` has type `{type}`, not a string ``                                                                                 | `src/config.rs:text`          | `a_declaration_at_any_of_the_three_levels_reads_the_same_three_keys`                                                                                                                                                            |
-| `dim_behaviours` | array of behaviour words | `[]`                                                        | the same closed set, AND `dim_window` must be stated                                           | no     | the behaviour refusal above, or `` `{path}` states `dim_behaviours` with no `dim_window` for them to run in, so nothing would ever read them `` | `src/config.rs:parse_targets` | `dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped`                                                                                                                                          |
+| `dim_behaviours` | array of behaviour words | `[]`                                                        | the same closed set, AND a `dim_window` must be stated here or at `[lights]`                                           | no     | the behaviour refusal above, or `` `{path}` states `dim_behaviours` with no `dim_window` of its own and no `lights` key `dim_window` for them to run in, so nothing would ever read them `` | `src/config.rs:parse_targets` | `dim_behaviours_with_no_window_anywhere_to_run_them_in_is_refused_rather_than_dropped`                                                                                                                                          |
 
 A target name is NOT judged against the bridge here: "only the bridge's own listings can say which lamps,
 rooms and zones exist" (`src/config.rs:parse_targets`).
@@ -264,30 +270,30 @@ column, which lives outside this layer.
 | Key path                              | Type             | Default                              | Bound                                                   | Secret                                                               | Out of bounds or malformed                                                                                                                                                 | Judged by                                                               | Tests                                                                                                                                               |
 | ------------------------------------- | ---------------- | ------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plugins.<any>.enabled`               | bool             | `false` (selection is explicit)      | none                                                    | no                                                                   | `` plugin `{name}` has a non-boolean `enabled` ``                                                                                                                          | `parse_config`                                                          | `an_absent_enabled_flag_reads_disabled_because_selection_is_explicit`, `a_non_boolean_enabled_flag_is_refused_naming_the_plugin`                    |
-| `plugins.hermes.keys.<route>`         | string           | unset                                | a route in `pns_domain::routes::ROUTES`                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/` at delivery                                             | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
-| `plugins.hue.bridge`                  | string           | unset                                | not judged here                                         | YES (the repo's values file takes it off a vault entry's `UserName`) | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
-| `plugins.hue.key`                     | string           | unset                                | not judged here                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
-| `plugins.hue.rooms`                   | array of strings | unset                                | not judged here                                         | no                                                                   | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
-| `plugins.hue.quiet_hours`             | string           | unset                                | not judged here                                         | no                                                                   | name-checked only at load; an unparsable window is handled at read time                                                                                                    | `src/channels/hue.rs:quiet_window`                                      | `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`                                                             |
-| `plugins.macos-banner.enabled`        | bool             | `false`                              | none                                                    | no                                                                   | as any `enabled`                                                                                                                                                           | `parse_config`                                                          | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
-| `plugins.mobile.type`                 | string           | unset                                | must equal `"moshi"` when the table is armed            | no                                                                   | `no type in [plugins.mobile]; the only type is "moshi"` or `[plugins.mobile] has type "{named}", which no compiled-in backend answers; the only type is "moshi"`           | `src/channels/moshi.rs:mobile_backend` via `src/config.rs:armed_mobile` | `a_mobile_table_naming_no_backend_contributes_no_settings_at_all`, `type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused`           |
-| `plugins.mobile.token`                | string           | unset (not set up, never an error)   | non-empty to count                                      | YES                                                                  | `src/channels/moshi.rs:moshi_secret` answers `None` for every failure shape                                                                                                | `src/channels/moshi.rs:moshi_secret`                                    | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
-| `plugins.mobile.mobile_watch_card`    | bool             | `false`                              | none                                                    | no                                                                   | loud, then off: `pns: config error ([plugins.mobile] mobile_watch_card is {type}, not a boolean); the mobile watching card stays off`                                      | `src/main.rs:watch_card`                                                | `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`                                                                       |
-| `plugins.mobile.submit_deadline_secs` | integer (`u64`)  | `5` (`DEFAULT_SUBMIT_DEADLINE_SECS`) | 1 to 3600 (`MAX_SUBMIT_DEADLINE_SECS`); zero is REFUSED | no                                                                   | three refusals, quoted in behavior 20                                                                                                                                      | `src/config.rs:submit_deadline`                                         | `the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five`, `a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name` |
-| `plugins.mobile.image_cards.<card type>` | bool | `false` for every card type | none; the keys are card types, which no roster enumerates | no | loud, then off: `pns: config error ([plugins.mobile.image_cards] {key} is {type}, not a boolean); that card type keeps its text card` | `pns-adapters/src/config/mobile.rs:moshi_image_cards` | `config/mobile.rs:a_card_type_whose_value_is_not_a_boolean_keeps_its_text_card` |
-| `plugins.router.type`                 | string           | unset                                | must equal `"unifi"`                                    | no                                                                   | `home: no type in [plugins.router] (the only type is "unifi")` / `home: [plugins.router] has type "{x}", which no compiled-in backend answers (the only type is "unifi")`  | `src/home.rs:setup_report`                                              | `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`                                                                     |
-| `plugins.router.router_url`           | string           | unset                                | non-empty string                                        | no                                                                   | `home: the [plugins.router] table is present but router_url is missing, empty, or not a string`                                                                            | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.device_hostname`      | string           | unset                                | at least one of the three device keys                   | no                                                                   | `home: no device to look for in [plugins.router] (set at least one of device_mac, device_hostname, device_ipv4)`                                                           | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.device_mac`           | string           | unset                                | six hex pairs under one separator                       | no                                                                   | `home: device_mac = "{x}" in [plugins.router] is not a MAC address (six hex pairs under one separator, e.g. "2e:11:ab:6d:b0:4f")`                                          | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.device_ipv4`          | string           | unset                                | a dotted quad                                           | no                                                                   | `home: device_ipv4 = "{x}" in [plugins.router] is not an IPv4 address (a dotted quad, e.g. "192.168.1.169")`                                                               | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.api_key`              | string           | unset                                | non-empty                                               | YES                                                                  | `home: no api_key in the [plugins.router] table (the probe is not set up)`                                                                                                 | `src/home.rs`                                                           | same                                                                                                                                                |
-| `plugins.router.stale_alert_channel`  | string           | unset (the default route)            | a usable route name                                     | no                                                                   | loud, then the default route: `pns: config error (stale_alert_channel = "{x}" in [plugins.router] is not a usable route name); the stale alert posts to the default route` | `src/home.rs`                                                           | `tests/dispatch.rs:an_unusable_stale_alert_route_complains_and_still_delivers_the_alert`                                                            |
+| `plugins.log.keys.<route>`         | string           | unset                                | a route in `pns_domain::routes::ROUTES`                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/` at delivery                                             | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
+| `plugins.lights.bridge_host`                  | string           | unset                                | not judged here                                         | YES (the repo's values file takes it off a vault entry's `UserName`) | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
+| `plugins.lights.api_key`                     | string           | unset                                | not judged here                                         | YES                                                                  | name-checked only at load                                                                                                                                                  | `src/channels/hue.rs`                                                   | same                                                                                                                                                |
+| `plugins.banner.enabled`        | bool             | `false`                              | none                                                    | no                                                                   | as any `enabled`                                                                                                                                                           | `parse_config`                                                          | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
+| `plugins.phone.type`                 | string           | unset                                | must equal `"moshi"` when the table is armed            | no                                                                   | `no type in [plugins.phone]; the only type is "moshi"` or `[plugins.phone] has type "{named}", which no compiled-in backend answers; the only type is "moshi"`           | `src/channels/moshi.rs:phone_backend` via `src/config.rs:armed_phone` | `a_phone_table_naming_no_backend_contributes_no_settings_at_all`, `type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused`           |
+| `plugins.phone.device_token`                | string           | unset (not set up, never an error)   | non-empty to count                                      | YES                                                                  | `src/channels/moshi.rs:moshi_secret` answers `None` for every failure shape                                                                                                | `src/channels/moshi.rs:moshi_secret`                                    | `every_key_a_shipped_plugin_table_serves_is_still_admitted`                                                                                         |
+| `plugins.phone.card_while_watching`    | bool             | `false`                              | none                                                    | no                                                                   | loud, then off: `pns: config error ([plugins.phone] card_while_watching is {type}, not a boolean); the mobile watching card stays off`                                      | `src/main.rs:watch_card`                                                | `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`                                                                       |
+| `plugins.phone.ack_deadline` | duration string  | `"5s"` (`DEFAULT_ACK_DEADLINE`) | `"1s"` to `"1h"` (`MAX_ACK_DEADLINE_SECS`); zero is REFUSED | no                                                                   | three refusals, quoted in behavior 20                                                                                                                                      | `src/config.rs:ack_deadline`                                         | `the_acknowledgement_deadline_is_a_duration_defaulted_to_five_seconds`, `an_acknowledgement_deadline_outside_the_range_is_refused_by_name` |
+| `plugins.phone.image_cards.<card type>` | bool | `false` for every card type | none; the keys are card types, which no roster enumerates | no | loud, then off: `pns: config error ([plugins.phone.image_cards] {key} is {type}, not a boolean); that card type keeps its text card` | `pns-adapters/src/config/phone.rs:moshi_image_cards` | `config/phone.rs:a_card_type_whose_value_is_not_a_boolean_keeps_its_text_card` |
+| `plugins.home_presence.type`                 | string           | unset                                | must equal `"unifi"`                                    | no                                                                   | `home: no type in [plugins.home_presence] (the only type is "unifi")` / `home: [plugins.home_presence] has type "{x}", which no compiled-in backend answers (the only type is "unifi")`  | `src/home.rs:setup_report`                                              | `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`                                                                     |
+| `plugins.home_presence.url`           | string           | unset                                | non-empty string                                        | no                                                                   | `home: the [plugins.home_presence] table is present but url is missing, empty, or not a string`                                                                            | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.device_hostname`      | string           | unset                                | at least one of the three device keys                   | no                                                                   | `home: no device to look for in [plugins.home_presence] (set at least one of device_mac, device_hostname, device_ipv4)`                                                           | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.device_mac`           | string           | unset                                | six hex pairs under one separator                       | no                                                                   | `home: device_mac = "{x}" in [plugins.home_presence] is not a MAC address (six hex pairs under one separator, e.g. "2e:11:ab:6d:b0:4f")`                                          | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.device_ipv4`          | string           | unset                                | a dotted quad                                           | no                                                                   | `home: device_ipv4 = "{x}" in [plugins.home_presence] is not an IPv4 address (a dotted quad, e.g. "192.168.1.169")`                                                               | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.api_key`              | string           | unset                                | non-empty                                               | YES                                                                  | `home: no api_key in the [plugins.home_presence] table (the probe is not set up)`                                                                                                 | `src/home.rs`                                                           | same                                                                                                                                                |
+| `plugins.home_presence.alert_route`  | string           | unset (the default route)            | a usable route name                                     | no                                                                   | loud, then the default route: `pns: config error (alert_route = "{x}" in [plugins.home_presence] is not a usable route name); the stale alert posts to the default route` | `src/home.rs`                                                           | `tests/dispatch.rs:an_unusable_stale_alert_route_complains_and_still_delivers_the_alert`                                                            |
 | `plugins.<unregistered>.<anything>`   | any              | n/a                                  | NOT judged at this layer                                | no                                                                   | the NAME is refused one layer on: `` unknown plugin `{name}` ``                                                                                                            | `src/registry.rs:Registry::enabled`                                     | `an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name`                                                                |
 
 The secret-bearing key paths are declared once more, as data, at
-`src/bin/pns-config-render.rs`: four fixed paths in `SECRET_BEARING_KEYS`
-(`["plugins.mobile.token", "plugins.hue.bridge", "plugins.hue.key", "plugins.router.api_key"]`) plus one
-`plugins.hermes.keys.<route>` per entry of `pns_domain::routes::ROUTES`, joined by
+`src/bin/pns-config-render.rs`: the fixed paths in `SECRET_BEARING_KEYS`
+(`["plugins.phone.device_token", "plugins.log.bot_token", "plugins.lights.bridge_host",
+"plugins.lights.certificate", "plugins.lights.api_key", "plugins.github.personal_access_token",
+"plugins.home_presence.api_key"]`) plus one
+`plugins.log.keys.<route>` per entry of `pns_domain::routes::ROUTES`, joined by
 `secret_bearing_keys()`. That list is what makes "secret" an enforced classification rather than a
 convention: in the committed values file each of those paths must hold a keepassxc marker table, never a
 literal.
@@ -300,48 +306,48 @@ marks an interpolation.
 
 ### Decoding (`src/config.rs`), all returning `ConfigError`
 
-| What is rejected                                                  | Exact wording                                                                                                                                                                                                                                                   | Variant                                                    | Fail direction                                                                         |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| text that is not TOML, with a locatable span                      | `{cause} at line {line}`                                                                                                                                                                                                                                        | `Malformed`                                                | closed on the pulse path and on the lights tick; open to the CORE on the delivery path |
-| text that is not TOML, no span                                    | `{cause}`                                                                                                                                                                                                                                                       | `Malformed`                                                | same                                                                                   |
-| a top-level key outside the six                                   | `` unknown top-level key `{key}`; the file serves daemon, focus, lights, nag, plugins, recap ``                                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
-| `recap`, `focus`, `daemon`, `nag` or `lights` written as a scalar | `` `{name}` is not a table ``                                                                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
+| What is rejected                                                     | Exact wording                                                                                                                                                                                                                                                   | Variant                                                    | Fail direction                                                                         |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| text that is not TOML, with a locatable span                         | `{cause} at line {line}`                                                                                                                                                                                                                                        | `Malformed`                                                | closed on the pulse path and on the lights tick; open to the CORE on the delivery path |
+| text that is not TOML, no span                                       | `{cause}`                                                                                                                                                                                                                                                       | `Malformed`                                                | same                                                                                   |
+| a top-level key outside the six                                      | `` unknown top-level key `{key}`; the file serves daemon, focus, lights, remind, plugins, recap ``                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
+| `recap`, `focus`, `daemon`, `remind` or `lights` written as a scalar | `` `{name}` is not a table ``                                                                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
 | `plugins` written as a scalar                                     | `` `plugins` is not a table ``                                                                                                                                                                                                                                  | `Invalid`                                                  | same                                                                                   |
 | a plugin entry that is not a table                                | `` plugin `{name}` is not a table ``                                                                                                                                                                                                                            | `Invalid`                                                  | same                                                                                   |
 | a non-boolean `enabled` under a plugin                            | `` plugin `{name}` has a non-boolean `enabled` ``                                                                                                                                                                                                               | `Invalid`                                                  | same                                                                                   |
 | a key a table does not serve (every table, top level included)    | `` unknown `{table}` key `{key}`; the table serves {comma-joined roster row} ``                                                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
 | a non-boolean `[recap]` switch                                    | `` `recap` key `{key}` has type `{type}`, not boolean ``                                                                                                                                                                                                        | `Invalid`                                                  | same                                                                                   |
-| `min_events` not a count                                          | `` `recap` key `min_events` has type `{type}`, not a count ``                                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
-| `min_events` zero                                                 | `` `recap` key `min_events` is 0, which is not a threshold; 1 is the floor ``                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
-| `summarizer_deadline_secs` not a count                            | `` `recap` key `summarizer_deadline_secs` has type `{type}`, not a count of seconds ``                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
-| `summarizer_deadline_secs` over the ceiling                       | `` `recap` key `summarizer_deadline_secs` is {count}, past the 3600-second ceiling ``                                                                                                                                                                           | `Invalid`                                                  | same                                                                                   |
+| `minimum_events` not a count                                          | `` `recap` key `minimum_events` has type `{type}`, not a count ``                                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
+| `minimum_events` zero                                                 | `` `recap` key `minimum_events` is 0, which is not a threshold; 1 is the floor ``                                                                                                                                                                                   | `Invalid`                                                  | same                                                                                   |
+| `summarizer_deadline` not a duration                            | `` `recap` key `summarizer_deadline` has type `{type}`, not a duration like "5m" ``                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
+| `summarizer_deadline` over the ceiling                       | `` `recap` key `summarizer_deadline` must be at most 1h ``                                                                                                                                                                           | `Invalid`                                                  | same                                                                                   |
 | `summarizer` empty                                                | `` `recap` key `summarizer` is empty, so it names no command to run ``                                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
 | `summarizer` whose first word is empty                            | `` `recap` key `summarizer` starts with an empty word, so it names no command to run ``                                                                                                                                                                         | `Invalid`                                                  | same                                                                                   |
-| `repos` empty, or holding an empty entry                          | `` `recap` key `repos` names no repository to read ``                                                                                                                                                                                                           | `Invalid`                                                  | same                                                                                   |
+| `repositories` empty, or holding an empty entry                          | `` `recap` key `repositories` names no repository to read ``                                                                                                                                                                                                           | `Invalid`                                                  | same                                                                                   |
 | a list key that is not a list, or holds a non-string              | `` `{table}` key `{key}` has type `{type}`, not {noun} `` / `` `{table}` key `{key}` has a `{type}` in it, not {noun} `` where `{noun}` is `a list of command words`, `a list of repository names`, `a list of Focus mode names` or `a list of behaviour names` | `Invalid`                                                  | same                                                                                   |
-| `review_notes` not a string                                       | `` `recap` key `review_notes` has type `{type}`, not a path with a file name in it ``                                                                                                                                                                           | `Invalid`                                                  | same                                                                                   |
-| `review_notes` naming no file                                     | `` `recap` key `review_notes` names no file to read ``                                                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
-| `review_notes` relative                                           | `` `recap` key `review_notes` is `{pattern}`, which is not an absolute path or a `~/` one ``                                                                                                                                                                    | `Invalid`                                                  | same                                                                                   |
-| `review_notes` with a `*` in a directory                          | `` `recap` key `review_notes` is `{pattern}`, and only its file name may hold a `*` ``                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
-| `review_notes` with two `*` in the file name                      | `` `recap` key `review_notes` is `{pattern}`, and its file name may hold only one `*` ``                                                                                                                                                                        | `Invalid`                                                  | same                                                                                   |
-| a `silence` entry that is the empty string                        | `` `focus` key `silence` names a mode that is the empty string, which is no Focus at all ``                                                                                                                                                                     | `Invalid`                                                  | same                                                                                   |
-| a non-boolean `[daemon] enabled`                                  | `` `daemon` key `enabled` has type `{type}`, not boolean ``                                                                                                                                                                                                     | `Invalid`                                                  | open: the daemon carries on enabled (`src/main.rs:daemon_enabled`)                     |
-| `after_secs` not a count                                          | `` `nag` key `after_secs` has type `{type}`, not a count of seconds ``                                                                                                                                                                                          | `Invalid`                                                  | closed on the pulse path, open to the CORE on the delivery path                        |
-| `after_secs` outside its range                                    | `` `nag` key `after_secs` is {count}, outside the 30 to 3600 second range; 0 is the feature off ``                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
+| `review_notes_glob` not a string                                       | `` `recap` key `review_notes_glob` has type `{type}`, not a path with a file name in it ``                                                                                                                                                                           | `Invalid`                                                  | same                                                                                   |
+| `review_notes_glob` naming no file                                     | `` `recap` key `review_notes_glob` names no file to read ``                                                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
+| `review_notes_glob` relative                                           | `` `recap` key `review_notes_glob` is `{pattern}`, which is not an absolute path or a `~/` one ``                                                                                                                                                                    | `Invalid`                                                  | same                                                                                   |
+| `review_notes_glob` with a `*` in a directory                          | `` `recap` key `review_notes_glob` is `{pattern}`, and only its file name may hold a `*` ``                                                                                                                                                                          | `Invalid`                                                  | same                                                                                   |
+| `review_notes_glob` with two `*` in the file name                      | `` `recap` key `review_notes_glob` is `{pattern}`, and its file name may hold only one `*` ``                                                                                                                                                                        | `Invalid`                                                  | same                                                                                   |
+| a `modes` entry that is the empty string                        | `` `focus` key `modes` names a mode that is the empty string, which is no Focus at all ``                                                                                                                                                                     | `Invalid`                                                  | same                                                                                   |
+| a non-boolean `[gateway] enabled`                                  | `` `gateway` key `enabled` has type `{type}`, not boolean ``                                                                                                                                                                                                     | `Invalid`                                                  | open: the daemon carries on enabled (`src/main.rs:gateway_enabled`)                     |
+| `delay` not a duration                                            | `` `remind` key `delay` has type `{type}`, not a duration like "5m" ``                                                                                                                                                                                          | `Invalid`                                                  | closed on the pulse path, open to the CORE on the delivery path                        |
+| `delay` outside its range                                         | `` `remind` key `delay` "{text}" is outside 30s to 1h ``                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
 | a `[lights]` scalar of the wrong type                             | `` `{table}` key `{key}` has type `{type}`, not a count between {low} and {high} ``                                                                                                                                                                             | `Invalid`                                                  | closed: the lights tick returns 0 and arms nothing                                     |
 | a `[lights]` scalar outside its bounds                            | `` `{table}` key `{key}` is {count}, outside the {low} to {high} range ``                                                                                                                                                                                       | `Invalid`                                                  | same                                                                                   |
 | a behaviour table that is not a table                             | `` `{table}` has type `{type}`, not a table of settings ``                                                                                                                                                                                                      | `Invalid`                                                  | same                                                                                   |
 | a declaration level that is not a table                           | `` `lights` key `{level}` has type `{type}`, not a table of {level} names ``                                                                                                                                                                                    | `Invalid`                                                  | same                                                                                   |
 | one declaration that is not a table                               | `` `lights.{level}.{name}` has type `{type}`, not a table of settings ``                                                                                                                                                                                        | `Invalid`                                                  | same                                                                                   |
 | a breath whose ends are reversed                                  | `` `{table}` has low {low} above high {high}, so a fade to `high` would move the lamp down and one to `low` would move it up ``                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
-| a behaviour word outside the closed set                           | `` `{path}` key `{key}` names `{word}`, which is no behaviour; the lamps say done, failed, blocked, unread, loop ``                                                                                                                                             | `Invalid`                                                  | same                                                                                   |
+| a behaviour word outside the closed set                           | `` `{path}` key `{key}` names `{word}`, which is no behaviour; the lamps say done, failed, blocked, unseen, loop, checks ``                                                                                                                                             | `Invalid`                                                  | same                                                                                   |
 | `dim_window` that is not a string                                 | `` `{path}` key `dim_window` has type `{type}`, not a string ``                                                                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
-| `dim_behaviours` with no `dim_window`                             | `` `{path}` states `dim_behaviours` with no `dim_window` for them to run in, so nothing would ever read them ``                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
-| a backstop shorter than the nag                                   | `` `lights.blocked` key `give_up_after_secs` is {give_up}, below `nag` key `after_secs` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``                                                                              | `Invalid`                                                  | same                                                                                   |
+| `dim_behaviours` with no `dim_window` anywhere                    | `` `{path}` states `dim_behaviours` with no `dim_window` of its own and no `lights` key `dim_window` for them to run in, so nothing would ever read them ``                                                                                                                                                 | `Invalid`                                                  | same                                                                                   |
+| a backstop shorter than the reminder                                   | `` `lights.blocked` key `lease_expiry` is {give_up}, below `remind` key `delay` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``                                                                              | `Invalid`                                                  | same                                                                                   |
 | a present but unreadable path                                     | `{path}: {io error}`                                                                                                                                                                                                                                            | `Unreadable`                                               | closed on the pulse path, open to the CORE on the delivery path                        |
-| `submit_deadline_secs` not a count                                | `` `mobile` key `submit_deadline_secs` has type `{type}`, not a count of seconds ``                                                                                                                                                                             | `Invalid` (returned by `submit_deadline`, not by the load) | open: the caller keeps the 5-second default and says so                                |
-| `submit_deadline_secs` zero                                       | `` `mobile` key `submit_deadline_secs` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``                                                                        | `Invalid`                                                  | same                                                                                   |
-| `submit_deadline_secs` over the ceiling                           | `` `mobile` key `submit_deadline_secs` is {count}, past the 3600-second ceiling ``                                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
+| `ack_deadline` not a duration                             | `` `plugins.phone` key `ack_deadline` has type `{type}`, not a duration like "5m" ``                                                                                                                                                                           | `Invalid` (returned by `ack_deadline`, not by the load)    | open: the caller keeps the 5-second default and says so                                |
+| `ack_deadline` zero                                       | `` `plugins.phone` key `ack_deadline` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``                                                                        | `Invalid`                                                  | same                                                                                   |
+| `ack_deadline` outside the range                          | the domain duration parser's own sentence, naming `` `plugins.phone` key `ack_deadline` `` and the range it allows ``                                                                                                                                                                              | `Invalid`                                                  | same                                                                                   |
 
 ### Rendering (`src/config_text.rs` and `src/config.rs:strip_chezmoi_actions`), all returning `Result<_, String>`
 
@@ -373,21 +379,21 @@ marks an interpolation.
 
 ### The generator binary (`crates/pns/src/bin/pns-config-render.rs`)
 
-| What is rejected                             | Exact wording                                                               | Exit | Fail direction                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------- | ---- | ---------------------------------------------------- |
-| no arguments, one argument, or three or more | both usage forms below on stderr | 2 | closed, nothing written |
-| any run or check failure | `pns-config-render: refused: {message}` on stderr | 1 | closed; see behavior 26 for write failures |
-| the values file cannot be read               | message is `reading {values_path}: {error}`                                 | 1    | closed                                               |
-| the values file is not TOML                  | `{values_path} is not valid TOML: {error}`                                  | 1    | closed                                               |
-| a literal at a secret-bearing path           | `` `{path}` must be a keepassxc secret marker table, not a literal value `` | 1    | closed                                               |
-| the render itself refuses                    | `rendering {values_path}: {error}`                                          | 1    | closed                                               |
-| the render's own secret action is malformed  | `the render carries a malformed secret action: {error}`                     | 1    | closed                                               |
-| the render will not parse back               | `the render does not self-parse: {detail}`                                  | 1    | closed                                               |
-| the template file cannot be written          | `writing {template_path}: {error}`                                          | 1    | closed, but see behavior 26 for what "closed" covers |
-| an unregistered plugin during `--check` | `the render names an unregistered plugin: {error:?}` | 1 | closed, nothing written |
-| a resolved snapshot mismatch during `--check` | `resolved configuration differs from the committed snapshot` | 1 | closed, nothing written |
-| write success | `wrote {template_path}` on stdout | 0 | n/a |
-| `--check` success | no stdout or stderr | 0 | no writes |
+| What is rejected                              | Exact wording                                                               | Exit | Fail direction                                       |
+| --------------------------------------------- | --------------------------------------------------------------------------- | ---- | ---------------------------------------------------- |
+| no arguments, one argument, or three or more  | both usage forms below on stderr                                            | 2    | closed, nothing written                              |
+| any run or check failure                      | `pns-config-render: refused: {message}` on stderr                           | 1    | closed; see behavior 26 for write failures           |
+| the values file cannot be read                | message is `reading {values_path}: {error}`                                 | 1    | closed                                               |
+| the values file is not TOML                   | `{values_path} is not valid TOML: {error}`                                  | 1    | closed                                               |
+| a literal at a secret-bearing path            | `` `{path}` must be a keepassxc secret marker table, not a literal value `` | 1    | closed                                               |
+| the render itself refuses                     | `rendering {values_path}: {error}`                                          | 1    | closed                                               |
+| the render's own secret action is malformed   | `the render carries a malformed secret action: {error}`                     | 1    | closed                                               |
+| the render will not parse back                | `the render does not self-parse: {detail}`                                  | 1    | closed                                               |
+| the template file cannot be written           | `writing {template_path}: {error}`                                          | 1    | closed, but see behavior 26 for what "closed" covers |
+| an unregistered plugin during `--check`       | `the render names an unregistered plugin: {error:?}`                        | 1    | closed, nothing written                              |
+| a resolved snapshot mismatch during `--check` | `resolved configuration differs from the committed snapshot`                | 1    | closed, nothing written                              |
+| write success                                 | `wrote {template_path}` on stdout                                           | 0    | n/a                                                  |
+| `--check` success                             | no stdout or stderr                                                         | 0    | no writes                                            |
 
 The two accepted forms are:
 
@@ -443,9 +449,9 @@ Then the answer is `Loaded`, `Missing`, or one of three named errors
   `Ok(LoadOutcome::Missing)` for a nonexistent path); anything else from the read is `Unreadable`
   (`src/config.rs:an_unreadable_path_is_an_error_never_a_silent_unconfigured`, which uses a DIRECTORY at
   the config path as the deterministic case).
-- Fail direction: delivery path, `Missing` selects the CORE (`mobile`, `macos-banner`) with no warning,
+- Fail direction: delivery path, `Missing` selects the CORE (`phone`, `banner`) with no warning,
   and an error selects the CORE with the line
-  `pns: config error ({detail}); running the core plugins (mobile, macos-banner)`
+  `pns: config error ({detail}); running the core plugins (phone, banner)`
   (`src/registry.rs:select_plugins`, `src/registry.rs:core_warning`). Pulse path, `Missing` exits 0 in
   silence and an error prints `pns: config error ({detail}); no pulse` and still exits 0 (`src/main.rs`,
   pinned by `tests/dispatch.rs:an_absent_config_stays_silent_in_pulse_mode` and
@@ -525,21 +531,21 @@ Then the refusal is `Malformed`, it names the cause and the line NUMBER, and it 
 - Idempotency and duplicates: deterministic for a given text.
 - Privacy: this is THE privacy behavior of the decode layer, and it is pinned.
   `src/config.rs:a_malformed_line_is_reported_without_echoing_its_value` writes
-  `[plugins.mobile]\ntoken = "SUPERSECRET" trailing\n` and asserts both that the cause is still named and
+  `[plugins.phone]\ntoken = "SUPERSECRET" trailing\n` and asserts both that the cause is still named and
   that the message does NOT contain `SUPERSECRET`. Exhaustively, the paths on which a config VALUE can
-  reach a refusal string are: `review_notes` (echoes the glob pattern), `bounded` and `nag_schedule` and
+  reach a refusal string are: `review_notes_glob` (echoes the glob pattern), `bounded` and `remind_delay_range` and
   `seconds` and `threshold` and `submit_deadline` (echo an integer), `behaviours` (echoes the offending
-  behaviour word), `ends_agree` (echoes two brightness percentages), and `backstop_outlasts_the_nag`
+  behaviour word), `ends_agree` (echoes two brightness percentages), and `backstop_outlasts_the_reminder`
   (echoes two second counts). None of those keys is secret-bearing. Every other refusal echoes a TYPE
   NAME (`setting.type_str()`) or a KEY NAME, never a value. A secret's key NAME can appear (for example
-  \`\`unknown `plugins.mobile` key \`tokens\`\`\`), the value cannot.
+  \`\`unknown `plugins.phone` key \`tokens\`\`\`), the value cannot.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: the rebuilt message is the contract. Reverting to the parser's own `Display`
   would put secrets in `~/.local/log`.
 
 ### 4. The file's own top level serves six tables and refuses everything else by name
 
-Given a config whose outermost keys are not all of `daemon`, `focus`, `lights`, `nag`, `plugins`, `recap`\
+Given a config whose outermost keys are not all of `daemon`, `focus`, `lights`, `remind`, `plugins`, `recap`\
 
 When `parse_config` runs\
 
@@ -549,14 +555,14 @@ Then the file is refused whole, the offending name is quoted, and the six are li
   row for `src/config.rs:TOP_LEVEL` (the empty string) to build the list. Pinned by
   `src/config.rs:every_table_refuses_an_unknown_key_by_name_and_lists_what_it_serves`, which walks every
   row of `TABLE_KEYS` including the top-level one.
-- Failure sources: a misspelled table (`[plugin.hue]` for `[plugins.hue]`, `[recaps]` for `[recap]`), and
-  a MOVED table (`[home]`, whose settings became `[plugins.router]`).
+- Failure sources: a misspelled table (`[plugin.hue]` for `[plugins.lights]`, `[recaps]` for `[recap]`), and
+  a MOVED table (`[home]`, whose settings became `[plugins.home_presence]`).
 - Fail direction: the whole file is refused, which takes every plugin's secret with it. Delivery path,
   the machine falls to the CORE and prints the warning, so the phone and the banner keep working while
   hermes, hue and the home probe stop. Pulse path, no pulse. The home probe's own diagnostic prints the
   refusal verbatim: `tests/dispatch.rs:every_way_the_home_probe_is_not_set_up_says_which_one_it_is`
   asserts the exact line
-  `` home: config error (unknown top-level key `home`; the file serves daemon, focus, lights, nag, plugins, recap) ``.
+  `` home: config error (unknown top-level key `home`; the file serves daemon, focus, lights, remind, plugins, recap) ``.
 - Thresholds: exactly six names. Adding a seventh is a two-place edit (the match arm and the roster row)
   and the walk test catches a mismatch in either direction.
 - Required side effects: none.
@@ -611,7 +617,7 @@ Then `enabled` is REMOVED from the settings and becomes `PluginEntry::enabled`, 
 
 ### 6. A shipped plugin's keys are judged, an unregistered plugin's are not
 
-Given `[plugins.hue]` with `room = "x"` (a near miss for `rooms`)\
+Given `[plugins.lights]` with `keys = "x"` (a near miss for `key`)\
 
 When `parse_config` runs\
 
@@ -620,7 +626,7 @@ Then it is refused with the table, the key and the whole vocabulary named
 - Success: `src/config.rs:parse_config` runs `admits_flat(&format!("plugins.{name}"), key)` over every
   surviving setting. Pinned by
   `src/config.rs:a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key`, which
-  drives five cases across all five shipped tables (`keys` for `key`, `room` for `rooms`, `sound` for
+  drives five cases across all five shipped tables (`key` for `keys`, `keys` for `key`, `sound` for
   `enabled`, `tokens` for `token`, `phone` for `device_hostname`) and asserts the table, the key and a
   near neighbour are all in the sentence.
 - Failure sources: any key not in that table's roster row. The rows are at `src/config.rs:TABLE_KEYS`.
@@ -630,8 +636,8 @@ Then it is refused with the table, the key and the whole vocabulary named
   this repo ships. If it stops loading, the machine falls back to the CORE with a warning nobody is
   standing in front of: the phone and the banner keep working, and the durable paper trail, the lights
   and the home probe all stop."
-- Thresholds: the six judged tables are `plugins.hermes`, `plugins.hue`, `plugins.macos-banner`,
-  `plugins.mobile`, `plugins.presence`, `plugins.router`. A table for a plugin nothing registered has NO roster row, so
+- Thresholds: the six judged tables are `plugins.log`, `plugins.lights`, `plugins.banner`,
+  `plugins.phone`, `plugins.presence`, `plugins.home_presence`. A table for a plugin nothing registered has NO roster row, so
   `keys_of` returns `None` and `admits` passes everything
   (`src/config.rs:an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by_name`).
 - Required side effects: the positive control is its own test:
@@ -674,8 +680,8 @@ Then the name is refused, the warning is loud, and the selection widens to the W
   plugin`. On the PULSE path the same config fails CLOSED: `tests/dispatch.rs:an_unknown_plugin_never_resurrects_a_disabled_pulse`proves a deliberate`enabled
   = false\` on hue is not turned back on by an unrelated typo, by binding a listener the pulse must never
   reach.
-- Thresholds: the roster is six registrations (`src/registry.rs:ROSTER`): `router` (a sensor),
-  `presence` (a sensor), `mobile`, `macos-banner`, `hermes`, `hue`. The CORE is two names
+- Thresholds: the roster is six registrations (`src/registry.rs:ROSTER`): `home_presence` (a sensor),
+  `presence` (a sensor), `phone`, `banner`, `hermes`, `lights`. The CORE is two names
   (`src/registry.rs:CORE`).
 - Required side effects: the warning is printed by the composition root, once.
 - Forbidden side effects: no third answer. "SELECTING ONLY THE KNOWN NAMES out of a config with one typo
@@ -686,7 +692,7 @@ Then the name is refused, the warning is loud, and the selection widens to the W
   `src/registry.rs:build_registry`, which is safe because the only reachable refusal is deterministic and
   compiled in.
 - Privacy: the plugin name only.
-- Process ownership and cleanup: `router` is registered as a `Sensor`, so no event is ever delivered to
+- Process ownership and cleanup: `home_presence` is registered as a `Sensor`, so no event is ever delivered to
   it (`tests/dispatch.rs:the_binarys_own_roster_knows_the_router_sensor`).
 - Compatibility contract: the config's names and the registry's names are two lists that must agree, and
   the only enforcement is this refusal at runtime plus
@@ -704,20 +710,20 @@ Then that key moves and the other seven stay at their defaults
 - Success: `src/config.rs:parse_recap` starts from `Recap::default()` and moves only what the file
   states. Pinned by
   `src/config.rs:a_recap_table_is_read_rather_than_refused_and_each_switch_stands_alone` (stating
-  `digest = false` leaves `replay_card` true) and by
+  `post_window_recap = false` leaves `replay_card` true) and by
   `src/config.rs:a_config_with_no_recap_table_leaves_every_switch_on`.
 - Failure sources: a misspelled key
   (`src/config.rs:a_misspelled_recap_key_is_refused_by_name_rather_than_left_at_its_default`, using
   `replaycard`), a non-boolean switch, and each of the four judged shapes covered in behavior 9.
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path, as for any decode
   refusal. Within the recap itself the direction is stated per key in the template prose: an unset
-  `summarizer`, `repos` or `review_notes` is a WORKING setting, not a broken one
+  `summarizer`, `repositories` or `review_notes_glob` is a WORKING setting, not a broken one
   (`src/config_text.rs:LAYOUT`, the `recap` entry).
-- Thresholds: `min_events` defaults to 8 and has a floor of 1 with no ceiling; `summarizer_deadline_secs`
-  defaults to 240 and admits 0 through 3600 inclusive. One step either side:
-  `summarizer_deadline_secs = 3600` parses to 3600 and `3601` is refused
-  (`src/config.rs:the_summarizers_deadline_is_a_count_of_seconds_with_a_generous_default`);
-  `min_events = 1` parses to 1 and `0` is refused
+- Thresholds: `minimum_events` defaults to 8 and has a floor of 1 with no ceiling; `summarizer_deadline`
+  defaults to "4m" and admits "1ms" through "1h" inclusive, with "0s" also accepted. One step either
+  side: `summarizer_deadline = "3600s"` parses to an hour and `"3601s"` is refused
+  (`config/recap.rs:the_summarizers_deadline_is_a_duration_with_a_generous_default`);
+  `minimum_events = 1` parses to 1 and `0` is refused
   (`src/config.rs:a_volume_threshold_of_zero_is_refused_by_name_rather_than_read_as_every_event`).
 - Required side effects: `src/config.rs:parse_recap` calls `admits_flat("recap", &key)` before its match
   even though the `_` arm would refuse the same key with the same sentence. The code says why: "a key
@@ -726,11 +732,11 @@ Then that key moves and the other seven stay at their defaults
   `_` arm at all, and there the gate is the only check."
 - Forbidden side effects: no switch implies another. "recap-only and card-only are both valid
   configurations and neither implies the other" (`src/config.rs:Recap`).
-- Timeout and cancellation: `summarizer_deadline_secs` is a deadline the recap child enforces, not this
+- Timeout and cancellation: `summarizer_deadline` is a deadline the recap child enforces, not this
   layer. Zero is accepted here because "a deadline of nothing simply cannot be met, so the recap falls to
-  the plain lists and SAYS it did" (`src/config.rs:DEFAULT_SUMMARIZER_DEADLINE_SECS`).
+  the plain lists and SAYS it did" (`recap/options.rs:DEFAULT_SUMMARIZER_DEADLINE`).
 - Idempotency and duplicates: deterministic.
-- Privacy: `review_notes` echoes its own glob into a refusal. That glob is a path the operator wrote, not
+- Privacy: `review_notes_glob` echoes its own glob into a refusal. That glob is a path the operator wrote, not
   a credential.
 - Process ownership and cleanup: `summarizer` is ARGV and is never handed to a shell, so "nothing is
   interpreted, so there is no quoting rule and no injection surface" (`src/config.rs:Recap`).
@@ -746,11 +752,12 @@ When `parse_config` runs\
 Then it is refused by name with what is wrong, rather than clamped or silently dropped
 
 - Success: four judges, each with its own function. `src/config.rs:threshold` refuses a non-count and a
-  zero; `src/config.rs:seconds` refuses a non-count and anything over 3600; `src/config.rs:argv` refuses
-  an empty list and an empty FIRST word (only the first, because "an empty ARGUMENT is a real thing to
-  pass a program"); `src/config.rs:repositories` refuses an empty list and ANY empty entry;
-  `src/config.rs:note_glob` refuses a non-string, an empty file name, a relative path, a `*` in the
-  directory, and a second `*` in the file name.
+  zero; `config/recap.rs:summarizer_deadline_range` bounds `summarizer_deadline` to "1ms" through "1h",
+  refused by name past either end; `src/config.rs:argv` refuses an empty list and an empty FIRST word
+  (only the first, because "an empty ARGUMENT is a real thing to pass a program");
+  `src/config.rs:repositories` refuses an empty list and ANY empty entry; `src/config.rs:note_glob`
+  refuses a non-string, an empty file name, a relative path, a `*` in the directory, and a second `*` in
+  the file name.
 - Failure sources: for the glob, all five are pinned as a table in
   `src/config.rs:a_review_notes_glob_that_names_no_readable_file_is_refused_naming_the_key`, with these
   inputs and expected substrings: `3` and `not a path`; `""` and `names no file`;
@@ -759,11 +766,10 @@ Then it is refused by name with what is wrong, rather than clamped or silently d
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path. Within each key the
   argument is the same: "a silently corrected one is a threshold they believe they set"
   (`src/config.rs:threshold`).
-- Thresholds: `min_events` floor 1; `summarizer_deadline_secs` ceiling 3600. `9223372036854775807` is
-  explicitly in the refused set, because it "is a plain TOML integer: it parses, and
-  `Instant::now() + Duration::from_secs` of it PANICS (MEASURED: 'overflow when adding duration to
-  instant') inside a process whose stderr is /dev/null and whose exit code nobody reads"
-  (`src/config.rs:seconds`).
+- Thresholds: `minimum_events` floor 1; `summarizer_deadline` ceiling "1h". A duration string past the
+  ceiling, e.g. `"2h"`, is explicitly in the refused set, because a duration past the ceiling "PANICS at
+  `Instant::now() + deadline` (MEASURED: 'overflow when adding duration to instant') inside a process
+  whose stderr is /dev/null and whose exit code nobody reads" (`config/recap.rs:summarizer_deadline_range`).
 - Required side effects: none.
 - Forbidden side effects: nothing is clamped anywhere in this file. Every out-of-range value is refused.
 - Timeout and cancellation: Not applicable at this layer.
@@ -777,19 +783,19 @@ Then it is refused by name with what is wrong, rather than clamped or silently d
 - Compatibility contract: exactly one `*`, in the file name only, and one directory named in full. A
   looser matcher is a widening of what pns is allowed to open.
 
-### 10. `[focus] silence` is the feature switch and the policy in one key
+### 10. `[focus] modes` is the roster and `[focus] enabled` the switch
 
-Given `[focus] silence = []`\
+Given `[focus] modes = []`\
 
 When `parse_config` runs\
 
 Then the feature is off and nothing is refused
 
 - Success: `src/config.rs:parse_focus` reads the one key through `src/config.rs:modes`. An empty list is
-  admitted (`src/config.rs:an_empty_silence_list_is_admitted_because_it_is_the_feature_switched_off`),
+  admitted (`src/config.rs:an_empty_modes_list_is_admitted_because_it_silences_nothing`),
   and an empty ENTRY is refused
   (`src/config.rs:a_mode_name_that_is_the_empty_string_is_refused_by_name`).
-- Failure sources: `silence = "Sleep"` (a bare string, which "is what a hand writes first"), a non-string
+- Failure sources: `modes = "Sleep"` (a bare string, which "is what a hand writes first"), a non-string
   element, an empty entry, and a misspelled key (`silenced`).
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path. Within the feature, no
   mode named is the feature off, and "MEASURED on this operator's own machine, a Focus was asserted for
@@ -809,7 +815,7 @@ Then the feature is off and nothing is refused
 - Compatibility contract: a name matching no mode is legal and stays legal, "because a name that matches
   no mode is an ordinary thing to write (a Focus you keep on another Mac)."
 
-### 11. `[daemon] enabled` defaults on and fails OPEN when the file cannot be read
+### 11. `[gateway] enabled` defaults on and fails OPEN when the file cannot be read
 
 Given no config at all, or a config the daemon cannot parse\
 
@@ -817,14 +823,14 @@ When the daemon asks whether it is switched on\
 
 Then it runs
 
-- Success: `src/config.rs:parse_daemon` starts at `DEFAULT_DAEMON_ENABLED` (true) and moves only on an
+- Success: `src/config.rs:parse_gateway` starts at `DEFAULT_GATEWAY_ENABLED` (true) and moves only on an
   explicit boolean. Pinned by
-  `src/config.rs:the_daemon_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, which
+  `src/config.rs:the_gateway_table_reads_one_switch_defaults_on_and_refuses_the_rest_by_name`, which
   covers all four states plus the wrong type, the misspelled key and the non-table form.
 - Failure sources: `enabled = "yes"` and `enable = true` are each refused by name.
 - Fail direction: this is the ONE place in the surface that fails open on an unreadable file.
-  `src/main.rs:daemon_enabled` reads `Err(error)` as `true` and prints
-  `pns daemon: the config could not be read ({detail}); carrying on enabled`, with the rationale "a file
+  `src/main.rs:gateway_enabled` reads `Err(error)` as `true` and prints
+  `pns gateway: the config could not be read ({detail}); carrying on enabled`, with the rationale "a file
   that will not parse must not silently stop a service the operator enabled." `Missing` is also `true`.
   The pulse path never asks this question.
 - Thresholds: Not applicable, it is a boolean.
@@ -838,35 +844,37 @@ Then it runs
 - Compatibility contract: default ON is load-bearing for every clock-driven feature, and flipping it to
   default OFF would put both rider features behind two switches.
 
-### 12. `[nag] after_secs` is the switch AND the schedule, with zero carved out
+### 12. `[remind] delay` is off by being absent, and `"0s"` is refused
 
-Given `[nag] after_secs = 0`\
+Given `[remind] delay = "0s"`\
 
 When `parse_config` runs\
 
-Then the feature is off and it is not an error
+Then it is refused by name, and the refusal says to leave the key unset for off
 
-- Success: `src/config.rs:nag_schedule` returns `NAG_OFF` for zero before the range check runs, then
-  refuses anything outside 30 to 3600. Pinned by
-  `src/config.rs:the_nag_table_reads_one_schedule_defaults_off_and_zero_is_off_rather_than_an_error`,
-  which asserts no table is 0, `300` is 300, `0` is 0, and both `30` and `3600` are accepted at their own
-  edges.
+- Success: `schema.rs:nonzero_duration_key` refuses a zero duration with
+  `` `remind` key `delay` is 0, which is not a duration; leave the key unset for off ``, then bounds
+  anything else to 30 seconds through an hour. Pinned by
+  `config/tests/remind.rs:the_remind_table_reads_one_delay_and_defaults_off`, which asserts no table is
+  0, `"5m"` is 300, and both `"30s"` and `"1h"` are accepted at their own edges, and by
+  `config/tests/remind.rs:a_zero_delay_is_refused_and_points_at_the_absent_key`.
 - Failure sources: eight, table-driven in
-  `src/config.rs:a_schedule_that_is_not_a_count_of_seconds_is_refused_by_name`: `-1`, `"5m"`, `300.5`,
-  `[300]`, `29`, `3601`, the misspelled `after_seconds`, and `nag = 300` at the top level.
+  `config/tests/remind.rs:a_delay_that_is_not_a_duration_is_refused_by_name`: `300`, `"-1m"`, `"300"`,
+  `["5m"]`, `"29s"`, `"61m"`, the misspelled `delay_secs`, and `remind = 300` at the top level.
 - Fail direction: closed on the pulse path, open to the CORE on the delivery path.
-- Thresholds: floor `MIN_NAG_AFTER_SECS` 30, ceiling `MAX_NAG_AFTER_SECS` 3600. One step either side is
-  pinned in both directions: 30 and 3600 are accepted, 29 and 3601 are refused. Zero is a third state,
-  below the floor and accepted.
+- Thresholds: floor `MIN_DELAY_SECS` 30, ceiling `MAX_DELAY_SECS` 3600. One step either side is
+  pinned in both directions: 30 and 3600 are accepted, 29 and 3601 are refused. Zero is refused with a
+  sentence of its own rather than read as a third state.
 - Required side effects: none.
-- Forbidden side effects: no `enabled` key, on `[focus] silence`'s own precedent.
+- Forbidden side effects: no `enabled` key, because the key's ABSENCE is the off statement and a second
+  way to say it is a second thing that can disagree with the first.
 - Timeout and cancellation: the ceiling "must also sit inside the daemon's own registration window
   (`daemon::DUE_WINDOW_SECS`, thirty days), which it does with room to spare, and it is what keeps
-  `2 * after_secs` in the staleness cap far from any arithmetic edge" (`src/config.rs:nag_schedule`).
+  `2 * the delay` in the staleness cap far from any arithmetic edge" (`src/config.rs:remind_delay_range`).
 - Idempotency and duplicates: deterministic.
 - Privacy: an integer is echoed.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: DEFAULT OFF, unlike `[daemon]` beside it, "because this table gates something
+- Compatibility contract: DEFAULT OFF, unlike `[gateway]` beside it, "because this table gates something
   that INTERRUPTS" and needs three separate operator steps before it works.
 
 ### 13. `[lights]` absent is None, and an empty `[lights]` is every locked default
@@ -880,15 +888,15 @@ Then the first yields `None` and the second yields `Lights::default()` in full
 - Success: `src/config.rs:parse_config` maps `"lights"` to `Some(Box::new(parse_lights(value)?))`, so the
   presence of the heading is the signal. Pinned by
   `src/config.rs:no_lights_table_is_none_and_an_empty_one_is_every_locked_default`, which asserts every
-  one of the locked figures individually: `refresh_secs` 12; `done` and `failed` both
+  one of the locked figures individually: `arm_interval_secs` 12; `done` and `failed` both
   `Pulse { duration_ms: 4000, brightness: 100 }`; `blocked` breath `2000/100/30` with
-  `give_up_after_secs: 57_600`; `unread` breath `4000/60/10` with `after_secs: 300`; `loop` breath
-  `4000/60/10` with `threshold_secs: 300` and `lease_timeout_secs: 3900`; `dim` `3000/7/1`; and all three
+  `lease_expiry_secs: 57_600`; `unseen` breath `4000/60/10` with `arm_after_secs: 300`; `loop` breath
+  `4000/60/10` with `arm_after_secs: 300` and `lease_expiry_secs: 3900`; `dim` `3000/7/1`; and all three
   declaration maps empty.
 - Failure sources: `lights = 3` is refused as a non-table; anything inside is judged by the arms below.
 - Fail direction: on the lamp paths, CLOSED and dark. `src/main.rs:lights_tick` returns 0 on anything
   that is not `Loaded`, with the stated reason "a file nobody could parse routed no lamp, and a map this
-  could not read must not be replaced with a guess about which lamps carry what." `pns lights quiet`
+  could not read must not be replaced with a guess about which lamps carry what." `pns lights mute`
   likewise treats an unreadable config as naming no place, so every mute is refused by name while the
   report still runs (`src/main.rs:lights_quiet`). On the delivery path a broken file still leaves the
   phone and the banner running.
@@ -924,27 +932,28 @@ Then the refusal names the table, the key, the value and the whole range
   `src/config.rs:percent` layers the 1-to-100 range on top and then does an infallible `u8::try_from`.
 - Failure sources: fifteen cases are table-driven in
   `src/config.rs:every_lights_number_is_bounded_on_both_sides_and_refused_by_name_outside_them`:
-  `refresh_secs` 9 and 31; `duration_ms` 199 and 5001; `brightness` 0 and 101; `low` 0 and `high` 101;
-  `give_up_after_secs` 59 and 604801; `threshold_secs` 0 and 86401; `lease_timeout_secs` 59 and 86401;
-  `after_secs` 86401.
+  `arm_interval` `"9s"` and `"31s"`; `duration` `"199ms"` and `"5001ms"`; `brightness_percent` 0 and 101;
+  `low_percent` 0 and `high_percent` 101;
+  `lease_expiry` `"59s"` and `"604801s"`; `arm_after` `"0s"` and `"86401s"`; `lease_expiry` `"59s"` and `"86401s"`;
+  `arm_after` `"86401s"`.
 - Fail direction: closed and dark on the lamp paths, open to the CORE on the delivery path.
 - Thresholds: the SAME test asserts the accepted edges, "which is what makes the bound a bound rather
-  than an off-by-one": `refresh_secs` 10 and 30; `duration_ms` 200 and 5000 with `brightness` 1 and 100;
-  `threshold_secs` 1 with `lease_timeout_secs` 60; `after_secs` 0; `give_up_after_secs` 60 and 604800.
-  Each bound is argued at the constant that holds it, for example `MIN_REFRESH_SECS` is the transport
-  deadline ("a tick makes bounded bridge calls whose own limit is ten seconds") and `MAX_REFRESH_SECS` is
+  than an off-by-one": `arm_interval` `"10s"` and `"30s"`; `duration` `"200ms"` and `"5s"` with `brightness_percent` 1 and 100;
+  `arm_after` `"1s"` with `lease_expiry` `"60s"`; `arm_after` `"0s"`; `lease_expiry` `"60s"` and `"168h"`.
+  Each bound is argued at the constant that holds it, for example `MIN_ARM_INTERVAL_SECS` is the transport
+  deadline ("a tick makes bounded bridge calls whose own limit is ten seconds") and `MAX_ARM_INTERVAL_SECS` is
   what the daemon derives its child bound from.
 - Required side effects: none.
 - Forbidden side effects: nothing is clamped. Zero brightness is refused rather than read as off, because
   "a dark signal is a lamp that says nothing, and the way to say nothing is to leave the behaviour off
-  that lamp's `shows` list" (`src/config.rs:MIN_BRIGHTNESS`).
+  that lamp's `behaviours` list" (`src/config.rs:MIN_BRIGHTNESS`).
 - Timeout and cancellation: `MAX_FADE_MS` exists so that `breath_fades` stays total: "a fade past this
   ceiling could be asked for a schedule the shortest interval the config allows has no room left to even
   start."
 - Idempotency and duplicates: deterministic.
 - Privacy: an integer and two bounds are echoed.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `MAX_REFRESH_SECS` is `pub` because the daemon derives its own child bound from
+- Compatibility contract: `MAX_ARM_INTERVAL_SECS` is `pub` because the daemon derives its own child bound from
   it, "not the other way round, and that direction is deliberate."
 
 ### 15. A breath whose low is above its high is refused rather than rendered upside down
@@ -957,7 +966,7 @@ Then it is refused, naming both ends and what it would cost
 
 - Success: `src/config.rs:ends_agree` runs after every breathing table is read and returns
   `` `{table}` has low {low} above high {high}, so a fade to `high` would move the lamp down and one to `low` would move it up ``.
-  Pinned across all four breathing tables (`blocked`, `unread`, `loop`, `dim`) by
+  Pinned across all four breathing tables (`blocked`, `unseen`, `loop`, `dim`) by
   `src/config.rs:a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_down`.
 - Failure sources: any config stating `low > high` on one of those four tables, whether both ends are
   stated or only one is (the check runs over the merged struct, so a stated `low` above the DEFAULT
@@ -986,12 +995,13 @@ Then it is refused by name, with the keys that table DOES serve listed
 
 - Success: each behaviour table has its own roster row, so `admits_flat` refuses a knob from a sibling.
   `src/config.rs:TABLE_KEYS` gives `lights.done` and `lights.failed` only
-  `["brightness", "duration_ms"]`, `lights.dim` only `["duration_ms", "high", "low"]`, and so on.
+  `["brightness_percent", "duration"]`, `lights.dim` only `["duration", "high_percent", "low_percent"]`,
+  and so on.
 - Failure sources: eleven cases in
   `src/config.rs:a_knob_that_does_not_apply_to_a_behaviour_does_not_exist_on_it`, each asserting the
   refusal contains the key AND the phrase `the table serves`: `low` and `high` on `done`, `low` on
-  `failed`, `brightness` on `blocked`, `unread`, `loop` and `dim`, `threshold_secs` on `dim` and `done`,
-  `after_secs` on `blocked`, `lease_timeout_secs` on `unread`.
+  `failed`, `brightness` on `blocked`, `unseen`, `loop` and `dim`, `arm_after` on `dim` and `done`,
+  `arm_after` on `blocked`, `lease_expiry` on `unseen`.
 - Fail direction: closed and dark on the lamp paths.
 - Thresholds: Not applicable, this is a name check.
 - Required side effects: none.
@@ -1003,7 +1013,7 @@ Then it is refused by name, with the keys that table DOES serve listed
 - Idempotency and duplicates: deterministic.
 - Privacy: key names only.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `[lights.blocked]`, `[lights.unread]` and `[lights.loop]` each carry ONE knob
+- Compatibility contract: `[lights.blocked]`, `[lights.unseen]` and `[lights.loop]` each carry ONE knob
   beyond the shared breath keys, and those three knobs are the only asymmetry in the cluster.
 
 ### 17. One declaration vocabulary serves all three levels, and the refusal names the operator's path
@@ -1012,7 +1022,7 @@ Given `[lights.room."3F - Studio"] dim_hours = "22:00-07:00"`\
 
 When `parse_config` runs\
 
-Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists `dim_behaviours, dim_window, shows`
+Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists `behaviours, dim_behaviours, dim_window`
 
 - Success: `src/config.rs:parse_targets` calls `admits(TARGET_KEYS, &where_it_is, key)`, which is the
   two-name form of `admits`: the roster row is looked up under `lights.<level>` while the refusal is
@@ -1023,7 +1033,7 @@ Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists
   `lamp = { "HCL1" = 3 }`, `room = 3` and `zone = "Upstairs"`).
 - Fail direction: closed and dark on the lamp paths.
 - Thresholds: the key set is exactly three, asserted as a set rather than by absence in
-  `src/config_text.rs:the_target_declaration_key_roster_is_exactly_shows_dim_window_and_dim_behaviours`,
+  `src/config_text.rs:the_target_declaration_key_roster_is_exactly_behaviours_dim_window_and_dim_behaviours`,
   because "a fourth key added to `render_target`'s own hardcoded list would pass every existing test
   without ever being asserted as belonging."
 - Required side effects: all three levels read the same three keys and land in three separate maps, which
@@ -1034,22 +1044,23 @@ Then the refusal reads `` `lights.room.3F - Studio` key `dim_hours` `` and lists
 - Idempotency and duplicates: `BTreeMap` keyed by the operator's own name.
 - Privacy: the operator's lamp names appear in refusals.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `shows` is `Option<Vec<Behaviour>>` and the distinction is load-bearing: `None`
+- Compatibility contract: `behaviours` is `Option<Vec<Behaviour>>` and the distinction is load-bearing: `None`
   is "said nothing" and inherits, while `Some(vec![])` is an OVERRIDE that takes one lamp out of a routed
   room (`src/config.rs:a_declaration_that_states_nothing_states_nothing_rather_than_defaulting`).
 
-### 18. `dim_behaviours` with no `dim_window` is refused rather than read and dropped
+### 18. `dim_behaviours` with no `dim_window` anywhere is refused rather than read and dropped
 
-Given a declaration stating `dim_behaviours` and no `dim_window`\
+Given a declaration stating `dim_behaviours`, no `dim_window` of its own and no `[lights] dim_window`\
 
 When `parse_config` runs\
 
 Then it is refused, whether the list is empty or not
 
-- Success: `src/config.rs:parse_targets` tracks a `states_behaviours` flag and refuses when
-  `target.dim_window.is_none()`. The refusal is exact and is asserted as a whole string in
-  `src/config.rs:dim_behaviours_with_no_window_to_run_them_in_is_refused_rather_than_read_and_dropped`:
-  `` `lights.room.3F - Studio` states `dim_behaviours` with no `dim_window` for them to run in, so nothing would ever read them ``.
+- Success: `src/config.rs:dim_behaviours_have_a_window` walks the three declaration maps once the whole
+  table is in hand and refuses a target whose `dim_behaviours` is stated while neither its own
+  `dim_window` nor `[lights] dim_window` is. The refusal is exact and is asserted as a whole string in
+  `src/config.rs:dim_behaviours_with_no_window_anywhere_to_run_them_in_is_refused_rather_than_dropped`:
+  `` `lights.room.3F - Studio` states `dim_behaviours` with no `dim_window` of its own and no `lights` key `dim_window` for them to run in, so nothing would ever read them ``.
 - Failure sources: `dim_behaviours = ["blocked"]` and `dim_behaviours = []`, both with no window. STATED
   rather than non-empty is the rule, "because an empty list with no window is the same dead knob and the
   two must not disagree."
@@ -1066,26 +1077,26 @@ Then it is refused, whether the list is empty or not
 - Compatibility contract: the two keys resolve as ONE answer at the tick, which is why they must be
   stated together at load.
 
-### 19. The backstop must outlast the nag, and it is the one refusal that reads two tables
+### 19. The backstop must outlast the reminder, and it is the one refusal that reads two tables
 
-Given `[nag] after_secs = 600` and `[lights.blocked] give_up_after_secs = 60`\
+Given `[remind] delay = "10m"` and `[lights.blocked] lease_expiry = "60s"`\
 
 When `parse_config` finishes every table\
 
 Then the file is refused, naming both keys and both values
 
-- Success: `src/config.rs:backstop_outlasts_the_nag` runs after the whole document is walked, because
+- Success: `src/config.rs:backstop_outlasts_the_reminder` runs after the whole document is walked, because
   "each [is] a perfectly good number on their own and contradict each other only together, so the check
   belongs where the whole file is in hand." The refusal:
-  `` `lights.blocked` key `give_up_after_secs` is {give_up}, below `nag` key `after_secs` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``.
-  Pinned by `src/config.rs:a_backstop_that_gives_up_before_the_nag_nudges_is_refused_naming_both_keys`,
-  which asserts all six tokens (`lights.blocked`, `give_up_after_secs`, `60`, `nag`, `after_secs`, `600`)
+  `` `lights.blocked` key `lease_expiry` is {give_up}, below `remind` key `delay` {after}, so the lamp would be given up on before the nudge it belongs to has ever fired ``.
+  Pinned by `src/config.rs:a_backstop_that_gives_up_before_the_reminder_nudges_is_refused_naming_both_keys`,
+  which asserts all six tokens (`lights.blocked`, `lease_expiry`, `60`, `remind`, `delay`, `600`)
   are in the sentence.
 - Failure sources: only the strictly-shorter case.
 - Fail direction: closed and dark on the lamp paths, open to the CORE on the delivery path. Because the
   check runs LAST, a file that trips it is refused whole, so a machine loses hermes, hue and the home
   probe over a two-key contradiction.
-- Thresholds: EQUAL is accepted. The test asserts `after_secs = 600` with `give_up_after_secs = 600`
+- Thresholds: EQUAL is accepted. The test asserts `delay = "10m"` with `lease_expiry = "600s"`
   parses, "which is a tight config rather than a contradictory one." One step shorter is refused.
 - Required side effects: none.
 - Forbidden side effects: nothing is worked around at runtime "by a mechanism that would have to tell a
@@ -1095,56 +1106,56 @@ Then the file is refused, naming both keys and both values
 - Privacy: two integers.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: two guards inside this function are documented as DEAD CODE TODAY, and the code
-  says so out loud rather than leaving a reader to discover it: `NAG_OFF` is zero and
-  `give_up_after_secs` has a floor of 60, so the comparison is already false for an off nag; and
-  `DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` (16 hours) sits far above `MAX_NAG_AFTER_SECS` (one hour), so a
+  says so out loud rather than leaving a reader to discover it: `REMIND_OFF` is zero and
+  `lease_expiry` has a floor of 60, so the comparison is already false for an off reminder; and
+  `DEFAULT_BLOCKED_LEASE_EXPIRY_SECS` (16 hours) sits far above `MAX_DELAY_SECS` (one hour), so a
   file with no `[lights]` table could not trip the check at its default. They stay "because what makes
   them dead is a coupling between two bounds that have nothing else to do with each other." The test
-  still exercises both spellings of an off nag as accepted configs.
+  still exercises both spellings of an off remind as accepted configs.
 
-### 20. The mobile submission deadline is read off the ARMED mobile table and nowhere else
+### 20. The moshi acknowledgement deadline is read off the ARMED phone table and nowhere else
 
-Given `[plugins.mobile]` switched on, naming `type = "moshi"`, with `submit_deadline_secs = 30`\
+Given `[plugins.phone]` switched on, naming `type = "moshi"`, with `ack_deadline = "30s"`\
 
-When `submit_deadline` is called\
+When `ack_deadline` is called\
 
 Then the answer is 30 seconds
 
-- Success: `src/config.rs:submit_deadline` goes through `src/config.rs:armed_mobile`, which returns
+- Success: `src/config.rs:ack_deadline` goes through `src/config.rs:armed_phone`, which returns
   `Ok(None)` for an absent or switched-off table and `Err(reason)` for a table naming a backend nothing
   implements. Pinned by
-  `src/config.rs:the_mobile_submission_deadline_is_a_count_of_seconds_defaulted_to_five`.
+  `src/config.rs:the_acknowledgement_deadline_is_a_duration_defaulted_to_five_seconds`.
 - Failure sources: seven refused values, table-driven in
-  `src/config.rs:a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name`: `0`, `-1`,
-  `"5s"`, `9.5`, `[5]`, `3601`, `9223372036854775807`.
-- Fail direction: OPEN with a loud line. `src/main.rs:configured_submit_deadline` falls back to
-  `DEFAULT_SUBMIT_DEADLINE_SECS` and prints
+  `src/config.rs:an_acknowledgement_deadline_outside_the_range_is_refused_by_name`: `"0s"`, `"500ms"`,
+  `"2h"`, `5`, `9.5`, `[5]`, `""`.
+- Fail direction: OPEN with a loud line. `src/main.rs:configured_ack_deadline` falls back to
+  `DEFAULT_ACK_DEADLINE` and prints
   `pns: config error ({detail}); the moshi submission keeps its {n}-second bound`, on the argument that
   "a silent fallback is the operator asking for something, not getting it, and being told nothing." There
   is no separate pulse-path reading of this key.
-- Thresholds: default 5, floor 1 (zero refused), ceiling 3600. Zero is a TRAP here where
-  `summarizer_deadline_secs`'s zero is not, and the refusal says so:
-  `` `mobile` key `submit_deadline_secs` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``.
+- Thresholds: default `"5s"`, floor `"1s"` (zero refused), ceiling `"1h"`. Zero is a TRAP here where
+  `summarizer_deadline`'s zero is not, and the refusal says so:
+  `` `plugins.phone` key `ack_deadline` is 0, which is the bound switched off by accident: a deadline that expires before the daemon can answer costs the phone card on every approval ``.
   Five seconds is "about thirty times the observed round trip" (measured 2026-08-29,
-  `src/config.rs:DEFAULT_SUBMIT_DEADLINE_SECS`).
-- Required side effects: the table is read ONCE at the composition root (`src/main.rs:read_mobile`), so
+  `src/config.rs:DEFAULT_ACK_DEADLINE`).
+- Required side effects: the table is read ONCE at the composition root (`src/main.rs:read_phone`), so
   the token, the watch-card toggle and the refusal come out of one verdict.
-- Forbidden side effects: a `submit_deadline_secs` written under a table naming another backend must not
+- Forbidden side effects: an `ack_deadline` written under a table naming another backend must not
   be read as moshi's. Pinned by
-  `src/config.rs:a_mobile_table_naming_no_backend_contributes_no_settings_at_all`, which writes
-  `type = "pushover"` with `submit_deadline_secs = 1` and asserts the refusal quotes `"pushover"` and
+  `src/config.rs:a_phone_table_naming_no_backend_contributes_no_settings_at_all`, which writes
+  `type = "pushover"` with `ack_deadline = "1s"` and asserts the refusal quotes `"pushover"` and
   names `type`; the same test carries a positive control (`type = "moshi"` gives 30) and the switched-off
   case (a disabled table falls back to 5). A key written under ANOTHER plugin's table no longer even
   parses, because the roster judges each table's vocabulary: the same test asserts
-  `[plugins.hue]\nsubmit_deadline_secs = 30` is an error.
+  `[plugins.lights]\nack_deadline = 30` is an error.
 - Timeout and cancellation: the value IS a deadline. On expiry "the submission is killed and its pending
   card dies with it, and nothing is said either way" (`src/config_text.rs:LAYOUT`, the
-  `submit_deadline_secs` prose). There is no off switch, "because an unbounded wait is the defect and
+  `ack_deadline` prose). There is no off switch, "because an unbounded wait is the defect and
   'off' would be a key whose only function is to restore it."
 - Idempotency and duplicates: deterministic.
 - Privacy: the refusal quotes the `type` VALUE (`"pushover"`) and the deadline integer. Neither is
   secret. The `token` on the same table never reaches a refusal.
-- Process ownership and cleanup: `armed_mobile` returns a borrow of the settings table, so nothing is
+- Process ownership and cleanup: `armed_phone` returns a borrow of the settings table, so nothing is
   cloned on this path.
 - Compatibility contract: `type` is the one word that selects a backend under EVERY table that has one,
   and the retired router-only spelling `brand` is refused by name with `type` listed instead
@@ -1182,7 +1193,7 @@ Then every declared key is parsed by the arm that declares it, and no arm reads 
 - Compatibility contract:
   `src/config_text.rs:every_layout_table_matches_the_config_roster_exactly_in_both_directions` is the
   THIRD walk, and it holds the RENDERER's layout to the same roster. Its one exception is `lights`, whose
-  effective key set is `refresh_secs` plus the leaf of every `lights.<x>` layout table plus the three
+  effective key set is `arm_interval` plus the leaf of every `lights.<x>` layout table plus the three
   declaration levels; and its two skipped roster rows are `TOP_LEVEL` (no heading to write) and
   `TARGET_KEYS` (written by the hardcoded declaration branch). A fourth document, the doctor's own setup
   report, is held to the router row's spelling by
@@ -1213,8 +1224,11 @@ Then every recognised key and table is removed as it is written, and anything re
 - Required side effects: CORE tables are written LIVE whether or not the values mention them; OPT-IN
   tables are written COMMENTED, heading included, when the values never mention them at all. Pinned by
   `src/config_text.rs:an_opt_in_table_absent_renders_commented_and_present_renders_live`, which asserts
-  the exact text `# [plugins.hermes]\n# enabled = true\n` for the absent case and
-  `[plugins.hermes]\nenabled = true\n` for the present one, and confirms the parsed result each way. A
+  the exact text `# [plugins.log]\n# enabled = false\n` for the absent case and
+  `[plugins.log]\nenabled = true\n` for a values file that states the switch, and confirms the parsed
+  result each way. EVERY `enabled` IS WRITTEN AT ITS OWN DEFAULT, which for a plugin is off: a table is
+  on because a line says so and never because the table showed up, pinned end to end by
+  `tests/config_render.rs:the_written_template_carries_one_enabled_line_per_table_that_declares_one`. A
   `Sample::Example` key stays commented even inside a live table unless the values supply a value for it
   (`src/config_text.rs:render_block`).
 - Forbidden side effects: the `[lights]` cluster is the ONE hardcoded branch, because its seven headings
@@ -1318,7 +1332,7 @@ Then it crosses as one inert basic string and never as structure
 - Required side effects: `src/config_text.rs:write_note` gives EVERY `\n`-split line its own `# ` prefix,
   "which is what keeps a newline inside the operator's own text from opening a heading or an uncommented
   key." Pinned by `src/config_text.rs:a_note_holding_a_newline_stays_commented_on_every_line`, which
-  plants a full `[plugins.hue]` table inside a note and asserts the parsed config does not contain `hue`.
+  plants a full `[plugins.lights]` table inside a note and asserts the parsed config does not contain `lights`.
 - Forbidden side effects: `note` is a RESERVED key invisible to the roster. It never reaches the output
   as `note = "..."` and never round-trips into a parsed config
   (`src/config_text.rs:a_note_renders_above_its_heading_as_a_commented_line`).
@@ -1387,11 +1401,11 @@ Then nothing reaches the template path until every earlier step has succeeded
 - Failure sources and their pins, each with an explicitly named mutant: the self-parse step skipped,
   pinned by
   `tests/config_render.rs:a_values_file_that_renders_something_the_parser_rejects_is_refused_without_writing`
-  using `[nag] after_secs = 3601` ("`render` alone never bounds an integer"); the literal-secret check
+  using `[remind] delay = "61m"` ("`render` alone never bounds a duration"); the literal-secret check
   removed OR NARROWED, pinned by
   `tests/config_render.rs:a_literal_value_at_any_secret_bearing_key_is_refused_without_writing`, which
-  table-drives all five paths because "a single case covering only `plugins.hue.bridge` stays green if
-  the other four are removed from that list"; the roster refusal loosened, pinned by
+  table-drives every path because "a single case covering only `plugins.lights.bridge_host` stays green if
+  the others are removed from that list"; the roster refusal loosened, pinned by
   `tests/config_render.rs:an_unknown_values_entry_is_refused_without_writing`; the banner gutted, pinned
   by
   `tests/config_render.rs:the_written_template_starts_with_the_generated_banner_and_the_darwin_wrapper`,
@@ -1419,7 +1433,7 @@ Then nothing reaches the template path until every earlier step has succeeded
   none is needed for a hand-run developer tool.
 - Idempotency and duplicates: byte-identical across runs, pinned.
 - Privacy: `refuse_literal_secrets` names the PATH
-  (`` `plugins.hue.bridge` must be a keepassxc secret marker table, not a literal value ``) and never the
+  (`` `plugins.lights.bridge_host` must be a keepassxc secret marker table, not a literal value ``) and never the
   offending value, so a pasted credential that triggers the refusal is not echoed to stderr. That is the
   single most important privacy property of this binary, and it is a consequence of the message's shape
   rather than of an explicit test: the tests assert stderr CONTAINS the key path, not that it excludes
@@ -1515,17 +1529,17 @@ Then the delivery legs continue at the CORE while the pulse, the lights tick and
 
 | Mode                                                      | Missing                                                              | Error                                                 | Wording                                                                            |
 | --------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| event delivery                                            | CORE, silent                                                         | CORE, loud                                            | `pns: config error ({detail}); running the core plugins (mobile, macos-banner)`    |
+| event delivery                                            | CORE, silent                                                         | CORE, loud                                            | `pns: config error ({detail}); running the core plugins (phone, banner)`    |
 | event delivery, unknown plugin name in a file that PARSED | n/a                                                                  | whole roster, loud                                    | `` pns: config error (unknown plugin `{name}`); running every built-in plugin ``   |
-| `pns lights pulse`                                               | exit 0, silent                                                       | exit 0, loud, no pulse                                | `pns: config error ({detail}); no pulse`                                           |
+| `pns lights pulse`                                        | exit 0, silent                                                       | exit 0, loud, no pulse                                | `pns: config error ({detail}); no pulse`                                           |
 | lights tick                                               | return 0, nothing armed                                              | return 0, nothing armed                               | silent (a line per tick would be a log the rotation job rotates a real log out of) |
-| `pns lights quiet`                                        | no place is known, every mute refused by name, the report still runs | same                                                  | the mute's own refusal                                                             |
-| daemon enable check                                       | enabled                                                              | enabled, loud                                         | `pns daemon: the config could not be read ({detail}); carrying on enabled`         |
+| `pns lights mute`                                         | no place is known, every mute refused by name, the report still runs | same                                                  | the mute's own refusal                                                             |
+| daemon enable check                                       | enabled                                                              | enabled, loud                                         | `pns gateway: the config could not be read ({detail}); carrying on enabled`         |
 | `submit_deadline`                                         | 5 seconds                                                            | 5 seconds, loud                                       | `pns: config error ({detail}); the moshi submission keeps its {n}-second bound`    |
 | the doctor's home rows                                    | a setup row                                                          | a setup row                                           | `home: config error ({detail})`                                                    |
 | `pns doctor`                                              | `no config file, so only the core runs` per skipped plugin           | `the config could not be read, so only the core runs` | as shown                                                                           |
 
-- Thresholds: the CORE is exactly two names, `mobile` and `macos-banner` (`src/registry.rs:CORE`), and
+- Thresholds: the CORE is exactly two names, `phone` and `banner` (`src/registry.rs:CORE`), and
   the ruling behind that number is recorded: "Three of the five plugins cannot do anything until a
   credential is stood up for them... so a default that switched them on delivered nothing and reported
   three failures on a machine whose operator had asked for none of it."
@@ -1570,7 +1584,7 @@ Every `NOT ESTABLISHED:` line above, gathered.
 | the top-level row                       | `src/config.rs:TOP_LEVEL`                                        |
 | the declaration row                     | `src/config.rs:TARGET_KEYS`                                      |
 | plugin entry                            | `src/config.rs:PluginEntry`                                      |
-| armed mobile table                      | `src/config.rs:armed_mobile`                                     |
+| armed phone table                       | `src/config.rs:armed_phone`                                     |
 | behaviour word                          | `src/config.rs:BEHAVIOUR_WORDS`                                  |
 | behaviour                               | `src/config.rs:Behaviour`                                        |
 | pulse (a blink)                         | `src/config.rs:Pulse`                                            |
@@ -1578,8 +1592,8 @@ Every `NOT ESTABLISHED:` line above, gathered.
 | dim form                                | `src/config.rs:Lights::dim`, default `src/config.rs:DEFAULT_DIM` |
 | dim window                              | `src/config.rs:Target::dim_window`                               |
 | target (lamp, room or zone declaration) | `src/config.rs:Target`                                           |
-| the blocked backstop                    | `src/config.rs:DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS`               |
-| the backstop-versus-nag check           | `src/config.rs:backstop_outlasts_the_nag`                        |
+| the blocked backstop                    | `src/config.rs:DEFAULT_BLOCKED_LEASE_EXPIRY_SECS`               |
+| the backstop-versus-remind check        | `src/config.rs:backstop_outlasts_the_reminder`                   |
 | the ends check                          | `src/config.rs:ends_agree`                                       |
 | bounded scalar                          | `src/config.rs:bounded`                                          |
 | percent                                 | `src/config.rs:percent`                                          |

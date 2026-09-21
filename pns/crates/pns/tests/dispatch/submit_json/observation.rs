@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn json_observations_banner_across_surfaces_without_phone_or_replay() {
     for (label, desk, phone, visible) in [
-        ("away", "99999", "99999", false),
-        ("desk-visible", "0", "99999", true),
-        ("mobile-visible", "90", "0", true),
-        ("desk-hidden", "0", "99999", false),
+        ("away", "99999", "24h", false),
+        ("desk-visible", "0", "24h", true),
+        ("mobile-visible", "90", "0s", true),
+        ("desk-hidden", "0", "24h", false),
     ] {
         let sandbox = Sandbox::new(&format!("observation-{label}"));
         let mut request = request();
@@ -14,23 +14,23 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
         request.pane = Some("t1:p1".into());
         let mut command = sandbox.pns_stateful();
         command
-            .env("PNS_IDLE_SECS", desk)
-            .env("PNS_PHONE_INPUT_AGE", phone)
+            .env("PNS_SCREEN_IDLE", desk)
+            .env("PNS_PHONE_INPUT_MAX_AGE", phone)
             .env("PNS_FORCE_PHONE", "1");
         sandbox.stub_herdr(&mut command, visible);
         let output = invoke_command(&sandbox, command, &request.encode().unwrap());
         assert_eq!(
             result(&output).status,
-            Status::Accepted,
+            Status::Delivered,
             "{label}: {output:?}"
         );
         assert!(
-            sandbox.fired("macos-banner"),
+            sandbox.fired("banner"),
             "{label}: observation banner missing"
         );
         assert!(sandbox.fired("hermes"), "{label}: observation log missing");
         assert!(
-            !sandbox.fired("mobile"),
+            !sandbox.fired("phone"),
             "{label}: observation must not card"
         );
         let connection = database(&sandbox);
@@ -41,7 +41,7 @@ fn json_observations_banner_across_surfaces_without_phone_or_replay() {
             .unwrap()
             .map(Result::unwrap)
             .collect();
-        assert_eq!(destinations, ["macos-banner", "hermes"]);
+        assert_eq!(destinations, ["banner", "hermes"]);
         assert_eq!(
             connection
                 .query_row("SELECT count(*) FROM journal", [], |row| row
@@ -66,16 +66,16 @@ fn json_progress_and_blocked_keep_presence_driven_phone_cards() {
             request.state = stated;
             request.pane = Some("t1:p1".into());
             let mut command = sandbox.pns_stateful();
-            command.env("PNS_IDLE_SECS", idle);
+            command.env("PNS_SCREEN_IDLE", idle);
             sandbox.stub_herdr(&mut command, visible);
             let output = invoke_command(&sandbox, command, &request.encode().unwrap());
             assert_eq!(
                 result(&output).status,
-                Status::Accepted,
+                Status::Delivered,
                 "{stated:?}/{label}: {output:?}"
             );
-            assert_eq!(sandbox.fired("macos-banner"), banner, "{stated:?}/{label}");
-            assert_eq!(sandbox.fired("mobile"), phone, "{stated:?}/{label}");
+            assert_eq!(sandbox.fired("banner"), banner, "{stated:?}/{label}");
+            assert_eq!(sandbox.fired("phone"), phone, "{stated:?}/{label}");
             assert!(sandbox.fired("hermes"));
         }
     }

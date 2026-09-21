@@ -12,13 +12,13 @@ mod tests {
         // its breath had landed.
         assert_eq!(
             child_bound(Duration::from_secs(1), LIGHTS_JOB),
-            Duration::from_secs(37),
+            Some(Duration::from_secs(37)),
             "at the production clock: thirty seconds of interval, the six-second \
              write deadline that ceiling implies, and one reap tick"
         );
         assert_eq!(
             child_bound(Duration::from_secs(60), LIGHTS_JOB),
-            Duration::from_secs(1800),
+            Some(Duration::from_secs(1800)),
             "and a slow clock keeps the tick-scaled bound, which is the larger of \
              the two there"
         );
@@ -26,9 +26,17 @@ mod tests {
         // carry their own deadline, so one still alive at `CHILD_TICKS` is
         // wedged; giving it thirty-seven seconds would only delay the kill.
         assert_eq!(
-            child_bound(Duration::from_millis(10), "nag:a-session"),
-            Duration::from_millis(300),
+            child_bound(Duration::from_millis(10), "remind:a-session"),
+            Some(Duration::from_millis(300)),
             "every job but the lights tick keeps the tick-scaled bound exactly"
+        );
+        // AND THE PAGE IS NOT BOUNDED AT ALL. Its work is to be up: a bound
+        // killed and respawned the listener twice a minute for the life of
+        // the machine.
+        assert_eq!(
+            child_bound(Duration::from_millis(10), PAGE_JOB),
+            None,
+            "the failure page serves for as long as its daemon runs"
         );
     }
 }

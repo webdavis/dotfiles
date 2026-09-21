@@ -1,20 +1,21 @@
 use super::*;
 
 #[test]
-fn an_armed_presence_table_reads_its_rooms_its_exclusions_and_its_two_intervals() {
+fn an_armed_presence_table_reads_its_rooms_its_exclusions_and_its_two_durations() {
     let config = presence_config(
         "type = \"hue\"\nrooms = [\"3F - Studio\", \"2F - Kitchen\"]\n\
-             exclude = [\"3F - MBedroom\"]\npoll_secs = 10\nstale_after_secs = 30\n",
+             excluded_rooms = [\"3F - MBedroom\"]\npoll_interval = \"10s\"\n\
+             reading_max_age = \"30s\"\n",
     );
     assert_eq!(
         parse_presence(&config).unwrap(),
         Some(Presence {
             rooms: vec!["3F - Studio".to_string(), "2F - Kitchen".to_string()],
-            exclude: vec!["3F - MBedroom".to_string()],
+            excluded_rooms: vec!["3F - MBedroom".to_string()],
             desk_room: None,
-            desk_stale_after_secs: 120,
-            poll_secs: 10,
-            stale_after_secs: 30,
+            desk_input_max_age_secs: 120,
+            poll_interval_secs: 10,
+            reading_max_age_secs: 30,
         })
     );
 }
@@ -49,18 +50,20 @@ fn a_desk_room_the_watch_list_does_not_name_is_refused_by_name() {
 
 #[test]
 fn a_desk_room_the_operator_also_excluded_is_refused_by_name() {
-    // The two keys contradict each other: `exclude` says never light that
+    // The two keys contradict each other: `excluded_rooms` says never light that
     // room and `desk_room` says light it whenever the desk is warm. Loaded,
     // the desk branch wins and the exclusion is silently a lie.
     let said = match parse_presence(&presence_config(
-        "type = \"hue\"\nrooms = [\"3F - Studio\"]\nexclude = [\"3F - Studio\"]\n\
+        "type = \"hue\"\nrooms = [\"3F - Studio\"]\nexcluded_rooms = [\"3F - Studio\"]\n\
              desk_room = \"3F - Studio\"\n",
     )) {
         Err(error) => error.detail().to_string(),
         Ok(_) => panic!("a desk room the config also excludes is refused"),
     };
     assert!(
-        said.contains("desk_room") && said.contains("exclude") && said.contains("3F - Studio"),
+        said.contains("desk_room")
+            && said.contains("excluded_rooms")
+            && said.contains("3F - Studio"),
         "the refusal names both keys and the value: {said}"
     );
 }
@@ -75,8 +78,8 @@ fn an_empty_room_name_is_refused_wherever_it_is_written() {
     // `a_room_the_state_file_could_never_carry_is_refused_at_the_table`.
     for (key, body) in [
         (
-            "exclude",
-            "type = \"hue\"\nrooms = [\"3F - Studio\"]\nexclude = [\"\"]\n",
+            "excluded_rooms",
+            "type = \"hue\"\nrooms = [\"3F - Studio\"]\nexcluded_rooms = [\"\"]\n",
         ),
         (
             "desk_room",

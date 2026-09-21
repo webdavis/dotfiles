@@ -155,15 +155,8 @@ pub fn append_ring_line(
         // there is nothing to do.
         Err(_) => return Ok(()),
     };
-    // A TEST-ONLY STALL, in `env_deadline`'s own words: it exists so a test
-    // can prove this section is exclusive rather than hope a real race lands
-    // in a window that is normally microseconds wide. Unset in every real
-    // invocation, so production takes no delay here at all.
-    if let Some(delay) = std::env::var("PNS_RING_LOCK_TEST_DELAY_MS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .map(Duration::from_millis)
-    {
+    let delay = lock_test_delay();
+    if !delay.is_zero() {
         std::thread::sleep(delay);
     }
     let entries: Vec<&str> = contents.lines().collect();
@@ -174,6 +167,38 @@ pub fn append_ring_line(
     // newline back itself.
     publish_state_line(path, &entries[entries.len() - kept..].join("\n"))
 }
+/// The stall taken inside the ring's locked section, which a test sets so it
+/// can prove the section is exclusive rather than hope a real race lands in a
+/// window that is normally microseconds wide.
+///
+/// A RELEASE BUILD COMPILES THE ZERO AND READS NOTHING. The stall used to come
+/// off an environment variable that production code read on every append, so a
+/// stray variable in a real environment slept inside a lock every event has to
+/// pass through. There is no value outside a test build that can set it now.
+#[cfg(not(test))]
+fn lock_test_delay() -> Duration {
+    Duration::ZERO
+}
+
+// PER THREAD, so one test's stall cannot decide another's timing in a suite
+// that runs them together.
+#[cfg(test)]
+thread_local! {
+    static LOCK_TEST_DELAY: std::cell::Cell<Duration> =
+        const { std::cell::Cell::new(Duration::ZERO) };
+}
+
+#[cfg(test)]
+fn lock_test_delay() -> Duration {
+    LOCK_TEST_DELAY.with(std::cell::Cell::get)
+}
+
+/// Stall this thread's next append inside the ring lock for `delay`.
+#[cfg(test)]
+pub(super) fn stall_inside_the_ring_lock(delay: Duration) {
+    LOCK_TEST_DELAY.with(|stall| stall.set(delay));
+}
+
 /// Whether an append whose read-back FAILED has to republish the line it just
 /// wrote.
 ///

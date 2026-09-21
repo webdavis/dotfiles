@@ -31,7 +31,7 @@ fn tap_without_config_creates_the_default_marker_and_reports_mobile() {
         let mode = fs::metadata(s.path(created)).unwrap().permissions().mode();
         assert_eq!(mode & 0o077, 0, "{created} is not private: {mode:o}");
     }
-    for channel in ["mobile", "hermes", "macos-banner"] {
+    for channel in ["phone", "hermes", "banner"] {
         assert!(!s.fired(channel));
     }
 }
@@ -59,16 +59,12 @@ fn the_json_marker_dates_the_recorded_tap() {
 fn tap_and_the_event_reader_share_the_configured_marker() {
     let s = Sandbox::new("tap-shared-config");
     let path = s.path("custom/attention");
-    s.write_config(&format!(
-        "{}\n[phone]\nmarker_file = {:?}\n",
-        support::STUB_CHANNELS,
-        path
-    ));
+    s.write_config(&support::stub_channels_with_marker(&path));
     let out = tap(&s, &["tap", "--json"]);
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert_eq!(json(&out)["marker"]["source"], "config");
     assert!(path.is_file());
-    run(s.pns().env("PNS_IDLE_SECS", "60").args([
+    run(s.pns().env("PNS_SCREEN_IDLE", "60").args([
         "send",
         "--producer",
         "shell",
@@ -77,14 +73,18 @@ fn tap_and_the_event_reader_share_the_configured_marker() {
         "--detail",
         "tap",
     ]));
-    assert!(s.fired("mobile"));
-    assert!(!s.fired("macos-banner"));
+    assert!(s.fired("phone"));
+    assert!(!s.fired("banner"));
     assert!(!s.path(".local/state/pns/phone-attention.marker").exists());
 }
 
+/// THE MUTANT THIS PINS: `PNS_PHONE_MARKER_FILE` read back in, which would
+/// have this run silently succeed off the environment path even with a
+/// config that could not load. Config is the only source now, so a broken
+/// config refuses instead, and the deleted variable is never touched.
 #[test]
-fn environment_path_wins_even_when_configuration_cannot_load() {
-    let s = Sandbox::new("tap-env-wins");
+fn the_marker_environment_override_is_gone_a_broken_config_refuses_instead() {
+    let s = Sandbox::new("tap-env-ignored");
     s.write_config("[broken");
     let marker = s.path("override");
     let out = s
@@ -93,9 +93,9 @@ fn environment_path_wins_even_when_configuration_cannot_load() {
         .args(["tap", "--json"])
         .output()
         .unwrap();
-    assert_eq!(out.status.code(), Some(0), "{out:?}");
-    assert_eq!(json(&out)["marker"]["source"], "environment");
-    assert!(marker.is_file());
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert_eq!(json(&out)["error"]["code"], "config_error");
+    assert!(!marker.exists(), "the deleted override must not be touched");
 }
 
 #[test]
@@ -109,12 +109,8 @@ fn info_preserves_missing_state_and_install_preserves_existing_state() {
     let marker = s.path("marker");
     fs::write(&marker, "keep").unwrap();
     let before = fs::metadata(&marker).unwrap().modified().unwrap();
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["tap", "install", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
+    let out = s.pns().args(["tap", "install", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let answer = json(&out);
     assert_eq!(answer["write_status"], "not_requested");
@@ -136,12 +132,11 @@ fn info_preserves_missing_state_and_install_preserves_existing_state() {
 fn a_failed_directory_creation_is_an_operational_failure() {
     let s = Sandbox::without_config("tap-mkdir-fails");
     fs::write(s.path("blocked"), "keep").unwrap();
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", s.path("blocked/marker"))
-        .args(["tap", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!(
+        "[plugins.phone]\nmarker_file = {:?}\n",
+        s.path("blocked/marker")
+    ));
+    let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["ok"], false);
     assert_eq!(json(&out)["error"]["code"], "mkdir_failed");
@@ -153,12 +148,8 @@ fn a_failed_directory_creation_is_an_operational_failure() {
 #[test]
 fn a_directory_at_the_marker_is_refused_without_claiming_success() {
     let s = Sandbox::without_config("tap-directory-marker");
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", &s.root)
-        .args(["tap", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {:?}\n", s.root));
+    let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["write_status"], "failed");
     assert_eq!(json(&out)["error"]["code"], "touch_failed");
@@ -173,10 +164,10 @@ fn tap_preserves_contents_and_desk_wins_a_tie() {
         .unwrap()
         .set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(1))
         .unwrap();
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
     let out = s
         .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args(["tap", "--json"])
         .output()
         .unwrap();
@@ -192,7 +183,7 @@ fn tap_preserves_contents_and_desk_wins_a_tie() {
 #[test]
 fn invalid_config_refuses_a_tap_without_falling_back_or_exposing_values() {
     let s = Sandbox::new("tap-invalid-config");
-    s.write_config("[phone]\nmarker_file = 42\n");
+    s.write_config("[plugins.phone]\nmarker_file = 42\n");
     let out = tap(&s, &["tap", "--json"]);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert_eq!(json(&out)["error"]["code"], "config_error");
@@ -283,12 +274,8 @@ fn tap_updates_a_dangling_link_itself_without_creating_its_target() {
         },
         0
     );
-    let out = s
-        .pns()
-        .env("PNS_PHONE_MARKER_FILE", &marker)
-        .args(["tap", "--json"])
-        .output()
-        .unwrap();
+    s.write_config(&format!("[plugins.phone]\nmarker_file = {marker:?}\n"));
+    let out = s.pns().args(["tap", "--json"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(json(&out)["marker"]["mtime_epoch_secs"].as_u64().unwrap() > 1);
     assert!(
@@ -304,11 +291,7 @@ fn tap_updates_a_dangling_link_itself_without_creating_its_target() {
 fn doctor_reports_the_configured_tap_as_missing_fresh_or_stale_without_writing_it() {
     let s = Sandbox::new("doctor-tap-marker");
     let path = s.path("attention");
-    s.write_config(&format!(
-        "{}\n[phone]\nmarker_file = {:?}\n",
-        support::STUB_CHANNELS,
-        path
-    ));
+    s.write_config(&support::stub_channels_with_marker(&path));
     for state in ["never tapped", "fresh", "stale"] {
         if state != "never tapped" {
             fs::write(&path, "private contents").unwrap();
@@ -322,7 +305,7 @@ fn doctor_reports_the_configured_tap_as_missing_fresh_or_stale_without_writing_i
         let before = fs::metadata(&path).ok().map(|m| m.modified().unwrap());
         let out = s
             .pns()
-            .env("MOSHI_HOOK_BIN", s.path("absent-moshi-hook"))
+            .env("PNS_MOSHI_HOOK_BIN", s.path("absent-moshi-hook"))
             .args(["doctor", "--no-color"])
             .output()
             .unwrap();

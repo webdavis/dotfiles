@@ -13,8 +13,8 @@ fn a_moshi_that_never_reads_its_stdin_cannot_hold_the_notification() {
     write_script(&bin.join("moshi-hook"), "sleep 30");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "99999")
-        .env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+        .env("PNS_SCREEN_IDLE", "99999")
+        .env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     let mut child = spawn_hook(command, "blocked");
     // Past the 64KB pipe buffer, which is what turns a child that does not
     // read into a writer that never returns.
@@ -68,12 +68,42 @@ fn a_transcript_that_never_ends_is_not_read_at_all() {
 }
 
 #[test]
+fn the_retired_millisecond_deadline_names_state_nothing_at_all() {
+    // ONE ROW FOR EVERY NAME THAT LEFT, set to the value that would be most
+    // destructive under the old reading: a one-millisecond payload window
+    // loses the payload outright, so a turn that still reports proves nothing
+    // reads these any more. The three summarizer rows are the two spellings
+    // of the retired variable plus the name its rename would have produced;
+    // `[recap] summarizer_deadline` is the only bound on that call now.
+    let sandbox = Sandbox::new("hook-retired-deadline-names");
+    let mut command = sandbox.pns();
+    for retired in [
+        "PNS_PAYLOAD_DEADLINE_MS",
+        "PNS_CONDENSER_DEADLINE_MS",
+        "PNS_CONDENSER_DEADLINE",
+        "PNS_SUMMARIZER_DEADLINE",
+        "PNS_MOSHI_JSON_DEADLINE_MS",
+        "PNS_MOSHI_STATUS_DEADLINE_MS",
+        "PNS_DAEMON_TICK_MS",
+    ] {
+        command.env(retired, "1");
+    }
+    let mut child = spawn_hook(command, "stop");
+    write_payload(
+        &mut child,
+        br#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
+    );
+    assert_eq!(finished_within(child, HANG_LIMIT), Some(0));
+    assert_eq!(sandbox.event("hermes")["detail"], "a turn");
+}
+
+#[test]
 fn a_payload_nobody_finishes_writing_still_exits_on_the_contract() {
     // The pipe stays open with nothing in it, which used to hang before any
     // of the exit-0 contract could run.
     let sandbox = Sandbox::new("hook-payload-hang");
     let mut command = sandbox.pns();
-    command.env("PNS_PAYLOAD_DEADLINE_MS", "200");
+    command.env("PNS_PAYLOAD_DEADLINE", "200ms");
     let child = spawn_hook(command, "stop");
     assert_eq!(
         finished_within(child, HANG_LIMIT),
@@ -84,18 +114,21 @@ fn a_payload_nobody_finishes_writing_still_exits_on_the_contract() {
 }
 
 #[test]
-fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
+fn a_summarizer_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     // The case the old bound missed entirely: stdout closes, the read
     // finishes, and the wait then blocked with no deadline on it.
-    let sandbox = Sandbox::new("hook-condenser-sleeps");
+    let sandbox = Sandbox::new("hook-summarizer-sleeps");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "cat >/dev/null; exec 1>&-; sleep 30");
+    sandbox.write_config(&format!(
+        "{}[recap]\nsummarizer_deadline = \"300ms\"\n",
+        crate::support::STUB_CHANNELS
+    ));
     let mut command = sandbox.pns();
     command
-        .env("CODEX_BIN", bin.join("codex"))
-        .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
-        .env("PNS_CONDENSER_DEADLINE_MS", "300");
+        .env("PNS_CODEX_BIN", bin.join("codex"))
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     let mut child = spawn_hook(command, "stop");
     write_payload(
         &mut child,
@@ -105,23 +138,26 @@ fn a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline() {
     assert_eq!(
         sandbox.event("hermes")["detail"],
         "a turn",
-        "an expired condenser falls back to the reply"
+        "an expired summarizer falls back to the reply"
     );
 }
 
 #[test]
-fn a_condenser_that_never_reads_its_stdin_is_bounded_too() {
+fn a_summarizer_that_never_reads_its_stdin_is_bounded_too() {
     // The write is inside the window now: this child never drains the pipe,
     // which used to block before the clock started.
-    let sandbox = Sandbox::new("hook-condenser-deaf");
+    let sandbox = Sandbox::new("hook-summarizer-deaf");
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("codex"), "sleep 30");
+    sandbox.write_config(&format!(
+        "{}[recap]\nsummarizer_deadline = \"300ms\"\n",
+        crate::support::STUB_CHANNELS
+    ));
     let mut command = sandbox.pns();
     command
-        .env("CODEX_BIN", bin.join("codex"))
-        .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
-        .env("PNS_CONDENSER_DEADLINE_MS", "300");
+        .env("PNS_CODEX_BIN", bin.join("codex"))
+        .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     let mut child = spawn_hook(command, "stop");
     let big = "x".repeat(200_000);
     let payload =
@@ -139,7 +175,7 @@ fn a_stuck_multiplexer_leaves_the_view_unreadable_rather_than_blocking() {
     std::fs::create_dir_all(&bin).expect("bin");
     write_script(&bin.join("herdr"), "sleep 30");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     let mut path = std::ffi::OsString::from(&bin);
     path.push(":");
     path.push(std::env::var_os("PATH").unwrap_or_default());
@@ -182,10 +218,13 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
             sandbox = sandbox.display()
         ),
     );
-    command.env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+    command.env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
 }
 
-/// The deadline each silent-moshi run injects.
+/// The deadline each silent-moshi run injects, through
+/// `[plugins.phone] ack_deadline`: the only source left now that
+/// `PNS_MOSHI_SUBMIT_DEADLINE_MS` is gone, and its floor is one second, so
+/// one second is the shortest deadline either row can inject.
 ///
 /// WHAT THESE TWO ROWS PIN, AND WHAT THEY LEAVE TO A CONTROLLED CLOCK. A row
 /// that spawns the engine has only the wall clock, and the wall clock measures
@@ -194,10 +233,18 @@ fn stub_silent_moshi(sandbox: &Sandbox, command: &mut Command) {
 /// its streams closed inside `HANG_LIMIT`, its exit code and its submission
 /// count. WHEN the wait gives up and that it releases at once are pinned by
 /// the unit tests beside `answer_within_on` in `src/moshi_submission.rs`, on a clock that
-/// moves only when the wait sleeps on it. The gate run injects 400ms rather
-/// than 150 because its stub has a `/bin/sh` spawn inside the window.
-const SILENT_MOSHI_DEADLINE_MS: &str = "150";
-const GATE_SILENT_MOSHI_DEADLINE_MS: &str = "400";
+/// moves only when the wait sleeps on it. The gate's own `/bin/sh` spawn still
+/// happens inside this window; a whole second leaves it plenty of margin.
+const ACK_DEADLINE_SECS: u64 = 1;
+
+/// `support::STUB_CHANNELS`, with the moshi acknowledgement deadline pulled
+/// down to `ACK_DEADLINE_SECS` so a silent moshi expires fast.
+fn config_with_short_ack_deadline() -> String {
+    support::STUB_CHANNELS.replace(
+        "type = \"moshi\"\n",
+        &format!("type = \"moshi\"\nack_deadline = \"{ACK_DEADLINE_SECS}s\"\n"),
+    )
+}
 
 /// What a wait that ran out says, with the bound it honoured in the sentence.
 ///
@@ -238,10 +285,13 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     // injected deadline and the teardown; it is the RED run, with no bound,
     // that reaches the liveness limit before the capture owner cleans up.
     let sandbox = Sandbox::new("hook-blocked-silent-moshi");
+    // STRUCTURAL, NOT A REGRESSION: `ack_deadline`'s floor is one second, so
+    // one second is the shortest deadline this row can inject now that the
+    // millisecond environment override is gone.
+    sandbox.allow_slow("the config deadline's own second sits over the warning budget");
+    sandbox.write_config(&config_with_short_ack_deadline());
     let mut command = sandbox.pns();
-    command
-        .env("PNS_IDLE_SECS", "99999")
-        .env("PNS_MOSHI_SUBMIT_DEADLINE_MS", SILENT_MOSHI_DEADLINE_MS);
+    command.env("PNS_SCREEN_IDLE", "99999");
     stub_silent_moshi(&sandbox, &mut command);
     command.args(["hook", "blocked"]);
     let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
@@ -257,7 +307,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
         .expect("the hook's streams and process must finish inside the liveness limit");
     let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        said.contains(&expiry_line(SILENT_MOSHI_DEADLINE_MS)),
+        said.contains(&expiry_line(&(ACK_DEADLINE_SECS * 1000).to_string())),
         "the wait had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(
@@ -278,9 +328,9 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     // fact this row is about.
     //
     // NEVER TWO RATHER THAN EXACTLY ONE, and the difference is the deadline
-    // this row injects. The stub records its argv on its first line, but at
-    // 150ms a loaded machine can spend the whole window forking the shell, so
-    // the engine kills a child that never reached the write and zero is a
+    // this row injects. The stub records its argv on its first line, but a
+    // loaded machine can spend the whole window forking the shell, so the
+    // engine kills a child that never reached the write and zero is a
     // correct interleaving. Exactly-one, with the argv, is pinned by
     // `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`,
     // which injects no deadline and cannot race.
@@ -300,14 +350,13 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
     // same unbounded `child.wait()`.
     //
     // SAME CLOCK, SAME STREAM: timed to stdout EOF for the reason its twin
-    // above states, and with a longer deadline because this path spawns the
-    // stub's shell inside the window.
+    // above states. This path spawns the stub's shell inside the window too,
+    // and the whole-second config deadline leaves it plenty of margin.
     let sandbox = Sandbox::new("gate-silent-moshi");
+    sandbox.allow_slow("the config deadline's own second sits over the warning budget");
+    sandbox.write_config(&config_with_short_ack_deadline());
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999").env(
-        "PNS_MOSHI_SUBMIT_DEADLINE_MS",
-        GATE_SILENT_MOSHI_DEADLINE_MS,
-    );
+    command.env("PNS_SCREEN_IDLE", "99999");
     stub_silent_moshi(&sandbox, &mut command);
     command.arg("claude-hook");
     let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
@@ -317,7 +366,7 @@ fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
         .expect("the gate's streams and process must finish inside the liveness limit");
     let said = String::from_utf8_lossy(&output.stderr);
     assert!(
-        said.contains(&expiry_line(GATE_SILENT_MOSHI_DEADLINE_MS)),
+        said.contains(&expiry_line(&(ACK_DEADLINE_SECS * 1000).to_string())),
         "the gate had to give up on the injected deadline and say so, and said: {said:?}"
     );
     assert_eq!(

@@ -161,8 +161,8 @@ the 2026-08-28 renumbering, keeping a contingency to jump the queue if moshi's d
 replacement is doing nothing until that regression, rather than building a second channel now.
 
 **DR2. Graded urgency and retry until acknowledged. SUPERSEDED** by the post-part-2 delivery
-reliability work, which is both more and different: `[delivery]` ships `max_attempts`, `max_age_secs`
-and `retry_base_secs` (`private_config.toml.tmpl:268-279`) over a durable queue, and `7e165ec1`
+reliability work, which is both more and different: `[delivery]` ships `max_retries`, `event_max_age`
+and `retry_step` (`private_config.toml.tmpl:268-279`) over a durable queue, and `7e165ec1`
 (task 30) classifies a failure as permanent or temporary so a refused request dead-letters on its
 first failure instead of consuming twenty attempts. Grading is `bypass_silence_classes` rather than a
 numeric urgency. The jitter that a Pushover-style design would carry was deliberately removed in the

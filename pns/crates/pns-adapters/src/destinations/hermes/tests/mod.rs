@@ -48,7 +48,7 @@ fn event() -> Event {
 }
 
 /// The channel as the composition root builds it: the key for THIS ROUTE
-/// already looked up in the `[plugins.hermes]` settings.
+/// already looked up in the `[plugins.log]` settings.
 fn channel_for_route(
     route: &str,
     settings: &str,

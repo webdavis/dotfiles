@@ -44,7 +44,7 @@ fn the_no_key_line_names_the_route_and_the_config_key_the_operator_must_fix() {
     assert_eq!(
         skipped_line("priority"),
         "post SKIPPED, no hermes key for the priority route \
-         ([plugins.hermes.keys] priority); nothing was sent"
+         ([plugins.log.keys] priority); nothing was sent"
     );
 }
 

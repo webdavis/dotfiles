@@ -3,14 +3,19 @@ use pns_application::JobChildren;
 
 pub(crate) fn daemon_run() -> i32 {
     if !crate::arguments_after_verb().is_empty() {
-        eprintln!("{DAEMON_USAGE}");
+        eprintln!("{GATEWAY_USAGE}");
         return 2;
     }
+    pns_adapters::catch_termination();
+    // The first tick sweeps, so a gateway that has just started clears
+    // whatever the machine accumulated while it was down.
+    let mut next_sweep = 0;
     pns_application::RunDaemon {
         settings: &pns_adapters::DaemonConfig {
             home: std::env::var("HOME").unwrap_or_default(),
         },
         clock: &now_secs,
+        stopping: &pns_adapters::stopping,
     }
     .run(
         || {
@@ -20,8 +25,9 @@ pub(crate) fn daemon_run() -> i32 {
             {
                 return Err(refusal);
             }
-            let tick =
-                pns_application::daemon_tick(std::env::var("PNS_DAEMON_TICK_MS").ok().as_deref());
+            let tick = pns_application::daemon_tick(
+                std::env::var("PNS_DAEMON_TICK_INTERVAL").ok().as_deref(),
+            );
             Ok((
                 pns_adapters::FileJobSpool::new(state),
                 pns_adapters::DaemonChildren::new(tick),
@@ -29,6 +35,7 @@ pub(crate) fn daemon_run() -> i32 {
             ))
         },
         |now, children| {
+            prune_activity(now, &mut next_sweep);
             start_retry(now, children)?;
             start_page(now, children)
         },
@@ -38,6 +45,40 @@ pub(crate) fn daemon_run() -> i32 {
         },
     )
 }
+
+/// Delete the activity rows that have outlived `[recap] retain`.
+///
+/// ONCE AN HOUR, NOT ONCE A TICK. The retention is measured in days, so a
+/// sweep every second would open the database 3,600 times an hour to delete
+/// nothing; an hour late on a thirty-day boundary is not late.
+///
+/// THE CONFIG IS READ AT THE SWEEP, like `start_page`'s own read, because the
+/// gateway outlives an edit: a shortened retention takes effect on the next
+/// sweep with no bounce.
+///
+/// AN UNREADABLE CONFIG KEEPS THE DEFAULT rather than deleting nothing: the
+/// table has no off switch, and a file that will not parse must not turn the
+/// store into a log that grows for good.
+fn prune_activity(now: u64, next_sweep: &mut u64) {
+    if now < *next_sweep {
+        return;
+    }
+    *next_sweep = now.saturating_add(SWEEP_INTERVAL_SECS);
+    let home = std::env::var("HOME").unwrap_or_default();
+    let retain = match pns_adapters::load_config(&pns_adapters::config_path(&home)) {
+        Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.recap.retain,
+        _ => pns_domain::recap::Recap::default().retain,
+    };
+    let Some(cutoff) = now.checked_sub(retain.as_secs()) else {
+        return;
+    };
+    if let Err(error) = pns_adapters::SqliteStore::new(state_dir()).prune_activity(cutoff) {
+        eprintln!("pns gateway: the activity store could not be pruned: {error}");
+    }
+}
+
+/// How long between two sweeps of the activity store. See `prune_activity`.
+const SWEEP_INTERVAL_SECS: u64 = 3600;
 
 fn start_retry(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
     // A leading dot cannot be a scheduled job id, so producer jobs cannot
@@ -52,7 +93,7 @@ fn start_retry(now: u64, children: &mut impl JobChildren) -> Result<(), String> 
         until: now,
         every: None,
         unless_marker: None,
-        args: vec!["daemon".into(), "retry".into()],
+        args: vec!["gateway".into(), "retry".into()],
     })
 }
 
@@ -67,20 +108,20 @@ fn start_retry(now: u64, children: &mut impl JobChildren) -> Result<(), String> 
 /// switched on is up within a tick, with no bounce of the daemon in either
 /// direction.
 fn start_page(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
-    const PAGE: &str = ".failures-page";
+    const PAGE: &str = pns_domain::jobs::PAGE_JOB;
     if children.running(PAGE) {
         return Ok(());
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let serve = match pns_adapters::load_config(&pns_adapters::config_path(&home)) {
-        Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.failures.serve,
+    let page_enabled = match pns_adapters::load_config(&pns_adapters::config_path(&home)) {
+        Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.failures.page_enabled,
         // AN UNREADABLE CONFIG SERVES NOTHING. Every other default in this file
         // errs toward doing the thing, but this one opens a socket, and a
         // listener nobody has asked for is not what a broken file should
         // produce.
         _ => false,
     };
-    if !serve {
+    if !page_enabled {
         return Ok(());
     }
     children.start(&pns_domain::jobs::Job {
@@ -95,7 +136,7 @@ fn start_page(now: u64, children: &mut impl JobChildren) -> Result<(), String> {
 
 pub(crate) fn daemon_retry() -> i32 {
     if !crate::arguments_after_verb().is_empty() {
-        eprintln!("{DAEMON_USAGE}");
+        eprintln!("{GATEWAY_USAGE}");
         return 2;
     }
     let result = now_secs()
@@ -104,7 +145,7 @@ pub(crate) fn daemon_retry() -> i32 {
     match result {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!("pns daemon: delivery retry failed: {error}");
+            eprintln!("pns gateway: delivery retry failed: {error}");
             1
         }
     }

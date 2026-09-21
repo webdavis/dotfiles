@@ -9,12 +9,12 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
     std::fs::create_dir_all(sandbox.path(".config/pns")).expect("config dir");
     std::fs::write(
         sandbox.path(".config/pns/config.toml"),
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\nmobile_watch_card = \"true\"\n\
-         [plugins.hermes]\nenabled = true\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ncard_while_watching = \"true\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     )
     .expect("config");
     let mut command = sandbox.pns();
-    command.env("PNS_PHONE_INPUT_AGE", "0");
+    command.env("PNS_PHONE_INPUT_MAX_AGE", "0s");
     sandbox.stub_herdr(&mut command, true);
     let output = run(command
         .args([
@@ -26,13 +26,13 @@ fn a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud() {
             "--detail",
             "x",
         ])
-        .args(["--pane", "t1:p2", "--long-running"]));
+        .args(["--pane", "t1:p2", "--elapsed", "300s"]));
     assert!(
-        stderr(&output).contains("mobile_watch_card"),
+        stderr(&output).contains("card_while_watching"),
         "the refusal names the setting: {output:?}"
     );
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "and the card stays off, which is the default it fell back to"
     );
 }
@@ -48,15 +48,20 @@ fn one_typod_table_name_costs_a_configured_machine_no_channel() {
     let sandbox = Sandbox::new("typod-table-name");
     sandbox.write_config(
         "[plugins.hermess]\nenabled = true\n\
-         [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
     );
-    let output = run(sandbox
-        .pns()
-        .args(["send", "--producer", "claude", "--state", "done"])
-        .args(["--project", "dotfiles", "--detail", "a summary"]));
+    // The fallback runs every built-in plugin, not just the three named
+    // here, so a channel this sandbox never stubbed is left undelivered.
+    let output = run_expecting(
+        1,
+        sandbox
+            .pns()
+            .args(["send", "--producer", "claude", "--state", "done"])
+            .args(["--project", "dotfiles", "--detail", "a summary"]),
+    );
 
-    assert!(sandbox.fired("mobile"), "stderr: {}", stderr(&output));
+    assert!(sandbox.fired("phone"), "stderr: {}", stderr(&output));
     assert!(
         sandbox.fired("hermes"),
         "the durable route survives a typo in an unrelated table: {}",
@@ -103,7 +108,7 @@ fn a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly() {
 #[test]
 fn an_absent_config_stays_silent_in_pulse_mode() {
     // The other half of the rule: absent is not broken. A machine that never
-    // opted into a config must not be nagged on every long command.
+    // opted into a config must not be reminded on every long command.
     let sandbox = support::Sandbox::without_config("pulse-absent-config");
     let output = sandbox
         .bare()
@@ -206,7 +211,7 @@ fn an_unknown_plugin_never_resurrects_a_disabled_pulse() {
     std::fs::write(
         sandbox.path(".config/pns/config.toml"),
         format!(
-            "[plugins.hue]\nenabled = false\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+            "[plugins.lights]\nenabled = false\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
              [plugins.typo]\nenabled = true\n"
         ),
     )

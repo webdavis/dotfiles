@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-pub fn ssh_current_user() -> Option<String> {
+pub fn current_user_name() -> Option<String> {
     let mut bytes = vec![0_u8; 1024];
     loop {
         let mut entry = std::mem::MaybeUninit::<libc::passwd>::uninit();

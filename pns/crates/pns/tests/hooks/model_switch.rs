@@ -19,7 +19,7 @@ pub(crate) fn model_switch_payload(session: &str, source: &str) -> String {
 #[test]
 fn an_observation_still_delivers_and_is_logged() {
     let sandbox = Sandbox::new("observation-delivers-and-logs");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     // THE MODEL NAMES CARRY CONTROL BYTES (a BEL, a CRLF), which the card
@@ -54,8 +54,8 @@ fn an_observation_still_delivers_and_is_logged() {
         "the record names the harness and the state: {recorded:?}"
     );
     assert!(
-        lines[0].contains(" nag=no "),
-        "an observation is logged with no nag: {recorded:?}"
+        lines[0].contains(" remind=no "),
+        "an observation is logged with no reminder: {recorded:?}"
     );
 }
 
@@ -65,7 +65,7 @@ fn an_auto_switch_between_equal_names_delivers_nothing() {
     // harness re-announcing the model it was already on, so "opus to opus"
     // must not become a card.
     let sandbox = Sandbox::new("observation-equal-names-silent");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -88,7 +88,7 @@ fn an_auto_switch_missing_a_model_name_delivers_nothing() {
     // SOL 1: a missing field becomes empty in the payload parser, and an
     // empty name on either side is not a transition either.
     let sandbox = Sandbox::new("observation-missing-model-silent");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -112,7 +112,7 @@ fn an_auto_switch_strips_a_unicode_format_character_from_the_name() {
     // set) but not Cf, so a right-to-left override survived it and could
     // reorder the rendered line. It must not reach the card.
     let sandbox = Sandbox::new("observation-invisible-character-stripped");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(
@@ -139,7 +139,7 @@ fn a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing() {
     // fires FIRST, on this same sandbox, then prove every other documented
     // source leaves every trace byte-identical to that snapshot.
     let sandbox = Sandbox::new("observation-non-auto-source-silent");
-    sandbox.write_config(&nag_config(300));
+    sandbox.write_config(&remind_config(300));
     counted_channels(&sandbox);
 
     let output = hook_with(

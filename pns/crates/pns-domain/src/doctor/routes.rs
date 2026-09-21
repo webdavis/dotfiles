@@ -11,7 +11,7 @@
 //! route: pns builds it into a URL, posts it, and the page is gone. Asking here
 //! finds that when the route is introduced rather than when a page is lost.
 
-use crate::retry::DeliveryOutcome;
+use crate::retry::TransportOutcome;
 
 /// What the gateway said about one route.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,25 +30,27 @@ pub enum RouteVerdict {
 
 impl RouteVerdict {
     /// The gateway's answer to an unsigned probe.
-    pub fn read(outcome: DeliveryOutcome) -> Self {
+    pub fn read(outcome: TransportOutcome) -> Self {
         match outcome {
             // The route exists and the signature is what was wrong, which is
             // exactly what a probe carrying none should be told.
-            DeliveryOutcome::Status(401 | 403) => RouteVerdict::Served,
-            DeliveryOutcome::Status(404 | 410) => RouteVerdict::Missing,
-            DeliveryOutcome::NoResponse => {
+            TransportOutcome::Status(401 | 403) => RouteVerdict::Served,
+            TransportOutcome::Status(404 | 410) => RouteVerdict::Missing,
+            TransportOutcome::NoResponse => {
                 RouteVerdict::Unknown("the gateway did not answer".into())
             }
-            DeliveryOutcome::NoStatus => RouteVerdict::Unknown("the URL could not be built".into()),
+            TransportOutcome::NoStatus => {
+                RouteVerdict::Unknown("the URL could not be built".into())
+            }
             // A 2xx to an UNSIGNED post means the gateway is not checking
             // signatures, which is worth saying out loud rather than reporting
             // as a healthy route.
-            DeliveryOutcome::Status(code) if (200..300).contains(&code) => {
+            TransportOutcome::Status(code) if (200..300).contains(&code) => {
                 RouteVerdict::Unknown(format!(
                     "the gateway accepted an UNSIGNED post (HTTP {code}); it is not checking signatures"
                 ))
             }
-            DeliveryOutcome::Status(code) => {
+            TransportOutcome::Status(code) => {
                 RouteVerdict::Unknown(format!("the gateway answered HTTP {code}"))
             }
         }

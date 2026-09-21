@@ -49,7 +49,7 @@ impl<S: DaemonSpool, C: JobChildren> RunDaemonTick<'_, S, C> {
                 SpoolReading::Irregular => {
                     if reported.insert(entry.clone()) {
                         notice(DaemonNotice::Error(format!(
-                            "pns daemon: {} is not a regular file; left alone and never opened",
+                            "pns gateway: {} is not a regular file; left alone and never opened",
                             self.spool.describe(&entry)
                         )));
                     }

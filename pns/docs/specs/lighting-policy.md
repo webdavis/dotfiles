@@ -3,17 +3,17 @@
 ## Scope
 
 The Hue lamps are not a notification destination. They are a stateful attention indicator: a small set of
-named states (`blocked`, `loop`, `unread` in its failure and success flavours) that the house HOLDS
+named states (`blocked`, `loop`, `unseen` in its failure and success flavours) that the house HOLDS
 between events, plus a transient `pulse` that blinks once for a finished or a dead turn. A separate
 repeating job (`pns lights tick`) re-derives every held state from the machine, resolves the operator's
 name-to-lamp map against the bridge, writes the lamps that should be showing something, puts out by name
 whatever it was holding and is not any more, and breathes each lit lamp for the rest of its interval.
-This document covers the pulse, the `unread` state, the leases, the breath phases, the quiet window and
+This document covers the pulse, the `unseen` state, the leases, the breath phases, the quiet window and
 the dim window, the precedence between lamp states, the tick's write order, held lamps, streaks, and the
 legacy `lights-glow` migration. Every claim below is derived from the code and its tests in this crate;
-gaps are marked `NOT ESTABLISHED:`. The lamp state is spelled `unread`
+gaps are marked `NOT ESTABLISHED:`. The lamp state is spelled `unseen`
 (`src/lights.rs:Held::UnreadFailure`, `src/lights.rs:Held::UnreadSuccess`,
-`src/config.rs:Behaviour::Unread`, whose config word is `"unread"` in `src/config.rs:BEHAVIOUR_WORDS`);
+`src/config.rs:Behaviour::Unseen`, whose config word is `"unseen"` in `src/config.rs:BEHAVIOUR_WORDS`);
 `glow` survives only as the legacy state directory name `lights-glow`, read once by
 `src/main.rs:sweep_legacy_state` and never written.
 
@@ -27,10 +27,10 @@ may hold all of them at once and different lamps may show different ones (`src/l
 
 | State                         | What arms it                                                                                                                                                                                                                                   | What clears it                                                                                                                                                                                                                                                                     | Rank                 | State file                                                                                                                                      | Tests                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Blocked` (`"blocked"`)       | An event whose state is in `src/pulse.rs:LAMP_BLOCKED` (`blocked`, `asked`, `plan-ready`, `denied`, `asking`) writes one marker per session, but only when both switches are live (`src/main.rs:update_blocked_marker`, gated on `lamps_live`) | Any other event from that session (`src/lights.rs:blocked_marker_action` returns `Action::End`), `src/main.rs:end_blocked_wait` from the `prompt` and `resolved` hooks, or the backstop sweeping a marker past `[lights.blocked] give_up_after_secs` (`src/main.rs:sweep_blocked`) | 1, highest           | `lights-blocked/<session-id>`, one epoch per file (`src/lights.rs:blocked_dir`, `src/lights.rs:blocked_marker`)                                 | `src/lights.rs:a_blocked_event_starts_a_wait_and_every_other_event_ends_one`, `src/lights.rs:a_live_wait_holds_the_blocked_lamp_and_an_abandoned_one_stops_holding_it`, `src/main.rs:a_wait_that_ended_loses_its_marker_whether_or_not_the_lamps_are_live`, `src/main.rs:a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop`, `tests/dispatch.rs:a_blocked_turn_lights_the_lamps_once_the_map_exists` |
-| `Looping` (`"loop"`)          | Any of three: an agent streak past `[lights.loop] threshold_secs`, a shell marker whose command started that long ago, or a live lease (`src/lights.rs:loop_running`)                                                                          | The streak clearing behind its grace, the shell marker being removed or its shell dying, `pns loop end`, or the lease timing out (`src/main.rs:sweep_leases`)                                                                                                                      | 2                    | `lights-streak` (one line, `since last_seen`), `lights-shell/<shell-pid>` (one epoch), `lights-loop/<pane>` (one epoch)                         | `src/lights.rs:work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed`, `src/lights.rs:a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not`, `src/lights.rs:a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak`, `src/main.rs:the_shell_reading_is_the_oldest_marker_a_live_shell_is_holding`                                                               |
+| `Blocked` (`"blocked"`)       | An event whose state is in `src/pulse.rs:LAMP_BLOCKED` (`blocked`, `asked`, `plan-ready`, `denied`, `asking`) writes one marker per session, but only when both switches are live (`src/main.rs:update_blocked_marker`, gated on `lamps_live`) | Any other event from that session (`src/lights.rs:blocked_marker_action` returns `Action::End`), `src/main.rs:end_blocked_wait` from the `prompt` and `resolved` hooks, or the backstop sweeping a marker past `[lights.blocked] lease_expiry` (`src/main.rs:sweep_blocked`) | 1, highest           | `lights-blocked/<session-id>`, one epoch per file (`src/lights.rs:blocked_dir`, `src/lights.rs:blocked_marker`)                                 | `src/lights.rs:a_blocked_event_starts_a_wait_and_every_other_event_ends_one`, `src/lights.rs:a_live_wait_holds_the_blocked_lamp_and_an_abandoned_one_stops_holding_it`, `src/main.rs:a_wait_that_ended_loses_its_marker_whether_or_not_the_lamps_are_live`, `src/main.rs:a_wait_nobody_has_answered_still_holds_its_lamp_until_the_configured_backstop`, `tests/dispatch.rs:a_blocked_turn_lights_the_lamps_once_the_map_exists` |
+| `Looping` (`"loop"`)          | Any of three: an agent streak past `[lights.loop] arm_after`, a shell marker whose command started that long ago, or a live lease (`src/lights.rs:loop_running`)                                                                          | The streak clearing behind its grace, the shell marker being removed or its shell dying, `pns loop end`, or the lease timing out (`src/main.rs:sweep_leases`)                                                                                                                      | 2                    | `lights-streak` (one line, `since last_seen`), `lights-shell/<shell-pid>` (one epoch), `lights-loop/<pane>` (one epoch)                         | `src/lights.rs:work_past_the_threshold_arms_the_loop_lamp_and_both_edges_are_closed`, `src/lights.rs:a_live_lease_arms_the_loop_lamp_with_nothing_working_and_an_expired_one_does_not`, `src/lights.rs:a_shell_command_is_measured_from_its_own_start_and_not_from_an_agents_streak`, `src/main.rs:the_shell_reading_is_the_oldest_marker_a_live_shell_is_holding`                                                               |
 | `UnreadFailure` (`"failure"`) | A `failed_at` epoch newer than the last interaction and not in the future, with nothing working. No delay at all (`src/lights.rs:unread_arming`)                                                                                               | Any interaction (desk, phone input, phone marker) later than that epoch; anything working; the operator's return clearing the held record (`src/main.rs:clear_held_lamps`)                                                                                                         | 3                    | `lights-news`, one line of two epochs `done_at failed_at`, `0` for "not yet" (`src/lights.rs:render_news`)                                      | `src/lights.rs:unread_arms_on_news_the_operator_has_not_been_back_for_and_on_nothing_else`, `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                           |
-| `UnreadSuccess` (`"success"`) | A `done_at` epoch newer than the last interaction, at least `[lights.unread] after_secs` old, not in the future, with nothing working                                                                                                          | Same as `UnreadFailure`, and it is outranked by `UnreadFailure` whenever both are pending                                                                                                                                                                                          | 4, lowest            | `lights-news` (same file)                                                                                                                       | `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                                                                                                                       |
+| `UnreadSuccess` (`"success"`) | A `done_at` epoch newer than the last interaction, at least `[lights.unseen] arm_after` old, not in the future, with nothing working                                                                                                          | Same as `UnreadFailure`, and it is outranked by `UnreadFailure` whenever both are pending                                                                                                                                                                                          | 4, lowest            | `lights-news` (same file)                                                                                                                       | `src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`                                                                                                                                                                                                                                                                                                                                                       |
 | pulse (transient, not held)   | One event whose plan earned a pulse, or a `blocked` behaviour on a mapped machine that is not silenced (`src/main.rs`, the \`decision.plan.pulse                                                                                               |                                                                                                                                                                                                                                                                                    | blocked_lamp\` gate) | Nothing: the bridge runs the signal for its own duration and puts the lamp back itself (`src/channels/hue.rs`, module doc, measured 2026-09-01) | Not ranked. It is refused on any lamp currently holding a state (`src/lights.rs:pulse_fires`)                                                                                                                                                                                                                                                                                                                                    |
 
 The rank is the declaration order of `src/lights.rs:Held`, pushed in that fixed order by
@@ -47,18 +47,18 @@ ______________________________________________________________________
 
 | Name                                                           | Duration constant                                                                                                                                                                        | Who takes it                                                                                                                                            | Who renews it                                                                                                       | How it expires                                                                                        | A stranded one                                                                                                                                                                                                                 |
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Loop lease (`lights-loop/<pane>`)                              | `[lights.loop] lease_timeout_secs`, default `src/config.rs:DEFAULT_LEASE_TIMEOUT_SECS` = 3900 seconds (65 minutes); bounds 60 (`MIN_LEASE_TIMEOUT_SECS`) to 86400 (`MAX_THRESHOLD_SECS`) | `pns loop begin` (`src/main.rs:loop_mode`), writing one epoch keyed to `HERDR_PANE_ID` or `--pane`                                                      | That pane's own ordinary event traffic, through `src/main.rs:renew_loop_lease`. Nothing else in the crate renews it | `src/lights.rs:marker_is_live`, both edges closed: exactly `lease_timeout_secs` old is still live     | The tick's `src/main.rs:sweep_leases` removes it on the pass after it expires. Until then it holds the loop lamp with nothing behind it, which is why `pns loop end` reports a failed removal loudly (`src/main.rs:end_lease`) |
+| Loop lease (`lights-loop/<pane>`)                              | `[lights.loop] lease_expiry`, default `src/config.rs:DEFAULT_LOOP_LEASE_EXPIRY_SECS` = 3900 seconds (65 minutes); bounds 60 (`MIN_LEASE_EXPIRY_SECS`) to 86400 (`MAX_LIGHTS_TIMING_SECS`) | `pns loop begin` (`src/main.rs:loop_mode`), writing one epoch keyed to `HERDR_PANE_ID` or `--pane`                                                      | That pane's own ordinary event traffic, through `src/main.rs:renew_loop_lease`. Nothing else in the crate renews it | `src/lights.rs:marker_is_live`, both edges closed: exactly `lease_expiry` old is still live     | The tick's `src/main.rs:sweep_leases` removes it on the pass after it expires. Until then it holds the loop lamp with nothing behind it, which is why `pns loop end` reports a failed removal loudly (`src/main.rs:end_lease`) |
 | Tick job lease, ordinary (`daemon/lights`, the `until=` field) | `src/main.rs:ORDINARY_LEASE_SECS` = 300 seconds                                                                                                                                          | Every event, through `src/main.rs:register_lights_tick`                                                                                                 | Every subsequent event, and the tick itself while `standing.in_flight` (`src/main.rs:lights_tick`)                  | The daemon drops the job once `now` passes `until`                                                    | The tick simply stops running: no lamp is re-armed, and whatever the last tick wrote stays lit until an event's `clear_held_lamps` puts it out                                                                                 |
 | Tick job lease, journalled                                     | `src/main.rs:JOURNALLED_LEASE_SECS` = 12 hours                                                                                                                                           | The same call, when `missed_notifications::was_missed` says the event was journalled (the operator is away or muted)                                    | Same                                                                                                                | Same                                                                                                  | Same                                                                                                                                                                                                                           |
-| Tick job lease, hand-taken loop                                | `[lights.loop] lease_timeout_secs`                                                                                                                                                       | `pns loop begin` calls `src/main.rs:schedule_lights_tick` with the loop lease length, because event traffic will not refresh a pane that has gone quiet | Same                                                                                                                | Same                                                                                                  | Same                                                                                                                                                                                                                           |
-| Lights tick lock (`lights-tick.lock`)                          | `src/main.rs:lights_tick_stale_secs` = `MAX_REFRESH_SECS` (30) + `tick_bridge_deadline(30)` (6) + 1 = 37 seconds                                                                         | The tick, before it resolves anything (`src/main.rs:run_tick_writes`, via `claim_lock`)                                                                 | Nobody. It is held for one tick and released by `src/main.rs:HeldLock`'s `Drop`                                     | Age: a lock older than the stale window is taken by rename and republished (`src/main.rs:claim_lock`) | A later tick stands down for one interval, then steals it. A lock whose own mtime cannot be read counts as live (`src/main.rs:lock_aged_out`)                                                                                  |
+| Tick job lease, hand-taken loop                                | `[lights.loop] lease_expiry`                                                                                                                                                       | `pns loop begin` calls `src/main.rs:schedule_lights_tick` with the loop lease length, because event traffic will not refresh a pane that has gone quiet | Same                                                                                                                | Same                                                                                                  | Same                                                                                                                                                                                                                           |
+| Lights tick lock (`lights-tick.lock`)                          | `src/main.rs:lights_tick_stale_secs` = `MAX_ARM_INTERVAL_SECS` (30) + `tick_bridge_deadline(30)` (6) + 1 = 37 seconds                                                                         | The tick, before it resolves anything (`src/main.rs:run_tick_writes`, via `claim_lock`)                                                                 | Nobody. It is held for one tick and released by `src/main.rs:HeldLock`'s `Drop`                                     | Age: a lock older than the stale window is taken by rename and republished (`src/main.rs:claim_lock`) | A later tick stands down for one interval, then steals it. A lock whose own mtime cannot be read counts as live (`src/main.rs:lock_aged_out`)                                                                                  |
 | News claim (`lights-news.claim.<pid>`)                         | Not a duration. `src/main.rs:NEWS_CLAIM_ATTEMPTS` = 2 tries, `src/main.rs:NEWS_CLAIM_WAIT` = 2 milliseconds between them                                                                 | `src/main.rs:record_news`, by renaming the record aside for the merge                                                                                   | Nobody                                                                                                              | Removed unconditionally by the claiming run after it publishes                                        | A run whose second attempt also misses merges blind, against whatever it can read at the published path. Cost is one lamp colour (stated in `src/main.rs:record_news`)                                                         |
 
-Also relevant, though not a lease: the blocked backstop `[lights.blocked] give_up_after_secs`, default
-`src/config.rs:DEFAULT_BLOCKED_GIVE_UP_AFTER_SECS` = 16 hours, bounds 60 seconds to 7 days
-(`MAX_GIVE_UP_AFTER_SECS`). Configuration refuses a `give_up_after_secs` below `[nag] after_secs` because
+Also relevant, though not a lease: the blocked backstop `[lights.blocked] lease_expiry`, default
+`src/config.rs:DEFAULT_BLOCKED_LEASE_EXPIRY_SECS` = 16 hours, bounds 60 seconds to 7 days
+(`MAX_BLOCKED_LEASE_EXPIRY_SECS`). Configuration refuses a `lease_expiry` below `[remind] delay` because
 that is a config that gives up on a wait before it ever nudges about it (`src/config.rs`, the
-`give_up`/`nag_after_secs` comparison).
+`give_up`/`remind_delay_secs` comparison).
 
 ______________________________________________________________________
 
@@ -66,13 +66,13 @@ ______________________________________________________________________
 
 | Name         | What it is                                                                                                                                                                                                                                                                                                                     | Boundaries                                                                                                                                                                                                                                                         | What it changes about a lamp                                                                                                                                                                                                                     | Tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| quiet hours  | The `[plugins.hue] quiet_hours` key, `"HH:MM-HH:MM"`, parsed by `src/channels/hue.rs:quiet_window` into a `QuietWindow` of minutes since local midnight. It is the OPERATOR'S OWN schedule: it gates the no-map pulse, and it is the only source for how long a bare `pns lights quiet` lasts (`src/lights.rs:bare_mute_secs`) | Two-digit hours under 24 and minutes under 60 (`src/channels/hue.rs:minute_of_day`, `two_digits`). Absent or empty is no window; anything else is a refusal                                                                                                        | On a machine with NO `[lights]` table: inside it, no pulse fires at all. On a machine WITH a `[lights]` table it reaches no routed lamp: `src/main.rs:fire_pulse_unless_quiet` takes the routed branch before it ever calls `quiet_window`       | `src/channels/hue.rs:a_table_that_names_no_quiet_hours_has_no_window`, `a_quiet_hours_that_is_not_two_clock_readings_is_refused_by_name`, `a_blanked_quiet_hours_is_no_window_rather_than_a_refusal`, `tests/dispatch.rs:a_pulse_earned_inside_the_quiet_window_reaches_no_bridge_and_costs_no_other_leg`, `tests/dispatch.rs:a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`, `tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`         |
+| house window | The `[lights] dim_window` key, `"HH:MM-HH:MM"`, parsed by `src/channels/hue.rs:parse_window` into a `QuietWindow` of minutes since local midnight. It is the ONE dim window: every place that states none of its own runs it, and it is the only source for how long a bare `pns lights mute` lasts (`src/lights.rs:bare_mute_secs`) | Two-digit hours under 24 and minutes under 60 (`src/channels/hue.rs:minute_of_day`, `two_digits`). Absent is no window; anything else is a refusal for the lamps that took it                                                                                                        | The lamps it resolves to, exactly as a per-place window does. The plain room pulse on a machine with no `[lights]` table has no window to read and fires at every hour                       | `src/channels/hue.rs:a_place_that_states_no_window_runs_the_house_one_and_its_own_overrides_it`, `a_lamp_no_declaration_dims_takes_the_house_window_with_nothing_dimmed`, `tests/dispatch.rs:a_bare_lights_mute_reads_the_house_dim_window_in_the_childs_own_zone`         |
 | quiet window | The evaluated form of a `QuietWindow` at one minute of the local day, `src/channels/hue.rs:quiet_now`. One predicate, read by the house gate and by every per-lamp dim decision                                                                                                                                                | Half open, start inclusive and end exclusive: minute 1319 is loud, 1320 is quiet, 1379 is quiet, 1380 is loud. A window whose start is after its end wraps midnight and is an OR of the two halves. A window whose start equals its end is never quiet             | Decides whether the dim rendering applies at all                                                                                                                                                                                                 | `src/channels/hue.rs:a_same_day_window_is_quiet_from_its_start_and_loud_again_at_its_end`, `a_window_whose_start_is_after_its_end_is_quiet_on_both_sides_of_midnight`, `a_window_whose_start_equals_its_end_is_never_quiet`, `a_clock_this_machine_cannot_read_is_treated_as_inside_the_window`, `tests/dispatch.rs:the_window_is_read_in_the_zone_the_child_was_given`                                                                                                                             |
-| dim window   | Per declaration: `dim_window = "HH:MM-HH:MM"` plus `dim_behaviours = [...]` on a `[lights.lamp/room/zone.<name>]` target, resolved to `src/channels/hue.rs:DimWindow`. The two keys travel together as ONE question so a lamp cannot take its room's window and a zone's enables                                               | Same `quiet_now` boundaries. Inside it a listed behaviour renders `Showing::Dimmed`, an unlisted one renders `Showing::Dark`; outside it everything renders `Showing::Full`. An EMPTY `dim_behaviours` suppresses every behaviour, with no second mode to spell it | Dimmed held state: same colour, the one shared `[lights.dim]` shape (default 3000 ms fades, high 7, low 1). Dimmed pulse: same colour and duration at `lights.dim.low`, since a blink has no low end to fade to. Dark: nothing is written at all | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`, `a_window_with_nothing_enabled_suppresses_every_behaviour_and_needs_no_mode`, `a_dim_window_nobody_can_parse_leaves_that_lamp_dark_and_says_which_lamp`, `a_dimmed_pulse_fires_at_the_dim_floor_and_a_suppressed_one_does_not_fire`, `each_held_state_renders_its_own_locked_colour_and_shape`, `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg` |
+| dim window   | Per declaration: `dim_window = "HH:MM-HH:MM"` plus `dim_behaviours = [...]` on a `[lights.lamp/room/zone.<name>]` target, resolved to `src/channels/hue.rs:DimWindow`. The two keys travel together as ONE question so a lamp cannot take its room's window and a zone's enables                                               | Same `quiet_now` boundaries. Inside it a listed behaviour renders `Showing::Dimmed`, an unlisted one renders `Showing::Dark`; outside it everything renders `Showing::Full`. An EMPTY `dim_behaviours` suppresses every behaviour, with no second mode to spell it | Dimmed held state: same colour, the one shared `[lights.dim]` shape (default 3000 ms fades, high 7, low 1). Dimmed pulse: same colour and duration at `lights.dim.low_percent`, since a blink has no low end to fade to. Dark: nothing is written at all | `src/channels/hue.rs:inside_a_window_an_enabled_behaviour_runs_dim_and_one_that_is_not_is_suppressed`, `a_window_with_nothing_enabled_suppresses_every_behaviour_and_needs_no_mode`, `a_dim_window_nobody_can_parse_leaves_that_lamp_dark_and_says_which_lamp`, `a_dimmed_pulse_fires_at_the_dim_floor_and_a_suppressed_one_does_not_fire`, `each_held_state_renders_its_own_locked_colour_and_shape`, `tests/dispatch.rs:an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg` |
 
 A fourth silence exists and is NOT a window: the ad-hoc mute,
-`pns lights quiet <place> [<duration>|off]`, one line per place in `lights-quiet`, each
-`<expiry-epoch> <place>`. It is judged by `src/quiet.rs:is_muted`, half open, so a mute ends on the
+`pns lights mute <place> [<duration>|off]`, one line per place in `lights-quiet`, each
+`<expiry-epoch> <place>`. It is judged by `src/mute.rs:is_muted`, half open, so a mute ends on the
 second it names. See behaviours 30 to 32.
 
 ______________________________________________________________________
@@ -104,7 +104,7 @@ When the composition root decides what the lamps say about it,
 
 Then `src/pulse.rs:state_behaviour` answers exactly once: `failed` is `Behaviour::Failed`; any word in `src/pulse.rs:LAMP_BLOCKED` (`"blocked"`, `"asked"`, `"plan-ready"`, `"denied"`, `"asking"`) is `Behaviour::Blocked` but only when a `[lights]` table exists; every other word, the empty string included, is `Behaviour::Done`.
 
-- Success: the colour a lamp flashes, the record that arms the `unread` lamp, and the gate that lets a
+- Success: the colour a lamp flashes, the record that arms the `unseen` lamp, and the gate that lets a
   pulse fire at all are all read off that ONE answer, so they cannot disagree about one event
   (`src/main.rs`, the `state_behaviour(&event.state, lights.is_some())` call).
 - Failure sources: an unrecognised state word. It reads as `Done`, deliberately
@@ -144,9 +144,9 @@ Then empty is `Done`, all ASCII zeroes is `Done`, any other run of ASCII digits 
   NOT long (fails closed, because a missed pulse costs nothing).
 - Required side effects: `pns lights pulse` reads the config only after the argument word, so `--help` and a bad
   code both answer with no machine read at all.
-- Forbidden side effects: `pns lights pulse` never consults `hue.quiet_hours`. The gate lives at the event
+- Forbidden side effects: `pns lights pulse` never consults the dim window. The gate lives at the event
   path's call site so the window stays checkable by hand while it is on
-  (`tests/dispatch.rs:the_hand_run_pulse_reaches_the_bridge_inside_the_quiet_window`).
+  (`tests/dispatch/dim_window.rs:the_hand_run_pulse_reaches_the_bridge_whatever_the_hour`).
 - Timeout and cancellation: each bridge call is bounded by `src/channels/hue.rs:BRIDGE_DEADLINE` = 10
   seconds.
 - Idempotency and duplicates: two pulses are two independent signals; the bridge ends each by itself.
@@ -159,7 +159,7 @@ Then empty is `Done`, all ASCII zeroes is `Done`, any other run of ASCII digits 
 
 ### 3. A machine with no map pulses whole rooms and states no brightness
 
-Given `[plugins.hue]` with a bridge, a key and `rooms`, and no `[lights]` table,
+Given `[plugins.lights]` with a bridge, a key and `rooms`, and no `[lights]` table,
 
 When a pulse fires,
 
@@ -182,14 +182,14 @@ Then `src/channels/hue.rs:HuePulse::run` fetches the `room` listing, maps each w
 - Timeout and cancellation: `BRIDGE_DEADLINE`, 10 seconds per call.
 - Idempotency and duplicates: independent per fixture; one refused write does not cost another its
   signal.
-- Privacy: room names come from the config or from `HUE_PULSE_ROOMS`; no event text is sent.
+- Privacy: room names come from the config; no event text is sent.
 - Process ownership and cleanup: the bridge owns the whole effect and puts the lamp back byte for byte
   when the signal ends. Measured on a real lamp on 2026-09-01, with the lamp on and again with it off
   (`src/channels/hue.rs`, module doc). Nothing here snapshots or restores.
 - Compatibility contract: `src/channels/hue.rs:DEFAULT_ROOMS` = `["3F - Studio", "2F - Kitchen"]` when
-  neither `HUE_PULSE_ROOMS` nor a settings `rooms` array names any. The environment override wins and
-  splits on newlines, because room names carry spaces
-  (`src/channels/hue.rs:the_environment_override_wins_and_splits_on_newlines`).
+  the settings `rooms` array names none. `HUE_PULSE_ROOMS` is gone;
+  the plugin's own default rooms are the only source now
+  (`src/channels/hue.rs:hue_pulse_rooms_no_longer_selects_the_rooms_the_config_array_does`).
 
 ### 4. A machine with a map pulses per lamp, and skips muted and held lamps
 
@@ -245,7 +245,7 @@ Then `src/lights.rs:pulse_fires` answers false for THAT lamp and true for every 
   (`src/lights.rs:pulse_fires` doc,
   `src/lights.rs:a_pulse_fires_on_a_lamp_it_is_routed_for_unless_a_held_state_has_that_lamp`).
 
-## The `unread` state
+## The `unseen` state
 
 ### 6. The news record is written whatever the delivery did
 
@@ -282,7 +282,7 @@ Then it merges that epoch into `lights-news` regardless of whether any card, ban
   `src/main.rs:the_news_record_is_written_for_a_finished_or_a_dead_turn_and_read_back_as_it_was`,
   `tests/dispatch.rs:a_done_event_writes_the_news_record_and_renews_a_lease_its_pane_holds`).
 
-### 7. The `unread` state arms off news the operator has not been back for
+### 7. The `unseen` state arms off news the operator has not been back for
 
 Given a news record, a last-interaction epoch, and whether anything is working,
 
@@ -295,10 +295,10 @@ Then it answers `None` while anything is working, `None` with no interaction at 
   reading of true.
 - Fail direction: dark. A machine that cannot prove the operator was ever here cannot prove this news is
   unseen either.
-- Thresholds: the age test is CLOSED and the edge test is NOT. News exactly `after_secs` old HAS waited
+- Thresholds: the age test is CLOSED and the edge test is NOT. News exactly `arm_after` old HAS waited
   that long and arms; one second under does not. News exactly AT the interaction edge is not newer than
-  it and arms nothing; one second past the edge arms. Default `after_secs` is
-  `src/config.rs:DEFAULT_UNREAD_AFTER_SECS` = 300 seconds; the config permits 0 (which means "at once")
+  it and arms nothing; one second past the edge arms. Default `arm_after` is
+  `src/config.rs:DEFAULT_UNSEEN_ARM_AFTER_SECS` = 300 seconds; the config permits 0 (which means "at once")
   up to 86400.
 - Required side effects: none. Pure.
 - Forbidden side effects: never an edge at epoch zero; `None` means "nothing of that kind yet" and is
@@ -310,7 +310,7 @@ Then it answers `None` while anything is working, `None` with no interaction at 
 - Compatibility contract: RED WINS when both are pending, whichever is fresher, because showing the
   calmer of the two would hide the one that needs answering (operator ruling, stated in
   `src/lights.rs:unread_arming`). News with an epoch AHEAD of `now` arms nothing of either flavour,
-  including through an `after_secs` of zero
+  including through an `arm_after` of zero
   (`src/lights.rs:success_news_waits_out_its_delay_and_failure_news_does_not`).
 
 ### 8. The interaction edge is the freshest of three roads
@@ -323,7 +323,7 @@ Then it answers the MAXIMUM of `now - desk_idle`, `phone_input_at` and `phone_ma
 
 - Success: one epoch, the operator's most recent touch by any road.
 - Failure sources: all three probes unreadable.
-- Fail direction: dark. `None` leaves the `unread` state unarmed.
+- Fail direction: dark. `None` leaves the `unseen` state unarmed.
 - Thresholds: the desk reading is an AGE and the other two are EPOCHS, which is why it is subtracted
   rather than compared. The subtraction saturates: an idle age longer than the clock reads as an
   interaction at the epoch, never a wrapped one in the far future.
@@ -331,8 +331,8 @@ Then it answers the MAXIMUM of `now - desk_idle`, `phone_input_at` and `phone_ma
   Hoisting the clock read above them would put `t_now` BEFORE the sample, the desk edge would land
   earlier than the true touch, and news the operator had already seen could arm the lamp. The order is
   load-bearing and is documented as not provable by a diff alone.
-- Forbidden side effects: `PNS_IDLE_SECS` and `PNS_PHONE_INPUT_AGE` are NOT consulted here. They steer
-  the delivery decision in `engine::decide`; the `unread` state always sees the machine's own probes.
+- Forbidden side effects: `PNS_SCREEN_IDLE` and `PNS_PHONE_INPUT_MAX_AGE` are NOT consulted here. They steer
+  the delivery decision in `engine::decide`; the `unseen` state always sees the machine's own probes.
 - Timeout and cancellation: four bounded spawns (one `ioreg`, then `pgrep`, `pgrep -P`, `ps`), each
   capped at `PROBE_DEADLINE` (5 seconds, `src/system.rs`). The residual makes the desk touch read YOUNGER
   than it was, never older, which is the dark direction.
@@ -361,7 +361,7 @@ Then `src/lights.rs:blocked_marker_action` reads the state: a word in `LAMP_BLOC
   that did not land costs one lamp its colour and never a card.
 - Thresholds: none here. The bound lives in the sweep, behaviour 10.
 - Required side effects: STARTING one is gated on both lamp switches (`lamps_live` = a `[lights]` table
-  AND `[plugins.hue]` enabled); a machine that never asked for the lamps must not accumulate files
+  AND `[plugins.lights]` enabled); a machine that never asked for the lamps must not accumulate files
   nothing will sweep. ENDING one is UNCONDITIONAL, because gating it too meant a wait that ended while
   the lamps were off kept its marker, and switching hue back on inside the backstop put `blocked` on a
   lamp for a session nobody was waiting on
@@ -388,7 +388,7 @@ Given the `lights-blocked` directory at tick time,
 
 When `src/main.rs:blocked_lamp` runs,
 
-Then `src/main.rs:sweep_blocked` removes every marker past `[lights.blocked] give_up_after_secs` on the way through and returns the live epochs, and `src/lights.rs:any_blocked` lights the lamp if any survive.
+Then `src/main.rs:sweep_blocked` removes every marker past `[lights.blocked] lease_expiry` on the way through and returns the live epochs, and `src/lights.rs:any_blocked` lights the lamp if any survive.
 
 - Success: `House.blocked` is true while any session is genuinely waiting.
 - Failure sources: an epoch nobody can read (swept, for the same reason as an expired one: nothing could
@@ -398,7 +398,7 @@ Then `src/main.rs:sweep_blocked` removes every marker past `[lights.blocked] giv
   one second past it is swept. A marker from the FUTURE is live too, because a clock that stepped
   backwards is not a wait that ended (saturating subtraction reads it as zero seconds old). Default bound
   16 hours; bounds 60 seconds to 7 days.
-- Required side effects: the sweep and the aggregate take the SAME `give_up_after_secs`, both handed one
+- Required side effects: the sweep and the aggregate take the SAME `lease_expiry`, both handed one
   value (`src/main.rs:blocked_lamp`), so a marker the aggregate ignored cannot be one the sweep kept
   (`src/main.rs:the_ticks_blocked_reading_takes_its_backstop_from_the_config_on_both_halves`).
 - Forbidden side effects: no second spelling of "expired" anywhere in the module
@@ -429,15 +429,15 @@ Given agent statuses from `herdr workspace list`, a shell marker epoch, and the 
 
 When `src/lights.rs:loop_running` is asked,
 
-Then it is an OR of three: an agent run whose STREAK started at least `threshold_secs` ago AND is still working, a shell command whose OWN published start is at least `threshold_secs` ago, or any live lease.
+Then it is an OR of three: an agent run whose STREAK started at least `arm_after` ago AND is still working, a shell command whose OWN published start is at least `arm_after` ago, or any live lease.
 
 - Success: `House.looping` is true.
 - Failure sources: a herdr that is missing, wedged, or answering something unparseable yields no working
   workspace (`src/lights.rs:workspace_agent_statuses` returns an empty vector on any parse failure, and a
   workspace with no `agent_status` field answers the empty string, which is not `working`).
 - Fail direction: dark, and not on the delivery path.
-- Thresholds: `elapsed >= threshold_secs`, so exactly at the threshold arms and one second under does
-  not. Default `src/config.rs:DEFAULT_LOOP_THRESHOLD_SECS` = 300 seconds; bounds 1 to 86400. A `now`
+- Thresholds: `elapsed >= arm_after_secs`, so exactly at the threshold arms and one second under does
+  not. Default `src/config.rs:DEFAULT_LOOP_ARM_AFTER_SECS` = 300 seconds; bounds 1 to 86400. A `now`
   BEHIND a start has no elapsed time in it (`checked_sub`), so a clock that stepped backwards cannot wrap
   into a number that passes every threshold.
 - Required side effects: none. Pure, over a `Loop` struct rather than six positional values, four of them
@@ -528,7 +528,7 @@ Given `pns loop begin` typed in a herdr pane, or with `--pane <id>`,
 
 When `src/main.rs:loop_mode` runs,
 
-Then it writes `now` to `lights-loop/<pane>` and registers the lights tick for the WHOLE lease length (`[lights.loop] lease_timeout_secs`, not the ordinary 300 seconds).
+Then it writes `now` to `lights-loop/<pane>` and registers the lights tick for the WHOLE lease length (`[lights.loop] lease_expiry`, not the ordinary 300 seconds).
 
 - Success: exit 0, a lease file, and a spool record whose `until` outlasts the lease.
 - Failure sources: no `HERDR_PANE_ID` and no `--pane` (refusal
@@ -574,7 +574,7 @@ Then it writes `<now>\n` THROUGH an existing handle opened without `create`, the
 - Failure sources: no lease file, an unsafe pane id, no clock, an unwritable file. All silent: a lease
   that did not renew costs the lamp one timeout and this process has no reader for a complaint.
 - Fail direction: not on the delivery path.
-- Thresholds: expiry is `marker_is_live` against `lease_timeout_secs`, both edges closed. Default 3900
+- Thresholds: expiry is `marker_is_live` against `lease_expiry`, both edges closed. Default 3900
   seconds, chosen because the harness's own wakeup scheduler clamps a sleep to 3600 seconds, so the
   longest legitimate gap between two events from a live loop is an hour and a timeout AT the hour would
   drop a lease that was about to be renewed.
@@ -602,11 +602,11 @@ Given a `House { blocked, looping, unread }`,
 
 When `src/lights.rs:active_held` runs,
 
-Then it returns every active state, most urgent first, and `src/lights.rs:shown` filters that list by one lamp's OWN `shows` routing and takes the first survivor.
+Then it returns every active state, most urgent first, and `src/lights.rs:shown` filters that list by one lamp's OWN `behaviours` routing and takes the first survivor.
 
 - Success: one blue lamp and one violet lamp can be lit at the same moment, because they are routed for
   different words.
-- Failure sources: an empty `shows` list leaves the lamp out of the walk entirely rather than costing a
+- Failure sources: an empty `behaviours` list leaves the lamp out of the walk entirely rather than costing a
   write that does nothing (`src/channels/hue.rs:Routing.lamps` doc).
 - Fail direction: not on the delivery path.
 - Thresholds: none. The rank is `Blocked` > `Looping` > `UnreadFailure` > `UnreadSuccess`, the
@@ -630,7 +630,7 @@ Given a bridge inventory and the config's `[lights.lamp/room/zone.<name>]` decla
 
 When `src/channels/hue.rs:resolve` runs,
 
-Then for each lamp it walks `src/channels/hue.rs:LEVELS` (`["lamp", "room", "zone"]`) INDEPENDENTLY for each question (`shows`, `dim_window`), and the winning level supplies the WHOLE answer to its question.
+Then for each lamp it walks `src/channels/hue.rs:LEVELS` (`["lamp", "room", "zone"]`) INDEPENDENTLY for each question (`behaviours`, `dim_window`), and the winning level supplies the WHOLE answer to its question.
 
 - Success: a `Routing` of lamps that carry something, plus `unresolved` names and `refusals`.
 - Failure sources: a name no lamp answers is reported as `Missing::NotOnBridge`
@@ -652,7 +652,7 @@ Then for each lamp it walks `src/channels/hue.rs:LEVELS` (`["lamp", "room", "zon
 - Forbidden side effects: two ZONES answering one question for one lamp is a REFUSAL naming both, never a
   guess:
   `"lights: `<lamp>`is covered by <n> zone declarations that each state`<question>` (<names>); there is nothing more specific to break the tie, so that lamp answers none of them"`.
-  A contested `shows` is an empty set (dark lamp); a contested `dim_window` skips the lamp entirely,
+  A contested `behaviours` is an empty set (dark lamp); a contested `dim_window` skips the lamp entirely,
   which is a THIRD answer distinct from silence, because collapsed into one `None` the refusal took the
   no-window path and ran the lamp at full brightness all night
   (`src/channels/hue.rs:a_lamp_two_zones_both_answer_for_is_refused_with_both_named`,
@@ -690,9 +690,9 @@ Then it holds nothing in memory between runs, exits 0 on every path, and prints 
   nothing)
   (`tests/dispatch.rs:the_tick_exits_zero_with_no_config_no_table_hue_off_and_an_unreachable_bridge`).
 - Fail direction: this is not the delivery path. A tick is not an event and reaches no channel; the tests
-  assert `!sandbox.fired("hermes") && !sandbox.fired("mobile")`.
-- Thresholds: `[lights] refresh_secs`, default `src/config.rs:DEFAULT_REFRESH_SECS` = 12, bounds 10
-  (`MIN_REFRESH_SECS`, the transport deadline) to 30 (`MAX_REFRESH_SECS`).
+  assert `!sandbox.fired("hermes") && !sandbox.fired("phone")`.
+- Thresholds: `[lights] arm_interval`, default `src/config.rs:DEFAULT_ARM_INTERVAL_SECS` = 12, bounds 10
+  (`MIN_ARM_INTERVAL_SECS`, the transport deadline) to 30 (`MAX_ARM_INTERVAL_SECS`).
 - Required side effects: `src/main.rs:sweep_legacy_state` runs first, then the house is derived, then the
   writes. NOTHING TO LIGHT AND NOTHING TO PUT OUT IS NO BRIDGE CALL AT ALL, which keeps an idle machine
   off the network several times a minute.
@@ -700,8 +700,8 @@ Then it holds nothing in memory between runs, exits 0 on every path, and prints 
   CONSUMES a queue; a tick that claimed it would delete the misses the operator has not seen yet
   (`src/main.rs:lights_tick` doc).
 - Timeout and cancellation: each bridge call is bounded by `src/main.rs:tick_bridge_deadline` =
-  `refresh_secs / 5`, at least 1 second. The daemon bounds the whole child by `src/main.rs:child_bound`,
-  which for `LIGHTS_JOB` is at least `MAX_REFRESH_SECS` + the per-call deadline at that interval + one
+  `arm_interval / 5`, at least 1 second. The daemon bounds the whole child by `src/main.rs:child_bound`,
+  which for `LIGHTS_JOB` is at least `MAX_ARM_INTERVAL_SECS` + the per-call deadline at that interval + one
   reap tick (37 seconds at the production clock).
 - Idempotency and duplicates: every state is re-derived from scratch. A divergence between what a process
   believes and what the disk says is the class this crate keeps paying for (`src/lights.rs` module doc).
@@ -727,7 +727,7 @@ Then the order is: claim the lock, resolve, compute what breathes, re-read the r
   `"pns lights: the held record could not be written ({error}); no lamp was armed, because nothing would have been able to put one out"`,
   and NOTHING is armed).
 - Fail direction: not the delivery path.
-- Thresholds: the breath budget is `refresh_secs * 1000` LESS what the resolve already spent.
+- Thresholds: the breath budget is `arm_interval * 1000` LESS what the resolve already spent.
 - Required side effects: a clear computed before the arm, or a record written before the clear, is a lamp
   left lit with nothing that knows its name. Every held body is a plain state write that does NOT expire.
 - Forbidden side effects: the pre-arm record is BARE, deliberately dropping any phase this tick read: a
@@ -773,7 +773,7 @@ Then it calls `src/main.rs:schedule_lights_tick` with `ORDINARY_LEASE_SECS`.
   (`tests/dispatch.rs:a_registration_that_cannot_be_written_costs_the_event_nothing`).
 - Fail direction: not the delivery path.
 - Thresholds: `until = due.max(now + lease_secs)`, at least as far as the due second, because a lease
-  that ended before its own job's first run is a record `validate_shape` refuses. `MAX_REFRESH_SECS` is
+  that ended before its own job's first run is a record `validate_shape` refuses. `MAX_ARM_INTERVAL_SECS` is
   under the ordinary lease precisely so a long refresh cannot EXTEND that lease
   (`tests/dispatch.rs:an_event_registers_the_tick_and_a_journalled_one_leases_it_for_longer` asserts 300
   and 43200 EXACTLY).
@@ -906,7 +906,7 @@ Then all fades are pooled into ONE schedule sorted by `(due_ms, path)` and issue
 - Idempotency and duplicates: one landing per lamp, replaced as later fades are issued.
 - Privacy: brightness and duration.
 - Process ownership and cleanup: the child exits inside its budget with its last fade still running.
-- Compatibility contract: `src/config.rs:DEFAULT_REFRESH_SECS` = 12 is a BREATH BUDGET rather than a
+- Compatibility contract: `src/config.rs:DEFAULT_ARM_INTERVAL_SECS` = 12 is a BREATH BUDGET rather than a
   round number: twelve seconds carries seven of the locked two-second shape, and three or four of the
   four-second one depending on what that tick's resolve took off the budget first.
 
@@ -941,9 +941,9 @@ Then a lamp with NO window is `Showing::Full`; outside the window it is `Full`; 
 - Privacy: a minute of the day.
 - Process ownership and cleanup: not applicable.
 - Compatibility contract: a lamp with no window pays NOTHING and behaves exactly as it did, which is what
-  makes the whole feature opt-in. `[plugins.hue] quiet_hours` is NOT a rung of the routed chain: a typo
+  makes the whole feature opt-in. A window nobody can parse costs only the lamps that took it: a typo
   there cannot darken a routed lamp
-  (`tests/dispatch.rs:a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing`).
+  (`src/channels/hue.rs:a_dim_window_nobody_can_parse_leaves_that_lamp_dark_and_says_which_lamp`).
 
 ### 25. The dim form is one shape, and the colour still says which state it is
 
@@ -966,7 +966,7 @@ Then it returns that state's own locked colour with the ONE shared `[lights.dim]
   (`src/config.rs:Breath` doc, `ends_agree`).
 - Required side effects: `src/channels/hue.rs:pulse_render` returns `None` for every held behaviour,
   because a lamp asked to flash a state it holds would be armed with something nobody measured.
-- Forbidden side effects: a dimmed PULSE is the same blink at `lights.dim.low`, not the dim breath; there
+- Forbidden side effects: a dimmed PULSE is the same blink at `lights.dim.low_percent`, not the dim breath; there
   is no low end for a blink to fade to.
 - Timeout and cancellation: not applicable.
 - Idempotency and duplicates: pure.
@@ -982,7 +982,7 @@ Then it returns that state's own locked colour with the ONE shared `[lights.dim]
 
 ### 26. `FAILURE_COLOR` carries two jobs and is one constant
 
-Given the failure pulse and the `unread` failure flavour,
+Given the failure pulse and the `unseen` failure flavour,
 
 When either renders,
 
@@ -1004,31 +1004,31 @@ Then both read `src/pulse.rs:FAILURE_COLOR`.
 
 ## The ad-hoc mute
 
-### 27. `pns lights quiet` mutes one place, lights only, for a bounded while
+### 27. `pns lights mute` mutes one place, lights only, for a bounded while
 
-Given `pns lights quiet [<place> [<duration>|off]]`,
+Given `pns lights mute [<place> [<duration>|off]]`,
 
 When `src/main.rs:lights_quiet` runs,
 
 Then a bare command REPORTS and mutes nothing; `<place>` mutes until the operator's quiet hours end; `<place> <duration>` mutes for that duration; `<place> off` unmutes.
 
 - Success: exit 0 and one line per live place:
-  `` pns lights: `<place>` is quiet for another <n> minute(s) ``, or `"pns lights: nothing is quiet"`.
+  `` pns lights: `<place>` is muted for another <n> minute(s) ``, or `"pns lights: nothing is muted"`.
 - Failure sources: a place no lamp, room or zone name reaches
-  (`` pns: lights quiet: `<place>` is no lamp, room or zone this can quiet; a mute reaches <names> ``, or
+  (`` pns: lights mute: `<place>` is no lamp, room or zone this can mute; a mute reaches <names> ``, or
   `"this config claims no lamp at all, so there is nothing a mute could reach"`, exit 2); a duration
   outside `src/duration.rs:parse_duration`'s bounds (exit 2); any other arity
-  (`"pns: lights quiet takes a place, optionally with a duration or off, or nothing at all"`, exit 2); no
+  (`"pns: lights mute takes a place, optionally with a duration or off, or nothing at all"`, exit 2); no
   clock (`"pns: state error (the clock cannot be read); the mute was not set"`, exit 1); an unwritable
   file (`"pns: state error (lights-quiet could not be written: {error}); the mute was not set"`, exit 1).
 - Fail direction: an unreachable bridge does NOT refuse the command. The declared names alone are still a
   vocabulary a mute can enforce once the transport is back (`src/channels/hue.rs:mutable_names`,
   `src/main.rs:bridge_inventory`).
 - Thresholds: `src/lights.rs:MAX_MUTED_PLACES` = 32 lines. A file past it is refused WHOLE
-  (`"pns: state error (lights-quiet holds <n> lines, more than the 32 places it keeps); nothing is quiet, and the next pns lights quiet write replaces the file"`),
+  (`"pns: state error (lights-quiet holds <n> lines, more than the 32 places it keeps); nothing is muted, and the next pns lights mute write replaces the file"`),
   and a command that would write a 33rd line is REFUSED rather than truncating
-  (`"pns: lights quiet: 32 places are already quiet, which is every line lights-quiet keeps; the mute was not set, and `pns
-  lights quiet <place> off` ends one"`). Expiry is half open through `src/quiet.rs:is_muted`
+  (`"pns: lights mute: 32 places are already muted, which is every line lights-quiet keeps; the mute was not set, and `pns
+  lights mute <place> off` ends one"`). Expiry is half open through `src/mute.rs:is_muted`
   (`now < expiry`), so a mute ends ON the second it names.
 - Required side effects: complaints are printed BEFORE anything is written, because the write republishes
   the whole file and an operator whose file was unreadable is losing what it held. Expired entries are
@@ -1039,7 +1039,7 @@ Then a bare command REPORTS and mutes nothing; `<place>` mutes until the operato
   failed mute it would say the place is quiet when it is not, and for a failed `off` it would say nothing
   is quiet while the old mute is still on disk
   (`tests/dispatch.rs:a_lights_quiet_write_that_failed_reports_the_disk_and_not_the_list_it_built`). The
-  command must NOT touch `pns quiet`, cards, banners or the durable log: LIGHTS ONLY is the operator's
+  command must NOT touch `pns mute`, cards, banners or the durable log: LIGHTS ONLY is the operator's
   own scope, and the two mutes share a duration parser and nothing else
   (`tests/dispatch.rs:an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone`).
 - Timeout and cancellation: the bridge dial for a wider vocabulary uses
@@ -1065,22 +1065,22 @@ Then a bare command REPORTS and mutes nothing; `<place>` mutes until the operato
 
 ### 28. A bare mute lasts until the operator's quiet hours end
 
-Given `pns lights quiet "<place>"` with no duration,
+Given `pns lights mute "<place>"` with no duration,
 
 When `src/lights.rs:bare_mute_secs` computes the length,
 
-Then it is the minutes from now to `[plugins.hue] quiet_hours`' END minute, times 60.
+Then it is the minutes from now to `[lights] dim_window`' END minute, times 60.
 
 - Success: a mute that ends when the operator's night does.
 - Failure sources: no quiet hours configured, or a window nobody can parse. Both refuse:
-  `` pns: lights quiet: a bare mute lasts until your quiet hours end, and `[plugins.hue] quiet_hours` states none; give a duration instead, or set that key ``
+  `` pns: lights mute: a bare mute lasts until your dim window ends, and `[lights] dim_window` states none; give a duration instead, or set that key ``
   (`src/lights.rs:NO_SCHEDULE`). No clock also refuses.
 - Fail direction: refusal, never a guessed duration: picking a length would be a mute the operator did
   not ask for, ending at an hour they cannot predict.
 - Thresholds: NOW AT THE END MINUTE IS A WHOLE DAY, not nothing. `(end + 1440 - now) % 1440`, and a
   result of 0 becomes 1440. A mute of zero seconds is not a mute, and the operator asked for one
   (`src/lights.rs:how_long_a_bare_mute_runs_is_the_minutes_from_now_to_the_windows_end`,
-  `src/lights.rs:a_bare_mute_lasts_until_the_operators_quiet_hours_end`).
+  `src/lights.rs:a_bare_mute_lasts_until_the_house_dim_window_ends`).
 - Required side effects: none beyond the ordinary mute write.
 - Forbidden side effects: it must NOT read a room's own dim window. A mute typed at bedtime is about the
   operator's night; a room's window is a rendering rule with nothing to say about how long a by-hand
@@ -1089,7 +1089,7 @@ Then it is the minutes from now to `[plugins.hue] quiet_hours`' END minute, time
 - Idempotency and duplicates: not applicable.
 - Privacy: not applicable.
 - Process ownership and cleanup: not applicable.
-- Compatibility contract: there is deliberately no UNTIMED form, for `pns quiet`'s reason: a mute the
+- Compatibility contract: there is deliberately no UNTIMED form, for `pns mute`'s reason: a mute the
   operator forgets is a lamp that has silently stopped working (`src/lights.rs:QuietCommand` doc).
 
 ### 29. An unreadable mute record mutes everything, and says so once
@@ -1108,7 +1108,7 @@ Then it answers `src/channels/hue.rs:Muting::Everything` and one complaint.
   which is exactly the 3am the mute was armed to prevent, on the one night the machine could not tell
   anybody why. A missing file is the ORDINARY case and says nothing.
 - Thresholds: no clock also yields `Everything`, with the line
-  `"pns lights: the clock cannot be read, so no mute can be judged live; every lamp is quiet until it can"`
+  `"pns lights: the clock cannot be read, so no mute can be judged live; every lamp is muted until it can"`
   (`src/lights.rs:NO_CLOCK_FOR_THE_MUTE`), which is the SAME sentence `src/lights.rs:muted_report`
   prints, so an operator reading either sees one wording.
 - Required side effects: `src/main.rs:say_lights_once` remembers the joined line, so the complaint is
@@ -1126,7 +1126,7 @@ Then it answers `src/channels/hue.rs:Muting::Everything` and one complaint.
   `src/lights.rs:a_tick_says_a_complaint_once_and_says_it_again_only_when_it_changes`).
 - Privacy: the complaint quotes the offending line back, which is the operator's own place name.
 - Process ownership and cleanup: the memory file is removed on `Forget`; the state repairs itself on the
-  next `pns lights quiet` write, which republishes the whole file.
+  next `pns lights mute` write, which republishes the whole file.
 - Compatibility contract: the two readers of one complaint take OPPOSITE directions on purpose. The lamp
   path mutes everything; the typed command prints it and rebuilds from an empty list, because an operator
   standing in front of it is losing what the file held and gets to see that rather than a silent repair
@@ -1143,8 +1143,8 @@ When `src/channels/hue.rs:muted_now` is asked,
 
 Then any muted place matching the lamp's own name, its room, or any of its zones covers it.
 
-- Success: `pns lights quiet "3F - Studio"` reaches every lamp in the studio and
-  `pns lights quiet "3F - Studio - HCL3"` reaches one.
+- Success: `pns lights mute "3F - Studio"` reaches every lamp in the studio and
+  `pns lights mute "3F - Studio - HCL3"` reaches one.
 - Failure sources: none. `Muting::Everything` covers every lamp unconditionally.
 - Fail direction: not the delivery path. The map is still resolved and the muted lamps are simply not
   written to, which costs three reads for the length of the mute and keeps ONE answer to "is this lamp
@@ -1157,7 +1157,7 @@ Then any muted place matching the lamp's own name, its room, or any of its zones
 - Idempotency and duplicates: pure.
 - Privacy: name comparison only.
 - Process ownership and cleanup: not applicable.
-- Compatibility contract: the vocabulary `pns lights quiet` accepts is BOTH the declarations and the
+- Compatibility contract: the vocabulary `pns lights mute` accepts is BOTH the declarations and the
   bridge's own lamps, rooms and zones. Off the config alone it accepted a misspelled declaration (a mute
   that can never match a lamp) and refused a real inherited lamp the operator was reading off the
   bridge's own app (`src/channels/hue.rs:mutable_names`,
@@ -1194,7 +1194,7 @@ Then it reads `lights-held`, writes `{"on":{"on":false}}` to each recorded path,
 - Idempotency and duplicates: a second return finds no file and does nothing.
 - Privacy: fixture paths only.
 - Process ownership and cleanup: `is_present` is the SAME predicate that advances the return edge the
-  `unread` state is derived from, so the lamp and the marker cannot disagree about whether the operator
+  `unseen` state is derived from, so the lamp and the marker cannot disagree about whether the operator
   came back.
 - Compatibility contract: STATED LIMIT, a tick can republish a state the return just cleared. The tick
   reads its condition before it reaches the bridge, so a present event that advances the edge and clears
@@ -1244,7 +1244,7 @@ path's pulse (`src/main.rs:run_pulse_writes`) and on the tick (`src/main.rs:run_
 
 Then `src/presence_room.rs:chosen` weighs the desk's idle clock against the bridge's motion edge, and
 `src/presence_policy.rs:narrow` takes the room it answers to the lamp map. A WARM DESK IS A CLAIM ON THE
-OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_stale_after_secs` the keyboard
+OPERATOR'S OWN BODY, and the arbitration falls out of that: inside `desk_input_max_age` the keyboard
 says they are at the desk, while motion says A BODY moved in a room and never whose. So while the desk
 still speaks,
 
@@ -1278,9 +1278,9 @@ off the room listing.
   narrowing that would leave ZERO targets falls back to the whole routing rather than going silent
   (`src/presence_policy.rs:a_room_holding_no_routed_lamp_falls_back_to_the_whole_routing`).
 - Thresholds: the motion reading's freshness is `src/presence.rs:classify`'s, against
-  `[plugins.presence] stale_after_secs`; the desk's is `[plugins.presence] desk_stale_after_secs`
-  (default 120, `src/config.rs:DEFAULT_DESK_STALE_AFTER_SECS`, bounded 1 to
-  `src/config.rs:MAX_DESK_STALE_AFTER_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
+  `[plugins.presence] reading_max_age`; the desk's is `[plugins.presence] desk_input_max_age`
+  (default `"2m"`, `pns-adapters/src/config/presence_values.rs:DEFAULT_DESK_INPUT_MAX_AGE_SECS`,
+  bounded `"1s"` to `MAX_DESK_INPUT_MAX_AGE_SECS` so a mistyped digit cannot park the lamps in `desk_room` for
   good), past which a keyboard nobody has touched speaks for nothing. No dwell rule and no hysteresis of
   its own.
 - Required side effects: one JSON object per decision appended to the `presence-decisions` ring

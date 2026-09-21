@@ -1,35 +1,24 @@
 //! The window the digest's claim opens under an appender that is mid-write.
-//!
-//! Every fixture here keys its directory on a clock reading rather than on the
-//! process id, because a reused process id finds the previous run's files.
 
 use super::*;
 use crate::DigestSpoolFile;
+use crate::test_sandbox::Sandbox;
 use posture_application::DigestSpool;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// A spool directory of this run's own, removed when the test ends.
 struct Race {
-    root: PathBuf,
     store: PathBuf,
+    _root: Sandbox,
 }
 
 impl Race {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "posture-append-race-{unique}-{}",
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
+        let root = Sandbox::new("append-race");
         let store = root.join("state").join("digest-spool");
-        Self { root, store }
+        Self { store, _root: root }
     }
 
     /// Every identity written under this directory, spool and claims alike, so
@@ -48,12 +37,6 @@ impl Race {
             }
         }
         found
-    }
-}
-
-impl Drop for Race {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.root);
     }
 }
 

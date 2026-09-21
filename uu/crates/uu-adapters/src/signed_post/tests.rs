@@ -79,7 +79,7 @@ fn the_two_no_status_cases_read_differently_because_they_are_different_jobs() {
 #[test]
 fn no_sentence_here_names_a_tool_uu_does_not_run() {
     // These sentences were inherited from pns, which spoke of curl and named
-    // its own config key. uu runs no curl and has no [plugins.hermes].
+    // its own config key. uu runs no curl and has no [plugins.log].
     for outcome in [
         PostOutcome::Status(500),
         PostOutcome::NoStatus,
@@ -87,6 +87,6 @@ fn no_sentence_here_names_a_tool_uu_does_not_run() {
     ] {
         let line = outcome_line(outcome);
         assert!(!line.contains("curl"), "{line}");
-        assert!(!line.contains("plugins.hermes"), "{line}");
+        assert!(!line.contains("plugins.log"), "{line}");
     }
 }

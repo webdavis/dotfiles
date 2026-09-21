@@ -8,7 +8,7 @@ fn a_forwarded_gate_leaves_the_state_markers_untouched() {
         let existing = marker(&sandbox, "existing");
         std::fs::write(&existing, b"1700000000\n").expect("existing marker");
         let mut command = sandbox.pns_stateful();
-        command.args(argv).env("PNS_IDLE_SECS", "99999");
+        command.args(argv).env("PNS_SCREEN_IDLE", "99999");
         sandbox.stub_moshi(&mut command, 7);
         let mut child = captured_child::CapturedChild::spawn(&mut command).expect("gate runs");
         write_payload(&mut child.child, b"{\"session_id\":\"new-session\"}\n");
@@ -30,7 +30,7 @@ fn a_forwarded_gate_leaves_the_state_markers_untouched() {
             .map(|entry| entry.expect("state entry").path())
             .collect();
         assert_eq!(entries, [existing], "a gate creates no state marker");
-        for channel in ["mobile", "hermes", "macos-banner"] {
+        for channel in ["phone", "hermes", "banner"] {
             assert!(!sandbox.fired(channel), "a gate raised {channel}");
         }
     }
@@ -49,7 +49,7 @@ fn gate(sandbox: &Sandbox, word: &str, payload: &str) -> std::process::Output {
 /// an operator.
 fn gate_argv(sandbox: &Sandbox, argv: &[&str], payload: &str) -> std::process::Output {
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 7);
     let mut child = command
         .args(argv)
@@ -87,7 +87,7 @@ fn the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision() {
 fn a_zero_decision_passes_through_as_zero_and_is_not_a_default() {
     let sandbox = Sandbox::new("gate-approves");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 0);
     let mut child = command
         .arg("pi-hook")
@@ -188,8 +188,8 @@ fn at_the_desk_the_gate_submits_nothing_and_exits_zero() {
     let sandbox = Sandbox::new("gate-desk");
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "0")
-        .env("PNS_PHONE_INPUT_AGE", "99999");
+        .env("PNS_SCREEN_IDLE", "0")
+        .env("PNS_PHONE_INPUT_MAX_AGE", "24h");
     sandbox.stub_moshi(&mut command, 7);
     let mut child = spawn_gate(command, "pi-hook");
     // The pipe is closed rather than written through: a gate that declines
@@ -222,7 +222,7 @@ fn the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does() {
     // `submissions` for the reason the desk twin above states.
     let sandbox = Sandbox::new("gate-oversized");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let mut child = spawn_gate(command, "pi-hook");
     let payload = format!(r#"{{"ask":"{}"}}"#, "x".repeat(1_200_000));

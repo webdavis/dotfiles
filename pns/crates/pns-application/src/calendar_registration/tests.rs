@@ -26,7 +26,7 @@ fn an_armed_calendar_registers_the_poll_at_the_interval_it_was_handed() {
     ensure_calendar_poll(&spool, PollSetting::Every(120), 1_000);
     let job = spool.pending.borrow().clone().expect("a registered job");
     assert_eq!(job.id, CALENDAR_JOB);
-    assert_eq!(job.args, ["quiet", "calendar"]);
+    assert_eq!(job.args, ["mute", "calendar"]);
     assert_eq!(job.every, Some(120));
     assert_eq!(job.due, 1_000);
     assert_eq!(job.until, 1_900);

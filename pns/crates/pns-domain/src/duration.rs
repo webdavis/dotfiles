@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
-/// A duration, from `<count><s|m|h>`, inside the range the field allows.
+/// A duration, from `<count><ms|s|m|h>`, inside the range the field allows.
 ///
 /// A UNIT IS REQUIRED, and the count goes through the crate's one numeric
 /// gate, so every shape `parse_count` refuses elsewhere is refused here too.
@@ -36,7 +36,7 @@ pub fn parse_duration(
             return Ok(total);
         }
     }
-    Err(format!("pns: {field} {text:?} is not <count><s|m|h>"))
+    Err(format!("pns: {field} {text:?} is not <count><ms|s|m|h>"))
 }
 
 /// A duration written back in the largest unit that holds it whole, which is
@@ -44,9 +44,8 @@ pub fn parse_duration(
 /// duration goes back out on the wire.
 pub fn spelled(duration: Duration) -> String {
     let millis = duration.as_millis();
-    // ZERO SPELLS AS "0s", the smallest unit the parser accepts: the `ms`
-    // fallback below exists for sub-second values it cannot produce, and
-    // zero is not one of those.
+    // ZERO SPELLS AS "0s" rather than "0ms": a floor reads as a round number
+    // in the unit the field beside it is written in.
     if millis == 0 {
         return "0s".to_string();
     }
@@ -61,7 +60,9 @@ pub fn spelled(duration: Duration) -> String {
 
 /// The units a duration may be typed in, and what each is worth in
 /// milliseconds.
-const UNITS: [(&str, u64); 3] = [("s", 1_000), ("m", 60_000), ("h", 3_600_000)];
+/// `ms` COMES FIRST so the `s` suffix cannot claim "500ms" and leave a
+/// count `parse_count` refuses.
+const UNITS: [(&str, u64); 4] = [("ms", 1), ("s", 1_000), ("m", 60_000), ("h", 3_600_000)];
 
 #[cfg(test)]
 mod tests;

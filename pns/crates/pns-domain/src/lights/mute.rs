@@ -21,10 +21,10 @@ pub struct Muted {
 pub const MAX_MUTED_PLACES: usize = 32;
 /// How long a BARE mute lasts: from now until the operator's quiet hours end.
 ///
-/// THE SCHEDULE IS `[plugins.hue] quiet_hours` and there is no second one. A
-/// mute typed at bedtime is about the operator's night, not about one room's
-/// own dim window, and a room's window is a rendering rule that has nothing to
-/// say about how long a by-hand silence should last.
+/// THE SCHEDULE IS `[lights] dim_window` and there is no second one. A mute
+/// typed at bedtime is about the operator's night, not about one room's own
+/// override, and a place's window is a rendering rule that has nothing to say
+/// about how long a by-hand silence should last.
 ///
 /// NONE WHEN EITHER READING IS MISSING. No schedule is the refusal above; no
 /// clock is a mute nothing could time, and the caller already refuses without
@@ -73,16 +73,16 @@ pub fn muted_after(
         .iter()
         .filter(|entry| {
             entry.place != place
-                && now.is_none_or(|now| crate::quiet::is_muted(Some(entry.expiry), Some(now)))
+                && now.is_none_or(|now| crate::mute::is_muted(Some(entry.expiry), Some(now)))
         })
         .cloned()
         .collect();
     if let Some(expiry) = expiry {
         if kept.len() >= MAX_MUTED_PLACES {
             return Err(format!(
-                "pns: lights quiet: {MAX_MUTED_PLACES} places are already quiet, \
+                "pns: lights mute: {MAX_MUTED_PLACES} places are already muted, \
                  which is every line lights-quiet keeps; the mute was not set, \
-                 and `pns lights quiet <place> off` ends one"
+                 and `pns lights mute <place> off` ends one"
             ));
         }
         kept.push(Muted {
@@ -94,14 +94,14 @@ pub fn muted_after(
 }
 /// The places an ad-hoc quiet covers at this second.
 ///
-/// THE VERDICT IS `quiet::is_muted`'S, never re-derived here, which is that
+/// THE VERDICT IS `mute::is_muted`'S, never re-derived here, which is that
 /// module's own rule: one property read by two readers that each decide it is
 /// how a report and a behaviour come to disagree about whether a mute is on.
 /// Half open comes with it, so a mute ends on the second it names.
 ///
 /// THIS HELPER FAILS OPEN BY CONTRACT: on no clock, `live` judges every entry
 /// unmuted and this answers empty. That is true of this function alone. Its
-/// only production caller is the root, `ad_hoc_quiet`, and the root asks
+/// only production caller is the root, `ad_hoc_mute`, and the root asks
 /// whether the clock answered BEFORE it asks this: on no clock it returns
 /// `Muting::Everything` without ever reaching this line.
 pub fn muted_places(entries: &[Muted], now: Option<u64>) -> Vec<String> {
@@ -110,18 +110,18 @@ pub fn muted_places(entries: &[Muted], now: Option<u64>) -> Vec<String> {
         .collect()
 }
 /// Why every lamp is quiet on a run whose clock would not answer, the root's
-/// own line: `ad_hoc_quiet` prints it as a complaint, and this prints it as
+/// own line: `ad_hoc_mute` prints it as a complaint, and this prints it as
 /// the report, so an operator reading either sees the same sentence.
 pub const NO_CLOCK_FOR_THE_MUTE: &str = "pns lights: the clock cannot be read, so no \
-mute can be judged live; every lamp is quiet until it can";
-/// What `pns lights quiet` prints, which is the whole file in the operator's
+mute can be judged live; every lamp is muted until it can";
+/// What `pns lights mute` prints, which is the whole file in the operator's
 /// own vocabulary.
 ///
 /// THE REPORT IS THE SAME READING THE LAMPS TAKE, entry for entry, because a
 /// report that decided liveness for itself is how a command and a lamp come to
 /// disagree about whether a room is quiet. ON NO CLOCK, the same answer the
 /// root gives: every place quiet, said once, never per entry and never
-/// "nothing is quiet", which would tell the operator the opposite of what
+/// "nothing is muted", which would tell the operator the opposite of what
 /// every lamp is about to do.
 pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
     if now.is_none() {
@@ -129,7 +129,7 @@ pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
     }
     let lines: Vec<String> = live(entries, now)
         .map(|entry| {
-            let minutes = crate::quiet::minutes_left(entry.expiry, now);
+            let minutes = crate::mute::minutes_left(entry.expiry, now);
             let unit = if minutes == 1 { "minute" } else { "minutes" };
             format!(
                 // NO `pns lights:` PREFIX. Its one caller renders these as rows
@@ -137,13 +137,13 @@ pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
                 // and the prefix repeated down a list is the noise the report
                 // format exists to drop. The stderr warnings elsewhere in this
                 // module KEEP theirs: they arrive alone, with no heading above.
-                "`{}` is quiet for another {minutes} {unit}",
+                "`{}` is muted for another {minutes} {unit}",
                 entry.place
             )
         })
         .collect();
     if lines.is_empty() {
-        return vec!["nothing is quiet".to_string()];
+        return vec!["nothing is muted".to_string()];
     }
     lines
 }
@@ -151,14 +151,14 @@ pub fn muted_report(entries: &[Muted], now: Option<u64>) -> Vec<String> {
 fn live(entries: &[Muted], now: Option<u64>) -> impl Iterator<Item = &Muted> {
     entries
         .iter()
-        .filter(move |entry| crate::quiet::is_muted(Some(entry.expiry), now))
+        .filter(move |entry| crate::mute::is_muted(Some(entry.expiry), now))
 }
 
-/// What the operator typed at `pns lights quiet`.
+/// What the operator typed at `pns lights mute`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QuietCommand {
+pub enum MuteCommand {
     /// No argument at all: say what is quiet and mute nothing. There is no
-    /// untimed form, for `pns quiet`'s reason: a mute the operator forgets is
+    /// untimed form, for `pns mute`'s reason: a mute the operator forgets is
     /// a lamp that has silently stopped working.
     Report,
     Mute {

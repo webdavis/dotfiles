@@ -21,6 +21,9 @@ pub trait FunnelStore {
 pub enum FunnelFailure {
     ReadGap(SubmissionFailure),
     Exposure(SubmissionFailure),
+    /// The corrupt-baseline warning was raised and no destination took it.
+    /// Reported after the repair rather than instead of it.
+    CorruptBaseline(SubmissionFailure),
     Persistence,
 }
 pub struct Funnel<'a, M, S> {
@@ -34,6 +37,7 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
         baseline: FunnelBaseline,
         occurred_at: Option<u64>,
     ) -> Result<(), FunnelFailure> {
+        let mut corruption_lost = None;
         let value = reading.as_ref().unwrap_or(&FunnelReading::Gap);
         let plan = plan_funnel(value, baseline, self.store.covered(FunnelGap::Readings));
         if plan.clear_read_gap {
@@ -49,13 +53,16 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
                 .submit("page", body, occurred_at)
                 .map_err(FunnelFailure::Exposure)?,
             Some(FunnelAlert::CorruptBaseline) => {
-                // The Bash corruption warning is best effort; repair follows even a refused warning.
-                let _ = self.submit("gap", funnel_corruption_gap(), occurred_at);
+                // The repair follows even a refused warning, so the refusal is
+                // carried to the end of the run rather than short-circuiting it.
+                corruption_lost = self
+                    .submit("gap", funnel_corruption_gap(), occurred_at)
+                    .err();
             }
             None => {}
         }
         let Some(next) = plan.next else {
-            return Ok(());
+            return lost(corruption_lost);
         };
         if self.store.publish(next).is_err() {
             let _ = self.gap(
@@ -66,7 +73,7 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
             return Err(FunnelFailure::Persistence);
         }
         let _ = self.store.clear(FunnelGap::Persistence);
-        Ok(())
+        lost(corruption_lost)
     }
     fn gap(
         &mut self,
@@ -101,3 +108,12 @@ impl<M: FunnelStore, S: AlertSink> Funnel<'_, M, S> {
         }
     }
 }
+/// A run that finished its work still fails when its corruption warning did.
+fn lost(corruption: Option<SubmissionFailure>) -> Result<(), FunnelFailure> {
+    match corruption {
+        Some(failure) => Err(FunnelFailure::CorruptBaseline(failure)),
+        None => Ok(()),
+    }
+}
+#[cfg(test)]
+mod tests;

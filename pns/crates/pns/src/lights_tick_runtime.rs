@@ -55,7 +55,7 @@ pub(crate) fn lights_tick() -> i32 {
             )))
         },
         pns_application::LampReadings {
-            silenced: |now| status_lights_silenced(&records, &home, &config.focus_silence, now),
+            silenced: |now| status_lights_silenced(&records, &home, config.focus_silence(), now),
             minutes: local_minutes_since_midnight,
             presence: || {
                 presence_snapshot(
@@ -93,7 +93,7 @@ fn status_lights_silenced(
     focus_silence: &[String],
     now: u64,
 ) -> bool {
-    pns_domain::quiet::is_muted(crate::command_quiet::read_quiet_expiry(records), Some(now))
+    pns_domain::mute::is_muted(crate::command_mute::read_mute_expiry(records), Some(now))
         || focus_now(home, focus_silence).is_ok_and(|reading| reading.silenced)
 }
 

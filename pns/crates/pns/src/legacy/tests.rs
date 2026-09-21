@@ -24,37 +24,41 @@ fn a_scope_outside_the_three_words_is_refused_with_exit_two() {
     );
 }
 
-/// DECISION 0010 IS THE DEFAULT: a notification never fails the work it reports
-/// on, so a caller that did not ask hears 0 whatever the delivery answered.
+/// EVERY CALLER HEARS THE DELIVERY NOW, whether or not it asked: a page that
+/// is nowhere is the one thing a synchronous producer has no other way to
+/// learn, and the opt-in that used to gate the answer hid it from everyone who
+/// did not know to type it.
 #[test]
-fn a_caller_that_did_not_ask_never_hears_a_failed_delivery() {
+fn every_caller_hears_a_failed_delivery() {
     let argv = ["--producer".to_string(), "posture".to_string()];
-    assert_eq!(super::run(&argv, |_, _| 1), 0);
-}
-
-/// And a caller that DID ask hears it, which is the whole of what a producer
-/// such as posture can read: it has no other way to learn that the page it just
-/// sent is nowhere.
-#[test]
-fn a_caller_that_asked_hears_a_failed_delivery() {
-    let argv = [
-        "--producer".to_string(),
-        "posture".to_string(),
-        "--require-delivery".to_string(),
-    ];
     assert_eq!(super::run(&argv, |_, _| 1), 1);
 }
 
-/// The flag says whether the caller HEARS the answer, never what the answer is:
-/// a delivery that landed exits 0 under it, the same as without it.
+/// And the path invents no failure: a delivery that landed still exits 0.
 #[test]
-fn asking_for_the_answer_does_not_invent_a_failure() {
+fn a_delivery_that_landed_still_exits_zero() {
+    let argv = ["--producer".to_string(), "posture".to_string()];
+    assert_eq!(super::run(&argv, |_, _| 0), 0);
+}
+
+/// The retired opt-in is REFUSED rather than skipped, and the refusal says why
+/// it is gone. Skipping it would leave a caller believing it still gates an
+/// answer that is now unconditional.
+#[test]
+fn the_retired_require_delivery_flag_is_refused_with_exit_two() {
     let argv = [
         "--producer".to_string(),
         "posture".to_string(),
         "--require-delivery".to_string(),
     ];
-    assert_eq!(super::run(&argv, |_, _| 0), 0);
+    assert_eq!(
+        super::run(&argv, |_, _| panic!("a retired flag reached submission")),
+        2
+    );
+    let refusal = super::parse_args(argv.iter().cloned())
+        .into_event()
+        .unwrap_err();
+    assert!(refusal.contains("always reports delivery"), "{refusal}");
 }
 
 /// The retired flag is REFUSED rather than skipped, and the refusal names its
@@ -74,19 +78,27 @@ fn the_retired_agent_flag_is_refused_and_names_the_flag_that_replaced_it() {
     );
 }
 
-/// A kind pns does not know is refused whole: routing it by guess would put a
-/// page on the routine channel or a routine event on the one reserved for
-/// things that need a human.
+/// A delivery class that is not a usable name is refused whole, and so is the
+/// retired `--kind` spelling: either one delivered by guess would put a page
+/// on the routine channel or a routine event on the one reserved for things
+/// that need a human.
 #[test]
-fn an_unknown_kind_is_refused_before_anything_is_delivered() {
-    for word in ["", "critical", "--producer"] {
-        let argv = ["--kind".to_string(), word.to_string()];
+fn an_unusable_delivery_class_is_refused_before_anything_is_delivered() {
+    for word in ["", "bad\nclass", "--producer"] {
+        let argv = ["--delivery-class".to_string(), word.to_string()];
         assert_eq!(
-            super::run(&argv, |_, _| panic!("an unknown kind reached submission")),
+            super::run(&argv, |_, _| panic!(
+                "an unusable delivery class reached submission"
+            )),
             2,
-            "--kind {word:?}"
+            "--delivery-class {word:?}"
         );
     }
+    let retired = ["--kind".to_string(), "health".to_string()];
+    assert_eq!(
+        super::run(&retired, |_, _| panic!("a retired flag reached submission")),
+        2
+    );
 }
 
 /// The two identifiers a JSON producer has always sent are flags now, and they

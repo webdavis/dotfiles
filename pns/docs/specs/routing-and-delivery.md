@@ -12,7 +12,7 @@ work it reports on. It does NOT cover the Hue lamps: the pulse, the lamp map, th
 `quiet window` and `quiet hours` are deferred to the sibling specification
 `docs/specs/lighting-policy.md`. It also does not cover how the surface and presence model DECIDES what
 the operator can see; this specification takes `surface::DeliveryPlan` as an input. Whether the operator
-is home is read by the `home probe` from the `router` sensor, which is covered here only insofar as a
+is home is read by the `home probe` from the `home_presence` sensor, which is covered here only insofar as a
 sensor can never become a delivery leg.
 
 **Hue is not a delivery destination.** It is registered as `PluginKind::Channel` with
@@ -31,12 +31,12 @@ ______________________________________________________________________
 
 | Destination                        | How it is selected                                                                                                                                                     | Transport                                                                                                                                                                | Configuration keys                                                                                                                                                                             | Failure behavior                                                                                                                                                                                                                                                                  | Tests that pin it                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mobile` (moshi backend)           | `[plugins.mobile] enabled = true`, or the core fallback; then `channel_plan` keeps it only when `delivery.phone_card` is true, because it is `presence_gated`          | One HTTPS POST, `ureq`, `content-type: application/json`, `max_redirects(0)`, 10 s global deadline                                                                       | `[plugins.mobile] type` (must be `"moshi"`), `[plugins.mobile] token`; env `PNS_MOSHI_URL` overrides `https://api.getmoshi.app/api/webhook`                                                    | `Delivery::Failed`; a refused `type` fails before either seam; no token fails naming the key; any non 2xx or unreachable endpoint fails. The sentence is unreachable from an event's stdout because the leg is never `ReportOutcome`                                              | `src/channels/moshi.rs:tests::a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_the_token`, `src/channels/moshi.rs:tests::a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write`, `tests/native.rs:native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output`, `tests/native.rs:a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token`                                                     |
-| `macos-banner`                     | `[plugins.macos-banner] enabled = true`, or the core fallback; then `channel_plan` keeps it only when `delivery.banner` is true, because it is `local`                 | Spawn of `terminal-notifier` by NAME through PATH, under `SystemCommandRunner` (5 s deadline, 1 MiB stdout ceiling)                                                      | env `PNS_TERMINAL_BUNDLE_ID`, else inherited `__CFBundleIdentifier`, else `com.mitchellh.ghostty`; `herdr` resolved on PATH at construction                                                    | `Delivery::Failed("banner FAILED (terminal-notifier did not run)")` whenever the runner answers nothing, which covers not installed, non-zero exit and killed at the deadline alike                                                                                               | `src/channels/banner.rs:tests::a_spawn_that_answered_is_delivered_and_one_that_never_ran_names_the_notifier`, `src/channels/banner.rs:tests::nothing_but_the_notifier_is_ever_spawned`, `tests/native.rs:the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent`                                                                                                                                                                                                 |
-| `hermes`                           | `[plugins.hermes] enabled = true`; NOT in the core, so a machine with no readable config has no durable route. Kept under `--remote-only` because it is `durable`      | One signed POST, `ureq`, `content-type: application/json`, header `X-Webhook-Signature`, `max_redirects(0)`; 10 s deadline when silent, the sync deadline when reporting | `[plugins.hermes.keys]`, ONE KEY PER ROUTE (`pns-events`, `posture-pages`, `priority`, the roster in `pns_domain::routes::ROUTES`), so a key leaked from any route cannot post to every route; a route the table names no key for is refused before anything leaves the machine. Env `PNS_HERMES_URL` overrides `http://127.0.0.1:8644/webhooks/pns-events`; env `PNS_REMOTE_TIMEOUT` sets the sync deadline; `--channel <route>` swaps the final path segment AND selects the key | `Delivery::Failed` with the outcome sentence: `post FAILED HTTP <code>`, `post FAILED HTTP 000 (no response; is the hermes gateway up?)`, `post FAILED (curl reported no HTTP status at all)`, or the no-key `post SKIPPED` line. On a `ReportOutcome` leg the failure IS printed | `src/channels/hermes.rs:tests::sync_outcomes_are_spelled_exactly_as_the_bash_spells_them`, `src/channels/hermes.rs:tests::no_key_means_no_post_in_either_mode_and_the_verdict_is_a_failure`, `tests/dispatch.rs:every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`, `tests/native.rs:sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent`, `tests/native.rs:a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway` |
-| Any executable channel `<name>.sh` | Reached for a planned leg when the native plugin does not win: always when `PNS_CHANNELS_DIR` is set non-empty, and for any leg name with no compiled-in arm otherwise | `Command::new(<dir>/<name>.sh)` with the event JSON plus a newline on stdin; stdout and stderr are INHERITED                                                             | env `PNS_CHANNELS_DIR`, default `$HOME/.local/libexec/pns/channels`                                                                                                                            | Never an error for the caller. A spawn that failed is `Delivery::Unlaunched`; a channel that ran is `Delivery::Silent` whatever its exit status                                                                                                                                   | `tests/dispatch.rs:an_absent_channel_is_simply_not_installed`, `tests/dispatch.rs:a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings`, `tests/dispatch.rs:a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_made`                                                                                                                                                                                                                 |
-| `hue`                              | Registered and selectable, NEVER a leg                                                                                                                                 | Not a delivery path. Driven by `pulse` mode                                                                                                                              | Deferred to `docs/specs/lighting-policy.md`                                                                                                                                                    | Not applicable                                                                                                                                                                                                                                                                    | `src/routing.rs:tests::a_plugin_that_is_not_event_dispatched_is_never_a_leg_however_it_is_selected`                                                                                                                                                                                                                                                                                                                                                                                |
-| `router`                           | Registered as `PluginKind::Sensor`, NEVER a leg                                                                                                                        | Not a delivery path. It is an input the `home probe` reads                                                                                                               | Deferred to the presence specification                                                                                                                                                         | Not applicable                                                                                                                                                                                                                                                                    | `src/routing.rs:tests::a_selected_sensor_is_never_a_leg_on_the_alert_path` and the two flag variants beside it                                                                                                                                                                                                                                                                                                                                                                     |
+| `mobile` (moshi backend)           | `[plugins.phone] enabled = true`, or the core fallback; then `channel_plan` keeps it only when `delivery.phone_card` is true, because it is `presence_gated`          | One HTTPS POST, `ureq`, `content-type: application/json`, `max_redirects(0)`, 10 s global deadline                                                                       | `[plugins.phone] type` (must be `"moshi"`), `[plugins.phone] token`; `[plugins.phone] url`, else env `PNS_MOSHI_URL`, else `https://api.getmoshi.app/api/webhook`                                                    | `Delivery::Failed`; a refused `type` fails before either seam; no token fails naming the key; any non 2xx or unreachable endpoint fails. The sentence is unreachable from an event's stdout because the leg is never `ReportOutcome`                                              | `src/channels/moshi.rs:tests::a_push_the_endpoint_took_is_delivered_and_one_it_did_not_is_failed_without_the_token`, `src/channels/moshi.rs:tests::a_missing_token_posts_nothing_and_fails_by_naming_the_config_key_to_write`, `tests/native.rs:native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output`, `tests/native.rs:a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token`                                                     |
+| `banner`                     | `[plugins.banner] enabled = true`, or the core fallback; then `channel_plan` keeps it only when `delivery.banner` is true, because it is `local`                 | Spawn of `terminal-notifier` by NAME through PATH, under `SystemCommandRunner` (5 s deadline, 1 MiB stdout ceiling)                                                      | `[plugins.banner] terminal_bundle_id`, else env `PNS_TERMINAL_BUNDLE_ID`, else inherited `__CFBundleIdentifier`, else `com.mitchellh.ghostty`; `herdr` resolved on PATH at construction                                                    | `Delivery::Failed("banner FAILED (terminal-notifier did not run)")` whenever the runner answers nothing, which covers not installed, non-zero exit and killed at the deadline alike                                                                                               | `src/channels/banner.rs:tests::a_spawn_that_answered_is_delivered_and_one_that_never_ran_names_the_notifier`, `src/channels/banner.rs:tests::nothing_but_the_notifier_is_ever_spawned`, `tests/native.rs:the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent`                                                                                                                                                                                                 |
+| `hermes`                           | `[plugins.log] enabled = true` with `type = "hermes"`; NOT in the core, so a machine with no readable config has no durable route. Kept under `--remote-only` because it is `durable`      | One signed POST, `ureq`, `content-type: application/json`, header `X-Webhook-Signature`, `max_redirects(0)`; 10 s deadline when silent, the sync deadline when reporting | `[plugins.log.keys]`, ONE KEY PER ROUTE (`pns-events`, `posture-pages`, `priority`, the roster in `pns_domain::routes::ROUTES`), so a key leaked from any route cannot post to every route; a route the table names no key for is refused before anything leaves the machine. `[plugins.log] url`, else env `PNS_HERMES_URL`, else `http://127.0.0.1:8644/webhooks/pns-events`; `[delivery] remote_deadline` sets the sync deadline; `--channel <route>` swaps the final path segment AND selects the key | `Delivery::Failed` with the outcome sentence: `post FAILED HTTP <code>`, `post FAILED HTTP 000 (no response; is the hermes gateway up?)`, `post FAILED (curl reported no HTTP status at all)`, or the no-key `post SKIPPED` line. On a `ReportOutcome` leg the failure IS printed | `src/channels/hermes.rs:tests::sync_outcomes_are_spelled_exactly_as_the_bash_spells_them`, `src/channels/hermes.rs:tests::no_key_means_no_post_in_either_mode_and_the_verdict_is_a_failure`, `tests/dispatch.rs:every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`, `tests/native.rs:sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent`, `tests/native.rs:a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway` |
+| Any executable channel `<name>.sh` | Reached for a planned leg when the native plugin does not win: always when `[paths] channels_dir`, or `PNS_CHANNELS_DIR` after it, is set non-empty, and for any leg name with no compiled-in arm otherwise | `Command::new(<dir>/<name>.sh)` with the event JSON plus a newline on stdin; stdout and stderr are INHERITED                                                             | `[paths] channels_dir`, else env `PNS_CHANNELS_DIR`, default `$HOME/.local/libexec/pns/channels`                                                                                                                            | Never an error for the caller. A spawn that failed is `Delivery::Unlaunched`; a channel that ran is `Delivery::Silent` whatever its exit status                                                                                                                                   | `tests/dispatch.rs:an_absent_channel_is_simply_not_installed`, `tests/dispatch.rs:a_channel_that_fails_neither_fails_the_caller_nor_suppresses_its_siblings`, `tests/dispatch.rs:a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_made`                                                                                                                                                                                                                 |
+| `lights`                            | Registered and selectable, NEVER a leg                                                                                                                                 | Not a delivery path. Driven by `pulse` mode                                                                                                                              | Deferred to `docs/specs/lighting-policy.md`                                                                                                                                                    | Not applicable                                                                                                                                                                                                                                                                    | `src/routing.rs:tests::a_plugin_that_is_not_event_dispatched_is_never_a_leg_however_it_is_selected`                                                                                                                                                                                                                                                                                                                                                                                |
+| `home_presence`              | Registered as `PluginKind::Sensor`, NEVER a leg                                                                                                                        | Not a delivery path. It is an input the `home probe` reads                                                                                                               | Deferred to the presence specification                                                                                                                                                         | Not applicable                                                                                                                                                                                                                                                                    | `src/routing.rs:tests::a_selected_sensor_is_never_a_leg_on_the_alert_path` and the two flag variants beside it                                                                                                                                                                                                                                                                                                                                                                     |
 
 ______________________________________________________________________
 
@@ -46,7 +46,7 @@ A later refactor is required to remove these. Each is a place where the open reg
 (`Routing` declarations) is closed again by a hard-coded name.
 
 1. **`src/main.rs:deliver_leg`** is the primary one. It performs
-   `match leg.name { "macos-banner" => ..., "mobile" => ..., "hermes" => ..., _ => {} }` inside an
+   `match leg.name { "banner" => ..., "mobile" => ..., "hermes" => ..., _ => {} }` inside an
    `if native_wins` block, and falls through to the executable channel at
    `channels_dir.join(format!("{}.sh", leg.name))`. Adding a native destination means editing this match,
    which is exactly what `src/registry.rs`'s module comment claims registration removed.
@@ -65,7 +65,7 @@ A later refactor is required to remove these. Each is a place where the open reg
    switch, and its own comment states it is deliberately by name rather than by position.
 1. In tests,
    `src/routing.rs:tests::no_plan_over_the_real_roster_hands_the_phone_or_the_banner_a_reporting_leg`
-   asserts over `matches!(planned.name, "mobile" | "macos-banner")`, so the structural safety argument is
+   asserts over `matches!(planned.name, "mobile" | "banner")`, so the structural safety argument is
    itself keyed on two names.
 
 ______________________________________________________________________
@@ -85,7 +85,7 @@ filtering only on `PluginKind`, `routing.event_dispatched`, `routing.local`, `ro
 reaches.
 
 - **Success:** `src/routing.rs:tests::the_alert_path_plans_phone_then_banner_then_log` pins the full
-  alert plan as `mobile`, then `macos-banner`, then `hermes`, all `ReportMode::Silent`.
+  alert plan as `mobile`, then `banner`, then `hermes`, all `ReportMode::Silent`.
 - **Failure sources:** A registration that mislaid or mis-stated its `Routing` declaration. A registry
   whose registration order changed.
 - **Fail direction:** Toward planning nothing rather than planning a wrong destination. An empty plan is
@@ -108,7 +108,7 @@ reaches.
 
 ### 2. A sensor can never become a delivery leg
 
-Given a `Selection` that includes the enabled `router` sensor alongside the three channels
+Given a `Selection` that includes the enabled `home_presence` sensor alongside the three channels
 
 When any plan is computed, under any combination of `local_only`, `remote_only` and phone verdict
 
@@ -249,7 +249,7 @@ REGISTRATION order whatever order the config listed.
   Fabricated registrations cannot reach routing.
 - **Failure sources:** A config typo. Two plugins claiming one name, refused at registration as
   `RegistryError::Duplicate(name)`. A borrowed credential the config did not switch on: `REQUIRES` pairs
-  `presence` with `hue`, because the room sensor reads the bridge through `[plugins.hue]`'s own address
+  `presence` with `lights`, because the room sensor reads the bridge through `[plugins.lights]`'s own address
   and key rather than declaring its own (`src/registry.rs:REQUIRES`).
 - **Fail direction:** Loud. A typo'd plugin name that silently no-ops is a notification quietly turned
   off (`src/registry.rs` module comment). `build_registry` PANICS on a refused registration, which is
@@ -279,7 +279,7 @@ could not be read selects the CORE with a warning.
 
 - **Success:** `src/registry.rs:select_plugins`. The two warning strings are exactly
   `pns: config error ({detail}); running every built-in plugin` and
-  `pns: config error ({detail}); running the core plugins (mobile, macos-banner)`
+  `pns: config error ({detail}); running the core plugins (phone, banner)`
   (`src/registry.rs:every_plugin_warning`, `src/registry.rs:core_warning`, the latter joining `CORE` with
   `", "`).
 - **Failure sources:** An unreadable, malformed or invalid config file. A mistyped table name in an
@@ -287,7 +287,7 @@ could not be read selects the CORE with a warning.
 - **Fail direction:** Toward still delivering. A config error that silently turned every notification off
   would be the exact failure the config layer exists to refuse. Narrowing on one typo would cost a fully
   configured machine its durable paper trail and its lights.
-- **Thresholds:** `CORE` is exactly `["mobile", "macos-banner"]`. hermes, hue and router are outside it
+- **Thresholds:** `CORE` is exactly `["mobile", "banner"]`. hermes, hue and router are outside it
   because each needs a credential stood up (operator ruling 2026-08-31, recorded at
   `src/registry.rs:Registry::core`).
 - **Required side effects:** The warning is RETURNED, not printed. The composition root prints it
@@ -345,7 +345,7 @@ Then it builds one `channels::Event` carrying `agent`, `state`, `project`, `bran
 - **Idempotency and duplicates:** Pure and deterministic.
 - **Privacy:** The `detail` is operator-supplied text and travels to every destination. No secret is
   composed into any rendered field: the moshi token and the hermes key are read separately at the
-  composition root and never reach `Event` (`src/main.rs:read_mobile`,
+  composition root and never reach `Event` (`src/main.rs:read_phone`,
   `src/main.rs:plugin_settings(config, "hermes")`).
 - **Process ownership and cleanup:** Not applicable.
 - **Compatibility contract:** `Event::to_json` emits the channel contract's object with the per-leg
@@ -392,7 +392,7 @@ Given the dispatch site
 
 When `native_first(channels_dir_overridden)` is asked
 
-Then it answers `!channels_dir_overridden`: with `PNS_CHANNELS_DIR` set to a non-empty value, EXECUTABLES
+Then it answers `!channels_dir_overridden`: with `[paths] channels_dir`, or `PNS_CHANNELS_DIR` after it, set to a non-empty value, EXECUTABLES
 win for every name; with it unset or empty, a native plugin wins and the executable fallback serves only
 names with no compiled-in arm.
 
@@ -400,7 +400,7 @@ names with no compiled-in arm.
   `src/channels/banner.rs:tests::an_explicit_channels_dir_means_executables_win` and end to end by
   `tests/native.rs:the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent`, which
   plants a decoy executable at the default path and asserts it never fires.
-- **Failure sources:** An exported-but-blank `PNS_CHANNELS_DIR`. It is filtered out by
+- **Failure sources:** A blank `[paths] channels_dir` or an exported-but-blank `PNS_CHANNELS_DIR`. It is filtered out by
   `.filter(|dir| !dir.is_empty())` in `src/main.rs:dispatch_legs`, so a blank variable does NOT count as
   an override.
 - **Fail direction:** Toward native. An empty or unset variable resolves to
@@ -467,7 +467,7 @@ newline, waits for the child, and answers `Delivery::Silent`. A spawn that faile
 
 ### 12. The banner spawns `terminal-notifier` and nothing else
 
-Given a `macos-banner` leg and a rendered event
+Given a `banner` leg and a rendered event
 
 When `BannerChannel::deliver` runs
 
@@ -522,7 +522,7 @@ in that pinned order, and spawns `terminal-notifier` by NAME through PATH.
 
 ### 13. The mobile leg is refused before either seam when the table names no compiled-in backend
 
-Given `[plugins.mobile]` switched on with a `type` that is absent, empty, or not `"moshi"`
+Given `[plugins.phone]` switched on with a `type` that is absent, empty, or not `"moshi"`
 
 When `dispatch_legs` reaches the `mobile` leg
 
@@ -530,20 +530,20 @@ Then it returns `Delivery::Failed(refused_backend_line(reason))` without choosin
 refusal holds whether the native plugin or an executable channel would have won.
 
 - **Success:** `src/main.rs:dispatch_legs` gates on `leg.name == "mobile" && mobile.refusal.is_some()`.
-  The reason comes from `src/channels/moshi.rs:mobile_backend` via `src/config.rs:armed_mobile` and
-  `src/main.rs:read_mobile`. The two reason strings are verbatim:
-  `no type in [plugins.mobile]; the only type is "moshi"` and
-  `[plugins.mobile] has type "<named>", which no compiled-in backend answers; the only type is "moshi"`
-  (`src/channels/moshi.rs:mobile_backend`, pinned by
+  The reason comes from `src/channels/moshi.rs:phone_backend` via `src/config.rs:armed_phone` and
+  `src/main.rs:read_phone`. The two reason strings are verbatim:
+  `no type in [plugins.phone]; the only type is "moshi"` and
+  `[plugins.phone] has type "<named>", which no compiled-in backend answers; the only type is "moshi"`
+  (`src/channels/moshi.rs:phone_backend`, pinned by
   `src/channels/moshi.rs:tests::the_table_has_to_name_a_backend_and_the_refusal_names_the_key` and
   `:a_type_no_compiled_in_backend_answers_is_refused_quoting_it`). The wrapper is
   `push SKIPPED -- {reason}; nothing was sent` (`src/channels/moshi.rs:refused_backend_line`).
 - **Failure sources:** A `type` key left blank reads the same as absent, deliberately, matching the
-  reading `home::router_settings` gives the `router` table's own `type`.
+  reading `home::router_settings` gives the `home_presence` table's own `type`.
 - **Fail direction:** Nothing is sent, and the operator is told once on stderr by
-  `src/main.rs:read_mobile`: `pns: config error ({reason}); no card is pushed`.
+  `src/main.rs:read_phone`: `pns: config error ({reason}); no card is pushed`.
 - **Thresholds:** Not applicable.
-- **Required side effects:** Exactly one stderr line from `read_mobile`, because the table is read once
+- **Required side effects:** Exactly one stderr line from `read_phone`, because the table is read once
   and the token, the toggle and the refusal come out of one verdict.
 - **Forbidden side effects:** The gate must NOT sit on the token. It used to, and with an executable
   channel of the same name installed the card went out under a backend nobody named while stderr said "no
@@ -553,7 +553,7 @@ refusal holds whether the native plugin or an executable channel would have won.
 - **Idempotency and duplicates:** One read of the table per process.
 - **Privacy:** The refusal quotes the offending `type` value, never the `token`.
 - **Process ownership and cleanup:** Not applicable.
-- **Compatibility contract:** A SWITCHED-OFF `[plugins.mobile]` table is inert: nothing at load and
+- **Compatibility contract:** A SWITCHED-OFF `[plugins.phone]` table is inert: nothing at load and
   nothing on the event path refuses its `type` (operator ruling 2026-08-31). The hand-run check says it
   once instead, on stderr, in the words of `src/main.rs:disabled_backend_warning`:
   `pns: [plugins.<table>] is switched off and names no backend this binary answers (the only type is "<type>"); nothing refuses it until it is enabled`
@@ -564,7 +564,7 @@ refusal holds whether the native plugin or an executable channel would have won.
 
 ### 14. The mobile card is one HTTPS POST carrying the token in the body
 
-Given an armed `[plugins.mobile]` table with a non-empty `token`
+Given an armed `[plugins.phone]` table with a non-empty `token`
 
 When `MoshiChannel::deliver` runs
 
@@ -578,7 +578,7 @@ Then it POSTs `{"token": ..., "title": ..., "message": <preview>}` plus an optio
   verdict on success is `Delivery::Delivered("pushed the card")`.
 - **Failure sources:** No token; a refusal; an unreachable endpoint; a redirect.
 - **Fail direction:** No token is `Delivery::Failed` with
-  `push SKIPPED -- no moshi token in the config ([plugins.mobile] token); nothing was sent`
+  `push SKIPPED -- no moshi token in the config ([plugins.phone] token); nothing was sent`
   (`src/channels/moshi.rs:NO_TOKEN_LINE`). Anything else is `Delivery::Failed` with
   `push FAILED (the moshi endpoint refused it or could not be reached)`, which deliberately does not pick
   a reason because the seam answers a bool. Neither sentence can reach an event's stdout: the leg is
@@ -626,7 +626,7 @@ Then it POSTs `{"token": ..., "title": ..., "message": <preview>}` plus an optio
 
 ### 15. The hermes record is one signed POST, and it says how it went
 
-Given an enabled `[plugins.hermes]` table with a non-empty `key`
+Given an enabled `[plugins.log]` table with a non-empty `key`
 
 When `HermesChannel::deliver` runs
 
@@ -651,7 +651,7 @@ happened.
   (`src/channels/hermes.rs:HermesChannel::deliver`). The four sentences are verbatim:
   `posted HTTP {code}`, `post FAILED HTTP {code}`, `post FAILED (curl reported no HTTP status at all)`,
   `post FAILED HTTP 000 (no response; is the hermes gateway up?)`, plus
-  `post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent`
+  `post SKIPPED -- no hermes key for the <route> route ([plugins.log.keys] <route>); nothing was sent`
   (`src/channels/hermes.rs:outcome_line`, `:skipped_line`). Three of them are pinned end to end through
   the real binary by
   `tests/dispatch.rs:every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before` and
@@ -659,7 +659,7 @@ happened.
 - **Thresholds:** `DELIVERED_STATUS` is **200..300**, written once so the sentence and the verdict cannot
   disagree (`src/channels/hermes.rs:DELIVERED_STATUS`, `:delivered`). `ASYNC_DEADLINE` is **10 seconds**
   and is not configurable. `DEFAULT_SYNC_DEADLINE_SECS` is **5**; `MAX_SYNC_DEADLINE_SECS` is **86400**
-  (one day). `PNS_REMOTE_TIMEOUT` is validated as a count: a garbled value falls back to 5, a value of
+  (one day). `[delivery] remote_deadline` is refused at load unless it is a nonnegative integer, and a value of
   **0** means NO deadline at all (curl's `-m 0`, explicit caller intent), and 86401 clamps to 86400
   rather than panicking ureq's deadline arithmetic (`src/channels/hermes.rs:remote_deadline`, pinned by
   `:the_sync_deadline_validates_and_defaults_to_five`,
@@ -695,7 +695,7 @@ Given `--channel <route>` on an event, or a route named in config for the stale 
 
 When `hermes_url_for` runs
 
-Then `PNS_HERMES_URL` wins outright if set non-empty; else an empty route posts to the default; else
+Then `[plugins.log] url`, and `PNS_HERMES_URL` after it, win outright if set non-empty; else an empty route posts to the default; else
 `channel_url` swaps the default URL's final path segment for the route name; else the engine warns and
 posts to the default.
 
@@ -703,16 +703,20 @@ posts to the default.
   `tests/native.rs:the_stale_alert_posts_to_the_hermes_route_the_config_named`, which asserts both
   `POST /webhooks/priority HTTP/1.1` AND that the `Host` header is still `127.0.0.1:8644`, so a swap that
   took the base with it would be a different defect passing the test. A producer that names no route may
-  still say what its event IS, on the argv (`--kind health`) or in a version 1 submission (the request's
-  own `kind` field): a health event whose state is one the operator has to answer resolves to the
-  `[routes] urgent` route, and `agent` (the default), or a health event that needs nobody, to the default
-  route. The mapping is `pns_domain::routes::Kind::route`
-  (`src/legacy/argv/tests.rs:a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route`,
-  `pns-domain/src/routes.rs:a_health_event_nobody_has_to_answer_stays_off_the_urgent_route`,
-  `src/event_flow/submit/mapping/tests.rs:a_producer_that_states_a_kind_has_it_read_and_one_that_states_none_is_a_session_event`)
+  still say what its event IS, on the argv (`--delivery-class health`) or in a version 1 submission (the
+  request's own `delivery_class` field, which is the same word). What that word MEANS is
+  `[delivery_class.<name>]` and nothing compiled in: `route` is where a message of that class goes and
+  it is taken only while the state is one the operator has to answer, so an event naming no class, or a
+  classed event that needs nobody, takes the default route. A message naming no class reads
+  `[delivery_class.default]`, and a class no table defines is REFUSED with exit 2 and named rather than
+  delivered as the default. The mapping is `pns_domain::routes::route_for`
+  (`src/legacy/argv/tests.rs:a_failed_health_class_pages_and_a_session_class_keeps_the_default_route`,
+  `pns-domain/src/routes.rs:a_class_route_stays_unused_while_nobody_has_to_answer`,
+  `tests/hooks/delivery_class.rs:a_class_no_table_defines_is_refused_and_named_on_both_paths`,
+  `src/event_flow/submit/mapping/tests.rs:a_producer_that_states_a_delivery_class_has_it_read_and_one_that_states_none_carries_nothing`)
   and an explicit `--channel`, or a route the submission named, still beats it in either order
-  (`:a_named_channel_beats_the_kind_in_either_order`,
-  `src/event_flow/submit/mapping/tests.rs:a_route_the_producer_named_still_outranks_the_kind_it_stated`).
+  (`:a_named_route_beats_the_delivery_class_in_either_order`,
+  `src/event_flow/submit/mapping/tests.rs:a_route_the_producer_named_still_outranks_the_delivery_class_it_stated`).
 - **Failure sources:** A route name that could not safely become a path segment. A base URL with no `/`
   at all (`:a_base_without_a_path_yields_nothing_rather_than_a_bogus_url`).
 - **Fail direction:** LOUD-WARD. An unusable name prints
@@ -849,32 +853,33 @@ Then `std::panic::catch_unwind` converts the panic into
 - **Compatibility contract:** The catch sits at the one site that dispatches any leg at all, so the
   backend refusal and the panic catch are the same fence.
 
-### 20. A notification never fails the work it reports on
+### 20. A notification never fails the harness turn it reports on
 
-Given any event delivered through the producer path
+Given any event delivered through a harness hook path
 
 When the process finishes, whatever every destination did
 
-Then it exits 0.
+Then it exits 0. A producer calling `pns send` hears the delivery instead: 0 when every durable
+destination took the page and 1 when one did not.
 
 - **Success:** `src/main.rs:main` falls through to `event_mode(&argv)`, which returns `()`; no
   `std::process::exit` is on the event path (`src/main.rs:main` lines 48 to 155). Every mode that DOES
-  set a code (`pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`, `nag`, `setup`, `gate`,
+  set a code (`pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`, `remind`, `setup`, `gate`,
   `hook`) is reached by argv[1] before the event path.
 - **Failure sources:** A non-UTF-8 byte in argv, which would panic `std::env::args()`. It is avoided by
   one lossy read through `args_os` (`src/main.rs:main`), pinned by
   `tests/dispatch.rs:a_non_unicode_argument_never_breaks_the_exit_zero_edge`.
-- **Fail direction:** Always exit 0 for an event. The exceptions are stated and narrow: a word that names
-  no command is a typo, not an event, and earns usage on stderr and exit 2 (`src/main.rs:main`); the
-  hand-run check exits 1 when a channel failed
+- **Fail direction:** Always exit 0 for a hook. A `pns send` call exits 1 when a durable destination took
+  nothing, and a word that names no command is a typo rather than an event and earns usage on stderr and
+  exit 2 (`src/main.rs:main`); the hand-run check exits 1 when a channel failed
   (`tests/dispatch.rs:a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one`);
   and `pns recap` exits 0 even when the gateway refused, because that contract is the binary's and not
   the mode's to break
   (`tests/native.rs:a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero`).
 - **Thresholds:** Not applicable.
 - **Required side effects:** None. Silence is the ordinary outcome of a successful event.
-- **Forbidden side effects:** No destination's failure may propagate as a non-zero status, a panic that
-  escapes, or an early return that skips a sibling. `catch_unwind` (behavior 19) and the no-`?` loop
+- **Forbidden side effects:** No destination's failure may propagate out of a hook as a non-zero status,
+  and none anywhere may propagate as a panic that escapes or an early return that skips a sibling. `catch_unwind` (behavior 19) and the no-`?` loop
   (behavior 18) are the two mechanisms.
 - **Timeout and cancellation:** Each leg is individually bounded except an executable channel; see
   behavior 11's Thresholds for the one gap.
@@ -882,8 +887,9 @@ Then it exits 0.
 - **Privacy:** Not applicable.
 - **Process ownership and cleanup:** Every spawned child is either reaped by `run_bounded` or by
   `deliver`'s `child.wait()`.
-- **Compatibility contract:** The always-exit-0 contract governs EVENT deliveries, and a word naming no
-  command never becomes one, so refusing an unknown argv[1] contradicts nothing (`src/main.rs:main`).
+- **Compatibility contract:** The always-exit-0 contract governs HARNESS HOOKS, and a word naming no
+  command never becomes an event, so refusing an unknown argv[1] contradicts nothing
+  (`src/main.rs:main`).
 
 ### 21. Three callers dispatch legs, and each spells its own report
 
@@ -986,7 +992,7 @@ ______________________________________________________________________
 | flatten                       | `src/render.rs:flatten_reply`                                                   |
 | click command                 | `src/channels/banner.rs:click_command`                                          |
 | verbatim argument             | `src/channels/banner.rs:verbatim_argument`                                      |
-| mobile backend                | `src/channels/moshi.rs:mobile_backend`                                          |
+| mobile backend                | `src/channels/moshi.rs:phone_backend`                                          |
 | deep link                     | `src/channels/moshi.rs:herdr_link`                                              |
 | webhook body                  | `src/channels/moshi.rs:webhook_body`                                            |
 | post outcome                  | `src/channels/hermes.rs:PostOutcome`                                            |
@@ -997,7 +1003,7 @@ ______________________________________________________________________
 | leg delivery                  | `src/main.rs:deliver_leg`                                                       |
 | executable channel invocation | `src/main.rs:deliver`                                                           |
 | executable discovery          | `src/main.rs:resolve_path`, `src/main.rs:executable_in_path`                    |
-| mobile verdict                | `src/main.rs:Mobile`, `src/main.rs:read_mobile`                                 |
+| mobile verdict                | `src/main.rs:Mobile`, `src/main.rs:read_phone`                                 |
 | rendered event                | `src/main.rs:rendered_event`                                                    |
 | bounded spawn                 | `src/system.rs:run_bounded`                                                     |
 | pane guard                    | `src/safety.rs:pane_is_safe`                                                    |

@@ -5,15 +5,33 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 type Events = Rc<RefCell<Vec<&'static str>>>;
-struct Guard(Events);
+struct Guard {
+    events: Events,
+    records: Rc<RefCell<Vec<(String, String)>>>,
+    record_fails: bool,
+}
 impl Drop for Guard {
     fn drop(&mut self) {
-        self.0.borrow_mut().push("unlock");
+        self.events.borrow_mut().push("unlock");
+    }
+}
+impl WriteRecord for Guard {
+    fn record(&self, verb: &str, label: &str) -> Result<(), RecordRefusal> {
+        self.events.borrow_mut().push("record");
+        if self.record_fails {
+            return Err(RecordRefusal);
+        }
+        self.records
+            .borrow_mut()
+            .push((verb.to_owned(), label.to_owned()));
+        Ok(())
     }
 }
 struct Lock {
     events: Events,
+    records: Rc<RefCell<Vec<(String, String)>>>,
     fails: bool,
+    record_fails: bool,
 }
 impl WriteLock for Lock {
     type Guard = Guard;
@@ -22,7 +40,11 @@ impl WriteLock for Lock {
         if self.fails {
             Err(LockRefusal)
         } else {
-            Ok(Guard(self.events.clone()))
+            Ok(Guard {
+                events: self.events.clone(),
+                records: self.records.clone(),
+                record_fails: self.record_fails,
+            })
         }
     }
 }
@@ -99,6 +121,7 @@ impl Publisher for Publish {
 }
 struct Fixture {
     events: Events,
+    records: Rc<RefCell<Vec<(String, String)>>>,
     lock: Lock,
     launch: Launch,
     source: Source,
@@ -107,10 +130,13 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let events = Rc::new(RefCell::new(Vec::new()));
+        let records = Rc::new(RefCell::new(Vec::new()));
         Self {
             lock: Lock {
                 events: events.clone(),
+                records: records.clone(),
                 fails: false,
+                record_fails: false,
             },
             launch: Launch {
                 events: events.clone(),
@@ -144,6 +170,7 @@ impl Fixture {
                 entries: vec![],
             },
             events,
+            records,
         }
     }
     fn run(&mut self, command: AllowlistCommand<'_>) -> Result<CurationOutcome, CurationFailure> {
@@ -173,7 +200,9 @@ fn add_captures_before_source_and_holds_the_lock_through_publication() {
     );
     assert_eq!(
         f.events(),
-        ["lock", "capture", "resolve", "read", "publish", "unlock"]
+        [
+            "lock", "capture", "resolve", "read", "record", "publish", "unlock"
+        ]
     );
     assert_eq!(
         f.publish.preserved,
@@ -190,6 +219,36 @@ fn add_captures_before_source_and_holds_the_lock_through_publication() {
     );
 }
 #[test]
+fn every_published_write_records_its_verb_and_label_first() {
+    let mut allow = Fixture::new();
+    assert!(allow.run(AllowlistCommand::Add("my.alpha")).is_ok());
+    assert_eq!(
+        *allow.records.borrow(),
+        [("allow".to_owned(), "my.alpha".to_owned())]
+    );
+    let mut deny = Fixture::new();
+    assert!(deny.run(AllowlistCommand::Deny("my.alpha")).is_ok());
+    assert_eq!(
+        *deny.records.borrow(),
+        [("deny".to_owned(), "my.alpha".to_owned())]
+    );
+}
+#[test]
+fn a_write_that_cannot_be_recorded_is_refused_before_publication() {
+    let mut f = Fixture::new();
+    f.lock.record_fails = true;
+    assert_eq!(
+        f.run(AllowlistCommand::Add("my.alpha")),
+        Err(CurationFailure::Record)
+    );
+    assert_eq!(
+        f.events(),
+        ["lock", "capture", "resolve", "read", "record", "unlock"]
+    );
+    assert!(f.publish.preserved.is_empty());
+    assert!(f.publish.entries.is_empty());
+}
+#[test]
 fn deny_publishes_only_retained_lines_without_capturing_an_agent() {
     let mut f = Fixture::new();
     assert_eq!(
@@ -198,7 +257,9 @@ fn deny_publishes_only_retained_lines_without_capturing_an_agent() {
     );
     assert_eq!(
         f.events(),
-        ["lock", "resolve", "contains", "read", "publish", "unlock"]
+        [
+            "lock", "resolve", "contains", "read", "record", "publish", "unlock"
+        ]
     );
     assert_eq!(
         f.publish.preserved,
@@ -308,7 +369,9 @@ fn publication_failure_is_preserved_and_releases_the_guard() {
     );
     assert_eq!(
         f.events(),
-        ["lock", "resolve", "contains", "read", "publish", "unlock"]
+        [
+            "lock", "resolve", "contains", "read", "record", "publish", "unlock"
+        ]
     );
 }
 #[test]

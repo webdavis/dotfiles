@@ -92,7 +92,7 @@ fn seed_wait(state: &std::path::Path, session_id: &str, at: u64) -> std::path::P
 fn an_end_older_than_the_wait_it_finds_leaves_that_wait_armed() {
     // THE ANSWERED-WAIT RACE, from the losing side. Every clearing arm is
     // asynchronous, so an End is unordered against the next
-    // PermissionRequest: a Stop still condensing, or a question's own answer,
+    // PermissionRequest: a Stop still summarizing, or a question's own answer,
     // reaches this line after a SECOND wait has already been published, and
     // an unconditional unlink took it. The marker holds the second it was
     // armed and the caller states its own moment, so the newer wait survives.

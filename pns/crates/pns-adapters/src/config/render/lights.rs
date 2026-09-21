@@ -6,21 +6,21 @@ use super::*;
 /// EVERY CLUSTER AND DECLARATION MAP IS PULLED OUT OF `lights` FIRST, before
 /// any of it is written: `render_block`'s own leftover check would otherwise
 /// see the whole cluster sitting unclaimed under the bare `[lights]` heading,
-/// which serves only `refresh_secs`, and refuse it as an unknown key before
-/// the walk ever reaches `[lights.done]`.
+/// which serves only `arm_interval` and `dim_window`, and refuse it as an
+/// unknown key before the walk ever reaches `[lights.done]`.
 pub(super) fn render_lights(out: &mut String, remaining: &mut toml::Table) -> Result<(), String> {
     let present = remaining.contains_key("lights");
     let mut lights = take_table(remaining, "lights")?;
 
     let mut own_keys = toml::Table::new();
-    for key in ["note", "refresh_secs"] {
+    for key in ["note", "arm_interval", "dim_window"] {
         if let Some(value) = lights.remove(key) {
             own_keys.insert(key.to_string(), value);
         }
     }
     let mut clusters = Vec::new();
     for cluster in [
-        "done", "failed", "blocked", "unread", "github", "loop", "dim",
+        "done", "failed", "blocked", "unseen", "checks", "loop", "dim",
     ] {
         clusters.push((cluster, take_table(&mut lights, cluster)?));
     }
@@ -66,7 +66,7 @@ pub(super) fn render_target(
 ) -> Result<(), String> {
     write_note(out, take_note(settings)?);
     out.push_str(&format!("[lights.{level}.{}]\n", quoted(name)));
-    for key in ["shows", "dim_window", "dim_behaviours"] {
+    for key in ["behaviours", "dim_window", "dim_behaviours"] {
         if let Some(value) = settings.remove(key) {
             let rendered = render_value(&value)
                 .map_err(|error| format!("`lights.{level}.{name}` key `{key}`: {error}"))?;

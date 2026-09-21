@@ -1,6 +1,6 @@
 use super::*;
 
-// --- the lights quiet window ------------------------------------------------
+// --- the lights mute window ------------------------------------------------
 
 /// The pulse's whole visible effect at this boundary is whether it dialled, so
 /// a bare loopback listener IS the bridge: nothing here speaks CLIP and
@@ -66,11 +66,16 @@ pub(super) fn window_around(centre: u16, radius: u16) -> String {
     )
 }
 
-/// The `[plugins.hue]` config the two halves below share, quiet hours apart.
-pub(super) fn hue_config(port: u16, quiet_hours: &str) -> String {
+/// The config the two zone halves below share, the house dim window apart.
+///
+/// THE WINDOW GOES AFTER EVERY PLUGIN TABLE, because a bare key in a TOML file
+/// belongs to whichever table was opened last: written inside
+/// `[plugins.lights]` it would be refused by name there.
+pub(super) fn hue_config(port: u16, dim_window: &str) -> String {
     format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         quiet_hours = \"{quiet_hours}\"\n[plugins.hermes]\nenabled = true\n"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n\
+         [lights]\ndim_window = \"{dim_window}\"\n"
     )
 }
 
@@ -94,20 +99,19 @@ pub(super) const TOKYO_MINUTES_AHEAD: u16 = 9 * 60;
 /// states a 22:00-07:00 window, and a wall-clock window would make every case
 /// here answer differently depending on the hour the suite happened to run. The
 /// window's own behaviour is pinned by the tests that set a clock.
-pub(super) const STUDIO_MAP: &str = "[lights]\nrefresh_secs = 20\n\
-     [lights.room.\"3F - Studio\"]\nshows = [\"done\", \"failed\"]\n\
-     [lights.lamp.\"3F - Studio - HCL3\"]\nshows = [\"loop\", \"blocked\", \"unread\"]\n";
+pub(super) const STUDIO_MAP: &str = "[lights]\narm_interval = \"20s\"\n\
+     [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\", \"failed\"]\n\
+     [lights.lamp.\"3F - Studio - HCL3\"]\nbehaviours = [\"loop\", \"blocked\", \"unseen\"]\n";
 
 /// One event against a spy bridge: whether the bridge was dialled, and whether
 /// the two network legs fired.
 ///
-/// `MOSHI_HOOK_BIN` POINTS NOWHERE, in every case, without exception. The
+/// `PNS_MOSHI_HOOK_BIN` POINTS NOWHERE, in every case, without exception. The
 /// operator's own moshi daemon is a real program on this machine and no test
 /// may reach it; the sandbox's channel stubs cover the leg, and this covers the
 /// native path that resolves the binary by name.
 pub(super) fn lamp_run(
     name: &str,
-    hue_extra: &str,
     config: &str,
     args: &[&str],
     mute: Mute,
@@ -115,22 +119,20 @@ pub(super) fn lamp_run(
 ) -> (bool, bool, bool, bool, Option<i32>) {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
-    // `hue_extra` GOES INSIDE `[plugins.hue]` and the rest comes after every
-    // plugin table, because a bare key in a TOML file belongs to whichever
-    // table was opened last: appending `quiet_hours` to the end of this put it
-    // in `[plugins.hermes]`, where nothing reads it and nothing complains.
+    // `config` COMES AFTER EVERY PLUGIN TABLE, because a bare key in a TOML
+    // file belongs to whichever table was opened last.
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\n{hue_extra}[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-         [plugins.hermes]\nenabled = true\n{config}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+         [plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n{config}"
     ));
     // THE OPERATOR'S OWN MUTE, armed through the subcommand they actually
     // type rather than by writing its state file here: `HOME` is the sandbox,
     // so the expiry lands inside it and no other test can see it.
     let armed = match mute {
         Mute::Nothing => None,
-        Mute::Everything => Some(run(sandbox.pns().args(["quiet", "1h"]))),
-        Mute::Lights(place) => Some(run(sandbox.pns().args(["lights", "quiet", place, "1h"]))),
+        Mute::Everything => Some(run(sandbox.pns().args(["mute", "1h"]))),
+        Mute::Lights(place) => Some(run(sandbox.pns().args(["lights", "mute", place, "1h"]))),
     };
     if let Some(armed) = armed {
         assert_eq!(
@@ -142,9 +144,9 @@ pub(super) fn lamp_run(
     }
     let mut command = sandbox.pns();
     command.env("TZ", "UTC");
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     command.env(
-        "PNS_IDLE_SECS",
+        "PNS_SCREEN_IDLE",
         match presence {
             Presence::Away => "99999",
             Presence::Desk => "0",
@@ -192,9 +194,9 @@ pub(super) fn lamp_run(
         .status;
     (
         dialled,
-        sandbox.fired("mobile"),
+        sandbox.fired("phone"),
         sandbox.fired("hermes"),
-        sandbox.fired("macos-banner"),
+        sandbox.fired("banner"),
         status.code(),
     )
 }
@@ -211,12 +213,11 @@ pub(super) fn lamp_submit(name: &str, config: &str, request: &str) -> (bool, Opt
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new(name);
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         rooms = [\"3F - Studio\"]\n{config}"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n{config}"
     ));
     let mut command = sandbox.pns();
     command.env("TZ", "UTC");
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     let mut child = command
         .args(["send", "--json"])
         .stdin(std::process::Stdio::piped())
@@ -277,9 +278,9 @@ pub(super) enum Presence {
 #[derive(Debug, Clone, Copy)]
 pub(super) enum Mute {
     Nothing,
-    /// `pns quiet 1h`: the whole engine, cards included.
+    /// `pns mute 1h`: the whole engine, cards included.
     Everything,
-    /// `pns lights quiet <place> 1h`: that place's lamps and nothing else.
+    /// `pns lights mute <place> 1h`: that place's lamps and nothing else.
     Lights(&'static str),
 }
 
