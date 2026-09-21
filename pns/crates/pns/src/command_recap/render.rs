@@ -6,7 +6,7 @@
 //! are processes and files, so running them per form would be running them
 //! twice.
 
-use super::{Options, Span, options::OPEN, request};
+use super::{Options, options::OPEN, request};
 use crate::*;
 use pns_adapters::{DURABLE, Wire, read_mask};
 use pns_domain::recap::document::{Mask, apply, unknown_key};
@@ -40,9 +40,11 @@ pub(super) fn run(
         Some(Some(mask)) => Some(mask),
     };
     // A STORE THAT CANNOT BE OPENED IS A REFUSAL, because a recap with no
-    // agents section is not a recap.
+    // agents section is not a recap. EVERY SPAN CHECKS THIS, `open` included:
+    // its sessions come out of the same store, and a failed read there would
+    // otherwise print a silent all-clear instead of the refusal.
     let store = pns_adapters::SqliteStore::for_records(state_dir());
-    if options.span != Span::Open && store.activity_between(0, 0).is_err() {
+    if store.activity_between(0, 0).is_err() {
         eprintln!("pns: the activity store could not be opened, so there is no recap to give");
         return 2;
     }
