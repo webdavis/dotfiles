@@ -236,13 +236,8 @@ rather than a deployed copy. That is why none of them carries a "crate source is
 deferral any more: the builder's own hash comment `include`s each manifest at render time, so a missing
 one aborts the apply before the script is ever written.
 
-`morning/` is another workspace of the same shape, built by
-`.chezmoiscripts/run_onchange_after_55-build-morning.sh.tmpl`. It prints one framed page (the last apply,
-the applies the ledger owes, the open pull requests, the newest overnight recap, the operator's own items
-and today's tasks) and exits. It reads and prints only: it never applies, merges or edits anything. Every
-source it reads is named in `~/.config/morning/config.toml`, including the ledger path, so the binary
-works on a machine where this repository does not exist. `gh` and `td` are spawned with their own
-credentials; morning reads no secret.
+`pns recap` prints the day's brief now, folding in the last apply, the applies the ledger owes, the open
+pull requests, the newest overnight recap, the operator's own items and today's tasks.
 
 The layout exists so that lifting a tool into its own public repository later is a `git subtree split`
 rather than a rewrite. NOTHING inside a workspace may assume this repository exists: these are tools

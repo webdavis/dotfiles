@@ -68,7 +68,6 @@ pns
 uu
 posture
 lights
-morning
 tailnet-pin
 
 # The committed input to `just pns-config-render`, never a deploy target:
