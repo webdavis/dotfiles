@@ -4,6 +4,11 @@
 //! installed tool, so the whole lane is that call, the line it leaves in the
 //! record, and the exit code as the verdict.
 //!
+//! WHAT IS INSTALLED IS REPORTED AGAINST WHAT IS DECLARED, when the config
+//! states a `declared` roster. Nothing is ever removed: the extra names are
+//! read off `uv tool list` and noted, one line each, so a tool that arrived by
+//! hand shows up instead of living on unrecorded.
+//!
 //! AN ABSENT `uv` IS A FAILURE HERE, deliberately unlike the bash weekly job
 //! this ports from, which printed "nothing to upgrade" and returned clean when
 //! the binary was missing. A machine that declares the lane and has no uv is a
@@ -11,12 +16,16 @@
 //! either way is how that goes unnoticed for months.
 
 use crate::config::UvLane;
+use crate::lanes::undeclared::note_undeclared;
 use crate::lanes::{CommandRunner, LaneAdapter};
 use uu_domain::LaneReport;
 use uu_domain::RunFacts;
 
 /// The arguments the lane always runs `uv` with.
 const UPGRADE: [&str; 3] = ["tool", "upgrade", "--all"];
+
+/// The listing the report reads.
+const LISTING: [&str; 2] = ["tool", "list"];
 
 /// Upgrade every uv tool, and report what that took.
 impl LaneAdapter for UvLane {
@@ -37,137 +46,49 @@ impl LaneAdapter for UvLane {
             Ok(_) => report.noted(format!("{binary} tool upgrade --all: ok")),
             Err(why) => report.failed(format!("{binary} tool upgrade --all FAILED ({why})")),
         }
+        if let Some(declared) = &self.declared {
+            self.report_undeclared(declared, runner, &mut report);
+        }
         report
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lanes::Ran;
-    use crate::lanes::stubs::stub_facts;
-    use std::cell::RefCell;
-    use std::time::Duration;
-
-    /// A runner that answers one scripted result and records every call it
-    /// was asked to make. `Err` is the seam's own contract: an already
-    /// composed reason, whether the command exited non-zero or could not be
-    /// run at all.
-    struct StubRunner {
-        answer: Result<String, String>,
-        calls: RefCell<Vec<Vec<String>>>,
-    }
-
-    impl StubRunner {
-        fn clean() -> Self {
-            StubRunner {
-                answer: Ok(String::new()),
-                calls: RefCell::new(Vec::new()),
-            }
+impl UvLane {
+    /// List what is installed and note whatever the roster does not declare.
+    fn report_undeclared(
+        &self,
+        declared: &[String],
+        runner: &dyn CommandRunner,
+        report: &mut LaneReport,
+    ) {
+        let binary = self.binary.as_str();
+        match runner.run(binary, &LISTING) {
+            Ok(stdout) => note_undeclared(report, installed(&stdout), declared),
+            // WITHOUT THE LISTING THERE IS NO REPORT, and a silent lane reads
+            // exactly like a machine with nothing undeclared on it.
+            Err(why) => report.failed(format!("{binary} tool list FAILED ({why})")),
         }
-
-        fn refusing(why: &str) -> Self {
-            StubRunner {
-                answer: Err(why.to_string()),
-                calls: RefCell::new(Vec::new()),
-            }
-        }
-
-        fn calls(&self) -> Vec<Vec<String>> {
-            self.calls.borrow().clone()
-        }
-    }
-
-    impl CommandRunner for StubRunner {
-        fn run(&self, program: &str, args: &[&str]) -> Result<String, String> {
-            let mut call = vec![program.to_string()];
-            call.extend(args.iter().map(|word| (*word).to_string()));
-            self.calls.borrow_mut().push(call);
-            self.answer.clone()
-        }
-
-        fn run_with_deadline(
-            &self,
-            _program: &str,
-            _args: &[&str],
-            _most: Duration,
-        ) -> Result<String, String> {
-            unreachable!("the uv lane bounds no step of its own")
-        }
-
-        fn run_with_input(
-            &self,
-            _program: &str,
-            _args: &[&str],
-            _input: &str,
-        ) -> Result<Ran, String> {
-            unreachable!("the uv lane hands its child nothing on stdin")
-        }
-    }
-
-    fn lane() -> UvLane {
-        UvLane {
-            binary: "/opt/homebrew/bin/uv".to_string(),
-        }
-    }
-
-    #[test]
-    fn the_lane_upgrades_every_uv_tool_with_one_call_to_the_declared_binary() {
-        let runner = StubRunner::clean();
-        lane().run("uv", &stub_facts(), &runner);
-        assert_eq!(
-            runner.calls(),
-            vec![
-                ["/opt/homebrew/bin/uv", "tool", "upgrade", "--all"]
-                    .map(String::from)
-                    .to_vec()
-            ]
-        );
-    }
-
-    #[test]
-    fn a_clean_upgrade_is_one_recorded_line_under_the_lanes_own_name() {
-        // THE LANE'S OWN NAME, never the type's: `[lanes.tools]` with
-        // `type = "uv"` is recorded and alerted as `tools`, and a report
-        // carrying a hardcoded `uv` would name a lane nobody declared.
-        let report = lane().run("tools", &stub_facts(), &StubRunner::clean());
-        assert_eq!(report.name, "tools");
-        assert_eq!(report.failures(), 0);
-        assert_eq!(report.last_failure(), None);
-        assert_eq!(
-            report.lines,
-            vec!["/opt/homebrew/bin/uv tool upgrade --all: ok"]
-        );
-    }
-
-    #[test]
-    fn an_upgrade_that_did_not_succeed_is_a_counted_failure_carrying_what_uv_said() {
-        let report = lane().run(
-            "uv",
-            &stub_facts(),
-            &StubRunner::refusing("exit 2: error: no such option `--all`"),
-        );
-        assert_eq!(report.failures(), 1);
-        let line = report.last_failure().expect("a failure names itself");
-        assert!(line.contains("exit 2: error: no such option"), "{line}");
-        assert_eq!(report.lines, vec![line]);
-    }
-
-    #[test]
-    fn a_uv_that_is_not_installed_is_a_failure_rather_than_a_quiet_skip() {
-        // The bash job's own behavior, deliberately not ported: it printed
-        // "uv is not at ...; nothing to upgrade" and returned 0.
-        let report = lane().run(
-            "uv",
-            &stub_facts(),
-            &StubRunner::refusing("could not run /opt/homebrew/bin/uv: No such file or directory"),
-        );
-        assert_eq!(report.failures(), 1);
-        assert!(
-            report
-                .last_failure()
-                .is_some_and(|line| line.contains("No such file or directory")),
-            "an absent uv must name itself in the record"
-        );
     }
 }
+
+/// The tools in a `uv tool list` answer: one `<name> v<version>` line each,
+/// with every executable the tool installed indented beneath it.
+///
+/// AN EXECUTABLE LINE IS NOT A TOOL: it is a `- <name>` entry under the tool
+/// that installed it. And a line is a tool only if its second word is a `v`
+/// version, so a sentence uv prints in place of a list contributes no name.
+fn installed(stdout: &str) -> Vec<(&str, &str)> {
+    stdout
+        .lines()
+        .filter(|line| !line.starts_with('-') && !line.starts_with(char::is_whitespace))
+        .filter_map(|line| line.split_once(' '))
+        .filter_map(|(name, rest)| {
+            let at = rest.trim().strip_prefix('v')?;
+            (!name.is_empty() && !at.is_empty()).then_some((name, at))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+#[path = "uv/tests.rs"]
+mod tests;

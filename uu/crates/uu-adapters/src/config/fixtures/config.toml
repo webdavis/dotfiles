@@ -28,4 +28,5 @@ deadline_secs = 21600
 [lanes.uv]
 type = "uv"
 binary = "/opt/homebrew/bin/uv"
+declared = ["stand-in"]
 deadline_secs = 21600

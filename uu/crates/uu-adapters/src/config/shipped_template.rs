@@ -48,6 +48,9 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
         typed::<UvLane>(CONFIG, "uv"),
         Some(UvLane {
             binary: "/opt/homebrew/bin/uv".to_string(),
+            // THE ROSTER THE REPORT IS MEASURED AGAINST, for the same reason
+            // the npm block carries one.
+            declared: Some(vec!["stand-in".to_string()]),
         })
     );
     // AND THE LANE THAT CARRIES THE REPAIRS. Dropping this block costs
