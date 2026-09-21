@@ -81,7 +81,20 @@ webdavis/damnit.nvim PR #15 `ac5f627`; herdr-damnit spec, webdavis/herdr-damnit 
 both repositories were renamed in place on GitHub and on disk (todoist.nvim to damnit.nvim, herdr-todoist
 to herdr-damnit), with the implementation plans being written. The dotfiles references to the old names
 (the nvim plugin spec, the herdr plugin config leaf and the roster entry) move when each plugin's rename
-PR lands.
+PR lands. [PR #873](https://github.com/webdavis/dotfiles/pull/873) (b01ba1c26) extended the shared agent
+rules partial so GitHub is reached through gh-axi only, never through curl or another client, even when
+gh-axi itself cannot reach GitHub; when it cannot, an agent pushes the branch, writes the PR body to a
+file, says so, and stops. This closes the gap exposed on 2026-09-20, when gh could not reach
+api.github.com for three hours after a brew upgrade replaced its binary and two ship agents worked around
+it with curl. On 2026-09-20 the operator withdrew task 135, Attest, because dam covers it. damnit PR #2
+merged (c2565c1) with the client verbs `dam edit --undone`, `dam restore <oid>` and the
+`dam done --force` children and depends dispositions; damnit issue #3 records a pre-existing `dam add -A`
+exit 4 after a committed delete. The two implementation plans merged (damnit.nvim 36 tasks, herdr-damnit
+42 tasks) and each plan's tasks 1 to 3, the in-place rename, are in review. dam's client contract was
+settled on 2026-09-20 for the third damnit pull request: under `--json` the error document is the only
+thing on stderr, every rule dam refuses exits 4 and names its rule, change documents carry a fields list,
+and `status --json` answers rows without embedded objects unless `--full` is given; the two client specs
+still say exit 2 for a refusal and each gets one amendment once that pull request merges.
 
 ### Resume order and completion rules
 
@@ -3849,7 +3862,24 @@ is missing.
   Task 93 stays open until the recap engine reads this table. `just test-rust` and `just lint-check` both
   passed.
 
-  SLICE STATUS 2026-09-20: merged 1 to 52; in flight 53; queued 54 and 55; the ladder is 55 slices.
+  Slice 53 merged as [PR #872](https://github.com/webdavis/dotfiles/pull/872) (c50c86e2b). 2026-09-20:
+  shipped slice 53 of the pns refactor ladder, the recap engine, which is task 93's reader half. pns
+  recap now takes the day's four periods plus today, yesterday, week and last-week, steps any of them
+  back with `--previous`, answers a bare invocation with the window that most recently ended, and prints
+  open on its own with no window at all. The window arithmetic is pure calendar work in pns-domain,
+  answering in local civil moments the composition root resolves through the zone, so a step back is
+  right on both sides of a daylight transition. `[recap]` repositories and the gh merged-listing adapter
+  retired in favour of an argv-list `[recap.sources]` table (`pull_requests`, `commits`, `tasks`,
+  `applies`) whose words carry `{since}` and `{until}`, and a section nobody configured starts no process
+  and is absent from the page, from the document and from `--section`, and a command that exits non-zero
+  renders one line naming the code rather than an empty section. The page gained `--section`, `--limit`,
+  `--json`, `--toon`, `--schema` and `--to`: a mask alone selects document output in the mask's own
+  format, `--json` or `--toon` beside it overrides only the format, and a mask key that names no field is
+  refused with exit 2. The return card became one caller of this engine rather than a second poster. The
+  styled page and the schema 1 document are each pinned by a golden fixture. Slices 54 (morning removed),
+  55 (the summarizer) and task 170 are in flight as their own pull requests.
+
+  SLICE STATUS 2026-09-20: merged 1 to 53; in flight 54 and 55; the ladder is 55 slices.
 
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
@@ -5274,6 +5304,16 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   events are skipped), ten bashunit cases over a fake gog. The table ships with `enabled = false` until
   the operator runs the script by hand once, because gog's keychain read cannot be exercised by an agent;
   flipping `enabled` is a one-line values change after that run.
+
+  Amended 2026-09-20 by two operator rulings: pns ships no bash, and the calendar reader is a compiled-in
+  source inside pns rather than a producer command. The bash producer is retired (the operator ran it
+  once by hand, and the deployed copy is already gone from `~/.local/libexec/pns/`). Two pull requests
+  replace it: the first adds `[quiet.calendar] type = "google"`, a Google Calendar freeBusy reader over
+  pns's own HTTP client with a refresh-token OAuth exchange, credentials as KeePassXC-backed values in
+  `config-values.toml`, a one-hour window and the same fail-closed rule as the command source, leaving
+  the operator's values inert; the second adds the one-time consent verb that mints the refresh token,
+  deletes the bash producer and its bashunit test, and arms the poll. `command` stays as the escape hatch
+  for any other calendar.
 
 - [x] 132. `pns resume`, the "where was I" answer. A subcommand that prints, framed, the herdr workspace
   the operator was last in, the agent pane waiting on them if any, the branch and worktree of that pane,
@@ -7370,6 +7410,15 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   after slice 53 lands, because slice 53 replaces the recap engine and is already the largest slice; the
   line reads `SqliteStore::failing_legs` filtered to `deadlettered`, the same query `pns failures` lists,
   so the two can never disagree. Add the line to the recap design's Sections table in the same PR.
+
+- [ ] 171. Retire `~/.local/libexec/pns/` entirely, operator ruling 2026-09-20: pns ships no bash, and
+  nothing of pns lives under libexec. Its last member, `hooks/codex/install-hooks.sh` (the jq merge of
+  pns's four Codex hooks into `~/.codex/hooks.json`, run by
+  `.chezmoiscripts/run_after_72-relay-codex-hooks.sh.tmpl` on every apply), becomes a pns verb with the
+  same merge semantics and an atomic write, the apply script calls the binary, the `.chezmoiignore` line
+  goes, and the directory is deleted from source. Chezmoi never deletes a retired target and this
+  repository builds no removal mechanism, so the operator trashes `~/.local/libexec/pns` after the apply
+  that lands it. Pull request in flight.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
@@ -9621,11 +9670,6 @@ Three ideas the operator approved in principle on 2026-09-17 and ruled NOT to st
 this ledger is done. They are recorded so they are not lost and so no overnight run picks them up. Each
 needs a design conversation with the operator first.
 
-- [ ] 135. Attest, the proof ledger. A task closes only on a proof: the command, its output, a hash and a
-  date, submitted by an agent and ticked by the tool, never by hand. A nightly pass re-runs the proofs
-  and flags rot (a pull request that has since merged, a file that no longer exists). This ledger becomes
-  a rendered view of the proofs. The operator wants it and wants to discuss the details after everything
-  else here is finished.
 - [ ] 136. The second brain that answers, a Forzare feature. One local index over the vault, Readwise,
   transcripts, Todoist and the calendar, asked from any harness or from the phone through hermes, and fed
   to agents so they stop re-asking rulings. Operator ruling 2026-09-17: the data sources are chosen
