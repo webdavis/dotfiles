@@ -72,9 +72,9 @@ New, in `pns/crates/pns/src/`:
 | `command_nightshift.rs` | The verb: the two forms, the order of operations and the exit codes. |
 
 Modified: `pns-domain/src/lib.rs`; `pns-application/src/ports/process.rs`, `lib.rs`;
-`pns-adapters/src/config/{mod,model,load}.rs`, `config/render/layout.rs`, `pns-adapters/src/lib.rs`;
-`pns/src/{lib,invocation,subcommand_usage}.rs`; `dot_config/pns/config-values.toml` and the regenerated
-`dot_config/pns/private_config.toml.tmpl`.
+`pns-adapters/src/config/{mod,model,load,schema}.rs`, `config/render/layout.rs`, `pns-adapters/src/lib.rs`;
+`pns/src/{lib,invocation,subcommand_usage,command_profile}.rs`; `dot_config/pns/config-values.toml` and
+the regenerated `dot_config/pns/private_config.toml.tmpl`.
 
 ---
 
@@ -909,7 +909,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): compose the night's goal and the hand
 **Files:**
 - Create: `pns/crates/pns-adapters/src/config/nightshift.rs`
 - Create: `pns/crates/pns-adapters/src/config/nightshift/tests.rs`
-- Modify: `pns/crates/pns-adapters/src/config/{mod,model,load}.rs`
+- Modify: `pns/crates/pns-adapters/src/config/{mod,model,load,schema}.rs`
 
 **Interfaces:**
 - Consumes: `pns_domain::nightshift::Excluded`.
@@ -1199,7 +1199,24 @@ In `pns/crates/pns-adapters/src/config/load.rs`, in the top-level match, after t
 ```
 
 Add `"nightshift"` to the flat-key roster `admits_flat` reads, with its nine keys, in the same place
-every other table's roster sits.
+every other table's roster sits, in `pns/crates/pns-adapters/src/config/schema.rs`:
+
+```rust
+    (
+        "nightshift",
+        &[
+            "ledger",
+            "rules_file",
+            "goal_file",
+            "exclude_sections",
+            "exclude_tasks",
+            "profile",
+            "until",
+            "launch",
+            "log",
+        ],
+    ),
+```
 
 And, after every top-level table has parsed, beside the check that refuses a `[[profiles.rules]]` row
 naming an undefined profile, refuse a `[nightshift] profile` that names one. IT IS A CROSS-TABLE
