@@ -164,7 +164,11 @@ fn a_refused_freebusy_call_evicts_the_cached_token() {
     )
     .expect("plant the cache");
     let (source, _) = scripted(
-        &[http_response("401 Unauthorized", &[], "{\"error\":\"invalid_grant\"}")],
+        &[http_response(
+            "401 Unauthorized",
+            &[],
+            "{\"error\":\"invalid_grant\"}",
+        )],
         &["primary"],
     );
     assert_eq!(source.read(&state, NOW), Err(FREEBUSY_REFUSED.to_string()));
