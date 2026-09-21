@@ -94,6 +94,8 @@ impl SqliteStore {
         if !log.metadata().is_ok_and(|metadata| metadata.is_file()) {
             return;
         }
-        let _ = writeln!(log, "{line}");
+        // One write_all, terminator included: O_APPEND makes a single write
+        // atomic against the offset, and every producer of this file appends.
+        let _ = log.write_all(format!("{line}\n").as_bytes());
     }
 }
