@@ -221,7 +221,7 @@ fn parse_days(index: usize, setting: &toml::Value) -> Result<Vec<u32>, ConfigErr
                     "rule {index} has day {stated:?}; a day is Mon, Tue, Wed, Thu, Fri, Sat or Sun"
                 ))
             })?;
-        days.push(u32::try_from(found).unwrap_or_default());
+        days.push(found as u32);
     }
     Ok(days)
 }
