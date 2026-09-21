@@ -311,6 +311,16 @@ packages:
           - "gnhf@0.1.49"
           - hyperframes
           - mcporter
+  # Tools built from someone else's git repository rather than this one, and
+  # installed into rust_tools.install_dir with `cargo install --git`. dam is
+  # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn;
+  # bumping `ref` reinstalls it on the next apply.
+  cargo_git_tools:
+    - name: dam
+      repo: webdavis/damnit
+      package: damnit
+      ref: dfe31427f7bc41a289aa0b48f9c3a75eb7689a0a
+
   # The herdr plugins this machine builds and LINKS rather than installing from
   # GitHub. `herdr plugin install` requires a herdr-plugin.toml committed in the
   # plugin repository; a linked plugin ships none, because its actions are a
