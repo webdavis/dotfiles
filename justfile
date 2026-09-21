@@ -87,6 +87,12 @@ test-rust:
   cargo fmt --all --check --manifest-path pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --features dev-tools --manifest-path pns/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path pns/Cargo.toml
+  cargo test --locked --workspace --manifest-path chord/Cargo.toml
+  cargo fmt --all --check --manifest-path chord/Cargo.toml
+  cargo clippy --locked --workspace --all-targets --manifest-path chord/Cargo.toml -- -D warnings
+  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path chord/Cargo.toml
+  cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
+    check bash --table dot_config/chord/bindings.toml --against dot_bash_bindings
   cargo test --locked --workspace --manifest-path tailnet-pin/Cargo.toml
   cargo fmt --all --check --manifest-path tailnet-pin/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path tailnet-pin/Cargo.toml -- -D warnings
@@ -196,6 +202,11 @@ worktrees-prune *arguments:
 # Refresh skills through the weekly uu lane.
 update-skills:
   ~/.cargo/bin/uu run skills
+
+# Regenerate ~/.bash_bindings from the shell-agnostic binding table.
+chord-render output="dot_bash_bindings":
+  cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
+    render bash --table dot_config/chord/bindings.toml > {{quote(output)}}
 
 # Regenerate the shipped pns config template from its committed values.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":

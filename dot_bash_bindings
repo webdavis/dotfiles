@@ -5,102 +5,142 @@
 # Disable SC2016 (which warns about expressions in single quotes):
 # shellcheck disable=SC2016
 
-# This file contains key-bindings for bash commands so that I can be all kinds of lazy.
-# Source this from your ~/.bashrc, like so:
+# GENERATED FILE: `chord render bash` over `dot_config/chord/bindings.toml`.
+# Edit the table and regenerate with `just chord-render`; a hand edit here
+# fails `just test-rust`.
 #
-#  [[ -s $HOME/.bash_bindings ]] && \. $HOME/.bash_bindings
+# The shell functions these bindings call, and the `\C-x0` helper macro, live
+# in ~/.bash_bindings_functions, which ~/.bashrc sources first.
+
+# --- editing ---
+# Editing-mode switching and the readline motions that make vi-insert
+# feel like emacs where that is quicker.
 
 builtin bind -m emacs '"\M-e": vi-editing-mode'
+
 builtin bind -m vi-insert '"\M-e": emacs-editing-mode'
 builtin bind -m vi-command '"\M-e": emacs-editing-mode'
-builtin bind -m vi-insert 'Control-a: beginning-of-line'
-builtin bind -m vi-insert 'Control-e: end-of-line'
-builtin bind -m vi-insert 'Control-b: backward-char'
-builtin bind -m vi-insert 'Control-f: forward-char'
+
+builtin bind -m vi-insert '"\C-a": beginning-of-line'
+
+builtin bind -m vi-insert '"\C-e": end-of-line'
+
+builtin bind -m vi-insert '"\C-b": backward-char'
+
+builtin bind -m vi-insert '"\C-f": forward-char'
+
 builtin bind -m vi-insert '"\M-k": kill-line'
-builtin bind -m vi-insert 'Control-l: clear-screen'
+
+builtin bind -m vi-insert '"\C-l": clear-screen'
+
+# Quoting the words makes this the literal character sequence rather than Ctrl-L.
 builtin bind -m vi-command '"Control-l": clear-screen'
+
+# Quoting the words makes this the literal character sequence rather than Ctrl-O.
 builtin bind -m emacs '"Control-o": redraw-current-line'
+
 builtin bind -m vi-insert '"\C-o": redraw-current-line'
 builtin bind -m vi-command '"\C-o": redraw-current-line'
+
 builtin bind -m vi-insert '"\M-o": magic-space'
 builtin bind -m vi-command '"\M-o": magic-space'
+
 builtin bind -m vi-insert '"\C-n": next-history'
 builtin bind -m vi-command '"\C-n": next-history'
+
 builtin bind -m vi-insert '"\C-p": previous-history'
 builtin bind -m vi-command '"\C-p": previous-history'
-builtin bind -m vi-insert 'Control-u: unix-line-discard'
-builtin bind -m vi-command 'Control-u: unix-line-discard'
+
+builtin bind -m vi-insert '"\C-u": unix-line-discard'
+builtin bind -m vi-command '"\C-u": unix-line-discard'
+
 builtin bind -m vi-insert '"\M-m": menu-complete'
+
 builtin bind -m vi-insert '"\M-w": unix-filename-rubout'
 builtin bind -m vi-command '"\M-w": unix-filename-rubout'
+
 builtin bind -m vi-insert '"\M-u": capitalize-word'
 builtin bind -m vi-command '"\M-u": capitalize-word'
+
 builtin bind -m vi-insert '"\C-d": delete-char'
 builtin bind -m vi-command '"\C-d": delete-char'
+
 builtin bind -m vi-insert '"\M-]": character-search'
+
 builtin bind -m vi-insert '"\M-[": character-search-backward'
 
-# Unbind Ctrl-w from werase in stty. See https://stackoverflow.com/questions/10980575/
-stty werase undef
+# Quoting the words makes this the literal character sequence rather than Ctrl-W.
 builtin bind -m emacs '"Control-w": unix-word-rubout'
+
 builtin bind -m vi-insert '"\C-w": unix-word-rubout'
 builtin bind -m vi-command '"\C-w": unix-word-rubout'
 
-builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
-builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
-builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
+# --- completion ---
+# Tab completion that cycles through the possible options.
 
 # Tab completion of commands that cycles through possible options:
-builtin bind -x '"\t": menu-complete'
+builtin bind -x '"\t": "menu-complete"'
+
 builtin bind -m vi-insert '"\t": menu-complete'
 builtin bind -m vi-command '"\t": menu-complete'
-builtin bind -x '"\e[Z": menu-complete-backward'
+
+builtin bind -x '"\e[Z": "menu-complete-backward"'
+
 builtin bind -m vi-insert '"\e[Z": menu-complete-backward'
 builtin bind -m vi-command '"\e[Z": menu-complete-backward'
 
-# Define a function to prepend 'sudo ' to the current command.
-sudo_insert() {
-  READLINE_LINE="sudo $READLINE_LINE"
-  READLINE_POINT=${#READLINE_LINE} # Move cursor to the end.
-}
+# --- sudo ---
+# Prepend sudo to the line in place.
 
 # Insert 'sudo ' at the beginning of a command.
-bind -x '"\C-s": sudo_insert'
+builtin bind -x '"\C-s": "sudo_insert"'
+
+# --- listing ---
+# Directory listings through eza, and re-sourcing ~/.bashrc.
 
 # ls/eza
 builtin bind -m vi-insert '"\M-l": "\C-x0eza -ahlrs date\r"'
 builtin bind -m vi-command '"\M-l": "i\C-x0eza -ahlrs date\r"'
+
 builtin bind -m vi-insert '"\M-L": "\C-x0eza -ahlrs date "'
 builtin bind -m vi-command '"\M-L": "i\C-x0eza -ahlrs date "'
 
 # List directories.
 builtin bind -m vi-insert '"\M-i": "\C-x0eza -alD\r"'
 builtin bind -m vi-command '"\M-i": "i\C-x0eza -alD\r"'
+
 builtin bind -m vi-insert '"\M-I": "\C-x0eza -alD "'
+
 builtin bind -m vi-command '"\M-I": "i\C-x1eza -alD "'
 
 # List files sorted by time.
 builtin bind -m vi-insert '"\C-xt": "\C-x0eza -hl --sort=age\r"'
+
 builtin bind -m vi-command '"\C-xt": "\C-x0eza -hl --sort=age\r"'
+
 builtin bind -m vi-insert '"\C-xT": "\C-x0eza -ahl --sort=age "'
 builtin bind -m vi-command '"\C-xT": "i\C-x0eza -ahl --sort=age "'
 
 # eza tree
 builtin bind -m vi-insert '"\M-t": "\C-x0eza --tree\r"'
 builtin bind -m vi-command '"\M-t": "i\C-x0eza --tree\r"'
+
 builtin bind -m vi-insert '"\M-T": "\C-x0eza -lT "'
 builtin bind -m vi-command '"\M-T": "i\C-x0eza -lT "'
 
 # `eza tree` with detailed file info.
 builtin bind -m vi-insert '"\C-xu": "\C-x0eza --tree --color=always --header --group --links --bytes --long --ignore-glob=.git\r"'
 builtin bind -m vi-command '"\C-xu": "i\C-x0eza --tree --color=always --header --group --links --bytes --long --ignore-glob=.git\r"'
+
 builtin bind -m vi-insert '"\C-x\C-u": "\C-x0eza -lThgB --color=always -I .git "'
 builtin bind -m vi-command '"\C-x\C-u": "i\C-x0eza -lThgB --color=always -I .git "'
 
 # Source ~/.bashrc
 builtin bind -m vi-insert '"\C-x\C-s": "\C-x0source ~/.bashrc\r"'
 builtin bind -m vi-command '"\C-x\C-s": "i\C-x0source ~/.bashrc\r"'
+
+# --- navigation ---
+# Jumping to the directories used most often, and to a project root.
 
 # Navigation bindings:
 # `cd -`
@@ -135,38 +175,11 @@ builtin bind -m vi-command '"\C-xdp": "i\C-x0cd ~/workspaces/Ivy/webdavis\r"'
 builtin bind -m vi-insert '"\C-xdt": "\C-x0cd ~/workspaces/tools\r"'
 builtin bind -m vi-command '"\C-xdt": "i\C-x0cd ~/workspaces/tools\r"'
 
-# \C-xdT (~/workspaces/test) removed, directory no longer exists.
-
-# Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
-__bash_bindings_go_to_project_root() {
-  local path
-  path="$(pwd)"
-
-  # Add VCS root indicators (or project markers) to the 'markers' array.
-  local markers=(.git .hg .svn .bzr .build.xml .project .projections.json .root .tasks)
-
-  while :; do
-    local marker
-    for marker in "${markers[@]}"; do
-      if [[ -e "${path}/${marker}" || -d "${path}/${marker}" ]]; then
-        builtin cd "$path" || return 1
-        pwd
-        return 0
-      fi
-    done
-
-    if [[ $path == "/" ]]; then
-      local yellow reset
-      yellow="$(tput setaf 3)"
-      reset="$(tput sgr0)"
-      printf "${yellow}Warning[%s]: No project root found.${reset}\n" "${FUNCNAME[0]}" >&2
-      return 1
-    fi
-    path="$(dirname "$path")"
-  done
-}
 builtin bind -m vi-insert '"\C-gdr": "\C-x0__bash_bindings_go_to_project_root\r"'
 builtin bind -m vi-command '"\C-gdr": "i\C-x0__bash_bindings_go_to_project_root\r"'
+
+# --- git ---
+# git, gh and the GitHub pages of the repository in the current directory.
 
 # git --version
 builtin bind -m vi-insert '"\C-gv": "\C-x0git --version\r"'
@@ -199,8 +212,10 @@ builtin bind -m vi-command '"\C-gdd": "i\C-x0git diff\r"'
 # Print the current git diff of the latest commit.
 builtin bind -m vi-insert '"\C-gdi": "\C-x0git diff HEAD^\r"'
 builtin bind -m vi-command '"\C-gdi": "i\C-x0git diff HEAD^\r"'
-builtin bind -m vi-insert '"\C-gdl": "\C-x0git diff HEAD^\r"'   # alt: (C-g di)
-builtin bind -m vi-command '"\C-gdl": "i\C-x0git diff HEAD^\r"' # alt: (C-g di)
+
+# alt: (C-g di)
+builtin bind -m vi-insert '"\C-gdl": "\C-x0git diff HEAD^\r"'
+builtin bind -m vi-command '"\C-gdl": "i\C-x0git diff HEAD^\r"'
 
 # Print the diff of the current and previous commit.
 builtin bind -m vi-insert '"\C-gdp": "\C-x0if ! git diff --quiet; then clear; git --no-pager diff --patch-with-stat; else echo '\''git-diff: No changes have been made'\''; fi\r"'
@@ -236,8 +251,9 @@ builtin bind -m vi-insert '"\C-gcc": "\C-x0git commit --verbose\r"'
 builtin bind -m vi-command '"\C-gcc": "i\C-x0git commit --verbose\r"'
 
 # git commit --verbose -m '<cursor>'
-builtin bind -m vi-insert "\"\C-gcm\": \"\C-x0git commit --verbose -m ''\e[D\""
-builtin bind -m vi-command "\"\C-gcm\": \"i\C-x0git commit --verbose -m ''\e[D\""
+builtin bind -m vi-insert '"\C-gcm": "\C-x0git commit --verbose -m '\'''\''\e[D"'
+
+builtin bind -m vi-command '"\C-gcm": "i\C-x0git commit --verbose -m '\'''\''\e[D"'
 
 # git commit --verbose --amend
 builtin bind -m vi-insert '"\C-gca": "\C-x0git commit --verbose --amend\r"'
@@ -255,39 +271,49 @@ builtin bind -m vi-command '"\C-gcn": "i\C-x0git commit --amend --no-edit\r"'
 builtin bind -m vi-insert '"\C-gcN": "\C-x0git commit --amend --no-edit --all\r"'
 builtin bind -m vi-command '"\C-gcN": "i\C-x0git commit --amend --no-edit --all\r"'
 
-# Copy last git commit message to clipboard.
-__bash_bindings_copy_latest_git_commit_message_to_clipboard() {
-  local reset purple
-  reset="$(tput sgr0)"
-  purple="$(tput setaf 5)"
-  printf "${purple}$ %s${reset}\n" "git log -1 --pretty=%B | pbcopy"
-  git log -1 --pretty=%B | pbcopy
-}
 builtin bind -m vi-insert '"\C-gcy": "\C-x0__bash_bindings_copy_latest_git_commit_message_to_clipboard\r"'
 builtin bind -m vi-command '"\C-gcy": "i\C-x0__bash_bindings_copy_latest_git_commit_message_to_clipboard\r"'
 
 # git reset commands:
-builtin bind -m vi-insert '"\C-gru": "\C-x0git reset"'                     # Unstage index
-builtin bind -m vi-command '"\C-gru": "i\C-x0git reset"'                   # Unstage index
-builtin bind -m vi-insert '"\C-grU": "\C-x0git reset -- <file>"'           # Unstage index (file)
-builtin bind -m vi-command '"\C-grU": "i\C-x0git reset -- <file>"'         # Unstage index (file)
-builtin bind -m vi-insert '"\C-grs": "\C-x0git reset --soft HEAD~1"'       # Undo last commit (keep index)
-builtin bind -m vi-command '"\C-grs": "i\C-x0git reset --soft HEAD~1"'     # Undo last commit (keep index)
-builtin bind -m vi-insert '"\C-grr": "\C-x0git restore"'                   # Delete working (all)
-builtin bind -m vi-command '"\C-grr": "i\C-x0git restore"'                 # Delete working (all)
-builtin bind -m vi-insert '"\C-grf": "\C-x0git restore -- <file>"'         # Delete working (file)
-builtin bind -m vi-command '"\C-grf": "i\C-x0git restore -- <file>"'       # Delete working (file)
-builtin bind -m vi-insert '"\C-gri": "\C-x0git restore --staged"'          # Delete index, keep working (all)
-builtin bind -m vi-command '"\C-gri": "i\C-x0git restore --staged"'        # Delete index, keep working (all)
-builtin bind -m vi-insert '"\C-grF": "\C-x0git restore --staged <file>"'   # Delete index (file)
-builtin bind -m vi-command '"\C-grF": "i\C-x0git restore --staged <file>"' # Delete index (file)
-builtin bind -m vi-insert '"\C-grh": "\C-x0git reset --hard"'              # DANGEROUS: Rewind to HEAD (working + index)
-builtin bind -m vi-command '"\C-grh": "i\C-x0git reset --hard"'            # DANGEROUS: Rewind to HEAD (working + index)
-builtin bind -m vi-insert '"\C-grH": "\C-x0git reset --hard <commit>"'     # DANGEROUS: Rewind to <commit> (working + index)
-builtin bind -m vi-command '"\C-grH": "i\C-x0git reset --hard <commit>"'   # DANGEROUS: Rewind to <commit> (working + index)
+# Unstage index
+builtin bind -m vi-insert '"\C-gru": "\C-x0git reset"'
+builtin bind -m vi-command '"\C-gru": "i\C-x0git reset"'
+
+# Unstage index (file)
+builtin bind -m vi-insert '"\C-grU": "\C-x0git reset -- <file>"'
+builtin bind -m vi-command '"\C-grU": "i\C-x0git reset -- <file>"'
+
+# Undo last commit (keep index)
+builtin bind -m vi-insert '"\C-grs": "\C-x0git reset --soft HEAD~1"'
+builtin bind -m vi-command '"\C-grs": "i\C-x0git reset --soft HEAD~1"'
+
+# Delete working (all)
+builtin bind -m vi-insert '"\C-grr": "\C-x0git restore"'
+builtin bind -m vi-command '"\C-grr": "i\C-x0git restore"'
+
+# Delete working (file)
+builtin bind -m vi-insert '"\C-grf": "\C-x0git restore -- <file>"'
+builtin bind -m vi-command '"\C-grf": "i\C-x0git restore -- <file>"'
+
+# Delete index, keep working (all)
+builtin bind -m vi-insert '"\C-gri": "\C-x0git restore --staged"'
+builtin bind -m vi-command '"\C-gri": "i\C-x0git restore --staged"'
+
+# Delete index (file)
+builtin bind -m vi-insert '"\C-grF": "\C-x0git restore --staged <file>"'
+builtin bind -m vi-command '"\C-grF": "i\C-x0git restore --staged <file>"'
+
+# DANGEROUS: Rewind to HEAD (working + index)
+builtin bind -m vi-insert '"\C-grh": "\C-x0git reset --hard"'
+builtin bind -m vi-command '"\C-grh": "i\C-x0git reset --hard"'
+
+# DANGEROUS: Rewind to <commit> (working + index)
+builtin bind -m vi-insert '"\C-grH": "\C-x0git reset --hard <commit>"'
+builtin bind -m vi-command '"\C-grH": "i\C-x0git reset --hard <commit>"'
 
 # git init
 builtin bind -m vi-insert '"\C-gii": "\C-x0git init\r"'
+
 builtin bind -m vi-command '"\C-gii": "i\C-xgit init\r"'
 
 # git init && gh repo create
@@ -319,107 +345,83 @@ builtin bind -m vi-command '"\C-gpf": "i\C-x0git push --force-with-lease\r"'
 builtin bind -m vi-insert '"\C-gpr": "\C-x0git push origin :"'
 builtin bind -m vi-command '"\C-gpr": "i\C-x0git push origin :"'
 
-__bash_bindings_helper_get_open_cmd() {
-  command -v open 2>/dev/null && return 0
-  command -v xdg-open 2>/dev/null && return 0
-
-  printf "Error [%s]: Cannot determine open command for operating sysem: %s\n" \
-    "${FUNCNAME[*]}" \
-    "$OSTYPE" \
-    >&2
-  return 1
-}
-
-__bash_bindings_open_github_page() {
-  local url_suffix="${1:-}"
-  local page_desc="${2:-$1}"
-  page_desc="${page_desc^}"
-
-  local repo json_field jq_filter
-  local url="https://github.com"
-
-  case "$url_suffix" in
-    "feed") ;;
-    "profile") json_field="owner" jq_filter="owner.login" url_suffix="" ;;
-    *) json_field="nameWithOwner" jq_filter="nameWithOwner" ;;
-  esac
-
-  local IFS=":"
-  if [[ -n $json_field ]]; then
-    repo="$(gh repo view --json ${json_field} --jq ."${jq_filter}" 2>/dev/null)" || {
-      printf "Error [%s]: Could not determine GitHub repository. Are you in a git repo with a GitHub remote?\n" "${FUNCNAME[0]}" >&2
-      return 1
-    }
-
-    url="${url}/${repo}/${url_suffix}"
-  fi
-
-  local open_cmd
-  open_cmd="$(__bash_bindings_helper_get_open_cmd)" || return 1
-
-  printf "Opening GitHub%s page%s in browser.\n" "${page_desc:+ $page_desc}" "${repo:+ for $repo}"
-  "$open_cmd" "$url"
-}
-
 # Open GitHub Feed (https://github.com) in browser.
 builtin bind -x '"\C-_I": "__bash_bindings_open_github_page '\''feed'\''"'
+
 builtin bind -m vi-insert '"\C-gof": "\C-x0\C-_I\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-gof": "i\C-x0\C-_I\C-x1\C-x2\b"'
 
 # Open repo's GitHub Home page in browser.
 builtin bind -x '"\C-_J": "__bash_bindings_open_github_page '\'''\'' '\''Home'\''"'
+
 builtin bind -m vi-insert '"\C-goo": "\C-x0\C-_J\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-goo": "i\C-x0\C-_J\C-x1\C-x2\b"'
 
 # Open repo's GitHub Issues page in browser.
 builtin bind -x '"\C-_K": "__bash_bindings_open_github_page '\''issues'\''"'
+
 builtin bind -m vi-insert '"\C-goi": "\C-x0\C-_K\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-goi": "i\C-x0\C-_K\C-x1\C-x2\b"'
 
 # Open repo's GitHub Pull Requests page in browser.
 builtin bind -x '"\C-_R": "__bash_bindings_open_github_page '\''pulls'\'' '\''Pull Requests'\''"'
+
 builtin bind -m vi-insert '"\C-gop": "\C-x0\C-_R\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-gop": "i\C-x0\C-_R\C-x1\C-x2\b"'
 
 # Open repo's GitHub Actions page in browser.
 builtin bind -x '"\C-_S": "__bash_bindings_open_github_page '\''actions'\''"'
+
 builtin bind -m vi-insert '"\C-goa": "\C-x0\C-_S\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-goa": "i\C-x0\C-_S\C-x1\C-x2\b"'
 
 # Open repo's GitHub Projects page in browser.
 builtin bind -x '"\C-_T": "__bash_bindings_open_github_page '\''projects'\''"'
+
 builtin bind -m vi-insert '"\C-goP": "\C-x0\C-_T\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-goP": "i\C-x0\C-_T\C-x1\C-x2\b"'
 
 # Open repo's GitHub Wiki page in browser.
 builtin bind -x '"\C-_U": "__bash_bindings_open_github_page '\''wiki'\''"'
+
 builtin bind -m vi-insert '"\C-gow": "\C-x0\C-_U\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-gow": "i\C-x0\C-_U\C-x1\C-x2\b"'
 
 # Open repo's GitHub Security page in browser.
 builtin bind -x '"\C-_V": "__bash_bindings_open_github_page '\''security'\''"'
+
 builtin bind -m vi-insert '"\C-goS": "\C-x0\C-_V\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-goS": "i\C-x0\C-_V\C-x1\C-x2\b"'
 
 # Open repo's GitHub Insights page in browser.
 builtin bind -x '"\C-_W": "__bash_bindings_open_github_page '\''pulse'\'' '\''Insights'\''"'
+
 builtin bind -m vi-insert '"\C-goI": "\C-x0\C-_W\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-goI": "i\C-x0\C-_W\C-x1\C-x2\b"'
 
 # Open repo's GitHub Settings page in browser.
 builtin bind -x '"\C-_X": "__bash_bindings_open_github_page '\''settings'\''"'
+
 builtin bind -m vi-insert '"\C-gos": "\C-x0\C-_X\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-gos": "i\C-x0\C-_X\C-x1\C-x2\b"'
 
 # Open My GitHub Profile in browser.
 builtin bind -x '"\C-_Y": "__bash_bindings_open_github_page '\''profile'\''"'
+
 builtin bind -m vi-insert '"\C-go.": "\C-x0\C-_Y\C-x1\C-x2\b"'
+
 builtin bind -m vi-command '"\C-go.": "i\C-x0\C-_Y\C-x1\C-x2\b"'
 
-# git tag --list --sort=v:refname
-__bash_bindings_git_list_tags() {
-  git tag --list --sort='v:refname'
-}
 builtin bind -m vi-insert '"\C-gtl": "\C-x0__bash_bindings_git_list_tags\r"'
 builtin bind -m vi-command '"\C-gtl": "i\C-x0__bash_bindings_git_list_tags\r"'
 
@@ -478,53 +480,9 @@ builtin bind -m vi-command '"\C-ghi": "i\C-x0gh issue list\r"'
 builtin bind -m vi-insert '"\C-ghp": "\C-x0gh pr list\r"'
 builtin bind -m vi-command '"\C-ghp": "i\C-x0gh pr list\r"'
 
-# Package manager update:
-__bash_bindings_update_package_manager() {
-  local os distro command
-  case "$OSTYPE" in
-    solaris*) os='solaris' ;;
-    darwin*)
-      os='osx'
-      command -v brew &>/dev/null || return
-      ;;
-    linux*) os='linux' ;;
-    bsd*) os='bsd' ;;
-    msys*) os='windows' ;;
-    *)
-      printf "Warning [%s]: Cannot update. Unknown operating system detected: '%s'\n." \
-        "${FUNCNAME[0]}" "${OSTYPE}" >&2
-      return 1
-      ;;
-  esac
+# --- packages ---
+# The system package manager.
 
-  case "${os}" in
-    'linux')
-      if [[ -f '/etc/os-release' ]]; then
-        distro="$(grep '^NAME=' /etc/os-release | sed -e's/NAME="\(.*\)"/\1/g')"
-      fi
-      ;;
-    'osx')
-      distro="osx"
-      ;;
-    *)
-      printf '%s\n' "Cannot update. Unknown distro detected." 1>&2
-      return 1
-      ;;
-  esac
-
-  case "${distro}" in
-    'osx')
-      command='brew upgrade'
-      ;;
-    'Arch Linux')
-      command='sudo pacman --noconfirm --sync --refresh --sysupgrade'
-      ;;
-    'Ubuntu')
-      command='sudo apt update && sudo apt upgrade --yes'
-      ;;
-  esac
-  $command
-}
 builtin bind -m vi-insert '"\C-xou": "\C-x0__bash_bindings_update_package_manager\r"'
 builtin bind -m vi-command '"\C-xou": "i\C-x0__bash_bindings_update_package_manager\r"'
 
@@ -536,49 +494,14 @@ builtin bind -m vi-command '"\C-xos": "i\C-x0brew search "'
 builtin bind -m vi-insert '"\C-xoi": "\C-x0brew install "'
 builtin bind -m vi-command '"\C-xoi": "i\C-x0brew install "'
 
-# Function to redraw the prompt:
-redraw_prompt() {
-  tput rc # Restore cursor position
-  tput ed # Clear to end of screen
-  tput sc # Save cursor position
-}
+# --- files ---
+# Repository files, newest commit first.
 
-# List git files with last modified:
-__bash_bindings_git_ls_files_with_last_modified() {
-  # Header:
-  printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
-  printf "%-25s %-10s %s\n" "-------------------------" "-------" "------------------------ "
-
-  local blue='\033[34m'
-  local yellow='\033[33m'
-  local reset='\033[0m'
-
-  local file last_commit_info date commit_hash
-
-  # Capture files with git metadata:
-  local -a files=()
-  while read -r file; do
-    last_commit_info=$(git log -1 --format="%ci|%h" -- "$file")
-    date="${last_commit_info%%|*}"
-    commit_hash="${last_commit_info##*|}"
-    files+=("${date}|${commit_hash}|${file}")
-  done < <(git ls-files)
-
-  # Sort files:
-  local -a sorted
-  mapfile -t sorted < <(printf "%s\n" "${files[@]}" | sort -r)
-
-  # Print sorted files:
-  for line in "${sorted[@]}"; do
-    IFS="|" read -r date commit_hash file <<<"$line"
-    printf "%b%-25s%b %b%-6s%b %s\n" \
-      "$blue" "$date" "$reset" \
-      "$yellow" "$commit_hash" "$reset" \
-      "$file"
-  done
-}
 builtin bind -m vi-insert '"\C-xl": "\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 builtin bind -m vi-command '"\C-xl": "i\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
+
+# --- network-host ---
+# Host Bindings: what this machine is on the network.
 
 # ╭───────────────╮
 # │ Host Bindings │
@@ -587,31 +510,18 @@ builtin bind -m vi-command '"\C-xl": "i\C-x0__bash_bindings_git_ls_files_with_la
 builtin bind -m vi-insert '"\C-xnhh": "\C-x0hostname\r"'
 builtin bind -m vi-command '"\C-xnhh": "i\C-x0hostname\r"'
 
-# Print the MAC address of the current machine.
-__bash_bindings_print_mac_address() {
-  local reset purple
-  reset="$(tput sgr0)"
-  purple="$(tput setaf 5)"
-  printf "${purple}$ %s${reset}\n" 'networksetup -getmacaddress en0 | awk '\''{print $3}'\'''
-  networksetup -getmacaddress en0 | awk '{print $3}'
-}
 builtin bind -m vi-insert '"\C-xnhm": "\C-x0__bash_bindings_print_mac_address\r"'
 builtin bind -m vi-command '"\C-xnhm": "i\C-x0__bash_bindings_print_mac_address\r"'
 
-# Shows the network interface your computer currently uses for outbound traffic.
-__bash_bindings_show_current_network_interface() {
-  local reset purple
-  reset="$(tput sgr0)"
-  purple="$(tput setaf 5)"
-  printf "${purple}$ %s${reset}\n" 'route get default | grep interface | awk '\''{print $2}'\'''
-  route get default | grep interface | awk '{print $2}'
-}
 builtin bind -m vi-insert '"\C-xnhi": "\C-x0__bash_bindings_show_current_network_interface\r"'
 builtin bind -m vi-command '"\C-xnhi": "i\C-x0__bash_bindings_show_current_network_interface\r"'
 
 # Show all active network connections and listening ports for troubleshooting.
 builtin bind -m vi-insert '"\C-xnhp": "\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
 builtin bind -m vi-command '"\C-xnhp": "i\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
+
+# --- network-lan ---
+# LAN Bindings: the local network, its gateway and its reachability.
 
 # ╭──────────────╮
 # │ LAN Bindings │
@@ -620,156 +530,36 @@ builtin bind -m vi-command '"\C-xnhp": "i\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
 builtin bind -m vi-insert '"\C-xnll": "\C-x0ipconfig getifaddr en0\r"'
 builtin bind -m vi-command '"\C-xnll": "i\C-x0ipconfig getifaddr en0\r"'
 
-# Shows the IP address of your default gateway (usually your router).
-__bash_bindings_show_ip_address_of_default_gateway() {
-  local reset purple
-  reset="$(tput sgr0)"
-  purple="$(tput setaf 5)"
-  printf "${purple}$ %s${reset}\n" 'netstat -rn | grep default -m 1 | awk '\''{print $2}'\'''
-  netstat -rn | grep default -m 1 | awk '{print $2}'
-}
 builtin bind -m vi-insert '"\C-xnlg": "\C-x0__bash_bindings_show_ip_address_of_default_gateway\r"'
 builtin bind -m vi-command '"\C-xnlg": "i\C-x0__bash_bindings_show_ip_address_of_default_gateway\r"'
 
-# Shows the subnet mask and domain name for your current Wi-Fi or Ethernet interface.
-__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface() {
-  local reset purple
-  reset="$(tput sgr0)"
-  purple="$(tput setaf 5)"
-  printf "${purple}$ %s${reset}\n" "ipconfig getsummary en0 | grep 'subnet_mask' -A1"
-  ipconfig getsummary en0 | grep 'subnet_mask' -A1
-}
 builtin bind -m vi-insert '"\C-xnlb": "\C-x0__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface\r"'
 builtin bind -m vi-command '"\C-xnlb": "i\C-x0__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface\r"'
 
-# Ping the default gateway (usually your router) once to check local network reachability.
-__bash_bindings_ping_default_gateway() {
-  local reset bold green blue purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  blue="$(tput setaf 4)"
-  purple="$(tput setaf 5)"
-
-  printf "\n${bold}%s${reset}\n\n" "Pinging default gateway to check local network reachability..."
-
-  printf "Finding default network gateway via: ${blue}%s${reset}\n" "netstat -rn | grep default -m 1 | awk '{print \$2}'"
-  local gateway
-  gateway="$(netstat -rn | grep default -m 1 | awk '{print $2}')"
-  printf "Gateway: ${green}%s${reset}\n" "$gateway"
-
-  printf "\n${purple}$ ping -c 1 %s${reset}\n" "$gateway"
-  ping -c 1 "$gateway"
-}
 builtin bind -m vi-insert '"\C-xnlr": "\C-x0__bash_bindings_ping_default_gateway\r"'
 builtin bind -m vi-command '"\C-xnlr": "i\C-x0__bash_bindings_ping_default_gateway\r"'
 
-# Check protocol connectivity by checking if <port> on <host> is open.
-__bash_bindings_check_protocol_connectivity() {
-  local reset bold red green yellow blue purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  italic=$'\e[3m'
-  red="$(tput setaf 1)"
-  green="$(tput setaf 2)"
-  yellow="$(tput setaf 3)"
-  purple="$(tput setaf 5)"
-
-  local -A port_protocol=(
-    [22]="SSH"
-    [53]="DNS"
-    [80]="HTTP"
-    [443]="HTTPS"
-    [8080]="HTTP-ALT"
-  )
-
-  local port="$1"
-
-  local hostname
-  read -r -p "${bold}Enter hostname to check protocol connectivity (default: ${reset}${italic}google.com${reset}${bold}):${reset} " hostname
-  hostname="${hostname:-google.com}"
-
-  if [[ -z $port ]]; then
-    read -r -p "${bold}What port would you like to check on ${hostname} (default: ${reset}${italic}80${reset}${bold})?${reset} " port
-  fi
-  port="${port:-80}"
-
-  local protocol="${port_protocol[$port]:-Unknown}"
-
-  printf "Hostname: ${green}%s${reset}\n" "$hostname"
-  printf "Port: ${yellow}%s${reset}\n" "$port"
-  printf "Protocol: ${red}%s${reset}\n" "$protocol"
-
-  printf "\n${purple}$ nc -vz -w2 %s %s${reset}\n" "$hostname" "$port"
-  nc -vz -w3 "$hostname" "$port"
-}
 builtin bind -m vi-insert '"\C-xnlt": "\C-x0__bash_bindings_check_protocol_connectivity\r"'
 builtin bind -m vi-command '"\C-xnlt": "i\C-x0__bash_bindings_check_protocol_connectivity\r"'
+
 builtin bind -m vi-insert '"\C-xnl2": "\C-x0__bash_bindings_check_protocol_connectivity 22\r"'
 builtin bind -m vi-command '"\C-xnl2": "i\C-x0__bash_bindings_check_protocol_connectivity 22\r"'
+
 builtin bind -m vi-insert '"\C-xnl4": "\C-x0__bash_bindings_check_protocol_connectivity 443\r"'
 builtin bind -m vi-command '"\C-xnl4": "i\C-x0__bash_bindings_check_protocol_connectivity 443\r"'
+
 builtin bind -m vi-insert '"\C-xnl5": "\C-x0__bash_bindings_check_protocol_connectivity 53\r"'
 builtin bind -m vi-command '"\C-xnl5": "i\C-x0__bash_bindings_check_protocol_connectivity 53\r"'
+
 builtin bind -m vi-insert '"\C-xnl8": "\C-x0__bash_bindings_check_protocol_connectivity 80\r"'
 builtin bind -m vi-command '"\C-xnl8": "i\C-x0__bash_bindings_check_protocol_connectivity 80\r"'
+
 builtin bind -m vi-insert '"\C-xnl0": "\C-x0__bash_bindings_check_protocol_connectivity 8080\r"'
 builtin bind -m vi-command '"\C-xnl0": "i\C-x0__bash_bindings_check_protocol_connectivity 8080\r"'
 
-# Scan common ports (22, 53, 80, 443, 8080) on a target host to check which services are open.
-__bash_bindings_scan_common_ports() {
-  local reset bold green yellow purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  yellow="$(tput setaf 3)"
-  purple="$(tput setaf 5)"
-
-  local host
-  read -r -p "\n${bold}Enter domain that you would like to scan with netcat (default: google.com):${reset} " host
-
-  host="${host:-google.com}"
-  local -a ports=(22 53 80 443 8080)
-
-  printf "\nDomain: ${green}%s${reset}\n" "$host"
-  printf "Ports: ${yellow}%s${reset}\n" "${ports[*]/ /,/}"
-
-  printf "\n${bold}%s${reset}" "Scanning common ports ("
-  printf "${yellow}%s${reset}" "${ports[@]:0:1}"
-  local p
-  for p in "${ports[@]:1}"; do
-    printf "${yellow}, %s${reset}" "$p"
-  done
-  printf ")${bold} on ${reset}${green}%s${reset}...\n" "$host"
-
-  printf "\n${purple}$ nc -vz -w3 %s <port>${reset}\n" "$host"
-  for p in "${ports[@]}"; do
-    nc -vz -w2 "$host" "$p" 2>&1
-  done
-}
 builtin bind -m vi-insert '"\C-xnls": "\C-x0__bash_bindings_scan_common_ports\r"'
 builtin bind -m vi-command '"\C-xnls": "i\C-x0__bash_bindings_scan_common_ports\r"'
 
-# Capture 20 packets on the default network interface for packet-level analysis.
-__bash_bindings_capture_packets_on_default_network_interface() {
-  local reset bold green blue purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  blue="$(tput setaf 4)"
-  purple="$(tput setaf 5)"
-
-  printf "\n${bold}%s${reset}\n\n" "Capturing 20 packets on default network interface for packet-level analysis..."
-
-  printf "Finding default network interface via: ${blue}%s${reset}\n" "route get default | awk '/interface:/{print $2}'"
-
-  local interface
-  interface="$(route get default | awk '/interface:/{print $2}')"
-  printf "Interface: ${green}%s${reset}\n" "$interface"
-
-  printf "\n${purple}$ sudo tcpdump -i %s -c 20${reset}\n" "$interface"
-  sudo tcpdump -i "$interface" -c 20
-}
 builtin bind -m vi-insert '"\C-xnlc": "\C-x0__bash_bindings_capture_packets_on_default_network_interface\r"'
 builtin bind -m vi-command '"\C-xnlc": "i\C-x0__bash_bindings_capture_packets_on_default_network_interface\r"'
 
@@ -785,131 +575,27 @@ builtin bind -m vi-command '"\C-xn6": "i\C-x0curl --ipv6 https://ifconfig.me/all
 builtin bind -m vi-insert '"\C-xni": "\C-x0curl -s https://ipinfo.io | jq .\r"'
 builtin bind -m vi-command '"\C-xni": "i\C-x0curl -s https://ipinfo.io | jq .\r"'
 
-# ╭──────────────╮
-# │ DNS Bindings │
-# ╰──────────────╯
-__bash_bindings_dns_lookup() {
-  local bold reset green purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  purple="$(tput setaf 5)"
+# --- network-dns ---
+# DNS Bindings: resolution, the servers in use and a summary.
 
-  local hostname
-  read -r -p "${bold}Enter a hostname to resolve via DNS lookup (default: google.com):${reset} " hostname
-  hostname="${hostname:-google.com}"
-  printf "You chose ${green}%s${reset}\n" "$hostname"
-
-  printf "\n${purple}$ dig +short %s${reset}\n" "$hostname"
-  dig +short "$hostname"
-}
 builtin bind -m vi-insert '"\C-xndd": "\C-x0__bash_bindings_dns_lookup\r"'
 builtin bind -m vi-command '"\C-xndd": "i\C-x0__bash_bindings_dns_lookup\r"'
 
-__bash_bindings_reverse_dns_lookup() {
-  local reset bold green purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  purple="$(tput setaf 5)"
-
-  local ip_address
-  read -r -p "${bold}Enter a IP Address to resolve via Reverse DNS lookup (default: 8.8.8.8):${reset} " ip_address
-  ip_address="${ip_address:-8.8.8.8}"
-  printf "You chose ${green}%s${reset}\n" "$ip_address"
-
-  printf "\n${purple}$ dig +short -x %s${reset}\n" "$ip_address"
-  dig +short -x "$ip_address"
-}
 builtin bind -m vi-insert '"\C-xndr": "\C-x0__bash_bindings_reverse_dns_lookup\r"'
 builtin bind -m vi-command '"\C-xndr": "i\C-x0__bash_bindings_reverse_dns_lookup\r"'
 
-# Lists all active DNS servers configured on your system.
-__bash_bindings_system_dns_servers() {
-  local reset bold green purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  purple="$(tput setaf 5)"
-
-  local hostname
-  hostname="$(hostname)"
-  printf "\n${bold}Listing all active DNS servers configured on${reset} ${green}%s${reset}\n" "$hostname"
-
-  printf "\n${purple}$ %s${reset}\n" "scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u"
-  scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u
-}
 builtin bind -m vi-insert '"\C-xnda": "\C-x0__bash_bindings_system_dns_servers\r"'
 builtin bind -m vi-command '"\C-xnda": "i\C-x0__bash_bindings_system_dns_servers\r"'
 
-# Test DNS resolution for common domains and display the results with response times.
-__bash_bindings_test_dns_resolution_for_common_domains() {
-  local reset bold green purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  purple="$(tput setaf 5)"
-
-  local -a domains=(google.com cloudflare.com apple.com)
-  printf "\n${bold}%s${reset}" "Testing DNS resolution for domains ("
-  printf "${green}%s${reset}" "${domains[@]:0:1}"
-  local d
-  for d in "${domains[@]:1}"; do
-    printf "${green}, %s${reset}" "$d"
-  done
-  printf "${bold}%s${reset}\n" ") and display the results with response times."
-
-  local d
-  for d in "${domains[@]}"; do
-    printf "\n${purple}$ dig +time=2 +tries=1 +short %s${reset}\n" "$d"
-    dig +time=2 +tries=1 +short "${d}"
-  done
-}
 builtin bind -m vi-insert '"\C-xndt": "\__bash_bindings_test_dns_resolution_for_common_domains\r"'
+
 builtin bind -m vi-command '"\C-xndt": "i\C-x0__bash_bindings_test_dns_resolution_for_common_domains\r"'
 
-__bash_bindings_dns_summary() {
-  local reset bold red green yellow blue
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  red="$(tput setaf 1)"
-  green="$(tput setaf 2)"
-  yellow="$(tput setaf 3)"
-  blue="$(tput setaf 4)"
-
-  local -a domains
-  domains=(
-    google.com
-    cloudflare.com
-    apple.com
-  )
-
-  local d length ip rDNS
-  for d in "${domains[@]}"; do
-    length="${#d}"
-    printf "\n${bold}%s:\n%*s=${reset}\n" "${d^}" "$length" '' | tr ' ' '='
-
-    ip="$(dig +short "$d" | head -n1)"
-
-    if [[ -z $ip ]]; then
-      ip="... Could not resolve IP! Check your network connection."
-    fi
-    printf "${blue}%s${reset} resolves to ${green}%s${reset}\n" "$d" "$ip"
-
-    if [[ -n $ip ]]; then
-      printf "Reverse DNS: "
-      rDNS="$(dig +short -x "$ip")"
-
-      if [[ -z $rDNS ]]; then
-        printf "${yellow}... Could not resolve domain name! ${red}%s${reset}${yellow} might not allow rDNS.${reset}" "$ip"
-      fi
-
-      printf "${green}%s\n${reset}" "$rDNS"
-    fi
-  done
-}
 builtin bind -m vi-insert '"\C-xnds": "\C-x0__bash_bindings_dns_summary\r"'
 builtin bind -m vi-command '"\C-xnds": "i\C-x0__bash_bindings_dns_summary\r"'
+
+# --- network-wan ---
+# WAN Bindings: the path out to the internet.
 
 # ╭──────────────╮
 # │ WAN Bindings │
@@ -930,160 +616,17 @@ builtin bind -m vi-command '"\C-xnwP": "i\C-x0ping -c 1 "'
 builtin bind -m vi-insert '"\C-xnwt": "\C-x0traceroute google.com"'
 builtin bind -m vi-command '"\C-xnwt": "i\C-x0traceroute google.com"'
 
-__bash_bindings_latency_traceroute_test() {
-  echo "Traceroute to 8.8.8.8:"
-  traceroute 8.8.8.8
-  echo
-
-  echo "Ping statistics to 8.8.8.8:"
-  ping -c 5 8.8.8.8 | tail -1
-}
 builtin bind -m vi-insert '"\C-xnwL": "\C-x0__bash_bindings_latency_traceroute_test\r"'
 builtin bind -m vi-command '"\C-xnwL": "i\C-x0__bash_bindings_latency_traceroute_test\r"'
 
-__bash_bindings_network_health_check() {
-  local reset bold green blue purple
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-  green="$(tput setaf 2)"
-  blue="$(tput setaf 4)"
-  purple="$(tput setaf 5)"
-
-  printf "\nFinding default network gateway via: ${blue}%s${reset}\n" "netstat -rn | grep default -m 1 | awk '{print \$2}'"
-  local gateway
-  gateway="$(netstat -rn | grep default -m 1 | awk '{print $2}')"
-  printf "${bold}Default Gateway:${reset} ${green}%s${reset}\n" "${gateway}"
-
-  printf "\n${bold}%s${reset}\n" "Pinging Default Gateway..."
-  printf "${purple}$ ping -c 3 %s${reset}\n" "$gateway"
-  ping -c 3 "$gateway"
-  printf "\n"
-
-  printf "${bold}%s${reset}\n" "Pinging Google DNS..."
-  local google_dns="8.8.8.8"
-  printf "${purple}$ ping -c 3 %s${reset}\n" "$google_dns"
-  ping -c 3 "$google_dns"
-  printf "\n"
-
-  local google_domain="google.com"
-  printf "${bold}Testing DNS resolution for ${green}%s${reset}${bold}...${reset}\n" "$google_domain"
-  printf "${purple}$ dig +short %s %s${reset}\n" "$google_domain"
-  dig +short google.com
-}
 builtin bind -m vi-insert '"\C-xnwh": "\C-x0__bash_bindings_network_health_check\r"'
 builtin bind -m vi-command '"\C-xnwh": "i\C-x0__bash_bindings_network_health_check\r"'
 
-__bash_bindings_network_summary() {
-  local reset bold
-  reset="$(tput sgr0)"
-  bold="$(tput bold)"
-
-  printf "${bold}%s${reset}\n" "=== Interfaces ==="
-  ifconfig
-  printf "\n"
-
-  printf "${bold}%s${reset}\n" "=== Routing Table ==="
-  netstat -rn
-  printf "\n"
-
-  printf "${bold}%s${reset}\n" "=== Default Gateway ==="
-  netstat -rn | grep default | awk '{print $2}'
-  printf "\n"
-
-  printf "${bold}%s${reset}\n" "=== DNS Servers ==="
-  scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u
-  printf "\n"
-
-  printf "${bold}%s${reset}\n" "=== Ping Gateway ==="
-  gateway="$(netstat -rn | grep default | awk '{print $2}')"
-  ping -c 3 "$gateway"
-  printf "\n"
-
-  printf "${bold}%s${reset}\n" "=== Ping Google ==="
-  ping -c 3 8.8.8.8
-}
 builtin bind -m vi-insert '"\C-xnws": "\C-x0__bash_bindings_network_summary\r"'
 builtin bind -m vi-command '"\C-xnws": "i\C-x0__bash_bindings_network_summary\r"'
 
-__bash_bindings_list_bash_bindings() {
-  local -a files=(
-    "${HOME}/.bash_bindings"
-    "${HOME}/.fzf_bindings"
-  )
+# --- bindings-help ---
+# List every binding these files declare.
 
-  local f
-  local -a existing_files=()
-  for f in "${files[@]}"; do
-    [[ -f $f ]] && existing_files+=("$f")
-  done
-
-  local red="\033[31m"
-  local reset="\033[0m"
-
-  [[ ${#existing_files[@]} -gt 0 ]] || {
-    printf "${red}No binding files found: %s${reset}\n" "${files[*]}" >&2
-    return 1
-  }
-
-  local file line
-  local -a bindings=()
-  for file in "${existing_files[@]}"; do
-    while IFS= read -r line; do
-      # Only process lines with vi-insert.
-      [[ $line == *vi-insert* ]] || continue
-
-      # Extract key and command using grep + Perl-style regex.
-      if [[ $line =~ \"\\([^\"]+)\":\ \"([^\"]+)\"\'[[:space:]]*(\#.*)?$ ]]; then
-        local key="${BASH_REMATCH[1]}"
-        local cmd="${BASH_REMATCH[2]}"
-        local description="${BASH_REMATCH[3]}"
-
-        if [[ $key =~ ^(C-|M-)(.) ]]; then
-          key="${BASH_REMATCH[1]}${BASH_REMATCH[2]} ${key:3}"
-        fi
-
-        # Remove leading '\C-x0' from cmd, if present.
-        cmd="${cmd#\\C-x0}"
-
-        # If trailing '\r' exists, then remove it and populate `enter` variable.
-        local enter=""
-        if [[ $cmd == *\\r ]]; then
-          cmd="${cmd%\\r}"
-          enter="Enter"
-        fi
-
-        bindings+=("${key}|${cmd}|${enter}|${description}")
-      fi
-    done <"$file"
-  done
-
-  local pager
-  if command -v bat &>/dev/null; then
-    pager='bat --paging=always --color=always'
-  else
-    pager='less -R'
-  fi
-
-  # Sort files:
-  local -a sorted_bindings
-  mapfile -t sorted_bindings < <(printf "%s\n" "${bindings[@]}" | sort)
-
-  local line key cmd enter description
-  for line in "${sorted_bindings[@]}"; do
-    IFS="|" read -r key cmd enter description <<<"$line"
-
-    [[ -n $enter ]] && enter=" ${enter}"
-    [[ -n $description ]] && description="$(echo "  ${description}" | fold -s -w 50 | sed '2,$s/^/               /')"
-
-    local blue="\033[34m"
-    local purple="\033[35m"
-    local dark_gray="\033[90m"
-    local light_gray="\033[37m"
-
-    printf "${blue}%-10s${reset} ${light_gray}:${reset} ${purple}%s${reset}${dark_gray}%s${reset}${light_gray}%s${reset}\n" \
-      "$key" "$cmd" "$enter" "$description"
-  done | $pager
-  unset IFS
-}
 builtin bind -m vi-insert '"\C-xv": "\C-x0__bash_bindings_list_bash_bindings\r"'
 builtin bind -m vi-command '"\C-xv": "i\C-x0__bash_bindings_list_bash_bindings\r"'
