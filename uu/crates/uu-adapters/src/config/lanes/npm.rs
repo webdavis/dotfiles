@@ -53,8 +53,8 @@ pub(crate) fn parse_npm_lane(
 impl NpmLane {
     pub(crate) const KEYS: &'static [&'static str] = &[
         "binary",
-        "declared",
         "deadline_secs",
+        "declared",
         "escalate_after_runs",
         "type",
     ];
