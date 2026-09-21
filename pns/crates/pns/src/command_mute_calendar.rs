@@ -1,5 +1,5 @@
 use crate::*;
-use pns_adapters::{QuietCalendar, SqliteStore};
+use pns_adapters::{CalendarSource, QuietCalendar, SqliteStore};
 use pns_domain::mute::calendar::{CalendarState, Event, Move};
 use std::time::Duration;
 
@@ -31,12 +31,15 @@ pub(crate) fn mute_calendar_mode() -> i32 {
     let state = state_dir();
     let records = SqliteStore::for_records(state.clone());
     let held = pns_adapters::read_calendar_state(&state);
+    let now = now_secs();
     let outcome = poll(
         &calendar,
-        now_secs(),
+        now,
         crate::command_mute::read_mute_expiry(&records),
         held,
-        &mut |argv, deadline| pns_adapters::read_calendar(argv, deadline),
+        &mut |source, deadline| {
+            pns_adapters::read_calendar(source, &state, now.unwrap_or_default(), deadline)
+        },
     );
     let (chosen, next) = match outcome {
         Poll::Off => return 0,
@@ -88,14 +91,14 @@ fn poll(
     now: Option<u64>,
     expiry: Option<u64>,
     held: CalendarState,
-    read: &mut impl FnMut(&[String], Duration) -> Result<Vec<Event>, String>,
+    read: &mut impl FnMut(&CalendarSource, Duration) -> Result<Vec<Event>, String>,
 ) -> Poll {
     // THE SWITCH IS READ BEFORE THE CLOCK AND BEFORE THE COMMAND: an off
     // feature spawns nothing and reads nothing.
     let (Some(_), Some(now)) = (calendar.armed(), now) else {
         return Poll::Off;
     };
-    match read(&calendar.command, calendar.deadline()) {
+    match read(&calendar.source, calendar.deadline()) {
         Err(complaint) => Poll::Unread(complaint),
         Ok(events) => {
             let (chosen, next) = pns_domain::mute::calendar::decide(&events, now, expiry, held);

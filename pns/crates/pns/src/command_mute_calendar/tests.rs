@@ -3,7 +3,7 @@ use super::*;
 fn armed() -> QuietCalendar {
     QuietCalendar {
         enabled: true,
-        command: vec!["busy-window".to_string()],
+        source: CalendarSource::Command(vec!["busy-window".to_string()]),
         ..QuietCalendar::default()
     }
 }
@@ -12,7 +12,7 @@ fn armed() -> QuietCalendar {
 fn answering(
     answer: Result<Vec<Event>, String>,
     asked: &mut bool,
-) -> impl FnMut(&[String], Duration) -> Result<Vec<Event>, String> + '_ {
+) -> impl FnMut(&CalendarSource, Duration) -> Result<Vec<Event>, String> + '_ {
     move |_, _| {
         *asked = true;
         answer.clone()
@@ -38,7 +38,7 @@ fn an_absent_or_disabled_table_runs_no_command_at_all() {
             ..armed()
         },
         QuietCalendar {
-            command: Vec::new(),
+            source: CalendarSource::default(),
             ..armed()
         },
     ] {

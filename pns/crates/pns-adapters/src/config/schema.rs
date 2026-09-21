@@ -98,7 +98,17 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("quiet", &["calendar"]),
     (
         "quiet.calendar",
-        &["command", "deadline", "enabled", "poll_interval"],
+        &[
+            "calendars",
+            "client_id",
+            "client_secret",
+            "command",
+            "deadline",
+            "enabled",
+            "poll_interval",
+            "refresh_token",
+            "type",
+        ],
     ),
     (
         "delivery",
