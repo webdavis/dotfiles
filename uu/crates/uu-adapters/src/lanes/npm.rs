@@ -80,14 +80,18 @@ impl NpmLane {
         report: &mut LaneReport,
     ) {
         let binary = self.binary.as_str();
-        let listing = runner.run_in(
+        // `npm ls -g` exits non-zero whenever the tree has a problem (an
+        // unmet peer dependency is enough) while still printing a complete,
+        // parseable document on stdout, so the listing is read through the
+        // seam that keeps a child's stdout past a non-clean exit rather than
+        // the one that turns it into an `Err`.
+        let listing = runner.run_reporting_in(
             binary,
             &LISTING,
             &Environment::inheriting().prepending_path(bin_dir(binary)),
-            None,
         );
         let stdout = match listing {
-            Ok(stdout) => stdout,
+            Ok(ran) => ran.stdout,
             // WITHOUT THE LISTING THERE IS NO REPORT, and a silent lane reads
             // exactly like a machine with nothing undeclared on it.
             Err(why) => {

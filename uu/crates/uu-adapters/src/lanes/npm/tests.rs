@@ -1,6 +1,6 @@
 use super::*;
-use crate::lanes::Ran;
 use crate::lanes::stubs::stub_facts;
+use crate::lanes::{Ran, Verdict};
 use std::cell::RefCell;
 use std::time::Duration;
 
@@ -10,7 +10,10 @@ use std::time::Duration;
 /// run at all.
 struct StubRunner {
     answer: Result<String, String>,
-    listing: Result<String, String>,
+    /// The listing's own seam keeps stdout past a non-clean exit, so this
+    /// carries a whole `Ran` rather than only a `String`: `Err` is "could
+    /// not run at all", `Ok` is whatever it printed plus how it ended.
+    listing: Result<Ran, String>,
     calls: RefCell<Vec<Vec<String>>>,
     environments: RefCell<Vec<Environment>>,
 }
@@ -19,7 +22,7 @@ impl StubRunner {
     fn clean() -> Self {
         StubRunner {
             answer: Ok(String::new()),
-            listing: Ok(LISTED.to_string()),
+            listing: Ok(clean_ran(LISTED.to_string())),
             calls: RefCell::new(Vec::new()),
             environments: RefCell::new(Vec::new()),
         }
@@ -28,7 +31,20 @@ impl StubRunner {
     /// A clean upgrade over a listing of this stub's own.
     fn listing(answer: Result<String, String>) -> Self {
         StubRunner {
-            listing: answer,
+            listing: answer.map(clean_ran),
+            ..StubRunner::clean()
+        }
+    }
+
+    /// A clean upgrade over a listing that PRINTED a readable document but
+    /// still exited non-zero, the `npm ls -g` problem-exit case.
+    fn listing_failed_with_stdout(stdout: &str, why: &str) -> Self {
+        StubRunner {
+            listing: Ok(Ran {
+                stdout: stdout.to_string(),
+                stderr: String::new(),
+                verdict: Verdict::Failed(why.to_string()),
+            }),
             ..StubRunner::clean()
         }
     }
@@ -36,7 +52,7 @@ impl StubRunner {
     fn refusing(why: &str) -> Self {
         StubRunner {
             answer: Err(why.to_string()),
-            listing: Ok(LISTED.to_string()),
+            listing: Ok(clean_ran(LISTED.to_string())),
             calls: RefCell::new(Vec::new()),
             environments: RefCell::new(Vec::new()),
         }
@@ -64,14 +80,25 @@ impl CommandRunner for StubRunner {
         most: Option<Duration>,
     ) -> Result<String, String> {
         assert_eq!(most, None, "the whole lane owns the deadline");
+        assert_ne!(args, LISTING, "the listing reads through run_reporting_in");
         let mut call = vec![program.to_string()];
         call.extend(args.iter().map(|word| (*word).to_string()));
         self.calls.borrow_mut().push(call);
         self.environments.borrow_mut().push(env.clone());
-        if args == LISTING {
-            return self.listing.clone();
-        }
         self.answer.clone()
+    }
+
+    fn run_reporting_in(
+        &self,
+        program: &str,
+        args: &[&str],
+        env: &Environment,
+    ) -> Result<Ran, String> {
+        let mut call = vec![program.to_string()];
+        call.extend(args.iter().map(|word| (*word).to_string()));
+        self.calls.borrow_mut().push(call);
+        self.environments.borrow_mut().push(env.clone());
+        self.listing.clone()
     }
 
     fn run_with_deadline(
@@ -85,6 +112,15 @@ impl CommandRunner for StubRunner {
 
     fn run_with_input(&self, _program: &str, _args: &[&str], _input: &str) -> Result<Ran, String> {
         unreachable!("the npm lane hands its child nothing on stdin")
+    }
+}
+
+/// A clean `Ran` carrying `stdout`, the shape most listing fixtures need.
+fn clean_ran(stdout: String) -> Ran {
+    Ran {
+        stdout,
+        stderr: String::new(),
+        verdict: Verdict::Clean,
     }
 }
 
@@ -308,6 +344,27 @@ fn a_listing_that_is_not_readable_json_is_a_failed_step_rather_than_a_guess() {
             .is_some_and(|line| line.contains("unreadably")),
         "{:?}",
         report.lines
+    );
+}
+
+#[test]
+fn a_listing_that_exited_non_clean_but_printed_a_readable_document_is_still_read() {
+    // `npm ls -g --depth=0 --json` exits non-zero whenever the tree has a
+    // problem (an unmet peer dependency is enough) while still printing a
+    // complete document on stdout. The listing must not be thrown away just
+    // because the exit was not clean.
+    let report = declaring(&["@scope/one", "two"]).run(
+        "globals",
+        &stub_facts(),
+        &StubRunner::listing_failed_with_stdout(LISTED, "exit 1: npm error code EUNMET"),
+    );
+    assert_eq!(report.failures(), 0);
+    assert_eq!(
+        report.lines,
+        vec![
+            format!("{NPM} update -g: ok"),
+            "undeclared: three 1.2.4".to_string(),
+        ]
     );
 }
 
