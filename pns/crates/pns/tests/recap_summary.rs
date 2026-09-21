@@ -96,7 +96,11 @@ fn a_summarizer_that_fails_leaves_one_visible_line_on_every_output_form() {
         (
             "recap-summary-hung",
             "cat >/dev/null; sleep 30",
-            "gave no answer",
+            // THE TIMELINE'S OWN CALL SPENDS THE WHOLE EPISODE HANGING, so
+            // this one finds no budget left rather than hanging a second
+            // time: "answered nothing" is `Failure::Silent`'s wording for
+            // both an empty answer and a spent budget.
+            "answered nothing",
         ),
     ] {
         let (sandbox, script) = sandbox_with(name, body);
