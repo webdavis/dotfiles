@@ -1,0 +1,612 @@
+# vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
+
+# shellcheck shell=bash
+
+# Disable SC2016 (which warns about expressions in single quotes):
+# shellcheck disable=SC2016
+
+# The shell the key bindings call: the functions bound with `bind -x` or typed
+# by a chord, the `\C-x0` helper macros those chords start with, and the stty
+# change one of them needs. ~/.bashrc sources this file before
+# ~/.bash_bindings, which `chord render bash` generates from
+# ~/.config/chord/bindings.toml.
+
+# Unbind Ctrl-w from werase in stty. See https://stackoverflow.com/questions/10980575/
+stty werase undef
+
+builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
+builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
+builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
+
+# Define a function to prepend 'sudo ' to the current command.
+sudo_insert() {
+  READLINE_LINE="sudo $READLINE_LINE"
+  READLINE_POINT=${#READLINE_LINE} # Move cursor to the end.
+}
+
+# Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
+__bash_bindings_go_to_project_root() {
+  local path
+  path="$(pwd)"
+
+  # Add VCS root indicators (or project markers) to the 'markers' array.
+  local markers=(.git .hg .svn .bzr .build.xml .project .projections.json .root .tasks)
+
+  while :; do
+    local marker
+    for marker in "${markers[@]}"; do
+      if [[ -e "${path}/${marker}" || -d "${path}/${marker}" ]]; then
+        builtin cd "$path" || return 1
+        pwd
+        return 0
+      fi
+    done
+
+    if [[ $path == "/" ]]; then
+      local yellow reset
+      yellow="$(tput setaf 3)"
+      reset="$(tput sgr0)"
+      printf "${yellow}Warning[%s]: No project root found.${reset}\n" "${FUNCNAME[0]}" >&2
+      return 1
+    fi
+    path="$(dirname "$path")"
+  done
+}
+
+# Copy last git commit message to clipboard.
+__bash_bindings_copy_latest_git_commit_message_to_clipboard() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" "git log -1 --pretty=%B | pbcopy"
+  git log -1 --pretty=%B | pbcopy
+}
+
+__bash_bindings_helper_get_open_cmd() {
+  command -v open 2>/dev/null && return 0
+  command -v xdg-open 2>/dev/null && return 0
+
+  printf "Error [%s]: Cannot determine open command for operating sysem: %s\n" \
+    "${FUNCNAME[*]}" \
+    "$OSTYPE" \
+    >&2
+  return 1
+}
+
+__bash_bindings_open_github_page() {
+  local url_suffix="${1:-}"
+  local page_desc="${2:-$1}"
+  page_desc="${page_desc^}"
+
+  local repo json_field jq_filter
+  local url="https://github.com"
+
+  case "$url_suffix" in
+    "feed") ;;
+    "profile") json_field="owner" jq_filter="owner.login" url_suffix="" ;;
+    *) json_field="nameWithOwner" jq_filter="nameWithOwner" ;;
+  esac
+
+  local IFS=":"
+  if [[ -n $json_field ]]; then
+    repo="$(gh repo view --json ${json_field} --jq ."${jq_filter}" 2>/dev/null)" || {
+      printf "Error [%s]: Could not determine GitHub repository. Are you in a git repo with a GitHub remote?\n" "${FUNCNAME[0]}" >&2
+      return 1
+    }
+
+    url="${url}/${repo}/${url_suffix}"
+  fi
+
+  local open_cmd
+  open_cmd="$(__bash_bindings_helper_get_open_cmd)" || return 1
+
+  printf "Opening GitHub%s page%s in browser.\n" "${page_desc:+ $page_desc}" "${repo:+ for $repo}"
+  "$open_cmd" "$url"
+}
+
+# git tag --list --sort=v:refname
+__bash_bindings_git_list_tags() {
+  git tag --list --sort='v:refname'
+}
+
+# Package manager update:
+__bash_bindings_update_package_manager() {
+  local os distro command
+  case "$OSTYPE" in
+    solaris*) os='solaris' ;;
+    darwin*)
+      os='osx'
+      command -v brew &>/dev/null || return
+      ;;
+    linux*) os='linux' ;;
+    bsd*) os='bsd' ;;
+    msys*) os='windows' ;;
+    *)
+      printf "Warning [%s]: Cannot update. Unknown operating system detected: '%s'\n." \
+        "${FUNCNAME[0]}" "${OSTYPE}" >&2
+      return 1
+      ;;
+  esac
+
+  case "${os}" in
+    'linux')
+      if [[ -f '/etc/os-release' ]]; then
+        distro="$(grep '^NAME=' /etc/os-release | sed -e's/NAME="\(.*\)"/\1/g')"
+      fi
+      ;;
+    'osx')
+      distro="osx"
+      ;;
+    *)
+      printf '%s\n' "Cannot update. Unknown distro detected." 1>&2
+      return 1
+      ;;
+  esac
+
+  case "${distro}" in
+    'osx')
+      command='brew upgrade'
+      ;;
+    'Arch Linux')
+      command='sudo pacman --noconfirm --sync --refresh --sysupgrade'
+      ;;
+    'Ubuntu')
+      command='sudo apt update && sudo apt upgrade --yes'
+      ;;
+  esac
+  $command
+}
+
+# Function to redraw the prompt:
+redraw_prompt() {
+  tput rc # Restore cursor position
+  tput ed # Clear to end of screen
+  tput sc # Save cursor position
+}
+
+# List git files with last modified:
+__bash_bindings_git_ls_files_with_last_modified() {
+  # Header:
+  printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
+  printf "%-25s %-10s %s\n" "-------------------------" "-------" "------------------------ "
+
+  local blue='\033[34m'
+  local yellow='\033[33m'
+  local reset='\033[0m'
+
+  local file last_commit_info date commit_hash
+
+  # Capture files with git metadata:
+  local -a files=()
+  while read -r file; do
+    last_commit_info=$(git log -1 --format="%ci|%h" -- "$file")
+    date="${last_commit_info%%|*}"
+    commit_hash="${last_commit_info##*|}"
+    files+=("${date}|${commit_hash}|${file}")
+  done < <(git ls-files)
+
+  # Sort files:
+  local -a sorted
+  mapfile -t sorted < <(printf "%s\n" "${files[@]}" | sort -r)
+
+  # Print sorted files:
+  for line in "${sorted[@]}"; do
+    IFS="|" read -r date commit_hash file <<<"$line"
+    printf "%b%-25s%b %b%-6s%b %s\n" \
+      "$blue" "$date" "$reset" \
+      "$yellow" "$commit_hash" "$reset" \
+      "$file"
+  done
+}
+
+# Print the MAC address of the current machine.
+__bash_bindings_print_mac_address() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" 'networksetup -getmacaddress en0 | awk '\''{print $3}'\'''
+  networksetup -getmacaddress en0 | awk '{print $3}'
+}
+
+# Shows the network interface your computer currently uses for outbound traffic.
+__bash_bindings_show_current_network_interface() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" 'route get default | grep interface | awk '\''{print $2}'\'''
+  route get default | grep interface | awk '{print $2}'
+}
+
+# Shows the IP address of your default gateway (usually your router).
+__bash_bindings_show_ip_address_of_default_gateway() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" 'netstat -rn | grep default -m 1 | awk '\''{print $2}'\'''
+  netstat -rn | grep default -m 1 | awk '{print $2}'
+}
+
+# Shows the subnet mask and domain name for your current Wi-Fi or Ethernet interface.
+__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" "ipconfig getsummary en0 | grep 'subnet_mask' -A1"
+  ipconfig getsummary en0 | grep 'subnet_mask' -A1
+}
+
+# Ping the default gateway (usually your router) once to check local network reachability.
+__bash_bindings_ping_default_gateway() {
+  local reset bold green blue purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  blue="$(tput setaf 4)"
+  purple="$(tput setaf 5)"
+
+  printf "\n${bold}%s${reset}\n\n" "Pinging default gateway to check local network reachability..."
+
+  printf "Finding default network gateway via: ${blue}%s${reset}\n" "netstat -rn | grep default -m 1 | awk '{print \$2}'"
+  local gateway
+  gateway="$(netstat -rn | grep default -m 1 | awk '{print $2}')"
+  printf "Gateway: ${green}%s${reset}\n" "$gateway"
+
+  printf "\n${purple}$ ping -c 1 %s${reset}\n" "$gateway"
+  ping -c 1 "$gateway"
+}
+
+# Check protocol connectivity by checking if <port> on <host> is open.
+__bash_bindings_check_protocol_connectivity() {
+  local reset bold red green yellow blue purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  italic=$'\e[3m'
+  red="$(tput setaf 1)"
+  green="$(tput setaf 2)"
+  yellow="$(tput setaf 3)"
+  purple="$(tput setaf 5)"
+
+  local -A port_protocol=(
+    [22]="SSH"
+    [53]="DNS"
+    [80]="HTTP"
+    [443]="HTTPS"
+    [8080]="HTTP-ALT"
+  )
+
+  local port="$1"
+
+  local hostname
+  read -r -p "${bold}Enter hostname to check protocol connectivity (default: ${reset}${italic}google.com${reset}${bold}):${reset} " hostname
+  hostname="${hostname:-google.com}"
+
+  if [[ -z $port ]]; then
+    read -r -p "${bold}What port would you like to check on ${hostname} (default: ${reset}${italic}80${reset}${bold})?${reset} " port
+  fi
+  port="${port:-80}"
+
+  local protocol="${port_protocol[$port]:-Unknown}"
+
+  printf "Hostname: ${green}%s${reset}\n" "$hostname"
+  printf "Port: ${yellow}%s${reset}\n" "$port"
+  printf "Protocol: ${red}%s${reset}\n" "$protocol"
+
+  printf "\n${purple}$ nc -vz -w2 %s %s${reset}\n" "$hostname" "$port"
+  nc -vz -w3 "$hostname" "$port"
+}
+
+# Scan common ports (22, 53, 80, 443, 8080) on a target host to check which services are open.
+__bash_bindings_scan_common_ports() {
+  local reset bold green yellow purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  yellow="$(tput setaf 3)"
+  purple="$(tput setaf 5)"
+
+  local host
+  read -r -p "\n${bold}Enter domain that you would like to scan with netcat (default: google.com):${reset} " host
+
+  host="${host:-google.com}"
+  local -a ports=(22 53 80 443 8080)
+
+  printf "\nDomain: ${green}%s${reset}\n" "$host"
+  printf "Ports: ${yellow}%s${reset}\n" "${ports[*]/ /,/}"
+
+  printf "\n${bold}%s${reset}" "Scanning common ports ("
+  printf "${yellow}%s${reset}" "${ports[@]:0:1}"
+  local p
+  for p in "${ports[@]:1}"; do
+    printf "${yellow}, %s${reset}" "$p"
+  done
+  printf ")${bold} on ${reset}${green}%s${reset}...\n" "$host"
+
+  printf "\n${purple}$ nc -vz -w3 %s <port>${reset}\n" "$host"
+  for p in "${ports[@]}"; do
+    nc -vz -w2 "$host" "$p" 2>&1
+  done
+}
+
+# Capture 20 packets on the default network interface for packet-level analysis.
+__bash_bindings_capture_packets_on_default_network_interface() {
+  local reset bold green blue purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  blue="$(tput setaf 4)"
+  purple="$(tput setaf 5)"
+
+  printf "\n${bold}%s${reset}\n\n" "Capturing 20 packets on default network interface for packet-level analysis..."
+
+  printf "Finding default network interface via: ${blue}%s${reset}\n" "route get default | awk '/interface:/{print $2}'"
+
+  local interface
+  interface="$(route get default | awk '/interface:/{print $2}')"
+  printf "Interface: ${green}%s${reset}\n" "$interface"
+
+  printf "\n${purple}$ sudo tcpdump -i %s -c 20${reset}\n" "$interface"
+  sudo tcpdump -i "$interface" -c 20
+}
+
+__bash_bindings_dns_lookup() {
+  local bold reset green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local hostname
+  read -r -p "${bold}Enter a hostname to resolve via DNS lookup (default: google.com):${reset} " hostname
+  hostname="${hostname:-google.com}"
+  printf "You chose ${green}%s${reset}\n" "$hostname"
+
+  printf "\n${purple}$ dig +short %s${reset}\n" "$hostname"
+  dig +short "$hostname"
+}
+
+__bash_bindings_reverse_dns_lookup() {
+  local reset bold green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local ip_address
+  read -r -p "${bold}Enter a IP Address to resolve via Reverse DNS lookup (default: 8.8.8.8):${reset} " ip_address
+  ip_address="${ip_address:-8.8.8.8}"
+  printf "You chose ${green}%s${reset}\n" "$ip_address"
+
+  printf "\n${purple}$ dig +short -x %s${reset}\n" "$ip_address"
+  dig +short -x "$ip_address"
+}
+
+# Lists all active DNS servers configured on your system.
+__bash_bindings_system_dns_servers() {
+  local reset bold green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local hostname
+  hostname="$(hostname)"
+  printf "\n${bold}Listing all active DNS servers configured on${reset} ${green}%s${reset}\n" "$hostname"
+
+  printf "\n${purple}$ %s${reset}\n" "scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u"
+  scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u
+}
+
+# Test DNS resolution for common domains and display the results with response times.
+__bash_bindings_test_dns_resolution_for_common_domains() {
+  local reset bold green purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  purple="$(tput setaf 5)"
+
+  local -a domains=(google.com cloudflare.com apple.com)
+  printf "\n${bold}%s${reset}" "Testing DNS resolution for domains ("
+  printf "${green}%s${reset}" "${domains[@]:0:1}"
+  local d
+  for d in "${domains[@]:1}"; do
+    printf "${green}, %s${reset}" "$d"
+  done
+  printf "${bold}%s${reset}\n" ") and display the results with response times."
+
+  local d
+  for d in "${domains[@]}"; do
+    printf "\n${purple}$ dig +time=2 +tries=1 +short %s${reset}\n" "$d"
+    dig +time=2 +tries=1 +short "${d}"
+  done
+}
+
+__bash_bindings_dns_summary() {
+  local reset bold red green yellow blue
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  red="$(tput setaf 1)"
+  green="$(tput setaf 2)"
+  yellow="$(tput setaf 3)"
+  blue="$(tput setaf 4)"
+
+  local -a domains
+  domains=(
+    google.com
+    cloudflare.com
+    apple.com
+  )
+
+  local d length ip rDNS
+  for d in "${domains[@]}"; do
+    length="${#d}"
+    printf "\n${bold}%s:\n%*s=${reset}\n" "${d^}" "$length" '' | tr ' ' '='
+
+    ip="$(dig +short "$d" | head -n1)"
+
+    if [[ -z $ip ]]; then
+      ip="... Could not resolve IP! Check your network connection."
+    fi
+    printf "${blue}%s${reset} resolves to ${green}%s${reset}\n" "$d" "$ip"
+
+    if [[ -n $ip ]]; then
+      printf "Reverse DNS: "
+      rDNS="$(dig +short -x "$ip")"
+
+      if [[ -z $rDNS ]]; then
+        printf "${yellow}... Could not resolve domain name! ${red}%s${reset}${yellow} might not allow rDNS.${reset}" "$ip"
+      fi
+
+      printf "${green}%s\n${reset}" "$rDNS"
+    fi
+  done
+}
+
+__bash_bindings_latency_traceroute_test() {
+  echo "Traceroute to 8.8.8.8:"
+  traceroute 8.8.8.8
+  echo
+
+  echo "Ping statistics to 8.8.8.8:"
+  ping -c 5 8.8.8.8 | tail -1
+}
+
+__bash_bindings_network_health_check() {
+  local reset bold green blue purple
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+  green="$(tput setaf 2)"
+  blue="$(tput setaf 4)"
+  purple="$(tput setaf 5)"
+
+  printf "\nFinding default network gateway via: ${blue}%s${reset}\n" "netstat -rn | grep default -m 1 | awk '{print \$2}'"
+  local gateway
+  gateway="$(netstat -rn | grep default -m 1 | awk '{print $2}')"
+  printf "${bold}Default Gateway:${reset} ${green}%s${reset}\n" "${gateway}"
+
+  printf "\n${bold}%s${reset}\n" "Pinging Default Gateway..."
+  printf "${purple}$ ping -c 3 %s${reset}\n" "$gateway"
+  ping -c 3 "$gateway"
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "Pinging Google DNS..."
+  local google_dns="8.8.8.8"
+  printf "${purple}$ ping -c 3 %s${reset}\n" "$google_dns"
+  ping -c 3 "$google_dns"
+  printf "\n"
+
+  local google_domain="google.com"
+  printf "${bold}Testing DNS resolution for ${green}%s${reset}${bold}...${reset}\n" "$google_domain"
+  printf "${purple}$ dig +short %s %s${reset}\n" "$google_domain"
+  dig +short google.com
+}
+
+__bash_bindings_network_summary() {
+  local reset bold
+  reset="$(tput sgr0)"
+  bold="$(tput bold)"
+
+  printf "${bold}%s${reset}\n" "=== Interfaces ==="
+  ifconfig
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Routing Table ==="
+  netstat -rn
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Default Gateway ==="
+  netstat -rn | grep default | awk '{print $2}'
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== DNS Servers ==="
+  scutil --dns | grep 'nameserver\[[0-9]*\]' | awk '{print $3}' | sort -u
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Ping Gateway ==="
+  gateway="$(netstat -rn | grep default | awk '{print $2}')"
+  ping -c 3 "$gateway"
+  printf "\n"
+
+  printf "${bold}%s${reset}\n" "=== Ping Google ==="
+  ping -c 3 8.8.8.8
+}
+
+__bash_bindings_list_bash_bindings() {
+  local -a files=(
+    "${HOME}/.bash_bindings"
+    "${HOME}/.fzf_bindings"
+  )
+
+  local f
+  local -a existing_files=()
+  for f in "${files[@]}"; do
+    [[ -f $f ]] && existing_files+=("$f")
+  done
+
+  local red="\033[31m"
+  local reset="\033[0m"
+
+  [[ ${#existing_files[@]} -gt 0 ]] || {
+    printf "${red}No binding files found: %s${reset}\n" "${files[*]}" >&2
+    return 1
+  }
+
+  local file line
+  local -a bindings=()
+  for file in "${existing_files[@]}"; do
+    while IFS= read -r line; do
+      # Only process lines with vi-insert.
+      [[ $line == *vi-insert* ]] || continue
+
+      # Extract key and command using grep + Perl-style regex.
+      if [[ $line =~ \"\\([^\"]+)\":\ \"([^\"]+)\"\'[[:space:]]*(\#.*)?$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local cmd="${BASH_REMATCH[2]}"
+        local description="${BASH_REMATCH[3]}"
+
+        if [[ $key =~ ^(C-|M-)(.) ]]; then
+          key="${BASH_REMATCH[1]}${BASH_REMATCH[2]} ${key:3}"
+        fi
+
+        # Remove leading '\C-x0' from cmd, if present.
+        cmd="${cmd#\\C-x0}"
+
+        # If trailing '\r' exists, then remove it and populate `enter` variable.
+        local enter=""
+        if [[ $cmd == *\\r ]]; then
+          cmd="${cmd%\\r}"
+          enter="Enter"
+        fi
+
+        bindings+=("${key}|${cmd}|${enter}|${description}")
+      fi
+    done <"$file"
+  done
+
+  local pager
+  if command -v bat &>/dev/null; then
+    pager='bat --paging=always --color=always'
+  else
+    pager='less -R'
+  fi
+
+  # Sort files:
+  local -a sorted_bindings
+  mapfile -t sorted_bindings < <(printf "%s\n" "${bindings[@]}" | sort)
+
+  local line key cmd enter description
+  for line in "${sorted_bindings[@]}"; do
+    IFS="|" read -r key cmd enter description <<<"$line"
+
+    [[ -n $enter ]] && enter=" ${enter}"
+    [[ -n $description ]] && description="$(echo "  ${description}" | fold -s -w 50 | sed '2,$s/^/               /')"
+
+    local blue="\033[34m"
+    local purple="\033[35m"
+    local dark_gray="\033[90m"
+    local light_gray="\033[37m"
+
+    printf "${blue}%-10s${reset} ${light_gray}:${reset} ${purple}%s${reset}${dark_gray}%s${reset}${light_gray}%s${reset}\n" \
+      "$key" "$cmd" "$enter" "$description"
+  done | $pager
+  unset IFS
+}
