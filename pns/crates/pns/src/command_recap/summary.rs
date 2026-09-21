@@ -42,18 +42,14 @@ pub(super) fn attach(
         return;
     }
     let asked = options.summarize || options.pregenerate;
-    // WITHOUT BEING ASKED, ONLY WHEN THE RECAP IS DELIVERED. `--summarize`
-    // asks for it on the terminal, and `--pregenerate` is the gateway writing
-    // one in the background.
-    if !asked && options.to.is_none() {
-        return;
-    }
     let stored = window
         .name
         .as_deref()
         .and_then(|name| store.recap_summary(name).ok().flatten());
     // A STORED SUMMARY IS SHOWN WITH THE TIME IT WAS WRITTEN, unless it is
     // older than the window's last event or the caller asked for a new one.
+    // THIS COSTS NO MODEL CALL, so it is shown on a bare terminal recap too,
+    // not only a delivered one.
     if let Some(held) = stored.filter(|held| !asked && held.covers >= assembled.last_event_at()) {
         assembled.with_summary(Summary {
             lines: vec![held.text],
@@ -61,6 +57,14 @@ pub(super) fn attach(
             source: held.source,
             failed: false,
         });
+        return;
+    }
+    // WITHOUT BEING ASKED, A NEW SUMMARY IS WRITTEN ONLY WHEN THE RECAP IS
+    // DELIVERED. `--summarize` asks for it on the terminal, and
+    // `--pregenerate` is the gateway writing one in the background; a bare
+    // terminal recap with nothing stored gets no section rather than a model
+    // call it never asked for.
+    if !asked && options.to.is_none() {
         return;
     }
     let now = now_secs().unwrap_or_default();
