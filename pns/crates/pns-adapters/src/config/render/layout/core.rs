@@ -219,7 +219,9 @@ pub(super) const RECAP_SOURCES: Table = Table {
             name: "pull_requests",
             prose: "",
             sample: Sample::Example(
-                "[\"gh\", \"pr\", \"list\", \"--search\", \"updated:>={since}\"]",
+                "[\"bash\", \"-c\", \"gh pr list --search \\\"updated:>={since}\\\" --json \
+                 number,title,headRefName | jq -r '.[] | \\\"#\\\\(.number) \\\\(.headRefName) \
+                 \\\\(.title)\\\"'\"]",
             ),
         },
         Key {

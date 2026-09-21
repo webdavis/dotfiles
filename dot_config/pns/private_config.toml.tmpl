@@ -444,14 +444,14 @@ retain = "720h"
 # `applies` are run a second time with no window at all, which is what
 # fills the `open` section.
 [recap.sources]
-# pull_requests = ["gh", "pr", "list", "--search", "updated:>={since}"]
+# pull_requests = ["bash", "-c", "gh pr list --search \"updated:>={since}\" --json number,title,headRefName | jq -r '.[] | \"#\\(.number) \\(.headRefName) \\(.title)\"'"]
 # Work with neither an agent session nor a pull request behind it. It
 # ships unnamed, so a fresh install has no `commits` section at all.
 # commits = ["git", "log", "--since={since}", "--until={until}", "--oneline"]
 # Your own task tool. pns assumes none, so this and `applies` decide
 # for themselves whether the window means anything to them.
 tasks = ["bash", "-c", "td --no-spinner today --ndjson | jq -r \"$1\"", "_", "\"p\\(5 - .priority) \" + (.content | split(\"\\n\")[0])"]
-applies = ["bash", "-c", "grep -E \"^(head|branch|result|exit_code):\" \"$HOME/.local/state/chezmoi-apply/latest.apply.log\" 2>/dev/null"]
+applies = ["bash", "-c", "grep -E \"^(head|branch|result|exit_code):\" \"$HOME/.local/state/chezmoi-apply/latest.apply.log\" 2>/dev/null || true"]
 
 # The macOS Focus modes that pns reads as your own instruction not to be
 # interrupted. While one of them is active, banners, cards and light

@@ -225,5 +225,5 @@ tasks = [
 applies = [
   "bash",
   "-c",
-  'grep -E "^(head|branch|result|exit_code):" "$HOME/.local/state/chezmoi-apply/latest.apply.log" 2>/dev/null',
+  'grep -E "^(head|branch|result|exit_code):" "$HOME/.local/state/chezmoi-apply/latest.apply.log" 2>/dev/null || true',
 ]
