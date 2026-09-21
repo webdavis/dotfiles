@@ -1,0 +1,13 @@
+[package]
+name = "chord"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "chord"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+similar = "2"
+toml = "0.9"
