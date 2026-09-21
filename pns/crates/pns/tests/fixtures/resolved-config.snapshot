@@ -499,4 +499,63 @@ Config {
         page_enabled: true,
         page_port: 8646,
     },
+    profiles: {
+        "default": Profile {
+            quiet: false,
+            banner: All,
+            discord: All,
+            phone: All,
+            lights: All,
+        },
+        "night": Profile {
+            quiet: true,
+            banner: None,
+            discord: Priority,
+            phone: Priority,
+            lights: None,
+        },
+        "work": Profile {
+            quiet: true,
+            banner: All,
+            discord: Priority,
+            phone: Priority,
+            lights: None,
+        },
+    },
+    profile_locations: {},
+    profile_rules: [
+        Rule {
+            profile: "night",
+            days: [],
+            hours: Some(
+                QuietWindow {
+                    start: 1320,
+                    end: 360,
+                },
+            ),
+            location: None,
+            focus: None,
+            calendar_busy: None,
+        },
+        Rule {
+            profile: "work",
+            days: [
+                1,
+                2,
+                3,
+                4,
+                5,
+            ],
+            hours: Some(
+                QuietWindow {
+                    start: 540,
+                    end: 1020,
+                },
+            ),
+            location: None,
+            focus: None,
+            calendar_busy: None,
+        },
+    ],
+    location_poll_secs: 30,
 }

@@ -78,14 +78,15 @@ mod failures;
 pub use failures::Failures;
 use failures::parse_failures;
 mod profiles;
+use profiles::{DEFAULT_LOCATION_POLL_SECS, parse_profiles};
 mod values;
 use values::{bounded, flag, strings, text};
 mod schema;
 #[cfg(test)]
 use schema::DELIVERY_CLASS_KEYS;
 use schema::{
-    PRODUCER_KEYS, PROFILE_KEYS, TARGET_KEYS, admits, admits_flat, duration_key, duration_value,
-    keys_of, nonzero_duration_key, unknown_key,
+    PRODUCER_KEYS, PROFILE_KEYS, PROFILES, TARGET_KEYS, admits, admits_flat, duration_key,
+    duration_value, keys_of, nonzero_duration_key, unknown_key,
 };
 pub use schema::{TABLE_KEYS, TOP_LEVEL};
 mod routes;

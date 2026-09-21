@@ -543,6 +543,51 @@ poll_interval = "2m"
 # everything as it was, bounded "1s" to "30s".
 deadline = "20s"
 
+# What reaches you, bundled by name. One profile is active at a time: the
+# first matching rule below chooses it, or `pns profile <name>` does by
+# hand. Each surface takes "all" (everything that surface would have
+# shown), "priority" (pages on the [routes] urgent route and nothing
+# else) or "none". A profile only ever SUBTRACTS from what presence
+# already decided, so it can never card a phone you are not near, and
+# `discord` may never be "none": no profile can silence a page.
+[profiles]
+# How often the default gateway is fingerprinted, bounded "5s" to "5m".
+# A network change moves the profile within one poll.
+location_poll = "30s"
+
+[profiles.default]
+quiet = false
+banner = "all"
+discord = "all"
+phone = "all"
+lights = "all"
+
+[profiles.night]
+quiet = true
+banner = "none"
+discord = "priority"
+phone = "priority"
+lights = "none"
+
+[profiles.work]
+quiet = true
+banner = "all"
+discord = "priority"
+phone = "priority"
+lights = "none"
+
+# Which profile is active, first match wins. An input this machine cannot
+# read matches nothing, so an unreadable probe falls through to `default`
+# rather than silencing anything. A rule naming no input matches always.
+[[profiles.rules]]
+profile = "night"
+hours = "22:00-06:00"
+
+[[profiles.rules]]
+profile = "work"
+days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+hours = "09:00-17:00"
+
 # The reminder: one more card when an approval has been sitting unanswered.
 # IT IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the
 # prompt appeared is still the one carrying Allow and Deny. It needs the
