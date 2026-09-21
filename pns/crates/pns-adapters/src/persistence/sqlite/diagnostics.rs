@@ -70,11 +70,15 @@ impl SqliteStore {
         let Some(parent) = self.log.parent() else {
             return;
         };
-        if DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(parent)
-            .is_err()
+        // A diagnostic never conjures the state tree whose read just failed,
+        // so the log's own directory is created only when it is a directory
+        // of its own.
+        if parent != self.state
+            && DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(parent)
+                .is_err()
         {
             return;
         }
