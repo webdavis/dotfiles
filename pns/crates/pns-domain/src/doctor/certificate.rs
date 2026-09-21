@@ -38,12 +38,14 @@ pub enum PinState {
 pub fn certificate_row(state: &PinState) -> Item {
     match state {
         PinState::Unconfigured => Item::note(format!(
-            "certificate: no [plugins.lights] {LIGHTS_BRIDGE_HOST}, so no certificate is pinned"
+            "Hue bridge certificate: no [plugins.lights] {LIGHTS_BRIDGE_HOST}, so no certificate is pinned"
         )),
-        PinState::Refused(reason) => Item::row(Mark::Bad, format!("certificate: {reason}")),
+        PinState::Refused(reason) => {
+            Item::row(Mark::Bad, format!("Hue bridge certificate: {reason}"))
+        }
         PinState::Held => Item::row(
             Mark::Good,
-            "certificate: pinned, and no handshake was refused".to_string(),
+            "Hue bridge certificate: pinned, and no handshake was refused".to_string(),
         ),
         PinState::Mismatched {
             address,
@@ -52,7 +54,7 @@ pub fn certificate_row(state: &PinState) -> Item {
         } => Item::row(
             Mark::Bad,
             format!(
-                "certificate: the bridge at {address} presented {presented}, not the pinned \
+                "Hue bridge certificate: the bridge at {address} presented {presented}, not the pinned \
 {expected}; every lamp call is refused. Run `pns lights enroll`, check the printed common name \
 is the bridge you expect, and save the line it prints"
             ),
