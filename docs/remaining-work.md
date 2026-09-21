@@ -65,6 +65,24 @@ to `:Git!` for fetch, pull, push and the no-edit amend
 freezes the editor for the length of the pre-push lint-check. damnit PR #1 passed its round 6 and 7
 re-review with all 79 findings fixed and a clean secrets sweep and is merging.
 
+On 2026-09-20 the two fixes left open since 2026-09-19 merged:
+[PR #789](https://github.com/webdavis/dotfiles/pull/789) `82c3bff2e` (the doctor's certificate row named
+as the Hue bridge certificate) and [PR #790](https://github.com/webdavis/dotfiles/pull/790) `46b63f029`
+(the gateway's own polls survive a config it cannot read). dam's config target landed as
+[PR #870](https://github.com/webdavis/dotfiles/pull/870) `25f234694`: a new `~/.config/dam/config.toml`
+(mode 0600, deployed via chezmoi's `private_` prefix) declares `[remote.todoist]` with
+`url = "todoist::"` and `api_token_command` reading the Todoist API token from the macOS keychain, the
+same non-interactive pattern herdr-todoist already used, with KeePassXC staying the entry of record;
+verified against dam's own config parser and a live `dam remote list` run against an isolated config
+directory, the file parses, names the remote, and makes no network call. damnit PR #1 merged on
+2026-09-20 (`c2eb89d`) after seven fix rounds, all 79 review findings closed and a clean secrets sweep.
+The two client specs merged with every open decision settled on its recommendation (damnit.nvim spec,
+webdavis/damnit.nvim PR #15 `ac5f627`; herdr-damnit spec, webdavis/herdr-damnit PR #16 `1b85e59`), and
+both repositories were renamed in place on GitHub and on disk (todoist.nvim to damnit.nvim, herdr-todoist
+to herdr-damnit), with the implementation plans being written. The dotfiles references to the old names
+(the nvim plugin spec, the herdr plugin config leaf and the roster entry) move when each plugin's rename
+PR lands.
+
 ### Resume order and completion rules
 
 The Claude session stopped during branch cleanup when its usage limit was reached. It had removed
@@ -5240,12 +5258,22 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   products too. The lane picked the one it could defend and flagged it rather than deciding for the
   operator.
 
-- [ ] 126. Quiet follows the calendar. pns turns `pns quiet` on for the duration of a Google Calendar
+- [x] 126. Quiet follows the calendar. pns turns `pns quiet` on for the duration of a Google Calendar
   event marked busy and off when it ends, so a meeting never gets a banner and the operator never toggles
   quiet by hand. The calendar is read through a producer command the config names (the operator's `gog`
   CLI is the first implementer), polled by the pns daemon on its own clock, read-only, and a manual
   `pns quiet` always wins over the calendar. Ships off by default with one `[quiet.calendar]` table.
   Approved 2026-09-17.
+
+  DONE 2026-09-20: the pns side (the opt-in `[quiet.calendar]` table, the leased `mute calendar` job, the
+  calendar adapter and the hand-set-mute-wins rule) had already landed with the mute rename; the producer
+  landed as [PR #867](https://github.com/webdavis/dotfiles/pull/867) and its fix round
+  [PR #869](https://github.com/webdavis/dotfiles/pull/869), merged `af23b6813`:
+  `~/.local/libexec/pns/calendar-busy-window.sh` runs `gog calendar events` read-only for the next hour
+  and emits only start, end and busy per timed event (transparent and cancelled events are free, all-day
+  events are skipped), ten bashunit cases over a fake gog. The table ships with `enabled = false` until
+  the operator runs the script by hand once, because gog's keychain read cannot be exercised by an agent;
+  flipping `enabled` is a one-line values change after that run.
 
 - [x] 132. `pns resume`, the "where was I" answer. A subcommand that prints, framed, the herdr workspace
   the operator was last in, the agent pane waiting on them if any, the branch and worktree of that pane,
@@ -5276,9 +5304,10 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   the overnight goal from the ledger (every open task that is unblocked, not operator-owned and not in an
   excluded section, in ledger order, with the standing rules attached), launches it through gnhf's loop
   (see `docs/runbooks/local-agents.md`) or the harness's own goal, silences the personal channels for the
-  night, and hands the morning to `morning` (task 125). Exclusions and rulings are config, never retyped.
-  The 2026-09-17 overnight prompt, written by hand, is the first fixture. Approved 2026-09-17; if SP8
-  turns out to be this, fold it there.
+  night, and hands the morning to `pns recap`'s overnight window (slice 54 retires morning). Exclusions
+  and rulings are config, never retyped. The 2026-09-17 overnight prompt, written by hand, is the first
+  fixture. Approved 2026-09-17; if SP8 turns out to be this, fold it there. Ruled 2026-09-20: the morning
+  is `pns recap`, not morning.
 
 - [ ] 139. pns profiles. Operator ruling 2026-09-17, answering "would profiles help": yes, and the gaps
   below were filled by the agent's best judgement on the same day and are part of the ruling until the
@@ -7214,7 +7243,7 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   style and one unit test pin the behaviours, each confirmed red beforehand.
   [PR #836](https://github.com/webdavis/dotfiles/pull/836), merged `59bdf0c0a`. The operator step of
 
-- [ ] 164. Four wall-clock budget assertions reddened lanes under sibling-lane load during the 2026-09-20
+- [x] 164. Four wall-clock budget assertions reddened lanes under sibling-lane load during the 2026-09-20
   overnight run and each passed alone, filed 2026-09-20 under the same task 101 pattern:
   `posture-adapters command::tests::grace::the_deadline_sends_term_before_kill_and_retains_timeout_outcome`
   (the TERM-before-KILL grace test),
@@ -7225,6 +7254,31 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   `test/unit/pns-shell-notifier-engine-choice.sh` (a 30 s wall-clock elapsed assertion, 29 s measured).
   Widen or restructure each so a loaded machine cannot fail it, following the task 101 method; never
   raise a number blindly.
+
+  DONE 2026-09-20: [PR #866](https://github.com/webdavis/dotfiles/pull/866), merged `aac0e2a68`. All four
+  assertions were reproduced or measured under synthetic CPU load first, and each now fails on the
+  behavior it pins rather than on the machine's speed, proven by one mutation apiece and ten green runs
+  under eight spinners. posture's `the_deadline_sends_term_before_kill_and_retains_timeout_outcome`
+  failed 4 runs in 30 under 64 spinners, seven of ten captured failures with no marker at all (the 60 ms
+  deadline signalled before `sh` reached its `trap` line) and three with an empty one (the 30 ms grace
+  killed the handler mid-write); the root cause was in the product, so `OwnedChild::stop` now ends its
+  grace on the child's exit instead of sleeping the whole of it, and the test waits for the fixture's own
+  ready file behind a 30 s hang guard before entering the same stop path, keeping the deadline half over
+  a child that never exits. uu's `the_real_smoke_children_keep_external_home_and_discovery_unchanged` ran
+  its inner lane under a 600 ms budget that also covers the parent's snapshots and acknowledgement
+  between phases; the case measured 0.12 s alone against 0.59 s under 192 spinners and had already failed
+  once in CI, so the lane now waits on the same 30 s liveness bound its parent uses. pns's
+  `lifecycle::a_hung_child_does_not_stall_the_tick_and_is_killed` spent the whole of the harness poll's
+  10 s hang guard on three of four runs of the daemon suite under 256 spinners and reported that the hung
+  job never started; `poll_until` now waits on the same evidence behind a 30 s guard, and the sandbox
+  ceiling note drops the poll from its list because one hung poll now exceeds the CI line as well. The
+  shell case in `test/unit/pns-shell-notifier-engine-choice.sh` asserted an exact 29 s elapsed across two
+  windows of bash's whole-second `SECONDS`, which reports a second more when a tick lands inside one; the
+  shell now reads `SECONDS` back after each window, exits 9 when it moved, and the caller reruns the case
+  up to twenty times, failing on the crossed tick rather than on the elapsed value. The CI failure on the
+  way in had its own root cause: the daemon SIGKILLs a job child after thirty ticks of its running tick,
+  so the suite's 25 ms tick capped a delivery child at 750 ms on a loaded runner; the suite tick is now
+  100 ms.
 
 - [x] 165. posture's `-fq` osqueryd liveness read, held out of sweep slice 1 because `-f` matches the
   whole command line rather than the executable, filed 2026-09-20 from
@@ -7305,7 +7359,9 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   an Allow. Two ship agents (slice 51, ledger batch three) stalled on it. Fix is in LuLu's own settings,
   not this repository: re-key the gh rule to its code-signing identity (LuLu offers that when the alert
   is answered), and check the other Rust-and-Go CLIs uu upgrades weekly (`herdr`, `td`, `atuin`) for the
-  same trap. Evidence: this session's transcript, 2026-09-20 12:31 to 13:00.
+  same trap. Evidence: this session's transcript, 2026-09-20 12:31 to 13:00. The operator did not change
+  anything on 2026-09-20 and gh recovered on its own at about 15:30, so the cause is still open; watch
+  the next Sunday run.
 
 - [ ] 170. Give `pns recap` one line for the standing dead-letter count, filed 2026-09-20 out of task
   147's ruling. The watchdog pages on growth only, so the standing population needs a home the operator
