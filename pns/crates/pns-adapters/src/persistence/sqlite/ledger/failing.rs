@@ -89,3 +89,15 @@ pub(super) fn routes(connection: &Connection) -> Result<Vec<String>, StoreError>
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(routes)
 }
+
+/// How many failing legs the retry policy has given up on, unbounded: a
+/// COUNT over the same WHERE clause `newest` filters to, rather than a
+/// row scan capped at some depth that could hide older ones behind a
+/// backlog of still-retrying legs.
+pub(super) fn dead_lettered_count(connection: &Connection) -> Result<u64, StoreError> {
+    Ok(connection.query_row(
+        "SELECT COUNT(*) FROM ledger_legs WHERE acknowledged = 0 AND deadlettered_at IS NOT NULL",
+        [],
+        |row| row.get(0),
+    )?)
+}
