@@ -438,9 +438,11 @@ Config {
     ),
     quiet_calendar: QuietCalendar {
         enabled: false,
-        command: [
-            "/Users/stephen/.local/libexec/pns/calendar-busy-window.sh",
-        ],
+        source: Command(
+            [
+                "/Users/stephen/.local/libexec/pns/calendar-busy-window.sh",
+            ],
+        ),
         poll_secs: 120,
         deadline_secs: 20,
     },

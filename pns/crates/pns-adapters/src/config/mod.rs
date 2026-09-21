@@ -51,8 +51,8 @@ pub use delivery_class::{DEFAULT_DELIVERY_CLASS, DeliveryClass};
 mod focus;
 use focus::{DEFAULT_FOCUS_ENABLED, parse_focus};
 mod quiet;
-pub use quiet::QuietCalendar;
 use quiet::parse_quiet;
+pub use quiet::{CalendarSource, GoogleCalendar, QuietCalendar};
 mod github;
 pub use github::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,

@@ -67,6 +67,17 @@ fn companion(table: &str, key: &str) -> &'static str {
         // the key under test is read at all.
         ("plugins.log", "type") => "",
         ("plugins.log", _) => "type = \"hermes\"\n",
+        // THE THREE GOOGLE CREDENTIALS ARE READ TOGETHER OR NOT AT ALL, so a
+        // sample of one writes the type that reads it and the other two.
+        ("quiet.calendar", "client_id") => {
+            "type = \"google\"\nclient_secret = \"secret\"\nrefresh_token = \"refresh\"\n"
+        }
+        ("quiet.calendar", "client_secret") => {
+            "type = \"google\"\nclient_id = \"id\"\nrefresh_token = \"refresh\"\n"
+        }
+        ("quiet.calendar", "refresh_token") => {
+            "type = \"google\"\nclient_id = \"id\"\nclient_secret = \"secret\"\n"
+        }
         _ => "",
     }
 }
@@ -158,7 +169,12 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ),
     ("quiet", "calendar", "{ enabled = false }"),
     ("quiet.calendar", "enabled", "false"),
+    ("quiet.calendar", "type", "\"command\""),
     ("quiet.calendar", "command", "[\"busy-window\"]"),
+    ("quiet.calendar", "calendars", "[\"primary\"]"),
+    ("quiet.calendar", "client_id", "\"id\""),
+    ("quiet.calendar", "client_secret", "\"secret\""),
+    ("quiet.calendar", "refresh_token", "\"refresh\""),
     ("quiet.calendar", "poll_interval", "\"2m\""),
     ("quiet.calendar", "deadline", "\"20s\""),
     (
