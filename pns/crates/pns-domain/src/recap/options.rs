@@ -17,11 +17,11 @@
 /// count in its own header every time, so one week of real recaps settles the
 /// number without a rebuild.
 ///
-/// `summarizer` IS ARGV AND NEVER A SHELL STRING, which is what makes it a
-/// backend switch rather than a plugin: nothing is interpreted, so there is no
-/// quoting rule and no injection surface, and a different backend is simply a
-/// different array. UNSET IS A WORKING SETTING, and the common one: with no
-/// summarizer the recap posts the plain mechanical lists.
+/// `summarizer` IS ITS OWN TABLE, `[recap.summarizer]`: a harness named by
+/// word, or `custom` with the operator's own argument vector. A `custom` with
+/// no command is the shipped default and means no summarizer, which is a
+/// WORKING SETTING and the common one: the recap then posts the plain
+/// mechanical lists and writes no summary.
 ///
 /// `sources` AND `review_notes_glob` ARE THE SOURCES PNS CANNOT FIND ON ITS
 /// OWN, which is why they are keys and why an absent one is the working
@@ -46,8 +46,11 @@ pub struct Recap {
     pub replay_card: bool,
     pub post_window_recap: bool,
     pub minimum_events: usize,
-    pub summarizer: Option<Vec<String>>,
-    pub summarizer_deadline: std::time::Duration,
+    pub summarizer: super::summarizer::Settings,
+    /// The windows whose summary the gateway writes in the background at each
+    /// window's end. EMPTY IS THE WORKING SETTING: a summary is then written
+    /// only when a recap is delivered or `--summarize` asks for one.
+    pub pregenerate: Vec<String>,
     pub review_notes_glob: Option<String>,
     pub retain: std::time::Duration,
     pub sources: Sources,
@@ -101,8 +104,8 @@ impl Default for Recap {
             replay_card: true,
             post_window_recap: true,
             minimum_events: DEFAULT_MINIMUM_EVENTS,
-            summarizer: None,
-            summarizer_deadline: DEFAULT_SUMMARIZER_DEADLINE,
+            summarizer: super::summarizer::Settings::default(),
+            pregenerate: Vec::new(),
             review_notes_glob: None,
             retain: DEFAULT_RETAIN,
             sources: Sources::default(),
@@ -116,30 +119,6 @@ impl Default for Recap {
 /// How many events a window needs before a recap is worth the operator's
 /// attention. The operator's own stated figure; see `Recap`.
 const DEFAULT_MINIMUM_EVENTS: usize = 8;
-
-/// How long the summarizer may take before the recap gives up on it and posts
-/// the plain lists.
-///
-/// FOUR MINUTES, and it is generous on purpose. WHAT IT COVERS IS GENERATION,
-/// not a model load. Measured with `ollama run qwen3.5:4b` on one machine (an
-/// M1 under load): a cold model load cost about 5.5 seconds, paid once, while
-/// a full three-call episode took about 114.6 seconds, of which roughly 113.9
-/// was tokens being generated at about eleven a second. Prefill was 185
-/// milliseconds for 2,050 tokens, so the whole bill is the LENGTH OF THE
-/// ANSWER and every other term rounds to noise. Nobody is waiting on it,
-/// because the caller is the detached process the event path never joined.
-///
-/// THE SECONDS ARE ONE MACHINE ON ONE EVENING. What is durable is the shape
-/// (prefill free, generation everything, the load small and paid once); the
-/// figures are here to be recalibrated by whoever next tunes this number, and
-/// no test encodes one. A backend that generates less is what makes this
-/// faster, and the config file's own comment carries how.
-///
-/// ZERO IS ACCEPTED AND IS NOT A TRAP, unlike `minimum_events`'s zero. A deadline
-/// of nothing simply cannot be met, so the recap falls to the plain lists and
-/// SAYS it did, which is the same outcome as any other summarizer that does not
-/// answer. Nothing silently changes shape, so there is nothing to refuse.
-const DEFAULT_SUMMARIZER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(240);
 
 /// How long a row in the activity store is kept before the gateway's own
 /// prune deletes it.

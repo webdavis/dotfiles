@@ -29,40 +29,6 @@ pub(super) fn threshold(setting: &toml::Value) -> Result<usize, ConfigError> {
     Ok(count)
 }
 
-/// `summarizer`, the command the window is handed to: a list of WORDS, passed
-/// to the process directly and never through a shell.
-///
-/// THE SHELL STRING IS THE MISTAKE THIS REFUSES. `summarizer = "ollama run
-/// qwen3.5:4b"` is what a hand writes first, and reading it as a one-word
-/// command would name a binary nobody has, so it is refused by name rather than
-/// left to fail once a night inside a detached process.
-///
-/// AN EMPTY LIST IS REFUSED TOO, because it names no command at all: taken as
-/// written it would leave the summarizer configured and unrunnable, which reads
-/// to the operator as a summarizer that is not answering rather than as a table
-/// they have to fix.
-///
-/// AND SO IS AN EMPTY FIRST WORD, on that same reasoning rather than a new one.
-/// `[""]` parses, `Command::new("")` fails to spawn, and the operator gets
-/// precisely the outcome the paragraph above exists to prevent. Only the first
-/// word is judged: an empty ARGUMENT is a real thing to pass a program, and
-/// nothing about it stops the command running.
-pub(super) fn argv(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
-    let words = strings("recap", "summarizer", "a list of command words", setting)?;
-    if words.is_empty() {
-        return Err(ConfigError::Invalid(
-            "`recap` key `summarizer` is empty, so it names no command to run".to_string(),
-        ));
-    }
-    if words[0].is_empty() {
-        return Err(ConfigError::Invalid(
-            "`recap` key `summarizer` starts with an empty word, so it names no command to run"
-                .to_string(),
-        ));
-    }
-    Ok(words)
-}
-
 /// One of the four periods: a two-element list of `HH:MM` times, start then
 /// end.
 ///

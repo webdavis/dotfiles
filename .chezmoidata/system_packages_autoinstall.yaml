@@ -301,6 +301,8 @@ packages:
           - acpx
           - agentmail-cli
           - backpass
+          # pi-coding-agent: the pi coding agent harness (upstream earendil-works/pi).
+          - "@earendil-works/pi-coding-agent"
           - clawhub
           # Pinned: an overnight orchestrator that commits unattended, still
           # pre-1.0 and releasing weekly, so the version it runs under is a
@@ -326,7 +328,7 @@ packages:
       ref: c587dda54e2fa71722630ae53974101cdf76989f
     - id: herdr-workspace-jump
       repo: webdavis/herdr-workspace-jump
-      ref: f71e8e791259da7cba3e490de68e3711d6670221
+      ref: 37621d26fff3d10fbb719e231d0cd891e75358d1
 
   herdr_plugins:
     # One roster, two consumers: run_after_53 installs a missing plugin at apply
@@ -343,13 +345,13 @@ packages:
     - id: herdr-smart-nav
       repo: webdavis/herdr-smart-nav
       ref: b82c2cf94de97cd3c6746d93de5a8e8da9fd112f
-    # The Todoist pane. Its config lives at
-    # dot_config/herdr/plugins/config/herdr-todoist/config.toml and names the
+    # The task pane. Its config lives at
+    # dot_config/herdr/plugins/config/herdr-damnit/config.toml and names the
     # KeePassXC entry the token comes from; the plugin refuses to run until one
     # of its two token indirections resolves.
-    - id: herdr-todoist
-      repo: webdavis/herdr-todoist
-      ref: bef263d7d86f5aabb6aba35c3be56bc619e4ee21
+    - id: herdr-damnit
+      repo: webdavis/herdr-damnit
+      ref: 6654365727d37ea718bd39d664f3c258a7bbe423
     - id: worktrunk
       repo: devashish2203/herdr-worktrunk
     - id: tab-smart-rename

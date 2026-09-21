@@ -10,6 +10,10 @@ pub(crate) fn daemon_run() -> i32 {
     // The first tick sweeps, so a gateway that has just started clears
     // whatever the machine accumulated while it was down.
     let mut next_sweep = 0;
+    // The first pass runs at once, so a gateway that starts after a window
+    // ended writes that window's summary rather than waiting for the next.
+    let mut next_pregenerate = 0;
+    let mut pregenerated: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
     pns_application::RunDaemon {
         settings: &pns_adapters::DaemonConfig {
             home: std::env::var("HOME").unwrap_or_default(),
@@ -36,6 +40,12 @@ pub(crate) fn daemon_run() -> i32 {
         },
         |now, children| {
             prune_activity(now, &mut next_sweep);
+            crate::command_gateway::pregenerate::pregenerate(
+                now,
+                children,
+                &mut next_pregenerate,
+                &mut pregenerated,
+            )?;
             start_retry(now, children)?;
             start_page(now, children)
         },
@@ -72,8 +82,15 @@ fn prune_activity(now: u64, next_sweep: &mut u64) {
     let Some(cutoff) = now.checked_sub(retain.as_secs()) else {
         return;
     };
-    if let Err(error) = pns_adapters::SqliteStore::new(state_dir()).prune_activity(cutoff) {
+    let store = pns_adapters::SqliteStore::new(state_dir());
+    if let Err(error) = store.prune_activity(cutoff) {
         eprintln!("pns gateway: the activity store could not be pruned: {error}");
+    }
+    // THE PARAGRAPHS GO WITH THE EVENTS THEY ARE ABOUT, under the one
+    // retention: a summary of a window whose rows have gone answers a question
+    // nothing else in the store can still back.
+    if let Err(error) = store.prune_recap_summaries(cutoff) {
+        eprintln!("pns gateway: the stored recap summaries could not be pruned: {error}");
     }
 }
 

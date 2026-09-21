@@ -19,7 +19,7 @@ use std::time::Duration;
 mod document;
 mod open;
 mod sources;
-pub use document::document;
+pub use document::{SUMMARY, document};
 
 /// The world this engine reads, named once.
 pub struct BuildRecap<'ports, A, C, N, S> {
@@ -70,6 +70,14 @@ pub struct Assembled {
     /// The summarizer's answer, or None when none was configured. `Some(None)`
     /// is a summarizer that was asked and said nothing usable.
     answered: Option<Option<Vec<String>>>,
+    /// The paragraph a model wrote over this recap, attached after assembly.
+    ///
+    /// A SECOND PHASE RATHER THAN A FIELD `assemble` FILLS, because the model
+    /// is handed THIS recap's own document and the document is encoded in the
+    /// adapters: the engine would otherwise have to encode JSON to run one of
+    /// its own steps. The composition root assembles, encodes, asks, and
+    /// attaches what came back.
+    summary: Option<pns_domain::recap::summarizer::Summary>,
 }
 
 impl<A: ActivityEvents, C: SourceCommands, N: ReviewNoteSource, S: Summarizer>
@@ -81,7 +89,7 @@ impl<A: ActivityEvents, C: SourceCommands, N: ReviewNoteSource, S: Summarizer>
     /// window, which is what makes `pns recap open` cheap: it is the one form
     /// an unlock automation runs, and it must not wait on a task tool.
     ///
-    /// ONE EPISODE, ONE BUDGET. `summarizer_deadline` is what the WHOLE
+    /// ONE EPISODE, ONE BUDGET. `[recap.summarizer] deadline` is what the WHOLE
     /// episode may spend, so each call is bounded by what is left of it.
     /// Per-call deadlines meant a 240-second key could hold two processes for
     /// twelve minutes while the card had already said the recap was in #pns.
@@ -138,14 +146,17 @@ impl<A: ActivityEvents, C: SourceCommands, N: ReviewNoteSource, S: Summarizer>
         // recorded in this window" under an instruction to rewrite it as a
         // timeline, which is a process spawned to summarize nothing and an
         // invitation to invent.
-        let mut left = episode(recap.summarizer_deadline);
+        let mut left = episode(recap.summarizer.deadline);
         let answered = recap
             .summarizer
-            .as_deref()
+            .invocation()
             .filter(|_| !events.is_empty())
-            .map(|argv| {
-                self.summarizer
-                    .summarize(argv, left(), &prompt(&events, &|at| wall_clock(at)))
+            .map(|invocation| {
+                self.summarizer.summarize(
+                    &invocation,
+                    left(),
+                    &prompt(&events, &|at| wall_clock(at)),
+                )
             });
         // ONE SUMMARIZER CALL PER SECTION, and each falls back on its own.
         // They are different questions over different sets of text, so one
@@ -178,11 +189,31 @@ impl<A: ActivityEvents, C: SourceCommands, N: ReviewNoteSource, S: Summarizer>
             sections: request.sections.clone(),
             where_last,
             answered,
+            summary: None,
         }
     }
 }
 
 impl Assembled {
+    /// Attach the summary this recap was given, which every output form then
+    /// carries.
+    pub fn with_summary(&mut self, summary: pns_domain::recap::summarizer::Summary) {
+        self.summary = Some(summary);
+    }
+
+    /// The window's sessions, grouped, which `--with-transcripts` reads a
+    /// transcript path out of.
+    pub fn projects(&self) -> &[pns_domain::recap::activity::Project] {
+        &self.projects
+    }
+
+    /// When the newest event of this window arrived, or zero for a window
+    /// with nothing in it. A STORED SUMMARY OLDER THAN THIS IS STALE, which is
+    /// the one comparison that decides whether it is shown or written again.
+    pub fn last_event_at(&self) -> u64 {
+        self.events.last().map_or(0, |event| event.at)
+    }
+
     /// Every list section as the renderer reads it, with whatever the
     /// summarizer said over each.
     pub fn externals(&self) -> Vec<(&str, External<'_>)> {
@@ -220,6 +251,7 @@ impl Assembled {
                 Some(None) => Timeline::Unanswered,
                 Some(Some(lines)) => Timeline::Summarized(lines),
             },
+            summary: self.summary.as_ref(),
             sources: externals,
             open: &self.open,
             rows_per_section: self.rows,
