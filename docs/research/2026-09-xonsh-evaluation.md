@@ -14,6 +14,10 @@ scratchpad. Traces left on the machine are listed at the end.
 
 **NO-GO on current evidence. Keep Bash as the interactive shell.**
 
+Update 2026-09-21: the operator approved this no-go. Bash stays the interactive shell and SP5 is closed.
+Xonsh is installed from Homebrew anyway, as an on-demand subshell the operator starts by typing `xonsh`,
+never as the login shell.
+
 The migration is technically possible, and it clears the two bars that sank Nushell in
 `docs/research/2026-07-09-sp4-nushell-evaluation.md`: the key chord surface ports (prompt_toolkit
 dispatches multi-key sequences, verified in a live session), and atuin has first-class xonsh support that
