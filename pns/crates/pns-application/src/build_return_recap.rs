@@ -34,21 +34,21 @@ impl<A: ActivityRing, M: MergedPullRequestSource, N: ReviewNoteSource, S: Summar
         // directory read; neither belongs anywhere near the card, and neither is
         // allowed to cost the rest of the recap anything when it does not come
         // back.
-        let fetched_merges =
-            (!recap.repos.is_empty()).then(|| self.merges.merged(&recap.repos, since, until));
+        let fetched_merges = (!recap.repositories.is_empty())
+            .then(|| self.merges.merged(&recap.repositories, since, until));
         let fetched_notes = recap
-            .review_notes
+            .review_notes_glob
             .as_deref()
             .map(|pattern| self.notes.notes(pattern, since, until));
         // ONE EPISODE, ONE BUDGET. The locked "the LLM runs once at the return
         // moment" is a moment rather than a call: this recap asks up to three
-        // questions (the night, the merges, the notes) and `summarizer_deadline_secs`
+        // questions (the night, the merges, the notes) and `summarizer_deadline`
         // is what the WHOLE episode may spend, so each call is bounded by what is
         // left of it. Per-call deadlines meant a 240-second key could hold two
         // processes for twelve minutes while the card had already said the recap
         // was in #pns, and a laptop that sleeps inside that window loses the recap
         // entirely. Adjudicated 2026-08-29.
-        let mut left = episode(Duration::from_secs(recap.summarizer_deadline_secs));
+        let mut left = episode(recap.summarizer_deadline);
         // THE ANSWER IS TAKEN BEFORE THE BODY IS COMPOSED and nothing else waits on
         // it: this process was started so that a model could be slow somewhere
         // nobody is standing.
@@ -122,7 +122,7 @@ fn summarized(
 }
 
 mod window;
-pub use window::{RECAP_USAGE, recap_bounds, recap_wall_clock};
+pub use window::{LocalCivilTime, RECAP_USAGE, recap_bounds, recap_wall_clock};
 
 #[cfg(test)]
 mod tests;

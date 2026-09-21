@@ -50,13 +50,13 @@ fn select(registry: &Registry, config_text: &str) -> Selection {
         .unwrap()
 }
 
-const ALL_THREE_ON: &str = "[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
+const ALL_THREE_ON: &str = "[plugins.phone]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n";
 
 fn three_enabled() -> Selection {
     select(&pns_domain::registry::roster(), ALL_THREE_ON)
 }
 
-const SENSOR_AND_THREE_ON: &str = "[plugins.router]\nenabled = true\n[plugins.mobile]\nenabled = true\n[plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n";
+const SENSOR_AND_THREE_ON: &str = "[plugins.home_presence]\nenabled = true\n[plugins.phone]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n";
 
 /// A selection holding an enabled sensor AND the three enabled channels,
 /// so every sensor assertion carries its own positive control. The real
@@ -66,7 +66,7 @@ const SENSOR_AND_THREE_ON: &str = "[plugins.router]\nenabled = true\n[plugins.mo
 fn sensor_and_three_enabled() -> Selection {
     let enabled = select(&pns_domain::registry::roster(), SENSOR_AND_THREE_ON);
     assert!(
-        enabled.iter().any(|entry| entry.name == "router"),
+        enabled.iter().any(|entry| entry.name == "home_presence"),
         "the sensor must be SELECTED, or these test a selection miss rather than a plan filter"
     );
     enabled
@@ -86,8 +86,8 @@ fn the_alert_path_plans_phone_then_banner_then_log() {
             reaching(true, true)
         ),
         vec![
-            decorative("mobile", ReportMode::Silent),
-            decorative("macos-banner", ReportMode::Silent),
+            decorative("phone", ReportMode::Silent),
+            decorative("banner", ReportMode::Silent),
             logged("hermes", ReportMode::Silent),
         ]
     );
@@ -107,8 +107,8 @@ fn a_selected_sensor_is_never_a_leg_on_the_alert_path() {
             reaching(true, true)
         ),
         vec![
-            decorative("mobile", ReportMode::Silent),
-            decorative("macos-banner", ReportMode::Silent),
+            decorative("phone", ReportMode::Silent),
+            decorative("banner", ReportMode::Silent),
             logged("hermes", ReportMode::Silent),
         ]
     );
@@ -123,7 +123,7 @@ fn a_suppressed_phone_drops_only_the_presence_gated_leg() {
             reaching(true, false)
         ),
         vec![
-            decorative("macos-banner", ReportMode::Silent),
+            decorative("banner", ReportMode::Silent),
             logged("hermes", ReportMode::Silent)
         ]
     );
@@ -151,7 +151,7 @@ fn a_plugin_that_is_not_event_dispatched_is_never_a_leg_however_it_is_selected()
     // would start appearing as a channel on every event.
     let enabled = select(
         &pns_domain::registry::roster(),
-        "[plugins.hue]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
+        "[plugins.lights]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     assert_eq!(
         channel_plan(
@@ -182,7 +182,7 @@ fn the_unconfigured_machine_knows_every_sensor_and_still_plans_channels_only() {
     // channels it always got and no exec attempt named after a sensor.
     let all = pns_domain::registry::roster().all();
     assert!(
-        all.iter().any(|entry| entry.name == "router"),
+        all.iter().any(|entry| entry.name == "home_presence"),
         "the fallback roster must know the sensor's name"
     );
     assert_eq!(
@@ -192,8 +192,8 @@ fn the_unconfigured_machine_knows_every_sensor_and_still_plans_channels_only() {
             reaching(true, true)
         ),
         vec![
-            decorative("mobile", ReportMode::Silent),
-            decorative("macos-banner", ReportMode::Silent),
+            decorative("phone", ReportMode::Silent),
+            decorative("banner", ReportMode::Silent),
             // BOTH DURABLE LOGS, because `all()` is the roster and the roster
             // holds two. It is the only path that plans both: a config naming
             // them both is refused at LOAD and falls back to the core, and this

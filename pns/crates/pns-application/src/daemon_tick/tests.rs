@@ -121,7 +121,7 @@ fn an_irregular_entry_is_named_once_and_never_claimed() {
     }
     assert_eq!(
         notices,
-        ["pns daemon: entry0 is not a regular file; left alone and never opened"]
+        ["pns gateway: entry0 is not a regular file; left alone and never opened"]
     );
     assert!(!trace.borrow().iter().any(|step| step == "claim"));
 }
@@ -139,7 +139,7 @@ fn an_unusable_claim_is_reported_and_released_without_starting() {
         DaemonNotice::Output(line) => notices.push(line),
         _ => panic!("stdout"),
     });
-    assert_eq!(notices, ["pns daemon: dropped `job`: unreadable"]);
+    assert_eq!(notices, ["pns gateway: dropped `job`: unreadable"]);
     assert_eq!(
         *trace.borrow(),
         [
@@ -172,9 +172,9 @@ fn failed_rearm_release_and_spawn_are_all_reported_without_hiding_the_next_attem
     assert_eq!(
         notices,
         [
-            "pns daemon: `job` will not repeat (publish refused)",
-            "pns daemon: the working file entry1 could not be removed (unlink refused); it is left behind",
-            "pns daemon: `job` could not start (spawn refused)"
+            "pns gateway: `job` will not repeat (publish refused)",
+            "pns gateway: the working file entry1 could not be removed (unlink refused); it is left behind",
+            "pns gateway: `job` could not start (spawn refused)"
         ]
     );
     assert_eq!(

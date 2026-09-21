@@ -35,14 +35,12 @@ pub(super) fn encode(
     let mut request = Request::new(
         identity.clone(),
         Name::new("posture").map_err(|_| EncodeFailure::Invalid)?,
-        Name::new(alert.event).map_err(|_| EncodeFailure::Invalid)?,
         state,
     );
-    request.occurred_at = alert.occurred_at;
     request.detail = format!("{}\n{}", alert.title, alert.detail);
     request.route = route;
     if alert.signal == AlertSignal::NeedsAttention {
-        request.class = Some(Name::new("security").map_err(|_| EncodeFailure::Invalid)?);
+        request.delivery_class = Some(Name::new("security").map_err(|_| EncodeFailure::Invalid)?);
     }
     // Identifiers were validated above. Only the rendered detail is unbounded
     // here, so a cap is the one refusal left and it is the oversized one.

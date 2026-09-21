@@ -29,6 +29,11 @@ fn header_for(table: &str) -> String {
         // it, so a sample writes whichever of them, and the refusal names
         // the path the operator wrote rather than this row.
         super::TARGET_KEYS => "lights.room.\"3F - Studio\"".to_string(),
+        // THE SAME SHAPE ONE LEVEL SHALLOWER: each row is a prefix and the
+        // operator's own class or producer name is what a sample writes under
+        // it.
+        super::DELIVERY_CLASS_KEYS => "delivery_class.security".to_string(),
+        super::PRODUCER_KEYS => "producer.claude".to_string(),
         other => other.to_string(),
     }
 }
@@ -40,7 +45,8 @@ fn config_writing(table: &str, key: &str, value: &str) -> String {
     match table {
         super::TOP_LEVEL => format!("{key} = {value}\n"),
         other => format!(
-            "[{}]\n{key} = {value}\n{}",
+            "{}[{}]\n{key} = {value}\n{}",
+            prelude(table),
             header_for(other),
             companion(table, key)
         ),
@@ -49,14 +55,29 @@ fn config_writing(table: &str, key: &str, value: &str) -> String {
 
 /// The one key that cannot stand alone, written beside its sample.
 ///
-/// `dim_behaviours` NAMES WHAT RUNS DIMMED INSIDE A WINDOW, and a
-/// declaration that states it without one is refused by name. This walk
-/// asks whether the arm READS the key, so its sample writes the window the
-/// key depends on rather than the walk reading a refusal as a key nothing
-/// serves.
+/// `dim_behaviours` NAMES WHAT RUNS DIMMED INSIDE A WINDOW, and a declaration
+/// that states it with no window anywhere is refused by name. This walk asks
+/// whether the arm READS the key, so its sample writes the window the key
+/// depends on rather than the walk reading a refusal as a key nothing serves.
 fn companion(table: &str, key: &str) -> &'static str {
     match (table, key) {
         (super::TARGET_KEYS, "dim_behaviours") => "dim_window = \"22:00-07:00\"\n",
+        // THE DURABLE LOG IS FILED UNDER ITS TRANSPORT, so every other key of
+        // that table needs the `type` naming one or the file is refused before
+        // the key under test is read at all.
+        ("plugins.log", "type") => "",
+        ("plugins.log", _) => "type = \"hermes\"\n",
+        _ => "",
+    }
+}
+
+/// The table a nested row cannot stand without, written above its heading.
+///
+/// `[plugins.log.channels]` DECLARES THE DURABLE LOG by writing it, so the
+/// `type` that says which transport it is has to come first.
+fn prelude(table: &str) -> &'static str {
+    match table {
+        "plugins.log.channels" | "plugins.log.keys" => "[plugins.log]\ntype = \"hermes\"\n",
         _ => "",
     }
 }
@@ -77,6 +98,8 @@ fn shown_as(table: &str) -> String {
 fn refusal_names(table: &str) -> String {
     match table {
         super::TARGET_KEYS => "`lights.room.3F - Studio`".to_string(),
+        super::DELIVERY_CLASS_KEYS => "`delivery_class.security`".to_string(),
+        super::PRODUCER_KEYS => "`producer.claude`".to_string(),
         other => shown_as(other),
     }
 }
@@ -87,7 +110,7 @@ fn refusal_names(table: &str) -> String {
 /// insists on before the sensor is selected at all.
 fn presence_config(body: &str) -> Config {
     parse_config(&format!(
-        "[plugins.hue]\nenabled = true\n[plugins.presence]\nenabled = true\n{body}"
+        "[plugins.lights]\nenabled = true\n[plugins.presence]\nenabled = true\n{body}"
     ))
     .unwrap()
 }
@@ -107,23 +130,27 @@ fn presence_config(body: &str) -> Config {
 /// TOML as the heading each of them would otherwise be written as, and it
 /// is what lets one walk cover a level with no heading of its own.
 const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
-    (super::TOP_LEVEL, "phone", "{ marker_file = '~/attention' }"),
-    ("phone", "marker_file", "'~/attention'"),
-    (super::TOP_LEVEL, "daemon", "{ enabled = true }"),
+    (super::TOP_LEVEL, "paths", "{ state_dir = '~/state' }"),
+    ("paths", "state_dir", "'~/state'"),
+    ("paths", "channels_dir", "'/opt/pns/channels'"),
+    (super::TOP_LEVEL, "gateway", "{ enabled = true }"),
+    (super::TOP_LEVEL, "delivery", "{ max_retries = 3 }"),
     (
         super::TOP_LEVEL,
-        "delivery",
-        "{ bypass_silence_classes = [\"custom\"], max_attempts = 3 }",
+        "delivery_class",
+        "{ security = { bypass_mute = true } }",
     ),
-    ("delivery", "bypass_silence_classes", "[\"custom\"]"),
-    ("delivery", "max_attempts", "3"),
-    ("delivery", "max_age_secs", "7"),
-    ("delivery", "retry_base_secs", "7"),
-    (super::TOP_LEVEL, "failures", "{ serve = true }"),
-    ("failures", "port", "8646"),
-    ("failures", "serve", "true"),
-    (super::TOP_LEVEL, "focus", "{ silence = [\"Sleep\"] }"),
-    (super::TOP_LEVEL, "lights", "{ refresh_secs = 12 }"),
+    (super::DELIVERY_CLASS_KEYS, "route", "'pages'"),
+    (super::DELIVERY_CLASS_KEYS, "bypass_mute", "true"),
+    ("delivery", "event_max_age", "'7m'"),
+    ("delivery", "max_retries", "3"),
+    ("delivery", "remote_deadline", "5"),
+    ("delivery", "retry_step", "'7s'"),
+    (super::TOP_LEVEL, "failures", "{ page_enabled = true }"),
+    ("failures", "page_enabled", "true"),
+    ("failures", "page_port", "8646"),
+    (super::TOP_LEVEL, "focus", "{ modes = [\"Sleep\"] }"),
+    (super::TOP_LEVEL, "lights", "{ arm_interval = \"12s\" }"),
     (
         super::TOP_LEVEL,
         "quiet",
@@ -132,139 +159,177 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("quiet", "calendar", "{ enabled = false }"),
     ("quiet.calendar", "enabled", "false"),
     ("quiet.calendar", "command", "[\"busy-window\"]"),
-    ("quiet.calendar", "poll_secs", "120"),
-    ("quiet.calendar", "deadline_secs", "20"),
-    (super::TOP_LEVEL, "nag", "{ after_secs = 300 }"),
+    ("quiet.calendar", "poll_interval", "\"2m\""),
+    ("quiet.calendar", "deadline", "\"20s\""),
+    (
+        super::TOP_LEVEL,
+        "producer",
+        "{ claude = { remind = true } }",
+    ),
+    (super::PRODUCER_KEYS, "remind", "true"),
+    (super::TOP_LEVEL, "remind", "{ delay = \"5m\" }"),
+    (super::TOP_LEVEL, "stale", "{ escalate_after = \"1h\" }"),
+    (super::TOP_LEVEL, "storage", "{ busy_deadline = \"5s\" }"),
     (
         super::TOP_LEVEL,
         "plugins",
-        "{ hermes = { enabled = true } }",
+        "{ log = { enabled = true, type = \"hermes\" } }",
     ),
-    (super::TOP_LEVEL, "recap", "{ digest = true }"),
+    (super::TOP_LEVEL, "recap", "{ post_window_recap = true }"),
     (super::TOP_LEVEL, "routes", "{ urgent = \"sirens\" }"),
     ("routes", "default", "\"logbook\""),
     ("routes", "urgent", "\"sirens\""),
-    ("recap", "digest", "true"),
-    ("recap", "min_events", "8"),
+    ("recap", "minimum_events", "8"),
+    ("recap", "post_window_recap", "true"),
     ("recap", "replay_card", "true"),
-    ("recap", "repos", "[\"webdavis/dotfiles\"]"),
-    ("recap", "review_notes", "\"~/.claude/checklist-*.md\""),
+    ("recap", "repositories", "[\"webdavis/dotfiles\"]"),
+    ("recap", "retain", "\"720h\""),
+    ("recap", "review_notes_glob", "\"~/.claude/checklist-*.md\""),
     (
         "recap",
         "summarizer",
         "[\"ollama\", \"run\", \"qwen3.5:4b\"]",
     ),
-    ("recap", "summarizer_deadline_secs", "240"),
-    ("focus", "silence", "[\"Sleep\"]"),
-    ("daemon", "enabled", "true"),
-    ("nag", "after_secs", "300"),
-    ("nag", "stale_after_secs", "3600"),
-    ("lights", "blocked", "{ duration_ms = 2000 }"),
-    ("lights", "dim", "{ duration_ms = 3000 }"),
-    ("lights", "done", "{ duration_ms = 4000 }"),
-    ("lights", "failed", "{ duration_ms = 4000 }"),
-    ("lights", "github", "{ duration_ms = 4000 }"),
-    ("lights", "lamp", "{ HCL1 = { shows = [\"done\"] } }"),
-    ("lights", "loop", "{ threshold_secs = 300 }"),
-    ("lights", "refresh_secs", "12"),
-    ("lights", "room", "{ Study = { shows = [\"done\"] } }"),
-    ("lights", "unread", "{ after_secs = 300 }"),
-    ("lights", "zone", "{ Upstairs = { shows = [\"done\"] } }"),
-    ("lights.blocked", "duration_ms", "2000"),
-    ("lights.blocked", "give_up_after_secs", "57600"),
-    ("lights.blocked", "high", "100"),
-    ("lights.blocked", "low", "30"),
-    ("lights.dim", "duration_ms", "3000"),
-    ("lights.dim", "high", "7"),
-    ("lights.dim", "low", "1"),
-    ("lights.done", "brightness", "100"),
-    ("lights.done", "duration_ms", "4000"),
-    ("lights.failed", "brightness", "100"),
-    ("lights.failed", "duration_ms", "4000"),
-    ("lights.github", "brightness", "100"),
-    ("lights.github", "duration_ms", "4000"),
-    ("lights.github", "fail", "[0.5562, 0.4084]"),
-    ("lights.github", "pass", "[0.2725, 0.1283]"),
-    ("lights.loop", "duration_ms", "4000"),
-    ("lights.loop", "flare", "100"),
-    ("lights.loop", "flare_ms", "200"),
-    ("lights.loop", "high", "80"),
-    ("lights.loop", "lease_timeout_secs", "3900"),
-    ("lights.loop", "low", "10"),
-    ("lights.loop", "threshold_secs", "300"),
-    ("lights.unread", "after_secs", "300"),
-    ("lights.unread", "duration_ms", "4000"),
-    ("lights.unread", "high", "60"),
-    ("lights.unread", "low", "10"),
+    ("recap", "summarizer_deadline", "\"4m\""),
+    ("focus", "enabled", "true"),
+    ("focus", "modes", "[\"Sleep\"]"),
+    ("gateway", "enabled", "true"),
+    ("gateway", "service", "'com.example.pns-daemon'"),
+    ("remind", "delay", "\"5m\""),
+    ("stale", "enabled", "true"),
+    ("stale", "escalate_after", "\"1h\""),
+    ("stale", "route", "\"priority\""),
+    ("storage", "busy_deadline", "\"5s\""),
+    ("lights", "blocked", "{ duration = \"2s\" }"),
+    ("lights", "checks", "{ duration = \"4s\" }"),
+    ("lights", "dim", "{ duration = \"3s\" }"),
+    ("lights", "done", "{ duration = \"4s\" }"),
+    ("lights", "failed", "{ duration = \"4s\" }"),
+    ("lights", "lamp", "{ HCL1 = { behaviours = [\"done\"] } }"),
+    ("lights", "arm_interval", "\"12s\""),
+    ("lights", "loop", "{ arm_after = \"5m\" }"),
+    ("lights", "room", "{ Study = { behaviours = [\"done\"] } }"),
+    ("lights", "dim_window", "\"22:00-07:00\""),
+    ("lights", "unseen", "{ arm_after = \"5m\" }"),
+    (
+        "lights",
+        "zone",
+        "{ Upstairs = { behaviours = [\"done\"] } }",
+    ),
+    ("lights.blocked", "duration", "\"2s\""),
+    ("lights.blocked", "lease_expiry", "\"16h\""),
+    ("lights.blocked", "high_percent", "100"),
+    ("lights.blocked", "low_percent", "30"),
+    ("lights.dim", "duration", "\"3s\""),
+    ("lights.dim", "high_percent", "7"),
+    ("lights.dim", "low_percent", "1"),
+    ("lights.checks", "brightness_percent", "100"),
+    ("lights.checks", "duration", "\"4s\""),
+    ("lights.checks", "fail_color", "[0.5562, 0.4084]"),
+    ("lights.checks", "pass_color", "[0.2725, 0.1283]"),
+    ("lights.done", "brightness_percent", "100"),
+    ("lights.done", "duration", "\"4s\""),
+    ("lights.failed", "brightness_percent", "100"),
+    ("lights.failed", "duration", "\"4s\""),
+    ("lights.loop", "arm_after", "\"5m\""),
+    ("lights.loop", "duration", "\"4s\""),
+    ("lights.loop", "flare_percent", "100"),
+    ("lights.loop", "flare_duration", "\"200ms\""),
+    ("lights.loop", "high_percent", "80"),
+    ("lights.loop", "lease_expiry", "\"65m\""),
+    ("lights.loop", "low_percent", "10"),
+    ("lights.unseen", "arm_after", "\"5m\""),
+    ("lights.unseen", "duration", "\"4s\""),
+    ("lights.unseen", "high_percent", "60"),
+    ("lights.unseen", "low_percent", "10"),
+    (super::TARGET_KEYS, "behaviours", "[\"done\"]"),
     (super::TARGET_KEYS, "dim_behaviours", "[\"blocked\"]"),
     (super::TARGET_KEYS, "dim_window", "\"22:00-07:00\""),
-    (super::TARGET_KEYS, "shows", "[\"done\"]"),
-    ("plugins.discord", "channels", "{ default = \"9001\" }"),
-    ("plugins.discord", "enabled", "true"),
-    ("plugins.discord", "token", "\"secret\""),
-    ("plugins.discord", "type", "\"bot\""),
-    ("plugins.discord.channels", "default", "\"9001\""),
-    ("plugins.mobile.image_cards", "missed", "true"),
-    ("plugins.hermes", "enabled", "true"),
-    ("plugins.hermes", "keys", "{ pns-events = \"secret\" }"),
-    ("plugins.hue", "bridge", "\"192.168.1.10\""),
+    ("plugins.log", "channels", "{ default = \"9001\" }"),
+    ("plugins.log", "enabled", "true"),
+    ("plugins.log", "keys", "{ pns-events = \"secret\" }"),
+    ("plugins.log", "bot_token", "\"secret\""),
+    ("plugins.log", "type", "\"hermes\""),
     (
-        "plugins.hue",
+        "plugins.log",
+        "url",
+        "\"http://127.0.0.1:8644/webhooks/pns-events\"",
+    ),
+    ("plugins.log.channels", "default", "\"9001\""),
+    ("plugins.phone.image_cards", "missed", "true"),
+    ("plugins.lights", "bridge_host", "\"192.168.1.10\""),
+    (
+        "plugins.lights",
         "certificate",
         "\"sha256:0000000000000000000000000000000000000000000000000000000000000001\"",
     ),
-    ("plugins.hue", "enabled", "true"),
-    ("plugins.hue", "key", "\"secret\""),
-    ("plugins.hue", "quiet_hours", "\"22:00-07:00\""),
-    ("plugins.hue", "rooms", "[\"3F - Studio\"]"),
+    ("plugins.lights", "enabled", "true"),
+    ("plugins.lights", "api_key", "\"secret\""),
+    ("plugins.lights", "type", "\"hue\""),
+    ("plugins.banner", "click_command", "\"/usr/bin/open {id}\""),
+    ("plugins.banner", "click_type", "\"herdr\""),
+    ("plugins.banner", "enabled", "true"),
     (
-        "plugins.macos-banner",
-        "click_command",
-        "\"/usr/bin/open {id}\"",
+        "plugins.banner",
+        "terminal_bundle_id",
+        "\"com.mitchellh.ghostty\"",
     ),
-    ("plugins.macos-banner", "click_type", "\"herdr\""),
-    ("plugins.macos-banner", "enabled", "true"),
+    ("plugins.banner", "type", "\"macos\""),
     ("plugins.presence", "enabled", "true"),
     ("plugins.presence", "desk_room", "\"3F - Studio\""),
-    ("plugins.presence", "desk_stale_after_secs", "120"),
-    ("plugins.presence", "exclude", "[\"3F - MBedroom\"]"),
+    ("plugins.presence", "desk_input_max_age", "\"2m\""),
+    ("plugins.presence", "excluded_rooms", "[\"3F - MBedroom\"]"),
     ("plugins.github", "enabled", "true"),
-    ("plugins.github", "token", "\"ghp-not-a-real-token\""),
-    ("plugins.github", "poll_secs", "60"),
+    (
+        "plugins.github",
+        "personal_access_token",
+        "\"ghp-not-a-real-token\"",
+    ),
+    ("plugins.github", "poll_interval", "\"60s\""),
     ("plugins.github", "webhook_secret", "\"a-webhook-secret\""),
     ("plugins.github", "webhook_port", "8648"),
-    ("plugins.presence", "poll_secs", "5"),
+    ("plugins.presence", "poll_interval", "\"5s\""),
+    ("plugins.presence", "reading_max_age", "\"15s\""),
     ("plugins.presence", "rooms", "[\"3F - Studio\"]"),
-    ("plugins.presence", "stale_after_secs", "15"),
     ("plugins.presence", "type", "\"hue\""),
-    ("plugins.mobile", "enabled", "true"),
-    ("plugins.mobile", "image_cards", "{ missed = true }"),
-    ("plugins.mobile", "mobile_watch_card", "false"),
-    ("plugins.mobile", "submit_deadline_secs", "5"),
-    ("plugins.mobile", "token", "\"secret\""),
-    ("plugins.mobile", "type", "\"moshi\""),
-    ("plugins.router", "api_key", "\"secret\""),
-    ("plugins.router", "device_hostname", "\"mister\""),
-    ("plugins.router", "device_ipv4", "\"192.168.1.9\""),
-    ("plugins.router", "device_mac", "\"2e:11:ab:6d:b0:4f\""),
-    ("plugins.router", "enabled", "true"),
-    ("plugins.router", "router_url", "\"https://192.168.1.1\""),
-    ("plugins.router", "stale_alert_channel", "\"priority\""),
-    ("plugins.router", "type", "\"unifi\""),
+    ("plugins.phone", "enabled", "true"),
+    ("plugins.phone", "image_cards", "{ missed = true }"),
+    ("plugins.phone", "card_while_watching", "false"),
+    ("plugins.phone", "ack_deadline", "\"5s\""),
+    ("plugins.phone", "marker_file", "'~/attention'"),
+    ("plugins.phone", "device_token", "\"secret\""),
+    (
+        "plugins.phone",
+        "url",
+        "\"https://api.getmoshi.app/api/webhook\"",
+    ),
+    ("plugins.phone", "type", "\"moshi\""),
+    ("plugins.home_presence", "api_key", "\"secret\""),
+    ("plugins.home_presence", "device_hostname", "\"mister\""),
+    ("plugins.home_presence", "device_ipv4", "\"192.168.1.9\""),
+    (
+        "plugins.home_presence",
+        "device_mac",
+        "\"2e:11:ab:6d:b0:4f\"",
+    ),
+    ("plugins.home_presence", "enabled", "true"),
+    ("plugins.home_presence", "url", "\"https://192.168.1.1\""),
+    ("plugins.home_presence", "alert_route", "\"priority\""),
+    ("plugins.home_presence", "type", "\"unifi\""),
 ];
 
-mod daemon;
+mod credentials;
 mod delivery;
 mod failure_wording;
 mod focus;
+mod gateway;
 mod lights_bounds;
+mod lights_checks;
 mod lights_defaults;
-mod lights_github;
 mod lights_motion;
 mod lights_targets;
 mod loading;
-mod mobile;
-mod nag;
+mod phone;
 mod presence_intervals;
 mod presence_rooms;
 mod presence_shape;
@@ -273,50 +338,81 @@ mod recap_sources;
 mod recap_summarizer;
 mod recap_switches;
 mod recap_threshold;
+mod remind;
 mod roster;
 mod schema;
+mod stale;
+mod storage;
 mod vocabulary;
 
 #[test]
 fn delivery_retry_settings_are_accepted_and_bad_limits_are_refused() {
-    assert!(
-        parse_config("[delivery]\nmax_attempts = 3\nmax_age_secs = 7\n").is_ok(),
-        "delivery retry limits must load"
-    );
-    let parsed = parse_config("[delivery]\nmax_attempts = 3\nmax_age_secs = 7\n").unwrap();
+    let parsed = parse_config("[delivery]\nmax_retries = 3\nevent_max_age = \"7m\"\n")
+        .expect("delivery retry limits must load");
     assert_eq!(
         (
-            parsed.retry_limits.max_attempts,
-            parsed.retry_limits.max_age_secs
+            parsed.retry_limits.max_retries,
+            parsed.retry_limits.event_max_age_secs
         ),
-        (3, 7)
+        (3, 420)
     );
     assert_eq!(
         parse_config("").unwrap().retry_limits,
         pns_domain::retry::RetryLimits {
-            max_attempts: 20,
-            max_age_secs: 604800
+            max_retries: 20,
+            event_max_age_secs: 604800
         }
     );
+    // ZERO IS CARVED OUT of both, as it is for every other duration key: no
+    // retry at all, and an event that expires the moment it has any age.
     assert_eq!(
-        parse_config("[delivery]\nmax_attempts = 0\nmax_age_secs = 0")
+        parse_config("[delivery]\nmax_retries = 0\nevent_max_age = \"0s\"")
             .unwrap()
-            .retry_limits
-            .max_attempts,
-        0
+            .retry_limits,
+        pns_domain::retry::RetryLimits {
+            max_retries: 0,
+            event_max_age_secs: 0
+        }
     );
     for value in ["-1", "1.5", "true", "\"20\""] {
-        assert!(parse_config(&format!("[delivery]\nmax_attempts = {value}\n")).is_err());
+        assert!(parse_config(&format!("[delivery]\nmax_retries = {value}\n")).is_err());
+    }
+    for value in ["-1", "1.5", "true", "20", "\"20\"", "\"1s\"", "\"31d\""] {
+        assert!(
+            parse_config(&format!("[delivery]\nevent_max_age = {value}\n")).is_err(),
+            "{value}"
+        );
     }
 }
 
 #[test]
-fn the_delivery_backoff_takes_its_one_base_and_defaults_to_a_minute() {
-    let configured = parse_config("[delivery]\nretry_base_secs = 7\n").unwrap();
-    assert_eq!(configured.retry_backoff.base_secs, 7);
-    assert_eq!(parse_config("").unwrap().retry_backoff.base_secs, 60);
-    for invalid in ["-1", "1.5", "true", "\"secret\"", "[]"] {
-        assert!(parse_config(&format!("[delivery]\nretry_base_secs = {invalid}\n")).is_err());
+fn the_delivery_backoff_takes_its_one_step_and_defaults_to_a_minute() {
+    let configured = parse_config("[delivery]\nretry_step = \"7s\"\n").unwrap();
+    assert_eq!(configured.retry_backoff.step_secs, 7);
+    assert_eq!(parse_config("").unwrap().retry_backoff.step_secs, 60);
+    for invalid in ["-1", "1.5", "true", "7", "\"secret\"", "[]", "\"2h\""] {
+        assert!(
+            parse_config(&format!("[delivery]\nretry_step = {invalid}\n")).is_err(),
+            "{invalid}"
+        );
+    }
+}
+
+/// The spellings these three keys replaced. Each is refused by name, and the
+/// listing that comes back carries the word to write instead.
+#[test]
+fn the_delivery_keys_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
+    for (retired, replacement) in [
+        ("max_attempts = 3", "max_retries"),
+        ("max_age_secs = 7", "event_max_age"),
+        ("retry_base_secs = 7", "retry_step"),
+    ] {
+        let error = refusal(&format!("[delivery]\n{retired}\n"));
+        assert!(
+            error.contains(retired.split(' ').next().unwrap()),
+            "{error}"
+        );
+        assert!(error.contains(replacement), "{error}");
     }
 }
 

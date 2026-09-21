@@ -1,7 +1,7 @@
 use super::{Configuration, Verb};
 use posture_adapters::{
     SshConfigTree, SshFileInstaller, SshKeyscan, SshLaunchd, SshSignals, SshdCommand, SystemRunner,
-    ssh_current_user, ssh_install_cancelled,
+    current_user_name, ssh_install_cancelled,
 };
 use posture_application::SshOutput;
 use posture_application::{
@@ -9,7 +9,7 @@ use posture_application::{
 };
 
 pub(super) fn run(verb: Verb, config: &Configuration, output: &mut SshOutput<'_>) -> u8 {
-    perform(verb, config, &ssh_current_user, output)
+    perform(verb, config, &current_user_name, output)
 }
 fn perform(
     verb: Verb,

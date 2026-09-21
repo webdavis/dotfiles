@@ -38,7 +38,7 @@ pub(crate) fn loop_mode(verb: &str) -> i32 {
                     &pns_adapters::FileJobSpool::new(state.clone()),
                     lights,
                     now,
-                    lights.looping.lease_timeout_secs,
+                    lights.looping.lease_expiry_secs,
                 );
             }
         }),

@@ -1,14 +1,23 @@
 use super::parse_args;
 
-fn args(tokens: &[&str]) -> (super::EventArgs, Vec<String>) {
-    let parsed = parse_args(tokens.iter().map(|t| t.to_string()));
-    let warnings = parsed.warnings.clone();
-    (parsed.into_event().ok().flatten().unwrap(), warnings)
+fn args(tokens: &[&str]) -> super::EventArgs {
+    parse_args(tokens.iter().map(|t| t.to_string()))
+        .into_event()
+        .ok()
+        .flatten()
+        .unwrap()
+}
+
+/// The refusal argv earned, for the tests that are about bad input.
+fn refusal(tokens: &[&str]) -> String {
+    parse_args(tokens.iter().map(|t| t.to_string()))
+        .into_event()
+        .expect_err("bad input is refused")
 }
 
 #[test]
 fn every_value_flag_lands_in_its_field() {
-    let (parsed, warnings) = args(&[
+    let parsed = args(&[
         "--producer",
         "claude",
         "--state",
@@ -31,20 +40,19 @@ fn every_value_flag_lands_in_its_field() {
     assert_eq!(parsed.detail, "a summary");
     assert_eq!(parsed.pane, "wW:p21");
     assert_eq!(parsed.scope, super::DeliveryScope::LocalOnly);
-    assert!(warnings.is_empty());
 }
 
 #[test]
 fn the_route_flag_names_a_route_and_is_protected_like_every_value_flag() {
-    let (parsed, warnings) = args(&["--route", "log", "--producer", "brew"]);
+    let parsed = args(&["--route", "log", "--producer", "brew"]);
     assert_eq!(parsed.channel, "log");
     assert_eq!(parsed.agent, "brew");
-    assert!(warnings.is_empty());
-    // And it is never eaten as another flag's value.
-    let (parsed, warnings) = args(&["--detail", "--route", "log"]);
-    assert_eq!(parsed.detail, "");
-    assert_eq!(parsed.channel, "log");
-    assert_eq!(warnings.len(), 1);
+    // And it is never eaten as another flag's value: the flag standing where
+    // the value belongs refuses instead.
+    assert_eq!(
+        refusal(&["--detail", "--route", "log"]),
+        "--detail requires a value"
+    );
 }
 
 #[test]
@@ -52,7 +60,6 @@ fn the_retired_channel_flag_takes_its_value_with_it_and_carries_the_refusal() {
     // With a value present, it goes with the retired flag rather than
     // leaking through to any later processing.
     let with_value = parse_args(["--channel", "priority", "--state", "done"].map(str::to_owned));
-    assert!(with_value.warnings.is_empty());
     assert_eq!(with_value.event.state, "done");
     assert!(matches!(
         with_value.into_event(),
@@ -61,7 +68,6 @@ fn the_retired_channel_flag_takes_its_value_with_it_and_carries_the_refusal() {
 
     // With no value present, the next real flag is never swallowed as one.
     let without_value = parse_args(["--channel", "--state", "done"].map(str::to_owned));
-    assert!(without_value.warnings.is_empty());
     assert_eq!(without_value.event.state, "done");
     assert!(matches!(
         without_value.into_event(),
@@ -74,7 +80,6 @@ fn the_retired_agent_flag_takes_its_value_with_it_and_carries_the_refusal() {
     let parsed = parse_args(["--agent", "codex", "--state", "done"].map(str::to_owned));
     // Its value never becomes another field's, and the refusal is the one
     // thing the parse hands on.
-    assert!(parsed.warnings.is_empty());
     assert!(matches!(
         parsed.into_event(),
         Err(message) if message == "--agent was replaced by --producer"
@@ -88,7 +93,6 @@ fn the_retired_agent_flag_takes_its_value_with_it_and_carries_the_refusal() {
 fn each_retired_narrowing_flag_is_refused_and_names_the_scope_flag() {
     for flag in ["--local-only", "--remote-only"] {
         let parsed = parse_args([flag, "--state", "done"].map(str::to_owned));
-        assert!(parsed.warnings.is_empty());
         assert!(
             matches!(
                 parsed.into_event(),
@@ -130,7 +134,6 @@ fn a_scope_outside_the_three_words_refuses_the_event_and_names_them() {
 #[test]
 fn a_trailing_scope_with_no_value_refuses_like_an_unknown_one() {
     let parsed = parse_args(["--producer", "uu", "--scope"].map(str::to_owned));
-    assert!(parsed.warnings.is_empty());
     assert!(matches!(
         parsed.into_event(),
         Err(message) if message == "--scope requires one of: automatic, local_only, remote_only"
@@ -141,36 +144,40 @@ fn a_trailing_scope_with_no_value_refuses_like_an_unknown_one() {
 /// the shell notifier and the daemon pass.
 #[test]
 fn no_scope_flag_leaves_the_event_automatic() {
-    let (parsed, warnings) = args(&["--producer", "claude"]);
+    let parsed = args(&["--producer", "claude"]);
     assert_eq!(parsed.scope, super::DeliveryScope::Automatic);
-    assert!(warnings.is_empty());
 }
 
 #[test]
-fn a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
+fn a_failed_health_class_pages_and_a_session_class_keeps_the_default_route() {
     // A PRODUCER NAMES WHAT ITS EVENT IS; the route it lands on is pns's to
     // decide, and the route's NAME is the operator's, so the parse carries
-    // the kind and nothing resolves a route here.
-    let routes = pns_domain::routes::Routes::named("logbook", "sirens");
-    let (parsed, warnings) = args(&[
-        "--kind",
+    // the delivery class and nothing resolves a route here.
+    let parsed = args(&[
+        "--delivery-class",
         "health",
         "--state",
         "failed",
         "--producer",
         "upgrades",
     ]);
-    assert_eq!(parsed.kind, pns_domain::routes::Kind::Health);
+    // THE SAME WORD THE JSON PATH CARRIES, and it earns the same route:
+    // `event_flow::submit::mapping` pins the JSON half of this pair.
+    assert_eq!(parsed.delivery_class, "health");
     assert_eq!(parsed.channel, "", "the parse pinned a route name");
-    assert_eq!(parsed.routed(&routes).channel, "sirens");
-    assert!(warnings.is_empty());
+    assert_eq!(parsed.routed(Some("sirens")).channel, "sirens");
 
-    // The default kind is the behavior every producer already had: an empty
-    // route, which the hermes target reads as the default one.
-    for argv in [vec!["--producer", "claude"], vec!["--kind", "agent"]] {
-        let (parsed, _) = args(&argv);
+    // A class whose table names no route of its own keeps the default route,
+    // and so does a message naming no class at all: which classes route where
+    // is `[delivery_class.<name>]`, never a word written here.
+    for argv in [
+        vec!["--producer", "claude"],
+        vec!["--delivery-class", "agent"],
+        vec!["--delivery-class", "security"],
+    ] {
+        let parsed = args(&argv);
         assert_eq!(
-            parsed.routed(&routes).channel,
+            parsed.routed(Some("")).channel,
             "",
             "{argv:?} must keep the default route"
         );
@@ -178,76 +185,97 @@ fn a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route() {
 }
 
 #[test]
-fn a_named_route_beats_the_kind_in_either_order() {
-    let routes = pns_domain::routes::Routes::named("logbook", "sirens");
+fn a_named_route_beats_the_delivery_class_in_either_order() {
     for argv in [
-        vec!["--kind", "health", "--route", "log"],
-        vec!["--route", "log", "--kind", "health"],
+        vec!["--delivery-class", "health", "--route", "log"],
+        vec!["--route", "log", "--delivery-class", "health"],
     ] {
-        let (parsed, _) = args(&argv);
+        let parsed = args(&argv);
         assert_eq!(
-            parsed.routed(&routes).channel,
+            parsed.routed(Some("sirens")).channel,
             "log",
             "{argv:?}: a producer that said where already answered the question"
         );
     }
 }
 
+/// The flag `--delivery-class` replaced. It is refused rather than skipped,
+/// and the refusal names its replacement.
+#[test]
+fn the_retired_kind_flag_takes_its_value_with_it_and_names_the_flag_that_replaced_it() {
+    let parsed = parse_args(["--kind", "health", "--state", "done"].map(str::to_owned));
+    assert!(matches!(
+        parsed.into_event(),
+        Err(message) if message == "--kind was replaced by --delivery-class"
+    ));
+}
+
 #[test]
 fn a_recognized_flag_is_never_consumed_as_a_value() {
     // `--pane --scope`: eating the narrowing flag as the pane value would
-    // deliver an event the caller asked to keep local.
-    let (parsed, warnings) = args(&["--pane", "--scope", "local_only", "--producer", "claude"]);
-    assert_eq!(parsed.pane, "");
+    // deliver an event the caller asked to keep local, so the missing value
+    // is refused and the flag left for its own arm.
     assert_eq!(
-        parsed.scope,
-        super::DeliveryScope::LocalOnly,
-        "the narrowing flag must still apply"
-    );
-    assert_eq!(parsed.agent, "claude");
-    assert_eq!(warnings.len(), 1);
-    assert!(warnings[0].contains("--pane"), "the warning names the flag");
-}
-
-#[test]
-fn the_long_running_flag_is_protected_from_being_eaten_like_every_other_one() {
-    // It was handled but left out of the predicate, so `--detail
-    // --long-running` swallowed it as the detail text: the notification
-    // carried a flag name as its summary AND lost the tier that decides
-    // the lights, both in silence.
-    let (parsed, warnings) = args(&["--detail", "--long-running"]);
-    assert_eq!(parsed.detail, "");
-    assert!(parsed.long_running, "the tier must still apply");
-    assert_eq!(warnings.len(), 1);
-    assert!(
-        warnings[0].contains("--detail"),
-        "the warning names the flag"
+        refusal(&["--pane", "--scope", "local_only", "--producer", "claude"]),
+        "--pane requires a value"
     );
 }
 
 #[test]
-fn a_trailing_value_flag_is_warned_and_ignored() {
-    let (parsed, warnings) = args(&["--producer", "claude", "--detail"]);
-    assert_eq!(parsed.agent, "claude");
-    assert_eq!(parsed.detail, "");
-    assert_eq!(warnings.len(), 1);
-    assert!(warnings[0].contains("--detail"));
+fn the_long_running_flag_is_retired_and_protected_from_being_eaten_like_every_other_one() {
+    // It used to be handled but left out of the predicate, so `--detail
+    // --long-running` swallowed it as the detail text. Now it is retired
+    // outright: pns derives the tier from `--elapsed` alone.
+    let parsed = parse_args(["--detail", "--long-running"].map(str::to_owned));
+    assert_eq!(parsed.event.detail, "", "it was not eaten as the detail");
+    assert_eq!(
+        parsed.into_event().expect_err("bad input is refused"),
+        "--detail requires a value"
+    );
+    assert_eq!(
+        refusal(&["--long-running"]),
+        "--long-running was replaced by --elapsed"
+    );
+}
+
+#[test]
+fn a_trailing_value_flag_is_refused_and_named() {
+    assert_eq!(
+        refusal(&["--producer", "claude", "--detail"]),
+        "--detail requires a value"
+    );
 }
 
 #[test]
 fn an_unrecognized_token_is_still_taken_as_a_value() {
     // The bash deliberately kept this leniency: only RECOGNIZED flags are
     // protected from being eaten.
-    let (parsed, warnings) = args(&["--producer", "--bogus"]);
+    let parsed = args(&["--producer", "--bogus"]);
     assert_eq!(parsed.agent, "--bogus");
-    assert!(warnings.is_empty());
 }
 
 #[test]
-fn unknown_arguments_are_skipped_in_silence() {
-    let (parsed, warnings) = args(&["stray", "--producer", "claude", "--wat"]);
-    assert_eq!(parsed.agent, "claude");
-    assert!(warnings.is_empty());
+fn unknown_arguments_are_refused_and_named() {
+    // A word pns skipped in silence was a caller whose flag went nowhere.
+    assert_eq!(
+        refusal(&["--producer", "claude", "--wat"]),
+        "--wat is not a flag pns takes"
+    );
+    assert_eq!(
+        refusal(&["stray", "--producer", "claude"]),
+        "stray is not a flag pns takes"
+    );
+}
+
+#[test]
+fn a_flag_answered_elsewhere_is_never_refused_as_an_unknown_word() {
+    // `remind_switch` reads the reminder switches off the raw argv and the
+    // composition root answers `--no-color` before this parse, so each is a
+    // flag pns takes rather than a word it never defined.
+    for flag in ["--remind", "--no-remind", "--remind=90s", "--no-color"] {
+        let parsed = args(&["--producer", "claude", flag]);
+        assert_eq!(parsed.agent, "claude", "{flag} was refused");
+    }
 }
 
 #[test]
@@ -276,7 +304,6 @@ fn help_in_value_position_is_still_just_a_value() {
     let parsed = parse_args(["--producer", "--help", "--state", "done"].map(str::to_owned));
     assert_eq!(parsed.event.agent, "--help");
     assert!(!parsed.help);
-    assert!(parsed.warnings.is_empty());
 
     // The state is still read as a value rather than as help, and the closed
     // set is what refuses it afterwards.
@@ -321,7 +348,6 @@ fn a_state_outside_the_six_words_refuses_the_event_and_names_them() {
 #[test]
 fn a_trailing_state_with_no_value_refuses_like_an_empty_one() {
     let parsed = parse_args(["--producer", "uu", "--state"].map(str::to_owned));
-    assert!(parsed.warnings.is_empty());
     assert!(matches!(
         parsed.into_event(),
         Err(message)
@@ -345,7 +371,7 @@ fn the_last_value_wins_for_every_producer_field() {
     // The state is one of six words in either position, so its own pair is
     // two legal words rather than the placeholder the others use.
     tokens.extend(["--state", "done", "--state", "failed"]);
-    let (event, warnings) = args(&tokens);
+    let event = args(&tokens);
     assert_eq!(
         [
             event.agent,
@@ -358,5 +384,32 @@ fn the_last_value_wins_for_every_producer_field() {
         ["last"; 6].map(str::to_owned),
     );
     assert_eq!(event.state, "failed");
-    assert!(warnings.is_empty());
+}
+
+#[test]
+fn the_last_reminder_switch_argv_named_is_the_one_that_answers() {
+    // A WRAPPER APPENDS. A harness declaration that already carries a switch
+    // and a caller that adds its own must not leave the first one in charge,
+    // which is what a first-one-wins scan would do.
+    let switches = |tokens: &[&str]| {
+        super::remind_switch(&tokens.iter().map(|t| t.to_string()).collect::<Vec<_>>())
+    };
+    assert_eq!(switches(&[]), Ok(None));
+    assert_eq!(switches(&["--remind"]), Ok(Some(super::Remind::Configured)));
+    assert_eq!(
+        switches(&["--remind", "--no-remind"]),
+        Ok(Some(super::Remind::Off))
+    );
+    assert_eq!(
+        switches(&["--no-remind", "--remind=90s"]),
+        Ok(Some(super::Remind::After(std::time::Duration::from_secs(
+            90
+        ))))
+    );
+    // A WORD THAT MERELY STARTS THE SAME IS NOT THE FLAG.
+    assert_eq!(switches(&["--reminder", "--remind-me"]), Ok(None));
+    assert!(
+        switches(&["--remind=90"]).is_err(),
+        "a bare number is not a duration"
+    );
 }

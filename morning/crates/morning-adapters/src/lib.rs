@@ -4,6 +4,7 @@
 pub mod capture;
 pub mod config;
 pub mod files;
+pub mod style;
 
 pub use capture::{CaptureError, capture};
 pub use config::{CommandSource, Config, LedgerSource, PathSource, RecapSource};

@@ -13,6 +13,6 @@ use std::time::Duration;
 /// A SECOND AT LEAST, which the division cannot reach anyway inside the config's
 /// own bounds; a bridge on the same LAN answers these in milliseconds either
 /// way.
-pub fn tick_bridge_deadline(refresh_secs: u64) -> Duration {
-    Duration::from_secs((refresh_secs / 5).max(1))
+pub fn tick_bridge_deadline(arm_interval_secs: u64) -> Duration {
+    Duration::from_secs((arm_interval_secs / 5).max(1))
 }

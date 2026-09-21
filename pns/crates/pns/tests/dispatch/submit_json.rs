@@ -1,13 +1,12 @@
 use super::*;
-use pns_protocol::{Name, Request, RequestId, State, Status};
+use pns_protocol::{Name, RequestEnvelope, RequestId, State, Status};
 use std::io::Write;
 use std::process::{Output, Stdio};
 
-fn request() -> Request {
-    let mut request = Request::new(
+fn request() -> RequestEnvelope {
+    let mut request = RequestEnvelope::new(
         RequestId::new("source-123").unwrap(),
         Name::new("posture").unwrap(),
-        Name::new("failed").unwrap(),
         State::Observation,
     );
     request.detail = "original detail".into();
@@ -15,9 +14,7 @@ fn request() -> Request {
     request.branch = Some("original branch".into());
     request.route = Some(Name::new("priority").unwrap());
     request.session = Some(Name::new("original-session").unwrap());
-    request.occurred_at = Some(123);
     request.elapsed = Some(std::time::Duration::from_secs(3));
-    request.interaction = pns_protocol::Interaction::AwaitDecision;
     request
         .extensions
         .insert("source_data".into(), serde_json::json!({"unchanged": true}));
@@ -84,7 +81,7 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
     let first = invoke(&sandbox, &input);
     let accepted = result(&first);
     assert!(first.status.success());
-    assert_eq!(accepted.status, Status::Accepted);
+    assert_eq!(accepted.status, Status::Delivered);
     assert_eq!(accepted.request_id, Some(request.request_id.clone()));
     assert!(
         accepted
@@ -92,10 +89,13 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
             .iter()
             .any(|code| code == "ledger_committed")
     );
-    assert_eq!(
-        accepted.interaction,
-        Some(pns_protocol::InteractionResult::NoOpinion)
-    );
+    // The result carries no `interaction` field any more.
+    let wire: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(wire.get("interaction"), None);
+    for leg in wire["destinations"].as_array().unwrap() {
+        assert!(leg["name"].is_string(), "each leg names itself: {leg}");
+        assert_eq!(leg.get("destination"), None);
+    }
     assert!(stderr(&first).contains("child output"));
     let delivered: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(sandbox.path("received")).unwrap()).unwrap();
@@ -110,8 +110,8 @@ fn json_submission_commits_original_metadata_and_duplicate_never_delivers_again(
     ).unwrap();
     assert_eq!(retained, input);
     let duplicate = result(&invoke(&sandbox, &input));
-    assert_eq!(duplicate.status, Status::Accepted);
-    assert_eq!(duplicate.decision_id, accepted.decision_id);
+    assert_eq!(duplicate.status, Status::Delivered);
+    assert_eq!(duplicate.ledger_sequence, accepted.ledger_sequence);
     assert!(
         duplicate
             .diagnostics
@@ -130,14 +130,16 @@ fn json_storage_failure_attempts_live_but_never_claims_committed_ownership() {
     std::fs::write(sandbox.state(), "not a directory").unwrap();
     let output = invoke(&sandbox, &request().encode().unwrap());
     let reply = result(&output);
-    assert_eq!(reply.status, Status::Degraded);
+    // THE LEDGER IS A FACT OF ITS OWN, not the status: the page reached its
+    // destination, and the row that did not commit is the diagnostic beside it.
+    assert_eq!(reply.status, Status::Delivered);
     assert!(
         !reply
             .diagnostics
             .iter()
             .any(|code| code == "ledger_committed")
     );
-    assert_eq!(reply.decision_id, None);
+    assert_eq!(reply.ledger_sequence, None);
     assert!(
         sandbox.path("hermes.event").exists(),
         "live channel was attempted"
@@ -150,7 +152,7 @@ fn canonical_request_overflow_is_correlated_and_refused_before_effects() {
     let sandbox = Sandbox::new("json-canonical-overflow");
     let mut value = serde_json::json!({
         "schema":"pns.request/1", "request_id":"source-123", "producer":"posture",
-        "event":"page", "state":"observation",
+        "state":"observation",
         "extensions":{"a":"x".repeat(8000),"b":"x".repeat(8000),"c":"x".repeat(8000),
             "d":"","e":"x".repeat(8000),"f":"x".repeat(8000),"g":"x".repeat(8000),
             "h":"x".repeat(8000),"i":"x".repeat(8000)}
@@ -187,7 +189,7 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
         None,
     );
     sandbox.stub_channel(
-        "macos-banner",
+        "banner",
         &format!(
             "cat >'{}'\nprintf 'replay child output\\n'",
             sandbox.path("replay-event").display(),
@@ -197,10 +199,10 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
     request.state = State::Done;
     request.pane = Some("t1:p2".into());
     let mut command = sandbox.pns_stateful();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     let output = invoke_command(&sandbox, command, &request.encode().unwrap());
-    assert_eq!(result(&output).status, Status::Accepted);
+    assert_eq!(result(&output).status, Status::Delivered);
     assert!(stderr(&output).contains("replay child output"));
     let replay: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(sandbox.path("replay-event")).unwrap())
@@ -217,3 +219,5 @@ fn a_json_return_keeps_replay_child_output_out_of_the_result_stream() {
 
 #[path = "submit_json/observation.rs"]
 mod observation;
+#[path = "submit_json/remind.rs"]
+mod remind;

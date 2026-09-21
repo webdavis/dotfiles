@@ -129,7 +129,7 @@ When the event path passes the decision record
 Then it returns before the journal, before the activity ring, before `mark_present`, before
 `replay_missed` and before the pulse.
 
-`src/main.rs` states the reason at the gate: "The recap counts activity-ring lines toward `min_events`,
+`src/main.rs` states the reason at the gate: "The recap counts activity-ring lines toward `minimum_events`,
 so a nudge or an observation that rang would inflate the operator's own recap with pns's noise; neither
 is evidence of presence, so neither must move the last-present marker." And: "A SUPPRESSED NUDGE IS
 THEREFORE LOST, deliberately ... a 'still waiting' card replayed hours later, about a question answered
@@ -783,8 +783,8 @@ of `now` is no window either, because "A clock that moved backwards is not a bra
 - Thresholds: the interval is `(since, until]`. An entry at exactly `since` is excluded; at `since + 1`
   it is included; at exactly `until` it is included; at `until + 1` it is excluded. `ACTIVITY_READ_MAX`
   is 1 MiB, its own number because the ring's depth (`ACTIVITY_KEPT` = 150) is its own. The volume
-  threshold `[recap] min_events` defaults to 8 (`src/config.rs:DEFAULT_MIN_EVENTS`), tested as
-  `counted.len() >= recap.min_events`: 7 counted events deliver the catch-up card unchanged
+  threshold `[recap] minimum_events` defaults to 8 (`src/config.rs:DEFAULT_MINIMUM_EVENTS`), tested as
+  `counted.len() >= recap.minimum_events`: 7 counted events deliver the catch-up card unchanged
   (`tests/dispatch.rs:a_window_under_the_threshold_delivers_the_catch_up_card_unchanged`) and 8 or more
   deliver the recap card
   (`tests/dispatch.rs:a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first`,
@@ -858,10 +858,10 @@ recap's own section: `["asked", "blocked", "denied", "failed", "plan-ready"]`.
   this rides an event whose stdout a hook reads" (`src/main.rs:replay_missed`, asserted as empty stdout
   AND empty stderr in the delivery test).
 - Timeout and cancellation: the legs carry the decision's own deadlines. The detached recap child is
-  given `PNS_REMOTE_TIMEOUT=30` (`src/main.rs:RECAP_DEADLINE_SECS`) when the environment asked for no
-  deadline at all, because "AN UNBOUNDED DEADLINE IS A TERMINAL'S CHOICE, NEVER A BACKGROUND CHILD'S ...
-  a wedged gateway would keep this process alive for good, and every later window would add another." The
-  default when the variable is unset is 5 seconds (`src/channels/hermes.rs:remote_deadline`).
+  bounded by the 30-second group watchdog `RECAP_DEADLINE_SECS` arms around itself, whatever
+  `[delivery] remote_deadline` allows one call inside it, so an unbounded deadline cannot keep that
+  process alive for good. The default when the file names no deadline is 5 seconds
+  (`src/channels/hermes.rs:remote_deadline`).
 - Idempotency and duplicates: at most one card per return moment, of any kind, and it is a single
   dispatch of a single event.
   `tests/dispatch.rs:racing_present_events_recap_one_loud_window_exactly_once_between_them` asserts
@@ -970,9 +970,9 @@ switch in means the journal is never claimed at all when the card is off."
 `src/main.rs:record_missed` never learns the switch exists, "so the journal still records every miss and
 the doctor still counts them: turning the card back on has something to deliver."
 
-`digest` is its own switch over the Discord half, "so card-only and recap-only are both valid and neither
-implies the other". `src/config.rs:Recap` defaults: `replay_card = true`, `digest = true`,
-`min_events = 8`.
+`post_window_recap` is its own switch over the Discord half, "so card-only and recap-only are both valid and neither
+implies the other". `src/config.rs:Recap` defaults: `replay_card = true`, `post_window_recap = true`,
+`minimum_events = 8`.
 
 - Success:
   `tests/dispatch.rs:a_switched_off_replay_card_delivers_no_catch_up_and_leaves_the_journal_whole` (one
@@ -984,7 +984,7 @@ implies the other". `src/config.rs:Recap` defaults: `replay_card = true`, `diges
   `tests/dispatch.rs:a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone`.
 - Failure sources: not applicable; a config read.
 - Fail direction: the live notification is unaffected.
-- Thresholds: not applicable to this switch. `min_events` is covered in behavior 14.
+- Thresholds: not applicable to this switch. `minimum_events` is covered in behavior 14.
 - Required side effects: with the card off and the digest on, the Discord half still fires; the
   `if !recap.replay_card { return; }` sits BELOW the spawn, because "an operator who wants the recap in
   Discord and no card on the phone has asked for exactly that".
@@ -1036,8 +1036,8 @@ ______________________________________________________________________
 
 ## State files
 
-Every file below lives under the state directory, which is `$PNS_STATE_DIR` when set and
-`$HOME/.local/state/pns` otherwise (`src/main.rs:state_dir`). `STATE_FILE_MODE` is `0o600` and is
+Every file below lives under the state directory, which is `[paths] state_dir`, else `PNS_STATE_DIR`, when
+either is set and `$HOME/.local/state/pns` otherwise (`src/main.rs:state_dir`). `STATE_FILE_MODE` is `0o600` and is
 described as "ONE RULE FOR THE DIRECTORY'S CONTENTS rather than a knob for one caller: none of them has a
 reason to be world-readable, and the journal holds the operator's own text."
 

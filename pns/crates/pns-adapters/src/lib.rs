@@ -23,15 +23,17 @@ mod calendar;
 pub use calendar::{read_calendar, read_calendar_state, write_calendar_state};
 
 mod github;
+mod install;
+pub use install::{InstallSettings, install_settings, install_settings_of};
 mod phone_marker;
 mod tap_install;
 pub use config::DaemonConfig;
 pub use config::{
-    BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_SUBMIT_DEADLINE_SECS, Failures, LoadOutcome,
-    MAX_REFRESH_SECS, MIN_REFRESH_SECS, MOSHI_TYPE, PluginEntry, Presence, QuietCalendar, Recap,
-    TABLE_KEYS, TOP_LEVEL, armed_mobile, config_path, enabled_hue_table, identity_placeholder,
-    load_config, mobile_backend, moshi_image_cards, moshi_secret, parse_config, parse_presence,
-    render, strip_chezmoi_actions, submit_deadline,
+    BEHAVIOUR_WORDS, Config, ConfigError, DEFAULT_ACK_DEADLINE, DEFAULT_BUSY_DEADLINE, Failures,
+    LoadOutcome, MAX_ARM_INTERVAL_SECS, MIN_ARM_INTERVAL_SECS, MOSHI_TYPE, PluginEntry, Presence,
+    QuietCalendar, Recap, TABLE_KEYS, TOP_LEVEL, ack_deadline, armed_phone, config_path,
+    enabled_hue_table, identity_placeholder, load_config, moshi_image_cards, moshi_secret,
+    parse_config, parse_presence, phone_backend, remind_delay_range, render, strip_chezmoi_actions,
 };
 pub use config::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,
@@ -55,11 +57,11 @@ pub use config::{ROOM_MAX, room_fits};
 
 pub use config::{
     RouterSettings, SetupFailure, device_identity, enabled_router_table, router_api_key,
-    router_settings, stale_alert_channel,
+    router_settings, stale_alert_route,
 };
 
 pub use config::banner_click;
-pub use config::{BOT_TYPE, DiscordSettings, armed_discord, discord_backend, discord_settings};
+pub use config::{DiscordSettings, armed_discord, discord_settings};
 pub use config::{HermesKeys, hermes_keys};
 
 pub use config::select_plugins;
@@ -75,14 +77,14 @@ pub use persistence::{
     HeldLock, RING_READ_MAX, STATE_FILE_MODE, append_ring_line, claim_lock, decision_codec,
     journal_codec, now_secs, presence_journal, publish_state_line, readable_state_file, state_dir,
 };
-pub use persistence::{QUIET_UNTIL, read_quiet_expiry};
+pub use persistence::{QUIET_UNTIL, read_mute_expiry};
 pub use persistence::{remember_staleness, remembered_staleness};
 
 mod protocols;
 pub use persistence::{LIGHTS_HELD, held_lamps, read_held, read_news, record_news, remember_held};
 pub use protocols::markers as marker_files;
 pub use protocols::markers::FileLoopLeases;
-pub use protocols::{nag as nag_records, spool as job_spool};
+pub use protocols::{remind as remind_records, spool as job_spool};
 
 pub use persistence::LIGHTS_SAID;
 pub use protocols::return_window;
@@ -101,8 +103,8 @@ pub use hue::{
     BRIDGE_DEADLINE, Bridge, DEFAULT_ROOMS, Enrollment, HuePulse, HueSettings, Mismatch,
     TYPED_COMMAND_DEADLINE, TypedLampBridge, UreqBridge, armed_hue, breath_arm_body,
     bridge_inventory, clear_body, clear_held, enroll, fade_body, grouped_light_ids_for_rooms,
-    hue_settings, inventory, pulse_body, quiet_window, refused_mismatch, resolve_on_bridge,
-    signal_fixtures, unreported_mismatch,
+    hue_settings, inventory, pulse_body, refused_mismatch, resolve_on_bridge, signal_fixtures,
+    unreported_mismatch,
 };
 
 mod presence;
@@ -118,7 +120,10 @@ pub use macos::{FocusReading, focus_now};
 mod herdr;
 mod probes;
 mod process;
-pub use macos::{local_minutes_since_midnight, utc_timestamp};
+pub use macos::{
+    LaunchdServiceController, SystemLaunchctlRunner, local_epoch, local_minutes_since_midnight,
+    utc_timestamp,
+};
 pub use probes::SystemProbes;
 pub use process::spawn_shell_event;
 pub use process::{PROBE_READ_MAX, SystemCommandRunner, finish_bounded, run_bounded};
@@ -128,13 +133,12 @@ pub use destinations::banner::{
 };
 
 pub use destinations::hermes::{
-    DEFAULT_HERMES_URL, HermesChannel, channel_url, hermes_body, probe_route, probe_routes,
-    remote_deadline,
+    DEFAULT_HERMES_URL, DEFAULT_REMOTE_DEADLINE_SECS, HermesChannel, channel_url, hermes_body,
+    probe_route, probe_routes, remote_deadline,
 };
 
 pub use destinations::discord::{
     DiscordChannel, DiscordPost, DiscordReply, DiscordRequest, SessionThreads, UreqDiscordPost,
-    refused_discord_line,
 };
 
 pub use destinations::moshi::{
@@ -149,14 +153,18 @@ mod unifi;
 pub use unifi::{HomeStaleness, UniFiRouter, first_site_id, parse_clients};
 
 pub use herdr::workspace_agent_statuses;
+pub use herdr::{WorkspaceRow, parse_workspaces};
 
 pub use presence::BridgePresencePoll;
 
-pub use protocols::nag::FileNagRecords;
+pub use protocols::remind::FileRemindRecords;
 pub use protocols::spool::FileJobSpool;
 
 mod daemon_children;
 pub use daemon_children::DaemonChildren;
+
+mod daemon_shutdown;
+pub use daemon_shutdown::{catch_termination, stopping};
 
 pub use persistence::FileLampTick;
 
@@ -170,7 +178,7 @@ mod doctor;
 pub use doctor::{ANSWER_MAX, pairing_report};
 
 pub use doctor::{daemon_heartbeat, doctor_bridge, hue_resolves, read_pairing};
-pub use process::{env_deadline, moshi_hook_bin};
+pub use process::{env_duration, moshi_hook_bin};
 
 mod terminal;
 pub use terminal::ConsoleTerminal;
@@ -184,18 +192,20 @@ mod git;
 mod moshi_hook;
 mod recap_card_wire;
 mod recap_child;
-pub use codex::condense;
+pub use codex::summarize;
 pub use git::{Checkout, git_checkout};
 pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_card_wire::{HandedCard, decode_handed_card};
 pub use recap_child::{CARD_ON_STDIN, hand_recap_card, run_recap_bounded, spawn_recap};
 
-pub use persistence::{DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError};
+pub use persistence::{
+    ActivityEvent, DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError,
+};
 
 mod harness;
 pub use harness::{
-    HookPayload, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
-    transcript_reply,
+    HookPayload, SessionFacts, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
+    session_facts, transcript_reply,
 };
 
 #[cfg(test)]

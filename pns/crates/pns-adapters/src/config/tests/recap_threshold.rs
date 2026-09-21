@@ -6,14 +6,17 @@ fn the_recaps_volume_threshold_is_a_count_the_operator_can_state() {
     // live measurement behind it, so it ships as a key defaulted to the
     // operator's own guess and the recap's header prints the real count
     // every time. One week of real recaps settles it without a rebuild.
-    let config = parse_config("[recap]\nmin_events = 3\n").unwrap();
-    assert_eq!(config.recap.min_events, 3, "the stated count was read");
-    assert!(config.recap.digest, "and the switches kept their defaults");
+    let config = parse_config("[recap]\nminimum_events = 3\n").unwrap();
+    assert_eq!(config.recap.minimum_events, 3, "the stated count was read");
+    assert!(
+        config.recap.post_window_recap,
+        "and the switches kept their defaults"
+    );
     assert_eq!(
-        parse_config("[plugins.hue]\nenabled = true\n")
+        parse_config("[plugins.lights]\nenabled = true\n")
             .unwrap()
             .recap
-            .min_events,
+            .minimum_events,
         8,
         "an absent key is the operator's stated eight"
     );
@@ -26,10 +29,10 @@ fn a_volume_threshold_of_zero_is_refused_by_name_rather_than_read_as_every_event
     // is the one state the recap body says the event path never posts. An
     // operator calibrating the knob downward would get a card and a Discord
     // recap on every event, each saying nothing was recorded.
-    let err = parse_config("[recap]\nmin_events = 0\n").unwrap_err();
+    let err = parse_config("[recap]\nminimum_events = 0\n").unwrap_err();
     match err {
         ConfigError::Invalid(message) => {
-            assert!(message.contains("min_events"), "{message}");
+            assert!(message.contains("minimum_events"), "{message}");
             assert!(
                 message.contains('1'),
                 "the refusal names the floor rather than only the offence: {message}"
@@ -38,10 +41,10 @@ fn a_volume_threshold_of_zero_is_refused_by_name_rather_than_read_as_every_event
         other => panic!("expected Invalid, got {other:?}"),
     }
     assert_eq!(
-        parse_config("[recap]\nmin_events = 1\n")
+        parse_config("[recap]\nminimum_events = 1\n")
             .unwrap()
             .recap
-            .min_events,
+            .minimum_events,
         1,
         "and one is accepted: it means any activity at all"
     );
@@ -53,10 +56,10 @@ fn a_volume_threshold_that_is_not_a_count_is_refused_naming_the_key() {
     // asked for and would not get, and each has to say so rather than leave
     // the count silently at its default.
     for stated in ["\"eight\"", "8.5", "-1", "true"] {
-        let err = parse_config(&format!("[recap]\nmin_events = {stated}\n")).unwrap_err();
+        let err = parse_config(&format!("[recap]\nminimum_events = {stated}\n")).unwrap_err();
         match err {
             ConfigError::Invalid(message) => assert!(
-                message.contains("min_events"),
+                message.contains("minimum_events"),
                 "the offender is named for {stated}: {message}"
             ),
             other => panic!("expected Invalid for {stated}, got {other:?}"),

@@ -7,12 +7,12 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
     // carries both skip reasons: a plugin that cannot be a destination, and a
     // plugin the config declined.
     sandbox.write_config(&format!(
-        "[plugins.router]\nenabled = true\n{EVERY_DISPATCHED_CHANNEL}"
+        "[plugins.home_presence]\nenabled = true\n{EVERY_DISPATCHED_CHANNEL}"
     ));
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
-    for channel in ["mobile", "macos-banner", "hermes"] {
+    for channel in ["phone", "banner", "hermes"] {
         let event = sandbox.event(channel);
         assert_eq!(event["agent"], "pns", "channel: {channel}");
         assert_eq!(event["state"], "doctor", "channel: {channel}");
@@ -54,14 +54,14 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
     assert_eq!(
         &printed[..],
         [
-            "router: skipped, a sensor and never a delivery destination",
+            "home_presence: skipped, a sensor and never a delivery destination",
             "presence: skipped, not enabled in the config",
             "github: skipped, not enabled in the config",
-            "mobile: sent, this channel reports no outcome",
-            "macos-banner: sent, this channel reports no outcome",
+            "phone: sent, this channel reports no outcome",
+            "banner: sent, this channel reports no outcome",
             "hermes: sent, this channel reports no outcome",
             "discord: skipped, not enabled in the config",
-            "hue: skipped, not enabled in the config",
+            "lights: skipped, not enabled in the config",
             "3 sent, 0 failed, 5 skipped",
             NO_MOSHI_HOOK_LINE,
             &format!(
@@ -70,10 +70,10 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             ),
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
-            NAG_OFF_LINE,
-            // This fixture WROTE a `[plugins.router]` table, so the probe is set
+            REMIND_OFF_LINE,
+            // This fixture WROTE a `[plugins.home_presence]` table, so the probe is set
             // up wrong rather than absent, and the row says which edit.
-            "home: no type in [plugins.router] (the only type is \"unifi\")",
+            "home: no type in [plugins.home_presence] (the only type is \"unifi\")",
             LIGHTS_OFF_LINE,
             NO_CERTIFICATE_LINE,
             "the delivery record could not be read, so nothing here is known",
@@ -91,16 +91,16 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
 }
 
 #[test]
-fn a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_seam() {
+fn a_phone_table_naming_no_compiled_in_backend_pushes_no_card_through_either_seam() {
     // "NO CARD IS PUSHED" IS PRINTED, so it has to be true wherever the leg is
     // dispatched. The gate used to sit on the TOKEN, which only feeds the
     // native channel: with an executable channel of the same name installed,
     // the card went out under a backend nobody named while stderr said it had
     // not.
-    let sandbox = Sandbox::new("mobile-type-refused-leg");
+    let sandbox = Sandbox::new("phone-type-refused-leg");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.macos-banner]\nenabled = true\n",
+        "[plugins.phone]\nenabled = true\ntype = \"pushover\"\ndevice_token = \"tok-real\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.banner]\nenabled = true\n",
     );
     let output = run(sandbox
         .pns()
@@ -108,9 +108,9 @@ fn a_mobile_table_naming_no_compiled_in_backend_pushes_no_card_through_either_se
         .args(["--project", "dotfiles", "--detail", "a summary"]));
 
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "the card went out under a backend nobody named: {:?}",
-        sandbox.event("mobile")
+        sandbox.event("phone")
     );
     assert!(
         sandbox.fired("hermes"),
@@ -134,18 +134,18 @@ fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
     // operator with a perfectly good token in the file was sent to `token`.
     let sandbox = Sandbox::new("doctor-type-fault");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"pushover\"\ntoken = \"tok-real\"\n\
-         [plugins.macos-banner]\nenabled = true\n[plugins.hermes]\nenabled = true\n",
+        "[plugins.phone]\nenabled = true\ntype = \"pushover\"\ndevice_token = \"tok-real\"\n\
+         [plugins.banner]\nenabled = true\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     let reported = stdout(&output);
     let mobile = report_rows(&reported)
         .into_iter()
-        .find(|line| line.starts_with("mobile:"))
+        .find(|line| line.starts_with("phone:"))
         .unwrap_or_else(|| panic!("the census names every plugin: {reported}"));
     assert!(
-        mobile.starts_with("mobile: FAILED,"),
+        mobile.starts_with("phone: FAILED,"),
         "a card that was never pushed is not a send: {mobile}"
     );
     assert!(
@@ -159,7 +159,7 @@ fn the_doctor_names_the_type_when_the_type_is_the_fault_and_never_the_token() {
     assert_eq!(
         report_rows(&reported)
             .into_iter()
-            .filter(|line| line.starts_with("mobile:"))
+            .filter(|line| line.starts_with("phone:"))
             .count(),
         1,
         "one plugin, one line: {reported}"
@@ -177,7 +177,7 @@ fn the_doctor_tells_a_machine_with_no_config_that_there_is_no_config() {
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     let reported = stdout(&output);
-    for plugin in ["router", "hermes", "hue"] {
+    for plugin in ["home_presence", "hermes", "lights"] {
         let line = report_rows(&reported)
             .into_iter()
             .find(|line| line.starts_with(&format!("{plugin}:")))
@@ -199,12 +199,13 @@ fn the_doctor_says_a_switched_off_table_names_no_backend_and_an_event_never_does
     // which is where diagnostics belong.
     let sandbox = Sandbox::new("disabled-table-type");
     sandbox.write_config(&format!(
-        "[plugins.router]\nenabled = false\ntype = \"asus\"\n{EVERY_DISPATCHED_CHANNEL}"
+        "[plugins.home_presence]\nenabled = false\ntype = \"asus\"\n{EVERY_DISPATCHED_CHANNEL}"
     ));
 
     let checked = doctor_command(&sandbox).output().expect("the engine runs");
     assert!(
-        stderr(&checked).contains("[plugins.router]") && stderr(&checked).contains("switched off"),
+        stderr(&checked).contains("[plugins.home_presence]")
+            && stderr(&checked).contains("switched off"),
         "the doctor is where a switched-off misconfiguration is visible: {}",
         stderr(&checked)
     );
@@ -235,7 +236,7 @@ fn the_doctor_names_every_route_the_config_armed_no_key_for() {
     let sandbox = Sandbox::new("doctor-unarmed-routes");
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
-         [plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\n\
          logbook = \"armed\"\nposture-pages = \"\"\n",
     );
     let output = doctor_command(&sandbox).output().expect("the engine runs");
@@ -245,7 +246,7 @@ fn the_doctor_names_every_route_the_config_armed_no_key_for() {
         assert!(
             said.contains(&format!(
                 "no hermes signing key for the {route} route, so every post to it is \
-                 refused; set [plugins.hermes.keys] {route}"
+                 refused; set [plugins.log.keys] {route}"
             )),
             "the {route} route is unarmed and unnamed: {said}"
         );

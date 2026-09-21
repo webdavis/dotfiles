@@ -10,9 +10,12 @@ mod support;
 
 use hmac::{Hmac, KeyInit, Mac};
 use support::{
-    Capture, KEYS_DISAGREE, RouterStub, Sandbox, plugin_command, router_table, run, stderr, stdout,
-    write_script,
+    Capture, KEYS_DISAGREE, RouterStub, Sandbox, plugin_command, router_table, run, run_expecting,
+    stderr, stdout, write_script,
 };
+
+const SINCE: &str = "1756499000"; // an arbitrary recap window, SINCE < UNTIL
+const UNTIL: &str = "1756500000";
 
 /// Everything past the blank line that ends the headers.
 fn body_of(raw: &str) -> &str {
@@ -48,14 +51,14 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
     let decoy = sandbox.path(".local/libexec/pns/channels");
     std::fs::create_dir_all(&decoy).expect("decoy dir");
     write_script(
-        &decoy.join("macos-banner.sh"),
+        &decoy.join("banner.sh"),
         &format!("cat >\"{}/decoy.event\"", sandbox.display()),
     );
 
     let mut command = plugin_command(&sandbox);
     // At the desk, because the banner is a desk surface now: an idle of
     // 99999 is the operator being away, and away raises no banner at all.
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_notifier(&mut command);
     run(command
         .args([
@@ -82,13 +85,13 @@ fn the_banner_leg_delivers_natively_and_the_executable_channel_stays_silent() {
 fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output() {
     let sandbox = Sandbox::new("native-moshi");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ndevice_token = \"tok-integration\"\n",
     );
-    let capture = Capture::start(&sandbox, "mobile", None, None);
+    let capture = Capture::builder(&sandbox, "phone").start();
 
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_MOSHI_URL", capture.url());
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
@@ -125,11 +128,11 @@ fn native_moshi_posts_the_token_in_the_body_and_never_in_the_engines_own_output(
 fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token() {
     let sandbox = Sandbox::new("dead-moshi");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"tok-integration\"\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\ndevice_token = \"tok-integration\"\n",
     );
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_MOSHI_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
     let output = run(command.args([
@@ -151,9 +154,9 @@ fn a_dead_moshi_endpoint_is_silent_because_the_only_report_would_carry_the_token
 fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
     let sandbox = Sandbox::new("native-hermes");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "hermes", None, None);
+    let capture = Capture::builder(&sandbox, "hermes").start();
 
     let mut command = plugin_command(&sandbox);
     command.env("PNS_HERMES_URL", capture.url());
@@ -183,30 +186,29 @@ fn sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent() {
 
 #[test]
 fn a_gateway_that_answers_401_is_named_rather_than_read_as_a_downed_gateway() {
-    // "No response" would send the operator to restart a healthy gateway
-    // instead of rotating the key.
+    // "No response" would send the operator to restart a healthy gateway.
     let sandbox = Sandbox::new("hermes-401");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "hermes-401", Some("401"), None);
+    let capture = Capture::builder(&sandbox, "hermes-401").status(401).start();
 
     let mut command = plugin_command(&sandbox);
     command.env("PNS_HERMES_URL", capture.url());
     sandbox.stub_notifier(&mut command);
-    let output = run(command
-        .args([
-            "send",
-            "--producer",
-            "weekly",
-            "--state",
-            "done",
-            "--detail",
-            "ran",
-        ])
-        .args(["--scope", "remote_only"]));
+    command.args([
+        "send",
+        "--producer",
+        "weekly",
+        "--state",
+        "done",
+        "--detail",
+        "ran",
+        "--scope",
+        "remote_only",
+    ]);
+    let output = run_expecting(1, &mut command);
     capture.finish();
-
     assert_eq!(stdout(&output), "pns: post FAILED HTTP 401\n");
 }
 
@@ -216,14 +218,14 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
     // hermes key, so that run returns before any outcome exists.
     let sandbox = Sandbox::new("hermes-async-silent");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("PNS_HERMES_URL", "http://127.0.0.1:1");
     sandbox.stub_notifier(&mut command);
-    let output = run(command.args([
+    command.args([
         "send",
         "--producer",
         "claude",
@@ -231,7 +233,8 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
         "done",
         "--detail",
         "x",
-    ]));
+    ]);
+    let output = run_expecting(1, &mut command);
     assert!(
         stdout(&output).is_empty(),
         "an async delivery printed an outcome; async legs must be silent: {output:?}"
@@ -240,7 +243,7 @@ fn an_async_hermes_with_a_real_key_stays_silent_even_when_the_post_fails() {
 
 /// The route the config named, ON THE WIRE.
 ///
-/// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE. `stale_alert_channel` reading a
+/// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE. `stale_alert_route` reading a
 /// name and `channel_url` swapping a path segment are each pinned by unit
 /// tests; what nothing pinned is the ASSIGNMENT of the one onto the other, and
 /// dropping the route from the event passed the entire suite. Every other home
@@ -263,24 +266,24 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
     // TWO REQUESTS, because the report posts its own test send before it
     // reads the router: the capture has to stay up past that one to see the
     // alert at all.
-    let capture = Capture::start(&sandbox, "stale-route", Some("200"), Some("2"));
+    let capture = Capture::builder(&sandbox, "stale").requests(2).start();
     sandbox.write_config(&format!(
-        "[plugins.hermes]\nenabled = true\n\
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          keys = {{ pns-events = \"gate-signing-key\", priority = \"priority-signing-key\" }}\n\
-         {}stale_alert_channel = \"priority\"\n",
+         {}alert_route = \"priority\"\n",
         router_table(&router.localhost_url())
     ));
 
     let mut command = plugin_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "99999")
+        .env("PNS_SCREEN_IDLE", "99999")
         .env("HTTP_PROXY", capture.url())
         .env("http_proxy", capture.url())
         .env("NO_PROXY", "localhost");
     sandbox.stub_notifier(&mut command);
     // No moshi-hook to spawn: the pairing check would otherwise reach the real
     // binary on the developer's own machine and the moshi API behind it.
-    command.env("MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
+    command.env("PNS_MOSHI_HOOK_BIN", sandbox.path("no-moshi-hook-here"));
     // THE EXIT CODE IS NOT ASSERTED: it belongs to the whole report, and a
     // config naming one plugin makes it exit non-zero on grounds that have
     // nothing to do with the route this pins.
@@ -317,7 +320,7 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
     // that.
     let sandbox = Sandbox::new("recap-refused");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
 
     let mut command = plugin_command(&sandbox);
@@ -327,7 +330,7 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
         // test is about is the one it measures and not a deadline.
         .env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/pns-events");
     sandbox.stub_notifier(&mut command);
-    let output = run(command.args(["recap", "--since", "1756499000", "--until", "1756500000"]));
+    let output = run(command.args(["recap", "--since-epoch", SINCE, "--until-epoch", UNTIL]));
 
     let printed = stdout(&output);
     let said: Vec<&str> = printed
@@ -360,9 +363,9 @@ fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
 fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
     let sandbox = Sandbox::new("recap-route");
     sandbox.write_config(
-        "[plugins.hermes]\nenabled = true\nkeys = { pns-events = \"gate-signing-key\" }\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
     );
-    let capture = Capture::start(&sandbox, "recap-route", Some("404"), Some("1"));
+    let capture = Capture::builder(&sandbox, "recap").status(404).start();
 
     let mut command = plugin_command(&sandbox);
     command
@@ -373,7 +376,7 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
     // RUN BY HAND, which is the mode's other caller and the one a test can
     // wait for: the event path spawns this same mode detached, and the window
     // it would pass is exactly these two bounds.
-    run(command.args(["recap", "--since", "1756499000", "--until", "1756500000"]));
+    run(command.args(["recap", "--since-epoch", SINCE, "--until-epoch", UNTIL]));
 
     let raw = capture.finish();
     let posted: Vec<&str> = raw
@@ -395,10 +398,10 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
 /// THE ROUTE NAMES ARE THE OPERATOR'S, ON THE WIRE.
 ///
 /// THE ONE ASSERTION NO UNIT TEST CAN MAKE. That `[routes]` parses, that a
-/// health event takes the urgent route and that a key table grants a route its
-/// key are each pinned on their own; what nothing pinned is the ASSIGNMENT of
-/// all three onto one POST, and every compiled route name this change removed
-/// used to be what carried it. So the gateway is PROXIED rather than moved,
+/// delivery class takes the route its own table names and that a key table
+/// grants a route its key are each pinned on their own; what nothing pinned is
+/// the ASSIGNMENT of all three onto one POST, and every compiled route name
+/// this change removed used to be what carried it. So the gateway is PROXIED rather than moved,
 /// exactly as the stale alert's own route test does it and for its reason:
 /// `PNS_HERMES_URL` outranks the route, so an endpoint override cannot observe
 /// one.
@@ -410,10 +413,10 @@ fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
 #[test]
 fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_that_routes_key() {
     let sandbox = Sandbox::new("invented-routes");
-    let capture = Capture::start(&sandbox, "invented-routes", None, None);
+    let capture = Capture::builder(&sandbox, "invented-routes").start();
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\nurgent = \"sirens\"\n\
-         [plugins.hermes]\nenabled = true\n\
+         [delivery_class.health]\nroute = \"sirens\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
          keys = { logbook = \"logbook-key\", sirens = \"sirens-key\" }\n",
     );
 
@@ -432,7 +435,7 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
             "--detail",
             "ran",
         ])
-        .args(["--kind", "health"])
+        .args(["--delivery-class", "health"])
         .args(["--scope", "remote_only"]));
 
     let raw = capture.finish();
@@ -465,10 +468,10 @@ fn a_health_event_takes_the_urgent_route_the_config_invented_and_signs_it_with_t
 #[test]
 fn an_unrouted_event_takes_the_default_route_the_config_invented() {
     let sandbox = Sandbox::new("invented-default-route");
-    let capture = Capture::start(&sandbox, "invented-default", None, None);
+    let capture = Capture::builder(&sandbox, "invented-default").start();
     sandbox.write_config(
         "[routes]\ndefault = \"logbook\"\n\
-         [plugins.hermes]\nenabled = true\nkeys = { logbook = \"logbook-key\" }\n",
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { logbook = \"logbook-key\" }\n",
     );
 
     let mut command = plugin_command(&sandbox);

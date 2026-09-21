@@ -1,16 +1,34 @@
 use super::*;
 
-pub(super) const PHONE: Table = Table {
-    name: "phone",
-    prose: "# Phone attention, shared by `pns tap` and the presence reader.\n\
-            # PNS_PHONE_MARKER_FILE takes precedence. Setup guide: pns tap install.\n",
+/// Where this install keeps its state and looks for channel executables.
+///
+/// OPT-IN, and both keys are EXAMPLES rather than defaults, because neither
+/// has a value that means what leaving it out means: `state_dir` written is a
+/// directory pns will create and use as it stands, and `channels_dir` written
+/// at all forces every channel onto its executable.
+pub(super) const PATHS: Table = Table {
+    name: "paths",
+    prose: "# Where this install keeps its own files. Left out, state lives under\n\
+            # ~/.local/state/pns and the native channels are used directly. Each is\n\
+            # an absolute path or a ~/ path.\n",
     opt_in: true,
     children: &[],
-    keys: &[Key {
-        name: "marker_file",
-        prose: "# An absolute path or ~/ path. Missing config uses this default too.\n",
-        sample: Sample::Default("\"~/.local/state/pns/phone-attention.marker\""),
-    }],
+    keys: &[
+        Key {
+            name: "state_dir",
+            prose: "# The ledger, the markers and the spooled jobs. Moving it leaves\n\
+                         # whatever is in the old directory where it is.\n",
+            sample: Sample::Example("\"~/.local/state/pns\""),
+        },
+        Key {
+            name: "channels_dir",
+            prose: "# A directory of channel executables. NAMING IT AT ALL FORCES every\n\
+                         # channel through an executable of its own name in here instead of the\n\
+                         # compiled-in one, which is what makes it a testing seam rather than a\n\
+                         # place to point at the usual location.\n",
+            sample: Sample::Example("\"~/.local/libexec/pns/channels\""),
+        },
+    ],
 };
 /// What the two routes pns picks for itself are called.
 ///
@@ -30,28 +48,40 @@ pub(super) const ROUTES: Table = Table {
             name: "default",
             prose: "# Where an event whose producer named no route lands, the return recap\n\
                          # included. It is also the last path segment of the gateway URL pns\n\
-                         # posts to unless PNS_HERMES_URL says otherwise.\n",
+                         # posts to unless [plugins.log] url names one outright.\n",
             sample: Sample::Default("\"pns-events\""),
         },
         Key {
             name: "urgent",
             prose: "# The route reserved for what needs a human now: a machine-health event\n\
-                         # (`pns send --kind health`) whose --state is one somebody has to answer,\n\
-                         # and the stale-block escalation, both take it, whatever it is called.\n",
+                         # (`pns send --delivery-class health`) whose --state is one somebody has\n\
+                         # to answer, and the stale-block escalation, both take it, whatever it is\n\
+                         # called.\n",
             sample: Sample::Default("\"priority\""),
         },
     ],
 };
-pub(super) const DAEMON: Table = Table {
-    name: "daemon",
-    prose: DAEMON_PROSE,
+pub(super) const GATEWAY: Table = Table {
+    name: "gateway",
+    prose: GATEWAY_PROSE,
     opt_in: false,
     children: &[],
-    keys: &[Key {
-        name: "enabled",
-        prose: "",
-        sample: Sample::Default("true"),
-    }],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "service",
+            prose: "# The launchd label this machine's clock runs under, which `pns gateway\n\
+                         # start|stop|restart|status` starts, stops, restarts and reports on. NO\n\
+                         # DEFAULT: pns compiles in no label of its own, since it does not know what\n\
+                         # your installation calls its own plist, and every gateway verb refuses\n\
+                         # while this is unset.\n",
+            sample: Sample::Example("\"\""),
+        },
+    ],
 };
 pub(super) const RECAP: Table = Table {
     name: "recap",
@@ -68,14 +98,14 @@ pub(super) const RECAP: Table = Table {
             sample: Sample::Default("true"),
         },
         Key {
-            name: "digest",
+            name: "post_window_recap",
             prose: "# The recap of the whole window posted to hermes, rendered and posted\n\
                          # by a second process that nothing waits for. Off records the window\n\
                          # just the same; only the posting stops.\n",
             sample: Sample::Default("true"),
         },
         Key {
-            name: "min_events",
+            name: "minimum_events",
             prose: "# How many events a window needs before it is worth a recap rather than\n\
                          # the catch-up card alone. Every recap's header prints the window's real\n\
                          # count, which is how the number gets settled. One is the floor and\n\
@@ -96,15 +126,17 @@ pub(super) const RECAP: Table = Table {
             ),
         },
         Key {
-            name: "summarizer_deadline_secs",
+            name: "summarizer_deadline",
             prose: "# How long that command may take before it is killed and the plain list\n\
                          # is posted instead. It is the whole recap's budget rather than each\n\
-                         # question's, and AN HOUR IS THE CEILING: a bigger number is refused by\n\
-                         # name.\n",
-            sample: Sample::Default("240"),
+                         # question's, and AN HOUR IS THE CEILING: a longer one is refused by\n\
+                         # name. It also bounds the turn summarizer that writes each\n\
+                         # notification's sentence, which takes at most thirty seconds of it\n\
+                         # because a Stop hook is waiting on that one.\n",
+            sample: Sample::Default("\"4m\""),
         },
         Key {
-            name: "repos",
+            name: "repositories",
             prose: "# The repositories whose merged pull requests become the recap's \"what\n\
                          # it does now\" section. UNSET IS THE WORKING SETTING and it is a fence:\n\
                          # with no repo named, no `gh` process is started at all. Named, the recap\n\
@@ -121,19 +153,30 @@ pub(super) const RECAP: Table = Table {
             sample: Sample::Example("[\"owner/name\"]"),
         },
         Key {
-            name: "review_notes",
+            name: "review_notes_glob",
             prose: "# The review notes whose findings become the recap's \"caught by review\"\n\
                          # section: ONE directory, named in full, and a file name that may hold\n\
                          # one `*`. A relative path and a `*` in a directory are both refused,\n\
                          # because this pattern is the whole of what pns is allowed to open. Only\n\
                          # files whose own clock falls inside the window are read, so a note you\n\
                          # had already seen before you left is not news. UNSET IS THE WORKING\n\
-                         # SETTING and, as with `repos`, unset means the directory is never\n\
+                         # SETTING and, as with `repositories`, unset means the directory is never\n\
                          # opened. Twenty-five notes is what one recap considers, NEWEST FIRST,\n\
                          # and a window holding more says \"at least\" in its own count rather than\n\
                          # printing a total it cannot back; a matched note that will not open is\n\
                          # named as one that could not be read rather than left out.\n",
             sample: Sample::Example("\"/absolute/path/notes-*.md\""),
+        },
+        Key {
+            name: "retain",
+            prose: "# How long pns keeps one row of the activity store, the durable table of\n\
+                         # harness hook events the recap reads. The gateway prunes anything older\n\
+                         # on its own tick, so a shorter value takes effect without a restart.\n\
+                         # THIRTY DAYS, SPELLED IN HOURS because a duration is <count><ms|s|m|h>\n\
+                         # and a day is not one of the units. An hour is the floor and a year the\n\
+                         # ceiling; zero is refused by name, because this store has no off switch\n\
+                         # and a retention of nothing would empty it on the next tick.\n",
+            sample: Sample::Default("\"720h\""),
         },
     ],
 };
@@ -146,22 +189,29 @@ pub(super) const FOCUS: Table = Table {
                  # phone cards. A Focus name matches however you capitalised\n\
                  # it, a mode's raw modeIdentifier works too, and an empty entry is refused\n\
                  # by name. An unreadable Focus store reads as no Focus, never as silence.\n\
-                 # NAMING NO MODE IS THE FEATURE OFF, which is the same statement as no\n\
-                 # table at all.\n",
+                 # NAMING NO MODE SILENCES NOTHING, which is the same statement as no\n\
+                 # table at all; `enabled = false` keeps the list and stops it being read.\n",
     opt_in: true,
     children: &[],
-    keys: &[Key {
-        name: "silence",
-        prose: "",
-        sample: Sample::Example("[\"Sleep\"]"),
-    }],
+    keys: &[
+        Key {
+            name: "enabled",
+            prose: "",
+            sample: Sample::Default("true"),
+        },
+        Key {
+            name: "modes",
+            prose: "",
+            sample: Sample::Example("[\"Sleep\"]"),
+        },
+    ],
 };
 /// The mute's own section. IT HOLDS NO KEYS: the mute itself is typed
-/// (`pns quiet 30m`) rather than configured, and the one thing there is to
+/// (`pns mute 30m`) rather than configured, and the one thing there is to
 /// configure about it is the calendar below.
 pub(super) const QUIET: Table = Table {
     name: "quiet",
-    prose: "# The mute, `pns quiet <duration>`, and what else may switch it.\n",
+    prose: "# The mute, `pns mute <duration>`, and what else may switch it.\n",
     opt_in: true,
     children: &[QUIET_CALENDAR],
     keys: &[],
@@ -198,59 +248,129 @@ pub(super) const QUIET_CALENDAR: Table = Table {
             sample: Sample::Example("[\"calendar-busy-window\"]"),
         },
         Key {
-            name: "poll_secs",
-            prose: "# How often it is asked, in seconds, from 30 to 1800.\n",
-            sample: Sample::Default("120"),
+            name: "poll_interval",
+            prose: "# How often it is asked, bounded \"30s\" to \"30m\".\n",
+            sample: Sample::Default("\"2m\""),
         },
         Key {
-            name: "deadline_secs",
+            name: "deadline",
             prose: "# How long one run may take before it is killed and the poll leaves\n\
-                         # everything as it was, in seconds, from 1 to 120.\n",
-            sample: Sample::Default("20"),
+                         # everything as it was, bounded \"1s\" to \"30s\".\n",
+            sample: Sample::Default("\"20s\""),
         },
     ],
 };
-pub(super) const NAG: Table = Table {
-    name: "nag",
-    prose: "# The nag: one more card when an approval has been sitting unanswered. IT\n\
-                 # IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the\n\
+/// The TOML literal `[remind] delay` ships at, and the value a walk that
+/// armed the reminder writes out: one literal, so the wizard cannot arm the
+/// reminder at a delay the shipped file never names.
+pub(in crate::config) const REMIND_DELAY: &str = "\"5m\"";
+pub(super) const REMIND: Table = Table {
+    name: "remind",
+    prose: "# The reminder: one more card when an approval has been sitting unanswered.\n\
+                 # IT IS A STATEMENT AND NEVER A SECOND PROMPT, so the card raised when the\n\
                  # prompt appeared is still the one carrying Allow and Deny. It needs the\n\
                  # daemon running and the PostToolBatch hook entry that tells pns an\n\
                  # approval was dealt with; without that entry the only clearing signal\n\
                  # is the end of the turn. It respects every mute the first card respects,\n\
-                 # a `pns quiet`, a Focus, the quiet window, and a nag held back is LOST\n\
-                 # rather than queued. Several approvals waiting are one card rather than\n\
-                 # several, each approval is nagged at most once, and a card counts every\n\
-                 # approval outstanding at that moment, so a fresh one can be named early\n\
-                 # and is then done. The signal is the tool batch RESOLVING rather than\n\
-                 # your answer, so a tool approved at once that then runs longer than this\n\
-                 # is nagged about anyway; if that bites, raise the number. THIRTY SECONDS\n\
-                 # IS THE FLOOR AND AN HOUR THE CEILING, anything outside is refused by\n\
-                 # name; no table at all, and after_secs of zero, are the same statement.\n",
+                 # a `pns mute`, a Focus, the quiet window, and a reminder held back is\n\
+                 # LOST rather than queued. Several approvals waiting are one card rather\n\
+                 # than several, each approval is reminded about at most once, and a card\n\
+                 # counts every approval outstanding at that moment, so a fresh one can be\n\
+                 # named early and is then done. The signal is the tool batch RESOLVING\n\
+                 # rather than your answer, so a tool approved at once that then runs\n\
+                 # longer than this is reminded about anyway; if that bites, raise the\n\
+                 # number. THIRTY SECONDS IS THE FLOOR AND AN HOUR THE CEILING, anything\n\
+                 # outside is refused by name, \"0s\" included: leaving the key out is the\n\
+                 # one way to say the reminder is off.\n",
     opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "delay",
+        prose: "",
+        sample: Sample::Default(REMIND_DELAY),
+    }],
+};
+/// What one producer asked for, keyed by the name that producer sends.
+///
+/// WRITTEN AS THE PLACEHOLDER IT IS. The heading carries `<name>` rather than
+/// any producer this machine happens to run, because pns compiles in no roster
+/// of producers and naming one here would read as the only one that works.
+pub(super) const PRODUCER: Table = Table {
+    name: "producer.<name>",
+    prose: "# What one producer asked for, one table per producer, keyed by the name it\n\
+                 # sends (`--producer`, or PNS_PRODUCER). Replace <name> with that name.\n\
+                 # THE REMINDER IS SWITCHED ON BY THE CALL, NEVER BY THE NAME: a harness\n\
+                 # that sends an answered signal passes `--remind` on its own approval hook,\n\
+                 # and that flag beats whatever this table says. This is here for a producer\n\
+                 # you cannot pass a flag to. It needs `[remind] delay` above; with no delay\n\
+                 # set, `remind = true` is still the reminder off.\n",
+    opt_in: true,
+    children: &[],
+    keys: &[Key {
+        name: "remind",
+        prose: "",
+        sample: Sample::Example("true"),
+    }],
+};
+pub(super) const STALE: Table = Table {
+    name: "stale",
+    prose: "# The OTHER end of the same wait: how long a session stays blocked before\n\
+                 # ONE page about it goes out, to the route reserved for things that need\n\
+                 # a human. It fires once per block and then says nothing until that block\n\
+                 # resolves, and only when you could act on it: nothing is sent while you\n\
+                 # are away from both the desk and the phone, or while the screen has been\n\
+                 # locked for the whole window, because a page nobody can answer is how\n\
+                 # the route reserved for the ones you must answer stops being read. A\n\
+                 # screen locked for PART of the window still pages, which is the case\n\
+                 # this exists for: you were here, you stepped away, and a session is\n\
+                 # stuck. It needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE\n\
+                 # CEILING, anything outside is refused by name, \"0s\" included: the window\n\
+                 # is not the switch, `enabled` is.\n",
+    opt_in: false,
     children: &[],
     keys: &[
         Key {
-            name: "after_secs",
+            name: "enabled",
             prose: "",
-            sample: Sample::Default("300"),
+            sample: Sample::Default("true"),
         },
         Key {
-            name: "stale_after_secs",
-            prose: "# And the OTHER end of the same wait: how long a session stays blocked before\n\
-                         # ONE page about it goes to the priority route, the one reserved for things\n\
-                         # that need a human. It fires once per block and then says nothing until\n\
-                         # that block resolves, and only when you could act on it: nothing is sent\n\
-                         # while you are away from both the desk and the phone, or while the screen\n\
-                         # has been locked for the whole window, because a page nobody can answer is\n\
-                         # how the route reserved for the ones you must answer stops being read. A\n\
-                         # screen locked for PART of the window still pages, which is the case this\n\
-                         # exists for: you were here, you stepped away, and a session is stuck. It\n\
-                         # needs the daemon running. A MINUTE IS THE FLOOR AND A DAY THE CEILING,\n\
-                         # anything outside is refused by name, and zero is the feature off.\n",
-            sample: Sample::Default("3600"),
+            name: "escalate_after",
+            prose: "",
+            sample: Sample::Default("\"1h\""),
+        },
+        Key {
+            name: "route",
+            prose: "# Where that page goes. Unset sends it to `[routes] urgent`, which is\n\
+                         # what every other page pns raises for itself takes.\n",
+            sample: Sample::Example("\"priority\""),
         },
     ],
+};
+/// How long a writer waits for the state database's write lock.
+///
+/// A CORE TABLE WRITTEN LIVE AT ITS DEFAULT, because there is no such thing as
+/// this machine having no bound: the number is always in force and is worth
+/// reading in the file rather than guessing at.
+pub(super) const STORAGE: Table = Table {
+    name: "storage",
+    prose: "# The state database. One number: how long a write waits for the lock\n\
+            # another writer holds before the write is refused. It bounds a WEDGED\n\
+            # writer and measures nothing else: every transaction pns makes is a\n\
+            # handful of short statements with no network and no sleep in it, and a\n\
+            # writer that dies drops its lock with its process, so a wait that\n\
+            # expires is a machine in trouble rather than a busy one. A hook you are\n\
+            # waiting on pays this bound per lock it takes, which is why the ceiling\n\
+            # is a minute; ten milliseconds is the floor, anything outside is refused\n\
+            # by name, and \"0s\" refuses a contended write the instant it is\n\
+            # contended instead of waiting at all.\n",
+    opt_in: false,
+    children: &[],
+    keys: &[Key {
+        name: "busy_deadline",
+        prose: "",
+        sample: Sample::Default("\"5s\""),
+    }],
 };
 pub(super) const FAILURES: Table = Table {
     name: "failures",
@@ -263,19 +383,19 @@ pub(super) const FAILURES: Table = Table {
                  # narrowed scan-ports list adds this number to it. Two limits pns cannot\n\
                  # detect and does not pretend to: browser preview needs a moshi Pro\n\
                  # subscription, and the tunnel exists only while a terminal session is\n\
-                 # open. serve = false is the fallback for either, and it costs nothing\n\
+                 # open. page_enabled = false is the fallback for either, and it costs nothing\n\
                  # else: the notification stands alone, Discord still carries the full\n\
                  # form whenever the hermes leg worked, and `pns failures` is unchanged.\n",
     opt_in: false,
     children: &[],
     keys: &[
         Key {
-            name: "serve",
+            name: "page_enabled",
             prose: "",
             sample: Sample::Default("true"),
         },
         Key {
-            name: "port",
+            name: "page_port",
             prose: "",
             sample: Sample::Default("8646"),
         },
@@ -286,15 +406,27 @@ pub(super) const LIGHTS: Table = Table {
     prose: LIGHTS_PROSE,
     opt_in: true,
     children: &[],
-    keys: &[Key {
-        name: "refresh_secs",
-        prose: "# How often the daemon re-arms the lamps, in seconds. It is also the breath\n\
-                     # budget: a breathing lamp is faded by the tick itself, seamlessly, across the\n\
-                     # whole interval, so this decides how many fades fit between two ticks. The\n\
-                     # range is 10 to 30. The floor is one bridge call, so a tick cannot start while\n\
-                     # the last one is still dialling; the ceiling is what the daemon derives a\n\
-                     # tick's own lifetime from, and an interval past it would be a breath cut off\n\
-                     # part way through.\n",
-        sample: Sample::Default("12"),
-    }],
+    keys: &[
+        Key {
+            name: "arm_interval",
+            prose: "# How often the daemon re-arms the lamps, bounded \"10s\" to \"30s\". It is\n\
+                         # also the breath budget: a breathing lamp is faded by the tick itself,\n\
+                         # seamlessly, across the whole interval, so this decides how many fades\n\
+                         # fit between two ticks. The floor is one bridge call, so a tick cannot\n\
+                         # start while the last one is still dialling; the ceiling is what the\n\
+                         # daemon derives a tick's own lifetime from, and an interval past it\n\
+                         # would be a breath cut off part way through.\n",
+            sample: Sample::Default("\"12s\""),
+        },
+        Key {
+            name: "dim_window",
+            prose: "# THE HOUSE DIM WINDOW, and the only one in the vocabulary: local wall\n\
+                         # clock, the start inclusive and the end exclusive, and it may wrap\n\
+                         # midnight. Every place below that states no `dim_window` of its own\n\
+                         # runs this one, and a place that states one overrides it for that\n\
+                         # place alone. A bare `pns lights mute <place>` mutes until this\n\
+                         # window ends and is refused when none is set.\n",
+            sample: Sample::Example("\"22:00-07:00\""),
+        },
+    ],
 };

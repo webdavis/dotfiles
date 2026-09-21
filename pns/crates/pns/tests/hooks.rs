@@ -18,12 +18,23 @@ fn hook(sandbox: &Sandbox, event: &str, payload: &str) -> std::process::Output {
 }
 
 fn hook_with(
-    mut command: Command,
+    command: Command,
     _sandbox: &Sandbox,
     event: &str,
     payload: &str,
 ) -> std::process::Output {
-    command.args(["hook", event]);
+    hook_flagged(command, event, &[], payload)
+}
+
+/// One hook run with flags after the event word, which is how a harness that
+/// sends an answered signal wires `--remind` on its own approval hook.
+fn hook_flagged(
+    mut command: Command,
+    event: &str,
+    flags: &[&str],
+    payload: &str,
+) -> std::process::Output {
+    command.arg("hook").arg(event).args(flags);
     captured_child::CapturedChild::spawn(&mut command)
         .expect("the engine runs")
         .input_output_within(payload.as_bytes(), HANG_LIMIT)
@@ -74,11 +85,11 @@ fn with_state_dir(sandbox: &Sandbox) -> Command {
 // `operator_surface`, never across the forward).
 //
 // ONE BEHAVIOR IS DROPPED ON SCOPE AND IS PINNED NOWHERE END TO END: the
-// locked screen. `screen_locked` spawns `/usr/sbin/ioreg` by absolute path, so
-// no PATH stub reaches it, and it is read only where `PNS_IDLE_SECS` is
-// unstated while every sandbox here states it. It has a unit pin on
-// `operator_surface` and buying the composition would need a production
-// override that exists for no other reason.
+// locked screen. `screen_locked` reads the registry natively, so no PATH stub
+// reaches it, and it is read only where `PNS_SCREEN_IDLE` is unstated while
+// every sandbox here states it. It has a unit pin on `operator_surface` and
+// buying the composition would need a production override that exists for no
+// other reason.
 //
 // THE EXIT CODE IS NOT HOW CLAUDE CODE ANSWERS, and the rows that pin one say
 // so themselves. Claude Code 2.1.241 decides a PermissionRequest from the
@@ -119,7 +130,7 @@ const CLAUDE_APPROVAL: &str = r#"{"session_id":"s1","transcript_path":"/dev/null
 const CODEX_APPROVAL: &str = r#"{"hook_event_name":"PermissionRequest","session_id":"s1","cwd":"/a/dotfiles","tool_name":"shell","tool_input":{"command":["bash","-lc","rm -rf build"]}}"#;
 
 /// Stubs live here rather than in the shared harness: only this suite spawns
-/// a condenser or an approval round trip.
+/// a summarizer or an approval round trip.
 trait HookStubs {
     fn stub_codex(&self, command: &mut Command, line: &str);
     fn stub_moshi(&self, command: &mut Command, exit_code: i32);
@@ -134,7 +145,7 @@ impl HookStubs for Sandbox {
             &format!("cat >/dev/null; printf '%s\\n' '{line}'"),
         );
         prepend_path(command, &bin);
-        command.env("CODEX_BIN", bin.join("codex"));
+        command.env("PNS_CODEX_BIN", bin.join("codex"));
         command.env("PNS_CODEX_HOME", self.path("codex-home"));
     }
 
@@ -155,7 +166,7 @@ impl HookStubs for Sandbox {
                 sandbox = self.display()
             ),
         );
-        command.env("MOSHI_HOOK_BIN", bin.join("moshi-hook"));
+        command.env("PNS_MOSHI_HOOK_BIN", bin.join("moshi-hook"));
     }
 }
 
@@ -190,7 +201,7 @@ fn submissions(sandbox: &Sandbox) -> Vec<String> {
 /// overrides afterwards.
 ///
 /// Every test in the approval section spawns the blocked path, and
-/// `Sandbox::pns` points `MOSHI_HOOK_BIN` nowhere, so a test that forgets to
+/// `Sandbox::pns` points `PNS_MOSHI_HOOK_BIN` nowhere, so a test that forgets to
 /// stub reaches the OPERATOR'S OWN moshi-hook and can raise a real card on
 /// their phone. That is not hypothetical: it happened during slice 11, seven
 /// tests deep. One helper is cheaper than remembering.
@@ -257,7 +268,7 @@ const HANG_LIMIT: std::time::Duration = std::time::Duration::from_secs(15);
 /// independent of it: dropping that default to one millisecond fails both rows
 /// with `0` where `42` was expected without this line, and leaves both green
 /// with it.
-const PAYLOAD_READ_LIMIT_MS: &str = "10000";
+const PAYLOAD_READ_LIMIT: &str = "10s";
 
 fn spawn_hook(mut command: Command, event: &str) -> std::process::Child {
     command
@@ -291,6 +302,8 @@ fn finished_within(mut child: std::process::Child, limit: std::time::Duration) -
     }
 }
 
+#[path = "hooks/activity_store.rs"]
+mod activity_store;
 #[path = "hooks/approval_exemptions.rs"]
 mod approval_exemptions;
 #[path = "hooks/approval_forwarding.rs"]
@@ -301,6 +314,8 @@ mod approval_payload;
 mod approval_presence;
 #[path = "hooks/approval_reporting.rs"]
 mod approval_reporting;
+#[path = "hooks/arm_remind.rs"]
+mod arm_remind;
 #[path = "hooks/config_change.rs"]
 mod config_change;
 #[path = "hooks/config_change_state.rs"]
@@ -325,18 +340,6 @@ mod loop_waits;
 mod model_switch;
 #[path = "hooks/model_switch_state.rs"]
 mod model_switch_state;
-#[path = "hooks/nag_arming.rs"]
-mod nag_arming;
-#[path = "hooks/nag_clearing.rs"]
-mod nag_clearing;
-#[path = "hooks/nag_delivery.rs"]
-mod nag_delivery;
-#[path = "hooks/nag_observations.rs"]
-mod nag_observations;
-#[path = "hooks/nag_refusals.rs"]
-mod nag_refusals;
-#[path = "hooks/nag_state.rs"]
-mod nag_state;
 #[path = "hooks/policy_audit.rs"]
 mod policy_audit;
 #[path = "hooks/quota_messages.rs"]
@@ -345,6 +348,22 @@ mod quota_messages;
 mod quota_state;
 #[path = "hooks/quota_waits.rs"]
 mod quota_waits;
+#[path = "hooks/remind_answered_signal.rs"]
+mod remind_answered_signal;
+#[path = "hooks/remind_arming.rs"]
+mod remind_arming;
+#[path = "hooks/remind_clearing.rs"]
+mod remind_clearing;
+#[path = "hooks/remind_delivery.rs"]
+mod remind_delivery;
+#[path = "hooks/remind_observations.rs"]
+mod remind_observations;
+#[path = "hooks/remind_refusals.rs"]
+mod remind_refusals;
+#[path = "hooks/remind_state.rs"]
+mod remind_state;
+#[path = "hooks/remind_switch.rs"]
+mod remind_switch;
 #[path = "hooks/sandbox_network.rs"]
 mod sandbox_network;
 #[path = "hooks/stale_arming.rs"]
@@ -359,12 +378,12 @@ mod turn_tier;
 use config_change::config_change_payload;
 use lights_waits::{LAMPS_ON, answered_dialog, elicitation_result, waiting_sessions};
 use model_switch::model_switch_payload;
-use nag_state::{
-    carded_events, counted_channels, deliveries, epoch_now, nag, nag_config, nag_directory_names,
-    nag_marker, nag_record, spool_entries, spool_entry, state_lines, write_marker, write_record,
-    write_record_at,
-};
 use quota_messages::{QUOTA_TYPES, quota_payload};
+use remind_state::{
+    carded_events, counted_channels, deliveries, epoch_now, remind, remind_config,
+    remind_directory_names, remind_marker, remind_record, spool_entries, spool_entry, state_lines,
+    write_marker, write_record, write_record_at,
+};
 
 #[path = "hooks/delivery_class.rs"]
 mod delivery_class;

@@ -2,16 +2,16 @@
 
 ## Scope
 
-Everything `pns recap --since <epoch> --until <epoch>` does: how it parses its two bounds, how it reads
-one window off the activity ring, how it reaches the two sources it cannot find on its own (merged pull
-requests through `gh`, review notes matching a glob), how it spends one summarizer budget across up to
-three questions, how it composes a body under two budgets at once, how it renders a local wall clock, and
-how it posts to the one durable route it has. It also covers the other caller: the event path
-starts this same mode in a detached process at the return moment. Behaviors 17 and 18 cover the
+Everything `pns recap --since <when> [--until <when>]` does: how it parses its two bounds,
+how it reads one window off the activity ring, how it reaches the two sources it cannot find on its own
+(merged pull requests through `gh`, review notes matching a glob), how it spends one summarizer budget
+across up to three questions, how it composes a body under two budgets at once, how it renders a local
+wall clock, and how it posts to the one durable route it has. It also covers the other caller: the event
+path starts this same mode in a detached process at the return moment. Behaviors 17 and 18 cover the
 subcommand's two other verbs, which serve an AGENT rather than the event path: `pns recap agent --stdin`
-posts a recap an agent composed, and `pns recap git` prints the part of that recap only git and `gh`
-can answer. Everything below is derived from the crate at `pns` and its tests only. Where the code does
-not settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
+posts a recap an agent composed, and `pns recap git` prints the part of that recap only git and `gh` can
+answer. Everything below is derived from the crate at `pns` and its tests only. Where the code does not
+settle a question, the line begins `NOT ESTABLISHED:` and names what was looked for and where.
 
 ## Vocabulary, in the code's own words
 
@@ -35,16 +35,16 @@ gate is consulted.
 
 | Source               | How it is fetched                                                                                                                                                                                                                                                                                                                                                                                                    | Deadline                                                               | Count ceiling                                                                                                                  | Byte ceiling                                                                                                                                                                                                                                          | What a failure or a truncation does                                                                                                                                                                                                                                                                                                                                                                                   | Tests that pin it                                                                                                                                                                                                                                                                                                        |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| The activity ring    | `readable_state_file(<state>/activity, ACTIVITY_READ_MAX)`, then `missed_notifications::entries`, filtered `at > since && at <= until` (`src/main.rs:activity_in`). `<state>` is `state_dir()`, overridable with `PNS_STATE_DIR`                                                                                                                                                                                           | None. One file read, no subprocess                                     | `ACTIVITY_KEPT` = 150 entries kept by the writer, so a long absence under-reports its oldest end (`src/main.rs:ACTIVITY_KEPT`) | `ACTIVITY_READ_MAX` = 1,048,576 bytes; a larger file is `FileTooLarge` and reads as nothing (`src/system.rs:readable_state_file`). Each text field was capped at `ACTIVITY_MAX_CHARS` = 120 by the writer                                                     | Unreadable ring, not a regular file, or over the ceiling: an EMPTY window. "A RING THAT CANNOT BE READ IS AN EMPTY WINDOW, which reads as no recap rather than as a recap of nothing" (`src/main.rs:activity_in`). An entry with no clock is in no window. The header still counts what was READ, which over a pruned ring is a floor (`src/recap.rs:header`)                                                         | `tests/dispatch.rs:events_stamped_at_the_markers_own_second_belong_to_it_and_not_to_the_window_after`; `tests/dispatch.rs:an_activity_window_with_no_marker_to_open_it_recaps_nothing_and_still_catches_up`; `src/recap.rs:the_body_opens_with_the_window_and_its_count_and_puts_needs_you_above_the_night`              |
+| The activity ring    | `readable_state_file(<state>/activity, ACTIVITY_READ_MAX)`, then `missed_notifications::entries`, filtered `at > since && at <= until` (`src/main.rs:activity_in`). `<state>` is `state_dir()`, set by `[paths] state_dir`, else `PNS_STATE_DIR`                                                                                                                                                                     | None. One file read, no subprocess                                     | `ACTIVITY_KEPT` = 150 entries kept by the writer, so a long absence under-reports its oldest end (`src/main.rs:ACTIVITY_KEPT`) | `ACTIVITY_READ_MAX` = 1,048,576 bytes; a larger file is `FileTooLarge` and reads as nothing (`src/system.rs:readable_state_file`). Each text field was capped at `ACTIVITY_MAX_CHARS` = 120 by the writer                                             | Unreadable ring, not a regular file, or over the ceiling: an EMPTY window. "A RING THAT CANNOT BE READ IS AN EMPTY WINDOW, which reads as no recap rather than as a recap of nothing" (`src/main.rs:activity_in`). An entry with no clock is in no window. The header still counts what was READ, which over a pruned ring is a floor (`src/recap.rs:header`)                                                         | `tests/dispatch.rs:events_stamped_at_the_markers_own_second_belong_to_it_and_not_to_the_window_after`; `tests/dispatch.rs:an_activity_window_with_no_marker_to_open_it_recaps_nothing_and_still_catches_up`; `src/recap.rs:the_body_opens_with_the_window_and_its_count_and_puts_needs_you_above_the_night`              |
 | Merged pull requests | One spawn per configured repository: `gh pr list --repo <repo> --state merged --search merged:<utc(since+1)>..<utc(until)> --json number,title,body --limit 50`, through `system::run_bounded` with no stdin (`src/main.rs:merged_pull_requests`). `gh` is resolved through `PATH` (`src/main.rs:GH`)                                                                                                                | `GH_DEADLINE` = 30 seconds, PER REPOSITORY (`src/main.rs:GH_DEADLINE`) | `GH_LIMIT` = 50 per repository. `entries.len() >= 50` sets `truncated`                                                         | `GH_READ_MAX` = 524,288 bytes read per repository; `run_bounded` asks for one byte past it and refuses anything over (`src/system.rs:run_bounded`)                                                                                                    | ANY repository failing fails the whole section: a spawn that fails, a non-zero exit, a blown deadline, an over-cap read, JSON that will not parse, or an entry with no `number`, all answer `None`, which becomes `Found::Unavailable` and the line "NEW BEHAVIOR: unavailable (the merged pull requests could not be read)." Truncation turns the remainder into "...and at least N more" (`src/recap.rs:remainder`) | `tests/dispatch.rs:a_configured_repositorys_merges_become_the_new_behavior_section`; `tests/dispatch.rs:a_gh_that_will_not_answer_costs_the_recap_only_its_own_section`; `tests/dispatch.rs:no_repos_key_means_no_gh_process_is_ever_started`; `src/recap.rs:a_source_a_cap_cut_short_says_at_least_rather_than_a_total` |
 | Review notes         | `std::fs::read_dir(<pattern's parent>)`, one directory, no recursion; each regular file whose name matches the pattern's file-name part through `matches_glob`, whose `mtime` satisfies `within(at, since, until)`; sorted newest first with the path breaking ties; then each opened `O_NOFOLLOW` and re-checked on the handle (`src/main.rs:notes_matching`, `src/main.rs:read_note`). `~/` expands against `HOME` | None. No subprocess and no clock bound on the directory read           | `MAX_NOTES` = 25 notes considered. `matched.len() > 25` sets `truncated`                                                       | `NOTE_READ_MAX` = 65,536 bytes per note, read with `Read::take` and then `String::from_utf8_lossy`. A larger note is TRUNCATED, not refused. The text is capped again at `NOTE_SOURCE_CHARS` = 1,200 characters for the prompt (`src/recap.rs:noted`) | A missing file-name part, a missing parent, or an unreadable directory answers `None`, which becomes `Found::Unavailable` and "CAUGHT BY REVIEW, AND IMPLEMENTED: unavailable (the review notes could not be read)." A single note that will not open becomes one line reading "could not be read" rather than vanishing (`src/recap.rs:unreadable`). Truncation says "at least"                                      | `tests/dispatch.rs:only_the_notes_the_glob_names_and_the_window_covers_are_ever_read`; `tests/dispatch.rs:a_glob_that_matches_nothing_says_so_and_one_pointing_nowhere_says_something_else`; `tests/dispatch.rs:a_note_that_matched_and_would_not_open_says_so_rather_than_vanishing`                                    |
 
 ## The two external spawns
 
-| Spawn          | Gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Owner and bounds                                                                                                                                                                                                                                                     | On deadline                                                                                                                                                                                                                                                                             |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gh`           | `(!recap.repos.is_empty()).then(...)` in `src/main.rs:recap_mode`. This is THE FIRST SPAWN GATED BY A CONFIGURATION KEY: with no `[recap] repos` key, `fetched_merges` is `None`, `merged_pull_requests` is never called, and no `gh` process exists at all. `Found::Unconfigured` renders "NEW BEHAVIOR: not configured (no merged pull request source)." Pinned by `tests/dispatch.rs:no_repos_key_means_no_gh_process_is_ever_started`, whose tripwire records ANY run | `system::run_bounded` owns it: `Stdio::null()` stdin, piped stdout, null stderr, a detached reader thread capped at `max_bytes + 1`, `recv_timeout(deadline)`, then `wait_until` polling to the same expiry (`src/system.rs:run_bounded`). 30 seconds, 524,288 bytes | `child.kill()` then `child.wait()`, and `None` is returned. The reader thread is never joined; the kill closes the pipe under it. The kill reaches the child PID only, not a process group (`src/system.rs:run_bounded`)                                                                |
-| The summarizer | `recap.summarizer.as_deref()`, plus `.filter(\|_\| !entries.is_empty())` for the night's question and `read_sources(...)` for each external question, so an empty window and an empty source both start nothing (`src/main.rs:recap_mode`, `src/main.rs:summarized`). The argv is a list of WORDS handed straight to `Command`, never through a shell (`src/main.rs:summarize`)                                                                                           | The same `run_bounded`, with the prompt written on stdin INSIDE the deadline window. The deadline is `left_of(episode)`, what is left of ONE episode budget shared by all three questions (`src/main.rs:left_of`). Byte cap `MAX_ANSWER_BYTES + 1` = 16,385          | Same kill-and-wait. `left_of` reaching zero means `summarize` returns `None` before spawning at all: "AN EPISODE WHOSE DEADLINE IS GONE STARTS NO PROCESS AT ALL" (`src/main.rs:summarize`). Every failure becomes the same one sentence in the body (`src/recap.rs:SUMMARIZER_SILENT`) |
+| Spawn          | Gate                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Owner and bounds                                                                                                                                                                                                                                                     | On deadline                                                                                                                                                                                                                                                                             |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gh`           | `(!recap.repositories.is_empty()).then(...)` in `src/main.rs:recap_mode`. This is THE FIRST SPAWN GATED BY A CONFIGURATION KEY: with no `[recap] repositories` key, `fetched_merges` is `None`, `merged_pull_requests` is never called, and no `gh` process exists at all. `Found::Unconfigured` renders "NEW BEHAVIOR: not configured (no merged pull request source)." Pinned by `tests/dispatch.rs:no_repos_key_means_no_gh_process_is_ever_started`, whose tripwire records ANY run | `system::run_bounded` owns it: `Stdio::null()` stdin, piped stdout, null stderr, a detached reader thread capped at `max_bytes + 1`, `recv_timeout(deadline)`, then `wait_until` polling to the same expiry (`src/system.rs:run_bounded`). 30 seconds, 524,288 bytes | `child.kill()` then `child.wait()`, and `None` is returned. The reader thread is never joined; the kill closes the pipe under it. The kill reaches the child PID only, not a process group (`src/system.rs:run_bounded`)                                                                |
+| The summarizer | `recap.summarizer.as_deref()`, plus `.filter(\|_\| !entries.is_empty())` for the night's question and `read_sources(...)` for each external question, so an empty window and an empty source both start nothing (`src/main.rs:recap_mode`, `src/main.rs:summarized`). The argv is a list of WORDS handed straight to `Command`, never through a shell (`src/main.rs:summarize`)                                                                                                         | The same `run_bounded`, with the prompt written on stdin INSIDE the deadline window. The deadline is `left_of(episode)`, what is left of ONE episode budget shared by all three questions (`src/main.rs:left_of`). Byte cap `MAX_ANSWER_BYTES + 1` = 16,385          | Same kill-and-wait. `left_of` reaching zero means `summarize` returns `None` before spawning at all: "AN EPISODE WHOSE DEADLINE IS GONE STARTS NO PROCESS AT ALL" (`src/main.rs:summarize`). Every failure becomes the same one sentence in the body (`src/recap.rs:SUMMARIZER_SILENT`) |
 
 ## Behaviors
 
@@ -54,12 +54,19 @@ Given `pns recap` and the words after it
 
 When `recap_bounds` reads them
 
-Then both `--since` and `--until` must be present exactly once, each followed by a plain count, with `since <= until`, or the run prints `pns: usage: pns recap --since <epoch> --until <epoch>` to stderr and exits 2
+Then each bound is written once, as a local date (`2026-09-19`), a local date-time (`2026-09-19T08:00`, seconds optional) or a duration ago (`2h`, `30m`, `3d`) after `--since`/`--until`, or as a plain count after `--since-epoch`/`--until-epoch`, with `since <= until`, or the run prints `RECAP_USAGE` to stderr and exits 2
 
-- Success: `src/main.rs:recap_bounds` walks the tokens, mapping `--since` and `--until` to two slots and
-  returning `None` for any other word. `src/main.rs:recap_mode` exits 2 on `None`.
-- Failure sources: an unknown word; a flag with no value after it; a repeated flag; a value that is not a
-  plain count; a window that runs backwards; either bound missing.
+- Success: `crates/pns-application/src/build_return_recap/window.rs:recap_bounds` walks the tokens,
+  mapping the four flags to two slots and returning `None` for any other word. A date form is handed to
+  the caller's `local_epoch`, which is the ONE place the local zone is read
+  (`crates/pns-adapters/src/macos/clock.rs:local_epoch`); a duration ago goes through the crate's one
+  duration parser and is subtracted from now, with `d` spelled as hours. `command_recap.rs:recap` exits
+  2 on `None`.
+- Defaults: an omitted `--until` is now. The epoch pair is all or nothing, since the process that spawns
+  this writes both flags.
+- Failure sources: an unknown word; a flag with no value after it; a repeated flag, including the epoch
+  and date spellings of one bound; a value that is neither a moment nor a duration; a day the calendar
+  does not have; a window that runs backwards; `--since` missing.
 - Fail direction: CLOSED and loud. "EVERY UNKNOWN WORD IS A REFUSAL, never a silent default: a recap over
   a window nobody asked for is worse than none" (`src/main.rs:recap_bounds`). Exit 2 is deliberate: "EXIT
   2 FOR A MISTYPED INVOCATION, in `quiet_mode`'s style rather than the hook path's always-zero"
@@ -145,23 +152,23 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
   never named" (`src/main.rs:recap_mode`). The route needs no fail-closed arm of its own: a recap has one
   route and it is the default one.
 - Thresholds: `Recap::default()` is written out rather than derived (`src/config.rs:Recap`):
-  `replay_card: true`, `digest: true`, `min_events: 8`, `summarizer: None`,
-  `summarizer_deadline_secs: 240`, `repos: []`, `review_notes: None`. `summarizer_deadline_secs` is refused above
-  `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: 3600 is accepted, 3601 is refused by name
-  (`src/config.rs:seconds`), and the refusal exists because
-  `Instant::now() + Duration::from_secs(i64::MAX)` PANICS inside a process whose stderr is `/dev/null`.
+  `replay_card: true`, `post_window_recap: true`, `minimum_events: 8`, `summarizer: None`,
+  `summarizer_deadline: 4m`, `repositories: []`, `review_notes_glob: None`. `summarizer_deadline` is refused above
+  `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: `"3600s"` is accepted, `"3601s"` is refused by name
+  (`config/recap.rs:summarizer_deadline_range`), and the refusal exists because a duration past the
+  ceiling PANICS at `Instant::now() + deadline` inside a process whose stderr is `/dev/null`.
   Zero is accepted and is not a trap: it simply cannot be met.
 - Required side effects: none. Reading the config writes nothing.
 - Forbidden side effects: no `gh` and no summarizer on the unreadable path, because both keys are absent
   from the default.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: the config is read once per recap process.
-- Privacy: the `[plugins.hermes.keys] <route>` is read here and used only to sign the POST
+- Privacy: the `[plugins.log.keys] <route>` is read here and used only to sign the POST
   (`src/channels/hermes.rs:sign`). It is never placed in a prompt, never passed to `gh`, and never
   printed: `hermes_keys` returns it and `deliver_recap` hands it to `dispatch_legs` alone
   (`src/main.rs:deliver_recap`).
 - Process ownership and cleanup: none.
-- Compatibility contract: `repos` unset and `review_notes` unset are the WORKING settings, not degraded
+- Compatibility contract: `repositories` unset and `review_notes_glob` unset are the WORKING settings, not degraded
   ones. "UNSET MEANS THE SOURCE IS NEVER READ AT ALL: no `gh` is spawned and no directory is opened,
   which is the fence that makes both sections opt-in rather than merely empty" (`src/config.rs:Recap`).
 
@@ -242,7 +249,7 @@ Then a readable local zone yields `HH:MM` zero-padded, and anything else yields 
 
 ### 6. Merged pull requests are read once per repository, inside three bounds
 
-Given `[recap] repos = ["OWNER/REPO", ...]`
+Given `[recap] repositories = ["OWNER/REPO", ...]`
 
 When the detached child fetches
 
@@ -310,7 +317,7 @@ Then it runs `gh pr list --repo <repo> --state merged --search merged:<utc(since
 
 ### 7. Review notes are one directory, one glob, one window, and every read is bounded
 
-Given `[recap] review_notes = "<absolute or ~/ path with at most one `\*` in its file name>"`
+Given `[recap] review_notes_glob = "<absolute or ~/ path with at most one `\*` in its file name>"`
 
 When the detached child fetches
 
@@ -372,14 +379,14 @@ Then it lists exactly the pattern's parent directory, keeps regular files whose 
 
 ### 8. One recap spends one summarizer budget across up to three questions
 
-Given `[recap] summarizer = ["<program>", "<arg>", ...]` and `summarizer_deadline_secs`
+Given `[recap] summarizer = ["<program>", "<arg>", ...]` and `summarizer_deadline`
 
 When the recap composes
 
 Then an `episode` deadline is taken once, and each of the three possible calls (the night, the merges, the notes) is bounded by `left_of(episode)`, so the whole return moment spends that budget once
 
 - Success: `src/main.rs:recap_mode` computes
-  `episode = Instant::now() + Duration::from_secs(recap.summarizer_deadline_secs)`, then calls
+  `episode = Instant::now() + recap.summarizer_deadline`, then calls
   `summarize(argv, left_of(episode), &prompt)` for the night and, through `src/main.rs:summarized`, once
   for each external source that held anything. `src/main.rs:left_of` is
   `episode.saturating_duration_since(Instant::now())`, so it reaches zero and stays there.
@@ -397,8 +404,8 @@ Then an `episode` deadline is taken once, and each of the three possible calls (
   `...a_summarizer_still_thinking_at_its_deadline_falls_to_the_plain_list_and_says_so`,
   `...a_summarizer_that_is_not_installed_at_all_falls_to_the_plain_list_and_says_so`,
   `...a_summarizer_answering_in_bytes_that_are_not_text_falls_to_the_plain_list`.
-- Thresholds: `summarizer_deadline_secs` defaults to 240 and is refused above 3600
-  (`src/config.rs:DEFAULT_SUMMARIZER_DEADLINE_SECS`, `src/config.rs:MAX_SUMMARIZER_DEADLINE_SECS`). Zero
+- Thresholds: `summarizer_deadline` defaults to `"4m"` and is refused above an hour
+  (`recap/options.rs:DEFAULT_SUMMARIZER_DEADLINE`, `config/recap.rs:MAX_SUMMARIZER_DEADLINE_SECS`). Zero
   is accepted and means no call is ever spawned: `summarize` returns `None` when `deadline.is_zero()`,
   and "spawning one only to kill it on a zero-length window is a model load nobody reads"
   (`src/main.rs:summarize`). One second is the smallest budget that still spawns, which the tests rely on
@@ -841,9 +848,9 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
   chose between the two routes, and the accepted limit that a 404 was invisible on a machine running
   executable channels.
 - Required side effects: ONE POST AND NO RETRY. A gateway having a bad minute would otherwise put every
-  recap in the channel twice. The POST is HMAC-SHA256 signed with the `[plugins.hermes.keys] <route>`;
+  recap in the channel twice. The POST is HMAC-SHA256 signed with the `[plugins.log.keys] <route>`;
   with no key, `deliver` returns
-  `Delivery::Failed("post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent")`
+  `Delivery::Failed("post SKIPPED -- no hermes key for the <route> route ([plugins.log.keys] <route>); nothing was sent")`
   before any network call (`pns-adapters/src/destinations/hermes.rs`). Pinned on the wire by
   `tests/native.rs:a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it`, which
   proxies the gateway, answers 404, and asserts exactly
@@ -857,12 +864,12 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
   (`pns/src/recap_delivery_runtime.rs:deliver_recap`). And the body itself is never rendered to a
   terminal: only the delivery OUTCOME line is printed.
 - Timeout and cancellation: the leg is `ReportMode::ReportOutcome`, so the hermes destination posts under
-  `sync_deadline = remote_deadline(PNS_REMOTE_TIMEOUT)`, which defaults to 5 seconds, clamps at 86,400,
+  `sync_deadline = remote_deadline([delivery] remote_deadline)`, which defaults to 5 seconds, clamps at 86,400,
   and is `None` (no deadline at all) only when the variable parses to exactly `0`. A garbled value falls
   back to 5 rather than to zero or forever.
 - Idempotency and duplicates: one dispatch, so nothing to dedupe inside a run. A POST is not idempotent
   at the gateway, and nothing dedupes two runs of the mode over the same window.
-- Privacy: the whole composed body leaves the machine, HMAC-signed, to whichever gateway `PNS_HERMES_URL`
+- Privacy: the whole composed body leaves the machine, HMAC-signed, to whichever gateway `[plugins.log] url` or `PNS_HERMES_URL`
   or the compiled-in default names. The hermes body carries `agent`, `state`, `project` and `detail`,
   where `detail` is the body verbatim, newlines and all. The signing key is never in the body and never
   printed.
@@ -870,7 +877,7 @@ Then the body is posted ONCE to the DEFAULT route and the mode exits 0, whatever
   exits.
 - Compatibility contract: the route is `DEFAULT_ROUTE` (`pns-domain/src/routes.rs`), the same const every
   routeless event takes, so a machine wanting a recap channel of its own gets it by pointing
-  `#pns-events` somewhere else rather than by a key. `PNS_HERMES_URL` OUTRANKS the route name
+  `#pns-events` somewhere else rather than by a key. `[plugins.log] url`, and `PNS_HERMES_URL` after it, OUTRANK the route name
   (`pns/crates/pns/src/channel_dispatch.rs:hermes_target`), which is why the wire test proxies the gateway rather than moving
   it.
 
@@ -880,12 +887,12 @@ Given a return moment the event path has claimed, with a window and a count over
 
 When `replay_missed` decides
 
-Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since> --until <until>` with all three standard streams on `/dev/null` and `process_group(0)`, is never waited on, and the card promises a recap only if that spawn really started
+Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch <since> --until-epoch <until>` with all three standard streams on `/dev/null` and `process_group(0)`, is never waited on, and the card promises a recap only if that spawn really started
 
 - Success: `src/main.rs:spawn_recap` builds the child, sets
   `.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0)`, and returns
   `child.spawn().is_ok()`. `src/main.rs:replay_missed` computes
-  `fires = recap.digest && durable_route && window.is_some() && counted.len() >= recap.min_events` and
+  `fires = recap.post_window_recap && durable_route && window.is_some() && counted.len() >= recap.minimum_events` and
   spawns BEFORE composing the card, "so the card can say truthfully whether there is a recap to point
   at".
 - Failure sources: `current_exe` failing; the spawn failing; the child dying before it posts.
@@ -894,18 +901,18 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since
   (`src/main.rs:spawn_recap`). A child that dies "COSTS ONE RECAP AND NOTHING ELSE, which is why nothing
   supervises it: the activity ring is not consumed, the marker has already moved, and the card already
   carried the counts."
-- Thresholds: all four clauses of `fires` are required and none is optional. `min_events` defaults to 8
-  (`src/config.rs:DEFAULT_MIN_EVENTS`), and the live event counts itself: a window of 7 planted events
+- Thresholds: all four clauses of `fires` are required and none is optional. `minimum_events` defaults to 8
+  (`src/config.rs:DEFAULT_MINIMUM_EVENTS`), and the live event counts itself: a window of 7 planted events
   plus the live one is under the threshold and delivers the plain catch-up card, pinned by
   `tests/dispatch.rs:a_window_under_the_threshold_delivers_the_catch_up_card_unchanged` (which plants
   `MIN_EVENTS - 2`), while 12 planted plus the live one is 13 and fires, pinned by
   `tests/dispatch.rs:a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first`.
-  `min_events = 0` is refused at load, "which is not a threshold; 1 is the floor"
+  `minimum_events = 0` is refused at load, "which is not a threshold; 1 is the floor"
   (`src/config.rs:threshold`). No marker means no window at all, pinned by
   `tests/dispatch.rs:an_activity_window_with_no_marker_to_open_it_recaps_nothing_and_still_catches_up`
   and by
   `tests/dispatch.rs:a_marker_no_reader_can_parse_opens_no_window_rather_than_one_from_epoch_zero`.
-  `digest = false` posts nothing and leaves the catch-up card alone, pinned by
+  `post_window_recap = false` posts nothing and leaves the catch-up card alone, pinned by
   `tests/dispatch.rs:a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone`. No durable
   route means the card must not promise one, pinned by
   `tests/dispatch.rs:a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_carry`,
@@ -917,11 +924,9 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since
   recap nobody is writing" (`src/main.rs:spawn_recap`). Pinned by
   `tests/dispatch.rs:the_recap_child_runs_in_a_process_group_of_its_own`, which reads `pgid` at the
   channel (a grandchild that inherits it) and asserts the recap's group is not among the event's.
-  `PNS_REMOTE_TIMEOUT` is set to `RECAP_DEADLINE_SECS` = `"30"` in the child ONLY when `remote_deadline`
-  of the parent's own value is `None`, which is exactly when the variable parses to `0`: "AN UNBOUNDED
-  DEADLINE IS A TERMINAL'S CHOICE, NEVER A BACKGROUND CHILD'S ... a wedged gateway would keep this
-  process alive for good, and every later window would add another." Otherwise the child inherits
-  whatever the parent had, so the ordinary case is the 5-second default of behavior 15.
+  The child reads the same `[delivery] remote_deadline` its parent did, and `RECAP_DEADLINE_SECS` = 30
+  is the group watchdog it arms around itself, so a `remote_deadline` of `0` bounds the process even
+  though it bounds no single call. The ordinary case is the 5-second default of behavior 15.
 - Forbidden side effects: the digest NEVER runs in the parent. "`run_event` is reached from
   `pns hook prompt`, which the harness does NOT background, and from the bashrc notifier, where a human
   is watching their prompt" (`src/main.rs:spawn_recap`). Pinned by
@@ -932,7 +937,7 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since <since
   in-process recap.
 - Timeout and cancellation: none from the parent. The parent never waits, so the child is reparented if
   the parent goes first, and "NOTHING SUPERVISES THE DETACHED RECAP CHILD", which is why
-  `summarizer_deadline_secs` is refused above an hour (`src/config.rs:seconds`).
+  `summarizer_deadline` is refused above an hour (`config/recap.rs:summarizer_deadline_range`).
 - Idempotency and duplicates: the return moment is claimed ONCE, by rename, before anything is counted
   (`src/main.rs:claim_moment`, `src/main.rs:Moment`), and a claim is taken to be stranded after
   `STALE_WINDOW_CLAIM_SECS` = 300 seconds (`src/main.rs:window_claim_is_free`). The marker advancing is

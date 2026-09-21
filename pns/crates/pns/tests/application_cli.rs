@@ -19,30 +19,30 @@ const FIXTURE_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 fn daemon_cancel_reports_the_removed_job_and_then_its_absence() {
     let sandbox = Sandbox::new("application-cancel-job");
     let scheduled = run(sandbox.pns_stateful().args([
-        "daemon", "schedule", "--id", "owned", "--in", "60", "--", "--state", "done",
+        "gateway", "schedule", "--id", "owned", "--in", "60", "--", "--state", "done",
     ]));
     assert_eq!(scheduled.status.code(), Some(0), "{}", stderr(&scheduled));
     assert!(sandbox.path("state/daemon/owned").is_file());
     let cancelled = run(sandbox
         .pns_stateful()
-        .args(["daemon", "cancel", "--id", "owned"]));
+        .args(["gateway", "cancel", "--id", "owned"]));
     assert_eq!(cancelled.status.code(), Some(0));
-    assert_eq!(stdout(&cancelled), "pns daemon: cancelled `owned`\n");
+    assert_eq!(stdout(&cancelled), "pns gateway: cancelled `owned`\n");
     assert!(!sandbox.path("state/daemon/owned").exists());
     let absent = run(sandbox
         .pns_stateful()
-        .args(["daemon", "cancel", "--id", "owned"]));
+        .args(["gateway", "cancel", "--id", "owned"]));
     assert_eq!(absent.status.code(), Some(0));
     assert_eq!(
         stdout(&absent),
-        "pns daemon: no job named `owned` was scheduled\n"
+        "pns gateway: no job named `owned` was scheduled\n"
     );
 }
 
 #[test]
 fn recap_posts_unreadable_wall_clocks_as_placeholders() {
     let sandbox = Sandbox::new("recap-clock-placeholder");
-    sandbox.write_config("[plugins.hermes]\nenabled = true\n");
+    sandbox.write_config("[plugins.log]\nenabled = true\ntype = \"hermes\"\n");
     std::fs::create_dir_all(sandbox.state()).unwrap();
     std::fs::write(
         sandbox.path("state/activity"),
@@ -53,9 +53,9 @@ fn recap_posts_unreadable_wall_clocks_as_placeholders() {
     ).unwrap();
     let output = run(sandbox.pns_stateful().args([
         "recap",
-        "--since",
+        "--since-epoch",
         &(i64::MAX - 1).to_string(),
-        "--until",
+        "--until-epoch",
         &i64::MAX.to_string(),
     ]));
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -76,13 +76,13 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
     listener.set_nonblocking(true).unwrap();
     let port = listener.local_addr().unwrap().port();
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"owned\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         [focus]\nsilence = [\"Fixture Focus\"]\n"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"owned\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+         [focus]\nmodes = [\"Fixture Focus\"]\n"
     ));
     sandbox.write_focus_store("com.apple.donotdisturb.mode.fixture", "Fixture Focus");
     std::fs::create_dir_all(sandbox.state()).unwrap();
-    let quiet = run(sandbox.pns_stateful().args(["quiet", "1h"]));
-    assert!(stdout(&quiet).starts_with("pns: quiet for another"));
+    let quiet = run(sandbox.pns_stateful().args(["mute", "1h"]));
+    assert!(stdout(&quiet).starts_with("pns: muted for another"));
     pns_adapters::SqliteStore::for_records(sandbox.state())
         .remember_held(&[pns_domain::lights::phase::HeldEntry::bare("light/owned")])
         .expect("the held lamp after quiet initialized the database");
@@ -120,5 +120,5 @@ fn tick_clears_a_held_lamp_despite_notification_quiet_and_focus() {
             .expect("the actual held rows"),
         0
     );
-    assert!(!sandbox.fired("hermes") && !sandbox.fired("mobile"));
+    assert!(!sandbox.fired("hermes") && !sandbox.fired("phone"));
 }

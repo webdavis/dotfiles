@@ -6,14 +6,15 @@
 //! tools that learn about each other when somebody configures them together
 //! and never before, so a route name compiled in here would be one
 //! deployment's gateway baked into a product other people install. Which
-//! routes exist is the set of signing keys `[plugins.hermes.keys]` grants: a
+//! routes exist is the set of signing keys `[plugins.log.keys]` grants: a
 //! route the operator granted a key to is a route they granted, and a route
 //! with no key is refused rather than signed with somebody else's. The two
 //! routes pns SELECTS for itself are named in `[routes]`.
 //!
-//! WHAT IS STILL pns'S OWN, because it names no other tool: the producer
-//! words `agent` and `health`, the rule that a health event takes the urgent
-//! route rather than the routine one, and the refusal above.
+//! WHAT IS STILL pns'S OWN, because it names no other tool: the rule that a
+//! class's own route is taken only when somebody is waiting on the event, and
+//! the refusal above. WHICH classes exist, and which route each one takes, is
+//! `[delivery_class.<name>]` and nothing here.
 
 /// What the two routes pns selects for itself are called.
 ///
@@ -64,61 +65,23 @@ impl Default for Routes {
     }
 }
 
-/// What an event IS, which is what decides where it lands when its producer
-/// named no route.
+/// The route a delivery class takes when the event named none, or `None` when
+/// it takes the default route, which is the empty route every path already
+/// reads as the default.
 ///
-/// A PRODUCER NAMES A KIND, NEVER A ROUTE (operator ruling, 2026-09-15). A
-/// producer knows its own work failed and nothing about the gateway's
-/// channels, so the word it sends is what the failure is; this mapping is
-/// what turns that into a route, and WHICH ROUTE A KIND TAKES is fixed even
-/// though the route's NAME is not: `health` is defined as a machine's own
-/// health, so a mapping that sent one to the routine route would contradict
-/// the definition.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum Kind {
-    /// A session event: a harness hook, the shell notifier, a daemon job.
-    #[default]
-    Agent,
-    /// A machine's own health, such as an unattended upgrade that failed while
-    /// nobody was watching. It pages.
-    Health,
-}
-
-impl Kind {
-    /// The kind a producer spelled, or `None` for a word that is neither.
-    /// REFUSED RATHER THAN DEFAULTED: a typo that quietly became `agent` would
-    /// route a page nobody reads in time to the routine channel.
-    pub fn from_word(word: &str) -> Option<Self> {
-        match word {
-            "agent" => Some(Self::Agent),
-            "health" => Some(Self::Health),
-            _ => None,
-        }
-    }
-
-    /// The route this kind takes when the event named none, or `None` when it
-    /// takes the default route, which is the empty route every path already
-    /// reads as the default.
-    ///
-    /// THE STATE IS THE SECOND AXIS (operator ruling, 2026-09-14: the subject
-    /// picks the channel and severity overrides it). A health event pages only
-    /// when somebody is waiting on it: an upgrade that failed while nobody
-    /// watched is why the urgent route exists, and one that went fine is a
-    /// line in the weekly record. The list is `missed::NEEDS_YOU`, the one
-    /// place this crate says which states wait on the operator, so a page and
-    /// the recap's own NEEDS YOU section cannot disagree about what urgent is.
-    pub fn route<'a>(self, routes: &'a Routes, state: &str) -> Option<&'a str> {
-        match self {
-            Self::Agent => None,
-            Self::Health if crate::missed::NEEDS_YOU.contains(&state) => {
-                Some(routes.urgent_route())
-            }
-            Self::Health => None,
-        }
-    }
-
-    /// Every word `from_word` accepts, for a usage line and for the tests.
-    pub const WORDS: &'static [&'static str] = &["agent", "health"];
+/// THE CLASS NAMES THE ROUTE, IN CONFIG. `class_route` is what
+/// `[delivery_class.<name>] route` says, so no class word is written here and
+/// an operator who defines a class defines where it goes.
+///
+/// THE STATE IS THE SECOND AXIS (operator ruling, 2026-09-14: the subject
+/// picks the channel and severity overrides it). A class routes of its own
+/// only when somebody is waiting on the event: an upgrade that failed while
+/// nobody watched is why the urgent route exists, and one that went fine is a
+/// line in the weekly record. The list is `missed::NEEDS_YOU`, the one
+/// place this crate says which states wait on the operator, so a page and
+/// the recap's own NEEDS YOU section cannot disagree about what urgent is.
+pub fn route_for<'a>(class_route: Option<&'a str>, state: &str) -> Option<&'a str> {
+    class_route.filter(|route| !route.is_empty() && crate::missed::NEEDS_YOU.contains(&state))
 }
 
 #[cfg(test)]
@@ -126,32 +89,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_failed_health_event_takes_the_urgent_route_whatever_the_config_calls_it() {
-        let named = Routes::named("logbook", "sirens");
-        assert_eq!(Kind::Health.route(&named, "failed"), Some("sirens"));
+    fn a_class_that_names_a_route_takes_it_when_somebody_is_waiting() {
+        assert_eq!(route_for(Some("sirens"), "failed"), Some("sirens"));
         assert_eq!(
-            Kind::Agent.route(&named, "failed"),
+            route_for(None, "failed"),
             None,
             "the default route is the empty route, not a second spelling of it"
         );
-        assert_eq!(Kind::default(), Kind::Agent);
+        assert_eq!(
+            route_for(Some(""), "failed"),
+            None,
+            "a class that named no route of its own takes the default one"
+        );
     }
 
     #[test]
-    fn a_health_event_nobody_has_to_answer_stays_off_the_urgent_route() {
+    fn a_class_route_stays_unused_while_nobody_has_to_answer() {
         // THE MUTANT THIS PINS: the state ignored, which would page the
         // operator for a weekly upgrade that went fine.
-        let named = Routes::named("logbook", "sirens");
         for state in ["done", "resolved", "observation", "progress", ""] {
             assert_eq!(
-                Kind::Health.route(&named, state),
+                route_for(Some("sirens"), state),
                 None,
                 "`{state}` is nobody waiting on the operator"
             );
         }
         for state in crate::missed::NEEDS_YOU {
             assert_eq!(
-                Kind::Health.route(&named, state),
+                route_for(Some("sirens"), state),
                 Some("sirens"),
                 "`{state}` is the operator being waited on"
             );
@@ -174,16 +139,6 @@ mod tests {
         assert_eq!(shipped.default_route(), "pns-events");
         assert_eq!(shipped.urgent_route(), "priority");
         assert_ne!(shipped, Routes::named("logbook", "sirens"));
-    }
-
-    #[test]
-    fn only_the_two_words_name_a_kind() {
-        for word in Kind::WORDS {
-            assert!(Kind::from_word(word).is_some(), "`{word}` names no kind");
-        }
-        for word in ["", "agents", "Health", "priority", "--kind"] {
-            assert_eq!(Kind::from_word(word), None, "`{word}` is not a kind");
-        }
     }
 
     #[test]

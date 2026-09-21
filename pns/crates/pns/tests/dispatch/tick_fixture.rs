@@ -15,8 +15,8 @@ pub(super) fn lights_job(sandbox: &Sandbox) -> pns_domain::jobs::Job {
 pub(super) fn registering_event(name: &str) -> Sandbox {
     let sandbox = Sandbox::new(name);
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\n[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-         [plugins.hermes]\nenabled = true\n{STUDIO_MAP}"
+        "[plugins.lights]\nenabled = true\n[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n{STUDIO_MAP}"
     ));
     sandbox
 }

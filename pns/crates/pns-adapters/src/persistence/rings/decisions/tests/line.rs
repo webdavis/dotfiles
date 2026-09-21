@@ -21,14 +21,14 @@ fn a_line_names_the_event_and_every_gate_input_behind_one_epoch_second() {
             decision: &plain,
             overrides: &overrides,
             legs: &[],
-            nag: false,
+            remind: false,
             permission_mode: "",
             agent_id: "",
             tool_name: "",
         }),
         "1756500000 claude/blocked mode=none agent=none tool=none surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=no \
-             fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
+             fresh_window=120 long_running=no remind=no local_only=no remote_only=no pane=present \
              pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
              plan=banner:no,card:no,pulse:no legs=none"
@@ -47,14 +47,14 @@ fn a_line_names_the_event_and_every_gate_input_behind_one_epoch_second() {
             decision: &unread_lock,
             overrides: &overrides,
             legs: &[],
-            nag: false,
+            remind: false,
             permission_mode: "",
             agent_id: "",
             tool_name: "",
         }),
         "1756500000 claude/blocked mode=none agent=none tool=none surface=Mobile visibility=Hidden \
              session_visibility=Visible desk_age=none phone_age=12 tap_age=none locked=none \
-             fresh_window=120 long_running=no nag=no local_only=no remote_only=no pane=present \
+             fresh_window=120 long_running=no remind=no local_only=no remote_only=no pane=present \
              pane_dropped=no watch_card=no muted=no focus=no skip_phone=yes force_phone=no \
              idle_invalid=no desk_invalid=no phone_invalid=no \
              plan=banner:no,card:no,pulse:no legs=none"
@@ -75,7 +75,7 @@ fn a_line_with_no_readable_clock_leads_with_a_dash_rather_than_epoch_zero() {
         decision: &decision,
         overrides: &Overrides::default(),
         legs: &[],
-        nag: false,
+        remind: false,
         permission_mode: "",
         agent_id: "",
         tool_name: "",
@@ -108,7 +108,7 @@ fn a_line_carries_the_arbitrated_plan_and_each_legs_verdict() {
     let legs = [
         (
             Leg {
-                name: "mobile",
+                name: "phone",
                 mode: ReportMode::Silent,
                 decorative: true,
             },
@@ -124,7 +124,7 @@ fn a_line_carries_the_arbitrated_plan_and_each_legs_verdict() {
         ),
         (
             Leg {
-                name: "macos-banner",
+                name: "banner",
                 mode: ReportMode::Silent,
                 decorative: true,
             },
@@ -144,7 +144,7 @@ fn a_line_carries_the_arbitrated_plan_and_each_legs_verdict() {
         decision: &carded,
         overrides: &Overrides::default(),
         legs: &legs,
-        nag: false,
+        remind: false,
         permission_mode: "",
         agent_id: "",
         tool_name: "",
@@ -152,7 +152,7 @@ fn a_line_carries_the_arbitrated_plan_and_each_legs_verdict() {
     assert!(
         recorded.ends_with(
             " plan=banner:no,card:yes,pulse:no \
-                 legs=mobile:failed,hermes:delivered,macos-banner:silent,kitchen:unlaunched"
+                 legs=phone:failed,hermes:delivered,banner:silent,kitchen:unlaunched"
         ),
         "got {recorded}"
     );
@@ -171,7 +171,7 @@ fn a_line_carries_the_arbitrated_plan_and_each_legs_verdict() {
         decision: &decision(inputs()),
         overrides: &Overrides::default(),
         legs: &[],
-        nag: false,
+        remind: false,
         permission_mode: "",
         agent_id: "",
         tool_name: "",

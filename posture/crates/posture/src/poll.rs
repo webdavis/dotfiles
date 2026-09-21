@@ -41,6 +41,7 @@ pub(super) fn run(stderr: &mut impl Write) -> u8 {
         ControlProbes::current_user(
             "/Library/Objective-See/LuLu/rules.plist".into(),
             "/Library/Objective-See/LuLu/preferences.plist".into(),
+            "/Library/Preferences/com.apple.loginwindow.plist".into(),
         ),
         SystemRunner::per_command(Duration::from_secs(5)),
         SystemRunner::per_command(Duration::from_secs(10)),

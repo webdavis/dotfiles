@@ -18,7 +18,7 @@ use crate::*;
 /// `replay_card` IS THE OPERATOR'S SWITCH (`[recap] replay_card = false`) and
 /// it gates THE CARD and nothing else. `record_missed` never learns the switch
 /// exists, so the journal still records every miss and the doctor still counts
-/// them: turning the card back on has something to deliver. `digest` is its
+/// them: turning the card back on has something to deliver. `post_window_recap` is its
 /// own switch over the Discord half, so card-only and recap-only are both
 /// valid and neither implies the other.
 ///
@@ -54,8 +54,8 @@ pub(crate) fn replay_missed(
         decision,
         pns_application::RecapPolicy {
             replay_card: recap.replay_card,
-            digest: recap.digest,
-            min_events: recap.min_events,
+            post_window_recap: recap.post_window_recap,
+            minimum_events: recap.minimum_events,
         },
         durable_route,
     );

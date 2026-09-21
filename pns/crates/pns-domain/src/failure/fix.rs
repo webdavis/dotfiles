@@ -7,8 +7,8 @@
 //! as an instruction they cannot follow.
 
 use super::Failure;
-use super::meaning::{DESTINATION_HERMES, MOBILE_TOKEN, hermes_key_named};
-use crate::retry::DeliveryOutcome;
+use super::meaning::{DESTINATION_HERMES, PHONE_TOKEN, hermes_key_named};
+use crate::retry::TransportOutcome;
 
 /// Where the reader is standing when they read this.
 ///
@@ -37,11 +37,11 @@ pub enum NotificationSurface {
     Banner,
     /// The phone card.
     Phone {
-        /// `[failures] serve`. pns cannot detect a moshi Pro subscription and
+        /// `[failures] page_enabled`. pns cannot detect a moshi Pro subscription and
         /// does not need to: an operator who cannot use browser preview sets
         /// this false, and that is the same switch that decides which pointer
         /// the phone gets.
-        serve: bool,
+        page_enabled: bool,
         /// Whether the hermes leg is the one that failed. When it is, the full
         /// form is not in Discord either, so there is nothing to point at.
         hermes_failed: bool,
@@ -78,11 +78,11 @@ pub(super) fn line(failure: &Failure, surface: Surface) -> String {
         // link, so a bare mention of a page they cannot open is worse than
         // saying nothing; this is something someone can follow with two taps
         // while holding the phone.
-        NotificationSurface::Phone { serve: true, .. } => {
-            "open moshi's servers list, pick pns :8646".to_string()
-        }
         NotificationSurface::Phone {
-            serve: false,
+            page_enabled: true, ..
+        } => "open moshi's servers list, pick pns :8646".to_string(),
+        NotificationSurface::Phone {
+            page_enabled: false,
             hermes_failed: false,
         } => "full error in Discord, #priority".to_string(),
         // THE HONEST FLOOR. The gateway leg is what broke and there is no page,
@@ -91,7 +91,7 @@ pub(super) fn line(failure: &Failure, surface: Surface) -> String {
         // rule about never reporting a failure through the destination that
         // failed, applied to the pointer.
         NotificationSurface::Phone {
-            serve: false,
+            page_enabled: false,
             hermes_failed: true,
         } => "run `pns failures` on dresden".to_string(),
     }
@@ -103,42 +103,42 @@ fn repair(failure: &Failure) -> String {
     let route = &failure.route;
     if failure.destination != DESTINATION_HERMES {
         return match failure.outcome {
-            DeliveryOutcome::Status(401) => {
-                format!("put a current moshi token in {MOBILE_TOKEN}")
+            TransportOutcome::Status(401) => {
+                format!("put a current moshi token in {PHONE_TOKEN}")
             }
-            DeliveryOutcome::Status(404) => {
+            TransportOutcome::Status(404) => {
                 "check the moshi URL, then restart the moshi daemon".to_string()
             }
             _ => "run `pns doctor` for the full mobile configuration".to_string(),
         };
     }
     match failure.outcome {
-        DeliveryOutcome::Status(400 | 422) => {
+        TransportOutcome::Status(400 | 422) => {
             "report this: pns built a body hermes will not take, which is a pns bug".to_string()
         }
-        DeliveryOutcome::Status(401) => {
+        TransportOutcome::Status(401) => {
             format!(
                 "put the {route} route's current key in {}",
                 hermes_key_named(route)
             )
         }
-        DeliveryOutcome::Status(403) => {
+        TransportOutcome::Status(403) => {
             format!(
                 "grant the {} access to {route} in ~/.hermes/config.yaml",
                 hermes_key_named(route)
             )
         }
-        DeliveryOutcome::Status(404 | 410) => format!(
+        TransportOutcome::Status(404 | 410) => format!(
             "run `pns doctor` to see which routes the gateway accepts, \
              then add \"{route}\" to ~/.hermes/config.yaml"
         ),
-        DeliveryOutcome::Status(405) => {
+        TransportOutcome::Status(405) => {
             format!("make \"{route}\" a POST route in ~/.hermes/config.yaml")
         }
-        DeliveryOutcome::Status(413) => {
+        TransportOutcome::Status(413) => {
             "raise the gateway's body limit in ~/.hermes/config.yaml".to_string()
         }
-        DeliveryOutcome::NoStatus => {
+        TransportOutcome::NoStatus => {
             format!("check the route name \"{route}\" and the URL in ~/.config/pns/config.toml")
         }
         _ => "run `pns doctor` for the full gateway configuration".to_string(),

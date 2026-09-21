@@ -100,7 +100,7 @@ fn outcome(fields: &Fields<'_>) -> String {
 /// in force would send them to the wrong switch.
 fn because(fields: &Fields<'_>) -> Option<String> {
     if fields.yes("muted") {
-        return Some("`pns quiet` was running".into());
+        return Some("`pns mute` was running".into());
     }
     if fields.yes("focus") {
         return Some("a Focus mode pns respects was on".into());
@@ -111,7 +111,7 @@ fn because(fields: &Fields<'_>) -> Option<String> {
     if fields.yes("remote_only") {
         return Some("the event asked for the phone only".into());
     }
-    if fields.yes("nag") {
+    if fields.yes("remind") {
         return Some("it was a repeat of an approval nobody answered".into());
     }
     where_you_were(fields)

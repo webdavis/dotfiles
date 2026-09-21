@@ -128,8 +128,8 @@ fn an_explicit_channels_dir_means_executables_win() {
 #[test]
 fn a_backend_refusal_prevents_both_native_and_executable_delivery() {
     for forced in [false, true] {
-        let directory = fixture("mobile");
-        let (native, calls) = native("mobile", Delivery::Delivered("native".into()));
+        let directory = fixture("phone");
+        let (native, calls) = native("phone", Delivery::Delivered("native".into()));
         let selected = registration::choose(
             native,
             forced.then_some(directory.as_path()),
@@ -202,7 +202,7 @@ fn a_new_registered_destination_dispatches_without_editing_a_name_switch() {
 }
 
 #[test]
-fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution() {
+fn a_configured_gateway_wins_and_an_unnamed_one_keeps_route_resolution() {
     // THE ROUTE SURVIVES THE OVERRIDE, which the URL alone cannot say: the
     // route names the signing key, so an override that also reset the route
     // would sign every captured post with the default route's key.
@@ -224,36 +224,34 @@ fn the_gateway_override_wins_and_blank_or_absent_overrides_keep_route_resolution
             )
         );
     }
-    for override_url in [None, Some("")] {
-        // THE PATH FOLLOWS THE NAME AND THE GATEWAY DOES NOT MOVE: the
-        // default URL's final segment is swapped for the configured route,
-        // which is what keeps the route the key was granted to and the route
-        // the URL names one value.
-        assert_eq!(
-            hermes_target("", override_url, &routes),
-            (
-                "logbook".to_string(),
-                "http://127.0.0.1:8644/webhooks/logbook".to_string()
-            )
-        );
-        assert_eq!(
-            hermes_target("sirens", override_url, &routes),
-            (
-                "sirens".to_string(),
-                "http://127.0.0.1:8644/webhooks/sirens".to_string()
-            )
-        );
-        // AN UNUSABLE NAME FALLS BACK KEY AND ALL, so the post the default
-        // route takes is signed with the default route's key rather than
-        // refused for want of a key named `bad/route`.
-        assert_eq!(
-            hermes_target("bad/route", override_url, &routes),
-            (
-                "logbook".to_string(),
-                "http://127.0.0.1:8644/webhooks/logbook".to_string()
-            )
-        );
-    }
+    // THE PATH FOLLOWS THE NAME AND THE GATEWAY DOES NOT MOVE: the
+    // default URL's final segment is swapped for the configured route,
+    // which is what keeps the route the key was granted to and the route
+    // the URL names one value.
+    assert_eq!(
+        hermes_target("", None, &routes),
+        (
+            "logbook".to_string(),
+            "http://127.0.0.1:8644/webhooks/logbook".to_string()
+        )
+    );
+    assert_eq!(
+        hermes_target("sirens", None, &routes),
+        (
+            "sirens".to_string(),
+            "http://127.0.0.1:8644/webhooks/sirens".to_string()
+        )
+    );
+    // AN UNUSABLE NAME FALLS BACK KEY AND ALL, so the post the default
+    // route takes is signed with the default route's key rather than
+    // refused for want of a key named `bad/route`.
+    assert_eq!(
+        hermes_target("bad/route", None, &routes),
+        (
+            "logbook".to_string(),
+            "http://127.0.0.1:8644/webhooks/logbook".to_string()
+        )
+    );
     // AND THE SHIPPED DEFAULT IS THE DEFAULT URL'S OWN LAST SEGMENT, which is
     // the one case where the two are allowed to be the same string.
     assert_eq!(

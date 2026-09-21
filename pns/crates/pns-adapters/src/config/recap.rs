@@ -1,12 +1,50 @@
 use super::*;
 
 /// The most any summarizer may be given. ONE HOUR, which is fifteen times the
-/// default, so no honest backend on any machine meets it; see `seconds` for the
-/// two failures that live past it.
+/// default, so no honest backend on any machine meets it; see
+/// `summarizer_deadline_range` for the two failures that live past it.
 pub(super) const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
+
+/// `summarizer_deadline`, BOUNDED ON BOTH SIDES with zero carved out by
+/// `duration_value`: a deadline of nothing simply cannot be met, so the recap
+/// falls to the plain lists and says it did.
+///
+/// THE FLOOR IS ONE MILLISECOND, so a test can prove expiry without waiting on
+/// a real backend.
+///
+/// THE TOP END IS REFUSED BY NAME, and two things break past it, neither
+/// visible where it happens. NOTHING SUPERVISES THE DETACHED RECAP CHILD,
+/// which `spawn_recap` states outright: at four minutes that is fine, and at a
+/// day it is one child plus one wedged backend held for a day, with a second
+/// pair arriving at the next return moment. AND A DURATION PAST THE CEILING
+/// PANICS at `Instant::now() + deadline` (MEASURED: "overflow when adding
+/// duration to instant") inside a process whose stderr is /dev/null and whose
+/// exit code nobody reads, so the recap simply vanishes after the card has
+/// said it is coming. A refusal the operator reads beats a silence they
+/// cannot.
+fn summarizer_deadline_range() -> RangeInclusive<Duration> {
+    Duration::from_millis(1)..=Duration::from_secs(MAX_SUMMARIZER_DEADLINE_SECS)
+}
+
+/// `retain`'s range: an hour at the floor, so a value is long enough to hold
+/// the window the recap it feeds is about, and a year at the ceiling, past
+/// which the table is a log nobody reads rather than a recap source.
+///
+/// ZERO IS REFUSED BY NAME by `nonzero_duration_key`, exactly as `[remind]
+/// delay` refuses it: a retention of nothing empties the store on the next
+/// tick, which is a switch rather than a duration, and this key has no off.
+fn retain_range() -> RangeInclusive<Duration> {
+    Duration::from_secs(3600)..=Duration::from_secs(365 * 24 * 60 * 60)
+}
 
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
+///
+/// NO KEY HERE DOUBLES AS ITS OWN SWITCH. `summarizer` and `repositories`
+/// are off by being UNSET, which is a state the key already has, so neither
+/// carries a magic value that means off and neither needs an `enabled` beside
+/// it; an empty value is refused by name instead, because it names a thing pns
+/// would then try and fail to use.
 pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
     let toml::Value::Table(table) = value else {
         return Err(ConfigError::Invalid("`recap` is not a table".to_string()));
@@ -27,13 +65,28 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         // gate is the only check.
         admits_flat("recap", &key)?;
         match key.as_str() {
-            "min_events" => recap.min_events = threshold(&setting)?,
-            "repos" => recap.repos = repositories(&setting)?,
-            "review_notes" => recap.review_notes = Some(note_glob(&setting)?),
+            "minimum_events" => recap.minimum_events = threshold(&setting)?,
+            "repositories" => recap.repositories = repositories(&setting)?,
+            "review_notes_glob" => recap.review_notes_glob = Some(note_glob(&setting)?),
             "summarizer" => recap.summarizer = Some(argv(&setting)?),
-            "summarizer_deadline_secs" => recap.summarizer_deadline_secs = seconds(&setting)?,
+            "summarizer_deadline" => {
+                recap.summarizer_deadline = duration_value(
+                    "recap",
+                    "summarizer_deadline",
+                    &setting,
+                    summarizer_deadline_range(),
+                )?;
+            }
+            "retain" => {
+                recap.retain = Duration::from_secs(nonzero_duration_key(
+                    "recap",
+                    "retain",
+                    &setting,
+                    retain_range(),
+                )?);
+            }
             "replay_card" => recap.replay_card = flag(&key, &setting)?,
-            "digest" => recap.digest = flag(&key, &setting)?,
+            "post_window_recap" => recap.post_window_recap = flag(&key, &setting)?,
             _ => {
                 return Err(unknown_key("recap", "recap", &key));
             }

@@ -23,7 +23,7 @@ fn a_present_event_delivers_one_extra_notification_carrying_the_whole_journal() 
         "",
         "the replay reached the hook's own stderr"
     );
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         2,
@@ -88,7 +88,7 @@ fn a_replay_is_never_a_second_event_in_the_ring_or_the_journal() {
     run(&mut present_event(&sandbox));
 
     assert_eq!(
-        events(&sandbox, "macos-banner").len(),
+        events(&sandbox, "banner").len(),
         2,
         "the replay really was delivered, which is what makes the counts below mean anything"
     );
@@ -125,7 +125,7 @@ fn an_away_event_delivers_no_replay_and_leaves_the_journal_byte_identical() {
         "x",
     ]));
 
-    let carded = events(&sandbox, "mobile");
+    let carded = events(&sandbox, "phone");
     assert_eq!(
         carded.len(),
         1,
@@ -166,7 +166,7 @@ fn a_switched_off_replay_card_delivers_no_catch_up_and_leaves_the_journal_whole(
 
     let output = run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         1,
@@ -267,7 +267,7 @@ fn a_muted_event_queues_its_own_miss_and_replays_nothing() {
         "and it is this event's: {waiting:?}"
     );
     assert!(
-        events(&sandbox, "macos-banner").is_empty(),
+        events(&sandbox, "banner").is_empty(),
         "the mute swallowed the banner, so nothing carried a replay"
     );
     let logged = events(&sandbox, "hermes");

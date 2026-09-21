@@ -1,6 +1,4 @@
-use super::{
-    DeliveryOutcome, DestinationOutcome, InteractionResult, ResultEnvelope, Status, decode,
-};
+use super::{DeliveryOutcome, DestinationOutcome, ResultEnvelope, Status, decode};
 use crate::envelope::{Rejected, Rejection};
 use crate::identifiers::{Name, RequestId};
 use serde_json::{Value, json};
@@ -18,22 +16,26 @@ fn name(text: &str) -> Name {
 fn golden_result() -> ResultEnvelope {
     ResultEnvelope {
         request_id: Some(id("nvim-7f3a9c2e-0001")),
-        status: Status::Degraded,
-        decision_id: Some("d-000123".to_string()),
-        interaction: Some(InteractionResult::NoOpinion),
+        status: Status::Partial,
+        ledger_sequence: Some("123".to_string()),
         destinations: vec![
             DestinationOutcome {
-                destination: name("macos-banner"),
+                name: name("banner"),
                 outcome: DeliveryOutcome::Delivered,
+                route: None,
                 note: None,
+                retry_at: None,
             },
             DestinationOutcome {
-                destination: name("hermes"),
+                name: name("hermes"),
                 outcome: DeliveryOutcome::Failed,
+                route: Some(name("priority")),
                 note: Some("post FAILED HTTP 401".to_string()),
+                retry_at: Some(1_758_153_600),
             },
         ],
-        diagnostics: vec!["ignored_field:detial".to_string()],
+        diagnostics: vec!["ledger_committed".to_string()],
+        ignored_fields: vec!["detial".to_string()],
     }
 }
 
@@ -65,15 +67,15 @@ fn a_rejection_becomes_a_rejected_result_carrying_the_recovered_id_and_the_code(
     assert_eq!(result.status, Status::Rejected);
     assert_eq!(result.diagnostics, vec!["major_unsupported".to_string()]);
     assert!(result.destinations.is_empty());
-    assert_eq!(result.interaction, None);
-    assert_eq!(result.decision_id, None);
+    assert_eq!(result.ledger_sequence, None);
+    assert!(result.ignored_fields.is_empty());
     // Encodable even with no id, which is the malformed-bytes case.
     let anonymous = ResultEnvelope::rejected(&Rejected {
         request_id: None,
         reason: Rejection::Malformed("x".to_string()),
     });
     let wire: Value = serde_json::from_str(&anonymous.encode().unwrap()).unwrap();
-    assert_eq!(wire["request_id"], Value::Null);
+    assert_eq!(wire.get("request_id"), None);
     assert_eq!(wire["diagnostics"], json!(["malformed_json"]));
 }
 
@@ -98,11 +100,12 @@ fn diagnostics_are_bounded_at_the_item_cap_when_encoded() {
 }
 
 #[test]
-fn every_status_outcome_and_interaction_word_is_pinned() {
+fn every_status_and_outcome_word_is_pinned_as_a_bare_string() {
     let mut result = golden_result();
     for (status, word) in [
-        (Status::Accepted, "accepted"),
-        (Status::Degraded, "degraded"),
+        (Status::Delivered, "delivered"),
+        (Status::Partial, "partial"),
+        (Status::Undelivered, "undelivered"),
         (Status::Rejected, "rejected"),
     ] {
         result.status = status;
@@ -115,6 +118,7 @@ fn every_status_outcome_and_interaction_word_is_pinned() {
         (DeliveryOutcome::Failed, "failed"),
         (DeliveryOutcome::Silent, "silent"),
         (DeliveryOutcome::Unlaunched, "unlaunched"),
+        (DeliveryOutcome::Unknown, "unknown"),
     ] {
         result.destinations[0].outcome = outcome;
         let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
@@ -124,33 +128,44 @@ fn every_status_outcome_and_interaction_word_is_pinned() {
             outcome
         );
     }
-    result.interaction = Some(InteractionResult::Answered { code: 3 });
-    let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
-    assert_eq!(
-        wire["interaction"],
-        json!({ "kind": "answered", "code": 3 })
-    );
-    assert_eq!(
-        decode(wire.to_string().as_bytes()).unwrap().interaction,
-        Some(InteractionResult::Answered { code: 3 })
-    );
-    result.interaction = Some(InteractionResult::NoOpinion);
-    let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
-    assert_eq!(wire["interaction"], json!({ "kind": "no_opinion" }));
-    assert_eq!(
-        decode(wire.to_string().as_bytes()).unwrap().interaction,
-        Some(InteractionResult::NoOpinion)
-    );
 }
 
 #[test]
-fn an_absent_note_is_omitted_from_the_wire_rather_than_written_as_null() {
+fn the_ledger_row_and_each_destination_name_are_the_only_identifying_fields() {
     let wire: Value = serde_json::from_str(&golden_result().encode().unwrap()).unwrap();
-    assert_eq!(wire["destinations"][0].get("note"), None);
+    assert_eq!(wire["ledger_sequence"], json!("123"));
+    assert_eq!(wire["destinations"][0]["name"], json!("banner"));
+    assert_eq!(wire.get("decision_id"), None);
+    assert_eq!(wire.get("interaction"), None);
+    assert_eq!(wire["destinations"][0].get("destination"), None);
+}
+
+#[test]
+fn an_absent_note_route_or_retry_time_is_omitted_rather_than_written_as_null() {
+    let wire: Value = serde_json::from_str(&golden_result().encode().unwrap()).unwrap();
+    for field in ["note", "route", "retry_at"] {
+        assert_eq!(wire["destinations"][0].get(field), None, "{field}");
+    }
     assert_eq!(
         wire["destinations"][1]["note"],
         json!("post FAILED HTTP 401")
     );
+    assert_eq!(wire["destinations"][1]["route"], json!("priority"));
+    assert_eq!(wire["destinations"][1]["retry_at"], json!(1_758_153_600u64));
+}
+
+#[test]
+fn an_absent_optional_result_field_is_omitted_rather_than_written_as_null() {
+    let mut result = golden_result();
+    result.request_id = None;
+    result.ledger_sequence = None;
+    let text = result.encode().unwrap();
+    let wire: Value = serde_json::from_str(&text).unwrap();
+    for field in ["request_id", "ledger_sequence"] {
+        assert_eq!(wire.get(field), None, "{field}");
+    }
+    assert!(!text.contains("null"), "{text}");
+    assert_eq!(decode(text.as_bytes()).unwrap(), result);
 }
 
 #[test]
@@ -164,4 +179,29 @@ fn a_result_with_the_wrong_schema_is_refused_like_a_request() {
     let rejected = decode(br#"{"schema":"pns.result/2","request_id":"r-1"}"#).unwrap_err();
     assert_eq!(rejected.reason, Rejection::MajorUnsupported(2));
     assert_eq!(rejected.request_id, Some(id("r-1")));
+}
+
+#[test]
+fn ignored_field_names_are_their_own_list_and_are_bounded_like_the_diagnostics() {
+    let wire: Value = serde_json::from_str(&golden_result().encode().unwrap()).unwrap();
+    assert_eq!(wire["ignored_fields"], json!(["detial"]));
+    assert_eq!(wire["diagnostics"], json!(["ledger_committed"]));
+    let mut result = golden_result();
+    result.ignored_fields = (0..65).map(|index| format!("field_{index}")).collect();
+    let decoded = decode(result.encode().unwrap().as_bytes()).unwrap();
+    assert_eq!(decoded.ignored_fields.len(), 64);
+    assert_eq!(
+        result.ignored_fields.len(),
+        65,
+        "encoding must not mutate the caller"
+    );
+}
+
+#[test]
+fn a_result_with_no_ignored_field_answers_an_empty_list() {
+    let mut result = golden_result();
+    result.ignored_fields = Vec::new();
+    let wire: Value = serde_json::from_str(&result.encode().unwrap()).unwrap();
+    assert_eq!(wire["ignored_fields"], json!([]));
+    assert_eq!(decode(wire.to_string().as_bytes()).unwrap(), result);
 }

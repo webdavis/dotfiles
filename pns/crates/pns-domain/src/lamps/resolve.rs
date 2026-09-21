@@ -10,14 +10,14 @@ use super::window::window_refusal;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Routed {
     pub lamp: Lamp,
-    pub shows: Vec<crate::lamps::config::Behaviour>,
+    pub behaviours: Vec<crate::lamps::config::Behaviour>,
     pub dim: Option<DimWindow>,
 }
 /// Every lamp any declaration reaches, plus what could not be resolved and what
 /// was refused.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Routing {
-    /// ONLY LAMPS THAT CARRY SOMETHING. A lamp resolved to an empty `shows`
+    /// ONLY LAMPS THAT CARRY SOMETHING. A lamp resolved to an empty `behaviours`
     /// list carries nothing, which is what a deliberate empty declaration means
     /// as much as what silence means, so both leave the lamp out of the walks
     /// rather than costing a write that does nothing.
@@ -61,33 +61,48 @@ pub fn resolve(inventory: &Inventory, lights: &crate::lamps::config::Lights) -> 
         ..Routing::default()
     };
     for lamp in &inventory.lamps {
-        let shows = match winner(&mut routing, lamp, lights, "shows", |target| {
-            target.shows.clone()
+        let behaviours = match winner(&mut routing, lamp, lights, "behaviours", |target| {
+            target.behaviours.clone()
         }) {
             // A CONTESTED BEHAVIOUR SET IS AN EMPTY ONE, which the drop below
             // turns into a dark lamp: two declarations that each name what it
             // carries settle nothing, so it carries nothing.
             Answered::Refused => Vec::new(),
             Answered::Silent => Vec::new(),
-            Answered::Stated(shows) => shows,
+            Answered::Stated(behaviours) => behaviours,
         };
-        let dim = match winner(&mut routing, lamp, lights, "dim_window", |target| {
-            target
-                .dim_window
-                .as_ref()
-                .map(|stated| (stated.clone(), target.dim_behaviours.clone()))
-        }) {
-            // A CONTESTED DIM QUESTION FAILS DARK, exactly as an unreadable one
-            // does below, and telling the two apart from SILENCE is the whole
-            // reason this answer has three arms. Collapsed into one `None` they
-            // took the no-window path, which is FULL BRIGHTNESS: the config
-            // that said loudest that a lamp must be quiet at night, two
-            // declarations both stating when, was the one that ran it at full
-            // brightness all night.
-            Answered::Refused => continue,
-            Answered::Silent => None,
-            Answered::Stated((stated, behaviours)) => match parse_window(&stated) {
-                Some(window) => Some(DimWindow { window, behaviours }),
+        // A DECLARATION STATES THE DIM QUESTION WHEN IT STATES EITHER KEY, so
+        // a place that names which behaviours run dimmed and takes the house
+        // window still wins the question over its room.
+        let (stated, dim_behaviours) =
+            match winner(&mut routing, lamp, lights, "dim_window", |target| {
+                (target.dim_window.is_some() || target.dim_behaviours.is_some()).then(|| {
+                    (
+                        target.dim_window.clone(),
+                        target.dim_behaviours.clone().unwrap_or_default(),
+                    )
+                })
+            }) {
+                // A CONTESTED DIM QUESTION FAILS DARK, exactly as an unreadable one
+                // does below, and telling the two apart from SILENCE is the whole
+                // reason this answer has three arms. Collapsed into one `None` they
+                // took the no-window path, which is FULL BRIGHTNESS: the config
+                // that said loudest that a lamp must be quiet at night, two
+                // declarations both stating when, was the one that ran it at full
+                // brightness all night.
+                Answered::Refused => continue,
+                Answered::Silent => (None, Vec::new()),
+                Answered::Stated(answer) => answer,
+            };
+        // `[lights] dim_window` IS WHAT A PLACE THAT STATES NONE FALLS BACK TO,
+        // and no window anywhere is full brightness at every hour.
+        let dim = match stated.or_else(|| lights.dim_window.clone()) {
+            None => None,
+            Some(stated) => match parse_window(&stated) {
+                Some(window) => Some(DimWindow {
+                    window,
+                    behaviours: dim_behaviours,
+                }),
                 // FAIL CLOSED, FOR THIS LAMP ALONE. An operator who asked for a
                 // dim window and mistyped it would otherwise be flashed at 3am
                 // and told nothing; what the refusal buys is that the cost is
@@ -98,12 +113,12 @@ pub fn resolve(inventory: &Inventory, lights: &crate::lamps::config::Lights) -> 
                 }
             },
         };
-        if shows.is_empty() {
+        if behaviours.is_empty() {
             continue;
         }
         routing.lamps.push(Routed {
             lamp: lamp.clone(),
-            shows,
+            behaviours,
             dim,
         });
     }

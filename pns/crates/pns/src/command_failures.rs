@@ -17,7 +17,7 @@ const LISTING_LIMIT: u32 = 20;
 /// ever wanted, the interaction model arrives with it.
 ///
 /// IT IS NOT ON THE EVENT PATH, so the always-exit-0 contract does not reach it.
-/// A word it does not know is a refusal, the way `pns quiet` and `pns nag`
+/// A word it does not know is a refusal, the way `pns mute` and `pns remind`
 /// refuse one: a subcommand that swallows a typo answers a question the operator
 /// did not ask.
 pub(crate) fn failures_mode() -> i32 {
@@ -28,6 +28,7 @@ pub(crate) fn failures_mode() -> i32 {
         // A VERB BEFORE THE NUMBER PARSE, and the two can never collide: an id
         // is a number and a verb is a word.
         [word] if word == "serve" => serve(),
+        [word] if word == DRAIN_VERB => drain(&store),
         [verb, word] if verb == OPEN_VERB => match word.parse::<u64>() {
             Ok(id) => open(id),
             Err(_) => {
@@ -88,6 +89,15 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     if failures.is_empty() {
         return "pns: nothing is failing to deliver\n".to_string();
     }
+    // DERIVED, not a fixed guess: a fixed width is filled by whatever id
+    // outgrows it, and ledger ids only grow (they are ledger_legs rowids).
+    let id_width = failures
+        .iter()
+        .map(|f| f.id.to_string().len())
+        .max()
+        .unwrap_or(2)
+        .max(2)
+        + 1;
     let mut out = String::new();
     out.push_str(&style::heading(
         paint,
@@ -98,7 +108,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     // THE COLUMN HEADER IS FAINT, not a mark: it names the columns rather than
     // reporting anything, and a row's own glyph is what carries the verdict.
     out.push_str(&paint.faint(&format!(
-        "    {:<4}{:<18}{:<14}{:<11}sent by",
+        "    {:<id_width$}{:<18}{:<14}{:<11}sent by",
         "id", "when", "status", "route"
     )));
     out.push('\n');
@@ -109,7 +119,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
             "·",
             2,
             &format!(
-                "{:<4}{:<18}{:<14}{:<11}{}",
+                "{:<id_width$}{:<18}{:<14}{:<11}{}",
                 failure.id,
                 when(failure.failed_at),
                 short_status(failure),
@@ -134,13 +144,32 @@ fn plural(count: usize) -> String {
     }
 }
 
+/// `pns failures drain`: clears the legs nothing will ever deliver.
+///
+/// ONLY THE DEAD-LETTERED GO. A leg still inside its retry budget is left in
+/// the listing because it may yet arrive; a leg the retry policy gave up on is
+/// the one an operator is stuck with, and until this verb existed nothing could
+/// take it off the list.
+fn drain(store: &SqliteStore) -> i32 {
+    let Ok(drained) = store.drain_deadlettered_legs() else {
+        eprintln!("pns: the delivery ledger could not be written");
+        return 1;
+    };
+    match drained {
+        0 => println!("pns: nothing to drain"),
+        1 => println!("pns: drained 1 dead-lettered leg"),
+        count => println!("pns: drained {count} dead-lettered legs"),
+    }
+    0
+}
+
 /// `pns failures serve`: the page, in the foreground, until it is stopped.
 ///
 /// THE DAEMON RUNS IT AS A CHILD, which is what supervises it: a listener that
 /// dies is restarted on the next tick, and an operator who wants the page
 /// without the daemon can still run this by hand.
 ///
-/// `serve = false` EXITS 0 RATHER THAN REFUSING. The daemon does not start this
+/// `page_enabled = false` EXITS 0 RATHER THAN REFUSING. The daemon does not start this
 /// child when the page is off, so reaching here with it off means the operator
 /// typed the command themselves, and the honest answer is that the page is
 /// switched off in their config rather than that they typed something wrong.
@@ -150,13 +179,13 @@ fn serve() -> i32 {
         Ok(pns_adapters::LoadOutcome::Loaded(config)) => config.failures,
         _ => pns_adapters::Failures::default(),
     };
-    if !settings.serve {
-        println!("pns: the failure page is off; set `[failures] serve = true` to serve it");
+    if !settings.page_enabled {
+        println!("pns: the failure page is off; set `[failures] page_enabled = true` to serve it");
         return 0;
     }
     // NEVER RETURNS while the daemon is up: the listener waits for its port
     // and then serves forever, so the exit below is what a stopped child gets.
-    crate::failures_page::serve(settings.port);
+    crate::failures_page::serve(settings.page_port);
     0
 }
 
@@ -174,7 +203,16 @@ fn show(store: &SqliteStore, id: u64) -> i32 {
             1
         }
         Ok(Some(stored)) => {
-            print!("{}", failure::full(&compose(&stored)));
+            let install =
+                pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
+            print!(
+                "{}",
+                failure::full(&compose(
+                    &stored,
+                    install.moshi_url.as_deref(),
+                    install.hermes_url.as_deref()
+                ))
+            );
             0
         }
     }
@@ -183,12 +221,21 @@ fn show(store: &SqliteStore, id: u64) -> i32 {
 /// The ledger's row plus the two facts only this layer holds: where the
 /// destination lives, which comes from the config and the environment, and the
 /// command the reader is shown.
-pub(crate) fn compose(stored: &StoredFailure) -> Failure {
+///
+/// `moshi_url` AND `hermes_url` ARE RESOLVED BY THE CALLER, once, rather than
+/// read here: this runs once per failure row, and a caller looping over many
+/// rows (the failure notice) would otherwise reparse the config file on every
+/// one of them.
+pub(crate) fn compose(
+    stored: &StoredFailure,
+    moshi_url: Option<&str>,
+    hermes_url: Option<&str>,
+) -> Failure {
     Failure {
         id: stored.id,
         destination: stored.destination.clone(),
         route: stored.route.clone(),
-        address: address(&stored.destination, &stored.route),
+        address: address(&stored.destination, &stored.route, moshi_url, hermes_url),
         agent: stored.agent.clone(),
         // RECONSTRUCTED from the routing facts rather than stored. It is the
         // string the reader searches for, and pns knows exactly which flags
@@ -197,7 +244,7 @@ pub(crate) fn compose(stored: &StoredFailure) -> Failure {
         command: command(stored),
         outcome: stored.outcome,
         retries: stored.retries,
-        max_attempts: pns_domain::retry::RetryLimits::default().max_attempts,
+        max_attempts: pns_domain::retry::RetryLimits::default().max_retries,
     }
 }
 
@@ -214,14 +261,24 @@ fn command(stored: &StoredFailure) -> String {
     command
 }
 
-/// Where the destination lives, as the reader would type it. The gateway
-/// honours `PNS_HERMES_URL`, so reading it here is what keeps the message
-/// pointing at the gateway this machine actually posts to.
-fn address(destination: &str, route: &str) -> String {
-    if destination == failure::DESTINATION_MOBILE {
-        return std::env::var("PNS_MOSHI_URL").unwrap_or_else(|_| DEFAULT_MOSHI_URL.to_string());
+/// Where the destination lives, as the reader would type it. Config
+/// (`[plugins.phone] url` / `[plugins.log] url`) outranks the matching
+/// variable (`PNS_MOSHI_URL` / `PNS_HERMES_URL`), which is what keeps the
+/// message pointing at the gateway this machine actually posts to.
+fn address(
+    destination: &str,
+    route: &str,
+    moshi_url: Option<&str>,
+    hermes_url: Option<&str>,
+) -> String {
+    if destination == failure::DESTINATION_PHONE {
+        return moshi_url
+            .map(str::to_string)
+            .unwrap_or_else(|| DEFAULT_MOSHI_URL.to_string());
     }
-    let base = std::env::var("PNS_HERMES_URL").unwrap_or_else(|_| DEFAULT_HERMES_URL.to_string());
+    let base = hermes_url
+        .map(str::to_string)
+        .unwrap_or_else(|| DEFAULT_HERMES_URL.to_string());
     pns_adapters::channel_url(&base, route).unwrap_or(base)
 }
 
@@ -229,9 +286,9 @@ fn address(destination: &str, route: &str) -> String {
 /// the registered name: the name is what teaches, and a listing is what scans.
 fn short_status(failure: &StoredFailure) -> String {
     match failure.outcome {
-        pns_domain::retry::DeliveryOutcome::Status(code) => format!("HTTP {code}"),
-        pns_domain::retry::DeliveryOutcome::NoResponse => "no response".to_string(),
-        pns_domain::retry::DeliveryOutcome::NoStatus => "bad URL".to_string(),
+        pns_domain::retry::TransportOutcome::Status(code) => format!("HTTP {code}"),
+        pns_domain::retry::TransportOutcome::NoResponse => "no response".to_string(),
+        pns_domain::retry::TransportOutcome::NoStatus => "bad URL".to_string(),
     }
 }
 
@@ -321,7 +378,7 @@ fn view(herdr_present: bool) -> Result<ClickView, String> {
     else {
         return Ok(ClickView::inferred(herdr_present));
     };
-    match crate::plugin_settings(&config, "macos-banner") {
+    match crate::plugin_settings(&config, "banner") {
         Some(settings) => pns_adapters::banner_click(settings, herdr_present),
         None => Ok(ClickView::inferred(herdr_present)),
     }
@@ -347,7 +404,10 @@ pub(crate) fn retired_click() -> i32 {
 /// The verb the banner's stored click command names.
 const OPEN_VERB: &str = "open";
 
-pub(crate) const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|open <id>|serve]";
+/// The verb that clears the dead-lettered legs.
+const DRAIN_VERB: &str = "drain";
+
+pub(crate) const FAILURES_USAGE: &str = "pns: usage: pns failures [<id>|open <id>|drain|serve]";
 
 #[cfg(test)]
 #[path = "command_failures/tests.rs"]

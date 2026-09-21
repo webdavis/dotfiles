@@ -1,26 +1,14 @@
 use super::*;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::test_sandbox::Sandbox;
 
-fn scratch() -> PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let root = PathBuf::from(format!(
-        "/private/tmp/posture-triage-adapter-{}-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir(&root).unwrap();
-    root
+fn scratch() -> Sandbox {
+    Sandbox::new("triage-adapter")
 }
 
 #[test]
 fn actual_producer_matches_the_bash_capture_with_quotes_and_an_empty_version() {
-    let root = scratch();
+    let sandbox = scratch();
+    let root = sandbox.path();
     let target = root.join(".local/bin/tool\"quoted");
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
     std::fs::write(&target, b"abc").unwrap();
@@ -62,13 +50,14 @@ fn actual_producer_matches_the_bash_capture_with_quotes_and_an_empty_version() {
 
 #[test]
 fn disk_facts_distinguish_links_missing_files_and_nonregular_files() {
-    let root = scratch();
+    let sandbox = scratch();
+    let root = sandbox.path();
     let absent = root.join("absent");
     let link = root.join("link");
     std::os::unix::fs::symlink(&absent, &link).unwrap();
     assert_eq!(disk_hash(&link), "a symbolic link");
     assert_eq!(disk_hash(&absent), "absent");
-    assert_eq!(disk_hash(&root), "not a regular file");
+    assert_eq!(disk_hash(root), "not a regular file");
     let regular = root.join("regular");
     std::fs::write(&regular, b"abc").unwrap();
     assert_eq!(disk_hash(&regular), "ba7816bf8f01");
@@ -76,7 +65,8 @@ fn disk_facts_distinguish_links_missing_files_and_nonregular_files() {
 
 #[test]
 fn upgrade_reads_follow_regular_symlinks_but_refuse_pipes_devices_and_oversize_records() {
-    let root = scratch();
+    let sandbox = scratch();
+    let root = sandbox.path();
     let record = root.join("record");
     let link = root.join("link");
     std::fs::write(&record, "9000\t1970-01-01T02:30:00Z\n").unwrap();
@@ -92,7 +82,12 @@ fn upgrade_reads_follow_regular_symlinks_but_refuse_pipes_devices_and_oversize_r
     assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
     let fifo_link = root.join("fifo-link");
     std::os::unix::fs::symlink(&fifo, &fifo_link).unwrap();
-    for refused_path in [&fifo, &fifo_link, &root, Path::new("/dev/null")] {
+    for refused_path in [
+        fifo.as_path(),
+        fifo_link.as_path(),
+        root,
+        Path::new("/dev/null"),
+    ] {
         assert_eq!(
             upgrade_line(refused_path, "tool", Some(9000), &mut diagnostics),
             "the upgrade record could not be read"
@@ -112,7 +107,8 @@ fn upgrade_reads_follow_regular_symlinks_but_refuse_pipes_devices_and_oversize_r
 
 #[test]
 fn malformed_upgrade_text_loses_only_the_correlation() {
-    let root = scratch();
+    let sandbox = scratch();
+    let root = sandbox.path();
     let record = root.join("record");
     for bytes in [
         b"9000\t1970-01-01T02:30:00Z\ntool\tadded".as_slice(),

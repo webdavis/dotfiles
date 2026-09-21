@@ -20,20 +20,20 @@ whether it may be forwarded at all, the turn marker it must not touch, and its s
 | Event word      | Reads from the payload                                                                                         | State it mutates                                                                                                                                                                     | State it clears                                                                                                                                                                     | Exit code                                    | Tests that pin it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | --------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `prompt`        | `session_id`                                                                                                   | writes the turn start marker when none exists (`start_of_turn`)                                                                                                                      | this session's wait marker (`end_blocked_wait`)                                                                                                                                     | 0                                            | `the_first_prompt_of_a_turn_writes_a_marker_and_a_later_one_does_not_reset_it`, `a_prompt_from_a_waiting_session_ends_its_wait`, `a_prompt_ends_only_its_own_sessions_wait`, `a_prompt_naming_a_traversal_removes_nothing`, `the_prompt_hook_clears_a_stale_quota_marker`, `a_payload_with_no_session_id_is_a_silent_no_op`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `stop`          | `session_id`, `cwd`, `last_assistant_message`, `transcript_path`                                               | the whole `Attempt::First` tail: decision ring, journal, activity ring, unread news record, loop lease, presence edge, lights tick lease, pulse; wait marker per the condensed state | the turn start marker (claimed by rename), the nag record (an answered marker is written first), and the wait marker whenever the condensed state is not one of the five wait words | 0                                            | `stopping_consumes_the_marker_so_a_second_stop_cannot_re_fire_the_tier`, `a_second_stop_cannot_re_fire_the_tier_because_the_marker_is_claimed_once`, `a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back`, `an_ordinary_stop_never_reaches_moshi`, `a_stale_quota_marker_clears_at_the_turns_stop_without_any_prompt_hook`, `an_answered_approval_is_never_nudged_by_either_clearing_signal`                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `stop-failure`  | `session_id`, `cwd`, and the message chain (in practice `error`)                                               | the same `Attempt::First` tail as `stop`, with state `failed`                                                                                                                        | the turn start marker, the nag record                                                                                                                                               | 0                                            | `a_turn_that_died_notifies_as_failed_and_says_what_killed_it`, `a_dead_turn_consumes_the_marker_so_the_next_turn_is_not_measured_from_its_start`, `a_dead_turn_spawns_no_condenser_and_reads_no_transcript`, `a_long_turn_that_died_still_earns_its_pulse`, `a_failed_turn_never_reaches_moshi`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `blocked`       | the raw payload bytes, plus `session_id`, `cwd`, the message chain, `permission_mode`, `agent_id`, `tool_name` | arms the nag record, starts this session's wait marker, runs the full `Attempt::First` tail                                                                                          | nothing; the turn start marker is deliberately untouched                                                                                                                            | moshi's own code when forwarded, otherwise 0 | `an_approval_leaves_the_turn_marker_alone`, `the_blocked_hook_writes_nothing_the_harness_would_read_as_a_decision`, `the_decision_log_carries_the_payloads_mode_agent_and_tool`; the forward itself is `docs/specs/blocking-approval.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `stop`          | `session_id`, `cwd`, `last_assistant_message`, `transcript_path`                                               | the whole `Attempt::First` tail: decision ring, journal, activity ring, unread news record, loop lease, presence edge, lights tick lease, pulse; wait marker per the summarized state | the turn start marker (claimed by rename), the reminder record (an answered marker is written first), and the wait marker whenever the summarized state is not one of the five wait words | 0                                            | `stopping_consumes_the_marker_so_a_second_stop_cannot_re_fire_the_tier`, `a_second_stop_cannot_re_fire_the_tier_because_the_marker_is_claimed_once`, `a_summarizer_line_is_used_state_and_all_and_a_blank_summary_falls_back`, `an_ordinary_stop_never_reaches_moshi`, `a_stale_quota_marker_clears_at_the_turns_stop_without_any_prompt_hook`, `an_answered_approval_is_never_nudged_by_either_clearing_signal`                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `stop-failure`  | `session_id`, `cwd`, and the message chain (in practice `error`)                                               | the same `Attempt::First` tail as `stop`, with state `failed`                                                                                                                        | the turn start marker, the reminder record                                                                                                                                               | 0                                            | `a_turn_that_died_notifies_as_failed_and_says_what_killed_it`, `a_dead_turn_consumes_the_marker_so_the_next_turn_is_not_measured_from_its_start`, `a_dead_turn_spawns_no_summarizer_and_reads_no_transcript`, `a_long_turn_that_died_still_earns_its_pulse`, `a_failed_turn_never_reaches_moshi`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `blocked`       | the raw payload bytes, plus `session_id`, `cwd`, the message chain, `permission_mode`, `agent_id`, `tool_name` | arms the reminder record, starts this session's wait marker, runs the full `Attempt::First` tail                                                                                          | nothing; the turn start marker is deliberately untouched                                                                                                                            | moshi's own code when forwarded, otherwise 0 | `an_approval_leaves_the_turn_marker_alone`, `the_blocked_hook_writes_nothing_the_harness_would_read_as_a_decision`, `the_decision_log_carries_the_payloads_mode_agent_and_tool`; the forward itself is `docs/specs/blocking-approval.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `asked`         | `session_id`, `cwd`, the message chain                                                                         | full `Attempt::First` tail; starts this session's wait marker                                                                                                                        | nothing; the turn start marker is untouched                                                                                                                                         | 0                                            | `an_mcp_server_waiting_on_input_notifies_as_asked_and_names_the_server`, `the_hook_writes_nothing_the_harness_could_read_as_an_answer_and_exits_zero`, `a_non_blocking_event_never_pays_for_the_round_trip`, `a_waiting_agent_leaves_a_marker_and_the_next_event_from_that_session_removes_it`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `plan-ready`    | `session_id`, `cwd`, the message chain                                                                         | full `Attempt::First` tail; starts this session's wait marker                                                                                                                        | nothing                                                                                                                                                                             | 0                                            | NOT ESTABLISHED (see behavior 20)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `denied`        | `session_id`, `cwd`, `tool_name`, `tool_input` (through the message chain)                                     | full `Attempt::First` tail; starts this session's wait marker                                                                                                                        | nothing; the turn start marker is untouched                                                                                                                                         | 0                                            | `a_refused_tool_call_notifies_as_denied_and_says_which_tool_was_refused`, `a_refused_tool_call_leaves_the_turn_marker_alone`, `a_denial_never_pays_for_the_approval_round_trip_and_still_exits_zero`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `resolved`      | `session_id`, and whether the `agent_id` key is present at all                                                 | writes this session's answered nag marker                                                                                                                                            | the nag record; this session's wait marker, only when the payload carries no `agent_id` key                                                                                         | 0                                            | `a_resolved_batch_with_no_agent_id_ends_its_sessions_wait`, `a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit`, `a_resolved_batch_with_a_malformed_agent_id_still_leaves_the_parents_wait_lit`, `an_answered_approval_is_never_nudged_by_either_clearing_signal`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `resolved`      | `session_id`, and whether the `agent_id` key is present at all                                                 | writes this session's answered remind marker                                                                                                                                            | the reminder record; this session's wait marker, only when the payload carries no `agent_id` key                                                                                         | 0                                            | `a_resolved_batch_with_no_agent_id_ends_its_sessions_wait`, `a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit`, `a_resolved_batch_with_a_malformed_agent_id_still_leaves_the_parents_wait_lit`, `an_answered_approval_is_never_nudged_by_either_clearing_signal`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `model-switch`  | `source`, `from_model`, `to_model`, `session_id`, `cwd`                                                        | a decision ring line only, and only when `source` is `auto` and the two names differ once rendered plainly                                                                           | nothing                                                                                                                                                                             | 0                                            | `an_observation_still_delivers_and_is_logged`, `an_auto_switch_between_equal_names_delivers_nothing`, `an_auto_switch_missing_a_model_name_delivers_nothing`, `an_auto_switch_strips_a_unicode_format_character_from_the_name`, `a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing`, and the seven `an_observation_*` tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `quota`         | `notification_type`, `message`, `session_id`, `cwd`                                                            | a decision ring line; `quota_auto_resume_stale` additionally starts this session's wait marker                                                                                       | nothing                                                                                                                                                                             | 0                                            | `quota_auto_resume_fired_delivers_one_card_naming_itself`, `quota_auto_resume_stale_delivers_one_card_naming_itself`, `quota_auto_resume_disabled_delivers_one_card_naming_itself`, `a_quota_notification_carrying_no_message_still_names_what_happened`, `an_unrecognised_notification_type_delivers_nothing`, `quota_auto_resume_stale_arms_the_needs_marker_for_its_own_session`, `a_stale_wait_arms_the_needs_marker_before_the_card_is_delivered`, `quota_auto_resume_fired_and_disabled_arm_no_needs_marker`, `every_quota_type_is_logged_as_an_observation_with_no_nag`, and the seven `no_quota_type_*` / `a_quota_observation_*` tests                                                                                                                                                                           |
+| `quota`         | `notification_type`, `message`, `session_id`, `cwd`                                                            | a decision ring line; `quota_auto_resume_stale` additionally starts this session's wait marker                                                                                       | nothing                                                                                                                                                                             | 0                                            | `quota_auto_resume_fired_delivers_one_card_naming_itself`, `quota_auto_resume_stale_delivers_one_card_naming_itself`, `quota_auto_resume_disabled_delivers_one_card_naming_itself`, `a_quota_notification_carrying_no_message_still_names_what_happened`, `an_unrecognised_notification_type_delivers_nothing`, `quota_auto_resume_stale_arms_the_needs_marker_for_its_own_session`, `a_stale_wait_arms_the_needs_marker_before_the_card_is_delivered`, `quota_auto_resume_fired_and_disabled_arm_no_needs_marker`, `every_quota_type_is_logged_as_an_observation_with_no_remind`, and the seven `no_quota_type_*` / `a_quota_observation_*` tests                                                                                                                                                                           |
 | `config-change` | `source`, `file_path`, `session_id`, `cwd`                                                                     | a decision ring line; `policy_settings` additionally appends one line to the bounded policy-settings audit trail                                                                     | nothing                                                                                                                                                                             | 0                                            | `each_config_change_source_delivers_one_card_naming_itself_and_its_file`, `a_config_change_with_no_file_names_only_the_source`, `config_change_events_each_deliver_their_own_card_with_no_once_ever_guarantee`, `a_hostile_file_path_is_sanitised_before_it_reaches_the_card`, `an_unrecognised_config_source_delivers_nothing_and_writes_nothing`, `a_policy_settings_change_is_recorded_to_a_bounded_audit_trail`, `a_non_policy_config_change_writes_no_policy_audit_entry`, `the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry`, `an_enormous_file_path_cannot_wipe_the_policy_audit_trail`, `a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry`, `an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail`, and the six `a_config_change_*` observation tests |
 
 The five words that START a wait marker are `pulse::LAMP_BLOCKED`: `blocked`, `asked`, `plan-ready`,
 `denied`, `asking` (`src/lights.rs:blocked_marker_action`). Every other event state from a session ENDS
-that session's wait. `asking` is on the list because a `stop` whose condenser verdict is `asking` becomes
+that session's wait. `asking` is on the list because a `stop` whose summarizer verdict is `asking` becomes
 an event with that state word.
 
 ______________________________________________________________________
@@ -119,9 +119,10 @@ Then the wait expires at `payload_deadline()` and the hook returns 0 having deli
   (`src/main.rs:hook_mode`,
   `tests/hooks.rs:a_payload_nobody_finishes_writing_still_exits_on_the_contract`, which also asserts
   nothing is sent on a guess).
-- Thresholds: 5 seconds by default (`payload_deadline`). `PNS_PAYLOAD_DEADLINE_MS` overrides it in
-  milliseconds through `env_deadline`, and the test drives it at 200 ms. A value that does not parse as
-  milliseconds falls back to the 5 second default rather than to no bound.
+- Thresholds: 5 seconds by default (`payload_deadline`). `PNS_PAYLOAD_DEADLINE` overrides it with a
+  `<count><ms|s|m|h>` duration through `env_duration`, and the test drives it at `200ms`. A value that
+  does not parse, or that falls outside `1ms` to `60s`, is reported on standard error and falls back to
+  the 5 second default rather than to no bound.
 - Required side effects: none.
 - Forbidden side effects: the hook must not hang. Hanging here would park the harness turn before any
   part of the exit contract could run, which is the regression the deadline exists for.
@@ -322,7 +323,7 @@ Then the process exits 0, whatever went wrong building the notification.
 - Success: every end-to-end test in `tests/hooks.rs` for `prompt`, `stop`, `stop-failure`, `asked`,
   `plan-ready`, `denied`, `resolved`, `model-switch`, `quota` and `config-change` asserts
   `status.code() == Some(0)` or `status.success()`.
-- Failure sources: an unparseable payload, an unreadable transcript, a dead condenser, a garbage
+- Failure sources: an unparseable payload, an unreadable transcript, a dead summarizer, a garbage
   environment knob, an unserved event word.
 - Fail direction: always zero. "Every path here is a notification, and a notification that cannot be
   delivered must never fail the turn it reports on, so every path returns 0" (`src/main.rs:hook_mode`).
@@ -395,9 +396,9 @@ Then it goes to standard error.
   asserting the trimmed stderr equals that string).
 - Failure sources: the other two writers are a plugin-selection warning printed by `run_event` when
   `select_plugins` returns one, and `pns: an answered marker could not be written ({error})` from
-  `clear_nag`.
-- Fail direction: informative and non-fatal. `clear_nag` explicitly notes "ON STDERR AND NEVER ON STDOUT:
-  this runs on a harness hook whose output the harness reads" (`src/main.rs:clear_nag`).
+  `clear_remind`.
+- Fail direction: informative and non-fatal. `clear_remind` explicitly notes "ON STDERR AND NEVER ON STDOUT:
+  this runs on a harness hook whose output the harness reads" (`src/main.rs:clear_remind`).
 - Thresholds: Not applicable.
 - Required side effects: none.
 - Forbidden side effects: none of these may move to standard output.
@@ -408,7 +409,7 @@ Then it goes to standard error.
 - Compatibility contract: NOT ESTABLISHED: nothing in `tests/hooks.rs` asserts that standard error is
   EMPTY on a healthy hook run, so a build that started narrating there would not turn a test red.
   Searched `tests/hooks.rs` for `stderr`: the only assertions on its contents are the unknown-event one
-  above (line 1708) and two in the `pns nag` section (lines 3511 and 3513), which is a typed mode rather
+  above (line 1708) and two in the `pns remind` section (lines 3511 and 3513), which is a typed mode rather
   than a hook event. Also NOT ESTABLISHED: the plugin-selection warning in `run_event` is printed with a
   bare `eprintln!("{warning}")` and carries no `pns: ` prefix, unlike the argv path's warnings; no test
   in `tests/hooks.rs` pins either spelling.
@@ -437,8 +438,8 @@ Then `start_of_turn` writes the turn start marker only if none exists, and `end_
 - Thresholds: Not applicable.
 - Required side effects: the marker file is `state_dir()/session-<session_id>.start` holding the epoch
   seconds as text (`src/main.rs:turn_marker`), with the parent directory created on demand.
-- Forbidden side effects: `prompt` delivers nothing. It calls neither `run_event` nor `clear_nag`, so no
-  channel fires, no decision ring line is written and no nag record is touched (`src/main.rs:hook_mode`,
+- Forbidden side effects: `prompt` delivers nothing. It calls neither `run_event` nor `clear_remind`, so no
+  channel fires, no decision ring line is written and no remind record is touched (`src/main.rs:hook_mode`,
   the `prompt` arm).
 - Timeout and cancellation: only the payload read is bounded; the rest is two file operations.
 - Idempotency and duplicates: the write is guarded on `!marker.exists()`, so repeated prompts inside one
@@ -454,7 +455,7 @@ Given a `Stop` payload
 
 When `end_of_turn` runs
 
-Then `consume_turn_marker` renames the marker to a per-process claim path, reads it, removes the claim, and returns the elapsed seconds, all before the reply, the condenser or any delivery.
+Then `consume_turn_marker` renames the marker to a per-process claim path, reads it, removes the claim, and returns the elapsed seconds, all before the reply, the summarizer or any delivery.
 
 - Success: a marker at 9,000 seconds ago yields a long turn and the pulse fires; a marker at 5 seconds
   ago does not (`tests/hooks.rs:a_turn_long_enough_pulses_and_a_short_one_does_not`).
@@ -463,10 +464,11 @@ Then `consume_turn_marker` renames the marker to a per-process claim path, reads
 - Fail direction: closed, meaning "not long". `consume_turn_marker` returns `None` on any of them, and
   `pulse::session_was_long(None, _)` is false. A hand-edited marker is not a crash and is still consumed
   (`tests/hooks.rs:a_corrupt_marker_declines_rather_than_crashing_and_is_still_consumed`).
-- Thresholds: `session_was_long` is `elapsed_secs >= threshold_secs`. The default threshold is
-  `pulse::DEFAULT_LONG_SESSION_SECS` = 300 seconds, overridable by `PNS_PULSE_THRESHOLD_SECS`. At exactly
-  300 seconds elapsed the turn IS long; at 299 it is not (`src/pulse.rs:session_was_long`, and the crate
-  unit test at `src/pulse.rs` asserting `session_was_long(Some(300), Some(300))`).
+- Thresholds: `session_was_long` is `elapsed_secs >= threshold_secs`. The threshold is
+  `pulse::DEFAULT_LONG_SESSION_SECS` = 300 seconds, fixed: it is its own constant, not `[lights.loop]
+  arm_after`, which arms the loop lamp on a different clock. At exactly 300 seconds elapsed the turn
+  IS long; at 299 it is not (`src/pulse.rs:session_was_long`, and the crate unit test at `src/pulse.rs`
+  asserting `session_was_long(Some(300), Some(300))`).
 - Required side effects: the marker is gone afterwards
   (`tests/hooks.rs:stopping_consumes_the_marker_so_a_second_stop_cannot_re_fire_the_tier`), and the claim
   file `session-<id>.claim.<process id>` is removed too.
@@ -478,29 +480,29 @@ Then `consume_turn_marker` renames the marker to a per-process claim path, reads
 - Timeout and cancellation: Not applicable, three file operations.
 - Idempotency and duplicates: the claim makes it exactly-once per marker. The reason it runs FIRST is
   ordering rather than speed: Stop is asynchronous, so the next prompt can arrive while this one is still
-  condensing, and a claim at the end would delete the marker its successor relied on
+  summarizing, and a claim at the end would delete the marker its successor relied on
   (`src/main.rs:consume_turn_marker`,
-  `tests/hooks.rs:a_prompt_arriving_while_the_previous_stop_condenses_keeps_its_own_marker`, which uses a
-  handshake with the condenser stub rather than a timed sleep).
+  `tests/hooks.rs:a_prompt_arriving_while_the_previous_stop_summarizes_keeps_its_own_marker`, which uses a
+  handshake with the summarizer stub rather than a timed sleep).
 - Privacy: Not applicable.
 - Process ownership and cleanup: the claim path carries this process's own id, so two racers cannot
   collide on the claim name.
 - Compatibility contract: the value is validated before it reaches arithmetic, so a truncated write or a
   hand edit is a decision rather than a crash.
 
-## 14. `stop` reports what the turn said, condensed
+## 14. `stop` reports what the turn said, summarized
 
 Given a claimed turn
 
 When `end_of_turn` builds the event
 
-Then `turn_reply` yields the turn's text, an empty reply becomes state `done` with no detail, and a non-empty reply goes through `condense`.
+Then `turn_reply` yields the turn's text, an empty reply becomes state `done` with no detail, and a non-empty reply goes through `summarize`.
 
 - Success: the payload's own `last_assistant_message` becomes the detail with no transcript read
   (`tests/hooks.rs:the_payloads_own_final_text_becomes_the_detail_without_reading_a_transcript`, which
-  also asserts `project` is `dotfiles` off `cwd` `/a/dotfiles`). A condenser line overrides both state
+  also asserts `project` is `dotfiles` off `cwd` `/a/dotfiles`). A summarizer line overrides both state
   and detail: `asking|it wants a choice` yields state `asking` and detail `it wants a choice`
-  (`tests/hooks.rs:a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back`).
+  (`tests/hooks.rs:a_summarizer_line_is_used_state_and_all_and_a_blank_summary_falls_back`).
 - Failure sources: a turn that said nothing; a whitespace-only reply.
 - Fail direction: still notifies. A reply of `"   "` yields detail `""` and state `done`
   (`tests/hooks.rs:a_turn_with_nothing_readable_still_notifies_with_no_detail`). Emptiness is judged on
@@ -520,16 +522,16 @@ Then `turn_reply` yields the turn's text, an empty reply becomes state `done` wi
   `submissions` helper rather than a filename so the guard survives a transport switch).
 - Timeout and cancellation: see behaviors 15 and 16.
 - Idempotency and duplicates: a second Stop delivers a second card; only the tier is exactly-once.
-- Privacy: the turn's own text is sent to the condenser subprocess and to every configured channel.
+- Privacy: the turn's own text is sent to the summarizer subprocess and to every configured channel.
 - Process ownership and cleanup: see behavior 16.
-- Compatibility contract: a condenser state the prompt never offered is not a verdict.
-  `condenser_verdict` accepts only `done`, `asking` and `blocked`
+- Compatibility contract: a summarizer state the prompt never offered is not a verdict.
+  `summarizer_verdict` accepts only `done`, `asking` and `blocked`
   (`src/hooks.rs:a_state_the_prompt_never_offered_is_not_a_verdict`). Note that `asking` and `blocked`
-  are both wait words, so a Stop condensed to either one STARTS a wait marker instead of ending one
+  are both wait words, so a Stop summarized to either one STARTS a wait marker instead of ending one
   (`src/pulse.rs:LAMP_BLOCKED`, `src/lights.rs:blocked_marker_action`). NOT ESTABLISHED: no test in
-  `tests/hooks.rs` drives a condenser verdict of `asking` or `blocked` and then inspects
-  `waiting_sessions`. Searched the marker section (lines 2894 to 3115) and the condenser tests (lines 186
-  to 234); the marker tests all use a Stop with no reply, which condenses to `done`.
+  `tests/hooks.rs` drives a summarizer verdict of `asking` or `blocked` and then inspects
+  `waiting_sessions`. Searched the marker section (lines 2894 to 3115) and the summarizer tests (lines 186
+  to 234); the marker tests all use a Stop with no reply, which summarizes to `done`.
 
 ## 15. The transcript is the fallback, re-read inside a bounded window
 
@@ -548,12 +550,13 @@ Then the transcript tail is read up to `1 + reread_attempts()` times, sleeping `
 - Fail direction: an empty string, reported the same as a turn that said nothing. "An expired window
   proves only that nothing readable arrived in time" (`src/main.rs:turn_reply`).
 - Thresholds: `DEFAULT_REREAD_ATTEMPTS` = 4 and `DEFAULT_REREAD_INTERVAL` = 150 ms, so the default is 5
-  reads across roughly 600 ms of sleeping. `MAX_REREAD_ATTEMPTS` = 10 and `MAX_REREAD_INTERVAL` = 5
-  seconds clamp the two environment knobs (`PNS_REPLY_REREAD_ATTEMPTS`, `PNS_REPLY_REREAD_INTERVAL`), so
-  the worst case is 11 reads across 50 seconds. A knob of `11` clamps to 10; a knob of `10` is taken as
-  10\. An interval of `6` clamps to 5 seconds; `5` is taken as 5. The caps exist because their PRODUCT is
-  how long a Stop can sit re-reading, so "a stray zero in either costs seconds, never hours"
-  (`src/main.rs:MAX_REREAD_ATTEMPTS`).
+  reads across roughly 600 ms of sleeping. `MAX_REREAD_ATTEMPTS` = 10 clamps `PNS_REPLY_REREAD_ATTEMPTS`,
+  and `MAX_REREAD_INTERVAL` = 5 seconds REFUSES `PNS_REPLY_REREAD_INTERVAL` rather than clamping it: an
+  out-of-range interval falls back to `DEFAULT_REREAD_INTERVAL` instead of to the ceiling, so the worst
+  case a bad knob produces is 11 reads across roughly 1.5 seconds of sleeping at the default. A knob of
+  `11` clamps to 10; a knob of `10` is taken as 10\. An interval of `6s` is refused and falls back to
+  150 ms; `5s` is taken as 5s. The caps exist so a stray or malformed value costs at most seconds, never
+  minutes (`src/main.rs:MAX_REREAD_ATTEMPTS`).
 - Required side effects: none, this is a read.
 - Forbidden side effects: a bad knob must not panic. `reread_attempts_from` falls back to the default
   rather than to no retries when the value does not parse. `reread_interval_from` uses
@@ -605,55 +608,55 @@ Then `symlink_metadata` is called on the link itself, a non-regular file yields 
 - Compatibility contract: a transcript is a regular file. That is the assumption, stated in the source
   and enforced rather than trusted.
 
-## 17. The condenser is a bounded, re-entrant-guarded subprocess
+## 17. The summarizer is a bounded, re-entrant-guarded subprocess
 
 Given a non-empty reply
 
-When `condense` runs
+When `summarize` runs
 
-Then it spawns Codex against a private stripped home with a fixed prompt, bounded by `CONDENSER_DEADLINE`, and falls back to `("done", render::preview(reply))` on anything short of a usable verdict.
+Then it spawns Codex against a private stripped home with a fixed prompt, bounded by `SUMMARIZER_DEADLINE`, and falls back to `("done", render::preview(reply))` on anything short of a usable verdict.
 
 - Success: a stub printing `asking|it wants a choice` sets both state and detail
-  (`tests/hooks.rs:a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back`).
-- Failure sources: `PNS_SUMMARIZING` already set; no condenser home; the binary missing; a child that
+  (`tests/hooks.rs:a_summarizer_line_is_used_state_and_all_and_a_blank_summary_falls_back`).
+- Failure sources: `PNS_SUMMARIZING` already set; no summarizer home; the binary missing; a child that
   closes standard output and sleeps; a child that never reads its standard input; a verdict line with a
   blank summary; a state word the prompt never offered.
 - Fail direction: the fallback, always. A summary of spaces is as blank as no summary, so the reply
   itself stands (same test, second half). A state with a blank summary used to count as a hit, which
   shipped a title-only notification over a turn that had text, live on 2026-08-12
-  (`src/hooks.rs:condenser_verdict`).
-- Thresholds: `CONDENSER_DEADLINE` = 30 seconds, overridable in milliseconds by
-  `PNS_CONDENSER_DEADLINE_MS`. Output is capped at `PROBE_READ_MAX` = 1,048,576 bytes. The fallback
+  (`src/hooks.rs:summarizer_verdict`).
+- Thresholds: `SUMMARIZER_DEADLINE` = 30 seconds, overridable by a duration in
+  `PNS_SUMMARIZER_DEADLINE`. Output is capped at `PROBE_READ_MAX` = 1,048,576 bytes. The fallback
   preview is capped at `render::PREVIEW_MAX_CHARS` = 260 characters, cut at the last sentence end that
   fits and otherwise clipped with a trailing `…` (`src/render.rs:preview`, `src/render.rs:clipped`). The
-  condenser prompt itself asks for a summary "up to 320 characters" (`src/hooks.rs:condenser_prompt`).
-- Required side effects: `condenser_home` creates the home 0700 and, only when absent, writes
+  summarizer prompt itself asks for a summary "up to 320 characters" (`src/hooks.rs:summarizer_prompt`).
+- Required side effects: `summarizer_home` creates the home 0700 and, only when absent, writes
   `config.toml` 0600 with `create_new` containing `model = "gpt-5.5"\nmodel_reasoning_effort = "low"\n`;
   it then removes and re-creates `auth.json` as a symbolic link to `$HOME/.codex/auth.json`. The command
   is `codex exec --ephemeral --skip-git-repo-check -C <home> -s read-only -` with `PNS_SUMMARIZING=1` and
-  `CODEX_HOME=<home>` in its environment (`src/main.rs:condense`, `src/main.rs:condenser_home`).
-  `CODEX_BIN` and `PNS_CODEX_HOME` override the binary and the home.
+  `CODEX_HOME=<home>` in its environment (`src/main.rs:summarize`, `src/main.rs:summarizer_home`).
+  `PNS_CODEX_BIN` and `PNS_CODEX_HOME` override the binary and the home.
 - Forbidden side effects: no pns-to-Codex-to-pns loop. The stripped home installs no hooks or plugins at
   all, which is the hard guarantee; `PNS_SUMMARIZING` is the cheap one
-  (`tests/hooks.rs:the_re_entry_guard_keeps_a_condenser_run_from_condensing_itself`). A dead turn never
+  (`tests/hooks.rs:the_re_entry_guard_keeps_a_summarizer_run_from_summarizing_itself`). A dead turn never
   spawns it at all; see behavior 18.
 - Timeout and cancellation: `run_bounded` waits on a thread and kills the child when the window closes,
   because there is no wait-with-timeout in the standard library and macOS ships no `timeout(1)`
   (`src/system.rs:run_bounded`). Two shapes are pinned: a child that closes standard output and sleeps
-  (`tests/hooks.rs:a_condenser_that_closes_stdout_and_sleeps_is_killed_at_its_deadline`) and a child that
+  (`tests/hooks.rs:a_summarizer_that_closes_stdout_and_sleeps_is_killed_at_its_deadline`) and a child that
   never drains its standard input, driven with a 200,000 character reply so the pipe buffer fills
-  (`tests/hooks.rs:a_condenser_that_never_reads_its_stdin_is_bounded_too`). The write to the child is
+  (`tests/hooks.rs:a_summarizer_that_never_reads_its_stdin_is_bounded_too`). The write to the child is
   inside the window, which it once was not.
 - Idempotency and duplicates: one spawn per Stop with a non-empty reply.
 - Privacy: the turn's flattened reply, up to 8000 characters, is written to the child's standard input,
   and the child runs against a home that symbolically links the live Codex credentials, which is why the
   home is created owner-only.
 - Process ownership and cleanup: the child is killed on deadline expiry by `run_bounded`.
-- Compatibility contract: the condenser's own answer format is one line, `STATE|SUMMARY`, and the LAST
-  usable line wins (`src/hooks.rs:the_condensers_last_usable_line_wins`). `asking` is narrowed in the
+- Compatibility contract: the summarizer's own answer format is one line, `STATE|SUMMARY`, and the LAST
+  usable line wins (`src/hooks.rs:the_summarizers_last_usable_line_wins`). `asking` is narrowed in the
   prompt text to "has a question or choice for YOU, the human operator, to answer", because the looser
   wording classified a status line reading "waiting on the remaining reviews" as `asking` and carded the
-  operator over a turn asking them nothing (`src/hooks.rs:condenser_prompt`).
+  operator over a turn asking them nothing (`src/hooks.rs:summarizer_prompt`).
 
 ## 18. `stop-failure` reports the death and reads nothing else
 
@@ -661,7 +664,7 @@ Given a `StopFailure` payload
 
 When `failed_turn` runs
 
-Then the turn marker is claimed, the nag record is cleared, and the event is delivered with state `failed` and the payload's own message as the detail, with no condenser call and no transcript read.
+Then the turn marker is claimed, the reminder record is cleared, and the event is delivered with state `failed` and the payload's own message as the detail, with no summarizer call and no transcript read.
 
 - Success: detail `API Error: 500 internal server error`, state `failed`, project `dotfiles`, pane
   `wX:p9` (`tests/hooks.rs:a_turn_that_died_notifies_as_failed_and_says_what_killed_it`, which also
@@ -679,9 +682,9 @@ Then the turn marker is claimed, the nag record is cleared, and the event is del
   long dead turn still earns its pulse (`tests/hooks.rs:a_long_turn_that_died_still_earns_its_pulse`).
 - Forbidden side effects: no model call on the one path where a model call has just failed, and no
   transcript read, since neither recovers the news. Both are pinned in one test: a Codex stub that
-  touches a file is the tripwire for the condenser, and a four-attempt two-second re-read loop is the
+  touches a file is the tripwire for the summarizer, and a four-attempt two-second re-read loop is the
   tripwire for the transcript, so a build that reads sits through eight seconds of sleeps and blows the
-  hang limit (`tests/hooks.rs:a_dead_turn_spawns_no_condenser_and_reads_no_transcript`). StopFailure must
+  hang limit (`tests/hooks.rs:a_dead_turn_spawns_no_summarizer_and_reads_no_transcript`). StopFailure must
   never reach moshi (`tests/hooks.rs:a_failed_turn_never_reaches_moshi`).
 - Timeout and cancellation: only `git_branch`, bounded at `GIT_DEADLINE` = 5 seconds.
 - Idempotency and duplicates: one card per StopFailure; the tier is exactly-once via the claim.
@@ -696,11 +699,11 @@ Given a `PostToolBatch` payload
 
 When `pns hook resolved` runs
 
-Then `clear_nag` writes this session's answered marker and removes its nag record, and `end_blocked_wait` removes the wait marker only when the payload carries no `agent_id` key.
+Then `clear_remind` writes this session's answered marker and removes its remind record, and `end_blocked_wait` removes the wait marker only when the payload carries no `agent_id` key.
 
 - Success: a batch with no `agent_id` ends the session's wait
   (`tests/hooks.rs:a_resolved_batch_with_no_agent_id_ends_its_sessions_wait`); the record is removed and
-  the marker written, and a following nag fire adds nothing
+  the marker written, and a following remind fire adds nothing
   (`tests/hooks.rs:an_answered_approval_is_never_nudged_by_either_clearing_signal`).
 - Failure sources: an `agent_id` key of any shape; a session id that cannot be a filename; a state
   directory that cannot be written.
@@ -708,7 +711,7 @@ Then `clear_nag` writes this session's answered marker and removes its nag recor
   wait lit, including for `null`, `7` and `""`
   (`tests/hooks.rs:a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit`,
   `tests/hooks.rs:a_resolved_batch_with_a_malformed_agent_id_still_leaves_the_parents_wait_lit`). A
-  marker that could not be written prints one line to standard error (`src/main.rs:clear_nag`), and the
+  marker that could not be written prints one line to standard error (`src/main.rs:clear_remind`), and the
   record removal is best effort, present or not.
 - Thresholds: Not applicable.
 - Required side effects: the answered marker is written FIRST and the record removed second, so a crash
@@ -720,7 +723,7 @@ Then `clear_nag` writes this session's answered marker and removes its nag recor
   `resolved` arm, and the same test, which asserts zero deliveries for `resolved` and one for `stop`).
 - Timeout and cancellation: only the payload read; the rest is at most two file operations.
 - Idempotency and duplicates: idempotent. The marker name is constant per session, so a second batch
-  rewrites the same file (`src/main.rs:clear_nag`).
+  rewrites the same file (`src/main.rs:clear_remind`).
 - Privacy: nothing from the payload is rendered or stored beyond the session id as a filename.
 - Process ownership and cleanup: no child process.
 - Compatibility contract: this arm is declared `async: true` (`PostToolBatch`), so it is UNORDERED
@@ -761,7 +764,7 @@ Then one `Attempt::First` event is built with that word as its state, the projec
   (`src/main.rs:hook_mode`,
   `tests/hooks.rs:a_denial_never_pays_for_the_approval_round_trip_and_still_exits_zero`,
   `tests/hooks.rs:a_non_blocking_event_never_pays_for_the_round_trip`).
-- Timeout and cancellation: no condenser and no `git` call; these three set no `branch`.
+- Timeout and cancellation: no summarizer and no `git` call; these three set no `branch`.
 - Idempotency and duplicates: one card per received event, no coalescing.
 - Privacy: `tool_name` is remote text when a connected Model Context Protocol server names its own tools,
   and on a Codex payload carrying neither `message` nor `detail` that name IS the whole card
@@ -781,7 +784,7 @@ When `pns hook model-switch` runs
 Then the event is delivered as an `Attempt::Observation` only when `source` is exactly `auto` AND `model_switch_detail` finds two non-empty, unequal names once rendered plainly.
 
 - Success: detail is `automatic session model change: claude-sonnet-4-5 to claude-opus-4-6`, state
-  `model-switch`, agent `claude`, one decision ring line containing `claude/model-switch` and `nag=no`
+  `model-switch`, agent `claude`, one decision ring line containing `claude/model-switch` and `remind=no`
   (`tests/hooks.rs:an_observation_still_delivers_and_is_logged`, whose payload carries a bell and a
   carriage-return-newline inside the model names).
 - Failure sources: any `source` other than `auto`; equal names; either name empty.
@@ -795,7 +798,7 @@ Then the event is delivered as an `Attempt::Observation` only when `source` is e
 - Thresholds: exact string equality on `auto`. `AUTO` does not match; neither does an absent key, which
   matters because "a gate that let an ABSENT source through would fire on every harness that sends none"
   (same test).
-- Required side effects: exactly one decision ring line, logged with `nag=no`.
+- Required side effects: exactly one decision ring line, logged with `remind=no`.
 - Forbidden side effects: an observation must not clear a wait, arm the unread lamp, write an activity
   line, move the presence edge, renew a loop lease, journal a miss, replay the journal or register a
   lights tick; see behavior 24. It is also labelled "automatic session model change" and never
@@ -835,8 +838,8 @@ Then `quota_label` matches exactly `quota_auto_resume_fired`, `quota_auto_resume
   `starts_with("quota_auto_resume_")` was measured to pass every test except those near misses.
 - Thresholds: an exact three-word allowlist, mirroring rather than trusting the matcher declared beside
   it in `modify_settings.json` (`src/main.rs:quota_label`).
-- Required side effects: one decision ring line per event, logged with `nag=no`
-  (`tests/hooks.rs:every_quota_type_is_logged_as_an_observation_with_no_nag`). For
+- Required side effects: one decision ring line per event, logged with `remind=no`
+  (`tests/hooks.rs:every_quota_type_is_logged_as_an_observation_with_no_remind`). For
   `quota_auto_resume_stale` only, `arm_quota_stale_wait` calls the wait marker's Start operation
   directly, gated on the lamps being live, meaning `[lights]` present AND the hue plugin enabled
   (`src/main.rs:arm_quota_stale_wait`,
@@ -933,7 +936,7 @@ When `run_event` reaches its contiguous tail
 
 Then it returns immediately after `record_decision`, so none of the First-delivery side effects run.
 
-- Success: the card is still delivered and the decision ring still carries one line with `nag=no`
+- Success: the card is still delivered and the decision ring still carries one line with `remind=no`
   (`tests/hooks.rs:an_observation_still_delivers_and_is_logged`).
 - Failure sources: a misrouting of one of the three arms as `Attempt::First`.
 - Fail direction: each restriction is pinned individually with a positive control asserting the delivery
@@ -966,18 +969,18 @@ Then it returns immediately after `record_decision`, so none of the First-delive
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: an observation shaped like a `PermissionRequest` is too late to gate here.
-  `blocking_event` forwards and arms the nag before `run_event` ever runs, so a caller on that path must
+  `blocking_event` forwards and arms the reminder before `run_event` ever runs, so a caller on that path must
   refuse the observation at the top of `blocking_event` itself (`src/main.rs:Attempt`).
 
 ## 25. The world is read at dispatch, not at the moment the hook started
 
-Given a Stop that spends seconds in the condenser
+Given a Stop that spends seconds in the summarizer
 
 When the delivery plan is built
 
 Then the surface reading is taken inside `run_event`, from one memoized probe set, rather than at process start.
 
-- Success: a phone marker touched as the hook starts and back-dated by the condenser stub to ten seconds
+- Success: a phone marker touched as the hook starts and back-dated by the summarizer stub to ten seconds
   ago, against a desk reading stated at two seconds, produces a banner and no phone card
   (`tests/hooks.rs:the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started`).
 - Failure sources: a presence reading nobody can parse; a stuck multiplexer.
@@ -1064,8 +1067,8 @@ Then `blocked_marker_action` maps the event's state word to Start or End, Start 
 - Privacy: the marker's contents are one epoch timestamp.
 - Process ownership and cleanup: fail-quiet on both arms; a marker that did not land costs one lamp its
   colour and never a card.
-- Compatibility contract: `[lights.blocked] give_up_after_secs` shorter than `[nag] after_secs` is
-  refused by name at configuration load, so the backstop can never sweep a wait the nag has not yet
+- Compatibility contract: `[lights.blocked] lease_expiry` shorter than `[remind] delay` is
+  refused by name at configuration load, so the backstop can never sweep a wait the reminder has not yet
   nudged (`src/main.rs:update_blocked_marker`, referring to `config::parse_config`).
 
 ## 28. The bare harness word is vouched for by shape, never by roster
@@ -1102,16 +1105,18 @@ ______________________________________________________________________
 
 ## Environment inputs this path reads
 
-| Variable                      | Read by                                    | Effect                                                                              |
-| ----------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
-| `PNS_PRODUCER`                | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
-| `HERDR_PANE_ID`               | every delivering arm                       | the pane the card focuses on click, passed verbatim                                 |
-| `PNS_STATE_DIR`               | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
-| `PNS_PAYLOAD_DEADLINE_MS`     | `payload_deadline`                         | the standard-input wait; defaults to 5 s                                            |
-| `PNS_REPLY_REREAD_ATTEMPTS`   | `reread_attempts`                          | extra transcript reads; default 4, clamped to 10                                    |
-| `PNS_REPLY_REREAD_INTERVAL`   | `reread_interval`                          | seconds between reads; default 0.15, clamped to 5                                   |
-| `PNS_CONDENSER_DEADLINE_MS`   | `condense`                                 | the condenser bound; defaults to 30 s                                               |
-| `PNS_SUMMARIZING`             | `condense`                                 | the cheap re-entry guard                                                            |
-| `CODEX_BIN`, `PNS_CODEX_HOME` | `condense`, `condenser_home`               | the condenser binary and its private home                                           |
-| `PNS_PULSE_THRESHOLD_SECS`    | `pulse_threshold_secs`                     | the long-turn threshold; defaults to 300                                            |
-| `HOME`                        | `state_dir`, `condenser_home`, `run_event` | the configuration and state roots                                                   |
+| Variable                          | Read by                                    | Effect                                                                              |
+| --------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `PNS_PRODUCER`                    | `hook_mode`                                | the harness name on the event; defaults to `claude`                                 |
+| `HERDR_PANE_ID`                   | every delivering arm                       | the pane the card focuses on click, passed verbatim                                 |
+| `[paths] state_dir`, `PNS_STATE_DIR` | `state_dir`                                | where markers, rings and the audit trail live; defaults to `$HOME/.local/state/pns` |
+| `PNS_PAYLOAD_DEADLINE`            | `payload_deadline`                         | the standard-input wait, a duration; defaults to 5 s                                |
+| `PNS_REPLY_REREAD_ATTEMPTS`       | `reread_attempts`                          | extra transcript reads; default 4, clamped to 10                                    |
+| `PNS_REPLY_REREAD_INTERVAL`       | `reread_interval`                          | a duration between reads; default 150ms, refused above 5s                           |
+| `PNS_SUMMARIZER_DEADLINE`          | `summarize`                                 | the summarizer bound, a duration; defaults to 30 s                                   |
+| `PNS_SUMMARIZING`                 | `summarize`                                 | the cheap re-entry guard                                                            |
+| `PNS_CODEX_BIN`, `PNS_CODEX_HOME` | `summarize`, `summarizer_home`               | the summarizer binary and its private home                                           |
+| `HOME`                            | `state_dir`, `summarizer_home`, `run_event` | the configuration and state roots                                                   |
+
+The long-turn threshold is `pulse::DEFAULT_LONG_SESSION_SECS`, a fixed 300 seconds with neither an
+environment nor a config override.

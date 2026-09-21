@@ -3,9 +3,7 @@
   "request_id": "nvim-7f3a9c2e-0001",
   "producer": "nvim",
   "session": "s-2026-09-06-a",
-  "event": "BufWritePost",
   "state": "done",
-  "occurred_at": 1788782400,
   "elapsed": "42s",
   "detail": "wrote 3 files",
   "project": "dotfiles",
@@ -13,6 +11,7 @@
   "pane": "wW:p21",
   "scope": "automatic",
   "route": "alert",
-  "interaction": { "kind": "none" },
+  "delivery_class": "health",
+  "remind": "5m",
   "extensions": { "nvim": { "buffer": 12 } }
 }

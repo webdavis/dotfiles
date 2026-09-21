@@ -12,9 +12,9 @@ fn away_from_the_desk_cards_the_phone_and_logs_but_raises_no_banner() {
         .pns()
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--detail", "a summary"]));
-    assert!(sandbox.fired("mobile"));
+    assert!(sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("macos-banner"), "away raises no banner");
+    assert!(!sandbox.fired("banner"), "away raises no banner");
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
     // is right here.
     let sandbox = Sandbox::new("desk-hidden");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, false);
     run(command
         .args([
@@ -36,9 +36,9 @@ fn at_the_desk_with_the_pane_out_of_sight_the_banner_is_the_whole_delivery() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     assert!(sandbox.fired("hermes"));
-    assert!(!sandbox.fired("mobile"), "the desk gets no card");
+    assert!(!sandbox.fired("phone"), "the desk gets no card");
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
     // so the event is already in front of the operator.
     let sandbox = Sandbox::new("desk-watching");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "0");
+    command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut command, true);
     run(command
         .args([
@@ -60,8 +60,8 @@ fn at_the_desk_watching_the_pane_only_the_log_fires() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(!sandbox.fired("macos-banner"), "the pane is in plain sight");
-    assert!(!sandbox.fired("mobile"));
+    assert!(!sandbox.fired("banner"), "the pane is in plain sight");
+    assert!(!sandbox.fired("phone"));
     assert!(sandbox.fired("hermes"));
 }
 
@@ -92,7 +92,7 @@ fn a_channel_is_handed_the_rendered_event_not_the_raw_arguments() {
         .args(["send", "--producer", "claude", "--state", "done"])
         .args(["--project", "dotfiles", "--branch", "main"])
         .args(["--detail", "a summary"]));
-    let event = sandbox.event("mobile");
+    let event = sandbox.event("phone");
     assert_eq!(event["agent"], "claude");
     for rendered in ["title", "message", "preview"] {
         // A MISSING key indexes to Null, and Null is != "", so the absence

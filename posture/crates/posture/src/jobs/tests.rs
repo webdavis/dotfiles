@@ -1,10 +1,10 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_adapters::{CommandOutput, CommandRunner};
 use posture_application::InspectionFailure;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// A launchd this test owns. NOTHING HERE TOUCHES THE REAL ONE: the units are
 /// written under a temporary home and every `launchctl` call is recorded
@@ -44,17 +44,10 @@ impl CommandRunner for Launchctl {
 }
 
 /// A home directory this test owns, removed with the test.
-struct Home(PathBuf);
+struct Home(Sandbox);
 impl Home {
     fn new() -> Self {
-        static NEXT: AtomicU64 = AtomicU64::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "posture-jobs-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir_all(&path).expect("a sandbox home");
-        Self(path)
+        Self(Sandbox::new("jobs"))
     }
     fn configure(&self, text: &str) {
         let directory = self.0.join(".config/posture");
@@ -65,12 +58,6 @@ impl Home {
         self.0.join(format!("Library/LaunchAgents/{label}.plist"))
     }
 }
-impl Drop for Home {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 struct Run {
     status: u8,
     stdout: String,
@@ -80,7 +67,7 @@ struct Run {
 
 fn act(verb: Verb, home: &Home, launchctl: Launchctl) -> Run {
     let mut jobs = native::Jobs::new(
-        home.0.clone(),
+        home.0.path().to_path_buf(),
         Path::new("/private/bin/posture"),
         launchctl.clone(),
         501,

@@ -42,3 +42,26 @@ fn tool_blocks_are_not_the_reply() {
 {"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"},{"type":"text","text":"said"}]}}"#;
     assert_eq!(transcript_reply(transcript), "said");
 }
+
+#[test]
+fn the_name_the_operator_gave_the_session_wins_over_the_generated_one() {
+    // THE ORDER THE RECAP DESIGN STATES, and the line shapes a real Claude
+    // Code transcript carries: `custom-title` is the rename, `ai-title` is
+    // the harness's own, and the newest of each is the one that counts.
+    let transcript = r#"{"type":"ai-title","aiTitle":"generated words"}
+{"type":"assistant","message":{"model":"claude-opus-5","content":[]}}
+{"type":"custom-title","customTitle":"the name I gave it"}"#;
+    let facts = session_facts(transcript);
+    assert_eq!(facts.custom_title, "the name I gave it");
+    assert_eq!(facts.ai_title, "generated words");
+    assert_eq!(facts.model, "claude-opus-5");
+}
+
+#[test]
+fn a_transcript_naming_no_title_says_so_rather_than_guessing_one() {
+    // A CODEX ROLLOUT, whose lines carry neither title field, so the caller
+    // falls back to what the session row already holds.
+    let transcript = r#"{"type":"session_meta","payload":{"session_id":"s1"}}
+{"type":"response_item","payload":{"role":"user"}}"#;
+    assert_eq!(session_facts(transcript), SessionFacts::default());
+}

@@ -1,5 +1,6 @@
 use super::*;
 use crate::CommandOutput;
+use crate::test_sandbox::Sandbox;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 struct Never;
@@ -16,11 +17,9 @@ impl CommandRunner for Never {
 
 #[test]
 fn a_directory_or_a_path_this_identity_cannot_execute_reads_as_a_missing_binary() {
-    let root = std::env::temp_dir().join(format!("posture-funnel-status-{}", std::process::id()));
-    // A pid comes round again, and the file below is left unwritable, so the
-    // tree is cleared rather than reused.
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("tailscale.d")).unwrap();
+    let sandbox = Sandbox::new("funnel-status");
+    let root = sandbox.path();
+    std::fs::create_dir(root.join("tailscale.d")).unwrap();
     let others_only = root.join("tailscale");
     std::fs::write(&others_only, "#!/bin/sh\n").unwrap();
     // Execute for group and other but never for the identity that would run it,

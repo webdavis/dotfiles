@@ -10,12 +10,11 @@ fn without_a_lights_table_nothing_new_reaches_the_bridge() {
     let long_running: Vec<&str> = LONG_DONE
         .iter()
         .copied()
-        .chain(["--long-running"])
+        .chain(["--elapsed", "300s"])
         .collect();
     assert_eq!(
         lamp_run(
             "lamps-no-table-long-done",
-            "",
             "",
             &long_running,
             Mute::Nothing,
@@ -27,7 +26,6 @@ fn without_a_lights_table_nothing_new_reaches_the_bridge() {
     assert_eq!(
         lamp_run(
             "lamps-no-table-blocked",
-            "",
             "",
             &BLOCKED,
             Mute::Nothing,
@@ -53,7 +51,6 @@ fn a_blocked_turn_lights_the_lamps_once_the_map_exists() {
     assert_eq!(
         lamp_run(
             "lamps-map-blocked",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Nothing,
@@ -83,16 +80,15 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
     let long_running: Vec<&str> = LONG_DONE
         .iter()
         .copied()
-        .chain(["--long-running"])
+        .chain(["--elapsed", "300s"])
         .collect();
     assert_eq!(
         lamp_run(
             "lamps-every-place-asleep",
-            "",
             &format!(
-                "[lights]\nrefresh_secs = 20\n\
-                 [lights.room.\"3F - Studio\"]\nshows = [\"done\"]\n\
-                 dim_window = \"{asleep}\"\ndim_behaviours = []\n"
+                "[lights]\narm_interval = \"20s\"\ndim_window = \"{asleep}\"\n\
+                 [lights.room.\"3F - Studio\"]\nbehaviours = [\"done\"]\n\
+                 dim_behaviours = []\n"
             ),
             &long_running,
             Mute::Nothing,
@@ -107,32 +103,6 @@ fn an_event_inside_every_dim_window_still_resolves_the_map_and_costs_no_leg() {
 }
 
 #[test]
-fn a_house_quiet_hours_nobody_can_parse_costs_the_routed_lamps_nothing() {
-    // `[plugins.hue] quiet_hours` IS NO LONGER A RUNG OF THE ROUTED CHAIN. It
-    // is now exactly one thing: the schedule a bare `pns lights quiet` reads,
-    // and the window the no-map pulse takes. A routed lamp states its own
-    // `dim_window` or has none, so a typo in the house key cannot darken it.
-    //
-    // THE NO-TABLE SIBLING IS ITS OWN TEST and it still holds:
-    // `a_malformed_quiet_hours_refuses_once_and_only_where_a_pulse_was_due`
-    // pins the whole-pulse refusal for a machine that wrote no `[lights]`
-    // table, which is the compatibility contract this must not move.
-    assert_eq!(
-        lamp_run(
-            "lamps-house-window-unreadable",
-            "quiet_hours = \"10pm-7am\"\n",
-            STUDIO_MAP,
-            &BLOCKED,
-            Mute::Nothing,
-            Presence::Away,
-        ),
-        (true, true, true, false, Some(0)),
-        "the routed lamps never consult the house key, so a typo there costs \
-         them nothing"
-    );
-}
-
-#[test]
 fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     // THE ONE NEW CONDITION `plan.pulse` DOES NOT ALREADY COVER. Arbitration
     // zeroes the plan's pulse for a muted event, so every other lamp in this
@@ -141,12 +111,11 @@ fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     // the only place the two answers can come out disagreeing about a lamp the
     // operator switched off.
     //
-    // TYPED, NOT INJECTED: the mute is armed by running `pns quiet 1h` in the
+    // TYPED, NOT INJECTED: the mute is armed by running `pns mute 1h` in the
     // same sandbox, which is the path an operator walks at bedtime.
     assert_eq!(
         lamp_run(
             "lamps-map-blocked-muted",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Everything,
@@ -158,7 +127,6 @@ fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
     assert_eq!(
         lamp_run(
             "lamps-map-blocked-unmuted",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Nothing,
@@ -172,7 +140,7 @@ fn the_operators_own_mute_takes_the_blocked_lamp_with_everything_else() {
 #[test]
 fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     // A GUARD, and it is the operator's own scope for this command: the lights
-    // mute is LIGHTS ONLY. `pns quiet` mutes the engine, this mutes one place's
+    // mute is LIGHTS ONLY. `pns mute` mutes the engine, this mutes one place's
     // lamps, and nothing reads the other's file. A mute that quietly took the
     // card with it would be the worst version of this feature: an approval the
     // operator is blocked on, silenced by a command about a bedroom lamp.
@@ -189,7 +157,6 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     assert_eq!(
         lamp_run(
             "lamps-adhoc-quiet-away",
-            "",
             STUDIO_MAP,
             &BLOCKED,
             Mute::Lights("3F - Studio"),
@@ -201,11 +168,10 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     // THE BANNER IS OPT IN like every other channel, so the desk runs below
     // switch it on: without its table the surface has nothing to raise and the
     // assertion would pass on a channel that was never enabled.
-    let with_banner = format!("[plugins.macos-banner]\nenabled = true\n{STUDIO_MAP}");
+    let with_banner = format!("[plugins.banner]\nenabled = true\n{STUDIO_MAP}");
     assert_eq!(
         lamp_run(
             "lamps-adhoc-quiet-desk",
-            "",
             &with_banner,
             &BLOCKED,
             Mute::Lights("3F - Studio"),
@@ -218,7 +184,6 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
     assert_eq!(
         lamp_run(
             "lamps-adhoc-unmuted-desk",
-            "",
             &with_banner,
             &BLOCKED,
             Mute::Nothing,
@@ -232,7 +197,7 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
 }
 
 /// A `github` extension on a producer submission reaches the lamp that names
-/// `github`, and a `neutral` outcome reaches no lamp at all.
+/// `checks`, and a `neutral` outcome reaches no lamp at all.
 ///
 /// THE WHOLE FEATURE, END TO END, WITH NO TRANSPORT: this is what "testable by
 /// hand the day it merges" means, and the two rows are the two halves of the
@@ -240,9 +205,9 @@ fn an_ad_hoc_lights_quiet_takes_the_lamps_and_leaves_every_other_leg_alone() {
 /// long-running tier the plan's own `pulse` is; a review request or a release
 /// has no colour and must not light anything.
 #[test]
-fn a_submitted_github_event_lights_the_github_lamp_unless_its_outcome_is_neutral() {
-    const GITHUB_MAP: &str = "[lights]\nrefresh_secs = 20\n\
-         [lights.lamp.\"3F - Studio - HCL1\"]\nshows = [\"github\"]\n";
+fn a_submitted_github_event_lights_the_checks_lamp_unless_its_outcome_is_neutral() {
+    const GITHUB_MAP: &str = "[lights]\narm_interval = \"20s\"\n\
+         [lights.lamp.\"3F - Studio - HCL1\"]\nbehaviours = [\"checks\"]\n";
     for (outcome, state, dials) in [
         ("failed", "failed", true),
         ("passed", "done", true),
@@ -250,7 +215,7 @@ fn a_submitted_github_event_lights_the_github_lamp_unless_its_outcome_is_neutral
     ] {
         let request = format!(
             r#"{{"schema":"pns.request/1","request_id":"gh-{outcome}","producer":"github",
-                "event":"workflow_run","state":"{state}",
+                "state":"{state}",
                 "extensions":{{"github":{{"repo":"webdavis/dotfiles","kind":"workflow_run",
                   "outcome":"{outcome}","title":"lint",
                   "url":"https://github.com/webdavis/dotfiles/actions/runs/1",

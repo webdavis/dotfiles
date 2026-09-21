@@ -39,10 +39,10 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // daemon that is down is not a fault either, so it reports here rather
     // than moving the exit code.
     assert_eq!(lines[summary + 5], DAEMON_NEVER_RAN_LINE, "{printed}");
-    // AND THE NAG IMMEDIATELY UNDER THE CLOCK, which is the placement that
-    // carries the one fact its own sentence leaves out: a nag with a dead daemon
+    // AND THE REMINDER IMMEDIATELY UNDER THE CLOCK, which is the placement that
+    // carries the one fact its own sentence leaves out: a reminder with a dead daemon
     // never fires, and the line above already says whether the daemon is up.
-    assert_eq!(lines[summary + 6], NAG_OFF_LINE, "{printed}");
+    assert_eq!(lines[summary + 6], REMIND_OFF_LINE, "{printed}");
     assert_eq!(lines[summary + 7], HOME_UNCONFIGURED_LINE, "{printed}");
     assert_eq!(lines[summary + 8], LIGHTS_OFF_LINE, "{printed}");
     // AND THE PIN ROW AT THE FOOT OF THE LIGHTS SECTION, below the dial whose
@@ -134,6 +134,38 @@ fn a_doctor_with_no_moshi_hook_to_run_says_so_and_leaves_the_exit_code_to_the_se
 }
 
 #[test]
+fn the_doctor_ignores_the_unprefixed_moshi_hook_bin_name() {
+    // The doctor reads `PNS_MOSHI_HOOK_BIN` only. A stub reachable through
+    // the old, unprefixed `MOSHI_HOOK_BIN` must be invisible to it: the
+    // default helper below still points `PNS_MOSHI_HOOK_BIN` nowhere, so a
+    // working stub under the old name must not change the verdict.
+    let sandbox = Sandbox::new("doctor-pairing-old-name-ignored");
+    sandbox.write_config(EVERY_DISPATCHED_CHANNEL);
+    let mut command = doctor_command(&sandbox);
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    let script = bin.join("moshi-hook");
+    write_script(
+        &script,
+        &format!(
+            "case \"$*\" in\n\
+             *--json*) printf '%s' '{PAIRED_STATUS_JSON}' ;;\n\
+             *) printf '%s' '{PAIRED_STATUS_PLAIN}' ;;\n\
+             esac"
+        ),
+    );
+    command.env("MOSHI_HOOK_BIN", &script);
+    let output = command.output().expect("the engine runs");
+
+    let printed = stdout(&output);
+    assert!(printed.contains(NO_MOSHI_HOOK_LINE), "{printed}");
+    assert!(
+        !printed.contains("moshi says"),
+        "the old name must not reach a real stub: {printed}"
+    );
+}
+
+#[test]
 fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
     // THE PLAIN CALL IS THE ONLY NETWORK I/O THE DOCTOR DOES ON ITS OWN
     // BEHALF, so it is the one place a hang could park a hand-typed command.
@@ -154,8 +186,8 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
         ),
     );
     let mut command = doctor_command(&sandbox);
-    command.env("MOSHI_HOOK_BIN", &script);
-    command.env("PNS_MOSHI_STATUS_DEADLINE_MS", "200");
+    command.env("PNS_MOSHI_HOOK_BIN", &script);
+    command.env("PNS_MOSHI_STATUS_DEADLINE", "200ms");
 
     let started = std::time::Instant::now();
     let output = command.output().expect("the engine runs");
@@ -199,8 +231,8 @@ fn a_moshi_hook_that_never_returns_does_not_park_the_doctor() {
         ),
     );
     let mut command = doctor_command(&sandbox);
-    command.env("MOSHI_HOOK_BIN", &script);
-    command.env("PNS_MOSHI_JSON_DEADLINE_MS", "200");
+    command.env("PNS_MOSHI_HOOK_BIN", &script);
+    command.env("PNS_MOSHI_JSON_DEADLINE", "200ms");
 
     let started = std::time::Instant::now();
     let output = command.output().expect("the engine runs");
@@ -320,7 +352,7 @@ fn an_answer_over_the_byte_cap_is_refused_on_both_legs_rather_than_read() {
          esac",
     );
     let mut command = doctor_command(&sandbox);
-    command.env("MOSHI_HOOK_BIN", &script);
+    command.env("PNS_MOSHI_HOOK_BIN", &script);
 
     let started = std::time::Instant::now();
     let output = command.output().expect("the engine runs");

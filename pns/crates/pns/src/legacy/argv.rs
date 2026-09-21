@@ -1,20 +1,17 @@
-//! pns's legacy CLI contract is lenient; elapsed timing is validated separately.
+//! pns's CLI contract is strict: bad input is refused and named.
 //!
-//! Legacy arguments sit on an always-exit-0 notification path, so their
-//! problems WARN and degrade rather than abort. Elapsed timing refuses invalid
-//! input before notification. Four rules carry the
-//! contract: a value-taking flag whose next token is missing or is itself a
-//! RECOGNIZED flag is warned about and ignored WITHOUT consuming that token
-//! (consuming it would silently drop the real flag, e.g. leak an event a
-//! caller narrowed with `--pane --scope local_only`); an unrecognized next token
-//! IS taken as the value, the leniency the bash deliberately retained; any
-//! other unknown argument is skipped silently; and `--help`/`-h` sitting in
-//! FLAG position wins over all three and turns the event into a usage print,
-//! while the same word sitting where a flag's value belongs is still just a
-//! value, under the second rule.
+//! Four rules carry it: a value-taking flag whose next token is missing or is
+//! itself a RECOGNIZED flag is refused WITHOUT consuming that token (consuming
+//! it would silently drop the real flag, e.g. leak an event a caller narrowed
+//! with `--pane --scope local_only`); an unrecognized next token IS taken as
+//! the value, the leniency that lets a detail begin with a dash; any other
+//! unknown argument is refused and named; and `--help`/`-h` sitting in FLAG
+//! position wins over all three and turns the event into a usage print, while
+//! the same word sitting where a flag's value belongs is still just a value,
+//! under the second rule.
 
-use pns_domain::{DeliveryScope, EventArgs, routes::Kind};
-use pns_protocol::State;
+use pns_domain::{DeliveryScope, EventArgs};
+use pns_protocol::{Remind, State};
 
 /// Every flag that takes a value. Private: the only consumers are the
 /// predicates in this module. It used to be `pub` so a test could assert the
@@ -31,15 +28,15 @@ const VALUE_FLAGS: [&str; 12] = [
     "--elapsed",
     "--request-id",
     "--session",
-    "--kind",
+    "--delivery-class",
     "--scope",
 ];
 
 /// Every flag that takes no value. It is a LIST rather than a chain of
-/// comparisons because the chain is what went stale: `--long-running` was
-/// handled below and never added here, so a value flag in front of it ate it as
-/// its value and the tier vanished without a warning.
-const BARE_FLAGS: [&str; 2] = ["--long-running", "--require-delivery"];
+/// comparisons because the chain is what went stale before: a bare flag
+/// handled elsewhere and never added here let a value flag in front of it eat
+/// it as its value and the signal vanished without a warning.
+const BARE_FLAGS: [&str; 2] = ["--remind", "--no-remind"];
 
 /// Every flag pns used to take, paired with the one that replaced it and by
 /// whether it took a value. A retired flag is REFUSED and the refusal names its
@@ -48,20 +45,70 @@ const BARE_FLAGS: [&str; 2] = ["--long-running", "--require-delivery"];
 /// that took a value consumes it too, so `--channel priority` does not leave
 /// `priority` behind as a stray word; a bare one consumes nothing, so
 /// `--local-only --help` still prints the usage it asked for.
-const RETIRED_FLAGS: [(&str, &str, bool); 4] = [
+const RETIRED_FLAGS: [(&str, &str, bool); 7] = [
     ("--agent", "--producer", true),
+    ("--kind", "--delivery-class", true),
     ("--channel", "--route", true),
     ("--local-only", "--scope", false),
     ("--remote-only", "--scope", false),
+    ("--long-running", "--elapsed", false),
+    (
+        "--require-delivery",
+        "the exit code, which always reports delivery now",
+        false,
+    ),
 ];
 
 /// Whether a token is a producer flag. A retired flag counts, so a flag whose
-/// value is missing (`--detail --agent x`) is warned about rather than eating
-/// the retired flag as its value.
+/// value is missing (`--detail --agent x`) is refused rather than eating the
+/// retired flag as its value.
 fn is_producer_flag(token: &str) -> bool {
     VALUE_FLAGS.contains(&token)
         || BARE_FLAGS.contains(&token)
         || RETIRED_FLAGS.iter().any(|(retired, ..)| *retired == token)
+}
+
+/// Whether a token is a flag pns takes that this parse acts on nowhere: the
+/// reminder switch, which `remind_switch` reads off the raw argv, and the
+/// tool-wide colour flag, which the composition root already answered. Each
+/// is recognized here so the strict unknown-argument rule does not refuse a
+/// flag pns takes.
+fn is_answered_elsewhere(token: &str) -> bool {
+    BARE_FLAGS.contains(&token)
+        || token.starts_with("--remind=")
+        || token == crate::invocation::NO_COLOR_FLAG
+}
+
+/// The reminder switch a hook's own argv carried, or `None` when it named
+/// neither flag.
+///
+/// THE VALUE IS JOINED WITH `=`, the convention of `git log --color[=<when>]`:
+/// a value separated by a space is never read as the delay, so the token after
+/// `--remind` is never swallowed.
+///
+/// THE LAST ONE WINS, so a wrapper appending its own switch overrides the one
+/// it wrapped rather than being ignored by it.
+pub fn remind_switch(argv: &[String]) -> Result<Option<Remind>, String> {
+    let mut switch = None;
+    for token in argv {
+        let found = match token.as_str() {
+            "--remind" => Remind::Configured,
+            "--no-remind" => Remind::Off,
+            other => match other.strip_prefix("--remind=") {
+                Some(duration) => Remind::After(remind_after(duration)?),
+                None => continue,
+            },
+        };
+        switch = Some(found);
+    }
+    Ok(switch)
+}
+
+/// `--remind=<duration>`'s own value, read by the parser every other pns
+/// duration goes through and held to the range `[remind] delay` is held to.
+fn remind_after(duration: &str) -> Result<std::time::Duration, String> {
+    pns_domain::duration::parse_duration("--remind", duration, pns_adapters::remind_delay_range())
+        .map_err(|refusal| refusal.trim_start_matches("pns: ").to_owned())
 }
 
 /// Whether a token is `--help`/`-h`.
@@ -77,36 +124,28 @@ pub fn is_help_flag(token: &str) -> bool {
 pub(super) struct ParsedArgs {
     pub help: bool,
     pub event: EventArgs,
-    pub warnings: Vec<String>,
-    /// `--require-delivery`: whether this caller wants the exit code to say
-    /// that its page did not reach the durable log.
-    ///
-    /// OPT-IN, AND IT HAS TO BE. Decision 0010 says a notification never fails
-    /// the work it reports on, and every harness hook, the shell notifier and
-    /// the daemon call this while real work is in flight. A caller that asked
-    /// for the answer is a caller that can take it; every other one keeps the
-    /// exit-0 contract untouched.
-    pub require_delivery: bool,
-    /// The first retired flag argv carried, already worded as its refusal.
-    retired: Option<String>,
+    /// The first flag-level refusal argv earned: a retired flag, a flag
+    /// given no value, or a word that is no flag of pns's at all.
+    flag_refusal: Option<String>,
     /// `--state`: what happened, in one of six words. A seventh word refuses
     /// the event rather than being delivered as itself, because the state is
     /// what the lamps, the routes and the recap all read and a word none of
     /// them knows is a page nobody gets.
     state: Option<String>,
     elapsed: Result<Option<u64>, String>,
-    /// `--request-id` and `--session`: the two identifiers a JSON producer
-    /// already sends, now spelled as flags. Each is held to the identifier
-    /// rules the envelope holds its twin to, so one spelling cannot carry a
-    /// value the other refuses.
+    /// `--request-id`, `--session` and `--delivery-class`: the names a JSON
+    /// producer already sends, now spelled as flags. Each is held to the
+    /// identifier rules the envelope holds its twin to, so one spelling
+    /// cannot carry a value the other refuses.
     identifiers: Result<(), String>,
     /// `--session`: the harness session this event belongs to, which lands in
     /// the same payload field a JSON request's `session` does.
     pub session: String,
-    /// `--kind`: what the event IS, which decides its route when the producer
-    /// named none. A word that is neither kind refuses the event rather than
-    /// falling back to the default, the same way a bad `--elapsed` does.
-    kind: Result<Kind, String>,
+    /// `--delivery-class`: what the event IS for delivery, which decides its
+    /// route when the producer named none and whether it passes a mute. The
+    /// same vocabulary the JSON request's `delivery_class` takes, because one
+    /// field spelled two ways is still one field.
+    pub delivery_class: String,
     /// `--scope`: how wide this delivery may reach, in one of three words. One
     /// flag cannot contradict itself, which is why the pair it replaced needed
     /// a refusal for being given together and this does not.
@@ -117,15 +156,14 @@ impl ParsedArgs {
     /// The event, or the first refusal argv earned: said on stderr, and nothing
     /// is delivered.
     pub fn into_event(self) -> Result<Option<EventArgs>, String> {
-        if let Some(retired) = self.retired {
-            return Err(retired);
+        if let Some(refusal) = self.flag_refusal {
+            return Err(refusal);
         }
         if let Some(refusal) = self.state {
             return Err(refusal);
         }
         self.identifiers?;
         let elapsed = self.elapsed?;
-        let kind = self.kind?;
         let event = match elapsed {
             Some(seconds) => pns_domain::elapsed_event(self.event, seconds),
             None => Some(self.event),
@@ -133,49 +171,50 @@ impl ParsedArgs {
         let Some(mut event) = event else {
             return Ok(None);
         };
-        // THE KIND TRAVELS, NEVER THE ROUTE IT NAMES. Which route a kind takes
-        // is settled once the config is read (`EventArgs::routed`), because the
-        // route's NAME is the operator's (`[routes] urgent`) and this parse
-        // runs before any file is opened.
-        event.kind = kind;
+        // THE DELIVERY CLASS TRAVELS, NEVER THE ROUTE IT NAMES. Which route a
+        // class takes is settled once the config is read (`EventArgs::routed`),
+        // because the class is the operator's (`[delivery_class.<name>]`) and
+        // this parse runs before any file is opened.
+        event.delivery_class = self.delivery_class;
         event.scope = self.scope?;
         Ok(Some(event))
     }
 }
 
-/// Parse argv, retaining legacy warnings and a separate elapsed refusal.
+/// Parse argv, keeping the first refusal of each kind rather than the last.
 pub(super) fn parse_args<I>(argv: I) -> ParsedArgs
 where
     I: IntoIterator<Item = String>,
 {
     let mut parsed = EventArgs::default();
     let mut help = false;
-    let mut require_delivery = false;
-    let mut warnings = Vec::new();
     let mut elapsed = Ok(None);
     let mut identifiers = Ok(());
     let mut session = String::new();
-    let mut retired = None;
+    let mut flag_refusal = None;
     let mut state = None;
-    let mut kind = Ok(Kind::default());
+    let mut delivery_class = String::new();
     let mut scope = Ok(DeliveryScope::default());
     let mut tokens = argv.into_iter().peekable();
     while let Some(token) = tokens.next() {
         match token.as_str() {
-            "--long-running" => parsed.long_running = true,
-            "--require-delivery" => require_delivery = true,
             // HELP IN FLAG POSITION WINS: this arm only ever sees a token
             // that reached the top of the loop unconsumed, so `--state
             // --help` never lands here, the value arm below already took
             // `--help` as `--state`'s value by the time this token is asked
             // about again.
             flag if is_help_flag(flag) => help = true,
-            "--kind" => {
-                let word = tokens.next_if(|next| !is_producer_flag(next));
-                if kind.is_ok() {
-                    kind = word.as_deref().and_then(Kind::from_word).ok_or_else(|| {
-                        format!("--kind requires one of: {}", Kind::WORDS.join(", "))
-                    });
+            "--delivery-class" => {
+                let value = tokens
+                    .next_if(|next| !is_producer_flag(next))
+                    .unwrap_or_default();
+                match pns_protocol::Name::new(value.as_str()) {
+                    Ok(_) => delivery_class = value,
+                    Err(error) => {
+                        identifiers = identifiers.and(Err(format!(
+                            "--delivery-class is not a usable name: {error}"
+                        )));
+                    }
                 }
             }
             "--scope" => {
@@ -233,10 +272,10 @@ where
                     }
                 }
             }
-            // ITS OWN ARM, like `--kind` and `--elapsed` above, rather than the
-            // generic value flag below: a missing value refuses the same way an
-            // out-of-set word does, instead of warning and delivering an event
-            // with no state at all.
+            // ITS OWN ARM, like `--delivery-class` and `--elapsed` above,
+            // rather than the generic value flag below: a missing value refuses
+            // the same way an out-of-set word does, instead of warning and
+            // delivering an event with no state at all.
             "--state" => {
                 let value = tokens.next_if(|next| !is_producer_flag(next));
                 if State::from_word(value.as_deref().unwrap_or_default()).is_none() {
@@ -249,9 +288,9 @@ where
             }
             flag if VALUE_FLAGS.contains(&flag) => {
                 // Missing, or a recognized flag standing where the value
-                // should be: warn and leave the token for its own arm.
+                // should be: refuse and leave the token for its own arm.
                 if tokens.peek().is_none_or(|next| is_producer_flag(next)) {
-                    warnings.push(format!("{flag} given without a value; ignoring"));
+                    flag_refusal.get_or_insert_with(|| format!("{flag} requires a value"));
                     continue;
                 }
                 let Some(value) = tokens.next() else { continue };
@@ -264,34 +303,38 @@ where
                     _ => parsed.pane = value,
                 }
             }
+            token if is_answered_elsewhere(token) => {}
             _ => {
-                if let Some((flag, replacement, takes_value)) =
-                    RETIRED_FLAGS.iter().find(|(flag, ..)| *flag == token)
-                {
-                    // ITS VALUE GOES WITH IT: leaving `codex` behind would
-                    // make the next unknown-token rule read it as a stray word.
-                    if *takes_value {
-                        tokens.next_if(|next| !is_producer_flag(next));
+                match RETIRED_FLAGS.iter().find(|(flag, ..)| *flag == token) {
+                    Some((flag, replacement, takes_value)) => {
+                        // ITS VALUE GOES WITH IT: leaving `codex` behind would
+                        // make the value a second refusal of its own.
+                        if *takes_value {
+                            tokens.next_if(|next| !is_producer_flag(next));
+                        }
+                        flag_refusal
+                            .get_or_insert_with(|| format!("{flag} was replaced by {replacement}"));
                     }
-                    retired.get_or_insert_with(|| format!("{flag} was replaced by {replacement}"));
+                    // STRICT, AND THE SAME SHAPE THE JSON PATH REFUSES AN
+                    // UNKNOWN FIELD WITH: a word pns skipped in silence was a
+                    // caller whose narrowing, detail or route went nowhere.
+                    None => {
+                        flag_refusal
+                            .get_or_insert_with(|| format!("{token} is not a flag pns takes"));
+                    }
                 }
             }
         }
     }
-    if elapsed != Ok(None) && parsed.long_running {
-        elapsed = Err("--elapsed cannot be combined with --long-running".to_owned());
-    }
     ParsedArgs {
         help,
         event: parsed,
-        warnings,
-        require_delivery,
-        retired,
+        flag_refusal,
         state,
         elapsed,
         identifiers,
         session,
-        kind,
+        delivery_class,
         scope,
     }
 }

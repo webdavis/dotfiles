@@ -50,7 +50,7 @@ fn subject() -> Heartbeat<Fixture, Fixture, Fixture> {
 #[test]
 fn fresh_canary_submits_one_silent_observation_after_clock_and_log() {
     let mut sut = subject();
-    sut.run();
+    assert_eq!(sut.run(), Submission::Accepted);
     assert_eq!(*sut.clock.calls.borrow(), ["clock", "snapshots", "submit"]);
     assert_eq!(sut.sink.alerts.len(), 1);
     let alert = &sut.sink.alerts[0];
@@ -90,7 +90,7 @@ fn missing_unreadable_stale_and_implausible_are_observations() {
     }
 }
 #[test]
-fn every_submission_failure_is_fire_and_forget_without_retry_or_state() {
+fn every_submission_failure_is_returned_to_the_caller_without_retry_or_state() {
     for failure in [
         SubmissionFailure::Unavailable,
         SubmissionFailure::Failed,
@@ -101,7 +101,7 @@ fn every_submission_failure_is_fire_and_forget_without_retry_or_state() {
     ] {
         let mut sut = subject();
         sut.sink.result = Submission::NotAccepted(failure);
-        sut.run();
+        assert_eq!(sut.run(), Submission::NotAccepted(failure));
         assert_eq!(*sut.clock.calls.borrow(), ["clock", "snapshots", "submit"]);
         assert_eq!(sut.sink.alerts.len(), 1);
     }

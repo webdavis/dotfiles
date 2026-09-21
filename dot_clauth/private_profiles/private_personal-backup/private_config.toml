@@ -29,7 +29,7 @@ fallback_threshold = 95
 # parks instead of turning off all accounts. Independent of
 # fallback_threshold, this profile still switches away at its own
 # threshold whenever another chain member has headroom.
-# last_resort = true
+last_resort = true
 
 # Marks this profile as the fallback chain's preferred (home) account.
 # At most one member is preferred; the toggle is a radio. Once live work

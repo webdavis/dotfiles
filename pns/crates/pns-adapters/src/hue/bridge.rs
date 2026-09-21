@@ -153,8 +153,8 @@ impl UreqBridge {
     /// states only how long it is willing to wait.
     pub fn new(hue: &super::HueSettings, deadline: Duration) -> Self {
         Self {
-            base: format!("https://{}/clip/v2/resource", hue.bridge),
-            key: hue.key.clone(),
+            base: format!("https://{}/clip/v2/resource", hue.bridge_host),
+            key: hue.api_key.clone(),
             deadline,
             pin: hue.certificate,
         }

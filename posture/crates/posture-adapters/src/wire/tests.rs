@@ -31,10 +31,39 @@ fn the_golden_result_decodes_to_the_fields_posture_acts_on() {
         result.request_id.as_ref().map(RequestId::as_str),
         Some("nvim-7f3a9c2e-0001")
     );
-    assert_eq!(result.status, Status::Degraded);
-    assert_eq!(result.diagnostics, vec!["ignored_field:detial".to_string()]);
+    assert_eq!(result.status, Status::Partial);
+    assert_eq!(result.diagnostics, vec!["ledger_committed".to_string()]);
     assert_eq!(result.destinations.len(), 2);
     assert_eq!(result.destinations[0].outcome, DeliveryOutcome::Delivered);
+    assert_eq!(result.ledger_sequence.as_deref(), Some("123"));
+    assert_eq!(result.destinations[0].name.as_str(), "macos-banner");
+    let failed = &result.destinations[1];
+    assert_eq!(failed.outcome, DeliveryOutcome::Failed);
+    assert_eq!(failed.route.as_ref().map(Name::as_str), Some("priority"));
+    assert_eq!(failed.note.as_deref(), Some("post FAILED HTTP 401"));
+    assert_eq!(failed.retry_at, Some(1_758_153_600));
+    // A leg on a destination's own default route states neither a route nor
+    // a retry time, rather than writing them as null.
+    assert_eq!(result.destinations[0].route, None);
+    assert_eq!(result.destinations[0].retry_at, None);
+    assert_eq!(result.ignored_fields, vec!["detial".to_string()]);
+}
+
+#[test]
+fn an_engine_that_never_learned_a_legs_answer_reads_unknown() {
+    let mut unresolved = value(RESULT);
+    unresolved["destinations"][1]["outcome"] = json!("unknown");
+    let result = decode_result(unresolved.to_string().as_bytes()).expect("an unknown leg");
+    assert_eq!(result.destinations[1].outcome, DeliveryOutcome::Unknown);
+}
+
+#[test]
+fn a_destination_still_naming_itself_with_the_retired_field_is_refused() {
+    let mut stale = value(RESULT);
+    let leg = stale["destinations"][0].as_object_mut().unwrap();
+    let name = leg.remove("name").unwrap();
+    leg.insert("destination".to_string(), name);
+    assert!(decode_result(stale.to_string().as_bytes()).is_err());
 }
 
 #[test]
@@ -78,6 +107,42 @@ fn a_schema_this_build_does_not_speak_is_malformed_on_both_envelopes() {
 }
 
 #[test]
+fn an_absent_optional_field_is_omitted_on_both_envelopes_rather_than_written_as_null() {
+    // The same rule the engine encodes by, pinned on posture's own reading:
+    // an optional field it says nothing about is a key that is not there.
+    let golden = Request::decode(REQUEST.as_bytes()).unwrap();
+    let bare = Request::new(golden.request_id, golden.producer, State::Observation);
+    let text = bare.encode().unwrap();
+    for field in [
+        "session",
+        "elapsed",
+        "project",
+        "branch",
+        "pane",
+        "route",
+        "delivery_class",
+    ] {
+        assert_eq!(value(&text).get(field), None, "{field}");
+    }
+    assert!(!text.contains("null"), "{text}");
+
+    let mut result = decode_result(RESULT.as_bytes()).unwrap();
+    result.request_id = None;
+    result.ledger_sequence = None;
+    let text = result.encode().unwrap();
+    for field in ["request_id", "ledger_sequence"] {
+        assert_eq!(value(&text).get(field), None, "{field}");
+    }
+    // A result that writes them as null still decodes as absent.
+    let mut nulled = value(RESULT);
+    nulled["request_id"] = Value::Null;
+    nulled["ledger_sequence"] = Value::Null;
+    let decoded = decode_result(nulled.to_string().as_bytes()).unwrap();
+    assert_eq!(decoded.request_id, None);
+    assert_eq!(decoded.ledger_sequence, None);
+}
+
+#[test]
 fn a_result_missing_its_status_is_malformed_rather_than_defaulted() {
     let mut without = value(RESULT);
     without.as_object_mut().unwrap().remove("status");
@@ -86,7 +151,7 @@ fn a_result_missing_its_status_is_malformed_rather_than_defaulted() {
 
 #[test]
 fn every_required_request_field_must_be_present() {
-    for field in ["request_id", "producer", "event", "state"] {
+    for field in ["request_id", "producer", "state"] {
         let mut without = value(REQUEST);
         without.as_object_mut().unwrap().remove(field);
         assert!(
@@ -141,13 +206,14 @@ fn identifiers_that_break_their_own_rules_are_refused_on_the_way_in() {
 }
 
 #[test]
-fn an_unknown_status_outcome_or_interaction_word_is_refused_rather_than_guessed() {
-    for field in ["status", "outcome", "interaction"] {
+fn an_unknown_or_wrapped_status_or_outcome_word_is_refused_rather_than_guessed() {
+    for field in ["status", "outcome", "wrapped_status", "wrapped_outcome"] {
         let mut hostile = value(RESULT);
         match field {
             "status" => hostile["status"] = json!("unknown"),
-            "outcome" => hostile["destinations"][0]["outcome"] = json!("unknown"),
-            _ => hostile["interaction"] = json!({ "kind": "unknown" }),
+            "outcome" => hostile["destinations"][0]["outcome"] = json!("unreported"),
+            "wrapped_status" => hostile["status"] = json!({ "kind": "partial" }),
+            _ => hostile["destinations"][0]["outcome"] = json!({ "kind": "delivered" }),
         }
         assert!(
             decode_result(hostile.to_string().as_bytes()).is_err(),

@@ -1,13 +1,18 @@
 use std::process::{Command, Output};
 
 /// Run to completion, asserting the exit-0 edge: a failed notification must
-/// never fail the caller.
+/// never fail the caller. Every call site here is a hook path, which always
+/// answers 0; a caller that expects a different code uses [`run_expecting`].
 pub fn run(command: &mut Command) -> Output {
+    run_expecting(0, command)
+}
+
+/// Run to completion, asserting the exit code named here. For the few
+/// callers on the delivery path whose page never lands, so `run`'s default
+/// stays pinned to the success edge everywhere else.
+pub fn run_expecting(code: i32, command: &mut Command) -> Output {
     let output = command.output().expect("the engine runs");
-    assert!(
-        output.status.success(),
-        "the engine must exit 0 on every path: {output:?}"
-    );
+    assert_eq!(output.status.code(), Some(code), "{output:?}");
     output
 }
 
@@ -20,8 +25,14 @@ pub fn run(command: &mut Command) -> Output {
 /// and neither says what it saw. This ends on the evidence, and the CALLER
 /// reports the failure, because only the caller knows how to describe what was
 /// there instead.
+///
+/// THE DEADLINE IS A HANG GUARD AND NOTHING ELSE, so it is set where no
+/// loaded run reaches it. At 10s it was still a reading of the machine:
+/// `lifecycle::a_hung_child_does_not_stall_the_tick_and_is_killed` waits here
+/// for a daemon start, a tick and a spawn, and spent all ten seconds on 3 of 4
+/// runs of the daemon suite under 256 synthetic CPU spinners.
 pub fn poll_until<T>(mut probe: impl FnMut() -> Option<T>) -> Option<T> {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
         if let Some(found) = probe() {
             return Some(found);

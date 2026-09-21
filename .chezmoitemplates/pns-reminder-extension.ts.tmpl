@@ -1,0 +1,87 @@
+// The half of the pns reminder extension that is the same on both harnesses:
+// where the engine lives, how a session is named, and how a call is made.
+// Each harness file supplies its own default export, because the event pair
+// that opens and closes a question differs between them.
+
+const pnsBinary = "{{ .binary }}"
+const producer = "{{ .producer }}"
+
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value !== "") return value
+  }
+  return ""
+}
+
+// A per-session fallback for when nothing above answers, minted once as the
+// module loads: this process is one harness session, so it stays stable for
+// every event the session raises and distinct from any other session's. The
+// producer's bare name would not be: pns keys a wait by the session id, and
+// two concurrent sessions sharing one name would share one wait too.
+const fallbackSessionId = `${producer}-${Math.random().toString(36).slice(2)}`
+
+// The manager's own id when there is one, since that is what every other
+// extension on this harness reports and pns keys a wait by the session.
+function sessionId(event, ctx) {
+  const manager = ctx?.sessionManager
+  let managerId = ""
+  if (typeof manager?.getSessionId === "function") {
+    try {
+      managerId = String(manager.getSessionId() ?? "")
+    } catch {}
+  }
+  let sessionFile = ""
+  if (typeof manager?.getSessionFile === "function") {
+    try {
+      sessionFile = String(manager.getSessionFile() ?? "")
+    } catch {}
+  }
+  return firstString(
+    managerId,
+    event?.session_id,
+    event?.sessionId,
+    sessionFile,
+    fallbackSessionId,
+  )
+}
+
+// Fire and forget: the child is detached and unref'd and every failure is
+// swallowed, so a missing or slow engine never holds up the operator's turn.
+function callPns(args, eventName, event, ctx, extra) {
+  const payload = {
+    hook_event_name: eventName,
+    session_id: sessionId(event, ctx),
+    cwd: firstString(ctx?.cwd, process.cwd()),
+    ...extra,
+  }
+  try {
+    const child = spawn(pnsBinary, args, {
+      env: { ...process.env, PNS_PRODUCER: producer },
+      stdio: ["pipe", "ignore", "ignore"],
+      detached: true,
+    })
+    child.on("error", () => {})
+    child.stdin.on("error", () => {})
+    child.stdin.end(JSON.stringify(payload) + "\n")
+    child.unref()
+  } catch {}
+}
+
+// The waiting and answered pair pns needs: `--remind` arms the unanswered
+// reminder and `resolved` is what clears it, the same wiring Claude Code and
+// Codex carry in their own hook declarations. `waiting` also raises pns's own
+// notification, for a harness with no card of its own on this event.
+function waiting(eventName, event, ctx, extra) {
+  callPns(["hook", "blocked", "--remind"], eventName, event, ctx, extra)
+}
+
+// The same arm with no card: for a harness whose OWN extension already
+// reports this event to its own daemon socket, so a second notification from
+// here would double the approval up.
+function armOnly(eventName, event, ctx, extra) {
+  callPns(["hook", "arm-remind", "--remind"], eventName, event, ctx, extra)
+}
+
+function answered(eventName, event, ctx, extra) {
+  callPns(["hook", "resolved"], eventName, event, ctx, extra)
+}

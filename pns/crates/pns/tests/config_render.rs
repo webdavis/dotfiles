@@ -64,16 +64,16 @@ fn assert_refusal_left_the_template_untouched(template_path: &std::path::Path) {
 }
 
 /// THE MUTANT THIS PINS: the self-parse step skipped. `render` alone never
-/// bounds an integer, so a values file naming an out-of-range `after_secs`
+/// bounds a duration, so a values file naming an out-of-range `delay`
 /// renders successfully and would reach disk if nothing parsed it back.
 #[test]
 fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_writing() {
     let scratch = Scratch::new("self-parse-refusal");
     let values_path = scratch.path("config-values.toml");
     let template_path = scratch.path("private_config.toml.tmpl");
-    // 3601 is one past the nag ceiling `parse_config` enforces (an hour);
-    // `render` itself has no notion of that ceiling and writes it live.
-    std::fs::write(&values_path, "[nag]\nafter_secs = 3601\n").expect("write values");
+    // "61m" is one past the reminder ceiling `parse_config` enforces (an
+    // hour); `render` itself has no notion of that ceiling and writes it live.
+    std::fs::write(&values_path, "[remind]\ndelay = \"61m\"\n").expect("write values");
     std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
     let output = run(&values_path, &template_path);
@@ -91,7 +91,7 @@ fn a_values_file_that_renders_something_the_parser_rejects_is_refused_without_wr
 
 /// THE MUTANT THIS PINS: the literal-secret refusal check removed, OR
 /// narrowed by dropping any one path out of `secret_bearing_keys`. A single
-/// case covering only `plugins.hue.bridge` stays green if the others are
+/// case covering only `plugins.lights.bridge_host` stays green if the others are
 /// removed from that list; table-driving across all of them is what catches a
 /// narrowed roster. THE HERMES ROUTES ARE READ OFF THE VALUES FILE'S OWN KEY
 /// TABLE, so a route line added there is covered the moment it is written.
@@ -101,34 +101,38 @@ fn a_literal_value_at_any_secret_bearing_key_is_refused_without_writing() {
     // over the table the file wrote, so any name in it is secret-bearing.
     let hermes_routes = ["pns-events", "weather-balloons"].into_iter().map(|route| {
         (
-            format!("plugins.hermes.keys.{route}"),
-            format!("[plugins.hermes.keys]\n{route} = \"a-literal-key\"\n"),
+            format!("plugins.log.keys.{route}"),
+            format!("[plugins.log.keys]\n{route} = \"a-literal-key\"\n"),
         )
     });
     let fixed = [
         (
-            "plugins.mobile.token",
-            "[plugins.mobile]\ntoken = \"a-literal-token\"\n",
+            "plugins.phone.device_token",
+            "[plugins.phone]\ndevice_token = \"a-literal-token\"\n",
         ),
         (
-            "plugins.hue.bridge",
-            "[plugins.hue]\nbridge = \"192.168.1.9\"\nkey = { keepassxc = \"Hue Bridge\", field = \"Password\" }\nrooms = [\"Studio\"]\n",
+            "plugins.lights.bridge_host",
+            "[plugins.lights]\nbridge_host = \"192.168.1.9\"\napi_key = { keepassxc = \"Hue Bridge\", field = \"Password\" }\n",
         ),
         (
-            "plugins.hue.key",
-            "[plugins.hue]\nbridge = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\nkey = \"a-literal-key\"\nrooms = [\"Studio\"]\n",
+            "plugins.lights.api_key",
+            "[plugins.lights]\nbridge_host = { keepassxc = \"Hue Bridge\", field = \"UserName\" }\napi_key = \"a-literal-key\"\n",
         ),
         (
-            "plugins.discord.token",
-            "[plugins.discord]\ntoken = \"a-literal-token\"\n",
+            "plugins.log.bot_token",
+            "[plugins.log]\nbot_token = \"a-literal-token\"\n",
         ),
         (
-            "plugins.discord.channels.default",
-            "[plugins.discord.channels]\ndefault = \"9001\"\n",
+            "plugins.log.channels.default",
+            "[plugins.log.channels]\ndefault = \"9001\"\n",
         ),
         (
-            "plugins.router.api_key",
-            "[plugins.router]\napi_key = \"a-literal-key\"\n",
+            "plugins.home_presence.api_key",
+            "[plugins.home_presence]\napi_key = \"a-literal-key\"\n",
+        ),
+        (
+            "plugins.github.personal_access_token",
+            "[plugins.github]\npersonal_access_token = \"a-literal-token\"\n",
         ),
     ]
     .into_iter()
@@ -161,8 +165,7 @@ fn an_unknown_values_entry_is_refused_without_writing() {
     let scratch = Scratch::new("unknown-key-refusal");
     let values_path = scratch.path("config-values.toml");
     let template_path = scratch.path("private_config.toml.tmpl");
-    std::fs::write(&values_path, "[plugins.mobile]\nnot_a_real_key = true\n")
-        .expect("write values");
+    std::fs::write(&values_path, "[plugins.phone]\nnot_a_real_key = true\n").expect("write values");
     std::fs::write(&template_path, SENTINEL_TEMPLATE).expect("plant the sentinel template");
 
     let output = run(&values_path, &template_path);
@@ -220,7 +223,7 @@ fn running_the_binary_twice_against_the_same_values_file_writes_identical_bytes(
     let second_path = scratch.path("second.tmpl");
     std::fs::write(
         &values_path,
-        "[plugins.hue]\nrooms = [\"Studio\", \"Kitchen\"]\n[nag]\n",
+        "[lights]\ndim_window = \"22:00-07:00\"\n[remind]\n",
     )
     .expect("write values");
 
@@ -276,7 +279,7 @@ fn a_third_argument_prints_usage_and_exit_2() {
 fn checking_a_changed_resolved_configuration_refuses_without_writing() {
     let scratch = Scratch::new("check-changed");
     let values_path = scratch.path("values.toml");
-    let values = "[nag]\nafter_secs = 30\n";
+    let values = "[remind]\ndelay = \"30s\"\n";
     std::fs::write(&values_path, values).unwrap();
     let output = Command::new(BINARY)
         .arg("--check")
@@ -292,4 +295,47 @@ fn checking_a_changed_resolved_configuration_refuses_without_writing() {
     );
     assert_eq!(std::fs::read_to_string(&values_path).unwrap(), values);
     assert_eq!(std::fs::read_dir(&scratch.root).unwrap().count(), 1);
+}
+
+/// THE MUTANT THIS PINS: an `enabled` key dropped from the layout, or one
+/// turned into an `Example` so the switch ships with no value a reader can
+/// see. Every table the schema gives an `enabled` key writes exactly one
+/// line for it, live in a live table and commented in a commented one, and
+/// always at its own default.
+#[test]
+fn the_written_template_carries_one_enabled_line_per_table_that_declares_one() {
+    let scratch = Scratch::new("enabled-lines");
+    let values_path = scratch.path("config-values.toml");
+    let template_path = scratch.path("private_config.toml.tmpl");
+    std::fs::write(&values_path, "").expect("write values");
+
+    let output = run(&values_path, &template_path);
+    assert!(output.status.success(), "{output:?}");
+    let written = std::fs::read_to_string(&template_path).expect("read written template");
+    let declared = pns_adapters::TABLE_KEYS
+        .iter()
+        .filter(|(_, keys)| keys.contains(&"enabled"))
+        .count();
+    let lines: Vec<&str> = written
+        .lines()
+        .filter(|line| {
+            line.trim_start()
+                .trim_start_matches("# ")
+                .starts_with("enabled = ")
+        })
+        .collect();
+    assert_eq!(
+        lines.len(),
+        declared,
+        "one `enabled` line per table that declares one: {lines:?}"
+    );
+    // AND EVERY ONE OF THEM CARRIES A VALUE, which is what tells a written
+    // default from a commented example the reader has to guess at.
+    for line in lines {
+        let stated = line.trim_start().trim_start_matches("# ");
+        assert!(
+            stated == "enabled = true" || stated == "enabled = false",
+            "an `enabled` line states a boolean: {line:?}"
+        );
+    }
 }

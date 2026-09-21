@@ -13,8 +13,8 @@ use crate::legacy::{SEND_USAGE, is_help_flag};
 pub(crate) const SUBCOMMAND_USAGE: &[(&str, &str)] = &[
     ("send", SEND_USAGE),
     ("hook", crate::hook_dispatch::HOOK_USAGE),
-    ("quiet", crate::command_quiet::QUIET_USAGE),
-    ("daemon", crate::command_daemon::DAEMON_USAGE),
+    ("mute", crate::command_mute::MUTE_USAGE),
+    ("gateway", crate::command_gateway::GATEWAY_USAGE),
     ("lights", crate::command_lights::LIGHTS_USAGE),
     ("lights pulse", crate::command_lights::PULSE_USAGE),
     ("lights enroll", crate::command_enroll::ENROLL_USAGE),
@@ -22,10 +22,11 @@ pub(crate) const SUBCOMMAND_USAGE: &[(&str, &str)] = &[
     ("github", crate::command_github::GITHUB_USAGE),
     ("shell", crate::shell::SHELL_USAGE),
     ("loop", crate::lights_command::LOOP_USAGE),
-    ("nag", crate::command_nag::NAG_USAGE),
+    ("remind", crate::command_remind::REMIND_USAGE),
     ("stale", crate::command_stale::STALE_USAGE),
     ("failures", crate::command_failures::FAILURES_USAGE),
     ("recap", pns_application::RECAP_USAGE),
+    ("resume", crate::command_resume::RESUME_USAGE),
     ("setup", pns_application::SETUP_USAGE),
     ("doctor", crate::command_doctor::DOCTOR_USAGE),
     ("tap", crate::command_tap::TAP_USAGE),
@@ -66,7 +67,7 @@ fn usage_of(path: &str) -> Option<&'static str> {
 /// SLOT 0, OR SLOT 1 BEHIND A BARE VERB. A flag's value always follows its
 /// flag, so a help flag in slot 0 is never a value, and slot 1 is only read
 /// when slot 0 was a word rather than a flag. That is what keeps
-/// `pns send --detail --help` a detail text while `pns daemon schedule --help`
+/// `pns send --detail --help` a detail text while `pns gateway schedule --help`
 /// is a question.
 fn asked_for_help(tail: &[String]) -> bool {
     let mut words = tail.iter().map(String::as_str);
@@ -93,12 +94,12 @@ mod tests {
         "pns hook <event>",
         "pns shell begin",
         "pns shell end",
-        "pns daemon retry",
+        "pns gateway retry",
         "pns lights tick",
-        "pns nag",
+        "pns remind",
         "pns stale",
         "pns failures serve",
-        "pns recap --since",
+        "pns recap --since-epoch",
         "pns recap agent",
         "pns recap git",
         "pns presence poll [--daemon]",
@@ -139,8 +140,8 @@ mod tests {
             strings(&["schedule", "-h"]),
         ] {
             assert_eq!(
-                requested("daemon", &tail),
-                Some(crate::command_daemon::DAEMON_USAGE),
+                requested("gateway", &tail),
+                Some(crate::command_gateway::GATEWAY_USAGE),
                 "{tail:?}"
             );
         }

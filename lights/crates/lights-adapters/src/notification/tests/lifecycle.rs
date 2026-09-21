@@ -21,7 +21,6 @@ const LIVENESS_BOUND: Duration = Duration::from_secs(15);
 
 pub(super) struct Fixture {
     pub(super) root: PathBuf,
-    pub(super) child: PathBuf,
     pub(super) ready: PathBuf,
 }
 impl Fixture {
@@ -43,9 +42,9 @@ impl Fixture {
         fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
         let child = root.join("pns");
         let ready = root.join("ready");
-        fs::write(&child,format!("#!/bin/bash\nset -euo pipefail\ntrap '' TERM\nprintf '%s %s\\n' \"$$\" \"$PPID\" >'{}'\nexec /bin/sleep 30\n",ready.display())).unwrap();
+        fs::write(&child,format!("#!/bin/bash\nset -euo pipefail\ntrap '' TERM\nprintf '%s\\n' \"$$\" >'{}'\nexec /bin/sleep 30\n",ready.display())).unwrap();
         fs::set_permissions(&child, fs::Permissions::from_mode(0o700)).unwrap();
-        Self { root, child, ready }
+        Self { root, ready }
     }
 }
 
@@ -98,7 +97,7 @@ fn pns_child_hang_is_killed_and_reaped_without_failing_action() {
         for pid in ids.split_whitespace() {
             assert!(
                 !exists(pid),
-                "monitor and direct child must be gone before announce returns"
+                "the owned child must be gone before announce returns"
             );
         }
         fs::write(root.join("complete"), "original success").unwrap();

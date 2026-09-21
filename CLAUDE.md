@@ -665,9 +665,12 @@ newline-delimited JSON requests per jump through `HERDR_SOCKET_PATH`, opening a 
 request. Every socket failure falls back to the `herdr` CLI through `HERDR_BIN_PATH`. A keybinding passes
 NO arguments, so the label and the working directory are baked into each action's argv in the manifest,
 one action per workspace; herdr does not run an action through a shell, so the manifest's `~` is expanded
-by the plugin. Installed by `herdr plugin install` from the `packages.herdr_plugins` roster in
-`.chezmoidata/system_packages_autoinstall.yaml`, at the revision that roster pins; herdr clones the
-repository and runs the manifest's own `cargo build --release --locked`.
+by the plugin. The plugin ships no `herdr-plugin.toml` and so cannot be installed with
+`herdr plugin install`: its actions are a function of this machine's own workspace configuration at
+`dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml` (`[workspaces]` label = directory), so
+it is built and LINKED instead, from the `packages.herdr_linked_plugins` pin in
+`.chezmoidata/system_packages_autoinstall.yaml`, by
+`.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl`.
 
 The same plugin owns the workspace-level most-recently-used toggle on `prefix+ctrl+\\` (herdr ships
 `last_pane` but no workspace equivalent). Its `[[events]]` hook on `workspace.focused` fires for EVERY
@@ -697,17 +700,25 @@ own gates. **The manifest `id` is what herdr registers a plugin as**, verbatim, 
 namespacing, so the `plugin_action` keybindings in `dot_config/herdr/config.toml` are unaffected by the
 move.
 
-Two arrive by `herdr plugin install` from the `packages.herdr_plugins` roster. herdr v1 has no
-`plugin update`, so bumping a `ref` there does not move a plugin that is already installed: uu's weekly
-herdr lane reports the install command for the revision it is not at, and the operator runs it.
+One arrives by `herdr plugin install` from the `packages.herdr_plugins` roster: `herdr-smart-nav`. herdr
+v1 has no `plugin update`, so bumping its `ref` there is carried out as a reinstall: `run_after_53`
+compares the roster revision with the one `herdr plugin list --json` records and reinstalls it when it
+drifted, which an install over a GitHub-managed plugin does by replacing its managed checkout. So a pin
+bump lands on the next full apply, and uu's weekly herdr lane keeps reporting the same comparison for the
+week between applies.
 
-`herdr-process` is the exception and stays on the LINK path, driven by
-`.chezmoiscripts/run_onchange_after_58` and the `packages.herdr_linked_plugin` pin beside that roster. It
-ships no `herdr-plugin.toml`, because its actions are one set per declared process profile and the
-manifest is rendered from `dot_config/herdr/processes.toml` and `dot_config/herdr/config.toml` by
-`herdr-process generate`. herdr requires a committed manifest to install, and herdr plugin v1 registers
-no actions at runtime, so the builder clones the pinned revision into `~/.local/share/herdr-process`,
-compiles it, generates the manifest and links that directory.
+`herdr-process` and `herdr-workspace-jump` are the exception and stay on the LINK path, driven by
+`.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` and the
+`packages.herdr_linked_plugins` list beside the `herdr_plugins` roster. Neither ships a
+`herdr-plugin.toml`, because each plugin's actions are one set per its own declared configuration
+(herdr-process: process profiles, from `dot_config/herdr/processes.toml` and
+`dot_config/herdr/config.toml` via `herdr-process generate`; herdr-workspace-jump: workspaces, from
+`dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml` via `herdr-workspace-jump generate`).
+herdr requires a committed manifest to install, and herdr plugin v1 registers no actions at runtime, so
+the shared builder clones each plugin's pinned revision into `~/.local/share/<plugin-id>`, compiles it,
+generates its manifest and links that directory. Keys and workspace routes stay the operator's own
+configuration rather than baked into a plugin (operator ruling 2026-09-20): a new workspace is a config
+edit and an apply, never a pull request to the plugin repository.
 
 ### Herdr native status
 
@@ -760,15 +771,15 @@ than raising their own banner: the state is `done` or `failed` off the exit code
 command name and how long it ran, and the pane is `HERDR_PANE_ID`, which is what makes the banner focus
 that pane on click. Commands at 30s or longer go through the engine's normal presence gate (banner and
 Discord always, phone when away; operator ruling 2026-08-06: away means mobile, and mobile means
-glancing, so 30s is enough to earn the phone); at 5 minutes or longer pns selects `--long-running`, and
-the lights are part of the engine's own delivery plan from there, pulsing green on success and red
-otherwise off the same exit code the state came from. The shell used to make a second `pns lights pulse`
-call of its own, which meant the tier was decided twice and could disagree with itself.
-`pns lights pulse <exit-code>` still exists, but nothing in this repo calls it: it is the operator's
-manual command for signalling the lights by hand and for checking that a `[plugins.hue]` table's bridge
-and key actually work. Interactive TUIs are skipped by a prefix match on the command line: `vim`, `nvim`,
-`less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The agent CLIs are on
-that list because they fire their own relay hooks.
+glancing, so 30s is enough to earn the phone); at 5 minutes or longer the elapsed time itself crosses the
+long-running threshold, and the lights are part of the engine's own delivery plan from there, pulsing
+green on success and red otherwise off the same exit code the state came from. The shell used to make a
+second `pns lights pulse` call of its own, which meant the tier was decided twice and could disagree with
+itself. `pns lights pulse <exit-code>` still exists, but nothing in this repo calls it: it is the
+operator's manual command for signalling the lights by hand and for checking that a `[plugins.lights]`
+table's bridge and key actually work. Interactive TUIs are skipped by a prefix match on the command line:
+`vim`, `nvim`, `less`, `man`, `top`, `btop`, `ssh`, `herdr`, `claude`, `hermes`, `codex`, `fzf`. The
+agent CLIs are on that list because they fire their own relay hooks.
 
 ## Code Style
 

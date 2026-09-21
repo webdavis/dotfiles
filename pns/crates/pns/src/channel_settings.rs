@@ -11,22 +11,22 @@ use crate::*;
 /// it, and was told nothing.
 ///
 /// IT IS HANDED THE ARMED TABLE rather than the config, because every read of
-/// `[plugins.mobile]` goes through one accessor: a toggle honoured under a
+/// `[plugins.phone]` goes through one accessor: a toggle honoured under a
 /// table whose backend was refused would be one setting of a refused table
 /// still in force.
 fn watch_card(settings: &toml::Table) -> bool {
-    let Some(stated) = settings.get("mobile_watch_card") else {
+    let Some(stated) = settings.get("card_while_watching") else {
         return false;
     };
     stated.as_bool().unwrap_or_else(|| {
         eprintln!(
-            "pns: config error ([plugins.mobile] mobile_watch_card is {}, not a boolean); the mobile watching card stays off",
+            "pns: config error ([plugins.phone] card_while_watching is {}, not a boolean); the mobile watching card stays off",
             stated.type_str()
         );
         false
     })
 }
-/// What reading `[plugins.mobile]` decided, carried whole rather than
+/// What reading `[plugins.phone]` decided, carried whole rather than
 /// collapsed into an absent token.
 ///
 /// THE COMPLAINT TRAVELS WITH THE OUTCOME. A backend nobody answers and a
@@ -48,7 +48,7 @@ pub(crate) struct Mobile {
     /// posture and every card type's text card.
     pub(crate) image_cards: Vec<String>,
 }
-/// The one read of `[plugins.mobile]`, and the one place its refusal reaches
+/// The one read of `[plugins.phone]`, and the one place its refusal reaches
 /// stderr.
 ///
 /// THE COMPLAINT IS PRINTED HERE because this is the composition root, which is
@@ -57,7 +57,7 @@ pub(crate) struct Mobile {
 /// toggle and the refusal come out of a single verdict instead of three
 /// readers that each had to remember to ask the same question.
 pub(crate) fn read_mobile(config: &pns_adapters::Config) -> Mobile {
-    let settings = match pns_adapters::armed_mobile(config) {
+    let settings = match pns_adapters::armed_phone(config) {
         Ok(settings) => settings,
         Err(reason) => {
             eprintln!("pns: config error ({reason}); no card is pushed");
@@ -77,17 +77,13 @@ pub(crate) fn read_mobile(config: &pns_adapters::Config) -> Mobile {
         image_cards: pns_adapters::moshi_image_cards(settings),
     }
 }
-/// The one read of `[plugins.discord]`, and the one place its refusal reaches
-/// stderr. `read_mobile`'s shape exactly, and for its reasons.
+/// The one read of the durable log under its discord transport. NO REFUSAL TO
+/// PRINT: `[plugins.log] type` is settled at load, so the table is either the
+/// discord log's or it is not this reader's.
 pub(crate) fn read_discord(config: &pns_adapters::Config) -> DiscordSettings {
-    match pns_adapters::armed_discord(config) {
-        Err(reason) => {
-            eprintln!("pns: config error ({reason}); nothing is posted to discord");
-            DiscordSettings::refused(reason)
-        }
-        Ok(None) => DiscordSettings::default(),
-        Ok(Some(settings)) => pns_adapters::discord_settings(settings),
-    }
+    pns_adapters::armed_discord(config)
+        .map(pns_adapters::discord_settings)
+        .unwrap_or_default()
 }
 /// One line about a table the event path deliberately never refuses.
 ///
@@ -120,27 +116,26 @@ pub(crate) fn disabled_backend_warnings(config: &pns_adapters::Config) -> Vec<St
             .map(|entry| &entry.settings)
     };
     let mut warnings = Vec::new();
-    // THE TYPE ALONE on both tables. `router_settings` settles the type before
-    // it reads anything else, which is why only its two type refusals count
-    // here: a switched-off table naming a backend that DOES answer, with a
-    // missing `router_url` under it, is a different edit and not this
-    // warning's business.
-    if switched_off("router").is_some_and(|settings| {
+    // THE TYPE ALONE on both tables. The durable log is not among them: its
+    // `type` is refused at load whichever way its switch is set, because the
+    // type is what the table is filed under rather than a setting inside it.
+    // `router_settings` settles the type before it reads anything else,
+    // which is why only its two type refusals count here: a switched-off
+    // table naming a backend that DOES answer, with a missing `url`
+    // under it, is a different edit and not this warning's business.
+    if switched_off("home_presence").is_some_and(|settings| {
         matches!(
             pns_adapters::router_settings(settings),
             Err(pns_adapters::SetupFailure::NoType | pns_adapters::SetupFailure::UnknownType(_))
         )
     }) {
         warnings.push(disabled_backend_warning(
-            "router",
+            "home_presence",
             pns_domain::home::UNIFI_TYPE,
         ));
     }
-    if switched_off("mobile").is_some_and(|settings| mobile_backend(settings).is_err()) {
-        warnings.push(disabled_backend_warning("mobile", MOSHI_TYPE));
-    }
-    if switched_off("discord").is_some_and(|settings| discord_backend(settings).is_err()) {
-        warnings.push(disabled_backend_warning("discord", BOT_TYPE));
+    if switched_off("phone").is_some_and(|settings| phone_backend(settings).is_err()) {
+        warnings.push(disabled_backend_warning("phone", MOSHI_TYPE));
     }
     warnings
 }

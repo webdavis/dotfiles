@@ -195,17 +195,20 @@ fn elapsed_rejects_a_bare_number_and_every_other_non_duration() {
 }
 
 #[test]
-fn elapsed_rejects_an_explicit_tier_in_either_order() {
+fn long_running_is_refused_as_retired_whether_or_not_elapsed_is_also_given() {
+    // pns derives the tier from `--elapsed` alone now, so this flag is
+    // refused outright rather than accepted or silently dropped.
     for args in [
-        ["send", "--elapsed", "35s", "--long-running"],
-        ["send", "--long-running", "--elapsed", "35s"],
+        &["send", "--elapsed", "35s", "--long-running"][..],
+        &["send", "--long-running", "--elapsed", "35s"][..],
+        &["send", "--long-running"][..],
     ] {
-        let sandbox = Sandbox::new(&format!("elapsed-conflict-{}", args[1]));
+        let sandbox = Sandbox::new(&format!("long-running-retired-{}", args.join("-")));
         let output = run(command(&sandbox).args(args));
         assert_eq!(output.status.code(), Some(2));
         assert_eq!(
             stderr(&output),
-            "pns: --elapsed cannot be combined with --long-running\n"
+            "pns: --long-running was replaced by --elapsed\n"
         );
         assert!(!sandbox.fired("hermes"));
         assert!(!sandbox.state().exists());
@@ -223,27 +226,10 @@ fn help_still_wins_over_elapsed_refusal_without_delivery() {
 }
 
 #[test]
-fn legacy_events_keep_their_detail_and_explicit_long_running_tier() {
-    let sandbox = Sandbox::new("elapsed-legacy");
-    let output = run(command(&sandbox).args([
-        "send",
-        "--producer",
-        "shell",
-        "--state",
-        "done",
-        "--detail",
-        "build (305s)",
-        "--long-running",
-    ]));
-    assert_eq!(output.status.code(), Some(0));
-    assert_eq!(sandbox.event("hermes")["detail"], "build (305s)");
-}
-
-#[test]
 fn elapsed_still_obeys_the_presence_gate() {
     let sandbox = Sandbox::new("elapsed-presence");
     let mut command = command(&sandbox);
-    command.env("PNS_PHONE_INPUT_AGE", "0");
+    command.env("PNS_PHONE_INPUT_MAX_AGE", "0s");
     sandbox.stub_herdr(&mut command, true);
     let output = run(command.args([
         "send",
@@ -257,8 +243,8 @@ fn elapsed_still_obeys_the_presence_gate() {
         "t1:p2",
     ]));
     assert_eq!(output.status.code(), Some(0));
-    assert!(!sandbox.fired("mobile"));
-    assert!(!sandbox.fired("macos-banner"));
+    assert!(!sandbox.fired("phone"));
+    assert!(!sandbox.fired("banner"));
     assert!(
         sandbox.fired("hermes"),
         "the existing recording destination remains enabled"
@@ -266,15 +252,14 @@ fn elapsed_still_obeys_the_presence_gate() {
 }
 
 #[test]
-fn elapsed_flag_is_protected_and_empty_detail_is_rendered() {
+fn elapsed_flag_is_protected_and_the_missing_detail_is_refused() {
+    // `--elapsed` standing where the detail belongs is never eaten as it:
+    // the missing value is refused and named, and nothing is delivered.
     let sandbox = Sandbox::new("elapsed-protected");
     let output = run(command(&sandbox).args(["send", "--detail", "--elapsed", "35s"]));
-    assert_eq!(output.status.code(), Some(0));
-    assert_eq!(
-        stderr(&output),
-        "pns: --detail given without a value; ignoring\n"
-    );
-    assert_eq!(sandbox.event("hermes")["detail"], "35s");
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(stderr(&output), "pns: --detail requires a value\n");
+    assert!(!sandbox.fired("hermes"));
 }
 
 #[test]
@@ -342,7 +327,7 @@ fn one_duration_spelling_earns_one_tier_on_the_flag_path_and_the_json_path() {
 
         let json = Sandbox::new(&format!("duration-json-{elapsed}"));
         let request = format!(
-            r#"{{"schema":"pns.request/1","request_id":"nvim-{elapsed}","producer":"nvim","event":"finished","state":"done","detail":"neotest: owned","elapsed":"{elapsed}"}}"#
+            r#"{{"schema":"pns.request/1","request_id":"nvim-{elapsed}","producer":"nvim","state":"done","detail":"neotest: owned","elapsed":"{elapsed}"}}"#
         );
         let output = send_json(&json, &request);
         assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -362,7 +347,7 @@ fn a_bare_elapsed_number_is_refused_on_the_flag_path_and_the_json_path() {
     let json = Sandbox::new("duration-bare-json");
     let output = send_json(
         &json,
-        r#"{"schema":"pns.request/1","request_id":"nvim-bare","producer":"nvim","event":"finished","state":"done","elapsed":"90"}"#,
+        r#"{"schema":"pns.request/1","request_id":"nvim-bare","producer":"nvim","state":"done","elapsed":"90"}"#,
     );
     assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
     assert!(!json.fired("hermes"));

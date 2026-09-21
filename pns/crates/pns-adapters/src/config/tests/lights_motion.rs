@@ -5,14 +5,14 @@ fn a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_d
     // EVERY FADE MOVES TOWARD ONE OF THE TWO NAMED ENDS, and with them
     // swapped a fade to `high` would move the lamp down.
     for written in [
-        "[lights.blocked]\nhigh = 20\nlow = 40\n",
-        "[lights.unread]\nhigh = 20\nlow = 40\n",
-        "[lights.loop]\nhigh = 20\nlow = 40\n",
-        "[lights.dim]\nhigh = 2\nlow = 4\n",
+        "[lights.blocked]\nhigh_percent = 20\nlow_percent = 40\n",
+        "[lights.unseen]\nhigh_percent = 20\nlow_percent = 40\n",
+        "[lights.loop]\nhigh_percent = 20\nlow_percent = 40\n",
+        "[lights.dim]\nhigh_percent = 2\nlow_percent = 4\n",
     ] {
         let said = refusal(written);
         assert!(
-            said.contains("low 40") || said.contains("low 4"),
+            said.contains("low_percent 40") || said.contains("low_percent 4"),
             "{written:?} must name both ends: {said}"
         );
         assert!(
@@ -21,7 +21,7 @@ fn a_breath_whose_low_is_above_its_high_is_refused_rather_than_rendered_upside_d
         );
     }
     assert!(
-        parse_config("[lights.blocked]\nhigh = 40\nlow = 40\n").is_ok(),
+        parse_config("[lights.blocked]\nhigh_percent = 40\nlow_percent = 40\n").is_ok(),
         "equal ends are a lamp that holds steady, which is a shape rather than \
              a mistake"
     );
@@ -33,15 +33,21 @@ fn an_accent_that_does_not_rise_above_the_peak_or_stay_brief_is_refused() {
     // below `high` has nothing to accent and one as long as the fades
     // around it is a third fade rather than a flash.
     for (written, names) in [
-        ("[lights.loop]\nflare = 80\n", "at or below high 80"),
-        ("[lights.loop]\nflare = 40\n", "at or below high 80"),
         (
-            "[lights.loop]\nflare_ms = 4000\n",
-            "at or above duration_ms 4000",
+            "[lights.loop]\nflare_percent = 80\n",
+            "at or below high_percent 80",
         ),
         (
-            "[lights.loop]\nflare_ms = 4500\n",
-            "at or above duration_ms 4000",
+            "[lights.loop]\nflare_percent = 40\n",
+            "at or below high_percent 80",
+        ),
+        (
+            "[lights.loop]\nflare_duration = \"4000ms\"\n",
+            "at or above duration 4000",
+        ),
+        (
+            "[lights.loop]\nflare_duration = \"4500ms\"\n",
+            "at or above duration 4000",
         ),
     ] {
         let said = refusal(written);
@@ -57,9 +63,9 @@ fn an_accent_that_does_not_rise_above_the_peak_or_stay_brief_is_refused() {
     // AND THE OTHER BREATHING SHAPES HAVE NO ACCENT TO REFUSE, because they
     // have no accent at all: the knob exists only where it applies.
     for elsewhere in [
-        "[lights.blocked]\nflare = 100\n",
-        "[lights.unread]\nflare_ms = 200\n",
-        "[lights.dim]\nflare = 100\n",
+        "[lights.blocked]\nflare_percent = 100\n",
+        "[lights.unseen]\nflare_duration = \"200ms\"\n",
+        "[lights.dim]\nflare_percent = 100\n",
     ] {
         assert!(
             refusal(elsewhere).contains("flare"),
@@ -67,7 +73,10 @@ fn an_accent_that_does_not_rise_above_the_peak_or_stay_brief_is_refused() {
         );
     }
     assert!(
-        parse_config("[lights.loop]\nhigh = 80\nflare = 81\nflare_ms = 3999\n").is_ok(),
+        parse_config(
+            "[lights.loop]\nhigh_percent = 80\nflare_percent = 81\nflare_duration = \"3999ms\"\n"
+        )
+        .is_ok(),
         "one step above the peak and one millisecond under the breath are both \
              still an accent"
     );
@@ -78,12 +87,13 @@ fn the_accent_can_never_become_the_slowest_leg_of_the_loops_own_cycle() {
     // WHAT HOLDS THE SCHEDULING MARGIN. A resumed breath may start as much
     // as one leg's step into what a tick has left of its interval, so the
     // worst case any config can produce is its LONGEST leg. Keeping the
-    // accent under `duration_ms` keeps that longest leg the breath's own,
-    // exactly where it sat before the accent existed, so `flare_ms` is not
-    // a second way to write a leg too slow for the interval it runs in.
+    // accent under `duration` keeps that longest leg the breath's own,
+    // exactly where it sat before the accent existed, so `flare_duration` is
+    // not a second way to write a leg too slow for the interval it runs in.
     for (duration_ms, flare_ms) in [(200, 200), (1000, 5000), (4000, 4000), (5000, 5000)] {
-        let written =
-            format!("[lights.loop]\nduration_ms = {duration_ms}\nflare_ms = {flare_ms}\n");
+        let written = format!(
+            "[lights.loop]\nduration = \"{duration_ms}ms\"\nflare_duration = \"{flare_ms}ms\"\n"
+        );
         assert!(
             parse_config(&written).is_err(),
             "{written:?} lets the accent match or outlast the fades around it"
@@ -108,9 +118,9 @@ fn the_accent_can_never_become_the_slowest_leg_of_the_loops_own_cycle() {
 #[test]
 fn a_lights_value_of_the_wrong_type_is_refused_by_name_and_by_type() {
     for (written, key) in [
-        ("[lights]\nrefresh_secs = \"20\"\n", "refresh_secs"),
-        ("[lights.done]\nduration_ms = true\n", "duration_ms"),
-        ("[lights.dim]\nlow = 10.5\n", "low"),
+        ("[lights]\narm_interval = 20\n", "arm_interval"),
+        ("[lights.done]\nduration = true\n", "duration"),
+        ("[lights.dim]\nlow_percent = 10.5\n", "low_percent"),
         ("[lights]\ndone = 3\n", "lights.done"),
         ("[lights]\nlamp = 3\n", "lamp"),
     ] {

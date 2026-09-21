@@ -1,4 +1,5 @@
 mod allowlist_fixture;
+mod sandbox;
 use allowlist_fixture::Fixture;
 use std::fs;
 #[test]

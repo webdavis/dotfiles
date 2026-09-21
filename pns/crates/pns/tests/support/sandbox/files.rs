@@ -21,6 +21,24 @@ impl Sandbox {
         std::fs::write(dir.join("config.toml"), contents).expect("config file");
     }
 
+    /// Where a tap lands with no `[plugins.phone] marker_file` override: the shipped
+    /// default, inside this sandbox's own HOME. `PNS_PHONE_MARKER_FILE` used
+    /// to let a test point the marker elsewhere; now HOME is the whole of the
+    /// sandboxing a test needs, so this is the one path every test that just
+    /// wants A marker writes to.
+    pub fn default_phone_marker(&self) -> std::path::PathBuf {
+        self.path(".local/state/pns/phone-attention.marker")
+    }
+
+    /// Touches the default phone marker into existence, creating its parent
+    /// directories the way a real tap would.
+    pub fn touch_default_phone_marker(&self) -> std::path::PathBuf {
+        let marker = self.default_phone_marker();
+        std::fs::create_dir_all(marker.parent().expect("a marker parent")).expect("marker dir");
+        std::fs::write(&marker, "").expect("marker");
+        marker
+    }
+
     /// The macOS Focus store with `mode` asserted, written where the engine's
     /// own HOME will find it: one live assertion, and a catalog naming that
     /// mode `name`.

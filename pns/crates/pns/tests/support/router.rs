@@ -8,14 +8,14 @@ pub const KEYS_DISAGREE: &str = r#"{"data":[
     {"name":"mister","ipAddress":"192.168.1.169","macAddress":"2e:11:ab:6d:b0:4f"},
     {"name":"mouse","ipAddress":"192.168.1.248","macAddress":"60:82:46:3c:fb:01"}]}"#;
 
-/// The `[plugins.router]` table KEYS_DISAGREE is read against, and the lines
+/// The `[plugins.home_presence]` table KEYS_DISAGREE is read against, and the lines
 /// that reading prints. Shared, because a second test asserting the
 /// diagnostic is unchanged is only worth anything if "unchanged" is the same
 /// text. LAST in every config built on it, so a test can append one more
 /// router setting by writing one more line.
 pub fn router_table(router_url: &str) -> String {
     format!(
-        "[plugins.router]\nenabled = true\ntype = \"unifi\"\nrouter_url = \"{router_url}\"\n\
+        "[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\nurl = \"{router_url}\"\n\
          device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_hostname = \"mister-2\"\n\
          device_ipv4 = \"192.168.1.248\"\napi_key = \"k-123\"\n"
     )

@@ -8,24 +8,24 @@ fn a_walk_that_armed_nothing_still_writes_the_core() {
     // asked for a config.
     let text = compose_config(&Answers::default());
     let config = parsed(&text);
-    assert!(config.plugins["macos-banner"].enabled);
-    assert!(config.plugins["mobile"].enabled);
+    assert!(config.plugins["banner"].enabled);
+    assert!(config.plugins["phone"].enabled);
     assert_eq!(
-        config.plugins["mobile"].settings["type"].as_str(),
+        config.plugins["phone"].settings["type"].as_str(),
         Some("moshi")
     );
-    for opt_in in ["hermes", "hue", "router"] {
+    for opt_in in ["hermes", "lights", "home_presence"] {
         assert!(
             !config.plugins.contains_key(opt_in),
             "`{opt_in}` was armed by nobody"
         );
     }
     assert!(config.lights.is_none());
-    assert!(config.focus_silence.is_empty());
-    assert_eq!(config.nag_after_secs, 0);
+    assert!(config.focus_modes.is_empty());
+    assert_eq!(config.remind_delay_secs, 0);
     // AND A DECLINED TABLE IS COMMENTED OUT rather than written with empty
     // values, which is the same rule stated about the text rather than
-    // about what it parses to: `silence = []` and `rooms = []` load to the
+    // about what it parses to: `modes = []` and `rooms = []` load to the
     // same nothing an absent table does, and read as a feature set up.
     for declined in DECLINABLE_TABLES {
         assert!(
@@ -44,22 +44,26 @@ fn the_values_it_writes_unprompted_are_the_ones_the_code_defaults_to() {
     // it were today's.
     let config = parsed(&compose_config(&Answers::default()));
     assert_eq!(config.recap, Recap::default());
-    assert!(config.daemon_enabled);
-    let mobile = &config.plugins["mobile"].settings;
-    assert_eq!(mobile["mobile_watch_card"].as_bool(), Some(false));
+    assert!(config.gateway_enabled);
+    let phone = &config.plugins["phone"].settings;
+    assert_eq!(phone["card_while_watching"].as_bool(), Some(false));
     assert_eq!(
-        mobile["submit_deadline_secs"].as_integer(),
-        Some(DEFAULT_SUBMIT_DEADLINE_SECS as i64)
+        crate::config::ack_deadline(&config).unwrap(),
+        DEFAULT_ACK_DEADLINE
     );
 }
 
 #[test]
 fn a_skipped_token_is_commented_out_rather_than_written_empty() {
     // MOBILE STAYS ON EITHER WAY: pairing is what completes it, and a
-    // `token = ""` would read as configured while carding nothing.
+    // `device_token = ""` would read as configured while carding nothing.
     let text = compose_config(&Answers::default());
-    assert!(text.contains("# token = \"\""), "{text}");
+    assert!(text.contains("# device_token = \"\""), "{text}");
     let config = parsed(&text);
-    assert!(config.plugins["mobile"].enabled);
-    assert!(!config.plugins["mobile"].settings.contains_key("token"));
+    assert!(config.plugins["phone"].enabled);
+    assert!(
+        !config.plugins["phone"]
+            .settings
+            .contains_key("device_token")
+    );
 }

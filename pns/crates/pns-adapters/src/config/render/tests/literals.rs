@@ -12,10 +12,10 @@ fn a_hostile_literal_crosses_as_one_inert_string_and_never_as_structure() {
         "pns-events".to_string(),
         toml::Value::String(hostile.to_string()),
     );
-    let mut hermes = toml::Table::new();
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    let mut log = toml::Table::new();
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -43,10 +43,10 @@ fn a_literal_holding_a_chezmoi_action_opening_crosses_with_its_braces_broken_up(
         "pns-events".to_string(),
         toml::Value::String(hostile.to_string()),
     );
-    let mut hermes = toml::Table::new();
-    hermes.insert("keys".to_string(), toml::Value::Table(keys));
+    let mut log = toml::Table::new();
+    log.insert("keys".to_string(), toml::Value::Table(keys));
     let mut plugins = toml::Table::new();
-    plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+    plugins.insert("log".to_string(), toml::Value::Table(log));
     let mut values = toml::Table::new();
     values.insert("plugins".to_string(), toml::Value::Table(plugins));
 
@@ -64,32 +64,32 @@ fn a_literal_holding_a_chezmoi_action_opening_crosses_with_its_braces_broken_up(
 }
 
 /// A COLOUR IS A PAIR OF FLOATS, and nothing else in this schema is: the
-/// renderer refused every float until `[lights.github]` existed, so this is
+/// renderer refused every float until `[lights.checks]` existed, so this is
 /// the arm that makes a stated colour reach the shipped file at all. The
 /// refusal beside it is the other half: a type this schema has no spelling
 /// for is still named rather than guessed at.
 #[test]
 fn a_colour_pair_renders_as_floats_and_a_type_with_no_spelling_is_still_refused() {
     let values = toml::toml! {
-        [lights.github]
-        pass = [0.2, 0.295]
-        brightness = 60
+        [lights.checks]
+        pass_color = [0.2, 0.295]
+        brightness_percent = 60
     };
     let text = render(&values).expect("a colour pair renders");
     assert!(
-        text.contains("pass = [0.2, 0.295]"),
+        text.contains("pass_color = [0.2, 0.295]"),
         "the pair is written as the two numbers it is: {text}"
     );
     let config = parse_config(&text).unwrap_or_else(|error| panic!("{error:?}\n{text}"));
     assert_eq!(
-        config.lights.expect("the render carries lights").github,
-        pns_domain::lamps::config::Github {
+        config.lights.expect("the render carries lights").checks,
+        pns_domain::lamps::config::Checks {
             pulse: pns_domain::lamps::config::Pulse {
                 duration_ms: 4000,
                 brightness: 60,
             },
-            pass: pns_domain::pulse::PulseColor { x: 0.2, y: 0.295 },
-            fail: pns_domain::pulse::GITHUB_FAIL_COLOR,
+            pass_color: pns_domain::pulse::PulseColor { x: 0.2, y: 0.295 },
+            fail_color: pns_domain::pulse::CHECKS_FAIL_COLOR,
         },
         "and it round trips through the parser that reads the shipped file"
     );
@@ -97,19 +97,19 @@ fn a_colour_pair_renders_as_floats_and_a_type_with_no_spelling_is_still_refused(
     // integer and the colour arm takes numbers only: dropping the fractional
     // part would write a file the parser then refuses.
     let ends = toml::toml! {
-        [lights.github]
-        fail = [1.0, 0.0]
+        [lights.checks]
+        fail_color = [1.0, 0.0]
     };
     assert!(
         render(&ends)
             .expect("the corners render")
-            .contains("fail = [1.0, 0.0]"),
+            .contains("fail_color = [1.0, 0.0]"),
         "a trailing `.0` is what keeps the value a float"
     );
     // AND A TYPE THIS SCHEMA HAS NO SPELLING FOR IS REFUSED BY TYPE NAME.
     let dated = toml::toml! {
-        [lights.github]
-        pass = 1979-05-27T07:32:00Z
+        [lights.checks]
+        pass_color = 1979-05-27T07:32:00Z
     };
     let refusal = render(&dated).expect_err("a datetime does not render");
     assert!(
@@ -120,8 +120,8 @@ fn a_colour_pair_renders_as_floats_and_a_type_with_no_spelling_is_still_refused(
     // `inf`, neither of which is a coordinate, and both would reach the file
     // as a literal the parser reads back as the same non-number.
     let infinite = toml::toml! {
-        [lights.github]
-        pass = [inf, 0.1]
+        [lights.checks]
+        pass_color = [inf, 0.1]
     };
     let refusal = render(&infinite).expect_err("an infinity does not render");
     assert!(refusal.contains("finite"), "{refusal}");

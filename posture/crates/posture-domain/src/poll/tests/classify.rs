@@ -13,25 +13,6 @@ fn failed_or_conflicting_probes_never_believe_healthy_printed_text() {
     }
 }
 #[test]
-fn pid_status_and_output_must_agree_in_both_directions() {
-    for output in ["0", "42", "1\n2", "99999999999999999999999"] {
-        assert_eq!(classify_pgrep(output, 0), Known(Running));
-    }
-    assert_eq!(classify_pgrep("", 1), Known(Stopped));
-    for (text, exit) in [
-        ("", 0),
-        ("1", 1),
-        ("1", 2),
-        ("", 2),
-        ("1\n", 0),
-        ("1 2", 0),
-        ("-1", 0),
-        ("é", 0),
-    ] {
-        assert_eq!(classify_pgrep(text, exit), Indeterminate, "{text:?}/{exit}");
-    }
-}
-#[test]
 fn all_five_filevault_forms_preserve_deferred_enablement_as_off() {
     for (text, value) in [
         ("FileVault is On.", On),
@@ -55,31 +36,14 @@ fn all_five_filevault_forms_preserve_deferred_enablement_as_off() {
     );
 }
 #[test]
-fn autologin_checks_declaration_presence_and_only_the_exact_absence_diagnostic() {
-    for value in ["", "stephen", "false", "autoLoginUser) does not exist"] {
-        assert_eq!(classify_autologin(value, 0), Known(On));
-    }
-    assert_eq!(
-        classify_autologin("prefix autoLoginUser) does not exist suffix", 1),
-        Known(Off)
-    );
-    for text in [
-        "",
-        "does not exist",
-        "autoLoginUser does not exist",
-        "access denied",
-    ] {
-        assert_eq!(classify_autologin(text, 1), Indeterminate);
-    }
+fn autologin_follows_the_declaration_and_refuses_to_guess_at_an_unreadable_domain() {
+    assert_eq!(classify_autologin(Some(true)), Known(On));
+    assert_eq!(classify_autologin(Some(false)), Known(Off));
+    assert_eq!(classify_autologin(None), Indeterminate);
 }
 #[test]
-fn lulu_base_rules_require_a_successful_nonempty_read_with_no_profile_key() {
-    assert_eq!(classify_lulu_profile(true, true, false), LuluProfile::Base);
-    assert_eq!(classify_lulu_profile(true, true, true), LuluProfile::Active);
-    for (success, nonempty) in [(false, true), (true, false), (false, false)] {
-        assert_eq!(
-            classify_lulu_profile(success, nonempty, false),
-            LuluProfile::Unconfirmed
-        );
-    }
+fn lulu_base_rules_require_a_readable_preferences_file_with_no_profile_key() {
+    assert_eq!(classify_lulu_profile(Some(false)), LuluProfile::Base);
+    assert_eq!(classify_lulu_profile(Some(true)), LuluProfile::Active);
+    assert_eq!(classify_lulu_profile(None), LuluProfile::Unconfirmed);
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
+pub(super) fn event(request: &RequestEnvelope) -> (pns_domain::EventArgs, Attempt) {
     let state = request.state.as_str();
     let attempt = Attempt::of_state(state);
     (
@@ -36,18 +36,37 @@ pub(super) fn event(request: &Request) -> (pns_domain::EventArgs, Attempt) {
             long_running: request.elapsed.is_some_and(|elapsed| {
                 elapsed.as_secs() >= pns_domain::pulse::DEFAULT_LONG_SESSION_SECS
             }),
-            // WHAT THE EVENT IS, as its producer stated it, and a producer
-            // that stated nothing gets the ordinary session default. The
+            // WHAT THE EVENT IS FOR DELIVERY, as its producer stated it, and
+            // a producer that stated nothing carries no class at all. The
             // route it lands on is decided from this and never named here:
             // a producer knows its own work failed and nothing about which
             // channels a gateway has (operator ruling, 2026-09-15).
-            kind: match request.kind {
-                None | Some(pns_protocol::Kind::Agent) => pns_domain::routes::Kind::Agent,
-                Some(pns_protocol::Kind::Health) => pns_domain::routes::Kind::Health,
-            },
+            delivery_class: request
+                .delivery_class
+                .as_ref()
+                .map_or_else(String::new, |class| class.as_str().into()),
         },
         attempt,
     )
+}
+
+/// This request's reminder, through the SAME resolution the flag path runs:
+/// `"remind": true` is `--remind`, `"remind": "5m"` is `--remind=<duration>`,
+/// `"remind": false` is `--no-remind`, and an absent field falls through to
+/// `[producer.<name>] remind` and then to off.
+///
+/// ONLY A BLOCKED REQUEST ARMS ONE. A reminder nudges an approval nobody
+/// answered, and the producer's config entry states that producer's approvals
+/// rather than every event it sends, so every other state resolves to off
+/// whatever the table says.
+pub(super) fn reminder(request: &RequestEnvelope) -> Result<Reminder, String> {
+    match request.state {
+        State::Blocked => remind_delay(request.remind, request.producer.as_str()),
+        _ => Ok(Reminder {
+            after_secs: REMIND_OFF,
+            answered_signal: false,
+        }),
+    }
 }
 
 #[cfg(test)]

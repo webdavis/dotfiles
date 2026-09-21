@@ -8,14 +8,16 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RetryLimits {
-    pub max_attempts: u64,
-    pub max_age_secs: u64,
+    /// How many retries a leg is allowed after its first send.
+    pub max_retries: u64,
+    /// How old the ORIGINAL EVENT may be before its leg stops retrying.
+    pub event_max_age_secs: u64,
 }
 impl Default for RetryLimits {
     fn default() -> Self {
         Self {
-            max_attempts: 20,
-            max_age_secs: 604800,
+            max_retries: 20,
+            event_max_age_secs: 604800,
         }
     }
 }
@@ -24,7 +26,7 @@ impl Default for RetryLimits {
 /// crates carry their own outcome types; they map onto this so the rule below
 /// stays in a crate with no dependencies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeliveryOutcome {
+pub enum TransportOutcome {
     Status(u16),
     /// The request went out and nothing answered.
     NoResponse,
@@ -47,11 +49,11 @@ impl FailureClass {
     }
 }
 
-impl DeliveryOutcome {
+impl TransportOutcome {
     /// Whether this outcome is a delivery at all. 2xx and nothing else: a
     /// redirect was never followed, so it delivered nothing.
     pub fn delivered(self) -> bool {
-        matches!(self, DeliveryOutcome::Status(status) if (200..300).contains(&status))
+        matches!(self, TransportOutcome::Status(status) if (200..300).contains(&status))
     }
 
     /// The class of this outcome READ AS A FAILURE, whether or not it is one.
@@ -67,10 +69,10 @@ impl DeliveryOutcome {
     pub fn class(self) -> FailureClass {
         let status = match self {
             // Nothing answered, so the destination may simply be down.
-            DeliveryOutcome::NoResponse => return FailureClass::Temporary,
+            TransportOutcome::NoResponse => return FailureClass::Temporary,
             // Never reached the wire.
-            DeliveryOutcome::NoStatus => return FailureClass::Permanent,
-            DeliveryOutcome::Status(status) => status,
+            TransportOutcome::NoStatus => return FailureClass::Permanent,
+            TransportOutcome::Status(status) => status,
         };
         match status {
             408 | 429 => FailureClass::Temporary,
@@ -97,9 +99,9 @@ pub enum DeadletterReason {
 
 impl RetryLimits {
     pub fn exhausted(self, retries: u64, created: u64, now: u64) -> Option<DeadletterReason> {
-        if retries >= self.max_attempts {
+        if retries >= self.max_retries {
             Some(DeadletterReason::Attempts)
-        } else if created > 0 && now.saturating_sub(created) > self.max_age_secs {
+        } else if created > 0 && now.saturating_sub(created) > self.event_max_age_secs {
             Some(DeadletterReason::Age)
         } else {
             None
@@ -111,7 +113,7 @@ impl RetryLimits {
     /// it was permanently refused records what actually stopped it.
     pub fn verdict(
         self,
-        outcome: DeliveryOutcome,
+        outcome: TransportOutcome,
         retries: u64,
         created: u64,
         now: u64,
@@ -124,23 +126,25 @@ impl RetryLimits {
 }
 
 /// When the next attempt is due. LINEAR AND DETERMINISTIC: the delay grows by
-/// `base_secs` per attempt and nothing is added on top. An earlier draft
+/// `step_secs` per retry and nothing is added on top. An earlier draft
 /// carried a random spread, which exists to stop many clients retrying in the
 /// same instant; this is one local daemon draining one queue against a loopback
 /// gateway, so there was no herd to spread and the randomness only made the
 /// schedule untestable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RetryBackoff {
-    pub base_secs: u64,
+    /// The increment one retry adds to the wait, which the retry count
+    /// multiplies.
+    pub step_secs: u64,
 }
 impl Default for RetryBackoff {
     fn default() -> Self {
-        Self { base_secs: 60 }
+        Self { step_secs: 60 }
     }
 }
 impl RetryBackoff {
     pub fn retry_at(self, now: u64, retries: u64) -> u64 {
-        now.saturating_add(self.base_secs.saturating_mul(retries))
+        now.saturating_add(self.step_secs.saturating_mul(retries))
     }
 }
 

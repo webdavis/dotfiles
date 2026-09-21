@@ -10,7 +10,7 @@ fn a_disabled_daemon_never_prepares_the_spool_or_starts_a_tick() {
         *world.log.borrow(),
         [
             "settings",
-            "out:pns daemon: disabled in the config; exiting"
+            "out:pns gateway: disabled in the config; exiting"
         ]
     );
 }
@@ -21,7 +21,7 @@ fn a_permanently_refused_spool_exits_cleanly_before_sleeping_or_reading_a_clock(
     assert_eq!(world.run(false), 0);
     assert_eq!(
         *world.log.borrow(),
-        ["settings", "prepare", "err:pns daemon: spool refused"]
+        ["settings", "prepare", "err:pns gateway: spool refused"]
     );
 }
 
@@ -57,7 +57,7 @@ fn the_daemon_reloads_on_the_thirtieth_tick_before_registering_or_draining() {
     );
     assert_eq!(
         log.last().unwrap(),
-        "out:pns daemon: disabled in the config; exiting"
+        "out:pns gateway: disabled in the config; exiting"
     );
 }
 
@@ -68,7 +68,7 @@ fn an_unreadable_daemon_config_warns_and_keeps_running_until_a_readable_off_swit
     assert_eq!(world.count("sleep"), 30);
     assert_eq!(world.count("reap"), 29);
     assert!(world.log.borrow().contains(
-        &"err:pns daemon: the config could not be read (bad config); carrying on enabled".into()
+        &"err:pns gateway: the config could not be read (bad config); carrying on enabled".into()
     ));
 }
 
@@ -89,13 +89,16 @@ fn a_daemon_without_a_wall_clock_still_reaps_and_reloads_but_never_registers_a_p
 fn the_daemon_tick_accepts_both_bounds_and_refuses_the_adjacent_values() {
     for (raw, expected) in [
         (None, 1000),
-        (Some("9"), 1000),
-        (Some("10"), 10),
-        (Some("11"), 11),
-        (Some("59999"), 59999),
-        (Some("60000"), 60000),
-        (Some("60001"), 1000),
+        (Some("9ms"), 1000),
+        (Some("10ms"), 10),
+        (Some("11ms"), 11),
+        (Some("59999ms"), 59999),
+        (Some("60s"), 60000),
+        (Some("60001ms"), 1000),
         (Some("garbage"), 1000),
+        // A BARE NUMBER IS NOT A TICK: it meant milliseconds here and seconds
+        // to the reader beside it, which is the ambiguity the unit removes.
+        (Some("500"), 1000),
     ] {
         assert_eq!(daemon_tick(raw), Duration::from_millis(expected), "{raw:?}");
     }

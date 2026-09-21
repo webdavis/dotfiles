@@ -55,7 +55,7 @@ pub use signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcom
 pub use state::{marker_path, read_marker};
 pub use system::{home, now_epoch, resolve};
 
-pub use lanes::{CommandRunner, LaneAdapter, Ran, Verdict};
+pub use lanes::{CommandRunner, Environment, LaneAdapter, Ran, Verdict};
 pub use registration::LaneRegistration;
 
 pub use bootstrap::{BootstrapLane, bootstrap_lane};

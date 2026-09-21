@@ -10,15 +10,14 @@ fail direction of every unreadable reading, the exact freshness threshold and it
 readings are memoized so one submission decides on one coherent snapshot, and how the slow
 subprocess-backed readings are started ahead and bounded. It does not cover channel delivery mechanics
 (`src/routing.rs`, `src/channels/`), the `quiet window` and `quiet hours` rules (`src/quiet.rs`,
-`src/lights.rs`), the `unread` lamp, the `decision ring` and `journal` file formats beyond the fields
+`src/lights.rs`), the `unseen` lamp, the `decision ring` and `journal` file formats beyond the fields
 this area writes into them, or the `home probe` and `router` (`src/home.rs`). Everything here is derived
 from the crate's own source and tests; gaps are marked `NOT ESTABLISHED:`.
 
 The marker path is now resolved by `crates/pns-adapters/src/phone_marker.rs` for tap, doctor and
-every system probe caller: nonempty `PNS_PHONE_MARKER_FILE`, then `[phone] marker_file`, then
-`~/.local/state/pns/phone-attention.marker`. The config value expands `~/`; environment values remain
-literal. A missing config uses the default. An unusable config leaves the marker unread unless an
-environment path overrides it. This does not change the arbitration or delivery rules below.
+every system probe caller: `[plugins.phone] marker_file`, then `~/.local/state/pns/phone-attention.marker`. The
+config value expands `~/`. A missing config uses the default. An unusable config leaves the marker
+unread. This does not change the arbitration or delivery rules below.
 
 ## Glossary
 
@@ -37,32 +36,39 @@ environment path overrides it. This does not change the arbitration or delivery 
 
 ## Probe table
 
-Every mechanism below is spawned through `src/system.rs:CommandRunner::run`, implemented for production
-by `src/system.rs:SystemCommandRunner`, which calls `src/system.rs:run_bounded` with `PROBE_DEADLINE` (5
-seconds, `src/system.rs:PROBE_DEADLINE`) and `PROBE_READ_MAX` (1 MiB inclusive,
-`src/system.rs:PROBE_READ_MAX`). Commands are built with `Command::new(program).args(args)`, so no
-argument passes through a shell.
+Every command below is spawned through `src/ports/process.rs:CommandRunner::run`, implemented for
+production by `src/process/bounded.rs:SystemCommandRunner`, which calls `run_bounded` with
+`PROBE_DEADLINE` (5 seconds, `src/process/bounded.rs:PROBE_DEADLINE`) and `PROBE_READ_MAX` (1 MiB
+inclusive, `src/process/bounded.rs:PROBE_READ_MAX`). Commands are built with
+`Command::new(program).args(args)`, so no argument passes through a shell. The desk idle age, the console
+lock and the phone chain's process walk are not commands: they read the machine natively, in process, on
+a thread of their own, bounded the same 5 seconds through `src/process/bounded.rs:bounded_call`'s channel
+rather than a spawn's `kill()`.
 
 | Reading                        | Mechanism (exact)                                                                                                                                                                                                                                                                  | Deadline             | Unreadable means                                                                                                                     | Fail direction pinned by                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desk idle age                  | `/usr/sbin/ioreg -c IOHIDSystem`; first line containing `HIDIdleTime`, last whitespace field, divided by 1_000_000_000 (`src/system.rs:parse_idle_nanoseconds`, `src/presence.rs:idle_secs_from_ns`)                                                                               | 5 s                  | `None`, never 0 seconds idle                                                                                                         | `src/presence.rs:an_empty_reading_is_unknown_rather_than_zero_seconds_idle`, `src/presence.rs:a_garbled_reading_is_unknown`, `src/system.rs:contaminated_idle_output_reads_as_unknown_rather_than_a_reading`, `src/system.rs:an_idle_command_that_fails_reports_unknown_which_fails_open_into_a_push`                                         |
-| Console lock                   | `/usr/sbin/ioreg -n Root -d1`; line containing `"IOConsoleLocked"` (matched with its quotes), last field `Yes` or `No` (`src/system.rs:parse_screen_locked`)                                                                                                                       | 5 s                  | `None`, and only `Some(true)` disqualifies the desk clock                                                                            | `src/surface.rs:an_unlocked_or_unreadable_console_leaves_every_verdict_exactly_as_it_was`, `src/system.rs:a_console_key_that_is_missing_or_says_something_else_reads_as_no_reading`                                                                                                                                                           |
+| Desk idle age                  | `HIDIdleTime` off the `IOHIDSystem` service, read natively through `IORegistryEntryCreateCFProperty` on a thread of its own (`src/macos/registry.rs:IoKitRegistry::idle_nanoseconds`, `src/macos/desk.rs:idle_reading`, `src/presence.rs:idle_secs_from_ns`)                       | 5 s (thread + channel) | `None`, never 0 seconds idle                                                                                                         | `src/probes/tests/desk_read.rs:an_idle_property_that_cannot_be_read_reports_unknown_which_fails_open_into_a_push`, `src/probes/tests/desk_read.rs:a_registry_read_that_never_returns_leaves_the_reading_unknown`                         |
+| Console lock                   | `IOConsoleLocked` off the registry Root node, read natively the same way (`src/macos/registry.rs:IoKitRegistry::console_locked`, `src/macos/desk.rs:lock_reading`)                                                                                                                | 5 s (thread + channel) | `None`, and only `Some(true)` disqualifies the desk clock                                                                            | `src/surface.rs:an_unlocked_or_unreadable_console_leaves_every_verdict_exactly_as_it_was`, `src/probes/tests/desk_read.rs:a_lock_property_that_cannot_be_read_is_unknown_rather_than_unlocked`                                                                                           |
 | Back Tap marker mtime          | `std::fs::symlink_metadata(<marker>).modified()` on the shared resolved phone marker path described above (`src/system.rs` `PhoneMarkerProbe for SystemProbes`, `src/main.rs:system_probes`)                                                     | none (no subprocess) | `None`, which is never fresh, so the tap does not speak for the phone                                                                | `src/system.rs:an_absent_marker_reports_unknown_which_the_marker_rule_fails_closed_on`, `src/system.rs:the_marker_probe_reads_the_link_itself_never_its_target`                                                                                                                                                                               |
-| Phone input atime              | `/usr/bin/pgrep -x mosh-server`, then `/usr/bin/pgrep -P <server ids joined by comma>`, then `/bin/ps -o tty= -p <client ids joined by comma>`, then the newest `std::fs::metadata(/dev/<name>).accessed()` (`src/system.rs:phone_reading`, `src/system.rs:newest_terminal_atime`) | 5 s per command      | `None` at any step, which is never fresh                                                                                             | `src/system.rs:a_failure_at_any_step_of_the_chain_reads_as_no_phone_rather_than_a_fresh_one`, `src/system.rs:no_mosh_server_at_all_never_asks_for_children_of_nothing`, `src/surface.rs:a_phone_reading_that_could_not_be_taken_never_counts_as_fresh`                                                                                        |
+| Phone input atime              | `/usr/bin/pgrep -x mosh-server`, then a native `libproc` walk comparing `pbi_ppid` and resolving each child's `e_tdev` through `devname`, then the newest `std::fs::metadata(/dev/<name>).accessed()` (`src/macos/phone.rs:phone_reading`, `src/macos/proc_table.rs:LibprocTable::child_terminals`, `src/macos/phone.rs:newest_terminal_atime`) | 5 s spawn, 5 s thread + channel for the walk | `None` at any step, which is never fresh                                                                                             | `src/probes/tests/phone.rs:the_discovery_chain_is_one_spawn_and_one_walk`, `src/probes/tests/phone.rs:no_mosh_server_at_all_never_walks_for_children_of_nothing`, `src/surface.rs:a_phone_reading_that_could_not_be_taken_never_counts_as_fresh`                                                                                        |
 | Session view                   | `herdr workspace list` (resolved through PATH), then `herdr pane layout --pane <origin pane>` (`src/system.rs` `SessionViewProbe for SystemProbes`, `src/system.rs:parse_focused_tab`, `src/system.rs:parse_layout`)                                                               | 5 s per command      | `None`, which becomes `Visibility::Unknown` and never suppresses                                                                     | `src/surface.rs:a_session_view_that_cannot_be_read_is_unknown_never_visible`, `src/system.rs:any_herdr_call_failing_leaves_the_view_unreadable_rather_than_guessing`, `src/system.rs:a_session_with_no_focused_workspace_is_unreadable_rather_than_a_guess`, `tests/dispatch.rs:an_unreadable_view_delivers_rather_than_suppressing_on_doubt` |
 | Wall clock                     | `SystemTime::now().duration_since(UNIX_EPOCH).as_secs()` (`src/system.rs:SystemProbes::now_secs`)                                                                                                                                                                                  | none                 | `None`, which ages nothing, so the phone atime and the marker mtime both drop out of the arbitration                                 | `src/engine.rs:an_unreadable_clock_ages_no_phone_signal_rather_than_treating_it_as_fresh`, `src/engine.rs:an_unreadable_clock_ages_no_marker_rather_than_treating_it_as_fresh`                                                                                                                                                                |
 | macOS Focus assertions         | `$HOME/Library/DoNotDisturb/DB/Assertions.json`, read through `src/system.rs:readable_state_file` at `RING_READ_MAX` (256 KiB), parsed by `src/focus.rs:active_modes` (`src/main.rs:FOCUS_DB`, `src/main.rs:focus_now`)                                                                    | none                 | `Err`, which the event path reads as not silenced (fail open)                                                                        | `tests/dispatch.rs:a_focus_store_that_cannot_be_read_costs_no_notification_at_all`, `src/focus.rs:nothing_readable_names_no_mode_one_row_per_failure_shape`                                                                                                                                                                                   |
-| macOS Focus mode catalog       | `$HOME/Library/DoNotDisturb/DB/ModeConfigurations.json`, same ceiling, parsed by `src/focus.rs:mode_names`                                                                                                                                                                         | none                 | an empty map, so display-name entries in `[focus] silence` go inert and raw `modeIdentifier` entries still match                     | `src/focus.rs:a_catalog_nothing_can_read_resolves_no_names_at_all`, `src/focus.rs:a_raw_mode_identifier_is_accepted_for_a_mode_the_catalog_does_not_name`                                                                                                                                                                                     |
-| Operator mute (`quiet window`) | `src/main.rs:read_quiet_expiry` over the quiet-until state file, judged by `src/quiet.rs:is_muted` against this run's clock (`src/main.rs:muted_now`)                                                                                                                              | none                 | not muted, with `pns: state error (quiet-until could not be read: {error}); nothing is muted, clear it with pns quiet off` on stderr | Specified in the quiet-window document; recorded here only because it is an `Overrides` field the arbitration reads.                                                                                                                                                                                                                          |
+| macOS Focus mode catalog       | `$HOME/Library/DoNotDisturb/DB/ModeConfigurations.json`, same ceiling, parsed by `src/focus.rs:mode_names`                                                                                                                                                                         | none                 | an empty map, so display-name entries in `[focus] modes` go inert and raw `modeIdentifier` entries still match                     | `src/focus.rs:a_catalog_nothing_can_read_resolves_no_names_at_all`, `src/focus.rs:a_raw_mode_identifier_is_accepted_for_a_mode_the_catalog_does_not_name`                                                                                                                                                                                     |
+| Operator mute (`quiet window`) | `src/main.rs:read_quiet_expiry` over the quiet-until state file, judged by `src/mute.rs:is_muted` against this run's clock (`src/main.rs:muted_now`)                                                                                                                              | none                 | not muted, with `pns: state error (quiet-until could not be read: {error}); nothing is muted, clear it with pns mute off` on stderr | Specified in the quiet-window document; recorded here only because it is an `Overrides` field the arbitration reads.                                                                                                                                                                                                                          |
 
 The marker and the wall clock are deliberately absent from `src/probes.rs:Wants` "because neither spawns
 a subprocess", and the session view is absent "because it has exactly one production reader already, with
 nothing to overlap it against" (`src/probes.rs:Wants`).
 
+A marker mtime or phone atime later than the wall clock read is the same kind of untrustworthy reading as
+an unreadable clock, and ages the same way: unknown, never age zero
+(`src/decision/reading.rs:a_taken_at_one_second_in_the_future_ages_as_unknown`).
+
 ## Decision table
 
 `src/surface.rs:plan` maps `surface`, effective `visibility`, the `long_running` tier and the
-`mobile_watch_card` config toggle onto a `DeliveryPlan`. Every row below is a case in
+`card_while_watching` config toggle onto a `DeliveryPlan`. Every row below is a case in
 `src/surface.rs:every_delivery_row_in_the_confirmed_matrix_plans_correctly`.
 
 | Surface | Visibility | long_running | mobile_watch_card | banner | phone_card | pulse |
@@ -239,7 +245,7 @@ Then the age counts only if it is strictly less than the window; anything else, 
   (behavior 23).
 - Fail direction: not fresh, so the signal drops out of the arbitration rather than holding its surface.
 - Thresholds: the window defaults to **120 seconds** (`src/engine.rs:DEFAULT_DESK_IDLE_SECS`) and is
-  overridden by `PNS_DESK_IDLE_SECS`. The comparison is strict: an age of **119** is fresh, an age of
+  overridden by `PNS_DESK_IDLE`. The comparison is strict: an age of **119** is fresh, an age of
   **120** is not, and an age of **121** is not. `src/surface.rs`'s matrix uses 120 throughout, with
   "scrolling moshi now beats desk touched 90s ago" fresh at 90 and "nothing fresh anywhere is away" stale
   at 600. `tests/hooks.rs:the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started` drives
@@ -254,8 +260,8 @@ Then the age counts only if it is strictly less than the window; anything else, 
 - Privacy: an age in seconds; the `decision ring` writes `fresh_window=` and the three ages as counts, or
   `none` (`src/decision_log.rs:count`).
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `PNS_DESK_IDLE_SECS` is the only knob. There is no config key for the freshness
-  window: `NOT ESTABLISHED:` grepped `PNS_DESK_IDLE_SECS` and `desk_idle` across `src/`, `tests/` and the
+- Compatibility contract: `PNS_DESK_IDLE` is the only knob. There is no config key for the freshness
+  window: `NOT ESTABLISHED:` grepped `PNS_DESK_IDLE` and `desk_idle` across `src/`, `tests/` and the
   repository's TOML and Markdown; the only definitions are `src/engine.rs:Overrides::from_env` and
   `src/engine.rs:DEFAULT_DESK_IDLE_SECS`, and `src/config.rs` has no matching key.
 
@@ -339,8 +345,8 @@ Then the desk drops out of the running entirely, and the phone's own signals sti
   `src/surface.rs:a_locked_screen_with_a_fresh_back_tap_is_still_the_phone_and_never_away`. End to end:
   `src/engine.rs:a_locked_screen_cards_the_phone_and_leaves_the_desk_banner_unraised` and
   `src/engine.rs:a_locked_screen_sends_a_blocked_approval_to_the_phone_rather_than_the_lock_screen`.
-- Failure sources: the `ioreg -n Root -d1` spawn failing, the `"IOConsoleLocked"` key being absent or
-  carrying a word other than `Yes` or `No`.
+- Failure sources: the `IOConsoleLocked` registry read failing or answering a property that is not a
+  `CFBoolean`.
 - Fail direction: only `Some(true)` locks. `Some(false)` and `None` leave every verdict exactly as it
   was, which the doc justifies as costing "one freshness window of the behavior that shipped before this,
   where inventing a lock would kill the desk banner permanently wherever the reading stops working".
@@ -349,21 +355,23 @@ Then the desk drops out of the running entirely, and the phone's own signals sti
 - Thresholds: none of its own. The lock is deliberately not a freshness question: "locking necessarily
   postdates the last desk input, because typing again means unlocking first, so the lock is the newest
   fact about the desk."
-- Required side effects: one extra `ioreg` spawn, and only under the condition in behavior 15.
+- Required side effects: one extra native registry read, and only under the condition in behavior 15.
 - Forbidden side effects: a lock must not be read as a blanket `Away`. The doc states the canonical case
   it would get wrong: "locking the laptop and picking it up ... Away always cards while Mobile lets a
   watched pane suppress."
 - Timeout and cancellation: 5 seconds, as every probe.
 - Idempotency and duplicates: memoized (behavior 20);
-  `src/system.rs:the_lock_probe_reads_the_root_dictionary_by_exact_argv_and_only_once`.
+  `src/probes/tests/desk_read.rs:the_lock_property_is_read_once_however_often_it_is_asked_for`.
 - Privacy: a boolean. The `decision ring` writes `locked=yes|no|none`, and `src/decision_log.rs:tri`
   keeps the third state distinct: "an unread lock is not an unlocked one", pinned byte for byte by the
   second assertion in
   `src/decision_log.rs:a_line_names_the_event_and_every_gate_input_behind_one_epoch_second`.
-- Process ownership and cleanup: the `ioreg` child is owned and reaped by `run_bounded`.
-- Compatibility contract: the key is matched with its quotes (`src/system.rs:IOREG_LOCK_KEY`), which is
-  what keeps the neighbouring `"IOConsoleUsers"` array and its per-session `CGSSessionScreenIsLocked` out
-  of the reading.
+- Process ownership and cleanup: the registry read runs on its own thread, joined through a channel
+  under `bounded_call`; a wedged read leaves the thread behind rather than being killed, unlike a spawn.
+- Compatibility contract: the property is asked for by exact key
+  (`IORegistryEntryCreateCFProperty(root, "IOConsoleLocked", ...)`), so there is no neighbouring text to
+  confuse it with, unlike the old `"IOConsoleUsers"` array a line-search over `ioreg -n Root -d1`'s dump
+  had to avoid.
 
 ### 9. A Mobile surface the Back Tap alone reached is watching nothing
 
@@ -403,7 +411,7 @@ Then the delivery decision runs on `Visibility::Hidden` whatever any client's di
 
 ### 10. The plan is the surface, the visibility, the tier and one toggle
 
-Given a surface, an effective visibility, a `long_running` tier and the `mobile_watch_card` config toggle
+Given a surface, an effective visibility, a `long_running` tier and the `card_while_watching` config toggle
 
 When `src/surface.rs:plan` decides
 
@@ -421,11 +429,12 @@ Then the banner belongs to the desk with the pane out of sight, the card belongs
 - Fail direction: `Unknown` visibility routes as not-watching, so it delivers
   (`tests/dispatch.rs:an_unreadable_view_delivers_rather_than_suppressing_on_doubt`).
 - Thresholds: `long_running` is a caller-stated tier, not a threshold this function computes. It arrives
-  either from the `--long-running` flag (`src/args.rs`) or, on the hook path, from
-  `pns::pulse::session_was_long(elapsed, Some(pulse_threshold_secs()))`, whose default is **300 seconds**
-  inclusive (`src/pulse.rs:DEFAULT_LONG_SESSION_SECS`, overridable with `PNS_PULSE_THRESHOLD_SECS` at
-  `src/main.rs:pulse_threshold_secs`): 300 is long, 299 is not (`src/pulse.rs` asserts both).
-  `mobile_watch_card` defaults to false (`src/main.rs:watch_card`).
+  either derived from `--elapsed`/JSON `elapsed` (`src/legacy/argv.rs`, `src/event_flow/submit/mapping.rs`)
+  or, on the hook path, from
+  `pns::pulse::session_was_long(elapsed, Some(pulse::DEFAULT_LONG_SESSION_SECS))`, a fixed **300 seconds**
+  inclusive with no override, `[lights.loop] arm_after` arms the loop lamp on a separate clock: 300
+  is long, 299 is not (`src/pulse.rs` asserts both).
+  `card_while_watching` defaults to false (`src/main.rs:watch_card`).
 - Required side effects: none. `plan` returns a value; `src/routing.rs:channel_plan` turns it into legs.
 - Forbidden side effects: no banner on Mobile, ever
   (`src/surface.rs:no_plan_row_can_ever_banner_on_the_mobile_surface`); no long-running event without a
@@ -435,9 +444,9 @@ Then the banner belongs to the desk with the pane out of sight, the card belongs
 - Privacy: three booleans out. The `decision ring` writes
   `plan=banner:{yes|no},card:{yes|no},pulse:{yes|no}` (`src/decision_log.rs:line`).
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: a value of the wrong type under `[plugins.mobile] mobile_watch_card` is refused
+- Compatibility contract: a value of the wrong type under `[plugins.phone] card_while_watching` is refused
   out loud rather than read as false, with
-  `pns: config error ([plugins.mobile] mobile_watch_card is {type}, not a boolean); the mobile watching card stays off`
+  `pns: config error ([plugins.phone] card_while_watching is {type}, not a boolean); the mobile watching card stays off`
   (`src/main.rs:watch_card`,
   `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`).
 
@@ -512,7 +521,7 @@ Then banner, card and pulse are all cleared, and that clearing beats `PNS_FORCE_
 - Idempotency and duplicates: both are read once per event, before `decide` (`src/main.rs`, the
   `Overrides { muted: ..., focus_active: ..., ..overrides_from_env() }` literal).
 - Privacy: two booleans, recorded as two separate `decision ring` fields (`muted=` and `focus=`) "because
-  `pns quiet` and a macOS Focus send the operator to completely different places"
+  `pns mute` and a macOS Focus send the operator to completely different places"
   (`src/decision_log.rs:line`), asserted as `muted=no focus=yes` in
   `tests/dispatch.rs:an_event_raised_inside_a_focus_the_config_names_decorates_nothing_and_is_journaled`.
 - Process ownership and cleanup: Not applicable.
@@ -522,7 +531,7 @@ Then banner, card and pulse are all cleared, and that clearing beats `PNS_FORCE_
 
 ### 13. A macOS Focus is judged per mode and fails open
 
-Given a `[focus] silence` list naming zero or more Focus modes
+Given a `[focus] modes` list naming zero or more Focus modes
 
 When `src/main.rs:focus_now` reads the Do Not Disturb store
 
@@ -549,7 +558,7 @@ Then it is silenced only if a mode the list named is asserted right now, an empt
   failing closed "would silence every banner, card and pulse on the morning after an upgrade with nothing
   on screen to say why".
 - Thresholds: `RING_READ_MAX` is 256 KiB (`src/main.rs:RING_READ_MAX`); the doc records the live store at
-  6 KiB. An empty `[focus] silence` list is the feature off
+  6 KiB. An empty `[focus] modes` list is the feature off
   (`src/focus.rs:an_empty_list_is_the_feature_switched_off`).
 - Required side effects: with a non-empty list, two file reads per event under
   `$HOME/Library/DoNotDisturb/DB`.
@@ -587,35 +596,36 @@ Then it is silenced only if a mode the list named is asserted right now, an empt
 
 Given a machine with a HID subsystem
 
-When `src/system.rs:idle_reading` runs
+When `src/macos/desk.rs:idle_reading` runs
 
-Then it spawns `/usr/sbin/ioreg -c IOHIDSystem`, takes the last whitespace field of the first line carrying `HIDIdleTime`, and divides by 1_000_000_000 to whole seconds.
+Then it reads `HIDIdleTime` off the `IOHIDSystem` service natively, through
+`IORegistryEntryCreateCFProperty`, and divides the CFNumber's nanosecond value by 1_000_000_000 to whole
+seconds.
 
-- Success: `src/system.rs:the_idle_probe_argv_matches_the_bash_original` pins the exact argv;
-  `src/system.rs:the_idle_probe_reports_whole_seconds_from_the_nanosecond_count` and
-  `src/presence.rs:a_nanosecond_counter_becomes_whole_seconds` pin the conversion.
-- Failure sources: `ioreg` missing or exiting non-zero, output with no `HIDIdleTime` line, a line with no
-  numeric last field, output containing a NUL or a replacement character.
+- Success: `src/probes/tests/desk_read.rs:the_idle_probe_reports_whole_seconds_from_the_nanosecond_count`
+  and `src/presence.rs:a_nanosecond_counter_becomes_whole_seconds` pin the conversion.
+- Failure sources: the `IOHIDSystem` service failing to match, the `HIDIdleTime` property being absent,
+  or the property answering something that is not a `CFNumber` (`src/macos/registry.rs:number_property`
+  checks `CFGetTypeID` before reading).
 - Fail direction: `None`, never zero. `src/presence.rs:idle_secs_from_ns` states it: "a garbled probe
   line must never coerce to 0, which reads as 'actively typing' and silently drops the push." Pinned by
-  `src/presence.rs:an_empty_reading_is_unknown_rather_than_zero_seconds_idle`,
-  `src/system.rs:output_without_the_idle_key_reads_as_unknown_rather_than_zero`,
-  `src/system.rs:contaminated_idle_output_reads_as_unknown_rather_than_a_reading` and
-  `src/system.rs:a_garbled_idle_count_is_unknown_rather_than_zero_seconds_idle`.
+  `src/probes/tests/desk_read.rs:an_idle_property_that_cannot_be_read_reports_unknown_which_fails_open_into_a_push`.
 - Thresholds: division truncates rather than rounding up: 1_999_999_999 nanoseconds is 1 second and 0 is
-  0 (`src/presence.rs:a_partial_second_truncates_rather_than_rounding_up`). The parse rejects padding,
-  signs and leading zeros (`src/lib.rs:parse_count`), so `"5000000000 "` is unknown.
-- Required side effects: one `ioreg` child per event, unless the caller stated the answer.
-- Forbidden side effects: the reading must not be taken from a second device's line: the first line
-  carrying the key wins (`src/system.rs:the_first_idle_line_wins_so_a_second_device_cannot_override_it`).
-- Timeout and cancellation: 5 seconds; over-deadline or over-cap yields `None` after `kill()` and
-  `wait()`.
+  0 (`src/presence.rs:a_partial_second_truncates_rather_than_rounding_up`).
+- Required side effects: one registry read per event, on a thread of its own, unless the caller stated
+  the answer.
+- Forbidden side effects: none of its own; there is no second device's line to prefer over, since the
+  read asks the `IOHIDSystem` service by name rather than scanning a dump.
+- Timeout and cancellation: 5 seconds, a thread-plus-channel bound rather than a spawn's `kill()` and
+  `wait()`: a call that never returns leaves its thread behind and the caller reads `None`
+  (`src/probes/tests/desk_read.rs:a_registry_read_that_never_returns_leaves_the_reading_unknown`).
 - Idempotency and duplicates: memoized (behavior 20).
 - Privacy: an age in seconds. No key codes, no window titles, no application names.
-- Process ownership and cleanup: `run_bounded` owns the child.
-- Compatibility contract: `/usr/sbin/ioreg` is absolute, "because a probe must not resolve a system
-  binary through a PATH it does not control" (`src/system.rs:IOREG_PATH`), which is also why
-  `tests/support/mod.rs:spy_path` cannot stand in front of it.
+- Process ownership and cleanup: no child process; the thread is not joined on the failure path, only
+  on success, which is what the deadline exists to bound.
+- Compatibility contract: `IOServiceMatching`/`IOServiceGetMatchingService` resolve `IOHIDSystem` through
+  the default IOKit main port, which is a fixed system service and takes no PATH, so
+  `tests/support/mod.rs:spy_path` cannot and need not stand in front of it.
 
 ### 15. The console lock is read only where the idle clock answered
 
@@ -623,37 +633,38 @@ Given the idle reading for this event
 
 When it was stated by the caller, was garbled, or came back `None`
 
-Then the lock probe is never spawned; only an idle reading that really arrived earns the second `ioreg`.
+Then the lock probe is never read; only an idle reading that really arrived earns the second native
+registry read.
 
 - Success: the guard is
   `let (desk_input_age, screen_locked) = if overrides.reads_desk() { let idle = probes.idle_secs(); (idle, idle.is_some().then(|| probes.screen_locked()).flatten()) } ...`
   (`src/engine.rs:surface_reading`). Pinned at the trait level by
-  `src/engine.rs:the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading`, which runs four
-  cases (nothing stated, a stated clock, a garbled clock, an unreadable clock) asserting idle and lock
-  read counts of (1,1), (0,0), (0,0) and (1,0); and at the spawn level by
-  `src/system.rs:the_lock_is_not_spawned_where_idle_failed`, which asserts exactly one `ioreg` spawn
-  total.
+  `src/environment_reading/tests/intent.rs:the_lock_probe_is_read_only_where_the_idle_probe_returned_a_reading`,
+  which runs four cases (nothing stated, a stated clock, a garbled clock, an unreadable clock) asserting
+  idle and lock read counts of (1,1), (0,0), (0,0) and (1,0); and at the thread level by
+  `src/probes/tests/desk_read.rs:the_lock_is_not_read_at_all_where_idle_failed`, which asserts the lock
+  registry read never runs.
 - Failure sources: as behavior 8.
 - Fail direction: an unattempted lock and an unreadable lock are both `None`, and `None` never locks.
-  `src/system.rs:join_desk` deliberately fills both cells from one join "even when the lock was never
-  attempted (idle failed to parse) ... the cell holds `None` either way".
+  `src/probes/start.rs:join_desk` deliberately fills both cells from one join "even when the lock was
+  never attempted (idle failed to parse) ... the cell holds `None` either way".
 - Thresholds: Not applicable.
-- Required side effects: at most one extra `ioreg` child per event.
-- Forbidden side effects: no second `ioreg -n Root -d1` for an answer already held. `start` captures
-  `lock_already_known` before spawning so a lock read inline before `start` is not retaken
-  (`src/system.rs:a_lock_probe_already_answered_inline_is_not_retaken_by_a_later_start`).
-- Timeout and cancellation: 5 seconds.
+- Required side effects: at most one extra native registry read per event.
+- Forbidden side effects: no second `IOConsoleLocked` read for an answer already held. `start` captures
+  `lock_already_known` before spawning the thread so a lock read taken inline before `start` is not
+  retaken (`src/probes/tests/start.rs:a_lock_probe_already_answered_inline_is_not_retaken_by_a_later_start`).
+- Timeout and cancellation: 5 seconds, the same thread-plus-channel bound as behavior 14.
 - Idempotency and duplicates: memoized in `SystemProbes::screen_locked`.
 - Privacy: a boolean.
-- Process ownership and cleanup: as behavior 14. The measured cost difference is recorded: the Root read
-  is "92KB against 294KB, measured on dresden 2026-08-28" (`src/system.rs:lock_reading`).
-- Compatibility contract: the doc records that nothing in this repository sets `PNS_IDLE_SECS` in
+- Process ownership and cleanup: as behavior 14; no child process, one property fetch, no registry dump
+  to read past.
+- Compatibility contract: the doc records that nothing in this repository sets `PNS_SCREEN_IDLE` in
   production (measured repository-wide 2026-08-28) and warns that "a future setter would silently disable
   the override with it" (`src/engine.rs:surface_reading`).
 
 ### 16. The Back Tap marker is read as the link's own modification time
 
-Given a marker path from `PNS_PHONE_MARKER_FILE` or the default `$HOME/.local/state/pns/phone-attention.marker`
+Given a marker path from `[plugins.phone] marker_file` or the default `$HOME/.local/state/pns/phone-attention.marker`
 
 When `PhoneMarkerProbe::marker_mtime_secs` reads it
 
@@ -683,45 +694,50 @@ Then it uses `symlink_metadata`, so a dangling symlink still carries a reading.
 
 Given one or more attached mosh sessions
 
-When `src/system.rs:phone_reading` runs
+When `src/macos/phone.rs:phone_reading` runs
 
-Then it walks `/usr/bin/pgrep -x mosh-server`, then `/usr/bin/pgrep -P <ids>`, then `/bin/ps -o tty= -p <ids>`, and takes the newest access time among `/dev/<name>` for the terminals named.
+Then it spawns `/usr/bin/pgrep -x mosh-server`, then walks the process table natively comparing
+`pbi_ppid` against the server ids found, and takes the newest access time among `/dev/<name>` for the
+terminals named, each name resolved from a child's `e_tdev` through `devname`.
 
-- Success: `src/system.rs:the_discovery_argv_is_pinned_to_the_chain_that_was_measured_live` pins the
-  three calls in order; `src/system.rs:every_server_and_every_client_is_asked_for_in_one_call_each` pins
-  that the id lists are batched so the spawn count stays three however many sessions are open;
-  `src/system.rs:the_freshest_terminal_wins_across_every_session_found` pins the maximum.
-- Failure sources: any of the three commands missing or failing, no `mosh-server` at all, a client with
-  no controlling terminal (`ps` prints `??`), a terminal that cannot be stat-ed.
+- Success: `src/probes/tests/phone.rs:the_discovery_chain_is_one_spawn_and_one_walk` pins the one spawn
+  and the one walk, handed the server ids the spawn found;
+  `src/probes/tests/phone.rs:every_server_is_asked_about_in_one_walk` pins that the id list is batched
+  so the walk stays one pass however many sessions are open;
+  `src/probes/tests/terminal.rs:the_freshest_terminal_wins_across_every_session_found` pins the maximum.
+- Failure sources: `pgrep` missing or failing, no `mosh-server` at all, a client with no controlling
+  terminal (`e_tdev` reads as `NODEV`), a terminal that cannot be stat-ed.
 - Fail direction: `None` at any step, which is never fresh.
-  `src/system.rs:a_failure_at_any_step_of_the_chain_reads_as_no_phone_rather_than_a_fresh_one` drops each
-  scripted answer in turn; `src/system.rs:a_server_whose_client_has_no_terminal_reads_as_no_phone` and
-  `src/system.rs:a_terminal_that_cannot_be_stat_ed_drops_out_without_taking_the_others_with_it` cover the
-  rest. The whole-chain consequence is pinned in
-  `src/surface.rs:a_phone_reading_that_could_not_be_taken_never_counts_as_fresh`: "The discovery chain
-  has four steps and any of them can come back with nothing."
+  `src/probes/tests/phone.rs:a_failure_at_any_step_of_the_chain_reads_as_no_phone_rather_than_a_fresh_one`
+  drops each scripted answer in turn; `src/probes/tests/phone.rs:a_server_whose_client_has_no_terminal_reads_as_no_phone`
+  and `src/probes/tests/terminal.rs:a_terminal_that_cannot_be_stat_ed_drops_out_without_taking_the_others_with_it`
+  cover the rest. The whole-chain consequence is pinned in
+  `src/surface.rs:a_phone_reading_that_could_not_be_taken_never_counts_as_fresh`.
 - Thresholds: the freshness window from behavior 5. Note that an attached-but-untouched mosh session
   decides nothing: "Presence is the pty's CLOCK, never the session's existence"
   (`src/surface.rs:a_stale_phone_reading_loses_to_the_desk_rather_than_holding_mobile`).
-- Required side effects: up to three children per event, unless the caller stated the answer.
-- Forbidden side effects: `pgrep -P` must not be called with an empty parent list, because that is a
-  usage error rather than a query answering "none" (`src/system.rs:pgrep_children`,
-  `src/system.rs:no_mosh_server_at_all_never_asks_for_children_of_nothing`). The reading is `atime`,
-  never `mtime`: "atime is input and mtime is the agent talking back", "Proven live on 2026-08-15 in both
-  directions". Reading the terminal must not itself disturb it: `src/system.rs:atime_secs` is "A plain
-  `stat`, which does not itself count as an access".
-- Timeout and cancellation: 5 seconds per command, so the chain is bounded at roughly 15 seconds in the
-  worst case.
+- Required side effects: one child process for the spawn, then one native process-table walk on a thread
+  of its own, unless the caller stated the answer.
+- Forbidden side effects: the walk must not ask about an empty parent list, because that reads every
+  process on the machine rather than answering "none"
+  (`src/macos/proc_table.rs:LibprocTable::child_terminals`,
+  `src/probes/tests/phone.rs:no_mosh_server_at_all_never_walks_for_children_of_nothing`). The reading is
+  `atime`, never `mtime`: "atime is input and mtime is the agent talking back", "Proven live on
+  2026-08-15 in both directions". Reading the terminal must not itself disturb it:
+  `src/macos/phone.rs:atime_secs` is "A plain `stat`, which does not itself count as an access".
+- Timeout and cancellation: 5 seconds for the spawn, plus the thread-plus-channel bound from behavior 14
+  for the walk, so the chain is bounded at roughly 10 seconds in the worst case.
 - Idempotency and duplicates: memoized in `SystemProbes::phone_atime`.
 - Privacy: process ids and terminal names, then a file access time. No pty contents are read.
-- Process ownership and cleanup: each of the three children is owned and reaped by `run_bounded`.
-- Compatibility contract: `src/system.rs:parse_tty_names` is a trust boundary, because the name is joined
-  onto `/dev`. Only plain ASCII alphanumerics survive, so no reading can carry a slash or a `..` into the
-  join (`src/system.rs:a_name_that_could_escape_the_device_directory_is_refused_outright`, which runs
-  `../../etc/passwd`, `..`, `tty/../../root`, `tty s000`, `tty;rm` and `tty.0`). Padding is trimmed here,
-  unlike in `parse_pids`, "because `ps -o tty=` pads its column by design"
-  (`src/system.rs:a_padded_terminal_name_is_trimmed_because_the_padding_is_the_format`,
-  `src/system.rs:a_padded_pid_line_is_rejected_like_any_other_malformed_line`).
+- Process ownership and cleanup: the spawned child is owned and reaped by `run_bounded`; the walk's
+  thread is left behind rather than killed on a blown deadline, the same trade as behavior 14.
+- Compatibility contract: `src/macos/proc_table.rs:plain_device_name` is the trust boundary, because the
+  name is joined onto `/dev`. Only plain ASCII alphanumerics survive, so no reading can carry a slash or
+  a `..` into the join (`src/probes/tests/terminal.rs:a_name_that_could_escape_the_device_directory_is_refused_outright`,
+  which runs `../../etc/passwd`, `..`, `tty/../../root`, `tty s000`, `tty;rm` and `tty.0`). `devname`
+  answers a clean name with no padding to trim, unlike `ps -o tty=`'s column, which is why only
+  `parse_pids` still has a padding case
+  (`src/probes/tests/pid_parse.rs:a_padded_pid_line_is_rejected_like_any_other_malformed_line`).
 
 ### 18. Every subprocess reading is bounded in time and in bytes
 
@@ -813,7 +829,7 @@ Then the command runs once and both get the same answer, and that holds for `Non
 
 - Success: `src/system.rs:a_reading_asked_for_twice_is_still_taken_once` and
   `src/system.rs:a_reading_that_came_back_empty_is_not_retaken_either`, both asserting exactly one runner
-  call; `src/system.rs:the_lock_probe_reads_the_root_dictionary_by_exact_argv_and_only_once`; and at the
+  call; `src/probes/tests/desk_read.rs:the_lock_property_is_read_once_however_often_it_is_asked_for`; and at the
   engine level `src/engine.rs:one_decision_reads_each_probe_at_most_once_and_never_twice`, which bounds
   idle, marker, phone input and session view at one read each for one `decide`.
 - Failure sources: a second `SystemProbes` being built for one event, which would defeat the whole
@@ -849,12 +865,12 @@ When `src/engine.rs:surface_reading` calls `probes.start(Wants { desk, phone })`
 
 Then `SystemProbes` spawns one thread for the desk pair and one for the phone chain, and the reads below join them.
 
-- Success: `src/system.rs:a_slow_probe_does_not_hold_up_a_fast_one` proves the overlap by order rather
-  than by time: the phone thread's `pgrep` releases a blocked `ioreg`, so a sequential or desk-only
-  mutant never releases it and the idle assertion goes red.
-  `src/system.rs:a_desk_only_start_spawns_no_phone_thread_and_the_phone_still_reads_inline` and
-  `src/system.rs:a_phone_only_start_spawns_no_desk_thread_and_the_desk_still_reads_inline` cover the
-  narrowed cases.
+- Success: `src/probes/tests/desk_read.rs:a_slow_probe_does_not_hold_up_a_fast_one` proves the overlap by
+  order rather than by time: the phone thread's `pgrep` releases a blocked registry read, so a sequential
+  or desk-only mutant never releases it and the idle assertion goes red.
+  `src/probes/tests/selective_start.rs:a_desk_only_start_spawns_no_phone_thread_and_the_phone_still_reads_inline`
+  and `src/probes/tests/selective_start.rs:a_phone_only_start_spawns_no_desk_thread_and_the_desk_still_reads_inline`
+  cover the narrowed cases.
 - Failure sources: the operating system refusing a thread.
 - Fail direction: a refused spawn falls back to the inline read: `.ok()` "drops a spawn failure into
   'nothing started', which is exactly the state `join_desk` and the trait impls already treat as 'compute
@@ -900,7 +916,7 @@ Then `SystemProbes` spawns one thread for the desk pair and one for the phone ch
 
 ### 22. A stated reading is trusted and its probe never runs
 
-Given `PNS_IDLE_SECS` or `PNS_PHONE_INPUT_AGE` set to a valid count
+Given `PNS_SCREEN_IDLE` set to a valid count, or `PNS_PHONE_INPUT_MAX_AGE` to a valid duration
 
 When `src/engine.rs:surface_reading` needs that reading
 
@@ -910,10 +926,12 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
   `src/engine.rs:a_stated_phone_input_age_spares_the_process_walk_behind_it` (phone reads 0). The module
   doc states the reason: "Every reading is a spawn on a path that must never stall, so a caller who
   already stated an answer never pays for the probe underneath it."
-- Failure sources: a variable present but not a count (behavior 23).
+- Failure sources: a variable present but not a count, or not a duration (behavior 23).
 - Fail direction: not applicable for a valid value; the caller's word is taken as given.
 - Thresholds: `src/lib.rs:parse_count` accepts plain ASCII digits only, rejects the empty string, rejects
   leading zeros beyond a single `0`, rejects signs and padding, and caps at `i64::MAX`.
+  `PNS_PHONE_INPUT_MAX_AGE` goes through `duration::parse_duration` instead, which takes
+  `<count><ms|s|m|h>` between `0s` and `24h` and refuses a bare number.
 - Required side effects: none.
 - Forbidden side effects: stating the desk clock also suppresses the lock probe, because the lock exists
   only to qualify the idle reading and "stating the desk clock states the desk's whole story, garbled
@@ -923,11 +941,12 @@ Then it uses the stated value and neither starts nor reads the probe underneath 
   (`src/main.rs:overrides_from_env` collects `std::env::vars_os()` into one `BTreeMap`).
 - Privacy: Not applicable.
 - Process ownership and cleanup: fewer children, by design.
-- Compatibility contract: `PNS_IDLE_SECS`, `PNS_DESK_IDLE_SECS`, `PNS_PHONE_INPUT_AGE`, `PNS_SKIP_PHONE`,
-  `PNS_FORCE_PHONE` and `PNS_PHONE_MARKER_FILE` are the six presence-facing variables. `muted` and
+- Compatibility contract: `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE`, `PNS_PHONE_INPUT_MAX_AGE`, `PNS_SKIP_PHONE` and
+  `PNS_FORCE_PHONE` are the five presence-facing variables (`PNS_PHONE_MARKER_FILE` is gone;
+  `[plugins.phone] marker_file` is the only source for that path now). `muted` and
   `focus_active` are unreachable from any of them (`src/engine.rs:Overrides::from_env`). The overrides
-  steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_IDLE_SECS` and
-  `PNS_PHONE_INPUT_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unread`
+  steer the delivery decision only: `src/main.rs:last_interaction` states that "`PNS_SCREEN_IDLE` and
+  `PNS_PHONE_INPUT_MAX_AGE` steer the delivery decision in `engine::decide`, not this reading: the `unseen`
   lamp always sees the machine's own probes."
 
 ### 23. A garbled override answers unknown outright, never a fallback
@@ -947,7 +966,7 @@ Then the value is `None` and the matching `*_invalid` flag is set, and the readi
 - Failure sources: this behavior is the failure handling.
 - Fail direction: unknown, which for the desk clock and the phone means "does not compete", so the
   arbitration falls toward `Away`. For the freshness window it is stronger: a garbled
-  `PNS_DESK_IDLE_SECS` returns a `SurfaceReading` of `Away` with every field `None` and no probe read at
+  `PNS_DESK_IDLE` returns a `SurfaceReading` of `Away` with every field `None` and no probe read at
   all, because "substituting 120 would read a stale desk as fresh and hold the operator at their desk"
   (`src/engine.rs:surface_reading`,
   `src/engine.rs:a_garbage_desk_threshold_fails_toward_away_never_into_the_default`, which uses `"0600"`,
@@ -980,7 +999,7 @@ Then every reading it needs is taken at dispatch, once, into `src/engine.rs:Gate
   dispatch, and NOTHING BELOW THIS POINT touches a probe: one decision cannot be split across two
   readings that disagree about where the operator is." Pinned end to end by
   `tests/hooks.rs:the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started`, which backdates
-  the marker inside the condenser stub so a start-time reading would card the phone and a dispatch-time
+  the marker inside the summarizer stub so a start-time reading would card the phone and a dispatch-time
   reading banners the desk.
 - Failure sources: a probe answering differently between two reads, which the memoization prevents; a
   second `SystemProbes`, which the composition root prevents.
@@ -1030,7 +1049,7 @@ Then the surface, both visibilities, the three ages, the lock, the freshness win
   under a ten-second deadline and would take the record with it"; the accepted price is stated: "a
   decision is lost if a channel hangs to its deadline and the process is killed before this runs"
   (`src/main.rs`).
-- Idempotency and duplicates: one line per dispatch attempt; a nudge is flagged `nag=yes`.
+- Idempotency and duplicates: one line per dispatch attempt; a nudge is flagged `remind=yes`.
 - Privacy: agent, state, permission mode, payload agent id and tool name pass through
   `src/decision_log.rs:printable`; the pane is reduced to `present` or `none`.
 - Process ownership and cleanup: Not applicable.

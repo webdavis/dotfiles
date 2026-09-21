@@ -8,7 +8,13 @@ banner's click is `pns failures open <id>`, and each old word is refused. `--cha
 REFUSED in favor of `--route`, which is the flag that now names a hermes route in the table and the
 usage text below. The narrowing pair `--local-only` and `--remote-only` is REFUSED too, replaced by
 one `--scope automatic|local_only|remote_only`; the refusal for giving both, behavior 15 below, went
-with them, because one flag cannot contradict itself. Not rewritten pending the ladder's closing docs
+with them, because one flag cannot contradict itself. `--long-running` is REFUSED too
+(`src/legacy/argv.rs:RETIRED_FLAGS`), refused as `--long-running was replaced by --elapsed`: pns derives
+the tier from `--elapsed` alone now, and behavior 16 below (its own compatibility contract) no longer
+holds. THE LENIENCY ITSELF IS GONE: a word that is no flag of pns's is refused as
+`<word> is not a flag pns takes` and a value flag given no value is refused as `<flag> requires a
+value`, each with exit 2 and nothing delivered, so behaviors 6 and 7 below and every "warn" cell in the
+flag table describe a parser that no longer exists. Not rewritten pending the ladder's closing docs
 pass.
 
 ## Scope
@@ -40,53 +46,26 @@ knows.
 | `--detail`       | one following token, free text           | warn `--detail given without a value; ignoring`, field stays empty                            | taken as the value verbatim, no warning                                        | `src/args.rs:a_trailing_value_flag_is_warned_and_ignored`, `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`         |
 | `--pane`         | one following token, a pane id           | warn `--pane given without a value; ignoring`, field stays empty                              | taken as the value verbatim, then judged by `safety::pane_is_safe` at dispatch | `src/args.rs:a_recognized_flag_is_never_consumed_as_a_value`, `tests/dispatch.rs:a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event` |
 | `--channel`      | one following token, a hermes route name | warn `--channel given without a value; ignoring`, field stays empty (the default route)       | taken as the value verbatim, then judged by `safety::route_name_is_usable`     | `src/args.rs:the_channel_flag_names_a_route_and_is_protected_like_every_value_flag`                                                                       |
-| `--kind`         | one following token, `agent` or `health` | refused: `--kind requires one of: agent, health` on stderr, exit 2, nothing delivered          | any other word is refused the same way, because a guessed kind is a misrouted page              | `src/legacy/argv/tests.rs:a_failed_health_kind_pages_and_an_agent_kind_keeps_the_default_route`, `src/legacy/tests.rs:an_unknown_kind_is_refused_before_anything_is_delivered`                        |
+| `--delivery-class` | one following token, a validated name | refused: `--delivery-class is not a usable name: <reason>` on stderr, exit 2, nothing delivered | taken as the value verbatim, then held to the envelope's own name rules | `src/legacy/argv/tests.rs:a_failed_health_class_pages_and_a_session_class_keeps_the_default_route`, `src/legacy/tests.rs:an_unusable_delivery_class_is_refused_before_anything_is_delivered` |
 | `--local-only`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:local_only_keeps_the_banner_and_reaches_nothing_off_the_machine`                                                                       |
 | `--remote-only`  | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:remote_only_delivers_through_hermes_alone`                                                                                             |
 | `--long-running` | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `src/args.rs:the_long_running_flag_is_protected_from_being_eaten_like_every_other_one`                                                                    |
 | `--help`, `-h`   | no argument                              | Not applicable, it takes no value                                                             | Not applicable, it consumes nothing                                            | `tests/dispatch.rs:the_help_flag_prints_the_usage_and_reaches_nothing_at_all`                                                                             |
 
-The two lists behind the table are `src/legacy/argv.rs:VALUE_FLAGS` (the nine value-taking flags) and
-`src/legacy/argv.rs:BARE_FLAGS` (`--long-running`, `--local-only`, `--remote-only`,
-`--require-delivery`). `--help` and `-h` are deliberately in NEITHER list:
+The two lists behind the table are `src/legacy/argv.rs:VALUE_FLAGS` (the value-taking flags) and
+`src/legacy/argv.rs:BARE_FLAGS` (`--remind` and `--no-remind`). `--require-delivery` was retired with the
+exit code that always reports delivery, and joins the retired spellings that are refused by name with
+exit 2 (`src/legacy/argv.rs:RETIRED_FLAGS`). `--help` and `-h` are deliberately in NEITHER list:
 `src/legacy/argv.rs:is_help_flag` answers them separately, which is what keeps
 `--agent --help` an agent literally named `--help` rather than a warn-and-drop
 (`src/args.rs:help_in_value_position_is_still_just_a_value`).
 
 ## The usage text, verbatim
 
-`const USAGE` in `src/main.rs` is one text printed on request and on a refusal, because an operator who
-mistyped and an operator who asked have the same question. It is the contract, reproduced exactly:
-
-```text
-pns: usage:
-  pns [<producer flags>]           one notification, stated in argv
-  pns hook <event>                 a harness hook: prompt, stop, stop-failure,
-                                   blocked, asked, plan-ready, denied, resolved,
-                                   model-switch, quota, config-change
-  pns <harness>-hook               presence-gated pass-through to moshi-hook,
-                                   spelled the way moshi's extension calls it
-  pns pulse <exit-code>            signal the lamps by hand
-  pns quiet [<duration>|off]       the operator's mute
-  pns daemon run|schedule|cancel   the clock
-  pns lights tick|quiet            the lamps' upkeep
-  pns loop begin|end               take the loop lamp by hand, and give it back
-  pns nag                          card every outstanding approval
-  pns recap --since <epoch> --until <epoch>
-  pns setup [--force]              write a first config, one question at a time
-  pns doctor                       one test send through every channel
-  pns --help, -h                   this text
-
-producer flags: --agent <name> --state <word> --project <name> --branch <name>
-                --detail <text> --pane <id> --channel <route> --elapsed <secs>
-                --kind <agent|health> --local-only --remote-only --long-running
-                --require-delivery
-
-kinds:          agent, the default, is a session event and takes the route
-                `[routes] default` names; health is a machine's own health and
-                takes `[routes] urgent` when its --state is one somebody has to
-                answer, unless --channel already named one.
-```
+`const USAGE` moved to `src/legacy/usage.rs` and has drifted piecemeal through the retirement ladder
+since this file last reproduced it in full. Rather than carry a second copy that goes stale one rename at
+a time, read the constant itself for the live subcommand list, producer flags and delivery-class routing
+text.
 
 The subcommand-specific usage texts are separate constants and are printed instead of `USAGE` when the
 subcommand itself is mistyped:
@@ -99,13 +78,13 @@ subcommand itself is mistyped:
 
 - `src/lights.rs:LOOP_USAGE`: `pns: usage: pns loop begin [--pane <id>] | pns loop end [--pane <id>]`
 
-- `src/main.rs:LIGHTS_USAGE`: `pns: usage: pns lights tick | pns lights quiet [<place> [<duration>|off]]`
+- `src/main.rs:LIGHTS_USAGE`: `pns: usage: pns lights tick | pns lights mute [<place> [<duration>|off]]`
 
-- `src/main.rs:DAEMON_USAGE`:
-  `pns: usage: pns daemon run | pns daemon schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <event args> | pns daemon cancel --id <id>`
+- `src/main.rs:GATEWAY_USAGE`:
+  `pns: usage: pns gateway run | pns gateway schedule --id <id> [--in <secs>] [--every <secs>] [--until +<secs>|<epoch>] [--unless-marker <name>] -- <event args> | pns gateway cancel --id <id>`
 
 - `src/main.rs:QUIET_USAGE`:
-  `pns: usage: pns quiet [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h`
+  `pns: usage: pns mute [<duration>|off]; duration is <count><s|m|h>, from 1s to 24h`
 
 - `src/main.rs:SETUP_USAGE`:
   `pns: usage: pns setup [--force]; --force replaces an existing config, keeping it beside`
@@ -114,8 +93,8 @@ subcommand itself is mistyped:
 
 - `src/main.rs:RECAP_USAGE`: `pns: usage: pns recap --since <epoch> --until <epoch>`
 
-- `src/main.rs:NAG_USAGE`:
-  `pns: usage: pns nag (it takes no arguments: one fire cards every outstanding approval at once)`
+- `src/main.rs:REMIND_USAGE`:
+  `pns: usage: pns remind (it takes no arguments: one fire cards every outstanding approval at once)`
 
 `LIGHTS_USAGE` names a `<place>` argument; the vocabulary for that argument is the lamps' own and is out
 of scope here.
@@ -139,13 +118,13 @@ lives inside:
 
 | Caller                                                                         | Command line                                                                             |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:9`                    | `<home>/.cargo/bin/pns daemon run`                                               |
+| `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:9`                    | `<home>/.cargo/bin/pns gateway run`                                               |
 | `private_dot_claude/modify_settings.json:328-387`                              | `<home>/.cargo/bin/pns hook <event>` for eleven events, one of them `>/dev/null` |
 | `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh:12-13`          | `PNS_AGENT=codex $agent hook stop` and `PNS_AGENT=codex $agent hook blocked`             |
 | `.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl:56`         | the binary path written into moshi's `helperBinary`, which then invokes `pns pi-hook`    |
 | `private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md:15,34`    | `~/.cargo/bin/pns loop begin` and `~/.cargo/bin/pns loop end`            |
 | `dot_config/uu/private_config.toml.tmpl:36`                                    | `[alerts] binary`, the engine `uu` shells out to for a failed lane                       |
-| `dot_config/osquery/private_page-launchd-allowlist.txt:46`                     | the allowlisted program string `~/.cargo/bin/pns daemon run`                     |
+| `dot_config/osquery/private_page-launchd-allowlist.txt:46`                     | the allowlisted program string `~/.cargo/bin/pns gateway run`                     |
 | `.chezmoiscripts/run_onchange_after_64-update-skills-first-install.sh.tmpl:51` | `ENGINE`, resolved and passed to the updater                                             |
 
 Two references are documents rather than callers and invoke nothing:
@@ -189,7 +168,7 @@ Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` w
 ### 2. A subcommand word is dispatched before the producer check
 
 Given argv whose first token is one of `pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`,
-`nag`, `setup`, `hook`, or a word ending in `-hook`\\
+`remind`, `setup`, `hook`, or a word ending in `-hook`\\
 
 When `main` runs its dispatch chain\\
 
@@ -531,10 +510,10 @@ Then only plugins whose routing declaration says `durable` survive, and the mode
   not move.
 - Fail direction: loud but non-fatal. `pns` exits 0 whatever the gateway answered, which is why the
   caller reads the stdout line rather than the status.
-- Thresholds: the sync deadline is `remote_deadline(PNS_REMOTE_TIMEOUT)`, default 5 seconds, clamped to
+- Thresholds: the sync deadline is `remote_deadline([delivery] remote_deadline)`, default 5 seconds, clamped to
   86400 seconds, and a literal `0` means no deadline at all (`src/channels/hermes.rs:remote_deadline`).
-  One step either side: `PNS_REMOTE_TIMEOUT=0` waits forever by caller intent; an unparseable value falls
-  back to 5 seconds rather than to zero or forever.
+  One step either side: `remote_deadline = 0` waits forever by operator intent; a value that is not a
+  nonnegative integer refuses the config by name, the way the other `[delivery]` counts do.
 - Required side effects: one printed outcome line per leg whose mode is `ReportOutcome`
   (`src/main.rs:run_event`).
 - Forbidden side effects: no banner, no phone card.
@@ -627,7 +606,7 @@ Given `--channel log`\\
 
 When `hermes_url_for` resolves the endpoint\\
 
-Then `PNS_HERMES_URL` wins if set and non-empty; else an empty channel gives
+Then `[plugins.log] url`, and `PNS_HERMES_URL` after it, win if set and non-empty; else an empty channel gives
 `DEFAULT_HERMES_URL` (`http://127.0.0.1:8644/webhooks/pns-events`); else `channel_url` swaps the final
 path segment for the route.
 
@@ -762,7 +741,7 @@ or removed.
   which is `pane_is_safe` plus a refusal of `..` and of this crate's own working-file grammar. One step
   either side: `--pane wW:p9` is accepted; `--pane ../x` and `--pane abc.new.1` are refused by name.
 - Required side effects on `begin`: the marker file, and a scheduled lamps tick covering
-  `lights.looping.lease_timeout_secs` when a config with a `[lights]` table loads.
+  `lights.looping.lease_expiry` when a config with a `[lights]` table loads.
 - Forbidden side effects: no lease at epoch zero. When the clock cannot be read, `begin` prints
   `pns: loop: the clock cannot be read; the lease was not taken` and exits 1 rather than writing a marker
   that would be expired the moment it was written.

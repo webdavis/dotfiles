@@ -72,7 +72,7 @@ fn the_hook_writes_nothing_the_harness_could_read_as_an_answer_and_exits_zero() 
 fn a_non_blocking_event_never_pays_for_the_round_trip() {
     let sandbox = Sandbox::new("hook-asked");
     let mut command = sandbox.pns();
-    command.env("PNS_IDLE_SECS", "99999");
+    command.env("PNS_SCREEN_IDLE", "99999");
     sandbox.stub_moshi(&mut command, 42);
     let output = hook_with(command, &sandbox, "asked", r#"{"message":"which one?"}"#);
     assert_eq!(output.status.code(), Some(0));

@@ -11,7 +11,7 @@ fn leg(destination: &str, decorative: bool) -> LedgerLeg {
     }
 }
 
-fn attempted(outcomes: Vec<(LedgerLeg, pns_domain::Delivery)>) -> Result<Submitted, LedgerFailure> {
+fn attempted(outcomes: Vec<(LedgerLeg, pns_domain::Delivery)>) -> Result<Submitted, NotSubmitted> {
     Ok(Submitted::Attempted {
         sequence: Some(1),
         outcomes,
@@ -51,7 +51,7 @@ fn a_durable_leg_that_was_refused_did_not_land() {
 fn a_decorative_leg_that_failed_does_not_decide_it() {
     let submitted = attempted(vec![
         (
-            leg("macos-banner", true),
+            leg("banner", true),
             pns_domain::Delivery::Failed("no notifier".into()),
         ),
         (
@@ -67,7 +67,7 @@ fn a_decorative_leg_that_failed_does_not_decide_it() {
 #[test]
 fn a_plan_with_no_durable_leg_landed() {
     let submitted = attempted(vec![(
-        leg("macos-banner", true),
+        leg("banner", true),
         pns_domain::Delivery::Delivered("posted".into()),
     )]);
     assert_eq!(landed(&submitted), Landed::Yes);
@@ -78,6 +78,27 @@ fn a_plan_with_no_durable_leg_landed() {
 /// report a page that did arrive.
 #[test]
 fn a_ledger_that_refused_the_submission_did_not_land() {
-    let refused: Result<Submitted, LedgerFailure> = Err(LedgerFailure::InvalidPlan);
+    let refused: Result<Submitted, NotSubmitted> =
+        Err(NotSubmitted::Ledger(LedgerFailure::InvalidPlan));
     assert_eq!(landed(&refused), Landed::No);
+}
+
+/// A class this machine's config never defined is the CALLER'S mistake, and
+/// the exit code says so: a page that did not land is a machine that failed,
+/// and answering both the same way would leave a producer retrying a word
+/// pns will never accept.
+#[test]
+fn an_undefined_delivery_class_is_rejected_rather_than_merely_undelivered() {
+    let refused: Result<Submitted, NotSubmitted> =
+        Err(NotSubmitted::UnknownDeliveryClass("security".into()));
+    assert_eq!(landed(&refused), Landed::Rejected);
+}
+
+/// An executable channel that ran and printed nothing LANDED. `Silent` is that
+/// path's ordinary success, so reading it as a loss would fail every event
+/// sent through a channels directory.
+#[test]
+fn a_silent_durable_leg_landed() {
+    let submitted = attempted(vec![(leg("hermes", false), pns_domain::Delivery::Silent)]);
+    assert_eq!(landed(&submitted), Landed::Yes);
 }

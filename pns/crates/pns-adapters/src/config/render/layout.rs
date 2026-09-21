@@ -20,8 +20,8 @@
 
 /// One table, in file order.
 pub(super) struct Table {
-    /// The heading it writes, dotted (`"plugins.mobile"`, `"lights.done"`),
-    /// or a bare top-level name (`"daemon"`).
+    /// The heading it writes, dotted (`"plugins.phone"`, `"lights.done"`),
+    /// or a bare top-level name (`"gateway"`).
     pub name: &'static str,
     /// The comment above the heading. Carries its own `# ` prefixes and
     /// trailing newline, the way the wizard's old section constants did.
@@ -34,7 +34,7 @@ pub(super) struct Table {
     /// The tables nested INSIDE this one, written after its own keys because
     /// a TOML sub-heading ends the table above it.
     ///
-    /// DATA, LIKE EVERY OTHER PART OF THIS LAYOUT: `[plugins.hermes.keys]` is
+    /// DATA, LIKE EVERY OTHER PART OF THIS LAYOUT: `[plugins.log.keys]` is
     /// a nested table whose vocabulary is the route names, and declaring it
     /// here is what keeps the walk in `render` one walk. A child inherits its
     /// parent's `present`, because a nested table under a commented-out
@@ -62,8 +62,10 @@ pub(super) enum Sample {
 
 use super::prose::*;
 mod delivery;
-use delivery::DELIVERY;
+pub(super) use delivery::EXAMPLE_CLASS;
+use delivery::{DELIVERY, DELIVERY_CLASS};
 mod core;
+pub(in crate::config) use core::REMIND_DELAY;
 use core::*;
 mod destinations;
 use destinations::*;
@@ -92,28 +94,31 @@ pub(super) fn every_table() -> Vec<&'static Table> {
 pub(super) const LAYOUT: &[Table] = &[
     // FIRST, because it names the routes every table below is keyed by.
     ROUTES,
-    PLUGINS_MOBILE,
-    PLUGINS_HERMES,
-    PLUGINS_DISCORD,
-    PLUGINS_MACOS_BANNER,
-    PLUGINS_HUE,
+    PLUGINS_PHONE,
+    PLUGINS_LOG,
+    PLUGINS_BANNER,
+    PLUGINS_LIGHTS,
     PLUGINS_GITHUB,
     PLUGINS_PRESENCE,
-    PLUGINS_ROUTER,
-    DAEMON,
+    PLUGINS_HOME_PRESENCE,
+    GATEWAY,
     DELIVERY,
+    DELIVERY_CLASS,
     RECAP,
     FOCUS,
     QUIET,
-    NAG,
-    PHONE,
+    REMIND,
+    PRODUCER,
+    STALE,
+    PATHS,
+    STORAGE,
     FAILURES,
     LIGHTS,
     LIGHTS_DONE,
     LIGHTS_FAILED,
     LIGHTS_BLOCKED,
-    LIGHTS_UNREAD,
-    LIGHTS_GITHUB,
+    LIGHTS_UNSEEN,
+    LIGHTS_CHECKS,
     LIGHTS_LOOP,
     LIGHTS_DIM,
 ];

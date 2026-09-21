@@ -9,8 +9,8 @@ pub use records::{
 };
 mod staleness;
 pub use staleness::{remember_staleness, remembered_staleness};
-mod quiet;
-pub use quiet::{QUIET_UNTIL, read_quiet_expiry};
+mod mute;
+pub use mute::{QUIET_UNTIL, read_mute_expiry};
 mod lamp_state;
 pub use lamp_state::{LIGHTS_HELD, held_lamps, read_held, read_news, record_news, remember_held};
 

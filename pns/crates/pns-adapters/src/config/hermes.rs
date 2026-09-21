@@ -2,7 +2,7 @@ use pns_domain::routes::Routes;
 use std::collections::BTreeMap;
 
 /// Every hermes route the config named, with the signing key it granted, out
-/// of the `[plugins.hermes.keys]` table.
+/// of the `[plugins.log.keys]` table.
 ///
 /// THIS TABLE IS THE ROSTER (operator ruling, 2026-09-15). pns compiles in no
 /// list of routes: a route the operator granted a key to is a route they
@@ -54,7 +54,7 @@ impl HermesKeys {
     }
 }
 
-/// The routes and keys out of the `[plugins.hermes]` settings: the `keys`
+/// The routes and keys out of the `[plugins.log]` settings: the `keys`
 /// table, route by route. Silent, like every not-set-up reading.
 ///
 /// EVERY WAY A ROUTE CAN FAIL TO STATE A KEY READS AS NOT SET UP for that

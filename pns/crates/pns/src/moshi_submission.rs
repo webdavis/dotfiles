@@ -60,7 +60,12 @@ fn refusal(subcommand: &str) -> String {
 /// a consumed-but-not-forwarded stream leaves moshi with an empty parse,
 /// after which it silently does nothing. A payload too large to have arrived
 /// whole is the one thing not forwarded: see `payload_is_whole`.
-pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &str) -> i32 {
+pub(crate) fn blocking_event(
+    payload: &HookPayload,
+    agent: &str,
+    payload_json: &str,
+    reminder: Reminder,
+) -> i32 {
     let event = pns_domain::EventArgs {
         agent: agent.to_string(),
         state: "blocked".to_string(),
@@ -68,6 +73,9 @@ pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &
         pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
         ..attribution(payload, agent)
     };
+    // THE ROW BEFORE THE FORWARD, because a payload handed to moshi never
+    // reaches `raise` and the wait still happened.
+    crate::activity::record(&event, payload);
     // Each test guards the reading below it: the surface probe never runs for
     // a payload that was never going to be forwarded.
     // ONE probe set for the whole event: the forward decision below and the
@@ -82,6 +90,7 @@ pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &
     let approval = MoshiRaiseNotification {
         probes: &probes,
         payload,
+        reminder,
     };
     pns_application::RequestApproval { ports: &approval }.run(
         &event,
@@ -99,6 +108,9 @@ pub(crate) fn blocking_event(payload: &HookPayload, agent: &str, payload_json: &
 struct MoshiRaiseNotification<'a> {
     probes: &'a SystemProbes<SystemCommandRunner>,
     payload: &'a HookPayload,
+    /// This call's reminder, already resolved from its own `--remind` switch
+    /// and the producer's config entry. A zero delay arms nothing.
+    reminder: Reminder,
 }
 
 impl pns_application::ApprovalForwarder for MoshiRaiseNotification<'_> {
@@ -127,9 +139,9 @@ impl pns_application::PhoneSuppression for MoshiRaiseNotification<'_> {
     }
 }
 
-impl pns_application::NagSchedule for MoshiRaiseNotification<'_> {
+impl pns_application::RemindSchedule for MoshiRaiseNotification<'_> {
     fn arm(&self, session_id: &str, event: &pns_domain::EventArgs) {
-        arm_nag(session_id, event);
+        arm_remind(session_id, event, self.reminder);
     }
 }
 

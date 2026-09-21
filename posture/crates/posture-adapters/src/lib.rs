@@ -23,6 +23,7 @@
 
 mod codesign;
 mod private_directory;
+mod property_list;
 mod staging;
 pub use staging::{DesiredStaging, StagedTree};
 mod command;
@@ -71,6 +72,8 @@ pub use controls_file::read_controls;
 
 mod probes;
 pub use probes::ControlProbes;
+mod process_lookup;
+pub use process_lookup::{LibprocProcesses, ProcessLookup};
 mod osqueryi;
 pub use osqueryi::{PostureQuery, PostureTrio};
 
@@ -146,9 +149,11 @@ mod ssh_signals;
 pub use ssh_commands::{SshFileInstaller, SshKeyscan, SshLaunchd, SshdCommand};
 pub use ssh_signals::{SshSignals, ssh_install_cancelled};
 mod ssh_user;
-pub use ssh_user::{current_uid, ssh_current_user};
+pub use ssh_user::{current_uid, current_user_name};
 
 #[cfg(test)]
 mod test_gateway;
+#[cfg(test)]
+mod test_processes;
 #[cfg(test)]
 mod test_sandbox;

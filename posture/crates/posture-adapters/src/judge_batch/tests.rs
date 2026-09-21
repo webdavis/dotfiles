@@ -2,34 +2,27 @@
 //! this replaces.
 
 use super::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::test_sandbox::Sandbox;
 
 const HOME: &str = "/Users/someone";
-
-fn spool_path() -> std::path::PathBuf {
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let root = std::env::temp_dir().join(format!(
-        "posture-judge-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    root.join("digest.ndjson")
-}
 
 struct World {
     spool: DigestAppendFile,
     path: std::path::PathBuf,
     vouches_everything: bool,
+    /// Removes the spool directory when the test drops the world.
+    _sandbox: Sandbox,
 }
 
 impl World {
     fn new() -> Self {
-        let path = spool_path();
+        let sandbox = Sandbox::new("judge");
+        let path = sandbox.join("digest.ndjson");
         Self {
             spool: DigestAppendFile::new(path.clone()),
             path,
             vouches_everything: true,
+            _sandbox: sandbox,
         }
     }
 

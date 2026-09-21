@@ -15,7 +15,7 @@ pub use pns_application::FocusReading;
 /// the objection `Overrides::muted` already states about the mute. The test
 /// seam is the sandbox's own `HOME`, which every binary test already sets.
 ///
-/// NOTHING NAMED MEANS NOTHING READ. With no `[focus] silence` list there is
+/// NOTHING NAMED MEANS NOTHING READ. With no `[focus] modes` list there is
 /// no mode an assertion could match, so the two files are never opened and the
 /// default machine pays no IO for a feature it did not ask for.
 ///

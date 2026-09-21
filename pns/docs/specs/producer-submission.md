@@ -2,8 +2,14 @@
 
 Historical snapshot, not the live contract: this file predates the retirement ladder. `--agent`/
 `PNS_AGENT` is REFUSED on the current parser (`src/legacy/argv.rs:RETIRED_FLAGS`), not warned and
-dropped as section 4 below still says; `--producer`/`PNS_PRODUCER` is the live spelling. Not rewritten
-pending the ladder's closing docs pass.
+dropped as section 4 below still says; `--producer`/`PNS_PRODUCER` is the live spelling. `--long-running`
+is likewise REFUSED now, not accepted as a boolean the way the excerpt below still shows it: pns derives
+that tier from `--elapsed` alone. SECTION 4 IS NO LONGER THE PARSER EITHER: the parse is strict now,
+so a value flag given no value is refused as `<flag> requires a value` and any other unknown word as
+`<word> is not a flag pns takes`, each with exit 2 and nothing delivered, where section 4 says warn,
+skip and deliver. A recognized flag standing in value position is still never eaten, and an
+unrecognized token in value position is still taken as the value. Not rewritten pending the ladder's
+closing docs pass.
 
 ## Scope
 
@@ -16,12 +22,12 @@ fall out of it, the pane scrub, the rendered event handed to each channel, the d
 between a compiled-in plugin and an executable channel, per-leg isolation, which delivery lines reach
 stdout, and the records the first delivery writes. It does not cover the harness hook arms
 (`pns hook <event>`), the moshi gate, or the modes that take no event (`pulse`, `quiet`, `doctor`,
-`recap`, `daemon`, `lights`, `loop`, `nag`, `setup`); those reach `run_event` by other routes or
+`recap`, `daemon`, `lights`, `loop`, `remind`, `setup`); those reach `run_event` by other routes or
 not at all. Every claim below cites the symbol or test that establishes it; anything a reader would
 expect and that no evidence supports is written as a `NOT ESTABLISHED:` line.
 
 Terms used here in the code's own sense: `decision ring` (the `decisions` state file), `journal` (the
-`missed-notifications` state file), `unread` (the lamp the news record arms), `dim window` and
+`missed-notifications` state file), `unseen` (the lamp the news record arms), `dim window` and
 `quiet window` and `quiet hours` (the lights' own silences), `home probe` and `router` (the presence
 sensor `pns doctor` reads).
 
@@ -131,6 +137,21 @@ delivery.
 
 ### 4. Producer flags are parsed leniently, and a recognized flag is never eaten
 
+The reminder switch is its own scan rather than part of that walk. `--remind`, `--remind=<duration>` and
+`--no-remind` are read off a hook's own argv by `legacy::remind_switch`; the LAST one named wins, so a
+wrapper appending its own switch overrides the one it wrapped, and the value is joined with `=`, so the
+token after `--remind` is never swallowed. The value goes through the one duration parser and is held to
+the range `[remind] delay` is held to, thirty seconds to an hour, refused by name outside it
+(`crates/pns/src/legacy/argv.rs:remind_switch`,
+`crates/pns/src/legacy/argv/tests.rs:the_last_reminder_switch_argv_named_is_the_one_that_answers`).
+
+A JSON request states the same three things in its optional `remind` field (`true`, a duration string,
+`false`), and both spellings decode to one `pns_protocol::Remind` value, which is what
+`crates/pns/src/remind_schedule_runtime.rs:remind_delay` resolves against config
+(`crates/pns/src/remind_schedule_runtime/tests.rs`). The submit path resolves the field through that same
+`remind_delay` and arms from it, on a `blocked` request alone
+(`crates/pns/src/event_flow/submit/mapping.rs:reminder`).
+
 Given argv containing producer flags
 
 When `parse_args` walks it
@@ -185,7 +206,7 @@ Given a producer invocation carrying `--channel <route>`
 
 When `dispatch_legs` constructs the hermes channel
 
-Then the endpoint is `PNS_HERMES_URL` if that variable is set and non-empty, else the default route's
+Then the endpoint is `[plugins.log] url`, else `PNS_HERMES_URL`, if either is set and non-empty, else the default route's
 final path segment replaced by `<route>`, else the default route, and an unusable route name is
 complained about and replaced by the default.
 
@@ -255,7 +276,7 @@ Given a producer event
 When `run_event` starts
 
 Then `load_config(&config_path(&home))` runs once, and hue's settings table, the `[lights]` table, the
-`[plugins.mobile]` verdict, the hermes key, the `[recap]` table and the `[focus] silence` list are read
+`[plugins.phone]` verdict, the hermes key, the `[recap]` table and the `[focus] modes` list are read
 off that one outcome before `select_plugins` takes ownership of it.
 
 - Success: six values (`hue_table`, `lights`, `mobile`, `hermes_key`, `recap`, `focus_silence`) come out
@@ -269,14 +290,14 @@ off that one outcome before `select_plugins` takes ownership of it.
   is the one that falls back ON, because a config nobody can parse must not silently stop delivering
   misses; and plugin SELECTION falls back to the CORE rather than the defaults, so notifications keep
   working through a broken config (`src/main.rs:run_event`, the `_ =>` arm's comment).
-- Thresholds: `registry::CORE` is exactly two names, `["mobile", "macos-banner"]`, in registration order
-  (`src/registry.rs:CORE`). The full roster is five entries: `router` (a sensor), `mobile`,
-  `macos-banner`, `hermes`, `hue` (`src/registry.rs:ROSTER`).
+- Thresholds: `registry::CORE` is exactly two names, `["mobile", "banner"]`, in registration order
+  (`src/registry.rs:CORE`). The full roster is five entries: `home_presence` (a sensor), `mobile`,
+  `banner`, `hermes`, `lights` (`src/registry.rs:ROSTER`).
 - Required side effects: when `select_plugins` returns a warning, `run_event` prints it to stderr
   verbatim (`src/main.rs:run_event`). The two wordings are
   `pns: config error ({detail}); running every built-in plugin` for a parsed config naming an
   unregistered plugin, and
-  `pns: config error ({detail}); running the core plugins (mobile, macos-banner)` for a config nobody
+  `pns: config error ({detail}); running the core plugins (phone, banner)` for a config nobody
   could read (`src/registry.rs:every_plugin_warning`, `src/registry.rs:core_warning`).
 - Forbidden side effects: no second config read anywhere on the event path. The comment names the reason:
   the catch-up dispatches on the same two secrets, so the hermes key is CLONED rather than re-read
@@ -293,28 +314,28 @@ off that one outcome before `select_plugins` takes ownership of it.
   plugin`. The core-fallback wording is pinned in the pulse mode by `tests/dispatch.rs:a_broken_config_says_so_in_pulse_mode_too_instead_of_dying_quietly`(substring`pns:
   config
   error`), and the absent-config silence by `tests/dispatch.rs:an_absent_config_stays_silent_in_pulse_mode`. NOT ESTABLISHED: no test in `tests/dispatch.rs`asserts the exact core-fallback sentence`running
-  the core plugins (mobile, macos-banner)`on the EVENT path. I looked for`running the core`in`tests/\`;
+  the core plugins (phone, banner)`on the EVENT path. I looked for`running the core`in`tests/\`;
   the only integration coverage of an unreadable config on the event path is the pulse-mode test above.
 
-### 8. `[plugins.mobile]` is read exactly once, and its refusal travels with its token
+### 8. `[plugins.phone]` is read exactly once, and its refusal travels with its token
 
-Given a config carrying a `[plugins.mobile]` table
+Given a config carrying a `[plugins.phone]` table
 
-When `read_mobile` runs
+When `read_phone` runs
 
-Then one call to `config::armed_mobile` decides all three answers: the push token, the refusal (when the
-table is enabled and names a backend nothing compiled in answers), and the `mobile_watch_card` toggle.
+Then one call to `config::armed_phone` decides all three answers: the push token, the refusal (when the
+table is enabled and names a backend nothing compiled in answers), and the `card_while_watching` toggle.
 
-- Success: a `Mobile { token, refusal: None, watch_card }` (`src/main.rs:read_mobile`,
+- Success: a `Mobile { token, refusal: None, watch_card }` (`src/main.rs:read_phone`,
   `src/main.rs:Mobile`).
 - Failure sources: a `type` key that is absent, empty, or names anything but `moshi`
-  (`src/channels/moshi.rs:mobile_backend`, `src/channels/moshi.rs:MOSHI_TYPE`); a `mobile_watch_card` of
+  (`src/channels/moshi.rs:phone_backend`, `src/channels/moshi.rs:MOSHI_TYPE`); a `card_while_watching` of
   the wrong TOML type (`src/main.rs:watch_card`); a token key that is absent, of the wrong type, or
   empty, which is the not-set-up case rather than an error (`src/channels/moshi.rs:moshi_secret`).
 - Fail direction: fail-closed and loud for a refused backend. The refusal both prints
   `pns: config error ({reason}); no card is pushed` at the composition root AND rides out on the `Mobile`
-  value so `dispatch_legs` can fail the mobile leg with the same words wherever it would have been
-  dispatched (`src/main.rs:read_mobile`, `src/main.rs:dispatch_legs`). A wrong-typed `mobile_watch_card`
+  value so `dispatch_legs` can fail the phone leg with the same words wherever it would have been
+  dispatched (`src/main.rs:read_phone`, `src/main.rs:dispatch_legs`). A wrong-typed `card_while_watching`
   is fail-closed to `false` and loud (`src/main.rs:watch_card`). A missing token is fail-open at read
   time and becomes a `Delivery::Failed` at deliver time (behavior 13).
 - Thresholds: exactly one compiled-in mobile backend, `"moshi"` (`src/channels/moshi.rs:MOSHI_TYPE`).
@@ -331,8 +352,8 @@ table is enabled and names a backend nothing compiled in answers), and the `mobi
   wrote (`src/channels/moshi.rs:refused_backend_line`).
 - Process ownership and cleanup: not applicable.
 - Compatibility contract: `tests/dispatch.rs:a_watch_card_toggle_of_the_wrong_type_is_refused_out_loud`
-  pins that stderr names `mobile_watch_card` and that the card stays off. The refused-backend line
-  `mobile: FAILED, push SKIPPED -- no moshi token in the config ([plugins.mobile] token); nothing was sent`
+  pins that stderr names `card_while_watching` and that the card stays off. The refused-backend line
+  `phone: FAILED, push SKIPPED -- no moshi token in the config ([plugins.phone] token); nothing was sent`
   is pinned in the diagnostic by
   `tests/dispatch.rs:a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_one` (the
   string at `tests/dispatch.rs:3239`), and
@@ -358,7 +379,7 @@ itself.
   operator's own `HOME` (`src/main.rs:focus_now`, `src/main.rs:FOCUS_DB`).
 - Failure sources: an unreadable clock (`None`, which ages nothing rather than making a signal infinitely
   fresh); an unreadable Focus store, which `is_ok_and` reads as not silenced (`src/main.rs:run_event`); a
-  garbled `PNS_IDLE_SECS`, `PNS_DESK_IDLE_SECS` or `PNS_PHONE_INPUT_AGE`, each of which sets its own
+  garbled `PNS_SCREEN_IDLE`, `PNS_DESK_IDLE` or `PNS_PHONE_INPUT_MAX_AGE`, each of which sets its own
   `*_invalid` flag rather than falling back to a default (`src/engine.rs:Overrides::from_env`).
 - Fail direction: fail-open toward delivering. An unreadable Focus store reads as not silenced; a garbled
   desk threshold makes NOTHING fresh, so the surface is `Away`, which always cards
@@ -568,7 +589,7 @@ When `dispatch_legs` runs
 Then the pane is replaced by the empty string in the rendered event handed to EVERY channel, and one
 warning is printed to stderr.
 
-- Success: `sandbox.event("macos-banner")["pane"]` is `""` and stderr contains
+- Success: `sandbox.event("banner")["pane"]` is `""` and stderr contains
   `pns: dropped a pane id with shell metacharacters; no channel will focus a pane`
   (`src/main.rs:dispatch_legs`).
 - Failure sources: a pane id carrying a shell metacharacter, which would run when the operator clicks the
@@ -661,13 +682,13 @@ a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `p
   costs the others nothing, and every channel above was constructed before the first delivery, so a leg
   cannot be lost to a sibling's refusal" (`src/main.rs:dispatch_legs`). `Unlaunched` prints in NEITHER
   mode, because the common case is a channel nobody installed (`src/channels/mod.rs:Delivery`).
-- Thresholds: precedence turns on one predicate. With `PNS_CHANNELS_DIR` set and non-empty, executables
+- Thresholds: precedence turns on one predicate. With `[paths] channels_dir`, or `PNS_CHANNELS_DIR` after it, set and non-empty, executables
   win for EVERY name; with it unset or empty, a native plugin wins and the executable fallback serves
   only names with no native implementation (`src/channels/mod.rs:native_first`,
   `src/main.rs:dispatch_legs`). The channels directory defaults to `$HOME/.local/libexec/pns/channels`,
   and an EMPTY value means the default as much as unset does (`src/main.rs:resolve_path`).
 - Required side effects: for a native leg, one outbound attempt. The banner spawns `terminal-notifier` by
-  NAME through PATH (`src/channels/banner.rs:deliver`); moshi posts JSON to `PNS_MOSHI_URL` or the
+  NAME through PATH (`src/channels/banner.rs:deliver`); moshi posts JSON to `[plugins.phone] url`, `PNS_MOSHI_URL` or the
   compiled default (`src/main.rs:moshi_channel`); hermes posts a signed body to the URL from behavior 5
   (`src/channels/hermes.rs:deliver`).
 - Forbidden side effects: no `?` and no early return in the leg loop. A panic must not take the remaining
@@ -677,7 +698,7 @@ a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `p
 - Timeout and cancellation: the native legs are bounded. Moshi posts under
   `src/channels/moshi.rs:POST_DEADLINE` (10 seconds). Hermes posts under
   `src/channels/hermes.rs:ASYNC_DEADLINE` (10 seconds) on a `Silent` leg, and on a `ReportOutcome` leg
-  under `remote_deadline(PNS_REMOTE_TIMEOUT)`, which defaults to 5 seconds, clamps to 86,400 seconds, and
+  under `remote_deadline([delivery] remote_deadline)`, which defaults to 5 seconds, clamps to 86,400 seconds, and
   treats an explicit 0 as no deadline at all (`src/channels/hermes.rs:remote_deadline`,
   `src/channels/hermes.rs:DEFAULT_SYNC_DEADLINE_SECS`, `src/channels/hermes.rs:MAX_SYNC_DEADLINE_SECS`).
   An EXECUTABLE channel is NOT bounded: `deliver` calls `child.wait()` with no deadline
@@ -699,7 +720,7 @@ a `ReportOutcome` leg's `Delivered` or `Failed` sentence is printed, prefixed `p
   stdout is EXACTLY `""` for an absent channel on a synchronous leg. The printed sentences are pinned
   verbatim by
   `tests/dispatch.rs:every_hermes_outcome_an_event_can_reach_prints_exactly_what_it_printed_before`:
-  `pns: post SKIPPED -- no hermes key for the <route> route ([plugins.hermes.keys] <route>); nothing was sent\n`,
+  `pns: post SKIPPED -- no hermes key for the <route> route ([plugins.log.keys] <route>); nothing was sent\n`,
   `pns: post FAILED HTTP 000 (no response; is the hermes gateway up?)\n`, and
   `pns: post FAILED (curl reported no HTTP status at all)\n`. The two that need a listener are pinned by
   `tests/native.rs:sync_hermes_prints_the_posted_line_and_signs_the_exact_bytes_it_sent`
@@ -748,8 +769,8 @@ decision actually ran on and each leg's verdict, and the ring is pruned to its c
   `actionId` is recorded, because pns never has one (`src/decision_log.rs:line` doc).
 - Timeout and cancellation: not applicable, this is a bounded file append.
 - Idempotency and duplicates: exactly one line per event, including a nudge, which is distinguished only
-  by the `nag=` boolean so two `claude/blocked` entries are not indistinguishable
-  (`src/decision_log.rs:Record::nag`).
+  by the `remind=` boolean so two `claude/blocked` entries are not indistinguishable
+  (`src/decision_log.rs:Record::remind`).
 - Privacy: covered under forbidden side effects. A newline is the character that matters most, because
   one in a value would forge a second entry the reader could not tell from a real decision
   (`src/decision_log.rs:printable`).
@@ -802,7 +823,7 @@ the pulse, the held-lamp clear, and the lights tick registration.
   - The LAST-PRESENT marker advances only when `missed_notifications::is_present` is true, which is
     `surface != Away`, and only forward, and only from inside the return-moment claim
     (`src/missed_notifications.rs:is_present`, `src/main.rs:mark_present`, `src/main.rs:advance_marker`).
-  - The LIGHTS need both switches, a `[lights]` table AND an enabled `[plugins.hue]` table, before the
+  - The LIGHTS need both switches, a `[lights]` table AND an enabled `[plugins.lights]` table, before the
     blocked marker or the tick registration writes anything (`src/main.rs:run_event`, `lamps_live`).
   - The NEWS record is written whatever the delivery did and is NOT gated on the lamp switches, because
     it is one line rewritten in place that can never grow (`src/main.rs:run_event`, the `record_news`
@@ -855,22 +876,25 @@ the pulse, the held-lamp clear, and the lights tick registration.
   `tests/dispatch.rs:a_registration_that_cannot_be_written_costs_the_event_nothing` pin the fail-quiet
   direction.
 
-### 19. The producer path exits 0 on every path that becomes an event
+### 19. The producer path reports its delivery in the exit code
 
 Given any producer invocation that reaches `event_mode`
 
 When the process finishes
 
-Then it exits 0, whatever any channel, config, probe or state write did.
+Then it exits 0 when every durable destination took the page, 1 when one did not, and 2 for a field pns
+will not honour.
 
-- Success: exit code 0 (`src/main.rs:main` returns after `event_mode`; the module doc states "The
-  producer path exits 0 on every path, because a notification must never fail the work it reports on").
-- Failure sources: none that change the code. A failed channel, an unwritable state directory, a broken
-  config and a non-Unicode argument all still exit 0.
-- Fail direction: fail-open, and the exit code is the strongest form of it.
-- Thresholds: exactly two producer-adjacent paths exit non-zero, and neither is an event: a word naming
-  no command exits 2 (behavior 2), and the hand-typed verbs refuse a bad invocation with exit 2
-  (`src/main.rs` module doc, which also names the one remaining gap: a word
+- Success: exit code 0 for a page every durable destination took (`src/legacy.rs:run` returns what the
+  submission answered; `src/invocation.rs:event_mode` maps `Landed`).
+- Failure sources: a destination that failed or was never launched answers 1. A decorative destination
+  (the banner, the phone card) does not decide it, and a silent one is a channel that ran and had
+  nothing to say, which counts as an arrival.
+- Fail direction: the producer hears the delivery. The always-exit-0 contract lives on the harness hook
+  paths (`pns hook <event>`), which answer 0 whatever the delivery did, and the shell notifier and the
+  daemon discard the code.
+- Thresholds: a word naming no command exits 2 (behavior 2), and the hand-typed verbs refuse a bad
+  invocation with exit 2 (`src/main.rs` module doc, which also names the one remaining gap: a word
   trailing `lights tick` is dropped rather than refused).
 - Required side effects: none.
 - Forbidden side effects: no path on the event side may abort. `build_registry` is the one panic, and it
@@ -881,9 +905,7 @@ Then it exits 0, whatever any channel, config, probe or state write did.
 - Idempotency and duplicates: not applicable.
 - Privacy: not applicable.
 - Process ownership and cleanup: not applicable.
-- Compatibility contract: every call through `support::run` asserts `output.status.success()`
-  (`tests/support/mod.rs:run`), so the exit-0 edge is pinned by every dispatch test that uses it.
-  `tests/dispatch.rs:a_non_unicode_argument_never_breaks_the_exit_zero_edge` states it explicitly,
-  `tests/dispatch.rs:help_in_flag_position_wins_wherever_it_reaches_the_event_parser` asserts `Some(0)`
-  directly, and `tests/dispatch.rs:a_state_directory_that_cannot_be_written_costs_the_event_nothing`
-  names `run` as the thing asserting it.
+- Compatibility contract: `tests/support/mod.rs:run` asserts the engine answered 0 or 1 rather than 0
+  alone, `src/legacy/tests.rs:every_caller_hears_a_failed_delivery` states the new rule, and
+  `tests/hooks/hook_contract.rs:a_hook_whose_destination_took_nothing_still_exits_zero` pins the hook
+  path that keeps the old one.

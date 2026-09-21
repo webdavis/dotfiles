@@ -238,7 +238,10 @@
      for a non-async hook, so the card is registered before the prompt is
      drawn instead of racing it. What an async hook would do on this event
      is unverified, so that spelling is a deliberate choice and not a
-     measured one. And running the hook on BOTH events would notify twice
+     measured one. The call also passes `--remind`, because pns arms the
+     unanswered-approval reminder only when asked; the `pns hook resolved`
+     declarations below are the answered signal that clears it. And running
+     the hook on BOTH events would notify twice
      for one prompt (PermissionRequest fires, then the prompt appears and
      Notification fires), so this is one seam per harness, matching Codex's
      PermissionRequest entry in
@@ -246,11 +249,11 @@
      alerter held the slot for a local sound and was the last notification
      path on this machine that bypassed the presence engine, and for TOOL
      approvals the PermissionRequest hook above and the unanswered-approval
-     nag already raise what it raised, so it was deleted rather than kept
+     reminder already raise what it raised, so it was deleted rather than kept
      for a second opinion (5d30d362) and the slot sat empty until this one.
      Sandbox NETWORK approvals are covered by neither: Claude Code's
      PermissionRequest hooks do not run for them, so deleting alerter left
-     that class with no repository-managed alert and no nag. That gap is
+     that class with no repository-managed alert and no reminder. That gap is
      known and filed (backlog B39), not fixed here. alerter itself stays
      installed: the osquery pipeline is its real caller.
 
@@ -334,26 +337,28 @@
      than by the reason, which is the opposite of StopFailure's error text.
 
      PostToolBatch fires when an assistant tool batch RESOLVES, and it is the
-     nag's clearing signal: the record written when the operator was blocked on
-     a permission prompt is removed here, and an answered marker is written in
-     its place. It is the ONLY single declaration covering both operator verbs,
-     because a DENIED tool call still produces a tool_result and so resolves the
-     batch rather than skipping it, where PermissionDenied covers only the
-     classifier's own refusals. Note honestly what the signal IS, and what it
-     therefore does NOT promise: it is the BATCH RESOLVING, not the operator
-     answering. So a tool approved in ten seconds whose run outlives the
-     schedule is nudged about anyway, and an approval answered while another
-     approval's card is being built can still be named on that card, because
-     several waiting approvals coalesce into one. Both residuals are stated in
-     the [nag] block of the pns config as well. What this entry does buy is that
-     every approval is nudged at most once and that a batch which has resolved
-     stops the nudge that has not gone out yet. Async, for the simplest reason on this list: it delivers nothing and
-     nobody reads its answer, so the harness must not wait for it. Deliberately
-     NO matcher, since every batch is a clearing signal. Stop and StopFailure
-     clear the same record without any declaration at all, which is the backstop
-     for a batch payload over pns's 1MB stdin cap, for an operator who escapes
-     the prompt instead of answering it, and for the window between a merge and
-     the apply that installs this entry.
+     reminder's clearing signal: the record written when the operator was
+     blocked on a permission prompt is removed here, and an answered marker
+     is written in its place. It is the ONLY single declaration covering both
+     operator verbs, because a DENIED tool call still produces a tool_result
+     and so resolves the batch rather than skipping it, where
+     PermissionDenied covers only the classifier's own refusals. Note
+     honestly what the signal IS, and what it therefore does NOT promise: it
+     is the BATCH RESOLVING, not the operator answering. So a tool approved
+     in ten seconds whose run outlives the schedule is nudged about anyway,
+     and an approval answered while another approval's card is being built
+     can still be named on that card, because several waiting approvals
+     coalesce into one. Both residuals are stated in the [remind] block of
+     the pns config as well. What this entry does buy is that every approval
+     is nudged at most once and that a batch which has resolved stops the
+     nudge that has not gone out yet. Async, for the simplest reason on this
+     list: it delivers nothing and nobody reads its answer, so the harness
+     must not wait for it. Deliberately NO matcher, since every batch is a
+     clearing signal. Stop and StopFailure clear the same record without any
+     declaration at all, which is the backstop for a batch payload over pns's
+     1MB stdin cap, for an operator who escapes the prompt instead of
+     answering it, and for the window between a merge and the apply that
+     installs this entry.
 
      Elicitation fires when a connected MCP server asks the operator for input
      and holds its tool call open waiting. It rides the `asked` word: the
@@ -415,7 +420,7 @@
     "PermissionRequest" (list (dict
       "hooks" (list (dict
         "type" "command"
-        "command" (printf "%s hook blocked" $pns)))))
+        "command" (printf "%s hook blocked --remind" $pns)))))
     "PermissionDenied" (list (dict
       "hooks" (list (dict
         "type" "command"

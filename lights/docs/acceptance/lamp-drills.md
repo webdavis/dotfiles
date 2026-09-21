@@ -45,11 +45,11 @@ Mute the drill room's two routed names for the length of the sitting and clear t
 duration is `<count>s`, `<count>m` or `<count>h`, from 1 second to 24 hours:
 
 ```bash
-pns lights quiet "2F - Kitchen" 45m
-pns lights quiet "2F - Kitchen - HCD6" 45m
+pns lights mute "2F - Kitchen" 45m
+pns lights mute "2F - Kitchen - HCD6" 45m
 # afterwards
-pns lights quiet "2F - Kitchen" off
-pns lights quiet "2F - Kitchen - HCD6" off
+pns lights mute "2F - Kitchen" off
+pns lights mute "2F - Kitchen - HCD6" off
 ```
 
 In the Master Bedroom the pair is `3F - MBedroom` and `3F - MBedroom - HCL3`.
@@ -255,11 +255,11 @@ was kept quiet: no agent session working, `lights-held` empty, and the two route
 sitting.
 
 ```bash
-pns lights quiet "3F - Studio" 20m
-pns lights quiet "3F - Studio - HCL3" 20m
+pns lights mute "3F - Studio" 20m
+pns lights mute "3F - Studio - HCL3" 20m
 # afterwards
-pns lights quiet "3F - Studio" off
-pns lights quiet "3F - Studio - HCL3" off
+pns lights mute "3F - Studio" off
+pns lights mute "3F - Studio - HCL3" off
 ```
 
 Press each key once, in this order, and watch the lamps rather than the terminal. The bindings are fire

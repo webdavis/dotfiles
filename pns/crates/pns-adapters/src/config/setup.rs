@@ -1,21 +1,34 @@
 use pns_domain::{Answers, hue_is_armed, router_is_armed};
 
+/// One plugin table with its switch on.
+fn armed(mut settings: toml::Table) -> toml::Value {
+    settings.insert("enabled".to_string(), toml::Value::Boolean(true));
+    toml::Value::Table(settings)
+}
+
 /// This walk's answers, as the values table `config_text::render` walks.
 ///
 /// ONLY WHAT WAS ARMED IS HERE. A table this method never inserts is one
 /// `render` writes at its layout default, commented for an opt-in table
-/// and live at the CORE default for `mobile`, `macos-banner`, `daemon`
-/// and `recap`, none of which this wizard even asks about.
+/// and live at the CORE default for `daemon` and `recap`, neither of which
+/// this wizard even asks about.
+///
+/// EVERY PLUGIN TABLE STATES ITS SWITCH, because `[plugins.*] enabled`
+/// defaults false: a table written without it is a destination that renders
+/// live and delivers nothing. The two this machine has by sitting at it,
+/// `banner` and `phone`, are armed whether the walk asked anything about
+/// them or not.
 fn values(answers: &Answers) -> toml::Table {
     let mut plugins = toml::Table::new();
+    plugins.insert("banner".to_string(), armed(toml::Table::new()));
+    let mut mobile = toml::Table::new();
     if !answers.mobile_token.is_empty() {
-        let mut mobile = toml::Table::new();
         mobile.insert(
-            "token".to_string(),
+            "device_token".to_string(),
             toml::Value::String(answers.mobile_token.clone()),
         );
-        plugins.insert("mobile".to_string(), toml::Value::Table(mobile));
     }
+    plugins.insert("phone".to_string(), armed(mobile));
     if !answers.hermes_key.is_empty() {
         // THE WALK'S ONE ANSWER IS THE DEFAULT ROUTE'S KEY, under its SHIPPED
         // name because the wizard does not ask about `[routes]`: every route
@@ -29,36 +42,27 @@ fn values(answers: &Answers) -> toml::Table {
                 .to_string(),
             toml::Value::String(answers.hermes_key.clone()),
         );
-        let mut hermes = toml::Table::new();
-        hermes.insert("keys".to_string(), toml::Value::Table(keys));
-        plugins.insert("hermes".to_string(), toml::Value::Table(hermes));
+        // UNDER THE DURABLE LOG'S OWN HEADING. The wizard asks only about
+        // hermes; `type` is the layout's own default, written by the render.
+        let mut log = toml::Table::new();
+        log.insert("keys".to_string(), toml::Value::Table(keys));
+        plugins.insert("log".to_string(), armed(log));
     }
     if hue_is_armed(answers) {
         let mut hue = toml::Table::new();
         hue.insert(
-            "bridge".to_string(),
+            "bridge_host".to_string(),
             toml::Value::String(answers.hue_bridge.clone()),
         );
         hue.insert(
-            "key".to_string(),
+            "api_key".to_string(),
             toml::Value::String(answers.hue_key.clone()),
         );
         hue.insert(
             "certificate".to_string(),
             toml::Value::String(answers.hue_certificate.clone()),
         );
-        hue.insert(
-            "rooms".to_string(),
-            toml::Value::Array(
-                answers
-                    .hue_rooms
-                    .iter()
-                    .cloned()
-                    .map(toml::Value::String)
-                    .collect(),
-            ),
-        );
-        plugins.insert("hue".to_string(), toml::Value::Table(hue));
+        plugins.insert("lights".to_string(), armed(hue));
     }
     if router_is_armed(answers) {
         let mut router = toml::Table::new();
@@ -67,7 +71,7 @@ fn values(answers: &Answers) -> toml::Table {
             toml::Value::String(answers.router_type.clone()),
         );
         router.insert(
-            "router_url".to_string(),
+            "url".to_string(),
             toml::Value::String(answers.router_url.clone()),
         );
         router.insert(
@@ -78,17 +82,15 @@ fn values(answers: &Answers) -> toml::Table {
             "device_hostname".to_string(),
             toml::Value::String(answers.router_device_hostname.clone()),
         );
-        plugins.insert("router".to_string(), toml::Value::Table(router));
+        plugins.insert("home_presence".to_string(), armed(router));
     }
 
     let mut values = toml::Table::new();
-    if !plugins.is_empty() {
-        values.insert("plugins".to_string(), toml::Value::Table(plugins));
-    }
+    values.insert("plugins".to_string(), toml::Value::Table(plugins));
     if !answers.focus_modes.is_empty() {
         let mut focus = toml::Table::new();
         focus.insert(
-            "silence".to_string(),
+            "modes".to_string(),
             toml::Value::Array(
                 answers
                     .focus_modes
@@ -100,8 +102,20 @@ fn values(answers: &Answers) -> toml::Table {
         );
         values.insert("focus".to_string(), toml::Value::Table(focus));
     }
-    if answers.nag {
-        values.insert("nag".to_string(), toml::Value::Table(toml::Table::new()));
+    if answers.remind {
+        // THE DELAY IS WRITTEN OUT. An empty `[remind]` states no setting and
+        // renders exactly like no table at all, so a walk that armed the
+        // reminder says what it armed it at.
+        let mut remind = toml::Table::new();
+        remind.insert(
+            "delay".to_string(),
+            toml::Value::String(
+                crate::config::render::REMIND_DELAY
+                    .trim_matches('"')
+                    .to_string(),
+            ),
+        );
+        values.insert("remind".to_string(), toml::Value::Table(remind));
     }
     values
 }

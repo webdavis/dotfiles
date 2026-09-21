@@ -60,6 +60,26 @@ impl SqliteStore {
         self.failing(|connection| failing::one(connection, id))
     }
 
+    /// Acknowledges every dead-lettered failing leg and answers how many it
+    /// cleared, which is the only way a leg the retry policy gave up on leaves
+    /// `pns failures`.
+    ///
+    /// DEAD-LETTERED ONLY. A failing leg still inside its retry budget may yet
+    /// arrive, so clearing it would hide a delivery that is still being chased.
+    /// The rows stay and `ledger_attempts` is untouched, so what was tried is
+    /// still readable afterwards.
+    pub fn drain_deadlettered_legs(&self) -> Result<u64, LedgerFailure> {
+        self.ledger_result(self.transaction(|transaction| {
+            let drained = transaction.execute(
+                "UPDATE ledger_legs SET acknowledged = 1, owner = NULL, token = NULL,
+                 lease_until = NULL
+                 WHERE acknowledged = 0 AND deadlettered_at IS NOT NULL",
+                [],
+            )?;
+            Ok(drained as u64)
+        }))
+    }
+
     fn failing<T>(
         &self,
         read: impl FnOnce(&rusqlite::Connection) -> Result<T, StoreError>,
@@ -74,6 +94,43 @@ fn validate_lease(lease: LeaseWindow) -> Result<(), LedgerFailure> {
         Err(LedgerFailure::InvalidLease)
     } else {
         Ok(())
+    }
+}
+
+/// Whether a retry names the same submission the ledger already recorded.
+/// Every field but `producer_request` compares by value; that one compares
+/// by decoded meaning, so a producer re-encoding the same request with a
+/// newer pns (which may drop bytes a canonical render never wrote, like an
+/// absent optional field) still recognizes its own retry instead of
+/// conflicting with itself.
+fn submissions_match(existing: &LedgerSubmission, new: &LedgerSubmission) -> bool {
+    existing.identity == new.identity
+        && existing.event == new.event
+        && existing.legs == new.legs
+        && producer_requests_match(
+            existing.producer_request.as_deref(),
+            new.producer_request.as_deref(),
+        )
+}
+
+/// Two producer_request texts match verbatim, or, when they differ, by
+/// decoding to the same `Request`. Falls back to the byte compare (already
+/// known to fail) when either side does not decode, so unparseable legacy
+/// metadata still conflicts rather than being waved through.
+fn producer_requests_match(existing: Option<&str>, new: Option<&str>) -> bool {
+    match (existing, new) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            a == b
+                || matches!(
+                    (
+                        pns_protocol::decode_request(a.as_bytes()),
+                        pns_protocol::decode_request(b.as_bytes()),
+                    ),
+                    (Ok(a), Ok(b)) if a.request == b.request
+                )
+        }
+        _ => false,
     }
 }
 impl DeliveryLedger for SqliteStore {
@@ -97,7 +154,9 @@ impl DeliveryLedger for SqliteStore {
             self.transaction(|transaction| prepare::submission(transaction, submission, lease)),
         )?;
         match result {
-            PreparedSubmission::Existing(ref record) if record.submission != *submission => {
+            PreparedSubmission::Existing(ref record)
+                if !submissions_match(&record.submission, submission) =>
+            {
                 Err(LedgerFailure::ConflictingSubmission)
             }
             other => Ok(other),
@@ -147,3 +206,28 @@ impl DeliveryLedger for SqliteStore {
 }
 #[cfg(test)]
 mod tests;
+
+impl SqliteStore {
+    /// The newest command the shell notifier timed, which is the last thing
+    /// the operator ran long enough for the engine to hear about.
+    ///
+    /// THE AGENT NAMES THE PRODUCER. The notifier submits every timed command
+    /// as the `shell` producer, so that column is what separates its events
+    /// from a harness's, and the ledger is where they land.
+    ///
+    /// READ ONLY, AND EVERY FAILURE IS NO COMMAND, the reasoning
+    /// `newest_wait` states: a report neither creates a database nor refuses
+    /// to print because it could not read one.
+    pub fn newest_shell_command(&self) -> Option<String> {
+        let connection = self.read_only().ok()?;
+        connection
+            .query_row(
+                "SELECT detail FROM ledger_events
+                  WHERE agent = 'shell' AND detail <> ''
+                  ORDER BY seq DESC LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+    }
+}

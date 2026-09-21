@@ -3,15 +3,16 @@ use super::*;
 #[test]
 fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key() {
     // A plugin's settings used to reach the plugin free-form, so a near
-    // miss was a destination that quietly never worked: `room` for `rooms`
-    // is a pulse into a room the bridge does not have, and `tokens` for
-    // `token` is a phone card that silently never leaves the machine.
+    // miss was a destination that quietly never worked: `api_keys` for
+    // `api_key` is a bridge nothing can authenticate against, and `tokens`
+    // for `device_token` is a phone card that silently never leaves the
+    // machine.
     for (table, mistyped, near) in [
-        ("plugins.hermes", "key", "keys"),
-        ("plugins.hue", "room", "rooms"),
-        ("plugins.macos-banner", "sound", "enabled"),
-        ("plugins.mobile", "tokens", "token"),
-        ("plugins.router", "phone", "device_hostname"),
+        ("plugins.log", "key", "keys"),
+        ("plugins.lights", "api_keys", "api_key"),
+        ("plugins.banner", "sound", "enabled"),
+        ("plugins.phone", "tokens", "device_token"),
+        ("plugins.home_presence", "phone", "device_hostname"),
     ] {
         let said = refusal(&format!("[{table}]\nenabled = true\n{mistyped} = \"x\"\n"));
         assert!(
@@ -33,7 +34,7 @@ fn a_mistyped_key_inside_a_plugin_table_is_refused_naming_the_table_and_the_key(
 fn every_key_a_shipped_plugin_table_serves_is_still_admitted() {
     // The positive control under the refusal above: a sweep that refused
     // the whole vocabulary would pass every assertion up there.
-    let shipped = "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.hue]\nenabled = true\nbridge = \"b\"\nkey = \"k\"\n             rooms = [\"3F - Studio\"]\nquiet_hours = \"22:00-07:00\"\n             [plugins.macos-banner]\nenabled = true\n             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\ntoken = \"t\"\n             mobile_watch_card = false\nsubmit_deadline_secs = 5\n             [plugins.router]\nenabled = true\ntype = \"unifi\"\n             router_url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nstale_alert_channel = \"priority\"\n";
+    let shipped = "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\npns-events = \"k\"\n             posture-pages = \"k\"\npriority = \"k\"\n             [plugins.lights]\nenabled = true\nbridge_host = \"b\"\napi_key = \"k\"\n             [plugins.banner]\nenabled = true\n             [plugins.phone]\nenabled = true\ntype = \"moshi\"\ndevice_token = \"t\"\n             card_while_watching = false\nack_deadline = \"5s\"\n             [plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n             url = \"https://192.168.1.1\"\ndevice_hostname = \"mister\"\n             device_mac = \"2e:11:ab:6d:b0:4f\"\ndevice_ipv4 = \"192.168.1.9\"\n             api_key = \"k\"\nalert_route = \"priority\"\n";
     let config = parse_config(shipped).expect("every shipped key parses");
     assert_eq!(config.plugins.len(), 5);
 }
@@ -61,13 +62,13 @@ fn an_unregistered_plugin_tables_settings_stay_free_form_because_selection_is_by
 fn a_table_the_file_does_not_serve_is_refused_listing_the_tables_it_does() {
     // THE MOST OPERATOR-VISIBLE TYPO CLASS: a whole table misspelled, or a
     // table that moved. `[home]` is the real one; the router probe's
-    // settings moved under `[plugins.router]`, and a config written before
+    // settings moved under `[plugins.home_presence]`, and a config written before
     // that move is refused WHOLE, which takes every plugin's secret with
     // it. Told only that `home` is unknown, an operator has nowhere to go.
-    let said = refusal("[home]\nrouter_url = \"https://192.168.1.1\"\n");
+    let said = refusal("[home]\nurl = \"https://192.168.1.1\"\n");
     assert!(said.contains("`home`"), "the table is named: {said}");
     for serves in [
-        "daemon", "delivery", "focus", "lights", "nag", "plugins", "recap",
+        "delivery", "focus", "gateway", "lights", "plugins", "recap", "remind", "stale",
     ] {
         assert!(
             said.contains(serves),
@@ -83,18 +84,18 @@ fn type_is_the_word_that_selects_a_backend_and_the_old_brand_is_refused() {
     // it on one table had to learn a second word on the next; there is now
     // one, and the retired spelling is refused by name with the vocabulary
     // spelled out rather than reaching the probe as a setting it ignores.
-    let said = refusal("[plugins.router]\nenabled = true\nbrand = \"unifi\"\n");
+    let said = refusal("[plugins.home_presence]\nenabled = true\nbrand = \"unifi\"\n");
     assert!(said.contains("`brand`"), "the retired key is named: {said}");
     assert!(
         said.contains("type"),
         "and `type` is listed instead: {said}"
     );
     assert!(
-        parse_config("[plugins.router]\nenabled = true\ntype = \"unifi\"\n").is_ok(),
+        parse_config("[plugins.home_presence]\nenabled = true\ntype = \"unifi\"\n").is_ok(),
         "the router table serves `type`"
     );
     assert!(
-        parse_config("[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n").is_ok(),
+        parse_config("[plugins.phone]\nenabled = true\ntype = \"moshi\"\n").is_ok(),
         "and so does the mobile table"
     );
 }
@@ -145,7 +146,7 @@ fn a_key_under_any_route_name_the_gateway_serves_is_accepted() {
     // route nothing in this repository will ever mention.
     for route in ["general", "weather-balloons", "pns_events_2"] {
         let text = format!(
-            "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n{route} = \"secret\"\n"
+            "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\n{route} = \"secret\"\n"
         );
         let config = crate::config::parse_config(&text)
             .unwrap_or_else(|error| panic!("`{route}` was refused: {error:?}"));
@@ -164,7 +165,7 @@ fn a_route_name_no_url_could_carry_still_signs_nothing() {
     // pns cannot build a URL out of is one nothing posts to, so the key it
     // holds signs nothing rather than signing for a route nobody granted.
     let config = crate::config::parse_config(
-        "[plugins.hermes]\nenabled = true\n[plugins.hermes.keys]\n\"a/b\" = \"secret\"\n",
+        "[plugins.log]\nenabled = true\ntype = \"hermes\"\n[plugins.log.keys]\n\"a/b\" = \"secret\"\n",
     )
     .expect("an unusable name is the operator's to write");
     assert!(

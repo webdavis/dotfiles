@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_adapters::{CommandIo, CommandOutput};
 use posture_application::{ClockUnavailable, InspectionFailure, WallTime};
 use posture_domain::{AgentLabels, AuditBounds, ManifestAuthority};
@@ -9,7 +10,6 @@ use std::{
     os::unix::fs::{MetadataExt, PermissionsExt},
     path::Path,
     rc::Rc,
-    sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 #[derive(Default)]
@@ -31,33 +31,24 @@ impl CommandRunner for Runner {
     ) -> Result<CommandOutput, InspectionFailure> {
         let mut effects = self.0.borrow_mut();
         match program.to_str().unwrap() {
-            "/usr/bin/pgrep" => Ok(CommandOutput {
-                bytes: vec![],
-                exit: 0,
-            }),
             "/bin/launchctl" => {
                 assert_eq!(args[0], "print");
+                // The live pid is this process, so the daemon reading is
+                // taken from a process that genuinely exists.
                 let body = if args[1]
                     .to_string_lossy()
                     .ends_with("com.webdavis.pns-daemon")
                 {
                     if effects.unhealthy {
-                        "state = waiting\n"
+                        "state = waiting\n".to_owned()
                     } else {
-                        "state = running\npid = 42\n"
+                        format!("state = running\npid = {}\n", std::process::id())
                     }
                 } else {
-                    "runs = 1\nlast exit code = (never exited)\n"
+                    "runs = 1\nlast exit code = (never exited)\n".to_owned()
                 };
                 Ok(CommandOutput {
-                    bytes: body.as_bytes().to_vec(),
-                    exit: 0,
-                })
-            }
-            "/bin/kill" => {
-                assert_eq!(args, [OsStr::new("-0"), OsStr::new("42")]);
-                Ok(CommandOutput {
-                    bytes: vec![],
+                    bytes: body.into_bytes(),
                     exit: 0,
                 })
             }
@@ -93,10 +84,25 @@ impl CommandRunner for Runner {
                 if effects.pns_failed {
                     return Err(InspectionFailure::TimedOut);
                 }
-                Ok(CommandOutput { bytes:format!(r#"{{"schema":"pns.result/1","request_id":"{identity}","status":"accepted","diagnostics":["ledger_committed"]}}"#).into_bytes(),exit:0 })
+                Ok(CommandOutput { bytes:format!(r#"{{"schema":"pns.result/1","request_id":"{identity}","status":"delivered","diagnostics":["ledger_committed"]}}"#).into_bytes(),exit:0 })
             }
             _ => panic!("unexpected command {program:?}"),
         }
+    }
+}
+/// A scripted process table, so the assembled reads never walk the live
+/// machine: every walk answers with one process id when the daemon is
+/// declared present, and none when it is not.
+struct Processes(bool);
+impl ProcessLookup for Processes {
+    fn matching(
+        &mut self,
+        _name: &str,
+        _uid: Option<u32>,
+        _parent: Option<u32>,
+        _directory: Option<&Path>,
+    ) -> Result<Vec<i32>, InspectionFailure> {
+        Ok(if self.0 { vec![1] } else { vec![] })
     }
 }
 struct Time;
@@ -114,21 +120,13 @@ impl GatewayHealth for Gateway {
         Some(405)
     }
 }
-fn configuration() -> Configuration {
-    static NEXT: AtomicU64 = AtomicU64::new(0);
-    // The epoch nanosecond keeps a RECYCLED process id off an earlier run's
-    // leftovers: nothing removes this dir, and `create_dir` below refuses a
-    // name that is already taken.
-    let dir = std::env::temp_dir().join(format!(
-        "posture-watchdog-command-{}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |since| since.as_nanos()),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    fs::create_dir(&dir).unwrap();
-    let dir = fs::canonicalize(dir).unwrap();
+/// The watchdog's configuration over a directory that removes itself. Hold
+/// the sandbox for as long as the configuration is used.
+fn configuration() -> (Sandbox, Configuration) {
+    let sandbox = Sandbox::new("watchdog-command");
+    // Canonical, because the audit reports the paths it resolved and a
+    // symlinked temporary directory would not match them.
+    let dir = fs::canonicalize(sandbox.path()).unwrap();
     let pns = dir.join("pns");
     fs::write(&pns, b"authorized").unwrap();
     fs::set_permissions(&pns, fs::Permissions::from_mode(0o755)).unwrap();
@@ -156,7 +154,7 @@ fn configuration() -> Configuration {
         acknowledged INTEGER NOT NULL DEFAULT 0 CHECK(acknowledged >= 0 AND acknowledged <= generation));
         INSERT INTO delivery_health(id) VALUES(1);").unwrap();
     fs::set_permissions(&pns_ledger, fs::Permissions::from_mode(0o600)).unwrap();
-    Configuration {
+    let configuration = Configuration {
         snapshots,
         state: dir.join("state"),
         legacy_queue: dir.join("legacy.db"),
@@ -172,7 +170,8 @@ fn configuration() -> Configuration {
         route_timeout: Duration::from_millis(20),
         maximum_age: 1800,
         bounds: AuditBounds::from_values("500", "8388608", "60"),
-    }
+    };
+    (sandbox, configuration)
 }
 fn call(c: Configuration, runner: &Runner) -> (u8, Vec<u8>) {
     let mut stderr = vec![];
@@ -185,6 +184,7 @@ fn call(c: Configuration, runner: &Runner) -> (u8, Vec<u8>) {
             fallback: runner.clone(),
             independent: runner.clone(),
         },
+        Processes(true),
         &mut Gateway,
         &mut stderr,
     );
@@ -192,7 +192,7 @@ fn call(c: Configuration, runner: &Runner) -> (u8, Vec<u8>) {
 }
 #[test]
 fn assembled_healthy_watchdog_persists_silently_without_any_delivery() {
-    let c = configuration();
+    let (_sandbox, c) = configuration();
     let state = c.state.clone();
     let r = Runner::default();
     let (status, stderr) = call(c, &r);
@@ -203,7 +203,7 @@ fn assembled_healthy_watchdog_persists_silently_without_any_delivery() {
 }
 #[test]
 fn assembled_pns_outage_alarms_before_a_security_submission_even_when_accepted() {
-    let c = configuration();
+    let (_sandbox, c) = configuration();
     let state = c.state.clone();
     let r = Runner::default();
     r.0.borrow_mut().unhealthy = true;
@@ -214,8 +214,7 @@ fn assembled_pns_outage_alarms_before_a_security_submission_even_when_accepted()
     let effects = r.0.borrow();
     assert_eq!(effects.calls, ["alarm", "submit"]);
     for field in [
-        "\"event\":\"watchdog\"",
-        "\"class\":\"security\"",
+        "\"delivery_class\":\"security\"",
         "\"route\":\"posture-pages\"",
     ] {
         assert!(effects.requests[0].contains(field));
@@ -223,7 +222,7 @@ fn assembled_pns_outage_alarms_before_a_security_submission_even_when_accepted()
 }
 #[test]
 fn assembled_alarm_failure_retries_without_advancing_state() {
-    let c = configuration();
+    let (_sandbox, c) = configuration();
     let state = c.state.clone();
     fs::write(&state, b"{}\n").unwrap();
     let r = Runner::default();
@@ -240,7 +239,7 @@ fn assembled_alarm_failure_retries_without_advancing_state() {
 }
 #[test]
 fn assembled_missing_pns_uses_the_existing_independent_fallback() {
-    let c = configuration();
+    let (_sandbox, c) = configuration();
     let state = c.state.clone();
     let r = Runner::default();
     {
@@ -261,7 +260,7 @@ fn ledger_health_refusals_alarm_before_accepted_submission_and_retain_failed_ala
         "DELETE FROM delivery_health",
         "UPDATE delivery_health SET generation=8, acknowledged=7",
     ] {
-        let c = configuration();
+        let (_sandbox, c) = configuration();
         let db = rusqlite::Connection::open(&c.pns_ledger).unwrap();
         db.execute_batch(damage).unwrap();
         let before = fs::read(&c.pns_ledger).unwrap();

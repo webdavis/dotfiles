@@ -19,8 +19,8 @@ fn a_gate_whose_forward_never_started_has_no_answer_or_other_effect() {
     assert_eq!(code, 0);
 }
 use crate::ports::delivery::ApprovalForwarder;
-use crate::ports::nag::NagSchedule;
 use crate::ports::notification::{PhoneSuppression, RaiseNotification};
+use crate::ports::remind::RemindSchedule;
 use pns_domain::EventArgs;
 use std::cell::RefCell;
 
@@ -69,7 +69,7 @@ impl PhoneSuppression for Recorder {
         self.note("suppress");
     }
 }
-impl NagSchedule for Recorder {
+impl RemindSchedule for Recorder {
     fn arm(&self, session_id: &str, _event: &EventArgs) {
         self.note(&format!("arm({session_id})"));
     }
@@ -139,7 +139,7 @@ fn an_agent_that_forwards_nothing_still_notifies_and_answers_zero() {
 }
 
 #[test]
-fn the_nag_is_armed_before_the_notification() {
+fn the_remind_is_armed_before_the_notification() {
     let recorder = Recorder::new(Some(Forwarded(7)), 0);
     ports(&recorder).run(&event(), "session-1", Some("claude-hook"), "{}");
     let steps = recorder.steps();

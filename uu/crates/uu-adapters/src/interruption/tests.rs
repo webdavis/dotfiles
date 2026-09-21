@@ -23,7 +23,8 @@ fn subject() {
             .run_in(
                 &script,
                 &[],
-                &std::collections::BTreeMap::from([("HOME".into(), home.clone())]),
+                &crate::lanes::Environment::inheriting().with("HOME", home.clone()),
+                None,
             )
             .map(|_| ()),
         "file" => runner.run_to_file(
@@ -47,7 +48,17 @@ fn subject() {
             .run_in(
                 "/bin/sh",
                 &late,
-                &std::collections::BTreeMap::from([("HOME".into(), home.clone()),])
+                &crate::lanes::Environment::inheriting().with("HOME", home.clone()),
+                None
+            )
+            .is_err()
+    );
+    assert!(
+        runner
+            .run_reporting_in(
+                "/bin/sh",
+                &late,
+                &crate::lanes::Environment::inheriting().with("HOME", home.clone())
             )
             .is_err()
     );

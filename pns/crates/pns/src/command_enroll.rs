@@ -29,8 +29,9 @@ pub(crate) fn lights_enroll() -> i32 {
     };
     let home = std::env::var("HOME").unwrap_or_default();
     let Some(address) = bridge_address(&home) else {
+        let key = pns_domain::config_keys::LIGHTS_BRIDGE_HOST;
         eprintln!(
-            "pns: no [plugins.hue] bridge in the config, so there is no address to enroll \
+            "pns: no [plugins.lights] {key} in the config, so there is no address to enroll \
 against"
         );
         return 2;
@@ -150,7 +151,7 @@ fn bridge_address(home: &str) -> Option<String> {
         return None;
     };
     pns_adapters::enabled_hue_table(&config)?
-        .get("bridge")?
+        .get(pns_domain::config_keys::LIGHTS_BRIDGE_HOST)?
         .as_str()
         .filter(|address| !address.is_empty())
         .map(String::from)

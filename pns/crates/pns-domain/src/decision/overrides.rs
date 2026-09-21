@@ -1,8 +1,14 @@
 use std::collections::BTreeMap;
 
-/// The idle threshold the bash defaults to when `PNS_DESK_IDLE_SECS` says
+/// The idle threshold the bash defaults to when `PNS_DESK_IDLE` says
 /// nothing: past this the operator counts as away from the desk.
 pub const DEFAULT_DESK_IDLE_SECS: u64 = 120;
+
+/// What `PNS_PHONE_INPUT_MAX_AGE` may state: no age at all at the floor, for
+/// a tap that just happened, and a day at the ceiling, past which the reading
+/// says the same thing as any older one.
+const PHONE_INPUT_MAX_AGE_RANGE: std::ops::RangeInclusive<std::time::Duration> =
+    std::time::Duration::ZERO..=std::time::Duration::from_secs(86_400);
 
 /// Everything the environment may override, parsed once at the edge.
 /// Garbage numeric values read as absent, never as zero.
@@ -12,7 +18,8 @@ pub struct Overrides {
     pub desk_idle_secs: Option<u64>,
     pub skip_phone: bool,
     pub force_phone: bool,
-    /// A stated age for the phone's input clock, in seconds. The discovery
+    /// A stated age for the phone's input clock, in seconds, typed by the
+    /// operator as a duration. The discovery
     /// chain behind that reading walks live processes, so a caller who
     /// already knows the answer states it and the walk never runs.
     pub phone_input_age: Option<u64>,
@@ -33,7 +40,7 @@ pub struct Overrides {
     pub muted: bool,
     /// A macOS Focus THE CONFIG NAMED is asserted right now, which is the
     /// operating system's own mute rather than a reading about where the
-    /// operator is. It is not "a Focus is on": `[focus] silence` lists the
+    /// operator is. It is not "a Focus is on": `[focus] modes` lists the
     /// modes that mean it, and this is already the answer to "is one of those
     /// the mode that is on".
     ///
@@ -46,7 +53,7 @@ pub struct Overrides {
 
 impl Overrides {
     /// The operator told everything to be quiet: their own typed mute, or a
-    /// macOS Focus they named in `[focus] silence`.
+    /// macOS Focus they named in `[focus] modes`.
     ///
     /// ONE CONDITION, ONE SPELLING. The arbitration below is its first reader
     /// and the lights' own gate at the composition root is its second, and two
@@ -85,9 +92,24 @@ impl Overrides {
             }
         };
         let set = |key: &str| vars.get(key).is_some_and(|raw| !raw.is_empty());
-        let (idle_secs, idle_invalid) = read("PNS_IDLE_SECS");
-        let (desk_idle_secs, desk_invalid) = read("PNS_DESK_IDLE_SECS");
-        let (phone_input_age, phone_invalid) = read("PNS_PHONE_INPUT_AGE");
+        let (idle_secs, idle_invalid) = read("PNS_SCREEN_IDLE");
+        let (desk_idle_secs, desk_invalid) = read("PNS_DESK_IDLE");
+        // A DURATION rather than a bare count, and held in seconds because
+        // that is the unit every reading it is compared against is in.
+        let (phone_input_age, phone_invalid) = match vars
+            .get("PNS_PHONE_INPUT_MAX_AGE")
+            .filter(|raw| !raw.is_empty())
+        {
+            None => (None, false),
+            Some(raw) => match crate::duration::parse_duration(
+                "PNS_PHONE_INPUT_MAX_AGE",
+                raw,
+                PHONE_INPUT_MAX_AGE_RANGE,
+            ) {
+                Ok(age) => (Some(age.as_secs()), false),
+                Err(_) => (None, true),
+            },
+        };
         Self {
             idle_secs,
             desk_idle_secs,

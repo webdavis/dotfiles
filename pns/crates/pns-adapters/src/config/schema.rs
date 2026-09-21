@@ -15,7 +15,7 @@ use super::*;
 ///
 /// THE PLUGIN TABLES ARE IN IT and their settings are no longer free-form,
 /// which is the one behaviour change: a plugin's near miss (`room` for `rooms`,
-/// `tokens` for `token`) used to reach the plugin as a setting it did not
+/// `tokens` for `device_token`) used to reach the plugin as a setting it did not
 /// recognize and cost a destination silently. A table for a plugin nothing
 /// registered is NOT here and stays free-form, because this layer has no
 /// vocabulary to judge a plugin that does not exist; the registry refuses the
@@ -39,161 +39,190 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
         &[
-            "daemon", "delivery", "failures", "focus", "lights", "nag", "phone", "plugins",
-            "quiet", "recap", "routes",
+            "delivery",
+            "delivery_class",
+            "failures",
+            "focus",
+            "gateway",
+            "lights",
+            "paths",
+            "plugins",
+            "producer",
+            "quiet",
+            "recap",
+            "remind",
+            "routes",
+            "stale",
+            "storage",
         ],
     ),
     (ROUTES, &["default", "urgent"]),
     (
         "recap",
         &[
-            "digest",
-            "min_events",
+            "minimum_events",
+            "post_window_recap",
             "replay_card",
-            "repos",
-            "review_notes",
+            "repositories",
+            "retain",
+            "review_notes_glob",
             "summarizer",
-            "summarizer_deadline_secs",
+            "summarizer_deadline",
         ],
     ),
-    ("focus", &["silence"]),
+    ("focus", &["enabled", "modes"]),
     ("quiet", &["calendar"]),
     (
         "quiet.calendar",
-        &["command", "deadline_secs", "enabled", "poll_secs"],
+        &["command", "deadline", "enabled", "poll_interval"],
     ),
     (
         "delivery",
         &[
-            "bypass_silence_classes",
-            "max_attempts",
-            "max_age_secs",
-            "retry_base_secs",
+            "event_max_age",
+            "max_retries",
+            "remote_deadline",
+            "retry_step",
         ],
     ),
-    ("daemon", &["enabled"]),
-    ("phone", &["marker_file"]),
-    ("nag", &["after_secs", "stale_after_secs"]),
-    ("failures", &["port", "serve"]),
+    (DELIVERY_CLASS_KEYS, &["bypass_mute", "route"]),
+    ("gateway", &["enabled", "service"]),
+    ("paths", &["channels_dir", "state_dir"]),
+    ("remind", &["delay"]),
+    // THE NESTED ROW IS A PREFIX, as `lights.<level>` is: `[producer.<name>]`
+    // carries the producer's own name, so the roster holds the part that is
+    // the schema's and the refusal names the whole path.
+    (PRODUCER_KEYS, &["remind"]),
+    ("stale", &["enabled", "escalate_after", "route"]),
+    ("storage", &["busy_deadline"]),
+    ("failures", &["page_enabled", "page_port"]),
     (
         "lights",
         &[
+            "arm_interval",
             "blocked",
+            "checks",
             "dim",
+            "dim_window",
             "done",
             "failed",
-            "github",
             "lamp",
             "loop",
-            "refresh_secs",
             "room",
-            "unread",
+            "unseen",
             "zone",
         ],
     ),
-    ("lights.done", &["brightness", "duration_ms"]),
-    ("lights.failed", &["brightness", "duration_ms"]),
+    ("lights.done", &["brightness_percent", "duration"]),
+    ("lights.failed", &["brightness_percent", "duration"]),
     (
         "lights.blocked",
-        &["duration_ms", "give_up_after_secs", "high", "low"],
+        &["duration", "high_percent", "lease_expiry", "low_percent"],
     ),
-    ("lights.dim", &["duration_ms", "high", "low"]),
+    ("lights.dim", &["duration", "high_percent", "low_percent"]),
     (
-        "lights.github",
-        &["brightness", "duration_ms", "fail", "pass"],
+        "lights.checks",
+        &["brightness_percent", "duration", "fail_color", "pass_color"],
     ),
     (
-        "lights.unread",
-        &["after_secs", "duration_ms", "high", "low"],
+        "lights.unseen",
+        &["arm_after", "duration", "high_percent", "low_percent"],
     ),
     (
         "lights.loop",
         &[
-            "duration_ms",
-            "flare",
-            "flare_ms",
-            "high",
-            "lease_timeout_secs",
-            "low",
-            "threshold_secs",
+            "arm_after",
+            "duration",
+            "flare_duration",
+            "flare_percent",
+            "high_percent",
+            "lease_expiry",
+            "low_percent",
         ],
     ),
-    (TARGET_KEYS, &["dim_behaviours", "dim_window", "shows"]),
-    ("plugins.discord", &["channels", "enabled", "token", "type"]),
+    (TARGET_KEYS, &["behaviours", "dim_behaviours", "dim_window"]),
+    // ONE ROW FOR BOTH TRANSPORTS, which is the union of what the two serve:
+    // the heading is the durable log and `type` names which transport carries
+    // it, so a file can hold the other one's credentials ready and cut over in
+    // one line.
+    (
+        "plugins.log",
+        &["bot_token", "channels", "enabled", "keys", "type", "url"],
+    ),
     // AN OPEN TABLE: the row states the one key the SCHEMA requires, and the
     // rest of its vocabulary is the operator's own project names, which no
     // roster can enumerate. See `OPEN_TABLES`.
-    (DISCORD_CHANNELS, &["default"]),
-    ("plugins.hermes", &["enabled", "keys"]),
+    (LOG_CHANNELS, &["default"]),
     // AN OPEN TABLE, and the one that decides which routes exist at all: its
     // keys are the ROUTE NAMES the operator's own gateway serves, which no
     // roster compiled into pns can enumerate. See `OPEN_TABLES`.
-    (HERMES_KEYS, &[]),
+    (LOG_KEYS, &[]),
     (
         "plugins.github",
         &[
             "enabled",
-            "poll_secs",
-            "token",
+            "personal_access_token",
+            "poll_interval",
             "webhook_port",
             "webhook_secret",
         ],
     ),
     (
-        "plugins.hue",
-        &[
-            "bridge",
-            "certificate",
-            "enabled",
-            "key",
-            "quiet_hours",
-            "rooms",
-        ],
+        "plugins.lights",
+        &["api_key", "bridge_host", "certificate", "enabled", "type"],
     ),
     (
-        "plugins.macos-banner",
-        &["click_command", "click_type", "enabled"],
+        "plugins.banner",
+        &[
+            "click_command",
+            "click_type",
+            "enabled",
+            "terminal_bundle_id",
+            "type",
+        ],
     ),
     (
         "plugins.presence",
         &[
+            "desk_input_max_age",
             "desk_room",
-            "desk_stale_after_secs",
             "enabled",
-            "exclude",
-            "poll_secs",
+            "excluded_rooms",
+            "poll_interval",
+            "reading_max_age",
             "rooms",
-            "stale_after_secs",
             "type",
         ],
     ),
     (
-        "plugins.mobile",
+        "plugins.phone",
         &[
+            "ack_deadline",
+            "card_while_watching",
+            "device_token",
             "enabled",
             "image_cards",
-            "mobile_watch_card",
-            "submit_deadline_secs",
-            "token",
+            "marker_file",
             "type",
+            "url",
         ],
     ),
     // AN OPEN TABLE: its keys are CARD TYPES, which is the state word an
     // event's producer sent, and pns compiles in no roster of those. The row
     // states the one card type the shipped file shows as an example. See
     // `OPEN_TABLES`.
-    (MOBILE_IMAGE_CARDS, &["missed"]),
+    (PHONE_IMAGE_CARDS, &["missed"]),
     (
-        "plugins.router",
+        "plugins.home_presence",
         &[
+            "alert_route",
             "api_key",
             "device_hostname",
             "device_ipv4",
             "device_mac",
             "enabled",
-            "router_url",
-            "stale_alert_channel",
             "type",
+            "url",
         ],
     ),
 ];
@@ -212,17 +241,28 @@ pub const TOP_LEVEL: &str = "";
 /// two others, which is the drift this roster exists to prevent.
 pub(super) const TARGET_KEYS: &str = "lights.<level>";
 
+/// The roster row every `[producer.<name>]` table shares, whichever producer
+/// wrote it.
+pub(super) const PRODUCER_KEYS: &str = "producer.<name>";
+
 /// The channel map, whose keys are PROJECT NAMES.
-pub(super) const DISCORD_CHANNELS: &str = "plugins.discord.channels";
+pub(super) const LOG_CHANNELS: &str = "plugins.log.channels";
 
 /// The per-route signing keys, whose keys are ROUTE NAMES.
-pub(super) const HERMES_KEYS: &str = "plugins.hermes.keys";
+pub(super) const LOG_KEYS: &str = "plugins.log.keys";
 
 /// The per-card-type image switches, whose keys are CARD TYPES.
-pub(super) const MOBILE_IMAGE_CARDS: &str = "plugins.mobile.image_cards";
+pub(super) const PHONE_IMAGE_CARDS: &str = "plugins.phone.image_cards";
 
 /// What the two routes pns selects for itself are called.
 pub(super) const ROUTES: &str = "routes";
+
+/// The roster row every `[delivery_class.<name>]` table shares.
+///
+/// A PREFIX, like `lights.<level>` above it: the second segment is the
+/// operator's own class name, so the roster holds the part that is the
+/// schema's and each refusal names the whole path the operator wrote.
+pub(super) const DELIVERY_CLASS_KEYS: &str = "delivery_class.<name>";
 
 /// Tables whose vocabulary is the OPERATOR'S rather than this schema's.
 ///
@@ -243,7 +283,7 @@ pub(super) const ROUTES: &str = "routes";
 /// THE CARD TYPES ARE HERE FOR THE SAME REASON: a card type is the state word
 /// a producer sent, and producers are separate tools, so a mistyped one is a
 /// card type that never carries an image rather than a refusal at load.
-pub(super) const OPEN_TABLES: &[&str] = &[DISCORD_CHANNELS, HERMES_KEYS, MOBILE_IMAGE_CARDS];
+pub(super) const OPEN_TABLES: &[&str] = &[LOG_CHANNELS, LOG_KEYS, PHONE_IMAGE_CARDS];
 
 /// Whether a table takes keys this schema never declared.
 pub(super) fn is_open(table: &str) -> bool {
@@ -294,4 +334,71 @@ pub(super) fn unknown_key(roster_table: &str, shown_table: &str, key: &str) -> C
         "unknown `{shown_table}` key `{key}`; the table serves {}",
         keys_of(roster_table).unwrap_or_default().join(", ")
     ))
+}
+
+/// One duration key off a table: `<count><s|m|h>`, inside the range that key
+/// allows, refused BY NAME like every other key here.
+///
+/// THE DOMAIN'S ONE PARSER DOES THE READING, so a duration means the same
+/// thing in config as it does on the command line; only the `pns: ` prefix it
+/// writes for a terminal is dropped, because a config refusal already carries
+/// its own framing.
+///
+/// ZERO IS CARVED OUT AND IS NOT AN ERROR, for the callers whose zero is a
+/// real bound: no wait for the database lock, an event that expires the
+/// moment it has any age, a lamp armed at once. A key whose zero would mean
+/// the FEATURE off reads through `nonzero_duration_key` instead, where it is
+/// refused by name.
+pub(super) fn duration_key(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<u64, ConfigError> {
+    duration_value(table, key, setting, range).map(|duration| duration.as_secs())
+}
+
+/// One duration key whose OFF STATEMENT IS THE ABSENT KEY, refusing `"0s"`
+/// by name and saying where off lives instead.
+///
+/// A KEY IS NEVER ITS OWN SWITCH. A zero that means "off" is a value every
+/// reader has to decode and every writer has to remember, and the key not
+/// being there already says it; `[stale]`, whose unset window is an hour
+/// rather than off, carries an `enabled` key for the same reason.
+pub(super) fn nonzero_duration_key(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<u64, ConfigError> {
+    let stated = duration_value(table, key, setting, range)?;
+    if stated.is_zero() {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` is 0, which is not a duration; leave the key unset for off"
+        )));
+    }
+    Ok(stated.as_secs())
+}
+
+/// The same key kept whole, for the settings whose range is finer than a
+/// second and would read as zero through `duration_key`'s seconds.
+pub(super) fn duration_value(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+    range: RangeInclusive<Duration>,
+) -> Result<Duration, ConfigError> {
+    let Some(text) = setting.as_str() else {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` has type `{}`, not a duration like \"5m\"",
+            setting.type_str()
+        )));
+    };
+    let field = format!("`{table}` key `{key}`");
+    if pns_domain::duration::parse_duration(&field, text, Duration::ZERO..=Duration::ZERO).is_ok() {
+        return Ok(Duration::ZERO);
+    }
+    pns_domain::duration::parse_duration(&field, text, range).map_err(|said| {
+        ConfigError::Invalid(said.strip_prefix("pns: ").unwrap_or(&said).to_string())
+    })
 }

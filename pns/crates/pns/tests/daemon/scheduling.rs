@@ -23,7 +23,7 @@ fn a_scheduled_job_runs_once_and_its_effect_is_observable() {
         spooled(&sandbox)
     );
     // ONCE, and it stays once: a one-shot that re-armed would keep firing.
-    std::thread::sleep(Duration::from_millis(TICK_MS * 8));
+    std::thread::sleep(Duration::from_millis(TICK_MS * SETTLE_TICKS));
     assert_eq!(fires(&sandbox), 1, "a one-shot fires exactly once");
 }
 

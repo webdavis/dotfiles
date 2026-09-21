@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
 #[test]
@@ -42,8 +43,8 @@ fn empty_overrides_use_home_and_missing_executable_fallbacks() {
 }
 #[test]
 fn executable_discovery_skips_nonexecutable_files_and_keeps_path_order() {
-    let root = std::env::temp_dir().join(format!("posture-discovery-{}", std::process::id()));
-    std::fs::create_dir(&root).unwrap();
+    let sandbox = Sandbox::new("discovery");
+    let root = sandbox.path();
     for (name, mode) in [("a", 0o600), ("b", 0o700), ("c", 0o700)] {
         let directory = root.join(name);
         std::fs::create_dir(&directory).unwrap();
@@ -55,10 +56,9 @@ fn executable_discovery_skips_nonexecutable_files_and_keeps_path_order() {
     assert_eq!(executable("osqueryi", &path), Some(root.join("b/osqueryi")));
 }
 
-fn discovery_candidates(name: &str, file_mode: u32, directory_mode: u32) -> PathBuf {
-    let root =
-        std::env::temp_dir().join(format!("posture-discovery-{name}-{}", std::process::id()));
-    std::fs::create_dir(&root).unwrap();
+fn discovery_candidates(name: &str, file_mode: u32, directory_mode: u32) -> (Sandbox, PathBuf) {
+    let sandbox = Sandbox::new(&format!("discovery-{name}"));
+    let root = sandbox.path().to_path_buf();
     std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
     for (directory, mode) in [("shadow", file_mode), ("usable", 0o700)] {
         let directory = root.join(directory);
@@ -74,7 +74,7 @@ fn discovery_candidates(name: &str, file_mode: u32, directory_mode: u32) -> Path
         std::fs::Permissions::from_mode(directory_mode),
     )
     .unwrap();
-    root
+    (sandbox, root)
 }
 
 fn discovered_configuration(root: &std::path::Path) -> Configuration {
@@ -84,7 +84,7 @@ fn discovered_configuration(root: &std::path::Path) -> Configuration {
 
 #[test]
 fn configuration_discovery_skips_files_executable_only_by_other_users() {
-    let root = discovery_candidates("owner", 0o601, 0o700);
+    let (_sandbox, root) = discovery_candidates("owner", 0o601, 0o700);
     let config = discovered_configuration(&root);
     assert_eq!(config.osqueryi, root.join("usable/osqueryi"));
     assert_eq!(config.chezmoi, root.join("usable/chezmoi"));
@@ -92,7 +92,7 @@ fn configuration_discovery_skips_files_executable_only_by_other_users() {
 
 #[test]
 fn configuration_discovery_skips_directories_the_user_cannot_search() {
-    let root = discovery_candidates("traversal", 0o700, 0o601);
+    let (_sandbox, root) = discovery_candidates("traversal", 0o700, 0o601);
     let config = discovered_configuration(&root);
     std::fs::set_permissions(root.join("shadow"), std::fs::Permissions::from_mode(0o700)).unwrap();
     assert_eq!(config.osqueryi, root.join("usable/osqueryi"));

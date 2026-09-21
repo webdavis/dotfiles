@@ -3,7 +3,7 @@
 /// Raise one notification for an event this use case already built.
 ///
 /// A PORT AND NOT A CALL, because the ORDER is what the approval path has to
-/// pin: the notification goes after the nag is armed and before anybody waits
+/// pin: the notification goes after the reminder is armed and before anybody waits
 /// on the phone. A use case that could not invoke it could not state that.
 ///
 /// It answers nothing. The notification path always exits 0, and no caller

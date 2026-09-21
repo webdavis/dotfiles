@@ -57,6 +57,9 @@ pub fn select_plugins(registry: &Registry, loaded: ConfigOutcome) -> (Selection,
                 let detail = match error {
                     RegistryError::UnknownPlugin(name) => format!("unknown plugin `{name}`"),
                     RegistryError::Duplicate(name) => format!("duplicate plugin `{name}`"),
+                    RegistryError::UnencodableName { name, max_chars } => format!(
+                        "plugin name `{name}` is longer than {max_chars} characters or carries a control character"
+                    ),
                     RegistryError::Unsatisfied { plugin, needs } => {
                         format!("`{plugin}` is enabled and needs `{needs}`, which is not")
                     }

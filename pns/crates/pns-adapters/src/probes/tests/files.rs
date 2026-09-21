@@ -1,11 +1,15 @@
 use super::*;
 
-pub(super) fn probes_answering(answer: &str) -> SystemProbes<FakeRunner> {
-    SystemProbes::new(FakeRunner::answering(answer), "/marker".to_string())
+/// A probe set whose desk pair reads the given registry and whose phone
+/// chain is scripted by exact argv.
+pub(super) fn desk_probes(registry: FakeRegistry) -> SystemProbes<FakeRunner> {
+    SystemProbes::new(FakeRunner::failing(), "/marker".to_string())
+        .with_registry(Arc::new(registry))
 }
 
 pub(super) fn probes_failing() -> SystemProbes<FakeRunner> {
     SystemProbes::new(FakeRunner::failing(), "/marker".to_string())
+        .with_registry(Arc::new(FakeRegistry::unreadable()))
 }
 
 // --- the presence reading -----------------------------------------------
@@ -27,7 +31,10 @@ pub(super) fn probes_at(path: &std::path::Path) -> SystemProbes<FakeRunner> {
 
 /// The probe with the three discovery answers scripted by exact argv,
 /// pointed at a marker path nothing reads.
-pub(super) fn phone_probe(answers: &[(&str, &str)]) -> SystemProbes<ExactArgvRunner> {
+pub(super) fn phone_probe(
+    answers: &[(&str, &str)],
+    table: Arc<dyn ProcessTable>,
+) -> SystemProbes<ExactArgvRunner> {
     SystemProbes::new(
         ExactArgvRunner {
             answers: answers
@@ -38,6 +45,7 @@ pub(super) fn phone_probe(answers: &[(&str, &str)]) -> SystemProbes<ExactArgvRun
         },
         "/marker".to_string(),
     )
+    .with_table(table)
 }
 
 // --- newest_terminal_atime, against files whose atimes are set ----------

@@ -39,7 +39,7 @@ impl<B: LampBridge, H, T, P: PresenceDecisions> ReconcileLights<'_, B, H, T, P> 
                 if pns_domain::lamps::muted_now(&routed.lamp, reading.muted) {
                     return None;
                 }
-                let held = pns_domain::lights::held::shown(active, &routed.shows)?;
+                let held = pns_domain::lights::held::shown(active, &routed.behaviours)?;
                 let showing = pns_domain::lamps::dim_showing(
                     routed.dim.as_ref(),
                     held.behaviour(),

@@ -49,9 +49,10 @@ pub(crate) fn doctor_mode() -> i32 {
         hermes_keys,
         discord,
         replay_card,
-        focus_silence,
+        focus_enabled,
+        focus_modes,
         daemon_enabled,
-        nag_after_secs,
+        remind_delay_secs,
         lights,
         hue_declared,
         routes,
@@ -64,22 +65,23 @@ pub(crate) fn doctor_mode() -> i32 {
                 .unwrap_or_default(),
             read_discord(config),
             config.recap.replay_card,
-            config.focus_silence.clone(),
-            config.daemon_enabled,
-            config.nag_after_secs,
+            config.focus_enabled,
+            config.focus_modes.clone(),
+            config.gateway_enabled,
+            config.remind_delay_secs,
             config.lights.clone(),
             // WHETHER THE TABLE WAS WRITTEN AT ALL, which
             // `enabled_hue_table` cannot say: it answers `None` both for a
             // table nobody wrote and for one whose switch is off, and the
             // lamps' report tells those two apart.
-            config.plugins.contains_key("hue"),
+            config.plugins.contains_key("lights"),
             config.routes.clone(),
         ),
         // THE SWITCH FALLS BACK ON, which is the fallback `run_event` takes
         // for the same reading. The two must agree or the doctor describes a
         // delivery the event would not make, and the Focus list falls back
         // EMPTY here for the same reason it does there.
-        // AND THE NAG FALLS BACK OFF, which is the fallback `nag_after_secs`
+        // AND THE REMINDER FALLS BACK OFF, which is the fallback `remind_delay_secs`
         // takes for the same reading: the two must agree or the doctor
         // describes a schedule the fire would not keep.
         _ => (
@@ -88,9 +90,10 @@ pub(crate) fn doctor_mode() -> i32 {
             HermesKeys::default(),
             DiscordSettings::default(),
             true,
+            true,
             Vec::new(),
             true,
-            NAG_OFF,
+            REMIND_OFF,
             None,
             false,
             // THE SHIPPED ROUTE NAMES, which is the fallback `run_event`
@@ -162,7 +165,7 @@ pub(crate) fn doctor_mode() -> i32 {
         records: &pns_adapters::SqliteStore::for_records(state_dir()),
         clock: &now_secs,
         replay_card,
-        nag_after_secs,
+        remind_delay_secs,
     }
     .run(
         pns_application::DoctorActions {
@@ -230,8 +233,8 @@ pub(crate) fn doctor_mode() -> i32 {
             pairing: pns_adapters::read_pairing,
             tap: presence_runtime::phone_tap_status,
             focus: || {
-                pns_application::doctor_focus(!focus_silence.is_empty(), || {
-                    pns_adapters::focus_now(&home, &focus_silence).map_err(|error| error.kind())
+                pns_application::doctor_focus(focus_enabled, !focus_modes.is_empty(), || {
+                    pns_adapters::focus_now(&home, &focus_modes).map_err(|error| error.kind())
                 })
             },
             daemon: || {
@@ -321,7 +324,7 @@ fn pin_state(hue_table: Option<&toml::Table>) -> pns_domain::doctor::PinState {
     let Some(table) = hue_table else {
         return pns_domain::doctor::PinState::Unconfigured;
     };
-    match pns_adapters::hue_settings(table, std::env::var("HUE_PULSE_ROOMS").ok().as_deref()) {
+    match pns_adapters::hue_settings(table) {
         Ok(Some(_)) => pns_domain::doctor::PinState::Held,
         Ok(None) => pns_domain::doctor::PinState::Unconfigured,
         Err(reason) => pns_domain::doctor::PinState::Refused(reason),

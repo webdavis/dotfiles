@@ -19,7 +19,7 @@ fn a_journal_this_run_could_not_read_is_left_on_disk_rather_than_consumed() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         1,
@@ -57,7 +57,7 @@ fn a_claim_an_earlier_run_never_finished_is_adopted_by_the_next_return() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         2,
@@ -92,7 +92,7 @@ fn a_held_batch_whose_owner_is_still_running_is_left_exactly_where_it_is() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         1,
@@ -123,7 +123,7 @@ fn a_held_batch_whose_owner_is_gone_is_adopted_exactly_once() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         2,
@@ -160,7 +160,7 @@ fn an_unreadable_old_claim_cannot_starve_the_good_batch_behind_it() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         2,
@@ -191,7 +191,7 @@ fn a_hand_planted_negative_hold_name_is_never_read_as_a_pid() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         1,
@@ -220,7 +220,7 @@ fn a_line_nothing_can_parse_costs_the_entries_around_it_nothing() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(raised.len(), 2, "{raised:?}");
     let body = raised[1]["detail"].as_str().expect("a detail");
     assert!(
@@ -269,7 +269,7 @@ fn a_machine_with_only_a_durable_channel_never_consumes_the_queue_it_cannot_show
     // raise it with, so every present event would quietly eat the queue.
     let sandbox = Sandbox::new("replay-durable-only");
     record_every_event(&sandbox);
-    sandbox.write_config("[plugins.hermes]\nenabled = true\n");
+    sandbox.write_config("[plugins.log]\nenabled = true\ntype = \"hermes\"\n");
     std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
     let before = std::fs::read(journal_path(&sandbox)).expect("the journal");
 
@@ -318,6 +318,6 @@ fn a_directory_at_the_journals_path_is_put_back_exactly_where_it_was_found() {
         stored_records::claims(&sandbox).is_empty(),
         "the directory became a claim"
     );
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(raised.len(), 1, "the live event alone: {raised:?}");
 }

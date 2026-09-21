@@ -1,3 +1,6 @@
+mod sandbox;
+
+use sandbox::Sandbox;
 use std::ffi::OsString;
 use std::os::unix::{ffi::OsStringExt, fs::PermissionsExt};
 use std::process::{Command, Stdio};
@@ -12,11 +15,11 @@ const LIVENESS_BOUND: Duration = Duration::from_secs(15);
 
 #[test]
 fn heartbeat_ignores_trailing_operands_and_invokes_the_private_installed_engine_once() {
-    let home = std::env::temp_dir().join(format!("posture-heartbeat-edge-{}", std::process::id()));
-    std::fs::create_dir(&home).unwrap();
+    let sandbox = Sandbox::new("heartbeat-edge");
+    let home = sandbox.path();
     let engine = home.join(".local/libexec/engine");
     std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
-    deliver_through(&home, &engine);
+    deliver_through(home, &engine);
     std::fs::write(&engine,br##"#!/bin/sh
 set -eu
 [ "$#" = 2 ] && [ "$1" = send ] && [ "$2" = --json ] || exit 42
@@ -24,7 +27,7 @@ IFS= read -r request
 printf '%s\n' "$request" >"$HOME/request"
 printf 'call\n' >>"$HOME/calls"
 identity="$(printf '%s' "$request" | /usr/bin/sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')"
-printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":["ledger_committed"]}\n' "$identity"
+printf '{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagnostics":["ledger_committed"]}\n' "$identity"
 "##).unwrap();
     std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
     let log = home.join(".local/log/osquery/osqueryd.snapshots.log");
@@ -45,10 +48,10 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     let deadline = Instant::now() + LIVENESS_BOUND;
     let mut child = Command::new(env!("CARGO_BIN_EXE_posture"))
         .env_clear()
-        .env("HOME", &home)
-        .env("TMPDIR", &home)
-        .env("TMP", &home)
-        .env("TEMP", &home)
+        .env("HOME", home)
+        .env("TMPDIR", home)
+        .env("TMP", home)
+        .env("TEMP", home)
         .env("XDG_CONFIG_HOME", home.join("config"))
         .env("XDG_CACHE_HOME", home.join("cache"))
         .env("XDG_DATA_HOME", home.join("data"))
@@ -88,7 +91,6 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     assert_eq!(std::fs::read(home.join("calls")).unwrap(), b"call\n");
     let request = std::fs::read_to_string(home.join("request")).unwrap();
     for text in [
-        "\"event\":\"heartbeat\"",
         "\"state\":\"observation\"",
         "\"route\":\"posture-pages\"",
         "STALE",
@@ -96,7 +98,7 @@ printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnost
     ] {
         assert!(request.contains(text), "{text}: {request}");
     }
-    assert!(!request.contains("\"class\""));
+    assert!(!request.contains("\"delivery_class\""));
     assert_eq!(std::fs::read_to_string(log).unwrap(), before);
     assert_eq!(
         std::fs::read_to_string(ignored_override).unwrap(),

@@ -98,8 +98,8 @@ The two migration steps that wrote the narrow constraints now write the wide one
 copies a column only for a database that already holds a narrow one. A fresh database does no copying at
 all, which matters because creating one is what every test and every new machine does.
 
-Queued failures use the completion time plus `retry_base_secs` times the retry count, and nothing else.
-The base defaults to 60 seconds. There is no random offset: the jitter this record originally described
+Queued failures use the completion time plus `retry_step` times the retry count, and nothing else. The
+step defaults to a minute. There is no random offset: the jitter this record originally described
 was removed on 2026-09-09, because random spread exists to stop many clients retrying in one instant and
 this is a single local daemon draining one queue against a loopback gateway. The retired
 `retry_random_secs` key is refused by name rather than ignored, so an operator who still has it learns it
@@ -109,5 +109,5 @@ separate policies.
 
 The same change added the permanent-versus-temporary split in `pns_domain::retry`. A refused request
 dead-letters on its FIRST failure with `DeadletterReason::Permanent`, rather than consuming the twenty
-attempts a recoverable one is allowed. The rule is one function over a `DeliveryOutcome`, so every
+attempts a recoverable one is allowed. The rule is one function over a `TransportOutcome`, so every
 destination classifies identically and only the operator-facing wording varies.

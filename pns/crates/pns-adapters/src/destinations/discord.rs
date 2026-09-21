@@ -1,18 +1,17 @@
 //! The discord channel, native: the durable Discord log, one HTTPS POST
 //! straight to a channel with no gateway in between.
 //!
-//! THE ALTERNATIVE TO hermes, NEVER A COMPANION. Both declare the same
-//! routing, and enabling both is refused at config load, naming both tables,
-//! because two durable channels post every event twice while the recap follows
-//! whichever registered first.
+//! THE ALTERNATIVE TO hermes, NEVER A COMPANION: `[plugins.log] type` names
+//! one transport, so two durable logs are unrepresentable rather than
+//! refused.
 //!
-//! THE TOKEN'S PATH IS THE POINT. It is read from `[plugins.discord]`, placed
+//! THE TOKEN'S PATH IS THE POINT. It is read from `[plugins.log]`, placed
 //! in the `Authorization` header of a type deriving no `Debug`, and never
 //! reaches argv, a child's environment, or any line this module prints: a
 //! failure names the STATUS and the config key, never the credential.
 //!
 //! CLASSIFICATION IS NOT THIS MODULE'S. A status is handed up as
-//! `Delivery::Rejected` and `DeliveryOutcome::class` decides whether it can be
+//! `Delivery::Rejected` and `TransportOutcome::class` decides whether it can be
 //! retried, which is what puts 429 and every 5xx on the ledger's backoff and
 //! dead-letters 401, 403 and 404 on the FIRST attempt. There is deliberately
 //! no `Retry-After` scheduler: a second schedule can disagree with the
@@ -22,7 +21,7 @@ use super::{Delivery, Event};
 use pns_application::{DeliveryRequest, DestinationId, NotificationDestination};
 use pns_domain::channel_map::{ChannelMap, channel_for};
 use pns_domain::registry::Routing;
-use pns_domain::retry::DeliveryOutcome;
+use pns_domain::retry::TransportOutcome;
 
 mod request;
 mod threads;
@@ -112,10 +111,10 @@ fn fitted(lines: Vec<String>) -> String {
 /// The native discord plugin.
 pub struct DiscordChannel<P: DiscordPost> {
     pub post: P,
-    /// The bot token, read from `[plugins.discord]` at the composition root.
+    /// The bot token, read from `[plugins.log]` at the composition root.
     /// None is the not-set-up case, which posts nothing and says so.
     pub token: Option<String>,
-    /// `[plugins.discord.channels]` whole, because the channel is decided per
+    /// `[plugins.log.channels]` whole, because the channel is decided per
     /// EVENT rather than per process: one map, one lookup, and no branch here.
     pub channels: ChannelMap,
     /// The route this leg was submitted on, taken at construction the way
@@ -176,15 +175,15 @@ impl<P: DiscordPost + Send + Sync> NotificationDestination for DiscordChannel<P>
             return Delivery::Delivered(line);
         }
         match outcome {
-            // The channel REPORTS the status; `DeliveryOutcome::class` decides
+            // The channel REPORTS the status; `TransportOutcome::class` decides
             // whether trying again could ever help, once, where the outcome is
             // recorded, so a second destination cannot disagree with this one
             // about a 404.
-            DeliveryOutcome::Status(status) => Delivery::Rejected {
+            TransportOutcome::Status(status) => Delivery::Rejected {
                 status,
                 detail: line,
             },
-            DeliveryOutcome::NoStatus | DeliveryOutcome::NoResponse => Delivery::Failed(line),
+            TransportOutcome::NoStatus | TransportOutcome::NoResponse => Delivery::Failed(line),
         }
     }
 }
@@ -242,16 +241,16 @@ impl<P: DiscordPost> DiscordChannel<P> {
 
 /// What one attempt had to say, the STATUS and nothing else: the request
 /// carried the token, so nothing about the request is ever printed.
-fn outcome_line(outcome: DeliveryOutcome) -> String {
+fn outcome_line(outcome: TransportOutcome) -> String {
     match outcome {
-        DeliveryOutcome::Status(status) if outcome.delivered() => {
+        TransportOutcome::Status(status) if outcome.delivered() => {
             format!("posted to discord HTTP {status}")
         }
-        DeliveryOutcome::Status(status) => format!("discord post FAILED HTTP {status}"),
-        DeliveryOutcome::NoResponse => {
+        TransportOutcome::Status(status) => format!("discord post FAILED HTTP {status}"),
+        TransportOutcome::NoResponse => {
             "discord post FAILED (no response from discord.com)".to_string()
         }
-        DeliveryOutcome::NoStatus => {
+        TransportOutcome::NoStatus => {
             "discord post FAILED (the request was never sendable)".to_string()
         }
     }
@@ -265,21 +264,11 @@ fn outcome_line(outcome: DeliveryOutcome) -> String {
 /// rather than a project nobody mapped.
 fn skipped_line(no_token: bool) -> String {
     let key = if no_token {
-        "[plugins.discord] token"
+        "[plugins.log] bot_token"
     } else {
-        "[plugins.discord.channels] default"
+        "[plugins.log.channels] default"
     };
     format!("discord post SKIPPED, no {key} in the config; nothing was sent")
-}
-
-/// The line for a discord leg refused before the seam: the table names a
-/// transport nothing compiled in answers.
-///
-/// THE SAME SHAPE AS `skipped_line` ABOVE IT, because the two are the same news
-/// in the operator's terms: the leg was selected, nothing was sent, and here is
-/// the config to fix. What differs is only which key is wrong.
-pub fn refused_discord_line(reason: &str) -> String {
-    format!("discord post SKIPPED, {reason}; nothing was sent")
 }
 
 #[cfg(test)]

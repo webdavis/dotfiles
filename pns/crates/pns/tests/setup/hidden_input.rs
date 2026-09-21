@@ -54,9 +54,6 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     pty.read_until("the certificate the bridge presents", PTY_DEADLINE)
         .expect("the hue certificate prompt");
     pty.write_all(b"sha256:0000000000000000000000000000000000000000000000000000000000000001\n");
-    pty.read_until("the rooms to flash, comma separated", PTY_DEADLINE)
-        .expect("the hue rooms prompt");
-    pty.write_all(b"Kitchen,Office\n");
 
     pty.read_until("home wifi", PTY_DEADLINE)
         .expect("the router question");
@@ -82,7 +79,7 @@ fn a_secret_typed_into_setup_never_reaches_the_pty_output() {
     pty.write_all(b"Work,Sleep\n");
 
     pty.read_until("approval left unanswered", PTY_DEADLINE)
-        .expect("the nag question");
+        .expect("the reminder question");
     pty.write_all(b"y\n");
 
     pty.read_to_eof(PTY_DEADLINE).expect("the wizard exits");

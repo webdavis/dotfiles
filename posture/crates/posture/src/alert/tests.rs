@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_sandbox::Sandbox;
 use posture_application::{ClockUnavailable, WallTime};
 use std::os::unix::fs::PermissionsExt;
 
@@ -28,17 +29,10 @@ impl Clock for Time {
 
 #[test]
 fn an_integrity_page_carries_the_actual_hashes_and_upgrade_record() {
-    let root = std::path::PathBuf::from(format!(
-        "/private/tmp/posture-triage-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    std::fs::create_dir(&root).unwrap();
+    let sandbox = Sandbox::new("triage");
+    let root = sandbox.path();
     let mut config =
-        Configuration::read(|name| (name == "HOME").then(|| root.clone().into())).unwrap();
+        Configuration::read(|name| (name == "HOME").then(|| root.to_path_buf().into())).unwrap();
     config.pipeline_manifest = root.join("pipeline-manifest");
     config.managed_bin_manifest = root.join("managed-manifest");
     config.alarm = "/usr/bin/false".into();
@@ -72,7 +66,7 @@ set -eu
 IFS= read -r request
 printf '%s\n' "$request" >'{}'
 identity="$(printf '%s' "$request" | /usr/bin/sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')"
-printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":["ledger_committed"]}}\n' "$identity"
+printf '{{"schema":"pns.result/1","request_id":"%s","status":"delivered","diagnostics":["ledger_committed"]}}\n' "$identity"
 "##, request.display())).unwrap();
     std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
 
@@ -91,4 +85,54 @@ printf '{{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnos
     ] {
         assert!(request.contains(expected), "missing {expected}: {request}");
     }
+}
+
+#[test]
+fn a_refused_reset_warning_is_reported_out_rather_than_discarded() {
+    let sandbox = Sandbox::new("cursor-reset");
+    let root = sandbox.path();
+    let mut config =
+        Configuration::read(|name| (name == "HOME").then(|| root.to_path_buf().into())).unwrap();
+    config.pipeline_manifest = root.join("pipeline-manifest");
+    config.managed_bin_manifest = root.join("managed-manifest");
+    config.alarm = "/usr/bin/false".into();
+    let engine = root.join(".local/libexec/engine");
+    config.notify = crate::command_notify(&engine);
+    for path in [&engine, &config.log] {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    }
+    // A NEW-ADMIN FINDING PAGES, and no cursor file exists, so the run must
+    // submit both the reset warning and the page. The stub refuses only the
+    // reset warning, by matching its unique title text.
+    std::fs::write(
+        &config.log,
+        "{\"name\":\"new_admin_user\",\"action\":\"added\",\"counter\":4,\"columns\":{\"username\":\"later-admin\"}}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        &engine,
+        r##"#!/bin/sh
+set -eu
+IFS= read -r request
+identity="$(printf '%s' "$request" | /usr/bin/sed -n 's/.*"request_id":"\([^"]*\)".*/\1/p')"
+if printf '%s' "$request" | /usr/bin/grep -q 'cursor reset'; then
+  printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":[]}\n' "$identity"
+else
+  printf '{"schema":"pns.result/1","request_id":"%s","status":"accepted","diagnostics":["ledger_committed"]}\n' "$identity"
+fi
+"##,
+    )
+    .unwrap();
+    std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+    let mut stderr = Vec::new();
+    assert_eq!(execute(config, Time, || NoInspection, &mut stderr), 0);
+    let diagnostic = String::from_utf8(stderr).unwrap();
+    assert!(
+        diagnostic.contains(
+            "posture alert: the cursor-reset warning reached no destination; \
+             the disturbed alerting state was not reported\n"
+        ),
+        "{diagnostic}"
+    );
 }

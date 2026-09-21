@@ -50,8 +50,8 @@ fn a_turn_with_nothing_readable_still_notifies_with_no_detail() {
 }
 
 #[test]
-fn a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back() {
-    let sandbox = Sandbox::new("hook-stop-condenser");
+fn a_summarizer_line_is_used_state_and_all_and_a_blank_summary_falls_back() {
+    let sandbox = Sandbox::new("hook-stop-summarizer");
     let mut command = sandbox.pns();
     sandbox.stub_codex(&mut command, "asking|it wants a choice");
     hook_with(
@@ -63,11 +63,11 @@ fn a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back() {
     let event = sandbox.event("hermes");
     assert_eq!(
         event["state"], "asking",
-        "the condenser may override the state"
+        "the summarizer may override the state"
     );
     assert_eq!(event["detail"], "it wants a choice");
 
-    let blank = Sandbox::new("hook-stop-condenser-blank");
+    let blank = Sandbox::new("hook-stop-summarizer-blank");
     let mut command = blank.pns();
     blank.stub_codex(&mut command, "done|   ");
     hook_with(
@@ -84,7 +84,7 @@ fn a_condenser_line_is_used_state_and_all_and_a_blank_summary_falls_back() {
 }
 
 #[test]
-fn the_re_entry_guard_keeps_a_condenser_run_from_condensing_itself() {
+fn the_re_entry_guard_keeps_a_summarizer_run_from_summarizing_itself() {
     let sandbox = Sandbox::new("hook-stop-reentry");
     let mut command = sandbox.pns();
     command.env("PNS_SUMMARIZING", "1");
@@ -130,11 +130,11 @@ fn a_garbage_re_read_knob_still_notifies_and_still_exits_zero() {
 #[test]
 fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     // THE TIMING CONTRACT, made observable. The operator taps their phone and
-    // the turn then spends seconds in the condenser; by the time anything is
+    // the turn then spends seconds in the summarizer; by the time anything is
     // delivered the tap is the older signal and the desk is where they are.
     //
     // The marker is touched as this hook starts and the desk is stated at two
-    // seconds, so the two swap places DURING the condense: a reading taken at
+    // seconds, so the two swap places DURING the summarize: a reading taken at
     // process start says mobile and cards the phone, and a reading taken at
     // dispatch says desk and raises the banner. The banner is therefore the
     // whole assertion.
@@ -146,9 +146,10 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     let sandbox = Sandbox::new("hook-snapshot-timing");
     let marker = sandbox.path("phone.marker");
     std::fs::write(&marker, "").expect("marker");
+    sandbox.write_config(&support::stub_channels_with_marker(&marker));
     let bin = sandbox.path("bin");
     std::fs::create_dir_all(&bin).expect("stub bin");
-    // THE MARKER IS BACKDATED RATHER THAN WAITED PAST: the condenser stub
+    // THE MARKER IS BACKDATED RATHER THAN WAITED PAST: the summarizer stub
     // re-dates it ten seconds into the past the instant it runs, so the
     // dispatch-time read is already older than the two-second desk reading
     // without this test spending any real time getting there.
@@ -158,10 +159,9 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
     );
     let mut command = sandbox.pns();
     command
-        .env("PNS_IDLE_SECS", "2")
-        .env("PNS_DESK_IDLE_SECS", "120")
-        .env("PNS_PHONE_MARKER_FILE", &marker)
-        .env("CODEX_BIN", bin.join("codex"))
+        .env("PNS_SCREEN_IDLE", "2")
+        .env("PNS_DESK_IDLE", "120")
+        .env("PNS_CODEX_BIN", bin.join("codex"))
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"));
     hook_with(
         command,
@@ -170,13 +170,40 @@ fn the_world_is_read_at_dispatch_and_not_at_the_moment_the_hook_started() {
         r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
     );
     assert!(
-        sandbox.fired("macos-banner"),
+        sandbox.fired("banner"),
         "the banner belongs to the desk the operator went back to"
     );
     assert!(
-        !sandbox.fired("mobile"),
+        !sandbox.fired("phone"),
         "and the tap that started this turn is no longer where they are"
     );
+}
+
+#[test]
+fn the_summarizer_ignores_the_unprefixed_codex_bin_name() {
+    // The engine reads `PNS_CODEX_BIN` only. `sandbox.pns()` already points
+    // it at a nonexistent binary by default, so a working stub reachable
+    // through the old, unprefixed `CODEX_BIN` must have no effect: the
+    // summarizer still fails to spawn and the raw reply is what reaches the
+    // detail, not whatever the stub would have summarized it to.
+    let sandbox = Sandbox::new("hook-codex-bin-old-name-ignored");
+    let bin = sandbox.path("bin");
+    std::fs::create_dir_all(&bin).expect("stub bin");
+    write_script(&bin.join("codex"), "printf 'state: failed\\nnot the reply'");
+    let mut command = sandbox.pns();
+    command.env("CODEX_BIN", bin.join("codex"));
+    hook_with(
+        command,
+        &sandbox,
+        "stop",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","last_assistant_message":"a turn"}"#,
+    );
+    let event = sandbox.event("hermes");
+    assert_eq!(
+        event["detail"], "a turn",
+        "the old name must not reach a real stub"
+    );
+    assert_eq!(event["state"], "done");
 }
 
 #[test]
@@ -190,7 +217,7 @@ fn a_turn_whose_transcript_lands_late_is_re_read_until_it_does() {
     let mut command = sandbox.pns();
     command
         .env("PNS_REPLY_REREAD_ATTEMPTS", "8")
-        .env("PNS_REPLY_REREAD_INTERVAL", "0.05");
+        .env("PNS_REPLY_REREAD_INTERVAL", "50ms");
     let mut child = spawn_hook(command, "stop");
     write_payload(
         &mut child,

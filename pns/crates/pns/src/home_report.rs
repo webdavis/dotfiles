@@ -27,7 +27,7 @@ fn verdict_line(presence: &HomePresence) -> String {
         // key, a timeout and an unparseable body alike.
         HomePresence::Unknown => concat!(
             "unknown: the router returned no readable client list, so nothing was established; ",
-            "check router_url and api_key in [plugins.router] ",
+            "check url and api_key in [plugins.home_presence] ",
             "(a rejected key reads the same here as an unreachable router)"
         )
         .to_string(),
@@ -125,7 +125,7 @@ fn verdict_mark(presence: &HomePresence) -> Mark {
 /// A PROBE NOBODY SET UP IS A NOTE, and a probe somebody set up WRONG is a
 /// warning. The first three arms are an absence the operator chose, and
 /// grading a choice as a fault is how a reader learns to skim the marks; the
-/// rest are a `[plugins.router]` table that was written and does not work,
+/// rest are a `[plugins.home_presence]` table that was written and does not work,
 /// which is an edit waiting to be made.
 pub(crate) fn setup_row(failure: &SetupFailure) -> Item {
     let mark = match failure {
@@ -149,25 +149,25 @@ pub fn setup_report(failure: &SetupFailure) -> String {
         SetupFailure::NoConfigFile => "home: not configured (no config file)".to_string(),
         SetupFailure::ConfigError(detail) => format!("home: config error ({detail})"),
         SetupFailure::NoRouterPlugin => {
-            "home: not configured (no [plugins.router] table)".to_string()
+            "home: not configured (no [plugins.home_presence] table)".to_string()
         }
         SetupFailure::RouterDisabled => {
-            "home: [plugins.router] is present but enabled = false".to_string()
+            "home: [plugins.home_presence] is present but enabled = false".to_string()
         }
         SetupFailure::NoType => {
-            format!("home: no type in [plugins.router] (the only type is \"{UNIFI_TYPE}\")")
+            format!("home: no type in [plugins.home_presence] (the only type is \"{UNIFI_TYPE}\")")
         }
         SetupFailure::UnknownType(named) => format!(
-            "home: [plugins.router] has type {named:?}, which no compiled-in backend \
+            "home: [plugins.home_presence] has type {named:?}, which no compiled-in backend \
              answers (the only type is \"{UNIFI_TYPE}\")"
         ),
         SetupFailure::InvalidRouterTable => {
-            "home: the [plugins.router] table is present but router_url is missing, empty, \
+            "home: the [plugins.home_presence] table is present but url is missing, empty, \
              or not a string"
                 .to_string()
         }
         SetupFailure::NoDeviceIdentifier => format!(
-            "home: no device to look for in [plugins.router] (set at least one of {}, {}, {})",
+            "home: no device to look for in [plugins.home_presence] (set at least one of {}, {}, {})",
             DeviceKey::Mac.config_key(),
             DeviceKey::Hostname.config_key(),
             DeviceKey::Ipv4.config_key()
@@ -181,12 +181,13 @@ pub fn setup_report(failure: &SetupFailure) -> String {
                 DeviceKey::Ipv4 => "an IPv4 address (a dotted quad, e.g. \"192.168.1.169\")",
             };
             format!(
-                "home: {} = {found} in [plugins.router] is not {shape}",
+                "home: {} = {found} in [plugins.home_presence] is not {shape}",
                 key.config_key()
             )
         }
         SetupFailure::NoApiKey => {
-            "home: no api_key in the [plugins.router] table (the probe is not set up)".to_string()
+            "home: no api_key in the [plugins.home_presence] table (the probe is not set up)"
+                .to_string()
         }
     }
 }

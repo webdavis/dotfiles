@@ -14,18 +14,18 @@ fn control(target: PathBuf) -> OsqueryRestart<Script> {
 
 #[test]
 fn vendor_plist_inspection_refuses_links_and_non_files_without_any_command() {
-    let root = Scratch::new();
-    let plist = root.0.join("io.osquery.agent.plist");
-    let mut control = control(root.0.clone());
+    let root = scratch();
+    let plist = root.path().join("io.osquery.agent.plist");
+    let mut control = control(root.path().to_path_buf());
     assert_eq!(control.vendor_plist(), VendorPlist::Missing);
-    let other = root.0.join("vendor");
+    let other = root.path().join("vendor");
     std::fs::write(&other, "plist").unwrap();
     symlink(&other, &plist).unwrap();
     assert_eq!(control.vendor_plist(), VendorPlist::Symlink);
     // Distinct owned fixtures keep the previous link and its referent unchanged.
-    let regular = Scratch::new();
-    std::fs::write(regular.0.join("io.osquery.agent.plist"), "plist").unwrap();
-    control.target = regular.0;
+    let regular = scratch();
+    std::fs::write(regular.path().join("io.osquery.agent.plist"), "plist").unwrap();
+    control.target = regular.path().to_path_buf();
     assert_eq!(control.vendor_plist(), VendorPlist::Regular);
     assert!(control.runner.calls.is_empty());
 }

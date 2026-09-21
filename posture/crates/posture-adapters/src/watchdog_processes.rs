@@ -1,24 +1,31 @@
-use crate::{CommandIo, CommandRunner};
+use crate::{CommandIo, CommandRunner, LibprocProcesses, ProcessLookup};
 use posture_application::{DaemonHealth, WatchdogProcesses};
 use posture_domain::{AgentExit, AgentReading};
 use std::{ffi::OsStr, path::Path};
 
-pub struct SystemWatchdogProcesses<R> {
+pub struct SystemWatchdogProcesses<R, P = LibprocProcesses> {
     runner: R,
+    processes: P,
     uid: u32,
     output: String,
 }
-impl<R: CommandRunner> SystemWatchdogProcesses<R> {
+impl<R: CommandRunner> SystemWatchdogProcesses<R, LibprocProcesses> {
     pub fn new(runner: R, uid: u32) -> Self {
+        Self::with_processes(runner, LibprocProcesses::default(), uid)
+    }
+}
+impl<R: CommandRunner, P: ProcessLookup> SystemWatchdogProcesses<R, P> {
+    pub fn current_user(runner: R, processes: P) -> Self {
+        // getuid takes no pointers and always returns the calling process identity.
+        Self::with_processes(runner, processes, unsafe { libc::getuid() })
+    }
+    pub fn with_processes(runner: R, processes: P, uid: u32) -> Self {
         Self {
             runner,
+            processes,
             uid,
             output: String::new(),
         }
-    }
-    pub fn current_user(runner: R) -> Self {
-        // getuid takes no pointers and always returns the calling process identity.
-        Self::new(runner, unsafe { libc::getuid() })
     }
     fn print(&mut self, label: &str) -> bool {
         let target = format!("gui/{}/{label}", self.uid);
@@ -46,17 +53,14 @@ impl<R: CommandRunner> SystemWatchdogProcesses<R> {
         }
     }
 }
-impl<R: CommandRunner> WatchdogProcesses for SystemWatchdogProcesses<R> {
+impl<R: CommandRunner, P: ProcessLookup> WatchdogProcesses for SystemWatchdogProcesses<R, P> {
+    /// The daemon read out of one in-process walk: a match means running, and
+    /// both no match and a table that could not be walked mean not running,
+    /// which is the answer the spawned read gave for either.
     fn osquery_running(&mut self) -> bool {
-        self.runner
-            .run(
-                Path::new("/usr/bin/pgrep"),
-                &[OsStr::new("-fq"), OsStr::new("/opt/osquery/.*osqueryd")],
-                CommandIo::Inspection {
-                    merge_stderr: false,
-                },
-            )
-            .is_ok()
+        self.processes
+            .matching(DAEMON, None, None, Some(Path::new(DAEMON_DIRECTORY)))
+            .is_ok_and(|pids| !pids.is_empty())
     }
     fn agent(&mut self, label: &str) -> AgentReading<'_> {
         if !self.print(label) {
@@ -77,23 +81,28 @@ impl<R: CommandRunner> WatchdogProcesses for SystemWatchdogProcesses<R> {
         let Some(pid) = pid.filter(|_| field(&self.output, "state") == Some("running")) else {
             return DaemonHealth::NotRunning;
         };
-        if self
-            .runner
-            .run(
-                Path::new("/bin/kill"),
-                &[OsStr::new("-0"), OsStr::new(&pid.to_string())],
-                CommandIo::Inspection {
-                    merge_stderr: false,
-                },
-            )
-            .is_ok()
-        {
+        if alive(pid as libc::pid_t) {
             DaemonHealth::Running
         } else {
             DaemonHealth::NotRunning
         }
     }
 }
+/// Signal 0 asks only whether the process exists. A refusal to signal it
+/// (EPERM) is an existing process owned by somebody else.
+fn alive(pid: libc::pid_t) -> bool {
+    // kill takes no pointers and delivers nothing with signal 0.
+    if unsafe { libc::kill(pid, 0) } == 0 {
+        return true;
+    }
+    std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+/// The daemon's executable name, and the directory the vendor installs it
+/// under. Both halves are the control: a process whose command line merely
+/// mentions that path is not the daemon.
+const DAEMON: &str = "osqueryd";
+const DAEMON_DIRECTORY: &str = "/opt/osquery";
+
 fn field<'a>(output: &'a str, name: &str) -> Option<&'a str> {
     output.lines().find_map(|line| {
         let (key, value) = line.trim().split_once(" = ")?;

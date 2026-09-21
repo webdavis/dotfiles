@@ -3,8 +3,8 @@ use pns_application::{Fetched, MergedPullRequestSource};
 
 pub struct GitHubMerges;
 impl MergedPullRequestSource for GitHubMerges {
-    fn merged(&self, repos: &[String], since: u64, until: u64) -> Option<Fetched> {
-        merged_pull_requests(repos, since, until)
+    fn merged(&self, repositories: &[String], since: u64, until: u64) -> Option<Fetched> {
+        merged_pull_requests(repositories, since, until)
     }
 }
 
@@ -46,7 +46,7 @@ impl MergedPullRequestSource for GitHubMerges {
 /// Both are real merges the operator can follow; the alternative is a receipt
 /// carrying a repository name, which costs every line its width for a case one
 /// configured repository never reaches.
-fn merged_pull_requests(repos: &[String], since: u64, until: u64) -> Option<Fetched> {
+fn merged_pull_requests(repositories: &[String], since: u64, until: u64) -> Option<Fetched> {
     let window = format!(
         "merged:{}..{}",
         crate::utc_timestamp(since.checked_add(1)?)?,
@@ -55,7 +55,7 @@ fn merged_pull_requests(repos: &[String], since: u64, until: u64) -> Option<Fetc
     let limit = GH_LIMIT.to_string();
     let mut merged = Vec::new();
     let mut truncated = false;
-    for repo in repos {
+    for repo in repositories {
         let listing = github_cli::listing(
             &[
                 "pr",

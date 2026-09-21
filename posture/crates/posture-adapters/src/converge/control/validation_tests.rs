@@ -1,5 +1,5 @@
 use super::*;
-use crate::converge::tests::fixture::{Scratch, Script, call};
+use crate::converge::tests::fixture::{Script, call, scratch};
 
 fn daemon_control(target: PathBuf) -> OsqueryRestart<Script> {
     OsqueryRestart::new(
@@ -63,9 +63,13 @@ fn rejected_daemon_validation_never_reaches_process_probes_or_stop() {
             panic!("no restart")
         }
     }
-    let root = Scratch::new();
-    std::fs::write(root.0.join("io.osquery.agent.plist"), b"vendor fixture").unwrap();
-    let mut control = daemon_control(root.0.clone());
+    let root = scratch();
+    std::fs::write(
+        root.path().join("io.osquery.agent.plist"),
+        b"vendor fixture",
+    )
+    .unwrap();
+    let mut control = daemon_control(root.path().to_path_buf());
     control.runner.exit = 1;
     assert_eq!(
         restart_daemon(

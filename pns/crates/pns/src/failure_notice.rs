@@ -33,17 +33,21 @@ const SCAN: u32 = 20;
 /// the banner is already in front of the operator and a card is the same news
 /// on a second screen, so there is nothing to carry and this is `None`.
 struct PhoneCard {
-    /// `[plugins.mobile] token`, or `None` for a table that is off or unset.
+    /// `[plugins.phone] device_token`, or `None` for a table that is off or unset.
     /// Carried rather than checked, because the channel's own refusal names the
     /// config key and this module has no better sentence than that one.
     token: Option<String>,
-    /// `[failures] serve`, which decides which pointer the card's fix line
+    /// `[failures] page_enabled`, which decides which pointer the card's fix line
     /// carries: the local page, or the place the full form actually is.
-    serve: bool,
+    page_enabled: bool,
     /// The card types whose cards carry an image, carried for the same reason
     /// the token is: the channel reads its own toggles and this module has no
     /// business second-guessing which card types the operator armed.
     image_cards: Vec<String>,
+    /// `[plugins.phone] url`, else `PNS_MOSHI_URL`: where the push goes.
+    /// Carried for the token's reason, since the channel this builds is built
+    /// outside the composition root that already resolved it.
+    url: Option<String>,
 }
 
 /// Announce every failure this pass recorded that warrants it.
@@ -66,9 +70,15 @@ pub(crate) fn announce(store: &SqliteStore, since: u64) {
         return;
     }
     let pns = crate::command_failures::pns_path();
+    let install = pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
     let phone = phone_card();
     for stored in speaking_for {
-        raise(&crate::command_failures::compose(stored), &pns, &phone);
+        let failure = crate::command_failures::compose(
+            stored,
+            install.moshi_url.as_deref(),
+            install.hermes_url.as_deref(),
+        );
+        raise(&failure, &pns, &phone);
     }
 }
 
@@ -109,10 +119,11 @@ fn phone_card() -> Option<PhoneCard> {
     // table naming no compiled-in backend, and the event path this runs
     // inside has already printed that same line for that same event: one
     // fault, one complaint. The armed table is all this needs.
-    let mobile = pns_adapters::armed_mobile(&config).ok().flatten();
+    let mobile = pns_adapters::armed_phone(&config).ok().flatten();
     Some(PhoneCard {
+        url: pns_adapters::install_settings_of(Some(&config), &home).moshi_url,
         token: mobile.and_then(pns_adapters::moshi_secret),
-        serve: config.failures.serve,
+        page_enabled: config.failures.page_enabled,
         image_cards: mobile
             .map(pns_adapters::moshi_image_cards)
             .unwrap_or_default(),
@@ -148,12 +159,12 @@ fn raise(failure: &Failure, pns_path: &str, phone: &Option<PhoneCard>) {
 /// THE MOBILE LEG IS THE ONE THAT SILENCES ITS OWN CARD. Pushing a card about a
 /// push that was refused sends it through the destination that just refused
 /// one, so it arrives nowhere and the operator learns nothing.
-fn card_surface(failure: &Failure, serve: bool) -> Option<NotificationSurface> {
-    if failure.destination == failure::DESTINATION_MOBILE {
+fn card_surface(failure: &Failure, page_enabled: bool) -> Option<NotificationSurface> {
+    if failure.destination == failure::DESTINATION_PHONE {
         return None;
     }
     Some(NotificationSurface::Phone {
-        serve,
+        page_enabled,
         // WHETHER THE FULL FORM IS IN DISCORD, which is the only thing the fix
         // line's third choice turns on: hermes carries it, so a hermes failure
         // means there is nothing there to point at.
@@ -162,7 +173,7 @@ fn card_surface(failure: &Failure, serve: bool) -> Option<NotificationSurface> {
 }
 
 fn push(failure: &Failure, phone: &PhoneCard) {
-    let Some(surface) = card_surface(failure, phone.serve) else {
+    let Some(surface) = card_surface(failure, phone.page_enabled) else {
         return;
     };
     let body = failure::notification(failure, surface);
@@ -178,7 +189,11 @@ fn push(failure: &Failure, phone: &PhoneCard) {
     // happen in a pane, and a link to whichever pane the daemon happens to be
     // running in would open somewhere the operator was not working.
     let _ = pns_application::NotificationDestination::deliver(
-        &crate::channel_dispatch::moshi_channel(phone.token.clone(), phone.image_cards.clone()),
+        &crate::channel_dispatch::moshi_channel(
+            phone.token.clone(),
+            phone.image_cards.clone(),
+            phone.url.as_deref(),
+        ),
         &pns_application::DeliveryRequest {
             producer_request: None,
             producer: "pns",

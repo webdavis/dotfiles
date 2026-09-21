@@ -16,35 +16,40 @@
 //! notification off must not pass quietly; a MISSING file is its own honest
 //! outcome, distinct from both error and emptiness, so the caller can say
 //! "unconfigured" instead of guessing; unknown top-level keys are refused,
-//! so `[plugin.hue]` cannot silently disable what `[plugins.hue]` enables.
+//! so `[plugin.hue]` cannot silently disable what `[plugins.lights]` enables.
 
+use crate::DEFAULT_REMOTE_DEADLINE_SECS;
 use pns_domain::lamps::config::{
-    Behaviour, Blocked, Breath, BreatheThenFlare, Github, Lights, Looping, Pulse, Target, Unread,
+    Behaviour, Blocked, Breath, BreatheThenFlare, Checks, Lights, Looping, Pulse, Target, Unseen,
 };
 use std::collections::BTreeMap;
+use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 mod model;
-mod phone;
-pub use model::{Config, ConfigError, LoadOutcome, PluginEntry};
+mod paths;
+pub use model::{Config, ConfigError, LoadOutcome, Paths, PluginEntry};
 mod load;
 pub use load::{config_path, load_config, parse_config};
 mod plugins;
 mod refusals;
 pub use plugins::{
-    DEFAULT_SUBMIT_DEADLINE_SECS, armed_discord, armed_mobile, enabled_hue_table, submit_deadline,
+    DEFAULT_ACK_DEADLINE, ack_deadline, armed_discord, armed_phone, enabled_hue_table,
 };
 mod recap;
 pub use pns_domain::recap::Recap;
-use recap::{MAX_SUMMARIZER_DEADLINE_SECS, parse_recap};
+use recap::parse_recap;
 mod recap_values;
-use recap_values::{argv, seconds, threshold};
+use recap_values::{argv, threshold};
 mod recap_sources;
 use recap_sources::{note_glob, repositories};
 mod delivery;
 use delivery::parse_delivery;
+mod delivery_class;
+use delivery_class::parse_delivery_classes;
+pub use delivery_class::{DEFAULT_DELIVERY_CLASS, DeliveryClass};
 mod focus;
-use focus::parse_focus;
+use focus::{DEFAULT_FOCUS_ENABLED, parse_focus};
 mod quiet;
 pub use quiet::QuietCalendar;
 use quiet::parse_quiet;
@@ -52,31 +57,44 @@ mod github;
 pub use github::{
     DEFAULT_POLL_SECS, DEFAULT_WEBHOOK_PORT, GITHUB, GithubSource, GithubWebhook, parse_github,
 };
-mod daemon;
+mod gateway;
 mod retry;
-pub use daemon::DaemonConfig;
-use daemon::{DEFAULT_DAEMON_ENABLED, parse_daemon};
-mod nag;
-use nag::{DEFAULT_STALE_AFTER_SECS, NAG_OFF, backstop_outlasts_the_nag, parse_nag};
+pub use gateway::DaemonConfig;
+use gateway::{DEFAULT_GATEWAY_ENABLED, parse_gateway};
+mod remind;
+pub use remind::remind_delay_range;
+use remind::{REMIND_OFF, backstop_outlasts_the_reminder, parse_remind};
+mod producer;
+use producer::parse_producer;
+mod stale;
+use stale::{DEFAULT_ESCALATE_AFTER_SECS, DEFAULT_STALE_ENABLED, parse_stale};
+mod storage;
+pub use storage::DEFAULT_BUSY_DEADLINE;
+use storage::parse_storage;
 mod failures;
 pub use failures::Failures;
 use failures::parse_failures;
 mod values;
 use values::{bounded, flag, strings, text};
 mod schema;
+#[cfg(test)]
+use schema::DELIVERY_CLASS_KEYS;
+use schema::{
+    PRODUCER_KEYS, TARGET_KEYS, admits, admits_flat, duration_key, duration_value, keys_of,
+    nonzero_duration_key, unknown_key,
+};
 pub use schema::{TABLE_KEYS, TOP_LEVEL};
-use schema::{TARGET_KEYS, admits, admits_flat, keys_of, unknown_key};
 mod routes;
 use routes::parse_routes;
 mod lights_tables;
 use lights_tables::parse_lights;
 mod lights_bounds;
+pub use lights_bounds::{MAX_ARM_INTERVAL_SECS, MIN_ARM_INTERVAL_SECS};
 use lights_bounds::{
-    MAX_FADE_MS, MAX_GIVE_UP_AFTER_SECS, MAX_THRESHOLD_SECS, MIN_FADE_MS, MIN_LEASE_TIMEOUT_SECS,
-    MIN_THRESHOLD_SECS, accent_agrees, behaviour_table, breath_key, coordinate, ends_agree,
-    percent,
+    accent_agrees, arm_interval_range, behaviour_table, blocked_lease_expiry_range, breath_key,
+    coordinate, ends_agree, fade_duration, loop_arm_after_range, loop_lease_expiry_range, percent,
+    positive_duration, unseen_arm_after_range,
 };
-pub use lights_bounds::{MAX_REFRESH_SECS, MIN_REFRESH_SECS};
 mod lights_targets;
 use lights_targets::parse_targets;
 pub use pns_domain::lamps::config::BEHAVIOUR_WORDS;
@@ -84,8 +102,8 @@ mod presence;
 
 pub use presence::parse_presence;
 
-mod mobile;
-pub use mobile::{MOSHI_TYPE, mobile_backend, moshi_image_cards, moshi_secret};
+mod phone;
+pub use phone::{MOSHI_TYPE, moshi_image_cards, moshi_secret, phone_backend};
 
 mod render;
 pub use render::{identity_placeholder, render, strip_chezmoi_actions};
@@ -95,14 +113,15 @@ pub use room::{ROOM_MAX, room_fits};
 mod presence_values;
 pub use presence_values::Presence;
 use presence_values::{
-    DEFAULT_DESK_STALE_AFTER_SECS, DEFAULT_PRESENCE_POLL_SECS, DEFAULT_PRESENCE_STALE_AFTER_SECS,
-    MAX_DESK_STALE_AFTER_SECS, MAX_PRESENCE_POLL_SECS, MIN_PRESENCE_POLL_SECS, PRESENCE_TYPE,
+    DEFAULT_DESK_INPUT_MAX_AGE_SECS, DEFAULT_POLL_INTERVAL_SECS, DEFAULT_READING_MAX_AGE_SECS,
+    MIN_POLL_INTERVAL_SECS, PRESENCE_TYPE, desk_input_max_age_range, poll_interval_range,
+    reading_max_age_range,
 };
 
 mod router;
 pub use router::{
     RouterSettings, SetupFailure, device_identity, enabled_router_table, router_api_key,
-    router_settings, stale_alert_channel,
+    router_settings, stale_alert_route,
 };
 
 mod banner;
@@ -112,10 +131,7 @@ mod hermes;
 pub use hermes::{HermesKeys, hermes_keys};
 
 mod discord;
-pub use discord::{
-    BOT_TYPE, DiscordSettings, discord_backend, discord_settings, states_channel,
-    states_default_channel,
-};
+pub use discord::{DiscordSettings, discord_settings, states_channel, states_default_channel};
 
 mod selection;
 pub use selection::select_plugins;
@@ -171,6 +187,8 @@ pub(crate) fn documented_keys_the_roster_serves(text: &str) -> usize {
         // the prefix, the way the refusals do.
         let roster_table = match table.split('.').collect::<Vec<_>>()[..] {
             ["lights", "lamp" | "room" | "zone", ..] => TARGET_KEYS.to_string(),
+            ["delivery_class", ..] => DELIVERY_CLASS_KEYS.to_string(),
+            ["producer", ..] => PRODUCER_KEYS.to_string(),
             _ => table.clone(),
         };
         let serves = keys_of(&roster_table)

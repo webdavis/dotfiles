@@ -27,24 +27,50 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
     // BY NAME, so a retired table and a plural typo both say what they are.
     for (key, value) in document {
         match key.as_str() {
-            "phone" => config.phone_marker_file = phone::parse_phone(value)?,
+            "paths" => config.paths = paths::parse_paths(value)?,
             "recap" => config.recap = parse_recap(value)?,
-            "focus" => config.focus_silence = parse_focus(value)?,
+            "focus" => {
+                let focus = parse_focus(value)?;
+                config.focus_enabled = focus.enabled;
+                config.focus_modes = focus.modes;
+            }
             "quiet" => config.quiet_calendar = parse_quiet(value)?,
-            "daemon" => config.daemon_enabled = parse_daemon(value)?,
+            "gateway" => {
+                let gateway = parse_gateway(value)?;
+                config.gateway_enabled = gateway.enabled;
+                config.gateway_service = gateway.service;
+            }
+            // MOVED, and refused by name rather than listed among the unknown
+            // tables: the clock switch and the launchd label are the gateway's
+            // settings now that `pns gateway` serves every verb, so the
+            // operator is told the heading to write rather than handed the
+            // whole top-level vocabulary to search.
+            "daemon" => {
+                return Err(ConfigError::Invalid(
+                    "`[daemon]` is now `[gateway]`: `pns gateway` serves the clock as well as \
+                     the launchd service. Rename the heading."
+                        .to_string(),
+                ));
+            }
             "delivery" => {
                 let toml::Value::Table(mut table) = value else {
                     return Err(ConfigError::Invalid("`delivery` is not a table".into()));
                 };
+                config.remote_deadline_secs = delivery::parse_remote_deadline(&mut table)?;
                 config.retry_limits = retry::parse_retry(&mut table)?;
                 config.retry_backoff = retry::parse_backoff(&mut table)?;
-                config.bypass_silence_classes = parse_delivery(toml::Value::Table(table))?;
+                parse_delivery(toml::Value::Table(table))?;
             }
-            "nag" => {
-                let schedules = parse_nag(value)?;
-                config.nag_after_secs = schedules.after_secs;
-                config.stale_after_secs = schedules.stale_after_secs;
+            "delivery_class" => config.delivery_classes = parse_delivery_classes(value)?,
+            "producer" => config.producer_remind = parse_producer(value)?,
+            "remind" => config.remind_delay_secs = parse_remind(value)?,
+            "stale" => {
+                let escalation = parse_stale(value)?;
+                config.stale_enabled = escalation.enabled;
+                config.stale_escalate_after_secs = escalation.escalate_after_secs;
+                config.stale_route = escalation.route;
             }
+            "storage" => config.storage_busy_deadline = parse_storage(value)?,
             "failures" => config.failures = parse_failures(value)?,
             "routes" => config.routes = parse_routes(value)?,
             "lights" => config.lights = Some(Box::new(parse_lights(value)?)),
@@ -79,7 +105,7 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                     for (key, value) in &settings {
                         admits_flat(&table, key)?;
                         // AND ONE LEVEL DOWN, because a plugin's settings may
-                        // hold a table of their own (`[plugins.hermes.keys]`,
+                        // hold a table of their own (`[plugins.log.keys]`,
                         // whose vocabulary is the route names). A near miss
                         // there is a route whose key never signs anything,
                         // which is the same silent hole the walk above closes
@@ -98,6 +124,17 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
                         .insert(name, PluginEntry { enabled, settings });
                 }
             }
+            // MOVED, and refused by name rather than listed among the
+            // unknown tables: the attention marker is a setting of the phone
+            // plugin, so the operator is told the heading and the key to write
+            // rather than handed the whole top-level vocabulary to search.
+            "phone" => {
+                return Err(ConfigError::Invalid(
+                    "`[phone]` is now `[plugins.phone]`: the attention marker is one of the \
+                     phone plugin's settings. Move `marker_file` under that heading."
+                        .to_string(),
+                ));
+            }
             _ => {
                 // The admitted keys are listed off the roster's top-level row.
                 // This is the most operator-visible typo class there is (a
@@ -112,10 +149,22 @@ pub fn parse_config(text: &str) -> Result<Config, ConfigError> {
             }
         }
     }
-    refusals::refuse_two_durable_logs(&config)?;
+    refusals::refuse_a_moved_plugin_table(&config)?;
+    // THE ONE KEY UNDER A PLUGIN TABLE THIS LAYER READS, because `pns tap`
+    // and the presence reader share the path whether or not the card is
+    // armed. It runs after the moved-heading refusal so a file still holding
+    // `[plugins.mobile]` is told which heading to write first.
+    if let Some(entry) = config.plugins.get("phone") {
+        config.phone_marker_file = phone::marker_file(&entry.settings)?;
+    }
+    refusals::refuse_a_plugin_type_nothing_answers(&config)?;
+    // AFTER THE MOVED-HEADING REFUSAL, so a file still holding the old
+    // durable-log headings is told which heading to write rather than being
+    // asked for a `type` under one it does not have yet.
+    plugins::name_the_log_for_its_transport(&mut config)?;
     refusals::refuse_a_map_without_a_catch_all(&config)?;
     refusals::refuse_a_map_without_the_urgent_channel(&config)?;
-    backstop_outlasts_the_nag(&config)?;
+    backstop_outlasts_the_reminder(&config)?;
     Ok(config)
 }
 

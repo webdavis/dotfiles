@@ -104,7 +104,7 @@ fn a_hung_child_does_not_stall_the_tick_and_is_killed() {
 
 /// Whether a pid is still around, asked without a signal of our own: `kill -0`
 /// sends nothing and only reports existence.
-fn process_lives(pid: &str) -> bool {
+pub(crate) fn process_lives(pid: &str) -> bool {
     Command::new("/bin/kill")
         .args(["-0", pid])
         .stdout(std::process::Stdio::null())
@@ -229,7 +229,7 @@ impl Drop for OwnedDelivery {
 fn turning_the_config_switch_off_stops_a_running_daemon() {
     let sandbox = Sandbox::new("daemon-off-switch-is-real");
     sandbox.write_config(&format!(
-        "{ONE_CHANNEL}[daemon]
+        "{ONE_CHANNEL}[gateway]
 enabled = true
 "
     ));
@@ -251,7 +251,7 @@ enabled = true
     );
 
     sandbox.write_config(&format!(
-        "{ONE_CHANNEL}[daemon]
+        "{ONE_CHANNEL}[gateway]
 enabled = false
 "
     ));

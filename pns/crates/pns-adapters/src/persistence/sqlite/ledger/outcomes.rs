@@ -1,7 +1,7 @@
 use super::*;
 use pns_domain::{
     Delivery,
-    retry::{DeliveryOutcome, RetryBackoff},
+    retry::{RetryBackoff, TransportOutcome},
 };
 use rusqlite::{Transaction, params};
 
@@ -89,7 +89,7 @@ fn completion(
         // will ever accept the page; the domain's classifier answers that, so
         // every destination stops on the same set of codes.
         Delivery::Rejected { status, detail }
-            if claim.generation > 1 && DeliveryOutcome::Status(*status).class().is_permanent() =>
+            if claim.generation > 1 && TransportOutcome::Status(*status).class().is_permanent() =>
         {
             return LedgerCompletion::Rejected {
                 status: *status,

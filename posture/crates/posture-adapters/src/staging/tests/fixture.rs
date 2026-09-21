@@ -1,5 +1,5 @@
 use super::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crate::test_sandbox::Sandbox;
 
 pub(super) const FILES: [(&str, &[u8]); 6] = [
     ("osquery.conf", b"configuration\n"),
@@ -11,20 +11,19 @@ pub(super) const FILES: [(&str, &[u8]); 6] = [
 ];
 
 pub(super) struct Fixture {
+    /// Canonical, because the staging reports the paths it resolved and a
+    /// symlinked temporary directory would not match them.
     pub root: PathBuf,
     pub desired: PathBuf,
     pub scratch: PathBuf,
+    /// Removes the tree when the test drops the fixture.
+    _sandbox: Sandbox,
 }
 
 impl Fixture {
     pub fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let root = std::env::temp_dir().canonicalize().unwrap().join(format!(
-            "posture-staging-test-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let sandbox = Sandbox::new("staging-test");
+        let root = sandbox.path().canonicalize().unwrap();
         let desired = root.join("desired");
         fs::create_dir(&desired).unwrap();
         fs::create_dir(desired.join("packs")).unwrap();
@@ -34,6 +33,7 @@ impl Fixture {
             root,
             desired,
             scratch,
+            _sandbox: sandbox,
         };
         fs::write(fixture.neighbor(), b"unrelated").unwrap();
         for (path, bytes) in FILES {
@@ -53,11 +53,5 @@ impl Fixture {
     pub fn assert_scratch_untouched(&self) {
         assert_eq!(fs::read_dir(&self.scratch).unwrap().count(), 1);
         assert_eq!(fs::read(self.neighbor()).unwrap(), b"unrelated");
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        fs::remove_dir_all(&self.root).unwrap();
     }
 }

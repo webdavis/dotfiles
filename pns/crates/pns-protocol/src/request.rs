@@ -1,15 +1,14 @@
 //! The producer request: what any producer, in any language, tells pns about
 //! one event, in version 1 of the `pns.request` envelope.
 //!
-//! The source's own event name (`event`) is carried as metadata; the
-//! normalized [`State`] is what pns policy reads. Delivery scope is one
+//! The normalized [`State`] is what pns policy reads. Delivery scope is one
 //! typed word, so the legacy pair of independent flags cannot be spelled
 //! here (decision 0007). A producer states `elapsed` and pns decides the
 //! tier from it; there is no field for a caller-decided tier.
 
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 use serde_json::{Map, Value};
 
 use crate::envelope::{Opened, Rejected, Rejection, encode, open};
@@ -21,16 +20,15 @@ const SCHEMA_NAME: &str = "pns.request";
 const SCHEMA_MAJOR: u32 = 1;
 
 /// Every top-level field version 1 defines, `schema` included. A key not in
-/// this list is ignored and named, never refused: additive fields from a
-/// newer producer must not break an older pns.
-const KNOWN_FIELDS: [&str; 18] = [
+/// this list is REFUSED and named, the same way the flag path refuses a word
+/// that is no flag of pns's: a field pns drops is a producer saying something
+/// that goes nowhere.
+const KNOWN_FIELDS: [&str; 15] = [
     "schema",
     "request_id",
     "producer",
     "session",
-    "event",
     "state",
-    "occurred_at",
     "elapsed",
     "detail",
     "project",
@@ -38,11 +36,17 @@ const KNOWN_FIELDS: [&str; 18] = [
     "pane",
     "scope",
     "route",
-    "kind",
-    "class",
-    "interaction",
+    "delivery_class",
+    "remind",
     "extensions",
 ];
+
+/// Every field version 1 RETIRED, paired with the one that replaced it.
+///
+/// The refusal names the replacement, where an unknown field is only named,
+/// which is the same split the flag path makes between `--kind` and a word it
+/// never defined.
+const RETIRED_FIELDS: [(&str, &str); 2] = [("class", "delivery_class"), ("kind", "delivery_class")];
 
 fn schema() -> SchemaId {
     SchemaId {
@@ -113,25 +117,6 @@ impl State {
     ];
 }
 
-/// What the event IS, which is what pns maps to a route when the producer
-/// named none. TWO WORDS AND NO MORE: a producer says what kind of thing
-/// happened and never which route or channel it lands on, because a route is
-/// one deployment's gateway and a producer is a tool other people install
-/// (operator ruling, 2026-09-15).
-///
-/// NOT A SECOND SPELLING OF `state`. The state says how the work ended and
-/// this says whose work it was, and pns needs both: a health event that is
-/// done is not a page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Kind {
-    /// A session event: a harness hook, the shell notifier, a daemon job.
-    Agent,
-    /// A machine's own health, such as an unattended upgrade that failed
-    /// while nobody was watching.
-    Health,
-}
-
 /// Where the event may go. One word, three values, no fourth for "both".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -142,62 +127,100 @@ pub enum DeliveryScope {
     RemoteOnly,
 }
 
-/// Whether the producer is waiting on an answer. `AwaitDecision` is the
-/// blocking approval: the submission does not return until the operator's
-/// decision arrives or the bounded wait expires.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum Interaction {
-    #[default]
-    None,
-    AwaitDecision,
+/// What a producer asked for about the reminder on this request, in the same
+/// three statements the flag path spells.
+///
+/// ONE SWITCH FOR BOTH PATHS, which is why the type lives here rather than
+/// beside the parser: `--remind`, `--remind=<duration>` and `--no-remind`
+/// produce this same value, so a request that states it in JSON and a hook
+/// that types the flag hand one resolution one answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Remind {
+    /// `true`, or `--remind`: armed, at the delay config carries.
+    Configured,
+    /// A duration string, or `--remind=<duration>`: armed, at this delay.
+    After(Duration),
+    /// `false`, or `--no-remind`: disarmed, whatever config says.
+    Off,
 }
 
-/// One version 1 request. Construct with [`Request::new`] and set what the
-/// producer knows beyond the four required parts.
+impl Serialize for Remind {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Configured => serializer.serialize_bool(true),
+            Self::Off => serializer.serialize_bool(false),
+            Self::After(delay) => serializer.serialize_str(&pns_domain::duration::spelled(*delay)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Remind {
+    /// A BOOLEAN OR A DURATION, and anything else names the field in its
+    /// refusal, because a producer that meant to arm a reminder and spelled
+    /// the value wrong must not be delivered as one that asked for nothing.
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Value::deserialize(deserializer)? {
+            Value::Bool(true) => Ok(Self::Configured),
+            Value::Bool(false) => Ok(Self::Off),
+            Value::String(text) => pns_domain::duration::parse_duration(
+                "remind",
+                &text,
+                pns_domain::remind::DELAY_RANGE,
+            )
+            .map(Self::After)
+            .map_err(de::Error::custom),
+            _ => Err(de::Error::custom(
+                "pns: remind is not a boolean or a duration like \"5m\"",
+            )),
+        }
+    }
+}
+
+/// One version 1 request. Construct with [`RequestEnvelope::new`] and set
+/// what the producer knows beyond the four required parts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Request {
+pub struct RequestEnvelope {
     pub request_id: RequestId,
     pub producer: Name,
     /// The producer's session, for correlation. A plain id: it is one name at
     /// the top level, the same way the flag spells it, and the turn count
     /// inside the old wrapper was stored and never read.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<Name>,
-    pub event: Name,
     pub state: State,
-    /// Epoch seconds, when the producer knows when it happened.
-    #[serde(default)]
-    pub occurred_at: Option<u64>,
     /// How long the work ran, written as `<count><s|m|h>`. pns decides the
     /// tier from it.
-    #[serde(default, with = "elapsed")]
+    #[serde(default, with = "elapsed", skip_serializing_if = "Option::is_none")]
     pub elapsed: Option<Duration>,
     #[serde(default)]
     pub detail: String,
     /// Where the work was happening, at the top level and one field per part,
     /// because not every producer has a project, a branch or a pane.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pane: Option<String>,
     #[serde(default)]
     pub scope: DeliveryScope,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub route: Option<Name>,
-    /// What the event is, for a producer that states it. ABSENT IS NOT
-    /// `Agent`: an absent kind is a producer that said nothing, and it is
-    /// omitted when encoding so the canonical bytes of a request written
-    /// before this field existed do not move.
+    /// What this event is for delivery: which route it takes when it named
+    /// none, and whether it passes a mute. ONE FIELD AND ONE VOCABULARY, the
+    /// same words the `--delivery-class` flag takes, because a producer
+    /// stating it in JSON and one typing the flag are saying the same thing.
+    /// Absent is a producer that said nothing, and it is omitted when
+    /// encoding so a request that names no class keeps its canonical bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<Kind>,
-    /// An operator-configured delivery class, independent of producer and route.
+    pub delivery_class: Option<Name>,
+    /// Whether an approval this request reports waits for a second card, and
+    /// how long it waits. Absent is a producer that said nothing, which falls
+    /// through to the producer's own config entry and then to off, and it is
+    /// omitted when encoding so a request that says nothing keeps its
+    /// canonical bytes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub class: Option<Name>,
-    #[serde(default)]
-    pub interaction: Interaction,
+    pub remind: Option<Remind>,
     /// Producer-specific data, carried verbatim and never read here.
     #[serde(default)]
     pub extensions: Map<String, Value>,
@@ -209,20 +232,18 @@ pub struct Request {
 struct Wire<'a> {
     schema: String,
     #[serde(flatten)]
-    request: &'a Request,
+    request: &'a RequestEnvelope,
 }
 
-impl Request {
+impl RequestEnvelope {
     /// A request with the four required parts set and every optional part at
     /// its default.
-    pub fn new(request_id: RequestId, producer: Name, event: Name, state: State) -> Self {
-        Request {
+    pub fn new(request_id: RequestId, producer: Name, state: State) -> Self {
+        RequestEnvelope {
             request_id,
             producer,
             session: None,
-            event,
             state,
-            occurred_at: None,
             elapsed: None,
             detail: String::new(),
             project: None,
@@ -230,9 +251,8 @@ impl Request {
             pane: None,
             scope: DeliveryScope::default(),
             route: None,
-            kind: None,
-            class: None,
-            interaction: Interaction::default(),
+            delivery_class: None,
+            remind: None,
             extensions: Map::new(),
         }
     }
@@ -248,37 +268,55 @@ impl Request {
     }
 }
 
-/// A decoded request plus the top-level fields version 1 does not define,
-/// so the result can name them as diagnostics.
+/// A decoded request plus the top-level fields this envelope recognizes but
+/// acts on nowhere, which the result names in its own `ignored_fields` list.
+/// Every field version 1 defines is acted on today, so the list is empty on
+/// every accepted request; a field version 1 does not define is refused.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Decoded {
-    pub request: Request,
+pub struct DecodedRequest {
+    pub request: RequestEnvelope,
     pub ignored: Vec<String>,
 }
 
 /// Decode one request from its bytes, applying every shared envelope check
 /// first.
-pub fn decode(bytes: &[u8]) -> Result<Decoded, Rejected> {
+pub fn decode(bytes: &[u8]) -> Result<DecodedRequest, Rejected> {
     let Opened { value, request_id } = open(bytes, &schema())?;
-    let ignored = ignored_fields(&value);
+    if let Some((retired, replacement)) = retired_field(&value) {
+        return Err(Rejected {
+            request_id,
+            reason: Rejection::Invalid(format!("`{retired}` was replaced by `{replacement}`")),
+        });
+    }
+    if let Some(unknown) = unknown_field(&value) {
+        return Err(Rejected {
+            request_id,
+            reason: Rejection::Invalid(format!("`{unknown}` is not a field pns takes")),
+        });
+    }
     let request = serde_json::from_value(value).map_err(|error| Rejected {
         request_id,
         reason: Rejection::Invalid(error.to_string()),
     })?;
-    Ok(Decoded { request, ignored })
+    Ok(DecodedRequest {
+        request,
+        ignored: Vec::new(),
+    })
 }
 
-fn ignored_fields(value: &Value) -> Vec<String> {
+fn retired_field(value: &Value) -> Option<(&'static str, &'static str)> {
+    let object = value.as_object()?;
+    RETIRED_FIELDS
+        .into_iter()
+        .find(|(retired, _)| object.contains_key(*retired))
+}
+
+fn unknown_field(value: &Value) -> Option<String> {
     value
-        .as_object()
-        .map(|object| {
-            object
-                .keys()
-                .filter(|key| !KNOWN_FIELDS.contains(&key.as_str()))
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default()
+        .as_object()?
+        .keys()
+        .find(|key| !KNOWN_FIELDS.contains(&key.as_str()))
+        .cloned()
 }
 
 /// `elapsed` on the wire: one duration spelling, the parser every other pns

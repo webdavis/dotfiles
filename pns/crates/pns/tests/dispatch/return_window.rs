@@ -16,7 +16,7 @@ fn a_present_event_moves_the_last_present_marker_and_an_away_event_does_not() {
         "--detail",
         "x",
     ]));
-    assert!(away.fired("mobile"), "the away row really was taken");
+    assert!(away.fired("phone"), "the away row really was taken");
     assert_eq!(
         last_present(&away),
         None,
@@ -55,7 +55,7 @@ fn an_activity_window_with_no_marker_to_open_it_recaps_nothing_and_still_catches
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         2,
@@ -92,7 +92,7 @@ fn a_marker_no_reader_can_parse_opens_no_window_rather_than_one_from_epoch_zero(
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         2,
@@ -129,7 +129,7 @@ fn events_stamped_at_the_markers_own_second_belong_to_it_and_not_to_the_window_a
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
     let body = raised[1]["detail"].as_str().expect("a detail");
     assert!(
@@ -156,7 +156,7 @@ fn a_window_under_the_threshold_delivers_the_catch_up_card_unchanged() {
 
     run(&mut present_event(&sandbox));
 
-    let raised = events(&sandbox, "macos-banner");
+    let raised = events(&sandbox, "banner");
     assert_eq!(
         raised.len(),
         2,

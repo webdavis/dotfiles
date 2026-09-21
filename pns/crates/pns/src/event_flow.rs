@@ -5,6 +5,25 @@ mod submit;
 use records::EventRecords;
 pub(crate) use submit::{submit_encoded, submit_mode};
 
+/// Why an event produced no delivery: the ledger refused the submission, or
+/// the event named a delivery class this machine's config never defined.
+///
+/// TWO FACTS AND NOT ONE, because they are answered differently: a ledger
+/// that refused is the machine failing at the job, while an undefined class is
+/// BAD INPUT, which both entry points report as exit 2 the way they report
+/// every other refused field.
+#[derive(Debug)]
+pub(crate) enum NotSubmitted {
+    Ledger(pns_application::LedgerFailure),
+    UnknownDeliveryClass(String),
+}
+
+impl From<pns_application::LedgerFailure> for NotSubmitted {
+    fn from(failure: pns_application::LedgerFailure) -> Self {
+        NotSubmitted::Ledger(failure)
+    }
+}
+
 /// Whether this is the event's FIRST delivery, a NUDGE about one already
 /// recorded, or an OBSERVATION.
 ///
@@ -19,10 +38,10 @@ pub(crate) use submit::{submit_encoded, submit_mode};
 /// turn needing the operator's attention, so it changes no workflow or marker
 /// state and is routed marker-neutral through the same tail a nudge skips.
 /// It is still recorded as a decision (`record_decision` runs before the
-/// guard for every attempt), just with `nag=no`.
+/// guard for every attempt), just with `remind=no`.
 ///
 /// AN OBSERVATION SHAPED LIKE A `PermissionRequest` IS TOO LATE TO GATE HERE.
-/// `blocking_event` forwards to moshi and arms the nag before `run_event`
+/// `blocking_event` forwards to moshi and arms the reminder before `run_event`
 /// ever runs, so this guard cannot undo either one; a caller on that path
 /// must refuse the observation at the top of `blocking_event` itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,6 +63,23 @@ impl Attempt {
         }
     }
 }
+/// A harness hook's event: the durable activity row, then the ordinary event
+/// path.
+///
+/// THE ROW IS WRITTEN FIRST, because it is the record that the event happened
+/// at all, and delivery is what can fail. It is the hooks' own door into
+/// `run_event`: an argv event and a producer submission take the plain call
+/// beneath it and write no activity row, since neither is agent activity.
+pub(crate) fn hook_event(
+    event: &pns_domain::EventArgs,
+    probes: &SystemProbes<SystemCommandRunner>,
+    payload: &HookPayload,
+    attempt: Attempt,
+) -> Landed {
+    crate::activity::record(event, payload);
+    run_event(event, probes, payload, attempt)
+}
+
 /// One notification, end to end: decide, render, dispatch. THE one event path,
 /// whether the event came from argv or from a harness hook.
 ///
@@ -66,7 +102,7 @@ pub(crate) fn run_event(
         payload,
         attempt,
         &|table, lights, flash, presence| {
-            fire_pulse_unless_quiet(table, lights, flash, presence);
+            fire_pulse_for_event(table, lights, flash, presence);
         },
     )
 }
@@ -107,6 +143,10 @@ fn run_event_pulsing(
 pub(crate) enum Landed {
     Yes,
     No,
+    /// The event was REFUSED as bad input and nothing was attempted. It is a
+    /// third answer rather than a second spelling of `No`, because a caller's
+    /// own mistake and a delivery that did not land earn different exit codes.
+    Rejected,
 }
 
 /// DECORATIVE LEGS DO NOT DECIDE IT. `decorative` is `presence_gated || local`,
@@ -115,20 +155,26 @@ pub(crate) enum Landed {
 /// operator missed, not a page that is nowhere, and a producer that treated it
 /// as one would fail on every machine without `terminal-notifier`.
 ///
+/// SILENT IS AN ARRIVAL, the same reading the receipt takes: it is the verdict
+/// of an executable channel that ran and had nothing to say.
+///
 /// A LEDGER THAT REFUSED THE SUBMISSION IS `No`, because nothing was attempted
 /// and pns cannot say the page landed. An EXISTING record is `Yes`: the
 /// submission is a duplicate of one already answered, and answering it a second
 /// time with a failure would make a retried producer call report a page that did
 /// arrive.
-fn landed(
-    submitted: &Result<pns_application::Submitted, pns_application::LedgerFailure>,
-) -> Landed {
+fn landed(submitted: &Result<pns_application::Submitted, NotSubmitted>) -> Landed {
     match submitted {
-        Err(_) => Landed::No,
+        Err(NotSubmitted::UnknownDeliveryClass(_)) => Landed::Rejected,
+        Err(NotSubmitted::Ledger(_)) => Landed::No,
         Ok(pns_application::Submitted::Existing(_)) => Landed::Yes,
         Ok(pns_application::Submitted::Attempted { outcomes, .. }) => {
             let lost = outcomes.iter().any(|(leg, delivery)| {
-                !leg.decorative && !matches!(delivery, pns_domain::Delivery::Delivered(_))
+                !leg.decorative
+                    && !matches!(
+                        delivery,
+                        pns_domain::Delivery::Delivered(_) | pns_domain::Delivery::Silent
+                    )
             });
             if lost { Landed::No } else { Landed::Yes }
         }

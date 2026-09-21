@@ -4,17 +4,20 @@ pub(super) const HEADER: &str = "# The pns engine's plugin selection, as `pns se
      # file until it is fixed: pns falls back to its built-in roster, every\n\
      # secret in here goes unread, and the refusal on stderr names the key.\n\
      #\n\
-     # THE BANNER AND THE PHONE CARD ARE THE CORE and are written on. Three of\n\
-     # the plugins below are OPT-INS you arm with a credential first: hue needs\n\
-     # a bridge and key, hermes needs a signed route, and the home probe needs\n\
-     # a router API key, so switching them on by default would deliver nothing\n\
-     # and report three failures. Focus, the nag and the lamp map are separate\n\
-     # opt-ins below `[plugins]` and need no credential at all. A commented-out\n\
-     # block below is a feature nothing is set up for yet: fill its values in\n\
-     # and uncomment it. A plugin names its backend with `type`, and the key is\n\
+     # EVERY SWITCH IS WRITTEN OUT AT ITS OWN DEFAULT, which for a plugin is\n\
+     # off: a table is on because a line here says so and never because the\n\
+     # table exists. The banner and the phone card are the core two, and this\n\
+     # machine arms them. Three of the plugins below are OPT-INS you arm with\n\
+     # a credential first: hue needs a bridge and key, hermes needs a signed\n\
+     # route, and the home probe needs a router API key, so arming one\n\
+     # without its credential would deliver nothing and report a failure.\n\
+     # Focus, the reminder and the lamp map are separate opt-ins below\n\
+     # `[plugins]` and need no credential at all. A commented-out block\n\
+     # below is a feature nothing is set up for yet: fill its values in and\n\
+     # uncomment it. A plugin names its backend with `type`, and the key is\n\
      # required: nothing guesses which implementation a table meant.\n";
 
-pub(super) const DAEMON_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
+pub(super) const GATEWAY_PROSE: &str = "# The clock: what runs BETWEEN events, for the two things that are not\n\
      # reactions to one, saying something when nothing happened and keeping a\n\
      # lamp alive while an agent loop is. It holds no state of its own, so a\n\
      # restart loses nothing and a stopped daemon costs those ambient features\n\
@@ -30,23 +33,23 @@ pub(super) const RECAP_PROSE: &str = "# The return recap: what you missed while 
 pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A declaration names a place at one\n\
      # of three levels, `[lights.lamp.\"<name>\"]`, `[lights.room.\"<name>\"]` or\n\
      # `[lights.zone.\"<name>\"]`, spelled as the bridge spells it, and says\n\
-     # which of the six behaviours it carries: `done`, `failed` and `github`\n\
-     # blink, and `blocked`, `unread` and `loop` breathe while their condition\n\
+     # which of the six behaviours it carries: `done`, `failed` and `checks`\n\
+     # blink, and `blocked`, `unseen` and `loop` breathe while their condition\n\
      # lasts. The most specific declaration naming a lamp wins, lamp over room\n\
      # over zone, and levels never merge; each question resolves on its own,\n\
      # so a lamp can state its behaviours and still inherit its room's dim\n\
-     # window. On one lamp the held states rank blocked, loop, then unread,\n\
-     # and a held state preempts a blink on the lamp holding it. `unread` is\n\
+     # window. On one lamp the held states rank blocked, loop, then unseen,\n\
+     # and a held state preempts a blink on the lamp holding it. `unseen` is\n\
      # one word carrying two colours, one for a run that finished and red for\n\
-     # one that died; a lamp carries both or neither, and `github` is the\n\
-     # second such word (see `[lights.github]` below). An unknown key at any\n\
+     # one that died; a lamp carries both or neither, and `checks` is the\n\
+     # second such word (see `[lights.checks]` below). An unknown key at any\n\
      # level, and a behaviour word outside the six, are refused by name.\n\
      #\n\
-     # `[lights]` IS INERT UNLESS `[plugins.hue] enabled` IS TRUE: hue is the\n\
-     # transport and this is the policy. WITH NO TABLE AT ALL the pulse is the\n\
-     # `rooms` array above and nothing else; uncommenting `[lights]` with no\n\
-     # declaration replaces that pulse with an empty lamp map, so name a place\n\
-     # before you do. Switching hue off while a lamp is held leaves that lamp\n\
+     # `[lights]` IS INERT UNLESS `[plugins.lights] enabled` IS TRUE: hue is the\n\
+     # transport and this is the policy. WITH NO TABLE AT ALL the pulse reaches\n\
+     # the plugin's own default rooms and nothing else; uncommenting `[lights]`\n\
+     # with no declaration replaces that pulse with an empty lamp map, so name a\n\
+     # place before you do. Switching hue off while a lamp is held leaves that lamp\n\
      # to the wall switch, since putting it out takes a bridge.\n";
 
 /// The closing prose: the ad-hoc mute command, which reads about the config
@@ -54,22 +57,21 @@ pub(super) const LIGHTS_PROSE: &str = "# The lamp map: WHICH LAMP says what. A d
 /// armed, because the command exists whichever way that table reads.
 pub(super) const TRAILER: &str = "# ONE MORE MUTE, TYPED RATHER THAN CONFIGURED, and it is LIGHTS ONLY:\n\
      #\n\
-     #   pns lights quiet \"3F - Studio\" 2h   quiet that place's lamps for two hours\n\
-     #   pns lights quiet \"3F - Studio\"      quiet them until quiet hours end\n\
-     #   pns lights quiet \"3F - Studio\" off  loud again\n\
-     #   pns lights quiet                    what is quiet right now\n\
+     #   pns lights mute \"3F - Studio\" 2h   mute that place's lamps for two hours\n\
+     #   pns lights mute \"3F - Studio\"      mute them until the dim window ends\n\
+     #   pns lights mute \"3F - Studio\" off  loud again\n\
+     #   pns lights mute                    what is muted right now\n\
      #\n\
      # It silences EVERY behaviour on the target and reaches the lamps of one\n\
      # lamp, room or zone and nothing else: cards, banners and the durable log\n\
-     # carry on, and `pns quiet`, which mutes all of them, is a different\n\
+     # carry on, and `pns mute`, which mutes all of them, is a different\n\
      # command with a different file that neither reads. A bare mute reads\n\
-     # `[plugins.hue] quiet_hours` above as the schedule and is refused when\n\
-     # none is set; an explicit duration is the same 1s to 24h `pns quiet`\n\
-     # takes. A state file nobody can parse mutes EVERY lamp and says so: dark\n\
-     # is the fail direction on a lamp path. THE NAMES IT TAKES ARE EVERY\n\
-     # LAMP, ROOM AND ZONE, whether a declaration above writes it or the\n\
-     # bridge merely holds it, and a name neither knows is refused with the\n\
-     # list of the ones that work.\n";
+     # `[lights] dim_window` as the schedule and is refused when none is set;\n\
+     # an explicit duration is the same 1s to 24h `pns mute` takes. A state file\n\
+     # nobody can parse mutes EVERY lamp and says so: dark is the fail direction\n\
+     # on a lamp path. THE NAMES IT TAKES ARE EVERY LAMP, ROOM AND ZONE, whether\n\
+     # a declaration above writes it or the bridge merely holds it, and a name\n\
+     # neither knows is refused with the list of the ones that work.\n";
 
 /// The prose above the declarations, and the one commented declaration a
 /// fresh machine's operator can copy: the wizard never asks about the lamp
@@ -79,13 +81,18 @@ pub(super) const ROUTING: &str = "# The routing. `dim_window` is local wall cloc
      # which behaviours run their dim form inside it, and everything else that\n\
      # place carries is SUPPRESSED there. A window with an empty list therefore\n\
      # takes every behaviour away for the night and needs no mode of its own.\n\
-     # A place with no window is untouched at every hour; one that states\n\
-     # behaviours and no window keeps inheriting its room's window.\n";
+     # A place that states neither key runs `[lights] dim_window` above with\n\
+     # nothing dimmed; one that states `dim_behaviours` alone runs them inside\n\
+     # that same window.\n";
 
 /// Written commented, whichever way `[lights]` reads, and only when the
 /// caller declared no place of its own: a real declaration is a better
 /// example than this one.
 pub(super) const EXAMPLE_DECLARATION: &str = "# [lights.room.\"Studio\"]\n\
-     # shows = [\"done\", \"failed\"]\n\
+     # behaviours = [\"done\", \"failed\"]\n\
      # dim_window = \"22:00-07:00\"\n\
-     # dim_behaviours = [\"blocked\", \"unread\", \"loop\"]\n\n";
+     # dim_behaviours = [\"blocked\", \"unseen\", \"loop\"]\n\
+     #\n\
+     # [lights.zone.\"Upstairs\"]\n\
+     # behaviours = [\"done\", \"failed\"]\n\
+     # dim_behaviours = [\"blocked\"]\n\n";

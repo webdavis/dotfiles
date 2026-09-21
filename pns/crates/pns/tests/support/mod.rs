@@ -19,7 +19,7 @@ mod sandbox;
 pub use {
     capture::{Capture, plugin_command},
     daemon_guard::DaemonGuard,
-    process::{poll_until, run, stderr, stdout},
+    process::{poll_until, run, run_expecting, stderr, stdout},
     router::{KEYS_DISAGREE, RouterStub, router_table},
     sandbox::Sandbox,
 };
@@ -32,10 +32,21 @@ pub const CAPTURE: &str = env!("CARGO_BIN_EXE_http-capture");
 /// The config every sandbox starts with: the three stub channels switched on,
 /// and the mobile table naming the one backend compiled in. A test that needs
 /// something else writes over it with `write_config`.
-pub const STUB_CHANNELS: &str = "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n\
-                                 [plugins.hermes]\nenabled = true\n\
-                                 [plugins.macos-banner]\nenabled = true\n\
-                                 [failures]\nserve = false\n";
+pub const STUB_CHANNELS: &str = "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+                                 [plugins.log]\nenabled = true\ntype = \"hermes\"\n\
+                                 [plugins.banner]\nenabled = true\n\
+                                 [failures]\npage_enabled = false\n";
+
+/// `STUB_CHANNELS` with the phone's attention marker pointed at `marker`.
+///
+/// A REPLACEMENT RATHER THAN A SECOND TABLE, because `marker_file` now sits
+/// under `[plugins.phone]` and TOML refuses that heading written twice.
+pub fn stub_channels_with_marker(marker: &Path) -> String {
+    STUB_CHANNELS.replace(
+        "type = \"moshi\"\n",
+        &format!("type = \"moshi\"\nmarker_file = {marker:?}\n"),
+    )
+}
 
 pub fn write_script(path: &Path, body: &str) {
     std::fs::write(path, format!("#!/usr/bin/env bash\n{body}\n")).expect("write script");

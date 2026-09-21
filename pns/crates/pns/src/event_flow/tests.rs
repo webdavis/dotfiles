@@ -46,9 +46,9 @@ mod tests {
         std::fs::write(
             home.join(".config/pns/config.toml"),
             "[lights]\n\
-             [plugins.macos-banner]\n\
+             [plugins.banner]\n\
              enabled = true\n\
-             [plugins.mobile]\n\
+             [plugins.phone]\n\
              enabled = true\n\
              type = \"moshi\"\n\
              [plugins.presence]\n\
@@ -66,7 +66,7 @@ mod tests {
         // a fact about the machine the suite runs on: the banner is the leg at
         // an unlocked desk and the card is the leg anywhere else, and exactly
         // one of them fires.
-        for channel in ["macos-banner", "mobile"] {
+        for channel in ["banner", "phone"] {
             let republish = channels.join(format!("{channel}.sh"));
             std::fs::write(
                 &republish,

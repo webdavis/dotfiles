@@ -116,6 +116,10 @@ impl Case {
     }
 
     fn run(&mut self) -> JudgeOutcome {
+        self.report().outcome
+    }
+
+    fn report(&mut self) -> JudgeReport {
         JudgeResults {
             lock: &self.lock,
             log: &self.log,
@@ -369,6 +373,25 @@ fn the_reset_page_is_raised_before_the_batch_and_never_gates_it() {
     assert_eq!(case.sink.sent.len(), 2);
     assert_eq!(case.sink.sent[0].event, "cursor-reset");
     assert_eq!(case.sink.sent[1].event, "alert");
+}
+
+#[test]
+fn a_refused_reset_warning_is_reported_out_rather_than_discarded() {
+    // The batch has its own answer; this is the only word anyone gets that the
+    // warning about a disturbed cursor reached nobody.
+    let mut case = Case::new(TWO_ROWS, None);
+    case.sink.refuse = true;
+    let report = case.report();
+    assert_eq!(report.outcome, JudgeOutcome::Advanced { paged: false });
+    assert!(report.reset_warning_lost);
+}
+
+#[test]
+fn a_delivered_reset_warning_leaves_nothing_to_report() {
+    let mut case = Case::new(TWO_ROWS, None);
+    let report = case.report();
+    assert_eq!(report.outcome, JudgeOutcome::Advanced { paged: false });
+    assert!(!report.reset_warning_lost);
 }
 
 #[test]

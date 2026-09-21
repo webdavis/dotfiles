@@ -24,9 +24,9 @@ pub struct RecapPolicy {
     /// Whether a card is raised for the operator at all.
     pub replay_card: bool,
     /// Whether a durable digest is published beside it.
-    pub digest: bool,
+    pub post_window_recap: bool,
     /// How many events a window must hold before a digest is worth publishing.
-    pub min_events: usize,
+    pub minimum_events: usize,
 }
 
 /// The ports one catch-up runs over.
@@ -85,8 +85,10 @@ where
         // THE DIGEST IS DURABLE AND THE CARD IS NOT, so the digest needs a
         // durable route to go to and a window worth the operator's attention;
         // the card below is raised on far weaker grounds.
-        let fires =
-            recap.digest && durable_route && window.is_some() && counted.len() >= recap.min_events;
+        let fires = recap.post_window_recap
+            && durable_route
+            && window.is_some()
+            && counted.len() >= recap.minimum_events;
         let started = match window {
             Some((since, until)) if fires => RecapPublisher::publish(self.ports, since, until),
             _ => None,

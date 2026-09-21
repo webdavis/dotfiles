@@ -77,7 +77,7 @@ fn armed_source() -> Result<pns_adapters::GithubSource, i32> {
         Err(error) => {
             // A REFUSED TABLE IS LOUD ON EVERY PATH, the Unauthorized arm's
             // own reason: an operator armed `[plugins.github]` and typo'd
-            // `poll_secs` deserves the same sentence a revoked token gets,
+            // `poll_interval` deserves the same sentence a revoked token gets,
             // not a poll that exits 0 and never says why.
             eprintln!("pns github: [plugins.github] {}", error.detail());
             Err(1)
@@ -119,7 +119,7 @@ fn poll_once(source: &pns_adapters::GithubSource, launch: Launch) -> i32 {
     let polled =
         pns_adapters::GithubNotifications::new(source.token.clone()).poll(&stored.last_modified);
     report(&stored, &state, polled, now, launch, &mut |event| {
-        submitted(event, now)
+        submitted(event)
     })
 }
 
@@ -202,9 +202,10 @@ fn report(
             published(state, stored, &advanced, launch)
         }
         pns_adapters::GithubPolled::Unauthorized { status } => {
+            let token_key = pns_domain::config_keys::GITHUB_PERSONAL_ACCESS_TOKEN;
             eprintln!(
                 "pns github: the notifications API answered {status}; \
-                 `[plugins.github] token` names the vault entry to check. \
+                 `[plugins.github] {token_key}` names the vault entry to check. \
                  It must be a CLASSIC personal access token carrying the \
                  `notifications` scope, which is the only token these \
                  endpoints accept."
@@ -263,11 +264,11 @@ fn published(
 /// second guard behind the seen-set: a repeat submission of one event is
 /// answered as the existing record rather than delivered twice.
 ///
-/// NO `class`, because GitHub is work rather than machine health: `priority`
-/// is a posture page, a failed unattended upgrade or a dead daemon, and a
-/// lint job is none of those.
-fn submitted(event: &GithubEvent, now: u64) {
-    if let Some(request) = request_for(event, now)
+/// NO `delivery_class`, because GitHub is work rather than machine health:
+/// `priority` is a posture page, a failed unattended upgrade or a dead daemon,
+/// and a lint job is none of those.
+fn submitted(event: &GithubEvent) {
+    if let Some(request) = request_for(event)
         && let Ok(encoded) = request.encode()
     {
         let _ = event_flow::submit_encoded(encoded.as_bytes());
@@ -280,24 +281,15 @@ fn submitted(event: &GithubEvent, now: u64) {
 /// SEPARATE FROM THE DISPATCH so what is submitted can be graded without
 /// anything being delivered: the tests over this reach the same value the
 /// ledger and the channel lookup do.
-fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
-    let mut request = pns_protocol::Request::new(
+fn request_for(event: &GithubEvent) -> Option<pns_protocol::RequestEnvelope> {
+    let mut request = pns_protocol::RequestEnvelope::new(
         pns_protocol::RequestId::new(&event.identity).ok()?,
         pns_protocol::Name::new(pns_adapters::GITHUB).ok()?,
-        pns_protocol::Name::new(EVENT_NAME).ok()?,
         // EVERY POLLED EVENT IS AN OBSERVATION: it is GitHub telling pns
         // that something happened, not a turn waiting on the operator, so
-        // it changes no workflow or marker state and arms no nag.
+        // it changes no workflow or marker state and arms no reminder.
         pns_protocol::State::Observation,
     );
-    // AN INSTANT THE PARSE COULD NOT READ FALLS BACK TO NOW rather than to
-    // 1970, which every elapsed calculation downstream would read as work
-    // that ran for half a century.
-    request.occurred_at = Some(if event.occurred_at == 0 {
-        now
-    } else {
-        event.occurred_at
-    });
     request.detail = event.title.clone();
     // THE REPOSITORY IS THE PROJECT, full name and owner included, which is
     // the key `channel_for` tries first: one repository resolves to one
@@ -307,14 +299,6 @@ fn request_for(event: &GithubEvent, now: u64) -> Option<pns_protocol::Request> {
     request.extensions = pns_adapters::github_extensions(event);
     Some(request)
 }
-
-/// The `event` name every polled submission carries.
-///
-/// ONE NAME RATHER THAN THE KIND'S, because `event` is documented as the
-/// source's own event name and is metadata: the kind is already in the
-/// extension, where the decode reads it, and spelling it twice is two places
-/// for it to disagree.
-const EVENT_NAME: &str = "notification";
 
 mod receive;
 

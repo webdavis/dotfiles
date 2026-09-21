@@ -1,4 +1,5 @@
 use super::pairing::PREFIX;
+use crate::config_keys::{LIGHTS_API_KEY, LIGHTS_BRIDGE_HOST};
 
 /// What the doctor found about the lamps.
 ///
@@ -9,7 +10,7 @@ use super::pairing::PREFIX;
 pub enum LightsReport {
     /// No `[lights]` table: the state every machine was in before it existed.
     Off,
-    /// A table, and no `[plugins.hue]` table at all. Told apart from the
+    /// A table, and no `[plugins.lights]` table at all. Told apart from the
     /// switch below because they are different jobs: one config was never
     /// finished, the other was finished and turned off, and sending an
     /// operator to flip a switch that does not exist is a wrong direction
@@ -36,23 +37,25 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
     let routing = match report {
         LightsReport::Off => {
             return vec![format!(
-                "{PREFIX}lights: off in the config, so the pulse uses the [plugins.hue] rooms"
+                "{PREFIX}lights: off in the config, so the pulse flashes the plugin's own \
+                 default rooms"
             )];
         }
         LightsReport::HueMissing => {
             return vec![format!(
-                "{PREFIX}lights: configured, but there is no [plugins.hue] table to \
+                "{PREFIX}lights: configured, but there is no [plugins.lights] table to \
                  light them through"
             )];
         }
         LightsReport::HueDisabled => {
             return vec![format!(
-                "{PREFIX}lights: configured, but [plugins.hue] enabled is false, so nothing lights"
+                "{PREFIX}lights: configured, but [plugins.lights] enabled is false, so nothing lights"
             )];
         }
         LightsReport::NoBridge => {
             return vec![format!(
-                "{PREFIX}lights: no [plugins.hue] bridge and key, so no lamp could be resolved"
+                "{PREFIX}lights: no [plugins.lights] {LIGHTS_BRIDGE_HOST} and {LIGHTS_API_KEY}, \
+                 so no lamp could be resolved"
             )];
         }
         LightsReport::Unreachable => {
@@ -74,7 +77,7 @@ pub fn lights_lines(report: &LightsReport) -> Vec<String> {
             let lamps = routing
                 .lamps
                 .iter()
-                .filter(|routed| routed.shows.contains(behaviour))
+                .filter(|routed| routed.behaviours.contains(behaviour))
                 .count();
             // THE NOUN IS WHAT THE NUMBER COUNTS. Written `done 10` this read
             // as ten things having finished, which is the opposite of the

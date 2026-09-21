@@ -15,8 +15,8 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     // command.
     let sandbox = Sandbox::new("doctor-failure");
     sandbox.write_config(
-        "[plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.macos-banner]\nenabled = true\n\
-         [plugins.hermes]\nenabled = true\n",
+        "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.banner]\nenabled = true\n\
+         [plugins.log]\nenabled = true\ntype = \"hermes\"\n",
     );
     let mut command = sandbox.bare();
     // Belt and braces: with no key nothing is posted at all, and if that ever
@@ -34,13 +34,13 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
         printed.contains(
-            "mobile: FAILED, push SKIPPED, no moshi token in the config \
-             ([plugins.mobile] token); nothing was sent"
+            "phone: FAILED, push SKIPPED, no moshi token in the config \
+             ([plugins.phone] device_token); nothing was sent"
         ),
         "the first channel's own sentence, verbatim: {printed}"
     );
     assert!(
-        printed.contains("macos-banner: sent, posted the banner"),
+        printed.contains("banner: sent, posted the banner"),
         "the leg behind the failure still delivered: {printed}"
     );
     assert!(
@@ -50,7 +50,7 @@ fn a_failure_on_the_first_channel_costs_no_later_leg_its_turn_and_still_exits_on
     assert!(
         printed.contains(
             "hermes: FAILED, post SKIPPED, no hermes key for the pns-events route \
-             ([plugins.hermes.keys] pns-events); nothing was sent"
+             ([plugins.log.keys] pns-events); nothing was sent"
         ),
         "the last leg still got its turn after an earlier failure: {printed}"
     );
@@ -74,7 +74,7 @@ fn a_channel_that_could_not_be_launched_is_a_failure_rather_than_a_send_nobody_m
 
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
-    for channel in ["mobile", "macos-banner", "hermes"] {
+    for channel in ["phone", "banner", "hermes"] {
         assert!(
             report_rows(&printed)
                 .iter()
@@ -116,14 +116,14 @@ fn the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrid
 
     let mut command = doctor_command(&sandbox);
     command
-        .env("PNS_IDLE_SECS", "0")
+        .env("PNS_SCREEN_IDLE", "0")
         .env("PNS_SKIP_PHONE", "1")
         .env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut command, true);
     let output = command.output().expect("the engine runs");
 
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
-    for channel in ["mobile", "macos-banner", "hermes"] {
+    for channel in ["phone", "banner", "hermes"] {
         assert!(
             sandbox.fired(channel),
             "{channel} was suppressed by a gate the doctor exists to bypass: {}",
@@ -151,15 +151,13 @@ fn the_doctor_reaches_every_channel_through_a_mute_a_desk_and_both_phone_overrid
 }
 
 #[test]
-fn the_doctor_reaches_the_bridge_inside_the_lights_quiet_window() {
-    // The exemption `pns pulse` already has, for the same reason: gating the
-    // hand-run check would make the window uncheckable exactly while it is on.
+fn the_doctor_reaches_the_bridge_whatever_the_hour() {
+    // The exemption `pns lights pulse` already has, for the same reason: a
+    // hand-run check no window gates is checkable at every hour.
     let (listener, port) = bridge_spy();
-    let sandbox = Sandbox::new("doctor-quiet-window");
+    let sandbox = Sandbox::new("doctor-lights-pulse");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-         quiet_hours = \"{}\"\n",
-        window_around(utc_minute_now(), 120)
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
     ));
     let mut command = sandbox.bare();
     command.env("TZ", "UTC");
@@ -187,7 +185,7 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("doctor-hue-unresolved");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\n"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\n"
     ));
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
@@ -195,8 +193,8 @@ fn a_pulse_with_no_bridge_to_dial_names_the_settings_rather_than_the_rooms() {
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
         printed.contains(
-            "hue: FAILED, pulse SKIPPED, no hue bridge and key in the config \
-             ([plugins.hue] bridge, key); nothing was signalled"
+            "lights: FAILED, pulse SKIPPED, no hue bridge and key in the config \
+             ([plugins.lights] bridge_host, api_key); nothing was signalled"
         ),
         "the line names the settings to write: {printed}"
     );
@@ -216,7 +214,7 @@ fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_cho
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("doctor-hue-listed-nothing");
     sandbox.write_config(&format!(
-        "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
+        "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n"
     ));
     // SPAWNED, not run to completion: the spy has to accept while the engine
     // is still dialling, or the bridge deadline is what this test waits out.
@@ -232,7 +230,7 @@ fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_cho
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
         stdout(&output).contains(
-            "hue: FAILED, signalled no rooms \
+            "lights: FAILED, signalled no rooms \
              (no room listing from the bridge, or no configured room name matched)"
         ),
         "{}",
@@ -243,7 +241,7 @@ fn a_pulse_the_bridge_answered_nothing_for_still_names_both_causes_it_cannot_cho
 #[test]
 fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one() {
     let sandbox = Sandbox::new("doctor-nothing-enabled");
-    sandbox.write_config("[plugins.mobile]\nenabled = false\n");
+    sandbox.write_config("[plugins.phone]\nenabled = false\n");
     let output = doctor_command(&sandbox).output().expect("the engine runs");
 
     assert_eq!(
@@ -257,14 +255,14 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
     assert_eq!(
         printed,
         [
-            "router: skipped, not enabled in the config",
+            "home_presence: skipped, not enabled in the config",
             "presence: skipped, not enabled in the config",
             "github: skipped, not enabled in the config",
-            "mobile: skipped, not enabled in the config",
-            "macos-banner: skipped, not enabled in the config",
+            "phone: skipped, not enabled in the config",
+            "banner: skipped, not enabled in the config",
             "hermes: skipped, not enabled in the config",
             "discord: skipped, not enabled in the config",
-            "hue: skipped, not enabled in the config",
+            "lights: skipped, not enabled in the config",
             "0 sent, 0 failed, 8 skipped",
             NO_MOSHI_HOOK_LINE,
             &format!(
@@ -273,7 +271,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
             ),
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
-            NAG_OFF_LINE,
+            REMIND_OFF_LINE,
             HOME_UNCONFIGURED_LINE,
             LIGHTS_OFF_LINE,
             NO_CERTIFICATE_LINE,
@@ -287,7 +285,7 @@ fn a_config_that_enables_nothing_names_every_plugin_sends_nothing_and_exits_one(
         ],
         "the whole roster is still the report; only a census can say this"
     );
-    for channel in ["mobile", "macos-banner", "hermes"] {
+    for channel in ["phone", "banner", "hermes"] {
         assert!(
             !sandbox.fired(channel),
             "{channel} received a payload from a config that enabled nothing"

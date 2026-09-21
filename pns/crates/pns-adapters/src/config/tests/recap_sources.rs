@@ -7,22 +7,24 @@ fn the_two_external_sources_are_named_by_the_operator_or_not_read_at_all() {
     // review notes live wherever this operator's own pipeline puts them.
     // Both are therefore keys, and an absent key is the working setting.
     let config = parse_config(
-        "[recap]\nrepos = [\"webdavis/dotfiles\"]\n\
-             review_notes = \"~/.claude/pipeline/slices/checklist-*.md\"\n",
+        "[recap]\nrepositories = [\"webdavis/dotfiles\"]\n\
+             review_notes_glob = \"~/.claude/pipeline/slices/checklist-*.md\"\n",
     )
     .unwrap();
-    assert_eq!(config.recap.repos, ["webdavis/dotfiles".to_string()]);
+    assert_eq!(config.recap.repositories, ["webdavis/dotfiles".to_string()]);
     assert_eq!(
-        config.recap.review_notes.as_deref(),
+        config.recap.review_notes_glob.as_deref(),
         Some("~/.claude/pipeline/slices/checklist-*.md")
     );
-    let unconfigured = parse_config("[recap]\ndigest = true\n").unwrap().recap;
+    let unconfigured = parse_config("[recap]\npost_window_recap = true\n")
+        .unwrap()
+        .recap;
     assert!(
-        unconfigured.repos.is_empty(),
+        unconfigured.repositories.is_empty(),
         "UNSET IS THE WORKING SETTING: no repo is no `gh` at all"
     );
     assert_eq!(
-        unconfigured.review_notes, None,
+        unconfigured.review_notes_glob, None,
         "and no glob is no directory read at all"
     );
 }
@@ -39,11 +41,11 @@ fn a_repos_value_that_is_not_repository_names_is_refused_naming_the_key() {
         ("[]", "names no repository"),
         ("[\"\"]", "names no repository"),
     ] {
-        let err = parse_config(&format!("[recap]\nrepos = {stated}\n")).unwrap_err();
+        let err = parse_config(&format!("[recap]\nrepositories = {stated}\n")).unwrap_err();
         match err {
             ConfigError::Invalid(message) => {
                 assert!(
-                    message.contains("repos"),
+                    message.contains("repositories"),
                     "the offender is named for {stated}: {message}"
                 );
                 assert!(
@@ -71,11 +73,11 @@ fn a_review_notes_glob_that_names_no_readable_file_is_refused_naming_the_key() {
         ("\"~/.claude/*/checklist-*.md\"", "file name may hold a"),
         ("\"~/.claude/checklist-*-*.md\"", "only one"),
     ] {
-        let err = parse_config(&format!("[recap]\nreview_notes = {stated}\n")).unwrap_err();
+        let err = parse_config(&format!("[recap]\nreview_notes_glob = {stated}\n")).unwrap_err();
         match err {
             ConfigError::Invalid(message) => {
                 assert!(
-                    message.contains("review_notes"),
+                    message.contains("review_notes_glob"),
                     "the offender is named for {stated}: {message}"
                 );
                 assert!(

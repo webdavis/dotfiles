@@ -1,17 +1,18 @@
 //! Which sources the page is made of, and what each one says when it cannot be
 //! read.
 
+use morning_adapters::style::{self, Paint};
 use morning_adapters::{CommandSource, Config, LedgerSource, capture, files};
 use morning_application::{Source, gather};
 use morning_domain::{SectionBody, apply_log, ledger, page};
 use std::path::Path;
 use std::time::Duration;
 
-/// The heading the frame carries.
+/// The heading the page carries.
 const HEADING: &str = "morning";
 
-/// Reads every configured source and renders the page.
-pub fn compose(config: &Config, home: &Path) -> String {
+/// Reads every configured source and renders the page, painted.
+pub fn compose(config: &Config, home: &Path, paint: Paint) -> String {
     let timeout = config.timeout();
     let sources = vec![
         Source::new("Last apply", || last_apply(config, home)),
@@ -27,7 +28,8 @@ pub fn compose(config: &Config, home: &Path) -> String {
         }),
         Source::new("Today", || command(config.tasks.as_ref(), timeout)),
     ];
-    page::render(HEADING, &gather(sources), config.rows_per_section())
+    let lines = page::render(HEADING, &gather(sources), config.rows_per_section());
+    style::render(paint, &lines)
 }
 
 /// What the source was not given.

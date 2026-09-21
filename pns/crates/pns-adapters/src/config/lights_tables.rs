@@ -17,9 +17,9 @@ pub(super) fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
     for (key, setting) in table {
         admits_flat("lights", &key)?;
         match key.as_str() {
-            "refresh_secs" => {
-                lights.refresh_secs =
-                    bounded("lights", &key, &setting, MIN_REFRESH_SECS, MAX_REFRESH_SECS)?;
+            "arm_interval" => {
+                lights.arm_interval_secs =
+                    positive_duration("lights", &key, &setting, arm_interval_range())?;
             }
             "done" => lights.done = parse_pulse("lights.done", &setting, lights.done)?,
             "failed" => lights.failed = parse_pulse("lights.failed", &setting, lights.failed)?,
@@ -27,18 +27,53 @@ pub(super) fn parse_lights(value: toml::Value) -> Result<Lights, ConfigError> {
                 lights.blocked = parse_blocked(&setting, lights.blocked)?;
             }
             "dim" => lights.dim = parse_breath("lights.dim", &setting, lights.dim)?,
-            "github" => lights.github = parse_github(&setting, lights.github)?,
-            "unread" => lights.unread = parse_unread(&setting, lights.unread)?,
+            "checks" => lights.checks = parse_checks(&setting, lights.checks)?,
+            "unseen" => lights.unseen = parse_unseen(&setting, lights.unseen)?,
             "loop" => lights.looping = parse_looping(&setting, lights.looping)?,
             "lamp" => lights.lamps = parse_targets("lamp", &setting)?,
             "room" => lights.rooms = parse_targets("room", &setting)?,
             "zone" => lights.zones = parse_targets("zone", &setting)?,
+            "dim_window" => lights.dim_window = Some(text("lights", &key, &setting)?),
             _ => {
                 return Err(unknown_key("lights", "lights", &key));
             }
         }
     }
+    dim_behaviours_have_a_window(&lights)?;
     Ok(lights)
+}
+
+/// NO DEAD KNOBS, which is the config ruling reaching the one pair of keys that
+/// can be half written. The enables RIDE a window (they are resolved as one
+/// answer), so a declaration that names which behaviours run dimmed with no
+/// window anywhere for them to run in is a list nothing reads: the operator
+/// gets a lamp that strobes all night and a file that says it should not.
+///
+/// READ HERE RATHER THAN IN `parse_targets` because the window a declaration
+/// may be leaning on is `[lights] dim_window`, and only the whole table in hand
+/// can say whether one was written.
+fn dim_behaviours_have_a_window(lights: &Lights) -> Result<(), ConfigError> {
+    if lights.dim_window.is_some() {
+        return Ok(());
+    }
+    for (level, targets) in [
+        ("lamp", &lights.lamps),
+        ("room", &lights.rooms),
+        ("zone", &lights.zones),
+    ] {
+        for (name, target) in targets {
+            // STATED rather than non-empty, because an empty list with no
+            // window is the same dead knob and the two must not disagree.
+            if target.dim_behaviours.is_some() && target.dim_window.is_none() {
+                return Err(ConfigError::Invalid(format!(
+                    "`lights.{level}.{name}` states `dim_behaviours` with no \
+                     `dim_window` of its own and no `lights` key `dim_window` \
+                     for them to run in, so nothing would ever read them"
+                )));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The keys a behaviour's own table serves, read into whichever of the shapes
@@ -55,40 +90,36 @@ pub(super) fn parse_pulse(
     for (key, stated) in behaviour_table(where_it_is, setting)? {
         admits_flat(where_it_is, key)?;
         match key.as_str() {
-            "duration_ms" => {
-                pulse.duration_ms = bounded(where_it_is, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
-            }
-            "brightness" => pulse.brightness = percent(where_it_is, key, stated)?,
+            "duration" => pulse.duration_ms = fade_duration(where_it_is, key, stated)?,
+            "brightness_percent" => pulse.brightness = percent(where_it_is, key, stated)?,
             _ => return Err(unknown_key(where_it_is, where_it_is, key)),
         }
     }
     Ok(pulse)
 }
 
-/// `[lights.github]`: the one blink that carries its own two COLOURS.
+/// `[lights.checks]`: the one blink that carries its own two COLOURS.
 ///
 /// THE PAIR IS PARSED LIKE ANY OTHER KEY and refused by name, rather than
 /// being read as a bare array and validated later: a coordinate outside the
 /// unit square is not a colour the bridge can be asked for, and a lamp armed
 /// with one would either clamp somewhere nobody chose or not light at all.
-pub(super) fn parse_github(
+pub(super) fn parse_checks(
     setting: &toml::Value,
-    mut github: Github,
-) -> Result<Github, ConfigError> {
-    const WHERE: &str = "lights.github";
+    mut checks: Checks,
+) -> Result<Checks, ConfigError> {
+    const WHERE: &str = "lights.checks";
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
         match key.as_str() {
-            "duration_ms" => {
-                github.pulse.duration_ms = bounded(WHERE, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
-            }
-            "brightness" => github.pulse.brightness = percent(WHERE, key, stated)?,
-            "pass" => github.pass = coordinate(WHERE, key, stated)?,
-            "fail" => github.fail = coordinate(WHERE, key, stated)?,
+            "duration" => checks.pulse.duration_ms = fade_duration(WHERE, key, stated)?,
+            "brightness_percent" => checks.pulse.brightness = percent(WHERE, key, stated)?,
+            "pass_color" => checks.pass_color = coordinate(WHERE, key, stated)?,
+            "fail_color" => checks.fail_color = coordinate(WHERE, key, stated)?,
             _ => return Err(unknown_key(WHERE, WHERE, key)),
         }
     }
-    Ok(github)
+    Ok(checks)
 }
 
 pub(super) fn parse_breath(
@@ -111,14 +142,9 @@ pub(super) fn parse_blocked(
     const WHERE: &str = "lights.blocked";
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
-        if key == "give_up_after_secs" {
-            blocked.give_up_after_secs = bounded(
-                WHERE,
-                key,
-                stated,
-                MIN_LEASE_TIMEOUT_SECS,
-                MAX_GIVE_UP_AFTER_SECS,
-            )?;
+        if key == "lease_expiry" {
+            blocked.lease_expiry_secs =
+                positive_duration(WHERE, key, stated, blocked_lease_expiry_range())?;
             continue;
         }
         breath_key(WHERE, key, stated, &mut blocked.breath)?;
@@ -127,24 +153,24 @@ pub(super) fn parse_blocked(
     Ok(blocked)
 }
 
-pub(super) fn parse_unread(
+pub(super) fn parse_unseen(
     setting: &toml::Value,
-    mut unread: Unread,
-) -> Result<Unread, ConfigError> {
-    const WHERE: &str = "lights.unread";
+    mut unseen: Unseen,
+) -> Result<Unseen, ConfigError> {
+    const WHERE: &str = "lights.unseen";
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
-        if key == "after_secs" {
+        if key == "arm_after" {
             // ZERO IS ALLOWED AND MEANS "AT ONCE", which is the failure
             // flavour's own behaviour spelled for the success one. It is not a
             // switch that turns anything off, so it needs no floor.
-            unread.after_secs = bounded(WHERE, key, stated, 0, MAX_THRESHOLD_SECS)?;
+            unseen.arm_after_secs = duration_key(WHERE, key, stated, unseen_arm_after_range())?;
             continue;
         }
-        breath_key(WHERE, key, stated, &mut unread.breath)?;
+        breath_key(WHERE, key, stated, &mut unseen.breath)?;
     }
-    ends_agree(WHERE, &unread.breath)?;
-    Ok(unread)
+    ends_agree(WHERE, &unseen.breath)?;
+    Ok(unseen)
 }
 
 pub(super) fn parse_looping(
@@ -155,25 +181,19 @@ pub(super) fn parse_looping(
     for (key, stated) in behaviour_table(WHERE, setting)? {
         admits_flat(WHERE, key)?;
         match key.as_str() {
-            "threshold_secs" => {
-                looping.threshold_secs =
-                    bounded(WHERE, key, stated, MIN_THRESHOLD_SECS, MAX_THRESHOLD_SECS)?;
+            "arm_after" => {
+                looping.arm_after_secs =
+                    positive_duration(WHERE, key, stated, loop_arm_after_range())?;
             }
-            "lease_timeout_secs" => {
-                looping.lease_timeout_secs = bounded(
-                    WHERE,
-                    key,
-                    stated,
-                    MIN_LEASE_TIMEOUT_SECS,
-                    MAX_THRESHOLD_SECS,
-                )?;
+            "lease_expiry" => {
+                looping.lease_expiry_secs =
+                    positive_duration(WHERE, key, stated, loop_lease_expiry_range())?;
             }
-            "flare" => {
+            "flare_percent" => {
                 looping.breathe_then_flare.flare = percent(WHERE, key, stated)?;
             }
-            "flare_ms" => {
-                looping.breathe_then_flare.flare_ms =
-                    bounded(WHERE, key, stated, MIN_FADE_MS, MAX_FADE_MS)?;
+            "flare_duration" => {
+                looping.breathe_then_flare.flare_ms = fade_duration(WHERE, key, stated)?;
             }
             _ => breath_key(WHERE, key, stated, &mut looping.breathe_then_flare.breath)?,
         }

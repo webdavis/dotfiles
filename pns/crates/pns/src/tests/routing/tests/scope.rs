@@ -11,7 +11,7 @@ fn local_only_plans_the_local_surfaces_alone_whatever_the_phone_verdict_was() {
             pns_domain::DeliveryScope::LocalOnly,
             reaching(true, true)
         ),
-        vec![decorative("macos-banner", ReportMode::Silent)]
+        vec![decorative("banner", ReportMode::Silent)]
     );
     assert_eq!(
         channel_plan(
@@ -19,7 +19,7 @@ fn local_only_plans_the_local_surfaces_alone_whatever_the_phone_verdict_was() {
             pns_domain::DeliveryScope::LocalOnly,
             reaching(true, false)
         ),
-        vec![decorative("macos-banner", ReportMode::Silent)]
+        vec![decorative("banner", ReportMode::Silent)]
     );
 }
 
@@ -35,7 +35,7 @@ fn a_selected_sensor_is_never_a_leg_under_local_only_either() {
             pns_domain::DeliveryScope::LocalOnly,
             reaching(true, true)
         ),
-        vec![decorative("macos-banner", ReportMode::Silent)]
+        vec![decorative("banner", ReportMode::Silent)]
     );
     assert_eq!(
         channel_plan(
@@ -43,7 +43,7 @@ fn a_selected_sensor_is_never_a_leg_under_local_only_either() {
             pns_domain::DeliveryScope::LocalOnly,
             reaching(true, false)
         ),
-        vec![decorative("macos-banner", ReportMode::Silent)]
+        vec![decorative("banner", ReportMode::Silent)]
     );
 }
 
@@ -97,7 +97,7 @@ fn a_selected_sensor_is_never_a_leg_under_remote_only_either() {
 #[test]
 fn no_plan_over_the_real_roster_hands_the_phone_or_the_banner_a_reporting_leg() {
     // THE STRUCTURAL SAFETY ARGUMENT, and the only thing pinning it. moshi
-    // and macos-banner have sentences of their own now, and a REPORTING
+    // and banner have sentences of their own now, and a REPORTING
     // leg is the sole path that would put one on an event's stdout:
     // `ReportOutcome` is produced under `--remote-only` alone, which keeps
     // durable plugins only, and neither of those two is durable.
@@ -118,7 +118,7 @@ fn no_plan_over_the_real_roster_hands_the_phone_or_the_banner_a_reporting_leg() 
                 let plan = channel_plan(&every_plugin, scope, reaching(banner, card));
                 for planned in plan {
                     assert!(
-                        !(matches!(planned.name, "mobile" | "macos-banner")
+                        !(matches!(planned.name, "phone" | "banner")
                             && planned.mode == ReportMode::ReportOutcome),
                         "the plan handed {} a reporting leg with scope={scope:?}, banner={banner}, card={card}: its \
                              sentence would reach an event's stdout",

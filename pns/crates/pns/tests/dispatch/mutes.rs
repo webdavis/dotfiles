@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn a_typed_duration_is_published_as_an_expiry_and_reporting_it_does_not_move_it() {
     let sandbox = Sandbox::new("quiet-set");
-    let output = run(quiet_command(&sandbox).arg("30m"));
+    let output = run(mute_command(&sandbox).arg("30m"));
     assert_eq!(
         stdout(&output).trim_end(),
-        "pns: quiet for another 30 minutes"
+        "pns: muted for another 30 minutes"
     );
 
     // ONE ABSOLUTE EXPIRY, not a flag and not a start plus a duration: every
@@ -31,10 +31,10 @@ fn a_typed_duration_is_published_as_an_expiry_and_reporting_it_does_not_move_it(
     // identical-value update can be a SQLite no-op and changes no stored row.
     let observer = stored_records::database(&sandbox);
     let published_at = modified_at(&observer);
-    let again = run(&mut quiet_command(&sandbox));
+    let again = run(&mut mute_command(&sandbox));
     assert_eq!(
         stdout(&again).trim_end(),
-        "pns: quiet for another 30 minutes"
+        "pns: muted for another 30 minutes"
     );
     assert_eq!(
         modified_at(&observer),
@@ -46,14 +46,14 @@ fn a_typed_duration_is_published_as_an_expiry_and_reporting_it_does_not_move_it(
 #[test]
 fn off_removes_the_state_file_and_the_next_event_decorates_again() {
     let sandbox = Sandbox::new("quiet-off");
-    run(quiet_command(&sandbox).arg("30m"));
+    run(mute_command(&sandbox).arg("30m"));
     assert!(
         quiet_records::expiry(&sandbox).is_some(),
         "muted to begin with"
     );
 
-    let output = run(quiet_command(&sandbox).arg("off"));
-    assert_eq!(stdout(&output).trim_end(), "pns: not quiet");
+    let output = run(mute_command(&sandbox).arg("off"));
+    assert_eq!(stdout(&output).trim_end(), "pns: not muted");
     // DELETED, not overwritten with a past expiry or a flag reading off:
     // the absent quiet row is the successor to the absent legacy file.
     assert!(
@@ -63,7 +63,7 @@ fn off_removes_the_state_file_and_the_next_event_decorates_again() {
 
     let mut event = sandbox.pns();
     event.env("PNS_STATE_DIR", sandbox.path("state"));
-    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut event, false);
     run(event
         .args([
@@ -77,7 +77,7 @@ fn off_removes_the_state_file_and_the_next_event_decorates_again() {
         ])
         .args(["--pane", "t1:p2"]));
     assert!(
-        sandbox.fired("macos-banner"),
+        sandbox.fired("banner"),
         "the banner is back the moment the mute is off"
     );
 }
@@ -89,9 +89,9 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
     // row in the matrix, so it is the one worth silencing.
     let away_and_long = |sandbox: &Sandbox, port: u16| {
         sandbox.write_config(&format!(
-            "[plugins.hue]\nenabled = true\nbridge = \"127.0.0.1:{port}\"\nkey = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
-             [plugins.mobile]\nenabled = true\ntype = \"moshi\"\n[plugins.hermes]\nenabled = true\n\
-             [plugins.macos-banner]\nenabled = true\n"
+            "[plugins.lights]\nenabled = true\nbridge_host = \"127.0.0.1:{port}\"\napi_key = \"k\"\ncertificate = \"sha256:0000000000000000000000000000000000000000000000000000000000000001\"\n\
+             [plugins.phone]\nenabled = true\ntype = \"moshi\"\n[plugins.log]\nenabled = true\ntype = \"hermes\"\n\
+             [plugins.banner]\nenabled = true\n"
         ));
         let mut event = sandbox.pns();
         event.env("PNS_STATE_DIR", sandbox.path("state"));
@@ -105,7 +105,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
                 "--detail",
                 "x",
             ])
-            .args(["--pane", "t1:p2", "--long-running"]);
+            .args(["--pane", "t1:p2", "--elapsed", "300s"]);
         event
     };
 
@@ -123,7 +123,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         wait_bounded(child, std::time::Duration::from_secs(5)),
         Some(0)
     );
-    assert!(loud.fired("mobile"), "unmuted control: the phone is carded");
+    assert!(loud.fired("phone"), "unmuted control: the phone is carded");
 
     let (listener, port) = bridge_spy();
     let sandbox = Sandbox::new("quiet-muted-event");
@@ -134,7 +134,7 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         .as_secs()
         + 600;
     pns_adapters::SqliteStore::for_records(sandbox.state())
-        .set_quiet_expiry(Some(expiry))
+        .set_mute_expiry(Some(expiry))
         .expect("the mute");
     run(&mut away_and_long(&sandbox, port));
 
@@ -143,8 +143,8 @@ fn a_muted_away_event_reaches_the_durable_log_alone_and_never_the_bridge() {
         "THE RECORD SURVIVES THE MUTE: hermes is not a field of the delivery \
          plan, so the durable log is exempt structurally and the mute is lossless"
     );
-    assert!(!sandbox.fired("mobile"), "no card while muted");
-    assert!(!sandbox.fired("macos-banner"), "no banner while muted");
+    assert!(!sandbox.fired("phone"), "no card while muted");
+    assert!(!sandbox.fired("banner"), "no banner while muted");
     assert!(
         !dialled_within(&listener, std::time::Duration::ZERO),
         "and no pulse, so slice 7's window is never even consulted"
@@ -166,7 +166,7 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
     // At the desk with the pane out of sight, and the card forced: the one
     // event that earns BOTH decorations, so a mute reading true here would be
     // unmissable.
-    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_SCREEN_IDLE", "0");
     event.env("PNS_FORCE_PHONE", "1");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
@@ -181,8 +181,8 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
         ])
         .args(["--pane", "t1:p2"]));
 
-    assert!(sandbox.fired("macos-banner"), "a broken mute mutes nothing");
-    assert!(sandbox.fired("mobile"), "including a forced card");
+    assert!(sandbox.fired("banner"), "a broken mute mutes nothing");
+    assert!(sandbox.fired("phone"), "including a forced card");
     assert!(sandbox.fired("hermes"));
     // ONE COMPLAINT PER EVENT, not one per reader: the file is broken until
     // someone fixes it, so it repeats on the next event, but a single run must
@@ -196,7 +196,7 @@ fn a_corrupt_state_file_delivers_everything_and_complains_once_per_event() {
         complaints,
         vec![
             "pns: state error (quiet-until is \"later\", not an expiry time); \
-             nothing is muted, clear it with pns quiet off"
+             nothing is muted, clear it with pns mute off"
         ],
         "the file's own content, and the remedy, said once: {}",
         stderr(&output)
@@ -210,7 +210,7 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
     let sandbox = Sandbox::new("quiet-absent");
     let mut event = sandbox.pns();
     event.env("PNS_STATE_DIR", sandbox.path("state"));
-    event.env("PNS_IDLE_SECS", "0");
+    event.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_herdr(&mut event, false);
     let output = run(event
         .args([
@@ -223,14 +223,14 @@ fn an_absent_state_file_is_the_ordinary_state_and_says_nothing() {
             "x",
         ])
         .args(["--pane", "t1:p2"]));
-    assert!(sandbox.fired("macos-banner"));
+    assert!(sandbox.fired("banner"));
     assert_eq!(stderr(&output), "", "no file, no news");
 }
 
 #[test]
 fn quiet_calendar_arms_the_mute_through_the_argv_the_daemon_schedules() {
-    // THE DAEMON NEVER CALLS `quiet_calendar_mode` DIRECTLY: it schedules
-    // `["quiet", "calendar"]` (calendar_registration.rs) and the engine
+    // THE DAEMON NEVER CALLS `mute_calendar_mode` DIRECTLY: it schedules
+    // `["mute", "calendar"]` (calendar_registration.rs) and the engine
     // dispatches on argv like every other invocation. Running the binary
     // with that exact argv is what pins the wiring between them, not a call
     // into `poll()`.
@@ -257,16 +257,16 @@ fn quiet_calendar_arms_the_mute_through_the_argv_the_daemon_schedules() {
 
     let mut armed = sandbox.pns();
     armed.env("PNS_STATE_DIR", sandbox.state());
-    let output = run(armed.args(["quiet", "calendar"]));
+    let output = run(armed.args(["mute", "calendar"]));
     assert_eq!(
         stdout(&output).trim_end(),
-        "pns: quiet on for a calendar event"
+        "pns: muted for a calendar event"
     );
 
-    let report = run(&mut quiet_command(&sandbox));
+    let report = run(&mut mute_command(&sandbox));
     let reported = stdout(&report).trim_end().to_string();
     assert!(
-        reported.starts_with("pns: quiet for another"),
+        reported.starts_with("pns: muted for another"),
         "the calendar's own arm reads back as a standing mute: {reported}"
     );
 
@@ -284,8 +284,8 @@ fn a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state
     // A SUBCOMMAND THAT SILENTLY ACCEPTS A TYPO IS A MUTE THE OPERATOR
     // BELIEVES IS ON. This is not the always-exit-0 contract's territory: that
     // covers the hook and notification paths, where a non-zero exit would fail
-    // the turn being reported on, and `pns quiet` is hand typed.
-    const USAGE: &str = "pns: usage: pns quiet [<duration>|off|calendar]; duration is <count><s|m|h>, from 1s to 24h";
+    // the turn being reported on, and `pns mute` is hand typed.
+    const USAGE: &str = "pns: usage: pns mute [<duration>|off|calendar]; duration is <count><s|m|h>, from 1s to 24h";
     for arguments in [
         vec!["tomorrow"],
         vec!["30"],
@@ -293,7 +293,7 @@ fn a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state
         vec!["30m", "extra"],
     ] {
         let sandbox = Sandbox::new("quiet-refusal");
-        let output = quiet_command(&sandbox)
+        let output = mute_command(&sandbox)
             .args(&arguments)
             .output()
             .expect("the engine runs");
@@ -312,6 +312,102 @@ fn a_word_the_mute_does_not_serve_prints_usage_exits_nonzero_and_writes_no_state
         assert!(
             !sandbox.path("state/pns.db").exists(),
             "a refused mute writes no state: {arguments:?}"
+        );
+    }
+}
+
+#[test]
+fn the_argv_delivery_class_crosses_the_same_mute_edge_json_does() {
+    // The mute-bypass check reads `event.delivery_class`, which both the
+    // `--delivery-class` flag and the JSON `delivery_class` field write into,
+    // but only the JSON path (`hooks/delivery_class.rs`) drove a bypass
+    // assertion. This is the argv twin, so a regression on either spelling is
+    // caught the same way.
+    let muted = |sandbox: &Sandbox, table: &str| {
+        sandbox.write_config(&format!("{}{table}", support::STUB_CHANNELS));
+        std::fs::create_dir_all(sandbox.path("state")).expect("state dir");
+        pns_adapters::SqliteStore::for_records(sandbox.state())
+            .set_mute_expiry(Some(i64::MAX as u64))
+            .expect("the mute");
+        let mut event = sandbox.pns();
+        event.env("PNS_STATE_DIR", sandbox.path("state"));
+        event.env("PNS_SCREEN_IDLE", "0");
+        event.args([
+            "send",
+            "--producer",
+            "claude",
+            "--state",
+            "blocked",
+            "--detail",
+            "x",
+            "--delivery-class",
+            "security",
+        ]);
+        event
+    };
+
+    let sandbox = Sandbox::new("argv-class-bypass-allowed");
+    run(&mut muted(
+        &sandbox,
+        "[delivery_class.security]\nbypass_mute = true\n",
+    ));
+    assert!(
+        sandbox.fired("banner"),
+        "a class the config lists crosses the mute on the argv path too"
+    );
+
+    let sandbox = Sandbox::new("argv-class-bypass-refused");
+    run(&mut muted(
+        &sandbox,
+        "[delivery_class.security]\nbypass_mute = false\n",
+    ));
+    assert!(
+        !sandbox.fired("banner"),
+        "an unlisted class stays muted on the argv path too"
+    );
+}
+
+#[test]
+fn a_typed_duration_in_hours_mutes_for_that_many_hours() {
+    let sandbox = Sandbox::new("mute-two-hours");
+    let output = run(mute_command(&sandbox).arg("2h"));
+    assert_eq!(
+        stdout(&output).trim_end(),
+        "pns: muted for another 120 minutes"
+    );
+}
+
+#[test]
+fn the_word_quiet_is_refused_by_both_mutes_and_names_the_word_that_replaced_it() {
+    // A RETIRED WORD THAT STILL RAN would be the one outcome worth nothing
+    // here: an operator typing the old spelling has to learn the new one, and
+    // a silent success teaches them nothing.
+    for (arguments, sentence) in [
+        (
+            vec!["quiet"],
+            "pns: quiet is now mute: run `pns mute <duration>`",
+        ),
+        (
+            vec!["lights", "quiet"],
+            "pns: quiet is now mute: run `pns lights mute [<place> [<duration>|off]]`",
+        ),
+    ] {
+        let sandbox = Sandbox::new("mute-retired-word");
+        let output = sandbox
+            .pns_stateful()
+            .args(&arguments)
+            .output()
+            .expect("the engine runs");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "arguments: {arguments:?}, stderr: {}",
+            stderr(&output)
+        );
+        assert!(
+            stderr(&output).lines().any(|line| line == sentence),
+            "arguments: {arguments:?}, stderr: {}",
+            stderr(&output)
         );
     }
 }

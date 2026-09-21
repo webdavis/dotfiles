@@ -37,7 +37,7 @@ fn observations_keep_only_banner_and_hermes_on_every_surface_despite_phone_overr
                     },
                     request(),
                 );
-                assert_eq!(names(&decision), ["macos-banner", "hermes"]);
+                assert_eq!(names(&decision), ["banner", "hermes"]);
                 assert!(decision.plan.banner);
                 assert!(!decision.plan.phone_card);
                 assert!(!decision.plan.pulse);
@@ -49,8 +49,8 @@ fn observations_keep_only_banner_and_hermes_on_every_surface_despite_phone_overr
 #[test]
 fn observation_scope_and_disabled_plugins_still_narrow_delivery() {
     for (scope, expected) in [
-        (DeliveryScope::Automatic, vec!["macos-banner", "hermes"]),
-        (DeliveryScope::LocalOnly, vec!["macos-banner"]),
+        (DeliveryScope::Automatic, vec!["banner", "hermes"]),
+        (DeliveryScope::LocalOnly, vec!["banner"]),
         (DeliveryScope::RemoteOnly, vec!["hermes"]),
     ] {
         let selected = crate::decide(
@@ -61,12 +61,12 @@ fn observation_scope_and_disabled_plugins_still_narrow_delivery() {
         );
         assert_eq!(names(&selected), expected);
     }
-    for enabled in ["hermes", "macos-banner", "mobile"] {
+    for enabled in ["hermes", "banner", "phone"] {
         let selection = crate::registry::roster()
             .enabled(&std::collections::BTreeMap::from([
                 ("hermes".into(), enabled == "hermes"),
-                ("macos-banner".into(), enabled == "macos-banner"),
-                ("mobile".into(), enabled == "mobile"),
+                ("banner".into(), enabled == "banner"),
+                ("phone".into(), enabled == "phone"),
             ]))
             .unwrap();
         let selected = crate::decide(
@@ -75,7 +75,7 @@ fn observation_scope_and_disabled_plugins_still_narrow_delivery() {
             &Overrides::default(),
             request(),
         );
-        let expected = if enabled == "mobile" {
+        let expected = if enabled == "phone" {
             vec![]
         } else {
             vec![enabled]
@@ -107,7 +107,7 @@ fn observations_respect_mute_and_focus_without_restoring_phone_or_pulse() {
                 if silence_policy == SilencePolicy::Respect {
                     vec!["hermes"]
                 } else {
-                    vec!["macos-banner", "hermes"]
+                    vec!["banner", "hermes"]
                 }
             );
             assert!(!selected.plan.phone_card);

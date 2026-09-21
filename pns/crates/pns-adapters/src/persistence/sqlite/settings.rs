@@ -1,25 +1,25 @@
 use super::{SqliteStore, StoreError, scalar::Scalar};
 impl SqliteStore {
-    pub fn quiet_expiry(&self) -> Result<Option<u64>, StoreError> {
+    pub fn mute_expiry(&self) -> Result<Option<u64>, StoreError> {
         let connection = self.connect()?;
         // Retained text keeps the original parse complaint. A missing row
         // with a failed import remains unknown rather than an absent mute.
         let expiry = Scalar::Quiet
             .stored(&connection)?
             .map(|body| {
-                pns_domain::quiet::expiry_from_state(&body).map_err(StoreError::InvalidState)
+                pns_domain::mute::expiry_from_state(&body).map_err(StoreError::InvalidState)
             })
             .transpose()?;
         super::import::readable(&connection, "quiet-until").map_err(|_| {
             StoreError::InvalidState(
                 "pns: state error (quiet-until could not be read: legacy import failed); \
-                 nothing is muted, clear it with pns quiet off"
+                 nothing is muted, clear it with pns mute off"
                     .into(),
             )
         })?;
         Ok(expiry)
     }
-    pub fn set_quiet_expiry(&self, expiry: Option<u64>) -> Result<(), StoreError> {
+    pub fn set_mute_expiry(&self, expiry: Option<u64>) -> Result<(), StoreError> {
         self.transaction(|transaction| {
             Scalar::Quiet.write(transaction, expiry.map(|at| at.to_string()).as_deref())
         })

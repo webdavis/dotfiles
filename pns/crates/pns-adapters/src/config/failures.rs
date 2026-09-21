@@ -14,37 +14,37 @@ pub struct Failures {
     /// reach it. pns cannot detect a moshi Pro subscription and does not need
     /// to: an operator who cannot use browser preview writes `false`, and that
     /// is the same switch that decides which pointer the phone's fix line gets.
-    pub serve: bool,
+    pub page_enabled: bool,
     /// The loopback port the page listens on.
     ///
     /// FIXED AND DOCUMENTED so discovery is predictable: `moshi-hook` probes
     /// local listeners and remembers the ones answering with an HTTP header, so
     /// nothing registers itself, and an operator with a narrowed `scan-ports`
     /// list needs to know which number to add.
-    pub port: u16,
+    pub page_port: u16,
 }
 
-/// See [`Failures::serve`].
-const DEFAULT_FAILURES_SERVE: bool = true;
+/// See [`Failures::page_enabled`].
+const DEFAULT_FAILURES_PAGE_ENABLED: bool = true;
 
-/// See [`Failures::port`].
-const DEFAULT_FAILURES_PORT: u16 = 8646;
+/// See [`Failures::page_port`].
+const DEFAULT_FAILURES_PAGE_PORT: u16 = 8646;
 
 /// The lowest port this will bind. Everything below 1024 needs root on macOS,
 /// and the daemon runs as the operator, so a privileged number is a config that
 /// cannot do what it says rather than a preference.
-const MIN_FAILURES_PORT: i64 = 1024;
+const MIN_FAILURES_PAGE_PORT: i64 = 1024;
 
 impl Default for Failures {
     fn default() -> Self {
         Failures {
-            serve: DEFAULT_FAILURES_SERVE,
-            port: DEFAULT_FAILURES_PORT,
+            page_enabled: DEFAULT_FAILURES_PAGE_ENABLED,
+            page_port: DEFAULT_FAILURES_PAGE_PORT,
         }
     }
 }
 
-/// `[failures]`, in `parse_nag`'s shape: an unknown key and a value of the wrong
+/// `[failures]`, in `parse_remind`'s shape: an unknown key and a value of the wrong
 /// shape are each refused BY NAME rather than half-read into a page the operator
 /// believes they configured.
 pub(super) fn parse_failures(value: toml::Value) -> Result<Failures, ConfigError> {
@@ -57,34 +57,34 @@ pub(super) fn parse_failures(value: toml::Value) -> Result<Failures, ConfigError
     for (key, setting) in table {
         admits_flat("failures", &key)?;
         match key.as_str() {
-            "serve" => {
-                failures.serve = setting.as_bool().ok_or_else(|| {
+            "page_enabled" => {
+                failures.page_enabled = setting.as_bool().ok_or_else(|| {
                     ConfigError::Invalid(format!(
-                        "`failures` key `serve` has type `{}`, not a true or false",
+                        "`failures` key `page_enabled` has type `{}`, not a true or false",
                         setting.type_str()
                     ))
                 })?
             }
-            "port" => failures.port = port(&setting)?,
+            "page_port" => failures.page_port = page_port(&setting)?,
             _ => return Err(unknown_key("failures", "failures", &key)),
         }
     }
     Ok(failures)
 }
 
-/// The port, REFUSED RATHER THAN CLAMPED in `nag_schedule`'s style: a silently
+/// The port, REFUSED RATHER THAN CLAMPED in `remind_schedule`'s style: a silently
 /// corrected port is a port the operator believes they set, and they would go
 /// looking for the page on the number they wrote.
-fn port(setting: &toml::Value) -> Result<u16, ConfigError> {
+fn page_port(setting: &toml::Value) -> Result<u16, ConfigError> {
     let Some(number) = setting.as_integer() else {
         return Err(ConfigError::Invalid(format!(
-            "`failures` key `port` has type `{}`, not a port number",
+            "`failures` key `page_port` has type `{}`, not a port number",
             setting.type_str()
         )));
     };
-    if !(MIN_FAILURES_PORT..=i64::from(u16::MAX)).contains(&number) {
+    if !(MIN_FAILURES_PAGE_PORT..=i64::from(u16::MAX)).contains(&number) {
         return Err(ConfigError::Invalid(format!(
-            "`failures` key `port` is {number}, outside the {MIN_FAILURES_PORT} to {} \
+            "`failures` key `page_port` is {number}, outside the {MIN_FAILURES_PAGE_PORT} to {} \
              range this can bind",
             u16::MAX
         )));
