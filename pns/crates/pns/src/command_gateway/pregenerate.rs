@@ -3,9 +3,10 @@
 //!
 //! THE MODEL RUNS IN A CHILD, NEVER IN THE TICK. The clock ticks once a second
 //! and a summarizer may take minutes, so this starts `pns recap <window>
-//! --pregenerate` as a supervised job and returns at once. A wedged backend
-//! then costs one child, which its own deadline kills, and costs the tick
-//! nothing at all.
+//! --pregenerate` as a supervised job and returns at once. Its job id carries
+//! `RECAP_PREGENERATE_PREFIX`, which the daemon's own child bound reads as
+//! unbounded: the summarizer's own `deadline` kills a wedged backend, so the
+//! tick's generic bound would only kill a slow but honest one early.
 //!
 //! ONE CHILD PER WINDOW INSTANCE. The job id carries the window's name, so
 //! `running` keeps a second copy from starting, and the instance's own end
@@ -49,7 +50,7 @@ pub(crate) fn pregenerate(
         if started.get(window) == Some(&ended) {
             continue;
         }
-        let id = format!("{PREFIX}{window}");
+        let id = format!("{}{window}", pns_domain::jobs::RECAP_PREGENERATE_PREFIX);
         if children.running(&id) {
             continue;
         }
@@ -86,7 +87,3 @@ fn ended_at(window: &str, recap: &pns_adapters::Recap, now: u64) -> Option<u64> 
 /// on a minute boundary, so a pass a second would read the config sixty times
 /// to find the same nothing.
 const PASS_INTERVAL_SECS: u64 = 60;
-
-/// What a pregenerating child's job id starts with. A LEADING DOT, so it can
-/// never collide with a scheduled job the operator named.
-const PREFIX: &str = ".recap-pregenerate-";

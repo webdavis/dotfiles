@@ -1,5 +1,5 @@
 use crate::config::MAX_ARM_INTERVAL_SECS;
-use pns_domain::jobs::PAGE_JOB;
+use pns_domain::jobs::{PAGE_JOB, RECAP_PREGENERATE_PREFIX};
 use pns_domain::lamps::{LIGHTS_JOB, tick_bridge_deadline};
 use std::time::Duration;
 
@@ -34,6 +34,12 @@ const CHILD_TICKS: u32 = 30;
 /// twice a minute for the life of the machine. The daemon stops it on the way
 /// out instead, and the page stops itself if the daemon ever does not.
 ///
+/// A PREGENERATING RECAP HAS NO BOUND HERE EITHER, for the opposite reason: it
+/// already has one. `[recap.summarizer] deadline` bounds the model call inside
+/// it, and `run_summarizer`'s own watchdog kills the backend's process group
+/// at that instant, so this floor would only cut a longer configured deadline
+/// short.
+///
 /// WHY IT IS NOT `CHILD_TICKS` ALONE: that made the tick's child life equal to
 /// the longest interval a tick can be given, and a seamless breath issues its
 /// last fade strictly INSIDE that interval and lets it finish after. At a
@@ -44,7 +50,7 @@ const CHILD_TICKS: u32 = 30;
 /// it is the larger of the two, so a deliberately slow clock still gets the
 /// generous child it always had.
 pub(super) fn child_bound(tick: Duration, id: &str) -> Option<Duration> {
-    if id == PAGE_JOB {
+    if id == PAGE_JOB || id.starts_with(RECAP_PREGENERATE_PREFIX) {
         return None;
     }
     if id != LIGHTS_JOB {
