@@ -40,5 +40,10 @@ pub trait ReviewNoteSource {
 }
 
 pub trait Summarizer {
-    fn summarize(&self, argv: &[String], deadline: Duration, prompt: &str) -> Option<Vec<String>>;
+    fn summarize(
+        &self,
+        invocation: &pns_domain::recap::summarizer::Invocation,
+        deadline: Duration,
+        prompt: &str,
+    ) -> Option<Vec<String>>;
 }

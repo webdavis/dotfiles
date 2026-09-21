@@ -43,22 +43,27 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // carries the one fact its own sentence leaves out: a reminder with a dead daemon
     // never fires, and the line above already says whether the daemon is up.
     assert_eq!(lines[summary + 6], REMIND_OFF_LINE, "{printed}");
-    assert_eq!(lines[summary + 7], HOME_UNCONFIGURED_LINE, "{printed}");
-    assert_eq!(lines[summary + 8], LIGHTS_OFF_LINE, "{printed}");
+    assert_eq!(
+        lines[summary + 7],
+        SUMMARIZER_UNCONFIGURED_LINE,
+        "{printed}"
+    );
+    assert_eq!(lines[summary + 8], HOME_UNCONFIGURED_LINE, "{printed}");
+    assert_eq!(lines[summary + 9], LIGHTS_OFF_LINE, "{printed}");
     // AND THE PIN ROW AT THE FOOT OF THE LIGHTS SECTION, below the dial whose
     // refusal it reports.
-    assert_eq!(lines[summary + 9], NO_CERTIFICATE_LINE, "{printed}");
+    assert_eq!(lines[summary + 10], NO_CERTIFICATE_LINE, "{printed}");
     // TWO ROWS NOW, not one sentence carrying five facts. Two notifications are
     // waiting, so the section states that and then names the detail view: the
     // pointer is what the count is FOR, since a reader holding a number and no
     // next step is where this line used to leave them.
     assert_eq!(
-        lines[summary + 10],
+        lines[summary + 11],
         "2 notifications still waiting to reach a channel",
         "delivery health precedes decision history: {printed}"
     );
     assert_eq!(
-        lines[summary + 11],
+        lines[summary + 12],
         "run `pns failures` for what is not arriving",
         "{printed}"
     );
@@ -67,12 +72,12 @@ fn the_doctor_prints_the_pairing_section_between_its_summary_and_the_decision_se
     // would take it if pns sent it again. This fixture has posted to no route,
     // so the section is its own summary alone.
     assert_eq!(
-        lines[summary + 12],
+        lines[summary + 13],
         "no routes to check; nothing has been posted yet",
         "the route check sits under the ledger: {printed}"
     );
     assert_eq!(
-        lines[summary + 13],
+        lines[summary + 14],
         format!("the last decision{DECISION_HEADING_TAIL}"),
         "the decision section still comes last: {printed}"
     );

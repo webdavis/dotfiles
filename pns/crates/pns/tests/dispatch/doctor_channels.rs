@@ -71,6 +71,7 @@ fn the_doctor_sends_its_labelled_payload_to_every_enabled_channel_and_reports_ea
             FOCUS_OFF_LINE,
             DAEMON_NEVER_RAN_LINE,
             REMIND_OFF_LINE,
+            SUMMARIZER_UNCONFIGURED_LINE,
             // This fixture WROTE a `[plugins.home_presence]` table, so the probe is set
             // up wrong rather than absent, and the row says which edit.
             "home: no type in [plugins.home_presence] (the only type is \"unifi\")",
