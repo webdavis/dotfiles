@@ -23,6 +23,14 @@ pub const ID_MAX: usize = 64;
 /// and this one is a listener holding a port.
 pub const PAGE_JOB: &str = ".failures-page";
 
+/// What a pregenerating recap summary's job id starts with.
+///
+/// A LEADING DOT, so it can never collide with a scheduled job the operator
+/// named. Named here, not only where the gateway starts one, because the
+/// daemon's own child bound has to recognise it too: the summarizer's
+/// `deadline` is its watchdog, not the tick's.
+pub const RECAP_PREGENERATE_PREFIX: &str = ".recap-pregenerate-";
+
 /// One leased job: the whole of what the daemon knows how to do.
 ///
 /// ONE PRIMITIVE, not two. The reminder ("say something at T unless an answer
