@@ -136,8 +136,8 @@ mod build_recap;
 mod post_return_recap;
 pub use build_recap::{
     AGENTS as AGENTS_SECTION, Assembled, BuildRecap, LocalCivilTime, OPEN as OPEN_SECTION,
-    RECAP_USAGE, REVIEW_NOTES as REVIEW_NOTES_SECTION, Request as RecapRequest, document,
-    recap_bounds, recap_wall_clock,
+    RECAP_USAGE, REVIEW_NOTES as REVIEW_NOTES_SECTION, Request as RecapRequest,
+    SUMMARY as SUMMARY_SECTION, document, recap_bounds, recap_wall_clock,
 };
 pub use ports::recap::{ActivityEvents, Fetched, ReviewNoteSource, SourceCommands, Summarizer};
 pub use post_return_recap::post_return_recap;

@@ -177,12 +177,15 @@ pub use protocols::markers::FileLampMarkers;
 mod recap;
 pub use recap_document_wire::{Wire, read_mask};
 mod recap_document_wire;
-pub use recap::{ProcessSourceCommands, ProcessSummarizer, ReviewNotes, git_facts};
+pub use recap::{
+    ProcessSourceCommands, ProcessSummarizer, ReviewNotes, SummarizerFailure, git_facts,
+    run_summarizer, transcript_excerpt,
+};
 
 mod doctor;
 pub use doctor::{ANSWER_MAX, pairing_report};
 
-pub use doctor::{daemon_heartbeat, doctor_bridge, hue_resolves, read_pairing};
+pub use doctor::{daemon_heartbeat, doctor_bridge, hue_resolves, read_pairing, summarizer_report};
 pub use process::{env_duration, moshi_hook_bin};
 
 mod terminal;
@@ -205,6 +208,7 @@ pub use recap_child::{CARD_ON_STDIN, DURABLE, hand_recap_card, run_recap_bounded
 
 pub use persistence::{
     ActivityEvent, DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError,
+    StoredSummary,
 };
 
 mod harness;

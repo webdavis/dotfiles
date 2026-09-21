@@ -11,13 +11,15 @@ fn a_configured_summarizers_lines_become_the_night_in_order() {
     loud_window(&sandbox);
 
     let mut command = present_event(&sandbox);
-    // THE STUB KEEPS THE PROMPT, so the test can say what the model was
-    // actually handed rather than trusting the writer.
+    // THE STUB KEEPS EVERY PROMPT, appended, so the test can say what the
+    // model was actually handed rather than trusting the writer. A DELIVERED
+    // RECAP ASKS IT TWICE: once for this timeline and once for the summary
+    // paragraph above it.
     sandbox.stub_on_path(
         &mut command,
         SUMMARIZER,
         &format!(
-            "cat > '{}'\nprintf '%s\\n' 'the branch landed' 'the suite went red' 'a review is waiting'",
+            "cat >> '{}'\nprintf '%s\\n' 'the branch landed' 'the suite went red' 'a review is waiting'",
             sandbox.path("prompt.captured").display()
         ),
     );
@@ -52,8 +54,8 @@ fn a_configured_summarizers_lines_become_the_night_in_order() {
     let prompt =
         std::fs::read_to_string(sandbox.path("prompt.captured")).expect("the captured prompt");
     assert!(
-        prompt.starts_with("Below are the events"),
-        "the instruction never reached the model: {prompt:?}"
+        prompt.contains("Below are the events"),
+        "the timeline instruction never reached the model: {prompt:?}"
     );
     assert!(
         prompt.contains("planted 1"),
@@ -117,9 +119,14 @@ fn the_windows_own_count_and_what_needs_you_survive_whatever_the_model_says() {
     assert_eq!(
         lines
             .iter()
+            .skip(night)
             .filter(|line| line.starts_with("While you were away, "))
             .count(),
-        1,
+        0,
         "the model's own header line reads as a header: {body}"
+    );
+    assert!(
+        lines[0].starts_with("While you were away, "),
+        "the page's own header is the first line: {body}"
     );
 }
