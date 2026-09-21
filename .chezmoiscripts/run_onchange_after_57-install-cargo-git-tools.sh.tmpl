@@ -21,14 +21,18 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-# Deterministic path, never a PATH probe: a fresh machine provisions rustup
-# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
-cargo_bin="$HOME/.cargo/bin/cargo"
-crates_toml="$HOME/.cargo/.crates.toml"
+# install_root, not a hardcode: rust_tools.install_dir (".cargo/bin") is where
+# every in-tree Rust builder puts its binary, so its parent is the `cargo
+# install --root` this repo's tools share. Deterministic, never a PATH probe:
+# a fresh machine provisions rustup during THIS apply and ~/.cargo/bin is not
+# on the apply shell's PATH yet.
+install_root={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | dir | quote }}
+cargo_bin="$install_root/bin/cargo"
+crates_toml="$install_root/.crates.toml"
 retry_marker="$HOME/.cache/cargo-git-tools/retry"
 
 if [[ ! -x $cargo_bin ]]; then
-  report_line 'cargo-git-tools: cargo not found at ~/.cargo/bin/cargo; install deferred to the next apply.' >&2
+  report_line "cargo-git-tools: cargo not found at $cargo_bin; install deferred to the next apply." >&2
   mkdir -p "$(dirname "$retry_marker")"
   touch "$retry_marker"
   exit 0
@@ -53,8 +57,8 @@ if already_installed {{ .repo | quote }} {{ .ref | quote }}; then
 else
   report_section 'cargo-git-tools' {{ .name | quote }}
   report_line 'installing {{ .name }} from {{ .repo }}@{{ .ref }}'
-  if "$cargo_bin" install --git {{ printf "https://github.com/%s" .repo | quote }} --rev {{ .ref | quote }} --locked --root "$HOME/.cargo" {{ .package | quote }}; then
-    report_line "installed $HOME/.cargo/bin/{{ .name }}"
+  if "$cargo_bin" install --git {{ printf "https://github.com/%s" .repo | quote }} --rev {{ .ref | quote }} --locked --root "$install_root" {{ .package | quote }}; then
+    report_line "installed $install_root/bin/{{ .name }}"
   else
     report_line 'install failed (network unreachable, or cargo itself failed); deferred to the next apply.' >&2
     deferred=1
