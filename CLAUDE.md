@@ -236,8 +236,8 @@ rather than a deployed copy. That is why none of them carries a "crate source is
 deferral any more: the builder's own hash comment `include`s each manifest at render time, so a missing
 one aborts the apply before the script is ever written.
 
-`pns recap` prints the day's brief now, folding in the last apply, the applies the ledger owes, the open
-pull requests, the newest overnight recap, the operator's own items and today's tasks.
+`pns recap` prints the day's brief now: the activity window, today's tasks and the last apply, from the
+source commands named in `[recap.sources]`.
 
 The layout exists so that lifting a tool into its own public repository later is a `git subtree split`
 rather than a rewrite. NOTHING inside a workspace may assume this repository exists: these are tools
