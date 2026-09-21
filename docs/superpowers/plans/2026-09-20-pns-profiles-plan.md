@@ -3612,6 +3612,30 @@ fn a_hold_survives_until_a_profile_admits_it_and_is_then_flushed_once() {
         "the flush empties the hold, so a second transition says nothing"
     );
 }
+
+#[test]
+fn a_long_hold_is_capped_at_missed_kept_and_drops_the_oldest() {
+    let store =
+        pns_adapters::SqliteStore::new(crate::runtime_test_support::scratch("profile-hold-cap"));
+    for index in 0..pns_domain::missed::KEPT + 3 {
+        store.hold_event("night", &held(&format!("state-{index}"))).expect("a hold");
+    }
+    let held = store.held_events().expect("read back");
+    assert_eq!(
+        held.len(),
+        pns_domain::missed::KEPT,
+        "capped at the same depth the missed journal keeps"
+    );
+    assert_eq!(
+        held.first().map(|(_, entry)| entry.state.clone()),
+        Some("state-3".to_string()),
+        "the oldest three were dropped, not the newest"
+    );
+    assert_eq!(
+        held.last().map(|(_, entry)| entry.state.clone()),
+        Some(format!("state-{}", pns_domain::missed::KEPT + 2))
+    );
+}
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -3643,7 +3667,11 @@ and add the three methods:
     ///
     /// THE SAME SIX FIELDS THE MISSED JOURNAL KEEPS, and the same privacy
     /// rule: nothing prints an entry, and the only reader is the flush, which
-    /// counts them.
+    /// counts them. THE SAME DEPTH, TOO: `profile_held` is a table rather
+    /// than the journal's own file, so nothing rotates it for free, and the
+    /// trim below is what keeps a long or busy `night` window from growing it
+    /// without bound. It runs in the SAME TRANSACTION as the insert, so a
+    /// hold is never observed past the cap even between two calls.
     pub fn hold_event(
         &self,
         profile: &str,
@@ -3662,6 +3690,12 @@ and add the three methods:
                     entry.branch,
                     entry.detail
                 ],
+            )?;
+            transaction.execute(
+                "DELETE FROM profile_held WHERE seq NOT IN (
+                     SELECT seq FROM profile_held ORDER BY seq DESC LIMIT ?1
+                 )",
+                rusqlite::params![pns_domain::missed::KEPT as i64],
             )?;
             Ok(())
         })

@@ -360,8 +360,11 @@ Under `night` that roll-up is what `pns recap` shows for the overnight window (t
 GAP DECISION (held is its own record). The missed journal answers "the operator was away". A hold
 answers "the operator was here and their profile said not now", carries the profile's name and is
 flushed by a transition rather than by a return. Conflating the two would make `missed::summary`'s
-wording answer two questions. The journal's own depth rule (`missed::KEPT`, 25) and its privacy rule
-(nothing prints an entry; only the replayer reads one back) apply unchanged to the held record.
+wording answer two questions. The journal's own privacy rule (nothing prints an entry; only the
+replayer reads one back) applies unchanged to the held record. Its depth rule does not carry over for
+free, because the held record is a SQLite table rather than the missed journal's own file: `hold_event`
+enforces the same number, `missed::KEPT` (25), by trimming the oldest row past it in the same write, so
+a long or busy `night` window cannot grow the table without bound.
 
 ## `pns profile` output
 
