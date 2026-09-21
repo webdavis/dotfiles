@@ -244,8 +244,8 @@
      the hook on BOTH events would notify twice
      for one prompt (PermissionRequest fires, then the prompt appears and
      Notification fires), so this is one seam per harness, matching Codex's
-     PermissionRequest entry in
-     hooks/codex/install-hooks.sh. Notification carries a QUOTA-ONLY entry:
+     PermissionRequest entry, installed by `pns codex install-hooks`.
+     Notification carries a QUOTA-ONLY entry:
      alerter held the slot for a local sound and was the last notification
      path on this machine that bypassed the presence engine, and for TOOL
      approvals the PermissionRequest hook above and the unanswered-approval
