@@ -343,13 +343,13 @@ packages:
     - id: herdr-smart-nav
       repo: webdavis/herdr-smart-nav
       ref: b82c2cf94de97cd3c6746d93de5a8e8da9fd112f
-    # The Todoist pane. Its config lives at
-    # dot_config/herdr/plugins/config/herdr-todoist/config.toml and names the
+    # The task pane. Its config lives at
+    # dot_config/herdr/plugins/config/herdr-damnit/config.toml and names the
     # KeePassXC entry the token comes from; the plugin refuses to run until one
     # of its two token indirections resolves.
-    - id: herdr-todoist
-      repo: webdavis/herdr-todoist
-      ref: bef263d7d86f5aabb6aba35c3be56bc619e4ee21
+    - id: herdr-damnit
+      repo: webdavis/herdr-damnit
+      ref: 6654365727d37ea718bd39d664f3c258a7bbe423
     - id: worktrunk
       repo: devashish2203/herdr-worktrunk
     - id: tab-smart-rename
