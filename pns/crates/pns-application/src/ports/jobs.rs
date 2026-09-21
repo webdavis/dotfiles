@@ -41,14 +41,30 @@ pub enum DaemonNotice {
     Error(String),
 }
 
+/// What one config read says about one of the daemon's own polls.
+///
+/// THREE ANSWERS, NOT TWO. A config that loads and says nothing is a feature
+/// that is off, and the poll is cancelled. A config that cannot be read says
+/// nothing about the feature at all, and the poll already registered keeps
+/// running on its last known interval: a daemon that outlives the loader its
+/// config was written for must not drop its own sensors on every sweep.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PollSetting {
+    /// The feature is on, at this many seconds between polls.
+    Every(u64),
+    /// The config loaded and the feature is off, absent or refused.
+    Off,
+    /// The config could not be read.
+    Unreadable,
+}
+
 pub trait DaemonSettings {
     fn enabled(&self) -> Result<bool, String>;
-    fn presence_interval(&self) -> Option<u64>;
-    /// How often the GitHub poll runs, or `None` for a source that is off.
-    /// It is the interval the SERVER last asked for, so this reads the poll's
-    /// own state as well as the config.
-    fn github_interval(&self) -> Option<u64>;
-    /// How often the calendar poll runs, or `None` for a feature that is off,
+    fn presence_interval(&self) -> PollSetting;
+    /// How often the GitHub poll runs. It is the interval the SERVER last
+    /// asked for, so this reads the poll's own state as well as the config.
+    fn github_interval(&self) -> PollSetting;
+    /// How often the calendar poll runs; `Off` for a feature that is off,
     /// unconfigured or refused.
-    fn calendar_interval(&self) -> Option<u64>;
+    fn calendar_interval(&self) -> PollSetting;
 }

@@ -476,7 +476,7 @@ Config {
         },
     ),
     quiet_calendar: QuietCalendar {
-        enabled: true,
+        enabled: false,
         command: [
             "/Users/stephen/.local/libexec/pns/calendar-busy-window.sh",
         ],

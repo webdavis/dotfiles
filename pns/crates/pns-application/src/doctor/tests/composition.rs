@@ -24,7 +24,7 @@ fn doctor_pairs_reordered_outcomes_by_name_and_prints_every_section_in_order() {
     assert!(lines[12].starts_with("pns doctor: lights:"));
     // AND THE PIN ROW AT THE FOOT OF THAT SECTION, below the dial whose refusal
     // it reports.
-    assert!(lines[13].contains("certificate:"));
+    assert!(lines[13].contains("Hue bridge certificate:"));
     // The ledger, then the routes it would post to, then history. The fixture
     // has posted to no route, so the route section is its summary alone.
     assert!(lines[15].contains("no routes to check"));
