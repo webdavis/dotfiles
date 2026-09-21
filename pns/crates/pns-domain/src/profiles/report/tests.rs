@@ -44,11 +44,3 @@ fn the_surfaces_read_in_one_line() {
         "quiet on; banner none, Discord none, phone priority, lights none"
     );
 }
-
-#[test]
-fn a_transition_names_both_profiles_and_the_reason() {
-    assert_eq!(
-        transition_line("default", "night", "rule 1: hours"),
-        "profile default -> night (rule 1: hours)"
-    );
-}

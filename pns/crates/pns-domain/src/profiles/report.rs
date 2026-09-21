@@ -30,13 +30,5 @@ pub fn surfaces_line(profile: &Profile) -> String {
     )
 }
 
-/// One transition, as the ledger row and the gateway's own line both carry it.
-///
-/// ONE SPELLING FOR BOTH, so the row an operator reads back and the line they
-/// saw scroll past cannot describe the same moment differently.
-pub fn transition_line(from: &str, to: &str, reason: &str) -> String {
-    format!("profile {from} -> {to} ({reason})")
-}
-
 #[cfg(test)]
 mod tests;

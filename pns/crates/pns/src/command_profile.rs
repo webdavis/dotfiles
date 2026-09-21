@@ -35,10 +35,14 @@ pub(crate) fn profile_mode() -> i32 {
 fn select(records: &SqliteStore, config: &Config, name: &str, rest: &[String]) -> i32 {
     let defined = crate::profile_runtime::defined_profiles(config);
     if !defined.iter().any(|known| known == name) {
-        eprintln!(
-            "pns profile: no profile named `{name}`; this config defines {}",
-            defined.join(", ")
-        );
+        if defined.is_empty() {
+            eprintln!("pns profile: this config defines no profiles");
+        } else {
+            eprintln!(
+                "pns profile: no profile named `{name}`; this config defines {}",
+                defined.join(", ")
+            );
+        }
         return 2;
     }
     let until = match parse_bound(rest, now_secs(), crate::profile_runtime::minutes_now()) {
