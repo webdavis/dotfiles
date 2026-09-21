@@ -204,7 +204,9 @@ fn prefer_wal(connection: &Connection) -> Result<(), StoreError> {
 /// caller chose.
 fn diagnostic_log(state: &Path) -> PathBuf {
     match state.parent().and_then(Path::parent) {
-        Some(local) if state.ends_with(".local/state/pns") => local.join("log/pns-daemon.log"),
+        Some(local) if state.ends_with(super::super::DAEMON_STATE_SUFFIX) => {
+            local.join("log/pns-daemon.log")
+        }
         _ => state.join("pns-daemon.log"),
     }
 }
