@@ -109,6 +109,7 @@ fn report(
             tap: || pns_domain::doctor::Item::row(pns_domain::doctor::Mark::Detail, "tap fixture"),
             focus: || "focus fixture".into(),
             daemon: || "daemon fixture".into(),
+            summarizer: Box::new(|| pns_domain::doctor::Item::note("summarizer fixture")),
             // The home probe reads nothing in a unit: its own rows are pinned
             // beside the sentences they carry.
             home: Vec::new,
