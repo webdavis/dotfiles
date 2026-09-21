@@ -26,6 +26,7 @@ command = "beginning-of-line"
 
 [[group.binding]]
 key = "ctrl-g o f"
+modes = ["vi-insert"]
 macro = "\\C-x0\\C-_I\\C-x1\\C-x2\\b"
 "#;
 
@@ -45,7 +46,6 @@ builtin bind -x '"\t": "menu-complete"'
 builtin bind -m vi-insert '"\C-a": beginning-of-line'
 
 builtin bind -m vi-insert '"\C-gof": "\C-x0\C-_I\C-x1\C-x2\b"'
-builtin bind -m vi-command '"\C-gof": "i\C-x0\C-_I\C-x1\C-x2\b"'
 "#;
 
 fn render(table_text: &str) -> Result<String, RenderFault> {
@@ -105,4 +105,17 @@ fn an_unknown_key_token_names_the_row_it_came_from() {
         render("[[group]]\nname = \"g\"\n[[group.binding]]\nkey = \"hyper-a\"\nrun = \"ls\"\n")
             .expect_err("an unknown token must be refused");
     assert!(fault.0.contains("hyper-a"), "{}", fault.0);
+}
+
+#[test]
+fn a_macro_body_reaches_the_output_verbatim() {
+    let rendered = render(
+        "[[group]]\nname = \"g\"\n[[group.binding]]\nkey = \"ctrl-g o f\"\n\
+         modes = [\"vi-command\"]\nmacro = \"i\\\\C-x0\\\\C-_I\\\\b\"\n",
+    )
+    .expect("a raw macro must render");
+    assert!(
+        rendered.contains(r#"builtin bind -m vi-command '"\C-gof": "i\C-x0\C-_I\b"'"#),
+        "{rendered}"
+    );
 }
