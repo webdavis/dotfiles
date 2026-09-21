@@ -27,8 +27,6 @@ pub(crate) fn resolve(
     now: u64,
 ) -> Result<Resolved, String> {
     match &options.span {
-        // `open` HAS NO WINDOW, and the bounds it carries are never read: the
-        // engine gathers nothing windowed for it.
         // `open` HAS NO WINDOW, and its bounds are the retention the store
         // keeps: a session blocked three days ago is still blocked, so the
         // list is everything the table still holds rather than one period.
