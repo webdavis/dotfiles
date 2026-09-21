@@ -2148,7 +2148,11 @@ pub(crate) fn nightshift_mode() -> i32 {
         return 1;
     };
     let table = config.nightshift.clone();
-    let Some((civil, _weekday)) = pns_adapters::local_civil(crate::now_secs()) else {
+    let Some(now) = crate::now_secs() else {
+        eprintln!("pns nightshift: the local clock could not be read; nothing was handed off");
+        return 1;
+    };
+    let Some((civil, _weekday)) = pns_adapters::local_civil(now) else {
         eprintln!("pns nightshift: the local clock could not be read; nothing was handed off");
         return 1;
     };
