@@ -31,8 +31,8 @@ and `type = "command"` carrying any of the three credentials. `calendars` is adm
 type, because it ships live at its default in the generated template.
 
 The three credentials are SECRETS. In `dot_config/pns/config-values.toml` each is written as a marker
-table `{ keepassxc = "<entry>", field = "Password" }` and the render refuses a literal; the shipped
-template carries the chezmoi action, never a value.
+table `{ keepassxc = "<entry>", field = "Password" }`; the shipped template carries the chezmoi action,
+never a value.
 
 ## `type = "command"`
 
