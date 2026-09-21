@@ -1,6 +1,6 @@
 use crate::*;
 use pns_adapters::{Config, SqliteStore};
-use pns_domain::profiles::{Override, because, surfaces_line};
+use pns_domain::profiles::{Chose, Override, because, surfaces_line};
 
 pub(crate) const PROFILE_USAGE: &str =
     "usage: pns profile [<name> [--for <duration> | --until HH:MM] | clear]";
@@ -67,8 +67,21 @@ fn select(records: &SqliteStore, config: &Config, name: &str, rest: &[String]) -
 /// and what that profile admits.
 fn report(records: &SqliteStore, config: &Config) -> i32 {
     let reading = crate::profile_runtime::active(records, config);
+    // A STORED OVERRIDE CAN OUTLIVE THE TABLE IT NAMED: the resolver falls
+    // back to `Profile::default()` rather than nothing, and the report says
+    // so instead of printing the default's surfaces under a name that
+    // suggests they are that override's own.
+    let unknown_note =
+        if !reading.profile_known && matches!(reading.resolved.chose, Chose::Manual { .. }) {
+            format!(
+                "; this config defines no `{}`, so the default settings apply",
+                reading.resolved.profile
+            )
+        } else {
+            String::new()
+        };
     println!(
-        "pns: profile `{}` ({})",
+        "pns: profile `{}` ({}{unknown_note})",
         reading.resolved.profile,
         because(
             &reading.resolved.chose,

@@ -9,11 +9,13 @@ use crate::*;
 use pns_adapters::SqliteStore;
 use pns_domain::profiles::{Inputs, Profile, Resolved, resolve};
 
-/// What one read answered: the resolution, the profile it names, and the
-/// local clock time a bounded override ends at.
+/// What one read answered: the resolution, the profile it names, whether the
+/// config defines that name, and the local clock time a bounded override
+/// ends at.
 pub(crate) struct Reading {
     pub resolved: Resolved,
     pub profile: Profile,
+    pub profile_known: bool,
     pub until_clock: Option<String>,
 }
 
@@ -24,6 +26,7 @@ pub(crate) fn active(records: &SqliteStore, config: &pns_adapters::Config) -> Re
     // A NAME NO TABLE DEFINES RUNS THE DEFAULT PROFILE rather than nothing: a
     // stored override can outlive the table it named, and the fail-open rule
     // is that not knowing costs the narrowing, never the notification.
+    let profile_known = config.profiles.contains_key(&resolved.profile);
     let profile = config
         .profiles
         .get(&resolved.profile)
@@ -38,6 +41,7 @@ pub(crate) fn active(records: &SqliteStore, config: &pns_adapters::Config) -> Re
     Reading {
         resolved,
         profile,
+        profile_known,
         until_clock,
     }
 }
