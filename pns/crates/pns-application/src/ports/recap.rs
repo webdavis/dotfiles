@@ -40,7 +40,12 @@ pub trait ReviewNoteSource {
 }
 
 pub trait Summarizer {
-    fn summarize(&self, argv: &[String], deadline: Duration, prompt: &str) -> Option<Vec<String>>;
+    fn summarize(
+        &self,
+        invocation: &pns_domain::recap::summarizer::Invocation,
+        deadline: Duration,
+        prompt: &str,
+    ) -> Option<Vec<String>>;
 }
 
 /// How many delivery legs the retry policy gave up on and nobody has cleared.

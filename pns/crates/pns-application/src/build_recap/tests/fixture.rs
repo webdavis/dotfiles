@@ -107,7 +107,13 @@ impl ReviewNoteSource for World {
     }
 }
 impl Summarizer for World {
-    fn summarize(&self, argv: &[String], deadline: Duration, prompt: &str) -> Option<Vec<String>> {
+    fn summarize(
+        &self,
+        invocation: &pns_domain::recap::summarizer::Invocation,
+        deadline: Duration,
+        prompt: &str,
+    ) -> Option<Vec<String>> {
+        let argv = invocation.argv.as_slice();
         assert_eq!(argv, &["summary", "--plain"]);
         assert!(!prompt.is_empty());
         self.log
@@ -125,8 +131,11 @@ pub(super) fn configured() -> Recap {
             ..pns_domain::recap::Sources::default()
         },
         review_notes_glob: Some("/notes/*.md".into()),
-        summarizer: Some(vec!["summary".into(), "--plain".into()]),
-        summarizer_deadline: std::time::Duration::from_secs(6),
+        summarizer: pns_domain::recap::summarizer::Settings {
+            command: vec!["summary".into(), "--plain".into()],
+            deadline: std::time::Duration::from_secs(6),
+            ..Default::default()
+        },
         ..Recap::default()
     }
 }

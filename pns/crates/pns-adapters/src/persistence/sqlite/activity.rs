@@ -40,9 +40,28 @@ pub(in crate::persistence::sqlite) fn create(
           workspace TEXT NOT NULL,
           model TEXT NOT NULL,
           title TEXT NOT NULL,
-          detail TEXT NOT NULL);
+          detail TEXT NOT NULL,
+          transcript_path TEXT NOT NULL DEFAULT '');
          CREATE INDEX activity_events_at ON activity_events(at);",
     )?;
+    Ok(())
+}
+
+/// Add the transcript path to a table created before it existed.
+///
+/// SKIPPED ON A DATABASE THAT NEVER HELD THE OLD SHAPE, because `create` above
+/// already writes the column: a fresh machine runs both migrations in one
+/// transaction and `ALTER TABLE` would then refuse a column that is already
+/// there.
+pub(in crate::persistence::sqlite) fn transcript_path(
+    transaction: &Transaction<'_>,
+    from_version: u32,
+) -> Result<(), StoreError> {
+    if from_version >= 11 {
+        transaction.execute_batch(
+            "ALTER TABLE activity_events ADD COLUMN transcript_path TEXT NOT NULL DEFAULT '';",
+        )?;
+    }
     Ok(())
 }
 
@@ -52,8 +71,8 @@ impl SqliteStore {
         self.transaction(|transaction| {
             transaction.execute(
                 "INSERT INTO activity_events(
-                   at,agent,state,project,branch,session,session_title,pane,workspace,model,title,detail)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                   at,agent,state,project,branch,session,session_title,pane,workspace,model,title,detail,transcript_path)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
                 rusqlite::params![
                     event.at,
                     event.agent,
@@ -66,7 +85,8 @@ impl SqliteStore {
                     event.workspace,
                     event.model,
                     event.title,
-                    event.detail
+                    event.detail,
+                    event.transcript_path
                 ],
             )?;
             Ok(())
@@ -100,7 +120,7 @@ impl SqliteStore {
     ) -> Result<Vec<ActivityEvent>, StoreError> {
         let connection = self.connect()?;
         let mut statement = connection.prepare(
-            "SELECT at,agent,state,project,branch,session,session_title,pane,workspace,model,title,detail
+            "SELECT at,agent,state,project,branch,session,session_title,pane,workspace,model,title,detail,transcript_path
                FROM activity_events
               WHERE at > ?1 AND at <= ?2
               ORDER BY at, seq",
@@ -119,6 +139,7 @@ impl SqliteStore {
                 model: row.get(9)?,
                 title: row.get(10)?,
                 detail: row.get(11)?,
+                transcript_path: row.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)

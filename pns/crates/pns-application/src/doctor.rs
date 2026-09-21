@@ -28,6 +28,14 @@ pub struct DoctorActions<D, P, PR, PA, T, F, DA, L, CE, I, H, RO> {
     pub tap: T,
     pub focus: F,
     pub daemon: DA,
+    /// What the configured summarizer answers to a two-word prompt. THE ONE
+    /// CHECK THAT RUNS THE REAL BINARY, which is how a harness changing its
+    /// own flags is noticed; the golden test only pins what pns composes.
+    ///
+    /// BOXED RATHER THAN A THIRTEENTH TYPE PARAMETER, for `home`'s reason: the
+    /// signature below is already at the complexity a reader can hold, and
+    /// this reading owns everything it captures.
+    pub summarizer: Box<dyn FnOnce() -> pns_domain::doctor::Item>,
     /// What the router says about the operator's own device, and the evidence
     /// behind it. Deferred for the reason `routes` is: it dials, and the doctor
     /// pays for that only when it reaches the section.
@@ -195,6 +203,11 @@ impl<R: DecisionRing + Journal, C: Clock> RunDoctor<'_, R, C> {
         emit(Item::note(pns_domain::doctor::remind_line(
             self.remind_delay_secs,
         )));
+        // BESIDE THE TWO LINES ABOVE, which is where the report says what is
+        // running rather than what is reaching the operator. It does not move
+        // the exit code, for their reason: a summarizer that is down costs a
+        // paragraph of a recap rather than a card.
+        emit((actions.summarizer)());
         // AND THE HOME PROBE, which is the other reading that decides whether
         // the operator is there to be reached. It reports and never grades, for
         // the reason the two lines above do: an unread router costs the away

@@ -3,7 +3,9 @@ use pns_application::{RECAP_USAGE, RecapRequest};
 
 mod options;
 mod render;
-mod window;
+mod summary;
+pub(crate) mod window;
+pub(crate) use options::PREGENERATE;
 use options::{OPEN, Options, Span, options};
 
 /// The `recap` mode: one window of activity, rendered and posted, or printed

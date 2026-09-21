@@ -131,6 +131,10 @@ pub struct Page<'page> {
     /// reporting on.
     pub shows_agents: bool,
     pub timeline: Timeline<'page>,
+    /// The paragraph a model wrote over this recap, or the line saying why
+    /// there is none. None is a machine with no summarizer and a run that
+    /// asked for no summary, where the section is absent entirely.
+    pub summary: Option<&'page super::summarizer::Summary>,
     /// The five list sections, in the order the page prints them, each named
     /// by its config key so the heading and the document field cannot drift.
     pub sources: &'page [(&'page str, External<'page>)],
@@ -188,6 +192,9 @@ pub fn sections(page: &Page) -> Vec<Section> {
         page.from,
         page.to,
     )])];
+    if let Some(summary) = page.summary {
+        parts.push(summary_section(summary));
+    }
     if page.shows_agents {
         parts.push(agents_section(page));
     }
@@ -252,3 +259,21 @@ pub(super) const OPEN_HEADING: &str = "OPEN";
 /// Said rather than left blank: an empty section reads as a section that
 /// broke, and this one is the reason the page exists.
 pub(super) const NOTHING_OPEN: &str = "- nothing is waiting on you";
+
+/// The summary section: one paragraph a model wrote over the mechanical
+/// document, or the one line saying why there is none.
+///
+/// IT IS NEVER TRIMMED, for `open`'s reason: it is the first thing the reader
+/// reads, and a paragraph cut at the budget reads as a paragraph that broke.
+///
+/// THE HEADING CARRIES THE WRITTEN TIME, because a stored summary can be older
+/// than the page it is printed on and a reader has no other way to tell.
+pub(super) fn summary_section(summary: &super::summarizer::Summary) -> Section {
+    let mut lines = vec![format!(
+        "{SUMMARY_HEADING} ({} at {})",
+        summary.source, summary.written_at
+    )];
+    lines.extend(summary.lines.iter().cloned());
+    Section::held(lines)
+}
+pub(super) const SUMMARY_HEADING: &str = "SUMMARY";
