@@ -11,6 +11,8 @@ mod admission;
 pub use admission::{Admits, Profile};
 mod codec;
 pub use codec::{format_override, parse_override};
+mod report;
+pub use report::{because, surfaces_line, transition_line};
 mod resolve;
 pub use resolve::{Chose, Inputs, Resolved, resolve};
 
