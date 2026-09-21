@@ -17,8 +17,7 @@ pub(crate) struct Reading {
     pub until_clock: Option<String>,
 }
 
-pub(crate) fn active(records: &SqliteStore) -> Reading {
-    let config = loaded_config();
+pub(crate) fn active(records: &SqliteStore, config: &pns_adapters::Config) -> Reading {
     let now = now_secs();
     let standing = records.profile_override().ok().flatten();
     let resolved = resolve(&config.profile_rules, &inputs(now), standing.as_ref(), now);
@@ -45,8 +44,14 @@ pub(crate) fn active(records: &SqliteStore) -> Reading {
 
 /// Every profile the config defines, in sorted order, which is what a refusal
 /// lists back at an operator who typed a name it does not serve.
-pub(crate) fn defined_profiles() -> Vec<String> {
-    loaded_config().profiles.keys().cloned().collect()
+pub(crate) fn defined_profiles(config: &pns_adapters::Config) -> Vec<String> {
+    config.profiles.keys().cloned().collect()
+}
+
+/// The one config read a `pns profile` invocation makes, handed to every step
+/// that needs it so a report and a select never re-parse it on their own.
+pub(crate) fn load() -> Box<pns_adapters::Config> {
+    loaded_config()
 }
 
 pub(crate) fn minutes_now() -> Option<u16> {

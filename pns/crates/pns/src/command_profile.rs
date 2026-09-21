@@ -1,5 +1,5 @@
 use crate::*;
-use pns_adapters::SqliteStore;
+use pns_adapters::{Config, SqliteStore};
 use pns_domain::profiles::{Override, because, surfaces_line};
 
 pub(crate) const PROFILE_USAGE: &str =
@@ -15,8 +15,9 @@ pub(crate) const PROFILE_USAGE: &str =
 pub(crate) fn profile_mode() -> i32 {
     let argv: Vec<String> = crate::arguments_after_subcommand();
     let records = SqliteStore::for_records(state_dir());
+    let config = crate::profile_runtime::load();
     match argv.split_first() {
-        None => report(&records),
+        None => report(&records, &config),
         Some((word, rest)) if word == "clear" && rest.is_empty() => {
             if let Err(error) = records.set_profile_override(None) {
                 eprintln!(
@@ -25,14 +26,14 @@ pub(crate) fn profile_mode() -> i32 {
                 );
                 return 1;
             }
-            report(&records)
+            report(&records, &config)
         }
-        Some((name, rest)) => select(&records, name, rest),
+        Some((name, rest)) => select(&records, &config, name, rest),
     }
 }
 
-fn select(records: &SqliteStore, name: &str, rest: &[String]) -> i32 {
-    let defined = crate::profile_runtime::defined_profiles();
+fn select(records: &SqliteStore, config: &Config, name: &str, rest: &[String]) -> i32 {
+    let defined = crate::profile_runtime::defined_profiles(config);
     if !defined.iter().any(|known| known == name) {
         eprintln!(
             "pns profile: no profile named `{name}`; this config defines {}",
@@ -59,13 +60,13 @@ fn select(records: &SqliteStore, name: &str, rest: &[String]) -> i32 {
         );
         return 1;
     }
-    report(records)
+    report(records, config)
 }
 
 /// The two lines `pns profile` prints: the active profile with what chose it,
 /// and what that profile admits.
-fn report(records: &SqliteStore) -> i32 {
-    let reading = crate::profile_runtime::active(records);
+fn report(records: &SqliteStore, config: &Config) -> i32 {
+    let reading = crate::profile_runtime::active(records, config);
     println!(
         "pns: profile `{}` ({})",
         reading.resolved.profile,
