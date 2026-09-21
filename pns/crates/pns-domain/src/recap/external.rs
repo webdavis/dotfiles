@@ -5,7 +5,9 @@ use super::prompt::{SUMMARIZER_SILENT, Voice};
 use super::sections::Section;
 
 mod sources;
-pub use sources::{Sourced, merged, noted, unreadable};
+#[cfg(test)]
+pub use sources::merged;
+pub use sources::{Sourced, noted, printed, unreadable};
 
 /// What an external section found, which is three different claims about the
 /// night and never one.
@@ -20,11 +22,68 @@ pub enum Found<'sources> {
     #[default]
     Unconfigured,
     /// A key names it and the read did not come back. See the composition
-    /// root: a missing tool, a refusal and a deadline are one outcome here.
+    /// root: a missing tool and a deadline are one outcome here.
     Unavailable,
+    /// The command ran and refused. THE EXIT CODE IS NAMED, because it is the
+    /// one fact that tells the operator whether they typed the command wrong
+    /// or the tool it names is unhappy, and it costs the section one line
+    /// where an empty section would cost it the truth.
+    Failed(i32),
     /// What the source held. EMPTY IS AN ANSWER, not an absence.
     Read(&'sources [Sourced]),
 }
+/// What one source held, OWNED, as the composition root gathers it before
+/// anything is rendered.
+///
+/// THE BORROWED `Found` IS THE RENDERER'S VIEW OF THIS. Assembling a page
+/// means running commands and reading files, which produces owned text; the
+/// renderer only ever looks at it, so the two shapes stay apart rather than
+/// forcing the renderer to allocate or the gatherer to leak lifetimes.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Sourcing {
+    Unconfigured,
+    Unavailable,
+    Failed(i32),
+    /// What the source held, and whether a cap stopped the read short.
+    Read(Vec<Sourced>, bool),
+}
+
+impl Sourcing {
+    /// This source as the renderer reads it, with whatever a summarizer said
+    /// over it.
+    pub fn external<'sources>(
+        &'sources self,
+        answered: Option<&'sources [String]>,
+    ) -> External<'sources> {
+        match self {
+            Sourcing::Unconfigured => External::default(),
+            Sourcing::Unavailable => External {
+                found: Found::Unavailable,
+                ..External::default()
+            },
+            Sourcing::Failed(code) => External {
+                found: Found::Failed(*code),
+                ..External::default()
+            },
+            Sourcing::Read(sources, truncated) => External {
+                found: Found::Read(sources),
+                answered,
+                truncated: *truncated,
+            },
+        }
+    }
+    /// The rows this source held, for the document and for the section that
+    /// reads another section's rows.
+    pub fn rows(&self) -> Vec<String> {
+        match self {
+            Sourcing::Read(sources, _) => {
+                sources.iter().map(|source| source.line.clone()).collect()
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
 /// One external section's whole input: what pns found, and what a summarizer
 /// said about it.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -39,18 +98,6 @@ pub struct External<'sources> {
     /// own limit and a glob matching more files than one recap considers are
     /// both counts that would otherwise read as totals.
     pub truncated: bool,
-}
-/// The two sections whose source is not pns, named rather than passed as a
-/// pair.
-///
-/// ONE NAMED VALUE, for `config::Recap`'s reason: both halves have the same
-/// type, so as two arguments they would sit adjacent and transposable, and a
-/// swap would file the night's merges under the review notes with nothing to
-/// catch it.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Externals<'sources> {
-    pub merges: External<'sources>,
-    pub notes: External<'sources>,
 }
 /// One external section, in whichever of its four states it is in.
 ///
@@ -91,27 +138,33 @@ pub struct Externals<'sources> {
 /// `Trim::WhenOver` is both: the whole section on an ordinary window, and a
 /// heading plus a truthful remainder on the window that would not otherwise
 /// fit.
-pub(super) fn external_section(voice: &Voice, external: &External) -> Section {
+pub(super) fn external_section(voice: &Voice, external: &External, rows: usize) -> Section {
     let sources = match external.found {
-        Found::Unconfigured => return Section::held(vec![voice.unconfigured.to_string()]),
-        Found::Unavailable => return Section::held(vec![voice.unavailable.to_string()]),
-        Found::Read([]) => return Section::held(vec![voice.nothing.to_string()]),
+        Found::Unconfigured => return Section::held(vec![voice.unconfigured.clone()]),
+        Found::Unavailable => return Section::held(vec![voice.unavailable.clone()]),
+        Found::Failed(code) => {
+            return Section::held(vec![format!("{}: {FAILED} {code}.", voice.heading)]);
+        }
+        Found::Read([]) => return Section::held(vec![voice.nothing.clone()]),
         Found::Read(sources) => sources,
     };
     let mechanical = || -> Vec<&str> {
         sources
             .iter()
-            .take(MAX_EXTERNAL_LINES)
+            .take(rows)
             .map(|source| source.line.as_str())
             .collect()
     };
-    let (heading, kept) = match external.answered.map(|answered| vouched(sources, answered)) {
-        None => (voice.heading.to_string(), mechanical()),
+    let (heading, kept) = match external
+        .answered
+        .map(|answered| vouched(sources, answered, rows))
+    {
+        None => (voice.heading.clone(), mechanical()),
         Some(kept) if kept.is_empty() => (
             format!("{} {SUMMARIZER_SILENT}", voice.heading),
             mechanical(),
         ),
-        Some(kept) => (voice.heading.to_string(), kept),
+        Some(kept) => (voice.heading.clone(), kept),
     };
     let mut lines = vec![heading];
     lines.extend(kept.iter().map(|line| {
@@ -135,11 +188,12 @@ pub(super) fn external_section(voice: &Voice, external: &External) -> Section {
 pub(super) fn vouched<'answer>(
     sources: &[Sourced],
     answered: &'answer [String],
+    rows: usize,
 ) -> Vec<&'answer str> {
     let mut spent = vec![false; sources.len()];
     let mut kept = Vec::new();
     for line in answered {
-        if kept.len() == MAX_EXTERNAL_LINES {
+        if kept.len() == rows {
             break;
         }
         if let Some(which) =
@@ -169,16 +223,8 @@ pub(super) fn glued(character: Option<char>) -> bool {
         character.is_alphanumeric() || matches!(character, '.' | '-' | '_')
     })
 }
-/// How many lines either external section may spend.
-///
-/// FOUR, and it is arithmetic rather than taste. Both sections are PROTECTED,
-/// so every line here is reserved out of the twenty-five before the night gets
-/// any: at four lines each plus a heading and a remainder the pair costs at
-/// most twelve, which leaves the header, NEEDS YOU, the tail and a night of
-/// nine. A night is the section that absorbs a cut, and these two are the ones
-/// the operator asked to be told about, so this is the direction the budget
-/// leans on purpose.
-pub(super) const MAX_EXTERNAL_LINES: usize = 4;
+/// What a list section says when the command it names exited non-zero.
+pub(super) const FAILED: &str = "the command exited";
 /// How wide one RENDERED line of either external section may be.
 ///
 /// EIGHTY-EIGHT, and it is the same arithmetic. `fit` reserves these characters

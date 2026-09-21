@@ -90,6 +90,8 @@ fn field(written: &str, width: usize, range: std::ops::RangeInclusive<u32>) -> O
         .filter(|value| range.contains(value))
 }
 
+pub use pns_domain::recap::window::LocalCivilTime;
+
 /// How long ago a bound sits, through the crate's ONE duration parser.
 ///
 /// `d` IS SPELLED AS HOURS rather than taught to that parser, because a day is
@@ -111,17 +113,6 @@ fn duration_ago(written: &str) -> Option<std::time::Duration> {
     .ok()
 }
 
-/// A moment on the operator's own calendar, before any zone is applied to it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct LocalCivilTime {
-    pub year: u32,
-    pub month: u32,
-    pub day: u32,
-    pub hour: u32,
-    pub minute: u32,
-    pub second: u32,
-}
-
 /// The furthest back a duration ago may reach: a year, which is past every
 /// window the activity store is pruned to hold.
 const MAX_AGO: std::time::Duration = std::time::Duration::from_secs(366 * 24 * 3_600);
@@ -140,15 +131,22 @@ pub fn recap_wall_clock(
 }
 /// What a recap typed wrong is told.
 ///
-/// THREE FORMS, ONE USAGE. The window form is the one the event path spawns;
-/// the other two are an agent's, and every one of them exits 2 on a word this
-/// will not vouch for, because a recap that swallowed a typo is a recap the
-/// operator believes was posted.
-pub const RECAP_USAGE: &str = "pns: usage: pns recap --since <date|date-time|duration-ago> \
+/// EVERY FORM, ONE USAGE. The window forms are the engine's and the event
+/// path spawns one of them; the other two are an agent's, and every one exits
+/// 2 on a word this will not vouch for, because a recap that swallowed a typo
+/// is a recap the operator believes was posted.
+pub const RECAP_USAGE: &str = "pns: usage: pns recap [<window>] [--previous]\n\
+                               pns: usage: pns recap open\n\
+                               pns: usage: pns recap --since <date|date-time|duration-ago> \
                                [--until <date|date-time|duration-ago>]\n\
+                               pns: usage: pns recap --duration <count><m|h|d|w>\n\
                                pns: usage: pns recap --since-epoch <epoch> --until-epoch <epoch>\n\
                                pns: usage: pns recap agent --stdin\n\
-                               pns: usage: pns recap git";
+                               pns: usage: pns recap git\n\
+                               pns: windows: overnight, morning, afternoon, evening, today, \
+                               yesterday, week, last-week\n\
+                               pns: modifiers: -v, --section <name>, --limit <n>, --json, --toon, \
+                               --schema <file|->, --to <destination>";
 
 /// What a line shows for a moment whose clock could not be read: the same width
 /// as a time, so the timeline still lines up.

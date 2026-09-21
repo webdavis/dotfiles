@@ -14,9 +14,6 @@ use support::{
     stderr, stdout, write_script,
 };
 
-const SINCE: &str = "1756499000"; // an arbitrary recap window, SINCE < UNTIL
-const UNTIL: &str = "1756500000";
-
 /// Everything past the blank line that ends the headers.
 fn body_of(raw: &str) -> &str {
     let after_headers = raw
@@ -302,96 +299,6 @@ fn the_stale_alert_posts_to_the_hermes_route_the_config_named() {
         header_of(&raw, "host").as_deref(),
         Some("127.0.0.1:8644"),
         "the route swap moved the gateway too: {raw}"
-    );
-}
-
-#[test]
-fn a_recap_the_gateway_refused_says_so_out_loud_and_still_exits_zero() {
-    // THE HAND-RUN DRILL IS THE WHOLE REASON THIS MODE PRINTS. An operator who
-    // has just prepared the gateway runs exactly this by hand to check it, and
-    // MEASURED against an endpoint nothing is listening on, the mode
-    // printed nothing and exited 0: indistinguishable from a recap that
-    // arrived. `ReportMode::ReportOutcome` was already on the leg; nothing was
-    // reading what it returned.
-    //
-    // AND EXIT 0 STILL, because that contract is the binary's and is not this
-    // mode's to break: what is being fixed is silence, never the code. A typo
-    // in the ARGUMENTS is the one thing that earns a 2, and its own test owns
-    // that.
-    let sandbox = Sandbox::new("recap-refused");
-    sandbox.write_config(
-        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
-    );
-
-    let mut command = plugin_command(&sandbox);
-    command
-        .env("PNS_STATE_DIR", sandbox.path("state"))
-        // PORT 1 REFUSES IMMEDIATELY rather than hanging, so the failure this
-        // test is about is the one it measures and not a deadline.
-        .env("PNS_HERMES_URL", "http://127.0.0.1:1/webhooks/pns-events");
-    sandbox.stub_notifier(&mut command);
-    let output = run(command.args(["recap", "--since-epoch", SINCE, "--until-epoch", UNTIL]));
-
-    let printed = stdout(&output);
-    let said: Vec<&str> = printed
-        .lines()
-        .filter(|line| line.starts_with("pns: ") && line.contains("FAILED"))
-        .collect();
-    assert!(
-        !said.is_empty(),
-        "the recap mode said nothing about a post that never landed: {printed}"
-    );
-    assert!(
-        said.iter().all(|line| line.contains("hermes gateway")),
-        "the line does not name what refused it: {said:?}"
-    );
-}
-
-/// THE ROUTE A RECAP TAKES, ON THE WIRE, and there is only the one.
-///
-/// THE ONE ASSERTION NO STUB CHANNEL CAN MAKE, for the reason the stale
-/// alert's own route test states: `PNS_CHANNELS_DIR` leaves the native hermes
-/// channel computing a URL nothing sends, and `PNS_HERMES_URL` outranks the
-/// route, so an endpoint override cannot observe it either. So the gateway is
-/// PROXIED rather than moved, exactly as that test does it, and the capture
-/// answers 404 the way hermes answers for a route nobody prepared.
-///
-/// ONE REQUEST IS THE WHOLE DELIVERY. The recap used to try `pns-recap` and
-/// fall back here; that route retired with its channel on 2026-09-15, so a
-/// refusal is reported and nothing is posted twice.
-#[test]
-fn a_recap_posts_once_on_the_default_route_even_when_the_gateway_refuses_it() {
-    let sandbox = Sandbox::new("recap-route");
-    sandbox.write_config(
-        "[plugins.log]\nenabled = true\ntype = \"hermes\"\nkeys = { pns-events = \"gate-signing-key\" }\n",
-    );
-    let capture = Capture::builder(&sandbox, "recap").status(404).start();
-
-    let mut command = plugin_command(&sandbox);
-    command
-        .env("PNS_STATE_DIR", sandbox.path("state"))
-        .env("HTTP_PROXY", capture.url())
-        .env("http_proxy", capture.url());
-    sandbox.stub_notifier(&mut command);
-    // RUN BY HAND, which is the mode's other caller and the one a test can
-    // wait for: the event path spawns this same mode detached, and the window
-    // it would pass is exactly these two bounds.
-    run(command.args(["recap", "--since-epoch", SINCE, "--until-epoch", UNTIL]));
-
-    let raw = capture.finish();
-    let posted: Vec<&str> = raw
-        .lines()
-        .filter(|line| line.starts_with("POST /webhooks/"))
-        .collect();
-    assert_eq!(
-        posted,
-        ["POST /webhooks/pns-events HTTP/1.1"],
-        "the recap took a route of its own: {raw}"
-    );
-    let body = raw.split("\r\n\r\n").last().expect("a posted body");
-    assert!(
-        body.contains("While you were away"),
-        "the posted body is not the composed recap: {body}"
     );
 }
 

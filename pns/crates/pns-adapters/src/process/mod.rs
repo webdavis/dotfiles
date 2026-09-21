@@ -4,6 +4,7 @@ pub(crate) use group::Group;
 mod wait;
 pub use bounded::{
     PROBE_DEADLINE, PROBE_READ_MAX, SystemCommandRunner, bounded_call, finish_bounded, run_bounded,
+    run_bounded_reporting,
 };
 
 mod settings;

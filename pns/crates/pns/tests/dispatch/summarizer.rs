@@ -26,7 +26,7 @@ fn a_configured_summarizers_lines_become_the_night_in_order() {
     let body = posted_recap(&sandbox);
     let night = body
         .lines()
-        .position(|line| line == "THE NIGHT IN ORDER")
+        .position(|line| line == "AGENTS")
         .unwrap_or_else(|| panic!("no timeline at all: {body}"));
     assert_eq!(
         body.lines().skip(night + 1).take(3).collect::<Vec<_>>(),
@@ -84,8 +84,12 @@ fn the_windows_own_count_and_what_needs_you_survive_whatever_the_model_says() {
 
     let body = posted_recap(&sandbox);
     let lines: Vec<&str> = body.lines().collect();
+    // TWELVE, NOT THE CARD'S THIRTEEN, and the two are each honest about what
+    // they read: the card counts the ring, which the live event joined, and
+    // the recap counts the durable activity table, which argv events never
+    // reach. `header`'s own comment states why nothing reconciles them.
     assert!(
-        lines[0].starts_with("While you were away, ") && lines[0].ends_with("· 13 events"),
+        lines[0].starts_with("While you were away, ") && lines[0].ends_with("· 12 events"),
         "the model's header was posted as the recap's own: {body}"
     );
     let urgent = lines
@@ -94,11 +98,14 @@ fn the_windows_own_count_and_what_needs_you_survive_whatever_the_model_says() {
         .unwrap_or_else(|| panic!("the model summarized away what needs the operator: {body}"));
     let night = lines
         .iter()
-        .position(|line| *line == "THE NIGHT IN ORDER")
+        .position(|line| *line == "AGENTS")
         .unwrap_or_else(|| panic!("no timeline at all: {body}"));
+    // `open` IS LAST NOW, which is the design's own section order, and it is
+    // still the section a model cannot touch: the line is composed here and
+    // the summarizer only ever writes the agents list above it.
     assert!(
-        urgent < night,
-        "what needs the operator fell below the model's own lines: {body}"
+        night < urgent,
+        "what needs the operator moved out of its own section: {body}"
     );
     assert!(
         lines.contains(&"- a quiet night, nothing needed anybody"),

@@ -121,12 +121,14 @@ mod herdr;
 mod probes;
 mod process;
 pub use macos::{
-    LaunchdServiceController, SystemLaunchctlRunner, local_epoch, local_minutes_since_midnight,
-    utc_timestamp,
+    LaunchdServiceController, SystemLaunchctlRunner, local_civil, local_epoch,
+    local_minutes_since_midnight, local_timestamp, utc_timestamp,
 };
 pub use probes::SystemProbes;
 pub use process::spawn_shell_event;
-pub use process::{PROBE_READ_MAX, SystemCommandRunner, finish_bounded, run_bounded};
+pub use process::{
+    PROBE_READ_MAX, SystemCommandRunner, finish_bounded, run_bounded, run_bounded_reporting,
+};
 
 pub use destinations::banner::{
     BannerChannel, DEFAULT_TERMINAL_BUNDLE_ID, click_command, notifier_args, verbatim_argument,
@@ -172,7 +174,9 @@ pub use herdr::HerdrWork;
 pub use protocols::markers::FileLampMarkers;
 
 mod recap;
-pub use recap::{GitHubMerges, ProcessSummarizer, ReviewNotes, git_facts};
+pub use recap_document_wire::{Wire, read_mask};
+mod recap_document_wire;
+pub use recap::{ProcessSourceCommands, ProcessSummarizer, ReviewNotes, git_facts};
 
 mod doctor;
 pub use doctor::{ANSWER_MAX, pairing_report};
@@ -196,7 +200,7 @@ pub use codex::summarize;
 pub use git::{Checkout, git_checkout};
 pub use moshi_hook::MoshiApprovalForwarder;
 pub use recap_card_wire::{HandedCard, decode_handed_card};
-pub use recap_child::{CARD_ON_STDIN, hand_recap_card, run_recap_bounded, spawn_recap};
+pub use recap_child::{CARD_ON_STDIN, DURABLE, hand_recap_card, run_recap_bounded, spawn_recap};
 
 pub use persistence::{
     ActivityEvent, DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError,

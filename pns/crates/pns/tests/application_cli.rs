@@ -44,13 +44,18 @@ fn recap_posts_unreadable_wall_clocks_as_placeholders() {
     let sandbox = Sandbox::new("recap-clock-placeholder");
     sandbox.write_config("[plugins.log]\nenabled = true\ntype = \"hermes\"\n");
     std::fs::create_dir_all(sandbox.state()).unwrap();
-    std::fs::write(
-        sandbox.path("state/activity"),
-        format!(
-            "{{\"at\":{},\"agent\":\"claude\",\"state\":\"done\",\"project\":\"owned\",\"branch\":\"b\",\"detail\":\"clock fixture\"}}\n",
-            i64::MAX
-        ),
-    ).unwrap();
+    pns_adapters::SqliteStore::for_records(sandbox.state())
+        .record_activity_event(&pns_domain::recap::activity::Event {
+            at: u64::try_from(i64::MAX).unwrap(),
+            agent: "claude".into(),
+            state: "done".into(),
+            project: "owned".into(),
+            branch: "b".into(),
+            session: "one".into(),
+            session_title: "clock fixture".into(),
+            ..pns_domain::recap::activity::Event::default()
+        })
+        .expect("the activity row");
     let output = run(sandbox.pns_stateful().args([
         "recap",
         "--since-epoch",
@@ -59,9 +64,9 @@ fn recap_posts_unreadable_wall_clocks_as_placeholders() {
         &i64::MAX.to_string(),
     ]));
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-    let event = sandbox.event("hermes");
-    assert_eq!(event["state"], "recap");
-    let body = event["detail"].as_str().unwrap();
+    // WITH NO `--to` THE PAGE IS PRINTED rather than posted: a recap typed at
+    // a keyboard goes to the keyboard.
+    let body = stdout(&output);
     assert!(body.contains("--:--"), "{body}");
     assert!(body.contains("clock fixture"), "{body}");
     assert!(body.contains("1 event"), "{body}");

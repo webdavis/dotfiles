@@ -15,12 +15,12 @@ Operator-approved, and extended in place as the hooks converted on 2026-08-13:
 | `ioreg`, `pgrep`, `ps` | No public application programming interface exists for those readings |
 | `codex`                | The reply summarizer, which arrived with the hooks                     |
 | `git`                  | The branch lookup, which arrived with the hooks                       |
-| `gh`                   | The recap's merged pull request section                               |
+| a `[recap.sources]` command | Whatever the operator named, one per recap list section          |
 
-`gh` is the first and only entry gated by a configuration key: nothing runs it unless `[recap] repositories`
-names a repository. The call is one read-only listing, bounded in count, in time and in bytes. No token
-is read and no credential is passed, because `gh` carries its own authentication and pns never touches
-it.
+A `[recap.sources]` command is the one entry pns does not choose: the operator names it word by word and
+pns runs exactly what they wrote, the way it runs an executable channel and the recap summarizer.
+Nothing runs for a section nobody configured. Each call is bounded in time and in bytes, and no
+credential is read or passed, because a command that needs one carries its own.
 
 ## What is deliberately absent
 

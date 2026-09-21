@@ -1,14 +1,13 @@
 //! What a recap body is made of, and the order the sections run in.
 
+use super::activity::Project;
 use super::budget::Trim;
 use super::budget::{Clock, MAX_LINES, fit};
-use super::external::Externals;
+use super::external::External;
 use super::external::LINE_PREFIX;
 use super::external::external_section;
-use super::night::{described, night_section};
-use super::prompt::TAIL;
-use super::prompt::{MERGES, NOTES};
-use crate::missed::{Entry, needing_you};
+use super::night::agents_section;
+use super::prompt::voice;
 
 /// One part of the body, and whether the budget may cut it.
 ///
@@ -40,16 +39,17 @@ impl Section {
         }
     }
 }
-/// What section 3 is made of, and the ONLY thing a summarizer can change.
+/// What the agents section is made of, and the ONLY thing a summarizer can
+/// change.
 ///
 /// THE SUBSTITUTION POINT IS A TYPE rather than a rule in a prompt, which is
 /// what makes SELECTION-NOT-RECONSTRUCTION structural: the header's count, what
-/// needs the operator, and every other section are composed the same way
-/// whichever variant this is, so a model that answered with a different count
-/// or with nothing urgent in it cannot move either.
+/// is open, and every other section are composed the same way whichever variant
+/// this is, so a model that answered with a different count or with nothing
+/// urgent in it cannot move either.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Timeline<'lines> {
-    /// One line per event, composed here. The setting of a machine with no
+    /// One line per session, composed here. The setting of a machine with no
     /// summarizer configured, and the floor every other outcome falls to.
     Mechanical,
     /// What the summarizer said, already flattened and capped by `answer`.
@@ -58,93 +58,180 @@ pub enum Timeline<'lines> {
     /// and one line saying that is what they are.
     Unanswered,
 }
-/// The v3 body, in order: the window header, what needs the operator, the
-/// night in order, what shipped, what review caught, and the pointer to where
-/// the full text lives.
+
+/// Which window the header names, and therefore what its first words are.
 ///
-/// SECTIONS 4 AND 5 SAY WHICH OF THEIR STATES THEY ARE IN rather than being
-/// omitted. A section that vanished would be indistinguishable from a night
-/// with no merges and no review findings, which is a different claim entirely,
-/// and so is a source that would not answer.
+/// TWO SPELLINGS, ONE HEADER. A window the operator typed is named
+/// (`morning 06:00-12:00`); the return moment's window has no name, only the
+/// span the operator was away for, and its header is the sentence the phone
+/// card and the forum thread title have always carried.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Heading<'name> {
+    Named(&'name str),
+    WhileYouWereAway,
+    /// `pns recap open`, which has no window and therefore no count: the
+    /// header is where the operator was instead, which is the question that
+    /// form exists to answer.
+    Where(&'name str),
+}
+
+/// What is still waiting on a person, from the three places that know.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Open {
+    pub sessions: Vec<String>,
+    pub pull_requests: Vec<String>,
+    pub applies: Vec<String>,
+}
+
+impl Open {
+    fn is_empty(&self) -> bool {
+        self.sessions.is_empty() && self.pull_requests.is_empty() && self.applies.is_empty()
+    }
+    fn lines(&self) -> Vec<String> {
+        [&self.sessions, &self.pull_requests, &self.applies]
+            .into_iter()
+            .flatten()
+            .map(|item| format!("{LINE_PREFIX}{item}"))
+            .collect()
+    }
+}
+
+/// One recap's whole input, named rather than passed as a row of arguments.
 ///
-/// AND SO DOES A SUMMARIZER THAT WENT QUIET, for the same reason: the plain
-/// list of a night nobody was asked to summarize and the plain list of a model
-/// that timed out read identically otherwise, and only one of them is worth
-/// looking into. THAT ONE IS SAID BY `night_section`, in the heading of the
-/// very list it is about, so no arrangement of the budget can leave the note
-/// standing over a night the message does not carry.
-pub fn sections(
-    entries: &[Entry],
-    from: &str,
-    to: &str,
-    clock: Clock,
-    timeline: Timeline,
-    externals: &Externals,
-) -> Vec<Section> {
-    let mut parts = vec![
-        Section::held(vec![header(entries.len(), from, to)]),
-        needs_you_section(entries),
-        night_section(entries, clock, timeline),
-    ];
-    parts.extend([
-        external_section(&MERGES, &externals.merges),
-        external_section(&NOTES, &externals.notes),
-        Section::held(vec![TAIL.to_string()]),
-    ]);
+/// ONE NAMED VALUE, for `Recap`'s reason: five of these fields are strings or
+/// counts, and adjacent in a call they would be transposable with nothing to
+/// catch a swap.
+pub struct Page<'page> {
+    pub heading: Heading<'page>,
+    pub from: &'page str,
+    pub to: &'page str,
+    pub counted: usize,
+    pub projects: &'page [Project],
+    /// Whether the agents section was asked for at all. `pns recap open` and
+    /// a `--section` that names other sections turn it off, and OFF MEANS
+    /// ABSENT rather than an empty section: "nothing was recorded" under a
+    /// heading nobody asked for is a claim about a window this page is not
+    /// reporting on.
+    pub shows_agents: bool,
+    pub timeline: Timeline<'page>,
+    /// The five list sections, in the order the page prints them, each named
+    /// by its config key so the heading and the document field cannot drift.
+    pub sources: &'page [(&'page str, External<'page>)],
+    pub open: &'page Open,
+    /// Whether the `open` section was asked for. It is never OMITTED for
+    /// being empty and never shed by the budget; a `--section` naming other
+    /// sections is the one thing that leaves it out.
+    pub shows_open: bool,
+    pub rows_per_section: usize,
+    pub verbose: bool,
+    pub clock: Clock<'page>,
+}
+
+/// The body, in order: the window header, what the agents did, the configured
+/// list sections, and what is open.
+///
+/// `open` IS LAST AND IS NEVER OMITTED, which is the design's own ruling and
+/// the one the budget already served under another name: an empty "OPEN" is the
+/// news the page exists to carry, and it is also the whole page under
+/// `pns recap open`.
+///
+/// A LIST SECTION SAYS WHICH OF ITS STATES IT IS IN rather than being omitted
+/// when it has something to say. A section that vanished would be
+/// indistinguishable from a window with nothing in it, which is a different
+/// claim, and so is a command that would not answer. An EMPTY one is omitted
+/// unless `-v` asks for it, because a page of five "nothing" lines buries the
+/// two sections that had news.
+impl Page<'_> {
+    /// The rows the `pull_requests` command gave this page, which is where the
+    /// agents section looks for a session's pull request. Empty when the
+    /// command is not configured or did not answer.
+    pub(super) fn pull_request_rows(&self) -> Vec<String> {
+        self.sources
+            .iter()
+            .filter(|(name, _)| *name == PULL_REQUESTS)
+            .flat_map(|(_, external)| match external.found {
+                super::external::Found::Read(sources) => sources
+                    .iter()
+                    .map(|source| source.line.clone())
+                    .collect::<Vec<_>>(),
+                _ => Vec::new(),
+            })
+            .collect()
+    }
+}
+
+/// The section whose rows name a branch's pull request, which is the one
+/// section another section reads.
+pub const PULL_REQUESTS: &str = "pull_requests";
+
+pub fn sections(page: &Page) -> Vec<Section> {
+    let mut parts = vec![Section::held(vec![header(
+        page.heading,
+        page.counted,
+        page.from,
+        page.to,
+    )])];
+    if page.shows_agents {
+        parts.push(agents_section(page));
+    }
+    parts.extend(
+        page.sources
+            .iter()
+            // A SOURCE NOBODY CONFIGURED IS ABSENT ENTIRELY, from the page,
+            // from the document and from `--section`'s accepted names. It is
+            // not a state of the section; it is the section not existing.
+            .filter(|(_, external)| external.found != super::external::Found::Unconfigured)
+            .filter_map(|(name, external)| {
+                // ONLY THE "NOTHING IN THIS WINDOW" STATE IS OMITTED. A
+                // command that would not run and one that exited non-zero are
+                // both one line long too, and both are news.
+                let empty = external.found == super::external::Found::Read(&[]);
+                (page.verbose || !empty)
+                    .then(|| external_section(&voice(name), external, page.rows_per_section))
+            }),
+    );
+    if page.shows_open {
+        parts.push(open_section(page.open));
+    }
     parts
 }
-/// The whole body, fitted to the budget and joined into one message.
-pub fn body(
-    entries: &[Entry],
-    from: &str,
-    to: &str,
-    clock: Clock,
-    timeline: Timeline,
-    externals: &Externals,
-) -> String {
-    fit(
-        &sections(entries, from, to, clock, timeline, externals),
-        MAX_LINES,
-    )
-    .join("\n")
+/// The whole body, fitted to the delivery budget and joined into one message.
+///
+/// THE BUDGET IS DELIVERY'S, NOT THE TERMINAL'S. A page printed to a terminal
+/// scrolls; a page posted to Discord is one message with a character ceiling,
+/// so `fit` runs on the way out rather than on the way in.
+pub fn body(page: &Page) -> String {
+    fit(&sections(page), MAX_LINES).join("\n")
 }
 /// The first line, which is also the thread's title when the route is a forum
 /// channel: hermes names a new forum thread after the message's first line.
 ///
-/// THE COUNT IS THE ENTRIES THAT WERE READ, never the ones that survived the
-/// budget and never a claim about everything that happened. The ring prunes to
-/// its own depth, so over a very long absence this is a floor rather than a
-/// total, which is the same honesty `waiting_line` states about the journal.
+/// THE COUNT IS THE EVENTS THAT WERE READ, never the ones that survived the
+/// budget and never a claim about everything that happened. The store prunes
+/// to `[recap] retain`, so over a very long absence this is a floor rather
+/// than a total.
 ///
 /// AND IT IS THE CARD'S OWN SENTENCE, from `event_count`, so the two layers of
 /// one return cannot pluralize the same number two ways.
-///
-/// THIS IS THE CHILD'S READ OF THE RING and the card's count was the parent's,
-/// so an event landing between them leaves the two one apart. Each is honest
-/// about what IT read; `spawn_recap` states why nothing reconciles them.
-pub(super) fn header(counted: usize, from: &str, to: &str) -> String {
-    format!(
-        "While you were away, {from}-{to} · {}",
-        crate::missed::event_count(counted)
-    )
+pub(super) fn header(heading: Heading, counted: usize, from: &str, to: &str) -> String {
+    let opening = match heading {
+        Heading::Named(name) => format!("{name} {from}-{to}"),
+        Heading::WhileYouWereAway => format!("While you were away, {from}-{to}"),
+        Heading::Where(line) => return line.to_string(),
+    };
+    format!("{opening} · {}", crate::missed::event_count(counted))
 }
-/// What is still waiting on the operator, newest first and never cut.
-pub(super) fn needs_you_section(entries: &[Entry]) -> Section {
-    let waiting = needing_you(entries);
-    let mut lines = vec![NEEDS_YOU_HEADING.to_string()];
-    if waiting.is_empty() {
-        lines.push(NOTHING_WAITING.to_string());
+/// What is still waiting on a person, and never cut.
+pub(super) fn open_section(open: &Open) -> Section {
+    let mut lines = vec![OPEN_HEADING.to_string()];
+    if open.is_empty() {
+        lines.push(NOTHING_OPEN.to_string());
     } else {
-        lines.extend(
-            waiting
-                .iter()
-                .rev()
-                .map(|entry| format!("{LINE_PREFIX}{}", described(entry))),
-        );
+        lines.extend(open.lines());
     }
     Section::held(lines)
 }
-pub(super) const NEEDS_YOU_HEADING: &str = "NEEDS YOU";
+pub(super) const OPEN_HEADING: &str = "OPEN";
 /// Said rather than left blank: an empty section reads as a section that
-/// broke, and this one is the reason the message exists.
-pub(super) const NOTHING_WAITING: &str = "- nothing is waiting on you";
+/// broke, and this one is the reason the page exists.
+pub(super) const NOTHING_OPEN: &str = "- nothing is waiting on you";

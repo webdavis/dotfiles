@@ -10,11 +10,11 @@
 # in Rust, because macOS ships no timeout(1) and shelling out for one was a
 # spawn to bound a spawn.
 #
-# `gh` JOINED THAT ROSTER with the recap's merged-pull-request section, and it
-# is the first entry gated by a config key: nothing runs it unless `[recap]
-# repositories` names a repository. One read-only `gh pr list`, bounded in count, in
-# time and in bytes, with no token read and no credential passed; `gh` carries
-# its own auth and pns never touches it.
+# `[recap.sources]` COMMANDS ARE THE SPAWNS PNS DOES NOT CHOOSE. Each recap
+# list section is filled by a command the operator names word by word, run
+# directly with no shell, bounded in time and in bytes; a section nobody
+# configured starts no process at all. pns reads no token and passes no
+# credential, because a command that needs one carries its own.
 #
 # One spawn is not on that roster and cannot be: an EXECUTABLE CHANNEL, run by
 # name out of the channels directory. The roster above is what this binary

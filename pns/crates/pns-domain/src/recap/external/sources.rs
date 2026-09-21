@@ -23,7 +23,11 @@ pub struct Sourced {
     pub source: String,
 }
 
-/// One merged pull request as this recap will speak about it.
+/// One merged pull request as the retired `gh` adapter used to speak about
+/// it. TEST-ONLY: no production source builds a `Sourced` from a title and a
+/// body any more, every `[recap.sources]` command is a plain argv list whose
+/// rows go through `printed`. Kept for the fixtures that still pin the
+/// receipt and vouching machinery over a body's own Summary section.
 ///
 /// WHAT IT DOES NOW COMES OUT OF THE BODY'S OWN SUMMARY, which is the section
 /// the author wrote to answer exactly that question, and the title is the
@@ -35,6 +39,7 @@ pub struct Sourced {
 /// THE NUMBER LEADS, because it is the receipt. Every line the operator reads
 /// here names the pull request it came from, so the tail pointer is followable
 /// per line rather than per message.
+#[cfg(test)]
 pub fn merged(number: u64, title: &str, body: &str) -> Sourced {
     let summary = summary_of(body);
     let said = safe_line(
@@ -101,7 +106,8 @@ pub(super) const UNREADABLE: &str = "could not be read";
 /// and `safe_line` makes one line of it: a summary somebody wrote as three
 /// sentences is still what the section wants to say, cut to a line's width by
 /// the same rule every other line here is.
-pub(super) fn summary_of(body: &str) -> String {
+#[cfg(test)]
+fn summary_of(body: &str) -> String {
     body.lines()
         .skip_while(|line| !summary_heading(line))
         .skip(1)
@@ -109,7 +115,8 @@ pub(super) fn summary_of(body: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
-pub(super) fn summary_heading(line: &str) -> bool {
+#[cfg(test)]
+fn summary_heading(line: &str) -> bool {
     let text = line.trim_start();
     text.starts_with('#')
         && text
@@ -139,3 +146,17 @@ pub(super) const NOTE_SOURCE_CHARS: usize = 1_200;
 /// How long a receipt itself may be. A pull request number is short by
 /// construction; a file name comes off a directory other tools write into.
 pub(super) const CITE_MAX_CHARS: usize = 60;
+
+/// One row a source command printed, as this recap will speak about it.
+///
+/// THE ROW VOUCHES FOR ITSELF, which is what the receipts check needs and
+/// what a plain line can honestly offer: pns did not parse it, so the only
+/// token it can hold a summarized line to is the row's own text.
+pub fn printed(row: &str) -> Sourced {
+    let said = safe_line(row, SOURCE_MAX_CHARS);
+    Sourced {
+        line: crate::render::clipped(&said, EXTERNAL_TEXT_CHARS),
+        cite: said.clone(),
+        source: said,
+    }
+}

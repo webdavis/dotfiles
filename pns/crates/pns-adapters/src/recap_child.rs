@@ -50,6 +50,7 @@ pub fn spawn_recap(since: u64, until: u64) -> Option<std::process::ChildStdin> {
     child
         .args(["recap", "--since-epoch", &since.to_string()])
         .args(["--until-epoch", &until.to_string()])
+        .args(["--to", DURABLE])
         .arg(CARD_ON_STDIN)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
@@ -77,6 +78,17 @@ pub fn hand_recap_card(
 ) -> bool {
     std::io::Write::write_all(&mut stdin, crate::recap_card_wire::encode(card).as_bytes()).is_ok()
 }
+
+/// The destination the return moment's recap is delivered to, named on the
+/// child's own argv rather than assumed inside it.
+///
+/// THIS IS THE FOLD. The return card and a hand-typed `pns recap --to ...`
+/// now take one code path: the child asks for a destination the way an
+/// operator does, so the card's Discord message and the terminal page cannot
+/// drift apart. It names the ROLE rather than the transport, because
+/// `[plugins.log] type` decides which of hermes and Discord carries the paper
+/// trail and the child reads no config.
+pub const DURABLE: &str = "durable";
 
 /// The word that tells a recap child its stdin carries a card, or the EOF that
 /// says there is none. NEVER in the usage text: the event path passes it and an

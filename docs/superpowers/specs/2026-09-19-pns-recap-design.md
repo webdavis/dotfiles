@@ -223,11 +223,11 @@ Verbose detail is always present in the document. The shape:
                   "branch": "...", "session": "...", "pane": "...", "workspace": "...",
                   "model": "...", "duration_secs": 0, "last_state": "...", "pull_request": null,
                   "events": [ { "at": "...", "state": "...", "title": "...", "detail": "..." } ] } ] } ],
-    "pull_requests": { "rows": [ "..." ], "more": 0 },
-    "commits": { "rows": [ "..." ], "more": 0 },
-    "tasks": { "rows": [ "..." ], "more": 0 },
-    "applies": { "rows": [ "..." ], "more": 0 },
-    "review_notes": { "rows": [ "..." ], "more": 0 },
+    "pull_requests": { "rows": [ "..." ], "more": 0, "at_least": false },
+    "commits": { "rows": [ "..." ], "more": 0, "at_least": false },
+    "tasks": { "rows": [ "..." ], "more": 0, "at_least": false },
+    "applies": { "rows": [ "..." ], "more": 0, "at_least": false },
+    "review_notes": { "rows": [ "..." ], "more": 0, "at_least": false },
     "summary": { "text": "...", "written_at": "...", "source": "claude" },
     "open": { "sessions": [ "..." ], "pull_requests": [ "..." ], "applies": [ "..." ] }
   }
