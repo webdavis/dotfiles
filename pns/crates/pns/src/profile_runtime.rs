@@ -33,9 +33,7 @@ pub(crate) fn active(records: &SqliteStore, config: &pns_adapters::Config) -> Re
         .cloned()
         .unwrap_or_default();
     let until_clock = match &resolved.chose {
-        pns_domain::profiles::Chose::Manual { until: Some(until) } => {
-            pns_adapters::local_minutes_since_midnight(*until).map(clock)
-        }
+        pns_domain::profiles::Chose::Manual { until: Some(until) } => until_clock(now, *until),
         _ => None,
     };
     Reading {
@@ -94,3 +92,34 @@ fn loaded_config() -> Box<pns_adapters::Config> {
 fn clock(minutes: u16) -> String {
     format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
+
+/// A bound's expiry, rendered as a bare `HH:MM` when it falls on today's
+/// local calendar day and `HH:MM on YYYY-MM-DD` otherwise.
+///
+/// A BOUND CAN OUTLIVE THE DAY IT WAS SET ON (`--for 48h` said at any hour),
+/// and a bare clock time then names the wrong day: this is what tells the
+/// two apart.
+fn until_clock(now: Option<u64>, until: u64) -> Option<String> {
+    let minutes = pns_adapters::local_minutes_since_midnight(until)?;
+    let (until_day, _) = pns_adapters::local_civil(until)?;
+    let same_day = now
+        .and_then(pns_adapters::local_civil)
+        .is_some_and(|(now_day, _)| {
+            (now_day.year, now_day.month, now_day.day)
+                == (until_day.year, until_day.month, until_day.day)
+        });
+    if same_day {
+        Some(clock(minutes))
+    } else {
+        Some(format!(
+            "{} on {:04}-{:02}-{:02}",
+            clock(minutes),
+            until_day.year,
+            until_day.month,
+            until_day.day
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests;
