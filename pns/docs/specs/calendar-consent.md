@@ -72,11 +72,14 @@ code, verifier or token reaches a log line through one:
 | ------------------------------------------------ | ---------------------------------------------------------------------------- |
 | no loopback port binds                           | no loopback port could be opened for the redirect, so nothing was asked for  |
 | `/dev/urandom` will not read                     | no random bytes could be read, so nothing was asked for                      |
-| the browser never connects, or the read fails    | the browser redirect did not arrive, so no code was exchanged                |
+| the redirect's read fails, or it never completes | the browser redirect did not arrive, so no code was exchanged                |
 | the redirect's `state` is not this run's         | the redirect did not carry this run's state, so it was not answered          |
 | the redirect carries no `code` (a declined grant)| the redirect carried no authorization code, so the consent was refused       |
 | the exchange answers non-2xx, or not the document| the token exchange was refused                                               |
 | the answer carries no `refresh_token`            | the exchange answered with no refresh token                                  |
+
+The wait for the connection itself has no deadline: an operator who never opens the printed URL leaves
+the walk hanging until they Ctrl-C it. Only the read of a redirect that has already connected is bounded.
 
 A refused walk mints nothing, writes nothing and leaves the config as it was.
 
