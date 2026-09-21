@@ -2106,10 +2106,17 @@ pub(crate) fn hand_off(
         }
     }
     if let Err(error) = select_profile(&table.profile, &table.until) {
-        return Outcome::Failed(format!(
-            "pns: state error (the profile override could not be written: {error}); the run \
-             started and the machine is still loud"
-        ));
+        return Outcome::Failed(match launched {
+            Some(_) => format!(
+                "pns: state error (the profile override could not be written: {error}); the \
+                 run started and the machine is still loud"
+            ),
+            None => format!(
+                "pns: state error (the profile override could not be written: {error}); the \
+                 goal is at {} and nothing was started",
+                goal.display()
+            ),
+        });
     }
     match launched {
         Some(id) => Outcome::Launched(id),
