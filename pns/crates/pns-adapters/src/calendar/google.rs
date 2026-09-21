@@ -47,11 +47,17 @@ pub(super) struct GoogleCalendarSource {
 
 impl GoogleCalendarSource {
     /// The production wiring: TLS verified (these are public hosts with real
-    /// certificates), no redirects, and the table's own deadline on every
+    /// certificates), no redirects, and HALF the table's deadline on every
     /// call.
+    ///
+    /// A POLL IS TWO CALLS, not one. `timeout_global` bounds each request the
+    /// agent sends, so the full `deadline` on both would let a poll run up to
+    /// twice as long as the table states, past the daemon's own child-kill
+    /// bound. Halving keeps the documented `deadline` a bound on the whole
+    /// poll rather than on either call alone.
     pub(super) fn new(settings: GoogleCalendar, deadline: Duration) -> Self {
         Self::with_agent(
-            Self::production_config(deadline).new_agent(),
+            Self::production_config(deadline / 2).new_agent(),
             TOKEN_ENDPOINT.to_string(),
             FREEBUSY_ENDPOINT.to_string(),
             settings,
@@ -87,9 +93,16 @@ impl GoogleCalendarSource {
 
     /// One poll: the access token (cached, or exchanged), then the busy
     /// intervals over every configured calendar.
+    ///
+    /// A REFUSED `busy()` CALL EVICTS THE CACHED TOKEN. A revoked or expired
+    /// token the cache still calls good would otherwise be re-sent, refused,
+    /// on every poll up to an hour, so the next poll exchanges again instead
+    /// of repeating the same dead token.
     pub(super) fn read(&self, state: &Path, now: u64) -> Result<Vec<Event>, String> {
         let access_token = self.access_token(state, now)?;
-        self.busy(&access_token, now)
+        self.busy(&access_token, now).inspect_err(|_| {
+            let _ = std::fs::remove_file(state.join(token::TOKEN_STATE));
+        })
     }
 }
 
