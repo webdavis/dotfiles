@@ -1,8 +1,8 @@
 -- todoist.nvim: Todoist from inside the editor, and the other half of the
--- herdr-todoist pane, which enters `nvim +"Todoist task <id>"` on `e`.
+-- herdr-damnit pane, which enters `nvim +"Todoist task <id>"` on `e`.
 --
 -- `views` carries the same names as the herdr pane's `[[views]]` entries
--- (dot_config/herdr/plugins/config/herdr-todoist/config.toml), so one word
+-- (dot_config/herdr/plugins/config/herdr-damnit/config.toml), so one word
 -- opens one list in both.
 --
 -- The token is an indirection: this names the source it comes from and
@@ -10,7 +10,7 @@
 --
 -- vim.system closes stdin, so an interactive vault CLI (keepassxc-cli) can
 -- never resolve here. The macOS keychain is read non-interactively instead;
--- KeePassXC stays the entry of record (see the herdr-todoist config for the
+-- KeePassXC stays the entry of record (see the herdr-damnit config for the
 -- one-time operator setup).
 return {
   "webdavis/todoist.nvim",
