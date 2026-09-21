@@ -73,6 +73,8 @@ mod destinations;
 use destinations::*;
 mod lights;
 use lights::*;
+mod profiles;
+pub(super) use profiles::{LOCATIONS_PROSE, PROFILE, PROFILES, RULES_PROSE};
 mod sensors;
 use sensors::*;
 
@@ -109,6 +111,9 @@ pub(super) const LAYOUT: &[Table] = &[
     RECAP,
     FOCUS,
     QUIET,
+    // BELOW THE MUTE IT EXTENDS: a profile subtracts surfaces from a plan
+    // the mute settings above it already narrowed.
+    PROFILES,
     REMIND,
     PRODUCER,
     STALE,

@@ -1,4 +1,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// The state directory's default location, relative to `$HOME`.
+///
+/// Shared with `sqlite::store::diagnostic_log`, which recognizes this exact
+/// layout to route the daemon's diagnostics beside the LaunchAgent's log
+/// rather than into the state tree itself.
+pub const DAEMON_STATE_SUFFIX: &str = ".local/state/pns";
+
 /// Where this binary keeps what it has to remember between runs.
 ///
 /// THE CONFIG FILE IS READ HERE rather than threaded through the fifty-odd
@@ -28,7 +36,7 @@ pub fn state_dir() -> std::path::PathBuf {
     let resolved = std::path::PathBuf::from(
         crate::install_settings(&home)
             .state_dir
-            .unwrap_or_else(|| format!("{home}/.local/state/pns")),
+            .unwrap_or_else(|| format!("{home}/{DAEMON_STATE_SUFFIX}")),
     );
     *cached = Some((home, state_dir_var, resolved.clone()));
     resolved

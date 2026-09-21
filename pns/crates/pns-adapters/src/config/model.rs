@@ -143,6 +143,17 @@ pub struct Config {
     /// a file with no table and a file writing the defaults are the same
     /// statement and there is nothing for `None` to mean.
     pub failures: Failures,
+    /// `[profiles.<name>]`: the named delivery bundles, keyed by name.
+    ///
+    /// EMPTY IS EVERY MACHINE THAT NEVER WROTE THE TABLE, which resolves
+    /// `default` and runs `Profile::default()`: today's behaviour exactly.
+    pub profiles: BTreeMap<String, pns_domain::profiles::Profile>,
+    /// `[profiles.locations]`: the named network fingerprints.
+    pub profile_locations: BTreeMap<String, String>,
+    /// `[[profiles.rules]]`: which profile is active, first match wins.
+    pub profile_rules: Vec<pns_domain::profiles::Rule>,
+    /// `[profiles] location_poll`: how often the gateway fingerprint is read.
+    pub location_poll_secs: u64,
 }
 
 impl Default for Config {
@@ -170,6 +181,10 @@ impl Default for Config {
             lights: None,
             quiet_calendar: QuietCalendar::default(),
             failures: Failures::default(),
+            profiles: BTreeMap::new(),
+            profile_locations: BTreeMap::new(),
+            profile_rules: Vec::new(),
+            location_poll_secs: DEFAULT_LOCATION_POLL_SECS,
         }
     }
 }

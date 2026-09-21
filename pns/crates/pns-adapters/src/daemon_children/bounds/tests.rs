@@ -38,5 +38,16 @@ mod tests {
             None,
             "the failure page serves for as long as its daemon runs"
         );
+        // AND NEITHER IS A PREGENERATING RECAP. `[recap.summarizer] deadline`
+        // already bounds the model call inside it, so this floor would only
+        // cut a longer configured deadline short.
+        assert_eq!(
+            child_bound(
+                Duration::from_millis(10),
+                &format!("{RECAP_PREGENERATE_PREFIX}today")
+            ),
+            None,
+            "the summarizer's own deadline is this child's watchdog"
+        );
     }
 }

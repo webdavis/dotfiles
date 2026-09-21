@@ -74,6 +74,11 @@ fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
                 .iter()
                 .map(|child| child.name.rsplit('.').next().unwrap_or(child.name)),
         );
+        if table.name == "profiles" {
+            // THE HARDCODED BRANCH WRITES THE OTHER TWO as headings rather
+            // than keys: `[profiles.locations]` and `[[profiles.rules]]`.
+            layout_keys.extend(["locations", "rules"]);
+        }
         if table.name == "lights" {
             layout_keys.extend(["lamp", "room", "zone"]);
             layout_keys.extend(
@@ -99,7 +104,10 @@ fn every_layout_table_matches_the_config_roster_exactly_in_both_directions() {
     // branch rather than a `Key` list, so both are the two named
     // exceptions rather than gaps.
     for (table, _) in crate::config::TABLE_KEYS.iter().copied() {
-        if table == crate::config::TOP_LEVEL || table == crate::config::TARGET_KEYS {
+        if table == crate::config::TOP_LEVEL
+            || table == crate::config::TARGET_KEYS
+            || table == crate::config::schema::PROFILE_KEYS
+        {
             continue;
         }
         assert!(
@@ -160,4 +168,31 @@ fn the_target_declaration_key_roster_is_exactly_behaviours_dim_window_and_dim_be
     let mut roster_keys = roster_keys.to_vec();
     roster_keys.sort_unstable();
     assert_eq!(roster_keys, ["behaviours", "dim_behaviours", "dim_window"]);
+}
+
+#[test]
+fn the_three_profiles_and_the_rules_render_in_file_order() {
+    let values: toml::Table = "[profiles.default]\nquiet = false\nbanner = \"all\"\n\
+         [profiles.night]\nquiet = true\nbanner = \"none\"\n\
+         [profiles.locations]\nhome = \"00:11:22:aa:bb:cc\"\n\
+         [[profiles.rules]]\nprofile = \"night\"\nhours = \"22:00-06:00\"\n"
+        .parse()
+        .expect("values");
+    let text = render(&values).expect("it renders");
+    let at = |needle: &str| text.find(needle).unwrap_or_else(|| panic!("no {needle}"));
+    assert!(
+        at("[profiles.default]") < at("[profiles.night]"),
+        "named profiles come first"
+    );
+    assert!(at("[profiles.night]") < at("[profiles.locations]"));
+    assert!(
+        at("[profiles.locations]") < at("[[profiles.rules]]"),
+        "the rules come last"
+    );
+    assert!(text.contains("home = \"00:11:22:aa:bb:cc\""));
+    assert!(text.contains("hours = \"22:00-06:00\""));
+    assert!(
+        text.parse::<toml::Table>().is_ok(),
+        "what it wrote has to load back"
+    );
 }

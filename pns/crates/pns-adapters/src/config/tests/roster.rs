@@ -58,7 +58,9 @@ fn last_segment(table: &str) -> &str {
 /// but each one holds more than a single setting, so its own name is plural
 /// too. Named here rather than derived, so a rename to singular is red even
 /// though nothing about the table stops being closed.
-const CLOSED_SET_HOLDERS: [&str; 5] = ["routes", "plugins", "paths", "lights", "failures"];
+const CLOSED_SET_HOLDERS: [&str; 6] = [
+    "routes", "plugins", "paths", "lights", "failures", "profiles",
+];
 
 #[test]
 fn the_plural_rule_holds_one_way_round_across_the_whole_roster() {
@@ -79,6 +81,13 @@ fn the_plural_rule_holds_one_way_round_across_the_whole_roster() {
             .strip_suffix("<name>")
             .map(|head| head.trim_end_matches('.'))
         {
+            // `profiles` IS BOTH HALVES OF THE RULE AT ONCE: the heading holds
+            // the set of profiles AND is the prefix each one is keyed by, so
+            // its plural name is the set-holder's, asserted with the other
+            // closed set-holders below.
+            if keyed == "profiles" {
+                continue;
+            }
             assert!(
                 !is_plural(last_segment(keyed)),
                 "`{keyed}` is keyed by one name and is plural"

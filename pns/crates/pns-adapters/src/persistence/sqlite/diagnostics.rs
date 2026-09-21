@@ -70,11 +70,15 @@ impl SqliteStore {
         let Some(parent) = self.log.parent() else {
             return;
         };
-        if DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(parent)
-            .is_err()
+        // A diagnostic never conjures the state tree whose read just failed,
+        // so the log's own directory is created only when it is a directory
+        // of its own.
+        if parent != self.state
+            && DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(parent)
+                .is_err()
         {
             return;
         }
@@ -90,6 +94,8 @@ impl SqliteStore {
         if !log.metadata().is_ok_and(|metadata| metadata.is_file()) {
             return;
         }
-        let _ = writeln!(log, "{line}");
+        // One write_all, terminator included: O_APPEND makes a single write
+        // atomic against the offset, and every producer of this file appends.
+        let _ = log.write_all(format!("{line}\n").as_bytes());
     }
 }
