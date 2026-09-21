@@ -148,5 +148,9 @@ fn open_node(open: &Open) -> Node {
         ("sessions", Node::rows(&open.sessions)),
         ("pull_requests", Node::rows(&open.pull_requests)),
         ("applies", Node::rows(&open.applies)),
+        // ALWAYS PRESENT, zero included: the document carries the whole shape
+        // every time, so a consumer never has to tell an absent field from a
+        // count of none.
+        ("dead_lettered", Node::Number(open.dead_lettered as u64)),
     ])
 }

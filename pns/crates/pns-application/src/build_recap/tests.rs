@@ -178,3 +178,44 @@ fn the_document_is_the_golden_fixture_for_its_own_schema_version() {
         "the document's shape moved without its schema version moving with it"
     );
 }
+
+#[test]
+fn the_documents_open_section_always_carries_the_dead_letter_count() {
+    // ALWAYS PRESENT, zero included: the document carries the whole shape
+    // every time, so this is additive and the schema version does not move.
+    let written = |world: &World| {
+        format!(
+            "{:?}",
+            document(&world.assemble(&configured(), Vec::new()), |at| format!(
+                "t{at}"
+            ))
+        )
+    };
+    assert!(
+        written(&World::one()).contains(r#"("dead_lettered", Number(0))"#),
+        "{}",
+        written(&World::one())
+    );
+    let some = World {
+        dead_lettered: 3,
+        ..World::one()
+    };
+    assert!(
+        written(&some).contains(r#"("dead_lettered", Number(3))"#),
+        "{}",
+        written(&some)
+    );
+}
+
+#[test]
+fn the_page_reports_the_dead_letter_count_the_store_holds() {
+    let world = World {
+        dead_lettered: 2,
+        ..World::one()
+    };
+    let page = world.build(&configured());
+    assert!(
+        page.contains("- 2 legs dead-lettered, run pns failures"),
+        "{page}"
+    );
+}

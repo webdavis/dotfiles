@@ -55,6 +55,7 @@ pub(super) fn run(
             home: home.to_string(),
         },
         summarizer: &pns_adapters::ProcessSummarizer,
+        failures: &store,
     }
     .assemble(
         &request(options, recap, window),

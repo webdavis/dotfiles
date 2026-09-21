@@ -6,7 +6,7 @@
 //! page and the document a consumer diffs against it could disagree. `assemble`
 //! is the only thing that touches the world; everything after it is pure.
 
-use crate::{ActivityEvents, ReviewNoteSource, SourceCommands, Summarizer};
+use crate::{ActivityEvents, DeadLetteredLegs, ReviewNoteSource, SourceCommands, Summarizer};
 use pns_domain::recap::{
     Recap,
     activity::{Event, Project, by_project},
@@ -22,11 +22,12 @@ mod sources;
 pub use document::document;
 
 /// The world this engine reads, named once.
-pub struct BuildRecap<'ports, A, C, N, S> {
+pub struct BuildRecap<'ports, A, C, N, S, F> {
     pub activity: &'ports A,
     pub commands: &'ports C,
     pub notes: &'ports N,
     pub summarizer: &'ports S,
+    pub failures: &'ports F,
 }
 
 /// One recap the caller asked for: which window, which sections, and how much
@@ -72,8 +73,8 @@ pub struct Assembled {
     answered: Option<Option<Vec<String>>>,
 }
 
-impl<A: ActivityEvents, C: SourceCommands, N: ReviewNoteSource, S: Summarizer>
-    BuildRecap<'_, A, C, N, S>
+impl<A: ActivityEvents, C: SourceCommands, N: ReviewNoteSource, S: Summarizer, F: DeadLetteredLegs>
+    BuildRecap<'_, A, C, N, S, F>
 {
     /// Run every source this request needs, once.
     ///
@@ -128,7 +129,7 @@ impl<A: ActivityEvents, C: SourceCommands, N: ReviewNoteSource, S: Summarizer>
             }
         }
         let open = match wanted(&request.sections, OPEN) {
-            true => open::gather(self.commands, recap, &events),
+            true => open::gather(self.commands, self.failures, recap, &events),
             false => Open::default(),
         };
         // THE ANSWER IS TAKEN BEFORE THE BODY IS COMPOSED and nothing else
