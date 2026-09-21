@@ -18,8 +18,9 @@ const HEADER: &str = "\
 # Edit the table and regenerate with `just chord-render`; a hand edit here
 # fails `just test-rust`.
 #
-# The shell functions these bindings call, and the `\\C-x0` helper macro, live
-# in ~/.bash_bindings_functions, which ~/.bashrc sources first.
+# The shell functions these bindings call, and the `\\C-x0`, `\\C-x1` and
+# `\\C-x2` helper macros, live in ~/.bash_bindings_functions, which
+# ~/.bashrc sources first.
 ";
 
 /// The keymap whose bindings must first leave vi's command mode, which is
@@ -73,7 +74,7 @@ fn render_binding(binding: &Binding) -> Result<Vec<String>, RenderFault> {
         .map_err(|token| fault(binding, &format!("unknown key token {:?}", token.0)))?;
     let action = binding
         .action()
-        .map_err(|fault_kind| fault(binding, &format!("{fault_kind:?}")))?;
+        .map_err(|fault_kind| fault(binding, &fault_kind.to_string()))?;
 
     let modes = binding.modes();
     if modes.is_empty() {

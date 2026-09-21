@@ -75,6 +75,10 @@ tailnet-pin
 # the shipped template it generates is what chezmoi applies.
 .config/pns/config-values.toml
 
+# The committed input to `just chord-render`, never a deploy target: the
+# generated `dot_bash_bindings` is what chezmoi applies.
+.config/chord/bindings.toml
+
 # The repository-root toolchain pin, which exists so `just test-rust` runs cargo
 # on stable from here. Slashless, so it matches at the target ROOT alone. The
 # six crate pins never reach $HOME either, but for the reason above, their whole

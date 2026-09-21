@@ -206,7 +206,8 @@ update-skills:
 # Regenerate ~/.bash_bindings from the shell-agnostic binding table.
 chord-render output="dot_bash_bindings":
   cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
-    render bash --table dot_config/chord/bindings.toml > {{quote(output)}}
+    render bash --table dot_config/chord/bindings.toml > {{quote(output)}}.new
+  mv {{quote(output)}}.new {{quote(output)}}
 
 # Regenerate the shipped pns config template from its committed values.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":

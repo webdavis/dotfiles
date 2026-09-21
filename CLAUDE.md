@@ -238,12 +238,12 @@ one aborts the apply before the script is ever written.
 
 `chord/` is another workspace of the same shape, and the only one nothing installs: it is a generator
 this repository runs at development time, the way `pns-config-render` is. `chord render bash` turns the
-shell-agnostic binding table at `dot_config/chord/bindings.toml` (target `~/.config/chord/bindings.toml`)
-into readline `bind` calls, so the chords are written once in a plain notation rather than in each
-shell's own escapes. **`dot_bash_bindings` is a GENERATED FILE**, the same arrangement the shipped pns
-config template uses: regenerate it with `just chord-render`, and a hand edit fails the `chord check`
-line in `just test-rust`. The shell those bindings call, and the `\C-x0` helper macro they start with,
-live in `dot_bash_bindings_functions`, which `~/.bashrc` sources first.
+shell-agnostic binding table at `dot_config/chord/bindings.toml` into readline `bind` calls, so the
+chords are written once in a plain notation rather than in each shell's own escapes.
+**`dot_bash_bindings` is a GENERATED FILE**, the same arrangement the shipped pns config template uses:
+regenerate it with `just chord-render`, and a hand edit fails the `chord check` line in `just test-rust`.
+The shell those bindings call, and the `\C-x0`, `\C-x1` and `\C-x2` helper macros they start with, live
+in `dot_bash_bindings_functions`, which `~/.bashrc` sources first.
 
 `pns recap` prints the day's brief now: the activity window, today's tasks and the last apply, from the
 source commands named in `[recap.sources]`.
