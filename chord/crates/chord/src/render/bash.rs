@@ -74,7 +74,7 @@ fn render_binding(binding: &Binding) -> Result<Vec<String>, RenderFault> {
         .map_err(|token| fault(binding, &format!("unknown key token {:?}", token.0)))?;
     let action = binding
         .action()
-        .map_err(|fault_kind| fault(binding, &format!("{fault_kind:?}")))?;
+        .map_err(|fault_kind| fault(binding, &fault_kind.to_string()))?;
 
     let modes = binding.modes();
     if modes.is_empty() {
