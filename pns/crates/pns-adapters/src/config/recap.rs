@@ -1,31 +1,5 @@
 use super::*;
 
-/// The most any summarizer may be given. ONE HOUR, which is fifteen times the
-/// default, so no honest backend on any machine meets it; see
-/// `summarizer_deadline_range` for the two failures that live past it.
-pub(super) const MAX_SUMMARIZER_DEADLINE_SECS: u64 = 3600;
-
-/// `summarizer_deadline`, BOUNDED ON BOTH SIDES with zero carved out by
-/// `duration_value`: a deadline of nothing simply cannot be met, so the recap
-/// falls to the plain lists and says it did.
-///
-/// THE FLOOR IS ONE MILLISECOND, so a test can prove expiry without waiting on
-/// a real backend.
-///
-/// THE TOP END IS REFUSED BY NAME, and two things break past it, neither
-/// visible where it happens. NOTHING SUPERVISES THE DETACHED RECAP CHILD,
-/// which `spawn_recap` states outright: at four minutes that is fine, and at a
-/// day it is one child plus one wedged backend held for a day, with a second
-/// pair arriving at the next return moment. AND A DURATION PAST THE CEILING
-/// PANICS at `Instant::now() + deadline` (MEASURED: "overflow when adding
-/// duration to instant") inside a process whose stderr is /dev/null and whose
-/// exit code nobody reads, so the recap simply vanishes after the card has
-/// said it is coming. A refusal the operator reads beats a silence they
-/// cannot.
-fn summarizer_deadline_range() -> RangeInclusive<Duration> {
-    Duration::from_millis(1)..=Duration::from_secs(MAX_SUMMARIZER_DEADLINE_SECS)
-}
-
 /// `retain`'s range: an hour at the floor, so a value is long enough to hold
 /// the window the recap it feeds is about, and a year at the ceiling, past
 /// which the table is a log nobody reads rather than a recap source.
@@ -40,7 +14,7 @@ fn retain_range() -> RangeInclusive<Duration> {
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
 ///
-/// NO KEY HERE DOUBLES AS ITS OWN SWITCH. `summarizer` and every
+/// NO KEY HERE DOUBLES AS ITS OWN SWITCH. `[recap.summarizer]` and every
 /// `[recap.sources]` command are off by being UNSET, which is a state the key
 /// already has, so none carries a magic value that means off and none needs an
 /// `enabled` beside it; an empty value is refused by name instead, because it
@@ -74,15 +48,8 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
             "week_starts_on" => recap.week_starts_on = week_start(&setting)?,
             "rows_per_section" => recap.rows_per_section = rows_per_section(&setting)?,
             "review_notes_glob" => recap.review_notes_glob = Some(note_glob(&setting)?),
-            "summarizer" => recap.summarizer = Some(argv(&setting)?),
-            "summarizer_deadline" => {
-                recap.summarizer_deadline = duration_value(
-                    "recap",
-                    "summarizer_deadline",
-                    &setting,
-                    summarizer_deadline_range(),
-                )?;
-            }
+            "summarizer" => recap.summarizer = parse_recap_summarizer(setting)?,
+            "pregenerate" => recap.pregenerate = pregenerate(&setting)?,
             "retain" => {
                 recap.retain = Duration::from_secs(nonzero_duration_key(
                     "recap",
@@ -105,4 +72,25 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         return Err(ConfigError::Invalid(fault));
     }
     Ok(recap)
+}
+
+/// `pregenerate`, the windows whose summary the gateway writes in the
+/// background at each window's end.
+///
+/// EVERY WORD IS A WINDOW NAME, checked here rather than at the tick: a typo
+/// would otherwise be a window the gateway silently never pregenerates, which
+/// reads as a summarizer that is not running.
+///
+/// AN EMPTY LIST IS THE SHIPPED DEFAULT and means the gateway writes none.
+fn pregenerate(setting: &toml::Value) -> Result<Vec<String>, ConfigError> {
+    let named = strings("recap", "pregenerate", "a list of window names", setting)?;
+    for window in &named {
+        if pns_domain::recap::window::parse_window(window).is_none() {
+            return Err(ConfigError::Invalid(format!(
+                "`recap` key `pregenerate` names `{window}`, which is no window; it takes {}",
+                pns_domain::recap::window::WINDOW_WORDS.join(", ")
+            )));
+        }
+    }
+    Ok(named)
 }

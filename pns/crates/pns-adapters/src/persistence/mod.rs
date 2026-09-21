@@ -35,4 +35,5 @@ pub use lamp_tick::FileLampTick;
 mod sqlite;
 pub use sqlite::{
     ActivityEvent, DeliveryClaim, ImportFailure, SessionNote, SqliteStore, StoreError,
+    StoredSummary,
 };

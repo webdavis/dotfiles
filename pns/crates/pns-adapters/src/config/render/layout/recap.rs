@@ -4,7 +4,7 @@ pub(super) const RECAP: Table = Table {
     name: "recap",
     prose: RECAP_PROSE,
     opt_in: false,
-    children: &[RECAP_SOURCES],
+    children: &[RECAP_SUMMARIZER, RECAP_SOURCES],
     keys: &[
         Key {
             name: "replay_card",
@@ -28,29 +28,6 @@ pub(super) const RECAP: Table = Table {
                          # count, which is how the number gets settled. One is the floor and\n\
                          # means any activity at all; zero is refused.\n",
             sample: Sample::Default("8"),
-        },
-        Key {
-            name: "summarizer",
-            prose: "# The command that turns the window into the night-in-order lines:\n\
-                         # ARGV, NEVER A SHELL STRING, handed the timeline on stdin and answering\n\
-                         # on stdout. UNSET IS A WORKING SETTING and posts the plain mechanical\n\
-                         # list, and so does a summarizer that fails, is missing, says nothing\n\
-                         # or runs long, which the list's own heading says. THE THREE OLLAMA\n\
-                         # FLAGS ARE NOT OPTIONAL: without them `ollama run` interleaves terminal\n\
-                         # control bytes and a preamble into its output, posted verbatim.\n",
-            sample: Sample::Example(
-                "[\"ollama\", \"run\", \"qwen3.5:4b\", \"--think=false\", \"--hidethinking\", \"--nowordwrap\"]",
-            ),
-        },
-        Key {
-            name: "summarizer_deadline",
-            prose: "# How long that command may take before it is killed and the plain list\n\
-                         # is posted instead. It is the whole recap's budget rather than each\n\
-                         # question's, and AN HOUR IS THE CEILING: a longer one is refused by\n\
-                         # name. It also bounds the turn summarizer that writes each\n\
-                         # notification's sentence, which takes at most thirty seconds of it\n\
-                         # because a Stop hook is waiting on that one.\n",
-            sample: Sample::Default("\"4m\""),
         },
         Key {
             name: "overnight",
@@ -102,6 +79,15 @@ pub(super) const RECAP: Table = Table {
                          # printing a total it cannot back; a matched note that will not open is\n\
                          # named as one that could not be read rather than left out.\n",
             sample: Sample::Example("\"/absolute/path/notes-*.md\""),
+        },
+        Key {
+            name: "pregenerate",
+            prose: "# The windows whose summary the gateway writes in the background as each\n\
+                         # one ends, so the recap you ask for next already has its paragraph and\n\
+                         # prints the time it was written. Window names, and anything else is\n\
+                         # refused by name. EMPTY IS THE WORKING SETTING: the summary is then\n\
+                         # written when a recap is delivered, or when --summarize asks for one.\n",
+            sample: Sample::Default("[]"),
         },
         Key {
             name: "retain",
@@ -159,6 +145,88 @@ pub(super) const RECAP_SOURCES: Table = Table {
             name: "applies",
             prose: "",
             sample: Sample::Example("[\"chezmoi\", \"status\"]"),
+        },
+    ],
+};
+/// Which model writes the recap's summary, and what it may spend doing it.
+pub(super) const RECAP_SUMMARIZER: Table = Table {
+    name: "recap.summarizer",
+    prose: "# The model that writes the recap's summary: one paragraph over the\n\
+                 # mechanical sections, saying what moved, what is waiting and what to look\n\
+                 # at first. It runs when a recap is DELIVERED and when --summarize asks\n\
+                 # for it, never on a bare terminal recap. A summarizer that is missing,\n\
+                 # refuses, says nothing or runs past the deadline leaves ONE VISIBLE LINE\n\
+                 # where the paragraph would be, on the page, in the document and on the\n\
+                 # card; the mechanical sections are unaffected either way.\n",
+    opt_in: false,
+    children: &[],
+    keys: &[
+        Key {
+            name: "type",
+            prose: "# Which backend: claude, codex, ollama, hermes or custom. A NAMED\n\
+                         # HARNESS IS NOT A COMMAND: pns owns the invocation for the four, so a\n\
+                         # flag one of them moves is a pns release rather than an edit here.\n\
+                         # `custom` is the escape hatch and reads `command` below. The shipped\n\
+                         # value is `custom` with no command, which is NO SUMMARIZER AT ALL and\n\
+                         # a working setting: the recap is its mechanical sections.\n",
+            sample: Sample::Default("\"custom\""),
+        },
+        Key {
+            name: "command",
+            prose: "# The argument vector `type = \"custom\"` runs: ARGV, NEVER A SHELL\n\
+                         # STRING, handed the prompt on stdin and answering on stdout. Stating it\n\
+                         # beside any other `type` is refused, because that names one invocation\n\
+                         # twice.\n",
+            sample: Sample::Default("[]"),
+        },
+        Key {
+            name: "model",
+            prose: "# The model, passed through where the tool takes one. `ollama` names no\n\
+                         # default of its own, so this is required there and refused empty.\n",
+            sample: Sample::Default("\"\""),
+        },
+        Key {
+            name: "deadline",
+            prose: "# How long the summarizer may take before it is killed and the one\n\
+                         # visible line is printed instead. It is the whole recap's budget rather\n\
+                         # than each question's, and AN HOUR IS THE CEILING: a longer one is\n\
+                         # refused by name. It also bounds the turn summarizer that writes each\n\
+                         # notification's sentence, which takes at most thirty seconds of it\n\
+                         # because a Stop hook is waiting on that one.\n",
+            sample: Sample::Default("\"4m\""),
+        },
+        Key {
+            name: "transcripts",
+            prose: "# Append each session's own ASSISTANT TURNS to what the model is handed,\n\
+                         # newest first. User prompts and tool results are left out, because they\n\
+                         # carry paths and whatever was pasted into a session. The excerpt reaches\n\
+                         # the model alone and never enters the document other tools read.\n\
+                         # --with-transcripts asks for it on one run.\n",
+            sample: Sample::Default("false"),
+        },
+        Key {
+            name: "transcript_bytes_per_session",
+            prose: "# How much of one session's transcript may be appended, and how much of\n\
+                         # the whole window's. One long session cannot spend the window's budget.\n",
+            sample: Sample::Default("8192"),
+        },
+        Key {
+            name: "transcript_bytes_total",
+            prose: "",
+            sample: Sample::Default("65536"),
+        },
+        Key {
+            name: "prompt",
+            prose: "# Your own instruction, replacing the one pns ships. pns still appends\n\
+                         # the recap document after it, so you write the instruction and never the\n\
+                         # plumbing. Setting both this and prompt_file is refused.\n",
+            sample: Sample::Default("\"\""),
+        },
+        Key {
+            name: "prompt_file",
+            prose: "# The same instruction, in a file. A file that will not open is the one\n\
+                         # visible line rather than a quiet fall back to the shipped words.\n",
+            sample: Sample::Default("\"\""),
         },
     ],
 };

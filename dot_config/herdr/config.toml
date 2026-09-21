@@ -414,17 +414,17 @@ type = "plugin_action"
 command = "clauth.open"
 description = "clauth: manage accounts"
 
-# ╭─────────────────╮
-# │  herdr-todoist  │
-# ╰─────────────────╯
+# ╭────────────────╮
+# │  herdr-damnit  │
+# ╰────────────────╯
 # One chord: the pane's own `v` and number keys switch views, and it opens on
 # `default_view` from the plugin's config. `prefix+t` and both its shifted and
 # controlled forms already belong to tab-smart-rename and tuicr.
 [[keys.command]]
 key = "prefix+d"
 type = "plugin_action"
-command = "herdr-todoist.toggle"
-description = "todoist: toggle the task pane"
+command = "herdr-damnit.toggle"
+description = "damnit: toggle the task pane"
 
 # `$clauth` renders the account each Claude Code pane burns and
 # `$clauth_delegate` the delegate behind it, so a per-agent row override is the

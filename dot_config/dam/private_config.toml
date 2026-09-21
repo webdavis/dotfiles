@@ -3,7 +3,7 @@
 # The token is an indirection: this file names the source it comes from and
 # never holds the value.
 #
-# MEASURED 2026-09-18 (herdr-todoist, the same pattern): a helper spawned
+# MEASURED 2026-09-18 (herdr-damnit, the same pattern): a helper spawned
 # with stdin closed can never resolve a keepassxc-cli prompt, so the macOS
 # keychain is read non-interactively instead; KeePassXC stays the entry of
 # record. One-time operator setup:
