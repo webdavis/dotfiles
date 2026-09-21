@@ -125,7 +125,7 @@ binary = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/npm"
 declared = [
 {{- range .packages.macos.fnm }}
 {{- range .packages }}
-  {{ regexReplaceAll "@[0-9][^/]*$" . "" | quote }},
+  {{ regexReplaceAll "([^/@])@[^/@]+$" . "${1}" | quote }},
 {{- end }}
 {{- end }}
 ]
