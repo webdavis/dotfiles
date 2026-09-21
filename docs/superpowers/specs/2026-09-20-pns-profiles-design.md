@@ -20,7 +20,7 @@ it quiet right now, and what would it take to make it loud. `pns profile` answer
 
 ## The profile model
 
-A profile has six settings.
+A profile has five settings.
 
 | Key | Type | What it decides |
 | --- | --- | --- |
