@@ -23,18 +23,23 @@
 /// different array. UNSET IS A WORKING SETTING, and the common one: with no
 /// summarizer the recap posts the plain mechanical lists.
 ///
-/// `repositories` AND `review_notes_glob` ARE THE TWO SOURCES PNS CANNOT FIND ON ITS OWN,
-/// which is why they are keys and why an absent one is the working setting.
-/// The engine knows project NAMES off a working directory and nothing about
-/// which repository they are, and the review notes are one operator's own
-/// pipeline directory. UNSET MEANS THE SOURCE IS NEVER READ AT ALL: no `gh` is
-/// spawned and no directory is opened, which is the fence that makes both
-/// sections opt-in rather than merely empty.
+/// `sources` AND `review_notes_glob` ARE THE SOURCES PNS CANNOT FIND ON ITS
+/// OWN, which is why they are keys and why an absent one is the working
+/// setting. pns owns no task tool, no repository list and no apply log, so
+/// each list section is a COMMAND THE OPERATOR NAMES. UNSET MEANS THE SOURCE
+/// IS NEVER READ AT ALL: no process is spawned and no directory is opened,
+/// which is the fence that makes every one of those sections opt-in rather
+/// than merely empty.
 ///
-/// ONE NAMED VALUE, never a row of loose booleans. Three of the seven fields
-/// are bools or counts; spread through a call they would sit adjacent and a swap
-/// would go unnoticed, and named fields cannot be transposed. It is CLONE
-/// rather than Copy only because the argv is a `Vec`, and the composition root
+/// THE FOUR PERIODS AND `week_starts_on` ARE THE WINDOWS THEMSELVES, which is
+/// why they sit here rather than being compiled in: whose morning starts at
+/// 06:00 is the operator's own shape of a day. The four must tile it, and a
+/// config that breaks that is refused at load with both windows named.
+///
+/// ONE NAMED VALUE, never a row of loose booleans. Several fields are bools or
+/// counts; spread through a call they would sit adjacent and a swap would go
+/// unnoticed, and named fields cannot be transposed. It is CLONE rather than
+/// Copy only because the argv lists are `Vec`s, and the composition root
 /// clones it once off a borrowed config.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Recap {
@@ -43,10 +48,52 @@ pub struct Recap {
     pub minimum_events: usize,
     pub summarizer: Option<Vec<String>>,
     pub summarizer_deadline: std::time::Duration,
-    pub repositories: Vec<String>,
     pub review_notes_glob: Option<String>,
     pub retain: std::time::Duration,
+    pub sources: Sources,
+    pub periods: super::window::Periods,
+    pub week_starts_on: super::window::WeekStart,
+    pub rows_per_section: usize,
 }
+
+/// The commands `[recap.sources]` names, one per list section. ARGV AND NEVER
+/// A SHELL STRING, the way `summarizer` is: nothing is interpreted, so there
+/// is no quoting rule and no injection surface, and `{since}` and `{until}`
+/// are substituted into the words themselves.
+///
+/// EVERY ONE IS OPTIONAL AND UNSET IS OFF, which is what keeps a fresh install
+/// from spawning a process nobody named.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Sources {
+    pub pull_requests: Option<Vec<String>>,
+    pub commits: Option<Vec<String>>,
+    pub tasks: Option<Vec<String>>,
+    pub applies: Option<Vec<String>>,
+}
+
+impl Sources {
+    /// Each section name beside the command that fills it, in page order.
+    pub fn each(&self) -> [(&'static str, Option<&[String]>); 4] {
+        [
+            ("pull_requests", self.pull_requests.as_deref()),
+            ("commits", self.commits.as_deref()),
+            ("tasks", self.tasks.as_deref()),
+            ("applies", self.applies.as_deref()),
+        ]
+    }
+}
+
+/// Every section name this engine can print, in the order the page prints
+/// them. `--section` accepts these and refuses anything else.
+pub const SECTION_NAMES: &[&str] = &[
+    "agents",
+    "pull_requests",
+    "commits",
+    "tasks",
+    "applies",
+    "review_notes",
+    "open",
+];
 
 impl Default for Recap {
     fn default() -> Self {
@@ -56,9 +103,12 @@ impl Default for Recap {
             minimum_events: DEFAULT_MINIMUM_EVENTS,
             summarizer: None,
             summarizer_deadline: DEFAULT_SUMMARIZER_DEADLINE,
-            repositories: Vec::new(),
             review_notes_glob: None,
             retain: DEFAULT_RETAIN,
+            sources: Sources::default(),
+            periods: super::window::Periods::default(),
+            week_starts_on: super::window::WeekStart::Monday,
+            rows_per_section: DEFAULT_ROWS_PER_SECTION,
         }
     }
 }
@@ -107,3 +157,10 @@ const DEFAULT_SUMMARIZER_DEADLINE: std::time::Duration = std::time::Duration::fr
 /// retention of nothing deletes each row on the tick after it was written,
 /// which reads as switching the store off and is not what a duration says.
 const DEFAULT_RETAIN: std::time::Duration = std::time::Duration::from_secs(30 * 24 * 60 * 60);
+
+/// How many rows one list section spends by default.
+///
+/// EIGHT, which is what the design locked. It is a display default rather than
+/// a fetch cap: the command still answers with everything it has, and the
+/// section's own remainder line says how many more there were.
+const DEFAULT_ROWS_PER_SECTION: usize = 8;

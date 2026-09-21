@@ -16,6 +16,7 @@ use crate::*;
 pub(crate) fn deliver_recap(
     body: &str,
     channel: &str,
+    to: Option<&str>,
     home: &str,
     hermes_keys: &HermesKeys,
     discord: &DiscordSettings,
@@ -33,7 +34,14 @@ pub(crate) fn deliver_recap(
         discord,
         routes,
     );
-    let Some(destination) = destinations.durable() else {
+    // `--to` NAMES ONE DESTINATION AND `DURABLE` NAMES WHICHEVER ONE IS THE
+    // PAPER TRAIL, which is the word the detached child passes: it cannot
+    // know the configured transport's own id, and naming the role rather than
+    // the transport is what lets `[plugins.log] type` change under it.
+    let Some(destination) = (match to {
+        None | Some(pns_adapters::DURABLE) => destinations.durable(),
+        Some(name) => destinations.get(name),
+    }) else {
         return Vec::new();
     };
     let leg = pns_domain::routing::Leg {

@@ -37,12 +37,13 @@ pub use plugins::{
     DEFAULT_ACK_DEADLINE, ack_deadline, armed_discord, armed_phone, enabled_hue_table,
 };
 mod recap;
-pub use pns_domain::recap::Recap;
+use pns_domain::recap::window::{Period, WeekStart};
+pub use pns_domain::recap::{Recap, Sources};
 use recap::parse_recap;
 mod recap_values;
-use recap_values::{argv, threshold};
+use recap_values::{argv, period, rows_per_section, threshold, week_start};
 mod recap_sources;
-use recap_sources::{note_glob, repositories};
+use recap_sources::{note_glob, parse_recap_sources};
 mod delivery;
 use delivery::parse_delivery;
 mod delivery_class;

@@ -202,9 +202,48 @@ Config {
         minimum_events: 8,
         summarizer: None,
         summarizer_deadline: 240s,
-        repositories: [],
         review_notes_glob: None,
         retain: 2592000s,
+        sources: Sources {
+            pull_requests: None,
+            commits: None,
+            tasks: Some(
+                [
+                    "bash",
+                    "-c",
+                    "td --no-spinner today --ndjson | jq -r \"$1\"",
+                    "_",
+                    "\"p\\(5 - .priority) \" + (.content | split(\"\\n\")[0])",
+                ],
+            ),
+            applies: Some(
+                [
+                    "bash",
+                    "-c",
+                    "grep -E \"^(head|branch|result|exit_code):\" \"$HOME/.local/state/chezmoi-apply/latest.apply.log\" 2>/dev/null || true",
+                ],
+            ),
+        },
+        periods: Periods {
+            overnight: Period {
+                start: 1320,
+                end: 360,
+            },
+            morning: Period {
+                start: 360,
+                end: 720,
+            },
+            afternoon: Period {
+                start: 720,
+                end: 1020,
+            },
+            evening: Period {
+                start: 1020,
+                end: 1320,
+            },
+        },
+        week_starts_on: Monday,
+        rows_per_section: 8,
     },
     focus_enabled: true,
     focus_modes: [],

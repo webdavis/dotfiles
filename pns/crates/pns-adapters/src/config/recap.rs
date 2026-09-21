@@ -40,11 +40,11 @@ fn retain_range() -> RangeInclusive<Duration> {
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
 ///
-/// NO KEY HERE DOUBLES AS ITS OWN SWITCH. `summarizer` and `repositories`
-/// are off by being UNSET, which is a state the key already has, so neither
-/// carries a magic value that means off and neither needs an `enabled` beside
-/// it; an empty value is refused by name instead, because it names a thing pns
-/// would then try and fail to use.
+/// NO KEY HERE DOUBLES AS ITS OWN SWITCH. `summarizer` and every
+/// `[recap.sources]` command are off by being UNSET, which is a state the key
+/// already has, so none carries a magic value that means off and none needs an
+/// `enabled` beside it; an empty value is refused by name instead, because it
+/// names a thing pns would then try and fail to use.
 pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
     let toml::Value::Table(table) = value else {
         return Err(ConfigError::Invalid("`recap` is not a table".to_string()));
@@ -66,7 +66,13 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         admits_flat("recap", &key)?;
         match key.as_str() {
             "minimum_events" => recap.minimum_events = threshold(&setting)?,
-            "repositories" => recap.repositories = repositories(&setting)?,
+            "sources" => recap.sources = parse_recap_sources(setting)?,
+            "overnight" => recap.periods.overnight = period("overnight", &setting)?,
+            "morning" => recap.periods.morning = period("morning", &setting)?,
+            "afternoon" => recap.periods.afternoon = period("afternoon", &setting)?,
+            "evening" => recap.periods.evening = period("evening", &setting)?,
+            "week_starts_on" => recap.week_starts_on = week_start(&setting)?,
+            "rows_per_section" => recap.rows_per_section = rows_per_section(&setting)?,
             "review_notes_glob" => recap.review_notes_glob = Some(note_glob(&setting)?),
             "summarizer" => recap.summarizer = Some(argv(&setting)?),
             "summarizer_deadline" => {
@@ -91,6 +97,12 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
                 return Err(unknown_key("recap", "recap", &key));
             }
         }
+    }
+    // THE FOUR PERIODS ARE JUDGED TOGETHER, once, after every arm has run.
+    // A gap or an overlap is a property of the SET, so checking it inside an
+    // arm would refuse a config whose later key was about to close the gap.
+    if let Some(fault) = pns_domain::recap::window::tiling_fault(&recap.periods) {
+        return Err(ConfigError::Invalid(fault));
     }
     Ok(recap)
 }

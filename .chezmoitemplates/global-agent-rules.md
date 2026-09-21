@@ -225,7 +225,10 @@ Prefer local CLI tools over MCP servers when both work. MCP only for SaaS APIs w
   runtime dependency; never invoke it directly. This preference binds the agent doing the GitHub work,
   the process that would type the command. A Rust product this repository ships spawns whichever
   subprocess suits it on its own merits, the way it chooses `git`, so `pns recap git` keeps calling `gh`
-  for the fields gh-axi does not expose.
+  for the fields gh-axi does not expose. The same bullet forbids every other client too: never reach the
+  GitHub API through `curl`, a Python or node script, or a raw request, not even for a read, and not even
+  when `gh-axi` cannot reach GitHub. When it cannot, push the branch, write the PR body to a file, say
+  so, and stop; the operator or a later agent finishes the ship once it works again.
 - Prefer the `chrome-devtools-axi` skill over other browser automation (Claude-in-Chrome, Playwright, raw
   `chrome-devtools-mcp`) whenever DevTools-based automation is needed.
 - Home Assistant work uses both skills together: `home-assistant` (runtime control: entity states,

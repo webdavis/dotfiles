@@ -57,6 +57,49 @@ pub(super) fn loud_window(sandbox: &Sandbox) {
     plant_marker(sandbox, 3600);
     std::fs::write(activity_path(sandbox), planted_activity(12, 1800, Some(4))).expect("the ring");
     std::fs::write(journal_path(sandbox), planted_journal(2)).expect("the journal");
+    // THE TABLE IS PLANTED LAST, because opening the store imports whatever
+    // the file journal holds: planting it first would import an empty journal
+    // and the card would then report no misses.
+    plant_activity_table(sandbox, 12, 1800, Some(4));
+}
+
+/// The same planted window in the DURABLE ACTIVITY TABLE, which is what the
+/// recap engine reads.
+///
+/// BOTH ARE PLANTED, because the two layers of one return read different
+/// stores: the card's count comes off the ring and the recap's agents section
+/// off the table. The design keeps the ring until the card reads the table
+/// too, so a fixture that planted only one of them would pin half a return.
+///
+/// ONE SESSION PER EVENT, so the agents section is one line per planted
+/// index, which is the unit the budget tests below measure.
+pub(super) fn plant_activity_table(
+    sandbox: &Sandbox,
+    count: usize,
+    ago: u64,
+    urgent: Option<usize>,
+) {
+    let at = epoch_now() - ago;
+    let store = pns_adapters::SqliteStore::for_records(sandbox.state());
+    for which in 0..count {
+        store
+            .record_activity_event(&pns_domain::recap::activity::Event {
+                at,
+                agent: "claude".into(),
+                state: if urgent == Some(which) {
+                    "blocked".into()
+                } else {
+                    "done".into()
+                },
+                project: format!("p{which}"),
+                branch: "b".into(),
+                session: format!("s{which}"),
+                session_title: format!("planted {which}"),
+                detail: format!("planted {which}"),
+                ..pns_domain::recap::activity::Event::default()
+            })
+            .expect("the planted activity row");
+    }
 }
 
 /// The file the blocked recap stub waits on, so a test releases it rather than

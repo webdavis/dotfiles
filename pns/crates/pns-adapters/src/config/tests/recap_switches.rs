@@ -111,7 +111,8 @@ fn the_keys_these_replaced_are_refused_by_name_with_the_new_spelling_listed() {
     for (retired, replacement) in [
         ("digest = false", "post_window_recap"),
         ("min_events = 3", "minimum_events"),
-        ("repos = [\"owner/name\"]", "repositories"),
+        ("repos = [\"owner/name\"]", "sources"),
+        ("repositories = [\"owner/name\"]", "sources"),
         ("review_notes = \"/tmp/notes-*.md\"", "review_notes_glob"),
     ] {
         let err = parse_config(&format!("[recap]\n{retired}\n")).unwrap_err();

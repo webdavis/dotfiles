@@ -132,12 +132,14 @@ pub use ports::lights::{LampComplaint, LampComplaints};
 mod maintain_lamps;
 pub use maintain_lamps::{LampReadings, MaintainLamps};
 
-mod build_return_recap;
+mod build_recap;
 mod post_return_recap;
-pub use build_return_recap::{
-    BuildReturnRecap, LocalCivilTime, RECAP_USAGE, recap_bounds, recap_wall_clock,
+pub use build_recap::{
+    AGENTS as AGENTS_SECTION, Assembled, BuildRecap, LocalCivilTime, OPEN as OPEN_SECTION,
+    RECAP_USAGE, REVIEW_NOTES as REVIEW_NOTES_SECTION, Request as RecapRequest, document,
+    recap_bounds, recap_wall_clock,
 };
-pub use ports::recap::{Fetched, MergedPullRequestSource, ReviewNoteSource, Summarizer};
+pub use ports::recap::{ActivityEvents, Fetched, ReviewNoteSource, SourceCommands, Summarizer};
 pub use post_return_recap::post_return_recap;
 
 mod calendar_registration;

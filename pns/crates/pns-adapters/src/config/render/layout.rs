@@ -67,6 +67,8 @@ use delivery::{DELIVERY, DELIVERY_CLASS};
 mod core;
 pub(in crate::config) use core::REMIND_DELAY;
 use core::*;
+mod recap;
+use recap::*;
 mod destinations;
 use destinations::*;
 mod lights;

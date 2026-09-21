@@ -17,24 +17,10 @@
 use super::{SqliteStore, StoreError};
 use rusqlite::Transaction;
 
-/// One hook event, as the recap reads it back. Empty fields are a harness
-/// with nothing to say: Codex sends no session title, a pane outside herdr
-/// has no id, and only a model switch states a model.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct ActivityEvent {
-    pub at: u64,
-    pub agent: String,
-    pub state: String,
-    pub project: String,
-    pub branch: String,
-    pub session: String,
-    pub session_title: String,
-    pub pane: String,
-    pub workspace: String,
-    pub model: String,
-    pub title: String,
-    pub detail: String,
-}
+/// One hook event, as the recap reads it back. THE TYPE IS THE DOMAIN'S,
+/// because grouping these into sessions is policy and a domain that could not
+/// name the fields would have to be handed a shape this table invented.
+pub use pns_domain::recap::activity::Event as ActivityEvent;
 
 pub(in crate::persistence::sqlite) fn create(
     transaction: &Transaction<'_>,
@@ -136,5 +122,17 @@ impl SqliteStore {
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+}
+
+/// The activity table as the recap engine reads it.
+///
+/// A WINDOW THAT WILL NOT READ IS EMPTY HERE, and the composition root is what
+/// refuses: a store that cannot be opened is a recap with no agents section,
+/// which the design says is not a recap, so `pns recap` checks the store
+/// before it composes anything.
+impl pns_application::ActivityEvents for SqliteStore {
+    fn activity_between(&self, since: u64, until: u64) -> Vec<ActivityEvent> {
+        SqliteStore::activity_between(self, since, until).unwrap_or_default()
     }
 }

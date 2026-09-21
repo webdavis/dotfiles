@@ -69,8 +69,8 @@ pub(super) const DID_NOT_ANSWER: &str = "did not answer";
 /// lists this is. Shared by the three ways of saying nothing.
 pub(super) fn assert_fell_back_to_the_plain_list(body: &str) {
     assert!(
-        body.contains("claude/done p0: planted 0"),
-        "the mechanical timeline did not come back: {body}"
+        body.contains("- planted 0  claude  b  0m  done"),
+        "the mechanical list did not come back: {body}"
     );
     assert!(
         body.contains(DID_NOT_ANSWER),
@@ -93,36 +93,32 @@ pub(super) fn recap_summarized_badly(name: &str, extra: &str, body: &str) -> Str
 
 // --- the two sections whose source is not pns -------------------------------
 
-/// A config naming a repository to read merged pull requests from, plus
-/// whatever else the test needs inside `[recap]`.
+/// The command word a test's `pull_requests` source answers to. A BARE NAME
+/// RESOLVED THROUGH PATH, which is the shape the real key takes, so a test
+/// exercises the same resolution the operator's own config will.
+pub(super) const PULL_REQUESTS: &str = "recap-pull-requests";
+
+/// A config naming that stub as the `pull_requests` source, plus whatever else
+/// the test needs inside `[recap]`.
 pub(super) fn recap_sourced_from(extra: &str) -> String {
-    format!("{EVERY_DISPATCHED_CHANNEL}[recap]\nrepositories = [\"webdavis/dotfiles\"]\n{extra}")
+    format!(
+        "{EVERY_DISPATCHED_CHANNEL}[recap]\n{extra}\n[recap.sources]\n\
+         pull_requests = [\"{PULL_REQUESTS}\", \"--since={{since}}\", \"--until={{until}}\"]\n"
+    )
 }
 
-/// A stub `gh` first on PATH, recording the argv it was called with so a test
-/// can say what pns asked for, and answering `body` for everything else.
-pub(super) fn stub_gh(sandbox: &Sandbox, command: &mut std::process::Command, body: &str) {
+/// A stub source command first on PATH, recording the argv it was called with
+/// so a test can say what pns asked for, and answering `body` for everything
+/// else.
+pub(super) fn stub_source(sandbox: &Sandbox, command: &mut std::process::Command, body: &str) {
     sandbox.stub_on_path(
         command,
-        "gh",
+        PULL_REQUESTS,
         &format!(
-            "printf '%s\\n' \"$*\" >>\"{}/gh.argv\"\n{body}",
+            "printf '%s\\n' \"$*\" >>\"{}/sources.argv\"\n{body}",
             sandbox.display()
         ),
     );
-}
-
-/// A stub `gh` answering with one merged pull request, escaped by
-/// `serde_json` exactly as the real listing would be.
-pub(super) fn stub_gh_listing(
-    sandbox: &Sandbox,
-    command: &mut std::process::Command,
-    number: u64,
-    title: &str,
-    body: &str,
-) {
-    let listing = serde_json::json!([{ "number": number, "title": title, "body": body }]);
-    stub_gh(sandbox, command, &format!("printf '%s' '{listing}'"));
 }
 
 /// A review note written at `mtime`, under the sandbox's own home so a `~/`

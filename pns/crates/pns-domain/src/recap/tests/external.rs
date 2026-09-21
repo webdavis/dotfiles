@@ -1,10 +1,8 @@
 //! The recap, pinned: external.
 
 use super::fixtures::*;
-use crate::recap::external::{
-    EXTERNAL_TEXT_CHARS, External, Externals, Found, Sourced, merged, noted,
-};
-use crate::recap::sections::{Timeline, body};
+use crate::recap::external::{EXTERNAL_TEXT_CHARS, External, Found, Sourced, merged, noted};
+use crate::recap::sections::{Open, Timeline, body};
 
 // --- the two sections whose source is not pns ----------------------------
 
@@ -22,33 +20,28 @@ fn under(rendered: &str, heading: &str) -> Vec<String> {
         .collect()
 }
 
-/// A recap over one quiet window, with whatever the two external sections
-/// were handed.
-fn rendered(externals: &Externals) -> String {
-    body(
-        &window(2),
-        "23:04",
-        "06:15",
-        &clock,
-        Timeline::Mechanical,
-        externals,
-    )
+/// A recap over one quiet window, with whatever the list sections were
+/// handed.
+fn rendered(sources: &[(&str, External)]) -> String {
+    let projects = grouped(&window(2));
+    let open = Open::default();
+    body(&page(&projects, 2, sources, &open, Timeline::Mechanical))
 }
 
-/// Only the merges configured, with an optional summarizer answer over
-/// them.
+/// Only the pull requests configured, with an optional summarizer answer
+/// over them.
 fn merges<'sources>(
     sources: &'sources [Sourced],
     answered: Option<&'sources [String]>,
-) -> Externals<'sources> {
-    Externals {
-        merges: External {
+) -> [(&'sources str, External<'sources>); 1] {
+    [(
+        "pull_requests",
+        External {
             found: Found::Read(sources),
             answered,
             truncated: false,
         },
-        ..Externals::default()
-    }
+    )]
 }
 
 #[test]
@@ -64,11 +57,11 @@ fn every_merge_in_the_window_is_one_cited_line_under_new_behavior() {
         ),
         merged(212, "feat(pns): another title", "no summary heading at all"),
     ];
-    let lines = under(&rendered(&merges(&sources, None)), "NEW BEHAVIOR");
+    let lines = under(&rendered(&merges(&sources, None)), "PULL REQUESTS");
     assert_eq!(
         lines,
         [
-            "NEW BEHAVIOR",
+            "PULL REQUESTS",
             "- #213 the recap now posts the night.",
             "- #212 feat(pns): another title",
         ],
@@ -96,12 +89,12 @@ fn a_line_citing_no_merge_pns_fetched_is_dropped_and_counted_rather_than_posted(
     ];
     let lines = under(
         &rendered(&merges(&sources, Some(&answered))),
-        "NEW BEHAVIOR",
+        "PULL REQUESTS",
     );
     assert_eq!(
         lines,
         [
-            "NEW BEHAVIOR",
+            "PULL REQUESTS",
             "- #213 this one really merged",
             "...and 2 more",
         ],
@@ -126,20 +119,20 @@ fn a_receipt_with_anything_glued_to_either_end_names_a_different_source() {
         "x.md this one was really read".to_string(),
     ];
     let lines = under(
-        &rendered(&Externals {
-            notes: External {
+        &rendered(&[(
+            "review_notes",
+            External {
                 found: Found::Read(&sources),
                 answered: Some(&answered),
                 truncated: false,
             },
-            ..Externals::default()
-        }),
-        "CAUGHT BY REVIEW",
+        )]),
+        "REVIEW NOTES",
     );
     assert_eq!(
         lines,
         [
-            "CAUGHT BY REVIEW, AND IMPLEMENTED",
+            "REVIEW NOTES",
             "- x.md this one was really read",
             "...and 1 more",
         ],
@@ -172,12 +165,12 @@ fn a_line_the_width_would_have_cut_into_a_receipt_is_judged_as_it_came() {
     let answered = ["#212 this one really merged".to_string(), forged];
     let lines = under(
         &rendered(&merges(&sources, Some(&answered))),
-        "NEW BEHAVIOR",
+        "PULL REQUESTS",
     );
     assert_eq!(
         lines,
         [
-            "NEW BEHAVIOR",
+            "PULL REQUESTS",
             "- #212 this one really merged",
             "...and 1 more",
         ],
@@ -200,12 +193,12 @@ fn one_merge_vouches_for_one_line_and_the_rest_are_counted_as_missing() {
         .collect();
     let lines = under(
         &rendered(&merges(&sources, Some(&answered))),
-        "NEW BEHAVIOR",
+        "PULL REQUESTS",
     );
     assert_eq!(
         lines,
         [
-            "NEW BEHAVIOR",
+            "PULL REQUESTS",
             "- #200 the same one four times",
             "...and 9 more",
         ],
@@ -227,12 +220,12 @@ fn the_remainder_counts_the_sources_no_surviving_line_names() {
     let answered = ["#213 and #212 landed together".to_string()];
     let lines = under(
         &rendered(&merges(&sources, Some(&answered))),
-        "NEW BEHAVIOR",
+        "PULL REQUESTS",
     );
     assert_eq!(
         lines,
         [
-            "NEW BEHAVIOR",
+            "PULL REQUESTS",
             "- #213 and #212 landed together",
             "...and 1 more",
         ],
