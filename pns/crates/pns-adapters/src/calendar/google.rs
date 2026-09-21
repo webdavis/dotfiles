@@ -87,9 +87,16 @@ impl GoogleCalendarSource {
 
     /// One poll: the access token (cached, or exchanged), then the busy
     /// intervals over every configured calendar.
+    ///
+    /// A REFUSED `busy()` CALL EVICTS THE CACHED TOKEN. A revoked or expired
+    /// token the cache still calls good would otherwise be re-sent, refused,
+    /// on every poll up to an hour, so the next poll exchanges again instead
+    /// of repeating the same dead token.
     pub(super) fn read(&self, state: &Path, now: u64) -> Result<Vec<Event>, String> {
         let access_token = self.access_token(state, now)?;
-        self.busy(&access_token, now)
+        self.busy(&access_token, now).inspect_err(|_| {
+            let _ = std::fs::remove_file(state.join(token::TOKEN_STATE));
+        })
     }
 }
 

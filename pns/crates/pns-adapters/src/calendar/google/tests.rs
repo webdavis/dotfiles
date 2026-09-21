@@ -153,6 +153,27 @@ fn a_cached_token_inside_the_margin_is_exchanged_again() {
     );
 }
 
+/// THE MUTANT THIS PINS: the cache eviction dropped, which leaves a revoked
+/// token re-sent and re-refused every poll up to the cached hour.
+#[test]
+fn a_refused_freebusy_call_evicts_the_cached_token() {
+    let state = scratch("google-freebusy-refused-evicts");
+    std::fs::write(
+        state.join(TOKEN_STATE),
+        format!("{} {FAKE_ACCESS_TOKEN}\n", NOW + 3_600),
+    )
+    .expect("plant the cache");
+    let (source, _) = scripted(
+        &[http_response("401 Unauthorized", &[], "{\"error\":\"invalid_grant\"}")],
+        &["primary"],
+    );
+    assert_eq!(source.read(&state, NOW), Err(FREEBUSY_REFUSED.to_string()));
+    assert!(
+        !state.join(TOKEN_STATE).exists(),
+        "a refused freeBusy call evicts the dead cached token"
+    );
+}
+
 #[test]
 fn a_refused_exchange_is_the_whole_poll_refused_naming_the_step() {
     let state = scratch("google-refused-token");
