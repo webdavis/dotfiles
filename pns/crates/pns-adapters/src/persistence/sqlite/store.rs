@@ -70,12 +70,11 @@ impl SqliteStore {
     // Ledger-only composition has no legacy rows to import.
     pub fn new(state: PathBuf) -> Self {
         Self {
+            log: diagnostic_log(&state),
             state,
             claim: std::sync::Mutex::new(None),
             busy_timeout: busy_timeout(),
             legacy_records: false,
-            log: PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join(".local/log/pns-daemon.log"),
         }
     }
 
@@ -192,6 +191,23 @@ fn prefer_wal(connection: &Connection) -> Result<(), StoreError> {
             Ok(())
         }
         other => other.map_err(StoreError::from),
+    }
+}
+
+/// Where this store writes its diagnostics, derived from the state directory
+/// it was handed.
+///
+/// The daemon's state tree is `<root>/.local/state/pns` and its diagnostics
+/// belong in `<root>/.local/log/pns-daemon.log`, the same file its LaunchAgent
+/// points both of its own streams at. A store rooted anywhere else keeps its
+/// diagnostics inside that root, so the destination follows the state the
+/// caller chose.
+fn diagnostic_log(state: &Path) -> PathBuf {
+    match state.parent().and_then(Path::parent) {
+        Some(local) if state.ends_with(super::super::DAEMON_STATE_SUFFIX) => {
+            local.join("log/pns-daemon.log")
+        }
+        _ => state.join("pns-daemon.log"),
     }
 }
 
