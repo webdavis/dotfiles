@@ -301,6 +301,8 @@ packages:
           - acpx
           - agentmail-cli
           - backpass
+          # pi-coding-agent: the pi coding agent harness (upstream earendil-works/pi).
+          - "@earendil-works/pi-coding-agent"
           - clawhub
           # Pinned: an overnight orchestrator that commits unattended, still
           # pre-1.0 and releasing weekly, so the version it runs under is a
