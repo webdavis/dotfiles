@@ -292,7 +292,6 @@ packages:
           - "@a5c-ai/babysitter-sdk@6.0.3"
           - "@clawdbot/lobster"
           - "@doist/todoist-cli"
-          # pi-coding-agent: the pi coding agent harness (upstream earendil-works/pi).
           - "@earendil-works/pi-coding-agent"
           - "@elevenlabs/cli"
           - "@fission-ai/openspec"
