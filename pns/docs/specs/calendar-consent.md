@@ -15,7 +15,9 @@ nothing on the event path reaches it. `pns mute calendar` is the poll this grant
 Google's OAuth 2.0 flow for an installed application, read from
 <https://developers.google.com/identity/protocols/oauth2/native-app> on 2026-09-21 along with the
 `freebusy.query` scope list at
-<https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query>.
+<https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query>. The two parameters
+that page does not list, `access_type` and `prompt`, come from
+<https://developers.google.com/identity/protocols/oauth2/web-server>, read the same day.
 
 1. A `TcpListener` binds `127.0.0.1` on an ephemeral port. LOOPBACK ONLY: the authorization code is a
    credential, and a listener on any other interface offers it to the network.
@@ -34,7 +36,7 @@ Google's OAuth 2.0 flow for an installed application, read from
    | `code_challenge_method` | `S256`                                                    |
    | `state`                 | this run's state                                          |
    | `access_type`           | `offline`, which is what makes a refresh token be issued  |
-   | `prompt`                | `consent`, so a client that already has a grant mints one |
+   | `prompt`                | `consent`, which shows the consent screen every run       |
 
    `calendar.freebusy` ("view your availability") is the NARROWEST of the four scopes the freeBusy query
    accepts. It reads no event text, which is the property the poll itself relies on.
