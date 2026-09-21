@@ -10,7 +10,6 @@ pub(super) fn parse_profile(name: &str, table: &toml::Table) -> Result<Profile, 
     let shown = format!("profiles.{name}");
     let mut profile = Profile::default();
     for (key, setting) in table {
-        admits(PROFILE_KEYS, &shown, key)?;
         match key.as_str() {
             "quiet" => {
                 profile.quiet = setting.as_bool().ok_or_else(|| {
