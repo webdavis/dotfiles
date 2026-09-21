@@ -1,4 +1,4 @@
-use crate::JobSpool;
+use crate::{JobSpool, PollSetting};
 
 /// Keep the calendar poll registered while the feature is on, and cancelled
 /// while it is not.
@@ -15,10 +15,17 @@ use crate::JobSpool;
 /// keeps a calendar command that stalls out of the daemon's own loop: the
 /// tick that started it goes on draining the spool, and the deadline the
 /// command was given is what ends it.
-pub fn ensure_calendar_poll(jobs: &impl JobSpool, interval: Option<u64>, now: u64) {
-    let Some(interval) = interval else {
-        let _ = jobs.cancel(CALENDAR_JOB);
-        return;
+pub fn ensure_calendar_poll(jobs: &impl JobSpool, setting: PollSetting, now: u64) {
+    let interval = match setting {
+        PollSetting::Every(interval) => interval,
+        PollSetting::Unreadable => {
+            crate::poll_lease::renew_lease(jobs, CALENDAR_JOB, CALENDAR_LEASE_SECS, now);
+            return;
+        }
+        PollSetting::Off => {
+            let _ = jobs.cancel(CALENDAR_JOB);
+            return;
+        }
     };
     let pending = jobs.pending(CALENDAR_JOB).map(|job| job.due);
     // DUE NOW when nothing is pending, so switching the feature on mutes a

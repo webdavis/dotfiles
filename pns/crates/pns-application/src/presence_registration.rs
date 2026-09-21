@@ -1,4 +1,4 @@
-use crate::JobSpool;
+use crate::{JobSpool, PollSetting};
 
 /// Keep the poll registered while the sensor is on, and cancelled while it is
 /// not.
@@ -11,12 +11,19 @@ use crate::JobSpool;
 /// re-registering replaces the job by name, so a sweep that pushed `due` out
 /// every thirty seconds would keep moving a five-second poll away from itself.
 /// Only the LEASE is refreshed.
-pub fn ensure_presence_poll(jobs: &impl JobSpool, interval: Option<u64>, now: u64) {
-    let Some(interval) = interval else {
-        // The failure is dropped for `record_decision`'s reason: a cancel that
-        // did not land costs one more poll, and the lease ends it regardless.
-        let _ = jobs.cancel(PRESENCE_JOB);
-        return;
+pub fn ensure_presence_poll(jobs: &impl JobSpool, setting: PollSetting, now: u64) {
+    let interval = match setting {
+        PollSetting::Every(interval) => interval,
+        PollSetting::Unreadable => {
+            crate::poll_lease::renew_lease(jobs, PRESENCE_JOB, PRESENCE_LEASE_SECS, now);
+            return;
+        }
+        PollSetting::Off => {
+            // The failure is dropped for `record_decision`'s reason: a cancel that
+            // did not land costs one more poll, and the lease ends it regardless.
+            let _ = jobs.cancel(PRESENCE_JOB);
+            return;
+        }
     };
     let pending = jobs.pending(PRESENCE_JOB).map(|job| job.due);
     // DUE NOW when nothing is pending, so the first sweep after the switch
