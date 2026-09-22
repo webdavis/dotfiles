@@ -164,7 +164,7 @@ return {
             buffer = bufnr,
           })
 
-          -- Action mappings: stage, reset, undo, preview, diff, blame, and show commit.
+          -- Action mappings: stage, reset, undo, preview, diff, blame, show commit, quickfix.
           -- —————————————————————————————————————————————————————————————————————————————
           map({
             mode = "n",
@@ -220,6 +220,14 @@ return {
 
           map({
             mode = "n",
+            lhs = "<leader>gU",
+            rhs = gitsigns.reset_buffer_index,
+            desc = "Gitsigns: Unstage Buffer (git reset)",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
             lhs = "<leader>gu",
             rhs = gitsigns.stage_hunk,
             desc = "Gitsigns: Unstage Staged Hunk",
@@ -259,6 +267,24 @@ return {
               gitsigns.show_commit()
             end,
             desc = "Gitsigns: Show Commit",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<leader>gq",
+            rhs = gitsigns.setqflist,
+            desc = "Gitsigns: Hunks to Quickfix (buffer)",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<leader>gQ",
+            rhs = function()
+              gitsigns.setqflist("all")
+            end,
+            desc = "Gitsigns: Hunks to Quickfix (all files)",
             buffer = bufnr,
           })
 
