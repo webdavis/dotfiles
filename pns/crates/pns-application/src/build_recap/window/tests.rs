@@ -105,10 +105,11 @@ mod tests {
 
     #[test]
     fn the_usage_lists_every_window_a_recap_may_name() {
-        assert!(RECAP_USAGE.contains(
-            "pns: windows: nightshift, morning, afternoon, evening, today, yesterday, week, \
-             last-week\n"
-        ));
+        let windows = format!(
+            "pns: windows: {}\n",
+            pns_domain::recap::window::WINDOW_WORDS.join(", ")
+        );
+        assert!(RECAP_USAGE.contains(&windows), "{RECAP_USAGE}");
     }
 
     fn bounds(words: &[&str]) -> Option<(u64, u64)> {
