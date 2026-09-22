@@ -1,0 +1,19 @@
+{
+  "runtime": {
+    "version": "LuaJIT"
+  },
+  "workspace": {
+    "ignoreGlobs": ["**/tests/**"],
+    "library": [
+      "{env:HOMEBREW_PREFIX}/share/nvim/runtime/lua",
+      {
+        "path": "{env:HOME}/.local/share/nvim/lazy",
+        "ignoreGlobs": [
+          "**/lsp-format.nvim/specs/**",
+          "**/lazy.nvim/lua/lazy/minit.lua",
+          "**/plenary.nvim/lua/plenary/busted.lua"
+        ]
+      }
+    ]
+  }
+}
