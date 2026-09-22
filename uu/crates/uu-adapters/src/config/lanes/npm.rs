@@ -1,7 +1,10 @@
 //! `[lanes.<name>]` with `type = "npm"`: the npm to run.
 //!
-//! There is no roster key, because `npm update -g` is already every globally
-//! installed package.
+//! `declared` IS A REPORT'S REFERENCE, NOT A ROSTER TO INSTALL FROM. The
+//! upgrade is still `npm update -g`, which is already every globally installed
+//! package; the list only says which of those the operator meant to have, so
+//! the lane can name the rest. Nothing is ever removed, and an absent key
+//! leaves the lane doing the upgrade alone.
 //!
 //! THE PATH IS REQUIRED AND ABSOLUTE, with no default. The lane runs npm with
 //! its OWN directory first on PATH so npm's `#!/usr/bin/env node` shebang
@@ -12,11 +15,12 @@
 //! than run.
 
 use crate::config::ConfigError;
-use crate::config::schema::{absolute, admits_lane};
+use crate::config::schema::{absolute, admits_lane, text_list};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NpmLane {
     pub(crate) binary: String,
+    pub(crate) declared: Option<Vec<String>>,
 }
 
 pub(crate) fn parse_npm_lane(
@@ -24,10 +28,12 @@ pub(crate) fn parse_npm_lane(
     table: toml::Table,
 ) -> Result<NpmLane, ConfigError> {
     let mut binary = None;
+    let mut declared = None;
     for (name, setting) in table {
         admits_lane(table_label, "npm", NpmLane::KEYS, &name)?;
         match name.as_str() {
             "binary" => binary = Some(absolute(table_label, &name, &setting)?),
+            "declared" => declared = Some(text_list(table_label, &name, &setting)?),
             // Read by `lane_type` before this block was dispatched; nothing
             // is left to do with it here.
             "type" => {}
@@ -41,12 +47,17 @@ pub(crate) fn parse_npm_lane(
              npm, whose own directory the lane puts first on PATH"
         ))
     })?;
-    Ok(NpmLane { binary })
+    Ok(NpmLane { binary, declared })
 }
 
 impl NpmLane {
-    pub(crate) const KEYS: &'static [&'static str] =
-        &["binary", "deadline_secs", "escalate_after_runs", "type"];
+    pub(crate) const KEYS: &'static [&'static str] = &[
+        "binary",
+        "deadline_secs",
+        "declared",
+        "escalate_after_runs",
+        "type",
+    ];
 }
 
 #[cfg(test)]
@@ -63,8 +74,35 @@ mod tests {
             ),
             Some(NpmLane {
                 binary: "/fnm/bin/npm".to_string(),
+                declared: None,
             })
         );
+    }
+
+    #[test]
+    fn an_npm_lane_may_declare_the_roster_its_report_is_measured_against() {
+        assert_eq!(
+            typed::<NpmLane>(
+                checked_text(
+                    "[lanes.npm]\nbinary = \"/fnm/bin/npm\"\ndeclared = [\"acpx\", \"@scope/cli\"]\n"
+                ),
+                "npm"
+            ),
+            Some(NpmLane {
+                binary: "/fnm/bin/npm".to_string(),
+                declared: Some(vec!["acpx".to_string(), "@scope/cli".to_string()]),
+            })
+        );
+    }
+
+    #[test]
+    fn a_declared_roster_that_is_not_a_list_of_names_is_refused_naming_the_key() {
+        // A bare string read as a one-name roster would report every other
+        // installed package as undeclared, weekly.
+        let detail = refusal("[lanes.npm]\nbinary = \"/fnm/bin/npm\"\ndeclared = \"acpx\"\n");
+        assert!(detail.contains("`declared`"), "{detail}");
+        let blank = refusal("[lanes.npm]\nbinary = \"/fnm/bin/npm\"\ndeclared = [\" \"]\n");
+        assert!(blank.contains("`declared`"), "{blank}");
     }
 
     #[test]
