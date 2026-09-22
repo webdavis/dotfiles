@@ -157,7 +157,7 @@ pub(super) const QUIET_CALENDAR: Table = Table {
             name: "command",
             prose: "# `type = \"command\"` only. ARGV, NEVER A SHELL STRING. It is your own\n\
                          # command: pns names no calendar and holds no credential of one.\n",
-            sample: Sample::Example("[\"calendar-busy-window\"]"),
+            sample: Sample::Example("[\"your-calendar-command\"]"),
         },
         Key {
             name: "calendars",

@@ -15,9 +15,12 @@ use pns_domain::mute::calendar::Event;
 use std::path::Path;
 use std::time::Duration;
 
+mod consent;
 mod freebusy;
 mod rfc3339;
 mod token;
+
+pub use consent::GoogleConsent;
 
 /// The OAuth token endpoint, which a refresh token is exchanged at.
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";

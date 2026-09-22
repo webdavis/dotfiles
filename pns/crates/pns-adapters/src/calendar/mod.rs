@@ -20,6 +20,7 @@ use std::time::Duration;
 
 mod command;
 mod google;
+pub use google::GoogleConsent;
 
 /// One poll of whichever calendar the config names, as busy intervals in
 /// epoch seconds, or one sentence saying why there are none.

@@ -132,6 +132,7 @@ still deployed, because the string in the source is the only thing that names th
 | remind                         | `src/remind.rs:Record`, `src/main.rs:remind_mode`     | The repeat card about an approval nobody answered                 |
 | recap                       | `src/recap.rs`                                  | The composed account of what happened while the operator was away |
 | resume                      | `src/command_resume.rs:resume_mode`, `pns-protocol/src/resume.rs:ResumePage` | Where the operator was, printed on request or sent as one page    |
+| consent                     | `src/command_calendar.rs:calendar_mode`, `pns-adapters/src/calendar/google/consent.rs:GoogleConsent` | The one-time OAuth walk that mints the calendar mute's refresh token |
 | timeline, section, evidence | `src/recap.rs:Timeline`, `Section`, `Sourced`   | The recap's structure and where each line came from               |
 | doctor                      | `src/doctor.rs:Check`, `CheckKind`, `Outcome`   | The diagnostic census                                             |
 

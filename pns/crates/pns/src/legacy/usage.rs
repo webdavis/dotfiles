@@ -41,6 +41,8 @@ pns: usage:
   pns recap agent --stdin          post a recap somebody else composed
   pns recap git                    print what only git, worktrunk and gh answer
   pns resume [--json|--notify]     where you were, printed, or sent as a page
+  pns calendar consent             mint the refresh token the calendar mute
+                                   reads, once per machine
   pns setup [--force]              write a first config, one question at a time
   pns doctor [--raw]               one test send through every channel
   pns tap [info|install] [--json]  record phone attention or inspect its setup
