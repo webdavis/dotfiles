@@ -164,7 +164,7 @@ return {
             buffer = bufnr,
           })
 
-          -- Action mappings: stage, reset, undo, preview, diff, blame, and show commit.
+          -- Action mappings: stage, reset, undo, preview, diff, blame, show commit, quickfix.
           -- —————————————————————————————————————————————————————————————————————————————
           map({
             mode = "n",
@@ -218,14 +218,19 @@ return {
             buffer = bufnr,
           })
 
-          -- undo_stage_hunk is depcrated.
-          -- Ref: https://github.com/lewis6991/gitsigns.nvim/issues/1180
+          map({
+            mode = "n",
+            lhs = "<leader>gU",
+            rhs = gitsigns.reset_buffer_index,
+            desc = "Gitsigns: Unstage Buffer (git reset)",
+            buffer = bufnr,
+          })
+
           map({
             mode = "n",
             lhs = "<leader>gu",
-            ---@diagnostic disable-next-line: deprecated
-            rhs = gitsigns.undo_stage_hunk,
-            desc = "Gitsigns: Undo Staged Hunk",
+            rhs = gitsigns.stage_hunk,
+            desc = "Gitsigns: Unstage Staged Hunk",
             buffer = bufnr,
           })
 
@@ -265,13 +270,31 @@ return {
             buffer = bufnr,
           })
 
+          map({
+            mode = "n",
+            lhs = "<leader>gq",
+            rhs = gitsigns.setqflist,
+            desc = "Gitsigns: Hunks to Quickfix (buffer)",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<leader>gQ",
+            rhs = function()
+              gitsigns.setqflist("all")
+            end,
+            desc = "Gitsigns: Hunks to Quickfix (all files)",
+            buffer = bufnr,
+          })
+
           -- Diff (HEAD / latest commit):
           map({
             mode = "n",
             lhs = "<C-g>dhd",
             rhs = function()
               ---@diagnostic disable-next-line: param-type-mismatch
-              gitsigns.diffthis("~1")
+              gitsigns.diffthis("~1", { vertical = true })
             end,
             desc = "Gitsigns: side-by-side",
             buffer = bufnr,
@@ -281,8 +304,34 @@ return {
           map({
             mode = "n",
             lhs = "<C-g>did",
-            rhs = gitsigns.diffthis,
+            rhs = function()
+              gitsigns.diffthis(nil, { vertical = true })
+            end,
             desc = "Gitsigns: side-by-side",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>dis",
+            rhs = gitsigns.show,
+            desc = "Gitsigns: show index version",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>dw",
+            rhs = gitsigns.toggle_word_diff,
+            desc = "Gitsigns: toggle word diff",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>dl",
+            rhs = gitsigns.toggle_linehl,
+            desc = "Gitsigns: toggle line highlight",
             buffer = bufnr,
           })
 

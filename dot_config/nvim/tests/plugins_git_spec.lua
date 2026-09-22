@@ -1,4 +1,4 @@
--- Two subjects in `lua/plugins/git.lua`, sharing one load of the file.
+-- Three subjects in `lua/plugins/git.lua`, sharing one load of the file.
 --
 -- The `<C-g>` guards in `lua/plugins/git.lua` (B87). `github.repo` and
 -- `github.account` answer `nil, message` when `gh` cannot, and every keymap that
@@ -10,6 +10,10 @@
 -- user interface. The fakes mirror the real modules' argument contracts (a
 -- missing `repo_name` raises, as `git.latest_commit` does), so a dropped guard
 -- fails a case rather than passing quietly.
+--
+-- Every gitsigns mapping, against the gitsigns function it reaches and the
+-- arguments it passes, with gitsigns itself faked down to a per-function
+-- recorder.
 --
 -- And `<leader>gM`, whose callback decides between focusing the blame window
 -- this file already has open and opening a new one. Real windows and real
@@ -44,16 +48,63 @@ local git_fake = {}
 local util_fake = {}
 local overseer_fake = {}
 
--- gitsigns, down to the two functions `lua/plugins/git.lua` reaches: `setup` at
--- configure time, and `blame`, which is what `<leader>gM` calls when it decides
--- no blame window is open.
-local blame_calls = 0
+-- gitsigns, faked down to one recorder per function `lua/plugins/git.lua`
+-- reaches. `setup` is called at configure time and answers nothing; every other
+-- entry records the name it was called under and the arguments it received, so
+-- a mapping pointed at the wrong function or handed the wrong arguments fails a
+-- case below rather than passing on the strength of its own description.
+local gitsigns_calls = {}
+
+local function reset_gitsigns_calls()
+  for index = #gitsigns_calls, 1, -1 do
+    gitsigns_calls[index] = nil
+  end
+end
+
+local function count_gitsigns_calls(name)
+  local count = 0
+  for _, call in ipairs(gitsigns_calls) do
+    if call.name == name then
+      count = count + 1
+    end
+  end
+  return count
+end
+
+-- `setup` keeps the options it was handed: the buffer-local mappings live in
+-- `on_attach`, which gitsigns calls when it attaches and which nothing here
+-- would otherwise reach.
+local setup_opts
 local gitsigns_fake = {
-  setup = function() end,
-  blame = function()
-    blame_calls = blame_calls + 1
+  setup = function(cfg)
+    setup_opts = cfg
   end,
 }
+
+for _, name in ipairs({
+  "blame",
+  "blame_line",
+  "diffthis",
+  "nav_hunk",
+  "preview_hunk",
+  "preview_hunk_inline",
+  "reset_buffer",
+  "reset_buffer_index",
+  "reset_hunk",
+  "select_hunk",
+  "setqflist",
+  "show",
+  "show_commit",
+  "stage_buffer",
+  "stage_hunk",
+  "toggle_current_line_blame",
+  "toggle_linehl",
+  "toggle_word_diff",
+}) do
+  gitsigns_fake[name] = function(...)
+    table.insert(gitsigns_calls, { name = name, args = { ... } })
+  end
+end
 
 local function set_scenario(scenario)
   if scenario == "account_fails" then
@@ -150,10 +201,21 @@ end
 
 -- `map` is a global installed by init.lua, which this runner never loads.
 local captured = {}
+
+-- The same mappings keyed by mode and left-hand side together. `captured` keeps
+-- only the last spec declared on a key, and two of the gitsigns keys are
+-- declared twice, once in normal mode and once in visual, so the gitsigns table
+-- below reads its rows from here.
+local captured_by_mode = {}
+
 local function capture_map(spec)
   local lhs_list = type(spec.lhs) == "table" and spec.lhs or { spec.lhs }
+  local mode_list = type(spec.mode) == "table" and spec.mode or { spec.mode }
   for _, lhs in ipairs(lhs_list) do
     captured[lhs] = spec
+    for _, mode in ipairs(mode_list) do
+      captured_by_mode[mode .. " " .. lhs] = spec
+    end
   end
 end
 
@@ -272,6 +334,20 @@ with_fake_modules(function()
     gitsigns_spec.config()
   end)
   assert(ok, "the gitsigns spec's config raised: " .. tostring(err))
+end)
+
+assert(setup_opts, "the gitsigns spec's config did not call setup")
+assert(type(setup_opts.on_attach) == "function", "the gitsigns setup options carry no on_attach")
+
+-- The buffer-local mappings, declared once against a scratch buffer. gitsigns
+-- passes the buffer it attached to; `map` records the rows rather than
+-- installing them, so the buffer is only what the callbacks close over.
+local attach_buffer = vim.api.nvim_create_buf(false, true)
+with_fake_modules(function()
+  local ok, err = with_fake_sinks(function()
+    setup_opts.on_attach(attach_buffer)
+  end)
+  assert(ok, "the gitsigns spec's on_attach raised: " .. tostring(err))
 end)
 
 -- Keys whose callback reads a field off `github.account`, and keys that read one
@@ -507,7 +583,7 @@ local function press_blame_walk(case)
   vim.api.nvim_win_set_buf(source_window, source)
   vim.b[source].gitsigns_status_dict = case.status
 
-  blame_calls = 0
+  reset_gitsigns_calls()
   local ok, err = pcall(captured["<leader>gM"].rhs)
   local focused = vim.api.nvim_get_current_win()
 
@@ -519,7 +595,7 @@ local function press_blame_walk(case)
   assert(ok, "<leader>gM raised: " .. tostring(err))
   return {
     focused = focused == source_window and "source" or blame_windows[focused] or "elsewhere",
-    blames_opened = blame_calls,
+    blames_opened = count_gitsigns_calls("blame"),
   }
 end
 
@@ -601,6 +677,113 @@ cases["`<leader>gM` focuses the blame in a repository rooted at the filesystem r
     status = { gitdir = "/.git", root = "/" },
     blames = { "gitsigns-blame:///.git//:0:x.lua" },
   }, { focused = 1, blames_opened = 0 })
+end
+
+-- Every gitsigns mapping `lua/plugins/git.lua` declares, against the gitsigns
+-- function it must reach and the arguments it must hand over. A mapping dropped
+-- from the file, renamed, moved to another mode or repointed at a neighbouring
+-- function fails here.
+--
+-- `args` pins a constant argument list. `range` marks the two visual-mode
+-- mappings, which pass the selection's line numbers and so carry a value that
+-- the cursor position decides rather than the source.
+local GITSIGNS_KEYS = {
+  { lhs = "]g", mode = "n", fn = "nav_hunk", args = { "next", { target = "all" } } },
+  { lhs = "[g", mode = "n", fn = "nav_hunk", args = { "prev", { target = "all" } } },
+  { lhs = "<leader>ga", mode = "n", fn = "stage_hunk", args = {} },
+  { lhs = "<leader>ga", mode = "v", fn = "stage_hunk", range = true },
+  { lhs = "<leader>gA", mode = "n", fn = "stage_buffer", args = {} },
+  { lhs = "<leader>gr", mode = "n", fn = "reset_hunk", args = {} },
+  { lhs = "<leader>gr", mode = "v", fn = "reset_hunk", range = true },
+  { lhs = "<leader>gR", mode = "n", fn = "reset_buffer", args = {} },
+  { lhs = "<leader>gU", mode = "n", fn = "reset_buffer_index", args = {} },
+  { lhs = "<leader>gu", mode = "n", fn = "stage_hunk", args = {} },
+  { lhs = "<leader>gp", mode = "n", fn = "preview_hunk", args = {} },
+  { lhs = "<leader>gi", mode = "n", fn = "preview_hunk_inline", args = {} },
+  { lhs = "<leader>gB", mode = "n", fn = "blame_line", args = { { full = true } } },
+  { lhs = "<leader>gc", mode = "n", fn = "show_commit", args = {} },
+  { lhs = "<leader>gq", mode = "n", fn = "setqflist", args = {} },
+  { lhs = "<leader>gQ", mode = "n", fn = "setqflist", args = { "all" } },
+  { lhs = "<leader>gm", mode = "n", fn = "blame_line", args = { { full = true } } },
+  { lhs = "<leader>gM", mode = "n", fn = "blame", args = {} },
+  { lhs = "<C-g>dhd", mode = "n", fn = "diffthis", args = { "~1", { vertical = true } } },
+  { lhs = "<C-g>did", mode = "n", fn = "diffthis", args = { nil, { vertical = true } } },
+  { lhs = "<C-g>dis", mode = "n", fn = "show", args = {} },
+  { lhs = "<C-g>dw", mode = "n", fn = "toggle_word_diff", args = {} },
+  { lhs = "<C-g>dl", mode = "n", fn = "toggle_linehl", args = {} },
+  { lhs = "<C-g>Bt", mode = "n", fn = "toggle_current_line_blame", args = {} },
+  { lhs = "ih", mode = "o", fn = "select_hunk", args = {} },
+  { lhs = "ih", mode = "x", fn = "select_hunk", args = {} },
+}
+
+---One press of a gitsigns mapping, answering the calls it made. Run in a
+---scratch buffer of its own: `]g` and `[g` read `vim.wo.diff`, and the two
+---range mappings read the cursor position.
+---@param row table
+---@return table
+local function press_gitsigns(row)
+  local key = row.mode .. " " .. row.lhs
+  local spec = captured_by_mode[key] or error("no keymap captured for " .. key)
+  assert(type(spec.rhs) == "function", key .. " has no callable right hand side")
+
+  reset_gitsigns_calls()
+  local ok, err = pcall(spec.rhs)
+  assert(ok, key .. " raised: " .. tostring(err))
+
+  return { calls = gitsigns_calls, desc = spec.desc }
+end
+
+for _, row in ipairs(GITSIGNS_KEYS) do
+  cases[("`%s` in %s mode calls gitsigns.%s"):format(row.lhs, row.mode, row.fn)] = function()
+    local answer = press_gitsigns(row)
+    local where = row.mode .. " " .. row.lhs
+
+    assert(#answer.calls == 1, ("%s made %d gitsigns calls, expected 1"):format(where, #answer.calls))
+    assert(
+      answer.calls[1].name == row.fn,
+      ("%s called gitsigns.%s, expected gitsigns.%s"):format(where, answer.calls[1].name, row.fn)
+    )
+
+    local args = answer.calls[1].args
+    if row.range then
+      assert(#args == 1 and type(args[1]) == "table" and #args[1] == 2, where .. " did not pass a two-line range")
+    else
+      assert(
+        vim.deep_equal(args, row.args),
+        ("%s passed %s, expected %s"):format(where, vim.inspect(args), vim.inspect(row.args))
+      )
+    end
+
+    assert(
+      type(answer.desc) == "string" and answer.desc:match("^Gitsigns: "),
+      where .. " carries no `Gitsigns: ` description for which-key"
+    )
+  end
+end
+
+-- A mapping added to the gitsigns spec without a row above would otherwise go
+-- uncovered. Its description is what identifies it: the `<C-g>B` keys that read
+-- `git.blame_sha` rather than gitsigns are described as `Git Blame:` instead.
+cases["the gitsigns table covers every `Gitsigns: ` mapping the spec declares"] = function()
+  local covered = {}
+  for _, row in ipairs(GITSIGNS_KEYS) do
+    local key = row.mode .. " " .. row.lhs
+    assert(not covered[key], key .. " appears twice in the gitsigns table")
+    covered[key] = true
+  end
+
+  local uncovered = {}
+  for key, spec in pairs(captured_by_mode) do
+    if type(spec.desc) == "string" and spec.desc:match("^Gitsigns: ") and not covered[key] then
+      table.insert(uncovered, key)
+    end
+  end
+  table.sort(uncovered)
+
+  assert(
+    #uncovered == 0,
+    ("%d gitsigns mappings are not in the table: %s"):format(#uncovered, table.concat(uncovered, ", "))
+  )
 end
 
 return cases
