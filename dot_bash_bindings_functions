@@ -530,83 +530,67 @@ __bash_bindings_network_summary() {
   ping -c 3 8.8.8.8
 }
 
+# Pick a binding out of the records `chord render menu` generates from
+# dot_config/chord/bindings.toml, then run it. The records carry every row
+# whatever modes it binds in, with its group and description.
 __bash_bindings_list_bash_bindings() {
-  local -a files=(
-    "${HOME}/.bash_bindings"
-    "${HOME}/.fzf_bindings"
-  )
-
-  local f
-  local -a existing_files=()
-  for f in "${files[@]}"; do
-    [[ -f $f ]] && existing_files+=("$f")
-  done
-
-  local red="\033[31m"
-  local reset="\033[0m"
-
-  [[ ${#existing_files[@]} -gt 0 ]] || {
-    printf "${red}No binding files found: %s${reset}\n" "${files[*]}" >&2
+  local records="$HOME/.config/chord/bindings-menu.tsv"
+  if [[ ! -r $records ]]; then
+    printf 'no binding records at %s; run `just chord-render` and apply\n' "$records" >&2
     return 1
-  }
-
-  local file line
-  local -a bindings=()
-  for file in "${existing_files[@]}"; do
-    while IFS= read -r line; do
-      # Only process lines with vi-insert.
-      [[ $line == *vi-insert* ]] || continue
-
-      # Extract key and command using grep + Perl-style regex.
-      if [[ $line =~ \"\\([^\"]+)\":\ \"([^\"]+)\"\'[[:space:]]*(\#.*)?$ ]]; then
-        local key="${BASH_REMATCH[1]}"
-        local cmd="${BASH_REMATCH[2]}"
-        local description="${BASH_REMATCH[3]}"
-
-        if [[ $key =~ ^(C-|M-)(.) ]]; then
-          key="${BASH_REMATCH[1]}${BASH_REMATCH[2]} ${key:3}"
-        fi
-
-        # Remove leading '\C-x0' from cmd, if present.
-        cmd="${cmd#\\C-x0}"
-
-        # If trailing '\r' exists, then remove it and populate `enter` variable.
-        local enter=""
-        if [[ $cmd == *\\r ]]; then
-          cmd="${cmd%\\r}"
-          enter="Enter"
-        fi
-
-        bindings+=("${key}|${cmd}|${enter}|${description}")
-      fi
-    done <"$file"
-  done
-
-  local pager
-  if command -v bat &>/dev/null; then
-    pager='bat --paging=always --color=always'
-  else
-    pager='less -R'
   fi
 
-  # Sort files:
-  local -a sorted_bindings
-  mapfile -t sorted_bindings < <(printf "%s\n" "${bindings[@]}" | sort)
+  # key, group, description, action, in that order, for both paths below. A
+  # key is never truncated, because the operator needs the whole chord; a
+  # description is, because it is prose of no fixed length.
+  local display='%-14s %-18s %-46.46s %s'
 
-  local line key cmd enter description
-  for line in "${sorted_bindings[@]}"; do
-    IFS="|" read -r key cmd enter description <<<"$line"
+  # Without fzf there is nothing to pick with, so print the surface instead.
+  if ! command -v fzf &>/dev/null; then
+    awk -F'\t' -v display="$display" '!/^#/ { printf display "\n", $1, $2, $5, $4 }' "$records"
+    return 0
+  fi
 
-    [[ -n $enter ]] && enter=" ${enter}"
-    [[ -n $description ]] && description="$(echo "  ${description}" | fold -s -w 50 | sed '2,$s/^/               /')"
+  # Field 1 is the padded display; fzf searches and shows it alone, and
+  # fields 2 and 3 carry the kind and the action back out of the selection.
+  local selection
+  selection="$(
+    awk -F'\t' -v display="$display" 'BEGIN { OFS = "\t" }
+      !/^#/ { print sprintf(display, $1, $2, $5, $4), $3, $4, $5 }
+    ' "$records" |
+      fzf --delimiter=$'\t' --with-nth=1 --no-multi \
+        --prompt='binding> ' \
+        --header='enter runs the selection; an insert binding arrives on an editable line'
+  )" || return 0
+  [[ -n $selection ]] || return 0
 
-    local blue="\033[34m"
-    local purple="\033[35m"
-    local dark_gray="\033[90m"
-    local light_gray="\033[37m"
+  # The trailing whole description is there for fzf to search, not to read.
+  local -a fields=()
+  IFS=$'\t' read -r -a fields <<<"$selection"
+  local kind="${fields[1]}" action="${fields[2]}"
 
-    printf "${blue}%-10s${reset} ${light_gray}:${reset} ${purple}%s${reset}${dark_gray}%s${reset}${light_gray}%s${reset}\n" \
-      "$key" "$cmd" "$enter" "$description"
-  done | $pager
-  unset IFS
+  case "$kind" in
+    run | function)
+      history -s "$action"
+      eval "$action"
+      ;;
+    insert)
+      # An insert binding types an incomplete line, so seed readline with it
+      # and let the operator finish it.
+      local line
+      read -r -e -i "$action" -p 'run> ' line || return 0
+      [[ -n $line ]] || return 0
+      history -s "$line"
+      eval "$line"
+      ;;
+    command | macro)
+      printf '%s edits the line rather than running a command; press its chord instead\n' \
+        "$action" >&2
+      return 1
+      ;;
+    *)
+      printf 'unknown binding kind: %s\n' "$kind" >&2
+      return 1
+      ;;
+  esac
 }

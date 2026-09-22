@@ -1,6 +1,6 @@
 //! Bash: readline `bind` calls, in the style of the file this replaces.
 
-use super::{RenderFault, ShellRenderer};
+use super::{RenderFault, Renderer};
 use crate::keys;
 use crate::table::{Action, Binding, Group, Table};
 
@@ -32,7 +32,7 @@ const CLEAR_LINE: &str = "\\C-x0";
 
 pub struct Bash;
 
-impl ShellRenderer for Bash {
+impl Renderer for Bash {
     fn render(&self, table: &Table) -> Result<String, RenderFault> {
         let mut out = String::from(HEADER);
         for group in &table.group {
