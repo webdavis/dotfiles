@@ -215,7 +215,18 @@ Config {
         review_notes_glob: None,
         retain: 2592000s,
         sources: Sources {
-            pull_requests: None,
+            pull_requests: Some(
+                [
+                    "bash",
+                    "-c",
+                    "[[ \"$1\" == \"{\"* ]] || gh api graphql -f q=\"author:@me is:pr is:merged merged:$1..$2\" -f query=\"$3\" --jq \"$4\"",
+                    "_",
+                    "{since}",
+                    "{until}",
+                    "query($q: String!) { search(query: $q, type: ISSUE, first: 100) { nodes { ... on PullRequest { number title headRefName repository { name } } } } }",
+                    ".data.search.nodes[] | \"#\\(.number) \\(.repository.name) \\(.headRefName) \\(.title)\"",
+                ],
+            ),
             commits: None,
             tasks: Some(
                 [

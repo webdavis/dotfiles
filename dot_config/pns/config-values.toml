@@ -245,11 +245,26 @@ behaviours = ["loop", "blocked", "unseen"]
 behaviours = ["loop", "blocked", "unseen"]
 dim_behaviours = ["blocked", "unseen", "loop"]
 
-# The two list sections this machine fills. `pull_requests` and `commits` stay
-# unnamed: the open pull requests reach the operator through the GitHub
-# notification source already, and hand-made commits are not what this machine
-# does. A source is an ARGV LIST run directly, one row per line of output.
+# The three list sections this machine fills. `commits` stays unnamed:
+# hand-made commits are not what this machine does. A source is an ARGV LIST
+# run directly, one row per line of output.
 [recap.sources]
+# The pull requests the operator authored that merged inside the window, one
+# row each as `#<number> <repository> <branch> <title>`, which is the shape
+# the agents section reads a session's pull request out of. The `open` run
+# passes the placeholders through unreplaced, and that run prints nothing:
+# open pull requests reach the operator through the GitHub notification
+# source already. `gh` carries its own credentials; pns never reads a token.
+pull_requests = [
+  "bash",
+  "-c",
+  '[[ "$1" == "{"* ]] || gh api graphql -f q="author:@me is:pr is:merged merged:$1..$2" -f query="$3" --jq "$4"',
+  "_",
+  "{since}",
+  "{until}",
+  "query($q: String!) { search(query: $q, type: ISSUE, first: 100) { nodes { ... on PullRequest { number title headRefName repository { name } } } } }",
+  '.data.search.nodes[] | "#\(.number) \(.repository.name) \(.headRefName) \(.title)"',
+]
 # Today's tasks, through the Todoist CLI, which carries its own credentials;
 # pns never reads a token. One line per task (its priority, then its first
 # line), so the row cap spends itself on tasks rather than on td's multi-line
