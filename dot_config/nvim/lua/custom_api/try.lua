@@ -13,14 +13,13 @@
 ---  return git.default_branch()
 ---end, { label = "git.default_branch" })
 ---```
----@param fn fun():any The call to run.
----@param opts { label: string } `label` names the call in the notification.
----@return any ... `fn`'s values, or nothing when it failed.
-
 local function collect(...)
   return select("#", ...), { ... }
 end
 
+---@param fn fun():any The call to run.
+---@param opts { label: string } `label` names the call in the notification.
+---@return any ... `fn`'s values, or nothing when it failed.
 return function(fn, opts)
   opts = opts or {}
   local label = opts.label
