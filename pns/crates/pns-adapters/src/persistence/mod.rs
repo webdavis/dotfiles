@@ -24,7 +24,6 @@ pub use rings::{
 pub use rings::{remember_staleness, remembered_staleness};
 
 pub use rings::LIGHTS_SAID;
-pub use rings::record_policy_settings_change;
 pub use rings::{LIGHTS_QUIET, LIGHTS_QUIET_SAID, advance_streak, muted_state, publish_muted};
 
 pub use rings::FileLampState;

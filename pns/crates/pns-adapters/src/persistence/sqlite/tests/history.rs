@@ -33,22 +33,23 @@ fn presence_history_retains_five_exact_codec_lines_and_the_latest_narrowing() {
     );
 }
 #[test]
-fn policy_settings_history_retains_twenty_receipts_with_unknown_clock_and_empty_path_wording() {
-    let store = SqliteStore::new(state());
-    let _open = store.connect().unwrap();
-    for n in 0..20 {
-        store
-            .record_policy_settings_change(&format!("s{n}"), "", None)
-            .unwrap();
-    }
-    let before = store.policy_settings_history().unwrap().unwrap();
-    assert_eq!(before.lines().count(), 20);
-    assert!(before.starts_with("0 session=s0 file=none\n"));
-    store
-        .record_policy_settings_change("last", "/project/settings.json", Some(u64::MAX))
+fn migrating_a_version_13_store_drops_the_policy_audit_table() {
+    let state = state();
+    let connection = SqliteStore::new(state.clone()).connect().unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS policy_audit (seq INTEGER PRIMARY KEY, line TEXT NOT NULL); \
+             PRAGMA user_version = 13;",
+        )
         .unwrap();
-    let after = store.policy_settings_history().unwrap().unwrap();
-    assert_eq!(after.lines().count(), 20);
-    assert!(after.starts_with("0 session=s1 file=none\n"));
-    assert!(after.ends_with("18446744073709551615 session=last file=/project/settings.json\n"));
+    drop(connection);
+    let connection = SqliteStore::new(state).connect().unwrap();
+    let left: u32 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'policy_audit'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(left, 0);
 }
