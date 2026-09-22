@@ -2,6 +2,9 @@
   "runtime": {
     "version": "LuaJIT"
   },
+  "diagnostics": {
+    "globals": ["Snacks"]
+  },
   "workspace": {
     "ignoreGlobs": ["**/tests/**"],
     "library": [
