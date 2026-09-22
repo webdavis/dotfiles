@@ -36,7 +36,7 @@ const OWNED: &[Owned] = &[
     Owned {
         event: "PermissionRequest",
         action: "blocked",
-        flags: " --remind",
+        flags: " --remind=5m",
     },
     // The answered signal, on both events that end a wait: PostToolUse fires
     // once a tool has produced output, including a non-zero exit, and Interrupt
@@ -122,6 +122,9 @@ fn spellings(home: &str, owned: &Owned, current: &str) -> Vec<String> {
         owned.action
     };
     let mut spellings = vec![current.to_string()];
+    if owned.action == "blocked" {
+        spellings.push(current.replace(" --remind=5m", " --remind"));
+    }
     for variable in ["PNS_PRODUCER", "PNS_AGENT", "RELAY_AGENT"] {
         for engine in [".cargo/bin/pns", ".local/libexec/pns/pns"] {
             spellings.push(format!(
