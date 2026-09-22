@@ -82,5 +82,5 @@ drives every refusal path through the scripted transport and asserts the secret 
 
 `dam`, the operator's own task and calendar store, is this feature's primary owner: a `type = "dam"`
 reader arrives in a later pull request, and the google reader is the alternative for a machine without
-dam. The one-time consent verb that mints the refresh token arrives with it; until then the token is
-supplied by hand.
+dam. The one-time verb that mints the refresh token is `pns calendar consent`, in
+`calendar-consent.md`.
