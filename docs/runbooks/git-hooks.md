@@ -63,11 +63,12 @@ COMMIT, and on PR #116 the local gate passed while CI failed, on an edit that wa
 **What this narrowed:** every push used to run the whole suite locally, whatever the branch. CI runs on
 pull requests and on pushes to `main`, so a push to a topic branch with no open pull request now runs the
 suite nowhere. None of this touches branch protection, which is weaker than "cannot merge red" anyway:
-`lint` is a required status check on `main`, so a red pull request is blocked there, but `enforce_admins`
-is off, so a repository administrator can merge one red regardless. Widening the workflow's `push`
-trigger to every branch was weighed and rejected: `push` and `pull_request` both fire once a branch has a
-pull request, so it would run two identical macOS jobs per push for the whole life of every branch, to
-cover the window before a pull request exists. `just ship` covers that window on demand instead.
+`gates` is a required status check on `main`, so a red pull request is blocked there, but
+`enforce_admins` is off, so a repository administrator can merge one red regardless. Widening the
+workflow's `push` trigger to every branch was weighed and rejected: `push` and `pull_request` both fire
+once a branch has a pull request, so it would run two identical macOS jobs per push for the whole life of
+every branch, to cover the window before a pull request exists. `just ship` covers that window on demand
+instead.
 
 ## post-commit: per-repo knowledge-graph rebuild
 

@@ -244,8 +244,8 @@ repository runs its own gates. It turns the shell-agnostic binding table at
 `dot_config/chord/bindings.toml` into readline `bind` calls and into the tab-separated records the
 binding picker reads, so the chords are written once in a plain notation rather than in each shell's own
 escapes. It arrives the way `dam` does, from a pinned revision in the `packages.cargo_git_tools` roster,
-and `.github/workflows/lint.yml` installs that same pinned revision by reading it out of the roster, so
-the gate below has a binary in CI without a second copy of the pin. This makes the required `lint` check
+and `.github/workflows/ci.yml` installs that same pinned revision by reading it out of the roster, so the
+gate below has a binary in CI without a second copy of the pin. This makes the required `gates` check
 depend on `github.com/webdavis/chord` being reachable on every run: if that repository goes private,
 disappears, or the pinned revision is garbage-collected, CI goes red for a reason unrelated to the change
 under test, with no fallback. **`dot_bash_bindings` and `dot_config/chord/bindings-menu.tsv` are
@@ -489,13 +489,13 @@ machine for unrelated uses; this repo never invokes it.
 
 **mdformat is version pinned and the pins live in two places.** It rewrites markdown, so a version bump
 silently rewraps every file and fails the drift gate on work nobody did. The exact `==` versions are in
-the `setup` recipe and again in the toolchain step of `.github/workflows/lint.yml`; nothing enforces that
+the `setup` recipe and again in the toolchain step of `.github/workflows/ci.yml`; nothing enforces that
 the two agree, so they must be moved together by hand. The same hand-sync applies to `Brewfile.dev`
 against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
 the pre-commit hook; CI never commits).
 
 **bashunit uses a pinned upstream beta in CI.** The stable release 0.50.1 splits comma-containing
-exclusions incorrectly. `.github/workflows/lint.yml` checks out `BASHUNIT_COMMIT`, runs upstream's
+exclusions incorrectly. `.github/workflows/ci.yml` checks out `BASHUNIT_COMMIT`, runs upstream's
 unchanged build, and verifies the executable against `BASHUNIT_SHA256` before adding it to `PATH`. The
 Git checkout is required because upstream's source archives omit documentation the build embeds.
 
@@ -525,11 +525,11 @@ growing a `cargo install` step, because it has no cargo prerequisite to build on
 
 ### CI
 
-GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and on pull
+GitHub Actions (`.github/workflows/ci.yml`) runs on `macos-latest` on pushes to main and on pull
 requests, with workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout,
 and actions SHA-pinned to full commit SHAs. `.github/dependabot.yml` keeps the pins fresh weekly behind a
 7-day release cooldown; its PRs auto-merge via `.github/workflows/dependabot-automerge.yml`, which uses
-`gh pr merge --auto` so branch protection, where `lint` is a required status check on `main`, is what
+`gh pr merge --auto` so branch protection, where `gates` is a required status check on `main`, is what
 actually holds the merge until green.
 
 Five steps: checkout, install the toolchain (brew + uv), then the three gates as literal commands:

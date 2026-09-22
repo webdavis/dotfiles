@@ -4,7 +4,7 @@
 
 # Dotfiles for Webdavis
 
-[![Lint](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml/badge.svg)](https://github.com/webdavis/dotfiles/actions/workflows/lint.yml)
+[![CI](https://github.com/webdavis/dotfiles/actions/workflows/ci.yml/badge.svg)](https://github.com/webdavis/dotfiles/actions/workflows/ci.yml)
 
 This repository contains the settings/configs for my computers, managed using
 [Chezmoi](https://www.chezmoi.io/).

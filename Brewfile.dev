@@ -6,7 +6,7 @@
 # CI's are written down in the same shape.
 #
 # HAND-SYNCED WITH CI, deliberately. The toolchain step in
-# .github/workflows/lint.yml installs this same list by name, and nothing
+# .github/workflows/ci.yml installs this same list by name, and nothing
 # enforces that the two agree (the parity test went with the 2026-08-05 scope
 # ruling: it checked declarations against declarations, not our behavior).
 # Change one and change the other by hand.
