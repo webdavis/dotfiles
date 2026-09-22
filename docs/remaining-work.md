@@ -2685,11 +2685,16 @@ is missing.
   1072 hermes legs acknowledged, 19 banner deliveries on blocked and 22 phone cards on done and asking,
   and `~/.codex/config.toml` now carries a `trusted_hash` for both pns entries in `~/.codex/hooks.json`,
   which closes the drill ledger's last open item; what remains is a blocked Codex event answered on the
-  phone, since 0 of 758 produced a `mobile` leg. Drill 29 CANNOT PASS as written: `run_after_62` still
-  repoints both `moshi-hooks.ts` extensions at `/Users/stephen/.cargo/bin/pns` (regenerated 2026-09-09
-  23:42 under moshi-hook 0.3.16), but that generation calls `helperBinary` only for debug replay, spawns
-  nothing but `tmux`, and sends events over moshi's unix socket, so pns is out of pi and omp's path and
-  no event has ever carried `agent='pi'`; filed as
+  phone, since 0 of 758 produced a `mobile` leg. Drill 28 CLOSED 2026-09-22: with moshi-hook 0.3.26,
+  around 17:00, the operator answered a real Codex permission request from the phone and the command ran,
+  under `codex -s read-only -a on-request -c approvals_reviewer=user`. Codex's default
+  `approvals_reviewer = auto_review` approves escalations itself and never asks a human, which is why the
+  first attempt raised no card. A Claude Code approval answered from the phone under
+  `--permission-mode manual` also worked. Drill 29 CANNOT PASS as written: `run_after_62` still repoints
+  both `moshi-hooks.ts` extensions at `/Users/stephen/.cargo/bin/pns` (regenerated 2026-09-09 23:42 under
+  moshi-hook 0.3.16), but that generation calls `helperBinary` only for debug replay, spawns nothing but
+  `tmux`, and sends events over moshi's unix socket, so pns is out of pi and omp's path and no event has
+  ever carried `agent='pi'`; filed as
   [the pi/omp gate decision](https://app.todoist.com/app/task/6hW4H5jRxrJp8XJG). Drill 29 CLOSED
   2026-09-22 as obsolete, by operator ruling: pi and omp are accepted as moshi-direct, so the bare
   `pns <harness>-hook` gate and its tests are deleted, `run_after_62` no longer repoints `helperBinary`,
@@ -2712,26 +2717,23 @@ is missing.
   ([task](https://app.todoist.com/app/task/6hW4H7XQ6fXPJc3G)), and the 28 `pns` crash reports in
   `~/Library/Logs/DiagnosticReports` are interrupted `pns setup` runs (26 SIGQUIT through `Hushed::drop`
   in `ask_hidden`), not engine crashes. The one `pns doctor` run this sweep needed sent a real test
-  notification down every channel at about 22:35 local. Owed from the operator: (1) Drill 28's last leg:
-  leave the desk (or lock the screen), provoke a Codex permission request, and answer the card on the
-  phone. Every Codex approval so far landed on the banner (19 of 19), so the phone path for a Codex block
-  is the one thing unproven. Confirm afterwards with `pns doctor` (the decision line should read card:yes
-  with a mobile leg).; (2) Drill 29 (Todoist 6hW4H5jRxrJp8XJG): decided 2026-09-22, ungated pi and omp
-  pushes accepted and the gate retired; nothing owed.; (3) Fix the router probe before the NotHome drill
-  (Todoist 6hW4H6c9J64h79vp). With KeePassXC unlocked, run: curl -sk -H "X-API-KEY: \<UniFi :: API Key
-  (dresden-udr)>" https://192.168.1.1/proxy/network/integration/v1/sites . A 200 means the site id or
-  client query is at fault; a 401 means the key was rotated and needs re-pasting into the vault entry,
-  then a full `chezmoi apply`.; (4) Once `pns home` reads Home again, run the NotHome drill: phone off
-  wifi, `pns home` expects "NOT on the home network", wifi back on, Home again within about 15 seconds.;
-  (5) Run the daylight lights comparison in daylight: blocked breathing, loop breathing, then the two
-  side by side. Use the Kitchen or MBedroom lamp, never the Studio, because [lights.lamp.\*] routes loop,
-  blocked and unread there and every reading taken on it is mid-animation.; (6) Schedule the two open
-  program items when you want them: the total-runtime performance pass (Todoist 6hPxWVHM8pG4qgwp) and the
-  /grill-me intent review over all of Part 2, not just lights (Todoist 6hPxWVwHGX9qFWpG).; (7) Optional,
-  cheap: enable `quiet_hours` on [plugins.hue] if you still want it, which is the only thing standing
-  between slice 7 and a drill.; (8) Decide on the missing hermes routes (Todoist 6hW4H7XQ6fXPJc3G):
-  posture pages currently have nowhere to land, and the fix needs the encrypted hermes config edited, an
-  apply, and `hermes gateway restart`.
+  notification down every channel at about 22:35 local. Owed from the operator: (1) Drill 28: closed
+  2026-09-22 on the phone answers above; nothing owed.; (2) Drill 29 (Todoist 6hW4H5jRxrJp8XJG): decided
+  2026-09-22, ungated pi and omp pushes accepted and the gate retired; nothing owed.; (3) Fix the router
+  probe before the NotHome drill (Todoist 6hW4H6c9J64h79vp). With KeePassXC unlocked, run: curl -sk -H
+  "X-API-KEY: \<UniFi :: API Key (dresden-udr)>" https://192.168.1.1/proxy/network/integration/v1/sites .
+  A 200 means the site id or client query is at fault; a 401 means the key was rotated and needs
+  re-pasting into the vault entry, then a full `chezmoi apply`.; (4) Once `pns home` reads Home again,
+  run the NotHome drill: phone off wifi, `pns home` expects "NOT on the home network", wifi back on, Home
+  again within about 15 seconds.; (5) Run the daylight lights comparison in daylight: blocked breathing,
+  loop breathing, then the two side by side. Use the Kitchen or MBedroom lamp, never the Studio, because
+  [lights.lamp.\*] routes loop, blocked and unread there and every reading taken on it is mid-animation.;
+  (6) Schedule the two open program items when you want them: the total-runtime performance pass (Todoist
+  6hPxWVHM8pG4qgwp) and the /grill-me intent review over all of Part 2, not just lights (Todoist
+  6hPxWVwHGX9qFWpG).; (7) Optional, cheap: enable `quiet_hours` on [plugins.hue] if you still want it,
+  which is the only thing standing between slice 7 and a drill.; (8) Decide on the missing hermes routes
+  (Todoist 6hW4H7XQ6fXPJc3G): posture pages currently have nowhere to land, and the fix needs the
+  encrypted hermes config edited, an apply, and `hermes gateway restart`.
 
 - [x] Evaluate native macOS probes for pns, approved 2026-09-13. MEASURED 2026-09-17; ADOPTION IS TASK
   144 AND WAITS ON ONE OPERATOR DECISION. Benchmark the current `ioreg` idle-time and screen-lock probes
