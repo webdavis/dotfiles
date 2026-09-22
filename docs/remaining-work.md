@@ -5340,8 +5340,11 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   unlock automation stays out of scope: it is a caller of `--notify`, and the subcommand is the API.
   [PR #841](https://github.com/webdavis/dotfiles/pull/841), merged `b56b75254`.
 
-- [ ] 133. Nightshift, the one-word overnight handoff, paired with gnhf. At bedtime one command composes
-  the overnight goal from the ledger (every open task that is unblocked, not operator-owned and not in an
+- [x] 133. Nightshift, WITHDRAWN 2026-09-22. Operator ruling: pns is a notification tool, not a task
+  runner, and its recap reports what happened and nothing more, so a verb that launches overnight work
+  does not belong in it. No code was written, and the design and plan documents were removed. The entry
+  as approved read: the one-word overnight handoff, paired with gnhf. At bedtime one command composes the
+  overnight goal from the ledger (every open task that is unblocked, not operator-owned and not in an
   excluded section, in ledger order, with the standing rules attached), launches it through gnhf's loop
   (see `docs/runbooks/local-agents.md`) or the harness's own goal, silences the personal channels for the
   night, and hands the morning to `pns recap`'s overnight window (slice 54 retires morning). Exclusions
@@ -5404,9 +5407,8 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
 
   RELATION TO OTHER TASKS. 126 becomes a rule input, not a switch. B18 (pause status lighting during
   quiet and Focus) becomes "the active profile decides whether status lighting runs", and the `default`
-  profile keeps B18's decided behaviour. 133 Nightshift selects `night` when it launches. `pns quiet`
-  stays as the short manual hush it is today and is documented as a temporary override of the active
-  profile's quiet setting.
+  profile keeps B18's decided behaviour. `pns quiet` stays as the short manual hush it is today and is
+  documented as a temporary override of the active profile's quiet setting.
 
   DONE MEANS: the three shipped profiles and the rules table are in `dot_config/pns/config-values.toml`
   and regenerated into the template; the resolver has a test per input and per precedence case;
