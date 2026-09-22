@@ -118,14 +118,11 @@ fn a_schema_mask_over_the_window_selects_nightshift() {
 fn a_word_that_names_no_window_prints_the_usage_listing_every_window() {
     let sandbox = sandbox_with_store("recap-window-typo");
     let output = run_expecting(2, sandbox.pns_stateful().args(["recap", "nightshfit"]));
-    assert!(
-        stderr(&output).contains(
-            "\npns: windows: nightshift, morning, afternoon, evening, today, yesterday, week, \
-             last-week\n"
-        ),
-        "{}",
-        stderr(&output)
+    let windows = format!(
+        "\npns: windows: {}\n",
+        pns_domain::recap::window::WINDOW_WORDS.join(", ")
     );
+    assert!(stderr(&output).contains(&windows), "{}", stderr(&output));
 }
 
 #[test]
