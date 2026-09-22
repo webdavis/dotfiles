@@ -7736,13 +7736,23 @@ force.
   evidence in the document. (7) If a migration ever proceeds, is keeping SHELL pointed at Bash agreed?
   Upstream advises it, fzf runs its preview and execute commands with $SHELL -c so the 64 fzf bindings
   require it, and it keeps every non-interactive door untouched.
-- [ ] SP4, improve the interactive shell after the SP5 verdict. Start from the existing Bash plan: alias
-  consolidation and one binding table that drives both key bindings and an fzf menu to view, select and
-  run them. Revisit the existing candidates for directory, stash, process, worktree and Herdr workspace
-  selection without treating every candidate as adopted. Reconcile the old Charm-tools evaluation with
-  the now-adopted gum output style, and obsolete declaration-testing requirements with today's
-  behavior-only test policy. Preserve the ratified Nushell no-go; do not assume xonsh adoption from its
-  evaluation task.
+- [x] SP4, improve the interactive shell. Shipped 2026-09-21, after the xonsh no-go unblocked it. Alias
+  consolidation done: 22 of the 27 aliases `~/.bashrc` declared inline moved into `~/.bash_aliases`, and
+  the five that stayed each need a template conditional the plain file cannot carry (`claude`, `ping`,
+  `bu` and `rm` behind the darwin gate, plus `j`, which stays paired with the carapace completion wrapper
+  that exists only because it does). The alias set is byte-identical across the move, 41 lines either
+  way. One table now drives both outputs: `chord render menu` emits one tab-separated record per binding
+  row, and `__bash_bindings_list_bash_bindings` reads those records instead of regex-scraping the
+  rendered `bind` calls, so all 176 rows are reachable with their group and description where the scraper
+  matched 139 lines and could never match a readline command at all. The picker also runs the selection,
+  which it previously could not: a `run` or `function` row executes, an `insert` row seeds an editable
+  line, and a `command` or `macro` row is refused because it edits the line rather than running a
+  command. `ctrl-x v` and the function name are unchanged. All five selection candidates were declined
+  with evidence rather than adopted, the Charm verdict was reconciled (the G2 look was adopted, gum
+  itself stays declined), and the per-binding declaration tests were dropped under the behavior-only
+  policy rather than satisfied; the reasoning for each is in
+  `docs/decisions/2026-09-21-sp4-interactive-shell-dispositions.md`. The Nushell no-go stands and xonsh
+  remains an on-demand subshell.
 - [ ] Future pns platforms and presence: Linux/homelab
   [#192](https://github.com/webdavis/dotfiles/issues/192), iOS companion
   [#193](https://github.com/webdavis/dotfiles/issues/193), Android
