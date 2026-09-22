@@ -458,7 +458,6 @@ table, with the old profile, the new one and the reason.
 | --- | --- |
 | 126, the calendar input | It becomes the `calendar_busy` rule input rather than a switch of its own. The existing `[quiet.calendar]` poll is what supplies it. |
 | B18, status lighting during quiet and Focus | The active profile's `lights` word decides whether status lighting runs. `default` has `lights = "all"`, which keeps B18's decided behaviour exactly. |
-| 133, Nightshift | It selects `night` when it launches, with `pns profile night --until <morning>`, and clears nothing: the bound is what ends it. |
 | `pns mute` | Unchanged, and documented as a temporary hush over the active profile's `quiet`. It is the operator's own hand, so it outranks the profile in both directions: a mute silences a profile that is loud, and it is the one hush a priority page still obeys. |
 
 NOTE ON SPELLING. The ledger calls it `pns quiet`. That word was retired: the verb is `pns mute`, and
