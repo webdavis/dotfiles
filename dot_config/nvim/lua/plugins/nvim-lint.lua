@@ -3,7 +3,7 @@
 -- `vim.diagnostic` namespace, which is what the none-ls diagnostic sources used
 -- to do through a fake language server.
 --
--- The three rows are the none-ls diagnostic sources that actually ran, with the
+-- The first three rows are the none-ls diagnostic sources that actually ran, with the
 -- same filetype split. none-ls expressed that split as a filetype list plus a
 -- `disabled_filetypes` list, so `actionlint` was registered for `yaml` and then
 -- disabled for `yaml.ansible`; nvim-lint matches a filetype exactly, so the
@@ -23,6 +23,9 @@
 --     filetypes. The none-ls source only ever ran from `node_modules/.bin`;
 --     nvim-lint's own eslint linter falls back to a bare `eslint` on PATH and
 --     notifies when it is missing, which on this machine is every project.
+--
+-- Lua is separate from that migration. luacheck keeps its unused-variable and
+-- global checks, while emmylua_check adds the type errors enforced by treefmt.
 
 return {
   {
@@ -30,9 +33,31 @@ return {
     event = { "BufReadPre", "BufNewFile" },
     config = function()
       local lint = require("lint")
+      local config_dir = vim.fn.stdpath("config")
+
+      local luacheck = lint.linters.luacheck
+      table.insert(luacheck.args, 1, config_dir .. "/.luacheckrc")
+      table.insert(luacheck.args, 1, "--config")
+
+      lint.linters.emmylua_check = {
+        cmd = "emmylua_check",
+        cwd = config_dir,
+        stdin = false,
+        args = {
+          "--config",
+          config_dir .. "/.emmyrc.json",
+          "--output-format",
+          "sarif",
+          "--severity",
+          "error",
+        },
+        ignore_exitcode = true,
+        parser = require("lint.parser").for_sarif(),
+      }
 
       lint.linters_by_ft = {
         dockerfile = { "hadolint" },
+        lua = { "luacheck", "emmylua_check" },
         yaml = { "actionlint" },
         ["yaml.ansible"] = { "ansible_lint" },
       }
@@ -40,14 +65,17 @@ return {
       local lint_group = vim.api.nvim_create_augroup("NvimLintGroup", { clear = true })
 
       -- The same three moments none-ls refreshed its diagnostics on: the buffer
-      -- arriving, a write, and leaving insert mode. actionlint and hadolint read
-      -- the buffer over stdin, so they see an unwritten edit; ansible-lint is
-      -- handed the file name and reads what is on disk, which is why the write
-      -- event is in the list rather than a text-change one.
+      -- arriving, a write, and leaving insert mode. emmylua_check is the one
+      -- disk-backed exception, so it runs only after a write while the other
+      -- linters keep their existing schedule.
       vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave" }, {
         group = lint_group,
-        callback = function()
-          lint.try_lint()
+        callback = function(args)
+          lint.try_lint(nil, {
+            filter = function(linter)
+              return args.event == "BufWritePost" or linter.name ~= "emmylua_check"
+            end,
+          })
         end,
       })
     end,

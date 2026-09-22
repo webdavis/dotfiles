@@ -1,0 +1,166 @@
+use crate::*;
+use pns_adapters::{Config, SqliteStore};
+use pns_domain::profiles::{Chose, Override, because, surfaces_line};
+
+pub(crate) const PROFILE_USAGE: &str =
+    "pns: usage: pns profile [<name> [--for <duration> | --until HH:MM] | clear]";
+
+/// The `profile` mode: which bundle of delivery settings is active.
+///
+/// TYPED BY HAND AND NEVER A HOOK, so a typo is a refusal rather than a
+/// silent fallthrough, exactly as `pns mute` argues for itself.
+///
+/// THE REPORT IS READ BACK from the store after whatever was asked for, so the
+/// line cannot claim a profile that never landed.
+pub(crate) fn profile_mode() -> i32 {
+    let argv: Vec<String> = crate::arguments_after_subcommand();
+    let records = SqliteStore::for_records(state_dir());
+    let config = crate::profile_runtime::load();
+    match argv.split_first() {
+        None => report(&records, &config),
+        Some((word, rest)) if word == "clear" && rest.is_empty() => {
+            if let Err(error) = records.set_profile_override(None) {
+                eprintln!(
+                    "pns: state error (the profile override could not be written: {error}); \
+                     the profile was not changed"
+                );
+                return 1;
+            }
+            report(&records, &config)
+        }
+        Some((name, rest)) => select(&records, &config, name, rest),
+    }
+}
+
+fn select(records: &SqliteStore, config: &Config, name: &str, rest: &[String]) -> i32 {
+    let defined = crate::profile_runtime::defined_profiles(config);
+    if !defined.iter().any(|known| known == name) {
+        if defined.is_empty() {
+            eprintln!("pns profile: this config defines no profiles");
+        } else {
+            eprintln!(
+                "pns profile: no profile named `{name}`; this config defines {}",
+                defined.join(", ")
+            );
+        }
+        return 2;
+    }
+    let until = match parse_bound(rest, now_secs(), crate::profile_runtime::minutes_now()) {
+        Ok(until) => until,
+        Err(BoundError::Clock(refusal)) => {
+            eprintln!("{refusal}");
+            return 1;
+        }
+        Err(BoundError::Usage(refusal)) => {
+            eprintln!("{refusal}");
+            eprintln!("{PROFILE_USAGE}");
+            return 2;
+        }
+    };
+    let standing = Override {
+        profile: name.to_string(),
+        until,
+    };
+    if let Err(error) = records.set_profile_override(Some(&standing)) {
+        eprintln!(
+            "pns: state error (the profile override could not be written: {error}); \
+             the profile was not changed"
+        );
+        return 1;
+    }
+    report(records, config)
+}
+
+/// The two lines `pns profile` prints: the active profile with what chose it,
+/// and what that profile admits.
+fn report(records: &SqliteStore, config: &Config) -> i32 {
+    let reading = crate::profile_runtime::active(records, config);
+    // A STORED OVERRIDE CAN OUTLIVE THE TABLE IT NAMED: the resolver falls
+    // back to `Profile::default()` rather than nothing, and the report says
+    // so instead of printing the default's surfaces under a name that
+    // suggests they are that override's own.
+    let unknown_note =
+        if !reading.profile_known && matches!(reading.resolved.chose, Chose::Manual { .. }) {
+            format!(
+                "; this config defines no `{}`, so the default settings apply",
+                reading.resolved.profile
+            )
+        } else {
+            String::new()
+        };
+    println!(
+        "pns: profile `{}` ({}{unknown_note})",
+        reading.resolved.profile,
+        because(
+            &reading.resolved.chose,
+            &reading.resolved.matched,
+            reading.until_clock.as_deref()
+        )
+    );
+    println!("     {}", surfaces_line(&reading.profile));
+    0
+}
+
+/// Why a bound could not be parsed: a typo, refused at exit 2 alongside the
+/// usage line, or an unreadable clock, refused at exit 1 like every other
+/// state error here.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum BoundError {
+    Usage(String),
+    Clock(String),
+}
+
+/// `--for <duration>` or `--until HH:MM`, or no bound at all.
+///
+/// `--until` PAST TODAY'S CLOCK MEANS TOMORROW. Asked at 17:00 to run until
+/// 09:00, the operator means nine in the morning; refusing it would make them
+/// do date arithmetic to say something unambiguous.
+pub(crate) fn parse_bound(
+    words: &[String],
+    now_secs: Option<u64>,
+    minutes_now: Option<u16>,
+) -> Result<Option<u64>, BoundError> {
+    let [flag, value] = words else {
+        if words.is_empty() {
+            return Ok(None);
+        }
+        return Err(BoundError::Usage(
+            "pns profile: expected `--for <duration>` or `--until HH:MM`".to_string(),
+        ));
+    };
+    let (Some(now), Some(minutes)) = (now_secs, minutes_now) else {
+        return Err(BoundError::Clock(
+            "pns: state error (the clock cannot be read); no bound was set".to_string(),
+        ));
+    };
+    match flag.as_str() {
+        "--for" => {
+            let held = pns_domain::duration::parse_duration(
+                "profile duration",
+                value,
+                pns_domain::mute::MUTE_RANGE,
+            )
+            .map_err(BoundError::Usage)?;
+            Ok(Some(now.saturating_add(held.as_secs())))
+        }
+        "--until" => {
+            let wanted = pns_domain::profiles::minute_of_clock(value).ok_or_else(|| {
+                BoundError::Usage(format!(
+                    "pns profile: {value:?} is not an HH:MM time of day"
+                ))
+            })?;
+            let ahead = if wanted > minutes {
+                u64::from(wanted - minutes)
+            } else {
+                u64::from(1440 + u32::from(wanted) - u32::from(minutes))
+            };
+            Ok(Some(now.saturating_add(ahead * 60)))
+        }
+        _ => Err(BoundError::Usage(format!(
+            "pns profile: unrecognized option `{flag}`"
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests;

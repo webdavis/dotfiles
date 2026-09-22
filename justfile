@@ -79,6 +79,8 @@ test-e2e: validate-tests
 # discover Rust manifests. Locked dependencies and documentation warnings are
 # checked with the tests.
 test-rust:
+  @command -v chord >/dev/null || \
+    { echo 'chord is not installed: cargo install --git https://github.com/webdavis/chord chord' >&2; exit 1; }
   cargo test --locked --workspace --manifest-path lights/Cargo.toml
   cargo fmt --all --check --manifest-path lights/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path lights/Cargo.toml -- -D warnings
@@ -87,12 +89,8 @@ test-rust:
   cargo fmt --all --check --manifest-path pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --features dev-tools --manifest-path pns/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path pns/Cargo.toml
-  cargo test --locked --workspace --manifest-path chord/Cargo.toml
-  cargo fmt --all --check --manifest-path chord/Cargo.toml
-  cargo clippy --locked --workspace --all-targets --manifest-path chord/Cargo.toml -- -D warnings
-  RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path chord/Cargo.toml
-  cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
-    check bash --table dot_config/chord/bindings.toml --against dot_bash_bindings
+  chord check bash --table dot_config/chord/bindings.toml
+  chord check menu --table dot_config/chord/bindings.toml
   cargo test --locked --workspace --manifest-path tailnet-pin/Cargo.toml
   cargo fmt --all --check --manifest-path tailnet-pin/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path tailnet-pin/Cargo.toml -- -D warnings
@@ -203,11 +201,13 @@ worktrees-prune *arguments:
 update-skills:
   ~/.cargo/bin/uu run skills
 
-# Regenerate ~/.bash_bindings from the shell-agnostic binding table.
-chord-render output="dot_bash_bindings":
-  cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
-    render bash --table dot_config/chord/bindings.toml > {{quote(output)}}.new
-  mv {{quote(output)}}.new {{quote(output)}}
+# Regenerate both files the shell-agnostic binding table generates: the
+# readline bind calls, and the records the binding picker reads.
+chord-render:
+  @command -v chord >/dev/null || \
+    { echo 'chord is not installed: cargo install --git https://github.com/webdavis/chord chord' >&2; exit 1; }
+  chord render bash --table dot_config/chord/bindings.toml
+  chord render menu --table dot_config/chord/bindings.toml
 
 # Regenerate the shipped pns config template from its committed values.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":

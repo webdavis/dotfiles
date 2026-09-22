@@ -275,42 +275,11 @@ if [[ $- == *i* ]]; then
   eval "$(wt config shell init bash)"
 
   # ── Aliases ──
-  # Zoxide alias.
-  alias cd='z'
-
-  # Modern tool aliases (v2 §16.1). --icons takes an optional WHEN value and
-  # eza's parser eats the NEXT argv word for it, so `ll dir/` fails with
-  # "invalid value 'dir/' for '--icons'" unless the value is attached with =.
-  alias ls='eza --icons=auto'
-  alias ll='eza -la --git --icons=auto'
-  alias la='eza -a --icons=auto'
-  alias lt='eza --tree --level=2 --icons=auto --git-ignore'
-  alias cp='cp -i'
-  alias mv='mv -i'
-  alias bat='bat --color=always'
-  alias tree='tree -C'
-  alias du='dust'
-  alias ps='procs'
-  alias grep='grep --color=auto'
-  alias p='python3'
-  alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
-  alias path='echo $PATH | tr ":" "\n"'
-  # The same action the prefix+ctrl+h chord fires, so the label and the working
-  # directory stay in the plugin manifest rather than being repeated here.
-  alias h='herdr plugin action invoke herdr-workspace-jump.jump_homelab'
-  alias fman='compgen -c | fzf | xargs man'
-
-  # Custom git wrappers and other user aliases.
+  # Every alias that needs no template conditional lives in ~/.bash_aliases:
+  # the git wrappers, navigation, listing, the modern-tool replacements and
+  # the shortcuts. Only the darwin-gated ones below stay here, because that
+  # file is not a template.
   [[ -s "$HOME/.bash_aliases" ]] && . "$HOME/.bash_aliases"
-
-  # Navigation aliases.
-  alias ..='cd ..'
-  alias ...='cd ../..'
-  alias ....='cd ../../..'
-
-  # Network & misc utilities.
-  alias pubip='dig +short myip.opendns.com @resolver1.opendns.com'
-  alias timer='echo "Timer started. Stop with Ctrl-D." && time cat'
 
   {{ if eq .chezmoi.os "darwin" -}}
   # Register interactive claude sessions with Claude Desktop; global default is off so CodexBar probes don't clutter the Code tab.

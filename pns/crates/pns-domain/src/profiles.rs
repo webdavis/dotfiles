@@ -9,6 +9,12 @@
 
 mod admission;
 pub use admission::{Admits, Profile};
+mod codec;
+pub use codec::{format_override, parse_override};
+mod report;
+pub use report::{because, surfaces_line};
+mod resolve;
+pub use resolve::{Chose, Inputs, Resolved, resolve};
 
 /// The profile a machine with no rules matching is on, and the one a config
 /// with no `[profiles]` table has.
@@ -33,4 +39,9 @@ pub struct Override {
     pub profile: String,
     /// The epoch second it ends at, or None for one that stands until cleared.
     pub until: Option<u64>,
+}
+
+/// `HH:MM` as minutes since local midnight, the lamps' own reader.
+pub fn minute_of_clock(clock: &str) -> Option<u16> {
+    crate::lamps::parse_window(&format!("{clock}-{clock}")).map(|window| window.ends_at())
 }

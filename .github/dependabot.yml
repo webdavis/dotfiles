@@ -1,5 +1,5 @@
 # Keep the SHA-pinned actions in .github/workflows fresh. Dependabot's PRs
-# auto-merge once the required lint check passes (see
+# auto-merge once the required gates check passes (see
 # .github/workflows/dependabot-automerge.yml); the cooldown below damps
 # supply-chain risk by holding back releases younger than 7 days.
 version: 2

@@ -1,4 +1,4 @@
-name: Lint
+name: CI
 on:
   push:
     branches:
@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 jobs:
-  lint:
+  gates:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -21,7 +21,8 @@ jobs:
           BASHUNIT_COMMIT: "683ba16f54fee391dc30bea0a5e6201aeef72c19"
           BASHUNIT_SHA256: "429a0f25cf39b2779e3266b4a5bb2c098cb5ebed60d9a3476a1fea3c5acc7a49"
         run: |
-          brew install actionlint age bash chezmoi coreutils jq just luacheck neovim shellcheck shfmt stylua taplo treefmt uv yq zizmor
+          brew install actionlint age bash chezmoi coreutils emmylua_ls jq just luacheck neovim shellcheck shfmt stylua taplo treefmt uv yq zizmor
+          echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
           uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1
           mkdir -p "$HOME/.local/bin"
           git clone --quiet --no-checkout --filter=blob:none https://github.com/TypedDevs/bashunit.git "$RUNNER_TEMP/bashunit-source"
@@ -31,6 +32,16 @@ jobs:
           printf '%s  %s\n' "$BASHUNIT_SHA256" "$HOME/.local/bin/bashunit" | shasum -a 256 -c -
           chmod 0755 "$HOME/.local/bin/bashunit"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # `just test-rust` runs the two `chord check` lines that guard this
+      # repository's generated binding files, and chord lives in its own
+      # repository now. The revision comes out of the roster that installs it
+      # on this machine, so the pin has one home rather than two.
+      - name: Install chord at the revision the roster pins
+        run: |
+          roster=.chezmoidata/system_packages_autoinstall.yaml
+          ref="$(yq -r '.packages.cargo_git_tools[] | select(.name == "chord") | .ref' "$roster")"
+          test -n "$ref"
+          cargo install --git https://github.com/webdavis/chord --rev "$ref" --locked chord
       - name: Lint drift gate (treefmt)
         run: just lint-check
       - name: Run the repo test suite
