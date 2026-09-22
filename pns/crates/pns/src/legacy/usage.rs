@@ -25,6 +25,7 @@ pns: usage:
   pns lights pulse <exit-code>     signal the lamps by hand
   pns lights enroll                pair a bridge, once per machine
   pns presence poll [--daemon]     one bridge read, published for the sensor
+  pns profile [<name>|clear]       which bundle of delivery settings is active
   pns github poll [--daemon]       one notifications read, submitted as events
   pns github receive               the push receiver: a delivery polls now
   pns codex install-hooks          merge pns's four hooks into Codex's hooks file
@@ -41,6 +42,8 @@ pns: usage:
   pns recap agent --stdin          post a recap somebody else composed
   pns recap git                    print what only git, worktrunk and gh answer
   pns resume [--json|--notify]     where you were, printed, or sent as a page
+  pns calendar consent             mint the refresh token the calendar mute
+                                   reads, once per machine
   pns setup [--force]              write a first config, one question at a time
   pns doctor [--raw]               one test send through every channel
   pns tap [info|install] [--json]  record phone attention or inspect its setup

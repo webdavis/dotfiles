@@ -32,8 +32,6 @@ local RESUME_LABEL = "⏎"
 ---A dashboard that errors is worse than a dashboard missing a section, so a
 ---non-zero exit, an absent binary and a repository-less directory all answer the
 ---same way: nothing to show.
----@param command string[] The argv words, no shell.
----@return string[] lines
 ---Git's own environment variables, scrubbed before every call.
 ---
 ---GIT_DIR OVERRIDES `-C`, and git exports GIT_DIR, GIT_WORK_TREE and
@@ -63,6 +61,8 @@ local function without_git_environment(command)
   return vim.list_extend(wrapped, command)
 end
 
+---@param command string[] The argv words, no shell.
+---@return string[] lines
 local function lines_from(command)
   local result = vim.system(without_git_environment(command), { text = true }):wait()
   if result.code ~= 0 or not result.stdout then

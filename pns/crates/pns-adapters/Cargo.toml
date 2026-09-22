@@ -15,6 +15,7 @@ pns-domain = { path = "../pns-domain" }
 pns-hermes = { path = "../pns-hermes" }
 pns-protocol = { path = "../pns-protocol" }
 
+base64 = "0.23.1"
 hmac = "0.13.0"
 libc = "0.2.189"
 rusqlite = { version = "=0.39.0", default-features = false, features = [

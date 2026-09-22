@@ -63,7 +63,8 @@ fn a_store_on_the_previous_schema_migrates_once_and_reopening_it_changes_nothing
     let connection = store.connect().unwrap();
     connection
         .execute_batch(
-            "DROP TABLE activity_events; DROP TABLE recap_summaries; PRAGMA user_version = 10;",
+            "DROP TABLE activity_events; DROP TABLE recap_summaries; \
+             DROP TABLE profile_override; PRAGMA user_version = 10;",
         )
         .unwrap();
     drop(connection);

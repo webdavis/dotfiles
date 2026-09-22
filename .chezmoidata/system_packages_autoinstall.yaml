@@ -79,6 +79,7 @@ packages:
         - droast
         - dust
         - elixir
+        - emmylua_ls
         - espeak-ng
         - eza
         - fd
@@ -121,6 +122,7 @@ packages:
         - netcat
         - ngrep
         - nmap
+        - nushell
         - obsidian-cli
         - ollama
         - onefetch
@@ -290,6 +292,10 @@ packages:
           # hook command invokes and the Codex hook runtime resolves. The two
           # packages both declare a `babysitter` bin and cannot coexist.
           - "@a5c-ai/babysitter-sdk@6.0.3"
+          # The `claude-agent-acp` bin avante.nvim's claude-code provider spawns.
+          # It reaches the Claude Code CLI already on PATH, so avante runs on the
+          # subscription login rather than an API key.
+          - "@agentclientprotocol/claude-agent-acp"
           - "@clawdbot/lobster"
           - "@doist/todoist-cli"
           - "@earendil-works/pi-coding-agent"

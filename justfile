@@ -92,7 +92,9 @@ test-rust:
   cargo clippy --locked --workspace --all-targets --manifest-path chord/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path chord/Cargo.toml
   cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
-    check bash --table dot_config/chord/bindings.toml --against dot_bash_bindings
+    check bash --table dot_config/chord/bindings.toml
+  cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
+    check menu --table dot_config/chord/bindings.toml
   cargo test --locked --workspace --manifest-path tailnet-pin/Cargo.toml
   cargo fmt --all --check --manifest-path tailnet-pin/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path tailnet-pin/Cargo.toml -- -D warnings
@@ -203,11 +205,13 @@ worktrees-prune *arguments:
 update-skills:
   ~/.cargo/bin/uu run skills
 
-# Regenerate ~/.bash_bindings from the shell-agnostic binding table.
-chord-render output="dot_bash_bindings":
+# Regenerate both files the shell-agnostic binding table generates: the
+# readline bind calls, and the records the binding picker reads.
+chord-render:
   cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
-    render bash --table dot_config/chord/bindings.toml > {{quote(output)}}.new
-  mv {{quote(output)}}.new {{quote(output)}}
+    render bash --table dot_config/chord/bindings.toml
+  cargo run --locked --quiet --manifest-path chord/Cargo.toml -- \
+    render menu --table dot_config/chord/bindings.toml
 
 # Regenerate the shipped pns config template from its committed values.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":

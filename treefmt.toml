@@ -158,6 +158,11 @@ includes = [
 command = "stylua"
 includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
 
+[formatter.emmylua-check]
+command = "emmylua_check"
+options = ["--config", "dot_config/nvim/dot_emmyrc.json", "--severity", "error"]
+includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+
 [formatter.luacheck]
 command = "luacheck"
 options = ["--config", "dot_config/nvim/dot_luacheckrc"]
