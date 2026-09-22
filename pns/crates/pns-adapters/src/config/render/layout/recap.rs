@@ -30,7 +30,7 @@ pub(super) const RECAP: Table = Table {
             sample: Sample::Default("8"),
         },
         Key {
-            name: "overnight",
+            name: "nightshift",
             prose: "# The four periods of your own day, local time, as a start and an end.\n\
                          # `pns recap morning` is the most recent instance of that one, in progress\n\
                          # or complete, and a bare `pns recap` is whichever ended most recently.\n\

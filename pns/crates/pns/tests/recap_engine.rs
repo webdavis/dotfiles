@@ -42,7 +42,7 @@ fn sandbox_with_store(name: &str) -> Sandbox {
 #[test]
 fn a_bare_recap_names_the_window_that_most_recently_ended() {
     // WHICHEVER ONE ENDED MOST RECENTLY, so sitting down at 08:00 gives
-    // overnight and coming back at 13:30 gives morning. The test cannot
+    // nightshift and coming back at 13:30 gives morning. The test cannot
     // choose the hour it runs at, so what it pins is that the header names
     // ONE of the four periods and never a span with no name.
     let sandbox = sandbox_with_store("recap-bare-window");
@@ -55,7 +55,7 @@ fn a_bare_recap_names_the_window_that_most_recently_ended() {
         .unwrap_or_default()
         .to_string();
     assert!(
-        ["overnight", "morning", "afternoon", "evening"]
+        ["nightshift", "morning", "afternoon", "evening"]
             .iter()
             .any(|window| first.starts_with(window)),
         "a bare recap named no window at all: {first}"

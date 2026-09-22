@@ -103,6 +103,14 @@ mod tests {
         assert!(RECAP_USAGE.contains("--since-epoch <epoch>"));
     }
 
+    #[test]
+    fn the_usage_lists_every_window_a_recap_may_name() {
+        assert!(RECAP_USAGE.contains(
+            "pns: windows: nightshift, morning, afternoon, evening, today, yesterday, week, \
+             last-week\n"
+        ));
+    }
+
     fn bounds(words: &[&str]) -> Option<(u64, u64)> {
         recap_bounds(
             &words
