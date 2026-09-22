@@ -4,9 +4,7 @@
 set -euo pipefail
 
 # Installs CLI tools built from repositories OTHER than this one, at a pinned
-# revision, into the same ~/.cargo/bin every in-tree Rust builder uses. dam
-# (webdavis/damnit) is the first entry: the herdr-damnit and damnit.nvim
-# plugins spawn it and have nothing to run until this installs it.
+# revision, into the same ~/.cargo/bin every in-tree Rust builder uses.
 #
 # Build inputs: one line per roster entry, so bumping any field (most often
 # `ref`) re-fires this run_onchange script.
@@ -21,11 +19,11 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-# install_root, not a hardcode: rust_tools.install_dir (".cargo/bin") is where
-# every in-tree Rust builder puts its binary, so its parent is the `cargo
-# install --root` this repo's tools share. Deterministic, never a PATH probe:
-# a fresh machine provisions rustup during THIS apply and ~/.cargo/bin is not
-# on the apply shell's PATH yet.
+# install_root is derived from the same destination the in-tree Rust builders
+# publish to, not hardcoded here, so the two can't drift apart if that
+# destination ever moves. It cannot be found by probing PATH either: a fresh
+# machine provisions rustup during THIS apply, so the destination isn't on
+# the apply shell's PATH yet.
 install_root={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | dir | quote }}
 cargo_bin="$install_root/bin/cargo"
 crates_toml="$install_root/.crates.toml"

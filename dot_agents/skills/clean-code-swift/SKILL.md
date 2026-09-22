@@ -317,7 +317,7 @@ as the analogue of cargo's `--locked`. **Not measured**: no Swift package of our
 against yet, so confirm the flag on the first one rather than trusting this line.
 
 **No `just test-swift` recipe exists yet (measured: neither the justfile nor
-`.github/workflows/lint.yml` mentions Swift).** The first Swift tool this repository owns adds one
+`.github/workflows/ci.yml` mentions Swift).** The first Swift tool this repository owns adds one
 alongside its entry in CI's gate list, and the two must be edited together by hand.
 
 Do not add broad suppressions. A `swiftlint:disable` must name the rule, cover the narrowest possible

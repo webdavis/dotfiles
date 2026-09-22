@@ -225,25 +225,34 @@ only so a stray one cannot be committed or formatted.
 
 ### The Rust monorepo
 
-`pns/`, `uu/`, `posture/` and `lights/` are four independent cargo workspaces at the REPOSITORY ROOT,
-each with its own `Cargo.toml`, `Cargo.lock` and `crates/` directory. There is deliberately NO root
-workspace manifest: verified by experiment on 2026-09-08, `cargo install --git <url> <package>` finds a
-package in a nested workspace without one, and a root manifest cannot contain another workspace anyway.
+`pns/`, `uu/`, `posture/`, `lights/` and `tailnet-pin/` are five independent cargo workspaces at the
+REPOSITORY ROOT, each with its own `Cargo.toml`, `Cargo.lock` and `crates/` directory. There is
+deliberately NO root workspace manifest: verified by experiment on 2026-09-08,
+`cargo install --git <url> <package>` finds a package in a nested workspace without one, and a root
+manifest cannot contain another workspace anyway.
 
-They are SOURCE ONLY. `.chezmoiignore` lists all four by bare name so nothing lands in `$HOME` under its
+They are SOURCE ONLY. `.chezmoiignore` lists all five by bare name so nothing lands in `$HOME` under its
 own name, and each `run_onchange_after_5*` builder compiles its workspace out of `.chezmoi.sourceDir`
 rather than a deployed copy. That is why none of them carries a "crate source is not deployed yet"
 deferral any more: the builder's own hash comment `include`s each manifest at render time, so a missing
 one aborts the apply before the script is ever written.
 
-`chord/` is another workspace of the same shape, and the only one nothing installs: it is a generator
-this repository runs at development time, the way `pns-config-render` is. `chord render bash` turns the
-shell-agnostic binding table at `dot_config/chord/bindings.toml` into readline `bind` calls, so the
-chords are written once in a plain notation rather than in each shell's own escapes.
-**`dot_bash_bindings` is a GENERATED FILE**, the same arrangement the shipped pns config template uses:
-regenerate it with `just chord-render`, and a hand edit fails the `chord check` line in `just test-rust`.
-The shell those bindings call, and the `\C-x0`, `\C-x1` and `\C-x2` helper macros they start with, live
-in `dot_bash_bindings_functions`, which `~/.bashrc` sources first.
+`chord` used to be a sixth workspace here and now lives in its own public repository,
+[webdavis/chord](https://github.com/webdavis/chord) (extracted with `git subtree split`, so it carries
+its own history). Its source is no longer in this checkout and `just test-rust` no longer builds it: that
+repository runs its own gates. It turns the shell-agnostic binding table at
+`dot_config/chord/bindings.toml` into readline `bind` calls and into the tab-separated records the
+binding picker reads, so the chords are written once in a plain notation rather than in each shell's own
+escapes. It arrives the way `dam` does, from a pinned revision in the `packages.cargo_git_tools` roster,
+and `.github/workflows/ci.yml` installs that same pinned revision by reading it out of the roster, so the
+gate below has a binary in CI without a second copy of the pin. This makes the required `gates` check
+depend on `github.com/webdavis/chord` being reachable on every run: if that repository goes private,
+disappears, or the pinned revision is garbage-collected, CI goes red for a reason unrelated to the change
+under test, with no fallback. **`dot_bash_bindings` and `dot_config/chord/bindings-menu.tsv` are
+GENERATED FILES**, the same arrangement the shipped pns config template uses: regenerate both with
+`just chord-render`, and a hand edit fails the `chord check` lines in `just test-rust`. The shell those
+bindings call, and the `\C-x0`, `\C-x1` and `\C-x2` helper macros they start with, live in
+`dot_bash_bindings_functions`, which `~/.bashrc` sources first.
 
 `pns recap` prints the day's brief now: the activity window, today's tasks and the last apply, from the
 source commands named in `[recap.sources]`.
@@ -480,13 +489,13 @@ machine for unrelated uses; this repo never invokes it.
 
 **mdformat is version pinned and the pins live in two places.** It rewrites markdown, so a version bump
 silently rewraps every file and fails the drift gate on work nobody did. The exact `==` versions are in
-the `setup` recipe and again in the toolchain step of `.github/workflows/lint.yml`; nothing enforces that
+the `setup` recipe and again in the toolchain step of `.github/workflows/ci.yml`; nothing enforces that
 the two agree, so they must be moved together by hand. The same hand-sync applies to `Brewfile.dev`
 against that workflow step, which installs the same formulae by name (`gitleaks` is the one addition, for
 the pre-commit hook; CI never commits).
 
 **bashunit uses a pinned upstream beta in CI.** The stable release 0.50.1 splits comma-containing
-exclusions incorrectly. `.github/workflows/lint.yml` checks out `BASHUNIT_COMMIT`, runs upstream's
+exclusions incorrectly. `.github/workflows/ci.yml` checks out `BASHUNIT_COMMIT`, runs upstream's
 unchanged build, and verifies the executable against `BASHUNIT_SHA256` before adding it to `PATH`. The
 Git checkout is required because upstream's source archives omit documentation the build embeds.
 
@@ -507,13 +516,20 @@ failure is visible, not silent: the drift gate goes red on a file nobody touched
 investigate, not corruption that slips through. A version skew shows up as `just lint-check` failing on
 unmodified `dot_config/nvim/**/*.lua` files right after a `brew upgrade stylua`.
 
+**`just setup` does not install `chord`, so a fresh checkout cannot run `just ship` until it is added by
+hand.** `chord` is a hard dependency of `just test-rust`, and from there of `just test` and `just ship`;
+it is a Rust binary, not a Homebrew or uv package, and `Brewfile.dev` declares no Rust toolchain for
+`setup` to build it with. Install it the way the `command -v chord` guard at the top of `test-rust`
+names: `cargo install --git https://github.com/webdavis/chord chord`. `setup` is left alone rather than
+growing a `cargo install` step, because it has no cargo prerequisite to build one on top of.
+
 ### CI
 
-GitHub Actions (`.github/workflows/lint.yml`) runs on `macos-latest` on pushes to main and on pull
+GitHub Actions (`.github/workflows/ci.yml`) runs on `macos-latest` on pushes to main and on pull
 requests, with workflow-level `permissions: contents: read`, `persist-credentials: false` on checkout,
 and actions SHA-pinned to full commit SHAs. `.github/dependabot.yml` keeps the pins fresh weekly behind a
 7-day release cooldown; its PRs auto-merge via `.github/workflows/dependabot-automerge.yml`, which uses
-`gh pr merge --auto` so branch protection, where `lint` is a required status check on `main`, is what
+`gh pr merge --auto` so branch protection, where `gates` is a required status check on `main`, is what
 actually holds the merge until green.
 
 Five steps: checkout, install the toolchain (brew + uv), then the three gates as literal commands:
@@ -538,8 +554,10 @@ hooks are wired by `pns codex install-hooks`, run by `run_after_72`.
 
 Tools built from OTHER repositories install through the same `~/.cargo/bin`, from a pinned revision in
 the `cargo_git_tools` roster in `.chezmoidata/system_packages_autoinstall.yaml`, via
-`run_onchange_after_57-install-cargo-git-tools.sh.tmpl`. `dam` (`webdavis/damnit`) is the first entry:
-the herdr-damnit and damnit.nvim plugins spawn it and have nothing to run until this installs it.
+`run_onchange_after_57-install-cargo-git-tools.sh.tmpl`. Two entries today. `dam` (`webdavis/damnit`) is
+the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn, and they have nothing to run
+until this installs it; `chord` (`webdavis/chord`) is the binding-table generator `just chord-render` and
+the `chord check` gate call.
 
 Four rules decide the shape below `libexec`, in this order:
 
