@@ -26,7 +26,9 @@ fn an_empty_document_gains_one_handler_on_each_of_the_four_events() {
     );
     assert_eq!(
         commands(&document, "PermissionRequest"),
-        vec![format!("PNS_PRODUCER=codex {BINARY} hook blocked --remind")]
+        vec![format!(
+            "PNS_PRODUCER=codex {BINARY} hook blocked --remind=5m"
+        )]
     );
     for event in ["PostToolUse", "Interrupt"] {
         assert_eq!(
@@ -178,4 +180,20 @@ fn an_event_that_is_not_a_list_of_entries_is_refused() {
             "{base:?} must be refused"
         );
     }
+}
+
+#[test]
+fn the_configured_reminder_is_replaced_in_place() {
+    let base = json!({"hooks": {"PermissionRequest": [{"hooks": [
+        {"type": "command", "command": "another-hook"},
+        {"type": "command", "timeout": 10,
+         "command": format!("PNS_PRODUCER=codex {BINARY} hook blocked --remind")}
+    ]}]}});
+    let document = merged(base.clone());
+    let mut expected = base["hooks"]["PermissionRequest"].clone();
+    expected[0]["hooks"][1]["command"] = json!(format!(
+        "PNS_PRODUCER=codex {BINARY} hook blocked --remind=5m"
+    ));
+    assert_eq!(document["hooks"]["PermissionRequest"], expected);
+    assert_eq!(merged(document.clone()), document);
 }
