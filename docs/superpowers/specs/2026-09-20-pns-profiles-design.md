@@ -363,7 +363,7 @@ Wording rules, each pinned by a test:
 - A state with no events is not written. One event of a state is written `1 blocked`, not `1 blockeds`.
 - The roll-up is one card and one durable line, whatever the count, exactly as `missed::summary` is.
 
-Under `night` that roll-up is what `pns recap` shows for the overnight window (task 125 and slice 54).
+Under `night` that roll-up is what `pns recap` shows for the nightshift window (task 125 and slice 54).
 
 GAP DECISION (held is its own record). The missed journal answers "the operator was away". A hold
 answers "the operator was here and their profile said not now", carries the profile's name and is
