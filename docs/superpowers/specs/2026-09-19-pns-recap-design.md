@@ -12,7 +12,7 @@ the desk, so there is one recap engine with several callers.
 
 A recap is one input to a larger page, never the page itself. Bob, the Forzare executive assistant,
 composes the morning brief it delivers to the operator from three sources: this recap (what happened overnight, taken as
-`pns recap overnight --json` or through a `--schema` mask), the task tool's view of the day (`dam`),
+`pns recap nightshift --json` or through a `--schema` mask), the task tool's view of the day (`dam`),
 and things neither tool knows, such as the weather and the day's news. `pns recap` therefore keeps
 its name and its machine-readable document stable for that consumer, and never grows sections for
 data it does not own.
@@ -44,7 +44,7 @@ ruling from that session; the reasoning is kept short and the decision is what b
 
 ```
 pns recap                                  the window that most recently ended
-pns recap overnight|morning|afternoon|evening
+pns recap nightshift|morning|afternoon|evening
 pns recap today|yesterday|week|last-week
 pns recap open                             what is waiting on a person, no window
 pns recap <window> --previous              one instance back
@@ -89,7 +89,7 @@ The four periods are local time and ship at these defaults in `[recap]`, editabl
 
 | Window | Default |
 | --- | --- |
-| overnight | 22:00 to 06:00 |
+| nightshift | 22:00 to 06:00 |
 | morning | 06:00 to 12:00 |
 | afternoon | 12:00 to 17:00 |
 | evening | 17:00 to 22:00 |
@@ -100,11 +100,11 @@ The four periods are local time and ship at these defaults in `[recap]`, editabl
 rules.
 
 A named window means its most recent instance, in progress or complete: `pns recap morning` at 10:00
-is this morning so far, and at 15:00 it is this morning complete. `pns recap overnight` at 08:00 is
+is this morning so far, and at 15:00 it is this morning complete. `pns recap nightshift` at 08:00 is
 last night. `--previous` steps back exactly one instance from whatever the bare name would have
 chosen.
 
-Bare `pns recap` picks the window that most recently ended, so sitting down at 08:00 gives overnight
+Bare `pns recap` picks the window that most recently ended, so sitting down at 08:00 gives nightshift
 and coming back at 13:30 gives morning.
 
 `open` has no window and takes no `--previous`, `--since`, `--duration` or `--recent`. It prints the
@@ -325,7 +325,7 @@ Settled on 2026-09-19 in a second question-and-answer session:
 
 ```toml
 [recap]
-overnight = ["22:00", "06:00"]
+nightshift = ["22:00", "06:00"]
 morning = ["06:00", "12:00"]
 afternoon = ["12:00", "17:00"]
 evening = ["17:00", "22:00"]

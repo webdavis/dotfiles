@@ -235,7 +235,7 @@ Config {
             ),
         },
         periods: Periods {
-            overnight: Period {
+            nightshift: Period {
                 start: 1320,
                 end: 360,
             },

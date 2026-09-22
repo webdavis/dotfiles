@@ -237,3 +237,12 @@ fn an_empty_opt_in_table_renders_exactly_like_no_table_at_all() {
     let config = parse_config(&empty).unwrap_or_else(|error| panic!("{error:?}\n{empty}"));
     assert_eq!(config.remind_delay_secs, 0);
 }
+
+#[test]
+fn the_rendered_recap_table_ships_the_night_window_as_nightshift() {
+    let text = render(&toml::Table::new()).expect("an empty walk still renders");
+    assert!(
+        text.contains("\n[recap]\n") && text.contains("\nnightshift = [\"22:00\", \"06:00\"]\n"),
+        "{text}"
+    );
+}

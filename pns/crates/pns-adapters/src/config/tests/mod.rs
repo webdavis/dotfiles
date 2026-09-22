@@ -216,7 +216,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("recap", "minimum_events", "8"),
     ("recap", "post_window_recap", "true"),
     ("recap", "replay_card", "true"),
-    ("recap", "overnight", "[\"22:00\", \"06:00\"]"),
+    ("recap", "nightshift", "[\"22:00\", \"06:00\"]"),
     ("recap", "morning", "[\"06:00\", \"12:00\"]"),
     ("recap", "afternoon", "[\"12:00\", \"17:00\"]"),
     ("recap", "evening", "[\"17:00\", \"22:00\"]"),
@@ -391,6 +391,7 @@ mod recap_sources;
 mod recap_summarizer;
 mod recap_switches;
 mod recap_threshold;
+mod recap_windows;
 mod remind;
 mod roster;
 mod schema;

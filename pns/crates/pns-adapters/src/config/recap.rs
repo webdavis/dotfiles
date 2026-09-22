@@ -41,7 +41,7 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         match key.as_str() {
             "minimum_events" => recap.minimum_events = threshold(&setting)?,
             "sources" => recap.sources = parse_recap_sources(setting)?,
-            "overnight" => recap.periods.overnight = period("overnight", &setting)?,
+            "nightshift" => recap.periods.nightshift = period("nightshift", &setting)?,
             "morning" => recap.periods.morning = period("morning", &setting)?,
             "afternoon" => recap.periods.afternoon = period("afternoon", &setting)?,
             "evening" => recap.periods.evening = period("evening", &setting)?,

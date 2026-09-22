@@ -103,6 +103,15 @@ mod tests {
         assert!(RECAP_USAGE.contains("--since-epoch <epoch>"));
     }
 
+    #[test]
+    fn the_usage_lists_every_window_a_recap_may_name() {
+        let windows = format!(
+            "pns: windows: {}\n",
+            pns_domain::recap::window::WINDOW_WORDS.join(", ")
+        );
+        assert!(RECAP_USAGE.contains(&windows), "{RECAP_USAGE}");
+    }
+
     fn bounds(words: &[&str]) -> Option<(u64, u64)> {
         recap_bounds(
             &words

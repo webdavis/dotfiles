@@ -49,7 +49,7 @@ impl LocalCivilTime {
 }
 
 /// One of the day's periods, as minutes since local midnight. `start > end`
-/// is a period that crosses midnight, which `overnight` does at its default.
+/// is a period that crosses midnight, which `nightshift` does at its default.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Period {
     pub start: u32,
@@ -66,7 +66,7 @@ impl Period {
 /// The four periods, which must tile the day between them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Periods {
-    pub overnight: Period,
+    pub nightshift: Period,
     pub morning: Period,
     pub afternoon: Period,
     pub evening: Period,
@@ -75,7 +75,7 @@ pub struct Periods {
 impl Default for Periods {
     fn default() -> Self {
         Periods {
-            overnight: Period {
+            nightshift: Period {
                 start: 22 * 60,
                 end: 6 * 60,
             },
@@ -99,7 +99,7 @@ impl Periods {
     /// The four, in the order a fault names them and a scan walks them.
     fn each(&self) -> [(Window, Period); 4] {
         [
-            (Window::Overnight, self.overnight),
+            (Window::Nightshift, self.nightshift),
             (Window::Morning, self.morning),
             (Window::Afternoon, self.afternoon),
             (Window::Evening, self.evening),
@@ -148,7 +148,7 @@ impl WeekStart {
 /// says they are, so the same arithmetic answers all four.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Window {
-    Overnight,
+    Nightshift,
     Morning,
     Afternoon,
     Evening,
@@ -160,7 +160,7 @@ impl Window {
     /// The word this window is typed and reported as.
     pub fn as_str(self) -> &'static str {
         match self {
-            Window::Overnight => "overnight",
+            Window::Nightshift => "nightshift",
             Window::Morning => "morning",
             Window::Afternoon => "afternoon",
             Window::Evening => "evening",
@@ -177,7 +177,7 @@ impl Window {
 /// before yesterday and needs no rule of its own to be.
 pub fn parse_window(word: &str) -> Option<(Window, bool)> {
     Some(match word {
-        "overnight" => (Window::Overnight, false),
+        "nightshift" => (Window::Nightshift, false),
         "morning" => (Window::Morning, false),
         "afternoon" => (Window::Afternoon, false),
         "evening" => (Window::Evening, false),
@@ -191,7 +191,7 @@ pub fn parse_window(word: &str) -> Option<(Window, bool)> {
 
 /// Every window word, for the sentence a refusal prints.
 pub const WINDOW_WORDS: &[&str] = &[
-    "overnight",
+    "nightshift",
     "morning",
     "afternoon",
     "evening",
@@ -204,7 +204,7 @@ pub const WINDOW_WORDS: &[&str] = &[
 /// The gap or the overlap the four periods leave, named, or None when they
 /// tile the day.
 ///
-/// BOTH WINDOWS ARE NAMED, which is the whole value of the check: "overnight
+/// BOTH WINDOWS ARE NAMED, which is the whole value of the check: "nightshift
 /// ends at 06:00 and morning starts at 06:30" is a sentence the operator can
 /// act on, where "the recap windows do not tile the day" sends them looking
 /// through four pairs for the one that moved.
@@ -246,7 +246,7 @@ pub fn most_recently_ended(periods: &Periods, minutes: u32) -> Window {
         .into_iter()
         .min_by_key(|(_, period)| (minutes + 1440 - period.end) % 1440)
         .map(|(name, _)| name)
-        .unwrap_or(Window::Overnight)
+        .unwrap_or(Window::Nightshift)
 }
 
 /// The bounds of one window instance, as local civil moments the caller

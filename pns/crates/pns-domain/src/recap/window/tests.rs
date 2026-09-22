@@ -54,20 +54,20 @@ fn a_period_in_progress_is_the_one_the_bare_name_picks() {
 }
 
 #[test]
-fn overnight_crosses_midnight_in_both_directions() {
-    // At 08:00 the most recent overnight started last night.
+fn nightshift_crosses_midnight_in_both_directions() {
+    // At 08:00 the most recent nightshift started last night.
     assert_eq!(
-        span(Window::Overnight, false, moment(19, 8, 0)),
+        span(Window::Nightshift, false, moment(19, 8, 0)),
         (moment(18, 22, 0), moment(19, 6, 0))
     );
     // At 23:00 it started tonight and ends tomorrow.
     assert_eq!(
-        span(Window::Overnight, false, moment(19, 23, 0)),
+        span(Window::Nightshift, false, moment(19, 23, 0)),
         (moment(19, 22, 0), moment(20, 6, 0))
     );
     // And at 03:00, inside it, it is still last night's start.
     assert_eq!(
-        span(Window::Overnight, false, moment(19, 3, 0)),
+        span(Window::Nightshift, false, moment(19, 3, 0)),
         (moment(18, 22, 0), moment(19, 6, 0))
     );
 }
@@ -75,7 +75,7 @@ fn overnight_crosses_midnight_in_both_directions() {
 #[test]
 fn previous_steps_back_exactly_one_instance() {
     assert_eq!(
-        span(Window::Overnight, true, moment(19, 8, 0)),
+        span(Window::Nightshift, true, moment(19, 8, 0)),
         (moment(17, 22, 0), moment(18, 6, 0))
     );
     assert_eq!(
@@ -147,14 +147,14 @@ fn last_week_is_the_seven_days_before_this_week_started() {
 fn the_window_that_most_recently_ended_is_what_a_bare_recap_takes() {
     let periods = Periods::default();
     for (hour, expected) in [
-        (8, Window::Overnight),
+        (8, Window::Nightshift),
         (13, Window::Morning),
         (18, Window::Afternoon),
         (23, Window::Evening),
         // Before any of today's ends, last night's evening is the answer.
         (3, Window::Evening),
         // Exactly on an end, that window has just ended.
-        (6, Window::Overnight),
+        (6, Window::Nightshift),
     ] {
         assert_eq!(
             most_recently_ended(&periods, hour * 60),
@@ -174,7 +174,7 @@ fn a_gap_and_an_overlap_are_both_refused_with_the_two_windows_named() {
     let mut gapped = Periods::default();
     gapped.morning.start = 6 * 60 + 30;
     let fault = tiling_fault(&gapped).expect("a gap is a fault");
-    assert!(fault.contains("`overnight` ends at 06:00"), "{fault}");
+    assert!(fault.contains("`nightshift` ends at 06:00"), "{fault}");
     assert!(fault.contains("`morning` starts at 06:30"), "{fault}");
 
     let mut overlapping = Periods::default();
@@ -189,6 +189,15 @@ fn yesterday_and_last_week_are_their_windows_one_step_back() {
     assert_eq!(parse_window("last-week"), Some((Window::Week, true)));
     assert_eq!(parse_window("morning"), Some((Window::Morning, false)));
     assert_eq!(parse_window("tomorrow"), None);
+}
+
+#[test]
+fn the_night_window_is_typed_and_reported_as_nightshift() {
+    assert_eq!(
+        parse_window("nightshift"),
+        Some((Window::Nightshift, false))
+    );
+    assert_eq!(Window::Nightshift.as_str(), "nightshift");
 }
 
 #[test]
