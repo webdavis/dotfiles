@@ -71,35 +71,47 @@ fn a_named_window_heads_the_page_with_its_own_name() {
     assert!(stdout(&output).starts_with("today "), "{}", stdout(&output));
 }
 
+/// `pns recap nightshift` with `extra` appended, run against a store holding
+/// one event, and its standard output.
+fn nightshift_recap(sandbox: &Sandbox, extra: &[&str]) -> String {
+    planted(sandbox, 60, "done");
+    let output = run(sandbox
+        .pns_stateful()
+        .args(["recap", "nightshift"])
+        .args(extra));
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    stdout(&output)
+}
+
 #[test]
-fn the_night_window_is_nightshift_on_the_page_and_in_every_document() {
-    let sandbox = sandbox_with_store("recap-nightshift-names");
-    planted(&sandbox, 60, "done");
-    let recap = |extra: &[&str]| {
-        let output = run(sandbox
-            .pns_stateful()
-            .args(["recap", "nightshift"])
-            .args(extra));
-        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
-        stdout(&output)
-    };
-
-    let page = recap(&[]);
+fn the_night_window_heads_the_page_as_nightshift() {
+    let sandbox = sandbox_with_store("recap-nightshift-page");
+    let page = nightshift_recap(&sandbox, &[]);
     assert!(page.starts_with("nightshift 22:00-06:00 "), "{page}");
+}
 
+#[test]
+fn the_night_window_is_nightshift_in_the_json_document() {
+    let sandbox = sandbox_with_store("recap-nightshift-json");
     let json: serde_json::Value =
-        serde_json::from_str(&recap(&["--json"])).expect("a JSON document");
+        serde_json::from_str(&nightshift_recap(&sandbox, &["--json"])).expect("a JSON document");
     assert_eq!(json["window"]["name"], "nightshift", "{json}");
+}
 
-    let toon = recap(&["--toon"]);
+#[test]
+fn the_night_window_is_nightshift_in_the_toon_document() {
+    let sandbox = sandbox_with_store("recap-nightshift-toon");
+    let toon = nightshift_recap(&sandbox, &["--toon"]);
     assert!(toon.contains("\nwindow:\n  name: nightshift\n"), "{toon}");
+}
 
+#[test]
+fn a_schema_mask_over_the_window_selects_nightshift() {
+    let sandbox = sandbox_with_store("recap-nightshift-mask");
     let mask = sandbox.path("mask.toon");
     std::fs::write(&mask, "window:\n  name: true\n").expect("the mask");
-    assert_eq!(
-        recap(&["--schema", mask.to_str().expect("a path")]).trim_end(),
-        "window:\n  name: nightshift"
-    );
+    let masked = nightshift_recap(&sandbox, &["--schema", mask.to_str().expect("a path")]);
+    assert_eq!(masked.trim_end(), "window:\n  name: nightshift");
 }
 
 #[test]
