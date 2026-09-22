@@ -53,6 +53,7 @@ return {
         { "<leader>T", group = "todoist" },
         { "<leader>u", group = "toggle" },
         { "<leader>U", group = "urlview" },
+        { "<leader>v", group = "avante" },
         { "<leader>x", group = "xcode" },
         { "<leader>X", group = "diagnostics／quickfix" },
         { "<leader>y", group = "yank" },
