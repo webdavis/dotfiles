@@ -21,6 +21,41 @@
 #
 # The shell functions these rows call live in `dot_bash_bindings_functions`.
 
+# The `[render]` section is what each rendered file says about itself: the
+# comment block it opens with, the readline macro a typed row clears the line
+# with, and the command that regenerates it, which a failed `chord check`
+# names.
+
+[render]
+regenerate = "just chord-render"
+
+[render.bash]
+clear_line = "\\C-x0"
+header = '''
+# vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
+
+# shellcheck shell=bash
+
+# Disable SC2016 (which warns about expressions in single quotes):
+# shellcheck disable=SC2016
+
+# GENERATED FILE: `chord render bash` over `dot_config/chord/bindings.toml`.
+# Edit the table and regenerate with `just chord-render`; a hand edit here
+# fails `just test-rust`.
+#
+# The shell functions these bindings call, and the `\C-x0`, `\C-x1` and
+# `\C-x2` helper macros, live in ~/.bash_bindings_functions, which
+# ~/.bashrc sources first.
+'''
+
+[render.menu]
+header = '''
+# GENERATED FILE: `chord render menu` over `dot_config/chord/bindings.toml`.
+# Edit the table and regenerate with `just chord-render`; a hand edit here
+# fails `just test-rust`.
+#
+'''
+
 [[group]]
 name = "editing"
 description = "Editing-mode switching and the readline motions that make vi-insert\nfeel like emacs where that is quicker."
