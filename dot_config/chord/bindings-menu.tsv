@@ -1,0 +1,181 @@
+# GENERATED FILE: `chord render menu` over `dot_config/chord/bindings.toml`.
+# Edit the table and regenerate with `just chord-render`; a hand edit here
+# fails `just test-rust`.
+#
+# key<TAB>group<TAB>kind<TAB>action<TAB>description
+alt-e	editing	command	vi-editing-mode	
+alt-e	editing	command	emacs-editing-mode	
+ctrl-a	editing	command	beginning-of-line	
+ctrl-e	editing	command	end-of-line	
+ctrl-b	editing	command	backward-char	
+ctrl-f	editing	command	forward-char	
+alt-k	editing	command	kill-line	
+ctrl-l	editing	command	clear-screen	
+C o n t r o l - l	editing	command	clear-screen	Quoting the words makes this the literal character sequence rather than Ctrl-L.
+C o n t r o l - o	editing	command	redraw-current-line	Quoting the words makes this the literal character sequence rather than Ctrl-O.
+ctrl-o	editing	command	redraw-current-line	
+alt-o	editing	command	magic-space	
+ctrl-n	editing	command	next-history	
+ctrl-p	editing	command	previous-history	
+ctrl-u	editing	command	unix-line-discard	
+alt-m	editing	command	menu-complete	
+alt-w	editing	command	unix-filename-rubout	
+alt-u	editing	command	capitalize-word	
+ctrl-d	editing	command	delete-char	
+alt-]	editing	command	character-search	
+alt-[	editing	command	character-search-backward	
+C o n t r o l - w	editing	command	unix-word-rubout	Quoting the words makes this the literal character sequence rather than Ctrl-W.
+ctrl-w	editing	command	unix-word-rubout	
+tab	completion	function	menu-complete	Tab completion of commands that cycles through possible options:
+tab	completion	command	menu-complete	
+esc [ Z	completion	function	menu-complete-backward	
+esc [ Z	completion	command	menu-complete-backward	
+ctrl-s	sudo	function	sudo_insert	Insert 'sudo ' at the beginning of a command.
+alt-l	listing	run	eza -ahlrs date	ls/eza
+alt-L	listing	insert	eza -ahlrs date	
+alt-i	listing	run	eza -alD	List directories.
+alt-I	listing	insert	eza -alD	
+alt-I	listing	macro	i\C-x1eza -alD	
+ctrl-x t	listing	run	eza -hl --sort=age	List files sorted by time.
+ctrl-x t	listing	macro	\C-x0eza -hl --sort=age\r	
+ctrl-x T	listing	insert	eza -ahl --sort=age	
+alt-t	listing	run	eza --tree	eza tree
+alt-T	listing	insert	eza -lT	
+ctrl-x u	listing	run	eza --tree --color=always --header --group --links --bytes --long --ignore-glob=.git	`eza tree` with detailed file info.
+ctrl-x ctrl-u	listing	insert	eza -lThgB --color=always -I .git	
+ctrl-x ctrl-s	listing	run	source ~/.bashrc	Source ~/.bashrc
+ctrl-x -	navigation	run	cd -	Navigation bindings: `cd -`
+ctrl-x d c	navigation	run	cd ~/.config	cd ~/.config/
+ctrl-x d d	navigation	run	cd ~/Documents	cd ~/Documents/
+ctrl-x d D	navigation	run	cd ~/Downloads	cd ~/Downloads/
+ctrl-x d n	navigation	run	cd ~/.config/nvim	cd ~/.config/nvim/
+ctrl-x d s	navigation	run	cd ~/Pictures/screenshots	cd ~/Pictures/screenshots/
+ctrl-x d p	navigation	run	cd ~/workspaces/Ivy/webdavis	cd ~/workspaces/Ivy/webdavis/
+ctrl-x d t	navigation	run	cd ~/workspaces/tools	cd ~/workspaces/tools/
+ctrl-g d r	navigation	run	__bash_bindings_go_to_project_root	
+ctrl-g v	git	run	git --version	git --version
+ctrl-g s s	git	run	git status	git status
+ctrl-g s h	git	run	git status --short	git status --short
+ctrl-g s u	git	run	git ls-files --others --exclude-standard | grep --color=always '.*'	git ls-files --others --exclude-standard | grep --color=always '.*'
+ctrl-g l l	git	run	git log	git log
+ctrl-g l o	git	run	git log --oneline	git log --oneline
+ctrl-g d d	git	run	git diff	Print the current git working diff.
+ctrl-g d i	git	run	git diff HEAD^	Print the current git diff of the latest commit.
+ctrl-g d l	git	run	git diff HEAD^	alt: (C-g di)
+ctrl-g d p	git	run	if ! git diff --quiet; then clear; git --no-pager diff --patch-with-stat; else echo 'git-diff: No changes have been made'; fi	Print the diff of the current and previous commit.
+ctrl-g d c	git	run	git diff --cached	git diff --cached
+ctrl-g k h	git	insert	git checkout	`git checkout `
+ctrl-g k n	git	insert	git checkout -b	`git checkout -b `
+ctrl-g k -	git	run	git checkout -	git checkout -
+ctrl-g k m	git	run	git checkout main	git checkout main
+ctrl-g k t	git	insert	git checkout --track	Switch to an existing remote branch: git checkout --track <remote_name/branch_name>
+ctrl-g c c	git	run	git commit --verbose	git commit --verbose
+ctrl-g c m	git	macro	\C-x0git commit --verbose -m ''\e[D	git commit --verbose -m '<cursor>'
+ctrl-g c m	git	macro	i\C-x0git commit --verbose -m ''\e[D	
+ctrl-g c a	git	run	git commit --verbose --amend	git commit --verbose --amend
+ctrl-g c A	git	run	git commit --verbose --all	git commit --verbose --all
+ctrl-g c n	git	run	git commit --amend --no-edit	git commit --amend --no-edit
+ctrl-g c N	git	run	git commit --amend --no-edit --all	git commit --amend --no-edit --all
+ctrl-g c y	git	run	__bash_bindings_copy_latest_git_commit_message_to_clipboard	
+ctrl-g r u	git	insert	git reset	git reset commands: Unstage index
+ctrl-g r U	git	insert	git reset -- <file>	Unstage index (file)
+ctrl-g r s	git	insert	git reset --soft HEAD~1	Undo last commit (keep index)
+ctrl-g r r	git	insert	git restore	Delete working (all)
+ctrl-g r f	git	insert	git restore -- <file>	Delete working (file)
+ctrl-g r i	git	insert	git restore --staged	Delete index, keep working (all)
+ctrl-g r F	git	insert	git restore --staged <file>	Delete index (file)
+ctrl-g r h	git	insert	git reset --hard	DANGEROUS: Rewind to HEAD (working + index)
+ctrl-g r H	git	insert	git reset --hard <commit>	DANGEROUS: Rewind to <commit> (working + index)
+ctrl-g i i	git	run	git init	git init
+ctrl-g i i	git	macro	i\C-xgit init\r	
+ctrl-g i c	git	run	if ! git rev-parse --is-inside-work-tree &>/dev/null; then git init; gh repo create; fi	git init && gh repo create
+ctrl-g f e	git	run	git fetch	git fetch
+ctrl-g f p	git	run	git pull	git pull
+ctrl-g f r	git	run	git pull --rebase	git pull --rebase
+ctrl-g p p	git	run	git push	git push
+ctrl-g p f	git	run	git push --force-with-lease	git push --force-with-lease
+ctrl-g p r	git	insert	git push origin :	Delete remote_branch branch from the origin remote. `git push origin :remote_branch`
+ctrl-_ I	git	function	__bash_bindings_open_github_page 'feed'	Open GitHub Feed (https://github.com) in browser.
+ctrl-g o f	git	macro	\C-x0\C-_I\C-x1\C-x2\b	
+ctrl-g o f	git	macro	i\C-x0\C-_I\C-x1\C-x2\b	
+ctrl-_ J	git	function	__bash_bindings_open_github_page '' 'Home'	Open repo's GitHub Home page in browser.
+ctrl-g o o	git	macro	\C-x0\C-_J\C-x1\C-x2\b	
+ctrl-g o o	git	macro	i\C-x0\C-_J\C-x1\C-x2\b	
+ctrl-_ K	git	function	__bash_bindings_open_github_page 'issues'	Open repo's GitHub Issues page in browser.
+ctrl-g o i	git	macro	\C-x0\C-_K\C-x1\C-x2\b	
+ctrl-g o i	git	macro	i\C-x0\C-_K\C-x1\C-x2\b	
+ctrl-_ R	git	function	__bash_bindings_open_github_page 'pulls' 'Pull Requests'	Open repo's GitHub Pull Requests page in browser.
+ctrl-g o p	git	macro	\C-x0\C-_R\C-x1\C-x2\b	
+ctrl-g o p	git	macro	i\C-x0\C-_R\C-x1\C-x2\b	
+ctrl-_ S	git	function	__bash_bindings_open_github_page 'actions'	Open repo's GitHub Actions page in browser.
+ctrl-g o a	git	macro	\C-x0\C-_S\C-x1\C-x2\b	
+ctrl-g o a	git	macro	i\C-x0\C-_S\C-x1\C-x2\b	
+ctrl-_ T	git	function	__bash_bindings_open_github_page 'projects'	Open repo's GitHub Projects page in browser.
+ctrl-g o P	git	macro	\C-x0\C-_T\C-x1\C-x2\b	
+ctrl-g o P	git	macro	i\C-x0\C-_T\C-x1\C-x2\b	
+ctrl-_ U	git	function	__bash_bindings_open_github_page 'wiki'	Open repo's GitHub Wiki page in browser.
+ctrl-g o w	git	macro	\C-x0\C-_U\C-x1\C-x2\b	
+ctrl-g o w	git	macro	i\C-x0\C-_U\C-x1\C-x2\b	
+ctrl-_ V	git	function	__bash_bindings_open_github_page 'security'	Open repo's GitHub Security page in browser.
+ctrl-g o S	git	macro	\C-x0\C-_V\C-x1\C-x2\b	
+ctrl-g o S	git	macro	i\C-x0\C-_V\C-x1\C-x2\b	
+ctrl-_ W	git	function	__bash_bindings_open_github_page 'pulse' 'Insights'	Open repo's GitHub Insights page in browser.
+ctrl-g o I	git	macro	\C-x0\C-_W\C-x1\C-x2\b	
+ctrl-g o I	git	macro	i\C-x0\C-_W\C-x1\C-x2\b	
+ctrl-_ X	git	function	__bash_bindings_open_github_page 'settings'	Open repo's GitHub Settings page in browser.
+ctrl-g o s	git	macro	\C-x0\C-_X\C-x1\C-x2\b	
+ctrl-g o s	git	macro	i\C-x0\C-_X\C-x1\C-x2\b	
+ctrl-_ Y	git	function	__bash_bindings_open_github_page 'profile'	Open My GitHub Profile in browser.
+ctrl-g o .	git	macro	\C-x0\C-_Y\C-x1\C-x2\b	
+ctrl-g o .	git	macro	i\C-x0\C-_Y\C-x1\C-x2\b	
+ctrl-g t l	git	run	__bash_bindings_git_list_tags	
+ctrl-g a a	git	insert	git add	`git add `
+ctrl-g a u	git	run	git add --update	git add --update
+ctrl-g a .	git	run	git add .	git add .
+ctrl-g b b	git	run	git branch	git branch
+ctrl-g b c	git	run	git branch --show-current	git branch --show-current
+ctrl-g b v	git	run	git branch -vv	Show all local branches with upstream tracking: git branch -vv
+ctrl-g b r	git	run	git branch -rv	Show all remote branches with commits: git branch -rv
+ctrl-g b a	git	run	echo 'Local:'; git branch -vv; echo -e ' Remotes:'; git branch -rv	Shows pretty split of local and remote branches with commits: git branch -vv; git branch -rv (Shows pretty split of local and remote branches.)
+ctrl-g b m	git	insert	git branch -m	git branch -m
+ctrl-g ctrl-r o	git	run	git remote show origin	git remote show origin
+ctrl-g ctrl-r u	git	run	git remote show upstream	git remote show upstream
+ctrl-g h i	git	run	gh issue list	gh issue list
+ctrl-g h p	git	run	gh pr list	gh pr list
+ctrl-x o u	packages	run	__bash_bindings_update_package_manager	
+ctrl-x o s	packages	insert	brew search	`brew search `
+ctrl-x o i	packages	insert	brew install	`brew install `
+ctrl-x l	files	run	__bash_bindings_git_ls_files_with_last_modified	
+ctrl-x n h h	network-host	run	hostname	╭───────────────╮ │ Host Bindings │ ╰───────────────╯ Print the hostname of the current machine.
+ctrl-x n h m	network-host	run	__bash_bindings_print_mac_address	
+ctrl-x n h i	network-host	run	__bash_bindings_show_current_network_interface	
+ctrl-x n h p	network-host	run	lsof -nP -iTCP -sTCP:LISTEN	Show all active network connections and listening ports for troubleshooting.
+ctrl-x n l l	network-lan	run	ipconfig getifaddr en0	╭──────────────╮ │ LAN Bindings │ ╰──────────────╯ Shows your local IP address on the current network (LAN).
+ctrl-x n l g	network-lan	run	__bash_bindings_show_ip_address_of_default_gateway	
+ctrl-x n l b	network-lan	run	__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface	
+ctrl-x n l r	network-lan	run	__bash_bindings_ping_default_gateway	
+ctrl-x n l t	network-lan	run	__bash_bindings_check_protocol_connectivity	
+ctrl-x n l 2	network-lan	run	__bash_bindings_check_protocol_connectivity 22	
+ctrl-x n l 4	network-lan	run	__bash_bindings_check_protocol_connectivity 443	
+ctrl-x n l 5	network-lan	run	__bash_bindings_check_protocol_connectivity 53	
+ctrl-x n l 8	network-lan	run	__bash_bindings_check_protocol_connectivity 80	
+ctrl-x n l 0	network-lan	run	__bash_bindings_check_protocol_connectivity 8080	
+ctrl-x n l s	network-lan	run	__bash_bindings_scan_common_ports	
+ctrl-x n l c	network-lan	run	__bash_bindings_capture_packets_on_default_network_interface	
+ctrl-x n 4	network-lan	run	curl --ipv4 https://ifconfig.me/all	Shows your public IPv4 address (the address visible to the internet).
+ctrl-x n 6	network-lan	run	curl --ipv6 https://ifconfig.me/all	Shows your public IPv6 address (the address visible to the internet).
+ctrl-x n i	network-lan	run	curl -s https://ipinfo.io | jq .	Displays your ISP and other public network details.
+ctrl-x n d d	network-dns	run	__bash_bindings_dns_lookup	
+ctrl-x n d r	network-dns	run	__bash_bindings_reverse_dns_lookup	
+ctrl-x n d a	network-dns	run	__bash_bindings_system_dns_servers	
+ctrl-x n d t	network-dns	macro	\__bash_bindings_test_dns_resolution_for_common_domains\r	
+ctrl-x n d t	network-dns	macro	i\C-x0__bash_bindings_test_dns_resolution_for_common_domains\r	
+ctrl-x n d s	network-dns	run	__bash_bindings_dns_summary	
+ctrl-x n w l	network-wan	run	ping -c 3 1.1.1.1 | tail -1	╭──────────────╮ │ WAN Bindings │ ╰──────────────╯ Measure internet connection latency to Cloudflare DNS (1.1.1.1) with three pings.
+ctrl-x n w p	network-wan	run	ping -c 1 8.8.8.8	Ping Google's DNS server once to check basic internet connectivity.
+ctrl-x n w P	network-wan	insert	ping -c 1	Ping (custom) server once to check basic internet connectivity.
+ctrl-x n w t	network-wan	insert	traceroute google.com	Perform a traceroute to google.com to see the network path and detect routing issues.
+ctrl-x n w L	network-wan	run	__bash_bindings_latency_traceroute_test	
+ctrl-x n w h	network-wan	run	__bash_bindings_network_health_check	
+ctrl-x n w s	network-wan	run	__bash_bindings_network_summary	
+ctrl-x v	bindings-help	run	__bash_bindings_list_bash_bindings	
