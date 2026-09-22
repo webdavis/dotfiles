@@ -340,3 +340,23 @@ for these retained limits.
 - **Given** a present ClawHub skill, **when** performing a full refresh, **then** remove only its
   candidate `.DS_Store` metadata before the package command. Additive bootstrap preserves a healthy skill
   without invoking the package command or removing its metadata.
+
+## Global package rosters
+
+- **Given** an `npm` or `uv` lane with no `declared` key, **when** it runs, **then** it upgrades and
+  records exactly as before: one listing command is not run and no package is named. Absent is the
+  default.
+- **Given** a `declared` list of names, **when** the upgrade step has finished, **then** list what is
+  installed and record `undeclared: <name> <version>` once per installed name the list does not hold, as
+  a noted line. Nothing is ever removed, so the list is the report's reference and never a roster to
+  install or uninstall from. A `declared` value that is not a list of non-empty names is refused by key.
+- **Given** the npm lane, **when** listing, **then** read `npm ls -g --depth=0 --json` in the same
+  environment the upgrade ran in, take the keys of `dependencies` with each version beside it, and never
+  report `npm` or `corepack`, which node itself brings. A document holding no `dependencies` is a machine
+  with nothing installed.
+- **Given** the uv lane, **when** listing, **then** read `uv tool list` and take each line whose second
+  word is a `v` version, so the `- <name>` executable entries beneath a tool are not tools. A listing
+  holding no such line names nothing.
+- **Given** a listing that could not be run, or an npm answer that is not readable JSON, **when**
+  reporting, **then** fail the step carrying what the command said, because a silent lane reads exactly
+  like a machine with nothing undeclared on it.

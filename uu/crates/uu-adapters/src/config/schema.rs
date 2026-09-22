@@ -106,6 +106,26 @@ pub fn boolean(table: &str, key: &str, setting: &toml::Value) -> Result<bool, Co
     })
 }
 
+/// One key that has to be a list of non-empty names, as a `declared` roster
+/// is written. An entry that names nothing is refused rather than dropped: a
+/// roster silently one name short reports a declared package as undeclared.
+pub fn text_list(
+    table: &str,
+    key: &str,
+    setting: &toml::Value,
+) -> Result<Vec<String>, ConfigError> {
+    let Some(entries) = setting.as_array() else {
+        return Err(ConfigError::Invalid(format!(
+            "`{table}` key `{key}` has type `{}`, not a list of names",
+            setting.type_str()
+        )));
+    };
+    entries
+        .iter()
+        .map(|entry| non_empty(table, key, entry))
+        .collect()
+}
+
 /// A `non_empty` string that also has to be an ABSOLUTE path, for a key whose
 /// whole job is to name a file whose directory the lane then derives.
 pub fn absolute(table: &str, key: &str, setting: &toml::Value) -> Result<String, ConfigError> {

@@ -19,6 +19,7 @@ mod skills;
 
 mod spawn;
 mod text;
+mod undeclared;
 mod uv;
 pub use skills::capture_skills_updater;
 pub use skills::{
