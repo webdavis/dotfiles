@@ -72,6 +72,51 @@ fn a_named_window_heads_the_page_with_its_own_name() {
 }
 
 #[test]
+fn the_night_window_is_nightshift_on_the_page_and_in_every_document() {
+    let sandbox = sandbox_with_store("recap-nightshift-names");
+    planted(&sandbox, 60, "done");
+    let recap = |extra: &[&str]| {
+        let output = run(sandbox
+            .pns_stateful()
+            .args(["recap", "nightshift"])
+            .args(extra));
+        assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+        stdout(&output)
+    };
+
+    let page = recap(&[]);
+    assert!(page.starts_with("nightshift 22:00-06:00 "), "{page}");
+
+    let json: serde_json::Value =
+        serde_json::from_str(&recap(&["--json"])).expect("a JSON document");
+    assert_eq!(json["window"]["name"], "nightshift", "{json}");
+
+    let toon = recap(&["--toon"]);
+    assert!(toon.contains("\nwindow:\n  name: nightshift\n"), "{toon}");
+
+    let mask = sandbox.path("mask.toon");
+    std::fs::write(&mask, "window:\n  name: true\n").expect("the mask");
+    assert_eq!(
+        recap(&["--schema", mask.to_str().expect("a path")]).trim_end(),
+        "window:\n  name: nightshift"
+    );
+}
+
+#[test]
+fn a_word_that_names_no_window_prints_the_usage_listing_every_window() {
+    let sandbox = sandbox_with_store("recap-window-typo");
+    let output = run_expecting(2, sandbox.pns_stateful().args(["recap", "nightshfit"]));
+    assert!(
+        stderr(&output).contains(
+            "\npns: windows: nightshift, morning, afternoon, evening, today, yesterday, week, \
+             last-week\n"
+        ),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn open_prints_only_the_open_section_and_accepts_no_window_flag() {
     // THE "WHERE WAS I" ANSWER, and it has no window: `pns recap open` at
     // the keyboard and `pns recap open --to banner` from an unlock

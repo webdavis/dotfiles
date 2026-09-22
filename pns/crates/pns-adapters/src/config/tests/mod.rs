@@ -391,6 +391,7 @@ mod recap_sources;
 mod recap_summarizer;
 mod recap_switches;
 mod recap_threshold;
+mod recap_windows;
 mod remind;
 mod roster;
 mod schema;
