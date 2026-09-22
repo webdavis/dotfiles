@@ -32,6 +32,10 @@ impl Renderer for Menu {
         }
         Ok(out)
     }
+
+    fn output<'a>(&self, table: &'a Table) -> Option<&'a str> {
+        table.render.menu.output.as_deref()
+    }
 }
 
 fn record(group: &Group, binding: &Binding) -> Result<String, RenderFault> {

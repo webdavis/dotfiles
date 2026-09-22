@@ -20,6 +20,10 @@ impl std::fmt::Display for RenderFault {
 
 pub trait Renderer {
     fn render(&self, table: &Table) -> Result<String, RenderFault>;
+
+    /// The file this target's rendering is written to, when the table names
+    /// one. Only the target knows which section of the table is its own.
+    fn output<'a>(&self, table: &'a Table) -> Option<&'a str>;
 }
 
 /// The comment block a rendered file opens with: the table's own header, or
@@ -60,6 +64,35 @@ mod tests {
     #[test]
     fn a_header_missing_its_final_newline_gains_one() {
         assert_eq!(header(Some("# mine"), "# neutral\n"), "# mine\n");
+    }
+
+    #[test]
+    fn each_target_reports_the_output_its_own_section_names() {
+        let table: Table = toml::from_str(
+            "[render.bash]\noutput = \"bindings.sh\"\n[render.menu]\noutput = \"records.tsv\"\n",
+        )
+        .expect("the table must parse");
+        assert_eq!(
+            for_target("bash").expect("a bash target").output(&table),
+            Some("bindings.sh")
+        );
+        assert_eq!(
+            for_target("menu").expect("a menu target").output(&table),
+            Some("records.tsv")
+        );
+    }
+
+    #[test]
+    fn a_table_naming_no_output_sends_every_target_to_standard_output() {
+        let table: Table = toml::from_str("[[group]]\nname = \"g\"\n").expect("must parse");
+        assert_eq!(
+            for_target("bash").expect("a bash target").output(&table),
+            None
+        );
+        assert_eq!(
+            for_target("menu").expect("a menu target").output(&table),
+            None
+        );
     }
 
     #[test]

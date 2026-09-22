@@ -36,6 +36,9 @@ pub struct BashRender {
     /// The readline macro that clears the line before another macro types
     /// over it, which a typed row needs and the other row kinds do not.
     pub clear_line: Option<String>,
+    /// The file the rendering is written to. Absent sends it to standard
+    /// output.
+    pub output: Option<String>,
 }
 
 /// The menu target's own settings.
@@ -44,6 +47,9 @@ pub struct BashRender {
 pub struct MenuRender {
     /// The comment block the rendered records open with.
     pub header: Option<String>,
+    /// The file the records are written to. Absent sends them to standard
+    /// output.
+    pub output: Option<String>,
 }
 
 /// One documented section of the table.
@@ -183,7 +189,9 @@ mod tests {
         assert_eq!(table.render.regenerate, None);
         assert_eq!(table.render.bash.header, None);
         assert_eq!(table.render.bash.clear_line, None);
+        assert_eq!(table.render.bash.output, None);
         assert_eq!(table.render.menu.header, None);
+        assert_eq!(table.render.menu.output, None);
     }
 
     #[test]
@@ -197,6 +205,15 @@ mod tests {
         assert_eq!(table.render.bash.header.as_deref(), Some("# mine\n"));
         assert_eq!(table.render.bash.clear_line.as_deref(), Some("\\C-x0"));
         assert_eq!(table.render.menu.header.as_deref(), Some("# picker\n"));
+    }
+
+    #[test]
+    fn each_target_names_the_file_it_writes() {
+        let table = parse(
+            "[render.bash]\noutput = \"bindings.sh\"\n[render.menu]\noutput = \"records.tsv\"\n",
+        );
+        assert_eq!(table.render.bash.output.as_deref(), Some("bindings.sh"));
+        assert_eq!(table.render.menu.output.as_deref(), Some("records.tsv"));
     }
 
     #[test]

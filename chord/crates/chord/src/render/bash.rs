@@ -26,6 +26,10 @@ impl Renderer for Bash {
         }
         Ok(out)
     }
+
+    fn output<'a>(&self, table: &'a Table) -> Option<&'a str> {
+        table.render.bash.output.as_deref()
+    }
 }
 
 fn render_group(
