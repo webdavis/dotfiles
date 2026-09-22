@@ -197,3 +197,53 @@ fn the_configured_reminder_is_replaced_in_place() {
     assert_eq!(document["hooks"]["PermissionRequest"], expected);
     assert_eq!(merged(document.clone()), document);
 }
+
+#[test]
+fn moshi_hooks_own_codex_handlers_are_stripped_from_every_event() {
+    let herdr = "bash '/home/tester/.codex/herdr-agent-state.sh' session";
+    let seshagy = "bash '/home/tester/.codex/hooks/seshagy-agent-state.sh' codex working";
+    let document = merged(json!({"hooks": {
+        "SessionStart": [
+            {"hooks": [{"type": "command", "command": herdr}]},
+            {"hooks": [{"type": "command", "command": "'/opt/homebrew/bin/moshi-hook' codex-hook"}]}
+        ],
+        "UserPromptSubmit": [{"hooks": [
+            {"type": "command", "command": seshagy},
+            {"type": "command", "command": "/usr/local/bin/moshi-hook codex-hook"}
+        ]}],
+        "PreToolUse": [{"hooks": [{"type": "command", "command": "moshi-hook codex-hook"}]}],
+        "Notification": [],
+        "Stop": [{"hooks": [{"type": "command", "command": "\"/opt/homebrew/bin/moshi-hook\" codex-hook"}]}]
+    }}));
+    assert_eq!(
+        document["hooks"]["SessionStart"],
+        json!([{"hooks": [{"type": "command", "command": herdr}]}])
+    );
+    assert_eq!(
+        commands(&document, "UserPromptSubmit"),
+        vec![seshagy.to_string()]
+    );
+    assert!(document["hooks"].get("PreToolUse").is_none());
+    assert_eq!(document["hooks"]["Notification"], json!([]));
+    assert_eq!(
+        commands(&document, "Stop"),
+        vec![format!("PNS_PRODUCER=codex {BINARY} hook stop")]
+    );
+}
+
+#[test]
+fn a_handler_that_is_not_moshi_hooks_codex_adapter_survives() {
+    let survivors = [
+        "bash '/home/tester/.codex/hooks/seshagy-agent-state.sh' codex done",
+        "/home/tester/.local/bin/plannotator",
+        "/opt/homebrew/bin/moshi-hook claude-hook",
+        "/opt/homebrew/bin/not-moshi-hook codex-hook",
+        "echo codex-hook moshi-hook",
+    ];
+    let handlers: Vec<Value> = survivors
+        .iter()
+        .map(|command| json!({"type": "command", "command": command}))
+        .collect();
+    let document = merged(json!({"hooks": {"UserPromptSubmit": [{"hooks": handlers}]}}));
+    assert_eq!(commands(&document, "UserPromptSubmit"), survivors);
+}

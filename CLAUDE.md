@@ -600,7 +600,9 @@ because it is what moshi's own generated pi and omp extensions are stuck with: t
 holds one pathname and has no room for a subcommand. A `pns gate <harness>-hook` spelling existed
 alongside it and is gone; a hook-shaped word the gate will not vouch for is refused with exit 2 and a
 sentence, never an exit 0 that forwarded nothing. `pns codex install-hooks` merges pns's four Codex hooks
-into `~/.codex/hooks.json`, and `run_after_72` is what runs it; pns ships no bash at all.
+into `~/.codex/hooks.json` and removes any handler that runs `moshi-hook codex-hook`, so moshi hears from
+Codex only through pns's presence gate even after the phone app reinstalls its integrations;
+`run_after_72` is what runs it, and pns ships no bash at all.
 
 **The shipped config template is a GENERATED FILE.** `dot_config/pns/private_config.toml.tmpl` is
 `render`'s own output over the committed `dot_config/pns/config-values.toml`, produced by

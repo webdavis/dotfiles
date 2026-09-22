@@ -7,7 +7,8 @@
 use pns_adapters::CodexHooksInstall;
 
 pub(crate) const CODEX_USAGE: &str = "pns: usage: pns codex install-hooks; merges pns's four \
-hooks into ~/.codex/hooks.json and leaves every other handler alone";
+hooks into ~/.codex/hooks.json, removes moshi-hook's own Codex handlers and leaves every other \
+handler alone";
 
 pub(crate) fn codex_mode(verb: &str) -> i32 {
     match verb {
