@@ -1,5 +1,6 @@
 {
   "aerial.nvim": { "branch": "master", "commit": "28fe6e822ae344544c379d60fcb13c9519a1f08a" },
+  "avante.nvim": { "branch": "main", "commit": "c7e4e738a682a972f0b6b75f29106550b4ec7522" },
   "atlas.nvim": { "branch": "main", "commit": "5aa47cd33400a137bf59df84e088a954e1add3b0" },
   "auto-save.nvim": { "branch": "main", "commit": "9aabcb8396224dcbf8d51c0c1d620d88a46e89d7" },
   "blink-calc": { "branch": "main", "commit": "1b75c20cbb21c95bf08694eed605fa0bdbbe5ca2" },
@@ -84,6 +85,7 @@
   "smart-splits.nvim": { "branch": "master", "commit": "0c7abbf2f4e64e56519cb036f01e62e83e2cdcf1" },
   "snacks.nvim": { "branch": "main", "commit": "882c996cf28183f4d63640de0b4c02ec886d01f2" },
   "sort.nvim": { "branch": "main", "commit": "fa6318fc6676294bff0fd56ae8e8f9552be1ac7e" },
+  "substitute.nvim": { "branch": "main", "commit": "0d2077398552f069abccbd964a26dd7cd26882cd" },
   "targets.vim": { "branch": "master", "commit": "6325416da8f89992b005db3e4517aaef0242602e" },
   "todo-comments.nvim": { "branch": "main", "commit": "31e3c38ce9b29781e4422fc0322eb0a21f4e8668" },
   "toggleterm.nvim": { "branch": "main", "commit": "9a88eae817ef395952e08650b3283726786fb5fb" },

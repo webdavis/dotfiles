@@ -16,6 +16,10 @@
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
+local function overlapping_modes(mode)
+  return mode == "v" and { "x", "s" } or { mode }
+end
+
 -- todo-comments.lua requires snacks at file scope, so the module has to answer
 -- something for the file to load at all.
 local function stub_snacks()
@@ -31,6 +35,9 @@ end
 ---Every (mode, lhs) pair the configuration declares, each mapped to the list of
 ---sources that claim it, plus the files that could not be read.
 local function survey()
+  local real_preload = package.preload["snacks"]
+  local real_loaded = package.loaded["snacks"]
+  package.loaded["snacks"] = nil
   stub_snacks()
 
   local owners, unreadable = {}, {}
@@ -46,7 +53,9 @@ local function survey()
     lhs_list = type(lhs_list) == "table" and lhs_list or { lhs_list }
     for _, lhs in ipairs(lhs_list) do
       for _, mode in ipairs(modes) do
-        claim(mode, lhs, source)
+        for _, overlapping_mode in ipairs(overlapping_modes(mode)) do
+          claim(overlapping_mode, lhs, source)
+        end
       end
     end
   end
@@ -99,6 +108,9 @@ local function survey()
     table.insert(unreadable, "config/keymaps.lua: " .. tostring(err))
   end
 
+  package.preload["snacks"] = real_preload
+  package.loaded["snacks"] = real_loaded
+
   return owners, unreadable
 end
 
@@ -124,5 +136,16 @@ return {
     -- would report no collisions at all, which is the failure this rules out.
     assert(owners["n <leader>p"], "no plugin spec keys were collected")
     assert(owners["n <C-s>"], "no config/keymaps.lua mappings were collected")
+  end,
+  ["visual mappings claim both visual and select modes"] = function()
+    local modes = overlapping_modes("v")
+    assert(vim.deep_equal(modes, { "x", "s" }), "visual mode was not expanded")
+  end,
+  ["the survey restores the snacks module state"] = function()
+    local real_preload = package.preload["snacks"]
+    local real_loaded = package.loaded["snacks"]
+    survey()
+    assert(package.preload["snacks"] == real_preload, "package.preload was not restored")
+    assert(package.loaded["snacks"] == real_loaded, "package.loaded was not restored")
   end,
 }
