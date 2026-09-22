@@ -268,7 +268,7 @@ return {
             lhs = "<C-g>dhd",
             rhs = function()
               ---@diagnostic disable-next-line: param-type-mismatch
-              gitsigns.diffthis("~1")
+              gitsigns.diffthis("~1", { vertical = true })
             end,
             desc = "Gitsigns: side-by-side",
             buffer = bufnr,
@@ -278,7 +278,9 @@ return {
           map({
             mode = "n",
             lhs = "<C-g>did",
-            rhs = gitsigns.diffthis,
+            rhs = function()
+              gitsigns.diffthis(nil, { vertical = true })
+            end,
             desc = "Gitsigns: side-by-side",
             buffer = bufnr,
           })
