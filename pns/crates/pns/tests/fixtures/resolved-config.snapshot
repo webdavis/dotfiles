@@ -15,21 +15,7 @@ Config {
                 ),
             },
         },
-        "github": PluginEntry {
-            enabled: true,
-            settings: {
-                "personal_access_token": String(
-                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
-                ),
-                "poll_interval": String(
-                    "60s",
-                ),
-                "webhook_port": Integer(
-                    8648,
-                ),
-            },
-        },
-        "hermes": PluginEntry {
+        "discord": PluginEntry {
             enabled: true,
             settings: {
                 "bot_token": String(
@@ -98,7 +84,21 @@ Config {
                     },
                 ),
                 "type": String(
-                    "hermes",
+                    "discord",
+                ),
+            },
+        },
+        "github": PluginEntry {
+            enabled: true,
+            settings: {
+                "personal_access_token": String(
+                    "from-the-vault:GitHub (Webdavis) :: Personal Access Token (pns notifications):Password",
+                ),
+                "poll_interval": String(
+                    "60s",
+                ),
+                "webhook_port": Integer(
+                    8648,
                 ),
             },
         },
