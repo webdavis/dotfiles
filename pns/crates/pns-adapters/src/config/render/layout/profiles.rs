@@ -5,9 +5,9 @@ use super::*;
 /// classes beside it, because the headings carry the operator's own names.
 pub(crate) const PROFILES: Table = Table {
     name: "profiles",
-    prose: "# What reaches you, bundled by name. These are declarations only: nothing\n\
-            # reads them yet, so no rule below picks a profile and no profile is\n\
-            # active. Each surface takes \"all\" (everything that surface would have\n\
+    prose: "# What reaches you, bundled by name. The rules below choose one profile and\n\
+            # `pns profile` reports which it is and why; delivery does not read that\n\
+            # answer yet. Each surface takes \"all\" (everything that surface would have\n\
             # shown), \"priority\" (pages on the [routes] urgent route and nothing\n\
             # else) or \"none\". A profile only ever SUBTRACTS from what presence\n\
             # already decided, so it can never card a phone you are not near, and\n\

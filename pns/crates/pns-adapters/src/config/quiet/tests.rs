@@ -26,6 +26,17 @@ fn the_switch_without_a_command_is_off_rather_than_a_refusal() {
     assert_eq!(calendar.armed(), None);
 }
 
+/// The shipped shape while the operator's consent is still owed: a switch and
+/// nothing else, which parses and reads no calendar.
+#[test]
+fn a_table_with_neither_type_nor_command_is_inert() {
+    let calendar = parse_config("[quiet.calendar]\nenabled = false\n")
+        .unwrap()
+        .quiet_calendar;
+    assert_eq!(calendar, QuietCalendar::default());
+    assert_eq!(calendar.armed(), None);
+}
+
 #[test]
 fn both_together_arm_the_poll_at_its_interval() {
     let calendar = parse_config(

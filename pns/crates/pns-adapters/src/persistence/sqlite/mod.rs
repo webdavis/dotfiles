@@ -15,6 +15,7 @@ mod ledger;
 pub use ledger::DeliveryClaim;
 mod migrations;
 mod ports;
+mod profiles;
 mod records;
 mod returns;
 mod rows;

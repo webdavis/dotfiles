@@ -1,6 +1,8 @@
 use crate::legacy::{USAGE, is_help_flag};
 use crate::*;
 
+mod retired;
+
 /// What every command reads instead of the environment: argv from the
 /// subcommand on, with the tool-wide flags already taken out.
 ///
@@ -144,29 +146,26 @@ pub(crate) fn run() {
     if first == "tap" {
         std::process::exit(crate::command_tap::tap_mode());
     }
-    // The pulse is `pns lights pulse` now, since the lamps are all it touches.
-    if first == "pulse" {
-        std::process::exit(crate::command_lights::retired_pulse());
+    // A spelling that moved says where it went.
+    if let Some(code) = retired::retired(&first) {
+        std::process::exit(code);
     }
     // The operator's mute, typed and timed. Also a MODE: it writes the state
     // the event path reads, and delivers nothing itself.
     if first == "mute" {
         std::process::exit(mute_mode());
     }
-    // The word the mute used to answer to.
-    if first == "quiet" {
-        std::process::exit(crate::command_mute::retired_quiet());
+    // Which bundle of delivery settings is active. A MODE beside the mute's
+    // for the same reason: it writes the state the event path reads and
+    // delivers nothing itself.
+    if first == "profile" {
+        std::process::exit(crate::command_profile::profile_mode());
     }
     // One test send through every configured channel, and one line per
     // registered plugin about it. A MODE for the same reason the others are:
     // it takes no decision, so nothing about an event's plan reaches it.
     if first == "doctor" {
         std::process::exit(doctor_mode());
-    }
-    // The banner's click is `pns failures open <id>` now, beside the view it
-    // opens.
-    if first == "click" {
-        std::process::exit(crate::command_failures::retired_click());
     }
     // The detail view over what is not arriving. A MODE beside the doctor's
     // for the same reason: it reads the ledger, prints, and delivers nothing,
@@ -252,6 +251,12 @@ pub(crate) fn run() {
     // session stuck past the window rather than the one whose timer woke it.
     if first == pns_domain::stale::FIRE_WORD {
         std::process::exit(stale_mode());
+    }
+    // The one-time Google consent, typed once per machine. A MODE for the
+    // reason the others are: it takes no decision from any event and delivers
+    // nothing. It mints a credential and prints it, and writes it nowhere.
+    if first == "calendar" {
+        std::process::exit(calendar_mode(&second_argument(&flagless)));
     }
     // The first-run walk. A MODE that has to be reachable with NO CONFIG AT
     // ALL, which is the state it exists to end, and that is why it sits above

@@ -20,7 +20,7 @@ mod config;
 mod http_script;
 
 mod calendar;
-pub use calendar::{read_calendar, read_calendar_state, write_calendar_state};
+pub use calendar::{GoogleConsent, read_calendar, read_calendar_state, write_calendar_state};
 
 mod github;
 mod install;

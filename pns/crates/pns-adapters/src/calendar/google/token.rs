@@ -99,7 +99,7 @@ fn write_cached_token(state: &Path, token: &str, expires_at: u64) -> std::io::Re
 ///
 /// ENCODED RATHER THAN INTERPOLATED: a credential carrying `&` or `=` would
 /// otherwise compose a body stating fields nobody wrote.
-fn form(fields: &[(&str, &str)]) -> String {
+pub(super) fn form(fields: &[(&str, &str)]) -> String {
     fields
         .iter()
         .map(|(name, value)| format!("{}={}", encoded(name), encoded(value)))

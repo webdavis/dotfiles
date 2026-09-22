@@ -528,7 +528,7 @@ enabled = false
 type = "command"
 # `type = "command"` only. ARGV, NEVER A SHELL STRING. It is your own
 # command: pns names no calendar and holds no credential of one.
-command = ["/Users/stephen/.local/libexec/pns/calendar-busy-window.sh"]
+# command = ["your-calendar-command"]
 # `type = "google"` only. The calendar ids read, as one union.
 calendars = ["primary"]
 # `type = "google"` only, and all three are required together: the
@@ -543,9 +543,9 @@ poll_interval = "2m"
 # everything as it was, bounded "1s" to "30s".
 deadline = "20s"
 
-# What reaches you, bundled by name. These are declarations only: nothing
-# reads them yet, so no rule below picks a profile and no profile is
-# active. Each surface takes "all" (everything that surface would have
+# What reaches you, bundled by name. The rules below choose one profile and
+# `pns profile` reports which it is and why; delivery does not read that
+# answer yet. Each surface takes "all" (everything that surface would have
 # shown), "priority" (pages on the [routes] urgent route and nothing
 # else) or "none". A profile only ever SUBTRACTS from what presence
 # already decided, so it can never card a phone you are not near, and
