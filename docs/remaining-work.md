@@ -2690,23 +2690,25 @@ is missing.
   23:42 under moshi-hook 0.3.16), but that generation calls `helperBinary` only for debug replay, spawns
   nothing but `tmux`, and sends events over moshi's unix socket, so pns is out of pi and omp's path and
   no event has ever carried `agent='pi'`; filed as
-  [the pi/omp gate decision](https://app.todoist.com/app/task/6hW4H5jRxrJp8XJG). NotHome is blocked
-  upstream of itself: `pns home` reads `unknown`, the request-failed verdict (`home_report.rs:24`), while
-  the router answers 200 at `https://192.168.1.1/` and 401 at `/proxy/network/integration/v1/sites`
-  without a key, so the 2026-08-28 Home pass no longer reproduces and the credential or site id is the
-  suspect ([task](https://app.todoist.com/app/task/6hW4H6c9J64h79vp)). The blocked, loop and daylight
-  comparison has its code deployed (`pulse.rs` xy 0.3395/0.1379 and 0.1532/0.0475,
-  `breathe_then_flare_cycle` at `lights/breath.rs:86`, 13 lamps routed with 4 on blocked and 4 on loop)
-  and is owed the operator's eyes in daylight, on the Kitchen or MBedroom rather than the Studio. The
-  total-runtime performance pass stays open on
-  [its task](https://app.todoist.com/app/task/6hPxWVHM8pG4qgwp), whose 2026-09-13 native-probe medians
-  measure the probe stage and not total runtime, and the Part 2 intent review stays open on
-  [its task](https://app.todoist.com/app/task/6hPxWVwHGX9qFWpG), the 2026-08-31 grill session having
-  covered the lights behaviours only. Slice 7's quiet window stays deferred: the template ships the key
-  commented, the `quiet` table is empty, and an agent cannot read the deployed config. Configuration
-  generation needs no rework, its byte-equality gate having passed inside `just test-rust` on main's Lint
-  run 34803943215. Two incidentals: `pns doctor` reports the hermes gateway missing the `pns-recap` and
-  `posture` routes, where only recap has a documented fallback
+  [the pi/omp gate decision](https://app.todoist.com/app/task/6hW4H5jRxrJp8XJG). Drill 29 CLOSED
+  2026-09-22 as obsolete, by operator ruling: pi and omp are accepted as moshi-direct, so the bare
+  `pns <harness>-hook` gate and its tests are deleted, `run_after_62` no longer repoints `helperBinary`,
+  and its rename probe asks only `claude-hook` and `codex-hook`. NotHome is blocked upstream of itself:
+  `pns home` reads `unknown`, the request-failed verdict (`home_report.rs:24`), while the router answers
+  200 at `https://192.168.1.1/` and 401 at `/proxy/network/integration/v1/sites` without a key, so the
+  2026-08-28 Home pass no longer reproduces and the credential or site id is the suspect
+  ([task](https://app.todoist.com/app/task/6hW4H6c9J64h79vp)). The blocked, loop and daylight comparison
+  has its code deployed (`pulse.rs` xy 0.3395/0.1379 and 0.1532/0.0475, `breathe_then_flare_cycle` at
+  `lights/breath.rs:86`, 13 lamps routed with 4 on blocked and 4 on loop) and is owed the operator's eyes
+  in daylight, on the Kitchen or MBedroom rather than the Studio. The total-runtime performance pass
+  stays open on [its task](https://app.todoist.com/app/task/6hPxWVHM8pG4qgwp), whose 2026-09-13
+  native-probe medians measure the probe stage and not total runtime, and the Part 2 intent review stays
+  open on [its task](https://app.todoist.com/app/task/6hPxWVwHGX9qFWpG), the 2026-08-31 grill session
+  having covered the lights behaviours only. Slice 7's quiet window stays deferred: the template ships
+  the key commented, the `quiet` table is empty, and an agent cannot read the deployed config.
+  Configuration generation needs no rework, its byte-equality gate having passed inside `just test-rust`
+  on main's Lint run 34803943215. Two incidentals: `pns doctor` reports the hermes gateway missing the
+  `pns-recap` and `posture` routes, where only recap has a documented fallback
   ([task](https://app.todoist.com/app/task/6hW4H7XQ6fXPJc3G)), and the 28 `pns` crash reports in
   `~/Library/Logs/DiagnosticReports` are interrupted `pns setup` runs (26 SIGQUIT through `Hushed::drop`
   in `ask_hidden`), not engine crashes. The one `pns doctor` run this sweep needed sent a real test
@@ -2714,12 +2716,9 @@ is missing.
   leave the desk (or lock the screen), provoke a Codex permission request, and answer the card on the
   phone. Every Codex approval so far landed on the banner (19 of 19), so the phone path for a Codex block
   is the one thing unproven. Confirm afterwards with `pns doctor` (the decision line should read card:yes
-  with a mobile leg).; (2) Decide drill 29 (Todoist 6hW4H5jRxrJp8XJG): moshi-hook 0.3.16's generated pi
-  and omp extensions no longer spawn `helperBinary`, so the pns presence gate cannot see them. Pick one:
-  accept ungated pi and omp pushes and mark drill 29 closed as obsolete, ask moshi for a pre-send hook or
-  socket shim, or retire the repoint and `run_after_62`'s first check. An agent will not touch moshi's
-  own generated files either way.; (3) Fix the router probe before the NotHome drill (Todoist
-  6hW4H6c9J64h79vp). With KeePassXC unlocked, run: curl -sk -H "X-API-KEY: \<UniFi :: API Key
+  with a mobile leg).; (2) Drill 29 (Todoist 6hW4H5jRxrJp8XJG): decided 2026-09-22, ungated pi and omp
+  pushes accepted and the gate retired; nothing owed.; (3) Fix the router probe before the NotHome drill
+  (Todoist 6hW4H6c9J64h79vp). With KeePassXC unlocked, run: curl -sk -H "X-API-KEY: \<UniFi :: API Key
   (dresden-udr)>" https://192.168.1.1/proxy/network/integration/v1/sites . A 200 means the site id or
   client query is at fault; a 401 means the key was rotated and needs re-pasting into the vault entry,
   then a full `chezmoi apply`.; (4) Once `pns home` reads Home again, run the NotHome drill: phone off
