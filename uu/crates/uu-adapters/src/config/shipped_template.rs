@@ -35,6 +35,10 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
         typed::<NpmLane>(CONFIG, "npm"),
         Some(NpmLane {
             binary: "/stand-in/.local/share/fnm/aliases/default/bin/npm".to_string(),
+            // THE ROSTER THE REPORT IS MEASURED AGAINST. A block that lost
+            // this key still upgrades, and stops naming packages that arrived
+            // by hand, which is exactly what nobody would notice.
+            declared: Some(vec!["stand-in".to_string()]),
         })
     );
     // AND THE SAME FOR THE OTHER LANE: a block dropped from the template
@@ -44,6 +48,9 @@ fn the_shipped_template_still_parses_and_selects_what_it_selects() {
         typed::<UvLane>(CONFIG, "uv"),
         Some(UvLane {
             binary: "/opt/homebrew/bin/uv".to_string(),
+            // THE ROSTER THE REPORT IS MEASURED AGAINST, for the same reason
+            // the npm block carries one.
+            declared: Some(vec!["stand-in".to_string()]),
         })
     );
     // AND THE LANE THAT CARRIES THE REPAIRS. Dropping this block costs
