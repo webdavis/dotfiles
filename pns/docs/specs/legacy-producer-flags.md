@@ -22,9 +22,8 @@ pass.
 This file specifies the frozen compatibility contract of `pns`'s producer invocation: the deliberately
 lenient argv parser in `src/args.rs`, the ten producer flags it recognizes, the two help spellings, the
 top-level dispatch in `src/main.rs:main` that decides whether an argv is a producer invocation or a
-mistyped subcommand, the subcommand table printed by `const USAGE`, and the four hand-typed verbs whose
-argv shapes callers outside this crate depend on (`pns <harness>-hook`,
-`pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a delivered event renders as,
+mistyped subcommand, the subcommand table printed by `const USAGE`, and the hand-typed verbs whose argv
+shapes callers outside this crate depend on (`pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a delivered event renders as,
 which channels exist, how the decision ring or the journal are written, or any behavior of the daemon,
 the lamps, the home probe or the router beyond the argv that reaches them. Everything asserted here is
 derived from the code in this crate and the tests in `src/args.rs`, `src/lights.rs`, `src/pulse.rs`,
@@ -121,7 +120,6 @@ lives inside:
 | `Library/LaunchAgents/com.webdavis.pns-daemon.plist.tmpl:9`                    | `<home>/.cargo/bin/pns gateway run`                                               |
 | `private_dot_claude/modify_settings.json:328-387`                              | `<home>/.cargo/bin/pns hook <event>` for eleven events, one of them `>/dev/null` |
 | `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh:12-13`          | `PNS_AGENT=codex $agent hook stop` and `PNS_AGENT=codex $agent hook blocked`             |
-| `.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl:56`         | the binary path written into moshi's `helperBinary`, which then invokes `pns pi-hook`    |
 | `private_dot_claude/pns-marketplace/plugins/pns/skills/loop/SKILL.md:15,34`    | `~/.cargo/bin/pns loop begin` and `~/.cargo/bin/pns loop end`            |
 | `dot_config/uu/private_config.toml.tmpl:36`                                    | `[alerts] binary`, the engine `uu` shells out to for a failed lane                       |
 | `dot_config/osquery/private_page-launchd-allowlist.txt:46`                     | the allowlisted program string `~/.cargo/bin/pns gateway run`                     |
@@ -168,7 +166,7 @@ Then argv is collected once as `Vec<String>` via `std::env::args_os().skip(1)` w
 ### 2. A subcommand word is dispatched before the producer check
 
 Given argv whose first token is one of `pulse`, `quiet`, `doctor`, `recap`, `daemon`, `lights`, `loop`,
-`remind`, `setup`, `hook`, or a word ending in `-hook`\\
+`remind`, `setup` or `hook`\\
 
 When `main` runs its dispatch chain\\
 
@@ -188,8 +186,8 @@ Then that subcommand's mode runs and the producer parser is never reached, whate
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: the ORDER of the chain is the contract, since `setup` sits above everything
-  that loads a config and the harness word sits above `gate`. Naming test:
-  `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision`.
+  that loads a config, and a harness word has no branch in it at all. Naming test:
+  `tests/hooks.rs:a_harness_word_is_refused_as_usage_and_never_reaches_moshi`.
 
 ### 2a. `NOT ESTABLISHED:` a subcommand word carrying producer flags
 
@@ -664,41 +662,22 @@ Then the pane is replaced with the empty string in every delivered event and one
   banner that focuses nothing rather than a suppressed delivery. Naming test:
   `tests/dispatch.rs:a_pane_with_shell_metacharacters_is_scrubbed_from_every_delivered_event`.
 
-### 19. The bare gate spelling `pns <harness>-hook`
+### 19. The retired bare spelling `pns <harness>-hook`
 
-Given argv[1] shaped `<name>-hook`, with `<name>` non-empty and all ASCII lowercase\\
+Given argv[1] such as `pi-hook`, `omp-hook` or `claude-hook`\\
 
-When `hooks::is_harness_subcommand` accepts it\\
+When `main` finds no subcommand by that name\\
 
-Then `gate_mode` runs: it declines (exit 0) unless moshi is present and the operator is away, then reads
-the payload from stdin and passes it through to `moshi-hook <name>-hook`.
+Then the usage text is printed to stderr and the process exits 2, with nothing handed to moshi.
 
-- Success: moshi's own exit code is returned. `tests/hooks.rs` stubs moshi at 7 and asserts 7 comes back,
-  with the payload arriving on moshi's stdin byte for byte and the argv being exactly `pi-hook`.
-- Failure sources: a word that fails the shape test, no moshi, the operator at the desk, an absent or
-  over-cap payload.
-- Fail direction: exit 0 means "not forwarded" on every declining path, which is the harness's "no
-  opinion, prompt as usual" (`src/main.rs:gate_mode`). A word that fails the SHAPE test falls out of this
-  branch entirely and is then refused by behavior 3 with exit 2, because the bare spelling is
-  indistinguishable from a typo at that point.
-- Thresholds: the shape is `split_once('-')`, suffix exactly `hook`, name non-empty and all ASCII
-  lowercase (`src/hooks.rs:is_harness_subcommand`). One step either side: `pi-hook` is accepted;
-  `Pi-hook`, `-hook`, `pi-hook; rm -rf /` and `../../etc/passwd` are refused with exit 2.
-- Required side effects: the payload is forwarded unchanged when it is forwarded at all.
-- Forbidden side effects: the gate raises no event of its own; it forwards or it declines.
-- Timeout and cancellation: the wait on moshi is bounded at the shared seam by
-  `answer_within(child, submit_deadline())`, stated in `src/main.rs:gate_mode` as necessary because pi
-  and omp reach this entry point with no pns hook in front of it.
-- Idempotency and duplicates: `tests/hooks.rs:the_gate_submits_one_prompt_exactly_once` pins the single
-  submission.
-- Privacy: the payload is another program's and crosses to moshi unchanged.
-- Process ownership and cleanup: `spawn_moshi_hook` owns the child; `answer_within` bounds the wait.
-- Compatibility contract: the bare word exists because moshi's generated pi and omp extensions hold one
-  pathname in `helperBinary` with no room for a subcommand
-  (`.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl:60-63`). Naming tests:
-  `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision`,
-  `tests/hooks.rs:a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi`,
-  `tests/hooks.rs:a_zero_decision_passes_through_as_zero_and_is_not_a_default`.
+- Success: exit 2, `pns: usage:` on stderr, no submission and no event raised. Pinned by
+  `tests/hooks.rs:a_harness_word_is_refused_as_usage_and_never_reaches_moshi`.
+- Failure sources: none; a harness word names no command.
+- Fail direction: the typo refusal, which is behavior 3. moshi's generated pi and omp extensions write to
+  moshi's socket themselves since moshi-hook 0.3.9 and never read their `helperBinary` constant, so the
+  bare word lost its only caller (`docs/decisions/0008-the-bare-gate-spelling-exists-for-moshi.md`).
+- Required side effects: none.
+- Forbidden side effects: no event of its own, and no forward.
 
 ### 20. The retired gate spelling `pns gate <harness>-hook`
 
@@ -709,13 +688,12 @@ When `main` finds no subcommand named `gate`\\
 Then the usage text is printed to stderr and the process exits 2, with nothing handed to moshi.
 
 - Success: exit 2, `pns: usage:` on stderr, no child spawned and no event raised. Pinned by
-  `tests/hooks.rs:the_retired_gate_subcommand_is_refused_rather_than_forwarded`.
+  `tests/hooks.rs:a_harness_word_is_refused_as_usage_and_never_reaches_moshi`.
 - Failure sources: none; `gate` names no command in any argv position.
 - Fail direction: the typo refusal, which is behavior 3. Two spellings of one gate was one too many, and
   the retired one exited 0 for a word it would not vouch for, so a mistyped harness word looked wired
   while it forwarded nothing.
-- Thresholds: Not applicable. A hook-shaped word reaches `gate_mode`, which refuses what it will not
-  vouch for with exit 2 and a sentence naming the word; every other word takes the usage refusal.
+- Thresholds: Not applicable. Every word takes the usage refusal.
 - Required side effects: none.
 - Forbidden side effects: no event of its own, and no forward.
 
@@ -837,9 +815,9 @@ Then the exit code falls into exactly one of four classes.
     the marker cannot be removed.
   - `2`: a word naming no command; a mistyped flag; the literal empty first word; a pulse tail that
     cannot be read; a bad `loop` verb, pane or argument shape; a bad `lights` verb; a bad `quiet`,
-    `setup`, `doctor` or `recap` invocation; a bare gate word that fails the shape test.
-  - moshi's own code: a gate or a `hook blocked` that actually forwarded. In production that is 0
-    whichever way the operator answered (`src/main.rs:gate_mode` doc comment).
+    `setup`, `doctor` or `recap` invocation; a bare harness word such as `pi-hook`.
+  - moshi's own code: a `hook blocked` that actually forwarded. In production that is 0 whichever way the
+    operator answered (`moshi_hook/wait.rs:moshi_decision` doc comment).
 - Fail direction: the always-exit-0 contract governs EVENT deliveries and the hook path, because a
   notification must never fail the work it reports on. A word naming no command never becomes an event,
   so refusing it with 2 contradicts nothing (`src/main.rs:main`).
@@ -856,7 +834,7 @@ Then the exit code falls into exactly one of four classes.
   trailing `lights tick` is dropped rather than refused. Naming tests: `tests/support/mod.rs:run` (the
   exit-0 assertion every dispatch test inherits),
   `tests/dispatch.rs:a_word_that_names_no_command_is_refused_and_delivers_nothing`,
-  `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision`.
+  `tests/hooks.rs:a_harness_word_is_refused_as_usage_and_never_reaches_moshi`.
 
 ## Gaps
 

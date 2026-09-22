@@ -63,16 +63,10 @@ fn with_state_dir(sandbox: &Sandbox) -> Command {
 // mutation, found already killed by a test that exists, and dropped: a second
 // copy of a guard is not a second guard.
 //
-//   the single-submitter rule, hook entry point
+//   the single-submitter rule
 //     `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`
-//   the single-submitter rule, gate entry point
-//     `the_gate_submits_one_prompt_exactly_once`
 //   a submission that died without answering
 //     `a_submission_that_dies_without_answering_is_not_a_decision`
-//   the gate declining at the desk
-//     `at_the_desk_the_gate_submits_nothing_and_exits_zero`
-//   the gate refusing an over-cap payload
-//     `the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does`
 //   a watched pane is still forwarded
 //     `an_approval_is_forwarded_even_with_the_pane_in_plain_sight`
 //
@@ -96,8 +90,8 @@ fn with_state_dir(sandbox: &Sandbox) -> Command {
 // hook's STDOUT alone, off `hookSpecificOutput.decision`, and reads the exit
 // code on that event nowhere; the answer to a phone tap travels moshi's own
 // bridge, which screen-reads the pane and sends keys. What the exit code IS is
-// a pns-side contract the gate's direct callers read, and whose reading by
-// Codex is unverified. The corollary is the load-bearing one and
+// a pns-side contract whose reading by Codex is unverified. The corollary is
+// the load-bearing one and
 // `the_blocked_hook_writes_nothing_the_harness_would_read_as_a_decision` is
 // its guard: stdout is a live channel on this event, and pns writes NOTHING to
 // it on this path (measured, a real blocked run prints zero bytes), which is
@@ -328,8 +322,8 @@ mod denied_tools;
 mod elicitation;
 #[path = "hooks/failed_turns.rs"]
 mod failed_turns;
-#[path = "hooks/gate.rs"]
-mod gate;
+#[path = "hooks/harness_words.rs"]
+mod harness_words;
 #[path = "hooks/hook_contract.rs"]
 mod hook_contract;
 #[path = "hooks/lights_waits.rs"]

@@ -9,11 +9,11 @@ state is cleared, what reaches standard output and standard error, and what the 
 properties hold across every event and are stated once rather than per row: the payload is bounded in
 bytes and in time before any arm sees it, a missing or malformed field is a state and never an error, and
 the process exits zero on every path except the forwarded blocking one. **Deferred to
-`docs/specs/blocking-approval.md`:** the whole forwarded round trip behind `blocked` and behind
-the bare `pns <harness>-hook`, that is `blocking_event`, `gate_mode`, `moshi_decision` and `answer_within`,
-including the phone suppression, the submit deadline and the pass-through exit code. What this file keeps
-of `blocked` is only what it shares with its siblings: the payload contract, the size cap that decides
-whether it may be forwarded at all, the turn marker it must not touch, and its standard output contract.
+`docs/specs/blocking-approval.md`:** the whole forwarded round trip behind `blocked`, that is
+`blocking_event`, `moshi_decision` and `answer_within`, including the phone suppression, the submit
+deadline and the pass-through exit code. What this file keeps of `blocked` is only what it shares with its
+siblings: the payload contract, the size cap that decides whether it may be forwarded at all, the turn
+marker it must not touch, and its standard output contract.
 
 ## The eleven events
 
@@ -998,9 +998,8 @@ Then the surface reading is taken inside `run_event`, from one memoized probe se
 - Idempotency and duplicates: Not applicable.
 - Privacy: Not applicable.
 - Process ownership and cleanup: probe children are killed on their own deadlines.
-- Compatibility contract: this claim holds for the hook and blocking paths, where the forward decision
-  and the delivery plan share one probe set. The bare `pns <harness>-hook` builds its own throwaway probe set
-  and runs no delivery plan at all, so the claim does not extend to it (`src/main.rs:forward_to_moshi`).
+- Compatibility contract: on the blocking path the forward decision and the delivery plan share one probe
+  set (`src/main.rs:forward_to_moshi`).
 
 ## 26. A session id that cannot be a filename reaches no file operation
 
@@ -1070,36 +1069,6 @@ Then `blocked_marker_action` maps the event's state word to Start or End, Start 
 - Compatibility contract: `[lights.blocked] lease_expiry` shorter than `[remind] delay` is
   refused by name at configuration load, so the backstop can never sweep a wait the reminder has not yet
   nudged (`src/main.rs:update_blocked_marker`, referring to `config::parse_config`).
-
-## 28. The bare harness word is vouched for by shape, never by roster
-
-Given argv whose first word looks like `<name>-hook`
-
-When `main` decides where to dispatch
-
-Then `hooks::is_harness_subcommand` accepts it only when it splits at the first `-` into a non-empty all-lowercase-ASCII name and the exact suffix `hook`.
-
-- Success: `pi-hook` and `claude-hook` are accepted
-  (`src/hooks.rs:the_gate_vouches_for_the_shape_of_a_subcommand_it_did_not_choose`).
-- Failure sources: `hook`, `-hook`, `Pi-hook`, `pi-hook; rm -rf /`, `../../etc/passwd` and the empty
-  string, all refused (same test).
-- Fail direction: closed. A refused word falls through to the usage refusal rather than to the event
-  path, which is how the documented spelling used to fire a notification about an empty event
-  (`src/main.rs:main`).
-- Thresholds: the split is on the FIRST `-` only, and the suffix must equal `hook` exactly, so
-  `stop-failure` is not a harness word.
-- Required side effects: none at this layer.
-- Forbidden side effects: an unvetted word here would be this repository handing a third-party binary a
-  filesystem argument nobody chose, because moshi-hook's positional is a PATH
-  (`src/hooks.rs:is_harness_subcommand`).
-- Timeout and cancellation: Not applicable.
-- Idempotency and duplicates: Not applicable, pure.
-- Privacy: Not applicable.
-- Process ownership and cleanup: Not applicable.
-- Compatibility contract: shape only, not a roster, because the harness list is moshi's and grows. The
-  separate `moshi_subcommand` is the roster, and it admits only `claude` and `codex`
-  (`src/hooks.rs:only_the_harnesses_pns_registers_for_are_forwarded_to_moshi`). The forwarding behavior
-  behind both is deferred to `docs/specs/blocking-approval.md`.
 
 ______________________________________________________________________
 

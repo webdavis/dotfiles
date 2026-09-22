@@ -1,98 +1,41 @@
-# Blocking approval and the moshi gate
+# Blocking approval and the moshi round trip
 
 This is the one path where pns stands between a harness and its operator, and the one path where a
 non-zero exit code from pns means anything at all. A harness about to run something it needs permission
-for calls either `pns hook blocked` (the pns hook, which also raises pns's own notification) or the gate,
-spelled as the bare word `pns <harness>-hook`, and pns decides
-whether to hand that request to `moshi-hook` for a round trip to the operator's phone. Everything here
-turns on one rule: pns is a presence-gated pipe, never a decider. It forwards the harness's payload byte
-for byte, it waits a bounded time for moshi to acknowledge the submission, and it passes moshi's exit
-code back untouched. Every path on which it declines to forward exits 0, which is the harness's "no
-opinion, prompt as usual", so a pns that cannot reach moshi costs the operator a phone card and never a
-refused tool call. The pns hook path adds two things the gate does not have: its own notification about
-the block (raised after the forward starts, with the phone leg suppressed when the forward really began),
-and the durable state a wait leaves behind (the blocked marker, the reminder record, the decision ring line).
+for calls `pns hook blocked`, which also raises pns's own notification, and pns decides whether to hand
+that request to `moshi-hook` for a round trip to the operator's phone. Everything here turns on one
+rule: pns is a presence-gated pipe, never a decider. It forwards the harness's payload byte for byte, it
+waits a bounded time for moshi to acknowledge the submission, and it passes moshi's exit code back
+untouched. Every path on which it declines to forward exits 0, which is the harness's "no opinion, prompt
+as usual", so a pns that cannot reach moshi costs the operator a phone card and never a refused tool
+call. Beside the forward, the hook adds two things: its own notification about the block (raised after
+the forward starts, with the phone leg suppressed when the forward really began), and the durable state a
+wait leaves behind (the blocked marker, the reminder record, the decision ring line).
 
 Vocabulary note: throughout, "submission" is the `moshi-hook` child process pns spawns, and "the approval
 card" is what moshi raises on the phone from the forwarded payload. pns never sees that card and never
 mints its identifier.
 
-### 1. One spelling of the gate, and it is the bare word
+### 1. A bare harness word is not a command
 
-Given moshi's own generated pi and omp extensions hold a single pathname in their `helperBinary` field,
-with no room for a subcommand
+Given moshi's generated pi and omp extensions write to moshi's socket themselves (since moshi-hook
+0.3.9) and never read their `helperBinary` constant
 
-When argv[1] ends in `-hook` (`pns pi-hook`)
+When argv[1] is a harness word such as `pns pi-hook`, or `pns gate pi-hook`
 
-Then it dispatches into `gate_mode` with that word, which is the only entry point the gate has.
+Then it names no command and takes the usage refusal, exit 2, like any other typo. Nothing reaches
+`moshi-hook`.
 
-- Success: `pns pi-hook` forwards the payload as the same argv to `moshi-hook` and returns its code.
-  Pinned by `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision`,
-  asserting exit 7 from a stub and `pi-hook` recorded as the child's argv.
-- Retired: `pns gate <harness>-hook` was a second spelling of the same gate. `gate` now names no
-  subcommand and takes the usage refusal with exit 2, pinned by
-  `tests/hooks.rs:the_retired_gate_subcommand_is_refused_rather_than_forwarded`.
-- Failure sources: none at dispatch; a hook-shaped word the gate will not vouch for is behavior 2's
-  refusal.
-- Fail direction: fail-open toward the harness. A gate that declines exits 0, which is "no opinion": the
-  harness draws its own permission prompt and the operator answers at the pane. It never blocks and never
-  denies.
-- Thresholds: Not applicable, no deadline is involved in dispatch.
-- Required side effects: none beyond process exit. The dispatch in `src/main.rs` calls
-  `std::process::exit(gate_mode(...))` directly, so no event path runs.
-- Forbidden side effects: a gate raises no notification of its own.
-  `tests/hooks.rs:the_documented_gate_subcommand_reaches_the_same_gate_as_the_bare_word` asserts
-  `!sandbox.fired("hermes")` with the comment "a gate forwards; it never raises an event of its own".
-- Timeout and cancellation: inherited from behavior 6.
-- Idempotency and duplicates: one invocation is one submission, see behavior 12.
-- Privacy: Not applicable at dispatch, the harness word is the only argument read.
-- Process ownership and cleanup: see behavior 5.
-- Compatibility contract: the bare-word spelling exists solely because moshi's generated extension cannot
-  express a subcommand, and it is therefore the only spelling. It is documented in `src/main.rs:USAGE` as
-  `pns <harness>-hook               presence-gated pass-through to moshi-hook,`
-  `spelled the way moshi's extension calls it`.
+- Success: pinned by `tests/hooks.rs:a_harness_word_is_refused_as_usage_and_never_reaches_moshi` for
+  `pi-hook`, `omp-hook`, `claude-hook` and `gate pi-hook`, asserting exit 2, `pns: usage:` on stderr, no
+  submission and no event.
+- Related: `docs/decisions/0008-the-bare-gate-spelling-exists-for-moshi.md` records the presence-gated
+  pass-through this spelling used to reach, and why it was superseded.
 
-### 2. The shape the gate will vouch for
+### 2. Only pns's own roster reaches moshi
 
-Given the harness word arrives from a file moshi generates, and `moshi-hook`'s own positional argument is
-a path
-
-When `pns::hooks::is_harness_subcommand` is asked about that word
-
-Then only a lowercase ASCII name followed by `-hook` is vouched for, and everything else is refused
-before any child is spawned.
-
-- Success: `pi-hook` and `claude-hook` are accepted, in the unit asserts beside
-  `src/hooks.rs:is_harness_subcommand` (its own test module, lines 872 to 879).
-- Failure sources: the word is split on its FIRST hyphen; the suffix must equal `hook` exactly and the
-  name must be non-empty ASCII lowercase. So `hook`, `-hook`, `Pi-hook`, `pi-hook; rm -rf /`,
-  `../../etc/passwd` and the empty string are all refused. A word with two hyphens, `a-b-hook`, splits to
-  name `a` and suffix `b-hook`, which is not `hook`, so it is refused too (derived from
-  `src/hooks.rs:is_harness_subcommand`; NOT ESTABLISHED: no test drives a two-hyphen word, I grepped
-  `tests/hooks.rs` and `src/hooks.rs` for one and found none).
-- Fail direction: fail-closed toward moshi (nothing is handed to a third-party binary) and LOUD toward
-  the harness. A hook-shaped word `gate_mode` will not vouch for exits 2 with a sentence on stderr
-  naming it, pinned by
-  `tests/hooks.rs:a_hook_shaped_word_the_gate_will_not_vouch_for_says_so_instead_of_exiting_zero`; it
-  used to exit 0 in silence, which is a hook that looks wired while it forwards nothing. A word that is
-  not hook-shaped at all never reaches `gate_mode` and falls through the dispatch chain to the usage
-  refusal, also exit 2, pinned by
-  `tests/hooks.rs:a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi`.
-- Thresholds: Not applicable, this is a shape predicate with no numeric bound.
-- Required side effects: on the bare-word refusal only, `src/main.rs` prints `USAGE` to stderr.
-- Forbidden side effects: no child is spawned, no notification is raised, and stdin is never read. Both
-  refusal tests assert `!sandbox.path("moshi.argv").exists()`, and the `gate` form's test also asserts
-  `!sandbox.fired("hermes")`.
-- Timeout and cancellation: Not applicable, the refusal is synchronous.
-- Idempotency and duplicates: Not applicable.
-- Privacy: the word is never pasted into a shell. `src/main.rs:spawn_moshi_hook` passes it as a single
-  argv element through `Command::new(...).arg(subcommand)`, so `pi-hook; rm -rf /` could not have
-  executed anything even had it been vouched for; the shape check is defence in depth on top of that.
-- Process ownership and cleanup: Not applicable.
-- Compatibility contract: the check is SHAPE ONLY and deliberately not a roster, because the harness list
-  belongs to moshi and grows (`src/hooks.rs:is_harness_subcommand`). It is distinct from
-  `src/hooks.rs:moshi_subcommand`, which IS a closed roster (`claude` and `codex`), because there the
-  name arrives from pns's own configuration, see behavior 4.
+Every subcommand pns hands `moshi-hook` comes from behavior 4's closed roster, `claude-hook` and
+`codex-hook`, matched against pns's own configuration. No word from outside pns is passed through.
 
 ### 3. The presence gate decides whether to forward at all
 
@@ -116,17 +59,14 @@ already is the question.
   like sitting at the desk, and reading it as a desk would lose approvals entirely. Declining does not
   block and does not deny; it exits 0, the harness prompts as usual, and at the desk that prompt is
   already on screen. Pinned by
-  `tests/hooks.rs:at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual` and
-  `tests/hooks.rs:at_the_desk_the_gate_submits_nothing_and_exits_zero`.
+  `tests/hooks.rs:at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual`.
 - Thresholds: the freshness window is `src/engine.rs:DEFAULT_DESK_IDLE_SECS`, 120 seconds, overridable
   with `PNS_DESK_IDLE`. `src/surface.rs:fresh_age` filters on `age < fresh_secs` strictly, so an age
   of 119 seconds is fresh and speaks for its surface while an age of exactly 120 is not fresh at all. A
   tie between desk and phone ages goes to the desk (`src/surface.rs:surface`), so a desk and a phone both
   last touched 5 seconds ago read `Desk` and do not forward.
-- Required side effects: on the pns hook path, ONE probe set is built and shared by the forward decision
-  and the delivery plan, so both answer from one moment (`src/main.rs:blocking_event`,
-  `src/main.rs:forward_to_moshi`). The gate builds its own throwaway probe set and runs no delivery plan
-  at all (`src/main.rs:gate_mode`).
+- Required side effects: ONE probe set is built and shared by the forward decision and the delivery plan,
+  so both answer from one moment (`src/main.rs:blocking_event`, `src/main.rs:forward_to_moshi`).
 - Forbidden side effects: the forward reads the SURFACE and never the card overrides. `PNS_FORCE_PHONE`
   buys a push and not a round trip, and `PNS_SKIP_PHONE` suppresses pns's own card and not the
   submission; both are applied only to the delivery plan's `phone_card` in `src/engine.rs`, line 214, and
@@ -175,8 +115,8 @@ Then only `claude` and `codex` map to a subcommand, and anything else forwards n
 - Idempotency and duplicates: Not applicable.
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: this roster is pns's own. The GATE has no roster at all, only the shape check
-  of behavior 2, because there the word is moshi's.
+- Compatibility contract: this roster is pns's own, and it is the only source of a subcommand handed to
+  moshi (behavior 2).
 
 ### 5. The payload crosses byte for byte, or not at all
 
@@ -197,10 +137,8 @@ whether pns could parse them.
   `not json at all`.
 - Failure sources: three, and each behaves differently.
   1. A payload that hit the size cap was cut mid-object, so it is no longer JavaScript Object Notation
-     and no longer what anybody wrote. It is refused by `src/main.rs:payload_is_whole` on BOTH entry
-     points, pinned by
-     `tests/hooks.rs:a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were` and
-     `tests/hooks.rs:the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does`.
+     and no longer what anybody wrote. It is refused by `src/main.rs:payload_is_whole`, pinned by
+     `tests/hooks.rs:a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were`.
   1. A payload nobody finishes writing expires on the read deadline and is refused, pinned by
      `tests/hooks.rs:a_blocked_payload_nobody_finishes_writing_forwards_nothing_and_exits_zero`.
   1. A payload that is not valid UTF-8 fails `src/main.rs:read_payload`'s string read entirely, and the
@@ -316,15 +254,13 @@ killing and reaping the child on expiry.
   moshi's stream IS the hook's stream; pinned by
   `tests/hooks.rs:what_moshi_says_on_stdout_reaches_the_harness_unchanged`, which asserts moshi's line
   arrives as its own line exactly once with nothing added to either end.
-- Timeout and cancellation: pinned end to end on both entry points against a stub that reads its stdin
-  and then execs a ten-second sleep. The hook run injects a 150 millisecond deadline and requires stdout
-  end-of-file inside 600 milliseconds, pinned by
-  `tests/hooks.rs:a_moshi_that_never_answers_stops_holding_the_operators_prompt`. The gate run injects
-  400 milliseconds and requires end-of-file inside 1600 milliseconds, pinned by
-  `tests/hooks.rs:the_gate_is_bounded_by_the_same_clock_as_the_hook`. The stub uses `exec` on purpose:
-  without it the shell would fork the sleep and leave a GRANDCHILD holding the pipe, which no kill short
-  of a process group could release.
-- Idempotency and duplicates: an expiry submits nothing further. Both bound tests assert the recorded
+- Timeout and cancellation: pinned end to end against a stub that reads its stdin and then execs a
+  ten-second sleep. The hook run injects a 150 millisecond deadline and requires stdout end-of-file inside
+  600 milliseconds, pinned by
+  `tests/hooks.rs:a_moshi_that_never_answers_stops_holding_the_operators_prompt`. The stub uses `exec`
+  on purpose: without it the shell would fork the sleep and leave a GRANDCHILD holding the pipe, which no
+  kill short of a process group could release.
+- Idempotency and duplicates: an expiry submits nothing further. The bound test asserts the recorded
   submissions are exactly one `claude-hook`, with the comment "one prompt, one submission, expiry
   included": a retry after an expiry would be a second card and a second answer to one question.
 - Privacy: Not applicable, the wait reads only a process status.
@@ -341,19 +277,18 @@ killing and reaping the child on expiry.
 
 | Exit                                                 | Situation                                                                                                               | What the calling harness does with it                                                                                                                                                            | Pinned by                                                                                                                                                                                                                    |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| moshi's own code, whatever it is                     | the submission started and finished inside the deadline                                                                 | passed through untouched. Claude Code reads the exit code on `PermissionRequest` NOWHERE and decides off the hook's stdout (`hookSpecificOutput.decision`); the gate's direct callers do read it | `tests/hooks.rs:a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decision` (42 on the hook), `tests/hooks.rs:the_bare_harness_word_forwards_through_the_gate_and_returns_the_decision` (7 on the gate) |
-| 0, from moshi                                        | moshi answered 0, which in production is what EVERY reply shape does                                                    | approve and deny are indistinguishable here; the operator's real answer travels moshi's own bridge                                                                                               | `tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`, `tests/hooks.rs:a_zero_decision_passes_through_as_zero_and_is_not_a_default`                                                  |
+| moshi's own code, whatever it is                     | the submission started and finished inside the deadline                                                                 | passed through untouched. Claude Code reads the exit code on `PermissionRequest` NOWHERE and decides off the hook's stdout (`hookSpecificOutput.decision`); Codex's reading is unverified        | `tests/hooks.rs:a_blocking_event_hands_moshi_the_payload_byte_for_byte_and_returns_its_decision` (42)                                                                                                                        |
+| 0, from moshi                                        | moshi answered 0, which in production is what EVERY reply shape does                                                    | approve and deny are indistinguishable here; the operator's real answer travels moshi's own bridge                                                                                               | `tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`                                                                                                                                |
 | 2, from moshi                                        | moshi answered 2                                                                                                        | passed through unnormalized, even though 2 is the code that means "block" across the hook family                                                                                                 | `tests/hooks.rs:a_two_from_moshi_comes_back_as_two_and_is_never_normalized`                                                                                                                                                  |
-| 0, no opinion: at the desk                           | the presence gate declined                                                                                              | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual`, `tests/hooks.rs:at_the_desk_the_gate_submits_nothing_and_exits_zero`                                                          |
+| 0, no opinion: at the desk                           | the presence gate declined                                                                                              | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:at_the_desk_the_approval_is_never_forwarded_and_the_harness_prompts_as_usual`                                                                                                                                |
 | 0, no opinion: moshi not installed                   | the spawn failed                                                                                                        | the harness prompts as usual, and pns's phone card is NOT suppressed                                                                                                                             | `tests/hooks.rs:moshi_not_being_installed_leaves_the_hook_a_silent_exit_zero`                                                                                                                                                |
-| 0, no opinion: unregistered harness                  | `PNS_PRODUCER` is neither `claude` nor `codex`, on the hook path                                                           | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_harness_pns_does_not_register_for_is_never_handed_to_moshi`                                                                                                                                                |
-| 0, no opinion: over-cap payload                      | the payload was cut mid-object at 1,000,000 bytes                                                                       | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were`, `tests/hooks.rs:the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does`                                                      |
+| 0, no opinion: unregistered harness                  | `PNS_PRODUCER` is neither `claude` nor `codex`, on the hook path                                                        | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_harness_pns_does_not_register_for_is_never_handed_to_moshi`                                                                                                                                                |
+| 0, no opinion: over-cap payload                      | the payload was cut mid-object at 1,000,000 bytes                                                                       | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were`                                                                                                                                        |
 | 0, no opinion: payload never arrived                 | the stdin read deadline expired                                                                                         | the harness prompts as usual, and NOTHING is notified                                                                                                                                            | `tests/hooks.rs:a_blocked_payload_nobody_finishes_writing_forwards_nothing_and_exits_zero`                                                                                                                                   |
 | 0, no opinion: payload was not UTF-8                 | the string read failed before any arm ran                                                                               | the harness prompts as usual, total silence                                                                                                                                                      | `tests/hooks.rs:a_payload_that_is_not_utf8_drops_the_approval_and_tells_the_operator_nothing`                                                                                                                                |
 | 0, no opinion: the submission died without answering | killed by a signal, so no exit code exists                                                                              | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_submission_that_dies_without_answering_is_not_a_decision`                                                                                                                                                  |
-| 0, no opinion: the deadline expired                  | moshi never answered; the child is killed and reaped                                                                    | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_moshi_that_never_answers_stops_holding_the_operators_prompt`, `tests/hooks.rs:the_gate_is_bounded_by_the_same_clock_as_the_hook`                                                                           |
-| 2, refusal: `pns <hook-shaped bad word>`             | the shape check refused the word                                                                                        | a sentence on stderr naming the word, and no notification                                                                                                                                        | `tests/hooks.rs:a_hook_shaped_word_the_gate_will_not_vouch_for_says_so_instead_of_exiting_zero`                                                                                                                              |
-| 2, refusal: a bare `pns <bad word>`                  | argv[1] names no command and carries no producer flag, so it is an operator typo                                        | `USAGE` on stderr; this is not a hook path                                                                                                                                                       | `tests/hooks.rs:a_shape_the_gate_will_not_vouch_for_is_never_handed_to_moshi`                                                                                                                                                |
+| 0, no opinion: the deadline expired                  | moshi never answered; the child is killed and reaped                                                                    | the harness prompts as usual                                                                                                                                                                     | `tests/hooks.rs:a_moshi_that_never_answers_stops_holding_the_operators_prompt`                                                                                                                                               |
+| 2, refusal: a bare `pns <bad word>`                  | argv[1] names no command and carries no producer flag, so it is an operator typo                                        | `USAGE` on stderr; this is not a hook path                                                                                                                                                       | `tests/hooks.rs:a_harness_word_is_refused_as_usage_and_never_reaches_moshi`                                                                                                                                                  |
 | 0, every other pns hook event                        | `stop`, `stop-failure`, `asked`, `plan-ready`, `denied`, `resolved`, `prompt`, `model-switch`, `quota`, `config-change` | a notification must never fail the turn it reports on                                                                                                                                            | `tests/hooks.rs:a_non_blocking_event_never_pays_for_the_round_trip`, `tests/hooks.rs:an_ordinary_stop_never_reaches_moshi`, `tests/hooks.rs:a_denial_never_pays_for_the_approval_round_trip_and_still_exits_zero`            |
 
 Which of these are COMPATIBILITY CONTRACTS with a third-party tool we do not control:
@@ -501,10 +436,6 @@ Then one marker file per waiting session is published, and a later event from th
   path whose stdout a harness hook reads must not gain a line about the state directory, and a missing
   marker costs one lamp its colour and never a card.
 - Compatibility contract: none, these files are pns's own.
-- Related: the gate writes no markers. `src/moshi_submission.rs:gate_mode` calls neither
-  `update_blocked_marker` nor `run_event`. The hooks case
-  `a_forwarded_gate_leaves_the_state_markers_untouched` verifies a real forward for both bare and
-  explicit pi gate forms, then checks the existing marker bytes and exact state-directory entries.
 
 ### 11. The reminder armed with the wait
 
@@ -551,18 +482,16 @@ answered marker first.
 Given a second submission would be a second card and a second answer to a question the operator was asked
 once
 
-When either entry point forwards
+When the hook forwards
 
 Then exactly one `moshi-hook` child is spawned for that prompt, however the wait ends.
 
 - Success: the hook path submits exactly one `claude-hook`, pinned by
-  `tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`, and the
-  gate submits exactly one `pi-hook`, pinned by
-  `tests/hooks.rs:the_gate_submits_one_prompt_exactly_once`.
+  `tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`.
 - Failure sources: a retry after an expiry, or a design that made moshi "just another channel" so that
   high-volume events swept into the submission path.
 - Fail direction: fail toward NOT submitting. Two submissions is the direction that cannot be undone.
-- Thresholds: an expiry submits nothing further, asserted inside both bound tests of behavior 7.
+- Thresholds: an expiry submits nothing further, asserted inside the bound test of behavior 7.
 - Required side effects: none.
 - Forbidden side effects: no non-blocking event may ever spawn a submission. `stop`, `stop-failure`,
   `asked`, `plan-ready` and `denied` are all pinned with the stub as a tripwire, run AWAY so the presence
@@ -578,8 +507,7 @@ Then exactly one `moshi-hook` child is spawned for that prompt, however the wait
   hidden behind a last-write-wins record.
 - Privacy: Not applicable.
 - Process ownership and cleanup: see behavior 6.
-- Compatibility contract: single-submitter is a rule about the PROMPT and not about one entry point,
-  which is why both entry points are counted separately.
+- Compatibility contract: single-submitter is a rule about the PROMPT.
 
 ### 13. The approval card
 
@@ -657,6 +585,5 @@ Then the exit code is moshi's acknowledgement of a SUBMISSION, never the operato
 - Idempotency and duplicates: see behavior 12.
 - Privacy: Not applicable.
 - Process ownership and cleanup: see behaviors 6 and 7.
-- Compatibility contract: this is the reason every forwarded code is passed through untouched. The
-  harnesses that read a gate's exit code are entitled to whatever moshi said, and pns has no standing to
-  edit it.
+- Compatibility contract: this is the reason every forwarded code is passed through untouched. A harness
+  that reads the hook's exit code is entitled to whatever moshi said, and pns has no standing to edit it.
