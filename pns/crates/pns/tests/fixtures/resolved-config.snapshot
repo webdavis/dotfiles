@@ -201,9 +201,9 @@ Config {
         post_window_recap: true,
         minimum_events: 8,
         summarizer: Settings {
-            kind: Custom,
+            kind: Codex,
             command: [],
-            model: "",
+            model: "gpt-5.5",
             deadline: 240s,
             transcripts: false,
             transcript_bytes_per_session: 8192,
