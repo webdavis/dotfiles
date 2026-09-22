@@ -32,6 +32,16 @@ jobs:
           printf '%s  %s\n' "$BASHUNIT_SHA256" "$HOME/.local/bin/bashunit" | shasum -a 256 -c -
           chmod 0755 "$HOME/.local/bin/bashunit"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # `just test-rust` runs the two `chord check` lines that guard this
+      # repository's generated binding files, and chord lives in its own
+      # repository now. The revision comes out of the roster that installs it
+      # on this machine, so the pin has one home rather than two.
+      - name: Install chord at the revision the roster pins
+        run: |
+          roster=.chezmoidata/system_packages_autoinstall.yaml
+          ref="$(yq -r '.packages.cargo_git_tools[] | select(.name == "chord") | .ref' "$roster")"
+          test -n "$ref"
+          cargo install --git https://github.com/webdavis/chord --rev "$ref" --locked chord
       - name: Lint drift gate (treefmt)
         run: just lint-check
       - name: Run the repo test suite

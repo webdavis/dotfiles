@@ -5,8 +5,9 @@ set -euo pipefail
 
 # Installs CLI tools built from repositories OTHER than this one, at a pinned
 # revision, into the same ~/.cargo/bin every in-tree Rust builder uses. dam
-# (webdavis/damnit) is the first entry: the herdr-damnit and damnit.nvim
-# plugins spawn it and have nothing to run until this installs it.
+# (webdavis/damnit) is what the herdr-damnit and damnit.nvim plugins spawn, and
+# chord (webdavis/chord) is what `just chord-render` and the `chord check` gate
+# call; neither has anything to run until this installs it.
 #
 # Build inputs: one line per roster entry, so bumping any field (most often
 # `ref`) re-fires this run_onchange script.

@@ -236,14 +236,19 @@ rather than a deployed copy. That is why none of them carries a "crate source is
 deferral any more: the builder's own hash comment `include`s each manifest at render time, so a missing
 one aborts the apply before the script is ever written.
 
-`chord/` is another workspace of the same shape, and the only one nothing installs: it is a generator
-this repository runs at development time, the way `pns-config-render` is. `chord render bash` turns the
-shell-agnostic binding table at `dot_config/chord/bindings.toml` into readline `bind` calls, so the
-chords are written once in a plain notation rather than in each shell's own escapes.
-**`dot_bash_bindings` is a GENERATED FILE**, the same arrangement the shipped pns config template uses:
-regenerate it with `just chord-render`, and a hand edit fails the `chord check` line in `just test-rust`.
-The shell those bindings call, and the `\C-x0`, `\C-x1` and `\C-x2` helper macros they start with, live
-in `dot_bash_bindings_functions`, which `~/.bashrc` sources first.
+`chord` used to be a sixth workspace here and now lives in its own public repository,
+[webdavis/chord](https://github.com/webdavis/chord) (extracted with `git subtree split`, so it carries
+its own history). Its source is no longer in this checkout and `just test-rust` no longer builds it: that
+repository runs its own gates. It turns the shell-agnostic binding table at
+`dot_config/chord/bindings.toml` into readline `bind` calls and into the tab-separated records the
+binding picker reads, so the chords are written once in a plain notation rather than in each shell's own
+escapes. It arrives the way `dam` does, from a pinned revision in the `packages.cargo_git_tools` roster,
+and `.github/workflows/lint.yml` installs that same pinned revision by reading it out of the roster, so
+the gate below has a binary in CI without a second copy of the pin. **`dot_bash_bindings` and
+`dot_config/chord/bindings-menu.tsv` are GENERATED FILES**, the same arrangement the shipped pns config
+template uses: regenerate both with `just chord-render`, and a hand edit fails the `chord check` lines in
+`just test-rust`. The shell those bindings call, and the `\C-x0`, `\C-x1` and `\C-x2` helper macros they
+start with, live in `dot_bash_bindings_functions`, which `~/.bashrc` sources first.
 
 `pns recap` prints the day's brief now: the activity window, today's tasks and the last apply, from the
 source commands named in `[recap.sources]`.
@@ -538,8 +543,10 @@ hooks are wired by `pns codex install-hooks`, run by `run_after_72`.
 
 Tools built from OTHER repositories install through the same `~/.cargo/bin`, from a pinned revision in
 the `cargo_git_tools` roster in `.chezmoidata/system_packages_autoinstall.yaml`, via
-`run_onchange_after_57-install-cargo-git-tools.sh.tmpl`. `dam` (`webdavis/damnit`) is the first entry:
-the herdr-damnit and damnit.nvim plugins spawn it and have nothing to run until this installs it.
+`run_onchange_after_57-install-cargo-git-tools.sh.tmpl`. Two entries today. `dam` (`webdavis/damnit`) is
+the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn, and they have nothing to run
+until this installs it; `chord` (`webdavis/chord`) is the binding-table generator `just chord-render` and
+the `chord check` gate call.
 
 Four rules decide the shape below `libexec`, in this order:
 

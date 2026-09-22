@@ -319,9 +319,15 @@ packages:
           - mcporter
   # Tools built from someone else's git repository rather than this one, and
   # installed into rust_tools.install_dir with `cargo install --git`. dam is
-  # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn;
-  # bumping `ref` reinstalls it on the next apply.
+  # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn.
+  # chord compiles dot_config/chord/bindings.toml into the two generated files
+  # `just chord-render` writes, and its pin is also what CI installs to run the
+  # `chord check` gate. Bumping a `ref` reinstalls that tool on the next apply.
   cargo_git_tools:
+    - name: chord
+      repo: webdavis/chord
+      package: chord
+      ref: 16fd068251c49b9d40515a1207ac6337a3f9e483
     - name: dam
       repo: webdavis/damnit
       package: damnit
