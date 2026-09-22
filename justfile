@@ -79,6 +79,8 @@ test-e2e: validate-tests
 # discover Rust manifests. Locked dependencies and documentation warnings are
 # checked with the tests.
 test-rust:
+  @command -v chord >/dev/null || \
+    { echo 'chord is not installed: cargo install --git https://github.com/webdavis/chord chord' >&2; exit 1; }
   cargo test --locked --workspace --manifest-path lights/Cargo.toml
   cargo fmt --all --check --manifest-path lights/Cargo.toml
   cargo clippy --locked --workspace --all-targets --manifest-path lights/Cargo.toml -- -D warnings
@@ -87,8 +89,6 @@ test-rust:
   cargo fmt --all --check --manifest-path pns/Cargo.toml
   cargo clippy --locked --workspace --all-targets --features dev-tools --manifest-path pns/Cargo.toml -- -D warnings
   RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path pns/Cargo.toml
-  @command -v chord >/dev/null || \
-    { echo 'chord is not installed: cargo install --git https://github.com/webdavis/chord chord' >&2; exit 1; }
   chord check bash --table dot_config/chord/bindings.toml
   chord check menu --table dot_config/chord/bindings.toml
   cargo test --locked --workspace --manifest-path tailnet-pin/Cargo.toml
