@@ -2,12 +2,48 @@
 
 use serde::Deserialize;
 
-/// The whole table. Groups carry the documentation and order the output.
+/// The whole table. Groups carry the documentation and order the output;
+/// `render` carries what each target says about the file it writes.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Table {
     #[serde(default)]
     pub group: Vec<Group>,
+    #[serde(default)]
+    pub render: Render,
+}
+
+/// What the table says about the files it renders. Every field is optional:
+/// a table that declares none of this still renders.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Render {
+    /// The command that regenerates this table's outputs, named by a failed
+    /// `chord check` so the reader knows how to fix the file.
+    pub regenerate: Option<String>,
+    #[serde(default)]
+    pub bash: BashRender,
+    #[serde(default)]
+    pub menu: MenuRender,
+}
+
+/// The bash target's own settings.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BashRender {
+    /// The comment block the rendered file opens with.
+    pub header: Option<String>,
+    /// The readline macro that clears the line before another macro types
+    /// over it, which a typed row needs and the other row kinds do not.
+    pub clear_line: Option<String>,
+}
+
+/// The menu target's own settings.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MenuRender {
+    /// The comment block the rendered records open with.
+    pub header: Option<String>,
 }
 
 /// One documented section of the table.
@@ -139,5 +175,34 @@ mod tests {
             Err(RowFault::SeveralActions)
         );
         assert_eq!(table.group[0].binding[1].action(), Err(RowFault::NoAction));
+    }
+
+    #[test]
+    fn a_table_naming_no_render_section_declares_nothing() {
+        let table = parse("[[group]]\nname = \"g\"\n");
+        assert_eq!(table.render.regenerate, None);
+        assert_eq!(table.render.bash.header, None);
+        assert_eq!(table.render.bash.clear_line, None);
+        assert_eq!(table.render.menu.header, None);
+    }
+
+    #[test]
+    fn the_render_section_carries_each_targets_own_output_settings() {
+        let table = parse(
+            "[render]\nregenerate = \"make bindings\"\n\
+             [render.bash]\nheader = \"# mine\\n\"\nclear_line = \"\\\\C-x0\"\n\
+             [render.menu]\nheader = \"# picker\\n\"\n",
+        );
+        assert_eq!(table.render.regenerate.as_deref(), Some("make bindings"));
+        assert_eq!(table.render.bash.header.as_deref(), Some("# mine\n"));
+        assert_eq!(table.render.bash.clear_line.as_deref(), Some("\\C-x0"));
+        assert_eq!(table.render.menu.header.as_deref(), Some("# picker\n"));
+    }
+
+    #[test]
+    fn a_misspelled_render_key_is_refused_rather_than_ignored() {
+        let fault = toml::from_str::<Table>("[render.bash]\nheadr = \"# mine\"\n")
+            .expect_err("an unknown key must be refused");
+        assert!(fault.to_string().contains("headr"), "{fault}");
     }
 }

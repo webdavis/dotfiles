@@ -7,21 +7,23 @@
 use super::{RenderFault, Renderer};
 use crate::table::{Action, Binding, Group, Table};
 
-/// Names the file's origin for anyone who opens it, and is skipped by the
-/// readers, which ignore a line beginning with `#`.
-const HEADER: &str = "\
-# GENERATED FILE: `chord render menu` over `dot_config/chord/bindings.toml`.
-# Edit the table and regenerate with `just chord-render`; a hand edit here
-# fails `just test-rust`.
-#
-# key<TAB>group<TAB>kind<TAB>action<TAB>description
+/// What the file says about itself when the table names no header of its
+/// own. Skipped by the readers, which ignore a line beginning with `#`.
+const NEUTRAL_HEADER: &str = "\
+# GENERATED FILE: `chord render menu` over a chord binding table.
+# Edit the table and render again; an edit here is lost on the next render.
 ";
+
+/// The record shape is chord's own contract, so every rendering documents
+/// it whatever header the table supplies.
+const FIELD_ORDER: &str = "# key<TAB>group<TAB>kind<TAB>action<TAB>description\n";
 
 pub struct Menu;
 
 impl Renderer for Menu {
     fn render(&self, table: &Table) -> Result<String, RenderFault> {
-        let mut out = String::from(HEADER);
+        let mut out = super::header(table.render.menu.header.as_deref(), NEUTRAL_HEADER);
+        out.push_str(FIELD_ORDER);
         for group in &table.group {
             for binding in &group.binding {
                 out.push_str(&record(group, binding)?);
@@ -162,10 +164,20 @@ mod tests {
     }
 
     #[test]
-    fn the_header_names_the_generator_and_the_field_order() {
+    fn a_table_naming_no_header_names_the_generator_and_the_field_order() {
         let rendered = render("[[group]]\nname = \"g\"\n").expect("an empty group must render");
         assert!(rendered.starts_with("# GENERATED FILE:"), "{rendered}");
         assert!(rendered.contains("key<TAB>group<TAB>kind<TAB>action<TAB>description"));
         assert!(records(&rendered).is_empty());
+    }
+
+    #[test]
+    fn the_tables_own_header_replaces_the_banner_and_keeps_the_field_order() {
+        let rendered = render("[render.menu]\nheader = \"# picker records\\n#\\n\"\n")
+            .expect("a configured header must render");
+        assert_eq!(
+            rendered,
+            "# picker records\n#\n# key<TAB>group<TAB>kind<TAB>action<TAB>description\n"
+        );
     }
 }
