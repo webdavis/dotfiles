@@ -89,7 +89,7 @@ Every claim below was read in the code today, and the path is where.
 - The `pns.tap/1` result already permits a null `marker` and a null `surface`, documented as the state of
   a run that failed before reading them (`crates/pns-protocol/src/tap.rs`,
   `pns/docs/pns-tap-apple-shortcut.md`).
-- Five outbound destinations are inventoried in `pns/docs/specs/privacy-and-hostile-input.md` section 19.
+- Five outbound destinations are inventoried in `pns/docs/specs/privacy-and-hostile-input.md` section 18.
   No inbound network listener is inventoried at all.
 
 The last line is the important one. `127.0.0.1` is the only address pns binds anywhere in the tree, so an
