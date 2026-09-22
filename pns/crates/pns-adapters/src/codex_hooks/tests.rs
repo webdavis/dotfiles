@@ -239,6 +239,8 @@ fn a_handler_that_is_not_moshi_hooks_codex_adapter_survives() {
         "/opt/homebrew/bin/moshi-hook claude-hook",
         "/opt/homebrew/bin/not-moshi-hook codex-hook",
         "echo codex-hook moshi-hook",
+        "echo moshi-hook codex-hook",
+        "my-presence-gate /opt/homebrew/bin/moshi-hook codex-hook",
     ];
     let handlers: Vec<Value> = survivors
         .iter()

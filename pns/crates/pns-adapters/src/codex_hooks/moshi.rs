@@ -27,19 +27,19 @@ pub(super) fn strip_moshi_handlers(hooks: &mut Map<String, Value>) {
     });
 }
 
-/// Whether this handler runs a `moshi-hook` executable with `codex-hook` as
-/// its next word, however the path is spelled or quoted.
+/// Whether this handler's own command is a `moshi-hook` executable called
+/// with `codex-hook` as its next word, however the path is spelled or
+/// quoted. Only the command word counts: a wrapper that merely names or logs
+/// moshi-hook among its own arguments is not moshi-hook itself.
 fn is_moshi_handler(handler: &Value) -> bool {
     handler
         .get("command")
         .and_then(Value::as_str)
         .is_some_and(|command| {
-            words(command).windows(2).any(|pair| {
-                Path::new(&pair[0])
-                    .file_name()
-                    .is_some_and(|name| name == "moshi-hook")
-                    && pair[1] == "codex-hook"
-            })
+            let words = words(command);
+            words.first().is_some_and(|first| {
+                Path::new(first).file_name().is_some_and(|name| name == "moshi-hook")
+            }) && words.get(1).is_some_and(|second| second == "codex-hook")
         })
 }
 
