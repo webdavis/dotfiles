@@ -311,6 +311,30 @@ return {
             buffer = bufnr,
           })
 
+          map({
+            mode = "n",
+            lhs = "<C-g>dis",
+            rhs = gitsigns.show,
+            desc = "Gitsigns: show index version",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>dw",
+            rhs = gitsigns.toggle_word_diff,
+            desc = "Gitsigns: toggle word diff",
+            buffer = bufnr,
+          })
+
+          map({
+            mode = "n",
+            lhs = "<C-g>dl",
+            rhs = gitsigns.toggle_linehl,
+            desc = "Gitsigns: toggle line highlight",
+            buffer = bufnr,
+          })
+
           -- Blame mappings: the `<C-g>B` group (spec 5.2). Buffer-local so they
           -- exist only where gitsigns attached, which is what the old git-blame
           -- TODO asked for.

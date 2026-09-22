@@ -93,10 +93,13 @@ for _, name in ipairs({
   "reset_hunk",
   "select_hunk",
   "setqflist",
+  "show",
   "show_commit",
   "stage_buffer",
   "stage_hunk",
   "toggle_current_line_blame",
+  "toggle_linehl",
+  "toggle_word_diff",
 }) do
   gitsigns_fake[name] = function(...)
     table.insert(gitsigns_calls, { name = name, args = { ... } })
@@ -705,6 +708,9 @@ local GITSIGNS_KEYS = {
   { lhs = "<leader>gM", mode = "n", fn = "blame", args = {} },
   { lhs = "<C-g>dhd", mode = "n", fn = "diffthis", args = { "~1", { vertical = true } } },
   { lhs = "<C-g>did", mode = "n", fn = "diffthis", args = { nil, { vertical = true } } },
+  { lhs = "<C-g>dis", mode = "n", fn = "show", args = {} },
+  { lhs = "<C-g>dw", mode = "n", fn = "toggle_word_diff", args = {} },
+  { lhs = "<C-g>dl", mode = "n", fn = "toggle_linehl", args = {} },
   { lhs = "<C-g>Bt", mode = "n", fn = "toggle_current_line_blame", args = {} },
   { lhs = "ih", mode = "o", fn = "select_hunk", args = {} },
   { lhs = "ih", mode = "x", fn = "select_hunk", args = {} },
