@@ -330,10 +330,10 @@ post-commit dispatcher) and `fnm` (the node runtime plus the npm CLI tools that 
 fnm's `~/.local/share/fnm/aliases/default/bin` is a version-free path that LaunchAgents and the bashrc
 rely on. Gotcha: npm is an env-node script, so every scripted npm call must put that fnm dir first in
 PATH, or npm runs on whatever `node` PATH finds and installs into that node's prefix. One script,
-`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, consumes all of them except `pinned`: it
-generates a Brewfile from the data, runs `brew bundle`, then runs a guarded `brew bundle cleanup --force`.
-Prerequisite: `run_once_before_00-install-homebrew.sh.tmpl` runs the upstream installer when
-`command -v brew` finds nothing.
+`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, consumes all of them except `pinned`:
+it generates a Brewfile from the data, runs `brew bundle`, then runs a guarded
+`brew bundle cleanup --force`. Prerequisite: `run_once_before_00-install-homebrew.sh.tmpl` runs the
+upstream installer when `command -v brew` finds nothing.
 
 `pinned` (formula to version) holds formulae `brew upgrade`, and so the weekly unattended job, must not
 move. `run_after_11-verify-homebrew-pins.sh.tmpl` pins each one on every apply and warns when the
