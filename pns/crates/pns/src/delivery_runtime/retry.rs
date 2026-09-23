@@ -40,6 +40,7 @@ pub(crate) fn retry_pending(now: u64) -> Result<(), String> {
         &store,
         now,
         limits,
+        &pns_adapters::SystemCommandRunner,
         |message| alarm_banner(message, pns_adapters::SystemCommandRunner),
         |retry, window| {
             let destinations = channel_dispatch::destinations(
@@ -65,6 +66,7 @@ fn retry_once(
     store: &SqliteStore,
     now: u64,
     limits: pns_domain::retry::RetryLimits,
+    notifier: &dyn pns_application::CommandRunner,
     banner: impl FnOnce(&str) -> pns_domain::Delivery,
     attempt: impl FnOnce(
         pns_application::RetryDelivery<pns_adapters::DeliveryClaim>,
@@ -79,7 +81,7 @@ fn retry_once(
             // THE DEAD-LETTER IS WHAT THIS PASS ANNOUNCES. A leg's first failure
             // happened on the submission path and was announced there; what only
             // this loop ever sees is the attempt that spends the last one.
-            crate::failure_notice::announce(store, window.now);
+            crate::failure_notice::announce(store, window.now, notifier);
         }
     });
     let health = match &claimed {

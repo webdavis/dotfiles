@@ -84,6 +84,7 @@ mod tests {
         let _channels_var = set_env("PNS_CHANNELS_DIR", &channels);
         let probes = system_probes().with_presence_path(line.to_string_lossy().into_owned());
         let handed: RefCell<Option<pns_domain::Snapshot>> = RefCell::new(None);
+        let notifier = RecordingNotifier::default();
         run_event_pulsing(
             &pns_domain::EventArgs {
                 agent: "claude".to_string(),
@@ -96,6 +97,7 @@ mod tests {
             &HookPayload::default(),
             Attempt::First,
             &|_, _, _, snapshot| *handed.borrow_mut() = snapshot.cloned(),
+            &notifier,
         );
         assert_eq!(
             std::fs::read_to_string(&line).expect("the channel ran"),
