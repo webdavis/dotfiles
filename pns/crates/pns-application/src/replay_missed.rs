@@ -106,7 +106,7 @@ where
                 &missed::needing_you(&counted),
                 counted.len(),
                 claim.waiting.len(),
-                posted,
+                posted.then(|| RecapPublisher::route(self.ports)).as_deref(),
             )
         } else if claim.waiting.is_empty() {
             ReturnMoment::complete(self.ports);

@@ -53,21 +53,22 @@ pub fn needing_you(entries: &[Entry]) -> Vec<Entry> {
 /// by an event written between them. Each is honest about what it read; see
 /// `spawn_recap`'s own comment for why nothing reconciles them.
 ///
-/// "recap in #pns" IS ONLY SAID WHEN THERE IS ONE. `digest_posted` is whether a
-/// child was really started, not whether one was wanted, so the card never
-/// points at a recap that was never going to arrive.
+/// `recap in #<route>` IS ONLY SAID WHEN THERE IS ONE. `recap_route` is the
+/// route a started child posts to, and it is `None` when no child was really
+/// started, so the card never points at a recap that was never going to
+/// arrive.
 pub fn recap_card(
     needs_you: &[Entry],
     counted: usize,
     missed: usize,
-    digest_posted: bool,
+    recap_route: Option<&str>,
 ) -> String {
     let mut counts = event_count(counted);
     if missed > 0 {
         counts.push_str(&format!(", {missed} missed"));
     }
-    if digest_posted {
-        counts.push_str(". recap in #pns");
+    if let Some(route) = recap_route {
+        counts.push_str(&format!(". recap in #{route}"));
     }
     // THE ROOM THE COUNTS LEFT, separator included, which is what every urgent
     // item is fitted into. A count so long that nothing is left is an empty

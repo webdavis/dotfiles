@@ -209,7 +209,7 @@ fn a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first
     // event, and the live one is inside the window it opened.
     assert!(body.contains("13 events"), "{body}");
     assert!(body.contains("2 missed"), "{body}");
-    assert!(body.ends_with("recap in #pns"), "{body}");
+    assert!(body.ends_with("recap in #pns-events"), "{body}");
     assert!(
         journal(&sandbox).is_empty(),
         "the journal was consumed: {:?}",

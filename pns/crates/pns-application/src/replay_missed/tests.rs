@@ -75,6 +75,10 @@ impl ActivityRing for Recorder {
 impl RecapPublisher for Recorder {
     type Started = ();
 
+    fn route(&self) -> String {
+        "logbook".to_string()
+    }
+
     fn publish(&self, since: u64, until: u64) -> Option<Self::Started> {
         self.note(&format!("publish({since},{until})"));
         self.publications.borrow_mut().push((since, until));
@@ -238,7 +242,10 @@ fn a_child_that_will_not_take_the_card_leaves_it_with_this_process() {
     recorder.takes_card = false;
     ports(&recorder).run(&returning(vec![leg(true)]), policy(), true);
     assert_eq!(recorder.handed.borrow().len(), 1, "{:?}", recorder.steps());
-    assert_eq!(*recorder.delivered.borrow(), ["2 events. recap in #pns"]);
+    assert_eq!(
+        *recorder.delivered.borrow(),
+        ["2 events. recap in #logbook"]
+    );
     assert_eq!(
         recorder.steps(),
         [
@@ -431,7 +438,7 @@ fn a_failed_publish_still_raises_a_card_and_the_card_says_which() {
     assert!(failed.steps().contains(&"deliver".to_string()));
     assert_eq!(
         posted.handed.borrow()[0].0,
-        "2 events. recap in #pns",
+        "2 events. recap in #logbook",
         "the card the child took claims a recap nobody is writing"
     );
     assert!(

@@ -83,6 +83,10 @@ impl ActivityRing for Replay {
 impl RecapPublisher for Replay {
     type Started = ();
 
+    fn route(&self) -> String {
+        panic!("post_window_recap is disabled");
+    }
+
     fn publish(&self, _: u64, _: u64) -> Option<Self::Started> {
         panic!("post_window_recap is disabled");
     }

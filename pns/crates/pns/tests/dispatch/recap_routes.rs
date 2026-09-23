@@ -2,10 +2,10 @@ use super::*;
 
 #[test]
 fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_carry() {
-    // "recap in #pns" IS A PROMISE, and a spawn alone cannot back it. A
+    // "recap in #<route>" IS A PROMISE, and a spawn alone cannot back it. A
     // started child still posts nothing when there is no durable channel: the
     // hermes leg answers Failed before it touches the network and the child
-    // exits 0, so the phone said "recap in #pns" and #pns stayed empty.
+    // exits 0, so the phone pointed at a recap and the channel stayed empty.
     //
     // ASKED OF THE SELECTION, which is the one reading dispatch takes too, so
     // the promise on the card and the channel behind it cannot disagree. TWO
@@ -26,7 +26,7 @@ fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_ca
     assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
     let body = raised[1]["detail"].as_str().expect("a detail");
     assert!(
-        !body.contains("recap in #pns"),
+        !body.contains("recap in #"),
         "the card pointed at a recap no channel could carry: {body}"
     );
     assert!(

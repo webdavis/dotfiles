@@ -87,6 +87,11 @@ impl pns_application::ActivityRing for CatchUp<'_> {
 impl pns_application::RecapPublisher for CatchUp<'_> {
     type Started = std::process::ChildStdin;
 
+    /// The recap child names no route, so it takes the default one.
+    fn route(&self) -> String {
+        self.delivery.routes.default_route().to_string()
+    }
+
     fn publish(&self, since: u64, until: u64) -> Option<Self::Started> {
         spawn_recap(since, until)
     }

@@ -141,6 +141,16 @@ fn a_single_entry_past_the_cap_is_still_delivered_rather_than_becoming_a_bare_co
 
 // --- the recap's own card ----------------------------------------------
 
+/// The route these tests' recap is posted to. TEST-LOCAL, because the card
+/// is handed the route rather than knowing one.
+const ROUTE: &str = "logbook";
+
+#[test]
+fn the_card_names_the_route_it_is_handed_and_no_other() {
+    let card = recap_card(&[], 3, 0, Some("pns-events"));
+    assert_eq!(card, "3 events. recap in #pns-events");
+}
+
 /// One activity entry in a state and a project, which is all the card
 /// renders of it.
 fn acted(state: &str, project: &str) -> Entry {
@@ -161,7 +171,7 @@ fn the_recap_card_puts_what_needs_the_operator_in_front_of_every_count() {
         &[acted("done", "p"), acted("blocked", "dotfiles")],
         12,
         2,
-        true,
+        Some(ROUTE),
     );
     let urgent = card
         .find("blocked")
@@ -171,7 +181,7 @@ fn the_recap_card_puts_what_needs_the_operator_in_front_of_every_count() {
         .expect("the window's count is on the card");
     assert!(urgent < count, "the counts came first: {card}");
     assert!(card.contains("2 missed"), "{card}");
-    assert!(card.ends_with("recap in #pns"), "{card}");
+    assert!(card.ends_with("recap in #logbook"), "{card}");
 }
 
 #[test]
@@ -179,7 +189,7 @@ fn a_recap_card_with_nothing_waiting_says_so_by_saying_nothing_about_it() {
     // NO ZERO CLAUSE. "0 missed" is a sentence about nothing, and the card
     // is 260 characters wide; the pointer is dropped for the mirror reason,
     // because a card must never name a recap that was never started.
-    let card = recap_card(&[], 12, 0, false);
+    let card = recap_card(&[], 12, 0, None);
     assert_eq!(card, "12 events", "{card}");
 }
 
@@ -192,9 +202,9 @@ fn the_recap_cards_counts_survive_a_needs_you_list_too_long_to_fit() {
     let crowd: Vec<Entry> = (0..40)
         .map(|which| acted("blocked", &format!("project-{which}")))
         .collect();
-    let card = recap_card(&crowd, 80, 3, true);
+    let card = recap_card(&crowd, 80, 3, Some(ROUTE));
     assert!(
-        card.contains("80 events, 3 missed. recap in #pns"),
+        card.contains("80 events, 3 missed. recap in #logbook"),
         "the counts were cut to make room: {card}"
     );
     assert!(
@@ -214,7 +224,7 @@ fn one_urgent_item_too_long_for_the_card_is_cut_to_fit_rather_than_dropped() {
     // waiting on the operator is exactly what the card is for, so the
     // newest item is never the thing that goes; what gives is its length.
     let huge = acted("blocked", &"x".repeat(crate::render::PREVIEW_MAX_CHARS));
-    let card = recap_card(&[huge], 9, 0, false);
+    let card = recap_card(&[huge], 9, 0, None);
     assert!(
         card.contains(&"x".repeat(200)),
         "the item was dropped: {card}"
@@ -245,7 +255,7 @@ fn every_count_survives_the_preview_the_phone_is_actually_handed() {
         project: "p".repeat(120),
         ..Entry::default()
     };
-    let card = recap_card(&[wide], 13, 2, true);
+    let card = recap_card(&[wide], 13, 2, Some(ROUTE));
     let delivered = crate::render::preview(&card);
 
     assert_eq!(
@@ -254,7 +264,7 @@ fn every_count_survives_the_preview_the_phone_is_actually_handed() {
     );
     assert!(delivered.contains("13 events"), "{delivered}");
     assert!(delivered.contains("2 missed"), "{delivered}");
-    assert!(delivered.contains("recap in #pns"), "{delivered}");
+    assert!(delivered.contains("recap in #logbook"), "{delivered}");
     assert!(
         delivered.contains("blocked"),
         "and the urgent item is still what leads: {delivered}"
