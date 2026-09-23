@@ -446,7 +446,7 @@ retain = "720h"
 # a working setting: the recap is its mechanical sections. Neither
 # claude nor codex runs your hooks or keeps a session: claude runs in
 # safe mode with no tools, and codex runs in pns's own Codex home with
-# no shell, plugins, connectors or web search.
+# no shell, plugins, connectors or web search, and every write refused.
 type = "codex"
 # The argument vector `type = "custom"` runs: ARGV, NEVER A SHELL
 # STRING, handed the prompt on stdin and answering on stdout. Stating it
@@ -469,7 +469,8 @@ effort = "low"
 # than each question's, and AN HOUR IS THE CEILING: a longer one is
 # refused by name. It also bounds the turn summarizer that writes each
 # notification's sentence, which takes at most thirty seconds of it
-# because a Stop hook is waiting on that one.
+# because a Stop hook is waiting on that one. Sub-agents a codex model
+# spawns run on this same deadline, so their turns stop when it does.
 deadline = "4m"
 # Append each session's own ASSISTANT TURNS to what the model is handed,
 # newest first. User prompts and tool results are left out, because they

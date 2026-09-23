@@ -180,7 +180,7 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
                          # a working setting: the recap is its mechanical sections. Neither\n\
                          # claude nor codex runs your hooks or keeps a session: claude runs in\n\
                          # safe mode with no tools, and codex runs in pns's own Codex home with\n\
-                         # no shell, plugins, connectors or web search.\n",
+                         # no shell, plugins, connectors or web search, and every write refused.\n",
             sample: Sample::Default("\"custom\""),
         },
         Key {
@@ -215,7 +215,8 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
                          # than each question's, and AN HOUR IS THE CEILING: a longer one is\n\
                          # refused by name. It also bounds the turn summarizer that writes each\n\
                          # notification's sentence, which takes at most thirty seconds of it\n\
-                         # because a Stop hook is waiting on that one.\n",
+                         # because a Stop hook is waiting on that one. Sub-agents a codex model\n\
+                         # spawns run on this same deadline, so their turns stop when it does.\n",
             sample: Sample::Default("\"4m\""),
         },
         Key {
