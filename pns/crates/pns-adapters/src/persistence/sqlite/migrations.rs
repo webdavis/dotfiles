@@ -76,9 +76,25 @@ pub(super) fn migrate(connection: &mut Connection) -> Result<(), StoreError> {
     if version < 13 {
         super::profiles::create(&transaction)?;
     }
-    // Drops the policy-settings audit trail the ConfigChange hook wrote.
+    // Drops the policy-settings audit trail the ConfigChange hook wrote, and
+    // its legacy-import bookkeeping row, so a failed import of that retired
+    // family cannot pin a permanent doctor complaint nothing can clear.
+    // `legacy_imports` itself may not exist on a database that never passed
+    // through the version-0 bootstrap, so the delete is guarded rather than
+    // assumed, the same defensiveness `IF EXISTS` states for the table drop.
     if version < 14 {
         transaction.execute_batch("DROP TABLE IF EXISTS policy_audit;")?;
+        let has_legacy_imports: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'legacy_imports')",
+            [],
+            |row| row.get(0),
+        )?;
+        if has_legacy_imports {
+            transaction.execute(
+                "DELETE FROM legacy_imports WHERE family = 'policy-settings-audit'",
+                [],
+            )?;
+        }
     }
     transaction.pragma_update(None, "user_version", VERSION)?;
     transaction.commit()?;
