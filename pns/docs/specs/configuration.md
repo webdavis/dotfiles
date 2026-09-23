@@ -18,8 +18,7 @@ this document.
 Two vocabulary notes that matter for reading the tables below. `quiet hours` is the config key
 `[lights] dim_window` and `quiet window` is the parsed value behind it; `dim window` is that same
 window, overridden per target by a declaration's own `dim_window` key. `unseen` is one of the five behaviour words. `home probe` and `router` name
-the `[plugins.home_presence]` sensor. The `config-change` hook event (`src/main.rs:config_change_detail`) is
-about the HARNESS's own settings file and has nothing to do with this file; it is out of scope here.
+the `[plugins.home_presence]` sensor.
 
 ## Is the config versioned?
 

@@ -5,15 +5,11 @@ use crate::*;
 /// format characters (`recap::is_invisible`) stripped besides.
 ///
 /// STRIPS `recap::is_invisible` ON TOP OF `flattened`, never inside it:
-/// `flattened` is shared by every other rendered field on this path, and this
-/// crate has two callers with a reason a format character must not survive at
-/// all rather than merely render inertly. `model_switch_detail` compares two
-/// names for equality, which a reordering character could defeat silently (a
-/// name that reads the same but compares unequal, or the reverse); the
-/// config-change arm writes a path into a durable state file as well as a
-/// card, and an invisible character there would round-trip identically on
-/// every future read. Widening `flattened` itself for two callers would let
-/// every other field silently start allowing format characters through too.
+/// `flattened` is shared by every other rendered field on this path, and
+/// `model_switch_detail` has a reason a format character must not survive at
+/// all rather than merely render inertly. It compares two names for equality,
+/// which a reordering character could defeat silently (a name that reads the
+/// same but compares unequal, or the reverse).
 fn rendered_plainly(text: &str) -> String {
     flattened(text)
         .chars()
@@ -30,84 +26,6 @@ pub(crate) fn model_switch_detail(from_model: &str, to_model: &str) -> Option<St
         return None;
     }
     Some(format!("automatic session model change: {from} to {to}"))
-}
-/// A `ConfigChange` payload field, rendered plainly and CUT, with the cut
-/// marked: `clipped` says it happened rather than handing a reader a path
-/// that silently is not the one on disk.
-///
-/// THE CUT IS WHAT KEEPS THE AUDIT TRAIL: both fields this arm reads are
-/// harness text bounded only by `MAX_PAYLOAD_BYTES` (1 MB), and both land in
-/// a ring whose prune runs on a read-back capped at `RING_READ_MAX` (256
-/// KiB). One oversized path makes that read-back fail, and the heal then
-/// collapses the whole trail to the single line just written, losing every
-/// policy change recorded before it. `decision_log`'s `IDENTITY_MAX` is the
-/// same defence at the same boundary, for the same reason.
-fn config_field(text: &str, max_chars: usize) -> String {
-    render::clipped(&rendered_plainly(text), max_chars)
-}
-/// The longest path a `ConfigChange` field carries into a card or the audit
-/// trail. THE CARD AND AUDIT BUDGET, not a claim about every real path: it is
-/// macOS's own `PATH_MAX`, but Linux's is 4096, so a genuinely long Linux path
-/// IS visibly clipped here, with the cut marked rather than silent. Short
-/// enough that the trail's own arithmetic holds regardless: see
-/// `POLICY_SETTINGS_AUDIT_KEPT`.
-const CONFIG_PATH_MAX_CHARS: usize = 1024;
-/// The longest session id the audit trail carries. A session id is a UUID in
-/// every harness this serves; the cap is what stops one nobody validated from
-/// filling a line.
-const CONFIG_SESSION_MAX_CHARS: usize = 64;
-/// The five documented `ConfigChange` sources, and nothing else: an exact
-/// allowlist, matching the exact matcher declared beside it in
-/// `modify_settings.json`. THIS IS THE RUST-SIDE BACKSTOP the declaration's
-/// matcher alone cannot be trusted to be: `parse_payload` accepts any string
-/// under this key, so a direct invocation, a drifted declaration, or a future
-/// value Claude Code adds would otherwise reach a card for a source this
-/// binary has never verified. A `ConfigChange` carrying any other `source`
-/// yields `None`, in `quota_label`'s own style.
-fn config_source_label(source: &str) -> Option<&'static str> {
-    match source {
-        "user_settings" => Some("user settings changed"),
-        "project_settings" => Some("project settings changed"),
-        "local_settings" => Some("local settings changed"),
-        "policy_settings" => Some("policy settings changed"),
-        "skills" => Some("skills changed"),
-        _ => None,
-    }
-}
-/// A configuration-change card's detail: which of the five sources changed,
-/// and the file Claude Code named, when it named one. `None` for an
-/// unmatched source, in `quota_observation_detail`'s own style.
-///
-/// NEVER "WHAT CHANGED": the payload carries no key, no old or new value and
-/// no actor, so the detail says only WHICH SOURCE and, optionally, WHICH
-/// FILE. `file_path` is untrusted text that lands in a banner and a card, so
-/// it goes through `rendered_plainly` exactly as a hostile model name does.
-pub(crate) fn config_change_detail(source: &str, file_path: &str) -> Option<String> {
-    let label = config_source_label(source)?;
-    let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
-    Some(if path.is_empty() {
-        label.to_string()
-    } else {
-        format!("{label}: {path}")
-    })
-}
-
-/// Append one received `policy_settings` change to a bounded, state-only
-/// audit record, so it outlives the five-entry decision ring an ordinary
-/// observed event is logged to. STATE-ONLY, in `record_missed`'s style: no
-/// card of its own, no marker, no lease; the routing this rides beside stays
-/// marker-neutral, and this is purely a durable trace of receipt for a class
-/// of change worth remembering past the next few turns.
-///
-/// FAIL-QUIET, in `record_decision`'s exact style and for its exact reason:
-/// an event path whose stdout a harness hook reads must not gain a line about
-/// the state directory, and a record that did not land costs a read of this
-/// file later, never a card.
-pub(crate) fn record_policy_settings_change(session_id: &str, file_path: &str, now: Option<u64>) {
-    let session = config_field(session_id, CONFIG_SESSION_MAX_CHARS);
-    let path = config_field(file_path, CONFIG_PATH_MAX_CHARS);
-    let _ = pns_adapters::SqliteStore::for_records(state_dir())
-        .record_policy_settings_change(&session, &path, now);
 }
 /// The three quota-notification labels this binary recognises, and nothing
 /// else: an exact allowlist, matching the exact matcher declared beside it in

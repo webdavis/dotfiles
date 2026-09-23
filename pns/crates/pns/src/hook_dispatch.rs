@@ -270,47 +270,6 @@ pub(crate) fn hook_mode(event: &str) -> i32 {
                 );
             }
         }
-        // `ConfigChange`, restricted to the FIVE DOCUMENTED SOURCES via an
-        // exact Rust-side allowlist (`config_source_label`) that mirrors,
-        // rather than trusts, the declaration's own exact matcher: a direct
-        // invocation, a drifted declaration, or a future value Claude Code
-        // adds must not reach a card this binary never verified. Routed as an
-        // OBSERVATION, like the model-switch and quota arms beside it: this
-        // is a configuration audit trail, not a turn needing the operator's
-        // attention, so delivery must not clear a wait, renew a lease, or
-        // claim the return moment. ONE CARD PER RECEIVED EVENT, deliberately:
-        // there is no once-per-something guarantee to keep, because a
-        // corrupt-file recovery, several live sessions, or a changed skill
-        // can each produce their own event, so this fires again for every
-        // distinct invocation rather than coalescing them.
-        "config-change" => {
-            if let Some(detail) = config_change_detail(&payload.source, &payload.file_path) {
-                let probes = system_probes();
-                // THE ONE SOURCE THAT OUTLIVES THE CARD: see
-                // `record_policy_settings_change` for why a policy change
-                // gets a bounded audit line on top of the ordinary decision
-                // ring every observation is logged to.
-                if payload.source == "policy_settings" {
-                    record_policy_settings_change(
-                        &payload.session_id,
-                        &payload.file_path,
-                        probes.now_secs(),
-                    );
-                }
-                hook_event(
-                    &pns_domain::EventArgs {
-                        agent: agent.clone(),
-                        state: event.to_string(),
-                        detail,
-                        pane: std::env::var("HERDR_PANE_ID").unwrap_or_default(),
-                        ..attribution(&payload, &agent)
-                    },
-                    &probes,
-                    &payload,
-                    Attempt::Observation,
-                );
-            }
-        }
         // An event this binary does not serve is not an error the harness
         // should hear about on a notification path.
         _ => eprintln!("pns: unknown hook event `{event}`"),
@@ -335,7 +294,7 @@ fn remind_after(agent: &str) -> Result<Reminder, i32> {
 /// What `pns hook` takes, which is one harness event per run.
 pub(crate) const HOOK_USAGE: &str = "pns: usage: pns hook prompt | stop | \
 stop-failure | blocked | arm-remind | asked | denied | waiting | resolved | \
-model-switch | quota | config-change [--remind[=<duration>] | --no-remind] \
+model-switch | quota [--remind[=<duration>] | --no-remind] \
 (the harness payload arrives on stdin)";
 
 /// The two arms that notify nobody, as an event for the activity store alone:

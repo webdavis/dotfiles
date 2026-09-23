@@ -12,7 +12,7 @@ pns: usage:
   pns send --json                  one notification, as a JSON request on stdin
   pns hook <event>                 a harness hook: prompt, stop, stop-failure,
                                    blocked, asked, denied, waiting, resolved,
-                                   model-switch, quota, config-change
+                                   model-switch, quota
   pns <harness>-hook               presence-gated pass-through to moshi-hook,
                                    spelled the way moshi's extension calls it
   pns mute [<duration>|off]        the operator's mute
