@@ -71,6 +71,7 @@ pub(crate) fn deliver_recap(
         discord,
         routes,
         json: false,
+        notifier: &pns_adapters::SystemCommandRunner,
     }
     .submit_request(
         &delivery_runtime::SubmissionInput {
@@ -131,6 +132,7 @@ pub(crate) fn deliver_recap_card(
         discord,
         routes,
         json: false,
+        notifier: &pns_adapters::SystemCommandRunner,
     }
     .submit(
         &card.identity,

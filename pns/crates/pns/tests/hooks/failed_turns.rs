@@ -89,7 +89,6 @@ fn a_dead_turn_spawns_no_summarizer_and_reads_no_transcript() {
         .env("PNS_CODEX_HOME", sandbox.path("codex-home"))
         .env("PNS_REPLY_REREAD_ATTEMPTS", "4")
         .env("PNS_REPLY_REREAD_INTERVAL", "2s");
-    prepend_path(&mut command, &bin);
     let mut child = spawn_hook(command, "stop-failure");
     write_payload(
         &mut child,

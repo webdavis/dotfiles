@@ -1,0 +1,38 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Hold each declared-pinned formula where `brew upgrade`, and so the weekly
+# unattended job, leaves it, and warn when the installed version drifts from
+# the version proven against this repository.
+#
+# Plain run_after_, so a pin lost to an interrupted `just moshi-hook-upgrade`
+# or a manual `brew unpin` is restored on the next apply.
+
+set -euo pipefail
+
+brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
+brew_bin="$brew_prefix/bin/brew"
+
+pin_declared() {
+  local formula="$1" declared="$2" installed
+  # `brew list --versions` exits non-zero for a formula that is not installed;
+  # `|| true` keeps that from reaching set -e before the not-installed branch
+  # below gets to run.
+  installed="$("$brew_bin" list --versions "$formula" 2>/dev/null | awk '{ print $2 }')" || true
+  if [[ -z $installed ]]; then
+    printf 'homebrew: WARNING: %s is declared pinned at %s but is not installed.\n' "$formula" "$declared" >&2
+    return 0
+  fi
+  if [[ -z $("$brew_bin" list --pinned "$formula" 2>/dev/null) ]]; then
+    "$brew_bin" pin "$formula"
+    printf 'homebrew: pinned %s at %s\n' "$formula" "$installed"
+  fi
+  if [[ $installed != "$declared" ]]; then
+    printf 'homebrew: WARNING: %s is pinned at %s, but .chezmoidata/system_packages_autoinstall.yaml declares %s, the version proven against this repository.\n' \
+      "$formula" "$installed" "$declared" >&2
+  fi
+}
+
+{{ range $formula, $version := (dig "pinned" dict .packages.macos.homebrew) -}}
+pin_declared {{ $formula | quote }} {{ $version | quote }}
+{{ end -}}
+{{ end -}}

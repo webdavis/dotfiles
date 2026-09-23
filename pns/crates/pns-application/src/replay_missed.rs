@@ -16,8 +16,8 @@ use pns_domain::missed::{self, Entry};
 
 /// The operator's `[recap]` answers, as this decision needs them.
 ///
-/// THREE FIELDS AND NOT THE WHOLE TABLE. The summarizer, its deadline, the
-/// repositories and the threading are the publisher's business; these three
+/// FOUR FIELDS AND NOT THE WHOLE TABLE. The summarizer, its deadline, the
+/// repositories and the threading are the publisher's business; these four
 /// are what decide whether anything is delivered at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecapPolicy {
@@ -27,6 +27,9 @@ pub struct RecapPolicy {
     pub post_window_recap: bool,
     /// How many events a window must hold before a digest is worth publishing.
     pub minimum_events: usize,
+    /// How long the operator must have been away before a digest is worth
+    /// publishing.
+    pub minimum_away: std::time::Duration,
 }
 
 /// The ports one catch-up runs over.
@@ -83,11 +86,14 @@ where
         });
 
         // THE DIGEST IS DURABLE AND THE CARD IS NOT, so the digest needs a
-        // durable route to go to and a window worth the operator's attention;
-        // the card below is raised on far weaker grounds.
+        // durable route to go to and a window worth the operator's attention,
+        // long enough AND busy enough; the card below is raised on far weaker
+        // grounds.
+        let long_enough =
+            window.is_some_and(|(since, until)| until - since >= recap.minimum_away.as_secs());
         let fires = recap.post_window_recap
             && durable_route
-            && window.is_some()
+            && long_enough
             && counted.len() >= recap.minimum_events;
         let started = match window {
             Some((since, until)) if fires => RecapPublisher::publish(self.ports, since, until),

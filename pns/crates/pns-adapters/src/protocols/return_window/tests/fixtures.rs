@@ -46,6 +46,7 @@ impl Replay {
                 replay_card: true,
                 post_window_recap: false,
                 minimum_events: 2,
+                minimum_away: std::time::Duration::ZERO,
             },
             false,
         );
