@@ -1,5 +1,9 @@
 use super::*;
 
+// A pin for blocking-approval.md behavior 1 and legacy-producer-flags.md
+// behaviors 19-20, not new coverage: it takes the same path
+// `dispatch.rs:a_word_that_names_no_command_is_refused_and_delivers_nothing`
+// already pins.
 #[test]
 fn a_harness_word_is_refused_as_usage_and_never_reaches_moshi() {
     // moshi's pi and omp extensions write to its socket themselves, so a
