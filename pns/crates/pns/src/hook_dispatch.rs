@@ -17,9 +17,8 @@ use crate::*;
 /// road `moshi_decision` describes, and it is not how Claude Code answers a
 /// `PermissionRequest` either (measured: that harness reads the exit code on
 /// this event nowhere, and decides off the hook's stdout). What the code IS is
-/// a pns-side contract the gate's direct callers read, and whose reading by
-/// Codex is unverified, so inventing one here would put pns's own word into a
-/// channel that is moshi's.
+/// a pns-side contract whose reading by Codex is unverified, so inventing one
+/// here would put pns's own word into a channel that is moshi's.
 pub(crate) fn hook_mode(event: &str) -> i32 {
     let Some(payload_json) = read_payload() else {
         // A harness that opened the pipe and never wrote must not hold a hook

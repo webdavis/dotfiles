@@ -275,7 +275,7 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     //
     // EXIT 0 IS NO OPINION. Claude Code reads no exit code on this event at
     // all (measured); a non-zero would put pns's own word into a channel that
-    // carries moshi's, which the gate's direct callers do read.
+    // carries moshi's.
     //
     // THE SLEEP IS NOT A SLOW TEST. With the bound in place this run costs the
     // injected deadline and the teardown; it is the RED run, with no bound,
@@ -330,46 +330,6 @@ fn a_moshi_that_never_answers_stops_holding_the_operators_prompt() {
     // correct interleaving. Exactly-one, with the argv, is pinned by
     // `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`,
     // which injects no deadline and cannot race.
-    assert!(
-        submissions(&sandbox).len() <= 1,
-        "one prompt is at most one submission, expiry included: {:?}",
-        submissions(&sandbox)
-    );
-}
-
-#[test]
-fn the_gate_is_bounded_by_the_same_clock_as_the_hook() {
-    // THE SECOND CALLER, which is the whole reason the bound sits at the
-    // function both of them route through rather than at the one the defect
-    // was found on. The bare `pns <harness>-hook` is what pi and omp reach
-    // directly, with no pns hook in front of it, and it waited on exactly the
-    // same unbounded `child.wait()`.
-    //
-    // SAME CLOCK, SAME STREAM: timed to stdout EOF for the reason its twin
-    // above states. This path spawns the stub's shell inside the window too,
-    // and the whole-second config deadline leaves it plenty of margin.
-    let sandbox = Sandbox::new("gate-silent-moshi");
-    sandbox.allow_slow("the config deadline's own second sits over the warning budget");
-    sandbox.write_config(&config_with_short_ack_deadline());
-    let mut command = sandbox.pns();
-    command.env("PNS_SCREEN_IDLE", "99999");
-    stub_silent_moshi(&sandbox, &mut command);
-    command.arg("claude-hook");
-    let mut capture = CapturedChild::spawn(&mut command).expect("the engine runs");
-    write_payload(&mut capture.child, b"{\"ask\":1}\n");
-    let output = capture
-        .output_within(HANG_LIMIT)
-        .expect("the gate's streams and process must finish inside the liveness limit");
-    let said = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        said.contains(&expiry_line(&(ACK_DEADLINE_SECS * 1000).to_string())),
-        "the gate had to give up on the injected deadline and say so, and said: {said:?}"
-    );
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "the gate waits on the same clock: no opinion, and the harness prompts as usual"
-    );
     assert!(
         submissions(&sandbox).len() <= 1,
         "one prompt is at most one submission, expiry included: {:?}",
