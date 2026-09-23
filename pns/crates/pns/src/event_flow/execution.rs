@@ -6,6 +6,7 @@ pub(super) fn execute(
     payload: &HookPayload,
     attempt: Attempt,
     pulse: PulseSink<'_>,
+    notifier: &dyn pns_application::CommandRunner,
     producer: Option<&super::submit::ProducerRequest>,
 ) -> Result<pns_application::Submitted, NotSubmitted> {
     let json = producer.is_some();
@@ -251,6 +252,7 @@ pub(super) fn execute(
         discord: &discord,
         routes: &routes,
         json,
+        notifier,
     }
     .submit_request(
         &delivery_runtime::SubmissionInput {
@@ -299,6 +301,7 @@ pub(super) fn execute(
         json,
         stale_after_secs,
         pulse,
+        notifier,
     };
     let lamps_live = lights.is_some() && hue_table.is_some();
     pns_application::SubmitNotification { ports: &records }.record(&pns_application::Submission {

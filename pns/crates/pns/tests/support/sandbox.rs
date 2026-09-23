@@ -1,5 +1,5 @@
-use super::STUB_CHANNELS;
 use super::budget::{TEST_BUDGET_MS, live_ceiling_ms, over_budget, over_ceiling};
+use super::{STUB_CHANNELS, write_script};
 use std::cell::Cell;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -8,8 +8,8 @@ mod commands;
 mod files;
 mod stubs;
 
-/// Everything one test owns: a private HOME, its stub channels, and the
-/// event files those stubs record into. Removed on drop.
+/// Everything one test owns: a private HOME, its stub channels, a recording
+/// `terminal-notifier`, and the files those stubs record into. Removed on drop.
 pub struct Sandbox {
     pub root: PathBuf,
     pub(super) created: Instant,
@@ -51,6 +51,11 @@ impl Sandbox {
                 &format!("cat >\"{}/{channel}.event\"", sandbox.display()),
             );
         }
+        std::fs::create_dir_all(sandbox.path("bin")).expect("stub bin");
+        write_script(
+            &sandbox.path("bin/terminal-notifier"),
+            &sandbox.notifier_recorder(),
+        );
         sandbox
     }
 

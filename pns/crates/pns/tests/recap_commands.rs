@@ -157,14 +157,12 @@ fn recap_git_reads_the_branch_the_worktree_and_the_diff_out_of_a_real_repository
     git(&["add", "."]);
     git(&["commit", "--quiet", "-m", "work"]);
 
+    // NO NETWORK: `gh` is not on the sandbox's PATH, so the PR line says it
+    // did not answer, which is the branch this asserts.
     let mut command = plugin_command(&sandbox);
     command
         .current_dir(&repository)
-        .env("PNS_STATE_DIR", sandbox.path("state"))
-        // NO NETWORK: an empty PATH addition is not how this is
-        // done, so `gh` simply is not reachable and the PR line says so,
-        // which is the branch this asserts.
-        .env("PATH", no_listing_path());
+        .env("PNS_STATE_DIR", sandbox.path("state"));
     let output = run(command.args(["recap", "git"]));
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -187,21 +185,6 @@ fn recap_git_reads_the_branch_the_worktree_and_the_diff_out_of_a_real_repository
     );
     assert!(printed.contains("A  added.txt"), "{printed}");
     assert!(!printed.contains("kept.txt"), "{printed}");
-}
-
-/// A PATH with git on it and no `gh`, so the pull-request listing is the one
-/// thing that cannot run.
-fn no_listing_path() -> String {
-    let git = Command::new("/usr/bin/env")
-        .args(["sh", "-c", "command -v git"])
-        .output()
-        .expect("git is on PATH");
-    let git = String::from_utf8_lossy(&git.stdout).trim().to_string();
-    std::path::Path::new(&git)
-        .parent()
-        .expect("git's own directory")
-        .display()
-        .to_string()
 }
 
 /// One run with `payload` on stdin.

@@ -55,6 +55,7 @@ fn unavailable_identity_or_clock_keeps_the_owned_live_path_without_inventing_a_l
         decorative: false,
     }];
     let store = SqliteStore::new(root.join("state"));
+    let notifier = crate::runtime_test_support::RecordingNotifier::default();
     let runtime = DeliveryRuntime {
         store: &store,
         selection: &selection,
@@ -64,6 +65,7 @@ fn unavailable_identity_or_clock_keeps_the_owned_live_path_without_inventing_a_l
         discord: &pns_adapters::DiscordSettings::default(),
         routes: &pns_domain::routes::Routes::default(),
         json: false,
+        notifier: &notifier,
     };
     for (identity, now, expected) in [
         (None, Some(100), "pns:unavailable"),
