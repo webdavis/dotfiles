@@ -167,6 +167,31 @@ fn an_empty_ledger_says_nothing_is_failing() {
     assert!(rendered.contains("All times UTC"), "{rendered}");
 }
 
+/// The listing footer carries the `fh-footer` class the supplied CSS styles;
+/// a bare `<footer>` loses its rule, muted color, size and flex layout.
+#[test]
+fn the_footer_carries_the_fh_footer_class() {
+    let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
+    assert!(
+        rendered.contains("<footer class=\"fh-footer\">"),
+        "{rendered}"
+    );
+}
+
+/// A burst's time gutter reads oldest first, then "to" the newest, matching
+/// the supplied mockup; the Window line in its own details reads the same
+/// direction.
+#[test]
+fn a_bursts_gutter_reads_oldest_then_to_newest() {
+    let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
+    let oldest_at = rendered.find("00:11").unwrap();
+    let to_newest_at = rendered.find("to 00:42").unwrap();
+    assert!(
+        oldest_at < to_newest_at,
+        "the oldest time must render before \"to\" the newest: {rendered}"
+    );
+}
+
 /// The page is dark always: the color-scheme meta says so and neither
 /// `light-dark()` nor `prefers-color-scheme` appears anywhere in the output.
 #[test]

@@ -88,7 +88,7 @@ pub(crate) fn record_page(
         "<details><summary>Technical details</summary>{}</details>",
         technical(failure, retry, &value("failed command"))
     ));
-    body.push_str(&footer(now));
+    body.push_str(&footer(now, ""));
     body.push_str("</article>");
     shell(&body)
 }

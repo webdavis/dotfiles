@@ -41,11 +41,17 @@ pub(crate) fn sentence_page(text: &str) -> String {
 }
 
 /// The footer every card carries: "All times UTC" on the left, the render
-/// time on the right. Never "Sample data": that was the operator's mockup
-/// placeholder, and this is the real render time.
-fn footer(now: u64) -> String {
+/// time on the right. `class` is the page's own footer class where its CSS
+/// styles one (`"fh-footer"` for the listing), or empty where the CSS
+/// targets the bare `footer` element instead.
+fn footer(now: u64, class: &str) -> String {
+    let class_attr = if class.is_empty() {
+        String::new()
+    } else {
+        format!(" class=\"{class}\"")
+    };
     format!(
-        "<footer><span>All times UTC</span><span>Updated {}</span></footer>",
+        "<footer{class_attr}><span>All times UTC</span><span>Updated {}</span></footer>",
         pns_adapters::utc_long(now).unwrap_or_default()
     )
 }

@@ -33,7 +33,7 @@ pub(crate) fn index_page(count: usize, now: u64) -> String {
             count.to_string()
         }
     ));
-    body.push_str(&footer(now));
+    body.push_str(&footer(now, ""));
     body.push_str("</section>");
     shell(&body)
 }

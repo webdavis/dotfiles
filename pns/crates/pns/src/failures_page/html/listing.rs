@@ -75,7 +75,7 @@ pub(crate) fn listing_page(
         let rows = command_failures::rows(failures);
         body.push_str(&entries(&bursts(failures, &rows), retry_facts, now));
     }
-    body.push_str(&footer(now));
+    body.push_str(&footer(now, "fh-footer"));
     body.push_str("</section>");
     shell(&body)
 }
@@ -151,8 +151,8 @@ fn entry(
         format!("<time class=\"fh-clock\">{newest_hhmm}</time>")
     } else {
         format!(
-            "<div class=\"fh-clock\"><time>{newest_hhmm}</time><br>\
-             <span class=\"fh-muted fh-small\">to {}</span></div>",
+            "<div class=\"fh-clock\"><time>{}</time><br>\
+             <span class=\"fh-muted fh-small\">to {newest_hhmm}</span></div>",
             &oldest.1.when[11..16]
         )
     };

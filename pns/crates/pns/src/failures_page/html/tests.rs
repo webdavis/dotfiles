@@ -1,16 +1,24 @@
 use super::*;
 
-/// The footer names the render time, never the operator's mockup
-/// placeholder.
+/// The footer names the render time, never a placeholder, and carries
+/// whatever class its caller passes (or none).
 #[test]
-fn the_footer_names_the_render_time_and_never_says_sample_data() {
-    let rendered = footer(1_790_133_900); // 2026-09-23T03:25:00Z
+fn the_footer_names_the_render_time_and_carries_its_class() {
+    let rendered = footer(1_790_133_900, "fh-footer"); // 2026-09-23T03:25:00Z
     assert!(rendered.contains("All times UTC"), "{rendered}");
     assert!(
         rendered.contains("Updated September 23, 2026 at 03:25"),
         "{rendered}"
     );
     assert!(!rendered.contains("Sample data"), "{rendered}");
+    assert!(
+        rendered.starts_with("<footer class=\"fh-footer\">"),
+        "{rendered}"
+    );
+    assert!(
+        footer(0, "").starts_with("<footer>"),
+        "a bare class is empty"
+    );
 }
 
 /// The relative "in N minutes" a due time is read as, rounded up so a
