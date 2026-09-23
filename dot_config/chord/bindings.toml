@@ -808,160 +808,14 @@ key = "ctrl-x l"
 run = "__bash_bindings_git_ls_files_with_last_modified"
 
 [[group]]
-name = "network-host"
-description = "Host Bindings: what this machine is on the network."
+name = "network"
+description = "Network diagnostics and discovery."
 
 [[group.binding]]
-key = "ctrl-x n h h"
-description = "╭───────────────╮\n│ Host Bindings │\n╰───────────────╯\nPrint the hostname of the current machine."
-run = "hostname"
-
-[[group.binding]]
-key = "ctrl-x n h m"
-run = "__bash_bindings_print_mac_address"
-
-[[group.binding]]
-key = "ctrl-x n h i"
-run = "__bash_bindings_show_current_network_interface"
-
-[[group.binding]]
-key = "ctrl-x n h p"
-description = "Show all active network connections and listening ports for troubleshooting."
-run = "lsof -nP -iTCP -sTCP:LISTEN"
-
-[[group]]
-name = "network-lan"
-description = "LAN Bindings: the local network, its gateway and its reachability."
-
-[[group.binding]]
-key = "ctrl-x n l l"
-description = "╭──────────────╮\n│ LAN Bindings │\n╰──────────────╯\nShows your local IP address on the current network (LAN)."
-run = "ipconfig getifaddr en0"
-
-[[group.binding]]
-key = "ctrl-x n l g"
-run = "__bash_bindings_show_ip_address_of_default_gateway"
-
-[[group.binding]]
-key = "ctrl-x n l b"
-run = "__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface"
-
-[[group.binding]]
-key = "ctrl-x n l r"
-run = "__bash_bindings_ping_default_gateway"
-
-[[group.binding]]
-key = "ctrl-x n l t"
-run = "__bash_bindings_check_protocol_connectivity"
-
-[[group.binding]]
-key = "ctrl-x n l 2"
-run = "__bash_bindings_check_protocol_connectivity 22"
-
-[[group.binding]]
-key = "ctrl-x n l 4"
-run = "__bash_bindings_check_protocol_connectivity 443"
-
-[[group.binding]]
-key = "ctrl-x n l 5"
-run = "__bash_bindings_check_protocol_connectivity 53"
-
-[[group.binding]]
-key = "ctrl-x n l 8"
-run = "__bash_bindings_check_protocol_connectivity 80"
-
-[[group.binding]]
-key = "ctrl-x n l 0"
-run = "__bash_bindings_check_protocol_connectivity 8080"
-
-[[group.binding]]
-key = "ctrl-x n l s"
-run = "__bash_bindings_scan_common_ports"
-
-[[group.binding]]
-key = "ctrl-x n l c"
-run = "__bash_bindings_capture_packets_on_default_network_interface"
-
-[[group.binding]]
-key = "ctrl-x n 4"
-description = "Shows your public IPv4 address (the address visible to the internet)."
-run = "curl --ipv4 https://ifconfig.me/all"
-
-[[group.binding]]
-key = "ctrl-x n 6"
-description = "Shows your public IPv6 address (the address visible to the internet)."
-run = "curl --ipv6 https://ifconfig.me/all"
-
-[[group.binding]]
-key = "ctrl-x n i"
-description = "Displays your ISP and other public network details."
-run = "curl -s https://ipinfo.io | jq ."
-
-[[group]]
-name = "network-dns"
-description = "DNS Bindings: resolution, the servers in use and a summary."
-
-[[group.binding]]
-key = "ctrl-x n d d"
-run = "__bash_bindings_dns_lookup"
-
-[[group.binding]]
-key = "ctrl-x n d r"
-run = "__bash_bindings_reverse_dns_lookup"
-
-[[group.binding]]
-key = "ctrl-x n d a"
-run = "__bash_bindings_system_dns_servers"
-
-[[group.binding]]
-key = "ctrl-x n d t"
-modes = ["vi-insert"]
-macro = "\\__bash_bindings_test_dns_resolution_for_common_domains\\r"
-
-[[group.binding]]
-key = "ctrl-x n d t"
-modes = ["vi-command"]
-macro = "i\\C-x0__bash_bindings_test_dns_resolution_for_common_domains\\r"
-
-[[group.binding]]
-key = "ctrl-x n d s"
-run = "__bash_bindings_dns_summary"
-
-[[group]]
-name = "network-wan"
-description = "WAN Bindings: the path out to the internet."
-
-[[group.binding]]
-key = "ctrl-x n w l"
-description = "╭──────────────╮\n│ WAN Bindings │\n╰──────────────╯\nMeasure internet connection latency to Cloudflare DNS (1.1.1.1) with three pings."
-run = "ping -c 3 1.1.1.1 | tail -1"
-
-[[group.binding]]
-key = "ctrl-x n w p"
-description = "Ping Google's DNS server once to check basic internet connectivity."
-run = "ping -c 1 8.8.8.8"
-
-[[group.binding]]
-key = "ctrl-x n w P"
-description = "Ping (custom) server once to check basic internet connectivity."
-insert = "ping -c 1 "
-
-[[group.binding]]
-key = "ctrl-x n w t"
-description = "Perform a traceroute to google.com to see the network path and detect routing issues."
-insert = "traceroute google.com"
-
-[[group.binding]]
-key = "ctrl-x n w L"
-run = "__bash_bindings_latency_traceroute_test"
-
-[[group.binding]]
-key = "ctrl-x n w h"
-run = "__bash_bindings_network_health_check"
-
-[[group.binding]]
-key = "ctrl-x n w s"
-run = "__bash_bindings_network_summary"
+key = "ctrl-x n"
+description = "Search networking commands and prepare one for execution."
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_network_menu"
 
 [[group]]
 name = "bindings-help"
@@ -969,4 +823,6 @@ description = "List every binding these files declare."
 
 [[group.binding]]
 key = "ctrl-x v"
-run = "__bash_bindings_list_bash_bindings"
+description = "Search Bash shortcuts and prepare a command."
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__bash_bindings_list_bash_bindings"

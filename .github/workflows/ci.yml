@@ -21,7 +21,7 @@ jobs:
           BASHUNIT_COMMIT: "683ba16f54fee391dc30bea0a5e6201aeef72c19"
           BASHUNIT_SHA256: "429a0f25cf39b2779e3266b4a5bb2c098cb5ebed60d9a3476a1fea3c5acc7a49"
         run: |
-          brew install actionlint age bash chezmoi coreutils emmylua_ls jq just luacheck neovim shellcheck shfmt stylua taplo treefmt uv yq zizmor
+          brew install actionlint age bash chezmoi coreutils emmylua_ls fzf jq just luacheck neovim python ripgrep shellcheck shfmt stylua taplo treefmt uv yq zizmor
           echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
           uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1
           mkdir -p "$HOME/.local/bin"
