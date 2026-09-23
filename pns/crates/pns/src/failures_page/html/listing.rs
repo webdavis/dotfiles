@@ -255,7 +255,7 @@ fn single_details(
     dl.push_str(&field("Source", &escaped(&row.agent)));
     dl.push_str(&field(
         "Delivery",
-        &format!("<a href=\"/{}\">{}</a>", failure.id, failure.id),
+        &format!("<a href=\"/failures/{}\">{}</a>", failure.id, failure.id),
     ));
     if gave_up {
         dl.push_str(&field("Outcome", "Permanent failure; no retries"));
@@ -310,7 +310,7 @@ fn burst_details(burst: &Burst, gave_up: bool) -> String {
             format!(" · {}", escaped(&row.route))
         };
         records.push_str(&format!(
-            "<a href=\"/{}\">{}</a> · {}{route} · {}",
+            "<a href=\"/failures/{}\">{}</a> · {}{route} · {}",
             failure.id,
             failure.id,
             escaped(&row.agent),

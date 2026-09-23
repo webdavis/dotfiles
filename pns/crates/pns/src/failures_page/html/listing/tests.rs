@@ -111,13 +111,15 @@ fn the_three_leg_burst_is_one_entry_with_its_count_and_span() {
     assert!(!rendered.contains("4 failed deliveries"), "{rendered}");
 }
 
-/// Every burst Records line links the leg's own detail page.
+/// Every burst Records line, and a single leg's own Delivery line, link the
+/// leg's detail page under `/failures/<id>`: the bare `/<id>` this page used
+/// to serve is retired.
 #[test]
-fn burst_records_link_every_legs_own_id() {
+fn every_leg_links_its_own_id_under_failures() {
     let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
-    for id in [148, 149, 150] {
+    for id in [201, 148, 149, 150] {
         assert!(
-            rendered.contains(&format!("<a href=\"/{id}\">{id}</a>")),
+            rendered.contains(&format!("<a href=\"/failures/{id}\">{id}</a>")),
             "leg {id} not linked: {rendered}"
         );
     }
