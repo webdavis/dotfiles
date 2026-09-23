@@ -22,7 +22,14 @@ fn every_known_type_composes_the_exact_words_pns_runs() {
         (
             Kind::Claude,
             "",
-            words(&["claude", "-p", "--safe-mode", "--tools", ""]),
+            words(&[
+                "claude",
+                "-p",
+                "--no-session-persistence",
+                "--safe-mode",
+                "--tools",
+                "",
+            ]),
             false,
         ),
         (
@@ -31,6 +38,7 @@ fn every_known_type_composes_the_exact_words_pns_runs() {
             words(&[
                 "claude",
                 "-p",
+                "--no-session-persistence",
                 "--safe-mode",
                 "--tools",
                 "",
@@ -132,7 +140,7 @@ fn the_effort_is_passed_in_each_harnesss_own_flag() {
     );
     let mut claude = settings(Kind::Claude, "");
     claude.effort = "high".to_string();
-    assert_eq!(claude.invocation().unwrap().argv[5..], ["--effort", "high"]);
+    assert_eq!(claude.invocation().unwrap().argv[6..], ["--effort", "high"]);
     let takers: Vec<Kind> = super::WORDS
         .iter()
         .copied()

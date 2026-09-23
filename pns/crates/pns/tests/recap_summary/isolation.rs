@@ -46,11 +46,13 @@ fn a_claude_summary_runs_in_safe_mode_with_no_tools() {
         "type = \"claude\"\nmodel = \"haiku\"\n",
     );
     let seen = sandbox.recorded_spawn(&page);
-    assert!(
-        seen.argv.contains(&"--safe-mode".to_string()),
-        "{:?}",
-        seen.argv
-    );
+    for flag in ["--safe-mode", "--no-session-persistence"] {
+        assert!(
+            seen.argv.contains(&flag.to_string()),
+            "{flag}: {:?}",
+            seen.argv
+        );
+    }
     assert_eq!(seen.after("--tools"), Some(""), "{:?}", seen.argv);
     assert_eq!(seen.after("--model"), Some("haiku"), "{:?}", seen.argv);
 }

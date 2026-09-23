@@ -151,7 +151,14 @@ impl Settings {
         Some(match self.kind {
             Kind::Claude => Invocation {
                 argv: words(
-                    &["claude", "-p", "--safe-mode", "--tools", ""],
+                    &[
+                        "claude",
+                        "-p",
+                        "--no-session-persistence",
+                        "--safe-mode",
+                        "--tools",
+                        "",
+                    ],
                     [model("--model"), effort("--effort", self.effort.clone())].concat(),
                 ),
                 prompt_in_argv: false,
