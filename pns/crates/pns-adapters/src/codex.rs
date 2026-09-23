@@ -13,21 +13,16 @@ pub fn summarize(reply: &str) -> (String, String) {
     if std::env::var("PNS_SUMMARIZING").is_ok() {
         return fallback();
     }
-    let user_home = std::env::var("HOME").unwrap_or_default();
-    let Some(home) = summarizer_home(&user_home, std::env::var("PNS_CODEX_HOME").ok().as_deref())
-    else {
-        return fallback();
-    };
     let codex = std::env::var("PNS_CODEX_BIN").unwrap_or_else(|_| "codex".to_string());
     let mut command = Command::new(&codex);
-    command
-        .args(["exec", "--ephemeral", "--skip-git-repo-check", "-C"])
-        .arg(&home)
-        .args(["-s", "read-only", "-"])
-        .env("PNS_SUMMARIZING", "1")
-        .env("CODEX_HOME", &home);
+    command.args(["exec", "--skip-git-repo-check"]);
+    if isolate(&mut command).is_none() {
+        return fallback();
+    }
+    command.arg("-");
     // THE CONFIG FILE IS READ HERE rather than threaded through the hook
     // path, the way `state_dir` reads it for the same reason.
+    let user_home = std::env::var("HOME").unwrap_or_default();
     let deadline = turn_deadline(crate::install_settings(&user_home).summarizer_deadline);
     match run_bounded(
         command,
@@ -42,10 +37,64 @@ pub fn summarize(reply: &str) -> (String, String) {
         None => fallback(),
     }
 }
+/// Point a `codex exec` command at the stripped home below: ephemeral, in a
+/// read-only sandbox, with `DISABLED_FEATURES` and web search off, and marked
+/// as a summarizer run. Both the turn summarizer and the recap's
+/// `codex` kind run through this. None when the home cannot be made.
+pub(crate) fn isolate(command: &mut Command) -> Option<()> {
+    let user_home = std::env::var("HOME").unwrap_or_default();
+    let home = summarizer_home(&user_home, std::env::var("PNS_CODEX_HOME").ok().as_deref())?;
+    command
+        .args(["--ephemeral", "-s", "read-only", "-C"])
+        .arg(&home)
+        .args(
+            DISABLED_FEATURES
+                .iter()
+                .flat_map(|feature| ["--disable", feature]),
+        )
+        .args(["-c", "web_search=\"disabled\""])
+        .env("PNS_SUMMARIZING", "1")
+        .env("CODEX_HOME", &home);
+    Some(())
+}
+/// The Codex features a summary run is started without.
+///
+/// MEASURED on codex-cli 0.156.0 against a local capture of the model request
+/// under the live model catalog. These take away the shell, file reads, hooks,
+/// goals, the clock's sleep, and the account's remotely installed plugins and
+/// app connectors, which the stripped home also carries. `shell_snapshot`
+/// stops the login shell Codex starts at session start, which sources the
+/// operator's `~/.bash_profile` and `~/.bashrc` in a process group of its own,
+/// outside the deadline's kill. `code_mode_host` leaves code mode's `exec`
+/// offered but failing closed ("code-mode host is disabled"). `unified_exec`
+/// still reads as enabled with its switch passed; `shell_tool` is what removes
+/// the shell.
+///
+/// STILL OFFERED: `request_user_input`, which nobody answers; `apply_patch` to
+/// gpt-5.5, which the read-only sandbox refuses ("patch rejected: writing is
+/// blocked by read-only sandbox"); and to gpt-6-luna, whose catalog entry
+/// turns collaboration on, `spawn_agent` and the other sub-agent tools. A
+/// spawned agent runs inside the same process with the same switches and
+/// sandbox, so its model turns end when the summarizer's deadline kills the
+/// run.
+const DISABLED_FEATURES: [&str; 11] = [
+    "shell_tool",
+    "unified_exec",
+    "apps",
+    "plugins",
+    "hooks",
+    "multi_agent",
+    "goals",
+    "view_image",
+    "sleep_tool",
+    "code_mode_host",
+    "shell_snapshot",
+];
 /// A private, stripped Codex home: a minimal config (fast model, low
-/// reasoning) and the live auth symlinked, with NO hooks or plugins. That cuts
-/// the load (~9s to ~3s) and means the summarizer run has no Stop hook of its
-/// own, which is the hard guarantee against a pns-to-codex-to-pns loop.
+/// reasoning) and the live auth symlinked, with NO hooks. The plugins Codex
+/// syncs into it for the account are switched off by `isolate`. That cuts the
+/// load (~9s to ~3s) and means the summarizer run has no Stop hook of its own,
+/// which is the hard guarantee against a pns-to-codex-to-pns loop.
 /// It is created owner-only, because it points at the live Codex credentials.
 fn summarizer_home(user_home: &str, home_override: Option<&str>) -> Option<std::path::PathBuf> {
     use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
@@ -73,10 +122,27 @@ fn summarizer_home(user_home: &str, home_override: Option<&str>) -> Option<std::
             });
         let _ = written;
     }
-    let auth = home.join("auth.json");
-    let _ = std::fs::remove_file(&auth);
-    let _ = std::os::unix::fs::symlink(format!("{user_home}/.codex/auth.json"), &auth);
+    link_auth(&home, &format!("{user_home}/.codex/auth.json"));
     Some(home)
+}
+/// Point the home's `auth.json` at the live Codex credentials.
+///
+/// THE HOME IS SHARED by the recap, the doctor and the Stop hook's summarizer,
+/// which can run at once. A link that is already right is left alone, and a new
+/// one is made under this process's own name and renamed into place, so a run
+/// reading auth at that moment finds the old link or the new one.
+fn link_auth(home: &std::path::Path, target: &str) {
+    let auth = home.join("auth.json");
+    if std::fs::read_link(&auth).is_ok_and(|current| current.as_os_str() == target) {
+        return;
+    }
+    let staged = home.join(format!("auth.json.{}", std::process::id()));
+    let _ = std::fs::remove_file(&staged);
+    if std::os::unix::fs::symlink(target, &staged).is_ok()
+        && std::fs::rename(&staged, &auth).is_err()
+    {
+        let _ = std::fs::remove_file(&staged);
+    }
 }
 /// The most of `[recap] summarizer_deadline` the TURN summarizer may take.
 /// The key's own generous default is the budget for a whole recap episode in

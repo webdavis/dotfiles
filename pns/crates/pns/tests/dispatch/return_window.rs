@@ -236,7 +236,7 @@ fn a_busy_return_under_a_shorter_operator_stated_minimum_away_delivers_the_recap
     assert_eq!(card["agent"], "pns", "{raised:?}");
     let body = card["detail"].as_str().expect("a detail");
     assert!(body.contains("13 events"), "{body}");
-    assert!(body.ends_with("recap in #pns"), "{body}");
+    assert!(body.ends_with("recap in #pns-events"), "{body}");
     assert!(
         journal(&sandbox).is_empty(),
         "the journal was consumed: {:?}",
@@ -252,9 +252,7 @@ fn a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first
     // composes at most ONE card and this is the loud shape of it.
     let sandbox = Sandbox::new("recap-over-threshold");
     record_every_event(&sandbox);
-    plant_marker(&sandbox, 3600);
-    std::fs::write(activity_path(&sandbox), planted_activity(12, 1800, Some(4))).expect("the ring");
-    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+    loud_window(&sandbox);
 
     run(&mut present_event(&sandbox));
 
@@ -283,7 +281,7 @@ fn a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first
     // event, and the live one is inside the window it opened.
     assert!(body.contains("13 events"), "{body}");
     assert!(body.contains("2 missed"), "{body}");
-    assert!(body.ends_with("recap in #pns"), "{body}");
+    assert!(body.ends_with("recap in #pns-events"), "{body}");
     assert!(
         journal(&sandbox).is_empty(),
         "the journal was consumed: {:?}",

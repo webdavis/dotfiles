@@ -202,9 +202,10 @@ Config {
         minimum_events: 8,
         minimum_away: 1200s,
         summarizer: Settings {
-            kind: Custom,
+            kind: Codex,
             command: [],
-            model: "",
+            model: "gpt-6-luna",
+            effort: "low",
             deadline: 240s,
             transcripts: false,
             transcript_bytes_per_session: 8192,

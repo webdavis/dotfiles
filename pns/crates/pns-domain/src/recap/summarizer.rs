@@ -8,7 +8,11 @@
 //!
 //! COMPOSITION IS POLICY AND LIVES HERE, which is what lets the golden test
 //! pin every known type's vector as a plain call with no process in it. The
-//! adapter beside it only spawns what this composed.
+//! one exception is a private home: the adapter makes it at run time and adds
+//! its own words, which for codex are `--ephemeral`, `-s read-only`,
+//! `-C <home>`, the `--disable` switches, web search off, and `CODEX_HOME` and
+//! `PNS_SUMMARIZING` in the environment. The turn summarizer runs with the
+//! same words, so they live beside it in the adapter's `codex::isolate`.
 
 use std::time::Duration;
 
@@ -40,6 +44,22 @@ impl Kind {
     pub fn of(word: &str) -> Option<Kind> {
         WORDS.iter().copied().find(|kind| kind.word() == word)
     }
+    /// The reasoning efforts this harness's own flag takes, and none for a
+    /// harness with no such flag.
+    ///
+    /// `claude --help` (2.1.280) lists claude's five. Codex's are the names of
+    /// its reasoning effort in codex-cli 0.156.0, of which each model takes its
+    /// own subset: its model catalog lists low through ultra for gpt-6-astra
+    /// and low through max for gpt-6-luna.
+    pub fn efforts(self) -> &'static [&'static str] {
+        match self {
+            Kind::Claude => &["low", "medium", "high", "xhigh", "max"],
+            Kind::Codex => &[
+                "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+            ],
+            Kind::Ollama | Kind::Hermes | Kind::Custom => &[],
+        }
+    }
 }
 
 /// Every word `type` accepts, in the order a refusal lists them.
@@ -61,6 +81,9 @@ pub struct Settings {
     pub kind: Kind,
     pub command: Vec<String>,
     pub model: String,
+    /// The reasoning effort, passed in the harness's own flag. Empty passes
+    /// nothing and leaves the backend's default.
+    pub effort: String,
     pub deadline: Duration,
     pub transcripts: bool,
     pub transcript_bytes_per_session: usize,
@@ -77,6 +100,7 @@ impl Default for Settings {
             kind: Kind::Custom,
             command: Vec::new(),
             model: String::new(),
+            effort: String::new(),
             deadline: DEFAULT_DEADLINE,
             transcripts: false,
             transcript_bytes_per_session: DEFAULT_BYTES_PER_SESSION,
@@ -98,6 +122,10 @@ pub struct Invocation {
     pub argv: Vec<String>,
     /// Whether the prompt is appended to `argv` rather than written to stdin.
     pub prompt_in_argv: bool,
+    /// Whether the adapter runs this in a home of pns's own rather than the
+    /// operator's, the way the turn summarizer runs, so it reaches none of the
+    /// operator's hooks, plugins or tools.
+    pub private_home: bool,
 }
 
 impl Settings {
@@ -116,10 +144,22 @@ impl Settings {
     /// what keep thinking, word wrapping and terminal control bytes out of the
     /// answer; and `hermes chat -Q -t ""` prints the answer alone, with its
     /// session line on stderr and its toolset empty so the query runs no tool.
+    ///
+    /// NEITHER HARNESS RUNS THE OPERATOR'S HOOKS, or a summary would fire
+    /// pns's own Stop hook about itself. VERIFIED 2026-09-22 on claude 2.1.280
+    /// and codex 0.156.0: `claude --safe-mode` ran no settings hook where the
+    /// same run without it ran two, `--no-session-persistence` wrote no session
+    /// file where the same run without it wrote one, `--tools ""` leaves it no
+    /// tool, and codex printed `reasoning effort: low` for
+    /// `-c model_reasoning_effort="low"`.
     pub fn invocation(&self) -> Option<Invocation> {
         let model = |flag: &str| match self.model.is_empty() {
             true => Vec::new(),
             false => vec![flag.to_string(), self.model.clone()],
+        };
+        let effort = |flag: &str, value: String| match self.effort.is_empty() {
+            true => Vec::new(),
+            false => vec![flag.to_string(), value],
         };
         let words = |fixed: &[&str], tail: Vec<String>| {
             let mut argv: Vec<String> = fixed.iter().map(|word| (*word).to_string()).collect();
@@ -128,15 +168,31 @@ impl Settings {
         };
         Some(match self.kind {
             Kind::Claude => Invocation {
-                argv: words(&["claude", "-p"], model("--model")),
+                argv: words(
+                    &[
+                        "claude",
+                        "-p",
+                        "--no-session-persistence",
+                        "--safe-mode",
+                        "--tools",
+                        "",
+                    ],
+                    [model("--model"), effort("--effort", self.effort.clone())].concat(),
+                ),
                 prompt_in_argv: false,
+                private_home: false,
             },
             Kind::Codex => Invocation {
                 argv: words(
                     &["codex", "exec", "--color", "never", "--skip-git-repo-check"],
-                    model("-m"),
+                    [
+                        model("-m"),
+                        effort("-c", format!("model_reasoning_effort=\"{}\"", self.effort)),
+                    ]
+                    .concat(),
                 ),
                 prompt_in_argv: false,
+                private_home: true,
             },
             Kind::Ollama => Invocation {
                 argv: words(
@@ -149,6 +205,7 @@ impl Settings {
                     ],
                 ),
                 prompt_in_argv: false,
+                private_home: false,
             },
             Kind::Hermes => Invocation {
                 argv: words(&["hermes", "chat", "-Q", "-t", ""], {
@@ -157,11 +214,13 @@ impl Settings {
                     tail
                 }),
                 prompt_in_argv: true,
+                private_home: false,
             },
             Kind::Custom if self.command.is_empty() => return None,
             Kind::Custom => Invocation {
                 argv: self.command.clone(),
                 prompt_in_argv: false,
+                private_home: false,
             },
         })
     }

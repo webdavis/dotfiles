@@ -140,17 +140,14 @@ pub(super) fn execute(
     // WHETHER A RECAP HAS ANYWHERE TO LAND, read off the SELECTION rather than
     // off the config directly, so this and dispatch answer one question once.
     // A machine that turned the durable channel off has said there is nowhere
-    // for a recap to go, and a card reading "recap in #pns" against an empty
-    // channel is the one thing the card's own spawn check exists to prevent.
+    // for a recap to go, and a card pointing at a recap in an empty channel
+    // is the one thing the card's own spawn check exists to prevent.
     //
     // A MACHINE WITH NO CONFIG NOW HAS NO DURABLE ROUTE EITHER, and that falls
     // straight out of the core fallback: hermes needs a key stood up before it
     // can carry anything, so it is not in the core and no recap is promised
     // against it.
-    let durable_route = selection.iter().any(|plugin| matches!(
-        plugin.kind,
-        pns_domain::registry::PluginKind::Channel(routing) if routing.durable && routing.event_dispatched
-    ));
+    let durable_route = selection.durable_log().is_some();
 
     // THE SAME CLOCK `forward_to_moshi` READS, off this probe set's own
     // memoized cell: see R4-1. On the blocked path that read came first and

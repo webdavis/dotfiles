@@ -87,6 +87,32 @@ fn an_escalation_window_of_zero_arms_nothing() {
 }
 
 #[test]
+fn a_blocked_wait_is_recorded_for_the_return_card_whether_or_not_the_escalation_is_on() {
+    for (setting, stale) in [
+        ("off", "[stale]\nenabled = false\n"),
+        ("on", "[stale]\nenabled = true\n"),
+    ] {
+        let sandbox = Sandbox::new(&format!("stale-{setting}-wait-recorded"));
+        sandbox.write_config(&format!("{}{stale}", support::STUB_CHANNELS));
+        let mut command = sandbox.pns_stateful();
+        sandbox.stub_moshi(&mut command, 0);
+
+        hook_with(
+            command,
+            &sandbox,
+            "blocked",
+            "{\"message\":\"Bash: git push\",\"session_id\":\"s1\"}\n",
+        );
+
+        let open = pns_adapters::SqliteStore::for_records(sandbox.state())
+            .open_waits(0, i64::MAX as u64)
+            .expect("the store reads");
+        assert_eq!(open.len(), 1, "escalation {setting}: {open:?}");
+        assert_eq!(open[0].asks, "Bash: git push", "escalation {setting}");
+    }
+}
+
+#[test]
 fn the_fire_refuses_a_session_argument_and_says_nothing_when_the_window_is_off() {
     // ONE FIRE COVERS EVERY STUCK SESSION, so an argument is a value it would
     // have to ignore; the house rule is that an unknown argument is a refusal

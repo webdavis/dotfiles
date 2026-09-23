@@ -23,11 +23,13 @@ The **gate** is `stale::gate`, the total function that says whether this moment 
 
 ## State
 
-Two columns on the `sessions` table, created by migration step 9 with the table itself and written by
-this feature: `blocked_since INTEGER` and `escalated_at INTEGER`, both null when the session is not
-waiting. Nothing else is added: the design rejected `ledger_events`, which has no session column and no
-timestamp and is never pruned, and rejected a file per session, which would need a sweeper where a row
-replaced in place needs none.
+Two columns on the `sessions` table, created by migration step 9 with the table itself:
+`blocked_since INTEGER` and `escalated_at INTEGER`, both null when the session is not waiting. The wait
+is recorded whether or not this feature is on, because the return card lists open waits off the same row
+(`missed-notifications.md`); this feature owns the job and the `escalated_at` stamp. Nothing else is
+added: the design rejected `ledger_events`, which has no session column and no timestamp and is never
+pruned, and rejected a file per session, which would need a sweeper where a row replaced in place needs
+none.
 
 ## 1. The window is the schedule and `[stale] enabled` is the switch
 
@@ -76,9 +78,13 @@ with `due = now + window`, `until = due + window`, no `unless_marker` and args `
 - No `unless_marker`: the reminder's answered marker is written by every Stop and StopFailure, so sharing it
   would cancel almost every escalation before it fired. The row is the authority instead, and the cost is
   one no-op spawn per answered block, an hour after it was answered.
-- Failure sources: a window of zero arms nothing; no clock arms nothing, never a wait at epoch zero; a
-  session id that cannot be a filename records nothing at all; a row that cannot be written schedules no
-  job and says so on stderr.
+- Failure sources: a window of zero registers no job and still stamps `blocked_since`, with
+  `escalated_at` stamped at the same second, so the wait is recorded and no fire can ever claim it:
+  switching the escalation on later pages only waits begun after that
+  (`sqlite/tests/sessions.rs:a_wait_begun_with_the_escalation_off_is_never_paged_about`,
+  `tests/hooks/stale_arming.rs:a_blocked_wait_is_recorded_for_the_return_card_whether_or_not_the_escalation_is_on`);
+  no clock arms nothing, never a wait at epoch zero; a session id that cannot be a filename records
+  nothing at all; a row that cannot be written schedules no job and says so on stderr.
 - Required side effects: none beyond the row and the spool entry. Both are local disk writes on a
   synchronous hook path, in `ArmRemind`'s budget: no network, no subprocess, no wait.
 - Forbidden side effects: nothing here delivers, and no free text reaches the spool. The fire reads the
@@ -93,12 +99,18 @@ Given a session whose wait is over
 When any state outside `pulse::LAMP_BLOCKED` reaches the event path, or the `prompt` or `resolved` hook
 arm ends the wait directly
 
-Then `blocked_since` and `escalated_at` are both cleared.
+Then `blocked_since` and `escalated_at` are both cleared, unless the wait began after the moment being
+cleared for.
 
 - The three call sites are the record tail's own `SessionWait::track` and `wait_runtime`'s
   `end_blocked_wait`, which ends the marker and the row in one call and is what both hook arms reach.
-- Fail direction: clearing is UNCONDITIONAL of the window, unlike the start, so a row left behind by an
-  evening when the escalation was armed is still cleared once the operator switches the window off.
+- Fail direction: clearing is UNCONDITIONAL of the window, like the start, so an open row always means
+  a wait nobody has ended.
+- A late clear keeps a newer wait: every answer arm is async, so a batch's clear can land after the next
+  approval began its wait, and the row compares `blocked_since` against the caller's moment exactly as
+  the blocked marker compares its epoch. No clock is an unconditional clear
+  (`sqlite/tests/sessions.rs:a_late_clear_leaves_a_wait_begun_after_its_own_moment`). A clear that
+  started after the new wait began still takes it, the same residual the marker names.
 - An observation (`model-switch`, `quota`) changes nothing, because the record tail
   returns before either write for any attempt that is not the first. That is the blocked marker's own
   neutrality, deliberately shared.
