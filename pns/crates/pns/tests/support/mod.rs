@@ -55,4 +55,6 @@ pub fn write_script(path: &Path, body: &str) {
 }
 
 #[cfg(test)]
+mod fence_tests;
+#[cfg(test)]
 mod guard_tests;

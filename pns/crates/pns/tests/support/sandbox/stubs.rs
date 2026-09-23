@@ -88,16 +88,19 @@ esac"#
         std::fs::read_to_string(self.path("spawn.log")).unwrap_or_default()
     }
 
-    /// A stub `terminal-notifier` first on PATH, so the native banner's spawn
-    /// is recorded instead of posting a real notification.
+    /// The sandbox's recording `terminal-notifier`, first on PATH again. Every
+    /// sandbox already starts with it; this puts it back in front of a PATH a
+    /// test has replaced, and over a `spy_path` spy.
     pub fn stub_notifier(&self, command: &mut Command) {
-        self.stub_on_path(
-            command,
-            "terminal-notifier",
-            &format!(
-                "printf '%s\\n' \"$*\" >\"{}/notifier.args\"",
-                self.display()
-            ),
-        );
+        self.stub_on_path(command, "terminal-notifier", &self.notifier_recorder());
+    }
+
+    /// A `terminal-notifier` body that records its argv to `notifier.args` and
+    /// posts nothing.
+    pub(super) fn notifier_recorder(&self) -> String {
+        format!(
+            "printf '%s\\n' \"$*\" >\"{}/notifier.args\"",
+            self.display()
+        )
     }
 }

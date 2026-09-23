@@ -1,5 +1,6 @@
 use super::super::ENGINE;
 use super::Sandbox;
+use std::ffi::OsString;
 use std::process::Command;
 
 impl Sandbox {
@@ -27,8 +28,8 @@ impl Sandbox {
         command
     }
 
-    /// The engine with NOTHING pointing it at stubs, which is the only way to
-    /// reach the native plugins.
+    /// The engine with no channels directory, which is the only way to reach
+    /// the native plugins.
     ///
     /// EVERYTHING is cleared and only what the binary genuinely needs is put
     /// back, so a developer's environment cannot decide a verdict. The old
@@ -49,11 +50,22 @@ impl Sandbox {
         // remembered, and every test that wants a stub still overrides it,
         // because this is set before the caller's own `env` calls.
         command.env("PNS_MOSHI_HOOK_BIN", self.root.join("no-moshi-hook-here"));
-        // PATH survives because the binary resolves herdr and terminal-notifier
-        // through it, and a test that stubs either one prepends to this.
-        if let Some(path) = std::env::var_os("PATH") {
-            command.env("PATH", path);
+        // THE PHONE PUSH IS FENCED THE SAME WAY, at a loopback port nothing
+        // serves. Unset, the binary posts to moshi's real API. A test that
+        // captures the push overrides these.
+        command
+            .env("PNS_MOSHI_URL", "http://127.0.0.1:1/")
+            .env("PNS_MOSHI_UPLOAD_URL", "http://127.0.0.1:1/");
+        // PATH survives because the binary resolves herdr and git through it.
+        // The sandbox's `bin` leads, so every banner, a failure notice
+        // included, reaches its recording `terminal-notifier` rather than a
+        // real macOS notification. A test's own stubs land in that same `bin`.
+        let mut path = OsString::from(self.path("bin"));
+        if let Some(inherited) = std::env::var_os("PATH") {
+            path.push(":");
+            path.push(inherited);
         }
+        command.env("PATH", path);
         command
     }
 }
