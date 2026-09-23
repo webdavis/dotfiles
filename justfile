@@ -165,6 +165,47 @@ brew-cache-refresh:
   fi
   "$deployed_writer"
 
+# Upgrade the pinned moshi-hook after diffing the contract pns relies on.
+moshi-hook-upgrade:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  formula=rjyo/moshi/moshi-hook
+  brew update --quiet
+  info="$(brew info --json=v2 "$formula")"
+  installed="$(jq -r '.formulae[0].installed[0].version // empty' <<<"$info")"
+  latest="$(jq -r '.formulae[0].versions.stable' <<<"$info")"
+  printf 'moshi-hook: installed %s, latest %s\n' "${installed:-none}" "$latest"
+  [[ $installed != "$latest" ]] || exit 0
+  tap="$(brew --repository rjyo/moshi)"
+  release() { git -C "$tap" log -1 --format=%H --grep="^moshi-hook v$1\$"; }
+  contract() {
+    git -C "$tap" show "$1:docs/api.md" | awk '/^## /{ p = /^## 1\. Local socket/ } p'
+    git -C "$tap" show "$1:docs/hooks.md" | awk '/^##/{ p = /^### (Claude Code|Codex CLI)$/ } p'
+    git -C "$tap" show "$1:docs/usage.md" | grep -i -E 'claude|codex'
+  }
+  old="$(release "$installed")" new="$(release "$latest")"
+  if [[ -n $old && -n $new ]]; then
+    printf 'moshi-hook: documented contract, %s to %s (no diff means unchanged):\n' "$installed" "$latest"
+    diff -u --label "docs $installed" --label "docs $latest" <(contract "$old") <(contract "$new") || [[ $? -eq 1 ]]
+  else
+    printf 'moshi-hook: the tap has no release commit for %s or %s, so its docs are not compared.\n' "$installed" "$latest"
+  fi
+  helps() { for subcommand in claude-hook codex-hook; do moshi-hook "$subcommand" --help; done; }
+  before="$(helps)"
+  read -r -p "Upgrade moshi-hook $installed to $latest? [y/N] " answer
+  [[ $answer == [yY] ]] || exit 0
+  if [[ $(jq -r '.formulae[0].pinned' <<<"$info") == true ]]; then brew unpin "$formula"; fi
+  brew upgrade "$formula"
+  brew pin "$formula"
+  printf 'moshi-hook: hook subcommand help, %s to %s (no diff means unchanged):\n' "$installed" "$latest"
+  diff -u --label "help $installed" --label "help $latest" <(printf '%s\n' "$before") <(helps) || [[ $? -eq 1 ]]
+  brew services restart moshi-hook
+  printf '%s\n' "Now answer one approval from the phone, away from the desk, in each of:" \
+    "  codex -s read-only -a on-request -c approvals_reviewer=user" \
+    "  claude --permission-mode manual" \
+    "When both land, set rjyo/moshi/moshi-hook to \"$latest\" under packages.macos.homebrew.pinned in" \
+    ".chezmoidata/system_packages_autoinstall.yaml."
+
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:
