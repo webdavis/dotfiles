@@ -76,9 +76,9 @@ fn migrating_a_version_13_store_with_no_stale_policy_settings_audit_import_row_s
 }
 #[test]
 fn migrating_a_pre_bootstrap_store_with_no_legacy_imports_table_still_migrates() {
-    // THE OLDEST CASE: a database that never ran the version-0 bootstrap (a
-    // hand-rolled fixture here, an install that predates `legacy_imports`
-    // itself in practice) has no such table at all. The delete is guarded
+    // THE FIXTURE CASE: a hand-rolled database that never ran the version-0
+    // bootstrap, the same way some test fixtures elsewhere build a partial
+    // schema, has no `legacy_imports` table at all. The delete is guarded
     // rather than assumed, the same way `DROP TABLE IF EXISTS` guards the
     // ring drop beside it.
     let path = state();

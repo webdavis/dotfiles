@@ -79,9 +79,9 @@ pub(super) fn migrate(connection: &mut Connection) -> Result<(), StoreError> {
     // Drops the policy-settings audit trail the ConfigChange hook wrote, and
     // its legacy-import bookkeeping row, so a failed import of that retired
     // family cannot pin a permanent doctor complaint nothing can clear.
-    // `legacy_imports` itself may not exist on a database that never passed
-    // through the version-0 bootstrap, so the delete is guarded rather than
-    // assumed, the same defensiveness `IF EXISTS` states for the table drop.
+    // The delete is guarded on `legacy_imports` existing because some test
+    // fixtures build a partial schema without it, not because a real install
+    // can lack the table the version-0 bootstrap always creates.
     if version < 14 {
         transaction.execute_batch("DROP TABLE IF EXISTS policy_audit;")?;
         let has_legacy_imports: bool = transaction.query_row(

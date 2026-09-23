@@ -83,13 +83,10 @@ fn a_full_activity_ring_prunes_to_its_own_depth_instead_of_collapsing_to_one_lin
 
 #[test]
 fn two_activity_events_racing_a_full_ring_lose_neither_line() {
-    // PORTED from the deleted policy-audit ring's own
-    // `two_policy_settings_changes_racing_the_prune_lose_neither_line`, the only
-    // test that raced two processes on a ring already at its cap, where the
-    // prune runs. `Ring::Activity` still goes through the shared
-    // `rows::append` production path Presence uses too, so this keeps that
-    // race pinned. EVERY COMMAND IS BUILT BEFORE THE FIRST SPAWN, and both are
-    // spawned before either is waited on, which is what makes them contend.
+    // `Ring::Activity` goes through the shared `rows::append` production path
+    // Presence uses too. EVERY COMMAND IS BUILT BEFORE THE FIRST SPAWN, and
+    // both are spawned before either is waited on, which is what makes them
+    // contend.
     let sandbox = Sandbox::new("activity-prune-race");
     std::fs::write(
         activity_path(&sandbox),
