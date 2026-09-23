@@ -81,6 +81,34 @@ fn name(code: u16) -> Option<&'static str> {
     })
 }
 
+/// The failure page's headline: ONE NEW SENTENCE, in the one place it is
+/// written, so a rename of a status word changes it here and nowhere else.
+///
+/// Every arm capitalizes its first word: a headline stands alone as a
+/// sentence, unlike `status`, which sits after a colon in the full form.
+pub fn headline(outcome: TransportOutcome, destination: &str) -> String {
+    match outcome {
+        TransportOutcome::NoResponse => format!("{} didn’t respond", capitalized(destination)),
+        TransportOutcome::Status(code) => {
+            format!("{} answered HTTP {code}", capitalized(destination))
+        }
+        TransportOutcome::NoStatus => capitalized(&outcome.short_word()),
+    }
+}
+
+/// The first letter of `word`, uppercased; the rest, untouched. Reused for
+/// both a destination name ("phone" to "Phone") and a status word ("bad URL"
+/// to "Bad URL"), which is the same transform either way: only the sentence
+/// position decides that this word starts one. Public because the failure
+/// page's listing capitalizes the same destination names in its subtitle.
+pub fn capitalized(word: &str) -> String {
+    let mut chars = word.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
 /// The `meaning` field for this failure, in this destination's words.
 pub(super) fn meaning(failure: &Failure) -> String {
     let route = &failure.route;

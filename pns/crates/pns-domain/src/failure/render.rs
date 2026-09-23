@@ -4,16 +4,6 @@ use super::fix::{self, NotificationSurface, Surface};
 use super::meaning;
 use super::{Failure, NOTIFICATION_MAX_CHARS};
 
-/// The fields, in order, and their labels in the full form. One list, so the
-/// two forms cannot drift into a different order.
-const LABELS: [&str; 5] = [
-    "status",
-    "meaning",
-    "webhook route",
-    "failed command",
-    "fix",
-];
-
 /// The label column of the full form, wide enough for the longest label plus
 /// its colon and one space.
 const LABEL_WIDTH: usize = 16;
@@ -22,26 +12,29 @@ const LABEL_WIDTH: usize = 16;
 /// above it rather than with the labels.
 const HANGING_INDENT: usize = LABEL_WIDTH + 2;
 
-/// The full form: for surfaces with no length limit and a monospace face.
+/// The full form's fields, labelled, in order. ONE LIST: `full` renders rows
+/// from it and the failure page's record view reads its values from it, so
+/// neither can drift into a different order or a different value for the
+/// same failure.
 ///
-/// This is the only form that carries `sent by`. The notification form drops it
-/// because `failed command` already contains `--producer <name>`, and a form under
-/// a character budget cannot afford to say anything twice.
+/// This is the only place `sent by` is produced. The notification form drops
+/// it because `failed command` already contains `--producer <name>`, and a
+/// form under a character budget cannot afford to say anything twice.
+pub fn fields(failure: &Failure) -> Vec<(&'static str, String)> {
+    vec![
+        ("status", meaning::status(failure.outcome)),
+        ("meaning", meaning::meaning(failure)),
+        ("webhook route", failure.route.clone()),
+        ("sent by", failure.agent.clone()),
+        ("failed command", failure.command.clone()),
+        ("fix", fix::line(failure, Surface::Terminal)),
+    ]
+}
+
+/// The full form: for surfaces with no length limit and a monospace face.
 pub fn full(failure: &Failure) -> String {
-    let fix = fix::line(failure, Surface::Terminal);
     let mut out = String::from("pns: delivery failed\n");
-    for (label, value) in LABELS.iter().zip([
-        meaning::status(failure.outcome),
-        meaning::meaning(failure),
-        failure.route.clone(),
-        failure.command.clone(),
-        fix,
-    ]) {
-        // `sent by` sits between the route and the command, where a reader
-        // looking for who sent this finds it before the how.
-        if *label == "failed command" {
-            out.push_str(&row("sent by", &failure.agent));
-        }
+    for (label, value) in fields(failure) {
         out.push_str(&row(label, &value));
     }
     out
