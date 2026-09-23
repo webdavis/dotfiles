@@ -3,7 +3,9 @@
 //! HERDR OWNS ITS OWN ENTRY and regenerates it on update, so the merge adds
 //! and rewrites only the handlers pns itself generated and copies every other
 //! handler through untouched. moshi-hook's own Codex handlers are the one
-//! exception: they are removed, so moshi hears from Codex only through pns.
+//! exception: they are removed, so Codex's hook events reach moshi only
+//! through pns. moshi's daemon also follows Codex's session log on its own,
+//! outside this merge.
 //!
 //! A FILE THIS CANNOT READ IS REFUSED RATHER THAN REPLACED: an operator's
 //! broken-but-recoverable hooks file is worth more than this tool's guess at
