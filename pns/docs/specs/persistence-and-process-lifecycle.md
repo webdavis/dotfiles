@@ -381,7 +381,7 @@ smaller window AFTER the sibling published a newer one, silently dropping the si
 the wrong oldest entry." The lock is created before the ring so a missing state directory fails the
 lock's own exclusive create rather than being papered over.
 
-- Success: `tests/hooks.rs:two_policy_settings_changes_racing_the_prune_lose_neither_line`, driven
+- Success: `tests/dispatch/activity.rs:two_activity_events_racing_a_full_ring_lose_neither_line`, driven
   deterministically by the spawn order of two owned hook processes. A stall inside the locked section is
   still reachable from a test through `ring::stall_inside_the_ring_lock`, which a release build compiles
   as a fixed zero. The race itself "measured across three hundred concurrent real events with no help ...
