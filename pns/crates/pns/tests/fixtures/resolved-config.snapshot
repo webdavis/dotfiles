@@ -200,6 +200,7 @@ Config {
         replay_card: true,
         post_window_recap: true,
         minimum_events: 8,
+        minimum_away: 1200s,
         summarizer: Settings {
             kind: Codex,
             command: [],

@@ -158,7 +158,7 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
   never named" (`src/main.rs:recap_mode`). The route needs no fail-closed arm of its own: a recap has one
   route and it is the default one.
 - Thresholds: `Recap::default()` is written out rather than derived (`src/config.rs:Recap`):
-  `replay_card: true`, `post_window_recap: true`, `minimum_events: 8`, `summarizer: None`,
+  `replay_card: true`, `post_window_recap: true`, `minimum_events: 8`, `minimum_away: 20m`, `summarizer: None`,
   `summarizer_deadline: 4m`, `repositories: []`, `review_notes_glob: None`. `summarizer_deadline` is refused above
   `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: `"3600s"` is accepted, `"3601s"` is refused by name
   (`config/recap.rs:summarizer_deadline_range`), and the refusal exists because a duration past the
@@ -513,7 +513,7 @@ Then the whole answer is refused if it is over `MAX_ANSWER_BYTES` or carries a r
 - Idempotency and duplicates: pure.
 - Privacy: `answer` is the choke point between somebody else's text and a message pns signs its name to.
   Nothing is added here and nothing about the machine is read. `is_invisible` is `pub` for exactly one
-  other reader, "`main.rs`'s automatic model-switch card and its `ConfigChange` sibling"
+  other reader, "`main.rs`'s automatic model-switch card"
   (`src/recap.rs:is_invisible`).
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: THE CUT KEEPS THE HEAD, not the tail, and the reason is stated:
@@ -898,7 +898,9 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
 - Success: `src/main.rs:spawn_recap` builds the child, sets
   `.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0)`, and returns
   `child.spawn().is_ok()`. `src/main.rs:replay_missed` computes
-  `fires = recap.post_window_recap && durable_route && window.is_some() && counted.len() >= recap.minimum_events` and
+  `fires = recap.post_window_recap && durable_route && long_enough && counted.len() >= recap.minimum_events`,
+  where `long_enough` is a window whose `until - since` is at least `recap.minimum_away`, `since` being
+  the last event pns saw the operator present for rather than the moment they actually left, and
   spawns BEFORE composing the card, "so the card can say truthfully whether there is a recap to point
   at".
 - Failure sources: `current_exe` failing; the spawn failing; the child dying before it posts.
@@ -907,7 +909,13 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
   (`src/main.rs:spawn_recap`). A child that dies "COSTS ONE RECAP AND NOTHING ELSE, which is why nothing
   supervises it: the activity ring is not consumed, the marker has already moved, and the card already
   carried the counts."
-- Thresholds: all four clauses of `fires` are required and none is optional. `minimum_events` defaults to 8
+- Thresholds: all four clauses of `fires` are required and none is optional. `minimum_away` defaults to
+  20 minutes (`DEFAULT_MINIMUM_AWAY`), pinned by
+  `config/tests/recap_threshold.rs:the_minimum_time_away_is_a_duration_the_operator_can_state` and the
+  resolved-config snapshot. The `>=` boundary itself is pinned separately, against a 600-second policy:
+  an absence one second short of it publishes no digest and an absence of exactly that long does, pinned
+  by `replay_missed/tests/away.rs:a_loud_window_shorter_than_the_minimum_away_publishes_no_digest` and
+  `replay_missed/tests/away.rs:an_absence_of_exactly_the_minimum_away_publishes_the_digest`. `minimum_events` defaults to 8
   (`src/config.rs:DEFAULT_MINIMUM_EVENTS`), and the live event counts itself: a window of 7 planted events
   plus the live one is under the threshold and delivers the plain catch-up card, pinned by
   `tests/dispatch.rs:a_window_under_the_threshold_delivers_the_catch_up_card_unchanged` (which plants

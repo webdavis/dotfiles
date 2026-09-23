@@ -162,6 +162,7 @@ fn policy() -> RecapPolicy {
         replay_card: true,
         post_window_recap: true,
         minimum_events: 2,
+        minimum_away: std::time::Duration::ZERO,
     }
 }
 
@@ -441,4 +442,5 @@ fn a_failed_publish_still_raises_a_card_and_the_card_says_which() {
     assert_eq!(*failed.delivered.borrow(), ["2 events"]);
 }
 
+mod away;
 mod handoff;

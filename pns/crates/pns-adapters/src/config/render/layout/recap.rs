@@ -30,6 +30,15 @@ pub(super) const RECAP: Table = Table {
             sample: Sample::Default("8"),
         },
         Key {
+            name: "minimum_away",
+            prose: "# How long you must have been away before a return earns a recap. Both\n\
+                         # this and `minimum_events` must hold; a shorter absence gets the\n\
+                         # catch-up card alone. Zero leaves the event count as the only bar, and\n\
+                         # a day is the ceiling. Measured from the last event pns saw you present\n\
+                         # for, so quiet time at the desk with no events counts as away too.\n",
+            sample: Sample::Default("\"20m\""),
+        },
+        Key {
             name: "nightshift",
             prose: "# The four periods of your own day, local time, as a start and an end.\n\
                          # `pns recap morning` is the most recent instance of that one, in progress\n\

@@ -109,7 +109,7 @@ Toward the EVENT, state mutation is fail-QUIET, not fail-closed: a write that co
 fails, delays or decorates the notification. Every record site says so in the same words.
 `src/main.rs:record_decision`: "FAIL-QUIET ... a decision that did not record is a diagnostic missing
 later, on a path whose stdout is read by a harness hook". `record_missed`, `record_activity`,
-`record_policy_settings_change`, `advance_marker`, `record_news`, `advance_streak`, `remember_staleness`
+`advance_marker`, `record_news`, `advance_streak`, `remember_staleness`
 and `update_blocked_marker` each carry the same paragraph, and each drops its error with a comment saying
 the failure is dropped here and nowhere else. Pinned by
 `tests/dispatch.rs:a_state_directory_that_cannot_be_written_costs_the_event_nothing` and
@@ -154,7 +154,6 @@ summarizer home outside this tree at `0700` (`src/main.rs:summarizer_home`).
 | `missed-notifications.claim.<pid>`      | file                    | inherits                                                    | the event process that claimed it (`src/main.rs:claim_by_rename`)                                                                                                                                | the same process, then a later run's adoption scan (`src/main.rs:stranded_claims`)                                  | rename; never renamed over an existing name of the same pid                                                                         | removed by `take_claim`; adopted by a later run when its owner is gone                                                                         | temporary process coordination                                                                                                      |
 | `missed-notifications.held.<pid>.<seq>` | file                    | inherits                                                    | the process reading the batch (`src/main.rs:take_claim`)                                                                                                                                         | that process only, until its owner exits                                                                            | rename out of the adoption prefix, so a live owner's batch cannot be taken twice (`src/main.rs:abandoned_hold`)                     | removed after a successful read; re-enters the scan once `owner_is_gone`                                                                       | temporary process coordination                                                                                                      |
 | `activity`                              | file                    | 0600                                                        | every event process, delivered or not (`src/main.rs:record_activity`)                                                                                                                            | `pns recap` (`src/main.rs`, the `ACTIVITY_READ_MAX` read)                                                           | its own `.lock`; never claimed and never consumed                                                                                   | `ACTIVITY_KEPT` = 150 entries, `ACTIVITY_MAX_CHARS` = 120 per field                                                                            | internal persistence detail: a rolling window pruned by depth alone                                                                 |
-| `policy-settings-audit`                 | file                    | 0600                                                        | any event process handling a `config-change` hook with `source = policy_settings` (`src/main.rs:record_policy_settings_change`)                                                                  | `NOT ESTABLISHED:` no production reader exists in `src/`; a durable trace of receipt, read only by `tests/hooks.rs` | its own `.lock`                                                                                                                     | `POLICY_SETTINGS_AUDIT_KEPT` = 20 lines                                                                                                        | internal persistence detail                                                                                                         |
 | `last-present`                          | file                    | 0600                                                        | any event process whose decision `is_present` (`src/main.rs:mark_present`, `advance_marker`)                                                                                                     | the same, and every return moment (`src/main.rs:claim_moment`)                                                      | claimed by rename to `last-present.claim.<pid>[.<epoch>]` before the read and the publish                                           | one line, one epoch; absent means no window at all                                                                                             | internal persistence detail                                                                                                         |
 | `last-present.claim.<pid>[.<epoch>]`    | file                    | inherits                                                    | the process inside a return moment (`src/main.rs:claim_moment`, `window_claim_suffix`)                                                                                                           | `src/main.rs:stranded_window_claim`                                                                                 | rename; freed by this run's own pid, by `owner_is_gone`, or by age past `STALE_WINDOW_CLAIM_SECS` = 300s                            | removed at the end of the moment; adopted otherwise                                                                                            | temporary process coordination                                                                                                      |
 | `session-<id>.start`                    | file                    | umask (plain `std::fs::write`, `src/main.rs:start_of_turn`) | the `prompt` harness hook (`src/main.rs:start_of_turn`)                                                                                                                                          | the `stop` and `stop-failure` hooks (`src/main.rs:consume_turn_marker`)                                             | created only when absent; consumed by rename to `.claim.<pid>` (`src/main.rs:consume_turn_marker`)                                  | one line, one epoch; one file per session, never swept                                                                                         | internal persistence detail; its accumulation is named and accepted in `src/main.rs:clear_remind`                                      |
@@ -382,7 +381,7 @@ smaller window AFTER the sibling published a newer one, silently dropping the si
 the wrong oldest entry." The lock is created before the ring so a missing state directory fails the
 lock's own exclusive create rather than being papered over.
 
-- Success: `tests/hooks.rs:two_policy_settings_changes_racing_the_prune_lose_neither_line`, driven
+- Success: `tests/dispatch/activity.rs:two_activity_events_racing_a_full_ring_lose_neither_line`, driven
   deterministically by the spawn order of two owned hook processes. A stall inside the locked section is
   still reachable from a test through `ring::stall_inside_the_ring_lock`, which a release build compiles
   as a fixed zero. The race itself "measured across three hundred concurrent real events with no help ...
@@ -528,9 +527,6 @@ arithmetic."
     depth and 34 is the first that collapses.
   - `ACTIVITY_KEPT` = 150 against `ACTIVITY_READ_MAX` = 1,048,576 bytes. Worst-case entry 5 * 120 * 6 +
     80 = 3,680 bytes, full ring 552,000 bytes, 53% of the ceiling.
-  - `POLICY_SETTINGS_AUDIT_KEPT` = 20, worst-case line about 4.4 KB, about 88 KB full, inside 256 KiB.
-    Pinned by `tests/hooks.rs:the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry` and
-    `tests/hooks.rs:a_policy_settings_change_is_recorded_to_a_bounded_audit_trail`.
 - Required side effects: the prune republishes by rename, so it carries the mode with it.
 - Forbidden side effects: the prune must not run outside the lock.
 - Timeout and cancellation: not applicable.
@@ -640,11 +636,7 @@ decision actually used it for."
 
 - Success:
   `src/decision_log.rs:an_agent_or_state_outside_the_printable_allowlist_is_recorded_as_unprintable` and
-  `src/decision_log.rs:a_payload_field_outside_the_printable_allowlist_is_recorded_as_unprintable`. The
-  same defence at the audit trail's boundary is pinned by
-  `tests/hooks.rs:a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry`,
-  `tests/hooks.rs:an_enormous_file_path_cannot_wipe_the_policy_audit_trail` and
-  `tests/hooks.rs:an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail`.
+  `src/decision_log.rs:a_payload_field_outside_the_printable_allowlist_is_recorded_as_unprintable`.
 - Failure sources: a value carrying a newline, an escape sequence, a non-ASCII byte, or more than
   `IDENTITY_MAX` characters.
 - Fail direction: fail-closed. A value outside the allowlist becomes the literal `unprintable`, and "The
@@ -662,9 +654,7 @@ decision actually used it for."
 - Idempotency and duplicates: a nudge is distinguished from a first card by the `remind` BOOLEAN, so "one
   prompt that went unanswered leaves two `claude/blocked` entries differing in nothing an operator can
   see" is fixed without adding text.
-- Privacy: this behavior IS the ring's privacy rule. The related caps at the same boundary are
-  `CONFIG_PATH_MAX_CHARS` = 1024 and `CONFIG_SESSION_MAX_CHARS` = 64 on the policy-settings audit trail,
-  cited by `src/main.rs:config_field` as "the same defence at the same boundary, for the same reason".
+- Privacy: this behavior IS the ring's privacy rule.
 - Process ownership and cleanup: not applicable.
 - Compatibility contract: the format is `<epoch> <key=value ...>`, and "The only reader is the section
   below, whose whole parse is one `split_once(' ')` over the epoch".
