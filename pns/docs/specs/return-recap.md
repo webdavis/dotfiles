@@ -910,9 +910,11 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
   supervises it: the activity ring is not consumed, the marker has already moved, and the card already
   carried the counts."
 - Thresholds: all four clauses of `fires` are required and none is optional. `minimum_away` defaults to
-  20 minutes (`DEFAULT_MINIMUM_AWAY`): an absence one second short of it publishes no digest and an
-  absence of exactly that long does, pinned by
-  `replay_missed/tests/away.rs:a_loud_window_shorter_than_the_minimum_away_publishes_no_digest` and
+  20 minutes (`DEFAULT_MINIMUM_AWAY`), pinned by
+  `config/tests/recap_threshold.rs:the_minimum_time_away_is_a_duration_the_operator_can_state` and the
+  resolved-config snapshot. The `>=` boundary itself is pinned separately, against a 600-second policy:
+  an absence one second short of it publishes no digest and an absence of exactly that long does, pinned
+  by `replay_missed/tests/away.rs:a_loud_window_shorter_than_the_minimum_away_publishes_no_digest` and
   `replay_missed/tests/away.rs:an_absence_of_exactly_the_minimum_away_publishes_the_digest`. `minimum_events` defaults to 8
   (`src/config.rs:DEFAULT_MINIMUM_EVENTS`), and the live event counts itself: a window of 7 planted events
   plus the live one is under the threshold and delivers the plain catch-up card, pinned by
