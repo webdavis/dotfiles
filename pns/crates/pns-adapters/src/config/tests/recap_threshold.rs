@@ -66,3 +66,36 @@ fn a_volume_threshold_that_is_not_a_count_is_refused_naming_the_key() {
         }
     }
 }
+
+#[test]
+fn the_minimum_time_away_is_a_duration_the_operator_can_state() {
+    let stated = |text: &str| parse_config(text).unwrap().recap.minimum_away;
+    assert_eq!(
+        stated("[recap]\nminimum_away = \"45m\"\n"),
+        std::time::Duration::from_secs(45 * 60)
+    );
+    assert_eq!(
+        stated("[plugins.lights]\nenabled = true\n"),
+        std::time::Duration::from_secs(20 * 60),
+        "an absent key is the shipped twenty minutes"
+    );
+    assert_eq!(
+        stated("[recap]\nminimum_away = \"0s\"\n"),
+        std::time::Duration::ZERO,
+        "zero leaves the event count as the only bar"
+    );
+}
+
+#[test]
+fn a_minimum_time_away_that_is_not_a_duration_up_to_a_day_is_refused_naming_the_key() {
+    for stated in ["20", "\"twenty\"", "\"25h\""] {
+        let err = parse_config(&format!("[recap]\nminimum_away = {stated}\n")).unwrap_err();
+        match err {
+            ConfigError::Invalid(message) => assert!(
+                message.contains("minimum_away"),
+                "the offender is named for {stated}: {message}"
+            ),
+            other => panic!("expected Invalid for {stated}, got {other:?}"),
+        }
+    }
+}
