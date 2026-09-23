@@ -13,8 +13,8 @@ use support::{Sandbox, run, stderr, stdout};
 /// Every subcommand the tool-wide listing names, taken off `pns --help`.
 ///
 /// A LINE NAMES A SUBCOMMAND when its second word is a bare lowercase word:
-/// that skips the `<harness>-hook` gate, the `<subcommand>` help line and the
-/// two tool-wide flags, which are spellings rather than subcommands.
+/// that skips the `<subcommand>` help line and the two tool-wide flags, which
+/// are spellings rather than subcommands.
 fn listed_subcommands(listing: &str) -> Vec<String> {
     let mut words: Vec<String> = Vec::new();
     for line in listing.lines() {

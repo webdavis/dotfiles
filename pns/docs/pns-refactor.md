@@ -219,7 +219,9 @@ Agreed changes to pns, one per line. Add a line for each new agreed change.
    (`~/.pi/agent/extensions/moshi-hooks.ts:16`, same in `~/.omp/`), because the extension writes straight
    to the moshi daemon socket. So the repoint in
    `.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl` changes nothing and pi and omp
-   pushes are unfiltered by presence, although that script reports the gate as wired.
+   pushes are unfiltered by presence, although that script reports the gate as wired. Resolved
+   2026-09-22 by accepting pi and omp as moshi-direct: the repoint and the bare `pns <harness>-hook`
+   are both removed.
 1. Do NOT bump the envelope version. These changes break `pns.request/1` and `pns.result/1` in place: pns
    is pre-1.0 with one operator and three in-tree callers, so a version bump would buy compatibility
    nobody needs. Every copy moves in the same change (`posture/crates/posture-producer-wire/`, both
@@ -500,7 +502,7 @@ Every rename above, old to new. Durations take a duration string; nothing else c
 | `pns pulse <code>`                                                                                                                  | `pns lights pulse <code>`                                                      |
 | `pns click <id>`                                                                                                                    | `pns failures open <id>`                                                       |
 | `pns home`                                                                                                                          | `pns doctor`                                                                   |
-| `pns gate <harness>-hook`                                                                                                           | removed, `pns <harness>-hook` stays                                            |
+| `pns gate <harness>-hook`                                                                                                           | removed, and so is `pns <harness>-hook`                                        |
 | `pns tap --info`, `pns tap --install`                                                                                               | `pns tap info`, `pns tap install`                                              |
 | `pns shell end --exit`                                                                                                              | `pns shell end --exit-code`                                                    |
 | `pns recap --since`, `--until`                                                                                                      | `--since-epoch`, `--until-epoch`                                               |

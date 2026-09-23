@@ -20,18 +20,15 @@ use super::*;
 //   an_approval_is_forwarded_even_when_the_moshi_channel_is_switched_off
 //   an_approval_is_forwarded_even_with_the_pane_in_plain_sight
 //   a_payload_at_the_cap_is_whole_and_is_still_submitted
-//   the_gate_submits_one_prompt_exactly_once
 //
 // VACUOUS AT THE SWITCH unless re-pointed, because ABSENCE is what they
 // assert and an absent file is absently true for every build, including one
 // that cards the operator for every finished turn:
 //   an_ordinary_stop_never_reaches_moshi
 //   a_failed_turn_never_reaches_moshi
-//   at_the_desk_the_gate_submits_nothing_and_exits_zero
-//   the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does
 //
-// Those four read through `submissions`, deliberately: item 25 re-points ONE
-// function at whatever the new transport records and all four keep guarding.
+// Those two read through `submissions`, deliberately: item 25 re-points ONE
+// function at whatever the new transport records and both keep guarding.
 // Spelled as a filename they would fail open, silently, on the very switch
 // this gate exists to guard.
 //
