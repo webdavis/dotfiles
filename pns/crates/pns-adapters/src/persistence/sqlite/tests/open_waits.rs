@@ -110,3 +110,27 @@ fn a_wait_is_listed_whether_or_not_the_escalation_is_on() {
         .collect();
     assert_eq!(asks, ["Bash: git push", "which branch?"]);
 }
+
+#[test]
+fn only_the_waits_nothing_answered_are_counted() {
+    // EIGHT ASKS, SIX ANSWERED FROM THE PHONE: each answer is a later event
+    // from the session, so only the two after the last one are outstanding.
+    let store = SqliteStore::new(state());
+    for at in (110..170).step_by(10) {
+        row(&store, "s", "blocked", at, "Bash: make");
+        store.begin_wait("s", at, true).unwrap();
+        row(&store, "s", "resolved", at + 5, "");
+        store.end_wait("s").unwrap();
+    }
+    for (at, asks) in [(180, "Bash: ls"), (190, "Bash: git push")] {
+        row(&store, "s", "blocked", at, asks);
+        store.begin_wait("s", at, true).unwrap();
+    }
+
+    let open = store.open_waits(100, 200).unwrap();
+    assert_eq!(open.len(), 1, "{open:?}");
+    assert_eq!(
+        (open[0].count, open[0].asks.as_str()),
+        (2, "Bash: git push")
+    );
+}

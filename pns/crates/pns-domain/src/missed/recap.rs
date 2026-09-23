@@ -19,8 +19,8 @@ pub struct OpenWait {
     pub project: String,
     /// What the newest wait asks.
     pub asks: String,
-    /// How many waits the session raised while the operator was away, and at
-    /// least one: the open wait counts even when it was raised before.
+    /// How many of the session's waits while the operator was away nothing
+    /// has answered, at least one.
     pub count: usize,
 }
 
@@ -92,14 +92,17 @@ pub fn recap_card(
     with_counts(&urgent, &counts)
 }
 
-/// One open wait as the card says it: whose, how many times, and what the
-/// newest one asks.
+/// One open wait as the card says it: whose, how many are unanswered when
+/// more than one is, and what the newest one asks.
 fn waiting(wait: &OpenWait) -> String {
-    let title = crate::render::title(&wait.agent, &wait.state, &wait.project);
-    match wait.asks.is_empty() {
-        true => format!("{title} ×{}", wait.count),
-        false => format!("{title} ×{}: {}", wait.count, wait.asks),
+    let mut said = crate::render::title(&wait.agent, &wait.state, &wait.project);
+    if wait.count > 1 {
+        said.push_str(&format!(" ×{}", wait.count));
     }
+    if !wait.asks.is_empty() {
+        said.push_str(&format!(": {}", wait.asks));
+    }
+    said
 }
 
 /// The window's own count, said ONCE so the phone card and the Discord header

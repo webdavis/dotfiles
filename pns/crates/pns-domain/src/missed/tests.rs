@@ -176,7 +176,7 @@ fn each_open_wait_is_one_item_with_its_count_and_what_it_asks() {
     );
     assert_eq!(
         card,
-        "claude · asked · pns ×1; codex · blocked · dotfiles ×8: Bash: git push. 13 events. \
+        "claude · asked · pns; codex · blocked · dotfiles ×8: Bash: git push. 13 events. \
          recap in #logbook"
     );
 }

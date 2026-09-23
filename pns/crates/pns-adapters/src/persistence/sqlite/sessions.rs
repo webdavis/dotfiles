@@ -231,8 +231,11 @@ impl SqliteStore {
 
 impl SqliteStore {
     /// Every wait begun inside `since..=until` and still open, oldest first:
-    /// what the session's newest wait asks, and how many waits it raised
-    /// inside the window, at least one.
+    /// what the session's newest wait asks, and how many of its waits inside
+    /// the window nothing has answered, at least one.
+    ///
+    /// UNANSWERED MEANS AFTER THE SESSION'S NEWEST ROW THAT IS NOT A WAIT:
+    /// the operator typing, an answer signal, or a turn moving on.
     ///
     /// THE ROW SAYS WHETHER IT IS OPEN and the activity store says what it is
     /// about. A session with an open row and no waiting activity row names
@@ -256,7 +259,9 @@ impl SqliteStore {
             "SELECT e.agent, e.state, e.project, e.detail,
                     MAX(1, (SELECT COUNT(*) FROM activity_events c
                              WHERE c.session = s.id AND c.state IN ({states})
-                               AND c.at > ?1 AND c.at <= ?2))
+                               AND c.at > ?1 AND c.at <= ?2
+                               AND c.seq > COALESCE((SELECT MAX(n.seq) FROM activity_events n
+                                    WHERE n.session = s.id AND n.state NOT IN ({states})), 0)))
                FROM sessions s
                JOIN activity_events e ON e.seq = (
                     SELECT w.seq FROM activity_events w
