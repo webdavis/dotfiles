@@ -172,13 +172,11 @@ fn a_window_under_the_threshold_delivers_the_catch_up_card_unchanged() {
 
 #[test]
 fn a_busy_return_under_the_default_minimum_away_delivers_the_catch_up_card_unchanged() {
-    // THE CONFIG WIRING, END TO END. Every other fixture in this file plants
-    // the marker an hour back, so the default `[recap] minimum_away` (20
-    // minutes) never has to hold anything back on its own; the event count
-    // alone decides them. This one writes no `[recap]` table at all, plants
-    // the marker ten minutes back with a window loud enough on events alone,
-    // and leaves ONLY the wiring from config into `RecapPolicy` standing
-    // between it and a recap.
+    // THE CONFIG WIRING, END TO END. This writes no `[recap]` table at all,
+    // plants the marker ten minutes back with a window loud enough on
+    // events alone, and proves the shipped 20-minute default holds a recap
+    // back. Its sibling below states the operator's own `minimum_away` over
+    // the identical window and proves THAT value reaches `RecapPolicy` too.
     let sandbox = Sandbox::new("recap-under-default-minimum-away");
     record_every_event(&sandbox);
     plant_marker(&sandbox, 600);
@@ -206,6 +204,43 @@ fn a_busy_return_under_the_default_minimum_away_delivers_the_catch_up_card_uncha
             .all(|event| event["state"] != "recap"),
         "a recap was posted under the default minimum_away: {:?}",
         events(&sandbox, "hermes")
+    );
+}
+
+#[test]
+fn a_busy_return_under_a_shorter_operator_stated_minimum_away_delivers_the_recap_card() {
+    // THE OPERATOR'S OWN VALUE, NOT JUST THE DEFAULT. The sibling above
+    // proves the shipped 20-minute constant holds a recap back over this
+    // same ten-minute window; this one states `[recap] minimum_away = "5m"`
+    // and proves a bar the operator actually typed reaches `RecapPolicy`, so
+    // a refactor that kept the constant instead of reading the config would
+    // go red here while staying green on the sibling above.
+    let sandbox = Sandbox::new("recap-under-shorter-minimum-away");
+    record_every_event(&sandbox);
+    sandbox.write_config(&format!(
+        "{}[recap]\nminimum_away = \"5m\"\n",
+        support::STUB_CHANNELS
+    ));
+    plant_marker(&sandbox, 600);
+    std::fs::write(activity_path(&sandbox), planted_activity(12, 300, Some(4))).expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let (card, raised) = carded_recap(&sandbox);
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and ONE recap card: {raised:?}"
+    );
+    assert_eq!(card["agent"], "pns", "{raised:?}");
+    let body = card["detail"].as_str().expect("a detail");
+    assert!(body.contains("13 events"), "{body}");
+    assert!(body.ends_with("recap in #pns"), "{body}");
+    assert!(
+        journal(&sandbox).is_empty(),
+        "the journal was consumed: {:?}",
+        state_files(&sandbox)
     );
 }
 
