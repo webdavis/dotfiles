@@ -5,7 +5,7 @@
 mod support;
 
 use std::process::Command;
-use support::{Sandbox, plugin_command, run, stdout};
+use support::{Sandbox, plugin_command, run, stdout, write_script};
 
 #[test]
 fn a_desk_banner_from_a_test_that_stubbed_nothing_lands_in_the_sandbox() {
@@ -21,23 +21,59 @@ fn a_desk_banner_from_a_test_that_stubbed_nothing_lands_in_the_sandbox() {
     assert!(recorded.contains("-title"), "{recorded}");
 }
 
+/// Names the planted directory in the copy of the test below that runs with it
+/// on its own PATH.
+const PLANTED: &str = "PNS_FENCE_PLANTED_BIN";
+
 /// A detached recap child can outlive its sandbox, and `Drop` takes `bin` with
 /// it. Its banner must then fail to spawn rather than find a notifier anywhere
-/// else on PATH.
+/// else.
+///
+/// The test runs itself again with a recording `terminal-notifier` planted
+/// first on that copy's own PATH, so a sandbox that inherited the test
+/// process's PATH reaches the plant on any machine, whatever is installed.
 #[test]
 fn with_the_sandbox_bin_gone_a_banner_reaches_no_notifier_at_all() {
-    let sandbox = Sandbox::new("fence-bin-gone");
-    std::fs::remove_dir_all(sandbox.path("bin")).expect("the sandbox bin");
-    let mut command = sandbox.bare();
-    command
-        .env("PNS_STATE_DIR", sandbox.state())
-        .env("PNS_HERMES_URL", "http://127.0.0.1:1/");
-    let output = command.arg("doctor").output().expect("the engine runs");
+    if std::env::var_os(PLANTED).is_some() {
+        let sandbox = Sandbox::new("fence-bin-gone");
+        std::fs::remove_dir_all(sandbox.path("bin")).expect("the sandbox bin");
+        let mut command = sandbox.bare();
+        command
+            .env("PNS_STATE_DIR", sandbox.state())
+            .env("PNS_HERMES_URL", "http://127.0.0.1:1/");
+        let output = command.arg("doctor").output().expect("the engine runs");
+        let printed = stdout(&output);
+        assert!(
+            printed.contains("banner: FAILED"),
+            "the banner found a notifier outside the sandbox: {printed}"
+        );
+        return;
+    }
+    let host = Sandbox::without_config("fence-planted-notifier");
+    host.allow_slow("runs this test again in a child process");
+    let planted = host.path("planted");
+    std::fs::create_dir_all(&planted).expect("the planted directory");
+    write_script(
+        &planted.join("terminal-notifier"),
+        &format!("printf '%s\\n' \"$*\" >\"{}/reached\"", planted.display()),
+    );
+    let output = Command::new(std::env::current_exe().expect("this test binary"))
+        .args([
+            "--exact",
+            "with_the_sandbox_bin_gone_a_banner_reaches_no_notifier_at_all",
+        ])
+        .env("PATH", format!("{}:/usr/bin:/bin", planted.display()))
+        .env(PLANTED, &planted)
+        .output()
+        .expect("the copy runs");
 
-    let printed = stdout(&output);
     assert!(
-        printed.contains("banner: FAILED"),
-        "the banner found a notifier outside the sandbox: {printed}"
+        output.status.success() && stdout(&output).contains("1 passed"),
+        "{output:?}"
+    );
+    assert!(
+        !planted.join("reached").exists(),
+        "the banner reached the notifier on the test process's own PATH"
     );
 }
 
