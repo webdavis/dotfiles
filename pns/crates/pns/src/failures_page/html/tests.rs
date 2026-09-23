@@ -32,9 +32,8 @@ fn minute_word_pluralizes() {
     assert_eq!(minute_word(7), "7 minutes");
 }
 
-/// Every response is wrapped in one shell: the doctype, the title, and the
-/// color-scheme meta the supplied CSS's `light-dark()` calls need to
-/// resolve.
+/// Every response is wrapped in one shell: the doctype, the title, and a
+/// color-scheme meta fixed to dark, whatever the phone's own appearance is.
 #[test]
 fn the_shell_carries_the_doctype_title_and_color_scheme_meta() {
     let rendered = shell("<p>body</p>");
@@ -44,8 +43,21 @@ fn the_shell_carries_the_doctype_title_and_color_scheme_meta() {
         "{rendered}"
     );
     assert!(
-        rendered.contains("<meta name=\"color-scheme\" content=\"light dark\">"),
+        rendered.contains("<meta name=\"color-scheme\" content=\"dark\">"),
         "{rendered}"
     );
     assert!(rendered.contains("<p>body</p>"), "{rendered}");
+}
+
+/// THE PAGE IS DARK ALWAYS. No `light-dark()` and no `prefers-color-scheme`
+/// anywhere in the shell, so a phone in light mode still gets the dark card:
+/// the operator's choice, not a fallback the browser could override.
+#[test]
+fn the_shell_is_dark_only() {
+    let rendered = shell("<p>body</p>");
+    assert!(rendered.contains(":root{color-scheme:dark}"), "{rendered}");
+    assert!(rendered.contains("background:#0f1215"), "{rendered}");
+    assert!(rendered.contains("color:#edf0f3"), "{rendered}");
+    assert!(!rendered.contains("light-dark("), "{rendered}");
+    assert!(!rendered.contains("prefers-color-scheme"), "{rendered}");
 }

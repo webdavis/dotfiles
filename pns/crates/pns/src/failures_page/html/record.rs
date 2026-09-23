@@ -13,7 +13,8 @@ use pns_application::RetryFacts;
 use pns_domain::failure::{self, Failure};
 use pns_domain::retry::RetryLimits;
 
-const CSS: &str = "<style>#failure-record { --fr-paper:light-dark(#fff,#15191d); --fr-ink:light-dark(#20252b,#edf0f3); --fr-muted:light-dark(#626a73,#a0a9b3); --fr-line:light-dark(#dfe3e7,#343d46); --fr-amber:light-dark(#865200,#efbd6a); --fr-red:light-dark(#b12737,#ff8993); --fr-tint:light-dark(#f5f6f8,#1c2228); background:var(--fr-paper); color:var(--fr-ink); font:14px/1.5 system-ui,sans-serif; max-width:690px; margin:0 auto; padding:28px; border:1px solid var(--fr-line); border-radius:12px; box-sizing:border-box; }
+const CSS: &str = "<style>:root { color-scheme:dark; background:#101417; }
+#failure-record { --fr-paper:#15191d; --fr-ink:#edf0f3; --fr-muted:#a0a9b3; --fr-line:#343d46; --fr-amber:#efbd6a; --fr-red:#ff8993; --fr-tint:#1c2228; background:var(--fr-paper); color:var(--fr-ink); font:14px/1.5 system-ui,sans-serif; max-width:690px; margin:0 auto; padding:28px; border:1px solid var(--fr-line); border-radius:12px; box-sizing:border-box; }
 #failure-record * { box-sizing:border-box; }
 #failure-record .fr-back { color:var(--fr-muted); font-size:12px; display:block; margin-bottom:14px; }
 #failure-record .fr-heading { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px 20px; }

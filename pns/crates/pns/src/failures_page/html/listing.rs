@@ -13,7 +13,8 @@ use pns_application::{RetryFacts, StoredFailure};
 use pns_domain::failure;
 use pns_domain::retry::RetryLimits;
 
-const CSS: &str = "<style>#failure-history { --paper:light-dark(#ffffff,#15191d); --ink:light-dark(#20252b,#edf0f3); --muted:light-dark(#626a73,#a0a9b3); --line:light-dark(#dfe3e7,#343d46); --red:light-dark(#b12737,#ff8993); --amber:light-dark(#865200,#efbd6a); --tint:light-dark(#f5f6f8,#1c2228); font:14px/1.5 system-ui,sans-serif; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:28px; max-width:690px; margin:0 auto; box-sizing:border-box; }
+const CSS: &str = "<style>:root { color-scheme:dark; background:#101417; }
+#failure-history { --paper:#15191d; --ink:#edf0f3; --muted:#a0a9b3; --line:#343d46; --red:#ff8993; --amber:#efbd6a; --tint:#1c2228; font:14px/1.5 system-ui,sans-serif; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:28px; max-width:690px; margin:0 auto; box-sizing:border-box; }
 #failure-history * { box-sizing:border-box; }
 #failure-history h2 { font-size:22px; line-height:1.3; margin:0; font-weight:650; letter-spacing:-.5px; }
 #failure-history .fh-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:26px; }

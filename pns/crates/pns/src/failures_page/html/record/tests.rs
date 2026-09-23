@@ -125,14 +125,15 @@ fn a_back_link_points_at_the_listing() {
     assert!(rendered.contains("href=\"/\">Failures</a>"), "{rendered}");
 }
 
-/// Both appearances resolve on the record page too.
+/// The page is dark always on the record too.
 #[test]
-fn both_appearances_are_wired() {
+fn the_record_is_dark_only() {
     let (failure, row) = dead_lettered();
     let rendered = record_page(&failure, &row, None, NOW);
     assert!(
-        rendered.contains("<meta name=\"color-scheme\" content=\"light dark\">"),
+        rendered.contains("<meta name=\"color-scheme\" content=\"dark\">"),
         "{rendered}"
     );
-    assert!(rendered.contains("light-dark("), "{rendered}");
+    assert!(!rendered.contains("light-dark("), "{rendered}");
+    assert!(!rendered.contains("prefers-color-scheme"), "{rendered}");
 }

@@ -165,16 +165,17 @@ fn an_empty_ledger_says_nothing_is_failing() {
     assert!(rendered.contains("All times UTC"), "{rendered}");
 }
 
-/// Both appearances resolve: the color-scheme meta and a `light-dark()`
-/// ground are both present.
+/// The page is dark always: the color-scheme meta says so and neither
+/// `light-dark()` nor `prefers-color-scheme` appears anywhere in the output.
 #[test]
-fn both_appearances_are_wired() {
+fn the_listing_is_dark_only() {
     let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
     assert!(
-        rendered.contains("<meta name=\"color-scheme\" content=\"light dark\">"),
+        rendered.contains("<meta name=\"color-scheme\" content=\"dark\">"),
         "{rendered}"
     );
-    assert!(rendered.contains("light-dark("), "{rendered}");
+    assert!(!rendered.contains("light-dark("), "{rendered}");
+    assert!(!rendered.contains("prefers-color-scheme"), "{rendered}");
 }
 
 /// Distinct destinations join with "and"; one item needs no joiner at all.
