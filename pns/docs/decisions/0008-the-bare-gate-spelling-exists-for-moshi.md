@@ -1,6 +1,7 @@
 # 0008: `pns <harness>-hook` is the only gate spelling, because a third-party field holds one pathname
 
-Status: accepted, and not ours to change.
+Status: superseded 2026-09-22: since moshi-hook 0.3.9 the pi and omp extensions write to moshi's socket
+and never read `helperBinary`, so the bare word lost its caller and now takes the typo refusal.
 
 ## The constraint
 
