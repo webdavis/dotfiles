@@ -84,7 +84,7 @@ with patch.object(messages.Path, 'stat') as stat, patch.object(messages.Path, 'o
     except RuntimeError as exc: assert '0600' in str(exc)
     else: raise AssertionError('shared-readable credentials must be refused')
     stat.return_value.st_mode = 0o600
-    opening.return_value.__enter__.return_value = io.BytesIO(b'[bluebubbles]\nurl="https://example.com"\npassword="TEST-SECRET"\n')
+    opening.return_value.__enter__.return_value = io.BytesIO(b'[bluebubbles]\nurl="https://example.com"\nserver_password="TEST-SECRET"\n')
     error = messages.HTTPError('https://example.com?password=TEST-SECRET', 401, 'TEST-SECRET', {}, None)
     with patch.object(messages, 'build_opener') as opener:
         opener.return_value.open.side_effect = error
@@ -92,6 +92,7 @@ with patch.object(messages.Path, 'stat') as stat, patch.object(messages.Path, 'o
         except RuntimeError as exc:
             assert '401' in str(exc) and 'TEST-SECRET' not in str(exc)
         else: raise AssertionError('HTTP failures must not return success')
+        assert opener.return_value.open.call_args.args[0].full_url == 'https://example.com/api/v1/chat/query?password=TEST-SECRET'
 def assert_chat_changed(pages):
     with patch.object(messages, 'request', side_effect=pages):
         try: list(messages.paginate('/chat/query', {'with':['participants','lastMessage']}, {}, limit=2))

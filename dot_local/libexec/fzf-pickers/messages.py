@@ -26,20 +26,20 @@ def request(path, body, state):
             raise RuntimeError('Picker credentials must be private. Set config.toml permissions to 0600.')
         with config_path.open('rb') as stream:
             config = tomllib.load(stream)['bluebubbles']
-        base, password = config['url'], config['password']
+        base, server_password = config['url'], config['server_password']
         if not isinstance(base, str):
             raise ValueError('invalid URL type')
         base = base.rstrip('/')
     except (OSError, KeyError, TypeError, ValueError) as exc:
-        raise RuntimeError('BlueBubbles requires url and password in ~/.config/fzf-pickers/config.toml.') from exc
+        raise RuntimeError('BlueBubbles requires url and server_password in ~/.config/fzf-pickers/config.toml.') from exc
     parts = urlsplit(base)
-    if not isinstance(password, str) or not password:
-        raise RuntimeError('BlueBubbles password is empty in the picker configuration.')
+    if not isinstance(server_password, str) or not server_password:
+        raise RuntimeError('BlueBubbles server_password is empty in the picker configuration.')
     if parts.username or parts.password or parts.query or parts.fragment or not parts.hostname:
         raise RuntimeError('BlueBubbles URL must contain only its scheme, host, port, and optional base path.')
     if parts.scheme != 'https' and not (parts.scheme == 'http' and parts.hostname in ('localhost', '127.0.0.1', '::1')):
         raise RuntimeError('BlueBubbles requires HTTPS outside this Mac.')
-    req = Request(base + '/api/v1' + path + '?' + urlencode({'password': password}),
+    req = Request(base + '/api/v1' + path + '?' + urlencode({'password': server_password}),
                   data=json.dumps(body).encode(), headers={'Content-Type': 'application/json'}, method='POST')
     try:
         with build_opener(NoRedirect()).open(req, timeout=20) as response:
