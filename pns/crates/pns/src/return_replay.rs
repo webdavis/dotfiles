@@ -84,6 +84,12 @@ impl pns_application::ActivityRing for CatchUp<'_> {
     }
 }
 
+impl pns_application::OpenWaits for CatchUp<'_> {
+    fn open_waits(&self, since: u64, until: u64) -> Vec<pns_domain::missed::OpenWait> {
+        pns_application::OpenWaits::open_waits(self.moment, since, until)
+    }
+}
+
 impl pns_application::RecapPublisher for CatchUp<'_> {
     type Started = std::process::ChildStdin;
 

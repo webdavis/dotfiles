@@ -1,34 +1,36 @@
-use super::Entry;
-
 /// The states that mean an agent is WAITING ON THE OPERATOR rather than
 /// reporting to them.
 ///
-/// ONE LIST, TWO READERS. The phone card's needs-you line and the recap's own
-/// NEEDS YOU section are the same question asked at two sizes, and two copies
-/// of this list would drift the day a fifth state joins. Only `asked` is the
-/// mid-turn arm's own word now; `blocked` arrives through the separate
-/// approval path (`blocking_event`), `denied` through the classifier's own
-/// refusal, and `failed` through `failed_turn` for a turn that died, which
-/// needs the operator every bit as much as one that asked.
+/// ONE LIST FOR EVERY READER that asks whether an event needs the operator:
+/// the recap's own NEEDS YOU section and open list, and the delivery classes'
+/// severity rule. Only `asked` is the mid-turn arm's own word now; `blocked`
+/// arrives through the separate approval path (`blocking_event`), `denied`
+/// through the classifier's own refusal, and `failed` through `failed_turn`
+/// for a turn that died, which needs the operator every bit as much as one
+/// that asked.
 pub const NEEDS_YOU: [&str; 4] = ["asked", "blocked", "denied", "failed"];
 
-/// The entries in a window that still need the operator, in the order they
-/// arrived.
-pub fn needing_you(entries: &[Entry]) -> Vec<Entry> {
-    entries
-        .iter()
-        .filter(|entry| NEEDS_YOU.contains(&entry.state.as_str()))
-        .cloned()
-        .collect()
+/// One session still waiting on the operator at the return moment.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OpenWait {
+    pub agent: String,
+    /// The newest wait's own state word.
+    pub state: String,
+    pub project: String,
+    /// What the newest wait asks.
+    pub asks: String,
+    /// How many waits the session raised while the operator was away, and at
+    /// least one: the open wait counts even when it was raised before.
+    pub count: usize,
 }
 
-/// The phone layer of the return recap: what still needs the operator, then
-/// the true counts, then where the rest is.
+/// The phone layer of the return recap: the waits still open, one item per
+/// session, then the true counts, then where the rest is.
 ///
-/// NEEDS YOU FIRST AND NEVER SUMMARIZED AWAY, which is why it is composed here
-/// and not by any model: the urgent line is the one a hallucination would cost
-/// the most, and it is the one thing on this card that cannot wait for the
-/// Discord recap to be read.
+/// OPEN WAITS FIRST AND NEVER SUMMARIZED AWAY, which is why they are composed
+/// here and not by any model: the urgent line is the one a hallucination would
+/// cost the most, and it is the one thing on this card that cannot wait for
+/// the recap to be read. A wait the operator already answered is not on it.
 ///
 /// EVERY NUMBER IS A LENGTH, never a claim. `counted` is the window's own
 /// length and `missed` is the claimed journal's, so a card that ran out of room
@@ -58,7 +60,7 @@ pub fn needing_you(entries: &[Entry]) -> Vec<Entry> {
 /// started, so the card never points at a recap that was never going to
 /// arrive.
 pub fn recap_card(
-    needs_you: &[Entry],
+    open: &[OpenWait],
     counted: usize,
     missed: usize,
     recap_route: Option<&str>,
@@ -75,12 +77,9 @@ pub fn recap_card(
     // room, and the card is then the counts alone.
     let room = crate::render::PREVIEW_MAX_CHARS.saturating_sub(counts.chars().count() + SEPARATOR);
     let mut urgent: Vec<String> = Vec::new();
-    for entry in needs_you.iter().rev() {
+    for wait in open.iter().rev() {
         let mut extended = urgent.clone();
-        extended.push(crate::render::clipped(
-            &crate::render::title(&entry.agent, &entry.state, &entry.project),
-            room,
-        ));
+        extended.push(crate::render::clipped(&waiting(wait), room));
         // STOPPED RATHER THAN SKIPPED, and never before the first: `summary`'s
         // own two rules, for its own two reasons. The first item is already
         // inside the room by the clip above, so "never before the first" costs
@@ -91,6 +90,16 @@ pub fn recap_card(
         urgent = extended;
     }
     with_counts(&urgent, &counts)
+}
+
+/// One open wait as the card says it: whose, how many times, and what the
+/// newest one asks.
+fn waiting(wait: &OpenWait) -> String {
+    let title = crate::render::title(&wait.agent, &wait.state, &wait.project);
+    match wait.asks.is_empty() {
+        true => format!("{title} ×{}", wait.count),
+        false => format!("{title} ×{}: {}", wait.count, wait.asks),
+    }
 }
 
 /// The window's own count, said ONCE so the phone card and the Discord header

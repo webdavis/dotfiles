@@ -1,6 +1,6 @@
 use super::{RecapPolicy, ReplayMissedNotifications};
 use crate::ports::delivery::{RecapPublisher, ReplayDelivery};
-use crate::ports::records::{ActivityRing, Claim, ReturnMoment};
+use crate::ports::records::{ActivityRing, Claim, OpenWaits, ReturnMoment};
 use pns_domain::EventArgs;
 use pns_domain::missed::Entry;
 use pns_domain::routing::{Leg, ReportMode};
@@ -13,6 +13,7 @@ struct Recorder {
     steps: RefCell<Vec<String>>,
     claim: Option<Claim>,
     entries: Vec<Entry>,
+    open: Vec<pns_domain::missed::OpenWait>,
     posted: bool,
     takes_card: bool,
     delivered: RefCell<Vec<String>>,
@@ -31,6 +32,7 @@ impl Recorder {
             steps: RefCell::new(Vec::new()),
             claim,
             entries: Vec::new(),
+            open: Vec::new(),
             posted: true,
             takes_card: true,
             delivered: RefCell::new(Vec::new()),
@@ -70,6 +72,12 @@ impl ActivityRing for Recorder {
     fn entries_between(&self, since: u64, until: u64) -> Vec<Entry> {
         self.note(&format!("entries({since},{until})"));
         self.entries.clone()
+    }
+}
+impl OpenWaits for Recorder {
+    fn open_waits(&self, since: u64, until: u64) -> Vec<pns_domain::missed::OpenWait> {
+        self.note(&format!("open_waits({since},{until})"));
+        self.open.clone()
     }
 }
 impl RecapPublisher for Recorder {
@@ -222,6 +230,7 @@ fn a_return_claims_the_moment_counts_the_window_publishes_then_hands_the_card_ov
             "claim(journal=true)",
             "entries(1000,2000)",
             "publish(1000,2000)",
+            "open_waits(1000,2000)",
             "hand_card",
         ]
     );
@@ -252,6 +261,7 @@ fn a_child_that_will_not_take_the_card_leaves_it_with_this_process() {
             "claim(journal=true)",
             "entries(1000,2000)",
             "publish(1000,2000)",
+            "open_waits(1000,2000)",
             "hand_card",
             "deliver",
         ]
@@ -449,3 +459,4 @@ fn a_failed_publish_still_raises_a_card_and_the_card_says_which() {
 }
 
 mod handoff;
+mod open_waits;

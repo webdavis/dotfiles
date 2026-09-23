@@ -9,7 +9,7 @@
 //! so two events arriving together cannot both replay the same window.
 
 use crate::ports::delivery::{RecapPublisher, ReplayDelivery};
-use crate::ports::records::{ActivityRing, ReturnMoment};
+use crate::ports::records::{ActivityRing, OpenWaits, ReturnMoment};
 use pns_domain::Decision;
 use pns_domain::EventArgs;
 use pns_domain::missed::{self, Entry};
@@ -36,7 +36,7 @@ pub struct ReplayMissedNotifications<'a, P> {
 
 impl<P> ReplayMissedNotifications<'_, P>
 where
-    P: ReturnMoment + ActivityRing + RecapPublisher + ReplayDelivery,
+    P: ReturnMoment + ActivityRing + OpenWaits + RecapPublisher + ReplayDelivery,
 {
     /// Deliver the catch-up for this event, or decline and say nothing.
     pub fn run(
@@ -101,9 +101,9 @@ where
         }
         // A CARD WITH NOTHING IN IT IS NOISE. With no digest to point at and
         // nothing waiting, there is no sentence to write.
-        let detail = if fires {
+        let detail = if let (true, Some((since, until))) = (fires, window) {
             missed::recap_card(
-                &missed::needing_you(&counted),
+                &OpenWaits::open_waits(self.ports, since, until),
                 counted.len(),
                 claim.waiting.len(),
                 posted.then(|| RecapPublisher::route(self.ports)).as_deref(),

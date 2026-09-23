@@ -112,6 +112,16 @@ impl pns_application::SessionWaits for SqliteStore {
         self.end_wait(session_id).map_err(|error| error.to_string())
     }
 }
+/// A READ THAT FAILS LISTS NO WAIT, reported to the store's own log: the card
+/// still carries its counts and its pointer.
+impl pns_application::OpenWaits for SqliteStore {
+    fn open_waits(&self, since: u64, until: u64) -> Vec<pns_domain::missed::OpenWait> {
+        self.open_waits(since, until).unwrap_or_else(|error| {
+            self.report("open waits", &error);
+            Vec::new()
+        })
+    }
+}
 impl pns_application::StaleWaits for SqliteStore {
     /// A READ NOBODY CAN TAKE IS NO STALE BLOCK, said out loud and never
     /// silently: the fire is unattended, so the one reader it has is the

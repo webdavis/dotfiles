@@ -216,3 +216,51 @@ impl SqliteStore {
             .ok()
     }
 }
+
+// --- the waits a return card lists -------------------------------------------
+
+impl SqliteStore {
+    /// Every wait still open, oldest first: what the session's newest wait
+    /// asks, and how many waits it raised inside `since..=until`, at least one.
+    ///
+    /// THE ROW SAYS WHETHER IT IS OPEN and the activity store says what it is
+    /// about. A session with an open row and no waiting activity row names
+    /// nothing a card could say, so it is left out.
+    pub fn open_waits(
+        &self,
+        since: u64,
+        until: u64,
+    ) -> Result<Vec<pns_domain::missed::OpenWait>, StoreError> {
+        let waits = pns_domain::pulse::LAMP_BLOCKED;
+        let states = (3..3 + waits.len())
+            .map(|slot| format!("?{slot}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let connection = self.connect()?;
+        let mut statement = connection.prepare(&format!(
+            "SELECT e.agent, e.state, e.project, e.detail,
+                    MAX(1, (SELECT COUNT(*) FROM activity_events c
+                             WHERE c.session = s.id AND c.state IN ({states})
+                               AND c.at > ?1 AND c.at <= ?2))
+               FROM sessions s
+               JOIN activity_events e ON e.seq = (
+                    SELECT w.seq FROM activity_events w
+                     WHERE w.session = s.id AND w.state IN ({states})
+                     ORDER BY w.at DESC, w.seq DESC LIMIT 1)
+              WHERE s.blocked_since IS NOT NULL AND s.blocked_since <= ?2
+              ORDER BY s.blocked_since, s.id"
+        ))?;
+        let mut bound: Vec<&dyn rusqlite::ToSql> = vec![&since, &until];
+        bound.extend(waits.iter().map(|state| state as &dyn rusqlite::ToSql));
+        let rows = statement.query_map(bound.as_slice(), |row| {
+            Ok(pns_domain::missed::OpenWait {
+                agent: row.get(0)?,
+                state: row.get(1)?,
+                project: row.get(2)?,
+                asks: row.get(3)?,
+                count: row.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+}

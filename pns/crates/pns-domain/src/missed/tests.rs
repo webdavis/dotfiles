@@ -7,7 +7,7 @@
 //! by round-tripping a journal through `entries`, which this crate cannot
 //! reach.
 
-use super::{Entry, needing_you, recap_card, summary, waiting_line};
+use super::{Entry, OpenWait, recap_card, summary, waiting_line};
 
 // --- the summary one card carries --------------------------------------
 
@@ -145,21 +145,46 @@ fn a_single_entry_past_the_cap_is_still_delivered_rather_than_becoming_a_bare_co
 /// is handed the route rather than knowing one.
 const ROUTE: &str = "logbook";
 
+/// One session waiting once in a state and a project, asking nothing, which is
+/// the least the card renders of it.
+fn waiting_on(state: &str, project: &str) -> OpenWait {
+    OpenWait {
+        agent: "claude".to_string(),
+        state: state.to_string(),
+        project: project.to_string(),
+        count: 1,
+        ..OpenWait::default()
+    }
+}
+
+#[test]
+fn each_open_wait_is_one_item_with_its_count_and_what_it_asks() {
+    let card = recap_card(
+        &[
+            OpenWait {
+                agent: "codex".to_string(),
+                state: "blocked".to_string(),
+                project: "dotfiles".to_string(),
+                asks: "Bash: git push".to_string(),
+                count: 8,
+            },
+            waiting_on("asked", "pns"),
+        ],
+        13,
+        0,
+        Some(ROUTE),
+    );
+    assert_eq!(
+        card,
+        "claude · asked · pns ×1; codex · blocked · dotfiles ×8: Bash: git push. 13 events. \
+         recap in #logbook"
+    );
+}
+
 #[test]
 fn the_card_names_the_route_it_is_handed_and_no_other() {
     let card = recap_card(&[], 3, 0, Some("pns-events"));
     assert_eq!(card, "3 events. recap in #pns-events");
-}
-
-/// One activity entry in a state and a project, which is all the card
-/// renders of it.
-fn acted(state: &str, project: &str) -> Entry {
-    Entry {
-        agent: "claude".to_string(),
-        state: state.to_string(),
-        project: project.to_string(),
-        ..Entry::default()
-    }
 }
 
 #[test]
@@ -167,12 +192,7 @@ fn the_recap_card_puts_what_needs_the_operator_in_front_of_every_count() {
     // NEEDS YOU FIRST. The counts are the reason the card is worth reading
     // at all, but the urgent item is the reason it is worth acting on, and
     // a card that opened with a number would bury it.
-    let card = recap_card(
-        &[acted("done", "p"), acted("blocked", "dotfiles")],
-        12,
-        2,
-        Some(ROUTE),
-    );
+    let card = recap_card(&[waiting_on("blocked", "dotfiles")], 12, 2, Some(ROUTE));
     let urgent = card
         .find("blocked")
         .expect("the urgent item is on the card");
@@ -199,8 +219,8 @@ fn the_recap_cards_counts_survive_a_needs_you_list_too_long_to_fit() {
     // always back, so they are built first and the urgent items are fitted
     // in front of them; a build that filled the card with titles and then
     // cut would drop the numbers instead.
-    let crowd: Vec<Entry> = (0..40)
-        .map(|which| acted("blocked", &format!("project-{which}")))
+    let crowd: Vec<OpenWait> = (0..40)
+        .map(|which| waiting_on("blocked", &format!("project-{which}")))
         .collect();
     let card = recap_card(&crowd, 80, 3, Some(ROUTE));
     assert!(
@@ -223,7 +243,7 @@ fn one_urgent_item_too_long_for_the_card_is_cut_to_fit_rather_than_dropped() {
     // `summary`'S MEASURED RULE, applied to the second card. The one thing
     // waiting on the operator is exactly what the card is for, so the
     // newest item is never the thing that goes; what gives is its length.
-    let huge = acted("blocked", &"x".repeat(crate::render::PREVIEW_MAX_CHARS));
+    let huge = waiting_on("blocked", &"x".repeat(crate::render::PREVIEW_MAX_CHARS));
     let card = recap_card(&[huge], 9, 0, None);
     assert!(
         card.contains(&"x".repeat(200)),
@@ -249,11 +269,10 @@ fn every_count_survives_the_preview_the_phone_is_actually_handed() {
     //
     // ASSERTED AGAINST THE PREVIEW, never the raw detail, which is the
     // whole point: the raw detail passed the whole time.
-    let wide = Entry {
+    let wide = OpenWait {
         agent: "a".repeat(120),
-        state: "blocked".to_string(),
         project: "p".repeat(120),
-        ..Entry::default()
+        ..waiting_on("blocked", "")
     };
     let card = recap_card(&[wide], 13, 2, Some(ROUTE));
     let delivered = crate::render::preview(&card);
@@ -268,30 +287,6 @@ fn every_count_survives_the_preview_the_phone_is_actually_handed() {
     assert!(
         delivered.contains("blocked"),
         "and the urgent item is still what leads: {delivered}"
-    );
-}
-
-#[test]
-fn only_the_states_that_wait_on_the_operator_are_needing_you() {
-    // ONE LIST, TWO READERS, so this pins the list itself rather than the
-    // card that spends it. `done` is a report and `stale` is a warning;
-    // neither is waiting on an answer.
-    let window = vec![
-        acted("done", "p"),
-        acted("blocked", "p"),
-        acted("stale", "p"),
-        acted("asked", "p"),
-        acted("denied", "p"),
-        acted("failed", "p"),
-    ];
-    let waiting: Vec<String> = needing_you(&window)
-        .into_iter()
-        .map(|entry| entry.state)
-        .collect();
-    assert_eq!(
-        waiting,
-        ["blocked", "asked", "denied", "failed"],
-        "in the order they arrived"
     );
 }
 

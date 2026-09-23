@@ -21,7 +21,8 @@ fn the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said()
         "the live event and one recap card: {raised:?}"
     );
     assert_eq!(
-        card["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns-events",
+        card["detail"],
+        "claude · blocked · p4 ×1: planted 4. 13 events, 2 missed. recap in #pns-events",
         "the card is composed, never summarized: {raised:?}"
     );
     // AND IT CARRIES NO PANE, which is what the moshi channel builds its deep

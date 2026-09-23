@@ -72,7 +72,8 @@ pub(super) fn loud_window(sandbox: &Sandbox) {
 /// too, so a fixture that planted only one of them would pin half a return.
 ///
 /// ONE SESSION PER EVENT, so the agents section is one line per planted
-/// index, which is the unit the budget tests below measure.
+/// index, which is the unit the budget tests below measure. The urgent
+/// session's wait is left open, as its unanswered `blocked` leaves it.
 pub(super) fn plant_activity_table(
     sandbox: &Sandbox,
     count: usize,
@@ -99,6 +100,11 @@ pub(super) fn plant_activity_table(
                 ..pns_domain::recap::activity::Event::default()
             })
             .expect("the planted activity row");
+        if urgent == Some(which) {
+            store
+                .begin_wait(&format!("s{which}"), at)
+                .expect("the planted wait");
+        }
     }
 }
 
