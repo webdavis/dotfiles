@@ -24,10 +24,7 @@ impl Sandbox {
             // The phone's clock is read by walking the DEVELOPER'S OWN live
             // mosh sessions, so the suite states it instead: untouched for a
             // day. A test about the phone overrides this with its own age.
-            .env("PNS_PHONE_INPUT_MAX_AGE", "24h")
-            // No live summarizer: a Stop hook spawns one for real, and the
-            // suite must never reach the operator's own Codex.
-            .env("PNS_CODEX_BIN", "/nonexistent/codex");
+            .env("PNS_PHONE_INPUT_MAX_AGE", "24h");
         command
     }
 
@@ -59,6 +56,9 @@ impl Sandbox {
         command
             .env("PNS_MOSHI_URL", "http://127.0.0.1:1/")
             .env("PNS_MOSHI_UPLOAD_URL", "http://127.0.0.1:1/");
+        // No live summarizer: a Stop hook spawns one for real, and the suite
+        // must never reach the operator's own Codex.
+        command.env("PNS_CODEX_BIN", "/nonexistent/codex");
         // PATH IS THE SANDBOX'S `bin` AND THE SYSTEM DIRECTORIES, never the
         // developer's own. Every banner, a failure notice included, reaches the
         // recording `terminal-notifier` in `bin`, and a detached recap child
