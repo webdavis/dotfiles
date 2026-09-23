@@ -185,6 +185,11 @@ packages:
         - zizmor
         - zls
         - zoxide
+      # Formulae held at the version proven against this repository. The apply
+      # pins each one, so `brew upgrade` and the weekly job skip it; moshi-hook
+      # moves only through `just moshi-hook-upgrade`.
+      pinned:
+        rjyo/moshi/moshi-hook: "0.3.26"
       casks:
         - affinity
         - apple-juice
