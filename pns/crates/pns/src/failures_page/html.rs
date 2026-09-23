@@ -1,15 +1,18 @@
 //! The failure page's HTML: the shell every response shares, and the escape
 //! every producer string passes through before it lands in one.
 //!
-//! THE TWO CARD LAYOUTS ARE ONE LEVEL DOWN, in [`listing`] and [`record`].
-//! Both read their field VALUES off the same functions the terminal prints
-//! from (`command_failures::rows`, `pns_domain::failure::fields`,
-//! `pns_domain::failure::headline`); this module only owns the wrapper every
-//! page shares and the escape every producer string passes through.
+//! THE THREE PAGES ARE ONE LEVEL DOWN, in [`index`], [`listing`] and
+//! [`record`]. The latter two read their field VALUES off the same functions
+//! the terminal prints from (`command_failures::rows`,
+//! `pns_domain::failure::fields`, `pns_domain::failure::headline`); this
+//! module only owns the wrapper every page shares and the escape every
+//! producer string passes through.
 
+mod index;
 mod listing;
 mod record;
 
+pub(crate) use index::index_page;
 pub(crate) use listing::listing_page;
 pub(crate) use record::record_page;
 

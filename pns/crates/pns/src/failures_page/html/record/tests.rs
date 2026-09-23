@@ -117,12 +117,16 @@ fn an_empty_webhook_route_reads_none() {
     assert!(rendered.contains(">none<"), "{rendered}");
 }
 
-/// The back link to the listing sits above the headline.
+/// The back link to the listing sits above the headline, and points at the
+/// listing's own route, `/failures`, not the site index.
 #[test]
 fn a_back_link_points_at_the_listing() {
     let (failure, row) = retrying();
     let rendered = record_page(&failure, &row, None, NOW);
-    assert!(rendered.contains("href=\"/\">Failures</a>"), "{rendered}");
+    assert!(
+        rendered.contains("href=\"/failures\">Failures</a>"),
+        "{rendered}"
+    );
 }
 
 /// The page is dark always on the record too.

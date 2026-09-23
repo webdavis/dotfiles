@@ -69,7 +69,7 @@ pub(crate) fn record_page(
     let mut body = String::from(CSS);
     body.push_str(&format!(
         "<article id=\"failure-record\" aria-label=\"{}\">\
-         <a class=\"fr-back\" href=\"/\">Failures</a>\
+         <a class=\"fr-back\" href=\"/failures\">Failures</a>\
          <header><div class=\"fr-heading\"><h2>{}</h2>\
          <span class=\"fr-status{}\">{}</span></div>\
          <p class=\"fr-meaning\">{}</p></header>",

@@ -1,19 +1,26 @@
 use super::*;
 
-/// The two routes the page serves, and nothing else needs a name.
+/// The three routes the page serves, and nothing else needs a name.
 #[test]
-fn the_root_is_the_listing_and_a_number_is_one_record() {
-    assert_eq!(target("GET / HTTP/1.1\r\n"), Some(Target::Listing));
-    assert_eq!(target("GET /47 HTTP/1.1\r\n"), Some(Target::One(47)));
+fn root_is_the_index_failures_is_the_listing_and_a_number_under_it_is_one_record() {
+    assert_eq!(target("GET / HTTP/1.1\r\n"), Some(Target::Index));
+    assert_eq!(target("GET /failures HTTP/1.1\r\n"), Some(Target::Listing));
+    assert_eq!(
+        target("GET /failures/47 HTTP/1.1\r\n"),
+        Some(Target::One(47))
+    );
 }
 
-/// A page with two routes has nothing to say about a third, so a path it does
-/// not know is refused rather than guessed at.
+/// A page with three routes has nothing to say about a fourth, so a path it
+/// does not know is refused rather than guessed at. The bare `/<id>` this
+/// page used to serve is deliberately one of them: an id now lives only
+/// under `/failures/<id>`.
 #[test]
 fn a_path_this_does_not_serve_is_refused() {
     for line in [
-        "GET /failures HTTP/1.1\r\n",
-        "GET /47/ack HTTP/1.1\r\n",
+        "GET /47 HTTP/1.1\r\n",
+        "GET /failures/47/ack HTTP/1.1\r\n",
+        "GET /failures/ HTTP/1.1\r\n",
         "GET /../secrets HTTP/1.1\r\n",
         "GET /?id=47 HTTP/1.1\r\n",
         "GET  HTTP/1.1\r\n",
@@ -133,6 +140,49 @@ fn a_real_request_gets_a_real_response() {
     assert!(answered.contains("<pre>"), "{answered}");
 }
 
+/// THE WHOLE SITE, over one real connection each: the index at `/`, the
+/// listing at `/failures`, and the old bare `/<id>` refused now that an id
+/// lives only under `/failures/<id>`.
+#[test]
+fn the_index_the_listing_and_the_retired_bare_id_route_all_answer_correctly() {
+    use std::io::Read;
+    let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
+    let port = listener.local_addr().expect("its address").port();
+    let store = sandbox_store();
+    store
+        .drain_deadlettered_legs()
+        .expect("an empty write primes the schema");
+    std::thread::spawn(move || serve_on_within(listener, &store, REQUEST_TIMEOUT));
+
+    let get = |path: &str| -> String {
+        let mut client = std::net::TcpStream::connect(("127.0.0.1", port)).expect("a connection");
+        client
+            .write_all(format!("GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n").as_bytes())
+            .expect("the request");
+        let mut answered = String::new();
+        client.read_to_string(&mut answered).expect("the response");
+        answered
+    };
+
+    let index = get("/");
+    assert!(index.starts_with("HTTP/1.1 200 OK\r\n"), "{index}");
+    assert!(index.contains(">none<"), "{index}");
+    assert!(index.contains("href=\"/failures\">Failures</a>"), "{index}");
+
+    let listing = get("/failures");
+    assert!(listing.starts_with("HTTP/1.1 200 OK\r\n"), "{listing}");
+    assert!(
+        listing.contains("Nothing is failing to deliver."),
+        "{listing}"
+    );
+
+    let retired = get("/47");
+    assert!(
+        retired.starts_with("HTTP/1.1 404 Not Found\r\n"),
+        "{retired}"
+    );
+}
+
 /// A CLIENT THAT NEVER SENDS A LINE MUST NOT WEDGE THE LOOP. The server is
 /// single threaded, so without a read timeout the first, idle connection would
 /// block `answer` forever and every request behind it would hang too.
@@ -186,8 +236,8 @@ fn a_standing_bind_refusal_is_said_once_and_then_every_ten_minutes() {
     );
 }
 
-/// An empty ledger, an unreadable one, and an id nothing names: the three
-/// answers `listing` and `one` give when there is nothing to lay out, each
+/// An empty ledger, an unreadable one, and an id nothing names: the answers
+/// `index`, `listing` and `one` give when there is nothing to lay out, each
 /// the exact sentence the terminal prints for the same case.
 #[test]
 fn empty_unreadable_and_unknown_answer_with_the_terminals_own_sentences() {
@@ -199,6 +249,7 @@ fn empty_unreadable_and_unknown_answer_with_the_terminals_own_sentences() {
     empty
         .drain_deadlettered_legs()
         .expect("an empty write primes the schema");
+    assert!(index(&empty, 0).contains(">none<"));
     assert!(listing(&empty, 0).contains("Nothing is failing to deliver."));
     assert!(one(&empty, 404, 0).contains("pns: no failure 404"));
 
@@ -217,16 +268,17 @@ fn empty_unreadable_and_unknown_answer_with_the_terminals_own_sentences() {
     std::fs::create_dir_all(&broken).expect("the scratch directory");
     std::fs::write(broken.join("pns.db"), b"not a sqlite file").expect("the garbage file");
     let unreadable = SqliteStore::new(broken);
+    assert!(index(&unreadable, 0).contains("pns: the delivery ledger could not be read"));
     assert!(listing(&unreadable, 0).contains("pns: the delivery ledger could not be read"));
     assert!(one(&unreadable, 1, 0).contains("pns: the delivery ledger could not be read"));
 }
 
-/// The 404 body names both routes this page serves, escaped the way every
-/// sentence inside the shell's `<pre>` is.
+/// The 404 body names all three routes this page serves, escaped the way
+/// every sentence inside the shell's `<pre>` is.
 #[test]
-fn the_404_names_the_two_routes_this_page_serves() {
+fn the_404_names_the_three_routes_this_page_serves() {
     assert!(
-        not_found().contains("pns: this page serves / and /&lt;id&gt;"),
+        not_found().contains("pns: this page serves /, /failures and /failures/&lt;id&gt;"),
         "{}",
         not_found()
     );

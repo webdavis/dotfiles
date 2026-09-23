@@ -13,16 +13,19 @@
 //! would be a second formatter free to drift from the one an operator reads
 //! at their desk, and the two would then disagree about the same failure.
 //!
-//! IT IS READ-ONLY AND HAS NO ROUTES BUT TWO. `/` is the listing and `/<id>` is
-//! one record; everything else is a 404. There is no acknowledgement, no delete
-//! and no query string, because a page reachable from a phone over a tunnel is
-//! not where an irreversible action belongs.
+//! IT IS READ-ONLY AND HAS NO ROUTES BUT THREE. `/` is a small site index,
+//! `/failures` is the listing and `/failures/<id>` is one record; everything
+//! else, including the old bare `/<id>`, is a 404. There is no
+//! acknowledgement, no delete and no query string, because a page reachable
+//! from a phone over a tunnel is not where an irreversible action belongs.
 
 use pns_adapters::SqliteStore;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 
-/// How many rows the page lists, matching the terminal view's own limit.
+/// How many rows the listing shows and the index counts, matching the
+/// terminal view's own limit: the index's live count is capped the same way
+/// the listing it links to is, rather than a second, unbounded query.
 const LISTING_LIMIT: u32 = 20;
 
 /// How long the child waits before trying a taken port again. See [`bind`].
@@ -132,6 +135,7 @@ fn answer(
     BufReader::new(stream.try_clone()?).read_line(&mut line)?;
     let now = pns_adapters::now_secs().unwrap_or(0);
     let response = match target(&line) {
+        Some(Target::Index) => ok(&index(store, now)),
         Some(Target::Listing) => ok(&listing(store, now)),
         Some(Target::One(id)) => ok(&one(store, id, now)),
         None => not_found(),
@@ -142,6 +146,7 @@ fn answer(
 /// What the request line asks for, or `None` for anything this does not serve.
 #[derive(Debug, PartialEq, Eq)]
 enum Target {
+    Index,
     Listing,
     One(u64),
 }
@@ -149,16 +154,30 @@ enum Target {
 /// The request line, parsed.
 ///
 /// GET ONLY, and no query string. A method this does not serve and a path it
-/// does not know are the same answer, because a page with two routes has nothing
-/// to say about either.
+/// does not know are the same answer, because a page with three routes has
+/// nothing to say about a fourth. The bare `/<id>` this page used to serve is
+/// deliberately absent: an id now lives under `/failures/<id>` only.
 fn target(line: &str) -> Option<Target> {
     let mut words = line.split_whitespace();
     if words.next()? != "GET" {
         return None;
     }
     match words.next()?.strip_prefix('/')? {
-        "" => Some(Target::Listing),
-        rest => rest.parse::<u64>().ok().map(Target::One),
+        "" => Some(Target::Index),
+        "failures" => Some(Target::Listing),
+        path => path
+            .strip_prefix("failures/")?
+            .parse::<u64>()
+            .ok()
+            .map(Target::One),
+    }
+}
+
+/// `/`: the site index, with the live count of what `/failures` would show.
+fn index(store: &SqliteStore, now: u64) -> String {
+    match store.failing_legs(LISTING_LIMIT) {
+        Err(_) => html::sentence_page("pns: the delivery ledger could not be read"),
+        Ok(failures) => html::index_page(failures.len(), now),
     }
 }
 
@@ -208,7 +227,7 @@ fn ok(body: &str) -> String {
 fn not_found() -> String {
     response(
         "404 Not Found",
-        html::sentence_page("pns: this page serves / and /<id>"),
+        html::sentence_page("pns: this page serves /, /failures and /failures/<id>"),
     )
 }
 
