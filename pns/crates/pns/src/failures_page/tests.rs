@@ -41,7 +41,7 @@ fn only_get_is_served() {
 /// surface where producer text could become markup.
 #[test]
 fn producer_text_cannot_become_markup() {
-    let rendered = page("route: <script>alert(1)</script> & more\n");
+    let rendered = html::sentence_page("route: <script>alert(1)</script> & more");
     assert!(!rendered.contains("<script>"), "{rendered}");
     assert!(rendered.contains("&lt;script&gt;"), "{rendered}");
     assert!(rendered.contains("&amp; more"), "{rendered}");
@@ -51,17 +51,17 @@ fn producer_text_cannot_become_markup() {
 /// must not come back as `&amp;amp;`, which is the classic double-escape.
 #[test]
 fn an_ampersand_is_escaped_once() {
-    assert_eq!(escaped("a & b"), "a &amp; b");
-    assert_eq!(escaped("&lt;"), "&amp;lt;");
+    assert_eq!(html::escaped("a & b"), "a &amp; b");
+    assert_eq!(html::escaped("&lt;"), "&amp;lt;");
 }
 
-/// The record keeps its column alignment, which is the reason the full form is
-/// laid out in columns at all.
+/// A bare sentence still lands inside a `<pre>`, so it reads as fixed-width
+/// prose rather than being run into the shell's own markup.
 #[test]
-fn the_record_is_served_preformatted() {
-    let rendered = page("  status:  HTTP 404\n");
+fn a_sentence_is_served_preformatted() {
+    let rendered = html::sentence_page("pns: no failure 404");
     assert!(rendered.contains("<pre>"), "{rendered}");
-    assert!(rendered.contains("  status:  HTTP 404"), "{rendered}");
+    assert!(rendered.contains("pns: no failure 404"), "{rendered}");
 }
 
 /// `Content-Length` is what lets a phone's browser finish the response, and it
@@ -88,6 +88,26 @@ fn a_refusal_is_still_an_http_response() {
     assert!(refused.contains("Content-Type: text/html"), "{refused}");
 }
 
+/// A sandbox store of this test's own, never the operator's real ledger: a
+/// scratch path that does not end in the daemon's state suffix, so the
+/// diagnostic log it opens lands beside it rather than in a real `$HOME`.
+///
+/// CANONICALIZED, because SQLite's `SQLITE_OPEN_NOFOLLOW` refuses to open a
+/// database reached through a symlinked path component, and `/var` (which
+/// `std::env::temp_dir()` resolves under on macOS) is one.
+fn sandbox_store() -> SqliteStore {
+    let root = std::env::temp_dir()
+        .canonicalize()
+        .expect("the canonical temp directory");
+    SqliteStore::new(root.join(format!(
+        "pns-failures-page-test-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_nanos())
+    )))
+}
+
 /// THE SOCKET HALF, over a real connection on an OS-assigned port. Everything
 /// above tests a string; this is the only thing that proves a request is read
 /// off the wire and a response written back to it.
@@ -96,7 +116,8 @@ fn a_real_request_gets_a_real_response() {
     use std::io::Read;
     let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
     let port = listener.local_addr().expect("its address").port();
-    std::thread::spawn(move || serve_on(listener));
+    let store = sandbox_store();
+    std::thread::spawn(move || serve_on_within(listener, &store, REQUEST_TIMEOUT));
 
     let mut client = std::net::TcpStream::connect(("127.0.0.1", port)).expect("a connection");
     client
@@ -120,7 +141,10 @@ fn a_stalled_connection_does_not_block_the_next_request() {
     use std::io::Read;
     let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
     let port = listener.local_addr().expect("its address").port();
-    std::thread::spawn(move || serve_on_within(listener, std::time::Duration::from_millis(50)));
+    let store = sandbox_store();
+    std::thread::spawn(move || {
+        serve_on_within(listener, &store, std::time::Duration::from_millis(50))
+    });
 
     // CONNECTS FIRST AND SENDS NOTHING, so it is the connection the loop is
     // stuck answering when the second one arrives.
@@ -159,5 +183,51 @@ fn a_standing_bind_refusal_is_said_once_and_then_every_ten_minutes() {
     assert!(
         say_now(Some(first), first + RESAY_AFTER),
         "a refusal still standing ten minutes on is said again"
+    );
+}
+
+/// An empty ledger, an unreadable one, and an id nothing names: the three
+/// answers `listing` and `one` give when there is nothing to lay out, each
+/// the exact sentence the terminal prints for the same case.
+#[test]
+fn empty_unreadable_and_unknown_answer_with_the_terminals_own_sentences() {
+    let empty = sandbox_store();
+    // A store with no schema on disk yet reads the same as an unreadable one,
+    // so the empty case is primed with a write first, the way the daemon's
+    // first submission would have created the database before any listing
+    // ever ran against it.
+    empty
+        .drain_deadlettered_legs()
+        .expect("an empty write primes the schema");
+    assert!(listing(&empty, 0).contains("Nothing is failing to deliver."));
+    assert!(one(&empty, 404, 0).contains("pns: no failure 404"));
+
+    // A path that exists but is not a database: `read_only` fails to open it,
+    // which is what an unreadable ledger looks like from here.
+    let broken = std::env::temp_dir()
+        .canonicalize()
+        .expect("the canonical temp directory")
+        .join(format!(
+            "pns-failures-page-test-broken-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |since| since.as_nanos())
+        ));
+    std::fs::create_dir_all(&broken).expect("the scratch directory");
+    std::fs::write(broken.join("pns.db"), b"not a sqlite file").expect("the garbage file");
+    let unreadable = SqliteStore::new(broken);
+    assert!(listing(&unreadable, 0).contains("pns: the delivery ledger could not be read"));
+    assert!(one(&unreadable, 1, 0).contains("pns: the delivery ledger could not be read"));
+}
+
+/// The 404 body names both routes this page serves, escaped the way every
+/// sentence inside the shell's `<pre>` is.
+#[test]
+fn the_404_names_the_two_routes_this_page_serves() {
+    assert!(
+        not_found().contains("pns: this page serves / and /&lt;id&gt;"),
+        "{}",
+        not_found()
     );
 }
