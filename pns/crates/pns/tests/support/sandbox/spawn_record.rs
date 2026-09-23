@@ -26,9 +26,9 @@ impl SummarizerSpawn {
     }
 
     /// Every part of the stripped Codex home's isolation, rooted at `home`:
-    /// no session file, no writes, no shell, no connector, plugin or hook, no
-    /// goal, image read, sleep or web search, and code mode's `exec` failing
-    /// closed.
+    /// no session file, no writes, no shell, no shell snapshot, no connector,
+    /// plugin or hook, no goal, image read, sleep or web search, and code
+    /// mode's `exec` failing closed.
     pub fn assert_codex_isolated(&self, home: &str) {
         let argv = &self.argv;
         assert!(argv.contains(&"--ephemeral".to_string()), "{argv:?}");
@@ -45,6 +45,7 @@ impl SummarizerSpawn {
             "view_image",
             "sleep_tool",
             "code_mode_host",
+            "shell_snapshot",
         ] {
             assert!(self.passed("--disable", feature), "{feature}: {argv:?}");
         }
