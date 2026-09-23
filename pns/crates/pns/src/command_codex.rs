@@ -7,7 +7,8 @@
 use pns_adapters::CodexHooksInstall;
 
 pub(crate) const CODEX_USAGE: &str = "pns: usage: pns codex install-hooks; merges pns's four \
-hooks into ~/.codex/hooks.json and leaves every other handler alone";
+hooks into ~/.codex/hooks.json, removes moshi-hook's own Codex handlers and leaves every other \
+handler alone";
 
 pub(crate) fn codex_mode(verb: &str) -> i32 {
     match verb {
@@ -42,8 +43,8 @@ fn install_hooks() -> i32 {
         // so a run that changed something says so once.
         Ok(CodexHooksInstall::Changed) => {
             eprintln!(
-                "pns: added or changed Codex hooks in {}. Codex will IGNORE them until you review \
-and trust them: open Codex and run /hooks to approve.",
+                "pns: added or changed Codex hooks in {}. Codex may ignore changed hooks until you \
+review and trust them: open Codex and run /hooks to approve.",
                 pns_adapters::codex_hooks_path(&home).display()
             );
             0

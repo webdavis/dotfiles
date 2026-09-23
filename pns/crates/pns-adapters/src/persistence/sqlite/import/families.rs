@@ -7,12 +7,11 @@ pub(super) enum Family {
     Held,
     Muted,
 }
-pub(super) const FAMILIES: [Family; 14] = [
+pub(super) const FAMILIES: [Family; 13] = [
     Family::Ring(Ring::Decisions),
     Family::Ring(Ring::Journal),
     Family::Ring(Ring::Activity),
     Family::Ring(Ring::Presence),
-    Family::Ring(Ring::PolicyAudit),
     Family::Return,
     Family::Scalar(Scalar::Quiet),
     Family::Scalar(Scalar::Staleness),

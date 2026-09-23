@@ -7,7 +7,6 @@ fn observation_is_silent_while_progress_and_legacy_notifications_keep_sound() {
         "progress",
         "model-switch",
         "quota",
-        "config-change",
         "blocked",
         "done",
     ] {

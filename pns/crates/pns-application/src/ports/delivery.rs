@@ -43,9 +43,9 @@ pub trait NotificationDestination: Send + Sync {
 /// denial. `None` from `forward` is a spawn that never began. The adapter owns
 /// the child, its deadline and cleanup; completion consumes that owned child.
 ///
-/// Checked against `gate_mode` and `blocking_event` in `src/moshi_submission.rs`,
-/// including the submission semantics documented by `moshi_decision` and
-/// `answer_within`. Statements: S074, S076.
+/// Checked against `blocking_event` in `src/moshi_submission.rs`, including the
+/// submission semantics documented by `moshi_decision` and `answer_within`.
+/// Statements: S074, S076.
 pub trait ApprovalForwarder {
     type Forwarded;
 

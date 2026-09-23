@@ -22,7 +22,7 @@ process ownership and cleanup, and which outputs or exit codes are compatibility
 | `glossary.md`                          | The vocabulary, verified against `src/`, including the words in circulation that the code does NOT use |
 | `producer-submission.md`               | Argv to attempts made, and the records the first delivery writes                                       |
 | `legacy-producer-flags.md`             | The frozen command-line surface, flag by flag                                                          |
-| `hook-compatibility.md`                | The eleven harness hook events and their stdin, stdout and exit-code contracts                         |
+| `hook-compatibility.md`                | The ten harness hook events and their stdin, stdout and exit-code contracts                            |
 | `blocking-approval.md`                 | The moshi gate, the bounded wait, and exit-code translation                                            |
 | `routing-and-delivery.md`              | Legs, destinations, executable channels, and delivery outcomes                                         |
 | `presence-and-visibility.md`           | The probes, their fail directions, and how a delivery plan is reached                                  |
@@ -56,7 +56,7 @@ history, rather than restating the measurement at every site.
 | `0005` | `doctor` and a bare `pulse` change the real world, so no test may run them                         |
 | `0006` | A word that names no command is refused, even though the producer parser is lenient                |
 | `0007` | Passing both delivery-scope flags is refused at the legacy adapter                                 |
-| `0008` | `pns <harness>-hook` is a compatibility spelling for a field that holds one pathname               |
+| `0008` | `pns <harness>-hook` was a compatibility spelling for a field that holds one pathname (superseded) |
 | `0009` | A compiled-in destination beats an executable of the same name, unless the directory is overridden |
 | `0010` | A notification never fails the work it reports on                                                  |
 | `0011` | The shipped configuration template is pinned from outside the crate, and that pin has to leave     |

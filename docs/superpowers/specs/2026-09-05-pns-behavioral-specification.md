@@ -214,13 +214,11 @@ S021. `--pane <id>` failing the safety allowlist is replaced by the empty string
 
 ### 1.3 The other entry points, one line each
 
-S022. `pns gate <harness>-hook` and the bare `pns <harness>-hook` reach one `gate_mode`, which exits 0
-      unless the payload was forwarded, and then returns moshi's own exit code.
-      Source: `src/main.rs:134-143 main`, `src/main.rs:235-247 gate_mode`.
-      Pin: `the_documented_gate_subcommand_reaches_the_same_gate_as_the_bare_word`
-           at tests/hooks.rs:2374
-      also `a_zero_decision_passes_through_as_zero_and_is_not_a_default`
-           at tests/hooks.rs:2350
+S022. RETIRED 2026-09-22 (PR #917): `pns gate <harness>-hook` and the bare `pns <harness>-hook` reached
+      one `gate_mode`. Both spellings and `gate_mode` are deleted; a harness word now takes the same
+      usage refusal as any other unknown word (see decision 0008, superseded).
+      Source: deleted; was `src/main.rs:134-143 main`, `src/main.rs:235-247 gate_mode`.
+      Pin: RETIRED with the gate; both pinning tests are deleted.
 
 S023. `pns gate <bad word>` exits 0 silently with nothing handed to moshi and no event raised; a bare
       `pns <bad word>` falls through to the typo refusal and exits 2.
@@ -845,31 +843,27 @@ S078. The submit deadline is `PNS_MOSHI_SUBMIT_DEADLINE_MS` (a literal 0 falls t
       also `a_submission_deadline_that_is_not_a_count_of_seconds_is_refused_by_name`
            at src/config.rs:3046
 
-S079. Exactly one submission per prompt, however the wait ends, on both entry points; no non-blocking
-      event ever spawns one.
-      Source: `src/main.rs:2325-2369 blocking_event`, `src/main.rs:235-247 gate_mode`.
+S079. Exactly one submission per prompt, however the wait ends; no non-blocking event ever spawns one.
+      Source: `src/main.rs:2325-2369 blocking_event`.
       Pin: `one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`
            at tests/hooks.rs:607
-      also `the_gate_submits_one_prompt_exactly_once`
-           at tests/hooks.rs:2503
 
 S080. A forwarded approval is recorded with `skip_phone=yes` and is never journaled as missed.
       Source: `src/main.rs:2917-3223 run_event`, `src/missed_notifications.rs:79-83 was_missed`.
       Pin: `an_approval_that_was_submitted_is_recorded_and_is_never_journaled_as_missed`
            at tests/hooks.rs:1161
 
-S081. The gate builds a throwaway probe set, runs no delivery plan, writes no marker and raises no
-      event; the over-cap payload refusal holds on the gate too.
-      Source: `src/main.rs:235-247 gate_mode`.
-      Pin: `the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does`
-           at tests/hooks.rs:2475
-      also `at_the_desk_the_gate_submits_nothing_and_exits_zero`
-           at tests/hooks.rs:2437
+S081. RETIRED 2026-09-22 (PR #917): the gate built a throwaway probe set, ran no delivery plan, wrote no
+      marker and raised no event; the over-cap payload refusal held on the gate too. `gate_mode` is
+      deleted (see decision 0008, superseded).
+      Source: deleted; was `src/main.rs:235-247 gate_mode`.
+      Pin: RETIRED with the gate; both pinning tests are deleted.
 
-S082. A forwarded gate preserves existing marker bytes and creates no state-directory entry.
-      What Codex does with a `PermissionRequest` hook's exit code remains unmeasured.
-      Source: `src/moshi_submission.rs:gate_mode`.
-      Pin: `a_forwarded_gate_leaves_the_state_markers_untouched` in `tests/hooks/gate.rs`.
+S082. RETIRED 2026-09-22 (PR #917): a forwarded gate preserved existing marker bytes and created no
+      state-directory entry. `gate_mode` is deleted (see decision 0008, superseded). What Codex does
+      with a `PermissionRequest` hook's exit code remains unmeasured.
+      Source: deleted; was `src/moshi_submission.rs:gate_mode`.
+      Pin: RETIRED with the gate; the pinning test is deleted.
       UNPINNED: Codex's interpretation of the exit code, recorded in `docs/specs/blocking-approval.md`.
 
 S083. The blocked hook's card is state `blocked`, project from the repository the payload's `cwd`

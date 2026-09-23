@@ -63,9 +63,6 @@ fn take_tool_wide_flags(argv: &[String]) -> (Vec<String>, bool) {
 /// producer parse recognizes it rather than refusing a flag pns takes: the
 /// event path is handed the original argv, colour flag included.
 pub(crate) const NO_COLOR_FLAG: &str = "--no-color";
-/// What a harness word moshi's extension spells ends in. SHAPE ONLY: whether
-/// the word itself is acceptable is `gate_mode`'s to say.
-const HARNESS_HOOK_SUFFIX: &str = "-hook";
 /// What a producer gets when its own page did not reach the durable log.
 ///
 /// ONE, NOT TWO. Two is what this mode already returns for argv it will not
@@ -265,17 +262,6 @@ pub(crate) fn run() {
     // file, and delivers nothing.
     if first == "setup" {
         std::process::exit(setup_mode());
-    }
-    // The gate moshi's OWN extension calls, and the ONLY spelling of it. pi
-    // and omp spawn `helperBinary pi-hook`, and that field holds one PATHNAME
-    // with no room for a subcommand, so the binary answers the bare harness
-    // word itself and `pns gate <word>` is refused like any other typo.
-    //
-    // EVERY HOOK-SHAPED WORD GOES TO THE GATE, which is the one place that
-    // judges whether the word is one it will vouch for. A second copy of that
-    // test here is how a refusal became an exit 0 that forwarded nothing.
-    if first.ends_with(HARNESS_HOOK_SUFFIX) {
-        std::process::exit(gate_mode(&first));
     }
     if first == "hook" {
         std::process::exit(hook_mode(&second_argument(&flagless)));

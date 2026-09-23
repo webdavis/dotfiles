@@ -1,23 +1,5 @@
 use super::RequestApproval;
 
-#[test]
-fn a_gate_forwards_the_exact_prompt_and_only_waits_for_its_answer() {
-    let recorder = Recorder::new(Some(Forwarded(19)), 23);
-    let code = ports(&recorder).forward_only("pi-hook", "{\"ask\":\"$(untouched)\"}\n");
-    assert_eq!(
-        recorder.steps(),
-        ["forward(pi-hook,{\"ask\":\"$(untouched)\"}\n)", "answer"]
-    );
-    assert_eq!(code, 23);
-}
-
-#[test]
-fn a_gate_whose_forward_never_started_has_no_answer_or_other_effect() {
-    let recorder = Recorder::new(None, 23);
-    let code = ports(&recorder).forward_only("omp-hook", "{}\n");
-    assert_eq!(recorder.steps(), ["forward(omp-hook,{}\n)"]);
-    assert_eq!(code, 0);
-}
 use crate::ports::delivery::ApprovalForwarder;
 use crate::ports::notification::{PhoneSuppression, RaiseNotification};
 use crate::ports::remind::RemindSchedule;
