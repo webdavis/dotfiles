@@ -9,9 +9,7 @@ use crate::*;
 /// `model_switch_detail` has a reason a format character must not survive at
 /// all rather than merely render inertly. It compares two names for equality,
 /// which a reordering character could defeat silently (a name that reads the
-/// same but compares unequal, or the reverse). Widening `flattened` itself for
-/// one caller would let every other field silently start allowing format
-/// characters through too.
+/// same but compares unequal, or the reverse).
 fn rendered_plainly(text: &str) -> String {
     flattened(text)
         .chars()
