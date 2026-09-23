@@ -97,8 +97,6 @@ pub use persistence::{
     LIGHTS_QUIET, LIGHTS_QUIET_SAID, advance_streak, muted_state, publish_muted,
 };
 
-pub use persistence::record_policy_settings_change;
-
 mod hue;
 pub use hue::{
     BRIDGE_DEADLINE, Bridge, DEFAULT_ROOMS, Enrollment, HuePulse, HueSettings, Mismatch,

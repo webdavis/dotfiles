@@ -2,7 +2,10 @@
 //!
 //! HERDR OWNS ITS OWN ENTRY and regenerates it on update, so the merge adds
 //! and rewrites only the handlers pns itself generated and copies every other
-//! handler through untouched.
+//! handler through untouched. moshi-hook's own Codex handlers are the one
+//! exception: they are removed, so Codex's hook events reach moshi only
+//! through pns. moshi's daemon also follows Codex's session log on its own,
+//! outside this merge.
 //!
 //! A FILE THIS CANNOT READ IS REFUSED RATHER THAN REPLACED: an operator's
 //! broken-but-recoverable hooks file is worth more than this tool's guess at
@@ -11,6 +14,7 @@
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 
+mod moshi;
 #[cfg(test)]
 mod tests;
 
@@ -81,7 +85,8 @@ pub fn install_codex_hooks(home: &str, binary: &str) -> Result<CodexHooksInstall
     })
 }
 
-/// pns's four events, merged into the document the caller read.
+/// pns's four events, merged into the document the caller read, with
+/// moshi-hook's Codex handlers removed.
 ///
 /// PURE, so the whole merge is exercised without a filesystem.
 pub fn merge_codex_hooks(base: &Value, home: &str, binary: &str) -> Result<Value, String> {
@@ -90,6 +95,7 @@ pub fn merge_codex_hooks(base: &Value, home: &str, binary: &str) -> Result<Value
         .get_mut("hooks")
         .and_then(Value::as_object_mut)
         .ok_or_else(|| "pns: the Codex hooks document has no object \"hooks\" field".to_string())?;
+    moshi::strip_moshi_handlers(hooks);
     for owned in OWNED {
         let command = current_command(binary, owned);
         let entries = merge_event(

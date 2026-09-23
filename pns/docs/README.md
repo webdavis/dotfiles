@@ -22,7 +22,7 @@ process ownership and cleanup, and which outputs or exit codes are compatibility
 | `glossary.md`                          | The vocabulary, verified against `src/`, including the words in circulation that the code does NOT use |
 | `producer-submission.md`               | Argv to attempts made, and the records the first delivery writes                                       |
 | `legacy-producer-flags.md`             | The frozen command-line surface, flag by flag                                                          |
-| `hook-compatibility.md`                | The eleven harness hook events and their stdin, stdout and exit-code contracts                         |
+| `hook-compatibility.md`                | The ten harness hook events and their stdin, stdout and exit-code contracts                            |
 | `blocking-approval.md`                 | The moshi gate, the bounded wait, and exit-code translation                                            |
 | `routing-and-delivery.md`              | Legs, destinations, executable channels, and delivery outcomes                                         |
 | `presence-and-visibility.md`           | The probes, their fail directions, and how a delivery plan is reached                                  |

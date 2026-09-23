@@ -593,13 +593,16 @@ apply time from the workspace at `pns/` in this checkout and installed here beca
 are what run it. Its four destinations (phone, Discord, banner, lights) are compiled-in plugins the
 `~/.config/pns/config.toml` file selects by name, so adding one is a registration rather than a file
 dropped in a directory. The HOOKS are the engine too:
-`pns hook prompt|stop|stop-failure|blocked|asked|denied|waiting|resolved|model-switch|quota|config-change`
-reads the harness payload on stdin and runs the one event path. pi and omp reach moshi directly: moshi's
-generated extensions write to its socket themselves, so no pns command stands between them and moshi, and
-a bare harness word such as `pns pi-hook` is refused with exit 2 like any other typo. pns's own
+`pns hook prompt|stop|stop-failure|blocked|asked|denied|waiting|resolved|model-switch|quota` reads the
+harness payload on stdin and runs the one event path. pi and omp reach moshi directly: moshi's generated
+extensions write to its socket themselves, so no pns command stands between them and moshi, and a bare
+harness word such as `pns pi-hook` is refused with exit 2 like any other typo. pns's own
 `pns-reminders.ts` extensions beside them call `pns hook` for reminders. `pns codex install-hooks` merges
-pns's four Codex hooks into `~/.codex/hooks.json`, and `run_after_72` is what runs it; pns ships no bash
-at all.
+pns's four Codex hooks into `~/.codex/hooks.json` and removes any handler that runs
+`moshi-hook codex-hook`, so Codex's HOOK EVENTS reach moshi only through pns's presence gate, from the
+next apply after the phone app reinstalls its integrations (`run_after_72` is what runs it). moshi's
+daemon also follows Codex's session log on its own, outside pns and outside this merge, and pns ships no
+bash at all.
 
 **The shipped config template is a GENERATED FILE.** `dot_config/pns/private_config.toml.tmpl` is
 `render`'s own output over the committed `dot_config/pns/config-values.toml`, produced by
