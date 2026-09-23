@@ -322,3 +322,74 @@ fn a_code_with_no_table_row_still_says_which_way_it_will_be_treated() {
     assert!(full(&temporary).contains("this time"));
     assert!(full(&temporary).contains("nothing to do, pns will retry"));
 }
+/// GOLDEN, pinned at the parent commit: the `fields()` extraction must not
+/// move a single byte of what the full form renders.
+#[test]
+fn the_full_form_is_unchanged_by_the_fields_extraction() {
+    assert_eq!(
+        full(&hermes_404()),
+        "pns: delivery failed\n\
+         \x20 status:         HTTP 404 (Not Found)\n\
+         \x20 meaning:        the hermes gateway has no route named testpath\n\
+         \x20 webhook route:  testpath\n\
+         \x20 sent by:        posture heartbeat\n\
+         \x20 failed command: pns --producer posture --channel testpath\n\
+         \x20 fix:            run `pns doctor` to see which routes the gateway accepts, then add \"testpath\" to ~/.hermes/config.yaml\n"
+    );
+}
+
+/// The record page reads its values from this same list, so its fields
+/// cannot drift from what `full` prints for the identical failure.
+#[test]
+fn fields_carries_the_full_forms_labels_and_values_in_order() {
+    let failure = hermes_404();
+    let fields = render::fields(&failure);
+    let labels: Vec<&str> = fields.iter().map(|(label, _)| *label).collect();
+    assert_eq!(
+        labels,
+        [
+            "status",
+            "meaning",
+            "webhook route",
+            "sent by",
+            "failed command",
+            "fix"
+        ]
+    );
+    assert_eq!(fields[0].1, meaning::status(failure.outcome));
+    assert_eq!(fields[3].1, failure.agent);
+    assert_eq!(fields[4].1, failure.command);
+}
+
+/// The failure page's headline, one per outcome: a status names its code, a
+/// silence names the destination, and a malformed URL names itself.
+#[test]
+fn headline_names_the_destination_or_the_status_word() {
+    assert_eq!(
+        meaning::headline(TransportOutcome::NoResponse, "phone"),
+        "Phone didn’t respond"
+    );
+    assert_eq!(
+        meaning::headline(TransportOutcome::Status(500), "hermes"),
+        "Hermes answered HTTP 500"
+    );
+    assert_eq!(
+        meaning::headline(TransportOutcome::NoStatus, "phone"),
+        "Bad URL"
+    );
+}
+
+/// `headline_names_destination` agrees with `headline`'s own two branches
+/// that embed the destination, and its one that does not.
+#[test]
+fn headline_names_destination_agrees_with_headlines_own_branches() {
+    assert!(meaning::headline_names_destination(
+        TransportOutcome::NoResponse
+    ));
+    assert!(meaning::headline_names_destination(
+        TransportOutcome::Status(500)
+    ));
+    assert!(!meaning::headline_names_destination(
+        TransportOutcome::NoStatus
+    ));
+}

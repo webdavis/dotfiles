@@ -89,21 +89,18 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     if failures.is_empty() {
         return "pns: nothing is failing to deliver\n".to_string();
     }
+    let rows = rows(failures);
     // DERIVED, not a fixed guess: a fixed width is filled by whatever id
     // outgrows it, and ledger ids only grow (they are ledger_legs rowids).
-    let id_width = failures
+    let id_width = rows
         .iter()
-        .map(|f| f.id.to_string().len())
+        .map(|row| row.id.to_string().len())
         .max()
         .unwrap_or(2)
         .max(2)
         + 1;
     let mut out = String::new();
-    out.push_str(&style::heading(
-        paint,
-        "Not arriving",
-        &plural(failures.len()),
-    ));
+    out.push_str(&style::heading(paint, "Not arriving", &plural(rows.len())));
     out.push('\n');
     // THE COLUMN HEADER IS FAINT, not a mark: it names the columns rather than
     // reporting anything, and a row's own glyph is what carries the verdict.
@@ -112,7 +109,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
         "id", "when", "status", "route"
     )));
     out.push('\n');
-    for failure in failures {
+    for row in &rows {
         out.push_str(&style::row(
             paint,
             Tone::Bad,
@@ -120,11 +117,7 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
             2,
             &format!(
                 "{:<id_width$}{:<18}{:<14}{:<11}{}",
-                failure.id,
-                when(failure.failed_at),
-                short_status(failure),
-                failure.route,
-                failure.agent
+                row.id, row.when, row.status, row.route, row.agent
             ),
         ));
         out.push('\n');
@@ -133,6 +126,45 @@ pub(crate) fn listing(paint: Paint, failures: &[StoredFailure]) -> String {
     out.push_str(&paint.faint("run `pns failures <id>` for one in full"));
     out.push('\n');
     out
+}
+
+/// One listing row, in the shape both the terminal's columns and the failure
+/// page's timeline are built from.
+///
+/// EVERY VALUE HERE IS THE TERMINAL'S OWN: `when` and `status` are
+/// [`when`] and [`short_status`], the same functions `listing` calls, so the
+/// page can never show a clock or a status word the terminal would not have
+/// printed for the identical leg.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ListingRow {
+    pub(crate) id: u64,
+    pub(crate) when: String,
+    pub(crate) status: String,
+    pub(crate) route: String,
+    pub(crate) agent: String,
+    pub(crate) destination: String,
+    pub(crate) retries: u64,
+    pub(crate) gave_up: bool,
+}
+
+/// `failures`, laid out as rows. `listing` builds its columns from this same
+/// list; the failure page groups it into bursts and derives day headings,
+/// gutter times, counts and spans from these rows plus `failures` itself
+/// (`when` is cut to the minute, and a burst's span needs the second).
+pub(crate) fn rows(failures: &[StoredFailure]) -> Vec<ListingRow> {
+    failures
+        .iter()
+        .map(|failure| ListingRow {
+            id: failure.id,
+            when: when(failure.failed_at),
+            status: short_status(failure),
+            route: failure.route.clone(),
+            agent: failure.agent.clone(),
+            destination: failure.destination.clone(),
+            retries: failure.retries,
+            gave_up: failure.deadlettered,
+        })
+        .collect()
 }
 
 /// "3 legs" or "1 leg", for the heading's blurb.
@@ -285,11 +317,7 @@ fn address(
 /// The five-column listing's status, which is the full form's `status` without
 /// the registered name: the name is what teaches, and a listing is what scans.
 fn short_status(failure: &StoredFailure) -> String {
-    match failure.outcome {
-        pns_domain::retry::TransportOutcome::Status(code) => format!("HTTP {code}"),
-        pns_domain::retry::TransportOutcome::NoResponse => "no response".to_string(),
-        pns_domain::retry::TransportOutcome::NoStatus => "bad URL".to_string(),
-    }
+    failure.outcome.short_word()
 }
 
 /// The epoch as the operator reads a clock, to the minute.

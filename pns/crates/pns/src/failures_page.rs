@@ -7,21 +7,25 @@
 //! unauthenticated page carrying route names and producer commands on the
 //! network.
 //!
-//! IT SERVES WHAT THE TERMINAL PRINTS, character for character, inside a `<pre>`
-//! block. A page that reformatted the record would be a second formatter free to
-//! drift from the one an operator reads at their desk, and the two would then
-//! disagree about the same failure.
+//! EVERY FIELD VALUE IS THE TERMINAL'S OWN, produced by the same functions
+//! `pns failures` prints from and laid out here for a phone rather than
+//! reformatted. A page that computed its own status word or its own clock
+//! would be a second formatter free to drift from the one an operator reads
+//! at their desk, and the two would then disagree about the same failure.
 //!
-//! IT IS READ-ONLY AND HAS NO ROUTES BUT TWO. `/` is the listing and `/<id>` is
-//! one record; everything else is a 404. There is no acknowledgement, no delete
-//! and no query string, because a page reachable from a phone over a tunnel is
-//! not where an irreversible action belongs.
+//! IT IS READ-ONLY AND HAS NO ROUTES BUT THREE. `/` is a small site index,
+//! `/failures` is the listing and `/failures/<id>` is one record; everything
+//! else, including the old bare `/<id>`, is a 404. There is no
+//! acknowledgement, no delete and no query string, because a page reachable
+//! from a phone over a tunnel is not where an irreversible action belongs.
 
 use pns_adapters::SqliteStore;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 
-/// How many rows the page lists, matching the terminal view's own limit.
+/// How many rows the listing shows and the index counts, matching the
+/// terminal view's own limit: the index's live count is capped the same way
+/// the listing it links to is, rather than a second, unbounded query.
 const LISTING_LIMIT: u32 = 20;
 
 /// How long the child waits before trying a taken port again. See [`bind`].
@@ -57,18 +61,24 @@ pub(crate) fn serve(port: u16) {
 /// fixed number, and the retry loop above would turn that race into a
 /// thirty-second wait rather than a failure.
 fn serve_on(listener: TcpListener) {
-    serve_on_within(listener, REQUEST_TIMEOUT);
+    let store = SqliteStore::for_records(pns_adapters::state_dir());
+    serve_on_within(listener, &store, REQUEST_TIMEOUT);
 }
 
-/// `serve_on`, with the request timeout named rather than the constant, so a
-/// test can shrink it and prove the loop moves on inside milliseconds rather
-/// than waiting out the production value.
-fn serve_on_within(listener: TcpListener, request_timeout: std::time::Duration) {
-    let store = SqliteStore::for_records(pns_adapters::state_dir());
+/// `serve_on`, with the store and the request timeout named rather than
+/// resolved from the real state dir and a constant. A test hands this a
+/// store of its own over a scratch path, never the operator's real ledger,
+/// and can shrink the timeout to prove the loop moves on inside milliseconds
+/// rather than waiting out the production value.
+fn serve_on_within(
+    listener: TcpListener,
+    store: &SqliteStore,
+    request_timeout: std::time::Duration,
+) {
     // `flatten` DROPS THE FAILED ACCEPTS, which is the point: a phone that hung
     // up mid-handshake must not take the page down for the next reader.
     for stream in listener.incoming().flatten() {
-        let _ = answer(&store, stream, request_timeout);
+        let _ = answer(store, stream, request_timeout);
     }
 }
 
@@ -123,9 +133,11 @@ fn answer(
     stream.set_read_timeout(Some(request_timeout))?;
     let mut line = String::new();
     BufReader::new(stream.try_clone()?).read_line(&mut line)?;
+    let now = pns_adapters::now_secs().unwrap_or(0);
     let response = match target(&line) {
-        Some(Target::Listing) => ok(&listing(store)),
-        Some(Target::One(id)) => ok(&one(store, id)),
+        Some(Target::Index) => ok(&index(store, now)),
+        Some(Target::Listing) => ok(&listing(store, now)),
+        Some(Target::One(id)) => ok(&one(store, id, now)),
         None => not_found(),
     };
     stream.write_all(response.as_bytes())
@@ -134,6 +146,7 @@ fn answer(
 /// What the request line asks for, or `None` for anything this does not serve.
 #[derive(Debug, PartialEq, Eq)]
 enum Target {
+    Index,
     Listing,
     One(u64),
 }
@@ -141,63 +154,72 @@ enum Target {
 /// The request line, parsed.
 ///
 /// GET ONLY, and no query string. A method this does not serve and a path it
-/// does not know are the same answer, because a page with two routes has nothing
-/// to say about either.
+/// does not know are the same answer, because a page with three routes has
+/// nothing to say about a fourth. The bare `/<id>` this page used to serve is
+/// deliberately absent: an id now lives under `/failures/<id>` only.
 fn target(line: &str) -> Option<Target> {
     let mut words = line.split_whitespace();
     if words.next()? != "GET" {
         return None;
     }
     match words.next()?.strip_prefix('/')? {
-        "" => Some(Target::Listing),
-        rest => rest.parse::<u64>().ok().map(Target::One),
+        "" => Some(Target::Index),
+        "failures" => Some(Target::Listing),
+        path => path
+            .strip_prefix("failures/")?
+            .parse::<u64>()
+            .ok()
+            .map(Target::One),
     }
 }
 
-fn listing(store: &SqliteStore) -> String {
+/// `/`: the site index, with the live count of what `/failures` would show.
+fn index(store: &SqliteStore, now: u64) -> String {
     match store.failing_legs(LISTING_LIMIT) {
-        Err(_) => "pns: the delivery ledger could not be read\n".to_string(),
-        // PLAIN, ALWAYS. This lands in a browser's `<pre>`, where an escape
-        // sequence is literal line noise rather than colour.
-        Ok(failures) => crate::command_failures::listing(crate::style::Paint::Plain, &failures),
+        Err(_) => html::sentence_page("pns: the delivery ledger could not be read"),
+        Ok(failures) => html::index_page(failures.len(), now),
     }
 }
 
-fn one(store: &SqliteStore, id: u64) -> String {
-    match store.failing_leg(id) {
-        Err(_) => "pns: the delivery ledger could not be read\n".to_string(),
-        Ok(None) => format!("pns: no failure {id}\n"),
-        Ok(Some(stored)) => {
-            let install =
-                pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
-            pns_domain::failure::full(&crate::command_failures::compose(
-                &stored,
-                install.moshi_url.as_deref(),
-                install.hermes_url.as_deref(),
-            ))
+fn listing(store: &SqliteStore, now: u64) -> String {
+    match store.failing_legs(LISTING_LIMIT) {
+        Err(_) => html::sentence_page("pns: the delivery ledger could not be read"),
+        Ok(failures) => {
+            // ONE connection for every retrying leg on the page, not one per
+            // row: `retry_facts_many` reads them all at once.
+            let ids: Vec<u64> = failures.iter().map(|failure| failure.id).collect();
+            let facts = store.retry_facts_many(&ids);
+            html::listing_page(
+                &failures,
+                &|id| match &facts {
+                    Ok(map) => Ok(map.get(&id).copied()),
+                    Err(_) => Err(()),
+                },
+                now,
+            )
         }
     }
 }
 
-/// The record inside a page.
-///
-/// EVERYTHING IS ESCAPED. A route name and a producer command are producer text,
-/// and a page is the one surface where producer text could otherwise become
-/// markup. `<pre>` is what preserves the full form's column alignment, which is
-/// the reason the record is laid out in columns at all.
-fn page(body: &str) -> String {
-    format!(
-        "<!doctype html>\n<title>pns failures</title>\n\
-         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
-         <pre>{}</pre>\n",
-        escaped(body)
-    )
-}
-
-fn escaped(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+fn one(store: &SqliteStore, id: u64, now: u64) -> String {
+    match store.failing_leg(id) {
+        Err(_) => html::sentence_page("pns: the delivery ledger could not be read"),
+        Ok(None) => html::sentence_page(&format!(
+            "pns: no failure {id}; run `pns failures` for the current list"
+        )),
+        Ok(Some(stored)) => {
+            let install =
+                pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
+            let failure = crate::command_failures::compose(
+                &stored,
+                install.moshi_url.as_deref(),
+                install.hermes_url.as_deref(),
+            );
+            let row = crate::command_failures::rows(std::slice::from_ref(&stored)).remove(0);
+            let retry = store.retry_facts(id).map_err(|_| ());
+            html::record_page(&failure, &row, retry, now)
+        }
+    }
 }
 
 /// A response, with the header `moshi-hook`'s probe looks for. `Content-Length`
@@ -212,13 +234,17 @@ fn response(status: &str, body: String) -> String {
 }
 
 fn ok(body: &str) -> String {
-    response("200 OK", page(body))
+    response("200 OK", body.to_string())
 }
 
 fn not_found() -> String {
-    response("404 Not Found", page("pns: this page serves / and /<id>\n"))
+    response(
+        "404 Not Found",
+        html::sentence_page("pns: this page serves /, /failures and /failures/<id>"),
+    )
 }
 
+mod html;
 mod parent_watch;
 
 #[cfg(test)]

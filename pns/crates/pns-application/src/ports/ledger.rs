@@ -143,3 +143,14 @@ pub struct StoredFailure {
     /// Whether pns has given up on this leg.
     pub deadlettered: bool,
 }
+
+/// The two ledger facts a retrying leg's "next try" and "retry deadline" are
+/// read from, never recomputed: `due` is the exact time `claim_retry` will
+/// next pick the leg up (the daemon's own `RetryBackoff::retry_at` answer,
+/// already written down), and `started` is when its first generation began,
+/// the zero point `RetryLimits::event_max_age_secs` counts from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetryFacts {
+    pub due: u64,
+    pub started: u64,
+}

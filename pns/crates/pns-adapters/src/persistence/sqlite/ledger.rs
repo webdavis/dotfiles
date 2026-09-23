@@ -1,7 +1,7 @@
 use super::{SqliteStore, StoreError};
 use pns_application::{
     ClaimedLeg, DeliveryLedger, LeaseWindow, LedgerCompletion, LedgerFailure, LedgerLeg,
-    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, StoredFailure,
+    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, RetryFacts, StoredFailure,
     SubmissionIdentity, SubmissionRecord, UnconfirmedDelivery,
 };
 mod claims;
@@ -64,6 +64,38 @@ impl SqliteStore {
             return Ok(None);
         };
         self.failing(|connection| failing::one(connection, id))
+    }
+
+    /// The two facts a retrying leg's "next try" and "retry deadline" come
+    /// from: the daemon's own computed due time and the first generation's
+    /// start, read straight off the ledger rather than recomputed.
+    pub fn retry_facts(&self, id: u64) -> Result<Option<RetryFacts>, LedgerFailure> {
+        let Ok(id) = i64::try_from(id) else {
+            return Ok(None);
+        };
+        self.failing(|connection| failing::retry_facts(connection, id))
+    }
+
+    /// [`retry_facts`](Self::retry_facts) for every id in `ids`, in one
+    /// connection rather than one per id: a page listing N retrying legs
+    /// otherwise opened N read-only connections just to lay itself out. An
+    /// id the ledger has no facts for is simply absent from the map.
+    pub fn retry_facts_many(
+        &self,
+        ids: &[u64],
+    ) -> Result<std::collections::HashMap<u64, RetryFacts>, LedgerFailure> {
+        self.failing(|connection| {
+            let mut out = std::collections::HashMap::with_capacity(ids.len());
+            for &id in ids {
+                let Ok(signed) = i64::try_from(id) else {
+                    continue;
+                };
+                if let Some(facts) = failing::retry_facts(connection, signed)? {
+                    out.insert(id, facts);
+                }
+            }
+            Ok(out)
+        })
     }
 
     /// Acknowledges every dead-lettered failing leg and answers how many it

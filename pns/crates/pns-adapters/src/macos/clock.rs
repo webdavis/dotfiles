@@ -108,6 +108,62 @@ pub fn utc_timestamp(epoch_secs: u64) -> Option<String> {
     ))
 }
 
+/// The full month names, so the failure page can spell a date out without a
+/// date crate. An abbreviation is the first three letters of the same entry,
+/// which holds for every English month name.
+const MONTHS: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+
+/// "August 24, 2025 at 01:46", built on [`utc_timestamp`] rather than a
+/// second `gmtime_r` call. NO TRAILING ZONE MARKER: a caller that already
+/// says "UTC" nearby (a footer, a field next to "All times UTC") appends its
+/// own rather than reading a second one out of this string.
+pub fn utc_long(epoch_secs: u64) -> Option<String> {
+    let iso = utc_timestamp(epoch_secs)?;
+    let month: usize = iso.get(5..7)?.parse().ok()?;
+    let name = MONTHS.get(month.checked_sub(1)?)?;
+    Some(format!(
+        "{name} {}, {} at {}",
+        iso.get(8..10)?.trim_start_matches('0'),
+        iso.get(0..4)?,
+        iso.get(11..16)?,
+    ))
+}
+
+/// The failure page's day heading, relative to `now`: "Today", "Yesterday",
+/// or "Aug 20" for anything older. UTC throughout, so a day boundary is
+/// exactly 86,400 seconds and never shifts with a local zone transition.
+pub fn utc_day_heading(epoch_secs: u64, now: u64) -> Option<String> {
+    let day = utc_timestamp(epoch_secs)?;
+    let today = utc_timestamp(now)?;
+    if day.get(0..10) == today.get(0..10) {
+        return Some("Today".to_string());
+    }
+    let yesterday = utc_timestamp(now.checked_sub(86_400)?)?;
+    if day.get(0..10) == yesterday.get(0..10) {
+        return Some("Yesterday".to_string());
+    }
+    let month: usize = day.get(5..7)?.parse().ok()?;
+    let name = MONTHS.get(month.checked_sub(1)?)?;
+    Some(format!(
+        "{} {}",
+        &name[..3],
+        day.get(8..10)?.trim_start_matches('0')
+    ))
+}
+
 #[cfg(test)]
 mod tests;
 

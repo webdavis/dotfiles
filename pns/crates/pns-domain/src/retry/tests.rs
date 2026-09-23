@@ -1,4 +1,15 @@
 use super::*;
+
+/// The short status word `pns failures` and the failure page's headline both
+/// read off an outcome: the listing's own column and the page's headline
+/// must not drift into two different spellings of the same code.
+#[test]
+fn the_short_word_names_a_code_a_silence_or_a_malformed_url() {
+    assert_eq!(TransportOutcome::Status(404).short_word(), "HTTP 404");
+    assert_eq!(TransportOutcome::NoResponse.short_word(), "no response");
+    assert_eq!(TransportOutcome::NoStatus.short_word(), "bad URL");
+}
+
 #[test]
 fn linear_retry_delays_preserve_exact_counts_and_saturate_unsigned_time() {
     let backoff = RetryBackoff { step_secs: 7 };
