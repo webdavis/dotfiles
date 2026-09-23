@@ -23,12 +23,13 @@ This file specifies the frozen compatibility contract of `pns`'s producer invoca
 lenient argv parser in `src/args.rs`, the ten producer flags it recognizes, the two help spellings, the
 top-level dispatch in `src/main.rs:main` that decides whether an argv is a producer invocation or a
 mistyped subcommand, the subcommand table printed by `const USAGE`, and the hand-typed verbs whose argv
-shapes callers outside this crate depend on (`pns loop begin|end`, `pns pulse <exit-code>`). It does not specify what a delivered event renders as,
-which channels exist, how the decision ring or the journal are written, or any behavior of the daemon,
-the lamps, the home probe or the router beyond the argv that reaches them. Everything asserted here is
-derived from the code in this crate and the tests in `src/args.rs`, `src/lights.rs`, `src/pulse.rs`,
-`tests/dispatch.rs` and `tests/hooks.rs`; anything a reader might expect and that no code or test
-establishes is written as a `NOT ESTABLISHED:` line rather than guessed.
+shapes callers outside this crate depend on (`pns loop begin|end`, `pns pulse <exit-code>`). It does not
+specify what a delivered event renders as, which channels exist, how the decision ring or the journal are
+written, or any behavior of the daemon, the lamps, the home probe or the router beyond the argv that
+reaches them. Everything asserted here is derived from the code in this crate and the tests in
+`src/args.rs`, `src/lights.rs`, `src/pulse.rs`, `tests/dispatch.rs` and `tests/hooks.rs`; anything a
+reader might expect and that no code or test establishes is written as a `NOT ESTABLISHED:` line rather
+than guessed.
 
 ## The flag table
 
