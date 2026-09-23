@@ -169,6 +169,7 @@ brew-cache-refresh:
 moshi-hook-upgrade:
   #!/usr/bin/env bash
   set -euo pipefail
+  [[ -t 0 ]] || { printf 'moshi-hook-upgrade needs a terminal\n' >&2; exit 1; }
   formula=rjyo/moshi/moshi-hook
   brew update --quiet
   info="$(brew info --json=v2 "$formula")"
@@ -195,8 +196,10 @@ moshi-hook-upgrade:
   read -r -p "Upgrade moshi-hook $installed to $latest? [y/N] " answer
   [[ $answer == [yY] ]] || exit 0
   if [[ $(jq -r '.formulae[0].pinned' <<<"$info") == true ]]; then brew unpin "$formula"; fi
-  brew upgrade "$formula"
-  brew pin "$formula"
+  # Re-pin on every exit once unpinned, a failed or interrupted upgrade must
+  # not leave moshi-hook free for the weekly unattended job to move.
+  trap 'brew pin "$formula"' EXIT
+  HOMEBREW_NO_AUTO_UPDATE=1 brew upgrade "$formula"
   printf 'moshi-hook: hook subcommand help, %s to %s (no diff means unchanged):\n' "$installed" "$latest"
   diff -u --label "help $installed" --label "help $latest" <(printf '%s\n' "$before") <(helps) || [[ $? -eq 1 ]]
   brew services restart moshi-hook
