@@ -62,6 +62,47 @@ fn summarizer_preserves_an_existing_config_and_uses_the_explicit_private_home() 
 }
 
 #[test]
+fn a_right_auth_link_is_left_in_place_and_a_wrong_one_replaced_whole() {
+    // THE RECAP, THE DOCTOR AND THE STOP HOOK SHARE THIS HOME, so a link that
+    // is already right must never be taken away from a run reading it.
+    use std::os::unix::fs::MetadataExt;
+    let root = crate::state_fixtures::scratch("summarizer-auth-relink");
+    let user = root.to_str().unwrap();
+    let home = summarizer_home(user, None).unwrap();
+    let auth = home.join("auth.json");
+    let linked = std::fs::symlink_metadata(&auth).unwrap().ino();
+    summarizer_home(user, None).unwrap();
+    assert_eq!(
+        std::fs::symlink_metadata(&auth).unwrap().ino(),
+        linked,
+        "the right link was removed and made again"
+    );
+    for stale in ["link", "file"] {
+        std::fs::remove_file(&auth).unwrap();
+        match stale {
+            "link" => std::os::unix::fs::symlink(root.join("elsewhere"), &auth).unwrap(),
+            _ => std::fs::write(&auth, "not a link").unwrap(),
+        }
+        summarizer_home(user, None).unwrap();
+        assert_eq!(
+            std::fs::read_link(&auth).unwrap(),
+            root.join(".codex/auth.json"),
+            "a stale {stale} is replaced"
+        );
+        let mut names: Vec<_> = std::fs::read_dir(&home)
+            .unwrap()
+            .map(|f| f.unwrap().file_name())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            ["auth.json", "config.toml"],
+            "nothing staged is left"
+        );
+    }
+}
+
+#[test]
 fn the_turn_summarizer_takes_the_configured_bound_up_to_its_own_ceiling() {
     // A Stop hook is blocked on this call, so the recap's generous budget
     // reaches it only as far as the ceiling; a shorter bound is taken whole.

@@ -103,10 +103,27 @@ fn summarizer_home(user_home: &str, home_override: Option<&str>) -> Option<std::
             });
         let _ = written;
     }
-    let auth = home.join("auth.json");
-    let _ = std::fs::remove_file(&auth);
-    let _ = std::os::unix::fs::symlink(format!("{user_home}/.codex/auth.json"), &auth);
+    link_auth(&home, &format!("{user_home}/.codex/auth.json"));
     Some(home)
+}
+/// Point the home's `auth.json` at the live Codex credentials.
+///
+/// THE HOME IS SHARED by the recap, the doctor and the Stop hook's summarizer,
+/// which can run at once. A link that is already right is left alone, and a new
+/// one is made under this process's own name and renamed into place, so a run
+/// reading auth at that moment finds the old link or the new one.
+fn link_auth(home: &std::path::Path, target: &str) {
+    let auth = home.join("auth.json");
+    if std::fs::read_link(&auth).is_ok_and(|current| current.as_os_str() == target) {
+        return;
+    }
+    let staged = home.join(format!("auth.json.{}", std::process::id()));
+    let _ = std::fs::remove_file(&staged);
+    if std::os::unix::fs::symlink(target, &staged).is_ok()
+        && std::fs::rename(&staged, &auth).is_err()
+    {
+        let _ = std::fs::remove_file(&staged);
+    }
 }
 /// The most of `[recap] summarizer_deadline` the TURN summarizer may take.
 /// The key's own generous default is the budget for a whole recap episode in
