@@ -37,6 +37,17 @@ HOME="$sandbox/render-home" CI=1 chezmoi --source "$REPO_ROOT" execute-template 
 mkdir -p "$sandbox/bin"
 kickstart_log="$sandbox/kickstart.log"
 
+# Homebrew's record of the service it loaded, which is where the script takes
+# the LaunchAgent label from. A case swaps the record by rewriting the file.
+services_record="$sandbox/brew-services.json"
+loaded_record='[{"name":"moshi-hook","service_name":"sh.brew.moshi-hook","loaded":true}]'
+printf '%s\n' "$loaded_record" >"$services_record"
+cat >"$sandbox/bin/brew" <<STUB
+#!/bin/bash
+[[ "\$*" == 'services info moshi-hook --json' ]] && cat '$services_record'
+STUB
+export BREW_BIN="$sandbox/bin/brew"
+
 # run_case <running-inode> <disk-inode>: drive the script with stubs and record
 # whether it kickstarted. The binary path the script probes is faked by putting
 # a stub `readlink` and `stat` first on PATH.
@@ -64,6 +75,7 @@ STUB
   cat >"$sandbox/bin/launchctl" <<STUB
 #!/bin/bash
 printf '%s\n' "\$*" >>'$kickstart_log'
+exit "\${LAUNCHCTL_EXIT:-0}"
 STUB
   chmod +x "$sandbox/bin"/*
   : >"$sandbox/fake-binary"
@@ -86,10 +98,102 @@ run_case 111 222
 kickstarted || fail '1: a replaced binary must bounce the LaunchAgent'
 grep -q 'kickstart -k' "$kickstart_log" ||
   fail "1: the bounce must use kickstart -k (log: $(cat "$kickstart_log"))"
-grep -q 'homebrew.mxcl.moshi-hook' "$kickstart_log" ||
-  fail "1: the bounce must target the moshi-hook service (log: $(cat "$kickstart_log"))"
+grep -q "gui/$(id -u)/sh.brew.moshi-hook\$" "$kickstart_log" ||
+  fail "1: the bounce must target the label Homebrew loaded (log: $(cat "$kickstart_log"))"
 grep -qi 'replaced binary' "$sandbox/out" ||
   fail "1: the bounce must say why (out: $(cat "$sandbox/out"))"
+
+# --- 1a: no service Homebrew loaded means nothing to kickstart, said plainly -
+
+for record in '[]' '[{"name":"moshi-hook","service_name":"sh.brew.moshi-hook","loaded":false}]' 'not json'; do
+  printf '%s\n' "$record" >"$services_record"
+  : >"$kickstart_log"
+  status=0
+  PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
+    bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+  [[ $status -eq 0 ]] || fail "1a: a missing service must WARN, not abort the apply, got $status"
+  if grep -q 'kickstart' "$kickstart_log"; then
+    fail "1a: with no loaded service ($record) nothing may be kickstarted (log: $(cat "$kickstart_log"))"
+  fi
+  grep -q 'no loaded moshi-hook service' "$sandbox/out" ||
+    fail "1a: a missing service must be named in a sentence (out: $(cat "$sandbox/out"))"
+done
+printf '%s\n' "$loaded_record" >"$services_record"
+
+# --- 1b: a kickstart launchctl refuses is reported, not a bare failed apply --
+
+: >"$kickstart_log"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" LAUNCHCTL_EXIT=113 \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "1b: a refused kickstart must WARN, not abort the apply, got $status"
+grep -q 'could not restart sh.brew.moshi-hook' "$sandbox/out" ||
+  fail "1b: a refused kickstart must say which service it could not restart (out: $(cat "$sandbox/out"))"
+
+# --- 1c: a brew failure must be reported as itself, not as "no loaded service"
+# A tap trust refusal (or any other brew failure) must not collapse into the
+# same sentence as a service Homebrew legitimately has no record of.
+
+cat >"$sandbox/bin/brew" <<'STUB'
+#!/bin/bash
+[[ "$*" == 'services info moshi-hook --json' ]] || exit 0
+echo 'Error: Refusing to load formula rjyo/moshi/moshi-hook from untrusted tap rjyo/moshi.' >&2
+exit 1
+STUB
+chmod +x "$sandbox/bin/brew"
+: >"$kickstart_log"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "1c: a brew failure must WARN, not abort the apply, got $status"
+kickstarted && fail "1c: a brew failure must not trigger a kickstart (log: $(cat "$kickstart_log"))"
+grep -q 'no loaded moshi-hook service' "$sandbox/out" &&
+  fail "1c: a brew failure must not be reported as \"no loaded service\" (out: $(cat "$sandbox/out"))"
+grep -q 'Refusing to load formula' "$sandbox/out" ||
+  fail "1c: a brew failure must surface brew's own error (out: $(cat "$sandbox/out"))"
+
+# --- 1d: a clean brew call that also prints a warning on stderr still bounces
+# stdout and stderr must stay apart: a warning on stderr must not reach jq's
+# input and turn a loaded service into an unparseable one.
+
+cat >"$sandbox/bin/brew" <<STUB
+#!/bin/bash
+[[ "\$*" == 'services info moshi-hook --json' ]] || exit 0
+echo 'Warning: Calling \`postflight\` is deprecated! Use \`postflight_steps\` instead.' >&2
+cat '$services_record'
+STUB
+chmod +x "$sandbox/bin/brew"
+: >"$kickstart_log"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "1d: a clean brew call with a stderr warning must not abort the apply, got $status"
+kickstarted || fail "1d: a clean brew call with a stderr warning must still bounce (out: $(cat "$sandbox/out"))"
+grep -q "gui/$(id -u)/sh.brew.moshi-hook\$" "$kickstart_log" ||
+  fail "1d: the bounce must target the label Homebrew loaded (log: $(cat "$kickstart_log"))"
+
+cat >"$sandbox/bin/brew" <<STUB
+#!/bin/bash
+[[ "\$*" == 'services info moshi-hook --json' ]] && cat '$services_record'
+STUB
+chmod +x "$sandbox/bin/brew"
+
+# --- 1e: two matching records in Homebrew's own output still yield one label -
+
+cat >"$services_record" <<'JSON'
+[{"name":"moshi-hook","service_name":"sh.brew.moshi-hook","loaded":true},
+ {"name":"moshi-hook","service_name":"sh.brew.moshi-hook.old","loaded":true}]
+JSON
+: >"$kickstart_log"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "1e: two matching records must not abort the apply, got $status"
+[[ $(wc -l <"$kickstart_log") -eq 1 ]] ||
+  fail "1e: two matching records must still produce exactly one kickstart call (log: $(cat "$kickstart_log"))"
+grep -q "gui/$(id -u)/sh.brew.moshi-hook\$" "$kickstart_log" ||
+  fail "1e: the bounce must target the first matching label (log: $(cat "$kickstart_log"))"
+printf '%s\n' "$loaded_record" >"$services_record"
 
 # --- 2: inodes MATCH, the daemon is current: LEAVE IT ALONE ------------------
 

@@ -27,9 +27,9 @@
 # daemon started, and the bounce below fixes that.
 set -euo pipefail
 
-readonly SERVICE_LABEL='homebrew.mxcl.moshi-hook'
-# Overridable so tests can point at a stub instead of the real binary.
+# Overridable so tests can point at stubs instead of the real binaries.
 MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
+BREW_BIN="${BREW_BIN:-/opt/homebrew/bin/brew}"
 
 [[ -x $MOSHI_HOOK_BIN ]] || exit 0
 
@@ -87,8 +87,33 @@ case $disk_inode in '' | *[!0-9]*) exit 0 ;; esac
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 if [[ $running_inode != "$disk_inode" ]]; then
   report_section "moshi-hook" "upgrade bounce"
-  printf 'moshi-hook daemon is running a replaced binary (image %s, on disk %s); bouncing the LaunchAgent...\n' \
-    "$running_inode" "$disk_inode"
-  launchctl kickstart -k "gui/$(id -u)/$SERVICE_LABEL"
+  # Homebrew names the LaunchAgent, so the label is read from Homebrew's own
+  # record of the service it loaded. A brew failure is reported with brew's
+  # own error text.
+  brew_status=0
+  brew_stderr_file="$(mktemp)"
+  brew_stdout="$("$BREW_BIN" services info moshi-hook --json 2>"$brew_stderr_file")" || brew_status=$?
+  brew_stderr="$(cat "$brew_stderr_file" 2>/dev/null)"
+  rm -f "$brew_stderr_file"
+  label=''
+  if [[ $brew_status -eq 0 ]]; then
+    label="$(jq -r \
+      'first(.[] | select(.name == "moshi-hook" and .loaded == true) | .service_name) // empty' \
+      <<<"$brew_stdout" 2>/dev/null)" || label=''
+  fi
+  if [[ $brew_status -ne 0 ]]; then
+    printf 'moshi-hook: WARNING: the daemon is running a replaced binary (image %s, on disk %s), and brew services info moshi-hook failed, so it cannot be bounced automatically: %s\n' \
+      "$running_inode" "$disk_inode" "$brew_stderr" >&2
+  elif [[ -z $label ]]; then
+    printf 'moshi-hook: WARNING: the daemon is running a replaced binary (image %s, on disk %s), but Homebrew reports no loaded moshi-hook service to restart; run: brew services restart moshi-hook\n' \
+      "$running_inode" "$disk_inode" >&2
+  else
+    printf 'moshi-hook daemon is running a replaced binary (image %s, on disk %s); bouncing %s...\n' \
+      "$running_inode" "$disk_inode" "$label"
+    if ! launchctl kickstart -k "gui/$(id -u)/$label"; then
+      printf 'moshi-hook: WARNING: launchctl could not restart %s, so the daemon keeps running the replaced binary; run: brew services restart moshi-hook\n' \
+        "$label" >&2
+    fi
+  fi
 fi
 {{ end -}}
