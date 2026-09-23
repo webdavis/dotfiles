@@ -7432,8 +7432,9 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   could not be launched, a channel request that could not be encoded, an unregistered destination, or no
   durable delivery attempted. None of those is a URL, and a genuinely malformed hermes URL is stored as
   `Failed` and reads `no response` instead (`pns-adapters/src/destinations/hermes.rs:184`). The operator
-  is sent to check a URL that was never built. Relabel from what the outcome records, and word the
-  meaning line for an unlaunched leg.
+  is sent to check a URL that was never built. The phone's own wording for the same outcome, "the URL pns
+  built from {address} is malformed" (`meaning.rs:140`), is wrong the same way. Relabel from what the
+  outcome records, and word both meaning lines for an unlaunched leg.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
