@@ -65,6 +65,37 @@ fn an_agent_recap_posts_once_on_the_default_route_and_exits_zero_when_refused() 
 }
 
 #[test]
+fn an_agent_recap_posts_on_the_log_transport_the_config_selects() {
+    let sandbox = Sandbox::new("recap-agent-discord");
+    sandbox.write_config(
+        "[plugins.log]\nenabled = true\ntype = \"discord\"\nbot_token = \"token\"\n\
+         [plugins.log.channels]\ndefault = \"1\"\npriority = \"2\"\n",
+    );
+    for channel in ["hermes", "discord"] {
+        sandbox.stub_channel(
+            channel,
+            &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
+        );
+    }
+    let mut command = sandbox.pns();
+    command.env("PNS_STATE_DIR", sandbox.path("state"));
+    let output = piped(
+        command.args(["recap", "agent", "--stdin"]),
+        b"Recap\n==========\n\n**User Tasks**\n1. `chezmoi apply`\n",
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let posted = std::fs::read_to_string(sandbox.path("discord.events")).unwrap_or_default();
+    assert!(
+        posted.contains("User Tasks"),
+        "discord was not handed the recap"
+    );
+    assert!(
+        !sandbox.path("hermes.events").exists(),
+        "the recap went to a transport the config did not select"
+    );
+}
+
+#[test]
 fn an_agent_recap_with_nothing_on_stdin_refuses_rather_than_posting_a_blank_message() {
     let sandbox = Sandbox::new("recap-agent-empty");
     let mut command = plugin_command(&sandbox);

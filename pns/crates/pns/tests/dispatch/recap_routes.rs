@@ -117,3 +117,44 @@ fn a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing
         );
     }
 }
+
+/// A log carried by the native Discord bot, with the two keys config load
+/// requires and nothing else.
+pub(super) const DISCORD_LOG: &str = "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+    [plugins.log]\nenabled = true\ntype = \"discord\"\nbot_token = \"token\"\n\
+    [plugins.log.channels]\ndefault = \"1\"\npriority = \"2\"\n\
+    [plugins.banner]\nenabled = true\n[failures]\npage_enabled = false\n";
+
+#[test]
+fn a_discord_log_carries_the_return_recap_and_hermes_is_never_handed_it() {
+    // `--to durable` NAMES THE ROLE, and `[plugins.log] type` is what fills
+    // it: a child that took the first durable plugin registered posted every
+    // recap through hermes whatever the config chose.
+    let sandbox = Sandbox::new("recap-discord-log");
+    record_every_event(&sandbox);
+    sandbox.stub_channel(
+        "discord",
+        &format!("cat >>\"{}/discord.events\"", sandbox.display()),
+    );
+    sandbox.write_config(DISCORD_LOG);
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+
+    poll_until(|| {
+        events(&sandbox, "discord")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no recap reached discord: {:?}",
+            events(&sandbox, "discord")
+        )
+    });
+    assert!(
+        events(&sandbox, "hermes").is_empty(),
+        "the recap went to a transport the config did not select: {:?}",
+        events(&sandbox, "hermes")
+    );
+}

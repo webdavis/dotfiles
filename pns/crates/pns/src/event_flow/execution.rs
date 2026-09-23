@@ -146,10 +146,7 @@ pub(super) fn execute(
     // straight out of the core fallback: hermes needs a key stood up before it
     // can carry anything, so it is not in the core and no recap is promised
     // against it.
-    let durable_route = selection.iter().any(|plugin| matches!(
-        plugin.kind,
-        pns_domain::registry::PluginKind::Channel(routing) if routing.durable && routing.event_dispatched
-    ));
+    let durable_route = selection.durable_log().is_some();
 
     // THE SAME CLOCK `forward_to_moshi` READS, off this probe set's own
     // memoized cell: see R4-1. On the blocked path that read came first and

@@ -209,3 +209,27 @@ fn all_selects_every_registration_which_is_what_the_census_reports_against() {
     let names: Vec<&str> = selection.iter().map(|r| r.name).collect();
     assert_eq!(names, vec!["phone", "hermes", "banner"]);
 }
+
+#[test]
+fn the_durable_log_is_the_one_durable_channel_the_config_switched_on() {
+    let registry = build_registry(&super::ROSTER);
+    let switched = |names: &[&str]| {
+        registry
+            .enabled(
+                &names
+                    .iter()
+                    .map(|name| ((*name).to_string(), true))
+                    .collect(),
+            )
+            .unwrap()
+    };
+    assert_eq!(
+        switched(&["phone", "discord"]).durable_log(),
+        Some("discord")
+    );
+    assert_eq!(
+        switched(&["hermes", "banner"]).durable_log(),
+        Some("hermes")
+    );
+    assert_eq!(switched(&["phone", "banner"]).durable_log(), None);
+}
