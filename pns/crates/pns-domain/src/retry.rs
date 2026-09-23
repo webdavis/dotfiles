@@ -85,6 +85,17 @@ impl TransportOutcome {
     pub fn failure_class(self) -> Option<FailureClass> {
         (!self.delivered()).then(|| self.class())
     }
+
+    /// The short status word: `pns failures`' own column, and the source the
+    /// failure page's headline capitalizes for a malformed URL. ONE SPELLING,
+    /// so the terminal and the page cannot read the same outcome two ways.
+    pub fn short_word(self) -> String {
+        match self {
+            TransportOutcome::Status(code) => format!("HTTP {code}"),
+            TransportOutcome::NoResponse => "no response".to_string(),
+            TransportOutcome::NoStatus => "bad URL".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

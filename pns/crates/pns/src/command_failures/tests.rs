@@ -1,5 +1,45 @@
 use super::*;
 
+/// GOLDEN, pinned at the parent commit: the `rows()` extraction must not move
+/// a single byte of what the terminal prints.
+#[test]
+fn the_terminal_listing_is_unchanged_by_the_rows_extraction() {
+    let failures = vec![
+        stored(7999, pns_domain::retry::TransportOutcome::NoResponse),
+        stored(42, pns_domain::retry::TransportOutcome::Status(404)),
+    ];
+    assert_eq!(
+        listing(Paint::Plain, &failures),
+        "◆ Not arriving ── 2 delivery legs\n\
+         \x20   id   when              status        route      sent by\n\
+         \x20 · 7999 2025-09-04 15:33Z no response   testpath   posture\n\
+         \x20 · 42   2025-09-04 15:33Z HTTP 404      testpath   posture\n\
+         \n\
+         run `pns failures <id>` for one in full\n"
+    );
+}
+
+/// The page's own row shape carries what a listing row needs and nothing the
+/// terminal's columns compute privately: the same `when()` and the same
+/// `short_status()`, so a burst grouped on the page reads the identical clock
+/// and status word the terminal would have printed for that leg.
+#[test]
+fn a_row_carries_the_terminals_own_when_and_status_for_each_leg() {
+    let failure = stored(47, pns_domain::retry::TransportOutcome::Status(404));
+    let row = rows(std::slice::from_ref(&failure))
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(row.id, 47);
+    assert_eq!(row.when, when(failure.failed_at));
+    assert_eq!(row.status, short_status(&failure));
+    assert_eq!(row.route, "testpath");
+    assert_eq!(row.agent, "posture");
+    assert_eq!(row.destination, failure::DESTINATION_HERMES);
+    assert_eq!(row.retries, 1);
+    assert!(row.gave_up);
+}
+
 fn stored(id: u64, outcome: pns_domain::retry::TransportOutcome) -> StoredFailure {
     StoredFailure {
         id,
