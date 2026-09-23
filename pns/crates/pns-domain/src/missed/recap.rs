@@ -30,7 +30,9 @@ pub struct OpenWait {
 /// OPEN WAITS FIRST AND NEVER SUMMARIZED AWAY, which is why they are composed
 /// here and not by any model: the urgent line is the one a hallucination would
 /// cost the most, and it is the one thing on this card that cannot wait for
-/// the recap to be read. A wait the operator already answered is not on it.
+/// the recap to be read. A wait the operator already answered is not on it,
+/// and waits the card has no room for are counted on its last item
+/// (`+3 more waiting`) rather than dropped in silence.
 ///
 /// EVERY NUMBER IS A LENGTH, never a claim. `counted` is the window's own
 /// length and `missed` is the claimed journal's, so a card that ran out of room
@@ -76,20 +78,48 @@ pub fn recap_card(
     // item is fitted into. A count so long that nothing is left is an empty
     // room, and the card is then the counts alone.
     let room = crate::render::PREVIEW_MAX_CHARS.saturating_sub(counts.chars().count() + SEPARATOR);
-    let mut urgent: Vec<String> = Vec::new();
-    for wait in open.iter().rev() {
-        let mut extended = urgent.clone();
-        extended.push(crate::render::clipped(&waiting(wait), room));
-        // STOPPED RATHER THAN SKIPPED, and never before the first: `summary`'s
-        // own two rules, for its own two reasons. The first item is already
-        // inside the room by the clip above, so "never before the first" costs
-        // the cap nothing here.
-        if !urgent.is_empty() && joined(&extended).chars().count() > room {
-            break;
-        }
-        urgent = extended;
+    with_counts(&fitted(open, room), &counts)
+}
+
+/// The open waits that fit the room, newest first, closed by a count of the
+/// ones that did not.
+///
+/// STOPPED RATHER THAN SKIPPED, and never before the first: `summary`'s own
+/// two rules, for its own two reasons. The newest wait is what the card is
+/// for, so when even it will not fit beside the count of the rest, it is cut
+/// to the room that count leaves.
+fn fitted(open: &[OpenWait], room: usize) -> Vec<String> {
+    let items: Vec<String> = open.iter().rev().map(waiting).collect();
+    let mut shown = 0;
+    while shown < items.len() && joined(&with_rest(&items, shown + 1)).chars().count() <= room {
+        shown += 1;
     }
-    with_counts(&urgent, &counts)
+    if shown > 0 || items.is_empty() {
+        return with_rest(&items, shown);
+    }
+    let rest = rest_line(items.len() - 1);
+    let spent = rest
+        .as_ref()
+        .map_or(0, |line| line.chars().count() + "; ".len());
+    let mut kept = vec![crate::render::clipped(
+        &items[0],
+        room.saturating_sub(spent),
+    )];
+    kept.extend(rest);
+    kept
+}
+
+/// The first `shown` items, then the count of the ones after them.
+fn with_rest(items: &[String], shown: usize) -> Vec<String> {
+    let mut kept = items[..shown].to_vec();
+    kept.extend(rest_line(items.len() - shown));
+    kept
+}
+
+/// How many waits the card had no room for, or nothing when it had room for
+/// all of them.
+fn rest_line(hidden: usize) -> Option<String> {
+    (hidden > 0).then(|| format!("+{hidden} more waiting"))
 }
 
 /// One open wait as the card says it: whose, how many are unanswered when

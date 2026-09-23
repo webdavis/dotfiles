@@ -236,6 +236,53 @@ fn the_recap_cards_counts_survive_a_needs_you_list_too_long_to_fit() {
         card.starts_with("claude · blocked · project-39"),
         "the newest urgent item leads: {card}"
     );
+    assert!(
+        card.contains("more waiting. 80 events"),
+        "the waits that did not fit are counted: {card}"
+    );
+}
+
+#[test]
+fn waits_the_card_has_no_room_for_are_counted_on_its_last_line() {
+    // NEWEST FIRST AND THE REST COUNTED. Each item carries what its wait
+    // asks, so a card fits two or three; the ones left off are a number the
+    // operator can see rather than a silence.
+    let asking = |project: &str| OpenWait {
+        asks: "x".repeat(78),
+        ..waiting_on("blocked", project)
+    };
+    let card = recap_card(
+        &[asking("p1"), asking("p2"), asking("p3")],
+        13,
+        0,
+        Some(ROUTE),
+    );
+    let item = |project: &str| format!("claude · blocked · {project}: {}", "x".repeat(78));
+    assert_eq!(
+        card,
+        format!(
+            "{}; {}; +1 more waiting. 13 events. recap in #logbook",
+            item("p3"),
+            item("p2")
+        )
+    );
+}
+
+#[test]
+fn a_newest_wait_too_long_for_the_card_is_cut_to_leave_room_for_the_count_of_the_rest() {
+    let older = waiting_on("blocked", "p1");
+    let huge = waiting_on("blocked", &"x".repeat(crate::render::PREVIEW_MAX_CHARS));
+    let card = recap_card(&[older.clone(), older, huge], 9, 0, None);
+    assert!(
+        card.contains(&"x".repeat(200)),
+        "the item was dropped: {card}"
+    );
+    assert!(card.ends_with("; +2 more waiting. 9 events"), "{card}");
+    assert!(
+        card.chars().count() <= crate::render::PREVIEW_MAX_CHARS,
+        "{} chars",
+        card.chars().count()
+    );
 }
 
 #[test]
