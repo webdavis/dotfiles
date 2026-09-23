@@ -1219,7 +1219,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Waiting on you page"
 Branch `feat/pns-page-health`. Worktree:
 `herdr worktree create --cwd /Users/stephen/workspaces/Ivy/webdavis/dotfiles --branch feat/pns-page-health --no-focus`
 
-This pull request builds `pns doctor --no-send` (item Q7, approved 2026-09-23) and the page over it.
+This pull request builds `pns doctor --no-send` (approved 2026-09-23) and the page over it.
 
 ### Task 2.1: A withheld outcome in the doctor's domain
 

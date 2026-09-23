@@ -279,8 +279,7 @@ last tick, and the rest of the report's sections, each row with its mark.
 `pns doctor` today sends one test notification through every enabled destination (the phone buzzes),
 fires a real lamp pulse, runs the configured recap summarizer once, and reads the router through
 `ReadHomeProbe::run`, which can raise a stale-reading notification and write a staleness record. None of
-that may happen behind a tunnel, and the operator approved `pns doctor --no-send` on 2026-09-23 (queued
-item Q7) for the same reason at the terminal. This page's pull request builds that flag, and the page is
+that may happen behind a tunnel, and the operator approved `pns doctor --no-send` on 2026-09-23, not yet built, for the same reason at the terminal. This page's pull request builds that flag, and the page is
 its phone form.
 
 **D13. What `--no-send` withholds, and what it still reads.**
@@ -447,7 +446,7 @@ Three facts shape this page, and it shows each of them rather than papering over
 deadline, so the index summary never runs it. `ReadHomeProbe::run` is never called by this page because it
 can raise a stale-reading notification and write a staleness record; `read_home` is the pure read beneath
 it. The operator approved a daemon poll that stores the router's answer about once a minute
-and makes "not home" count as away (item Q6b, 2026-09-23). When that lands, this row reads the stored
+and makes "not home" count as away (approved 2026-09-23, not yet built). When that lands, this row reads the stored
 answer and its age instead of probing, and loses its "not used for delivery yet" clause; that pull
 request carries the change to this page.
 
@@ -733,16 +732,15 @@ otherwise.
    after page 3: key `recap_summaries` by window and instance end, pruned by the retention that already
    prunes it.
 5. **Q5. Show plugin URLs on the Config page?** They are hidden, because a webhook URL can carry a token
-   in its path. Recommended: show the origin only (scheme, host and port), which names the endpoint and
-   cannot carry a path token.
+   in its path. Recommended: keep them hidden in page 7, and add an origin-only row (scheme, host and port) as a
+   follow-up if the endpoint is worth naming; an origin cannot carry a path token.
 6. **Q6. Is herdr the only source of "live" for Sessions?** A session running outside herdr never appears.
    Recommended: yes; herdr is the multiplexer of record on this machine, and pns has no liveness of its
    own to fall back on.
 7. **Q7. Show the router reading on Right now before it drives delivery?** Recommended: yes, with its "not
-   used for delivery yet" clause, until the daemon poll the operator approved (Q6b) lands and removes it.
-8. **Q8. Does the Health page's pull request build `pns doctor --no-send` (item Q7), rather than a
-   separate lane?** Recommended: yes. The page cannot ship without it, and building it once avoids two
+   used for delivery yet" clause, until the approved daemon router poll lands and removes it.
+8. **Q8. Does the Health page's pull request build `pns doctor --no-send`, approved and not yet built,
+   rather than a separate pull request?** Recommended: yes. The page cannot ship without it, and building it once avoids two
    branches editing `command_doctor.rs` at the same time.
 9. **Q9. Approve the neutral tone?** The chosen CSS has red and amber only; settled states (Delivered,
-   Done, Idle, a passing health row) use the muted color with a filled dot. Recommended: yes, as shown in
-   the mock.
+   Done, Idle, a passing health row) use the muted color with a filled dot. Recommended: yes.
