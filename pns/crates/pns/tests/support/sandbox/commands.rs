@@ -3,6 +3,9 @@ use super::Sandbox;
 use std::ffi::OsString;
 use std::process::Command;
 
+/// A loopback port nothing serves: a post there is refused at once.
+const UNSERVED_URL: &str = "http://127.0.0.1:1/";
+
 /// The system directories every sandbox command searches after its own `bin`.
 const SYSTEM_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
 
@@ -54,8 +57,8 @@ impl Sandbox {
         // serves. Unset, the binary posts to moshi's real API. A test that
         // captures the push overrides these.
         command
-            .env("PNS_MOSHI_URL", "http://127.0.0.1:1/")
-            .env("PNS_MOSHI_UPLOAD_URL", "http://127.0.0.1:1/");
+            .env("PNS_MOSHI_URL", UNSERVED_URL)
+            .env("PNS_MOSHI_UPLOAD_URL", UNSERVED_URL);
         // No live summarizer: a Stop hook spawns one for real, and the suite
         // must never reach the operator's own Codex.
         command.env("PNS_CODEX_BIN", "/nonexistent/codex");
