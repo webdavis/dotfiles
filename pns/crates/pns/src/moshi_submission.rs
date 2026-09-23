@@ -1,50 +1,5 @@
 use crate::*;
 
-/// A presence-gated pass-through to moshi-hook, for the harnesses that reach
-/// it directly rather than through a pns hook.
-///
-/// EXIT 0 MEANS "NOT FORWARDED" on the paths that DECLINE (no moshi, the
-/// operator at the desk, a payload that did not arrive whole), which is the
-/// harness's "no opinion, prompt as usual". The forwarded path is the one
-/// place moshi's own code is correct: there it is MOSHI'S OWN CODE, passed
-/// through for whatever reads it, and in production it is 0 whichever way the
-/// operator answered. See `moshi_decision` for why, and `answer_within` for
-/// why the wait on it is bounded.
-///
-/// A WORD THIS WILL NOT VOUCH FOR IS A REFUSAL, exit 2 and a sentence on
-/// stderr, and it is the one non-declining exit here. It used to be an exit 0
-/// like the declines, which is the worst answer available: a hook that
-/// silently succeeds looks wired for the life of the install while it forwards
-/// nothing. THIS IS THE ONLY PLACE THE WORD IS JUDGED, so the dispatcher hands
-/// every hook-shaped word straight here rather than keeping a second copy of
-/// the test that could disagree with this one.
-pub(crate) fn gate_mode(subcommand: &str) -> i32 {
-    if !pns_adapters::is_harness_subcommand(subcommand) {
-        eprintln!("{}", refusal(subcommand));
-        return 2;
-    }
-    if !forward_to_moshi(&system_probes()) {
-        return 0;
-    }
-    let Some(payload) = read_payload().filter(|payload| payload_is_whole(payload)) else {
-        return 0;
-    };
-    // BOUNDED AT THE SHARED SEAM, not here: pi and omp reach this entry point
-    // with no pns hook in front of it, and a guard at the other caller alone
-    // would leave this one hanging.
-    pns_application::RequestApproval {
-        ports: &MoshiApprovalForwarder,
-    }
-    .forward_only(subcommand, &payload)
-}
-/// What a word the gate will not vouch for is told, naming the word and the
-/// shape that would have been accepted.
-fn refusal(subcommand: &str) -> String {
-    format!(
-        "pns: {subcommand:?} is not a harness word; \
-         the gate accepts <harness>-hook in lowercase (pi-hook, claude-hook)"
-    )
-}
 /// A blocking event: the round trip started, then the notification, then the
 /// operator's decision.
 ///
@@ -156,18 +111,14 @@ impl pns_application::RaiseNotification for MoshiRaiseNotification<'_> {
 /// the harness prompt in front of them already is one.
 ///
 /// It is handed the caller's probe set rather than building its own, which is
-/// what makes this reading and the delivery plan's reading the SAME one FOR
-/// `blocking_event`: they are two questions about one moment, and a boundary
-/// crossed between two measurements cards a phone with no round trip behind
-/// it. `pns gate <harness>-hook` (see `gate_mode`) calls this with its own
-/// throwaway probe set and runs no delivery plan at all, so the claim does
-/// not extend to that caller.
+/// what makes this reading and the delivery plan's reading the SAME one: they
+/// are two questions about one moment, and a boundary crossed between two
+/// measurements cards a phone with no round trip behind it.
 fn forward_to_moshi(probes: &SystemProbes<SystemCommandRunner>) -> bool {
-    // FOR `blocking_event`, THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off
-    // this probe set's own memoized cell rather than a fresh wall-clock read:
-    // see R4-1. Two reads of the wall clock for one event is the boundary
-    // that drifted a phone reading and a desk reading apart. `gate_mode`
-    // calls this with its own throwaway probe set and runs no delivery plan.
+    // THE SAME CLOCK THE DELIVERY PLAN READS BELOW, off this probe set's own
+    // memoized cell rather than a fresh wall-clock read: see R4-1. Two reads
+    // of the wall clock for one event is the boundary that drifted a phone
+    // reading and a desk reading apart.
     pns_application::operator_surface(probes, &overrides_from_env(), probes.now_secs())
         != pns_domain::surface::Surface::Desk
 }

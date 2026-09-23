@@ -157,8 +157,9 @@ fn a_switched_off_digest_posts_no_recap_and_leaves_the_catch_up_card_alone() {
         "the card is slice 13's, not the recap's: {body}"
     );
     // NO CHILD WAS EVER STARTED, and the card is the witness: the recap card is
-    // the only thing that says "recap in #pns", and only a real spawn earns it.
-    assert!(!body.contains("recap in #pns"), "{body}");
+    // the only thing that says "recap in #<route>", and only a real spawn earns
+    // it.
+    assert!(!body.contains("recap in #"), "{body}");
     assert!(
         events(&sandbox, "hermes")
             .iter()

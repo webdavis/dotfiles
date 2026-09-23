@@ -363,11 +363,9 @@ answers false for the oversized case, and nothing is submitted to moshi
 
 - Success: `read_payload` runs the read on a thread with `Read::take(stdin, MAX_PAYLOAD_BYTES + 1)` and
   `recv_timeout(payload_deadline())`. `payload_is_whole` compares against `MAX_PAYLOAD_BYTES` exactly.
-  Pinned at BOTH entry points:
-  `tests/hooks.rs:the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does` (the
-  `pns pi-hook` path exits 0 and submits nothing) and, for the other edge,
-  `tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, which builds a payload of
-  exactly 1,000,000 bytes and asserts the submission happens.
+  Pinned by `tests/hooks.rs:a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were` and,
+  for the other edge, `tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, which builds
+  a payload of exactly 1,000,000 bytes and asserts the submission happens.
 - Failure sources: a pipe nobody closes; a payload larger than memory.
 - Fail direction: fail-closed toward NOT forwarding. "A payload that reached the cap was CUT MID-OBJECT,
   so it is no longer JSON and no longer what anybody wrote. Forwarding it hands moshi an empty parse".
@@ -380,15 +378,15 @@ answers false for the oversized case, and nothing is submitted to moshi
 - Timeout and cancellation: `payload_deadline()` defaults to 5 s, overridable by
   `PNS_PAYLOAD_DEADLINE`. The reader thread outlives a refusal, which is accepted because "the process
   is about to exit, and it holds nothing but its own buffer".
-- Idempotency and duplicates: the single-submitter rule holds at both entry points
-  (`tests/hooks.rs:the_gate_submits_one_prompt_exactly_once`).
+- Idempotency and duplicates: the single-submitter rule holds
+  (`tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`).
 - Privacy: the payload is never printed. The blocked hook's stdout is asserted EXACTLY empty
   (`tests/hooks.rs`, the stdout guard), because a first-character test would pass a byte-order mark in
   front of a valid `allow` object.
 - Process ownership and cleanup: `spawn_moshi_hook` plus `answer_within` bound the forwarded child.
-- Compatibility contract: `hooks::is_harness_subcommand` gates the gate's pass-through by SHAPE
-  (`<lowercase-ascii>-hook`) rather than a roster, because "an unvetted word here is this repo handing a
-  third-party binary a filesystem argument nobody chose".
+- Compatibility contract: the only subcommands handed to `moshi-hook` come from the closed roster in
+  `hooks::moshi_subcommand` (`claude-hook`, `codex-hook`), so no word from a payload or an outside caller
+  ever reaches a third-party binary's positional argument.
 
 ### 10. The decision ring records identities and readings, never free text
 

@@ -177,6 +177,8 @@ mod import;
 
 mod import_claims;
 
+mod open_waits;
+
 mod ports;
 
 mod consumer_start;

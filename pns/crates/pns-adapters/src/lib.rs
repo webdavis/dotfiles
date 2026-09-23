@@ -215,8 +215,8 @@ pub use persistence::{
 
 mod harness;
 pub use harness::{
-    HookPayload, SessionFacts, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
-    session_facts, transcript_reply,
+    HookPayload, SessionFacts, flattened, moshi_subcommand, parse_payload, session_facts,
+    transcript_reply,
 };
 
 #[cfg(test)]

@@ -122,7 +122,8 @@ fn a_summarizer_that_never_answers_costs_the_card_nothing() {
         "the live event and one recap card: {raised:?}"
     );
     assert_eq!(
-        card["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns",
+        card["detail"],
+        "claude · blocked · p4: planted 4. 13 events, 2 missed. recap in #pns-events",
         "the card waited for the model or was composed by it: {raised:?}"
     );
     assert!(

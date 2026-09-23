@@ -66,8 +66,8 @@ fn agent_recap() -> i32 {
         return 2;
     }
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_keys, discord, _, _, routes) = recap_settings(&home);
-    post(&body, None, &home, &hermes_keys, &discord, &routes)
+    let (hermes_keys, discord, _, _, routes, durable) = recap_settings(&home);
+    post(&body, durable, &home, &hermes_keys, &discord, &routes)
 }
 
 /// The Git block, the stack graph and the file list, printed.
@@ -110,7 +110,11 @@ fn recap() -> i32 {
     };
     let card = options.card_on_stdin.then(handed_card).flatten();
     let home = std::env::var("HOME").unwrap_or_default();
-    let (hermes_keys, discord, mobile, recap, routes) = recap_settings(&home);
+    let (hermes_keys, discord, mobile, recap, routes, durable) = recap_settings(&home);
+    let options = Options {
+        to: durable_named(options.to, durable),
+        ..options
+    };
     if let Some(card) = card {
         crate::recap_delivery_runtime::deliver_recap_card(
             &card,
@@ -177,8 +181,8 @@ fn handed_card() -> Option<pns_adapters::HandedCard> {
     pns_adapters::decode_handed_card(&line)
 }
 
-/// The durable destinations' credentials and the recap's own settings, or the
-/// fail-closed reading.
+/// The durable destinations' credentials, the recap's own settings and the
+/// log transport the config selects, or the fail-closed reading.
 ///
 /// FAIL CLOSED ON THE SUMMARIZER AND OPEN ON THE POST, which is
 /// `lights_pulse`'s split: a config nobody can read named no command, so the
@@ -192,16 +196,18 @@ fn recap_settings(
     Mobile,
     pns_adapters::Recap,
     pns_domain::routes::Routes,
+    Option<&'static str>,
 ) {
-    match load_config(&config_path(home)) {
+    let loaded = load_config(&config_path(home));
+    let (hermes_keys, discord, mobile, recap, routes) = match &loaded {
         Ok(LoadOutcome::Loaded(config)) => (
-            plugin_settings(&config, "hermes")
+            plugin_settings(config, "hermes")
                 .map(hermes_keys)
                 .unwrap_or_default(),
-            read_discord(&config),
-            read_mobile(&config),
-            config.recap,
-            config.routes,
+            read_discord(config),
+            read_mobile(config),
+            config.recap.clone(),
+            config.routes.clone(),
         ),
         _ => (
             HermesKeys::default(),
@@ -210,6 +216,24 @@ fn recap_settings(
             pns_adapters::Recap::default(),
             pns_domain::routes::Routes::default(),
         ),
+    };
+    let (selection, _) = select_plugins(&roster(), loaded);
+    (
+        hermes_keys,
+        discord,
+        mobile,
+        recap,
+        routes,
+        selection.durable_log(),
+    )
+}
+
+/// `--to durable` as the log transport `[plugins.log] type` selects on this
+/// machine, and every other name as typed.
+fn durable_named(to: Option<String>, durable: Option<&str>) -> Option<String> {
+    match (to.as_deref(), durable) {
+        (Some(pns_adapters::DURABLE), Some(name)) => Some(name.to_string()),
+        _ => to,
     }
 }
 

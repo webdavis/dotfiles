@@ -19,7 +19,7 @@
 //! be the surface a delivery failure just took away.
 
 use pns_adapters::SqliteStore;
-use pns_application::StoredFailure;
+use pns_application::{CommandRunner, StoredFailure};
 use pns_domain::failure::{self, Failure, NotificationSurface};
 
 /// How far back one pass looks. A pass records at most a handful of failures,
@@ -50,12 +50,13 @@ struct PhoneCard {
     url: Option<String>,
 }
 
-/// Announce every failure this pass recorded that warrants it.
+/// Announce every failure this pass recorded that warrants it, each banner
+/// spawned through `notifier`.
 ///
 /// `since` is the moment the pass began, and it is what makes this idempotent
 /// across passes: a leg that failed in an earlier pass has an older
 /// `failed_at`, so a second call never re-announces it.
-pub(crate) fn announce(store: &SqliteStore, since: u64) {
+pub(crate) fn announce(store: &SqliteStore, since: u64, notifier: &dyn CommandRunner) {
     let Ok(failures) = store.failing_legs(SCAN) else {
         // NOTHING IS SAID ABOUT AN UNREADABLE LEDGER HERE. That is the delivery
         // health alarm's own subject, it already reports it, and a second voice
@@ -78,7 +79,7 @@ pub(crate) fn announce(store: &SqliteStore, since: u64) {
             install.moshi_url.as_deref(),
             install.hermes_url.as_deref(),
         );
-        raise(&failure, &pns, &phone);
+        raise(&failure, &pns, &phone, notifier);
     }
 }
 
@@ -132,7 +133,12 @@ fn phone_card() -> Option<PhoneCard> {
 
 /// One notification for one failure: a banner always, and a card when the
 /// operator is not at the desk.
-fn raise(failure: &Failure, pns_path: &str, phone: &Option<PhoneCard>) {
+fn raise(
+    failure: &Failure,
+    pns_path: &str,
+    phone: &Option<PhoneCard>,
+    notifier: &dyn CommandRunner,
+) {
     let args = pns_adapters::notifier_args(
         &failure.title(),
         &failure::notification(failure, NotificationSurface::Banner),
@@ -143,8 +149,7 @@ fn raise(failure: &Failure, pns_path: &str, phone: &Option<PhoneCard>) {
     // The outcome is DROPPED. A banner that will not post is the delivery
     // health alarm's subject rather than this module's, and there is no second
     // local surface to report it on.
-    let _ = pns_application::CommandRunner::run(
-        &pns_adapters::SystemCommandRunner,
+    let _ = notifier.run(
         "terminal-notifier",
         &args.iter().map(String::as_str).collect::<Vec<_>>(),
     );
