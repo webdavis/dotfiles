@@ -2,11 +2,10 @@
 #!/bin/bash
 # Hold each declared-pinned formula where `brew upgrade`, and so the weekly
 # unattended job, leaves it, and warn when the installed version drifts from
-# the version proven against this repository. Plain run_after_, so this runs
-# on EVERY apply rather than only when run_onchange_before_10-system-packages
-# re-renders: a pin lost outside that script (an interrupted
-# `just moshi-hook-upgrade`, an operator's manual `brew unpin`) is caught on
-# the next apply instead of staying silent until an unrelated package edit.
+# the version proven against this repository.
+#
+# Plain run_after_, so a pin lost to an interrupted `just moshi-hook-upgrade`
+# or a manual `brew unpin` is restored on the next apply.
 
 set -euo pipefail
 
@@ -15,13 +14,17 @@ brew_bin="$brew_prefix/bin/brew"
 
 pin_declared() {
   local formula="$1" declared="$2" installed
-  installed="$("$brew_bin" list --versions "$formula" 2>/dev/null | awk '{ print $2 }')"
+  # `brew list --versions` exits non-zero for a formula that is not installed;
+  # `|| true` keeps that from reaching set -e before the not-installed branch
+  # below gets to run.
+  installed="$("$brew_bin" list --versions "$formula" 2>/dev/null | awk '{ print $2 }')" || true
   if [[ -z $installed ]]; then
     printf 'homebrew: WARNING: %s is declared pinned at %s but is not installed.\n' "$formula" "$declared" >&2
     return 0
   fi
   if [[ -z $("$brew_bin" list --pinned "$formula" 2>/dev/null) ]]; then
     "$brew_bin" pin "$formula"
+    printf 'homebrew: pinned %s at %s\n' "$formula" "$installed"
   fi
   if [[ $installed != "$declared" ]]; then
     printf 'homebrew: WARNING: %s is pinned at %s, but .chezmoidata/system_packages_autoinstall.yaml declares %s, the version proven against this repository.\n' \

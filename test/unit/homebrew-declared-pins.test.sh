@@ -24,7 +24,9 @@ function set_up() {
 set -euo pipefail
 printf '%s\n' "$*" >>"$HOME/brew-calls"
 case "$*" in
-  'list --versions rjyo/moshi/moshi-hook') printf 'moshi-hook %s\n' "$PIN_INSTALLED" ;;
+  'list --versions rjyo/moshi/moshi-hook')
+    [[ -n $PIN_INSTALLED ]] || exit 1
+    printf 'moshi-hook %s\n' "$PIN_INSTALLED" ;;
   'list --pinned rjyo/moshi/moshi-hook')
     if [[ $PIN_PINNED == 1 ]]; then printf 'moshi-hook\n'; else printf 'Warning: moshi-hook not pinned\n' >&2; fi ;;
   'pin rjyo/moshi/moshi-hook' | bundle*) ;;
@@ -57,6 +59,7 @@ function test_an_unpinned_formula_at_the_declared_version_is_pinned() {
   pin_invoke
   assert_same 0 "$PIN_EXIT"
   assert_contains 'pin rjyo/moshi/moshi-hook' "$(cat "$PIN_CASE/home/brew-calls")"
+  assert_contains 'pinned rjyo/moshi/moshi-hook at 0.3.26' "$(cat "$PIN_CASE/stdout")"
   assert_not_contains 'WARNING' "$(cat "$PIN_CASE/stderr")"
 }
 
@@ -65,6 +68,7 @@ function test_a_formula_already_pinned_is_left_as_it_is() {
   pin_invoke
   assert_same 0 "$PIN_EXIT"
   assert_not_contains 'pin rjyo/moshi/moshi-hook' "$(cat "$PIN_CASE/home/brew-calls")"
+  assert_empty "$(cat "$PIN_CASE/stdout")"
 }
 
 function test_a_formula_installed_at_another_version_is_pinned_there_and_reported() {
