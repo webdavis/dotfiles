@@ -28,9 +28,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
    so one signed-POST seam exists rather than two. Do not keep that path alive behind a facade: put
    the client in the crate where it belongs and update uu's `Cargo.toml` and imports in the same pull
    request. Add `cargo test --locked --manifest-path uu/Cargo.toml` to the gates.
-4. **The command-line surface** is a compatibility contract, and one caller is not ours to change:
-   moshi's generated extensions hold one pathname in `helperBinary` and therefore call the bare
-   spelling `pns pi-hook` rather than `pns gate pi-hook`. Enumerate the in-repo callers first:
+4. **The command-line surface** is a compatibility contract. Enumerate the in-repo callers first:
 
        grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target --exclude-dir=graphify-out . | grep -v pns/
 

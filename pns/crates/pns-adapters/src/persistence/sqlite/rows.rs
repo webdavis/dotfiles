@@ -8,7 +8,6 @@ pub(super) enum Ring {
     Journal,
     Activity,
     Presence,
-    PolicyAudit,
 }
 impl Ring {
     pub(super) fn file(self) -> &'static str {
@@ -17,7 +16,6 @@ impl Ring {
             Self::Journal => crate::MISSED_NOTIFICATIONS,
             Self::Activity => crate::ACTIVITY,
             Self::Presence => "presence-decisions",
-            Self::PolicyAudit => "policy-settings-audit",
         }
     }
     pub(super) fn table(self) -> &'static str {
@@ -26,7 +24,6 @@ impl Ring {
             Self::Journal => "journal",
             Self::Activity => "activity",
             Self::Presence => "presence",
-            Self::PolicyAudit => "policy_audit",
         }
     }
     fn where_pending(self) -> &'static str {
@@ -41,7 +38,6 @@ impl Ring {
             Self::Journal => pns_domain::missed::KEPT,
             Self::Activity => crate::ACTIVITY_KEPT,
             Self::Presence => pns_domain::KEPT,
-            Self::PolicyAudit => super::super::rings::POLICY_SETTINGS_AUDIT_KEPT,
         }
     }
 }
