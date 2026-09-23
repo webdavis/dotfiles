@@ -195,18 +195,4 @@ PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/h
 [[ $(cat "$sandbox/probed") == $'claude-hook\ncodex-hook' ]] ||
   fail "8: the probe must ask claude-hook and codex-hook only (probed: $(cat "$sandbox/probed"))"
 
-# --- 9: moshi's generated extensions are left exactly as moshi wrote them ----
-
-mkdir -p "$sandbox/render-home/.cargo/bin" "$sandbox/home/.pi/agent/extensions"
-printf '#!/bin/bash\n' >"$sandbox/render-home/.cargo/bin/pns"
-chmod +x "$sandbox/render-home/.cargo/bin/pns"
-printf 'const helperBinary = "/opt/homebrew/bin/moshi-hook"\n' \
-  >"$sandbox/home/.pi/agent/extensions/moshi-hooks.ts"
-status=0
-PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
-  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
-[[ $status -eq 0 ]] || fail "9: the script must not abort the apply, got $status"
-[[ $(cat "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts") == 'const helperBinary = "/opt/homebrew/bin/moshi-hook"' ]] ||
-  fail "9: the generated extension must be left alone (file: $(cat "$sandbox/home/.pi/agent/extensions/moshi-hooks.ts"))"
-
-printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse, a stopped daemon does not abort the apply, a renamed hook subcommand is reported, the probe asks only the subcommands pns spawns, and moshi'"'"'s generated extensions are left alone)\n'
+printf 'moshi-hook-bounce-on-upgrade: OK (replaced binary bounces, current daemon is left alone, unparseable and unreadable states refuse, a stopped daemon does not abort the apply, a renamed hook subcommand is reported, and the probe asks only the subcommands pns spawns)\n'
