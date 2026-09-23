@@ -169,8 +169,9 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
                          # `custom` is the escape hatch and reads `command` below. The shipped\n\
                          # value is `custom` with no command, which is NO SUMMARIZER AT ALL and\n\
                          # a working setting: the recap is its mechanical sections. Neither\n\
-                         # claude nor codex runs your hooks: claude runs in safe mode with no\n\
-                         # tools, and codex runs read-only in pns's own stripped Codex home.\n",
+                         # claude nor codex runs your hooks or keeps a session: claude runs in\n\
+                         # safe mode with no tools, and codex runs in pns's own Codex home with\n\
+                         # no shell, plugins, connectors or web search.\n",
             sample: Sample::Default("\"custom\""),
         },
         Key {
@@ -183,15 +184,19 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
         },
         Key {
             name: "model",
-            prose: "# The model, passed through where the tool takes one. `ollama` names no\n\
-                         # default of its own, so this is required there and refused empty.\n",
+            prose: "# The model, passed through where the tool takes one. Empty leaves the\n\
+                         # tool's default, which for codex is the gpt-5.5 of pns's own Codex\n\
+                         # home. `ollama` names no default of its own, so this is required there\n\
+                         # and refused empty.\n",
             sample: Sample::Default("\"\""),
         },
         Key {
             name: "effort",
             prose: "# The reasoning effort, passed to codex as `model_reasoning_effort` and\n\
-                         # to claude as `--effort`. Empty passes nothing and leaves the backend's\n\
-                         # default; stating it for any other type is refused.\n",
+                         # to claude as `--effort`. Empty passes nothing: claude keeps its own\n\
+                         # default and codex takes the low of pns's own Codex home. A word the\n\
+                         # type does not take is refused with the words it does, and so is any\n\
+                         # word for another type.\n",
             sample: Sample::Default("\"\""),
         },
         Key {

@@ -73,9 +73,10 @@ const DISABLED_FEATURES: [&str; 8] = [
     "view_image",
 ];
 /// A private, stripped Codex home: a minimal config (fast model, low
-/// reasoning) and the live auth symlinked, with NO hooks or plugins. That cuts
-/// the load (~9s to ~3s) and means the summarizer run has no Stop hook of its
-/// own, which is the hard guarantee against a pns-to-codex-to-pns loop.
+/// reasoning) and the live auth symlinked, with NO hooks. The plugins Codex
+/// syncs into it for the account are switched off by `isolate`. That cuts the
+/// load (~9s to ~3s) and means the summarizer run has no Stop hook of its own,
+/// which is the hard guarantee against a pns-to-codex-to-pns loop.
 /// It is created owner-only, because it points at the live Codex credentials.
 fn summarizer_home(user_home: &str, home_override: Option<&str>) -> Option<std::path::PathBuf> {
     use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};

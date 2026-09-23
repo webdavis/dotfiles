@@ -8,8 +8,11 @@
 //!
 //! COMPOSITION IS POLICY AND LIVES HERE, which is what lets the golden test
 //! pin every known type's vector as a plain call with no process in it. The
-//! adapter beside it spawns what this composed, adding only the stripped Codex
-//! home's path when the invocation asks for it.
+//! one exception is a private home: the adapter makes it at run time and adds
+//! its own words, which for codex are `--ephemeral`, `-s read-only`,
+//! `-C <home>`, the `--disable` switches, web search off, and `CODEX_HOME` and
+//! `PNS_SUMMARIZING` in the environment. The turn summarizer runs with the
+//! same words, so they live beside it in the adapter's `codex::isolate`.
 
 use std::time::Duration;
 
@@ -145,8 +148,10 @@ impl Settings {
     /// NEITHER HARNESS RUNS THE OPERATOR'S HOOKS, or a summary would fire
     /// pns's own Stop hook about itself. VERIFIED 2026-09-22 on claude 2.1.280
     /// and codex 0.156.0: `claude --safe-mode` ran no settings hook where the
-    /// same run without it ran two, `--tools ""` leaves it no tool, and codex
-    /// printed `reasoning effort: low` for `-c model_reasoning_effort="low"`.
+    /// same run without it ran two, `--no-session-persistence` wrote no session
+    /// file where the same run without it wrote one, `--tools ""` leaves it no
+    /// tool, and codex printed `reasoning effort: low` for
+    /// `-c model_reasoning_effort="low"`.
     pub fn invocation(&self) -> Option<Invocation> {
         let model = |flag: &str| match self.model.is_empty() {
             true => Vec::new(),
