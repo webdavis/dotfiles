@@ -356,7 +356,7 @@ is what makes that acceptable. An operator whose bind address sits on an untrust
 denial-of-notification to anyone who watches one tap.
 
 The new inbound listener joins `pns/docs/specs/privacy-and-hostile-input.md` as its own numbered
-behavior, beside section 19's outbound inventory, because that document's job is to be the one place
+behavior, beside section 18's outbound inventory, because that document's job is to be the one place
 every trust boundary is written down.
 
 ### Behaviors to pin, fail-first

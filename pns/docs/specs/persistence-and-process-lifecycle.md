@@ -527,9 +527,6 @@ arithmetic."
     depth and 34 is the first that collapses.
   - `ACTIVITY_KEPT` = 150 against `ACTIVITY_READ_MAX` = 1,048,576 bytes. Worst-case entry 5 * 120 * 6 +
     80 = 3,680 bytes, full ring 552,000 bytes, 53% of the ceiling.
-  - `POLICY_SETTINGS_AUDIT_KEPT` = 20, worst-case line about 4.4 KB, about 88 KB full, inside 256 KiB.
-    Pinned by `tests/hooks.rs:the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry` and
-    `tests/hooks.rs:a_policy_settings_change_is_recorded_to_a_bounded_audit_trail`.
 - Required side effects: the prune republishes by rename, so it carries the mode with it.
 - Forbidden side effects: the prune must not run outside the lock.
 - Timeout and cancellation: not applicable.
@@ -657,9 +654,7 @@ decision actually used it for."
 - Idempotency and duplicates: a nudge is distinguished from a first card by the `remind` BOOLEAN, so "one
   prompt that went unanswered leaves two `claude/blocked` entries differing in nothing an operator can
   see" is fixed without adding text.
-- Privacy: this behavior IS the ring's privacy rule. The related caps at the same boundary are
-  `CONFIG_PATH_MAX_CHARS` = 1024 and `CONFIG_SESSION_MAX_CHARS` = 64 on the policy-settings audit trail,
-  cited by `src/main.rs:config_field` as "the same defence at the same boundary, for the same reason".
+- Privacy: this behavior IS the ring's privacy rule.
 - Process ownership and cleanup: not applicable.
 - Compatibility contract: the format is `<epoch> <key=value ...>`, and "The only reader is the section
   below, whose whole parse is one `split_once(' ')` over the epoch".
