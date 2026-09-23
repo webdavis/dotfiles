@@ -84,11 +84,9 @@ fn one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve(
     // second submitter would appear at; the zero is what keeps that count from
     // being satisfied by a build that submitted nothing and defaulted.
     //
-    // The exit code is a live contract for the harnesses that reach the gate
-    // directly and read it. Claude Code does not honor a PermissionRequest
-    // hook's exit code (the answer travels moshi's own bridge), so for THIS
-    // path it is a forward-compatibility guarantee rather than today's
-    // mechanism.
+    // Claude Code does not honor a PermissionRequest hook's exit code (the
+    // answer travels moshi's own bridge), so for THIS path the exit code is a
+    // forward-compatibility guarantee rather than today's mechanism.
     //
     // MECHANISM-BOUND: the count is read off the submission record, so this
     // goes RED at the endpoint switch and item 25's duty is to rewrite it
@@ -245,9 +243,8 @@ fn a_two_from_moshi_comes_back_as_two_and_is_never_normalized() {
     // so this row is the only one of the three that was missing.
     //
     // THE CODE IS MOSHI'S, AND IT IS NOT THE HARNESS'S ANSWER: see the
-    // section header. It is a pns-side contract the gate's direct callers
-    // read, and it is not the operator's decision, which arrives by moshi's
-    // own bridge typing into the prompt.
+    // section header. It is a pns-side contract, and it is not the operator's
+    // decision, which arrives by moshi's own bridge typing into the prompt.
     let sandbox = Sandbox::new("hook-blocked-two");
     let output = hook_with(approval(&sandbox, 2), &sandbox, "blocked", CLAUDE_APPROVAL);
     assert_eq!(

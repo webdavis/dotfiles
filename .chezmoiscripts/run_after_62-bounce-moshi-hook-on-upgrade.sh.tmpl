@@ -25,15 +25,6 @@
 # no matter what lands on disk later. So if the two inodes match, the daemon
 # is running today's binary. If they don't, brew swapped the file after the
 # daemon started, and the bounce below fixes that.
-#
-# THE NUMBER IS LOAD-BEARING, and it is why this runs at 62 rather than at the
-# 46 it was written for. Scripts run in name order, so 46 put this BEFORE two
-# scripts it depends on: 58 builds the pns binary the repoint below points at,
-# and run_once_after_60 runs `moshi-hook install`, which regenerates the very
-# extension files this repoints. A fresh machine therefore had no pns to point
-# at when this ran, and every apply that re-fired the 60 script undid the
-# repoint immediately afterwards. Both ended with the generated extensions
-# naming moshi-hook as their replay adapter again. Keep this after both.
 set -euo pipefail
 
 readonly SERVICE_LABEL='homebrew.mxcl.moshi-hook'
@@ -42,72 +33,8 @@ MOSHI_HOOK_BIN="${MOSHI_HOOK_BIN:-/opt/homebrew/bin/moshi-hook}"
 
 [[ -x $MOSHI_HOOK_BIN ]] || exit 0
 
-# pns sits beside moshi-hook on the agent harnesses. A moshi-hook upgrade can
-# silently undo that in two ways, checked below in order:
-#
-#   1. `moshi-hook install` rewrites its generated extension files, which
-#      removes the repoint at pns.
-#   2. a release could rename the hidden per-harness subcommands pns calls.
-#
-# Neither failure makes a sound on its own, so this script re-checks both
-# after every upgrade. The two variables are overridable so tests can run
-# against fixtures instead of live files.
-PNS_MOSHI_GATE="${PNS_MOSHI_GATE:-{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}}"
-MOSHI_EXTENSION_ROOT="${MOSHI_EXTENSION_ROOT:-$HOME}"
-
-# 1. THE REPOINT, AND WHAT IT IS AND IS NOT. pi and omp are driven by a
-# TypeScript extension moshi GENERATES, hard-coding
-# `const helperBinary = "/opt/homebrew/bin/moshi-hook"`. That file's own header
-# says the field is kept for debugging and manual replay: every live event is
-# written straight to the moshi daemon socket, so helperBinary is never
-# spawned. Repointing it decides which binary a REPLAYED payload goes through,
-# `pns pi-hook` and `pns omp-hook` being the presence-gated pass-through the
-# field holds one pathname for, and it changes nothing about what pi and omp
-# push in the moment. Presence filtering for those two lives in moshi;
-# reminders for them live in this repository's own extension,
-# `pns-reminders.ts`, beside the generated file. `moshi-hook install` and every
-# upgrade rewrite the generated file, reverting the one line pns owns.
-if [[ -x $PNS_MOSHI_GATE ]]; then
-  for extension in \
-    "$MOSHI_EXTENSION_ROOT/.pi/agent/extensions/moshi-hooks.ts" \
-    "$MOSHI_EXTENSION_ROOT/.omp/agent/extensions/moshi-hooks.ts"; do
-    [[ -f $extension ]] || continue
-    current="$(sed -n 's/^const helperBinary = "\(.*\)"$/\1/p' "$extension" | head -1)"
-    if [[ -z $current ]]; then
-      printf 'moshi-hook: WARNING: %s no longer declares a helperBinary line this script recognizes, so a replayed payload for that harness stays on moshi-hook.\n' \
-        "$extension" >&2
-      continue
-    fi
-    [[ $current != "$PNS_MOSHI_GATE" ]] || continue
-    tmp="$(mktemp "$extension.XXXXXX")" || continue
-    # The copy is for the MODE, not the content, which the redirect below
-    # replaces: mktemp makes an 0600 file, and the atomic `mv` would hand that
-    # mode to a file this repo does not own. A redirect into an existing file
-    # leaves its mode alone.
-    cp -p "$extension" "$tmp"
-    if sed "s|^const helperBinary = \".*\"\$|const helperBinary = \"$PNS_MOSHI_GATE\"|" \
-      "$extension" >"$tmp" && grep -q "helperBinary = \"$PNS_MOSHI_GATE\"" "$tmp"; then
-      mv "$tmp" "$extension"
-      printf 'moshi-hook: repointed the replay adapter in %s at pns (it pointed at %s).\n' \
-        "$extension" "$current"
-    else
-      rm -f "$tmp"
-      printf 'moshi-hook: WARNING: could not repoint the replay adapter in %s at pns; a replayed payload for that harness stays on moshi-hook.\n' \
-        "$extension" >&2
-    fi
-  done
-else
-  # No binary to point at means nothing to repoint, and it also means the pi
-  # and omp reminder extensions have no engine to call: both come out of the
-  # same build. This is expected to be unreachable now that the script runs
-  # after the build, which is exactly why hearing it means the build did not
-  # produce a binary.
-  printf 'moshi-hook: WARNING: no pns binary at %s, so the pi and omp replay adapters stay on moshi-hook and their reminder extensions have nothing to call.\n' \
-    "$PNS_MOSHI_GATE" >&2
-fi
-
-# 2. THE SUBCOMMAND. The per-harness hook subcommands are UNDOCUMENTED (none of
-# them appears in `moshi-hook --help`), so a rename would ship as a silent
+# THE SUBCOMMANDS pns spawns for claude and codex approvals are UNDOCUMENTED
+# (neither appears in `moshi-hook --help`), so a rename would ship as a silent
 # no-op: every forward would return "path does not exist" instead of a
 # decision, and approve/deny from the phone would simply stop working with
 # nothing to see. moshi's top-level positional is a PATH, which is what makes
@@ -117,7 +44,7 @@ fi
 # It WARNS rather than failing. This is a notification path, and refusing the
 # rest of an apply over one is the same mistake as a hook that fails a turn
 # because a push did not land.
-for subcommand in claude-hook codex-hook pi-hook omp-hook; do
+for subcommand in claude-hook codex-hook; do
   probe="$(printf '{}' | "$MOSHI_HOOK_BIN" "$subcommand" 2>&1 >/dev/null || true)"
   case "$probe" in
     *'path does not exist'*)

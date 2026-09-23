@@ -21,9 +21,9 @@ appears in a test file.
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `hooks::flattened`                  | Every run of `char::is_whitespace()` or `char::is_control()` becomes ONE space; both ends trimmed. `char::is_control` is exactly the Cc set (C0, DEL, C1), chosen by category rather than by codepoint range                                     | Every Unicode format (Cf) character, every multibyte character, globs (`*.jsonl`), punctuation | `hooks::parse_payload` on the `message` and `detail` reads; `hooks::tool_request` on `tool_name`; `hooks::elicitation_request` on both halves; `hooks::one_line` on every string it walks, object KEYS included | `session_id`, `cwd`, `transcript_path`, `file_path`: "a path or a session id is matched and opened rather than rendered, and flattening one would rewrite a name the filesystem gave" (`hooks::parse_payload`). `HookPayload::tool_name` is held RAW and filtered only where it is printed. `last_assistant_message` goes through `render::flatten_reply` instead, which does not strip Cc | `src/hooks.rs:every_class_of_control_byte_is_scrubbed_before_a_line_reaches_a_channel`; `src/hooks.rs:every_payload_string_a_card_is_built_from_is_scrubbed_and_not_the_arguments_alone`; `src/hooks.rs:an_elicitation_prompt_is_kept_to_one_line_and_cut_from_the_head_too`                                                          |
 | `render::flatten_reply`             | Runs of EXACTLY four characters (space, tab, carriage return, newline) become one space; ends trimmed; the TAIL survives `max_chars`                                                                                                             | Form feed U+000C, no-break space U+00A0, every other control byte, every Cf character, globs   | `main::turn_reply` at `REPLY_MAX_CHARS`; `missed_notifications::entry` on all five text fields at the caller's cap; `recap::safe_line` at `usize::MAX` after its own filter has run                             | Nothing widens it to `char::is_whitespace`: "a unicode-aware split ... also eats a form feed and a non-breaking space, silently rewriting text an agent chose to send" (`src/render.rs`)                                                                                                                                                                                                   | `src/render.rs:whitespace_outside_the_four_is_content_the_turn_wrote_rather_than_a_separator`; `src/render.rs:an_over_long_reply_is_cut_to_its_tail`; `src/render.rs:one_character_past_the_cap_is_already_a_cut`; `src/render.rs:the_tail_cut_counts_characters_rather_than_bytes`                                                   |
-| `render::clipped`                   | Cuts to `max_chars` characters keeping the HEAD, trailing whitespace trimmed, and MARKS the cut with `…` (U+2026). Never returns more characters than the room it was given, mark included. A room of zero returns empty rather than a bare mark | Anything inside the room                                                                       | `main::config_field`; `recap::safe_line`; `recap::merged`, `recap::noted`, `recap::unreadable`; `render::preview`'s no-sentence-end fallback                                                                    | Not used for a turn's own reply: `flatten_reply` keeps the tail there instead, "because a turn states its conclusion at the end" (`src/render.rs:clipped`)                                                                                                                                                                                                                                 | `src/render.rs` `clipped`/`preview` unit tests                                                                                                                                                                                                                                                                                        |
-| `main::rendered_plainly`            | `hooks::flattened`, then every character for which `recap::is_invisible` answers true is DROPPED                                                                                                                                                 | Everything `flattened` leaves                                                                  | `main::model_switch_detail` on `from_model` and `to_model`; `main::config_field`, hence the `ConfigChange` `file_path` and the audit trail's `session_id`                                                       | Every other rendered field. Stated at `main::rendered_plainly`: widening `flattened` itself "would let every other field silently start allowing format characters through too". The two callers earn it because one compares two names for equality and the other writes a path into a durable state file                                                                                 | `tests/hooks.rs:an_auto_switch_strips_a_unicode_format_character_from_the_name`; `tests/hooks.rs:a_hostile_file_path_is_sanitised_before_it_reaches_the_card`; `tests/hooks.rs:an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail`                                                                     |
-| `recap::safe_line`                  | Every `char::is_whitespace()` becomes a space, then every `char::is_control()` and every `is_invisible` character is DROPPED WHOLE, then `flatten_reply`, then `clipped` to the caller's width                                                   | Ordinary printable text of any script                                                          | `recap::answer` per line at `SUMMARIZED_MAX_CHARS`; `recap::merged` at `SOURCE_MAX_CHARS`; `recap::noted` on the cite, the heading and the note body; `recap::unreadable` on the cite                           | The MECHANICAL timeline lines (`recap::described`) built from activity ring entries. Those carry `Entry` text as `missed_notifications::entry` wrote it, which is `flatten_reply` only. See behavior 21                                                                                                                                                                                    | `src/recap.rs:a_summarizers_line_cannot_carry_an_invisible_or_a_reordering_character`                                                                                                                                                                                                                                                 |
+| `render::clipped`                   | Cuts to `max_chars` characters keeping the HEAD, trailing whitespace trimmed, and MARKS the cut with `…` (U+2026). Never returns more characters than the room it was given, mark included. A room of zero returns empty rather than a bare mark | Anything inside the room                                                                       | `recap::safe_line`; `recap::merged`, `recap::noted`, `recap::unreadable`; `render::preview`'s no-sentence-end fallback                                                                    | Not used for a turn's own reply: `flatten_reply` keeps the tail there instead, "because a turn states its conclusion at the end" (`src/render.rs:clipped`)                                                                                                                                                                                                                                 | `src/render.rs` `clipped`/`preview` unit tests                                                                                                                                                                                                                                                                                        |
+| `main::rendered_plainly`            | `hooks::flattened`, then every character for which `recap::is_invisible` answers true is DROPPED                                                                                                                                                 | Everything `flattened` leaves                                                                  | `main::model_switch_detail` on `from_model` and `to_model`                                                       | Every other rendered field. Widening `flattened` itself would let every other field silently start allowing format characters through too, so the strip stays local to `main::rendered_plainly`. The one caller earns it because it compares two names for equality                                                                                 | `tests/hooks.rs:an_auto_switch_strips_a_unicode_format_character_from_the_name`                                                                     |
+| `recap::safe_line`                  | Every `char::is_whitespace()` becomes a space, then every `char::is_control()` and every `is_invisible` character is DROPPED WHOLE, then `flatten_reply`, then `clipped` to the caller's width                                                   | Ordinary printable text of any script                                                          | `recap::answer` per line at `SUMMARIZED_MAX_CHARS`; `recap::merged` at `SOURCE_MAX_CHARS`; `recap::noted` on the cite, the heading and the note body; `recap::unreadable` on the cite                           | The MECHANICAL timeline lines (`recap::described`) built from activity ring entries. Those carry `Entry` text as `missed_notifications::entry` wrote it, which is `flatten_reply` only. See behavior 20                                                                                                                                                                                    | `src/recap.rs:a_summarizers_line_cannot_carry_an_invisible_or_a_reordering_character`                                                                                                                                                                                                                                                 |
 | `recap::is_invisible`               | Answers true for the whole Unicode 17.0 format (Cf) category, written as 21 explicit ranges because the standard library has no category lookup and the crate takes no dependency for one                                                        | Every non-Cf character. It is a predicate, not a filter; the caller drops                      | `main::rendered_plainly`, `recap::safe_line`                                                                                                                                                                    | Not consulted by `hooks::flattened`, by design (see `rendered_plainly` above)                                                                                                                                                                                                                                                                                                              | `src/recap.rs:is_invisible_agrees_with_unicode_17_0_across_every_code_point` checks it against an independently transcribed copy of `DerivedGeneralCategory.txt` for EVERY valid `char`; `src/recap.rs:a_summarizers_line_cannot_carry_an_invisible_or_a_reordering_character`                                                        |
 | `decision_log::printable`           | Empty becomes `none`. Anything with a character outside ASCII alphanumeric plus `.`, `-`, `_` replaces THE WHOLE VALUE with `unprintable`. What survives is cut to `IDENTITY_MAX` = 32 characters. Judged whole FIRST, cut second                | Conforming short identity tokens                                                               | `decision_log::line` on `agent`, `state`, `permission_mode`, `agent_id`, `tool_name`                                                                                                                            | Everything else on a line, because everything else is a number, a boolean, an enum variant name or a plugin name off the compiled roster. It is also deliberately NOT `safety::route_name_is_usable`: "borrowing it ... would make it two rules wearing one spelling" (`src/decision_log.rs:printable`)                                                                                    | `src/decision_log.rs:an_agent_or_state_outside_the_printable_allowlist_is_recorded_as_unprintable`; `src/decision_log.rs:a_payload_field_outside_the_printable_allowlist_is_recorded_as_unprintable`; `src/decision_log.rs:no_free_text_reaches_a_line_and_the_pane_appears_only_as_two_booleans`                                     |
 | `decision_log::escaped`             | `str::escape_debug`, so a control byte is printed as the characters that SPELL it (`\u{1b}`, `\t`) rather than executed                                                                                                                          | Ordinary text                                                                                  | `decision_log::render` on a parsed entry's body and `decision_log::complaint` on an unreadable one, both arms of the doctor's decision ring section                                                             | Nowhere else. It is an escape rather than a drop because the reader is an operator on a terminal asking what happened, so "an escape is evidence" (`src/recap.rs:safe_line` states the contrast)                                                                                                                                                                                           | `src/decision_log.rs:an_unreadable_entry_is_quoted_short_and_with_its_control_bytes_escaped`; `src/decision_log.rs:a_parsed_entrys_body_is_escaped_by_the_same_rule_an_unreadable_one_is`                                                                                                                                             |
@@ -42,8 +42,6 @@ appears in a test file.
 | Harness payload on stdin (`main::read_payload`)                        | `MAX_PAYLOAD_BYTES` = 1,000,000 bytes, plus a `payload_deadline()` of 5 s (`PNS_PAYLOAD_DEADLINE`)               | Whole. Forwarded to moshi and carded normally | `payload_is_whole` answers false. The payload is NOT forwarded (nothing reaches moshi); the notification still goes out. The reader asks for `MAX_PAYLOAD_BYTES + 1` bytes precisely so the two are distinguishable |
 | A turn's reply (`main::turn_reply`)                                    | `REPLY_MAX_CHARS` = 8,000 characters                                                                                | Left whole                                    | The TAIL of 8,000 characters survives; the head is dropped                                                                                                                                                          |
 | Phone card and banner preview (`render::preview`)                      | `PREVIEW_MAX_CHARS` = 260 characters                                                                                | Passes through untouched                      | Cut at the last sentence end that still fits, else `clipped` with an `…`                                                                                                                                            |
-| `ConfigChange` `file_path` (`main::config_field`)                      | `CONFIG_PATH_MAX_CHARS` = 1,024 characters                                                                          | Whole                                         | Head kept, `…` appended. macOS `PATH_MAX`; a long Linux path IS visibly clipped, with the cut marked                                                                                                                |
-| `ConfigChange` `session_id` in the audit trail                         | `CONFIG_SESSION_MAX_CHARS` = 64 characters                                                                          | Whole                                         | Head kept, `…` appended                                                                                                                                                                                             |
 | Activity ring text fields (`main::ACTIVITY_MAX_CHARS`)                 | 120 characters each, five fields                                                                                    | Whole                                         | Tail kept (`flatten_reply`), head dropped                                                                                                                                                                           |
 | Journal (missed notifications) text fields                             | `render::PREVIEW_MAX_CHARS` = 260 characters each                                                                   | Whole                                         | Tail kept                                                                                                                                                                                                           |
 | Decision ring identities (`decision_log::IDENTITY_MAX`)                | 32 characters, after the allowlist has judged the WHOLE value                                                       | Whole                                         | First 32 characters kept. Every accepted byte is ASCII, so the cut can never land inside a multibyte character                                                                                                      |
@@ -141,52 +139,40 @@ Then it arrives byte for byte unchanged
 - Forbidden side effects: none.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: identity.
-- Privacy: unchanged content means unchanged exposure; see behavior 19 for where it then goes.
+- Privacy: unchanged content means unchanged exposure; see behavior 18 for where it then goes.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: `render::flatten_reply` keeps form feed U+000C and no-break space U+00A0 as
   CONTENT while `hooks::flattened` treats both as separators (`char::is_whitespace` covers U+00A0). The
   two functions disagree about those characters by design and both sides are pinned
   (`src/render.rs:whitespace_outside_the_four_is_content_the_turn_wrote_rather_than_a_separator`).
 
-### 3. A Unicode format character never reaches a model name or a config path
+### 3. A Unicode format character never reaches a model name
 
-Given a `PostModelSwitch` payload whose `to_model` carries U+202E RIGHT-TO-LEFT OVERRIDE, or a
-`ConfigChange` payload whose `file_path` carries U+202E or U+061C ARABIC LETTER MARK
+Given a `PostModelSwitch` payload whose `to_model` carries U+202E RIGHT-TO-LEFT OVERRIDE
 
 When the card's detail is composed
 
-Then the character is gone from the rendered value and from every durable record of it
+Then the character is gone from the rendered value
 
 - Success: `main::rendered_plainly` runs `hooks::flattened` and then filters out every character for
-  which `recap::is_invisible` answers true. `main::model_switch_detail` and `main::config_change_detail`
-  are its only two callers. Pinned by
+  which `recap::is_invisible` answers true. `main::model_switch_detail` is its only caller. Pinned by
   `tests/hooks.rs:an_auto_switch_strips_a_unicode_format_character_from_the_name` (detail reads
-  `automatic session model change: claude-sonnet-4-5 to claude-opus-4-6`),
-  `tests/hooks.rs:a_hostile_file_path_is_sanitised_before_it_reaches_the_card` (detail reads
-  `user settings changed: /a/dotfiles/settings.json`) and
-  `tests/hooks.rs:an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail`,
-  which checks the card AND the `policy-settings-audit` file in one event.
+  `automatic session model change: claude-sonnet-4-5 to claude-opus-4-6`).
 - Failure sources: a model name that is empty once stripped, or two names equal once stripped, both of
   which yield `None` and no card at all (`main::model_switch_detail`).
 - Fail direction: fail-closed. The character is DROPPED, not escaped and not passed through with a
   warning. A name that reduces to nothing produces no card rather than a card about nothing.
-- Thresholds: `config_field` applies `CONFIG_PATH_MAX_CHARS` = 1,024 to a path and
-  `CONFIG_SESSION_MAX_CHARS` = 64 to a session id, both after the strip. At the cap the value is whole;
-  one character past it the head survives with `…` appended.
-- Required side effects: for `source = "policy_settings"`, one line appended to
-  `<state>/policy-settings-audit` (behavior 9).
-- Forbidden side effects: no widening of `hooks::flattened` itself. The doc comment states why: two
-  callers earn the strip, and moving it inside `flattened` "would let every other field silently start
-  allowing format characters through too".
+- Thresholds: Not applicable, membership in `recap::is_invisible` decides.
+- Required side effects: none.
+- Forbidden side effects: no widening of `hooks::flattened` itself. One caller earns the strip, and
+  moving it inside `flattened` would let every other field silently start allowing format characters
+  through too.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: `rendered_plainly` is idempotent.
-- Privacy: `config_change_detail` deliberately carries no key, no old or new value and no actor. The
-  payload does not offer them, and the detail says only WHICH SOURCE and, optionally, WHICH FILE.
+- Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: `config_source_label` is an EXACT allowlist of five strings (`user_settings`,
-  `project_settings`, `local_settings`, `policy_settings`, `skills`). Anything else, including a prefix
-  of a real value and a different case, yields `None` and total silence, described as "the Rust-side
-  backstop the declaration's matcher alone cannot be trusted to be".
+- Compatibility contract: only a switch with `source = "auto"` reaches `main::model_switch_detail`;
+  every other source is silence.
 
 ### 4. The invisible-character set is the whole Unicode format category, checked against the standard
 
@@ -325,7 +311,7 @@ channel is handed the value
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: pure predicate.
 - Privacy: the decision ring records the pane only as `pane=present|none` plus `pane_dropped=yes|no`,
-  never its value (behavior 11).
+  never its value (behavior 10).
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: a safe pane passes through byte for byte
   (`tests/hooks.rs:the_herdr_pane_reaches_the_event_verbatim_and_a_hostile_one_is_scrubbed_downstream`
@@ -366,43 +352,7 @@ Then no path is produced, nothing is written, nothing is removed, and the proces
   `src/safety.rs:a_pane_id_shaped_like_a_working_file_never_names_a_lease` also asserts `a.new.b` stays
   safe, so the refusal is the digit-suffixed shape alone.
 
-### 9. A newline in a payload field cannot forge a durable record
-
-Given a `ConfigChange` payload with `source = "policy_settings"` and a `file_path` carrying a raw newline
-followed by text shaped like a real audit entry
-
-When `main::record_policy_settings_change` appends
-
-Then the file gains exactly ONE line
-
-- Success: `config_field` runs `rendered_plainly` (which flattens whitespace AND control characters
-  through `hooks::flattened`) before `clipped`, so no newline survives into the composed line
-  `{now} session={session} file={path}`. Pinned by
-  `tests/hooks.rs:a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry`, which asserts
-  `recorded.lines().count() == 1`.
-- Failure sources: a state directory that cannot be written.
-- Fail direction: fail-quiet, deliberately. `record_policy_settings_change` discards the result: "an
-  event path whose stdout a harness hook reads must not gain a line about the state directory, and a
-  record that did not land costs a read of this file later, never a card".
-- Thresholds: `POLICY_SETTINGS_AUDIT_KEPT` = 20 entries. The arithmetic is stated: a worst-case line is a
-  timestamp plus 64 characters plus 1,024 characters, about 4.4 KB of UTF-8, and twenty of them about 88
-  KB, "comfortably inside the reader's 256 KiB ceiling". WITHOUT both cuts the depth alone would not
-  bound the file, and a ring past the read ceiling "can never be pruned again".
-- Required side effects: exactly one appended line, under the ring lock, at mode `0600`.
-- Forbidden side effects: no card of its own, no marker, no lease. It is "purely a durable trace of
-  receipt".
-- Timeout and cancellation: `claim_ring_lock` makes `RING_LOCK_ATTEMPTS` attempts with 1 ms sleeps and
-  returns `WouldBlock` rather than waiting forever.
-- Idempotency and duplicates: three received `policy_settings` events append three lines; the routing is
-  marker-neutral and nothing coalesces them.
-- Privacy: an empty path is recorded as the literal `none`, never as an empty field.
-- Process ownership and cleanup: the lock is released by `HeldLock`'s drop.
-- Compatibility contract: the journal and the activity ring solve the same problem differently. They hold
-  free text, so they are JSON, "BUILT WITH `json!` AND NEVER WITH `format!`, which is the Rust spelling
-  of this repo's build JSON with `jq -n --arg` rule". The decision ring solves it by refusing free text
-  entirely (behavior 11).
-
-### 10. The payload is bounded in bytes and in time, and a cut payload is never forwarded
+### 9. The payload is bounded in bytes and in time, and a cut payload is never forwarded
 
 Given a harness writes 1.2 MB to the hook's stdin, or writes nothing and never closes the pipe
 
@@ -413,11 +363,9 @@ answers false for the oversized case, and nothing is submitted to moshi
 
 - Success: `read_payload` runs the read on a thread with `Read::take(stdin, MAX_PAYLOAD_BYTES + 1)` and
   `recv_timeout(payload_deadline())`. `payload_is_whole` compares against `MAX_PAYLOAD_BYTES` exactly.
-  Pinned at BOTH entry points:
-  `tests/hooks.rs:the_gate_refuses_an_over_cap_payload_as_firmly_as_the_hook_does` (the
-  `pns pi-hook` path exits 0 and submits nothing) and, for the other edge,
-  `tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, which builds a payload of
-  exactly 1,000,000 bytes and asserts the submission happens.
+  Pinned by `tests/hooks.rs:a_payload_too_large_to_be_whole_is_never_forwarded_as_though_it_were` and,
+  for the other edge, `tests/hooks.rs:a_payload_at_the_cap_is_whole_and_is_still_submitted`, which builds
+  a payload of exactly 1,000,000 bytes and asserts the submission happens.
 - Failure sources: a pipe nobody closes; a payload larger than memory.
 - Fail direction: fail-closed toward NOT forwarding. "A payload that reached the cap was CUT MID-OBJECT,
   so it is no longer JSON and no longer what anybody wrote. Forwarding it hands moshi an empty parse".
@@ -430,17 +378,17 @@ answers false for the oversized case, and nothing is submitted to moshi
 - Timeout and cancellation: `payload_deadline()` defaults to 5 s, overridable by
   `PNS_PAYLOAD_DEADLINE`. The reader thread outlives a refusal, which is accepted because "the process
   is about to exit, and it holds nothing but its own buffer".
-- Idempotency and duplicates: the single-submitter rule holds at both entry points
-  (`tests/hooks.rs:the_gate_submits_one_prompt_exactly_once`).
+- Idempotency and duplicates: the single-submitter rule holds
+  (`tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`).
 - Privacy: the payload is never printed. The blocked hook's stdout is asserted EXACTLY empty
   (`tests/hooks.rs`, the stdout guard), because a first-character test would pass a byte-order mark in
   front of a valid `allow` object.
 - Process ownership and cleanup: `spawn_moshi_hook` plus `answer_within` bound the forwarded child.
-- Compatibility contract: `hooks::is_harness_subcommand` gates the gate's pass-through by SHAPE
-  (`<lowercase-ascii>-hook`) rather than a roster, because "an unvetted word here is this repo handing a
-  third-party binary a filesystem argument nobody chose".
+- Compatibility contract: the only subcommands handed to `moshi-hook` come from the closed roster in
+  `hooks::moshi_subcommand` (`claude-hook`, `codex-hook`), so no word from a payload or an outside caller
+  ever reaches a third-party binary's positional argument.
 
-### 11. The decision ring records identities and readings, never free text
+### 10. The decision ring records identities and readings, never free text
 
 Given an event carrying a project, a branch, a detail, a pane, a channel and the three narrowing flags
 
@@ -476,7 +424,7 @@ Then none of the project, branch, detail, pane value or channel appears anywhere
 - Compatibility contract: `KEPT` = 5 is both the ring depth and the report depth, "so the file holds
   exactly what is read".
 
-### 12. What the doctor reads back out of a ring is escaped, not executed
+### 11. What the doctor reads back out of a ring is escaped, not executed
 
 Given a decision ring line holding `\u{1b}[31m`, a BEL, a backspace or a tab, whether or not its epoch
 parses
@@ -503,7 +451,7 @@ terminal
 - Forbidden side effects: the section never moves the exit code. "IT REPORTS HISTORY, NEVER HEALTH".
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: reading is repeatable.
-- Privacy: nothing here can print free text, because behavior 11 kept free text out of the file. The
+- Privacy: nothing here can print free text, because behavior 10 kept free text out of the file. The
   journal is COUNTED and never rendered: `main::missed_line` hands the contents to
   `missed_notifications::waiting_line`, which counts lines and has no parse at all, "so the operator's
   own text has no path from this file to a terminal".
@@ -511,7 +459,7 @@ terminal
 - Compatibility contract: `render` never PARSES the body, only splits off the leading stamp and escapes
   the rest, "which is what keeps a format change in `line` from needing a matching change here".
 
-### 13. Somebody else's sentence cannot forge a `pns doctor` line
+### 12. Somebody else's sentence cannot forge a `pns doctor` line
 
 Given `moshi-hook status` prints a `server:` line, a `displayName` or a `hostId` containing a newline, a
 carriage return, an escape sequence or a non-ASCII character
@@ -557,7 +505,7 @@ visibly inside the one line pns wrote
   not one. "One predicate for both would have to be the wider of the two, which is the narrower one
   weakened".
 
-### 14. A route name that could not be a URL path segment is refused rather than glued
+### 13. A route name that could not be a URL path segment is refused rather than glued
 
 Given `--channel` or `[plugins.home_presence] stale_alert_channel` names `a/b`, `../x`, `a b`, `a?x=1`, `a#f`,
 `.`, `a\nb`, `%2e%2e`, `café` or the empty string
@@ -594,7 +542,7 @@ Then `channel_url` answers `None` and the post goes to the DEFAULT route
 - Compatibility contract: `home::stale_alert_channel` returns its complaint rather than printing it,
   matching `moshi::phone_backend`; the composition root decides that a warning goes to stderr.
 
-### 15. Every ring read is bounded, and a ring that cannot be read back heals rather than growing
+### 14. Every ring read is bounded, and a ring that cannot be read back heals rather than growing
 
 Given a state ring file that is a FIFO, a symlink, a directory, larger than its read ceiling, or holding
 bytes no reader can decode
@@ -641,7 +589,7 @@ written
 - Compatibility contract: `read_max` travels with `kept` because the two are one decision. "Every caller
   states both numbers together, and the doc comment on each depth does the arithmetic".
 
-### 16. Every child `run_bounded` starts is bounded in time AND in bytes, and past the ceiling is no answer
+### 15. Every child `run_bounded` starts is bounded in time AND in bytes, and past the ceiling is no answer
 
 Given a probe, the summarizer, a summarizer, `gh` or `moshi-hook` that hangs, writes without end, or exits
 non-zero
@@ -686,7 +634,7 @@ and reaped, and the caller gets `None`
   "every other caller of that spawn reads a different tool, and one of them is a summarizer whose whole
   job is to answer at length".
 
-### 17. The moshi token reaches the request body and nothing else
+### 16. The moshi token reaches the request body and nothing else
 
 Given `[plugins.phone] token = "tok-integration"` and a delivered event
 
@@ -724,7 +672,7 @@ stdout or stderr
   does not degrade the card, it DELETES it": moshi answers a bad body non-2xx and this channel reads any
   non-2xx as failed.
 
-### 18. The hermes signing key never leaves the process; the signature does
+### 17. The hermes signing key never leaves the process; the signature does
 
 Given `[plugins.log.keys] pns-events = "gate-signing-key"`
 
@@ -764,7 +712,7 @@ environment and no printed line
 - Compatibility contract: `hermes_secret` reads `key` off `[plugins.log]`, non-empty, else `None`,
   "Silent, like every not-set-up reading".
 
-### 19. What leaves this machine, and what rides with it
+### 18. What leaves this machine, and what rides with it
 
 Given a fully configured install
 
@@ -805,7 +753,7 @@ Then exactly five outbound destinations exist and each carries a stated payload
   stdin. Whether either reaches a network is the child's own business; the summarizer is `codex exec`,
   which is a model call, and the recap's summarizer is whatever argv the operator configured.
 
-### 20. A config refusal names the fault without echoing the value
+### 19. A config refusal names the fault without echoing the value
 
 Given `~/.config/pns/config.toml` contains `[plugins.phone]\ntoken = "SUPERSECRET" trailing`
 
@@ -838,7 +786,7 @@ Then the refusal names the cause and the LINE NUMBER and does not contain `SUPER
   escaped rendering `matched a different client "mo\"use\u{1b}[2J"` reaches the terminal while the alert
   BODY carries no router text at all, because the sentence is built from config KEY NAMES.
 
-### 21. Two paths carry text to a channel with NO control-character scrub, and this is unpinned
+### 20. Two paths carry text to a channel with NO control-character scrub, and this is unpinned
 
 Given `pns --detail $'a\033b'` on the command line, or an assistant turn whose final text carries an
 escape sequence
@@ -866,7 +814,7 @@ built from it
   values `hooks::flattened` sees, and
   `src/render.rs:whitespace_outside_the_four_is_content_the_turn_wrote_rather_than_a_separator` pins the
   OPPOSITE for two of them (form feed and no-break space are kept deliberately). The decision ring is
-  safe by behavior 11; the banner is not made safe by `banner::verbatim_argument`, which only prefixes a
+  safe by behavior 10; the banner is not made safe by `banner::verbatim_argument`, which only prefixes a
   backslash.
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: Not applicable.
@@ -878,7 +826,7 @@ built from it
   machine wrote") and simply does not extend to argv or to the transcript. Whether a turn's own reply
   counts as hostile input is a design question this crate has not answered in code.
 
-### 22. A secret typed into setup never reaches the terminal
+### 21. A secret typed into setup never reaches the terminal
 
 Given the operator runs `pns setup` on a real terminal and types a moshi token, a hermes key, a hue key
 and a router key
@@ -922,7 +870,7 @@ config, and the config is mode `0600`
   reading "walks the whole questionnaire and only fails at publication, with every answer already typed
   and every secret already handed over".
 
-### 23. A test failure message can only contain sandbox-planted values
+### 22. A test failure message can only contain sandbox-planted values
 
 Given any test in `tests/` fails and prints its assertion message
 

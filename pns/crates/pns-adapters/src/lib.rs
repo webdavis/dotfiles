@@ -97,8 +97,6 @@ pub use persistence::{
     LIGHTS_QUIET, LIGHTS_QUIET_SAID, advance_streak, muted_state, publish_muted,
 };
 
-pub use persistence::record_policy_settings_change;
-
 mod hue;
 pub use hue::{
     BRIDGE_DEADLINE, Bridge, DEFAULT_ROOMS, Enrollment, HuePulse, HueSettings, Mismatch,
@@ -217,8 +215,8 @@ pub use persistence::{
 
 mod harness;
 pub use harness::{
-    HookPayload, SessionFacts, flattened, is_harness_subcommand, moshi_subcommand, parse_payload,
-    session_facts, transcript_reply,
+    HookPayload, SessionFacts, flattened, moshi_subcommand, parse_payload, session_facts,
+    transcript_reply,
 };
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+use super::super::rows::Ring;
 use super::{SqliteStore, state};
 use pns_application::{DecisionRing, Journal};
 use pns_domain::{EventArgs, lights::phase::HeldEntry};
@@ -176,8 +177,9 @@ fn unreadable_notification_and_history_imports_remain_diagnostic_until_replaced(
 }
 #[test]
 fn appending_imported_history_matches_legacy_separator_and_pruning_bytes() {
+    let ring = Ring::Presence;
     for initial in ["", "0 first\r\n1 second", "0 first\r\n1 second\r\n"] {
-        let prefix = (0..18 - initial.lines().count())
+        let prefix = (0..ring.kept() - 2 - initial.lines().count())
             .map(|n| format!("{n} prior\n"))
             .collect::<String>();
         let initial = format!("{prefix}{initial}");
@@ -185,19 +187,17 @@ fn appending_imported_history_matches_legacy_separator_and_pruning_bytes() {
         fs::create_dir(&path).unwrap();
         let legacy = path.join("comparison");
         fs::write(&legacy, &initial).unwrap();
-        fs::write(path.join("policy-settings-audit"), &initial).unwrap();
+        fs::write(path.join(ring.file()), &initial).unwrap();
         let store = SqliteStore::new(path);
         store.import_legacy().unwrap();
         let _open = store.connect().unwrap();
-        assert_eq!(store.policy_settings_history().unwrap().unwrap(), initial);
+        assert_eq!(store.read_ring(ring).unwrap().unwrap(), initial);
         for now in 0..3 {
-            let line = format!("{now} session=s file=none");
-            crate::append_ring_line(&legacy, &line, 20, crate::RING_READ_MAX).unwrap();
-            store
-                .record_policy_settings_change("s", "", Some(now))
-                .unwrap();
+            let line = format!("{now} appended");
+            crate::append_ring_line(&legacy, &line, ring.kept(), crate::RING_READ_MAX).unwrap();
+            store.append(ring, &line).unwrap();
             assert_eq!(
-                store.policy_settings_history().unwrap().unwrap().as_bytes(),
+                store.read_ring(ring).unwrap().unwrap().as_bytes(),
                 fs::read(&legacy).unwrap(),
                 "initial {initial:?}, append {now}"
             );

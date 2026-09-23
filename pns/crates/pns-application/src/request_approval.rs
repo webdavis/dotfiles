@@ -18,14 +18,6 @@ pub struct RequestApproval<'a, P> {
     pub ports: &'a P,
 }
 
-impl<P: ApprovalForwarder> RequestApproval<'_, P> {
-    pub fn forward_only(&self, subcommand: &str, payload_json: &str) -> i32 {
-        ApprovalForwarder::forward(self.ports, subcommand, payload_json).map_or(0, |forwarded| {
-            ApprovalForwarder::answer(self.ports, forwarded)
-        })
-    }
-}
-
 impl<P> RequestApproval<'_, P>
 where
     P: ApprovalForwarder + PhoneSuppression + RemindSchedule + RaiseNotification,
