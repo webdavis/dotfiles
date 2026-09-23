@@ -136,6 +136,33 @@ PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/h
 grep -q 'could not restart sh.brew.moshi-hook' "$sandbox/out" ||
   fail "1b: a refused kickstart must say which service it could not restart (out: $(cat "$sandbox/out"))"
 
+# --- 1c: a brew failure must be reported as itself, not as "no loaded service"
+# A tap trust refusal (or any other brew failure) must not collapse into the
+# same sentence as a service Homebrew legitimately has no record of.
+
+cat >"$sandbox/bin/brew" <<'STUB'
+#!/bin/bash
+[[ "$*" == 'services info moshi-hook --json' ]] || exit 0
+echo 'Error: Refusing to load formula rjyo/moshi/moshi-hook from untrusted tap rjyo/moshi.' >&2
+exit 1
+STUB
+chmod +x "$sandbox/bin/brew"
+: >"$kickstart_log"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "1c: a brew failure must WARN, not abort the apply, got $status"
+kickstarted && fail "1c: a brew failure must not trigger a kickstart (log: $(cat "$kickstart_log"))"
+grep -q 'no loaded moshi-hook service' "$sandbox/out" &&
+  fail "1c: a brew failure must not be reported as \"no loaded service\" (out: $(cat "$sandbox/out"))"
+grep -q 'Refusing to load formula' "$sandbox/out" ||
+  fail "1c: a brew failure must surface brew's own error (out: $(cat "$sandbox/out"))"
+cat >"$sandbox/bin/brew" <<STUB
+#!/bin/bash
+[[ "\$*" == 'services info moshi-hook --json' ]] && cat '$services_record'
+STUB
+chmod +x "$sandbox/bin/brew"
+
 # --- 2: inodes MATCH, the daemon is current: LEAVE IT ALONE ------------------
 
 run_case 333 333

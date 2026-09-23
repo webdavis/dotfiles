@@ -161,11 +161,21 @@ case $disk_inode in '' | *[!0-9]*) exit 0 ;; esac
 if [[ $running_inode != "$disk_inode" ]]; then
   report_section "moshi-hook" "upgrade bounce"
   # Homebrew names the LaunchAgent, so the label is read from Homebrew's own
-  # record of the service it loaded.
-  label="$("$BREW_BIN" services info moshi-hook --json 2>/dev/null |
-    jq -r '.[0] | select(.loaded == true) | .service_name // empty' \
-      2>/dev/null)" || label=''
-  if [[ -z $label ]]; then
+  # record of the service it loaded. brew's stderr is kept (not `2>/dev/null`)
+  # and checked, so a real failure (a tap trust refusal, say) is reported as
+  # itself rather than collapsing into the same message as "no loaded service".
+  brew_status=0
+  brew_output="$("$BREW_BIN" services info moshi-hook --json 2>&1)" || brew_status=$?
+  label=''
+  if [[ $brew_status -eq 0 ]]; then
+    label="$(jq -r \
+      '.[] | select(.name == "moshi-hook" and .loaded == true) | .service_name // empty' \
+      <<<"$brew_output" 2>/dev/null)" || label=''
+  fi
+  if [[ $brew_status -ne 0 ]]; then
+    printf 'moshi-hook: WARNING: the daemon is running a replaced binary (image %s, on disk %s), and brew services info moshi-hook failed, so it cannot be bounced automatically: %s\n' \
+      "$running_inode" "$disk_inode" "$brew_output" >&2
+  elif [[ -z $label ]]; then
     printf 'moshi-hook: WARNING: the daemon is running a replaced binary (image %s, on disk %s), but Homebrew reports no loaded moshi-hook service to restart; run: brew services restart moshi-hook\n' \
       "$running_inode" "$disk_inode" >&2
   else
