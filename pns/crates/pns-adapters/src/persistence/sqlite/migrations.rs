@@ -80,8 +80,8 @@ pub(super) fn migrate(connection: &mut Connection) -> Result<(), StoreError> {
     // its legacy-import bookkeeping row, so a failed import of that retired
     // family cannot pin a permanent doctor complaint nothing can clear.
     // The delete is guarded on `legacy_imports` existing because some test
-    // fixtures build a partial schema without it, not because a real install
-    // can lack the table the version-0 bootstrap always creates.
+    // fixtures build a partial schema without it; every real install has it
+    // from the version-0 bootstrap.
     if version < 14 {
         transaction.execute_batch("DROP TABLE IF EXISTS policy_audit;")?;
         let has_legacy_imports: bool = transaction.query_row(
