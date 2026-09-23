@@ -49,7 +49,7 @@ pub use ports::environment::{
 pub use ports::harness::HarnessPayload;
 pub use ports::ledger::{
     ClaimedLeg, DeliveryLedger, LeaseWindow, LedgerCompletion, LedgerFailure, LedgerLeg,
-    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, StoredFailure,
+    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, RetryFacts, StoredFailure,
     SubmissionIdentity, SubmissionRecord, UnconfirmedDelivery,
 };
 pub use ports::notification::{PhoneSuppression, RaiseNotification};

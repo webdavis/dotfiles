@@ -123,3 +123,36 @@ fn an_id_that_names_nothing_failing_is_absent_rather_than_an_error() {
     // the cast.
     assert_eq!(store.failing_leg(u64::MAX).unwrap(), None);
 }
+
+/// The failure page's "Next try" and "Retry deadline" read these two facts
+/// straight off the ledger rather than recomputing them: `due` is the exact
+/// time `claim_retry` will next pick the leg up, and the first generation's
+/// `started` is the age clock's zero point.
+#[test]
+fn retry_facts_reads_the_ledgers_own_due_and_first_attempt_start() {
+    let store = SqliteStore::new(state());
+    let input = remote_input();
+    let claims = created(&store, &input);
+    store
+        .record(
+            &claims[0].claim,
+            &pns_domain::Delivery::Failed("first try".into()),
+            11,
+            Default::default(),
+        )
+        .unwrap();
+    let failure = store.failing_legs(20).unwrap().remove(0);
+    let facts = store.retry_facts(failure.id).unwrap().expect("the facts");
+    // Generation 1 is the initial send and stays immediately eligible, so its
+    // due time is the completion time rather than a backoff delay.
+    assert_eq!(facts.due, 11);
+    // `created` claimed generation 1 under `lease(10, 20)`.
+    assert_eq!(facts.started, 10);
+}
+
+/// An id naming nothing failing answers None, the same as `failing_leg`.
+#[test]
+fn retry_facts_for_an_unknown_id_is_absent_rather_than_an_error() {
+    let (store, _) = failed(404, "one");
+    assert_eq!(store.retry_facts(9_999).unwrap(), None);
+}

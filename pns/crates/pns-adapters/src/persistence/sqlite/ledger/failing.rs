@@ -6,7 +6,7 @@
 //! its acknowledgement is what says so.
 
 use super::*;
-use pns_application::StoredFailure;
+use pns_application::{RetryFacts, StoredFailure};
 use pns_domain::retry::TransportOutcome;
 use rusqlite::{Connection, OptionalExtension, Row};
 
@@ -71,6 +71,29 @@ fn row(row: &Row<'_>) -> rusqlite::Result<StoredFailure> {
         outcome,
         failed_at: u64::from_be_bytes(row.get(9)?),
     })
+}
+
+/// The two ledger facts a retrying leg's "next try" and "retry deadline" come
+/// from, for the id a listing showed. `None` when that id names no leg at
+/// all, the same as [`one`].
+pub(super) fn retry_facts(
+    connection: &Connection,
+    id: i64,
+) -> Result<Option<RetryFacts>, StoreError> {
+    Ok(connection
+        .query_row(
+            "SELECT due, (SELECT started FROM ledger_attempts
+              WHERE leg = ledger_legs.id AND generation = 1)
+             FROM ledger_legs WHERE id = ?1",
+            [id],
+            |row| {
+                Ok(RetryFacts {
+                    due: u64::from_be_bytes(row.get(0)?),
+                    started: u64::from_be_bytes(row.get(1)?),
+                })
+            },
+        )
+        .optional()?)
 }
 
 /// Every distinct route the ledger has ever posted to, plus nothing else.

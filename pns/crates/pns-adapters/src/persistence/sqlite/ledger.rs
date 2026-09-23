@@ -1,7 +1,7 @@
 use super::{SqliteStore, StoreError};
 use pns_application::{
     ClaimedLeg, DeliveryLedger, LeaseWindow, LedgerCompletion, LedgerFailure, LedgerLeg,
-    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, StoredFailure,
+    LedgerSubmission, LegAttempt, PreparedSubmission, RetryDelivery, RetryFacts, StoredFailure,
     SubmissionIdentity, SubmissionRecord, UnconfirmedDelivery,
 };
 mod claims;
@@ -64,6 +64,16 @@ impl SqliteStore {
             return Ok(None);
         };
         self.failing(|connection| failing::one(connection, id))
+    }
+
+    /// The two facts a retrying leg's "next try" and "retry deadline" come
+    /// from: the daemon's own computed due time and the first generation's
+    /// start, read straight off the ledger rather than recomputed.
+    pub fn retry_facts(&self, id: u64) -> Result<Option<RetryFacts>, LedgerFailure> {
+        let Ok(id) = i64::try_from(id) else {
+            return Ok(None);
+        };
+        self.failing(|connection| failing::retry_facts(connection, id))
     }
 
     /// Acknowledges every dead-lettered failing leg and answers how many it
