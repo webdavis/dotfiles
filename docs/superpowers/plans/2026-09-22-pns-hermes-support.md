@@ -39,12 +39,13 @@ chezmoi templates for the dotfiles pull request. Gates: `just test-rust`, `just 
 - `blocked` is always sent as `hook blocked --remind=5m`. No other verb carries a flag.
 - A Hermes event is recorded only when `platform` is a non-empty value other than `cli` and `tui` (the
   classic CLI and the TUI (terminal user interface)), or when `platform` is empty and `surface` is
-  `gateway`, or when a kanban worker (`kanban_task` set) sends `prompt` or `stop`. Everything else,
-  including both fields missing, takes the ordinary arms.
-- moshi receives every non-approval event from the shim, unconditionally, with moshi's own plugin's
-  payload. It receives the approval pair only from pns and only when `surface` is `cli` (and, from Task
-  10, when `platform` is `tui`): the request through `blocked`, presence gated; the answer through
-  `resolved`, never gated, and only for an `action_id` whose request pns forwarded.
+  `gateway`, or when a kanban worker (`kanban_task` set) sends `prompt`, `stop` or `blocked`. Everything
+  else, including both fields missing, takes the ordinary arms.
+- moshi receives every non-approval event from the shim with moshi's own plugin's payload, except inside
+  a run pns's own summarizer started, where the shim registers nothing. It receives the approval pair
+  only from pns, only when `surface` is `cli` (and, from Task 10, when `platform` is `tui`), and never
+  from a kanban worker: the request through `blocked`, presence gated; the answer through `resolved`,
+  never gated, and only for an `action_id` whose request pns forwarded.
 - The shim reports nothing to pns from a thread named `bg-review` (moshi is still fed from it, as its own
   plugin fed it), and registers no hook when `PNS_SUMMARIZING` is set. Every summarizer child pns starts
   carries `PNS_SUMMARIZING=1`.
@@ -61,7 +62,7 @@ chezmoi templates for the dotfiles pull request. Gates: `just test-rust`, `just 
 - No em-dashes in any comment, message, commit or document.
 - Conventional commits, `SKIP_AI_COMMIT=1`, no co-author trailer.
 - Each task is one pull request on its own branch. A task ends at its commit: pushing, opening the pull
-  request, review and merging belong to the orchestrator, not the implementer.
+  request, review and merging are not part of it.
 - Create each worktree with
   `herdr worktree create --cwd /Users/stephen/workspaces/Ivy/webdavis/dotfiles --branch <branch> --no-focus`
   and run every command from that worktree's root (`~/.herdr/worktrees/dotfiles/<branch with / as ->`).
@@ -176,12 +177,12 @@ fn with_no_platform_only_a_gateway_surface_is_recorded_only() {
 }
 
 #[test]
-fn a_kanban_worker_records_its_turns_and_notifies_the_rest() {
-    let worker = stamped("cli", "", "t_42");
-    for event in ["prompt", "stop"] {
+fn a_kanban_worker_records_its_turns_and_approvals_and_notifies_the_rest() {
+    let worker = stamped("cli", "cli", "t_42");
+    for event in ["prompt", "stop", "blocked"] {
         assert!(hermes_records_only(event, &worker), "{event}");
     }
-    for event in ["stop-failure", "blocked", "asked", "resolved"] {
+    for event in ["stop-failure", "asked", "resolved"] {
         assert!(!hermes_records_only(event, &worker), "{event}");
     }
 }
@@ -306,12 +307,14 @@ fn a_tui_approval_is_a_terminal_session_despite_its_gateway_surface() {
 }
 
 #[test]
-fn a_kanban_worker_turn_is_recorded_while_its_question_is_carded_until_the_worker_ends() {
+fn a_kanban_worker_turn_and_approval_are_recorded_while_its_question_is_carded_until_the_worker_ends() {
     let sandbox = Sandbox::new("hermes-kanban-worker");
-    sandbox.write_config(LAMPS_ON);
+    sandbox.write_config(&format!("{}{LAMPS_ON}", support::STUB_CHANNELS));
     let worker = |event: &str, fields: &str| {
+        let mut command = hermes(&sandbox);
+        sandbox.stub_moshi(&mut command, 0);
         hook_with(
-            hermes(&sandbox),
+            command,
             &sandbox,
             event,
             &format!(r#"{{"session_id":"{SESSION}","cwd":"/tmp","platform":"cli","kanban_task":"t_42",{fields}}}"#),
@@ -320,6 +323,16 @@ fn a_kanban_worker_turn_is_recorded_while_its_question_is_carded_until_the_worke
     worker("prompt", r#""hook_event_name":"UserPromptSubmit","prompt":"work kanban task t_42""#);
     assert!(!marker(&sandbox, SESSION).exists(), "a worker's turn starts no turn clock");
     worker(
+        "blocked",
+        r#""hook_event_name":"PermissionRequest","action_id":"a1","command":"rm -rf /tmp/x","surface":"cli""#,
+    );
+    // Nothing can answer a worker's approval, so it raises nothing anywhere.
+    assert_eq!(submissions(&sandbox), Vec::<String>::new());
+    assert_eq!(waiting_sessions(&sandbox), Vec::<String>::new());
+    for channel in ["banner", "phone", "hermes"] {
+        assert!(!sandbox.fired(channel), "{channel} fired for a worker's approval");
+    }
+    worker(
         "asked",
         r#""hook_event_name":"PreToolUse","tool_name":"kanban_block","tool_input":{"reason":"Which region?"}"#,
     );
@@ -327,10 +340,12 @@ fn a_kanban_worker_turn_is_recorded_while_its_question_is_carded_until_the_worke
     assert_eq!(waiting_sessions(&sandbox), vec![SESSION.to_string()]);
     worker("stop", r#""hook_event_name":"AgentEnd","last_assistant_message":"blocked on the region""#);
     assert_eq!(waiting_sessions(&sandbox), Vec::<String>::new());
+    assert_eq!(sandbox.event("hermes")["state"], "asked", "the worker's turn end delivered nothing");
     assert_eq!(
         recorded(&sandbox),
         vec![
             ("prompt".to_string(), SESSION.to_string()),
+            ("blocked".to_string(), SESSION.to_string()),
             ("asked".to_string(), SESSION.to_string()),
             ("done".to_string(), SESSION.to_string()),
         ]
@@ -396,12 +411,15 @@ use super::payload::HookPayload;
 /// decides only when no platform arrived, because the TUI's approvals report
 /// `gateway` as well. An event that states neither notifies.
 ///
-/// A KANBAN WORKER runs on `cli` with nobody watching its turns, so its turn
-/// start and end are recorded while its failures, approvals and questions
-/// take the ordinary arms.
+/// A KANBAN WORKER runs on `cli` with nobody watching its turns and no
+/// terminal to answer an approval at, so its turn start and end and its
+/// approval requests are recorded while its failures and questions take the
+/// ordinary arms.
 pub fn hermes_records_only(event: &str, payload: &HookPayload) -> bool {
     match payload.platform.as_str() {
-        "cli" | "tui" => !payload.kanban_task.is_empty() && matches!(event, "prompt" | "stop"),
+        "cli" | "tui" => {
+            !payload.kanban_task.is_empty() && matches!(event, "prompt" | "stop" | "blocked")
+        }
         "" => payload.surface == "gateway",
         _ => true,
     }
@@ -500,7 +518,7 @@ path reads", one behavior numbered one past the last numbered heading on the reb
 
 Given a payload whose producer is `hermes` and whose `platform` is a non-empty value other than `cli`
 and `tui`, or whose `platform` is empty and whose `surface` is `gateway`, or whose `platform` is `cli`
-or `tui` with a non-empty `kanban_task` and whose event is `prompt` or `stop`
+or `tui` with a non-empty `kanban_task` and whose event is `prompt`, `stop` or `blocked`
 
 When `pns hook <event>` runs
 
@@ -512,8 +530,9 @@ Then one activity row is written with the event's state word (`stop` as `done`, 
   (`tests/hooks/hermes_sessions.rs:a_chat_gateway_turn_is_recorded_as_done_and_delivered_nowhere`).
 - Forbidden side effects: no turn marker, no reminder, no summarizer, no moshi spawn
   (`a_gateway_prompt_and_approval_leave_no_marker_and_start_no_round_trip`).
-- Kanban workers: a worker's question takes the ordinary arm and its wait ends with the worker's turn
-  (`a_kanban_worker_turn_is_recorded_while_its_question_is_carded_until_the_worker_ends`).
+- Kanban workers: a worker's approval raises nothing and is never handed to moshi, its question takes
+  the ordinary arm, and that wait ends with the worker's turn
+  (`a_kanban_worker_turn_and_approval_are_recorded_while_its_question_is_carded_until_the_worker_ends`).
 - Fail direction: toward notifying. A payload naming neither field, or a TUI approval reporting
   `surface: "gateway"` with `platform: "tui"`, takes the ordinary arms
   (`a_hermes_event_naming_neither_platform_nor_surface_notifies`,
@@ -1475,6 +1494,9 @@ fn a_kanban_worker_stamps_its_task_and_its_block_asks_the_operator() {
     assert_eq!(argv(&fired), vec![json!(["hook", "prompt"]), json!(["hook", "asked"])]);
     assert!(fired.calls.iter().all(|call| call["payload"]["kanban_task"] == "t_42"));
     assert_eq!(fired.calls[1]["payload"]["tool_input"], json!({"reason": "Which region?"}));
+    // moshi is fed its own plugin's payload, which never carried the task.
+    assert_eq!(fired.moshi.len(), 3);
+    assert!(fired.moshi.iter().all(|call| call["payload"].get("kanban_task").is_none()));
 }
 
 #[test]
@@ -1904,11 +1926,18 @@ HOOKS = (
 
 
 def _observer(report, feed):
+    # Each destination fails on its own, so a lost moshi event never costs pns's.
     def observe(**kwargs):
         if feed is not None:
-            feed(**kwargs)
+            try:
+                feed(**kwargs)
+            except Exception:
+                pass
         if report is not None and threading.current_thread().name != BACKGROUND_REVIEW_THREAD:
-            report(**kwargs)
+            try:
+                report(**kwargs)
+            except Exception:
+                pass
 
     return observe
 
@@ -2693,8 +2722,9 @@ The pull request body must tell the operator:
   Hermes sessions reach neither pns nor moshi's screens until the command it names is run; the
   preflight drill checks it;
 - the config template's two changes (the hook pair removed, `moshi-hooks` added to `plugins.disabled`)
-  re-serialize `~/.hermes/config.yaml` once, sorted and without Hermes's comments, as its header
-  describes; compare the parsed documents, not the texts.
+  re-serialize `~/.hermes/config.yaml`, sorted and without Hermes's comments, as its header describes:
+  once, or twice if moshi's uninstall in that same apply takes the entry out and the next apply puts it
+  back; compare the parsed documents, not the texts.
 
 ---
 
@@ -2729,23 +2759,28 @@ No branch and no pull request. The operator runs these after applying Task 8 and
   `hermes` done banner. Ask it to run `rm -rf /tmp/pns-hermes-drill` at the desk: expect a pns banner
   and the blocked lamp, cleared by the answer. Away, the same approval gets pns's own phone card, which
   cannot answer, until Task 10 lands.
-- [ ] **H9, a kanban worker.** Create two kanban tasks for the default profile with `hermes kanban
-  create`: one it can finish on its own, one that tells it to block on a question with `kanban_block`.
-  Expect no banner and no card for the first worker's turns and a `done` row for it in
-  `pns recap --since 30m`; expect one `asked` notification naming the second worker's question.
+- [ ] **H9, a kanban worker.** Create three kanban tasks for the default profile with `hermes kanban
+  create`: one it can finish on its own, one that tells it to block on a question with `kanban_block`,
+  and one that tells it to run `rm -rf /tmp/pns-kanban-drill`. Expect no pns banner and no pns card for
+  the first worker's turns and a `done` row for it in `pns recap --since 30m`; expect one `asked`
+  notification naming the second worker's question. For the third, expect no card of any kind (neither
+  pns's nor moshi's) and no blocked lamp, its approval recorded as one `blocked` row in
+  `pns recap --since 30m`, and Hermes's timeout deny after `approvals.timeout` (60 s by default) in
+  `hermes kanban log <task id>`; if that deny fails the worker's turn, one `failed` notification.
 
 ---
 
-### Task 10: A Hermes TUI approval is handed to moshi, once a drill proves moshi can answer it
+### Task 10: A Hermes TUI approval is handed to moshi
 
-Branch: `feat/pns-hermes-tui-approval-forward`. Needs Task 9's drills run. The operator's ruling makes
-the TUI a terminal session, approvals included, once a drill proves moshi can type the answer into it.
-moshi's own plugin never sent a TUI approval, and its docs say gateway decisions "are not exposed as
-terminal actions" (`docs/hooks.md:170-173`) while the TUI's approvals report `surface: "gateway"`, so
-only the drill in Step 6 can say whether moshi answers one. THE ORCHESTRATOR OPENS THIS PULL REQUEST
-ONLY AFTER THE OPERATOR REPORTS STEP 6 PASSED. A failed Step 6 closes the task with no pull request, the
-TUI keeps pns's own card, and the result goes under "pns validation follow-ups" in
-`docs/remaining-work.md`.
+Branch: `feat/pns-hermes-tui-approval-forward`. Needs Task 9's drills run. The operator's ruling (A2)
+makes the TUI a terminal session, approvals included, so an away TUI approval goes to moshi as a CLI one
+does. moshi's own plugin never sent a TUI approval, and its docs say gateway decisions "are not exposed
+as terminal actions" (`docs/hooks.md:170-173`) while the TUI's approvals report `surface: "gateway"`, so
+only the drill in Step 6 can say whether moshi answers one. By the spec's decision 24, THIS PULL REQUEST
+OPENS ONLY AFTER THE OPERATOR REPORTS STEP 6 PASSED. A failed Step 6 neither closes the task nor drops
+the requirement: the result goes under "pns validation follow-ups" in `docs/remaining-work.md` and back
+to the operator with two options, pns keeps carding TUI approvals itself or they go to moshi anyway, and
+the task waits on that answer. Until the task lands, the TUI keeps pns's own card.
 
 **Files:**
 - Modify: `pns/crates/pns-adapters/src/harness/routing.rs` (`moshi_subcommand`)
@@ -2853,7 +2888,6 @@ git add pns/crates/pns-adapters/src/harness/routing.rs pns/crates/pns-adapters/s
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): hand a Hermes TUI approval to moshi-hook hermes-hook"
 ```
 
-
 - [ ] **Step 6: The operator's drill (H10), which gates the pull request**
 
 The shim calls the binary that wrote it, so the branch build is drilled by pointing the live plugin at
@@ -2873,5 +2907,10 @@ installed engine:
 ~/.cargo/bin/pns hermes install-plugin
 ```
 
-Record pass or fail. A pass lets the orchestrator open the pull request; a fail ends the task as the
-paragraph at its top says.
+A Hermes process that started while the plugin pointed at the branch build keeps calling that build
+until it restarts, and loses every pns event once this worktree is removed. So quit the drill's TUI and
+any other Hermes session started during the drill, let any kanban worker it started finish, and run
+`hermes gateway restart` if the gateway was restarted during the drill.
+
+Record pass or fail. A pass opens the pull request; a fail goes back to the operator as the paragraph at
+the top of this task says.
