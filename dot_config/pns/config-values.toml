@@ -266,3 +266,10 @@ applies = [
   "-c",
   'grep -E "^(head|branch|result|exit_code):" "$HOME/.local/state/chezmoi-apply/latest.apply.log" 2>/dev/null || true',
 ]
+
+# The recap's summary paragraph, written by Codex at low effort. It runs in
+# pns's own stripped Codex home, so no hook of this machine's fires for it.
+[recap.summarizer]
+type = "codex"
+model = "gpt-6-luna"
+effort = "low"

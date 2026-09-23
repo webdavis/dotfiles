@@ -201,10 +201,10 @@ Config {
         post_window_recap: true,
         minimum_events: 8,
         summarizer: Settings {
-            kind: Custom,
+            kind: Codex,
             command: [],
-            model: "",
-            effort: "",
+            model: "gpt-6-luna",
+            effort: "low",
             deadline: 240s,
             transcripts: false,
             transcript_bytes_per_session: 8192,
