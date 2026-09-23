@@ -119,3 +119,24 @@ fn a_claude_summary_runs_in_safe_mode_with_no_tools() {
     assert_eq!(seen.after("--tools"), Some(""), "{:?}", seen.argv);
     assert_eq!(seen.after("--model"), Some("haiku"), "{:?}", seen.argv);
 }
+
+#[test]
+fn the_effort_reaches_each_backend_through_its_own_flag() {
+    let codex = summarized_by(
+        "recap-summary-codex-effort",
+        "codex",
+        "type = \"codex\"\neffort = \"low\"\n",
+    );
+    assert_eq!(
+        codex.after("-c"),
+        Some("model_reasoning_effort=\"low\""),
+        "{:?}",
+        codex.argv
+    );
+    let claude = summarized_by(
+        "recap-summary-claude-effort",
+        "claude",
+        "type = \"claude\"\neffort = \"low\"\n",
+    );
+    assert_eq!(claude.after("--effort"), Some("low"), "{:?}", claude.argv);
+}

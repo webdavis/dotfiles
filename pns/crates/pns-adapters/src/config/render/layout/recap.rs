@@ -188,6 +188,13 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
             sample: Sample::Default("\"\""),
         },
         Key {
+            name: "effort",
+            prose: "# The reasoning effort, passed to codex as `model_reasoning_effort` and\n\
+                         # to claude as `--effort`. Empty passes nothing and leaves the backend's\n\
+                         # default; stating it for any other type is refused.\n",
+            sample: Sample::Default("\"\""),
+        },
+        Key {
             name: "deadline",
             prose: "# How long the summarizer may take before it is killed and the one\n\
                          # visible line is printed instead. It is the whole recap's budget rather\n\

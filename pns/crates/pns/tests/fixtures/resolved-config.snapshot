@@ -204,6 +204,7 @@ Config {
             kind: Custom,
             command: [],
             model: "",
+            effort: "",
             deadline: 240s,
             transcripts: false,
             transcript_bytes_per_session: 8192,

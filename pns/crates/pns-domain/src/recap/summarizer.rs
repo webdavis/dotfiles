@@ -41,6 +41,10 @@ impl Kind {
     pub fn of(word: &str) -> Option<Kind> {
         WORDS.iter().copied().find(|kind| kind.word() == word)
     }
+    /// Whether this harness has a flag that sets its reasoning effort.
+    pub fn takes_effort(self) -> bool {
+        matches!(self, Kind::Claude | Kind::Codex)
+    }
 }
 
 /// Every word `type` accepts, in the order a refusal lists them.
@@ -62,6 +66,9 @@ pub struct Settings {
     pub kind: Kind,
     pub command: Vec<String>,
     pub model: String,
+    /// The reasoning effort, passed in the harness's own flag. Empty passes
+    /// nothing and leaves the backend's default.
+    pub effort: String,
     pub deadline: Duration,
     pub transcripts: bool,
     pub transcript_bytes_per_session: usize,
@@ -78,6 +85,7 @@ impl Default for Settings {
             kind: Kind::Custom,
             command: Vec::new(),
             model: String::new(),
+            effort: String::new(),
             deadline: DEFAULT_DEADLINE,
             transcripts: false,
             transcript_bytes_per_session: DEFAULT_BYTES_PER_SESSION,
@@ -124,11 +132,16 @@ impl Settings {
     /// NEITHER HARNESS RUNS THE OPERATOR'S HOOKS, or a summary would fire
     /// pns's own Stop hook about itself. VERIFIED 2026-09-22 on claude 2.1.280
     /// and codex 0.156.0: `claude --safe-mode` ran no settings hook where the
-    /// same run without it ran two, and `--tools ""` leaves it no tool.
+    /// same run without it ran two, `--tools ""` leaves it no tool, and codex
+    /// printed `reasoning effort: low` for `-c model_reasoning_effort="low"`.
     pub fn invocation(&self) -> Option<Invocation> {
         let model = |flag: &str| match self.model.is_empty() {
             true => Vec::new(),
             false => vec![flag.to_string(), self.model.clone()],
+        };
+        let effort = |flag: &str, value: String| match self.effort.is_empty() {
+            true => Vec::new(),
+            false => vec![flag.to_string(), value],
         };
         let words = |fixed: &[&str], tail: Vec<String>| {
             let mut argv: Vec<String> = fixed.iter().map(|word| (*word).to_string()).collect();
@@ -139,7 +152,7 @@ impl Settings {
             Kind::Claude => Invocation {
                 argv: words(
                     &["claude", "-p", "--safe-mode", "--tools", ""],
-                    model("--model"),
+                    [model("--model"), effort("--effort", self.effort.clone())].concat(),
                 ),
                 prompt_in_argv: false,
                 stripped_codex_home: false,
@@ -147,7 +160,11 @@ impl Settings {
             Kind::Codex => Invocation {
                 argv: words(
                     &["codex", "exec", "--color", "never", "--skip-git-repo-check"],
-                    model("-m"),
+                    [
+                        model("-m"),
+                        effort("-c", format!("model_reasoning_effort=\"{}\"", self.effort)),
+                    ]
+                    .concat(),
                 ),
                 prompt_in_argv: false,
                 stripped_codex_home: true,

@@ -86,6 +86,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         &[
             "command",
             "deadline",
+            "effort",
             "model",
             "prompt",
             "prompt_file",

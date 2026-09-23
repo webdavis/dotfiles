@@ -120,6 +120,27 @@ fn only_codex_runs_in_the_stripped_codex_home() {
     }
 }
 
+/// THE EFFORT IS EACH HARNESS'S OWN FLAG, and only the two that have one take
+/// it. An empty effort passes nothing, which leaves the backend's default.
+#[test]
+fn the_effort_is_passed_in_each_harnesss_own_flag() {
+    let mut codex = settings(Kind::Codex, "gpt-6-luna");
+    codex.effort = "low".to_string();
+    assert_eq!(
+        codex.invocation().unwrap().argv[5..],
+        ["-m", "gpt-6-luna", "-c", "model_reasoning_effort=\"low\""]
+    );
+    let mut claude = settings(Kind::Claude, "");
+    claude.effort = "high".to_string();
+    assert_eq!(claude.invocation().unwrap().argv[5..], ["--effort", "high"]);
+    let takers: Vec<Kind> = super::WORDS
+        .iter()
+        .copied()
+        .filter(|kind| kind.takes_effort())
+        .collect();
+    assert_eq!(takers, [Kind::Claude, Kind::Codex]);
+}
+
 /// `custom` IS THE OPERATOR'S OWN WORDS, and an empty one is no summarizer at
 /// all rather than a command that cannot spawn.
 #[test]

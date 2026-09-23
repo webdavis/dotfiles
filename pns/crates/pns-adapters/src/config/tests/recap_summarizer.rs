@@ -64,6 +64,43 @@ fn a_table_that_contradicts_itself_is_refused_naming_the_two_keys() {
 }
 
 #[test]
+fn the_effort_is_read_for_the_two_harnesses_that_take_one_and_refused_elsewhere() {
+    // EMPTY IS THE SHIPPED VALUE and passes nothing, so the backend keeps its
+    // own default, and it is accepted beside any type.
+    assert_eq!(
+        parse_config("[recap]\npost_window_recap = true\n")
+            .unwrap()
+            .recap
+            .summarizer
+            .effort,
+        ""
+    );
+    assert!(parse_config("[recap.summarizer]\ntype = \"hermes\"\neffort = \"\"\n").is_ok());
+    for kind in ["claude", "codex"] {
+        let stated = parse_config(&format!(
+            "[recap.summarizer]\ntype = \"{kind}\"\neffort = \"low\"\n"
+        ))
+        .unwrap()
+        .recap
+        .summarizer;
+        assert_eq!(stated.effort, "low", "{kind}");
+    }
+    // A STATED EFFORT THE HARNESS HAS NO FLAG FOR IS REFUSED BY KIND, rather
+    // than dropped while the operator reads their own setting off the file.
+    for (kind, table) in [
+        ("ollama", "type = \"ollama\"\nmodel = \"qwen\"\n"),
+        ("hermes", "type = \"hermes\"\n"),
+        ("custom", "command = [\"my-model\"]\n"),
+    ] {
+        let message = refusal(&format!("[recap.summarizer]\n{table}effort = \"low\"\n"));
+        assert!(
+            message.contains("`effort`") && message.contains(&format!("type = \"{kind}\"")),
+            "{message}"
+        );
+    }
+}
+
+#[test]
 fn the_summarizers_deadline_is_a_duration_with_a_generous_default() {
     // FOUR MINUTES, and what it covers is GENERATION. MEASURED on one
     // machine: a whole three-call episode took about 114.6 seconds, nearly

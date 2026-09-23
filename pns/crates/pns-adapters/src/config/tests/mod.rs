@@ -238,6 +238,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("recap.summarizer", "type", "\"claude\""),
     ("recap.summarizer", "command", "[\"my-model\"]"),
     ("recap.summarizer", "model", "\"haiku\""),
+    ("recap.summarizer", "effort", "\"\""),
     ("recap.summarizer", "deadline", "\"4m\""),
     ("recap.summarizer", "transcripts", "true"),
     ("recap.summarizer", "transcript_bytes_per_session", "8192"),

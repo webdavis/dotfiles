@@ -31,6 +31,7 @@ pub(super) fn parse_recap_summarizer(value: toml::Value) -> Result<Settings, Con
                 settings.command = strings(TABLE, &key, "a list of command words", &setting)?
             }
             "model" => settings.model = text(TABLE, &key, &setting)?,
+            "effort" => settings.effort = text(TABLE, &key, &setting)?,
             "deadline" => {
                 settings.deadline =
                     duration_value(TABLE, "deadline", &setting, summarizer_deadline_range())?;
@@ -49,7 +50,7 @@ pub(super) fn parse_recap_summarizer(value: toml::Value) -> Result<Settings, Con
     Ok(settings)
 }
 
-/// The three ways one table can contradict itself, each refused by name.
+/// The ways one table can contradict itself, each refused by name.
 fn agrees(settings: &Settings) -> Result<(), ConfigError> {
     let stated = settings.kind.word();
     if settings.kind != Kind::Custom && !settings.command.is_empty() {
@@ -71,6 +72,14 @@ fn agrees(settings: &Settings) -> Result<(), ConfigError> {
     if settings.kind == Kind::Ollama && settings.model.is_empty() {
         return Err(ConfigError::Invalid(format!(
             "`{TABLE}` names `type = \"ollama\"` with no `model`, so it names no model to run"
+        )));
+    }
+    // AN EFFORT THE HARNESS HAS NO FLAG FOR would be dropped while the
+    // operator read their own setting off the file.
+    if !settings.effort.is_empty() && !settings.kind.takes_effort() {
+        return Err(ConfigError::Invalid(format!(
+            "`{TABLE}` sets `effort` with `type = \"{stated}\"`, which has no effort flag; \
+             only claude and codex take one"
         )));
     }
     if !settings.prompt.is_empty() && !settings.prompt_file.is_empty() {
