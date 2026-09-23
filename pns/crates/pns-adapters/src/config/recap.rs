@@ -12,8 +12,7 @@ fn retain_range() -> RangeInclusive<Duration> {
 }
 
 /// `minimum_away`'s range: zero at the floor, which leaves the event count as
-/// the only bar, and a day at the ceiling, past which no return would earn a
-/// recap at all.
+/// the only bar, and a day at the ceiling.
 fn minimum_away_range() -> RangeInclusive<Duration> {
     Duration::ZERO..=Duration::from_secs(24 * 60 * 60)
 }
