@@ -63,9 +63,8 @@ fn the_effort_reaches_each_backend_through_its_own_flag() {
         "type = \"codex\"\neffort = \"low\"\n",
     );
     let seen = codex.recorded_spawn(&page);
-    assert_eq!(
-        seen.after("-c"),
-        Some("model_reasoning_effort=\"low\""),
+    assert!(
+        seen.passed("-c", "model_reasoning_effort=\"low\""),
         "{:?}",
         seen.argv
     );

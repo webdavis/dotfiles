@@ -25,12 +25,30 @@ impl SummarizerSpawn {
             .any(|pair| pair[0] == flag && pair[1] == value)
     }
 
-    /// Every part of the stripped Codex home's isolation, rooted at `home`.
+    /// Every part of the stripped Codex home's isolation, rooted at `home`:
+    /// no session file, no writes, no shell, no connector, plugin or hook, no
+    /// sub-agent, goal, image read or web search.
     pub fn assert_codex_isolated(&self, home: &str) {
         let argv = &self.argv;
         assert!(argv.contains(&"--ephemeral".to_string()), "{argv:?}");
         assert_eq!(self.after("-s"), Some("read-only"), "{argv:?}");
         assert_eq!(self.after("-C"), Some(home), "{argv:?}");
+        for feature in [
+            "shell_tool",
+            "unified_exec",
+            "apps",
+            "plugins",
+            "hooks",
+            "multi_agent",
+            "goals",
+            "view_image",
+        ] {
+            assert!(self.passed("--disable", feature), "{feature}: {argv:?}");
+        }
+        assert!(
+            self.passed("-c", "web_search=\"disabled\""),
+            "web search: {argv:?}"
+        );
         assert_eq!(self.codex_home, home, "CODEX_HOME is the stripped home");
         assert_eq!(self.summarizing, "1", "the re-entry guard is set");
     }
