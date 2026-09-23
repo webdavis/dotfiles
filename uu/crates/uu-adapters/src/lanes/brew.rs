@@ -22,7 +22,7 @@ use uu_domain::RunFacts;
 use super::changes::section::change_section;
 use super::changes::{Listing, parse_brew_versions, parse_mas_list, tuple_row, tuples};
 use repairs::{converge_osquery, mas_declarations, refresh_tailscaled};
-use steps::{bounded_step, step};
+use steps::{bounded_step, step, upgrade_step};
 
 /// How long ONE App Store step may take. The store hangs indefinitely on a
 /// wedged session, and the lane's own deadline covers the whole lane, so an
@@ -77,13 +77,7 @@ impl LaneAdapter for BrewLane {
             &["outdated"],
             MAS_DEADLINE,
         );
-        step(
-            &mut report,
-            runner,
-            "brew upgrade",
-            &self.brew,
-            &["upgrade"],
-        );
+        upgrade_step(&mut report, runner, &self.brew);
         refresh_tailscaled(&mut report, runner, self);
         converge_osquery(&mut report, runner, self);
         bounded_step(
@@ -274,6 +268,44 @@ pub(crate) mod tests {
             said(&report, "App Store apps: 0 of 0 tracked entries changed"),
             "{report:?}"
         );
+    }
+
+    #[test]
+    fn an_upgrade_that_skipped_untrusted_taps_fails_naming_each_tap_once() {
+        // Homebrew exits 0 when tap trust keeps it from loading a tap, so a
+        // clean exit alone recorded `ok` for weeks in which nothing from any
+        // third-party tap was upgraded. It names the taps two ways.
+        let runner = ScriptedRunner::new(&[]).saying_on_stderr(
+            &["/b/brew", "upgrade"],
+            "Warning: Skipping buo/cask-upgrade because it is not trusted. Run `brew trust \
+             buo/cask-upgrade` to trust it.\n\
+             Warning: Skipping buo/cask-upgrade because it is not trusted. Run `brew trust \
+             buo/cask-upgrade` to trust it.\n\
+             Warning: The following taps are not trusted:\n  rjyo/moshi\n  steipete/tap\n\n\
+             Homebrew is currently ignoring formulae, casks and commands\n  from these taps\n",
+        );
+        let report = lane().run("brew", &facts(), &runner);
+        assert_eq!(report.failures(), 1, "{report:?}");
+        assert!(
+            said(
+                &report,
+                "brew upgrade: Homebrew skipped 3 untrusted taps, so nothing from them was \
+                 upgraded: buo/cask-upgrade, rjyo/moshi, steipete/tap"
+            ),
+            "{report:?}"
+        );
+        assert!(!said(&report, "brew upgrade: ok"), "{report:?}");
+    }
+
+    #[test]
+    fn an_upgrade_whose_only_warnings_are_about_something_else_is_ok() {
+        let runner = ScriptedRunner::new(&[]).saying_on_stderr(
+            &["/b/brew", "upgrade"],
+            "Warning: Calling `postflight` is deprecated! Use `postflight_steps` instead.\n",
+        );
+        let report = lane().run("brew", &facts(), &runner);
+        assert_eq!(report.failures(), 0, "{report:?}");
+        assert!(said(&report, "brew upgrade: ok"), "{report:?}");
     }
 
     #[test]

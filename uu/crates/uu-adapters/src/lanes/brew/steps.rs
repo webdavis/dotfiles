@@ -4,9 +4,10 @@
 //! and left behind, because the next attempt is a week away and a run that
 //! aborts at its first problem throws away every subject it had not reached.
 
+use std::collections::BTreeSet;
 use std::time::Duration;
 
-use crate::lanes::CommandRunner;
+use crate::lanes::{CommandRunner, Environment, Verdict};
 use uu_domain::LaneReport;
 
 /// What the record says about one step. THE REASON, not only the status:
@@ -32,6 +33,61 @@ pub fn step(
     args: &[&str],
 ) {
     note(report, label, runner.run(program, args));
+}
+
+/// `brew upgrade`, read for the taps Homebrew skipped. Homebrew exits 0 when
+/// tap trust keeps it from loading a tap, so the exit alone records `ok` for a
+/// run in which nothing from that tap was upgraded.
+pub fn upgrade_step(report: &mut LaneReport, runner: &dyn CommandRunner, program: &str) {
+    let label = "brew upgrade";
+    match runner.run_reporting_in(program, &["upgrade"], &Environment::inheriting()) {
+        Err(why) => report.failed(format!("{label}: {why}")),
+        Ok(ran) => match ran.verdict {
+            Verdict::Clean => {
+                let skipped = untrusted_taps(&ran.stderr);
+                if skipped.is_empty() {
+                    report.noted(format!("{label}: ok"));
+                } else {
+                    report.failed(format!(
+                        "{label}: Homebrew skipped {} untrusted taps, so nothing from them was \
+                         upgraded: {}",
+                        skipped.len(),
+                        skipped.into_iter().collect::<Vec<_>>().join(", ")
+                    ));
+                }
+            }
+            Verdict::Failed(why) | Verdict::Deferred(why) | Verdict::Pending(why) => {
+                report.failed(format!("{label}: {why}"))
+            }
+        },
+    }
+}
+
+/// Every tap Homebrew's stderr says it skipped as untrusted, whether named in
+/// a `Skipping <tap> because it is not trusted` line or listed under `The
+/// following taps are not trusted:`.
+fn untrusted_taps(stderr: &str) -> BTreeSet<String> {
+    let mut taps = BTreeSet::new();
+    let mut listing = false;
+    for line in stderr.lines() {
+        if listing {
+            match line.strip_prefix("  ").map(str::trim) {
+                Some(tap) if !tap.is_empty() => {
+                    taps.insert(tap.to_string());
+                    continue;
+                }
+                _ => listing = false,
+            }
+        }
+        if line.ends_with("The following taps are not trusted:") {
+            listing = true;
+        } else if let Some((_, rest)) = line.split_once("Skipping ")
+            && let Some((tap, _)) = rest.split_once(" because it is not trusted")
+        {
+            taps.insert(tap.to_string());
+        }
+    }
+    taps
 }
 
 /// One command under a bound of its own, for a subject that WEDGES rather

@@ -24,6 +24,8 @@ pub(crate) struct ScriptedRunner {
     deferring_because: Vec<(Vec<String>, String)>,
     pending: Vec<(Vec<String>, String)>,
     unrunnable: Vec<Vec<String>>,
+    /// What a call keyed here prints on stderr while still exiting clean.
+    stderr: Vec<(Vec<String>, String)>,
     stdout: String,
     calls: RefCell<Vec<Vec<String>>>,
     inputs: RefCell<Vec<String>>,
@@ -44,6 +46,7 @@ impl ScriptedRunner {
             deferring_because: Vec::new(),
             pending: Vec::new(),
             unrunnable: Vec::new(),
+            stderr: Vec::new(),
             stdout: String::new(),
             calls: RefCell::new(Vec::new()),
             inputs: RefCell::new(Vec::new()),
@@ -81,6 +84,15 @@ impl ScriptedRunner {
     pub(crate) fn unable_to_run(mut self, call: &[&str]) -> Self {
         self.unrunnable
             .push(call.iter().map(|word| word.to_string()).collect());
+        self
+    }
+
+    /// A reporting call that prints `text` on stderr, whatever its verdict.
+    pub(crate) fn saying_on_stderr(mut self, call: &[&str], text: &str) -> Self {
+        self.stderr.push((
+            call.iter().map(|word| word.to_string()).collect(),
+            text.to_string(),
+        ));
         self
     }
 
@@ -182,7 +194,12 @@ impl CommandRunner for ScriptedRunner {
             Verdict::Clean
         };
         Ok(Ran {
-            stderr: String::new(),
+            stderr: self
+                .stderr
+                .iter()
+                .find(|(key, _)| key == &call)
+                .map(|(_, text)| text.clone())
+                .unwrap_or_default(),
             stdout: self.stdout.clone(),
             verdict,
         })
