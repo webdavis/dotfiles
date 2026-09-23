@@ -36,7 +36,8 @@ The operator's answers to this design's four open questions, also 2026-09-22, bi
 - **A1, moshi reinstalling its plugin.** Guard against it: the Hermes config modify template owns
   `moshi-hooks` as a member of `plugins.disabled`.
 - **A2, the TUI.** The operator uses terminal Hermes (chat and the TUI) and Discord Hermes. The TUI is a
-  terminal session, approvals included, once a drill proves moshi can type the answer into it.
+  terminal session, approvals included: away, its approvals go to `moshi-hook hermes-hook` as the
+  classic CLI's do.
 - **A3, moshi's Hermes screens.** The operator uses moshi's Chat View for Hermes. pns's plugin forwards
   every non-approval event to `moshi-hook hermes-hook` unconditionally, with the payload moshi's own
   plugin sends today, so nothing new is pushed. Only the approval pair goes through pns's presence gate:
@@ -108,8 +109,9 @@ durable log through, and a producer of hook events.
 
 The shim registers nine hooks and has two destinations:
 
-- **pns.** Seven hooks spawn `<pns> hook <verb> [flags]` with the event's JSON on stdin,
-  `PNS_PRODUCER=hermes` added to the inherited environment, and stdout and stderr discarded. The
+- **pns.** Seven hooks report to pns. `post_llm_call` keeps the reply for the turn's end, and the other
+  six spawn `<pns> hook <verb> [flags]` with the event's JSON on stdin, `PNS_PRODUCER=hermes` added to
+  the inherited environment, and stdout and stderr discarded. The
   inherited environment carries `HERDR_PANE_ID` and `HERDR_WORKSPACE_ID` from the Hermes process, which
   is how pns learns the pane (`hook_dispatch.rs` reads `HERDR_PANE_ID` on every arm). In a kanban worker
   every payload also carries `kanban_task`, the process's `HERMES_KANBAN_TASK`.
@@ -123,8 +125,9 @@ approval and an approval before its answer, and a slow pns call (the `stop` summ
 moshi. A pns call has a 120 s backstop timeout; pns bounds its own waits well inside that (the
 summarizer at 30 s, `pns-adapters/src/codex.rs:86`, and moshi's acknowledgement at 5 s by default). A
 moshi call has the 10 s moshi's own plugin gave it. A call submitted after interpreter shutdown closed
-its pool runs inline. Every exception is swallowed: the shim can lose a notification and can never fail
-a Hermes turn.
+its pool runs inline. Each callback runs its moshi feed and its pns report in separate guards and
+swallows every exception, so one destination's failure never costs the other's event: the shim can lose
+a notification and can never fail a Hermes turn.
 
 ### Two runs pns never hears about
 
@@ -234,7 +237,7 @@ pns decides, from the payload's `platform`, `surface` and `kanban_task`, for eve
 | `platform` | `surface` | `kanban_task` | The event is |
 | --- | --- | --- | --- |
 | `cli` or `tui` | anything | empty | terminal |
-| `cli` or `tui` | anything | set | recorded only for `prompt` and `stop`, terminal for every other verb |
+| `cli` or `tui` | anything | set | recorded only for `prompt`, `stop` and `blocked`, terminal for every other verb |
 | any other non-empty value | anything | anything | recorded only |
 | empty | `gateway` | anything | recorded only |
 | empty | `cli`, `mcp-elicitation`, anything else, or absent | anything | terminal |
@@ -254,16 +257,26 @@ direction is to fail toward notifying. On the paths above that happens only for 
 platform, such as `batch_runner.py`'s, in a process that never named a terminal platform.
 
 **A kanban worker is a terminal process nobody watches (A4).** The kanban dispatcher starts each worker
-as `hermes -p <assignee> chat -q "work kanban task <id>"` with `HERMES_KANBAN_TASK=<id>` in its
-environment and its output in a log file (`hermes_cli/kanban_db.py:7345-7505`), so its agent is
-`platform="cli"` and, on the default profile, pns-hooks loads in it. Its turn start and end are recorded
-only: no turn clock, no summarizer, no `done` card. A failure (`stop-failure`), an approval (`blocked`)
-and a question (`asked`, from `clarify` or `kanban_block`) take the ordinary arms and notify. A recorded
-`prompt` or `stop` still ends the session's wait, as the ordinary arms do, so a worker's question lights
-the blocked lamp until the worker's turn ends and never longer. A worker's approvals reach the presence
-gate like a CLI approval, and away they go to moshi as moshi's own plugin sent them. A worker reads no
-input (its stdin is `/dev/null`), so the stdin prompt denies at once (`tools/approval.py:1044-1076`) and
-its answer clears the card.
+as `hermes -p <assignee> --accept-hooks chat -q "work kanban task <id>"` with a copy of its own
+environment plus `HERMES_KANBAN_TASK=<id>`, stdin from `/dev/null` and its output in a log file
+(`hermes_cli/kanban_db.py:7370`, `:7392`, `:7452-7500`), so its agent is `platform="cli"` and, on the
+default profile, pns-hooks loads in it. Its turn start and end are recorded only: no turn clock, no
+summarizer, no `done` card. A failure (`stop-failure`) and a question (`asked`, from `clarify` or
+`kanban_block`) take the ordinary arms and notify. A recorded `prompt` or `stop` still ends the
+session's wait, as the ordinary arms do, so a worker's question lights the blocked lamp until the
+worker's turn ends and never longer.
+
+**A worker's approval is recorded only and never reaches moshi, because nothing can answer it.** The
+worker takes the non-quiet single-query path, `cli.chat(query)` (`cli.py:15517`), whose agent thread
+installs the CLI's approval callback (`cli.py:11666`). The approval fires its hooks with `surface="cli"`
+(`tools/approval.py:1772`) and hands the prompt to that callback before any stdin read
+(`tools/approval.py:990-993`). The callback (`cli.py:11091`) waits on a queue nothing feeds for
+`approvals.timeout` seconds (`cli.py:11109`, 60 by default at `hermes_cli/config.py:2309`), then prints
+its timeout line and returns `deny` (`cli.py:11158-11159`). A card for it would offer buttons that cannot
+land, and a banner and lamp would last the whole timeout, so the request writes one `blocked` row and
+raises nothing. Its answer takes the ordinary `resolved` arm, which delivers nothing, and pns forwards no
+answer for a request it never forwarded. If the denial makes the worker's turn fail, the operator sees
+the worker's `failed` notification, which A4 keeps.
 
 ## What each kind of session gets
 
@@ -293,7 +306,8 @@ and its Hermes rows at `:155-173`.
 
 **The feed.** Each hook below calls `<moshi-hook> hermes-hook` with the payload moshi's own plugin
 (`~/.hermes/plugins/moshi-hooks/__init__.py:53-80`) built for it, unconditionally: every platform,
-gateway and kanban sessions included, the background review thread included. Every payload also carries
+gateway and kanban sessions included, the background review thread included. The one exception is a run
+pns's own summarizer started, where the shim registers nothing. Every payload also carries
 `hook_event_name`, `session_id` and `cwd`, built the way that plugin built them.
 
 | Hermes hook | moshi event | Payload beyond the three | What it feeds in moshi |
@@ -319,9 +333,9 @@ started, the reminder, the notification, the bounded wait. `moshi_subcommand` ga
 `hermes` maps to `hermes-hook` when `surface == "cli"` (and, once H10 passes, when `platform == "tui"`,
 below). That is the one Hermes surface moshi's own plugin ever forwarded, and moshi's docs say its
 bridge answers a Hermes prompt "only when its terminal bridge can verify the visible command and
-approval menu" (`docs/hooks.md:170-173`). pns hands
-moshi the payload byte for byte, so the shim's payload is moshi's contract plus `platform`, which
-moshi's own plugin already sends on its lifecycle events, and, in a kanban worker, `kanban_task`.
+approval menu" (`docs/hooks.md:170-173`). A kanban worker's approval never gets this far: it is recorded
+only. pns hands moshi the payload byte for byte, so the shim's payload is moshi's contract plus
+`platform`, which moshi's own plugin already sends on its lifecycle events.
 
 **The answer.** moshi clears its card when `PermissionResolved` arrives with the card's `action_id`
 ("Approval resolves | Clears the pending action", `docs/hooks.md:167`). pns hands moshi the answer to
@@ -347,10 +361,12 @@ desk answer.
 forwarded and moshi's docs describe as observed by Hermes alone ("Smart-mode and gateway decisions are
 observed by Hermes alone and are not exposed as terminal actions", `docs/hooks.md:172-173`), while the
 same docs list "Approval request in the interactive CLI/TUI" as carded (`:166`). Whether moshi can type
-an answer into the TUI is therefore measured, not assumed: the plan's last task admits a Hermes approval
-whose `platform` is `tui` to `moshi_subcommand`, and its pull request opens only after a phone drill with
-that branch's build passes. Until then, and if it fails, an away TUI approval gets pns's own phone card,
-which cannot answer.
+an answer into the TUI is therefore a drill result. A2 sends the TUI's approvals to moshi; the plan's
+last task admits a Hermes approval whose `platform` is `tui` to `moshi_subcommand`, and by decision 24
+its pull request opens only after a phone drill with that branch's build (H10) passes. Until then an
+away TUI approval gets pns's own phone card, which cannot answer. A failed H10 keeps the task open and
+goes back to the operator with two options, pns keeps carding TUI approvals itself or they go to moshi
+anyway, and the task waits on that answer.
 
 ## Installing, enabling and upgrading
 
@@ -422,9 +438,10 @@ wins over `plugins.enabled` for every plugin it discovers (`hermes_cli/plugins.p
 reinstalled plugin stays unloaded. `hermes plugins enable` rewrites the list sorted and keeps the entry
 (`hermes_cli/plugins_cmd.py:707-714`, `:772-798`). moshi's own installer or uninstaller may take the
 entry out (the 0.3.26 binary carries `plugins:disabled`); the next apply puts it back, so the exposure
-lasts until the next apply, not until someone notices. The first apply that adds the entry re-serializes
-`config.yaml` the way every template change does (the template's header describes it); an apply after
-that is a byte-for-byte no-op. The render was checked against sample live files in a scratch source
+ends at the next apply. The first apply that adds the entry re-serializes `config.yaml` the way every
+template change does (the template's header describes it). That happens once, or twice if the
+`moshi-hook uninstall` in that same apply takes the entry out and the next apply puts it back; an apply
+after that is a byte-for-byte no-op. The render was checked against sample live files in a scratch source
 state: the entry is appended once, a file already carrying it is left alone, and `plugins.enabled`
 survives.
 
@@ -466,16 +483,21 @@ The operator runs these after the apply that lands the dotfiles pull request and
 - **H8, the TUI as a terminal session (A2).** In `hermes chat --tui`, a turn ends with a `hermes` done
   banner and a desk approval raises a pns banner and the blocked lamp. Away, the approval gets pns's own
   phone card until the TUI task lands.
-- **H9, a kanban worker (A4).** Two kanban tasks for the default profile: one the worker finishes on its
-  own, one that tells it to block on a question with `kanban_block`. Expect no banner and no card for the
-  first worker's turns and a `done` row for it in `pns recap --since 30m`, and one `asked` notification
-  naming the second worker's question.
-- **H10, moshi answers the TUI (A2's proof, the TUI task's gate).** With the TUI task's branch build
+- **H9, a kanban worker (A4).** Three kanban tasks for the default profile: one the worker finishes on
+  its own, one that tells it to block on a question with `kanban_block`, and one that tells it to run
+  `rm -rf /tmp/pns-kanban-drill`. Expect no pns banner and no pns card for the first worker's turns and
+  a `done` row for it in `pns recap --since 30m`, and one `asked` notification naming the second
+  worker's question. For the third, expect no card of any kind and no blocked lamp, its approval
+  recorded as one `blocked` row, and Hermes's timeout deny after `approvals.timeout` in the worker's log
+  (`hermes kanban log <task id>`); if that deny fails the worker's turn, one `failed` notification.
+- **H10, moshi answers the TUI (decision 24's gate on the TUI task).** With the TUI task's branch build
   written into the live plugin (`./pns/target/release/pns hermes install-plugin` from its worktree, since
   the shim calls the binary that wrote it), away, in `hermes chat --tui`: exactly one moshi card, and
   approving on the phone types the answer into the TUI and runs the command; then Deny. Afterwards
-  `~/.cargo/bin/pns hermes install-plugin` points the plugin back. A pass opens that task's pull request;
-  a fail closes the task with no pull request.
+  `~/.cargo/bin/pns hermes install-plugin` points the plugin back, and every Hermes process started
+  during the drill is restarted (`hermes gateway restart` for a gateway restarted then), since each keeps
+  calling the branch build until it restarts. A pass opens that task's pull request; a fail goes back to
+  the operator with the two options in "The TUI's approvals", and the task waits on the answer.
 
 ## Known limits
 
@@ -483,7 +505,11 @@ The operator runs these after the apply that lands the dotfiles pull request and
   (`gateway/session.py:688`), which fails pns's session-id rule (`pns-domain/src/safety.rs:52-59`
   refuses `:`). The session's prompt and turn rows use the agent's timestamp id and reach the recap.
 - **An away TUI approval gets pns's own phone card**, which cannot answer, until H10 passes and the TUI
-  task lands; for good if H10 fails.
+  task lands, or, if H10 fails, until the operator chooses between pns's card and moshi's.
+- **A kanban worker's notifications name the dispatcher's pane.** A worker copies the dispatcher's
+  environment (`hermes_cli/kanban_db.py:7370`), `HERDR_PANE_ID` included, so its `asked` or `failed`
+  banner names whatever pane the dispatching process inherited, such as the one that ran
+  `hermes kanban dispatch` (`hermes_cli/kanban.py:2131`).
 - **moshi sees what its own plugin showed it.** A3 forwards unconditionally, so moshi's inbox keeps
   showing Discord sessions, kanban workers and the background review's replayed turn, exactly as it did
   under moshi's plugin. pns's own delivery rules (Q14e, A4) govern pns's banner, card, lamp and Discord
@@ -502,8 +528,9 @@ The operator runs these after the apply that lands the dotfiles pull request and
   `.chezmoidata/hermes.yaml` moves: the background review's thread name `bg-review`; the curator's
   `platform="curator"` and its own session id; the approval hooks' `session_key` being the terminal
   agent's session id; the TUI's approvals reporting `surface="gateway"`; `on_session_end` and
-  `post_llm_call` firing on the thread that runs the turn; a kanban worker's `HERMES_KANBAN_TASK` and its
-  `kanban_block` tool.
+  `post_llm_call` firing on the thread that runs the turn; a kanban worker's `HERMES_KANBAN_TASK`, its
+  `kanban_block` tool, and its approvals waiting on the CLI callback until `approvals.timeout` denies
+  them.
 - **Pinned moshi facts.** The feed reproduces moshi-hook 0.3.26's generated Hermes plugin. A moshi-hook
   upgrade that changes that template is invisible to the shim; re-extract the template from the new
   binary (as the 0.3.26 one was, with `strings`) and diff it against the feed before taking the upgrade.
@@ -553,7 +580,12 @@ The operator runs these after the apply that lands the dotfiles pull request and
 23. A kanban worker is recognized by `kanban_task` on the payload, from `HERMES_KANBAN_TASK`, and a
     recorded `prompt` or `stop` ends the session's wait, so a worker's lamp ends with its turn.
 24. The TUI's moshi forward is its own last task, gated on H10 run with that branch's build, so a
-    moshi that cannot answer the TUI never suppresses pns's own card.
+    moshi that cannot answer the TUI never suppresses pns's own card. A failed H10 keeps the task open
+    and goes back to the operator with two options (pns keeps carding TUI approvals, or they go to
+    moshi anyway).
+25. A kanban worker's approval request is recorded only and never handed to moshi, because nothing can
+    answer it and Hermes denies it after `approvals.timeout`. A4's "blocked" is the worker's
+    `kanban_block` (decision 22), and a denial that fails the turn still notifies as `failed`.
 
 ## Answered questions
 
@@ -561,12 +593,12 @@ All four were answered on 2026-09-22 (the rulings above); where each landed:
 
 1. **Guard against moshi reinstalling its plugin (A1): yes.** The modify template owns `moshi-hooks` as
    a member of `plugins.disabled` ("The guard", under "Retiring"; plan Task 8).
-2. **The TUI (A2): a terminal session, approvals included, once moshi is proven to answer it.** Its
-   events already take the terminal arms; its moshi forward is the plan's Task 10, gated on H10.
+2. **The TUI (A2): a terminal session, approvals included.** Its events already take the terminal arms;
+   its moshi forward is the plan's Task 10, which decision 24 gates on H10.
 3. **moshi's Hermes screens (A3): kept fed.** The shim forwards every non-approval event as moshi's own
    plugin did ("What moshi receives"; plan Task 5), and only the approval pair goes through pns's gate.
 4. **Kanban workers (A4): turns recorded, blocks, failures and questions notify** ("Terminal or recorded
-   only"; plan Tasks 1 and 5).
+   only"; plan Tasks 1 and 5). A worker's approval is recorded only (decision 25).
 
 ## Files this design touches
 
