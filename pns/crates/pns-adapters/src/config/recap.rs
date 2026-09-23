@@ -11,6 +11,13 @@ fn retain_range() -> RangeInclusive<Duration> {
     Duration::from_secs(3600)..=Duration::from_secs(365 * 24 * 60 * 60)
 }
 
+/// `minimum_away`'s range: zero at the floor, which leaves the event count as
+/// the only bar, and a day at the ceiling, past which no return would earn a
+/// recap at all.
+fn minimum_away_range() -> RangeInclusive<Duration> {
+    Duration::ZERO..=Duration::from_secs(24 * 60 * 60)
+}
+
 /// `[recap]`'s switches, each starting at its default and moved only by a key
 /// that states it.
 ///
@@ -40,6 +47,14 @@ pub(super) fn parse_recap(value: toml::Value) -> Result<Recap, ConfigError> {
         admits_flat("recap", &key)?;
         match key.as_str() {
             "minimum_events" => recap.minimum_events = threshold(&setting)?,
+            "minimum_away" => {
+                recap.minimum_away = Duration::from_secs(duration_key(
+                    "recap",
+                    "minimum_away",
+                    &setting,
+                    minimum_away_range(),
+                )?);
+            }
             "sources" => recap.sources = parse_recap_sources(setting)?,
             "nightshift" => recap.periods.nightshift = period("nightshift", &setting)?,
             "morning" => recap.periods.morning = period("morning", &setting)?,
