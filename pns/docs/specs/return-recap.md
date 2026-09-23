@@ -899,7 +899,8 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
   `.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0)`, and returns
   `child.spawn().is_ok()`. `src/main.rs:replay_missed` computes
   `fires = recap.post_window_recap && durable_route && long_enough && counted.len() >= recap.minimum_events`,
-  where `long_enough` is a window whose `until - since` is at least `recap.minimum_away`, and
+  where `long_enough` is a window whose `until - since` is at least `recap.minimum_away`, `since` being
+  the last event pns saw the operator present for rather than the moment they actually left, and
   spawns BEFORE composing the card, "so the card can say truthfully whether there is a recap to point
   at".
 - Failure sources: `current_exe` failing; the spawn failing; the child dying before it posts.
