@@ -144,7 +144,7 @@ fn the_effort_is_passed_in_each_harnesss_own_flag() {
     let takers: Vec<Kind> = super::WORDS
         .iter()
         .copied()
-        .filter(|kind| kind.takes_effort())
+        .filter(|kind| !kind.efforts().is_empty())
         .collect();
     assert_eq!(takers, [Kind::Claude, Kind::Codex]);
 }

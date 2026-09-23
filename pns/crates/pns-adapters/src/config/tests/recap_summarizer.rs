@@ -65,8 +65,8 @@ fn a_table_that_contradicts_itself_is_refused_naming_the_two_keys() {
 
 #[test]
 fn the_effort_is_read_for_the_two_harnesses_that_take_one_and_refused_elsewhere() {
-    // EMPTY IS THE SHIPPED VALUE and passes nothing, so the backend keeps its
-    // own default, and it is accepted beside any type.
+    // EMPTY IS PNS'S DEFAULT and passes nothing, and it is accepted beside any
+    // type.
     assert_eq!(
         parse_config("[recap]\npost_window_recap = true\n")
             .unwrap()
@@ -85,8 +85,7 @@ fn the_effort_is_read_for_the_two_harnesses_that_take_one_and_refused_elsewhere(
         .summarizer;
         assert_eq!(stated.effort, "low", "{kind}");
     }
-    // A STATED EFFORT THE HARNESS HAS NO FLAG FOR IS REFUSED BY KIND, rather
-    // than dropped while the operator reads their own setting off the file.
+    // A STATED EFFORT THE HARNESS HAS NO FLAG FOR IS REFUSED BY KIND.
     for (kind, table) in [
         ("ollama", "type = \"ollama\"\nmodel = \"qwen\"\n"),
         ("hermes", "type = \"hermes\"\n"),
@@ -94,10 +93,44 @@ fn the_effort_is_read_for_the_two_harnesses_that_take_one_and_refused_elsewhere(
     ] {
         let message = refusal(&format!("[recap.summarizer]\n{table}effort = \"low\"\n"));
         assert!(
-            message.contains("`effort`") && message.contains(&format!("type = \"{kind}\"")),
+            message.contains("`effort`")
+                && message.contains(&format!("type = \"{kind}\""))
+                && message.contains("only claude and codex take one"),
             "{message}"
         );
     }
+}
+
+#[test]
+fn an_effort_word_the_harness_does_not_take_is_refused_naming_the_words_it_does() {
+    // A MISTYPED EFFORT IS CAUGHT AT LOAD, where the refusal can name it; at
+    // run time it reads as a summarizer that gave no answer.
+    for (kind, word, accepted) in [
+        ("claude", "ultra", "low, medium, high, xhigh, max"),
+        (
+            "codex",
+            "hgih",
+            "none, minimal, low, medium, high, xhigh, max, ultra",
+        ),
+    ] {
+        let message = refusal(&format!(
+            "[recap.summarizer]\ntype = \"{kind}\"\neffort = \"{word}\"\n"
+        ));
+        assert!(
+            message.contains(&format!("`{word}`"))
+                && message.contains(&format!("type = \"{kind}\""))
+                && message.contains(accepted),
+            "{message}"
+        );
+    }
+    assert_eq!(
+        parse_config("[recap.summarizer]\ntype = \"codex\"\neffort = \"ultra\"\n")
+            .unwrap()
+            .recap
+            .summarizer
+            .effort,
+        "ultra"
+    );
 }
 
 #[test]

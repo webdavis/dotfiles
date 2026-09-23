@@ -41,9 +41,21 @@ impl Kind {
     pub fn of(word: &str) -> Option<Kind> {
         WORDS.iter().copied().find(|kind| kind.word() == word)
     }
-    /// Whether this harness has a flag that sets its reasoning effort.
-    pub fn takes_effort(self) -> bool {
-        matches!(self, Kind::Claude | Kind::Codex)
+    /// The reasoning efforts this harness's own flag takes, and none for a
+    /// harness with no such flag.
+    ///
+    /// `claude --help` (2.1.280) lists claude's five. Codex's are the names of
+    /// its reasoning effort in codex-cli 0.156.0, of which each model takes its
+    /// own subset: its model catalog lists low through ultra for gpt-6-astra
+    /// and low through max for gpt-6-luna.
+    pub fn efforts(self) -> &'static [&'static str] {
+        match self {
+            Kind::Claude => &["low", "medium", "high", "xhigh", "max"],
+            Kind::Codex => &[
+                "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+            ],
+            Kind::Ollama | Kind::Hermes | Kind::Custom => &[],
+        }
     }
 }
 

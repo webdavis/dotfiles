@@ -74,14 +74,7 @@ fn agrees(settings: &Settings) -> Result<(), ConfigError> {
             "`{TABLE}` names `type = \"ollama\"` with no `model`, so it names no model to run"
         )));
     }
-    // AN EFFORT THE HARNESS HAS NO FLAG FOR would be dropped while the
-    // operator read their own setting off the file.
-    if !settings.effort.is_empty() && !settings.kind.takes_effort() {
-        return Err(ConfigError::Invalid(format!(
-            "`{TABLE}` sets `effort` with `type = \"{stated}\"`, which has no effort flag; \
-             only claude and codex take one"
-        )));
-    }
+    effort_agrees(settings)?;
     if !settings.prompt.is_empty() && !settings.prompt_file.is_empty() {
         return Err(ConfigError::Invalid(format!(
             "`{TABLE}` sets both `prompt` and `prompt_file`; one instruction replaces the other, \
@@ -89,6 +82,35 @@ fn agrees(settings: &Settings) -> Result<(), ConfigError> {
         )));
     }
     Ok(())
+}
+
+/// `effort`, empty or one of the words the harness's own flag takes.
+///
+/// A WORD THE HARNESS WOULD REFUSE IS REFUSED HERE, where the message can name
+/// it: at run time it reads as a summarizer that gave no answer.
+fn effort_agrees(settings: &Settings) -> Result<(), ConfigError> {
+    let (stated, effort) = (settings.kind.word(), settings.effort.as_str());
+    let accepted = settings.kind.efforts();
+    if effort.is_empty() || accepted.contains(&effort) {
+        return Ok(());
+    }
+    if accepted.is_empty() {
+        let takers: Vec<&str> = WORDS
+            .iter()
+            .filter(|kind| !kind.efforts().is_empty())
+            .map(|kind| kind.word())
+            .collect();
+        return Err(ConfigError::Invalid(format!(
+            "`{TABLE}` sets `effort` with `type = \"{stated}\"`, which has no effort flag; \
+             only {} take one",
+            takers.join(" and ")
+        )));
+    }
+    Err(ConfigError::Invalid(format!(
+        "`{TABLE}` key `effort` is `{effort}`, which `type = \"{stated}\"` does not take; \
+         it takes {}",
+        accepted.join(", ")
+    )))
 }
 
 /// `type`, one of the five words and nothing else.
