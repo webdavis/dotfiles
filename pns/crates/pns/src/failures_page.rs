@@ -185,7 +185,18 @@ fn listing(store: &SqliteStore, now: u64) -> String {
     match store.failing_legs(LISTING_LIMIT) {
         Err(_) => html::sentence_page("pns: the delivery ledger could not be read"),
         Ok(failures) => {
-            html::listing_page(&failures, &|id| store.retry_facts(id).ok().flatten(), now)
+            // ONE connection for every retrying leg on the page, not one per
+            // row: `retry_facts_many` reads them all at once.
+            let ids: Vec<u64> = failures.iter().map(|failure| failure.id).collect();
+            let facts = store.retry_facts_many(&ids);
+            html::listing_page(
+                &failures,
+                &|id| match &facts {
+                    Ok(map) => Ok(map.get(&id).copied()),
+                    Err(_) => Err(()),
+                },
+                now,
+            )
         }
     }
 }
@@ -193,7 +204,9 @@ fn listing(store: &SqliteStore, now: u64) -> String {
 fn one(store: &SqliteStore, id: u64, now: u64) -> String {
     match store.failing_leg(id) {
         Err(_) => html::sentence_page("pns: the delivery ledger could not be read"),
-        Ok(None) => html::sentence_page(&format!("pns: no failure {id}")),
+        Ok(None) => html::sentence_page(&format!(
+            "pns: no failure {id}; run `pns failures` for the current list"
+        )),
         Ok(Some(stored)) => {
             let install =
                 pns_adapters::install_settings(&std::env::var("HOME").unwrap_or_default());
@@ -203,7 +216,7 @@ fn one(store: &SqliteStore, id: u64, now: u64) -> String {
                 install.hermes_url.as_deref(),
             );
             let row = crate::command_failures::rows(std::slice::from_ref(&stored)).remove(0);
-            let retry = store.retry_facts(id).ok().flatten();
+            let retry = store.retry_facts(id).map_err(|_| ());
             html::record_page(&failure, &row, retry, now)
         }
     }

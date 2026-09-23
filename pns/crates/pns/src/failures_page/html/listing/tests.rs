@@ -67,15 +67,19 @@ fn fixture() -> Vec<StoredFailure> {
     ]
 }
 
-fn no_retry_facts(_: u64) -> Option<RetryFacts> {
-    None
+fn no_retry_facts(_: u64) -> Result<Option<RetryFacts>, ()> {
+    Ok(None)
 }
 
-fn retrying_due_in_seven_minutes(id: u64) -> Option<RetryFacts> {
-    (id == 201).then_some(RetryFacts {
+fn unreadable_retry_facts(_: u64) -> Result<Option<RetryFacts>, ()> {
+    Err(())
+}
+
+fn retrying_due_in_seven_minutes(id: u64) -> Result<Option<RetryFacts>, ()> {
+    Ok((id == 201).then_some(RetryFacts {
         due: NOW + 420,
         started: 1_790_000_000,
-    })
+    }))
 }
 
 /// Every `ListingRow` value the fixture holds appears verbatim in the
@@ -97,6 +101,17 @@ fn every_rows_value_appears_and_the_days_are_headed_newest_first() {
     for sender in ["posture", "claude", "codex", "karlmdavis"] {
         assert!(rendered.contains(sender), "{sender} missing: {rendered}");
     }
+    // Every row's own id is linked, burst members and singles alike.
+    for id in [201, 148, 149, 150, 140] {
+        assert!(
+            rendered.contains(&format!("/failures/{id}")),
+            "leg {id} missing: {rendered}"
+        );
+    }
+    // The burst's own title, and the lone dead leg's own headline (a
+    // different status word, which is what keeps it out of the burst).
+    assert!(rendered.contains("Bad URL"), "{rendered}");
+    assert!(rendered.contains("Discord answered HTTP 500"), "{rendered}");
 }
 
 /// Consecutive same-day, same-status, same-gave-up legs collapse into one
@@ -135,12 +150,47 @@ fn the_state_chip_marks_a_live_leg_active_and_a_dead_one_not() {
     assert!(rendered.contains("Not delivered"), "{rendered}");
 }
 
+/// Every entry's own `class` attribute, in rendered order: `fh-active`
+/// belongs to a live entry alone, and `fh-last` belongs to the last entry
+/// alone. A page-wide `contains("fh-last")` cannot tell the class from the
+/// same word in the page's own `<style>` selector, so this reads each
+/// entry's attribute directly.
+#[test]
+fn only_live_entries_are_active_and_only_the_last_entry_is_fh_last() {
+    let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
+    let classes: Vec<&str> = rendered
+        .match_indices("<article class=\"")
+        .map(|(start, _)| {
+            let after = &rendered[start + "<article class=\"".len()..];
+            &after[..after.find('"').expect("a closing quote")]
+        })
+        .collect();
+    // Leg 201 (live), the dead-lettered burst, leg 140 (dead): three entries.
+    assert_eq!(classes.len(), 3, "{classes:?}");
+    assert!(classes[0].contains("fh-active"), "{classes:?}");
+    assert!(!classes[1].contains("fh-active"), "{classes:?}");
+    assert!(!classes[2].contains("fh-active"), "{classes:?}");
+    assert!(!classes[0].contains("fh-last"), "{classes:?}");
+    assert!(!classes[1].contains("fh-last"), "{classes:?}");
+    assert!(classes[2].contains("fh-last"), "{classes:?}");
+}
+
 /// A single retrying leg's next line counts down to the ledger's own due
 /// time, never a re-derived one.
 #[test]
 fn a_single_retrying_legs_next_line_counts_down_to_the_ledgers_due_time() {
     let rendered = listing_page(&fixture(), &retrying_due_in_seven_minutes, NOW);
     assert!(rendered.contains("Next try in 7 minutes"), "{rendered}");
+}
+
+/// A retry-facts read failure reads "unknown", never a false "now": the two
+/// outcomes look identical once `Result` is flattened, and one of them
+/// tells the reader a retry is imminent when the page simply does not know.
+#[test]
+fn an_unreadable_retry_schedule_says_unknown_never_now() {
+    let rendered = listing_page(&fixture(), &unreadable_retry_facts, NOW);
+    assert!(rendered.contains("Next try unknown"), "{rendered}");
+    assert!(!rendered.contains("Next try now"), "{rendered}");
 }
 
 /// A route holding markup reaches the page escaped, never live HTML. Only a
@@ -155,6 +205,30 @@ fn a_route_containing_markup_is_escaped() {
     assert!(rendered.contains("&lt;b&gt;evil&lt;/b&gt;"), "{rendered}");
 }
 
+/// The Source cell reaches the page escaped too, on a single leg's own
+/// Details and on a burst's Records line alike.
+#[test]
+fn an_agent_containing_markup_is_escaped() {
+    let mut failures = fixture();
+    failures[0].agent = "<i>evil</i>".to_string(); // leg 201, a single entry
+    let rendered = listing_page(&failures, &no_retry_facts, NOW);
+    assert!(!rendered.contains("<i>evil</i>"), "{rendered}");
+    assert!(rendered.contains("&lt;i&gt;evil&lt;/i&gt;"), "{rendered}");
+}
+
+/// A single leg's Retry deadline reads from the ledger's own first-attempt
+/// `started`, not the leg's `failed_at`: the two differ by more than a day
+/// in this fixture, so a deadline computed from the wrong one lands on the
+/// wrong date.
+#[test]
+fn a_single_legs_retry_deadline_reads_from_started_not_failed_at() {
+    let rendered = listing_page(&fixture(), &retrying_due_in_seven_minutes, NOW);
+    assert!(
+        rendered.contains("September 28, 2026 at 14:13 UTC"),
+        "{rendered}"
+    );
+}
+
 /// An empty ledger says so in one line, inside the same card shell.
 #[test]
 fn an_empty_ledger_says_nothing_is_failing() {
@@ -167,8 +241,8 @@ fn an_empty_ledger_says_nothing_is_failing() {
     assert!(rendered.contains("All times UTC"), "{rendered}");
 }
 
-/// The listing footer carries the `fh-footer` class the supplied CSS styles;
-/// a bare `<footer>` loses its rule, muted color, size and flex layout.
+/// The listing footer carries the `fh-footer` class its CSS styles; a bare
+/// `<footer>` loses its rule, muted color, size and flex layout.
 #[test]
 fn the_footer_carries_the_fh_footer_class() {
     let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
@@ -203,6 +277,41 @@ fn the_listing_is_dark_only() {
     );
     assert!(!rendered.contains("light-dark("), "{rendered}");
     assert!(!rendered.contains("prefers-color-scheme"), "{rendered}");
+}
+
+/// A burst's subtitle reads in sentence case, matching the brief and the
+/// mockup: only the phrase's own first letter is capitalized, not every
+/// destination joined into it.
+#[test]
+fn a_bursts_subtitle_reads_in_sentence_case() {
+    let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
+    assert!(rendered.contains("Discord and phone"), "{rendered}");
+    assert!(!rendered.contains("Discord and Phone"), "{rendered}");
+}
+
+/// A headline that already names the destination ("Phone didn’t respond",
+/// "Discord answered HTTP 500") gets no subtitle underneath repeating it;
+/// only the burst, whose headline is a bare status word, needs one.
+#[test]
+fn a_headline_that_already_names_the_destination_has_no_repeated_subtitle() {
+    let rendered = listing_page(&fixture(), &no_retry_facts, NOW);
+    assert_eq!(
+        rendered.matches("<div class=\"fh-sub\">").count(),
+        1,
+        "{rendered}"
+    );
+}
+
+/// A single leg whose headline is a bare status word (nothing to say which
+/// destination) still gets a subtitle naming it.
+#[test]
+fn a_single_legs_headline_naming_no_destination_still_gets_a_subtitle() {
+    let solo = vec![leg(1, "phone", "codex", TransportOutcome::NoStatus, NOW)];
+    let rendered = listing_page(&solo, &no_retry_facts, NOW);
+    assert!(
+        rendered.contains("<div class=\"fh-sub\">Phone</div>"),
+        "{rendered}"
+    );
 }
 
 /// Distinct destinations join with "and"; one item needs no joiner at all.

@@ -64,6 +64,7 @@ pub(crate) fn escaped(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 /// One `<dt>`/`<dd>` pair, shared by both cards' detail lists.
@@ -82,6 +83,25 @@ fn hhmm(epoch: u64) -> String {
     pns_adapters::utc_timestamp(epoch)
         .map(|iso| iso[11..16].to_string())
         .unwrap_or_default()
+}
+
+/// The `HH:MM` half of a `ListingRow::when` string. `when()` prints the
+/// literal word "unknown" when the clock could not be read, seven bytes
+/// short of the slice every other row can take; a plain `&when[11..16]`
+/// would panic on it and take the whole single-threaded page down.
+pub(crate) fn hhmm_of(when: &str) -> &str {
+    when.get(11..16).unwrap_or("unknown")
+}
+
+/// A `<time>` element's `datetime` attribute, built from the same
+/// `ListingRow::when` string its clock reads: `"2026-09-23 03:20Z"` becomes
+/// `" datetime=\"2026-09-23T03:20Z\""`. Empty when the clock could not be
+/// read, since `when()`'s literal "unknown" has no ISO form to carry.
+pub(crate) fn datetime_attr(when: &str) -> String {
+    if when.len() < 17 {
+        return String::new();
+    }
+    format!(" datetime=\"{}\"", when.replacen(' ', "T", 1))
 }
 
 /// How many whole minutes stand between `now` and a future `due`, rounded up

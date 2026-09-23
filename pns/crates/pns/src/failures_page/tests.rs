@@ -62,6 +62,14 @@ fn an_ampersand_is_escaped_once() {
     assert_eq!(html::escaped("&lt;"), "&amp;lt;");
 }
 
+/// A double quote is escaped too: a producer string can land inside an
+/// attribute value (`aria-label`), where an unescaped one would close it
+/// early.
+#[test]
+fn a_double_quote_is_escaped() {
+    assert_eq!(html::escaped("say \"hi\""), "say &quot;hi&quot;");
+}
+
 /// A bare sentence still lands inside a `<pre>`, so it reads as fixed-width
 /// prose rather than being run into the shell's own markup.
 #[test]
@@ -81,6 +89,21 @@ fn the_response_declares_the_length_of_the_body_it_carries() {
         head.contains(&format!("Content-Length: {}", body.len())),
         "{head}"
     );
+}
+
+/// `Content-Length` COUNTS BYTES, not characters: every real page carries a
+/// multi-byte character (the headline's `’`, the footer's `·`), and a phone
+/// reading `chars().count()` bytes short would truncate the response.
+#[test]
+fn the_content_length_counts_bytes_not_chars() {
+    let served = ok("’·"); // U+2019 (3 bytes) + U+00B7 (2 bytes): 2 chars, 5 bytes.
+    let (head, body) = served.split_once("\r\n\r\n").expect("a header and a body");
+    assert_eq!(
+        body.chars().count(),
+        2,
+        "the fixture itself is two characters"
+    );
+    assert!(head.contains("Content-Length: 5"), "{head}");
 }
 
 /// The probe `moshi-hook` runs remembers listeners that answer with an HTTP
@@ -251,7 +274,10 @@ fn empty_unreadable_and_unknown_answer_with_the_terminals_own_sentences() {
         .expect("an empty write primes the schema");
     assert!(index(&empty, 0).contains(">none<"));
     assert!(listing(&empty, 0).contains("Nothing is failing to deliver."));
-    assert!(one(&empty, 404, 0).contains("pns: no failure 404"));
+    assert!(
+        one(&empty, 404, 0)
+            .contains("pns: no failure 404; run `pns failures` for the current list")
+    );
 
     // A path that exists but is not a database: `read_only` fails to open it,
     // which is what an unreadable ledger looks like from here.

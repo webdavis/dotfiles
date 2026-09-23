@@ -7,7 +7,10 @@
 //! full form renders from. This module lays them out; it computes none of
 //! them itself beyond the relative "in N minutes" the render time needs.
 
-use super::{escaped, field, footer, hhmm, long_utc, minute_word, minutes_until, shell};
+use super::{
+    datetime_attr, escaped, field, footer, hhmm, hhmm_of, long_utc, minute_word, minutes_until,
+    shell,
+};
 use crate::command_failures::ListingRow;
 use pns_application::RetryFacts;
 use pns_domain::failure::{self, Failure};
@@ -49,11 +52,14 @@ const CSS: &str = "<style>:root { color-scheme:dark; background:#101417; }
 ///
 /// `retry` IS THE LEDGER'S OWN FACTS, resolved by the caller. Passing them in
 /// rather than a store reference is what lets a test build this page from
-/// fixture data with no sandbox and no database at all.
+/// fixture data with no sandbox and no database at all. `Err(())` is a read
+/// failure, kept apart from `Ok(None)` ("no facts recorded") so this can say
+/// "unknown" rather than claim a retry is due right now when it simply could
+/// not read the ledger.
 pub(crate) fn record_page(
     failure: &Failure,
     row: &ListingRow,
-    retry: Option<RetryFacts>,
+    retry: Result<Option<RetryFacts>, ()>,
     now: u64,
 ) -> String {
     let gave_up = row.gave_up;
@@ -86,7 +92,7 @@ pub(crate) fn record_page(
     ));
     body.push_str(&format!(
         "<details><summary>Technical details</summary>{}</details>",
-        technical(failure, retry, &value("failed command"))
+        technical(failure, gave_up, retry, &value("failed command"))
     ));
     body.push_str(&footer(now, ""));
     body.push_str("</article>");
@@ -95,7 +101,12 @@ pub(crate) fn record_page(
 
 /// The `fr-timing` box: what the last attempt was, and what the next one is
 /// (or that there will not be one).
-fn timing(row: &ListingRow, gave_up: bool, retry: Option<RetryFacts>, now: u64) -> String {
+fn timing(
+    row: &ListingRow,
+    gave_up: bool,
+    retry: Result<Option<RetryFacts>, ()>,
+    now: u64,
+) -> String {
     let generation = row.retries + 1;
     let last_meta = format!(
         "Attempt {generation} · {}",
@@ -107,27 +118,36 @@ fn timing(row: &ListingRow, gave_up: bool, retry: Option<RetryFacts>, now: u64) 
             "pns gave up".to_string(),
         )
     } else {
-        match retry.and_then(|facts| minutes_until(facts.due, now).map(|m| (m, facts.due))) {
-            Some((minutes, due)) => (
-                format!(
-                    "<span class=\"fr-value\">In {}</span>",
-                    minute_word(minutes)
+        match retry {
+            Ok(Some(facts)) => match minutes_until(facts.due, now) {
+                Some(minutes) => (
+                    format!(
+                        "<span class=\"fr-value\">In {}</span>",
+                        minute_word(minutes)
+                    ),
+                    format!("{} · Attempt {}", hhmm(facts.due), generation + 1),
                 ),
-                format!("{} · Attempt {}", hhmm(due), generation + 1),
-            ),
-            None => (
-                "<span class=\"fr-value\">Now</span>".to_string(),
-                format!("Attempt {}", generation + 1),
+                None => (
+                    "<span class=\"fr-value\">Now</span>".to_string(),
+                    format!("Attempt {}", generation + 1),
+                ),
+            },
+            // Neither "no facts recorded" nor a read failure is "due now":
+            // both mean this page cannot say when the next attempt is.
+            Ok(None) | Err(()) => (
+                "<span class=\"fr-value\">Unknown</span>".to_string(),
+                "pns could not read the retry schedule".to_string(),
             ),
         }
     };
     format!(
         "<dl class=\"fr-timing\" aria-label=\"Delivery attempts\">\
-         <div><dt>Last attempt</dt><dd><time class=\"fr-value\">{}</time>\
+         <div><dt>Last attempt</dt><dd><time class=\"fr-value\"{}>{}</time>\
          <span class=\"fr-meta\">{}</span></dd></div>\
          <div><dt>Next attempt</dt><dd>{value}<span class=\"fr-meta\">{}</span></dd></div>\
          </dl>",
-        &row.when[11..16],
+        datetime_attr(&row.when),
+        hhmm_of(&row.when),
         escaped(&last_meta),
         escaped(&meta),
     )
@@ -135,15 +155,29 @@ fn timing(row: &ListingRow, gave_up: bool, retry: Option<RetryFacts>, now: u64) 
 
 /// The folded `fr-fields` list: identifiers and the routing facts, not the
 /// story the headline and meaning already told.
-fn technical(failure: &Failure, retry: Option<RetryFacts>, command: &str) -> String {
+fn technical(
+    failure: &Failure,
+    gave_up: bool,
+    retry: Result<Option<RetryFacts>, ()>,
+    command: &str,
+) -> String {
     let route = if failure.route.is_empty() {
         "<span class=\"fr-meta\">none</span>".to_string()
     } else {
         escaped(&failure.route)
     };
-    let deadline = retry
-        .map(|facts| long_utc(facts.started + RetryLimits::default().event_max_age_secs))
-        .unwrap_or_default();
+    // A dead-lettered leg has no deadline any more (blank, matching the
+    // timing box's own "pns gave up"); a live leg with no readable facts
+    // reads "unknown" rather than silently blank, which would be
+    // indistinguishable from "retries have stopped".
+    let deadline = if gave_up {
+        String::new()
+    } else {
+        match retry {
+            Ok(Some(facts)) => long_utc(facts.started + RetryLimits::default().event_max_age_secs),
+            Ok(None) | Err(()) => "unknown".to_string(),
+        }
+    };
     format!(
         "<dl class=\"fr-fields\">{}{}{}{}{}{}</dl>",
         field("Delivery ID", &failure.id.to_string()),

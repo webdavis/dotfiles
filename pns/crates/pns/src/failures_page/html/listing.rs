@@ -7,7 +7,9 @@
 //! rows into bursts and lays them out; it invents no status word, no clock
 //! and no destination name of its own.
 
-use super::{escaped, field, footer, long_utc, minute_word, minutes_until, shell};
+use super::{
+    datetime_attr, escaped, field, footer, hhmm_of, long_utc, minute_word, minutes_until, shell,
+};
 use crate::command_failures::{self, ListingRow};
 use pns_application::{RetryFacts, StoredFailure};
 use pns_domain::failure;
@@ -58,10 +60,13 @@ struct Burst<'a> {
 /// `/`: the header, the timeline (or the empty-ledger line), the footer.
 ///
 /// `retry_facts` IS A CLOSURE rather than a store reference, so a test can
-/// hand this fixture data with no sandbox and no database at all.
+/// hand this fixture data with no sandbox and no database at all. It answers
+/// `Err(())` for a read failure, kept apart from `Ok(None)` ("no facts
+/// recorded") so a page can say "unknown" rather than claim a retry is due
+/// right now when it simply could not read the ledger.
 pub(crate) fn listing_page(
     failures: &[StoredFailure],
-    retry_facts: &impl Fn(u64) -> Option<RetryFacts>,
+    retry_facts: &impl Fn(u64) -> Result<Option<RetryFacts>, ()>,
     now: u64,
 ) -> String {
     let mut body = String::from(CSS);
@@ -105,7 +110,11 @@ fn bursts<'a>(failures: &'a [StoredFailure], rows: &'a [ListingRow]) -> Vec<Burs
     out
 }
 
-fn entries(bursts: &[Burst], retry_facts: &impl Fn(u64) -> Option<RetryFacts>, now: u64) -> String {
+fn entries(
+    bursts: &[Burst],
+    retry_facts: &impl Fn(u64) -> Result<Option<RetryFacts>, ()>,
+    now: u64,
+) -> String {
     let mut out = String::new();
     let mut last_day: Option<&str> = None;
     for (index, burst) in bursts.iter().enumerate() {
@@ -125,7 +134,7 @@ fn entries(bursts: &[Burst], retry_facts: &impl Fn(u64) -> Option<RetryFacts>, n
 
 fn entry(
     burst: &Burst,
-    retry_facts: &impl Fn(u64) -> Option<RetryFacts>,
+    retry_facts: &impl Fn(u64) -> Result<Option<RetryFacts>, ()>,
     now: u64,
     is_last: bool,
 ) -> String {
@@ -133,6 +142,13 @@ fn entry(
     let oldest = *burst.members.last().expect("a burst has at least one leg");
     let count = burst.members.len();
     let gave_up = newest.1.gave_up;
+    // A burst never shows one leg's schedule for all of it (see
+    // `burst_details`), so the read only happens for a single entry, once.
+    let facts: Result<Option<RetryFacts>, ()> = if count == 1 {
+        retry_facts(newest.0.id)
+    } else {
+        Ok(None)
+    };
     let mut classes = vec!["fh-row"];
     if !gave_up {
         classes.push("fh-active");
@@ -145,15 +161,23 @@ fn entry(
     } else {
         failure::capitalized(&newest.1.status)
     };
+    // A burst's title never names a destination, so its subtitle always
+    // does; a single leg's headline sometimes already has, and the
+    // subtitle would only repeat it there.
+    let show_subtitle = count > 1 || !failure::headline_names_destination(newest.0.outcome);
     let state_word = if gave_up { "Not delivered" } else { "Retrying" };
-    let newest_hhmm = &newest.1.when[11..16];
+    let newest_hhmm = hhmm_of(&newest.1.when);
     let gutter = if count == 1 {
-        format!("<time class=\"fh-clock\">{newest_hhmm}</time>")
+        format!(
+            "<time class=\"fh-clock\"{}>{newest_hhmm}</time>",
+            datetime_attr(&newest.1.when)
+        )
     } else {
         format!(
-            "<div class=\"fh-clock\"><time>{}</time><br>\
+            "<div class=\"fh-clock\"><time{}>{}</time><br>\
              <span class=\"fh-muted fh-small\">to {newest_hhmm}</span></div>",
-            &oldest.1.when[11..16]
+            datetime_attr(&oldest.1.when),
+            hhmm_of(&oldest.1.when)
         )
     };
     format!(
@@ -166,25 +190,28 @@ fn entry(
         classes.join(" "),
         escaped(&format!("{newest_hhmm}, {title}, {state_word}")),
         escaped(&title),
-        subtitle(burst),
-        next_line(burst, count, gave_up, retry_facts, now),
-        details(burst, count, gave_up, retry_facts),
+        if show_subtitle {
+            subtitle(burst)
+        } else {
+            String::new()
+        },
+        next_line(burst, count, gave_up, facts, now),
+        details(burst, count, gave_up, facts),
     )
 }
 
-/// The destinations, distinct and capitalized, joined with "and".
+/// The destinations, distinct and joined with "and", in sentence case: only
+/// the phrase's own first letter is capitalized ("Discord and phone"), not
+/// every destination in it.
 fn subtitle(burst: &Burst) -> String {
     let mut seen: Vec<String> = Vec::new();
     for (failure, _) in &burst.members {
-        let name = failure::capitalized(&failure.destination);
-        if !seen.contains(&name) {
-            seen.push(name);
+        if !seen.contains(&failure.destination) {
+            seen.push(failure.destination.clone());
         }
     }
-    format!(
-        "<div class=\"fh-sub\">{}</div>",
-        escaped(&joined_with_and(&seen))
-    )
+    let phrase = failure::capitalized(&joined_with_and(&seen));
+    format!("<div class=\"fh-sub\">{}</div>", escaped(&phrase))
 }
 
 fn joined_with_and(items: &[String]) -> String {
@@ -203,7 +230,7 @@ fn next_line(
     burst: &Burst,
     count: usize,
     gave_up: bool,
-    retry_facts: &impl Fn(u64) -> Option<RetryFacts>,
+    facts: Result<Option<RetryFacts>, ()>,
     now: u64,
 ) -> String {
     if count > 1 {
@@ -222,13 +249,18 @@ fn next_line(
     if gave_up {
         return String::new();
     }
-    let id = burst.members[0].0.id;
-    match retry_facts(id).and_then(|facts| minutes_until(facts.due, now)) {
-        Some(minutes) => format!(
-            "<div class=\"fh-next\">Next try in {}</div>",
-            minute_word(minutes)
-        ),
-        None => "<div class=\"fh-next\">Next try now</div>".to_string(),
+    // `Ok(None)` and `Err(())` both mean "we cannot say", which is not the
+    // same as "due now": a retrying leg with no readable facts still reads
+    // as unknown rather than imminent.
+    match facts {
+        Ok(Some(facts)) => match minutes_until(facts.due, now) {
+            Some(minutes) => format!(
+                "<div class=\"fh-next\">Next try in {}</div>",
+                minute_word(minutes)
+            ),
+            None => "<div class=\"fh-next\">Next try now</div>".to_string(),
+        },
+        Ok(None) | Err(()) => "<div class=\"fh-next\">Next try unknown</div>".to_string(),
     }
 }
 
@@ -236,10 +268,10 @@ fn details(
     burst: &Burst,
     count: usize,
     gave_up: bool,
-    retry_facts: &impl Fn(u64) -> Option<RetryFacts>,
+    facts: Result<Option<RetryFacts>, ()>,
 ) -> String {
     if count == 1 {
-        single_details(burst.members[0], gave_up, retry_facts)
+        single_details(burst.members[0], gave_up, facts)
     } else {
         burst_details(burst, gave_up)
     }
@@ -248,7 +280,7 @@ fn details(
 fn single_details(
     member: (&StoredFailure, &ListingRow),
     gave_up: bool,
-    retry_facts: &impl Fn(u64) -> Option<RetryFacts>,
+    facts: Result<Option<RetryFacts>, ()>,
 ) -> String {
     let (failure, row) = member;
     let mut dl = String::from("<dl>");
@@ -260,7 +292,7 @@ fn single_details(
     if gave_up {
         dl.push_str(&field("Outcome", "Permanent failure; no retries"));
         dl.push_str(&field("Recorded", &long_utc(failure.failed_at)));
-    } else if let Some(facts) = retry_facts(failure.id) {
+    } else if let Ok(Some(facts)) = facts {
         dl.push_str(&field("Next try", &long_utc(facts.due)));
         dl.push_str(&field(
             "Attempts used",
@@ -277,8 +309,7 @@ fn single_details(
 
 /// No live retry facts to read for a burst: each leg has its own, and there
 /// is no one "next try" to show for eighteen of them at once. A burst that
-/// has not been dead-lettered says so in general terms rather than picking
-/// one leg's schedule to stand for all of them.
+/// has not been dead-lettered says so in general terms.
 fn burst_details(burst: &Burst, gave_up: bool) -> String {
     let outcome = if gave_up {
         "Permanent failure; no retries"
@@ -296,8 +327,8 @@ fn burst_details(burst: &Burst, gave_up: bool) -> String {
     let window = format!(
         "{}, {} to {} UTC",
         month_day(oldest.0.failed_at),
-        &oldest.1.when[11..16],
-        &newest.1.when[11..16],
+        hhmm_of(&oldest.1.when),
+        hhmm_of(&newest.1.when),
     );
     let mut records = String::new();
     for (index, (failure, row)) in burst.members.iter().enumerate() {
@@ -314,7 +345,7 @@ fn burst_details(burst: &Burst, gave_up: bool) -> String {
             failure.id,
             failure.id,
             escaped(&row.agent),
-            &row.when[11..16],
+            hhmm_of(&row.when),
         ));
     }
     format!(
