@@ -1,3 +1,4 @@
+# Commands, input prompts, and descriptions for the Ctrl-X n networking menu.
 [[action]]
 id = "hostname"
 title = "Hostname"
