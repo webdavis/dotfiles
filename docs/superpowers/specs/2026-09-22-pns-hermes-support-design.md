@@ -317,8 +317,9 @@ new.
 Claude and Codex use: the activity row, the forward, the phone-leg suppression only when the spawn
 started, the reminder, the notification, the bounded wait. `moshi_subcommand` gains one arm:
 `hermes` maps to `hermes-hook` when `surface == "cli"` (and, once H10 passes, when `platform == "tui"`,
-below). That is the one Hermes surface moshi's own plugin ever forwarded, and moshi's docs say its bridge answers a Hermes prompt "only when its
-terminal bridge can verify the visible command and approval menu" (`docs/hooks.md:170-173`). pns hands
+below). That is the one Hermes surface moshi's own plugin ever forwarded, and moshi's docs say its
+bridge answers a Hermes prompt "only when its terminal bridge can verify the visible command and
+approval menu" (`docs/hooks.md:170-173`). pns hands
 moshi the payload byte for byte, so the shim's payload is moshi's contract plus `platform`, which
 moshi's own plugin already sends on its lifecycle events, and, in a kanban worker, `kanban_task`.
 
