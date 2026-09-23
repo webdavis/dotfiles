@@ -214,6 +214,7 @@ const SAMPLE_VALUES: &[(&str, &str, &str)] = &[
     ("routes", "default", "\"logbook\""),
     ("routes", "urgent", "\"sirens\""),
     ("recap", "minimum_events", "8"),
+    ("recap", "minimum_away", "\"20m\""),
     ("recap", "post_window_recap", "true"),
     ("recap", "replay_card", "true"),
     ("recap", "nightshift", "[\"22:00\", \"06:00\"]"),

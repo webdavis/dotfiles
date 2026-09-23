@@ -74,9 +74,6 @@ Overwritten from the template on every apply, whatever the live file holds.
     registers the card before the prompt is drawn. Its exit code is NOT the operator's answer: that comes
     back through moshi's own bridge typing into the prompt (measured 2026-08-29, `modify_settings.json`:
     approve and deny both leave the hook exiting 0 with empty stdout).
-  - `ConfigChange` runs `pns hook config-change` async, one exact pipe-separated matcher naming the five
-    documented config sources, carding a configuration change as an audit trail rather than a turn
-    needing attention.
   - `PermissionDenied` runs `pns hook denied` async, reporting the tool call auto-mode refused without
     ever asking; async is what keeps pns out of the retry decision the harness awaits on this hook. It is
     routed as an OBSERVATION, so it neither arms the waiting lamp nor clears a wait: the decision has

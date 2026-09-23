@@ -10,8 +10,8 @@ use std::time::Duration;
 /// approve and deny are indistinguishable here. The operator's real answer
 /// travels the daemon's own tui bridge, which finds the pane, screen-reads the
 /// numbered menu and SENDS KEYS into it. The code is still passed through
-/// untouched, because the harnesses that read a gate's exit code are entitled
-/// to whatever moshi said.
+/// untouched, because a harness that reads the hook's exit code is entitled to
+/// whatever moshi said.
 fn moshi_decision(mut child: std::process::Child) -> i32 {
     child
         .wait()
