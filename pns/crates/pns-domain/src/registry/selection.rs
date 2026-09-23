@@ -17,6 +17,20 @@ impl Selection {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// The durable log this selection runs, which is the one `[plugins.log]
+    /// type` names, or `None` for a machine with nowhere durable to post.
+    pub fn durable_log(&self) -> Option<&'static str> {
+        self.0
+            .iter()
+            .find(|plugin| {
+                matches!(
+                    plugin.kind,
+                    super::PluginKind::Channel(routing) if routing.durable && routing.event_dispatched
+                )
+            })
+            .map(|plugin| plugin.name)
+    }
 }
 
 impl Registry {

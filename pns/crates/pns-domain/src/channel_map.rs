@@ -43,9 +43,22 @@ pub fn channel_for<'a>(
     project: &str,
     default_route: &str,
 ) -> Option<&'a str> {
+    key_for(channels, route, project, default_route)
+        .and_then(|key| channels.get(key))
+        .map(String::as_str)
+}
+
+/// The key `channel_for` finds this event's channel under, which is the name
+/// a card can say about where the post landed: the values are opaque ids.
+pub fn key_for<'a>(
+    channels: &'a ChannelMap,
+    route: &str,
+    project: &str,
+    default_route: &str,
+) -> Option<&'a str> {
     keys_tried(route, project, default_route)
         .into_iter()
-        .find_map(|key| channels.get(key).map(String::as_str))
+        .find_map(|key| channels.get_key_value(key).map(|(key, _)| key.as_str()))
 }
 
 /// Every key the lookup consults, in order, for this route and project.
@@ -217,6 +230,28 @@ mod tests {
     fn a_map_stating_nothing_answers_nothing() {
         assert_eq!(
             looked_up(&ChannelMap::new(), URGENT_ROUTE, "dotfiles"),
+            None
+        );
+    }
+
+    #[test]
+    fn the_key_named_is_the_one_the_channel_was_found_under() {
+        // THE MAP'S VALUES ARE CHANNEL IDS, so the name a card can say about
+        // where a post landed is the key the lookup settled on.
+        assert_eq!(
+            key_for(&mapped(), "", "dotfiles", DEFAULT_ROUTE),
+            Some("dotfiles")
+        );
+        assert_eq!(
+            key_for(&mapped(), "", "", DEFAULT_ROUTE),
+            Some(DEFAULT_ROUTE)
+        );
+        assert_eq!(
+            key_for(&mapped(), "", "elsewhere", DEFAULT_ROUTE),
+            Some(DEFAULT_KEY)
+        );
+        assert_eq!(
+            key_for(&ChannelMap::new(), "", "dotfiles", DEFAULT_ROUTE),
             None
         );
     }
