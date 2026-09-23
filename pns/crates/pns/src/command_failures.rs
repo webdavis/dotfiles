@@ -288,7 +288,7 @@ fn short_status(failure: &StoredFailure) -> String {
     match failure.outcome {
         pns_domain::retry::TransportOutcome::Status(code) => format!("HTTP {code}"),
         pns_domain::retry::TransportOutcome::NoResponse => "no response".to_string(),
-        pns_domain::retry::TransportOutcome::NoStatus => "bad URL".to_string(),
+        pns_domain::retry::TransportOutcome::NoStatus => "not launched".to_string(),
     }
 }
 

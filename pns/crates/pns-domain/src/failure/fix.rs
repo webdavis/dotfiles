@@ -138,9 +138,6 @@ fn repair(failure: &Failure) -> String {
         TransportOutcome::Status(413) => {
             "raise the gateway's body limit in ~/.hermes/config.yaml".to_string()
         }
-        TransportOutcome::NoStatus => {
-            format!("check the route name \"{route}\" and the URL in ~/.config/pns/config.toml")
-        }
         _ => "run `pns doctor` for the full gateway configuration".to_string(),
     }
 }

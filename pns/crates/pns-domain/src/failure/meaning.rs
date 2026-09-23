@@ -54,7 +54,8 @@ pub(super) fn status(outcome: TransportOutcome) -> String {
             None => format!("HTTP {code}"),
         },
         TransportOutcome::NoResponse => "no response".to_string(),
-        TransportOutcome::NoStatus => "bad URL".to_string(),
+        // The ledger's unlaunched outcome: the leg never reached the wire.
+        TransportOutcome::NoStatus => "not launched".to_string(),
     }
 }
 
@@ -95,7 +96,7 @@ fn hermes(outcome: TransportOutcome, route: &str, address: &str) -> String {
     let code = match outcome {
         TransportOutcome::NoResponse => return format!("nothing answered at {address}"),
         TransportOutcome::NoStatus => {
-            return format!("the URL pns built for {route} is malformed, nothing was sent");
+            return format!("pns never launched the post to {route}, nothing was sent");
         }
         TransportOutcome::Status(code) => code,
     };
@@ -137,7 +138,7 @@ fn moshi(outcome: TransportOutcome, address: &str) -> String {
     let code = match outcome {
         TransportOutcome::NoResponse => return format!("nothing answered at {address}"),
         TransportOutcome::NoStatus => {
-            return format!("the URL pns built from {address} is malformed, nothing was sent");
+            return format!("pns never launched the card for {address}, nothing was sent");
         }
         TransportOutcome::Status(code) => code,
     };
