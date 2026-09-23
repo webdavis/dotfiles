@@ -38,7 +38,9 @@ fn is_moshi_handler(handler: &Value) -> bool {
         .is_some_and(|command| {
             let words = words(command);
             words.first().is_some_and(|first| {
-                Path::new(first).file_name().is_some_and(|name| name == "moshi-hook")
+                Path::new(first)
+                    .file_name()
+                    .is_some_and(|name| name == "moshi-hook")
             }) && words.get(1).is_some_and(|second| second == "codex-hook")
         })
 }
