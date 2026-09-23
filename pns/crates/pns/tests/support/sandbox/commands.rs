@@ -1,6 +1,13 @@
 use super::super::ENGINE;
 use super::Sandbox;
+use std::ffi::OsString;
 use std::process::Command;
+
+/// A loopback port nothing serves: a post there is refused at once.
+const UNSERVED_URL: &str = "http://127.0.0.1:1/";
+
+/// The system directories every sandbox command searches after its own `bin`.
+pub(super) const SYSTEM_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
 
 impl Sandbox {
     /// The engine pointed at the stubs, with its state directory pinned inside
@@ -20,15 +27,12 @@ impl Sandbox {
             // The phone's clock is read by walking the DEVELOPER'S OWN live
             // mosh sessions, so the suite states it instead: untouched for a
             // day. A test about the phone overrides this with its own age.
-            .env("PNS_PHONE_INPUT_MAX_AGE", "24h")
-            // No live summarizer: a Stop hook spawns one for real, and the
-            // suite must never reach the operator's own Codex.
-            .env("PNS_CODEX_BIN", "/nonexistent/codex");
+            .env("PNS_PHONE_INPUT_MAX_AGE", "24h");
         command
     }
 
-    /// The engine with NOTHING pointing it at stubs, which is the only way to
-    /// reach the native plugins.
+    /// The engine with no channels directory, which is the only way to reach
+    /// the native plugins.
     ///
     /// EVERYTHING is cleared and only what the binary genuinely needs is put
     /// back, so a developer's environment cannot decide a verdict. The old
@@ -49,11 +53,25 @@ impl Sandbox {
         // remembered, and every test that wants a stub still overrides it,
         // because this is set before the caller's own `env` calls.
         command.env("PNS_MOSHI_HOOK_BIN", self.root.join("no-moshi-hook-here"));
-        // PATH survives because the binary resolves herdr and terminal-notifier
-        // through it, and a test that stubs either one prepends to this.
-        if let Some(path) = std::env::var_os("PATH") {
-            command.env("PATH", path);
-        }
+        // THE PHONE PUSH IS FENCED THE SAME WAY, at a loopback port nothing
+        // serves. Unset, the binary posts to moshi's real API. A test that
+        // captures the push overrides these.
+        command
+            .env("PNS_MOSHI_URL", UNSERVED_URL)
+            .env("PNS_MOSHI_UPLOAD_URL", UNSERVED_URL);
+        // No live summarizer: a Stop hook spawns one for real, and the suite
+        // must never reach the operator's own Codex.
+        command.env("PNS_CODEX_BIN", "/nonexistent/codex");
+        // PATH IS THE SANDBOX'S `bin` AND THE SYSTEM DIRECTORIES, never the
+        // developer's own. Every banner, a failure notice included, reaches the
+        // recording `terminal-notifier` in `bin`, and a detached recap child
+        // that outlives this sandbox finds no notifier at all once `Drop` has
+        // taken `bin`. `git` resolves from `/usr/bin`; `herdr` and `gh` are a
+        // test's stub in `bin` or absent.
+        let mut path = OsString::from(self.path("bin"));
+        path.push(":");
+        path.push(SYSTEM_PATH);
+        command.env("PATH", path);
         command
     }
 }

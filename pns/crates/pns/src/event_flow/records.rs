@@ -28,6 +28,8 @@ pub(super) struct EventRecords<'a> {
     /// The pulse seam, carried because the readings it is handed are taken
     /// hundreds of lines above the call.
     pub(super) pulse: PulseSink<'a>,
+    /// What a replayed card's failure notice is spawned through.
+    pub(super) notifier: &'a dyn pns_application::CommandRunner,
 }
 
 impl pns_application::Journal for EventRecords<'_> {
@@ -132,6 +134,7 @@ impl pns_application::MissedReplay for EventRecords<'_> {
                 discord: &self.discord,
                 routes: &self.routes,
                 json: self.json,
+                notifier: self.notifier,
             },
         );
     }
