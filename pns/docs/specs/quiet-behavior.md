@@ -348,9 +348,7 @@ Then the moshi forward still happens, byte for byte, and moshi's own exit code i
 
 - Success: `src/main.rs:blocking_event` decides the forward through `src/main.rs:forward_to_moshi`, which
   reads ONLY the surface (`operator_surface(...) != Surface::Desk`) and never constructs a delivery plan.
-  Nothing on `Overrides` can reach it. `src/main.rs:gate_mode`, the bare `pns <harness>-hook`
-  pass-through, is the same: it calls `forward_to_moshi` with a throwaway probe set and runs no delivery
-  plan at all. Pinned by two deliberately near-duplicate tests,
+  Nothing on `Overrides` can reach it. Pinned by two deliberately near-duplicate tests,
   `tests/hooks.rs:a_mute_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer` and
   `tests/hooks.rs:a_focus_never_touches_the_approval_a_blocked_operator_is_waiting_to_answer`, each
   asserting exit code 42 from the stubbed moshi and the payload arriving byte for byte at `moshi.stdin`.
@@ -360,7 +358,7 @@ Then the moshi forward still happens, byte for byte, and moshi's own exit code i
   (`payload_is_whole`); the operator being at the desk, where the harness prompt in front of them already
   is the prompt.
 - Fail direction: not forwarded means exit 0, which the harness reads as "no opinion, prompt as usual"
-  (`src/main.rs:gate_mode`). Silence is never inferred from a mute.
+  (`src/main.rs:hook_mode`). Silence is never inferred from a mute.
 - Thresholds: Not applicable.
 - Required side effects: what IS silenced is pns's own duplicate notification about the block. The
   blocked event still runs `run_event`, so its banner, card and pulse are zeroed by behavior 7, and its
@@ -370,9 +368,8 @@ Then the moshi forward still happens, byte for byte, and moshi's own exit code i
 - Forbidden side effects: the exemption is structural and the tests say so about themselves. It breaks by
   MOVING code (building the forward from a delivery plan) rather than by editing a line, which is exactly
   what those two tests exist to catch.
-- Timeout and cancellation: the wait on moshi is bounded at the shared seam by
-  `src/main.rs:answer_within(child, submit_deadline())`, not at either caller, because `pi` and `omp`
-  reach `gate_mode` with no pns hook in front of them (`src/main.rs:gate_mode`).
+- Timeout and cancellation: the wait on moshi is bounded by
+  `src/main.rs:answer_within(child, submit_deadline())`.
 - Idempotency and duplicates: when the forward starts, `PNS_SKIP_PHONE=1` is set so pns's own phone leg
   is suppressed and the operator is not carded twice (`src/main.rs:blocking_event`). That suppression is
   applied to the forward that really STARTED, never to the intent to forward.

@@ -46,6 +46,7 @@ impl Replay {
                 replay_card: true,
                 post_window_recap: false,
                 minimum_events: 2,
+                minimum_away: std::time::Duration::ZERO,
             },
             false,
         );
@@ -80,8 +81,18 @@ impl ActivityRing for Replay {
     }
 }
 
+impl pns_application::OpenWaits for Replay {
+    fn open_waits(&self, _: u64, _: u64) -> Vec<pns_domain::missed::OpenWait> {
+        panic!("post_window_recap is disabled, so no recap card is composed");
+    }
+}
+
 impl RecapPublisher for Replay {
     type Started = ();
+
+    fn route(&self) -> Option<String> {
+        panic!("post_window_recap is disabled");
+    }
 
     fn publish(&self, _: u64, _: u64) -> Option<Self::Started> {
         panic!("post_window_recap is disabled");

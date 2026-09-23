@@ -32,7 +32,8 @@ pub(in crate::persistence::sqlite) fn create(
     transaction: &Transaction<'_>,
 ) -> Result<(), StoreError> {
     // `blocked_since` and `escalated_at` are created here and written by the
-    // stale-block escalation, so that feature costs no second migration.
+    // wait tracking and the stale-block escalation, so neither costs a second
+    // migration.
     transaction.execute_batch(
         "CREATE TABLE sessions (
           id TEXT PRIMARY KEY,
@@ -96,16 +97,25 @@ impl SqliteStore {
     /// AND IT CLEARS THE PREVIOUS ESCALATION, which is what makes the rule one
     /// page per BLOCK rather than one per session: a new wait is a new thing
     /// nobody has answered, whether or not the last one was ever paged about.
-    pub fn begin_wait(&self, session_id: &str, now: u64) -> Result<(), StoreError> {
+    ///
+    /// A WAIT THAT DOES NOT `escalates` IS BORN CLAIMED instead, so switching
+    /// the escalation on later pages only waits begun after that, never a
+    /// backlog it was never armed for.
+    pub fn begin_wait(
+        &self,
+        session_id: &str,
+        now: u64,
+        escalates: bool,
+    ) -> Result<(), StoreError> {
         self.transaction(|transaction| {
             transaction.execute(
-                "INSERT INTO sessions(id,harness,project,branch,title,first_seen,last_seen,blocked_since)
-                 VALUES (?1,'','','','',?2,?2,?2)
+                "INSERT INTO sessions(id,harness,project,branch,title,first_seen,last_seen,blocked_since,escalated_at)
+                 VALUES (?1,'','','','',?2,?2,?2,CASE WHEN ?3 THEN NULL ELSE ?2 END)
                  ON CONFLICT(id) DO UPDATE SET
                    blocked_since = ?2,
-                   escalated_at = NULL,
+                   escalated_at = CASE WHEN ?3 THEN NULL ELSE ?2 END,
                    last_seen = ?2",
-                rusqlite::params![session_id, now],
+                rusqlite::params![session_id, now, escalates],
             )?;
             Ok(())
         })
@@ -113,11 +123,17 @@ impl SqliteStore {
 
     /// End it. NOTHING IS INSERTED: a session with no row has no wait to end,
     /// and the escalation reads the row rather than this call's success.
-    pub fn end_wait(&self, session_id: &str) -> Result<(), StoreError> {
+    ///
+    /// AN END NEVER TAKES A WAIT BEGUN AFTER `now`, the moment the caller is
+    /// clearing for, which is the blocked marker's own compare: the answer
+    /// arms are async, so one batch's clear can land after the next approval
+    /// began its wait. No clock is an unconditional end.
+    pub fn end_wait(&self, session_id: &str, now: Option<u64>) -> Result<(), StoreError> {
         self.transaction(|transaction| {
             transaction.execute(
-                "UPDATE sessions SET blocked_since = NULL, escalated_at = NULL WHERE id = ?1",
-                rusqlite::params![session_id],
+                "UPDATE sessions SET blocked_since = NULL, escalated_at = NULL
+                  WHERE id = ?1 AND (?2 IS NULL OR blocked_since IS NULL OR blocked_since <= ?2)",
+                rusqlite::params![session_id, now],
             )?;
             Ok(())
         })
@@ -214,5 +230,63 @@ impl SqliteStore {
                 },
             )
             .ok()
+    }
+}
+
+// --- the waits a return card lists -------------------------------------------
+
+impl SqliteStore {
+    /// Every wait begun inside `since..=until` and still open, oldest first:
+    /// what the session's newest wait asks, and how many of its waits inside
+    /// the window nothing has answered, at least one.
+    ///
+    /// UNANSWERED MEANS AFTER THE SESSION'S NEWEST ROW THAT IS NOT A WAIT:
+    /// the operator typing, an answer signal, or a turn moving on.
+    ///
+    /// THE ROW SAYS WHETHER IT IS OPEN and the activity store says what it is
+    /// about. A session with an open row and no waiting activity row names
+    /// nothing a card could say, so it is left out.
+    ///
+    /// BEGUN INSIDE THE WINDOW, because the card is about the absence: a wait
+    /// left open before it, by a session that never sent another event, is
+    /// not something that happened while the operator was away.
+    pub fn open_waits(
+        &self,
+        since: u64,
+        until: u64,
+    ) -> Result<Vec<pns_domain::missed::OpenWait>, StoreError> {
+        let waits = pns_domain::pulse::LAMP_BLOCKED;
+        let states = (3..3 + waits.len())
+            .map(|slot| format!("?{slot}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let connection = self.connect()?;
+        let mut statement = connection.prepare(&format!(
+            "SELECT e.agent, e.state, e.project, e.detail,
+                    MAX(1, (SELECT COUNT(*) FROM activity_events c
+                             WHERE c.session = s.id AND c.state IN ({states})
+                               AND c.at > ?1 AND c.at <= ?2
+                               AND c.seq > COALESCE((SELECT MAX(n.seq) FROM activity_events n
+                                    WHERE n.session = s.id AND n.state NOT IN ({states})), 0)))
+               FROM sessions s
+               JOIN activity_events e ON e.seq = (
+                    SELECT w.seq FROM activity_events w
+                     WHERE w.session = s.id AND w.state IN ({states})
+                     ORDER BY w.at DESC, w.seq DESC LIMIT 1)
+              WHERE s.blocked_since > ?1 AND s.blocked_since <= ?2
+              ORDER BY s.blocked_since, s.id"
+        ))?;
+        let mut bound: Vec<&dyn rusqlite::ToSql> = vec![&since, &until];
+        bound.extend(waits.iter().map(|state| state as &dyn rusqlite::ToSql));
+        let rows = statement.query_map(bound.as_slice(), |row| {
+            Ok(pns_domain::missed::OpenWait {
+                agent: row.get(0)?,
+                state: row.get(1)?,
+                project: row.get(2)?,
+                asks: row.get(3)?,
+                count: row.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 }

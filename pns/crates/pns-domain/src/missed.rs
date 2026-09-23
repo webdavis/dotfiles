@@ -20,7 +20,7 @@ mod recap;
 mod summary;
 
 pub use perception::{is_present, should_replay, was_missed};
-pub use recap::{NEEDS_YOU, event_count, needing_you, recap_card};
+pub use recap::{NEEDS_YOU, OpenWait, event_count, recap_card};
 pub use summary::summary;
 
 /// How many missed notifications the journal keeps.

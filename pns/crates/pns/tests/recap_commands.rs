@@ -65,6 +65,37 @@ fn an_agent_recap_posts_once_on_the_default_route_and_exits_zero_when_refused() 
 }
 
 #[test]
+fn an_agent_recap_posts_on_the_log_transport_the_config_selects() {
+    let sandbox = Sandbox::new("recap-agent-discord");
+    sandbox.write_config(
+        "[plugins.log]\nenabled = true\ntype = \"discord\"\nbot_token = \"token\"\n\
+         [plugins.log.channels]\ndefault = \"1\"\npriority = \"2\"\n",
+    );
+    for channel in ["hermes", "discord"] {
+        sandbox.stub_channel(
+            channel,
+            &format!("cat >>\"{}/{channel}.events\"", sandbox.display()),
+        );
+    }
+    let mut command = sandbox.pns();
+    command.env("PNS_STATE_DIR", sandbox.path("state"));
+    let output = piped(
+        command.args(["recap", "agent", "--stdin"]),
+        b"Recap\n==========\n\n**User Tasks**\n1. `chezmoi apply`\n",
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    let posted = std::fs::read_to_string(sandbox.path("discord.events")).unwrap_or_default();
+    assert!(
+        posted.contains("User Tasks"),
+        "discord was not handed the recap"
+    );
+    assert!(
+        !sandbox.path("hermes.events").exists(),
+        "the recap went to a transport the config did not select"
+    );
+}
+
+#[test]
 fn an_agent_recap_with_nothing_on_stdin_refuses_rather_than_posting_a_blank_message() {
     let sandbox = Sandbox::new("recap-agent-empty");
     let mut command = plugin_command(&sandbox);
@@ -126,14 +157,12 @@ fn recap_git_reads_the_branch_the_worktree_and_the_diff_out_of_a_real_repository
     git(&["add", "."]);
     git(&["commit", "--quiet", "-m", "work"]);
 
+    // NO NETWORK: `gh` is not on the sandbox's PATH, so the PR line says it
+    // did not answer, which is the branch this asserts.
     let mut command = plugin_command(&sandbox);
     command
         .current_dir(&repository)
-        .env("PNS_STATE_DIR", sandbox.path("state"))
-        // NO NETWORK: an empty PATH addition is not how this is
-        // done, so `gh` simply is not reachable and the PR line says so,
-        // which is the branch this asserts.
-        .env("PATH", no_listing_path());
+        .env("PNS_STATE_DIR", sandbox.path("state"));
     let output = run(command.args(["recap", "git"]));
     let printed = stdout(&output);
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
@@ -156,21 +185,6 @@ fn recap_git_reads_the_branch_the_worktree_and_the_diff_out_of_a_real_repository
     );
     assert!(printed.contains("A  added.txt"), "{printed}");
     assert!(!printed.contains("kept.txt"), "{printed}");
-}
-
-/// A PATH with git on it and no `gh`, so the pull-request listing is the one
-/// thing that cannot run.
-fn no_listing_path() -> String {
-    let git = Command::new("/usr/bin/env")
-        .args(["sh", "-c", "command -v git"])
-        .output()
-        .expect("git is on PATH");
-    let git = String::from_utf8_lossy(&git.stdout).trim().to_string();
-    std::path::Path::new(&git)
-        .parent()
-        .expect("git's own directory")
-        .display()
-        .to_string()
 }
 
 /// One run with `payload` on stdin.

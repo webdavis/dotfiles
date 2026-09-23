@@ -4,9 +4,10 @@
 //! and left behind, because the next attempt is a week away and a run that
 //! aborts at its first problem throws away every subject it had not reached.
 
+use std::collections::BTreeSet;
 use std::time::Duration;
 
-use crate::lanes::CommandRunner;
+use crate::lanes::{CommandRunner, Environment, Verdict};
 use uu_domain::LaneReport;
 
 /// What the record says about one step. THE REASON, not only the status:
@@ -32,6 +33,113 @@ pub fn step(
     args: &[&str],
 ) {
     note(report, label, runner.run(program, args));
+}
+
+/// `brew upgrade`, read for the taps Homebrew skipped. Homebrew exits 0 when
+/// tap trust keeps it from loading a tap, so the exit alone records `ok` for a
+/// run in which nothing from that tap was upgraded.
+pub fn upgrade_step(report: &mut LaneReport, runner: &dyn CommandRunner, program: &str) {
+    let label = "brew upgrade";
+    match runner.run_reporting_in(program, &["upgrade"], &Environment::inheriting()) {
+        Err(why) => report.failed(format!("{label}: {why}")),
+        Ok(ran) => match ran.verdict {
+            Verdict::Clean => {
+                let skipped = untrusted_taps(&ran.stderr);
+                if skipped.is_empty() {
+                    report.noted(format!("{label}: ok"));
+                } else {
+                    let word = if skipped.len() == 1 { "tap" } else { "taps" };
+                    report.failed(format!(
+                        "{label}: Homebrew skipped {} untrusted {word}, so nothing from them was \
+                         upgraded: {}",
+                        skipped.len(),
+                        skipped.into_iter().collect::<Vec<_>>().join(", ")
+                    ));
+                }
+            }
+            Verdict::Failed(why) | Verdict::Deferred(why) | Verdict::Pending(why) => {
+                report.failed(format!("{label}: {why}"))
+            }
+        },
+    }
+}
+
+/// `brew tap-info --installed --json`, read for a tap left untrusted. A
+/// direct read of Homebrew's own trust store, independent of whether
+/// anything was outdated this week: `brew upgrade` only reaches the check
+/// that names an untrusted tap after `return if outdated.blank?`, so a week
+/// with nothing else to upgrade records `brew upgrade: ok` even while a tap
+/// sits untrusted.
+pub fn trust_step(report: &mut LaneReport, runner: &dyn CommandRunner, program: &str) {
+    let label = "brew tap-info";
+    match runner.run(program, &["tap-info", "--installed", "--json"]) {
+        Err(why) => report.failed(format!("{label}: {why}")),
+        Ok(stdout) => match untrusted_installed_taps(&stdout) {
+            Err(()) => report.failed(format!(
+                "{label}: could not read tap trust from brew's output"
+            )),
+            Ok(untrusted) if untrusted.is_empty() => report.noted(format!("{label}: ok")),
+            Ok(untrusted) => {
+                let word = if untrusted.len() == 1 { "tap" } else { "taps" };
+                report.failed(format!(
+                    "{label}: {} installed {word} not trusted: {}",
+                    untrusted.len(),
+                    untrusted.into_iter().collect::<Vec<_>>().join(", ")
+                ));
+            }
+        },
+    }
+}
+
+/// Every tap named in `brew tap-info --installed --json` whose own `trusted`
+/// field is false. `Err` when the document is not an array of objects each
+/// carrying a `name` string and a `trusted` bool, so a brew version whose
+/// JSON shape moved fails the step instead of reporting a trust check that
+/// never actually ran as `ok`.
+fn untrusted_installed_taps(stdout: &str) -> Result<BTreeSet<String>, ()> {
+    let serde_json::Value::Array(taps) = serde_json::from_str(stdout).map_err(|_| ())? else {
+        return Err(());
+    };
+    taps.into_iter()
+        .map(|tap| {
+            let name = tap.get("name").and_then(|v| v.as_str()).ok_or(())?;
+            let trusted = tap.get("trusted").and_then(|v| v.as_bool()).ok_or(())?;
+            Ok((name.to_string(), trusted))
+        })
+        .collect::<Result<Vec<_>, ()>>()
+        .map(|taps| {
+            taps.into_iter()
+                .filter(|(_, trusted)| !trusted)
+                .map(|(name, _)| name)
+                .collect()
+        })
+}
+
+/// Every tap Homebrew's stderr says it skipped as untrusted, whether named in
+/// a `Skipping <tap> because it is not trusted` line or listed under `The
+/// following taps are not trusted:`.
+fn untrusted_taps(stderr: &str) -> BTreeSet<String> {
+    let mut taps = BTreeSet::new();
+    let mut listing = false;
+    for line in stderr.lines() {
+        if listing {
+            match line.strip_prefix("  ").map(str::trim) {
+                Some(tap) if !tap.is_empty() => {
+                    taps.insert(tap.to_string());
+                    continue;
+                }
+                _ => listing = false,
+            }
+        }
+        if line.ends_with("The following taps are not trusted:") {
+            listing = true;
+        } else if let Some((_, rest)) = line.split_once("Skipping ")
+            && let Some((tap, _)) = rest.split_once(" because it is not trusted")
+        {
+            taps.insert(tap.to_string());
+        }
+    }
+    taps
 }
 
 /// One command under a bound of its own, for a subject that WEDGES rather
@@ -85,6 +193,96 @@ mod tests {
         step(&mut report, &runner, "brew update", "/b/brew", &["update"]);
         assert_eq!(runner.calls(), vec![vec!["/b/brew", "update"]]);
         assert!(runner.deadlines().is_empty(), "{:?}", runner.deadlines());
+    }
+
+    #[test]
+    fn an_upgrade_step_with_one_untrusted_tap_names_it_in_the_singular() {
+        let runner = ScriptedRunner::new(&[]).saying_on_stderr(
+            &["/b/brew", "upgrade"],
+            "Warning: The following taps are not trusted:\n  rjyo/moshi\n\n",
+        );
+        let mut report = report();
+        upgrade_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 1);
+        assert_eq!(
+            report.lines,
+            vec![
+                "brew upgrade: Homebrew skipped 1 untrusted tap, so nothing from them was upgraded: rjyo/moshi"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_trust_step_with_every_installed_tap_trusted_is_ok() {
+        let runner = ScriptedRunner::new(&[]).answering(
+            r#"[{"name":"homebrew/core","trusted":true},{"name":"rjyo/moshi","trusted":true}]"#,
+        );
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 0, "{report:?}");
+        assert_eq!(report.lines, vec!["brew tap-info: ok"]);
+    }
+
+    #[test]
+    fn a_trust_step_with_one_untrusted_tap_names_it_in_the_singular() {
+        let runner = ScriptedRunner::new(&[]).answering(
+            r#"[{"name":"rjyo/moshi","trusted":false},{"name":"homebrew/core","trusted":true}]"#,
+        );
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 1);
+        assert_eq!(
+            report.lines,
+            vec!["brew tap-info: 1 installed tap not trusted: rjyo/moshi"]
+        );
+    }
+
+    #[test]
+    fn a_trust_step_with_two_untrusted_taps_names_both_sorted() {
+        let runner = ScriptedRunner::new(&[]).answering(
+            r#"[{"name":"steipete/tap","trusted":false},{"name":"rjyo/moshi","trusted":false}]"#,
+        );
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 1);
+        assert_eq!(
+            report.lines,
+            vec!["brew tap-info: 2 installed taps not trusted: rjyo/moshi, steipete/tap"]
+        );
+    }
+
+    #[test]
+    fn a_trust_step_reading_output_it_cannot_parse_fails_rather_than_reporting_ok() {
+        let runner = ScriptedRunner::new(&[]).answering("not json");
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 1);
+        assert_eq!(
+            report.lines,
+            vec!["brew tap-info: could not read tap trust from brew's output"]
+        );
+    }
+
+    #[test]
+    fn a_trust_step_with_an_entry_missing_the_trusted_field_fails_rather_than_reporting_ok() {
+        let runner = ScriptedRunner::new(&[])
+            .answering(r#"[{"name":"rjyo/moshi"},{"name":"homebrew/core","trusted":true}]"#);
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 1);
+        assert_eq!(
+            report.lines,
+            vec!["brew tap-info: could not read tap trust from brew's output"]
+        );
+    }
+
+    #[test]
+    fn a_trust_step_with_an_empty_installed_list_is_ok() {
+        let runner = ScriptedRunner::new(&[]).answering("[]");
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 0, "{report:?}");
+        assert_eq!(report.lines, vec!["brew tap-info: ok"]);
     }
 
     #[test]

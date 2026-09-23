@@ -104,12 +104,23 @@ impl PresenceDecisions for SqliteStore {
     }
 }
 impl pns_application::SessionWaits for SqliteStore {
-    fn begin(&self, session_id: &str, now: u64) -> Result<(), String> {
-        self.begin_wait(session_id, now)
+    fn begin(&self, session_id: &str, now: u64, escalates: bool) -> Result<(), String> {
+        self.begin_wait(session_id, now, escalates)
             .map_err(|error| error.to_string())
     }
-    fn end(&self, session_id: &str) -> Result<(), String> {
-        self.end_wait(session_id).map_err(|error| error.to_string())
+    fn end(&self, session_id: &str, now: Option<u64>) -> Result<(), String> {
+        self.end_wait(session_id, now)
+            .map_err(|error| error.to_string())
+    }
+}
+/// A READ THAT FAILS LISTS NO WAIT, reported to the store's own log: the card
+/// still carries its counts and its pointer.
+impl pns_application::OpenWaits for SqliteStore {
+    fn open_waits(&self, since: u64, until: u64) -> Vec<pns_domain::missed::OpenWait> {
+        self.open_waits(since, until).unwrap_or_else(|error| {
+            self.report("open waits", &error);
+            Vec::new()
+        })
     }
 }
 impl pns_application::StaleWaits for SqliteStore {

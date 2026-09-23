@@ -2,20 +2,20 @@
 
 `pns hook <event>` is the entry point a coding harness (Claude Code or Codex) calls when something
 happens in a session. The harness writes one JavaScript Object Notation (JSON) object on standard input
-and pns runs exactly one event path for it. Eleven event words are served: `prompt`, `stop`,
-`stop-failure`, `blocked`, `asked`, `plan-ready`, `denied`, `resolved`, `model-switch`, `quota` and
-`config-change`. This file states, per event, what is read off the payload, what state is mutated, what
+and pns runs exactly one event path for it. Ten event words are served: `prompt`, `stop`,
+`stop-failure`, `blocked`, `asked`, `plan-ready`, `denied`, `resolved`, `model-switch` and `quota`.
+This file states, per event, what is read off the payload, what state is mutated, what
 state is cleared, what reaches standard output and standard error, and what the exit code means. Three
 properties hold across every event and are stated once rather than per row: the payload is bounded in
 bytes and in time before any arm sees it, a missing or malformed field is a state and never an error, and
 the process exits zero on every path except the forwarded blocking one. **Deferred to
-`docs/specs/blocking-approval.md`:** the whole forwarded round trip behind `blocked` and behind
-the bare `pns <harness>-hook`, that is `blocking_event`, `gate_mode`, `moshi_decision` and `answer_within`,
-including the phone suppression, the submit deadline and the pass-through exit code. What this file keeps
-of `blocked` is only what it shares with its siblings: the payload contract, the size cap that decides
-whether it may be forwarded at all, the turn marker it must not touch, and its standard output contract.
+`docs/specs/blocking-approval.md`:** the whole forwarded round trip behind `blocked`, that is
+`blocking_event`, `moshi_decision` and `answer_within`, including the phone suppression, the submit
+deadline and the pass-through exit code. What this file keeps of `blocked` is only what it shares with its
+siblings: the payload contract, the size cap that decides whether it may be forwarded at all, the turn
+marker it must not touch, and its standard output contract.
 
-## The eleven events
+## The ten events
 
 | Event word      | Reads from the payload                                                                                         | State it mutates                                                                                                                                                                     | State it clears                                                                                                                                                                     | Exit code                                    | Tests that pin it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | --------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,7 +29,6 @@ whether it may be forwarded at all, the turn marker it must not touch, and its s
 | `resolved`      | `session_id`, and whether the `agent_id` key is present at all                                                 | writes this session's answered remind marker                                                                                                                                            | the reminder record; this session's wait marker, only when the payload carries no `agent_id` key                                                                                         | 0                                            | `a_resolved_batch_with_no_agent_id_ends_its_sessions_wait`, `a_resolved_batch_carrying_an_agent_id_leaves_the_parents_wait_lit`, `a_resolved_batch_with_a_malformed_agent_id_still_leaves_the_parents_wait_lit`, `an_answered_approval_is_never_nudged_by_either_clearing_signal`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `model-switch`  | `source`, `from_model`, `to_model`, `session_id`, `cwd`                                                        | a decision ring line only, and only when `source` is `auto` and the two names differ once rendered plainly                                                                           | nothing                                                                                                                                                                             | 0                                            | `an_observation_still_delivers_and_is_logged`, `an_auto_switch_between_equal_names_delivers_nothing`, `an_auto_switch_missing_a_model_name_delivers_nothing`, `an_auto_switch_strips_a_unicode_format_character_from_the_name`, `a_non_auto_model_switch_source_delivers_nothing_and_writes_nothing`, and the seven `an_observation_*` tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `quota`         | `notification_type`, `message`, `session_id`, `cwd`                                                            | a decision ring line; `quota_auto_resume_stale` additionally starts this session's wait marker                                                                                       | nothing                                                                                                                                                                             | 0                                            | `quota_auto_resume_fired_delivers_one_card_naming_itself`, `quota_auto_resume_stale_delivers_one_card_naming_itself`, `quota_auto_resume_disabled_delivers_one_card_naming_itself`, `a_quota_notification_carrying_no_message_still_names_what_happened`, `an_unrecognised_notification_type_delivers_nothing`, `quota_auto_resume_stale_arms_the_needs_marker_for_its_own_session`, `a_stale_wait_arms_the_needs_marker_before_the_card_is_delivered`, `quota_auto_resume_fired_and_disabled_arm_no_needs_marker`, `every_quota_type_is_logged_as_an_observation_with_no_remind`, and the seven `no_quota_type_*` / `a_quota_observation_*` tests                                                                                                                                                                           |
-| `config-change` | `source`, `file_path`, `session_id`, `cwd`                                                                     | a decision ring line; `policy_settings` additionally appends one line to the bounded policy-settings audit trail                                                                     | nothing                                                                                                                                                                             | 0                                            | `each_config_change_source_delivers_one_card_naming_itself_and_its_file`, `a_config_change_with_no_file_names_only_the_source`, `config_change_events_each_deliver_their_own_card_with_no_once_ever_guarantee`, `a_hostile_file_path_is_sanitised_before_it_reaches_the_card`, `an_unrecognised_config_source_delivers_nothing_and_writes_nothing`, `a_policy_settings_change_is_recorded_to_a_bounded_audit_trail`, `a_non_policy_config_change_writes_no_policy_audit_entry`, `the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry`, `an_enormous_file_path_cannot_wipe_the_policy_audit_trail`, `a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry`, `an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail`, and the six `a_config_change_*` observation tests |
 
 The five words that START a wait marker are `pulse::LAMP_BLOCKED`: `blocked`, `asked`, `plan-ready`,
 `denied`, `asking` (`src/lights.rs:blocked_marker_action`). Every other event state from a session ENDS
@@ -47,8 +46,8 @@ When the first argument after the program name is the literal word `hook`
 Then the second argument is taken as the event word and `hook_mode` runs it; every other leading word is dispatched elsewhere by `main`, and a word naming no command at all is refused with the usage text on standard error and exit 2.
 
 - Success: `pns hook stop` reaches `hook_mode("stop")` (`src/main.rs:main`). The usage text names all
-  eleven words verbatim: "pns hook <event> a harness hook: prompt, stop, stop-failure, blocked, asked,
-  plan-ready, denied, resolved, model-switch, quota, config-change" (`src/main.rs:USAGE`).
+  ten words verbatim: "pns hook <event> a harness hook: prompt, stop, stop-failure, blocked, asked,
+  plan-ready, denied, resolved, model-switch, quota" (`src/main.rs:USAGE`).
 - Failure sources: a missing second argument (`second_argument` yields the empty string), a misspelled
   event word.
 - Fail direction: open, then quiet. `hook_mode` still reads standard input first, then falls to the
@@ -283,20 +282,17 @@ Then runs of whitespace AND of control characters each become a single space and
   they are matched and opened rather than rendered, and flattening one would rewrite a name the
   filesystem gave (`src/hooks.rs:parse_payload`).
 
-## 8. Two fields go through a stricter scrub than the rest
+## 8. Model names go through a stricter scrub than the rest
 
-Given a model name on a `model-switch` event or a file path on a `config-change` event
+Given a model name on a `model-switch` event
 
 When it is rendered
 
 Then `rendered_plainly` runs `flattened` and then strips every character `recap::is_invisible` answers true for, which is the Unicode format (Cf) set that `flattened` leaves alone.
 
 - Success: a right-to-left override inside a model name is gone from the card
-  (`tests/hooks.rs:an_auto_switch_strips_a_unicode_format_character_from_the_name`), and so is one inside
-  a file path (`tests/hooks.rs:a_hostile_file_path_is_sanitised_before_it_reaches_the_card`). U+061C
-  ARABIC LETTER MARK is gone from both the card and the durable audit line
-  (`tests/hooks.rs:an_arabic_letter_mark_in_a_file_path_reaches_neither_the_card_nor_the_audit_trail`).
-- Failure sources: a format character in a name or path.
+  (`tests/hooks.rs:an_auto_switch_strips_a_unicode_format_character_from_the_name`).
+- Failure sources: a format character in a name.
 - Fail direction: closed, the character is removed rather than escaped.
 - Thresholds: Not applicable, membership in `recap::is_invisible` decides.
 - Required side effects: none.
@@ -305,23 +301,21 @@ Then `rendered_plainly` runs `flattened` and then strips every character `recap:
   through in the other direction (`src/main.rs:rendered_plainly`).
 - Timeout and cancellation: Not applicable.
 - Idempotency and duplicates: idempotent.
-- Privacy: the config-change path writes the scrubbed path into a durable state file as well as a card,
-  so an invisible character there would round-trip identically on every future read
-  (`src/main.rs:rendered_plainly`).
+- Privacy: Not applicable beyond the card.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: two callers justify it, and both are named in the source: model name EQUALITY
-  (a name that reads the same but compares unequal, or the reverse) and the durable config-change record.
+- Compatibility contract: one caller justifies it, and it is named in the source: model name EQUALITY
+  (a name that reads the same but compares unequal, or the reverse).
 
 ## 9. Every ordinary hook exits zero
 
-Given any of the ten non-forwarding events
+Given any of the nine non-forwarding events
 
 When `hook_mode` returns
 
 Then the process exits 0, whatever went wrong building the notification.
 
 - Success: every end-to-end test in `tests/hooks.rs` for `prompt`, `stop`, `stop-failure`, `asked`,
-  `plan-ready`, `denied`, `resolved`, `model-switch`, `quota` and `config-change` asserts
+  `plan-ready`, `denied`, `resolved`, `model-switch` and `quota` asserts
   `status.code() == Some(0)` or `status.success()`.
 - Failure sources: an unparseable payload, an unreadable transcript, a dead summarizer, a garbage
   environment knob, an unserved event word.
@@ -444,7 +438,7 @@ Then `start_of_turn` writes the turn start marker only if none exists, and `end_
 - Timeout and cancellation: only the payload read is bounded; the rest is two file operations.
 - Idempotency and duplicates: the write is guarded on `!marker.exists()`, so repeated prompts inside one
   turn are idempotent. The wait clear is `remove_file` and is idempotent by nature.
-- Privacy: the session id becomes a filename, which is why it is validated; see behavior 26.
+- Privacy: the session id becomes a filename, which is why it is validated; see behavior 25.
 - Process ownership and cleanup: no child process.
 - Compatibility contract: `prompt` is also the FAST path that clears a stale quota wait. The guarantee
   that does not depend on it is the turn's own Stop; see behavior 22.
@@ -633,7 +627,7 @@ Then it spawns Codex against a private stripped home with a fixed prompt, bounde
 - Required side effects: `summarizer_home` creates the home 0700 and, only when absent, writes
   `config.toml` 0600 with `create_new` containing `model = "gpt-5.5"\nmodel_reasoning_effort = "low"\n`;
   it then removes and re-creates `auth.json` as a symbolic link to `$HOME/.codex/auth.json`. The command
-  is `codex exec --ephemeral --skip-git-repo-check -C <home> -s read-only -` with `PNS_SUMMARIZING=1` and
+  is `codex exec --skip-git-repo-check --ephemeral -s read-only -C <home> -` with `PNS_SUMMARIZING=1` and
   `CODEX_HOME=<home>` in its environment (`src/main.rs:summarize`, `src/main.rs:summarizer_home`).
   `PNS_CODEX_BIN` and `PNS_CODEX_HOME` override the binary and the home.
 - Forbidden side effects: no pns-to-Codex-to-pns loop. The stripped home installs no hooks or plugins at
@@ -801,7 +795,7 @@ Then the event is delivered as an `Attempt::Observation` only when `source` is e
 - Required side effects: exactly one decision ring line, logged with `remind=no`.
 - Forbidden side effects: an observation must not clear a wait, arm the unread lamp, write an activity
   line, move the presence edge, renew a loop lease, journal a miss, replay the journal or register a
-  lights tick; see behavior 24. It is also labelled "automatic session model change" and never
+  lights tick; see behavior 23. It is also labelled "automatic session model change" and never
   "fallback", because the payload cannot tell a fallback chain apart from any other automatic change
   (`src/main.rs:hook_mode`).
 - Timeout and cancellation: no subprocess.
@@ -810,10 +804,8 @@ Then the event is delivered as an `Attempt::Observation` only when `source` is e
   right-to-left override that could reorder the line
   (`tests/hooks.rs:an_auto_switch_strips_a_unicode_format_character_from_the_name`).
 - Process ownership and cleanup: no child process.
-- Compatibility contract: `source` is ONE field serving two events. It carries a `PostModelSwitch` cause
-  and a `ConfigChange` kind, "in `message`'s own style: the two hooks never fire together, both name
-  their field `source` in the payload Claude Code sends, and only one caller ever reads it for a given
-  invocation" (`src/hooks.rs:HookPayload::source`).
+- Compatibility contract: `source` carries the `PostModelSwitch` cause, and only `auto` is routed
+  anywhere (`src/hooks.rs:HookPayload::source`).
 
 ## 22. `quota` recognises exactly three notification types, and one of them starts a wait
 
@@ -847,7 +839,7 @@ Then `quota_label` matches exactly `quota_auto_resume_fired`, `quota_auto_resume
 - Forbidden side effects: `fired` and `disabled` arm no wait marker, because neither reports a session
   waiting on the operator (`tests/hooks.rs:quota_auto_resume_fired_and_disabled_arm_no_needs_marker`). No
   quota type clears a live wait, arms the unread lamp, writes an activity line, journals a miss, replays
-  the journal, registers a lights tick, renews a loop lease or moves the presence edge; see behavior 24.
+  the journal, registers a lights tick, renews a loop lease or moves the presence edge; see behavior 23.
 - Timeout and cancellation: `arm_quota_stale_wait` loads the configuration once, which is one open and
   one parse of a local file.
 - Idempotency and duplicates: one card per received event.
@@ -867,70 +859,9 @@ Then `quota_label` matches exactly `quota_auto_resume_fired`, `quota_auto_resume
   `tests/hooks.rs:a_stale_quota_marker_clears_at_the_turns_stop_without_any_prompt_hook` is the
   guarantee.
 
-## 23. `config-change` recognises exactly five sources, and one of them outlives the decision ring
+## 23. An observation changes no workflow state
 
-Given a `ConfigChange` payload
-
-When `pns hook config-change` runs
-
-Then `config_source_label` matches exactly `user_settings`, `project_settings`, `local_settings`, `policy_settings` or `skills`, the card is delivered as an `Attempt::Observation`, and `policy_settings` additionally appends one line to a bounded audit trail.
-
-- Success: each source yields `<label>: /Users/op/.claude/settings.json` with the five labels
-  `user settings changed`, `project settings changed`, `local settings changed`,
-  `policy settings changed` and `skills changed`
-  (`tests/hooks.rs:each_config_change_source_delivers_one_card_naming_itself_and_its_file`). With no
-  `file_path` the label stands alone, with no trailing colon
-  (`tests/hooks.rs:a_config_change_with_no_file_names_only_the_source`).
-- Failure sources: any other `source` value.
-- Fail direction: silence, checked against a missing key, an empty string, the number 7, `User_Settings`,
-  `user_settingsx` and `global_settings`, each leaving deliveries, the decision ring, the activity ring
-  and the presence edge byte-identical to a same-sandbox control
-  (`tests/hooks.rs:an_unrecognised_config_source_delivers_nothing_and_writes_nothing`).
-- Thresholds: `CONFIG_PATH_MAX_CHARS` = 1024 characters and `CONFIG_SESSION_MAX_CHARS` = 64 characters,
-  both applied through `config_field`, which is `render::clipped` over `rendered_plainly`. At 1024
-  characters a path passes whole; at 1025 it is cut to 1023 characters plus a trailing `…`, so the cut is
-  MARKED rather than silent (`src/main.rs:config_field`, `src/render.rs:clipped`). 1024 is macOS's own
-  `PATH_MAX`; Linux's is 4096, so a genuinely long Linux path is visibly clipped, which is stated as an
-  accepted cost (`src/main.rs:CONFIG_PATH_MAX_CHARS`). `POLICY_SETTINGS_AUDIT_KEPT` = 20 entries; the
-  twenty-first append drops the oldest
-  (`tests/hooks.rs:the_policy_settings_audit_trail_is_bounded_and_drops_the_oldest_entry`, which plants
-  twenty and asserts the kept window starts at `planted-1`). `RING_READ_MAX` = 262,144 bytes is the
-  read-back ceiling the prune runs on.
-- Required side effects: for `policy_settings` only, one line `{now} session={session} file={path}` is
-  appended to `state_dir()/policy-settings-audit`, with `path` replaced by the literal `none` when the
-  payload named no file (`src/main.rs:record_policy_settings_change`). The ordinary observation card
-  still fires on top of it
-  (`tests/hooks.rs:a_policy_settings_change_is_recorded_to_a_bounded_audit_trail`).
-- Forbidden side effects: the other four sources must not start a second durable file
-  (`tests/hooks.rs:a_non_policy_config_change_writes_no_policy_audit_entry`, with a same-sandbox control
-  proving the writer was reachable). The observation restrictions of behavior 24 apply, each with its own
-  First-attempt control run afterwards on the same sandbox.
-- Timeout and cancellation: `append_ring_line` takes a lock beside the ring; failing to claim it returns
-  `WouldBlock` and the record is dropped fail-quiet (`src/main.rs:append_ring_line`,
-  `src/main.rs:record_policy_settings_change`).
-- Idempotency and duplicates: deliberately NOT idempotent. There is no once-per-something guarantee,
-  because a corrupt-file recovery, several live sessions or a changed skill can each produce their own
-  event, so three received events produce three cards
-  (`tests/hooks.rs:config_change_events_each_deliver_their_own_card_with_no_once_ever_guarantee`). Two
-  events racing the prune lose neither line
-  (`tests/hooks.rs:two_policy_settings_changes_racing_the_prune_lose_neither_line`).
-- Privacy: `file_path` is untrusted text landing in a banner, a card AND a durable file. A newline in it
-  cannot forge a second audit entry, since the trail is one record per line and the flatten removes it
-  (`tests/hooks.rs:a_newline_in_a_file_path_cannot_forge_a_policy_audit_entry`). The detail says only
-  WHICH SOURCE and, optionally, WHICH FILE, never what changed: the payload carries no key, no old or new
-  value and no actor (`src/main.rs:config_change_detail`).
-- Process ownership and cleanup: no child process.
-- Compatibility contract: the character cap is what keeps the audit trail readable at all. Both fields
-  are harness text bounded only by the 1 MB standard-input ceiling, and one oversized path would make the
-  prune's read-back fail, at which point the heal collapses the whole trail to the single line just
-  written, losing every policy change before it. Driven directly with a 300,012 character path
-  (`tests/hooks.rs:an_enormous_file_path_cannot_wipe_the_policy_audit_trail`, which asserts the earlier
-  entry survives, the file stays under 262,144 bytes, and a same-sandbox control still appends
-  afterwards).
-
-## 24. An observation changes no workflow state
-
-Given an event routed with `Attempt::Observation`, that is `model-switch`, `quota` or `config-change`
+Given an event routed with `Attempt::Observation`, that is `model-switch` or `quota`
 
 When `run_event` reaches its contiguous tail
 
@@ -938,25 +869,20 @@ Then it returns immediately after `record_decision`, so none of the First-delive
 
 - Success: the card is still delivered and the decision ring still carries one line with `remind=no`
   (`tests/hooks.rs:an_observation_still_delivers_and_is_logged`).
-- Failure sources: a misrouting of one of the three arms as `Attempt::First`.
+- Failure sources: a misrouting of either arm as `Attempt::First`.
 - Fail direction: each restriction is pinned individually with a positive control asserting the delivery
   happened inside the same run, so a negative cannot pass because the arm did nothing at all. The eight
   restrictions and their tests, per family: clear a live wait
-  (`an_observation_does_not_clear_a_live_wait`, `no_quota_type_clears_a_live_wait_on_its_own_session`,
-  `a_config_change_does_not_clear_a_live_wait_on_its_own_session`); arm the unread news record
+  (`an_observation_does_not_clear_a_live_wait`, `no_quota_type_clears_a_live_wait_on_its_own_session`);
+  arm the unread news record
   (`an_observation_arms_no_unread_news`, `no_quota_type_arms_unread_news`); write an activity ring line
-  (`an_observation_writes_no_activity_line`, `no_quota_type_writes_an_activity_line`,
-  `a_config_change_writes_no_activity_line`); move the presence edge
-  (`an_observation_moves_no_presence_edge`, `no_quota_type_moves_the_presence_edge`,
-  `a_config_change_moves_no_presence_edge`); renew a loop lease (`an_observation_renews_no_loop_lease`,
-  `no_quota_type_renews_a_loop_lease`, `a_config_change_renews_no_loop_lease`); journal a missed
+  (`an_observation_writes_no_activity_line`, `no_quota_type_writes_an_activity_line`); move the presence edge
+  (`an_observation_moves_no_presence_edge`, `no_quota_type_moves_the_presence_edge`); renew a loop lease
+  (`an_observation_renews_no_loop_lease`, `no_quota_type_renews_a_loop_lease`); journal a missed
   notification (`an_observation_journals_no_missed_notification`,
-  `a_quota_observation_journals_no_missed_notification`,
-  `a_config_change_observation_journals_no_missed_notification`); replay the journal
-  (`an_observation_replays_no_journal_entry`, `a_quota_observation_replays_no_journal_entry`,
-  `a_config_change_observation_replays_no_journal_entry`); register a lights tick
-  (`an_observation_registers_no_lights_tick`, `a_quota_observation_registers_no_lights_tick`,
-  `a_config_change_registers_no_lights_tick`).
+  `a_quota_observation_journals_no_missed_notification`); replay the journal
+  (`an_observation_replays_no_journal_entry`, `a_quota_observation_replays_no_journal_entry`); register a lights tick
+  (`an_observation_registers_no_lights_tick`, `a_quota_observation_registers_no_lights_tick`).
 - Thresholds: Not applicable.
 - Required side effects: exactly one decision ring line, since `record_decision` runs before the guard
   for every attempt (`src/main.rs:run_event`).
@@ -972,7 +898,7 @@ Then it returns immediately after `record_decision`, so none of the First-delive
   `blocking_event` forwards and arms the reminder before `run_event` ever runs, so a caller on that path must
   refuse the observation at the top of `blocking_event` itself (`src/main.rs:Attempt`).
 
-## 25. The world is read at dispatch, not at the moment the hook started
+## 24. The world is read at dispatch, not at the moment the hook started
 
 Given a Stop that spends seconds in the summarizer
 
@@ -998,11 +924,10 @@ Then the surface reading is taken inside `run_event`, from one memoized probe se
 - Idempotency and duplicates: Not applicable.
 - Privacy: Not applicable.
 - Process ownership and cleanup: probe children are killed on their own deadlines.
-- Compatibility contract: this claim holds for the hook and blocking paths, where the forward decision
-  and the delivery plan share one probe set. The bare `pns <harness>-hook` builds its own throwaway probe set
-  and runs no delivery plan at all, so the claim does not extend to it (`src/main.rs:forward_to_moshi`).
+- Compatibility contract: on the blocking path the forward decision and the delivery plan share one probe
+  set (`src/main.rs:forward_to_moshi`).
 
-## 26. A session id that cannot be a filename reaches no file operation
+## 25. A session id that cannot be a filename reaches no file operation
 
 Given a payload whose `session_id` is hostile or empty
 
@@ -1032,7 +957,7 @@ Then `safety::session_id_is_safe` refuses it first and the arm does nothing.
 - Compatibility contract: the same predicate backs the turn marker (`session-<id>.start`) and the wait
   marker (`lights-blocked/<id>`), so there is one rule rather than two (`src/lights.rs:blocked_marker`).
 
-## 27. The wait marker is started by five states and ended by every other
+## 26. The wait marker is started by five states and ended by every other
 
 Given any event carrying a session id
 
@@ -1055,7 +980,7 @@ Then `blocked_marker_action` maps the event's state word to Start or End, Start 
 - Required side effects: a Start needs BOTH switches, a `[lights]` table and the hue plugin enabled, so a
   machine with no lamps never accumulates markers nothing will sweep (`src/main.rs:run_event`). An End
   never checks the switches.
-- Forbidden side effects: an observation must not reach this at all; see behavior 24. The
+- Forbidden side effects: an observation must not reach this at all; see behavior 23. The
   `an_observation_does_not_clear_a_live_wait` family is load-bearing precisely because the End arm is
   ungated, so a misrouted observation would clear the marker whether or not the lamps are configured.
 - Timeout and cancellation: Not applicable, one file write or one unlink.
@@ -1070,36 +995,6 @@ Then `blocked_marker_action` maps the event's state word to Start or End, Start 
 - Compatibility contract: `[lights.blocked] lease_expiry` shorter than `[remind] delay` is
   refused by name at configuration load, so the backstop can never sweep a wait the reminder has not yet
   nudged (`src/main.rs:update_blocked_marker`, referring to `config::parse_config`).
-
-## 28. The bare harness word is vouched for by shape, never by roster
-
-Given argv whose first word looks like `<name>-hook`
-
-When `main` decides where to dispatch
-
-Then `hooks::is_harness_subcommand` accepts it only when it splits at the first `-` into a non-empty all-lowercase-ASCII name and the exact suffix `hook`.
-
-- Success: `pi-hook` and `claude-hook` are accepted
-  (`src/hooks.rs:the_gate_vouches_for_the_shape_of_a_subcommand_it_did_not_choose`).
-- Failure sources: `hook`, `-hook`, `Pi-hook`, `pi-hook; rm -rf /`, `../../etc/passwd` and the empty
-  string, all refused (same test).
-- Fail direction: closed. A refused word falls through to the usage refusal rather than to the event
-  path, which is how the documented spelling used to fire a notification about an empty event
-  (`src/main.rs:main`).
-- Thresholds: the split is on the FIRST `-` only, and the suffix must equal `hook` exactly, so
-  `stop-failure` is not a harness word.
-- Required side effects: none at this layer.
-- Forbidden side effects: an unvetted word here would be this repository handing a third-party binary a
-  filesystem argument nobody chose, because moshi-hook's positional is a PATH
-  (`src/hooks.rs:is_harness_subcommand`).
-- Timeout and cancellation: Not applicable.
-- Idempotency and duplicates: Not applicable, pure.
-- Privacy: Not applicable.
-- Process ownership and cleanup: Not applicable.
-- Compatibility contract: shape only, not a roster, because the harness list is moshi's and grows. The
-  separate `moshi_subcommand` is the roster, and it admits only `claude` and `codex`
-  (`src/hooks.rs:only_the_harnesses_pns_registers_for_are_forwarded_to_moshi`). The forwarding behavior
-  behind both is deferred to `docs/specs/blocking-approval.md`.
 
 ______________________________________________________________________
 

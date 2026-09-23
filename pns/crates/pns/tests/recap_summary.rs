@@ -213,3 +213,6 @@ fn the_doctor_row_reports_the_configured_summarizers_presence() {
         "{printed}"
     );
 }
+
+#[path = "recap_summary/isolation.rs"]
+mod isolation;

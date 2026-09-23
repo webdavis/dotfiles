@@ -30,6 +30,15 @@ pub(super) const RECAP: Table = Table {
             sample: Sample::Default("8"),
         },
         Key {
+            name: "minimum_away",
+            prose: "# How long you must have been away before a return earns a recap. Both\n\
+                         # this and `minimum_events` must hold; a shorter absence gets the\n\
+                         # catch-up card alone. Zero leaves the event count as the only bar, and\n\
+                         # a day is the ceiling. Measured from the last event pns saw you present\n\
+                         # for, so quiet time at the desk with no events counts as away too.\n",
+            sample: Sample::Default("\"20m\""),
+        },
+        Key {
             name: "nightshift",
             prose: "# The four periods of your own day, local time, as a start and an end.\n\
                          # `pns recap morning` is the most recent instance of that one, in progress\n\
@@ -168,7 +177,10 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
                          # flag one of them moves is a pns release rather than an edit here.\n\
                          # `custom` is the escape hatch and reads `command` below. The shipped\n\
                          # value is `custom` with no command, which is NO SUMMARIZER AT ALL and\n\
-                         # a working setting: the recap is its mechanical sections.\n",
+                         # a working setting: the recap is its mechanical sections. Neither\n\
+                         # claude nor codex runs your hooks or keeps a session: claude runs in\n\
+                         # safe mode with no tools, and codex runs in pns's own Codex home with\n\
+                         # no shell, plugins, connectors or web search, and every write refused.\n",
             sample: Sample::Default("\"custom\""),
         },
         Key {
@@ -181,8 +193,19 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
         },
         Key {
             name: "model",
-            prose: "# The model, passed through where the tool takes one. `ollama` names no\n\
-                         # default of its own, so this is required there and refused empty.\n",
+            prose: "# The model, passed through where the tool takes one. Empty leaves the\n\
+                         # tool's default, which for codex is the gpt-5.5 of pns's own Codex\n\
+                         # home. `ollama` names no default of its own, so this is required there\n\
+                         # and refused empty.\n",
+            sample: Sample::Default("\"\""),
+        },
+        Key {
+            name: "effort",
+            prose: "# The reasoning effort, passed to codex as `model_reasoning_effort` and\n\
+                         # to claude as `--effort`. Empty passes nothing: claude keeps its own\n\
+                         # default and codex takes the low of pns's own Codex home. A word the\n\
+                         # type does not take is refused with the words it does, and so is any\n\
+                         # word for another type.\n",
             sample: Sample::Default("\"\""),
         },
         Key {
@@ -192,7 +215,8 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
                          # than each question's, and AN HOUR IS THE CEILING: a longer one is\n\
                          # refused by name. It also bounds the turn summarizer that writes each\n\
                          # notification's sentence, which takes at most thirty seconds of it\n\
-                         # because a Stop hook is waiting on that one.\n",
+                         # because a Stop hook is waiting on that one. Sub-agents a codex model\n\
+                         # spawns run on this same deadline, so their turns stop when it does.\n",
             sample: Sample::Default("\"4m\""),
         },
         Key {

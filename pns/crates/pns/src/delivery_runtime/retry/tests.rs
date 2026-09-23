@@ -1,4 +1,5 @@
 use super::*;
+use crate::runtime_test_support::RecordingNotifier;
 use pns_application::{LedgerLeg, LedgerSubmission, PreparedSubmission, SubmissionIdentity};
 use pns_domain::{Delivery, EventArgs, retry::RetryLimits, routing::ReportMode};
 use std::cell::Cell;
@@ -44,10 +45,12 @@ fn daemon_retry_uses_limits_and_retained_route_and_continues_after_a_failed_heal
         max_retries: 20,
         event_max_age_secs: 10,
     };
+    let notifier = RecordingNotifier::default();
     let result = retry_once(
         &store,
         12,
         limits,
+        &notifier,
         |message| {
             assert!(message.contains("1 deadlettered"));
             calls.set(calls.get() + 1);
@@ -76,6 +79,7 @@ fn daemon_retry_uses_limits_and_retained_route_and_continues_after_a_failed_heal
         &store,
         13,
         limits,
+        &notifier,
         |_| Delivery::Delivered("banner".into()),
         |_, _| panic!("only deadletters and acknowledged legs remain"),
     )
@@ -91,12 +95,14 @@ fn daemon_retry_missing_storage_alarms_without_creating_a_healthy_empty_ledger()
     let state = crate::runtime_test_support::scratch("retry-missing").join("absent");
     let store = SqliteStore::new(state.clone());
     let calls = Cell::new(0);
+    let notifier = RecordingNotifier::default();
     for _ in 0..2 {
         assert!(
             retry_once(
                 &store,
                 12,
                 Default::default(),
+                &notifier,
                 |message| {
                     assert!(message.contains("unreadable"));
                     calls.set(calls.get() + 1);
@@ -148,10 +154,12 @@ fn a_permanent_retry_failure_raises_its_retained_alarm_in_the_same_pass() {
         .prepare(&original, pns_application::LeaseWindow { now: 1, until: 2 })
         .unwrap();
     let steps = std::cell::RefCell::new(Vec::new());
+    let notifier = RecordingNotifier::default();
     retry_once(
         &store,
         12,
         Default::default(),
+        &notifier,
         |message| {
             steps.borrow_mut().push("alarm");
             assert!(message.contains("1 deadlettered"));
@@ -174,15 +182,34 @@ fn a_permanent_retry_failure_raises_its_retained_alarm_in_the_same_pass() {
     )
     .unwrap_err();
     assert_eq!(*steps.borrow(), ["retry", "alarm"]);
+    let notices = notifier.calls();
+    assert_eq!(
+        notices.len(),
+        1,
+        "one notice for the dead-lettered leg: {notices:?}"
+    );
+    assert_eq!(notices[0][0], "terminal-notifier");
+    assert!(
+        notices[0]
+            .iter()
+            .any(|arg| arg.contains("no route named retained-route")),
+        "{notices:?}"
+    );
     let pending = store.delivery_health().unwrap().alarm_generation.unwrap();
     retry_once(
         &store,
         13,
         Default::default(),
+        &notifier,
         |_| Delivery::Delivered("owned banner".into()),
         |_, _| panic!("terminal leg must not be retried"),
     )
     .unwrap();
     assert!(pending > 0);
     assert_eq!(store.delivery_health().unwrap().alarm_generation, None);
+    assert_eq!(
+        notifier.calls().len(),
+        1,
+        "an earlier pass's failure is not re-announced"
+    );
 }

@@ -41,7 +41,9 @@ fn seed_waiting_session(sandbox: &Sandbox) {
             now: 1_000,
         })
         .expect("the session is recorded");
-    store.begin_wait("s1", 1_100).expect("the wait is recorded");
+    store
+        .begin_wait("s1", 1_100, true)
+        .expect("the wait is recorded");
 }
 
 /// One timed shell command, submitted the way the notifier submits one.

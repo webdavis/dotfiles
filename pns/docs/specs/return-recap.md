@@ -158,7 +158,7 @@ Then the hermes key is `None` and every `Recap` field takes its default, so the 
   never named" (`src/main.rs:recap_mode`). The route needs no fail-closed arm of its own: a recap has one
   route and it is the default one.
 - Thresholds: `Recap::default()` is written out rather than derived (`src/config.rs:Recap`):
-  `replay_card: true`, `post_window_recap: true`, `minimum_events: 8`, `summarizer: None`,
+  `replay_card: true`, `post_window_recap: true`, `minimum_events: 8`, `minimum_away: 20m`, `summarizer: None`,
   `summarizer_deadline: 4m`, `repositories: []`, `review_notes_glob: None`. `summarizer_deadline` is refused above
   `MAX_SUMMARIZER_DEADLINE_SECS` = 3600: `"3600s"` is accepted, `"3601s"` is refused by name
   (`config/recap.rs:summarizer_deadline_range`), and the refusal exists because a duration past the
@@ -513,7 +513,7 @@ Then the whole answer is refused if it is over `MAX_ANSWER_BYTES` or carries a r
 - Idempotency and duplicates: pure.
 - Privacy: `answer` is the choke point between somebody else's text and a message pns signs its name to.
   Nothing is added here and nothing about the machine is read. `is_invisible` is `pub` for exactly one
-  other reader, "`main.rs`'s automatic model-switch card and its `ConfigChange` sibling"
+  other reader, "`main.rs`'s automatic model-switch card"
   (`src/recap.rs:is_invisible`).
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: THE CUT KEEPS THE HEAD, not the tail, and the reason is stated:
@@ -558,7 +558,8 @@ Then the heading is `THE NIGHT IN ORDER`, the mechanical form is one `HH:MM <mar
   `missed_notifications::recap_card` in the PARENT process before the child has even read the ring,
   pinned by
   `tests/dispatch.rs:the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said`
-  (asserting the card is exactly `claude · blocked · p4. 13 events, 2 missed. recap in #pns`) and by
+  (asserting the card is exactly
+  `claude · blocked · p4: planted 4. 13 events, 2 missed. recap in #pns-events`) and by
   `tests/dispatch.rs:a_summarizer_that_never_answers_costs_the_card_nothing`.
 - Timeout and cancellation: Not applicable at this layer. `night_section` is a total function; the
   deadline was spent in behavior 8.
@@ -790,9 +791,8 @@ When `needs_you_section` composes section 2
 
 Then the heading `NEEDS YOU` is followed by one `- <described entry>` line per waiting entry NEWEST FIRST, or by `- nothing is waiting on you`, and the section is `Trim::Never` in every pass
 
-- Success: `src/recap.rs:needs_you_section` calls `missed_notifications::needing_you(entries)`, which
-  keeps every entry whose state is in
-  `NEEDS_YOU = ["asked", "blocked", "denied", "failed", "plan-ready"]`
+- Success: `src/recap.rs:needs_you_section` keeps every entry whose state is in
+  `NEEDS_YOU = ["asked", "blocked", "denied", "failed"]`
   (`src/missed_notifications.rs:NEEDS_YOU`), then `.rev()` for newest first, and wraps the result in
   `Section::held`, which is `Trim::Never` with `omitted: 0`.
 - Failure sources: none. An empty list is an answer.
@@ -816,9 +816,10 @@ Then the heading `NEEDS YOU` is followed by one `- <described entry>` line per w
 - Idempotency and duplicates: pure.
 - Privacy: the same activity ring fields as the timeline, through the same `described`.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: the `NEEDS_YOU` list is shared with the phone card's own composition
-  (`src/missed_notifications.rs:needing_you` serves both), so the two layers of one return agree about
-  what is urgent.
+- Compatibility contract: the phone card answers a different question, which waits begun during the
+  absence are still open at the return, from the `sessions` rows, and the two layers of one return can
+  disagree in both directions. The card lists `asking` turns, which are not in `NEEDS_YOU`, and leaves
+  off answered waits and every `failed` and `denied` event, which this section keeps.
 
 ### 15. The recap posts once, to the one durable route it has
 
@@ -898,7 +899,9 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
 - Success: `src/main.rs:spawn_recap` builds the child, sets
   `.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).process_group(0)`, and returns
   `child.spawn().is_ok()`. `src/main.rs:replay_missed` computes
-  `fires = recap.post_window_recap && durable_route && window.is_some() && counted.len() >= recap.minimum_events` and
+  `fires = recap.post_window_recap && durable_route && long_enough && counted.len() >= recap.minimum_events`,
+  where `long_enough` is a window whose `until - since` is at least `recap.minimum_away`, `since` being
+  the last event pns saw the operator present for rather than the moment they actually left, and
   spawns BEFORE composing the card, "so the card can say truthfully whether there is a recap to point
   at".
 - Failure sources: `current_exe` failing; the spawn failing; the child dying before it posts.
@@ -907,7 +910,13 @@ Then `spawn_recap(since, until)` re-execs `current_exe` as `recap --since-epoch 
   (`src/main.rs:spawn_recap`). A child that dies "COSTS ONE RECAP AND NOTHING ELSE, which is why nothing
   supervises it: the activity ring is not consumed, the marker has already moved, and the card already
   carried the counts."
-- Thresholds: all four clauses of `fires` are required and none is optional. `minimum_events` defaults to 8
+- Thresholds: all four clauses of `fires` are required and none is optional. `minimum_away` defaults to
+  20 minutes (`DEFAULT_MINIMUM_AWAY`), pinned by
+  `config/tests/recap_threshold.rs:the_minimum_time_away_is_a_duration_the_operator_can_state` and the
+  resolved-config snapshot. The `>=` boundary itself is pinned separately, against a 600-second policy:
+  an absence one second short of it publishes no digest and an absence of exactly that long does, pinned
+  by `replay_missed/tests/away.rs:a_loud_window_shorter_than_the_minimum_away_publishes_no_digest` and
+  `replay_missed/tests/away.rs:an_absence_of_exactly_the_minimum_away_publishes_the_digest`. `minimum_events` defaults to 8
   (`src/config.rs:DEFAULT_MINIMUM_EVENTS`), and the live event counts itself: a window of 7 planted events
   plus the live one is under the threshold and delivers the plain catch-up card, pinned by
   `tests/dispatch.rs:a_window_under_the_threshold_delivers_the_catch_up_card_unchanged` (which plants
