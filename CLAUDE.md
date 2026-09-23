@@ -359,8 +359,8 @@ there when `brew bundle` reports it as untrusted.
 1. Remind the user to run `chezmoi apply` when appropriate. Do not run it directly; see the KeePassXC
    constraint above.
 
-A formula listed under `pinned` moves only through its own upgrade recipe, never step 1's `brew upgrade`,
-which Homebrew refuses on a pinned formula.
+A formula listed under `pinned` moves only through its own upgrade recipe, never
+`brew upgrade <formula>`, which Homebrew refuses on a pinned formula.
 
 ### macOS defaults management
 
