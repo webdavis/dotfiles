@@ -74,11 +74,12 @@ pub fn trust_step(report: &mut LaneReport, runner: &dyn CommandRunner, program: 
     let label = "brew tap-info";
     match runner.run(program, &["tap-info", "--installed", "--json"]) {
         Err(why) => report.failed(format!("{label}: {why}")),
-        Ok(stdout) => {
-            let untrusted = untrusted_installed_taps(&stdout);
-            if untrusted.is_empty() {
-                report.noted(format!("{label}: ok"));
-            } else {
+        Ok(stdout) => match untrusted_installed_taps(&stdout) {
+            Err(()) => report.failed(format!(
+                "{label}: could not read tap trust from brew's output"
+            )),
+            Ok(untrusted) if untrusted.is_empty() => report.noted(format!("{label}: ok")),
+            Ok(untrusted) => {
                 let word = if untrusted.len() == 1 { "tap" } else { "taps" };
                 report.failed(format!(
                     "{label}: {} installed {word} not trusted: {}",
@@ -86,25 +87,32 @@ pub fn trust_step(report: &mut LaneReport, runner: &dyn CommandRunner, program: 
                     untrusted.into_iter().collect::<Vec<_>>().join(", ")
                 ));
             }
-        }
+        },
     }
 }
 
 /// Every tap named in `brew tap-info --installed --json` whose own `trusted`
-/// field is false. Output this cannot parse (a brew version whose JSON shape
-/// moved) is read as nothing untrusted rather than failing the step, the same
-/// choice `untrusted_taps` below makes for its own text format.
-fn untrusted_installed_taps(stdout: &str) -> BTreeSet<String> {
-    let Ok(serde_json::Value::Array(taps)) = serde_json::from_str(stdout) else {
-        return BTreeSet::new();
+/// field is false. `Err` when the document is not an array of objects each
+/// carrying a `name` string and a `trusted` bool, so a brew version whose
+/// JSON shape moved fails the step instead of reporting a trust check that
+/// never actually ran as `ok`.
+fn untrusted_installed_taps(stdout: &str) -> Result<BTreeSet<String>, ()> {
+    let serde_json::Value::Array(taps) = serde_json::from_str(stdout).map_err(|_| ())? else {
+        return Err(());
     };
     taps.into_iter()
-        .filter_map(|tap| {
-            let name = tap.get("name")?.as_str()?.to_string();
-            let trusted = tap.get("trusted")?.as_bool()?;
-            (!trusted).then_some(name)
+        .map(|tap| {
+            let name = tap.get("name").and_then(|v| v.as_str()).ok_or(())?;
+            let trusted = tap.get("trusted").and_then(|v| v.as_bool()).ok_or(())?;
+            Ok((name.to_string(), trusted))
         })
-        .collect()
+        .collect::<Result<Vec<_>, ()>>()
+        .map(|taps| {
+            taps.into_iter()
+                .filter(|(_, trusted)| !trusted)
+                .map(|(name, _)| name)
+                .collect()
+        })
 }
 
 /// Every tap Homebrew's stderr says it skipped as untrusted, whether named in
@@ -244,8 +252,33 @@ mod tests {
     }
 
     #[test]
-    fn a_trust_step_reading_output_it_cannot_parse_is_ok_rather_than_failing_the_step() {
+    fn a_trust_step_reading_output_it_cannot_parse_fails_rather_than_reporting_ok() {
         let runner = ScriptedRunner::new(&[]).answering("not json");
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 1);
+        assert_eq!(
+            report.lines,
+            vec!["brew tap-info: could not read tap trust from brew's output"]
+        );
+    }
+
+    #[test]
+    fn a_trust_step_with_an_entry_missing_the_trusted_field_fails_rather_than_reporting_ok() {
+        let runner = ScriptedRunner::new(&[])
+            .answering(r#"[{"name":"rjyo/moshi"},{"name":"homebrew/core","trusted":true}]"#);
+        let mut report = report();
+        trust_step(&mut report, &runner, "/b/brew");
+        assert_eq!(report.failures(), 1);
+        assert_eq!(
+            report.lines,
+            vec!["brew tap-info: could not read tap trust from brew's output"]
+        );
+    }
+
+    #[test]
+    fn a_trust_step_with_an_empty_installed_list_is_ok() {
+        let runner = ScriptedRunner::new(&[]).answering("[]");
         let mut report = report();
         trust_step(&mut report, &runner, "/b/brew");
         assert_eq!(report.failures(), 0, "{report:?}");

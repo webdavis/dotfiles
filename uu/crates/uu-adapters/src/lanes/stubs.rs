@@ -26,6 +26,9 @@ pub(crate) struct ScriptedRunner {
     unrunnable: Vec<Vec<String>>,
     /// What a call keyed here prints on stderr, whatever its verdict.
     stderr: Vec<(Vec<String>, String)>,
+    /// What a call keyed here prints on stdout, overriding `stdout` for
+    /// that call only: two commands in one lane rarely want the same body.
+    stdout_for: Vec<(Vec<String>, String)>,
     stdout: String,
     calls: RefCell<Vec<Vec<String>>>,
     inputs: RefCell<Vec<String>>,
@@ -47,6 +50,7 @@ impl ScriptedRunner {
             pending: Vec::new(),
             unrunnable: Vec::new(),
             stderr: Vec::new(),
+            stdout_for: Vec::new(),
             stdout: String::new(),
             calls: RefCell::new(Vec::new()),
             inputs: RefCell::new(Vec::new()),
@@ -57,6 +61,17 @@ impl ScriptedRunner {
 
     pub(crate) fn answering(mut self, stdout: &str) -> Self {
         self.stdout = stdout.to_string();
+        self
+    }
+
+    /// The same idea as `answering`, for one call only, so a test with two
+    /// commands whose outputs cannot share a shape (a JSON reader beside a
+    /// newline-separated one, say) can give each its own.
+    pub(crate) fn answering_call(mut self, call: &[&str], stdout: &str) -> Self {
+        self.stdout_for.push((
+            call.iter().map(|word| word.to_string()).collect(),
+            stdout.to_string(),
+        ));
         self
     }
 
@@ -121,6 +136,15 @@ impl ScriptedRunner {
     pub(crate) fn inputs(&self) -> Vec<String> {
         self.inputs.borrow().clone()
     }
+
+    /// `stdout_for`'s override for this call, or the shared `stdout`.
+    fn resolved_stdout(&self, call: &[String]) -> String {
+        self.stdout_for
+            .iter()
+            .find(|(key, _)| key == call)
+            .map(|(_, text)| text.clone())
+            .unwrap_or_else(|| self.stdout.clone())
+    }
 }
 
 impl CommandRunner for ScriptedRunner {
@@ -169,7 +193,7 @@ impl CommandRunner for ScriptedRunner {
         if self.failing.contains(&call) {
             return Err("exit 1".to_string());
         }
-        Ok(self.stdout.clone())
+        Ok(self.resolved_stdout(&call))
     }
 
     fn run_with_input(&self, program: &str, args: &[&str], input: &str) -> Result<Ran, String> {
@@ -193,6 +217,7 @@ impl CommandRunner for ScriptedRunner {
         } else {
             Verdict::Clean
         };
+        let stdout = self.resolved_stdout(&call);
         Ok(Ran {
             stderr: self
                 .stderr
@@ -200,7 +225,7 @@ impl CommandRunner for ScriptedRunner {
                 .find(|(key, _)| key == &call)
                 .map(|(_, text)| text.clone())
                 .unwrap_or_default(),
-            stdout: self.stdout.clone(),
+            stdout,
             verdict,
         })
     }

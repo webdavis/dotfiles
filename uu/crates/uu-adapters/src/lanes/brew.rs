@@ -178,7 +178,8 @@ pub(crate) mod tests {
         // The converge sits immediately after `brew upgrade` and before the
         // two steps that take minutes: a cask upgrade wipes /var/osquery, and
         // every second between the wipe and the repair is a monitoring gap.
-        let runner = ScriptedRunner::new(&[]);
+        let runner = ScriptedRunner::new(&[])
+            .answering_call(&["/b/brew", "tap-info", "--installed", "--json"], "[]");
         let report = lane().run("brew", &facts(), &runner);
         assert_eq!(report.failures(), 0, "{report:?}");
         assert_eq!(
@@ -238,7 +239,8 @@ pub(crate) mod tests {
     fn a_failed_step_is_counted_and_named_and_every_later_step_still_runs() {
         // The next attempt is a week away, so a run that aborts at its first
         // problem throws away every subject it had not reached.
-        let runner = ScriptedRunner::new(&[&["/b/brew", "upgrade"]]);
+        let runner = ScriptedRunner::new(&[&["/b/brew", "upgrade"]])
+            .answering_call(&["/b/brew", "tap-info", "--installed", "--json"], "[]");
         let report = lane().run("brew", &facts(), &runner);
         assert_eq!(report.failures(), 1);
         assert!(said(&report, "brew upgrade: exit 1"), "{report:?}");
@@ -276,15 +278,17 @@ pub(crate) mod tests {
     fn an_upgrade_that_skipped_untrusted_taps_fails_naming_each_tap_once() {
         // Homebrew exits 0 when tap trust keeps it from loading a tap, so a
         // clean exit alone is not enough. It names the taps two ways.
-        let runner = ScriptedRunner::new(&[]).saying_on_stderr(
-            &["/b/brew", "upgrade"],
-            "Warning: Skipping buo/cask-upgrade because it is not trusted. Run `brew trust \
-             buo/cask-upgrade` to trust it.\n\
-             Warning: Skipping buo/cask-upgrade because it is not trusted. Run `brew trust \
-             buo/cask-upgrade` to trust it.\n\
-             Warning: The following taps are not trusted:\n  rjyo/moshi\n  steipete/tap\n\n\
-             Homebrew is currently ignoring formulae, casks and commands\n  from these taps\n",
-        );
+        let runner = ScriptedRunner::new(&[])
+            .answering_call(&["/b/brew", "tap-info", "--installed", "--json"], "[]")
+            .saying_on_stderr(
+                &["/b/brew", "upgrade"],
+                "Warning: Skipping buo/cask-upgrade because it is not trusted. Run `brew trust \
+                 buo/cask-upgrade` to trust it.\n\
+                 Warning: Skipping buo/cask-upgrade because it is not trusted. Run `brew trust \
+                 buo/cask-upgrade` to trust it.\n\
+                 Warning: The following taps are not trusted:\n  rjyo/moshi\n  steipete/tap\n\n\
+                 Homebrew is currently ignoring formulae, casks and commands\n  from these taps\n",
+            );
         let report = lane().run("brew", &facts(), &runner);
         assert_eq!(report.failures(), 1, "{report:?}");
         assert!(
@@ -300,10 +304,12 @@ pub(crate) mod tests {
 
     #[test]
     fn an_upgrade_whose_only_warnings_are_about_something_else_is_ok() {
-        let runner = ScriptedRunner::new(&[]).saying_on_stderr(
-            &["/b/brew", "upgrade"],
-            "Warning: Calling `postflight` is deprecated! Use `postflight_steps` instead.\n",
-        );
+        let runner = ScriptedRunner::new(&[])
+            .answering_call(&["/b/brew", "tap-info", "--installed", "--json"], "[]")
+            .saying_on_stderr(
+                &["/b/brew", "upgrade"],
+                "Warning: Calling `postflight` is deprecated! Use `postflight_steps` instead.\n",
+            );
         let report = lane().run("brew", &facts(), &runner);
         assert_eq!(report.failures(), 0, "{report:?}");
         assert!(said(&report, "brew upgrade: ok"), "{report:?}");
@@ -311,7 +317,8 @@ pub(crate) mod tests {
 
     #[test]
     fn a_listing_that_could_not_be_read_says_so_instead_of_reading_as_a_quiet_week() {
-        let runner = ScriptedRunner::new(&[&["/b/mas", "list"]]);
+        let runner = ScriptedRunner::new(&[&["/b/mas", "list"]])
+            .answering_call(&["/b/brew", "tap-info", "--installed", "--json"], "[]");
         let report = lane().run("brew", &facts(), &runner);
         assert!(said(&report, "App Store apps: NOT COMPARED"), "{report:?}");
         assert!(said(&report, "mas list"), "{report:?}");
