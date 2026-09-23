@@ -817,15 +817,33 @@ Then it builds exactly one synthetic event and dispatches it on this decision's 
 Which card it is depends on the window (`src/main.rs:replay_missed`):
 
 - Over the threshold with a durable route and the digest on: the recap card from
-  `src/missed_notifications.rs:recap_card`, which puts the waits still open first, then the true counts,
-  then the pointer. A wait is open while its session's row in `sessions` holds `blocked_since`, the row
-  the stale escalation reads; each open session is one item, `<title> ×<count>: <what the newest wait
-  asks>`, where the count is the waits that session raised inside the window (at least one) and the text
-  comes from its newest waiting row in the activity store. A wait answered before the return is not on
-  the card. The counts are lengths and never claims: "`counted` is the window's own length and `missed`
-  is the claimed journal's, so a card that ran out of room still names totals it can back." The pointer
-  `. recap in #<route>` names `[routes] default`, the route the recap child posts to, and is added only
-  when a recap child really started.
+  `src/missed_notifications.rs:recap_card`, which puts the open waits first, newest first, then the true
+  counts, then the pointer.
+  - A wait is on the card when it BEGAN inside the absence being replayed (after the last-present marker,
+    at or before the return) and is still open: its session's row in `sessions` holds `blocked_since`,
+    which any later event from that session, the operator typing, or the answer signal ends. A wait left
+    open before the absence is not on the card, however long it has stood
+    (`sqlite/tests/open_waits.rs:a_monday_wait_nobody_answered_is_not_on_wednesdays_card`). The row is
+    written whether or not `[stale]` is on, so switching the escalation off does not empty the list.
+  - Each open session is one item, `<title> ×<count>: <what the newest wait asks>`. The count is that
+    session's waits inside the window that come after its newest row that is not a wait, and it is left
+    off when it is one; the text comes from the newest waiting row in the activity store.
+  - The waiting states are `pulse::LAMP_BLOCKED` (`blocked`, `asked`, `asking`), so a summarized turn
+    that ended asking is listed. `failed` and `denied` are not waits and are not on the card; the
+    recap's own NEEDS YOU and OPEN sections still carry them.
+  - When the items do not all fit, the last one says how many more are waiting (`+3 more waiting`), and
+    the newest item is cut to the room that count leaves rather than dropped.
+  - Two limits are stated rather than closed. A subagent's approval answered from the phone stays open
+    until `SubagentStop`, because `resolved` skips the clear inside a subagent so that one subagent's
+    batch cannot end another's wait; a return while that subagent still runs lists it. And a late clear
+    keeps a wait begun after the moment it clears for, but one whose own clock was read after the new
+    wait began still takes it, the residual the blocked marker names.
+  - The counts are lengths and never claims: "`counted` is the window's own length and `missed` is the
+    claimed journal's, so a card that ran out of room still names totals it can back."
+  - The pointer `. recap in #<name>` names where the recap child posts for the configured log transport:
+    `[routes] default` for hermes, and for Discord the `[plugins.log.channels]` key the bot's lookup
+    resolves for the recap's project (the checkout it was composed in) on the empty route. It is added
+    only when a recap child really started, and the child posts on that same transport.
 - Under the threshold with entries waiting: the catch-up card from `src/missed_notifications.rs:summary`,
   which is the true count then as many entries as fit, newest first, because `render::preview` cuts from
   the start.
@@ -837,12 +855,13 @@ would be lying about time."
 `tests/dispatch.rs:a_present_event_delivers_one_extra_notification_carrying_the_whole_journal` asserts
 every one of those fields.
 
-`src/missed_notifications.rs:NEEDS_YOU` is the one list behind the recap's own section: `["asked", "blocked", "denied", "failed", "plan-ready"]`.
+`src/missed_notifications.rs:NEEDS_YOU` is the one list behind the recap's own section: `["asked",
+"blocked", "denied", "failed"]`.
 
 - Success: `tests/dispatch.rs:a_present_event_delivers_one_extra_notification_carrying_the_whole_journal`
   (two banners, newest entry before oldest in the body, the same body on the durable leg);
   `tests/dispatch.rs:the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said` asserts
-  the exact composed body `claude · blocked · p4 ×1: planted 4. 13 events, 2 missed. recap in #pns-events`.
+  the exact composed body `claude · blocked · p4: planted 4. 13 events, 2 missed. recap in #pns-events`.
 - Failure sources: a channel that fails or hangs.
 - Fail direction: the live notification has already gone out by this point; the replay sits after the
   decision record and before the pulse.
