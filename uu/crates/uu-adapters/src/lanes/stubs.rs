@@ -24,7 +24,7 @@ pub(crate) struct ScriptedRunner {
     deferring_because: Vec<(Vec<String>, String)>,
     pending: Vec<(Vec<String>, String)>,
     unrunnable: Vec<Vec<String>>,
-    /// What a call keyed here prints on stderr while still exiting clean.
+    /// What a call keyed here prints on stderr, whatever its verdict.
     stderr: Vec<(Vec<String>, String)>,
     stdout: String,
     calls: RefCell<Vec<Vec<String>>>,

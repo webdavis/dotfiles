@@ -22,7 +22,7 @@ use uu_domain::RunFacts;
 use super::changes::section::change_section;
 use super::changes::{Listing, parse_brew_versions, parse_mas_list, tuple_row, tuples};
 use repairs::{converge_osquery, mas_declarations, refresh_tailscaled};
-use steps::{bounded_step, step, upgrade_step};
+use steps::{bounded_step, step, trust_step, upgrade_step};
 
 /// How long ONE App Store step may take. The store hangs indefinitely on a
 /// wedged session, and the lane's own deadline covers the whole lane, so an
@@ -61,6 +61,7 @@ impl LaneAdapter for BrewLane {
         let _ = upgrade_record::publish(self, facts, brew_before.is_ok(), &[]);
 
         step(&mut report, runner, "brew update", &self.brew, &["update"]);
+        trust_step(&mut report, runner, &self.brew);
         step(
             &mut report,
             runner,
@@ -186,6 +187,7 @@ pub(crate) mod tests {
                 vec!["/b/brew", "list", "--versions"],
                 vec!["/b/mas", "list"],
                 vec!["/b/brew", "update"],
+                vec!["/b/brew", "tap-info", "--installed", "--json"],
                 vec!["/b/brew", "outdated"],
                 vec!["/b/mas", "outdated"],
                 vec!["/b/brew", "upgrade"],
@@ -273,8 +275,7 @@ pub(crate) mod tests {
     #[test]
     fn an_upgrade_that_skipped_untrusted_taps_fails_naming_each_tap_once() {
         // Homebrew exits 0 when tap trust keeps it from loading a tap, so a
-        // clean exit alone recorded `ok` for weeks in which nothing from any
-        // third-party tap was upgraded. It names the taps two ways.
+        // clean exit alone is not enough. It names the taps two ways.
         let runner = ScriptedRunner::new(&[]).saying_on_stderr(
             &["/b/brew", "upgrade"],
             "Warning: Skipping buo/cask-upgrade because it is not trusted. Run `brew trust \
