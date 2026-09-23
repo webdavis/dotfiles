@@ -19,11 +19,32 @@ fn every_known_type_composes_the_exact_words_pns_runs() {
             .collect::<Vec<_>>()
     };
     for (kind, model, argv, in_argv) in [
-        (Kind::Claude, "", words(&["claude", "-p"]), false),
+        (
+            Kind::Claude,
+            "",
+            words(&[
+                "claude",
+                "-p",
+                "--no-session-persistence",
+                "--safe-mode",
+                "--tools",
+                "",
+            ]),
+            false,
+        ),
         (
             Kind::Claude,
             "haiku",
-            words(&["claude", "-p", "--model", "haiku"]),
+            words(&[
+                "claude",
+                "-p",
+                "--no-session-persistence",
+                "--safe-mode",
+                "--tools",
+                "",
+                "--model",
+                "haiku",
+            ]),
             false,
         ),
         (
@@ -81,16 +102,51 @@ fn every_known_type_composes_the_exact_words_pns_runs() {
             true,
         ),
     ] {
+        let invocation = settings(kind, model).invocation().expect("a known type");
         assert_eq!(
-            settings(kind, model).invocation(),
-            Some(Invocation {
-                argv,
-                prompt_in_argv: in_argv,
-            }),
+            (invocation.argv, invocation.prompt_in_argv),
+            (argv, in_argv),
             "the vector for {} with model {model:?}",
             kind.word()
         );
     }
+}
+
+/// CODEX ALONE RUNS IN A PRIVATE HOME, which the adapter supplies because
+/// its path is a runtime fact rather than a word pns composes.
+#[test]
+fn only_codex_runs_in_a_private_home() {
+    for kind in super::WORDS {
+        let mut stated = settings(*kind, "m");
+        stated.command = vec!["my-model".to_string()];
+        assert_eq!(
+            stated.invocation().expect("configured").private_home,
+            *kind == Kind::Codex,
+            "{}",
+            kind.word()
+        );
+    }
+}
+
+/// THE EFFORT IS EACH HARNESS'S OWN FLAG, and only the two that have one take
+/// it. An empty effort passes nothing, which leaves the backend's default.
+#[test]
+fn the_effort_is_passed_in_each_harnesss_own_flag() {
+    let mut codex = settings(Kind::Codex, "gpt-6-luna");
+    codex.effort = "low".to_string();
+    assert_eq!(
+        codex.invocation().unwrap().argv[5..],
+        ["-m", "gpt-6-luna", "-c", "model_reasoning_effort=\"low\""]
+    );
+    let mut claude = settings(Kind::Claude, "");
+    claude.effort = "high".to_string();
+    assert_eq!(claude.invocation().unwrap().argv[6..], ["--effort", "high"]);
+    let takers: Vec<Kind> = super::WORDS
+        .iter()
+        .copied()
+        .filter(|kind| !kind.efforts().is_empty())
+        .collect();
+    assert_eq!(takers, [Kind::Claude, Kind::Codex]);
 }
 
 /// `custom` IS THE OPERATOR'S OWN WORDS, and an empty one is no summarizer at
@@ -110,6 +166,7 @@ fn a_custom_summarizer_is_the_operators_words_and_an_empty_one_is_no_summarizer(
         Some(Invocation {
             argv: custom.command.clone(),
             prompt_in_argv: false,
+            private_home: false,
         })
     );
     // A KNOWN TYPE IS CONFIGURED WITHOUT A COMMAND, which is the whole point

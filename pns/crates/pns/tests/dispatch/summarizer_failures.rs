@@ -34,6 +34,7 @@ fn a_summarizer_past_a_short_deadline_returns_no_partial_answer() {
             &pns_domain::recap::summarizer::Invocation {
                 argv: vec!["/bin/echo".into(), "a complete answer".into()],
                 prompt_in_argv: false,
+                private_home: false,
             },
             std::time::Duration::from_millis(300),
             "the window",
@@ -50,6 +51,7 @@ fn a_summarizer_past_a_short_deadline_returns_no_partial_answer() {
                     "printf 'a partial answer\\n'; exec /bin/sleep 30".into(),
                 ],
                 prompt_in_argv: false,
+                private_home: false,
             },
             std::time::Duration::from_millis(40),
             "the window",

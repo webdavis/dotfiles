@@ -6,6 +6,7 @@ use std::time::Instant;
 
 mod commands;
 mod files;
+mod spawn_record;
 mod stubs;
 
 /// Everything one test owns: a private HOME, its stub channels, a recording
