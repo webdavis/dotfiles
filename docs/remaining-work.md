@@ -7422,6 +7422,19 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   repository builds no removal mechanism, so the operator trashes `~/.local/libexec/pns` after the apply
   that lands it. Pull request in flight.
 
+- [ ] 172. A failure notice reading `bad URL` names a fault pns never had, filed 2026-09-22 from the
+  night the test sandbox leaked banners to the desk. `TransportOutcome::NoStatus` is labelled `bad URL`
+  (`pns/crates/pns-domain/src/failure/meaning.rs:57`, repeated by `pns failures` at
+  `pns/crates/pns/src/command_failures.rs:291`) and, for every destination but the phone, worded "the URL
+  pns built for {route} is malformed, nothing was sent" (`meaning.rs:98`). A stored failure only carries
+  that outcome from ledger outcome 3, `Delivery::Unlaunched`
+  (`pns/crates/pns-adapters/src/persistence/sqlite/ledger/failing.rs:58`): an executable channel that
+  could not be launched, a channel request that could not be encoded, an unregistered destination, or no
+  durable delivery attempted. None of those is a URL, and a genuinely malformed hermes URL is stored as
+  `Failed` and reads `no response` instead (`pns-adapters/src/destinations/hermes.rs:184`). The operator
+  is sent to check a URL that was never built. Relabel from what the outcome records, and word the
+  meaning line for an unlaunched leg.
+
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
   `~/.local/log/osquery/firewall-gatekeeper-monitor.log` holds this line from 2026-09-16 19:06:
