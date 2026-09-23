@@ -38,8 +38,8 @@ pub fn summarize(reply: &str) -> (String, String) {
     }
 }
 /// Point a `codex exec` command at the stripped home below: ephemeral, in a
-/// read-only sandbox, with every tool a summary has no use for switched off,
-/// and marked as a summarizer run. Both the turn summarizer and the recap's
+/// read-only sandbox, with `DISABLED_FEATURES` and web search off, and marked
+/// as a summarizer run. Both the turn summarizer and the recap's
 /// `codex` kind run through this. None when the home cannot be made.
 pub(crate) fn isolate(command: &mut Command) -> Option<()> {
     let user_home = std::env::var("HOME").unwrap_or_default();
@@ -57,12 +57,24 @@ pub(crate) fn isolate(command: &mut Command) -> Option<()> {
         .env("CODEX_HOME", &home);
     Some(())
 }
-/// The Codex features a summary run is started without. MEASURED on
-/// codex-cli 0.156.0 against a local capture of the model request: with these
-/// off and web search disabled, the only tool offered is `request_user_input`.
-/// The stripped home also carries the account's remotely installed plugins and
-/// their app connectors, which `apps` and `plugins` keep out.
-const DISABLED_FEATURES: [&str; 8] = [
+/// The Codex features a summary run is started without.
+///
+/// MEASURED on codex-cli 0.156.0 against a local capture of the model request
+/// under the live model catalog. These take away the shell, file reads, hooks,
+/// goals, the clock's sleep, and the account's remotely installed plugins and
+/// app connectors, which the stripped home also carries. `code_mode_host`
+/// leaves code mode's `exec` offered but failing closed ("code-mode host is
+/// disabled"). `unified_exec` still reads as enabled with its switch passed;
+/// `shell_tool` is what removes the shell.
+///
+/// STILL OFFERED: `request_user_input`, which nobody answers; `apply_patch` to
+/// gpt-5.5, which the read-only sandbox refuses ("patch rejected: writing is
+/// blocked by read-only sandbox"); and to gpt-6-luna, whose catalog entry
+/// turns collaboration on, `spawn_agent` and the other sub-agent tools. A
+/// spawned agent runs inside the same process with the same switches and
+/// sandbox, so its model turns end when the summarizer's deadline kills the
+/// run.
+const DISABLED_FEATURES: [&str; 10] = [
     "shell_tool",
     "unified_exec",
     "apps",
@@ -71,6 +83,8 @@ const DISABLED_FEATURES: [&str; 8] = [
     "multi_agent",
     "goals",
     "view_image",
+    "sleep_tool",
+    "code_mode_host",
 ];
 /// A private, stripped Codex home: a minimal config (fast model, low
 /// reasoning) and the live auth symlinked, with NO hooks. The plugins Codex
