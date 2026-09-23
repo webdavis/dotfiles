@@ -578,8 +578,8 @@ no values. Fixture entries from `test/fixtures/render-coverage/` are excluded.
 | `Dotfiles (bashrc) :: HISTIGNORE Regex` | `~/.config/atuin/config.toml` |
 | `ElevenLabs :: API Key` | `~/.hermes/.env` |
 | `GitHub (Webdavis) :: GPG :: Signing key` | `~/.gitconfig` (public subkey id, not a secret) |
+| `Google (webdavis.io) :: OAuth Client (gog)` | `~/.config/gogcli/credentials.json` |
 | `Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp` | `~/.claude.json`, `~/.codex/config.toml`, Claude desktop config |
-| `Google Cloud (webdavis.io) :: OAuth :: openclaw-gog-cli` | `~/.config/gogcli/credentials.json` |
 | `Hermes :: Webhook Secret :: #pns` | `~/.config/pns/config.toml`, `~/.config/uu/config.toml` |
 | `Karl M. Davis (justdavis) :: AWS (Access Key CLI) :: steve (Admin IAM User)` | `~/.aws/credentials` |
 | `moshi-hook :: Device Token` | `~/.config/pns/config.toml`, moshi pairing script |
