@@ -283,9 +283,3 @@ applies = [
   "-c",
   'grep -E "^(head|branch|result|exit_code):" "$HOME/.local/state/chezmoi-apply/latest.apply.log" 2>/dev/null || true',
 ]
-
-# The recap's summary paragraph, written by Codex on the same model the turn
-# summaries use.
-[recap.summarizer]
-type = "codex"
-model = "gpt-5.5"
