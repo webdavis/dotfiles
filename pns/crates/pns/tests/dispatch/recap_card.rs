@@ -21,7 +21,8 @@ fn the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said()
         "the live event and one recap card: {raised:?}"
     );
     assert_eq!(
-        card["detail"], "claude · blocked · p4. 13 events, 2 missed. recap in #pns",
+        card["detail"],
+        "claude · blocked · p4: planted 4. 13 events, 2 missed. recap in #pns-events",
         "the card is composed, never summarized: {raised:?}"
     );
     // AND IT CARRIES NO PANE, which is what the moshi channel builds its deep
@@ -29,4 +30,27 @@ fn the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said()
     // so this card has never had a link to focus a pane with, on this leg or
     // the phone's; the ownership move neither gains nor loses one.
     assert_eq!(card["pane"], "", "{card:?}");
+}
+
+#[test]
+fn the_card_names_the_default_route_the_config_gives_it() {
+    // THE POINTER IS READ OFF `[routes]`, never the shipped default, which is
+    // what every other card test would still pass against.
+    let sandbox = Sandbox::new("recap-card-configured-route");
+    record_every_event(&sandbox);
+    sandbox.write_config(&format!(
+        "{}[routes]\ndefault = \"logbook\"\n",
+        support::STUB_CHANNELS
+    ));
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+
+    let (card, raised) = carded_recap(&sandbox);
+    assert!(
+        card["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.ends_with("recap in #logbook")),
+        "{raised:?}"
+    );
 }

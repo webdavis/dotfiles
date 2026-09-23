@@ -2,8 +2,8 @@ use crate::*;
 use pns_adapters::SqliteStore;
 
 /// This session's wait on the operator, recorded where the blocked marker is
-/// written: the row the stale-block escalation reads, and the job that wakes
-/// its fire.
+/// written: the row the return card and the stale-block escalation read, and
+/// the job that wakes its fire.
 ///
 /// THE SAME CALL AS THE MARKER, deliberately. The two are one fact stated to
 /// two readers (a lamp and a page), so they are written at one seam; the row
@@ -30,12 +30,11 @@ pub(crate) fn track_wait(session_id: &str, event_state: &str, window: u64, now: 
 /// this one name, so a caller cannot end half of it, and a third caller
 /// arriving later gets both without knowing there were two.
 ///
-/// `now` IS THE MOMENT BEING CLEARED FOR, handed down so the marker's End can
-/// refuse a wait armed after it; the row has no such compare, because it is
-/// keyed by session and rewritten by the next wait rather than raced for.
+/// `now` IS THE MOMENT BEING CLEARED FOR, handed down so the marker's End and
+/// the row's both refuse a wait armed after it.
 pub(crate) fn end_blocked_wait(session_id: &str, now: Option<u64>) {
     pns_adapters::marker_files::end_blocked_wait(session_id, now);
-    if let Err(error) = pns_application::end_wait(&SqliteStore::new(state_dir()), session_id) {
+    if let Err(error) = pns_application::end_wait(&SqliteStore::new(state_dir()), session_id, now) {
         eprintln!("pns: state error (this session's wait could not be cleared: {error})");
     }
 }

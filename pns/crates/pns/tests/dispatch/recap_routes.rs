@@ -2,10 +2,10 @@ use super::*;
 
 #[test]
 fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_carry() {
-    // "recap in #pns" IS A PROMISE, and a spawn alone cannot back it. A
+    // "recap in #<route>" IS A PROMISE, and a spawn alone cannot back it. A
     // started child still posts nothing when there is no durable channel: the
     // hermes leg answers Failed before it touches the network and the child
-    // exits 0, so the phone said "recap in #pns" and #pns stayed empty.
+    // exits 0, so the phone pointed at a recap and the channel stayed empty.
     //
     // ASKED OF THE SELECTION, which is the one reading dispatch takes too, so
     // the promise on the card and the channel behind it cannot disagree. TWO
@@ -26,7 +26,7 @@ fn a_machine_with_no_durable_route_never_points_a_card_at_a_recap_nothing_can_ca
     assert_eq!(raised.len(), 2, "the live event and one card: {raised:?}");
     let body = raised[1]["detail"].as_str().expect("a detail");
     assert!(
-        !body.contains("recap in #pns"),
+        !body.contains("recap in #"),
         "the card pointed at a recap no channel could carry: {body}"
     );
     assert!(
@@ -116,4 +116,115 @@ fn a_recap_told_a_window_it_cannot_read_prints_usage_exits_two_and_posts_nothing
             "{channel} was handed a recap over a window nobody could read"
         );
     }
+}
+
+/// A log carried by the native Discord bot, with the two keys config load
+/// requires and nothing else.
+pub(super) const DISCORD_LOG: &str = "[plugins.phone]\nenabled = true\ntype = \"moshi\"\n\
+    [plugins.log]\nenabled = true\ntype = \"discord\"\nbot_token = \"token\"\n\
+    [plugins.log.channels]\ndefault = \"1\"\npriority = \"2\"\n\
+    [plugins.banner]\nenabled = true\n[failures]\npage_enabled = false\n";
+
+#[test]
+fn a_discord_log_carries_the_return_recap_and_hermes_is_never_handed_it() {
+    // `--to durable` NAMES THE ROLE, and `[plugins.log] type` is what fills
+    // it: a child that took the first durable plugin registered posted every
+    // recap through hermes whatever the config chose.
+    let sandbox = Sandbox::new("recap-discord-log");
+    record_every_event(&sandbox);
+    sandbox.stub_channel(
+        "discord",
+        &format!("cat >>\"{}/discord.events\"", sandbox.display()),
+    );
+    sandbox.write_config(DISCORD_LOG);
+    loud_window(&sandbox);
+
+    run(&mut present_event(&sandbox));
+
+    poll_until(|| {
+        events(&sandbox, "discord")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no recap reached discord: {:?}",
+            events(&sandbox, "discord")
+        )
+    });
+    assert!(
+        events(&sandbox, "hermes").is_empty(),
+        "the recap went to a transport the config did not select: {:?}",
+        events(&sandbox, "hermes")
+    );
+}
+
+#[test]
+fn a_discord_card_names_the_channel_key_its_recap_posts_under() {
+    // THE RECAP TAKES ITS PROJECT FROM THE CHECKOUT IT WAS COMPOSED IN, and
+    // the Discord map tries that project's key before the default route's, so
+    // the card names the key the recap actually landed under.
+    let sandbox = Sandbox::new("recap-discord-pointer");
+    record_every_event(&sandbox);
+    sandbox.stub_channel(
+        "discord",
+        &format!("cat >>\"{}/discord.events\"", sandbox.display()),
+    );
+    sandbox.write_config(&DISCORD_LOG.replace(
+        "priority = \"2\"\n",
+        "priority = \"2\"\ndotfiles = \"3\"\npns-events = \"4\"\n",
+    ));
+    loud_window(&sandbox);
+    let checkout = checkout_named(&sandbox, "dotfiles");
+
+    run(present_event(&sandbox).current_dir(&checkout));
+
+    let (card, raised) = carded_recap(&sandbox);
+    assert!(
+        card["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.ends_with("recap in #dotfiles")),
+        "{raised:?}"
+    );
+    let recap = poll_until(|| {
+        events(&sandbox, "discord")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no recap reached discord: {:?}",
+            events(&sandbox, "discord")
+        )
+    });
+    assert_eq!(recap["project"], "dotfiles", "{recap:?}");
+}
+
+/// A repository with one empty commit, in a directory named `name` inside
+/// the sandbox.
+fn checkout_named(sandbox: &Sandbox, name: &str) -> std::path::PathBuf {
+    let checkout = sandbox.path(name);
+    std::fs::create_dir_all(&checkout).expect("the checkout directory");
+    for arguments in [
+        &["init", "--quiet"][..],
+        &["commit", "--quiet", "--allow-empty", "-m", "root"][..],
+    ] {
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&checkout)
+            .args(arguments)
+            // A HOOK EXPORTS GIT_DIR, which would point these at the real
+            // repository instead of the sandbox.
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@example.com")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@example.com")
+            .status()
+            .expect("git runs");
+        assert!(status.success(), "git {arguments:?}");
+    }
+    checkout
 }

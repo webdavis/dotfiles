@@ -107,6 +107,10 @@ pub trait RecapPublisher {
 
     fn publish(&self, since: u64, until: u64) -> Option<Self::Started>;
 
+    /// Where a started recap is posted, which the card names, or `None` when
+    /// nothing resolves one.
+    fn route(&self) -> Option<String>;
+
     /// Give the started child the card to dispatch. The answer says whether
     /// it took it, never whether it delivered it.
     fn hand_card(&self, started: Self::Started, card: &ReplayCard<'_>) -> bool;
