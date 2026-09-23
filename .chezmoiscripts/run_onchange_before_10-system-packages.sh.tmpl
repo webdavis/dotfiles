@@ -167,7 +167,6 @@ grep -v '^mas ' "$brewfile" >"$brewfile_main"
 grep '^mas ' "$brewfile" >"$brewfile_mas" || true
 report_section "homebrew" "bundle sync"
 "$brew_bin" bundle --no-upgrade --file="$brewfile_main"
-
 mas_manifest="$HOME/.local/state/homebrew/mas.Brewfile"
 if [[ -s $brewfile_mas ]]; then
   mkdir -p "${mas_manifest%/*}"
