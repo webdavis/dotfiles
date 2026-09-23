@@ -111,7 +111,7 @@ cleared for.
   the blocked marker compares its epoch. No clock is an unconditional clear
   (`sqlite/tests/sessions.rs:a_late_clear_leaves_a_wait_begun_after_its_own_moment`). A clear that
   started after the new wait began still takes it, the same residual the marker names.
-- An observation (`model-switch`, `quota`, `config-change`) changes nothing, because the record tail
+- An observation (`model-switch`, `quota`) changes nothing, because the record tail
   returns before either write for any attempt that is not the first. That is the blocked marker's own
   neutrality, deliberately shared.
 

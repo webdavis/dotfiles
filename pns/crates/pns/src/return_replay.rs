@@ -56,6 +56,7 @@ pub(crate) fn replay_missed(
             replay_card: recap.replay_card,
             post_window_recap: recap.post_window_recap,
             minimum_events: recap.minimum_events,
+            minimum_away: recap.minimum_away,
         },
         durable_route,
     );

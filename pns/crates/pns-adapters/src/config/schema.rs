@@ -63,6 +63,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
         &[
             "afternoon",
             "evening",
+            "minimum_away",
             "minimum_events",
             "morning",
             "nightshift",

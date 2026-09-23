@@ -785,10 +785,12 @@ of `now` is no window either, because "A clock that moved backwards is not a bra
   is 1 MiB, its own number because the ring's depth (`ACTIVITY_KEPT` = 150) is its own. The volume
   threshold `[recap] minimum_events` defaults to 8 (`src/config.rs:DEFAULT_MINIMUM_EVENTS`), tested as
   `counted.len() >= recap.minimum_events`: 7 counted events deliver the catch-up card unchanged
-  (`tests/dispatch.rs:a_window_under_the_threshold_delivers_the_catch_up_card_unchanged`) and 8 or more
-  deliver the recap card
+  (`tests/dispatch.rs:a_window_under_the_threshold_delivers_the_catch_up_card_unchanged`) and 8 or more,
+  together with a window that also clears `[recap] minimum_away`, deliver the recap card
   (`tests/dispatch.rs:a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first`,
-  which counts 13).
+  which counts 13). Volume alone is not enough: the same 13 events under a window shorter than
+  `minimum_away` still deliver only the catch-up card
+  (`tests/dispatch.rs:a_busy_return_under_the_default_minimum_away_delivers_the_catch_up_card_unchanged`).
 - Required side effects: none. `activity_in` is a read.
 - Forbidden side effects: an entry with no clock is in no window: "Its writer had no readable clock, so
   nothing can place it, and counting it would put an event of unknown age inside a bracket that is
@@ -995,7 +997,7 @@ the doctor still counts them: turning the card back on has something to deliver.
 
 `post_window_recap` is its own switch over the Discord half, "so card-only and recap-only are both valid and neither
 implies the other". `src/config.rs:Recap` defaults: `replay_card = true`, `post_window_recap = true`,
-`minimum_events = 8`.
+`minimum_events = 8`, `minimum_away = 20m`.
 
 - Success:
   `tests/dispatch.rs:a_switched_off_replay_card_delivers_no_catch_up_and_leaves_the_journal_whole` (one

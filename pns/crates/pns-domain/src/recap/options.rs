@@ -46,6 +46,9 @@ pub struct Recap {
     pub replay_card: bool,
     pub post_window_recap: bool,
     pub minimum_events: usize,
+    /// How long the operator must have been away before a return earns a
+    /// recap. Both this and `minimum_events` must hold.
+    pub minimum_away: std::time::Duration,
     pub summarizer: super::summarizer::Settings,
     /// The windows whose summary the gateway writes in the background at each
     /// window's end. EMPTY IS THE WORKING SETTING: a summary is then written
@@ -104,6 +107,7 @@ impl Default for Recap {
             replay_card: true,
             post_window_recap: true,
             minimum_events: DEFAULT_MINIMUM_EVENTS,
+            minimum_away: DEFAULT_MINIMUM_AWAY,
             summarizer: super::summarizer::Settings::default(),
             pregenerate: Vec::new(),
             review_notes_glob: None,
@@ -119,6 +123,11 @@ impl Default for Recap {
 /// How many events a window needs before a recap is worth the operator's
 /// attention. The operator's own stated figure; see `Recap`.
 const DEFAULT_MINIMUM_EVENTS: usize = 8;
+
+/// How long an absence must last before its return earns a recap. TWENTY
+/// MINUTES, the operator's own figure: a coffee or a phone call is not an
+/// absence worth a digest, however busy the agents were during it.
+const DEFAULT_MINIMUM_AWAY: std::time::Duration = std::time::Duration::from_secs(20 * 60);
 
 /// How long a row in the activity store is kept before the gateway's own
 /// prune deletes it.
