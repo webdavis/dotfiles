@@ -1,7 +1,7 @@
 use super::StoreError;
 use rusqlite::{Connection, TransactionBehavior};
 
-pub(super) const VERSION: u32 = 13;
+pub(super) const VERSION: u32 = 14;
 
 pub(super) fn validate(connection: &Connection) -> Result<u32, StoreError> {
     let version: u32 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
@@ -75,6 +75,26 @@ pub(super) fn migrate(connection: &mut Connection) -> Result<(), StoreError> {
     }
     if version < 13 {
         super::profiles::create(&transaction)?;
+    }
+    // Drops the policy-settings audit trail the ConfigChange hook wrote, and
+    // its legacy-import bookkeeping row, so a failed import of that retired
+    // family cannot pin a permanent doctor complaint nothing can clear.
+    // The delete is guarded on `legacy_imports` existing because some test
+    // fixtures build a partial schema without it; every real install has it
+    // from the version-0 bootstrap.
+    if version < 14 {
+        transaction.execute_batch("DROP TABLE IF EXISTS policy_audit;")?;
+        let has_legacy_imports: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'legacy_imports')",
+            [],
+            |row| row.get(0),
+        )?;
+        if has_legacy_imports {
+            transaction.execute(
+                "DELETE FROM legacy_imports WHERE family = 'policy-settings-audit'",
+                [],
+            )?;
+        }
     }
     transaction.pragma_update(None, "user_version", VERSION)?;
     transaction.commit()?;

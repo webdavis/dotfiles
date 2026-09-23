@@ -99,7 +99,7 @@ Then `blocked_since` and `escalated_at` are both cleared.
   `end_blocked_wait`, which ends the marker and the row in one call and is what both hook arms reach.
 - Fail direction: clearing is UNCONDITIONAL of the window, unlike the start, so a row left behind by an
   evening when the escalation was armed is still cleared once the operator switches the window off.
-- An observation (`model-switch`, `quota`, `config-change`) changes nothing, because the record tail
+- An observation (`model-switch`, `quota`) changes nothing, because the record tail
   returns before either write for any attempt that is not the first. That is the blocked marker's own
   neutrality, deliberately shared.
 

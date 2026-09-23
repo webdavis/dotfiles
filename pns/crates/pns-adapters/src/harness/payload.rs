@@ -55,14 +55,8 @@ pub struct HookPayload {
     /// model switch.
     pub to_model: String,
     /// A `PostModelSwitch` event's cause (`auto`, `command`, `picker`, `sdk`
-    /// or `resume`), OR a `ConfigChange` event's own kind (`user_settings`,
-    /// `project_settings`, `local_settings`, `policy_settings`, `skills`).
-    /// ONE FIELD FOR BOTH, in `message`'s own style: the two hooks never fire
-    /// together, both name their field `source` in the payload Claude Code
-    /// sends, and only one caller ever reads it for a given invocation. Only
-    /// `auto` and the five documented config sources are routed anywhere;
-    /// every other value, including `resume` and one this binary's own
-    /// declaration never asked for, is silence rather than a guess.
+    /// or `resume`). Only `auto` is routed anywhere; every other value,
+    /// including `resume`, is silence rather than a guess.
     pub source: String,
     /// A `Notification` event's own kind, for example
     /// `quota_auto_resume_fired`. The hooks reference documents the whole
@@ -79,11 +73,6 @@ pub struct HookPayload {
     /// comment says a payload may omit it while the field rolls out, so
     /// empty is an ordinary state; Codex sends neither this nor `prompt`.
     pub session_title: String,
-    /// A `ConfigChange` event's own file, when the harness names one. RAW and
-    /// UNFLATTENED, unlike `message`: it identifies a path rather than
-    /// composing a rendered line, so the config-change arm sanitises it
-    /// itself before it ever reaches a card or a durable record.
-    pub file_path: String,
 }
 
 /// Read a payload, treating anything unparseable as an empty one.
@@ -137,6 +126,5 @@ pub fn parse_payload(payload_json: &str) -> HookPayload {
         notification_type: text("notification_type"),
         prompt: flattened(&text("prompt")),
         session_title: flattened(&text("session_title")),
-        file_path: text("file_path"),
     }
 }

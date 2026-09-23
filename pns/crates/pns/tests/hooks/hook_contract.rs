@@ -85,6 +85,27 @@ fn a_hook_word_this_binary_does_not_serve_says_so_and_notifies_nobody() {
     );
 }
 
+#[test]
+fn config_change_is_a_hook_word_this_binary_does_not_serve() {
+    // A settings file that still declares the ConfigChange hook keeps calling
+    // this word until the next apply, and each call must cost only the line.
+    let sandbox = Sandbox::new("hook-config-change");
+    let output = hook(
+        &sandbox,
+        "config-change",
+        r#"{"session_id":"s1","cwd":"/a/dotfiles","source":"user_settings","file_path":"/a/settings.json"}"#,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr).trim(),
+        "pns: unknown hook event `config-change`"
+    );
+    assert!(
+        !sandbox.fired("hermes"),
+        "an event nobody serves reaches no channel"
+    );
+}
+
 /// THE ALWAYS-EXIT-0 CONTRACT, against the exit code the sending paths now
 /// report on every call. A destination that took nothing answers 1 to a
 /// producer; a harness hook still answers 0, because a notification must never

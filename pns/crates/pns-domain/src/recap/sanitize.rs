@@ -70,11 +70,11 @@ pub(super) fn printable_line(line: &str) -> String {
 /// every valid `char`, so a third gap fails a test rather than waiting on a
 /// third review.
 ///
-/// PUB FOR ONE OTHER READER, `main.rs`'s automatic model-switch card and its
-/// `ConfigChange` sibling: a payload field that is not free text still
-/// carries whatever bytes a harness sends, and a reorder character surviving
-/// `flattened` (which only strips whitespace and `char::is_control`, the Cc
-/// set, never Cf) would let a name or a path render backwards.
+/// PUB FOR ONE OTHER READER, `main.rs`'s automatic model-switch card: a
+/// payload field that is not free text still carries whatever bytes a harness
+/// sends, and a reorder character surviving `flattened` (which only strips
+/// whitespace and `char::is_control`, the Cc set, never Cf) would let a name
+/// render backwards.
 pub fn is_invisible(character: char) -> bool {
     matches!(
         character,
