@@ -143,7 +143,7 @@ pub const RECAP_USAGE: &str = "pns: usage: pns recap [<window>] [--previous]\n\
                                pns: usage: pns recap --since-epoch <epoch> --until-epoch <epoch>\n\
                                pns: usage: pns recap agent --stdin\n\
                                pns: usage: pns recap git\n\
-                               pns: windows: overnight, morning, afternoon, evening, today, \
+                               pns: windows: nightshift, morning, afternoon, evening, today, \
                                yesterday, week, last-week\n\
                                pns: modifiers: -v, --section <name>, --limit <n>, --json, --toon, \
                                --schema <file|->, --to <destination>, --summarize, \

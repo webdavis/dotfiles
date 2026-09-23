@@ -316,10 +316,6 @@ mod approval_presence;
 mod approval_reporting;
 #[path = "hooks/arm_remind.rs"]
 mod arm_remind;
-#[path = "hooks/config_change.rs"]
-mod config_change;
-#[path = "hooks/config_change_state.rs"]
-mod config_change_state;
 #[path = "hooks/deadlines.rs"]
 mod deadlines;
 #[path = "hooks/denied_tools.rs"]
@@ -340,8 +336,6 @@ mod loop_waits;
 mod model_switch;
 #[path = "hooks/model_switch_state.rs"]
 mod model_switch_state;
-#[path = "hooks/policy_audit.rs"]
-mod policy_audit;
 #[path = "hooks/quota_messages.rs"]
 mod quota_messages;
 #[path = "hooks/quota_state.rs"]
@@ -375,7 +369,6 @@ mod turn_reply;
 #[path = "hooks/turn_tier.rs"]
 mod turn_tier;
 
-use config_change::config_change_payload;
 use lights_waits::{LAMPS_ON, answered_dialog, elicitation_result, waiting_sessions};
 use model_switch::model_switch_payload;
 use quota_messages::{QUOTA_TYPES, quota_payload};

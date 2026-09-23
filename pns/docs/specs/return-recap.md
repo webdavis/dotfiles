@@ -513,7 +513,7 @@ Then the whole answer is refused if it is over `MAX_ANSWER_BYTES` or carries a r
 - Idempotency and duplicates: pure.
 - Privacy: `answer` is the choke point between somebody else's text and a message pns signs its name to.
   Nothing is added here and nothing about the machine is read. `is_invisible` is `pub` for exactly one
-  other reader, "`main.rs`'s automatic model-switch card and its `ConfigChange` sibling"
+  other reader, "`main.rs`'s automatic model-switch card"
   (`src/recap.rs:is_invisible`).
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: THE CUT KEEPS THE HEAD, not the tail, and the reason is stated:

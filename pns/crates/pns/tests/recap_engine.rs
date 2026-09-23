@@ -42,7 +42,7 @@ fn sandbox_with_store(name: &str) -> Sandbox {
 #[test]
 fn a_bare_recap_names_the_window_that_most_recently_ended() {
     // WHICHEVER ONE ENDED MOST RECENTLY, so sitting down at 08:00 gives
-    // overnight and coming back at 13:30 gives morning. The test cannot
+    // nightshift and coming back at 13:30 gives morning. The test cannot
     // choose the hour it runs at, so what it pins is that the header names
     // ONE of the four periods and never a span with no name.
     let sandbox = sandbox_with_store("recap-bare-window");
@@ -55,7 +55,7 @@ fn a_bare_recap_names_the_window_that_most_recently_ended() {
         .unwrap_or_default()
         .to_string();
     assert!(
-        ["overnight", "morning", "afternoon", "evening"]
+        ["nightshift", "morning", "afternoon", "evening"]
             .iter()
             .any(|window| first.starts_with(window)),
         "a bare recap named no window at all: {first}"
@@ -69,6 +69,63 @@ fn a_named_window_heads_the_page_with_its_own_name() {
     let output = run(sandbox.pns_stateful().args(["recap", "today"]));
     assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
     assert!(stdout(&output).starts_with("today "), "{}", stdout(&output));
+}
+
+/// `pns recap nightshift` with `extra` appended, run against a store holding
+/// one event, and its standard output.
+fn nightshift_recap(sandbox: &Sandbox, extra: &[&str]) -> String {
+    planted(sandbox, 60, "done");
+    let output = run(sandbox
+        .pns_stateful()
+        .args(["recap", "nightshift"])
+        .args(extra));
+    assert_eq!(output.status.code(), Some(0), "{}", stderr(&output));
+    stdout(&output)
+}
+
+#[test]
+fn the_night_window_heads_the_page_as_nightshift() {
+    let sandbox = sandbox_with_store("recap-nightshift-page");
+    let page = nightshift_recap(&sandbox, &[]);
+    assert!(page.starts_with("nightshift 22:00-06:00 "), "{page}");
+}
+
+#[test]
+fn the_night_window_is_nightshift_in_the_json_document() {
+    let sandbox = sandbox_with_store("recap-nightshift-json");
+    let json: serde_json::Value =
+        serde_json::from_str(&nightshift_recap(&sandbox, &["--json"])).expect("a JSON document");
+    assert_eq!(json["window"]["name"], "nightshift", "{json}");
+}
+
+#[test]
+fn the_night_window_is_nightshift_in_the_toon_document() {
+    let sandbox = sandbox_with_store("recap-nightshift-toon");
+    let toon = nightshift_recap(&sandbox, &["--toon"]);
+    assert!(toon.contains("\nwindow:\n  name: nightshift\n"), "{toon}");
+}
+
+#[test]
+fn a_schema_mask_over_the_window_selects_nightshift() {
+    let sandbox = sandbox_with_store("recap-nightshift-mask");
+    let mask = sandbox.path("mask.toon");
+    std::fs::write(&mask, "window:\n  name: true\n").expect("the mask");
+    let masked = nightshift_recap(&sandbox, &["--schema", mask.to_str().expect("a path")]);
+    assert_eq!(masked.trim_end(), "window:\n  name: nightshift");
+}
+
+#[test]
+fn a_word_that_names_no_window_prints_the_usage_listing_every_window() {
+    let sandbox = sandbox_with_store("recap-window-typo");
+    let output = run_expecting(2, sandbox.pns_stateful().args(["recap", "nightshfit"]));
+    assert!(
+        stderr(&output).contains(
+            "\npns: windows: nightshift, morning, afternoon, evening, today, yesterday, week, \
+             last-week\n"
+        ),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
