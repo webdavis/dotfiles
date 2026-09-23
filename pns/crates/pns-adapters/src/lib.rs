@@ -123,7 +123,7 @@ mod probes;
 mod process;
 pub use macos::{
     LaunchdServiceController, SystemLaunchctlRunner, local_civil, local_epoch,
-    local_minutes_since_midnight, local_timestamp, utc_timestamp,
+    local_minutes_since_midnight, local_timestamp, utc_day_heading, utc_long, utc_timestamp,
 };
 pub use probes::SystemProbes;
 pub use process::spawn_shell_event;

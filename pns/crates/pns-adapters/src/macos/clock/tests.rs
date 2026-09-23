@@ -67,3 +67,32 @@ fn a_day_the_calendar_does_not_have_is_refused_rather_than_rolled_forward() {
     assert_eq!(local_epoch(2025, 2, 29, 0, 0, 0), None);
     assert!(local_epoch(2024, 2, 29, 0, 0, 0).is_some());
 }
+
+/// The failure page's long form: a full calendar date, spelled out, no
+/// trailing zone marker so a caller that already says "UTC" nearby is not
+/// handed a second one.
+#[test]
+fn the_long_form_spells_the_month_with_no_trailing_zone_marker() {
+    assert_eq!(
+        utc_long(AUGUST_INSTANT).as_deref(),
+        Some("August 24, 2025 at 01:46")
+    );
+}
+
+/// The day heading: "Today" and "Yesterday" relative to the render time, and
+/// a short month/day past that.
+#[test]
+fn the_day_heading_reads_today_yesterday_or_a_short_date() {
+    let now = AUGUST_INSTANT;
+    assert_eq!(utc_day_heading(now, now).as_deref(), Some("Today"));
+    // A later second on the same UTC day is still today.
+    assert_eq!(utc_day_heading(now + 3600, now).as_deref(), Some("Today"));
+    assert_eq!(
+        utc_day_heading(now - 86_400, now).as_deref(),
+        Some("Yesterday")
+    );
+    assert_eq!(
+        utc_day_heading(now - 4 * 86_400, now).as_deref(),
+        Some("Aug 20")
+    );
+}
