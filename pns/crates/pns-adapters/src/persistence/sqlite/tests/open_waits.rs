@@ -48,15 +48,33 @@ fn only_a_session_whose_wait_is_still_open_is_listed_once_with_its_count() {
 }
 
 #[test]
-fn a_wait_raised_before_the_absence_is_still_listed_and_counts_once() {
+fn a_monday_wait_nobody_answered_is_not_on_wednesdays_card() {
+    // THE CARD IS ABOUT THE ABSENCE: a wait left open on Monday by a session
+    // that never sent another event is not something that happened while the
+    // operator was away from Tuesday night to Wednesday.
+    const DAY: u64 = 86_400;
+    const MONDAY: u64 = 1_000 * DAY;
+    const TUESDAY_NIGHT: u64 = MONDAY + DAY + DAY / 2;
+    const WEDNESDAY: u64 = MONDAY + 2 * DAY;
     let store = SqliteStore::new(state());
-    row(&store, "early", "asked", 50, "which branch?");
-    store.begin_wait("early", 50, true).unwrap();
+    row(
+        &store,
+        "abandoned",
+        "asking",
+        MONDAY,
+        "Should I open the PR?",
+    );
+    store.begin_wait("abandoned", MONDAY, true).unwrap();
+    row(&store, "away", "blocked", WEDNESDAY - 60, "Bash: git push");
+    store.begin_wait("away", WEDNESDAY - 60, true).unwrap();
 
-    let open = store.open_waits(100, 200).unwrap();
-    assert_eq!(open.len(), 1, "{open:?}");
-    assert_eq!(open[0].asks, "which branch?");
-    assert_eq!(open[0].count, 1);
+    let asks: Vec<String> = store
+        .open_waits(TUESDAY_NIGHT, WEDNESDAY)
+        .unwrap()
+        .into_iter()
+        .map(|wait| wait.asks)
+        .collect();
+    assert_eq!(asks, ["Bash: git push"]);
 }
 
 #[test]

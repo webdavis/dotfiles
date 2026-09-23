@@ -83,14 +83,14 @@ pub trait ActivityRing {
     fn entries_between(&self, since: u64, until: u64) -> Vec<Entry>;
 }
 
-/// The waits still open when the operator comes back, one per session, oldest
-/// first.
+/// The waits begun inside `since..=until` and still open when the operator
+/// comes back, one per session, oldest first.
 ///
 /// OPEN MEANS THE SESSION'S WAIT ROW, the one `SessionWait` keeps and the stale
 /// escalation pages on: begun by a waiting state and ended by any later event,
 /// by the operator typing, or by the answer signal. The activity store adds
-/// what the newest wait asks and how many the session raised inside
-/// `since..=until`.
+/// what the newest wait asks and how many the session raised inside the
+/// window.
 pub trait OpenWaits {
     fn open_waits(&self, since: u64, until: u64) -> Vec<pns_domain::missed::OpenWait>;
 }

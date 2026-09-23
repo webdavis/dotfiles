@@ -230,12 +230,17 @@ impl SqliteStore {
 // --- the waits a return card lists -------------------------------------------
 
 impl SqliteStore {
-    /// Every wait still open, oldest first: what the session's newest wait
-    /// asks, and how many waits it raised inside `since..=until`, at least one.
+    /// Every wait begun inside `since..=until` and still open, oldest first:
+    /// what the session's newest wait asks, and how many waits it raised
+    /// inside the window, at least one.
     ///
     /// THE ROW SAYS WHETHER IT IS OPEN and the activity store says what it is
     /// about. A session with an open row and no waiting activity row names
     /// nothing a card could say, so it is left out.
+    ///
+    /// BEGUN INSIDE THE WINDOW, because the card is about the absence: a wait
+    /// left open before it, by a session that never sent another event, is
+    /// not something that happened while the operator was away.
     pub fn open_waits(
         &self,
         since: u64,
@@ -257,7 +262,7 @@ impl SqliteStore {
                     SELECT w.seq FROM activity_events w
                      WHERE w.session = s.id AND w.state IN ({states})
                      ORDER BY w.at DESC, w.seq DESC LIMIT 1)
-              WHERE s.blocked_since IS NOT NULL AND s.blocked_since <= ?2
+              WHERE s.blocked_since > ?1 AND s.blocked_since <= ?2
               ORDER BY s.blocked_since, s.id"
         ))?;
         let mut bound: Vec<&dyn rusqlite::ToSql> = vec![&since, &until];
