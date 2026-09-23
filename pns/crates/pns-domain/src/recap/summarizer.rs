@@ -119,9 +119,10 @@ pub struct Invocation {
     pub argv: Vec<String>,
     /// Whether the prompt is appended to `argv` rather than written to stdin.
     pub prompt_in_argv: bool,
-    /// Whether the adapter runs this in pns's stripped Codex home: ephemeral,
-    /// read-only and with no hooks, the way the turn summarizer runs.
-    pub stripped_codex_home: bool,
+    /// Whether the adapter runs this in a home of pns's own rather than the
+    /// operator's, the way the turn summarizer runs, so it reaches none of the
+    /// operator's hooks, plugins or tools.
+    pub private_home: bool,
 }
 
 impl Settings {
@@ -174,7 +175,7 @@ impl Settings {
                     [model("--model"), effort("--effort", self.effort.clone())].concat(),
                 ),
                 prompt_in_argv: false,
-                stripped_codex_home: false,
+                private_home: false,
             },
             Kind::Codex => Invocation {
                 argv: words(
@@ -186,7 +187,7 @@ impl Settings {
                     .concat(),
                 ),
                 prompt_in_argv: false,
-                stripped_codex_home: true,
+                private_home: true,
             },
             Kind::Ollama => Invocation {
                 argv: words(
@@ -199,7 +200,7 @@ impl Settings {
                     ],
                 ),
                 prompt_in_argv: false,
-                stripped_codex_home: false,
+                private_home: false,
             },
             Kind::Hermes => Invocation {
                 argv: words(&["hermes", "chat", "-Q", "-t", ""], {
@@ -208,13 +209,13 @@ impl Settings {
                     tail
                 }),
                 prompt_in_argv: true,
-                stripped_codex_home: false,
+                private_home: false,
             },
             Kind::Custom if self.command.is_empty() => return None,
             Kind::Custom => Invocation {
                 argv: self.command.clone(),
                 prompt_in_argv: false,
-                stripped_codex_home: false,
+                private_home: false,
             },
         })
     }

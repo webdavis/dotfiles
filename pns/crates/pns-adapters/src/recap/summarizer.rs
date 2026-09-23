@@ -45,7 +45,7 @@ pub fn run_summarizer(
     let mut command = Command::new(program);
     command.args(arguments);
     // A HOME THAT CANNOT BE MADE is a backend that could not be started.
-    if invocation.stripped_codex_home {
+    if invocation.private_home {
         crate::codex::isolate(&mut command).ok_or(Failure::Unstarted)?;
     }
     command

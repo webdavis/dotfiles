@@ -112,15 +112,15 @@ fn every_known_type_composes_the_exact_words_pns_runs() {
     }
 }
 
-/// CODEX ALONE RUNS IN THE STRIPPED HOME, which the adapter supplies because
+/// CODEX ALONE RUNS IN A PRIVATE HOME, which the adapter supplies because
 /// its path is a runtime fact rather than a word pns composes.
 #[test]
-fn only_codex_runs_in_the_stripped_codex_home() {
+fn only_codex_runs_in_a_private_home() {
     for kind in super::WORDS {
         let mut stated = settings(*kind, "m");
         stated.command = vec!["my-model".to_string()];
         assert_eq!(
-            stated.invocation().expect("configured").stripped_codex_home,
+            stated.invocation().expect("configured").private_home,
             *kind == Kind::Codex,
             "{}",
             kind.word()
@@ -166,7 +166,7 @@ fn a_custom_summarizer_is_the_operators_words_and_an_empty_one_is_no_summarizer(
         Some(Invocation {
             argv: custom.command.clone(),
             prompt_in_argv: false,
-            stripped_codex_home: false,
+            private_home: false,
         })
     );
     // A KNOWN TYPE IS CONFIGURED WITHOUT A COMMAND, which is the whole point

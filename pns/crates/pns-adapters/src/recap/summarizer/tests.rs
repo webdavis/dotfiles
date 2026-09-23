@@ -16,7 +16,7 @@ fn scripted(directory: &std::path::Path, name: &str, body: &str) -> Invocation {
     Invocation {
         argv: vec![path.display().to_string()],
         prompt_in_argv: false,
-        stripped_codex_home: false,
+        private_home: false,
     }
 }
 
@@ -62,7 +62,7 @@ fn a_missing_silent_refusing_or_hung_summarizer_each_names_its_own_failure() {
     let missing = Invocation {
         argv: vec![directory.join("not-installed").display().to_string()],
         prompt_in_argv: false,
-        stripped_codex_home: false,
+        private_home: false,
     };
     assert_eq!(
         run_summarizer(&missing, Duration::from_secs(5), "x"),
