@@ -89,7 +89,7 @@ impl pns_application::OpenWaits for Replay {
 impl RecapPublisher for Replay {
     type Started = ();
 
-    fn route(&self) -> String {
+    fn route(&self) -> Option<String> {
         panic!("post_window_recap is disabled");
     }
 

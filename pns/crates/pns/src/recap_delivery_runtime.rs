@@ -164,7 +164,7 @@ pub(crate) fn deliver_recap_card(
 /// event with no project and where every recap goes today. Filling the
 /// directory name in instead would send it to whatever channel happens to be
 /// mapped under that name, or the catch-all.
-fn recap_project() -> String {
+pub(crate) fn recap_project() -> String {
     let cwd = std::env::current_dir()
         .map(|path| path.display().to_string())
         .unwrap_or_default();

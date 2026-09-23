@@ -158,3 +158,73 @@ fn a_discord_log_carries_the_return_recap_and_hermes_is_never_handed_it() {
         events(&sandbox, "hermes")
     );
 }
+
+#[test]
+fn a_discord_card_names_the_channel_key_its_recap_posts_under() {
+    // THE RECAP TAKES ITS PROJECT FROM THE CHECKOUT IT WAS COMPOSED IN, and
+    // the Discord map tries that project's key before the default route's, so
+    // the card names the key the recap actually landed under.
+    let sandbox = Sandbox::new("recap-discord-pointer");
+    record_every_event(&sandbox);
+    sandbox.stub_channel(
+        "discord",
+        &format!("cat >>\"{}/discord.events\"", sandbox.display()),
+    );
+    sandbox.write_config(&DISCORD_LOG.replace(
+        "priority = \"2\"\n",
+        "priority = \"2\"\ndotfiles = \"3\"\npns-events = \"4\"\n",
+    ));
+    loud_window(&sandbox);
+    let checkout = checkout_named(&sandbox, "dotfiles");
+
+    run(present_event(&sandbox).current_dir(&checkout));
+
+    let (card, raised) = carded_recap(&sandbox);
+    assert!(
+        card["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.ends_with("recap in #dotfiles")),
+        "{raised:?}"
+    );
+    let recap = poll_until(|| {
+        events(&sandbox, "discord")
+            .into_iter()
+            .find(|event| event["state"] == "recap")
+    })
+    .unwrap_or_else(|| {
+        panic!(
+            "no recap reached discord: {:?}",
+            events(&sandbox, "discord")
+        )
+    });
+    assert_eq!(recap["project"], "dotfiles", "{recap:?}");
+}
+
+/// A repository with one empty commit, in a directory named `name` inside
+/// the sandbox.
+fn checkout_named(sandbox: &Sandbox, name: &str) -> std::path::PathBuf {
+    let checkout = sandbox.path(name);
+    std::fs::create_dir_all(&checkout).expect("the checkout directory");
+    for arguments in [
+        &["init", "--quiet"][..],
+        &["commit", "--quiet", "--allow-empty", "-m", "root"][..],
+    ] {
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&checkout)
+            .args(arguments)
+            // A HOOK EXPORTS GIT_DIR, which would point these at the real
+            // repository instead of the sandbox.
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@example.com")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@example.com")
+            .status()
+            .expect("git runs");
+        assert!(status.success(), "git {arguments:?}");
+    }
+    checkout
+}

@@ -93,9 +93,13 @@ impl pns_application::OpenWaits for CatchUp<'_> {
 impl pns_application::RecapPublisher for CatchUp<'_> {
     type Started = std::process::ChildStdin;
 
-    /// The recap child names no route, so it takes the default one.
-    fn route(&self) -> String {
-        self.delivery.routes.default_route().to_string()
+    fn route(&self) -> Option<String> {
+        recap_destination(
+            self.delivery.selection.durable_log(),
+            self.delivery.discord.channels(),
+            self.delivery.routes.default_route(),
+            crate::recap_delivery_runtime::recap_project,
+        )
     }
 
     fn publish(&self, since: u64, until: u64) -> Option<Self::Started> {
@@ -115,6 +119,26 @@ impl pns_application::ReplayDelivery for CatchUp<'_> {
         legs: &[pns_domain::routing::Leg],
     ) -> pns_application::ReplayHandoff {
         replay_handoff(self.delivery.submit(identity, event, legs, false, None))
+    }
+}
+
+/// Where the recap child posts, as the card names it: the default route for
+/// hermes, which ignores the project, and for the Discord bot the map key its
+/// lookup resolves on the empty route for the recap's own project.
+///
+/// THE PROJECT IS ONLY READ FOR DISCORD, because it costs a `git` spawn and
+/// hermes has no use for it. The child reads it off the same working
+/// directory, which it inherits from this process.
+fn recap_destination(
+    durable_log: Option<&str>,
+    channels: &pns_domain::channel_map::ChannelMap,
+    default_route: &str,
+    project: impl FnOnce() -> String,
+) -> Option<String> {
+    match durable_log? {
+        "discord" => pns_domain::channel_map::key_for(channels, "", &project(), default_route)
+            .map(str::to_string),
+        _ => Some(default_route.to_string()),
     }
 }
 

@@ -83,8 +83,8 @@ impl OpenWaits for Recorder {
 impl RecapPublisher for Recorder {
     type Started = ();
 
-    fn route(&self) -> String {
-        "logbook".to_string()
+    fn route(&self) -> Option<String> {
+        Some("logbook".to_string())
     }
 
     fn publish(&self, since: u64, until: u64) -> Option<Self::Started> {

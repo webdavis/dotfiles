@@ -106,7 +106,10 @@ where
                 &OpenWaits::open_waits(self.ports, since, until),
                 counted.len(),
                 claim.waiting.len(),
-                posted.then(|| RecapPublisher::route(self.ports)).as_deref(),
+                posted
+                    .then(|| RecapPublisher::route(self.ports))
+                    .flatten()
+                    .as_deref(),
             )
         } else if claim.waiting.is_empty() {
             ReturnMoment::complete(self.ports);
