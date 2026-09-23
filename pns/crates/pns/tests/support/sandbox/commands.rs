@@ -3,6 +3,9 @@ use super::Sandbox;
 use std::ffi::OsString;
 use std::process::Command;
 
+/// The system directories every sandbox command searches after its own `bin`.
+const SYSTEM_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
+
 impl Sandbox {
     /// The engine pointed at the stubs, with its state directory pinned inside
     /// this sandbox.
@@ -56,15 +59,15 @@ impl Sandbox {
         command
             .env("PNS_MOSHI_URL", "http://127.0.0.1:1/")
             .env("PNS_MOSHI_UPLOAD_URL", "http://127.0.0.1:1/");
-        // PATH survives because the binary resolves herdr and git through it.
-        // The sandbox's `bin` leads, so every banner, a failure notice
-        // included, reaches its recording `terminal-notifier` rather than a
-        // real macOS notification. A test's own stubs land in that same `bin`.
+        // PATH IS THE SANDBOX'S `bin` AND THE SYSTEM DIRECTORIES, never the
+        // developer's own. Every banner, a failure notice included, reaches the
+        // recording `terminal-notifier` in `bin`, and a detached recap child
+        // that outlives this sandbox finds no notifier at all once `Drop` has
+        // taken `bin`. `git` resolves from `/usr/bin`; `herdr` and `gh` are a
+        // test's stub in `bin` or absent.
         let mut path = OsString::from(self.path("bin"));
-        if let Some(inherited) = std::env::var_os("PATH") {
-            path.push(":");
-            path.push(inherited);
-        }
+        path.push(":");
+        path.push(SYSTEM_PATH);
         command.env("PATH", path);
         command
     }
