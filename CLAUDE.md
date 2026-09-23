@@ -323,17 +323,23 @@ Whole-file secrets use `age` encryption (identity at `~/.config/chezmoi/key.txt`
 ### System package management
 
 Packages are declared in `.chezmoidata/system_packages_autoinstall.yaml` under `packages.macos.homebrew`
-with keys `taps`, `formulae`, `casks` and `mas`, plus two siblings of `homebrew` under `packages.macos`:
-`uv` (uv tool installs, e.g. `graphifyy`, which provides the `graphify` CLI behind the post-commit
-dispatcher) and `fnm` (the node runtime plus the npm CLI tools that run on it, e.g. `@tobilu/qmd`,
-grouped under one `node` version; bump that one value to move every tool to a new LTS). fnm's
-`~/.local/share/fnm/aliases/default/bin` is a version-free path that LaunchAgents and the bashrc rely on.
-Gotcha: npm is an env-node script, so every scripted npm call must put that fnm dir first in PATH, or npm
-runs on whatever `node` PATH finds and installs into that node's prefix. One script,
-`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, consumes all of them: it generates a
-Brewfile from the data, runs `brew bundle`, then runs a guarded `brew bundle cleanup --force`.
-Prerequisite: `run_once_before_00-install-homebrew.sh.tmpl` runs the upstream installer when
-`command -v brew` finds nothing.
+with keys `taps`, `formulae`, `casks`, `mas` and `pinned`, plus two siblings of `homebrew` under
+`packages.macos`: `uv` (uv tool installs, e.g. `graphifyy`, which provides the `graphify` CLI behind the
+post-commit dispatcher) and `fnm` (the node runtime plus the npm CLI tools that run on it, e.g.
+`@tobilu/qmd`, grouped under one `node` version; bump that one value to move every tool to a new LTS).
+fnm's `~/.local/share/fnm/aliases/default/bin` is a version-free path that LaunchAgents and the bashrc
+rely on. Gotcha: npm is an env-node script, so every scripted npm call must put that fnm dir first in
+PATH, or npm runs on whatever `node` PATH finds and installs into that node's prefix. One script,
+`.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, consumes all of them except `pinned`:
+it generates a Brewfile from the data, runs `brew bundle`, then runs a guarded
+`brew bundle cleanup --force`. Prerequisite: `run_once_before_00-install-homebrew.sh.tmpl` runs the
+upstream installer when `command -v brew` finds nothing.
+
+`pinned` (formula to version) holds formulae `brew upgrade`, and so the weekly unattended job, must not
+move. `run_after_11-verify-homebrew-pins.sh.tmpl` pins each one on every apply and warns when the
+installed version drifts from the declared one. moshi-hook is the one entry today, and it moves through
+`just moshi-hook-upgrade`, which ends by asking for the declared version to be updated once the phone
+drills pass; editing the version alone upgrades nothing.
 
 Two behaviors of the cleanup stage matter. Cleanup is **withheld entirely** while `tmux` or `sesh` is
 still installed, because the herdr migration owns their teardown. And
@@ -352,6 +358,9 @@ there when `brew bundle` reports it as untrusted.
    (formulae, casks, taps, mas), maintaining alphabetical order.
 1. Remind the user to run `chezmoi apply` when appropriate. Do not run it directly; see the KeePassXC
    constraint above.
+
+A formula listed under `pinned` moves only through its own upgrade recipe, never
+`brew upgrade <formula>`, which Homebrew refuses on a pinned formula.
 
 ### macOS defaults management
 
