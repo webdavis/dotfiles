@@ -32,12 +32,7 @@ Then it names no command and takes the usage refusal, exit 2, like any other typ
 - Related: `docs/decisions/0008-the-bare-gate-spelling-exists-for-moshi.md` records the presence-gated
   pass-through this spelling used to reach, and why it was superseded.
 
-### 2. Only pns's own roster reaches moshi
-
-Every subcommand pns hands `moshi-hook` comes from behavior 4's closed roster, `claude-hook` and
-`codex-hook`, matched against pns's own configuration. No word from outside pns is passed through.
-
-### 3. The presence gate decides whether to forward at all
+### 2. The presence gate decides whether to forward at all
 
 Given the operator may be at their desk, on their phone, or away
 
@@ -88,14 +83,16 @@ already is the question.
 - Process ownership and cleanup: Not applicable, the presence check spawns no child of its own.
 - Compatibility contract: none, this is pns's own policy.
 
-### 4. Only a harness pns registered itself for is handed to moshi, on the hook path
+### 3. Only a harness pns registered itself for is handed to moshi, on the hook path
 
 Given the hook path learns which harness it is serving from `PNS_PRODUCER`, which arrives from a
 configuration file
 
 When `src/main.rs:blocking_event` decides whether to forward
 
-Then only `claude` and `codex` map to a subcommand, and anything else forwards nothing.
+Then only `claude` and `codex` map to a subcommand, `claude-hook` and `codex-hook`, matched against
+pns's own configuration; anything else forwards nothing and no word from outside pns is passed
+through.
 
 - Success: the default agent is `claude`, submitted as `claude-hook` (`src/main.rs:hook_mode`,
   `tests/hooks.rs:one_prompt_is_submitted_exactly_once_and_a_zero_answer_from_it_is_an_approve`).
@@ -116,9 +113,9 @@ Then only `claude` and `codex` map to a subcommand, and anything else forwards n
 - Privacy: Not applicable.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: this roster is pns's own, and it is the only source of a subcommand handed to
-  moshi (behavior 2).
+  moshi.
 
-### 5. The payload crosses byte for byte, or not at all
+### 4. The payload crosses byte for byte, or not at all
 
 Given this process has already consumed the harness's stdin, and a consumed-but-not-forwarded stream
 leaves moshi with an empty parse after which it silently does nothing
@@ -167,12 +164,12 @@ whether pns could parse them.
   exit and the thread holds nothing but its own buffer (`src/main.rs:read_payload`).
 - Idempotency and duplicates: one read, one write.
 - Privacy: the payload travels on the child's stdin, never argv and never the environment. That is the
-  same rule the moshi channel keeps for its token, see behavior 13.
-- Process ownership and cleanup: see behavior 6.
+  same rule the moshi channel keeps for its token, see behavior 12.
+- Process ownership and cleanup: see behavior 5.
 - Compatibility contract: byte-for-byte is a contract with moshi, whose parser is the only thing that
   reads the payload. The 1,000,000 byte cap is pns's own.
 
-### 6. Spawning the submission never blocks the notification
+### 5. Spawning the submission never blocks the notification
 
 Given `moshi-hook` may not read its stdin promptly, and a payload larger than a pipe buffer is ordinary
 
@@ -191,25 +188,25 @@ raised and before the one bounded wait.
   including the phone leg.
 - Thresholds: Not applicable to the spawn itself.
 - Required side effects: on the hook path only, a successful spawn sets `PNS_SKIP_PHONE=1` in this
-  process, see behavior 8.
+  process, see behavior 7.
 - Forbidden side effects: the write must not happen on the calling thread. A child that does not read its
   stdin must not be able to hold the notification, pinned by
   `tests/hooks.rs:a_moshi_that_never_reads_its_stdin_cannot_hold_the_notification` with a 200,000 byte
   payload, past the 64 kibibyte pipe buffer.
 - Timeout and cancellation: the writer thread is allowed to outlive a caller that stops waiting. It holds
   a pipe and a copy of the payload, and the process is on its way out (`src/main.rs:spawn_moshi_hook`).
-- Idempotency and duplicates: one spawn per invocation, see behavior 12.
+- Idempotency and duplicates: one spawn per invocation, see behavior 11.
 - Privacy: the child inherits the caller's whole environment, HOME included, because `moshi-hook`
   resolves its own host identity out of it. Pinned deliberately as a mechanism by
   `tests/hooks.rs:the_submission_inherits_the_callers_environment`.
 - Process ownership and cleanup: pns owns the direct child. Only stdin is piped, so the child's stdout
-  and stderr are pns's own inherited streams, see behavior 7.
+  and stderr are pns's own inherited streams, see behavior 6.
 - Compatibility contract: the binary's location is `PNS_MOSHI_HOOK_BIN` if set, else
   `src/main.rs:DEFAULT_MOSHI_HOOK_BIN`, which is `/opt/homebrew/bin/moshi-hook`, Homebrew's own prefix
   where the cask puts it. `src/main.rs:moshi_hook_bin` is the single lookup for every caller, and the
   override is how every test points a caller at a stub instead of at the operator's own moshi.
 
-### 7. The bounded wait, and what each exit code means
+### 6. The bounded wait, and what each exit code means
 
 Given `moshi-hook` writes one line to its daemon's socket and returns as soon as the daemon answers it,
 so a wait measured in minutes is never the operator taking their time but a daemon that stopped answering
@@ -306,7 +303,7 @@ Which of these are COMPATIBILITY CONTRACTS with a third-party tool we do not con
 - Exit 2 on a bare typo is pns's OWN convention, not a harness contract. It is only reachable when
   argv[1] names no command, which is never a hook invocation.
 
-### 8. The blocking hook notifies, and suppresses only the leg moshi is about to duplicate
+### 7. The blocking hook notifies, and suppresses only the leg moshi is about to duplicate
 
 Given moshi is about to raise the actionable card itself, so pns pushing to the phone too would be the
 same event twice
@@ -345,14 +342,14 @@ then the notification is raised.
   process minutes later that never inherits it, so the nudge reaches the phone the first card was
   suppressed from, deliberately (`src/main.rs`, line 4500). Suppression must not be applied by the
   delivery plan, because the card moshi is raising is something the surface model cannot know about.
-- Timeout and cancellation: inherited from behaviors 5 and 7.
+- Timeout and cancellation: inherited from behaviors 4 and 6.
 - Idempotency and duplicates: one event, one notification.
 - Privacy: the card carries the operator's own text. The detail fields that reach a rendered line are
   flattened by `src/hooks.rs:parse_payload`.
 - Process ownership and cleanup: Not applicable.
 - Compatibility contract: none, this is pns's own notification.
 
-### 9. The blocking hook writes nothing the harness could read as a decision
+### 8. The blocking hook writes nothing the harness could read as a decision
 
 Given Claude Code parses a `PermissionRequest` hook's STDOUT and decides off
 `hookSpecificOutput.decision` alone
@@ -380,11 +377,11 @@ Then pns prints exactly zero bytes to stdout on that path.
 - Idempotency and duplicates: Not applicable.
 - Privacy: Not applicable.
 - Process ownership and cleanup: the child's stdout is INHERITED, so moshi's own stdout is the hook's
-  stdout. That is the one thing that may legitimately appear there, see behavior 7.
+  stdout. That is the one thing that may legitimately appear there, see behavior 6.
 - Compatibility contract: yes, and it is the load-bearing one on this path. Stdout is a live channel that
   Claude Code parses, so pns's silence there is a contract with a harness we do not control.
 
-### 10. The blocked state markers
+### 9. The blocked state markers
 
 Given the lamps need to know which sessions are waiting on the operator, and the tick is the only sweeper
 
@@ -437,7 +434,7 @@ Then one marker file per waiting session is published, and a later event from th
   marker costs one lamp its colour and never a card.
 - Compatibility contract: none, these files are pns's own.
 
-### 11. The reminder armed with the wait
+### 10. The reminder armed with the wait
 
 Given an approval nobody answers should be nudged once, and the clock should start at the true prompt
 time
@@ -468,7 +465,7 @@ answered marker first.
   behavioral: Codex wires exactly Stop and PermissionRequest, so it has a turn-end clear and no
   batch-level one, and agent turns routinely run tens of minutes, which makes a Codex reminder wrong in
   the common case rather than at an edge.
-- Timeout and cancellation: the nudge is a separate process minutes later, see behavior 8's note on
+- Timeout and cancellation: the nudge is a separate process minutes later, see behavior 7's note on
   `PNS_SKIP_PHONE`.
 - Idempotency and duplicates: one card whatever the count. Three waiting approvals produce ONE nudge card
   that says three, which is the structural rate limit of at most one nudge per `after_secs`.
@@ -477,7 +474,7 @@ answered marker first.
   `tests/hooks.rs:arming_writes_nothing_the_harness_could_read_as_a_decision`.
 - Compatibility contract: none.
 
-### 12. One prompt, one submission
+### 11. One prompt, one submission
 
 Given a second submission would be a second card and a second answer to a question the operator was asked
 once
@@ -491,7 +488,7 @@ Then exactly one `moshi-hook` child is spawned for that prompt, however the wait
 - Failure sources: a retry after an expiry, or a design that made moshi "just another channel" so that
   high-volume events swept into the submission path.
 - Fail direction: fail toward NOT submitting. Two submissions is the direction that cannot be undone.
-- Thresholds: an expiry submits nothing further, asserted inside the bound test of behavior 7.
+- Thresholds: an expiry submits nothing further, asserted inside the bound test of behavior 6.
 - Required side effects: none.
 - Forbidden side effects: no non-blocking event may ever spawn a submission. `stop`, `stop-failure`,
   `asked`, `plan-ready` and `denied` are all pinned with the stub as a tripwire, run AWAY so the presence
@@ -501,15 +498,15 @@ Then exactly one `moshi-hook` child is spawned for that prompt, however the wait
   `tests/hooks.rs:a_denial_never_pays_for_the_approval_round_trip_and_still_exits_zero`. A denial in
   particular is terminal news and not a question: the decision has already been taken, and a card
   offering Allow and Deny would be answering a closed question no prompt is listening to.
-- Timeout and cancellation: see behavior 7.
+- Timeout and cancellation: see behavior 6.
 - Idempotency and duplicates: this behavior IS the duplicate rule. The counting helper
   `tests/hooks.rs:submissions` appends one line per spawn, so a second submitter is visible rather than
   hidden behind a last-write-wins record.
 - Privacy: Not applicable.
-- Process ownership and cleanup: see behavior 6.
+- Process ownership and cleanup: see behavior 5.
 - Compatibility contract: single-submitter is a rule about the PROMPT.
 
-### 13. The approval card
+### 12. The approval card
 
 Given the operator answers from their phone
 
@@ -532,7 +529,7 @@ one that is suppressed.
   `ReportOutcome` is produced only under `--remote-only` and this plugin is not durable.
 - Thresholds: `src/channels/moshi.rs:POST_DEADLINE` is 10 seconds for one post. Nobody waits on the
   answer and nothing is retried, so it only bounds how long the process lingers. This is a DIFFERENT
-  deadline from the submission bound in behavior 7 and must not be confused with it.
+  deadline from the submission bound in behavior 6 and must not be confused with it.
 - Required side effects: the card body carries `token`, `title` and `message` (the preview, because the
   phone card has a length ceiling the full message ignores), plus an optional `data` object holding
   `type` of `url` and the deep link `moshi://herdr?pane=<pane>` (`src/channels/moshi.rs:webhook_body`,
@@ -560,7 +557,7 @@ one that is suppressed.
   matching server session and workspace, else resumes the most recently minimized card for that session,
   and with no card matching at all it shows an error rather than opening a connection.
 
-### 14. What the round trip is NOT
+### 13. What the round trip is NOT
 
 Given a comment in this crate once claimed the exit code was the operator's decision, which sent one
 whole slice off designing against a wait that does not exist
@@ -581,9 +578,9 @@ Then the exit code is moshi's acknowledgement of a SUBMISSION, never the operato
 - Required side effects: Not applicable.
 - Forbidden side effects: pns must not invent a decision. Inventing one here would put pns's own word
   into a channel that is moshi's (doc comment on `src/main.rs:hook_mode`).
-- Timeout and cancellation: see behavior 7.
-- Idempotency and duplicates: see behavior 12.
+- Timeout and cancellation: see behavior 6.
+- Idempotency and duplicates: see behavior 11.
 - Privacy: Not applicable.
-- Process ownership and cleanup: see behaviors 6 and 7.
+- Process ownership and cleanup: see behaviors 5 and 6.
 - Compatibility contract: this is the reason every forwarded code is passed through untouched. A harness
   that reads the hook's exit code is entitled to whatever moshi said, and pns has no standing to edit it.
