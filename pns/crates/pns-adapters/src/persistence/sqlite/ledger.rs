@@ -76,6 +76,28 @@ impl SqliteStore {
         self.failing(|connection| failing::retry_facts(connection, id))
     }
 
+    /// [`retry_facts`](Self::retry_facts) for every id in `ids`, in one
+    /// connection rather than one per id: a page listing N retrying legs
+    /// otherwise opened N read-only connections just to lay itself out. An
+    /// id the ledger has no facts for is simply absent from the map.
+    pub fn retry_facts_many(
+        &self,
+        ids: &[u64],
+    ) -> Result<std::collections::HashMap<u64, RetryFacts>, LedgerFailure> {
+        self.failing(|connection| {
+            let mut out = std::collections::HashMap::with_capacity(ids.len());
+            for &id in ids {
+                let Ok(signed) = i64::try_from(id) else {
+                    continue;
+                };
+                if let Some(facts) = failing::retry_facts(connection, signed)? {
+                    out.insert(id, facts);
+                }
+            }
+            Ok(out)
+        })
+    }
+
     /// Acknowledges every dead-lettered failing leg and answers how many it
     /// cleared, which is the only way a leg the retry policy gave up on leaves
     /// `pns failures`.

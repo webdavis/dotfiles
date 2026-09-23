@@ -156,3 +156,32 @@ fn retry_facts_for_an_unknown_id_is_absent_rather_than_an_error() {
     let (store, _) = failed(404, "one");
     assert_eq!(store.retry_facts(9_999).unwrap(), None);
 }
+
+/// `retry_facts_many` answers the same facts `retry_facts` would for each
+/// id, in one connection: a listing page must not open one per row.
+#[test]
+fn retry_facts_many_answers_every_known_id_and_omits_the_rest() {
+    let store = SqliteStore::new(state());
+    let input = remote_input();
+    let claims = created(&store, &input);
+    store
+        .record(
+            &claims[0].claim,
+            &pns_domain::Delivery::Failed("first try".into()),
+            11,
+            Default::default(),
+        )
+        .unwrap();
+    let failure = store.failing_legs(20).unwrap().remove(0);
+    let expected = store.retry_facts(failure.id).unwrap().expect("the facts");
+
+    let many = store
+        .retry_facts_many(&[failure.id, 9_999])
+        .expect("a readable ledger");
+    assert_eq!(many.get(&failure.id), Some(&expected));
+    assert_eq!(
+        many.len(),
+        1,
+        "the unknown id is absent, not a zeroed entry"
+    );
+}

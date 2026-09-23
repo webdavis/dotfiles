@@ -22,7 +22,7 @@ pub use click::{ClickView, ID_PLACEHOLDER, click_command, parse_view};
 pub use fix::{NotificationSurface, Surface};
 pub use meaning::{
     DESTINATION_HERMES, DESTINATION_PHONE, HERMES_KEYS_TABLE, PHONE_TOKEN, capitalized, headline,
-    hermes_key_named,
+    headline_names_destination, hermes_key_named,
 };
 pub use notify::warrants_notification;
 pub use render::{fields, full, notification};

@@ -96,6 +96,14 @@ pub fn headline(outcome: TransportOutcome, destination: &str) -> String {
     }
 }
 
+/// Whether `headline()`'s own words already name the destination, matching
+/// its two branches above that embed `destination` against the one that
+/// does not. A caller laying out a destination line beneath the headline
+/// uses this to skip it where it would only repeat the headline.
+pub fn headline_names_destination(outcome: TransportOutcome) -> bool {
+    !matches!(outcome, TransportOutcome::NoStatus)
+}
+
 /// The first letter of `word`, uppercased; the rest, untouched. Reused for
 /// both a destination name ("phone" to "Phone") and a status word ("bad URL"
 /// to "Bad URL"), which is the same transform either way: only the sentence

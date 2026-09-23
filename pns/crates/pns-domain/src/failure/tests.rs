@@ -378,3 +378,18 @@ fn headline_names_the_destination_or_the_status_word() {
         "Bad URL"
     );
 }
+
+/// `headline_names_destination` agrees with `headline`'s own two branches
+/// that embed the destination, and its one that does not.
+#[test]
+fn headline_names_destination_agrees_with_headlines_own_branches() {
+    assert!(meaning::headline_names_destination(
+        TransportOutcome::NoResponse
+    ));
+    assert!(meaning::headline_names_destination(
+        TransportOutcome::Status(500)
+    ));
+    assert!(!meaning::headline_names_destination(
+        TransportOutcome::NoStatus
+    ));
+}
