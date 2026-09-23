@@ -64,6 +64,7 @@ fn submit_reading(args: &[String], input: impl std::io::Read, output: impl std::
                 &|table, lights, flash, presence| {
                     fire_pulse_for_event(table, lights, flash, presence)
                 },
+                &SystemCommandRunner,
                 Some(producer),
             )
         })

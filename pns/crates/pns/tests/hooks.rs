@@ -138,7 +138,6 @@ impl HookStubs for Sandbox {
             &bin.join("codex"),
             &format!("cat >/dev/null; printf '%s\\n' '{line}'"),
         );
-        prepend_path(command, &bin);
         command.env("PNS_CODEX_BIN", bin.join("codex"));
         command.env("PNS_CODEX_HOME", self.path("codex-home"));
     }
@@ -203,13 +202,6 @@ fn approval(sandbox: &Sandbox, exit_code: i32) -> Command {
     let mut command = sandbox.pns();
     sandbox.stub_moshi(&mut command, exit_code);
     command
-}
-
-fn prepend_path(command: &mut Command, directory: &std::path::Path) {
-    let mut path = std::ffi::OsString::from(directory);
-    path.push(":");
-    path.push(std::env::var_os("PATH").unwrap_or_default());
-    command.env("PATH", path);
 }
 
 // --- nothing may hang -------------------------------------------------------

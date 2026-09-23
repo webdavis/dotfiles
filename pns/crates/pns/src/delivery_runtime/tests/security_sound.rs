@@ -82,6 +82,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
             let selection = registry.all();
             let mut destinations = Destinations::new();
             destinations.register(banner).unwrap();
+            let failure_notifier = crate::runtime_test_support::RecordingNotifier::default();
             let runtime = DeliveryRuntime {
                 store: &store,
                 selection: &selection,
@@ -91,6 +92,7 @@ fn security_sound_survives_retained_and_unretained_delivery() {
                 discord: &pns_adapters::DiscordSettings::default(),
                 routes: &pns_domain::routes::Routes::default(),
                 json: false,
+                notifier: &failure_notifier,
             };
             let event = EventArgs {
                 state: state.into(),

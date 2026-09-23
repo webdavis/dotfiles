@@ -176,10 +176,6 @@ fn a_stuck_multiplexer_leaves_the_view_unreadable_rather_than_blocking() {
     write_script(&bin.join("herdr"), "sleep 30");
     let mut command = sandbox.pns();
     command.env("PNS_SCREEN_IDLE", "0");
-    let mut path = std::ffi::OsString::from(&bin);
-    path.push(":");
-    path.push(std::env::var_os("PATH").unwrap_or_default());
-    command.env("PATH", path);
     let mut child = spawn_hook(command, "stop");
     write_payload(
         &mut child,
