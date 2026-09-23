@@ -7,7 +7,7 @@ use std::process::Command;
 const UNSERVED_URL: &str = "http://127.0.0.1:1/";
 
 /// The system directories every sandbox command searches after its own `bin`.
-const SYSTEM_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
+pub(super) const SYSTEM_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
 
 impl Sandbox {
     /// The engine pointed at the stubs, with its state directory pinned inside

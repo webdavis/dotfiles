@@ -4,6 +4,7 @@
 
 mod support;
 
+use std::process::Command;
 use support::{Sandbox, plugin_command, run, stdout};
 
 #[test]
@@ -37,6 +38,26 @@ fn with_the_sandbox_bin_gone_a_banner_reaches_no_notifier_at_all() {
     assert!(
         printed.contains("banner: FAILED"),
         "the banner found a notifier outside the sandbox: {printed}"
+    );
+}
+
+#[test]
+fn a_stub_on_a_command_with_no_path_searches_only_the_sandbox_path() {
+    let sandbox = Sandbox::new("fence-stub-no-path");
+    let mut command = Command::new("/usr/bin/true");
+    sandbox.stub_on_path(&mut command, "herdr", "exit 0");
+    let path = command
+        .get_envs()
+        .find(|(key, _)| *key == "PATH")
+        .and_then(|(_, value)| value)
+        .and_then(|value| value.to_str())
+        .map(str::to_owned);
+    assert_eq!(
+        path,
+        Some(format!(
+            "{}:/usr/bin:/bin:/usr/sbin:/sbin",
+            sandbox.path("bin").display()
+        ))
     );
 }
 

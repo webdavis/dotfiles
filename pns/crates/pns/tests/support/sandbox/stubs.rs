@@ -1,5 +1,6 @@
 use super::super::write_script;
 use super::Sandbox;
+use super::commands::SYSTEM_PATH;
 use std::ffi::OsString;
 use std::process::Command;
 
@@ -38,7 +39,8 @@ esac"#
         );
     }
 
-    /// A stub binary of that name, first on PATH.
+    /// A stub binary of that name, first on PATH. A command with no PATH of its
+    /// own gets the sandbox's system directories behind it.
     pub fn stub_on_path(&self, command: &mut Command, name: &str, body: &str) {
         let stub_bin = self.path("bin");
         std::fs::create_dir_all(&stub_bin).expect("stub bin");
@@ -51,7 +53,7 @@ esac"#
                 .find(|(key, _)| *key == "PATH")
                 .and_then(|(_, value)| value)
                 .map(OsString::from)
-                .unwrap_or_else(|| std::env::var_os("PATH").unwrap_or_default()),
+                .unwrap_or_else(|| OsString::from(SYSTEM_PATH)),
         );
         command.env("PATH", path);
     }
