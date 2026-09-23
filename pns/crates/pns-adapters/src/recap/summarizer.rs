@@ -44,6 +44,10 @@ pub fn run_summarizer(
     let (program, arguments) = argv.split_first().ok_or(Failure::Silent)?;
     let mut command = Command::new(program);
     command.args(arguments);
+    // A HOME THAT CANNOT BE MADE is a backend that could not be started.
+    if invocation.stripped_codex_home {
+        crate::codex::isolate(&mut command).ok_or(Failure::Unstarted)?;
+    }
     command
         .stdin(match invocation.prompt_in_argv {
             true => std::process::Stdio::null(),

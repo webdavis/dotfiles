@@ -633,7 +633,7 @@ Then it spawns Codex against a private stripped home with a fixed prompt, bounde
 - Required side effects: `summarizer_home` creates the home 0700 and, only when absent, writes
   `config.toml` 0600 with `create_new` containing `model = "gpt-5.5"\nmodel_reasoning_effort = "low"\n`;
   it then removes and re-creates `auth.json` as a symbolic link to `$HOME/.codex/auth.json`. The command
-  is `codex exec --ephemeral --skip-git-repo-check -C <home> -s read-only -` with `PNS_SUMMARIZING=1` and
+  is `codex exec --skip-git-repo-check --ephemeral -s read-only -C <home> -` with `PNS_SUMMARIZING=1` and
   `CODEX_HOME=<home>` in its environment (`src/main.rs:summarize`, `src/main.rs:summarizer_home`).
   `PNS_CODEX_BIN` and `PNS_CODEX_HOME` override the binary and the home.
 - Forbidden side effects: no pns-to-Codex-to-pns loop. The stripped home installs no hooks or plugins at

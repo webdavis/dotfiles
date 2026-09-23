@@ -8,7 +8,8 @@
 //!
 //! COMPOSITION IS POLICY AND LIVES HERE, which is what lets the golden test
 //! pin every known type's vector as a plain call with no process in it. The
-//! adapter beside it only spawns what this composed.
+//! adapter beside it spawns what this composed, adding only the stripped Codex
+//! home's path when the invocation asks for it.
 
 use std::time::Duration;
 
@@ -98,6 +99,9 @@ pub struct Invocation {
     pub argv: Vec<String>,
     /// Whether the prompt is appended to `argv` rather than written to stdin.
     pub prompt_in_argv: bool,
+    /// Whether the adapter runs this in pns's stripped Codex home: ephemeral,
+    /// read-only and with no hooks, the way the turn summarizer runs.
+    pub stripped_codex_home: bool,
 }
 
 impl Settings {
@@ -116,6 +120,11 @@ impl Settings {
     /// what keep thinking, word wrapping and terminal control bytes out of the
     /// answer; and `hermes chat -Q -t ""` prints the answer alone, with its
     /// session line on stderr and its toolset empty so the query runs no tool.
+    ///
+    /// NEITHER HARNESS RUNS THE OPERATOR'S HOOKS, or a summary would fire
+    /// pns's own Stop hook about itself. VERIFIED 2026-09-22 on claude 2.1.280
+    /// and codex 0.156.0: `claude --safe-mode` ran no settings hook where the
+    /// same run without it ran two, and `--tools ""` leaves it no tool.
     pub fn invocation(&self) -> Option<Invocation> {
         let model = |flag: &str| match self.model.is_empty() {
             true => Vec::new(),
@@ -128,8 +137,12 @@ impl Settings {
         };
         Some(match self.kind {
             Kind::Claude => Invocation {
-                argv: words(&["claude", "-p"], model("--model")),
+                argv: words(
+                    &["claude", "-p", "--safe-mode", "--tools", ""],
+                    model("--model"),
+                ),
                 prompt_in_argv: false,
+                stripped_codex_home: false,
             },
             Kind::Codex => Invocation {
                 argv: words(
@@ -137,6 +150,7 @@ impl Settings {
                     model("-m"),
                 ),
                 prompt_in_argv: false,
+                stripped_codex_home: true,
             },
             Kind::Ollama => Invocation {
                 argv: words(
@@ -149,6 +163,7 @@ impl Settings {
                     ],
                 ),
                 prompt_in_argv: false,
+                stripped_codex_home: false,
             },
             Kind::Hermes => Invocation {
                 argv: words(&["hermes", "chat", "-Q", "-t", ""], {
@@ -157,11 +172,13 @@ impl Settings {
                     tail
                 }),
                 prompt_in_argv: true,
+                stripped_codex_home: false,
             },
             Kind::Custom if self.command.is_empty() => return None,
             Kind::Custom => Invocation {
                 argv: self.command.clone(),
                 prompt_in_argv: false,
+                stripped_codex_home: false,
             },
         })
     }

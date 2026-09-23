@@ -437,7 +437,9 @@ retain = "720h"
 # flag one of them moves is a pns release rather than an edit here.
 # `custom` is the escape hatch and reads `command` below. The shipped
 # value is `custom` with no command, which is NO SUMMARIZER AT ALL and
-# a working setting: the recap is its mechanical sections.
+# a working setting: the recap is its mechanical sections. Neither
+# claude nor codex runs your hooks: claude runs in safe mode with no
+# tools, and codex runs read-only in pns's own stripped Codex home.
 type = "custom"
 # The argument vector `type = "custom"` runs: ARGV, NEVER A SHELL
 # STRING, handed the prompt on stdin and answering on stdout. Stating it

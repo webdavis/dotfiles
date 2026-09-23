@@ -13,21 +13,16 @@ pub fn summarize(reply: &str) -> (String, String) {
     if std::env::var("PNS_SUMMARIZING").is_ok() {
         return fallback();
     }
-    let user_home = std::env::var("HOME").unwrap_or_default();
-    let Some(home) = summarizer_home(&user_home, std::env::var("PNS_CODEX_HOME").ok().as_deref())
-    else {
-        return fallback();
-    };
     let codex = std::env::var("PNS_CODEX_BIN").unwrap_or_else(|_| "codex".to_string());
     let mut command = Command::new(&codex);
-    command
-        .args(["exec", "--ephemeral", "--skip-git-repo-check", "-C"])
-        .arg(&home)
-        .args(["-s", "read-only", "-"])
-        .env("PNS_SUMMARIZING", "1")
-        .env("CODEX_HOME", &home);
+    command.args(["exec", "--skip-git-repo-check"]);
+    if isolate(&mut command).is_none() {
+        return fallback();
+    }
+    command.arg("-");
     // THE CONFIG FILE IS READ HERE rather than threaded through the hook
     // path, the way `state_dir` reads it for the same reason.
+    let user_home = std::env::var("HOME").unwrap_or_default();
     let deadline = turn_deadline(crate::install_settings(&user_home).summarizer_deadline);
     match run_bounded(
         command,
@@ -41,6 +36,20 @@ pub fn summarize(reply: &str) -> (String, String) {
         Some((state, summary)) => (state, summary.trim().to_string()),
         None => fallback(),
     }
+}
+/// Point a `codex exec` command at the stripped home below: ephemeral, in a
+/// read-only sandbox and marked as a summarizer run. Both the turn summarizer
+/// and the recap's `codex` kind run through this. None when the home cannot be
+/// made.
+pub(crate) fn isolate(command: &mut Command) -> Option<()> {
+    let user_home = std::env::var("HOME").unwrap_or_default();
+    let home = summarizer_home(&user_home, std::env::var("PNS_CODEX_HOME").ok().as_deref())?;
+    command
+        .args(["--ephemeral", "-s", "read-only", "-C"])
+        .arg(&home)
+        .env("PNS_SUMMARIZING", "1")
+        .env("CODEX_HOME", &home);
+    Some(())
 }
 /// A private, stripped Codex home: a minimal config (fast model, low
 /// reasoning) and the live auth symlinked, with NO hooks or plugins. That cuts

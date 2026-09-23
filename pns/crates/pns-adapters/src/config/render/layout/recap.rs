@@ -168,7 +168,9 @@ pub(super) const RECAP_SUMMARIZER: Table = Table {
                          # flag one of them moves is a pns release rather than an edit here.\n\
                          # `custom` is the escape hatch and reads `command` below. The shipped\n\
                          # value is `custom` with no command, which is NO SUMMARIZER AT ALL and\n\
-                         # a working setting: the recap is its mechanical sections.\n",
+                         # a working setting: the recap is its mechanical sections. Neither\n\
+                         # claude nor codex runs your hooks: claude runs in safe mode with no\n\
+                         # tools, and codex runs read-only in pns's own stripped Codex home.\n",
             sample: Sample::Default("\"custom\""),
         },
         Key {
