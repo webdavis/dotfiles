@@ -4,6 +4,7 @@ import io
 import json
 import os
 import shlex
+import signal
 import sys
 import tempfile
 import unittest
@@ -135,14 +136,34 @@ class RuntimeTests(unittest.TestCase):
         with (
             patch("runtime.window.subprocess.Popen") as start,
             patch("runtime.window.subprocess.run", side_effect=FileNotFoundError),
+            patch("os.killpg") as stop,
         ):
             producer = start.return_value
             producer.poll.return_value = None
             with self.assertRaises(FileNotFoundError):
                 select(["missing-fzf"], self.state, self.session, ENTRY)
             producer.stdout.close.assert_called_once()
-            producer.terminate.assert_called_once()
+            stop.assert_called_once_with(producer.pid, signal.SIGKILL)
+            self.assertTrue(start.call_args.kwargs["start_new_session"])
             producer.wait.assert_called_once()
+
+    def test_selection_cleans_descendants_even_after_the_producer_exits(self):
+        from runtime.window import select
+
+        for stop_error in (None, ProcessLookupError):
+            with (
+                self.subTest(stop_error=stop_error),
+                patch("runtime.window.subprocess.Popen") as start,
+                patch("runtime.window.subprocess.run") as selector,
+                patch("os.killpg", side_effect=stop_error) as stop,
+            ):
+                producer = start.return_value
+                producer.poll.return_value = 0
+                result = select(["fzf"], self.state, self.session, ENTRY)
+                self.assertIs(result, selector.return_value)
+                stop.assert_called_once_with(producer.pid, signal.SIGKILL)
+                self.assertTrue(start.call_args.kwargs["start_new_session"])
+                producer.wait.assert_called_once()
 
     def test_cancellation_returns_no_action(self):
         self.fake_fzf(cancel=True)

@@ -1,3 +1,5 @@
+import os
+import signal
 import subprocess
 import sys
 
@@ -75,11 +77,14 @@ def select(args, state, session, entrypoint):
     producer = subprocess.Popen(
         [sys.executable, str(entrypoint), "rows", str(session), state.get("query", "")],
         stdout=subprocess.PIPE,
+        start_new_session=True,
     )
     try:
         return subprocess.run(args, stdin=producer.stdout, stdout=subprocess.PIPE)
     finally:
         producer.stdout.close()
-        if producer.poll() is None:
-            producer.terminate()
+        try:
+            os.killpg(producer.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         producer.wait()
