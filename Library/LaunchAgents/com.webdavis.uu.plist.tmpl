@@ -17,6 +17,10 @@
     <string>{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin:{{ .chezmoi.homeDir }}/.cargo/bin:{{ .chezmoi.homeDir }}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>HOME</key>
     <string>{{ .chezmoi.homeDir }}</string>
+    <!-- The shell exports this too, so Homebrew finds the tap trust store in
+         the same place for the weekly job as for the operator. -->
+    <key>XDG_CONFIG_HOME</key>
+    <string>{{ .chezmoi.homeDir }}/.config</string>
   </dict>
   <key>RunAtLoad</key>
   <false/>
