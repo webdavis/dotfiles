@@ -13,8 +13,8 @@ refuses to write through, reads the clock once per request, and adds one route a
 page. Each page is one pull request, in the order below, after the failures page pull request.
 
 **Tech Stack:** Rust 2024 in the `pns/` cargo workspace (`pns`, `pns-adapters`, `pns-application`,
-`pns-domain`), `rusqlite`, `serde_json` for herdr's answers, `toml` for config. No new dependency.
-Gates: `just test-rust`, `just lint-check`, `just test-unit`.
+`pns-domain`), `rusqlite`, `serde_json` for herdr's answers, `toml` for config. No new dependency. Gates:
+`just test-rust`, `just lint-check`, `just test-unit`.
 
 **Spec:** `docs/superpowers/specs/2026-09-23-pns-served-pages-design.md`
 
@@ -32,20 +32,20 @@ Gates: `just test-rust`, `just lint-check`, `just test-unit`.
 - The site reads through `SqliteStore::viewer` only (spec D3).
 - Rust files: 300 lines target, 500 hard cap, tests included. Count with the file-size command in
   `~/.agents/skills/clean-code-rust/SKILL.md`, never `tokei`.
-- Tests first: each task states its red test, and the test is run and seen failing for the stated
-  reason before the implementation is written. A pure move owes the existing tests green before and
-  after, listed by name.
+- Tests first: each task states its red test, and the test is run and seen failing for the stated reason
+  before the implementation is written. A pure move owes the existing tests green before and after,
+  listed by name.
 - No cargo workspace depends on another; pns ships no bash.
 - Each page is its own small pull request. Pages 1 and 2 go first. Every pull request lands after the
-  failures page pull request (`feat/pns-failures-page-timeline`), which owns the shell, the router and the
-  index row pattern. Page 1 also lands after pull request 924 (`fix/pns-return-card-lists-open-waits`),
-  whose `open_waits` it reads.
+  failures page pull request (`feat/pns-failures-page-timeline`), which owns the shell, the router and
+  the index row pattern. Page 1 also lands after pull request 924
+  (`fix/pns-return-card-lists-open-waits`), whose `open_waits` it reads.
 - No em-dashes anywhere. Docs never mention agents, reviews or how a change was produced. Comments say
   what the code does or why.
 - Conventional commits, `SKIP_AI_COMMIT=1`, no AI co-author trailer. No `rm` (use `trash`), no
   `git checkout .`, no `git checkout -- <file>`, no reset, no stash, no force push, no `chezmoi apply`.
-- Never run `pns` against the real state directory. Served-page tests bind an OS-assigned port and read
-  a sandbox state directory built by the test.
+- Never run `pns` against the real state directory. Served-page tests bind an OS-assigned port and read a
+  sandbox state directory built by the test.
 - Every pull request ends with `just test-rust`, `just lint-check` and `just test-unit` green, exit codes
   reported.
 - The failures page pull request adds three UTC formatters beside `utc_timestamp` in
@@ -53,8 +53,7 @@ Gates: `just test-rust`, `just lint-check`, `just test-unit`.
   `utc_day(epoch, now) -> String` (`Today`, `Yesterday`, `Sep 20`) and `utc_long(epoch) -> String`
   (`September 23, 2026 at 03:20 UTC`). Task 1.1 exports them under exactly these names, renaming in its
   pure-move commit if the failures pull request spelled them otherwise.
-- The fixture clock every test in this plan uses is `NOW = 1_790_139_720`, which is
-  2026-09-23T05:02:00Z.
+- The fixture clock every test in this plan uses is `NOW = 1_790_139_720`, which is 2026-09-23T05:02:00Z.
 
 ## The inputs most likely to bite
 
@@ -71,45 +70,45 @@ Gates: `just test-rust`, `just lint-check`, `just test-unit`.
   and lists nothing, rather than listing pns's never-swept session rows as live. Pinned by Task 5.1 and
   Task 5.3.
 
----
+______________________________________________________________________
 
 ## File Structure
 
 New files across all seven pull requests, in `pns/crates/`:
 
-| File | Pull request | Responsibility |
-| --- | --- | --- |
-| `pns/src/site.rs` (moved) | 1 | bind, serve loop, request timeout, `Target`, `answer` |
-| `pns/src/site/shell.rs` (moved) | 1 | the CSS constant, `page()`, the footer, `escaped()`, tone classes |
-| `pns/src/site/index.rs` (moved) | 1 | the index rows and their markup |
-| `pns/src/site/failures.rs` (moved) | 1 | the failures listing and record pages |
-| `pns/src/view.rs` | 1 | `Sources` (what a view reads) and `Summary` (what the index shows) |
-| `pns/src/command_waiting.rs` | 1 | `pns waiting`: value builder, terminal renderer, summary |
-| `pns/src/site/waiting.rs` | 1 | the Waiting on you page |
-| `pns/src/site/health.rs` | 2 | the Health page |
-| `pns/src/command_recap/history.rs` | 3 | `pns recap history`: value builder and terminal renderer |
-| `pns/src/site/recap.rs` | 3 | the Recap page |
-| `pns/src/command_now.rs`, `command_now/preview.rs` | 4 | `pns now` and the per-state delivery preview |
-| `pns/src/live_overrides.rs` | 4 | the override assembly the event path and `pns now` share |
-| `pns/src/site/now.rs` | 4 | the Right now page |
-| `pns-adapters/src/protocols/markers/leases.rs` | 4 | `live_leases`, the read-only lease listing |
-| `pns-adapters/src/herdr/panes.rs` | 5 | `parse_agent_panes` over `herdr pane list` |
-| `pns-adapters/src/persistence/sqlite/session_facts.rs` | 5 | `session_facts` |
-| `pns-domain/src/sessions.rs` | 5 | herdr status words, their order and chips |
-| `pns/src/command_sessions.rs` | 5 | `pns sessions` |
-| `pns/src/site/sessions.rs` | 5 | the Sessions page |
-| `pns-adapters/src/persistence/sqlite/ledger/deliveries.rs` | 6 | `deliveries_since` |
-| `pns-domain/src/retry/delivered.rs` | 6 | `LegOutcome`, the event verdict, the destination summary |
-| `pns/src/command_deliveries.rs` | 6 | `pns deliveries` |
-| `pns/src/site/deliveries.rs` | 6 | the Deliveries page |
-| `pns-adapters/src/config/secrets.rs` | 7 | `SECRET_KEYS`, `SECRET_TABLES` |
-| `pns-adapters/src/config/disclosure.rs` | 7 | `disclosed`, `SHOWN_PLUGIN_KEYS` |
-| `pns/src/command_config.rs` | 7 | `pns config show` |
-| `pns/src/site/config.rs` | 7 | the Config as loaded page |
+| File                                                       | Pull request | Responsibility                                                     |
+| ---------------------------------------------------------- | ------------ | ------------------------------------------------------------------ |
+| `pns/src/site.rs` (moved)                                  | 1            | bind, serve loop, request timeout, `Target`, `answer`              |
+| `pns/src/site/shell.rs` (moved)                            | 1            | the CSS constant, `page()`, the footer, `escaped()`, tone classes  |
+| `pns/src/site/index.rs` (moved)                            | 1            | the index rows and their markup                                    |
+| `pns/src/site/failures.rs` (moved)                         | 1            | the failures listing and record pages                              |
+| `pns/src/view.rs`                                          | 1            | `Sources` (what a view reads) and `Summary` (what the index shows) |
+| `pns/src/command_waiting.rs`                               | 1            | `pns waiting`: value builder, terminal renderer, summary           |
+| `pns/src/site/waiting.rs`                                  | 1            | the Waiting on you page                                            |
+| `pns/src/site/health.rs`                                   | 2            | the Health page                                                    |
+| `pns/src/command_recap/history.rs`                         | 3            | `pns recap history`: value builder and terminal renderer           |
+| `pns/src/site/recap.rs`                                    | 3            | the Recap page                                                     |
+| `pns/src/command_now.rs`, `command_now/preview.rs`         | 4            | `pns now` and the per-state delivery preview                       |
+| `pns/src/live_overrides.rs`                                | 4            | the override assembly the event path and `pns now` share           |
+| `pns/src/site/now.rs`                                      | 4            | the Right now page                                                 |
+| `pns-adapters/src/protocols/markers/leases.rs`             | 4            | `live_leases`, the read-only lease listing                         |
+| `pns-adapters/src/herdr/panes.rs`                          | 5            | `parse_agent_panes` over `herdr pane list`                         |
+| `pns-adapters/src/persistence/sqlite/session_facts.rs`     | 5            | `session_facts`                                                    |
+| `pns-domain/src/sessions.rs`                               | 5            | herdr status words, their order and chips                          |
+| `pns/src/command_sessions.rs`                              | 5            | `pns sessions`                                                     |
+| `pns/src/site/sessions.rs`                                 | 5            | the Sessions page                                                  |
+| `pns-adapters/src/persistence/sqlite/ledger/deliveries.rs` | 6            | `deliveries_since`                                                 |
+| `pns-domain/src/retry/delivered.rs`                        | 6            | `LegOutcome`, the event verdict, the destination summary           |
+| `pns/src/command_deliveries.rs`                            | 6            | `pns deliveries`                                                   |
+| `pns/src/site/deliveries.rs`                               | 6            | the Deliveries page                                                |
+| `pns-adapters/src/config/secrets.rs`                       | 7            | `SECRET_KEYS`, `SECRET_TABLES`                                     |
+| `pns-adapters/src/config/disclosure.rs`                    | 7            | `disclosed`, `SHOWN_PLUGIN_KEYS`                                   |
+| `pns/src/command_config.rs`                                | 7            | `pns config show`                                                  |
+| `pns/src/site/config.rs`                                   | 7            | the Config as loaded page                                          |
 
 Every new test module sits beside its file as `<file>/tests.rs` under `#[cfg(test)] mod tests;`.
 
----
+______________________________________________________________________
 
 ## Pull request 1: Waiting on you
 
@@ -119,6 +118,7 @@ Branch `feat/pns-page-waiting`. Worktree:
 ### Task 1.1: Move the server to `site` (pure move)
 
 **Files:**
+
 - Move: `pns/crates/pns/src/failures_page.rs` to `pns/crates/pns/src/site.rs`
 - Move: `pns/crates/pns/src/failures_page/parent_watch.rs` to `pns/crates/pns/src/site/parent_watch.rs`
 - Move: `pns/crates/pns/src/failures_page/tests.rs` to `pns/crates/pns/src/site/tests.rs`
@@ -130,10 +130,10 @@ Branch `feat/pns-page-waiting`. Worktree:
   formatters need renaming (Global Constraints)
 
 **Interfaces:**
+
 - Consumes: the failures pull request's server and HTML.
-- Produces: `crate::site::serve(port: u16)`, `site::shell::{CSS, page, escaped, footer}`,
-  `site::index`, `site::failures::{listing_page, record_page}`; `pns_adapters::{utc_clock, utc_day,
-  utc_long}`.
+- Produces: `crate::site::serve(port: u16)`, `site::shell::{CSS, page, escaped, footer}`, `site::index`,
+  `site::failures::{listing_page, record_page}`; `pns_adapters::{utc_clock, utc_day, utc_long}`.
 
 This is a pure move: no behavior changes, so it owes the existing tests green before and after, compared
 by name.
@@ -155,9 +155,9 @@ git mv pns/crates/pns/src/failures_page pns/crates/pns/src/site
 - [ ] **Step 3: Split `site/html.rs` by moving items, editing none**
 
 Move the CSS constant, the page wrapper, the footer and `escaped()` into `site/shell.rs`; the index
-function into `site/index.rs`; the listing and record renderers into `site/failures.rs`. `git mv
-site/html.rs site/shell.rs` first so the largest part keeps its history, then cut the other two out of
-it. In `site.rs`, replace `mod html;` with:
+function into `site/index.rs`; the listing and record renderers into `site/failures.rs`.
+`git mv site/html.rs site/shell.rs` first so the largest part keeps its history, then cut the other two
+out of it. In `site.rs`, replace `mod html;` with:
 
 ```rust
 mod failures;
@@ -172,8 +172,8 @@ In `command_failures.rs`, `crate::failures_page::serve(port)` becomes `crate::si
 
 - [ ] **Step 4: Rename the UTC formatters if needed**
 
-If the failures pull request exported its three formatters under other names, rename them to
-`utc_clock`, `utc_day` and `utc_long` in `pns-adapters/src/macos/clock.rs`, its re-export in
+If the failures pull request exported its three formatters under other names, rename them to `utc_clock`,
+`utc_day` and `utc_long` in `pns-adapters/src/macos/clock.rs`, its re-export in
 `pns-adapters/src/lib.rs`, and every caller. No other edit.
 
 - [ ] **Step 5: Compare the test names**
@@ -198,6 +198,7 @@ SKIP_AI_COMMIT=1 git commit -m "refactor(pns): move the served page into a site 
 ### Task 1.2: The site reads through a store that cannot write
 
 **Files:**
+
 - Modify: `pns/crates/pns-adapters/src/persistence/sqlite/store.rs`
 - Create: `pns/crates/pns-adapters/src/persistence/sqlite/tests/viewer.rs`
 - Modify: `pns/crates/pns-adapters/src/persistence/sqlite/tests.rs` (add `mod viewer;`)
@@ -208,13 +209,16 @@ SKIP_AI_COMMIT=1 git commit -m "refactor(pns): move the served page into a site 
 - Test: `pns/crates/pns/src/site/tests.rs`
 
 **Interfaces:**
+
 - Consumes: `SqliteStore::read_only()` (`store.rs`), `pns_adapters::state_dir()`.
+
 - Produces:
+
   - `pub fn SqliteStore::viewer(state: PathBuf) -> SqliteStore`
-  - `pub(crate) struct view::Sources { pub(crate) store: SqliteStore, pub(crate) state: PathBuf,
-    pub(crate) home: String }` with
-    `pub(crate) fn live() -> Sources`, `#[cfg(test)] pub(crate) fn at(state: PathBuf, home: &str) ->
-    Sources` and `pub(crate) fn stale_window(&self) -> u64`
+  - `pub(crate) struct view::Sources { pub(crate) store: SqliteStore, pub(crate) state: PathBuf, pub(crate) home: String }`
+    with `pub(crate) fn live() -> Sources`,
+    `#[cfg(test)] pub(crate) fn at(state: PathBuf, home: &str) -> Sources` and
+    `pub(crate) fn stale_window(&self) -> u64`
   - `pub(crate) fn wait_runtime::stale_settings_at(home: &str) -> StaleSettings`
   - `pub(crate) struct view::Summary { pub(crate) text: String, pub(crate) tone: style::Tone }`
   - `site::serve_on_within(listener: TcpListener, sources: &Sources, request_timeout: Duration)`
@@ -260,8 +264,8 @@ Add `mod viewer;` to the test module list in `persistence/sqlite/tests.rs`.
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters viewer`
-Expected: compile error, `no function or associated item named viewer found for struct SqliteStore`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters viewer` Expected: compile error,
+`no function or associated item named viewer found for struct SqliteStore`.
 
 - [ ] **Step 3: Implement the viewer**
 
@@ -306,8 +310,7 @@ if self.access == Access::ReadOnly {
 
 - [ ] **Step 4: Run the viewer tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters viewer`
-Expected: 3 passed.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters viewer` Expected: 3 passed.
 
 - [ ] **Step 5: Write the failing site test**
 
@@ -358,7 +361,8 @@ state directory any more.
 
 - [ ] **Step 6: Run it to see it fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::tests::a_request_reads_the_sandbox`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::tests::a_request_reads_the_sandbox`
 Expected: compile error, `failed to resolve: could not find view in the crate root`.
 
 - [ ] **Step 7: Implement `view.rs` and thread `Sources` through the site**
@@ -437,8 +441,8 @@ opened themselves, and every handler reads `sources.store` and `sources.home`.
 
 - [ ] **Step 8: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: every `site::` test passes.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: every `site::`
+test passes.
 
 - [ ] **Step 9: Commit**
 
@@ -451,6 +455,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve every page through a store SQLi
 ### Task 1.3: An open wait's age and its chip
 
 **Files:**
+
 - Modify: `pns/crates/pns-domain/src/missed/recap.rs` (`OpenWait.since`; `waiting` becomes `pub`)
 - Modify: `pns/crates/pns-domain/src/missed.rs` (re-export `waiting`)
 - Modify: `pns/crates/pns-domain/src/stale.rs` (`WaitChip`, `wait_chip`, `escalates_at`)
@@ -460,10 +465,12 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve every page through a store SQLi
 - Test: `pns/crates/pns-adapters/src/persistence/sqlite/tests/open_waits.rs`
 
 **Interfaces:**
+
 - Consumes: `SqliteStore::open_waits(since, until)` from pull request 924.
+
 - Produces:
-  - `pub struct OpenWait { pub agent, pub state, pub project, pub asks: String, pub count: usize, pub
-    since: u64 }`
+
+  - `pub struct OpenWait { pub agent, pub state, pub project, pub asks: String, pub count: usize, pub since: u64 }`
   - `pub fn pns_domain::missed::waiting(wait: &OpenWait) -> String`
   - `pub enum pns_domain::stale::WaitChip { Waiting, Overdue }` with `pub fn word(self) -> &'static str`
   - `pub fn pns_domain::stale::wait_chip(since: u64, now: u64, window: u64) -> WaitChip`
@@ -506,8 +513,8 @@ fn the_chip_words_are_the_pages_words() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain stale::tests`
-Expected: compile error, `cannot find function wait_chip in this scope`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain stale::tests` Expected: compile
+error, `cannot find function wait_chip in this scope`.
 
 - [ ] **Step 3: Implement the chip**
 
@@ -551,8 +558,8 @@ pub fn escalates_at(since: u64, window: u64) -> Option<u64> {
 
 - [ ] **Step 4: Run the domain tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain stale::tests`
-Expected: every `stale::tests` test passes.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain stale::tests` Expected: every
+`stale::tests` test passes.
 
 - [ ] **Step 5: Write the failing adapter test**
 
@@ -572,8 +579,8 @@ fn an_open_wait_carries_the_second_it_opened() {
 
 - [ ] **Step 6: Run it to see it fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters an_open_wait_carries`
-Expected: compile error, `no field since on type OpenWait`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters an_open_wait_carries` Expected:
+compile error, `no field since on type OpenWait`.
 
 - [ ] **Step 7: Add the field and select it**
 
@@ -603,7 +610,8 @@ Every `OpenWait { .. }` literal in the existing tests gains `since: 0` (the card
 
 - [ ] **Step 8: Run the adapter and domain suites**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters -p pns-domain -p pns-application`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters -p pns-domain -p pns-application`
 Expected: all pass, the new test included.
 
 - [ ] **Step 9: Commit**
@@ -616,18 +624,20 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): give an open wait its age and an over
 ### Task 1.4: `pns waiting`
 
 **Files:**
+
 - Create: `pns/crates/pns/src/command_waiting.rs`
 - Create: `pns/crates/pns/src/command_waiting/tests.rs`
-- Modify: `pns/crates/pns/src/lib.rs` (`mod command_waiting;`, `pub(crate) use
-  command_waiting::waiting_mode;`)
+- Modify: `pns/crates/pns/src/lib.rs` (`mod command_waiting;`,
+  `pub(crate) use command_waiting::waiting_mode;`)
 - Modify: `pns/crates/pns/src/invocation.rs` (dispatch `waiting`)
 - Modify: `pns/crates/pns/src/subcommand_usage.rs` (`("waiting", crate::command_waiting::WAITING_USAGE)`)
 - Modify: `pns/crates/pns/src/legacy/usage.rs` (one `USAGE` line)
 
 **Interfaces:**
+
 - Consumes: `OpenWait.since`, `missed::waiting`, `stale::{wait_chip, escalates_at, WaitChip}`,
-  `remind::waited`, `render::title`, `pns_adapters::{utc_clock, utc_day, utc_long}`, `view::{Sources,
-  Summary}`, `Sources::stale_window`.
+  `remind::waited`, `render::title`, `pns_adapters::{utc_clock, utc_day, utc_long}`,
+  `view::{Sources, Summary}`, `Sources::stale_window`.
 - Produces:
 
 ```rust
@@ -743,8 +753,8 @@ fn an_unreadable_store_is_the_sentence() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_waiting`
-Expected: compile error, `file not found for module command_waiting` until the module is declared, then
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_waiting` Expected: compile
+error, `file not found for module command_waiting` until the module is declared, then
 `cannot find function view`.
 
 - [ ] **Step 3: Implement the builder, the renderer and the mode**
@@ -925,6 +935,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns waiting, every open wait with
 ### Task 1.5: The Waiting on you page, its route and its index row
 
 **Files:**
+
 - Create: `pns/crates/pns/src/site/waiting.rs`
 - Create: `pns/crates/pns/src/site/waiting/tests.rs`
 - Modify: `pns/crates/pns/src/site.rs` (`Target::Waiting`, the `answer` arm)
@@ -934,16 +945,17 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns waiting, every open wait with
 - Test: `pns/crates/pns/src/site/tests.rs`
 
 **Interfaces:**
-- Consumes: `command_waiting::{read, summary, tone, WaitingView, UNREADABLE}`, `shell::{page, escaped,
-  footer}`.
+
+- Consumes: `command_waiting::{read, summary, tone, WaitingView, UNREADABLE}`,
+  `shell::{page, escaped, footer}`.
+
 - Produces:
-  - `pub(super) fn site::waiting::page(view: Result<&WaitingView, &'static str>, rendered_at: u64) ->
-    String`
+
+  - `pub(super) fn site::waiting::page(view: Result<&WaitingView, &'static str>, rendered_at: u64) -> String`
   - `pub(super) fn shell::row_class(tone: Tone) -> &'static str` (`"fh-row fh-active"`, `"fh-row"`,
     `"fh-row fh-quiet"`)
-  - `pub(super) struct index::Row { pub(super) href: &'static str, pub(super) name: &'static str,
-    pub(super) blurb: &'static str, pub(super) summary: Summary }` and `pub(super) fn index::rows(sources:
-    &Sources, now: u64) -> Vec<Row>`
+  - `pub(super) struct index::Row { pub(super) href: &'static str, pub(super) name: &'static str, pub(super) blurb: &'static str, pub(super) summary: Summary }`
+    and `pub(super) fn index::rows(sources: &Sources, now: u64) -> Vec<Row>`
 
 - [ ] **Step 1: Write the failing page tests**
 
@@ -1051,8 +1063,8 @@ with `const NOW_FOR_TESTS: u64 = 1_790_139_720;` at the top of `site/tests.rs`.
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: compile errors, `no variant Waiting` and `cannot find function page in module waiting`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: compile errors,
+`no variant Waiting` and `cannot find function page in module waiting`.
 
 - [ ] **Step 3: Implement the page**
 
@@ -1180,14 +1192,13 @@ pub(super) fn rows(sources: &Sources, now: u64) -> Vec<Row> {
 ```
 
 `command_failures::summary` wraps the count the failures pull request already shows ("none" or the
-number) in a `Summary`, amber when any leg is retrying and red when any has given up; it is a move of that
-computation, not a new one. The row markup is the failures pull request's; the summary's tone picks the
-class (`ix-red`, `ix-amber` or none).
+number) in a `Summary`, amber when any leg is retrying and red when any has given up; it is a move of
+that computation, not a new one. The row markup is the failures pull request's; the summary's tone picks
+the class (`ix-red`, `ix-amber` or none).
 
 - [ ] **Step 4: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: all pass.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: all pass.
 
 - [ ] **Step 5: Run the gates**
 
@@ -1212,7 +1223,7 @@ git add pns/crates/pns/src
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Waiting on you page"
 ```
 
----
+______________________________________________________________________
 
 ## Pull request 2: Health
 
@@ -1224,12 +1235,15 @@ This pull request builds `pns doctor --no-send` (approved 2026-09-23) and the pa
 ### Task 2.1: A withheld outcome in the doctor's domain
 
 **Files:**
+
 - Modify: `pns/crates/pns-domain/src/doctor/outcome.rs`
 - Create: `pns/crates/pns-domain/src/doctor/outcome/tests.rs`
 
 **Interfaces:**
+
 - Produces: `Outcome::Withheld(Option<String>)`, carrying the rendered time of the destination's last
-  delivery, or `None` when it never delivered. `line`, `summary`, `exit_code` and `outcome_mark` answer it.
+  delivery, or `None` when it never delivered. `line`, `summary`, `exit_code` and `outcome_mark` answer
+  it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1300,8 +1314,8 @@ Add `#[cfg(test)] mod tests;` at the bottom of `outcome.rs`. `Pairing::NotInstal
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain doctor::outcome::tests`
-Expected: compile error, `no variant named Withheld found for enum Outcome`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain doctor::outcome::tests` Expected:
+compile error, `no variant named Withheld found for enum Outcome`.
 
 - [ ] **Step 3: Implement the outcome**
 
@@ -1339,8 +1353,8 @@ check that had something to check:
 
 - [ ] **Step 4: Run the domain suite**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain doctor`
-Expected: all pass, the four new tests included.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain doctor` Expected: all pass, the
+four new tests included.
 
 - [ ] **Step 5: Commit**
 
@@ -1352,6 +1366,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): give the doctor a withheld outcome fo
 ### Task 2.2: `RunDoctor` withholds its sends
 
 **Files:**
+
 - Modify: `pns/crates/pns-application/src/doctor.rs`
 - Modify: `pns/crates/pns-application/src/lib.rs` (re-export `Sending`)
 - Create: `pns/crates/pns-application/src/doctor/tests/withheld.rs`
@@ -1359,12 +1374,15 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): give the doctor a withheld outcome fo
   `sending: Sending::Send` and the two new actions; `mod withheld;`)
 
 **Interfaces:**
+
 - Consumes: `Outcome::Withheld`.
+
 - Produces:
+
   - `pub enum pns_application::Sending { Send, Withhold }`
   - `RunDoctor { .., pub sending: Sending }`
-  - `DoctorActions { .., pub last_delivered: Box<dyn FnOnce() -> Vec<(String, String)>> }`, the
-    rendered last delivery per destination name, read only under `Withhold`
+  - `DoctorActions { .., pub last_delivered: Box<dyn FnOnce() -> Vec<(String, String)>> }`, the rendered
+    last delivery per destination name, read only under `Withhold`
   - `DoctorActions.home` becomes `Box<dyn FnOnce() -> Vec<pns_domain::doctor::Item>>`, so a caller can
     hand it a home directory
 
@@ -1458,9 +1476,10 @@ pub enum Sending {
 }
 ```
 
-Add `pub sending: Sending` to `RunDoctor` and `pub last_delivered: Box<dyn FnOnce() -> Vec<(String,
-String)>>` to `DoctorActions`; change `home`'s type to `Box<dyn FnOnce() -> Vec<pns_domain::doctor::Item>>`
-and call it as `(actions.home)()`. In `run`, replace the deliver call and the two outcome arms:
+Add `pub sending: Sending` to `RunDoctor` and
+`pub last_delivered: Box<dyn FnOnce() -> Vec<(String, String)>>` to `DoctorActions`; change `home`'s type
+to `Box<dyn FnOnce() -> Vec<pns_domain::doctor::Item>>` and call it as `(actions.home)()`. In `run`,
+replace the deliver call and the two outcome arms:
 
 ```rust
         let delivered = match self.sending {
@@ -1501,8 +1520,8 @@ In `tests.rs`'s `report` helper, pass `sending: Sending::Send`, `last_delivered:
 
 - [ ] **Step 4: Run the application suite**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-application doctor`
-Expected: all pass; every existing doctor test is unchanged in its assertions.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-application doctor` Expected: all pass;
+every existing doctor test is unchanged in its assertions.
 
 - [ ] **Step 5: Commit**
 
@@ -1514,15 +1533,17 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): let the doctor run without sending, p
 ### Task 2.3: Each destination's last delivery, from the ledger
 
 **Files:**
+
 - Modify: `pns/crates/pns-adapters/src/persistence/sqlite/ledger.rs` (`last_delivered_each`)
 - Modify: `pns/crates/pns-adapters/src/persistence/sqlite/ledger/failing.rs` (the query)
 - Create: `pns/crates/pns-adapters/src/persistence/sqlite/ledger/tests/last_delivered.rs`
 - Modify: `pns/crates/pns-adapters/src/persistence/sqlite/ledger/tests.rs` (`mod last_delivered;`)
 
 **Interfaces:**
-- Produces: `pub fn SqliteStore::last_delivered_each(&self) -> Result<Vec<(String, u64)>,
-  LedgerFailure>`, destination name and the newest `finished` of an attempt with `outcome = 1`, sorted by
-  name.
+
+- Produces:
+  `pub fn SqliteStore::last_delivered_each(&self) -> Result<Vec<(String, u64)>, LedgerFailure>`,
+  destination name and the newest `finished` of an attempt with `outcome = 1`, sorted by name.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1570,8 +1591,8 @@ fn a_viewer_reads_it() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters last_delivered`
-Expected: compile error, `no method named last_delivered_each`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters last_delivered` Expected:
+compile error, `no method named last_delivered_each`.
 
 - [ ] **Step 3: Implement the read**
 
@@ -1610,8 +1631,8 @@ In `ledger.rs`, beside `failing_legs`:
 
 - [ ] **Step 4: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters last_delivered`
-Expected: 3 passed.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters last_delivered` Expected: 3
+passed.
 
 - [ ] **Step 5: Commit**
 
@@ -1623,6 +1644,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): read each destination's last delivery
 ### Task 2.4: `pns doctor --no-send`
 
 **Files:**
+
 - Modify: `pns/crates/pns/src/command_doctor.rs` (argv parse; `run_report` extracted from `doctor_mode`)
 - Create: `pns/crates/pns/src/command_doctor/tests.rs`
 - Modify: `pns/crates/pns/src/doctor_home.rs` (`rows_at(home, state)` and `read_rows(home)`)
@@ -1631,6 +1653,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): read each destination's last delivery
 - Modify: `pns/crates/pns/src/legacy/usage.rs` (the doctor line)
 
 **Interfaces:**
+
 - Consumes: `Sending`, `last_delivered_each`, `pns_adapters::{utc_long}`, `pns_domain::doctor::ago`,
   `view::Sources`.
 - Produces:
@@ -1775,10 +1798,10 @@ pub(crate) fn doctor_mode() -> i32 {
 
 `run_report` holds today's body of `doctor_mode` from the config load to the `.run(...)` call, moved
 without edits except these substitutions: `std::env::var("HOME")` becomes `sources.home`, `state_dir()`
-becomes `sources.state`, every `SqliteStore::for_records(state_dir())` and `SqliteStore::new(state_dir())`
-becomes `&sources.store`, `RunDoctor` gains `sending`, and the actions gain the two boxed readings. Both
-boxes are `'static`, so each owns what it reads: the last deliveries are read before the run, and only
-when withholding.
+becomes `sources.state`, every `SqliteStore::for_records(state_dir())` and
+`SqliteStore::new(state_dir())` becomes `&sources.store`, `RunDoctor` gains `sending`, and the actions
+gain the two boxed readings. Both boxes are `'static`, so each owns what it reads: the last deliveries
+are read before the run, and only when withholding.
 
 ```rust
     let last = match sending {
@@ -1842,8 +1865,8 @@ pub(crate) fn summary(sources: &Sources, now: u64) -> Summary {
 ```
 
 In `doctor_home.rs`, `rows()` becomes `rows_at(home, state)` (the same body reading `config_path(home)`
-and `SqliteStore::for_records(state.to_path_buf())`), and `read_rows(home)` is the same config walk ending
-in the pure read, which never alerts and never writes:
+and `SqliteStore::for_records(state.to_path_buf())`), and `read_rows(home)` is the same config walk
+ending in the pure read, which never alerts and never writes:
 
 ```rust
 pub(crate) fn read_rows(home: &str) -> Vec<pns_domain::doctor::Item> {
@@ -1853,8 +1876,8 @@ pub(crate) fn read_rows(home: &str) -> Vec<pns_domain::doctor::Item> {
 }
 ```
 
-The config walk both share is one private function returning `Result<(UniFiRouter, DeviceIdentity),
-Vec<Item>>`, so the two differ only in their last two lines.
+The config walk both share is one private function returning
+`Result<(UniFiRouter, DeviceIdentity), Vec<Item>>`, so the two differ only in their last two lines.
 
 In `doctor_style.rs`, lift the two helpers out of `Report` and have `Report::item` and `Report::close`
 call them:
@@ -1897,7 +1920,8 @@ headline painted by its tone and the numbered entries, byte-identical to today (
 
 - [ ] **Step 4: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_doctor doctor_style subcommand_usage`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_doctor doctor_style subcommand_usage`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
@@ -1910,6 +1934,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns doctor --no-send, the report 
 ### Task 2.5: The Health page, its route and its index row
 
 **Files:**
+
 - Create: `pns/crates/pns/src/site/health.rs`
 - Create: `pns/crates/pns/src/site/health/tests.rs`
 - Modify: `pns/crates/pns/src/site.rs` (`Target::Health`, the arm)
@@ -1918,10 +1943,12 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns doctor --no-send, the report 
 - Test: `pns/crates/pns/src/site/tests.rs`
 
 **Interfaces:**
+
 - Consumes: `command_doctor::{run_report, summary}`, `doctor_style::{unattributed, closing, Closing}`,
   `Sending::Withhold`.
-- Produces: `pub(super) fn site::health::page(items: &[pns_domain::doctor::Item], rendered_at: u64) ->
-  String`.
+
+- Produces:
+  `pub(super) fn site::health::page(items: &[pns_domain::doctor::Item], rendered_at: u64) -> String`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1999,8 +2026,8 @@ fn the_health_page_is_its_exact_path_only() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: compile errors, `no variant Health` and `cannot find function page in module health`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: compile errors,
+`no variant Health` and `cannot find function page in module health`.
 
 - [ ] **Step 3: Implement the page**
 
@@ -2143,8 +2170,7 @@ string is parsed (D2). In `index.rs`, insert the Health row after Deliveries' pl
 
 - [ ] **Step 4: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: all pass.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: all pass.
 
 - [ ] **Step 5: Run the gates and check file sizes**
 
@@ -2165,7 +2191,7 @@ git add pns/crates/pns/src
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Health page, the doctor with nothing sent"
 ```
 
----
+______________________________________________________________________
 
 ## Pull request 3: Recap
 
@@ -2175,11 +2201,13 @@ Branch `feat/pns-page-recap`. Worktree:
 ### Task 3.1: The recap history's wording, in the domain
 
 **Files:**
+
 - Create: `pns/crates/pns-domain/src/recap/history.rs`
 - Create: `pns/crates/pns-domain/src/recap/history/tests.rs`
 - Modify: `pns/crates/pns-domain/src/recap.rs` (`pub mod history;`)
 
 **Interfaces:**
+
 - Consumes: `recap::activity::{Project, Session}`, `recap::window::LocalCivilTime`.
 - Produces:
 
@@ -2258,13 +2286,13 @@ fn an_instance_is_in_progress_until_its_end_passes() {
 }
 ```
 
-`Event` derives `Default` if it does not already; add `#[derive(Default)]` beside its existing derives
-if the compiler says it is missing. `LocalCivilTime`'s fields are the six `window::epoch` reads.
+`Event` derives `Default` if it does not already; add `#[derive(Default)]` beside its existing derives if
+the compiler says it is missing. `LocalCivilTime`'s fields are the six `window::epoch` reads.
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::history`
-Expected: compile error, `file not found for module history`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::history` Expected: compile
+error, `file not found for module history`.
 
 - [ ] **Step 3: Implement the wording**
 
@@ -2341,8 +2369,8 @@ mod tests;
 
 - [ ] **Step 4: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::history`
-Expected: 5 passed.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::history` Expected: 5
+passed.
 
 - [ ] **Step 5: Commit**
 
@@ -2354,6 +2382,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): word a recap window instance for the 
 ### Task 3.2: `pns recap history`
 
 **Files:**
+
 - Create: `pns/crates/pns/src/command_recap/history.rs`
 - Create: `pns/crates/pns/src/command_recap/history/tests.rs`
 - Modify: `pns/crates/pns/src/command_recap.rs` (`mod history;`, the `history` arm in `recap_mode`)
@@ -2361,9 +2390,11 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): word a recap window instance for the 
 - Modify: `pns/crates/pns/src/legacy/usage.rs` (one line)
 
 **Interfaces:**
-- Consumes: `recap::history::*`, `command_recap::window::named`, `SqliteStore::{activity_between,
-  recap_summary}`, `pns_adapters::{local_civil, local_minutes_since_midnight}`,
-  `pns_application::recap_wall_clock`, `view::{Sources, Summary}`.
+
+- Consumes: `recap::history::*`, `command_recap::window::named`,
+  `SqliteStore::{activity_between, recap_summary}`,
+  `pns_adapters::{local_civil, local_minutes_since_midnight}`, `pns_application::recap_wall_clock`,
+  `view::{Sources, Summary}`.
 - Produces:
 
 ```rust
@@ -2486,8 +2517,8 @@ fn the_summary_names_the_newest_complete_instance() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_recap::history`
-Expected: compile error, `file not found for module history`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_recap::history` Expected:
+compile error, `file not found for module history`.
 
 - [ ] **Step 3: Implement the builder, the renderer and the verb**
 
@@ -2707,6 +2738,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns recap history, each window's 
 ### Task 3.3: The Recap page, its route and its index row
 
 **Files:**
+
 - Create: `pns/crates/pns/src/site/recap.rs`
 - Create: `pns/crates/pns/src/site/recap/tests.rs`
 - Modify: `pns/crates/pns/src/site.rs` (`Target::Recap`, the arm)
@@ -2715,10 +2747,12 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns recap history, each window's 
 - Test: `pns/crates/pns/src/site/tests.rs`
 
 **Interfaces:**
+
 - Consumes: `command_recap::history::{read, summary, HistoryView, InstanceRow}`.
+
 - Produces:
-  - `pub(super) fn site::recap::page(view: Result<&HistoryView, &'static str>, rendered_at: u64) ->
-    String`
+
+  - `pub(super) fn site::recap::page(view: Result<&HistoryView, &'static str>, rendered_at: u64) -> String`
   - `pub(super) fn shell::footer_noting(note: &str, rendered_at: u64) -> String`, which `footer` calls
     with `"All times UTC"`
 
@@ -2815,8 +2849,8 @@ fn the_recap_page_is_its_exact_path_only() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: compile errors, `no variant Recap` and `cannot find function page in module recap`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: compile errors,
+`no variant Recap` and `cannot find function page in module recap`.
 
 - [ ] **Step 3: Implement the page**
 
@@ -2916,8 +2950,7 @@ In `index.rs`, the Recap row after Health:
 
 - [ ] **Step 4: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: all pass.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: all pass.
 
 - [ ] **Step 5: Run the gates and check file sizes**
 
@@ -2936,7 +2969,7 @@ git add pns/crates/pns/src
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Recap page, each window's last two instances"
 ```
 
----
+______________________________________________________________________
 
 ## Pull request 4: Right now
 
@@ -2949,6 +2982,7 @@ standing on its own; if the pull request proves too large, it splits cleanly aft
 ### Task 4.1: The Right now page's wording, in the domain
 
 **Files:**
+
 - Modify: `pns/crates/pns-domain/src/surface.rs` (`Surface::{word, headline, meaning}`)
 - Modify: `pns/crates/pns/src/command_tap.rs` (its inline `match` becomes `reading.surface.word()`)
 - Modify: `pns/crates/pns-domain/src/mute.rs` (`status`, which `status_line` prefixes)
@@ -2958,6 +2992,7 @@ standing on its own; if the pull request proves too large, it splits cleanly aft
 - Test: the tests module beside each
 
 **Interfaces:**
+
 - Produces:
 
 ```rust
@@ -3058,7 +3093,8 @@ fn the_preview_states_are_the_five_the_page_shows() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain surface mute stale lamps::window routing`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain surface mute stale lamps::window routing`
 Expected: compile errors naming `headline`, `status`, `pending_line`, `dim_line` and `legs_line`.
 
 - [ ] **Step 3: Implement the wording**
@@ -3091,9 +3127,9 @@ impl Surface {
 }
 ```
 
-`command_tap.rs`'s three-arm `match` becomes `let surface = reading.surface.word();` (a pure move; the tap
-command's own tests pin the word). `mute.rs`: the body of `status_line` moves into `status` without its
-`pns: ` prefix, and `status_line` becomes `format!("pns: {}", status(expiry, now))`. `stale.rs`:
+`command_tap.rs`'s three-arm `match` becomes `let surface = reading.surface.word();` (a pure move; the
+tap command's own tests pin the word). `mute.rs`: the body of `status_line` moves into `status` without
+its `pns: ` prefix, and `status_line` becomes `format!("pns: {}", status(expiry, now))`. `stale.rs`:
 
 ```rust
 /// One wait the escalation has not paged about yet, and when it will.
@@ -3147,8 +3183,7 @@ pub fn legs_line(legs: &[Leg], pulse: bool, route: &str) -> String {
 - [ ] **Step 4: Run the domain and pns suites**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain` and
-`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_tap`
-Expected: all pass.
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_tap` Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
@@ -3160,6 +3195,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): word the surface, the mute, the dim w
 ### Task 4.2: One override assembly for the event path and `pns now`
 
 **Files:**
+
 - Create: `pns/crates/pns/src/live_overrides.rs`
 - Create: `pns/crates/pns/src/live_overrides/tests.rs`
 - Modify: `pns/crates/pns/src/event_flow/execution.rs` (calls it)
@@ -3167,6 +3203,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): word the surface, the mute, the dim w
 - Modify: `pns/crates/pns/src/lib.rs` (`mod live_overrides;`)
 
 **Interfaces:**
+
 - Produces:
 
 ```rust
@@ -3179,9 +3216,9 @@ pub(crate) fn live_overrides::live_overrides(
 ) -> pns_domain::Overrides;
 ```
 
-This is a move of the block in `execution.rs` that builds `Overrides { muted, focus_active,
-..overrides_from_env() }`, with the store and home made parameters. It owes a test pinning the mute input
-before the move.
+This is a move of the block in `execution.rs` that builds
+`Overrides { muted, focus_active, ..overrides_from_env() }`, with the store and home made parameters. It
+owes a test pinning the mute input before the move.
 
 - [ ] **Step 1: Write the pinning test**
 
@@ -3217,8 +3254,8 @@ fn no_focus_list_is_never_focus_active() {
 
 - [ ] **Step 2: Run it to see it fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib live_overrides`
-Expected: compile error, `file not found for module live_overrides`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib live_overrides` Expected: compile
+error, `file not found for module live_overrides`.
 
 - [ ] **Step 3: Move the block**
 
@@ -3277,7 +3314,8 @@ pub(crate) fn muted_now_in(store: &SqliteStore, now_secs: Option<u64>) -> bool {
 
 - [ ] **Step 4: Run the tests, the event flow's included**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib live_overrides event_flow command_mute`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib live_overrides event_flow command_mute`
 Expected: all pass, the event flow's unchanged.
 
 - [ ] **Step 5: Commit**
@@ -3290,14 +3328,17 @@ SKIP_AI_COMMIT=1 git commit -m "refactor(pns): assemble a live decision's overri
 ### Task 4.3: The loop lamp's leases, listed without sweeping
 
 **Files:**
+
 - Create: `pns/crates/pns-adapters/src/protocols/markers/leases.rs`
 - Create: `pns/crates/pns-adapters/src/protocols/markers/leases/tests.rs`
-- Modify: `pns/crates/pns-adapters/src/protocols/markers/mod.rs` (`mod leases; pub use
-  leases::live_leases;`) and `pns-adapters/src/lib.rs` (re-export)
+- Modify: `pns/crates/pns-adapters/src/protocols/markers/mod.rs`
+  (`mod leases; pub use leases::live_leases;`) and `pns-adapters/src/lib.rs` (re-export)
 
 **Interfaces:**
+
 - Consumes: `marker_files::lease_dir`, `read::read_epoch`, `pns_domain::lights::working_owner`,
   `pns_domain::lights::held::marker_is_live`.
+
 - Produces: `pub fn live_leases(state: &Path, now: u64, timeout_secs: u64) -> Vec<(String, u64)>`, each
   live lease's pane and epoch, sorted by pane.
 
@@ -3354,8 +3395,8 @@ fn no_directory_is_no_leases() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters leases`
-Expected: compile error, `file not found for module leases`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters leases` Expected: compile error,
+`file not found for module leases`.
 
 - [ ] **Step 3: Implement the lister**
 
@@ -3394,8 +3435,7 @@ mod tests;
 
 - [ ] **Step 4: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters leases`
-Expected: 4 passed.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters leases` Expected: 4 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -3407,17 +3447,20 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): list the loop lamp's live leases with
 ### Task 4.4: `pns now`
 
 **Files:**
+
 - Create: `pns/crates/pns/src/command_now.rs`
 - Create: `pns/crates/pns/src/command_now/preview.rs`
 - Create: `pns/crates/pns/src/command_now/tests.rs`
 - Modify: `pns/crates/pns/src/lib.rs`, `invocation.rs`, `subcommand_usage.rs`, `legacy/usage.rs`
 
 **Interfaces:**
+
 - Consumes: Task 4.1's wording, `live_overrides`, `live_leases`, `profile_runtime::active`,
-  `profiles::{because, surfaces_line}`, `pns_application::{operator_surface_reading, decide,
-  doctor_focus, select_plugins}`, `doctor_home::read_rows`, `doctor_style::unattributed`,
-  `lights::mute::muted_report`, `SqliteStore::{mute_expiry, read_muted, stale_blocks}`,
-  `routes::route_for`, `view::{Sources, Summary}`.
+  `profiles::{because, surfaces_line}`,
+  `pns_application::{operator_surface_reading, decide, doctor_focus, select_plugins}`,
+  `doctor_home::read_rows`, `doctor_style::unattributed`, `lights::mute::muted_report`,
+  `SqliteStore::{mute_expiry, read_muted, stale_blocks}`, `routes::route_for`,
+  `view::{Sources, Summary}`.
 - Produces:
 
 ```rust
@@ -3551,8 +3594,8 @@ fn the_summary_is_the_surface_and_the_profile() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_now`
-Expected: compile error, `file not found for module command_now`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_now` Expected: compile
+error, `file not found for module command_now`.
 
 - [ ] **Step 3: Implement `preview.rs`**
 
@@ -3784,9 +3827,10 @@ the spec's Page 4 table names:
     rows.push(NowRow { label: "escalations", lines: if pending.is_empty() { vec!["none pending".into()] } else { pending } });
 ```
 
-The preview reuses the event path's own pieces: `live_overrides(&sources.store, &sources.home,
-&focus_silence, Some(now))`, `select_plugins(&roster(), loaded)`, the default class's
-`silence_policy("default")` and route, and `[routes] default`:
+The preview reuses the event path's own pieces:
+`live_overrides(&sources.store, &sources.home, &focus_silence, Some(now))`,
+`select_plugins(&roster(), loaded)`, the default class's `silence_policy("default")` and route, and
+`[routes] default`:
 
 ```rust
     let decide = |state: &str| {
@@ -3834,12 +3878,15 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns now, what pns believes and wh
 ### Task 4.5: The Right now page, its route and its index row
 
 **Files:**
+
 - Create: `pns/crates/pns/src/site/now.rs`
 - Create: `pns/crates/pns/src/site/now/tests.rs`
 - Modify: `pns/crates/pns/src/site.rs`, `site/index.rs`, `site/tests.rs`
 
 **Interfaces:**
+
 - Consumes: `command_now::{read, summary, NowView}`.
+
 - Produces: `pub(super) fn site::now::page(view: &NowView, rendered_at: u64) -> String`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -3915,8 +3962,8 @@ In `site/tests.rs`, the route test for `/now` in the same shape as the others (`
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: compile errors, `no variant Now` and `cannot find function page in module now`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: compile errors,
+`no variant Now` and `cannot find function page in module now`.
 
 - [ ] **Step 3: Implement the page**
 
@@ -3987,9 +4034,10 @@ fn capitalized(word: &str) -> String {
 mod tests;
 ```
 
-In `site.rs`, `Target::Now` on `/now`, arm `Some(Target::Now) => ok(&now::page(&crate::command_now::read(sources,
-now, true), now)),` (the variable `now` is the request's clock second and shadows nothing; rename the
-module import to `now_page` if the compiler objects). In `index.rs`, the Right now row after Failures:
+In `site.rs`, `Target::Now` on `/now`, arm
+`Some(Target::Now) => ok(&now::page(&crate::command_now::read(sources, now, true), now)),` (the variable
+`now` is the request's clock second and shadows nothing; rename the module import to `now_page` if the
+compiler objects). In `index.rs`, the Right now row after Failures:
 
 ```rust
         Row {
@@ -4008,8 +4056,7 @@ Add `.fr-note` to the CSS constant in `shell.rs`:
 
 - [ ] **Step 4: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: all pass.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: all pass.
 
 - [ ] **Step 5: Run the gates and check file sizes**
 
@@ -4028,7 +4075,7 @@ git add pns/crates/pns/src
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Right now page"
 ```
 
----
+______________________________________________________________________
 
 ## Pull request 5: Sessions
 
@@ -4038,12 +4085,14 @@ Branch `feat/pns-page-sessions`. Worktree:
 ### Task 5.1: herdr's live agent panes
 
 **Files:**
+
 - Create: `pns/crates/pns-adapters/src/herdr/panes.rs`
 - Create: `pns/crates/pns-adapters/src/herdr/panes/tests.rs`
-- Modify: `pns/crates/pns-adapters/src/herdr/mod.rs` (`mod panes; pub use panes::{AgentPane,
-  parse_agent_panes};`) and `pns-adapters/src/lib.rs` (re-export)
+- Modify: `pns/crates/pns-adapters/src/herdr/mod.rs`
+  (`mod panes; pub use panes::{AgentPane, parse_agent_panes};`) and `pns-adapters/src/lib.rs` (re-export)
 
 **Interfaces:**
+
 - Produces:
 
 ```rust
@@ -4107,8 +4156,8 @@ fn herdr_with_no_panes_is_an_empty_answer() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters herdr::panes`
-Expected: compile error, `file not found for module panes`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters herdr::panes` Expected: compile
+error, `file not found for module panes`.
 
 - [ ] **Step 3: Implement the parse**
 
@@ -4163,8 +4212,8 @@ mod tests;
 
 - [ ] **Step 4: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters herdr::panes`
-Expected: 3 passed.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters herdr::panes` Expected: 3
+passed.
 
 - [ ] **Step 5: Commit**
 
@@ -4176,13 +4225,15 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): read herdr's live agent panes"
 ### Task 5.2: What the store knows about those sessions
 
 **Files:**
+
 - Create: `pns/crates/pns-adapters/src/persistence/sqlite/session_facts.rs`
 - Create: `pns/crates/pns-adapters/src/persistence/sqlite/tests/session_facts.rs`
-- Modify: `pns/crates/pns-adapters/src/persistence/sqlite/mod.rs` (`mod session_facts; pub use
-  session_facts::SessionFacts;`), `persistence/sqlite/tests.rs` (`mod session_facts;`),
-  `pns-adapters/src/lib.rs` (re-export)
+- Modify: `pns/crates/pns-adapters/src/persistence/sqlite/mod.rs`
+  (`mod session_facts; pub use session_facts::SessionFacts;`), `persistence/sqlite/tests.rs`
+  (`mod session_facts;`), `pns-adapters/src/lib.rs` (re-export)
 
 **Interfaces:**
+
 - Produces:
 
 ```rust
@@ -4257,8 +4308,8 @@ fn a_session_with_no_events_has_no_last_event() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters session_facts`
-Expected: compile error, `no method named session_facts`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters session_facts` Expected: compile
+error, `no method named session_facts`.
 
 - [ ] **Step 3: Implement the read**
 
@@ -4318,8 +4369,8 @@ impl SqliteStore {
 
 - [ ] **Step 4: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters session_facts`
-Expected: 3 passed.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters session_facts` Expected: 3
+passed.
 
 - [ ] **Step 5: Commit**
 
@@ -4331,6 +4382,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): read a live session's row and its new
 ### Task 5.3: `pns sessions`
 
 **Files:**
+
 - Create: `pns/crates/pns-domain/src/sessions.rs` (+ `sessions/tests.rs`), `pub mod sessions;` in
   `pns-domain/src/lib.rs`
 - Create: `pns/crates/pns/src/command_sessions.rs`
@@ -4338,6 +4390,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): read a live session's row and its new
 - Modify: `pns/crates/pns/src/lib.rs`, `invocation.rs`, `subcommand_usage.rs`, `legacy/usage.rs`
 
 **Interfaces:**
+
 - Consumes: `AgentPane`, `SessionFacts`, `render::{clipped, SESSION_TITLE_MAX_CHARS}`, `doctor::ago`,
   `utc_clock`, `view::{Sources, Summary}`, `pns_adapters::SystemCommandRunner`.
 - Produces:
@@ -4494,14 +4547,14 @@ fn the_summary_counts_live_and_blocked() {
 }
 ```
 
-A pane with no stored facts carries herdr's agent and an empty project, which the renderer prints as
-`-`, as the third line shows.
+A pane with no stored facts carries herdr's agent and an empty project, which the renderer prints as `-`,
+as the third line shows.
 
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain sessions` and
-`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_sessions`
-Expected: compile errors, `file not found for module sessions` and `for module command_sessions`.
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_sessions` Expected: compile
+errors, `file not found for module sessions` and `for module command_sessions`.
 
 - [ ] **Step 3: Implement the domain status**
 
@@ -4709,8 +4762,9 @@ pub(crate) fn sessions_mode() -> i32 {
 mod tests;
 ```
 
-Register `sessions` in `invocation.rs`, `SUBCOMMAND_USAGE` and `USAGE` (`  pns sessions                     one
-row per live agent session`) the way Task 1.4 registered `waiting`.
+Register `sessions` in `invocation.rs`, `SUBCOMMAND_USAGE` and `USAGE`
+(`  pns sessions                     one row per live agent session`) the way Task 1.4 registered
+`waiting`.
 
 - [ ] **Step 5: Run the tests to see them pass**
 
@@ -4728,15 +4782,18 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns sessions, one row per live ag
 ### Task 5.4: The Sessions page, its route and its index row
 
 **Files:**
+
 - Create: `pns/crates/pns/src/site/sessions.rs`
 - Create: `pns/crates/pns/src/site/sessions/tests.rs`
 - Modify: `pns/crates/pns/src/site.rs`, `site/index.rs`, `site/tests.rs`
 
 **Interfaces:**
+
 - Consumes: `command_sessions::{read, herdr_pane_list, summary, tone, SessionsView, SessionRow}`,
   `shell::row_class`.
-- Produces: `pub(super) fn site::sessions::page(view: Result<&SessionsView, &'static str>, rendered_at:
-  u64) -> String`.
+
+- Produces:
+  `pub(super) fn site::sessions::page(view: Result<&SessionsView, &'static str>, rendered_at: u64) -> String`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4807,8 +4864,8 @@ In `site/tests.rs`, the route test for `/sessions` in the same shape as the othe
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: compile errors, `no variant Sessions` and `cannot find function page in module sessions`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: compile errors,
+`no variant Sessions` and `cannot find function page in module sessions`.
 
 - [ ] **Step 3: Implement the page**
 
@@ -4894,13 +4951,12 @@ In `site.rs`, `Target::Sessions` on `/sessions`, and the arm:
         }
 ```
 
-In `index.rs`, the Sessions row after Right now, with `summary: crate::command_sessions::summary(sources,
-now)`, name "Sessions", blurb "live agent sessions".
+In `index.rs`, the Sessions row after Right now, with
+`summary: crate::command_sessions::summary(sources, now)`, name "Sessions", blurb "live agent sessions".
 
 - [ ] **Step 4: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: all pass.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: all pass.
 
 - [ ] **Step 5: Run the gates and check file sizes**
 
@@ -4919,7 +4975,7 @@ git add pns/crates/pns/src
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Sessions page"
 ```
 
----
+______________________________________________________________________
 
 ## Pull request 6: Deliveries
 
@@ -4929,13 +4985,15 @@ Branch `feat/pns-page-deliveries`. Worktree:
 ### Task 6.1: A leg's outcome, an event's verdict and a destination's summary, in the domain
 
 **Files:**
-- Modify: `pns/crates/pns-domain/src/retry.rs` (`TransportOutcome::short`; `mod delivered; pub use
-  delivered::*;`)
+
+- Modify: `pns/crates/pns-domain/src/retry.rs` (`TransportOutcome::short`;
+  `mod delivered; pub use delivered::*;`)
 - Create: `pns/crates/pns-domain/src/retry/delivered.rs`
 - Create: `pns/crates/pns-domain/src/retry/delivered/tests.rs`
 - Modify: `pns/crates/pns/src/command_failures.rs` (`short_status` calls `failure.outcome.short()`)
 
 **Interfaces:**
+
 - Produces:
 
 ```rust
@@ -5001,8 +5059,8 @@ fn a_destination_summary_counts_and_times() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain retry::delivered`
-Expected: compile error, `file not found for module delivered`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain retry::delivered` Expected:
+compile error, `file not found for module delivered`.
 
 - [ ] **Step 3: Implement**
 
@@ -5099,8 +5157,7 @@ mod tests;
 - [ ] **Step 4: Run the domain and failures tests**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain retry` and
-`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_failures`
-Expected: all pass.
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_failures` Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
@@ -5112,6 +5169,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): word a leg's outcome and an event's v
 ### Task 6.2: Every leg of the last day, from the ledger
 
 **Files:**
+
 - Create: `pns/crates/pns-adapters/src/persistence/sqlite/ledger/deliveries.rs`
 - Create: `pns/crates/pns-adapters/src/persistence/sqlite/ledger/tests/deliveries.rs`
 - Modify: `pns/crates/pns-adapters/src/persistence/sqlite/ledger.rs` (`mod deliveries;`,
@@ -5119,6 +5177,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): word a leg's outcome and an event's v
 - Modify: `pns/crates/pns-application/src/ports/ledger.rs` (`StoredDelivery`) and its re-export
 
 **Interfaces:**
+
 - Produces:
 
 ```rust
@@ -5270,9 +5329,9 @@ In `ledger.rs`, beside `failing_legs`:
 ```
 
 Add `StoredDelivery` (the struct in the Interfaces block) to `pns-application/src/ports/ledger.rs` beside
-`StoredFailure` and re-export it from `pns-application/src/lib.rs`. The ledger has no index on
-`started`, and the cap bounds the scan's output, which is what a single-threaded page needs; an index is
-a later change if the scan measures slow.
+`StoredFailure` and re-export it from `pns-application/src/lib.rs`. The ledger has no index on `started`,
+and the cap bounds the scan's output, which is what a single-threaded page needs; an index is a later
+change if the scan measures slow.
 
 - [ ] **Step 4: Run the tests to see them pass**
 
@@ -5289,11 +5348,13 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): read every leg of the last day from t
 ### Task 6.3: `pns deliveries`
 
 **Files:**
+
 - Create: `pns/crates/pns/src/command_deliveries.rs`
 - Create: `pns/crates/pns/src/command_deliveries/tests.rs`
 - Modify: `pns/crates/pns/src/lib.rs`, `invocation.rs`, `subcommand_usage.rs`, `legacy/usage.rs`
 
 **Interfaces:**
+
 - Consumes: `StoredDelivery`, `retry::{leg_word, event_verdict, Verdict, median, destination_summary}`,
   `render::title`, `remind::waited`, `utc_clock`, `utc_day`, `view::{Sources, Summary}`.
 - Produces:
@@ -5408,8 +5469,8 @@ fn the_summary_counts_the_day_and_the_given_up() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_deliveries`
-Expected: compile error, `file not found for module command_deliveries`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_deliveries` Expected:
+compile error, `file not found for module command_deliveries`.
 
 - [ ] **Step 3: Implement the builder, the renderer and the mode**
 
@@ -5602,13 +5663,13 @@ pub(crate) fn deliveries_mode() -> i32 {
 mod tests;
 ```
 
-Register
-`deliveries` in `invocation.rs`, `SUBCOMMAND_USAGE` and `USAGE` (`  pns deliveries                   every
-delivery of the last day`).
+Register `deliveries` in `invocation.rs`, `SUBCOMMAND_USAGE` and `USAGE`
+(`  pns deliveries                   every delivery of the last day`).
 
 - [ ] **Step 4: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_deliveries subcommand_usage`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib command_deliveries subcommand_usage`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
@@ -5621,14 +5682,17 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns deliveries, every leg of the 
 ### Task 6.4: The Deliveries page, its route and its index row
 
 **Files:**
+
 - Create: `pns/crates/pns/src/site/deliveries.rs`
 - Create: `pns/crates/pns/src/site/deliveries/tests.rs`
 - Modify: `pns/crates/pns/src/site.rs`, `site/index.rs`, `site/tests.rs`
 
 **Interfaces:**
+
 - Consumes: `command_deliveries::{read, summary, tone, DeliveriesView, EventRow}`, `shell::row_class`.
-- Produces: `pub(super) fn site::deliveries::page(view: Result<&DeliveriesView, &'static str>,
-  rendered_at: u64) -> String`.
+
+- Produces:
+  `pub(super) fn site::deliveries::page(view: Result<&DeliveriesView, &'static str>, rendered_at: u64) -> String`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -5707,8 +5771,8 @@ In `site/tests.rs`, the route test for `/deliveries` in the same shape as the ot
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: compile errors, `no variant Deliveries` and `cannot find function page in module deliveries`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: compile errors,
+`no variant Deliveries` and `cannot find function page in module deliveries`.
 
 - [ ] **Step 3: Implement the page**
 
@@ -5809,13 +5873,13 @@ Add `#failure-history .fh-sum { margin:0 0 26px; }` to the CSS constant in `shel
         }
 ```
 
-In `index.rs`, the Deliveries row after Sessions, with `summary: crate::command_deliveries::summary(sources,
-now)`, name "Deliveries", blurb "every delivery in the last day".
+In `index.rs`, the Deliveries row after Sessions, with
+`summary: crate::command_deliveries::summary(sources, now)`, name "Deliveries", blurb "every delivery in
+the last day".
 
 - [ ] **Step 4: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: all pass.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: all pass.
 
 - [ ] **Step 5: Run the gates and check file sizes**
 
@@ -5834,7 +5898,7 @@ git add pns/crates/pns/src
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Deliveries page"
 ```
 
----
+______________________________________________________________________
 
 ## Pull request 7: Config as loaded
 
@@ -5844,13 +5908,15 @@ Branch `feat/pns-page-config`. Worktree:
 ### Task 7.1: One list of secret-bearing keys
 
 **Files:**
+
 - Create: `pns/crates/pns-adapters/src/config/secrets.rs`
-- Modify: `pns/crates/pns-adapters/src/config/mod.rs` (`mod secrets; pub use secrets::{SECRET_KEYS,
-  SECRET_TABLES};`)
+- Modify: `pns/crates/pns-adapters/src/config/mod.rs`
+  (`mod secrets; pub use secrets::{SECRET_KEYS, SECRET_TABLES};`)
 - Modify: `pns/crates/pns/src/bin/pns-config-render.rs` (its private lists become these)
 - Test: `pns/crates/pns/src/bin/pns-config-render/tests.rs`
 
 **Interfaces:**
+
 - Produces:
 
 ```rust
@@ -5885,7 +5951,8 @@ fn a_literal_webhook_secret_or_calendar_token_is_refused_by_name() {
 
 - [ ] **Step 2: Run it to see it fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --bin pns-config-render`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --bin pns-config-render`
 Expected: FAIL, `a literal secret is refused` panics for `plugins.github.webhook_secret`.
 
 - [ ] **Step 3: Move and complete the list**
@@ -5921,9 +5988,10 @@ paragraphs that explained the constants move onto the new file's items.
 
 - [ ] **Step 4: Run the binary's tests and the shipped-values check**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --bin pns-config-render`
-and `just test-unit`
-Expected: all pass; `pns-config-template.test.sh` still renders the committed template byte for byte.
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --bin pns-config-render`
+and `just test-unit` Expected: all pass; `pns-config-template.test.sh` still renders the committed
+template byte for byte.
 
 - [ ] **Step 5: Commit**
 
@@ -5935,14 +6003,17 @@ SKIP_AI_COMMIT=1 git commit -m "refactor(pns): keep one list of secret-bearing c
 ### Task 7.2: The config, disclosed by construction
 
 **Files:**
+
 - Create: `pns/crates/pns-adapters/src/config/disclosure.rs`
 - Create: `pns/crates/pns-adapters/src/config/disclosure/sections.rs` (the typed sections)
 - Create: `pns/crates/pns-adapters/src/config/disclosure/tests.rs`
-- Modify: `pns/crates/pns-adapters/src/config/mod.rs` (`mod disclosure; pub use disclosure::{Disclosure,
-  Row, Section, Shown, SHOWN_PLUGIN_KEYS, disclosed};`), `pns-adapters/src/lib.rs` (re-export)
+- Modify: `pns/crates/pns-adapters/src/config/mod.rs`
+  (`mod disclosure; pub use disclosure::{Disclosure, Row, Section, Shown, SHOWN_PLUGIN_KEYS, disclosed};`),
+  `pns-adapters/src/lib.rs` (re-export)
 - Modify: `pns/crates/pns-domain/src/recap/window.rs` (`period_text`)
 
 **Interfaces:**
+
 - Consumes: `Config`, `TABLE_KEYS`, `SECRET_KEYS`, `SECRET_TABLES`, `duration::spelled`,
   `profiles::surfaces_line`.
 - Produces:
@@ -6085,8 +6156,8 @@ The `"  default = pns-events"` expectation holds because the shipped `Routes::de
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters config::disclosure` and
-`cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::window`
-Expected: compile errors, `file not found for module disclosure` and `cannot find function period_text`.
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::window` Expected: compile
+errors, `file not found for module disclosure` and `cannot find function period_text`.
 
 - [ ] **Step 3: Implement `period_text`**
 
@@ -6339,9 +6410,8 @@ pub(super) fn typed(config: &Config) -> Vec<Section> {
 - [ ] **Step 5: Run the tests to see them pass**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters config::disclosure` and
-`cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::window`
-Expected: all pass. If the sentinel test names a key that shows and should not, the fix is the
-allowlist, never the test.
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns-domain recap::window` Expected: all pass. If
+the sentinel test names a key that shows and should not, the fix is the allowlist, never the test.
 
 - [ ] **Step 6: Commit**
 
@@ -6353,6 +6423,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): disclose the loaded config with every
 ### Task 7.3: `pns config show`, and the shipped config checked against the disclosure
 
 **Files:**
+
 - Create: `pns/crates/pns/src/command_config.rs`
 - Create: `pns/crates/pns/src/command_config/tests.rs`
 - Modify: `pns/crates/pns/src/lib.rs`, `invocation.rs`, `subcommand_usage.rs`, `legacy/usage.rs`
@@ -6360,6 +6431,7 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): disclose the loaded config with every
 - Test: `pns/crates/pns/src/bin/pns-config-render/tests.rs`
 
 **Interfaces:**
+
 - Consumes: `disclosed`, `Disclosure::lines`, `load_config`, `config_path`, `parse_config`.
 - Produces:
 
@@ -6425,8 +6497,8 @@ fn the_summary_is_the_load_state() {
 }
 ```
 
-Append to `pns-config-render/tests.rs`, and add `leaked` to its `use super::{lookup,
-refuse_literal_secrets};` line:
+Append to `pns-config-render/tests.rs`, and add `leaked` to its
+`use super::{lookup, refuse_literal_secrets};` line:
 
 ```rust
 #[test]
@@ -6439,7 +6511,8 @@ fn a_disclosed_vault_placeholder_is_named() {
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --lib --bin pns-config-render command_config leaked`
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --lib --bin pns-config-render command_config leaked`
 Expected: compile errors, `file not found for module command_config` and `cannot find function leaked`.
 
 - [ ] **Step 3: Implement the command**
@@ -6538,8 +6611,8 @@ mod tests;
 
 `parse_config("")` cannot fail (an empty file is every default, which the disclosure tests already rely
 on), so the one `expect` is a compiled-in invariant. Register `config` in `invocation.rs`,
-`("config", CONFIG_USAGE)` and `("config show", CONFIG_USAGE)` in `SUBCOMMAND_USAGE`, and `  pns config
-show                  the loaded config, secrets hidden` in `USAGE`.
+`("config", CONFIG_USAGE)` and `("config show", CONFIG_USAGE)` in `SUBCOMMAND_USAGE`, and
+`  pns config show                  the loaded config, secrets hidden` in `USAGE`.
 
 - [ ] **Step 4: Extend the shipped-config check**
 
@@ -6567,9 +6640,9 @@ shipped config is now checked against the disclosure on every `just test-unit`.
 
 - [ ] **Step 5: Run the tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --lib --bin pns-config-render`
-and `just test-unit`
-Expected: all pass, the committed values' check included.
+Run:
+`cargo test --locked --manifest-path pns/Cargo.toml -p pns --features dev-tools --lib --bin pns-config-render`
+and `just test-unit` Expected: all pass, the committed values' check included.
 
 - [ ] **Step 6: Commit**
 
@@ -6581,12 +6654,15 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns config show, and check the sh
 ### Task 7.4: The Config as loaded page, its route and its index row
 
 **Files:**
+
 - Create: `pns/crates/pns/src/site/config.rs`
 - Create: `pns/crates/pns/src/site/config/tests.rs`
 - Modify: `pns/crates/pns/src/site.rs`, `site/index.rs`, `site/tests.rs`, `site/shell.rs` (`.fr-hidden`)
 
 **Interfaces:**
+
 - Consumes: `command_config::{read, summary, ConfigView, Loaded, DID_NOT_LOAD}`, `Shown`.
+
 - Produces: `pub(super) fn site::config::page(view: &ConfigView, rendered_at: u64) -> String`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -6669,8 +6745,8 @@ In `site/tests.rs`, the route test for `/config` in the same shape as the others
 
 - [ ] **Step 2: Run them to see them fail**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: compile errors, `no variant Config` and `cannot find function page in module config`.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: compile errors,
+`no variant Config` and `cannot find function page in module config`.
 
 - [ ] **Step 3: Implement the page**
 
@@ -6741,15 +6817,14 @@ mod tests;
 ```
 
 Add `#failure-record .fr-hidden { color:var(--fr-muted); font-style:italic; }` to the CSS constant. In
-`site.rs`, `Target::Config` on `/config`, and the arm `Some(Target::Config) =>
-ok(&config::page(&crate::command_config::read(sources), now)),`. In `index.rs`, the Config row last, with
-`summary: crate::command_config::summary(sources)`, name "Config as loaded", blurb "the settings pns is
-running with, secrets hidden".
+`site.rs`, `Target::Config` on `/config`, and the arm
+`Some(Target::Config) => ok(&config::page(&crate::command_config::read(sources), now)),`. In `index.rs`,
+the Config row last, with `summary: crate::command_config::summary(sources)`, name "Config as loaded",
+blurb "the settings pns is running with, secrets hidden".
 
 - [ ] **Step 4: Run the site tests to see them pass**
 
-Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::`
-Expected: all pass.
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --lib site::` Expected: all pass.
 
 - [ ] **Step 5: Run the gates and check file sizes**
 
@@ -6768,7 +6843,7 @@ git add pns/crates/pns/src
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): serve the Config as loaded page, secrets hidden by construction"
 ```
 
----
+______________________________________________________________________
 
 ## After the seventh pull request
 
