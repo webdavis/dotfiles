@@ -1,7 +1,10 @@
-//! The sandbox's own fences: what a test that stubs nothing still cannot
-//! reach. The URL is spelled out rather than read back from the harness, so
-//! a fence moved onto a real host cannot also move what this twin expects.
-use super::{Sandbox, plugin_command, run};
+//! The sandbox's fence: what a test that stubs nothing still cannot reach.
+//!
+//! The URLs are literals, so a fence moved onto a real host fails its twin.
+
+mod support;
+
+use support::{Sandbox, plugin_command, run};
 
 #[test]
 fn a_desk_banner_from_a_test_that_stubbed_nothing_lands_in_the_sandbox() {
@@ -18,7 +21,7 @@ fn a_desk_banner_from_a_test_that_stubbed_nothing_lands_in_the_sandbox() {
 }
 
 #[test]
-fn a_run_with_no_moshi_override_sees_a_loopback_port_nothing_serves() {
+fn bare_points_both_moshi_urls_at_loopback_port_one() {
     let sandbox = Sandbox::new("fence-moshi-url");
     let command = sandbox.bare();
     for variable in ["PNS_MOSHI_URL", "PNS_MOSHI_UPLOAD_URL"] {
