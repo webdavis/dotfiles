@@ -157,11 +157,49 @@ grep -q 'no loaded moshi-hook service' "$sandbox/out" &&
   fail "1c: a brew failure must not be reported as \"no loaded service\" (out: $(cat "$sandbox/out"))"
 grep -q 'Refusing to load formula' "$sandbox/out" ||
   fail "1c: a brew failure must surface brew's own error (out: $(cat "$sandbox/out"))"
+
+# --- 1d: a clean brew call that also prints a warning on stderr still bounces
+# stdout and stderr must stay apart: a warning on stderr must not reach jq's
+# input and turn a loaded service into an unparseable one.
+
+cat >"$sandbox/bin/brew" <<STUB
+#!/bin/bash
+[[ "\$*" == 'services info moshi-hook --json' ]] || exit 0
+echo 'Warning: Calling \`postflight\` is deprecated! Use \`postflight_steps\` instead.' >&2
+cat '$services_record'
+STUB
+chmod +x "$sandbox/bin/brew"
+: >"$kickstart_log"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "1d: a clean brew call with a stderr warning must not abort the apply, got $status"
+kickstarted || fail "1d: a clean brew call with a stderr warning must still bounce (out: $(cat "$sandbox/out"))"
+grep -q "gui/$(id -u)/sh.brew.moshi-hook\$" "$kickstart_log" ||
+  fail "1d: the bounce must target the label Homebrew loaded (log: $(cat "$kickstart_log"))"
+
 cat >"$sandbox/bin/brew" <<STUB
 #!/bin/bash
 [[ "\$*" == 'services info moshi-hook --json' ]] && cat '$services_record'
 STUB
 chmod +x "$sandbox/bin/brew"
+
+# --- 1e: two matching records in Homebrew's own output still yield one label -
+
+cat >"$services_record" <<'JSON'
+[{"name":"moshi-hook","service_name":"sh.brew.moshi-hook","loaded":true},
+ {"name":"moshi-hook","service_name":"sh.brew.moshi-hook.old","loaded":true}]
+JSON
+: >"$kickstart_log"
+status=0
+PATH="$sandbox/bin:$PATH" MOSHI_HOOK_BIN="$sandbox/fake-binary" HOME="$sandbox/home" \
+  bash "$rendered" >"$sandbox/out" 2>&1 || status=$?
+[[ $status -eq 0 ]] || fail "1e: two matching records must not abort the apply, got $status"
+[[ $(wc -l <"$kickstart_log") -eq 1 ]] ||
+  fail "1e: two matching records must still produce exactly one kickstart call (log: $(cat "$kickstart_log"))"
+grep -q "gui/$(id -u)/sh.brew.moshi-hook\$" "$kickstart_log" ||
+  fail "1e: the bounce must target the first matching label (log: $(cat "$kickstart_log"))"
+printf '%s\n' "$loaded_record" >"$services_record"
 
 # --- 2: inodes MATCH, the daemon is current: LEAVE IT ALONE ------------------
 
