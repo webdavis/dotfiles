@@ -271,22 +271,46 @@ fn every_meaning_names_its_concrete_subject_rather_than_a_pronoun() {
 }
 
 /// An answer with no status still says which of the two silences it was, since
-/// they call for different repairs: one is a URL pns built wrong, the other is
-/// a gateway that is not there.
+/// they call for different repairs: one is a leg pns never launched, the other
+/// is a gateway that is not there.
 #[test]
 fn the_two_answers_that_carry_no_status_are_told_apart_by_name() {
     let no_response = Failure {
         outcome: TransportOutcome::NoResponse,
         ..hermes_404()
     };
-    let bad_url = Failure {
+    let unlaunched = Failure {
         outcome: TransportOutcome::NoStatus,
         ..hermes_404()
     };
     assert!(full(&no_response).contains("no response"));
     assert!(full(&no_response).contains("nothing answered at 127.0.0.1:8644"));
-    assert!(full(&bad_url).contains("bad URL"));
-    assert!(full(&bad_url).contains("is malformed, nothing was sent"));
+    assert!(full(&unlaunched).contains(&format!("{:<16}not launched\n", "status:")));
+    assert!(
+        full(&unlaunched).contains("pns never launched the post to testpath, nothing was sent")
+    );
+}
+
+/// A leg with no status is one the ledger recorded as never launched, which
+/// involves no URL, so no line of either destination's record names one.
+#[test]
+fn an_unlaunched_leg_says_it_never_launched_and_never_blames_a_url() {
+    let hermes = Failure {
+        outcome: TransportOutcome::NoStatus,
+        ..hermes_404()
+    };
+    let phone = Failure {
+        destination: DESTINATION_PHONE.to_string(),
+        address: "https://api.getmoshi.app/api/webhook".to_string(),
+        ..hermes.clone()
+    };
+    assert!(full(&phone).contains(
+        "pns never launched the card for https://api.getmoshi.app/api/webhook, nothing was sent"
+    ));
+    for record in [full(&hermes), full(&phone)] {
+        assert!(!record.contains("URL"), "{record}");
+        assert!(!record.contains("malformed"), "{record}");
+    }
 }
 
 /// The heading varies per FAILURE, not per producer. Four probes sharing one

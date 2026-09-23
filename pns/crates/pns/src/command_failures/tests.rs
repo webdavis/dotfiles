@@ -63,7 +63,7 @@ fn the_listing_status_is_the_code_alone_and_names_each_silence() {
     );
     assert_eq!(
         short_status(&stored(1, pns_domain::retry::TransportOutcome::NoStatus)),
-        "bad URL"
+        "not launched"
     );
 }
 
