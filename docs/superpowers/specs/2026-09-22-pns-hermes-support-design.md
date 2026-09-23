@@ -39,8 +39,9 @@ when its name is in `plugins.enabled` in `config.yaml` (`plugins.py:223-248`, `:
 in config (run `hermes plugins enable {}` to activate)"). `hermes plugins enable <name>`
 (`hermes_cli/plugins_cmd.py:772`) is Hermes's own writer of that list; it is idempotent and prints
 "already enabled" when there is nothing to do. `HERMES_HOME` defaults to `~/.hermes`
-(`hermes_constants.py:54-76`). Discovery runs in every Hermes process: the CLI and the TUI through
-`model_tools.py:201`, the gateway at `gateway/run.py:5700`.
+(`hermes_constants.py:54-76`). Discovery runs in every Hermes process: the classic CLI
+(command-line interface) and the TUI (terminal user interface) through `model_tools.py:201`, the
+gateway at `gateway/run.py:5700`.
 
 **Plugin callbacks run inside the Hermes process, synchronously.** A callback that blocks holds up the
 agent. The two approval hooks are observers: "return values are ignored. Plugins cannot veto or
@@ -80,7 +81,9 @@ durable log through, and a producer of hook events.
 `pns hermes install-plugin` writes two files into `$HERMES_HOME/plugins/pns-hooks/` (default
 `~/.hermes/plugins/pns-hooks/`):
 
-- `plugin.yaml`: `name: pns-hooks`, `version: "<pns version>"`, and a one-line description.
+- `plugin.yaml`: `name: pns-hooks`, a fixed `version: "1"`, and a one-line description. Hermes reads
+  the version only for display (`hermes_cli/plugins.py:1516`), and a fixed one means a pns release that
+  leaves the shim alone rewrites nothing.
 - `__init__.py`: the shim, embedded in the binary with `include_str!`, with one substitution: the
   absolute, canonicalized path of the binary that wrote it (`current_exe`, as `install-hooks` does),
   written as a JSON string literal, which Python reads as a string literal.
@@ -98,6 +101,32 @@ before its answer. Each call has a 120 s backstop timeout; pns bounds its own wa
 A call submitted after interpreter shutdown closed the pool runs inline. Every exception is swallowed:
 the shim can lose a notification and can never fail a Hermes turn.
 
+### Two runs the shim never reports
+
+**Hermes's background review.** Every `memory.nudge_interval` turns (default 10,
+`agent/agent_init.py:1162`, counted in `agent/turn_context.py:290-297`), and when the skills nudge
+fires, `finalize_turn` spawns a review fork before the turn's own `on_session_end`
+(`agent/turn_finalizer.py:446-452`). The fork is an `AIAgent` built with the parent's `platform` and
+then given the parent's `session_id` (`agent/background_review.py:641-702`), and it calls
+`run_conversation` (`:750`), which fires `pre_llm_call`, `post_llm_call` and `on_session_end` like any
+turn. Reported, it would restart the operator's turn clock, raise a second `done` whose text is the
+review's "memory updated", and could take the real turn's kept reply. Nothing on the payload tells it
+apart: same session, same platform, a fresh `task_id` like any turn. The thread does:
+`_spawn_background_review` runs it on a thread named `bg-review` (`run_agent.py:1461`), and every hook
+of `run_conversation` fires synchronously on the calling thread (`agent/turn_context.py:416`,
+`agent/turn_finalizer.py:342` and `:468`). So every callback returns at once, sending and keeping
+nothing, when `threading.current_thread().name` is `bg-review`.
+
+**pns's own summarizer.** A recap or `pns doctor` with `[recap.summarizer] type = "hermes"` runs
+`hermes chat -Q -t "" -q <prompt>` (`pns-domain/src/recap/summarizer.rs:151-158`), a one-shot whose agent
+is `platform="cli"` (`hermes_cli/oneshot.py:343`) in the default Hermes home, so pns-hooks would load in
+it and report the recap prompt as a terminal session, and the child could not exit until its shim had
+run the `stop` summarizer. `run_summarizer` (`pns-adapters/src/recap/summarizer.rs:32`, the one runner
+both the recap and the doctor probe use) sets `PNS_SUMMARIZING=1` on every backend's child, the variable
+the Codex turn summarizer already sets on its own run (`pns-adapters/src/codex.rs:27`), and the shim's
+`register(ctx)` registers no hook at all when that variable is set. Such a run never fires a hook and
+never becomes a session.
+
 ### The hook-to-verb mapping
 
 | Hermes hook | When the shim sends | `hook_event_name` | pns verb | Payload beyond `session_id`, `cwd`, `platform` |
@@ -113,8 +142,10 @@ the shim can lose a notification and can never fail a Hermes turn.
 | `pre_tool_call` | tool `clarify` only | `PreToolUse` | `asked` | `tool_name`, `tool_call_id`, `tool_input` |
 | `post_tool_call` | tool `clarify` only | `PostToolUse` | `resolved` | `tool_name`, `tool_call_id` |
 
-The turn's end comes from `on_session_end`, which fires exactly once at the end of every
-`run_conversation` with `completed` and `interrupted` (`agent/turn_finalizer.py:466-478`).
+The turn's end comes from `on_session_end`, which fires once at the end of every `run_conversation`
+with `completed` and `interrupted` (`agent/turn_finalizer.py:466-478`). The CLI fires one more,
+`interrupted=True`, when it exits mid-turn (`cli.py:1077-1110`, `:14904-14922`); that maps to
+`resolved`, which clears whatever is still set and is harmless after the turn's own end.
 `post_llm_call` fires whenever a turn has a final response and was not interrupted (`:339-354`), and a
 failed turn can have one (`completed` also requires `not failed` and an unexhausted budget, `:126-133`),
 so mapping `post_llm_call` to `stop` would report a failed turn twice. The shim keeps the reply from
@@ -122,8 +153,8 @@ so mapping `post_llm_call` to `stop` would report a failed turn twice. The shim 
 
 An interrupted turn maps to `resolved`, as Codex's `Interrupt` does (`codex_hooks.rs:49-53`): the
 operator ended it, so any wait it held is answered. Questions notify three ways: `clarify` (Hermes's
-ask-the-user tool) and an MCP elicitation map to `asked`, and a turn that ends on a question becomes
-`asking` through the same summarizer every Claude turn goes through.
+ask-the-user tool) and an MCP (Model Context Protocol) elicitation map to `asked`, and a turn that ends
+on a question becomes `asking` through the same summarizer every Claude turn goes through.
 
 `on_session_start`, `on_session_finalize`, `subagent_start`, `subagent_stop` and every other hook stay
 unregistered: pns names a session from its first prompt and has no session-boundary verb. Tool calls
@@ -132,16 +163,35 @@ other than `clarify` never leave the process.
 ### The platform stamp
 
 Only the lifecycle hooks carry `platform`. The approval hooks carry `surface` and `session_key`
-(`plugins.py:162-167`), and the tool hooks carry neither (`plugins.py:1933-1943`). The shim therefore
-stamps `platform` on every payload: the event's own platform when it has one, else the last platform
-this process named. A platform of `subagent` is sent on its own events and never becomes the process's
-remembered platform.
+(`plugins.py:162-167`), and the tool hooks carry `session_id` but no platform
+(`hermes_cli/plugins.py:1933-1943`, `model_tools.py:880-886`). The shim therefore stamps `platform` on
+every payload, remembered PER SESSION:
 
-That works because one Hermes process hosts one front end. The classic CLI builds its agent with
-`platform="cli"` (`hermes_cli/cli_agent_setup_mixin.py:372`; one-shot `hermes chat -q` at
+1. A lifecycle event sends its own platform and records it against its session id.
+2. Any other event sends the platform its session last recorded: a tool event looks up its
+   `session_id`, an approval its `session_key`.
+3. A session no lifecycle event named sends the last terminal platform (`cli` or `tui`) this process
+   named, and nothing when the process never named one.
+
+Per session, because one Hermes process hosts more than one agent. The classic CLI builds its agent
+with `platform="cli"` (`hermes_cli/cli_agent_setup_mixin.py:372`; one-shot `hermes chat -q` at
 `hermes_cli/oneshot.py:343`), the TUI backend with `"tui"` (`tui_gateway/server.py:4233`), the gateway
-with each message's platform. Delegated children run inside their parent's process with
-`platform="subagent"` (`tools/delegate_tool.py:1246`), which is why that value is excluded.
+with each message's platform. Inside those processes run agents of other platforms, each with its own
+session id: delegated children with `platform="subagent"` (`tools/delegate_tool.py:1246`), and the
+weekly curator, which the CLI starts on a daemon thread at launch (`cli.py:12555-12561`, on by default,
+`hermes_cli/config.py:2149-2151`) as an agent with `platform="curator"` and a fresh session id
+(`agent/curator.py:1826-1840`) that runs for 50 to 100 model calls. A process-wide "last named
+platform" would let the curator's events stamp an operator's CLI approval `curator` and silence it.
+
+The approval's `session_key` is the agent's session id on both terminal front ends: the CLI binds
+`self.session_id` before each turn (`cli.py:11682`), and the TUI builds its agent with
+`session_id=session_id or key` (`tui_gateway/server.py:4234`) and binds `session["session_key"]`
+(`:8253`). Compression can rotate an agent's session id mid-session
+(`agent/conversation_compression.py:580`) while the CLI keeps binding the old one until the turn ends
+(`cli.py:11894`); the old id stays recorded, so the lookup still hits. The third rule covers the rest,
+and it fails toward notifying: in a terminal process a miss is stamped with that terminal front end, and
+in a gateway process, where no agent is `cli` or `tui`, a miss sends no platform and the surface
+decides.
 
 ## Terminal or recorded only
 
@@ -156,7 +206,7 @@ pns decides, from the payload's `platform` and `surface`, for events whose produ
 
 Every non-terminal platform Hermes names is recorded only: the chat gateways (`discord`, `telegram` and
 the rest), `webhook` (the `explain` agent route), `api_server`, `cron` (`cron/scheduler.py:2497`), `acp`
-(`acp_adapter/session.py:592`) and `subagent`. None of them has an operator at a pane.
+(`acp_adapter/session.py:592`), `curator` and `subagent`. None of them has an operator at a pane.
 
 **Platform decides before surface** because the TUI's approvals report `surface="gateway"`. The TUI
 backend sets `HERMES_GATEWAY_SESSION=1` for its whole process (`tui_gateway/server.py:1828-1832`), so
@@ -165,8 +215,8 @@ backend sets `HERMES_GATEWAY_SESSION=1` for its whole process (`tui_gateway/serv
 TUI as a terminal front end. The CLI's own prompt fires with `surface="cli"` (`approval.py:1766-1786`).
 
 **An event missing both fields notifies.** It cannot say where it came from, and the repository's
-direction is to fail toward notifying. On the paths above that happens only in a process that never
-named a platform, such as `batch_runner.py`'s agents.
+direction is to fail toward notifying. On the paths above that happens only for an agent built with no
+platform, such as `batch_runner.py`'s, in a process that never named a terminal platform.
 
 ## What each kind of session gets
 
@@ -197,13 +247,24 @@ moshi the payload byte for byte, so the shim's payload is moshi's contract plus 
 which moshi's own plugin already sends on its lifecycle events.
 
 **The answer.** moshi clears its card when `PermissionResolved` arrives with the card's `action_id`
-("Approval resolves | Clears the pending action", `docs/hooks.md:167`). `pns hook resolved` for producer
-`hermes` with `hook_event_name == "PermissionResolved"` and `surface == "cli"` forwards the payload to
-`moshi-hook hermes-hook`, bounded by the same acknowledgement deadline. It is not presence-gated: an
-operator who walked away after the card went out can come back and answer at the pane, and the card
-still has to clear. A desk answer reaches moshi for an `action_id` it never carded; moshi's own plugin
-already sends answers with an empty `action_id` when it has nothing to pair, and the drill confirms no
-card or push results.
+("Approval resolves | Clears the pending action", `docs/hooks.md:167`). pns hands moshi the answer to
+exactly the requests it handed moshi:
+
+- When `blocking_event`'s spawn of `moshi-hook hermes-hook` starts, pns writes an empty marker named by
+  the request's `action_id` under `<state dir>/moshi-forwards/`. An `action_id` that fails the
+  session-id rule (`pns-domain/src/safety.rs:52-59`) writes nothing; the shim's is a 32-character hex
+  `uuid4`.
+- `pns hook resolved` for producer `hermes` with `hook_event_name == "PermissionResolved"` and
+  `surface == "cli"` removes that marker, and only when the removal succeeds forwards the payload to
+  `moshi-hook hermes-hook`, bounded by the same acknowledgement deadline.
+
+The answer is not presence-gated: an operator who walked away after the card went out can come back and
+answer at the pane, and the card still has to clear. The marker keeps that ungated forward to cards
+moshi raised. moshi's own plugin sent every CLI request, so every non-empty `action_id` it later
+resolved was one moshi had registered; with pns gating the request at the desk, a desk answer would
+otherwise hand moshi a fresh `action_id` it never saw, a path the 0.3.26 binary names ("no pending
+approval with this action id") with an unknown visible effect. It also spares a moshi-hook spawn per
+desk answer.
 
 **Nothing else is forwarded**, which is Claude's arrangement: pns hands moshi approvals only.
 
@@ -216,8 +277,8 @@ card or push results.
 2. Renders both files and writes each one whose bytes differ, by a temporary file and a rename in the
    same directory. A run that would write the same bytes writes nothing.
 3. Runs `hermes plugins enable pns-hooks` (the binary from `PNS_HERMES_BIN`, else `hermes` on `PATH`),
-   bounded at 30 s, with its output captured. A failure is exit 2 with one line naming the command to
-   run; the files stay written.
+   bounded at 30 s, with its output captured. A failure is exit 2 with one line saying Hermes sessions
+   do not reach pns until the plugin is enabled and naming the command to run; the files stay written.
 4. When a file changed, prints one line on stderr naming the directory and saying Hermes loads it at
    its next start, with `hermes gateway restart` for chat sessions. A run that changed nothing prints
    nothing, so a no-op apply stays quiet.
@@ -228,8 +289,9 @@ also a chezmoi modify target holding secrets, so pns never parses it. The modify
 command re-heals on every apply, so an operator who disables the plugin with `hermes plugins disable`
 gets it back at the next apply.
 
-**Upgrades.** The rendered bytes are the version: the shim's source and the binary path. The pns
-builder (`run_onchange_after_58-build-pns-engine.sh.tmpl`) installs a new binary before
+**Upgrades.** The rendered bytes are the version: the shim's source and the binary path, since the
+manifest's own `version` never moves. The pns builder (`run_onchange_after_58-build-pns-engine.sh.tmpl`)
+installs a new binary before
 `run_after_72-pns-hermes-plugin` runs `install-plugin`, so a new shim is written in the same apply and
 an unchanged one is left alone. A running Hermes process keeps the shim it imported until it restarts;
 the gateway needs `hermes gateway restart`. A stale shim still calls the same binary path, and pns treats
@@ -258,7 +320,10 @@ so it also takes the name back out of `plugins.enabled`. It runs from
 `moshi-hook uninstall --target codex,hermes`. This repository builds no removal mechanism of its own:
 no `.chezmoiremove`, no retirement script. Editing the script re-fires it once on the next apply
 (`run_once_` tracks content), which re-runs its idempotent pair check, install, tap trust and service
-start. Script order puts it (60) before `run_after_72-pns-hermes-plugin` (72).
+start. The re-fire does not re-pair: the script skips `pair` when `moshi-hook status` prints `paired`
+(`run_once_after_60-moshi-hook-setup.sh.tmpl:49-62`), and the 2026-09-20 re-fire logged
+`moshi-hook already paired -- skipping pair`. Script order puts it (60) before
+`run_after_72-pns-hermes-plugin` (72).
 
 **moshi's install targets already leave Hermes out.** Line 64 installs
 `opencode,gemini,cursor,kimi,qwen,grok,omp,pi`, so no apply reinstalls moshi's Hermes plugin. Two other
@@ -282,7 +347,7 @@ The operator runs these after the apply that lands the dotfiles pull request and
 - **H1, desk approval.** In a herdr pane run `hermes chat --cli` (the flag pins the classic CLI whatever
   `display.interface` says) and ask it to run `rm -rf /tmp/pns-hermes-drill`. Expect a pns banner naming
   the command, no phone card, and the blocked lamp if lamps are on. Answer once at the pane: the lamp
-  clears, no moshi card or push appears (the answer forward for an `action_id` moshi never carded), and
+  clears, no moshi card or push appears (pns never forwarded the request, so it forwards no answer), and
   the turn ends with a `hermes` done banner.
 - **H2, phone approval (the Q14f drill).** Same prompt with the surface Mobile or Away, as drill D8
   set it. Expect exactly one moshi card. Approve on the phone: moshi types the answer into the pane, the
@@ -309,6 +374,18 @@ The operator runs these after the apply that lands the dotfiles pull request and
   its Hermes completion pushes stop with its plugin. Open question 3.
 - **Only the default `HERMES_HOME`.** The four profiles under `~/.hermes/profiles/` have their own
   plugin directories and are not installed into.
+- **A sticky Hermes profile is not the default home.** `install-plugin` writes under `$HERMES_HOME` or
+  `~/.hermes`, but the `hermes` launcher follows `~/.hermes/active_profile` when it names a profile
+  other than `default` (`hermes_cli/main.py:447-471`), so `hermes plugins enable pns-hooks` then targets
+  that profile, exits 1 ("not installed", `hermes_cli/plugins_cmd.py:779-782`) and every apply warns.
+  No `active_profile` exists on dresden.
+- **A forwarded request whose answer never arrives** (Hermes killed at its prompt) leaves one empty
+  marker file under `<state dir>/moshi-forwards/`.
+- **Pinned Hermes facts.** The shim depends on these, each cited above; re-check them whenever
+  `.chezmoidata/hermes.yaml` moves: the background review's thread name `bg-review`; the curator's
+  `platform="curator"` and its own session id; the approval hooks' `session_key` being the terminal
+  agent's session id; the TUI's approvals reporting `surface="gateway"`; `on_session_end` and
+  `post_llm_call` firing on the thread that runs the turn.
 - **One worker per process.** A slow `stop` (the summarizer) delays the next event from the same Hermes
   process; order is kept.
 - **The activity row's model column stays empty** for Hermes: pns reads the model from a transcript file
@@ -321,14 +398,15 @@ The operator runs these after the apply that lands the dotfiles pull request and
    turn that produced text.
 3. An interrupted turn maps to `resolved`, as Codex's `Interrupt` does.
 4. `platform` decides before `surface`, because TUI approvals report `surface="gateway"`.
-5. Every named platform other than `cli` and `tui` is recorded only, including `subagent`, `cron`,
-   `acp`, `webhook` and `api_server`.
-6. The shim stamps approval and tool events with its process's last named platform, excluding
-   `subagent`.
+5. Every named platform other than `cli` and `tui` is recorded only, including `subagent`, `curator`,
+   `cron`, `acp`, `webhook` and `api_server`.
+6. The shim stamps approval and tool events with the platform their own session named, falling back
+   to the last terminal platform the process named, so a curator or subagent run never restamps an
+   operator's approval.
 7. moshi receives Hermes approvals only from `surface == "cli"`, the only surface its own plugin
    forwarded.
 8. The answer to a CLI approval is forwarded to moshi without the presence gate, so a card clears
-   however the operator answered.
+   however the operator answered, and only when pns forwarded that `action_id`'s request.
 9. `blocked` carries `--remind=5m`, Codex's value: a bare `--remind` refuses with exit 2 when the
    config sets no delay (`remind_schedule_runtime.rs:84-86`).
 10. An MCP elicitation (`surface="mcp-elicitation"`) maps to `asked`, matching Claude's `Elicitation`.
@@ -340,6 +418,11 @@ The operator runs these after the apply that lands the dotfiles pull request and
 15. moshi's plugin goes through `moshi-hook uninstall --target codex,hermes` in `run_once_after_60`.
 16. The producer value stays `hermes`.
 17. The default Hermes home only; profiles are out of scope.
+18. The background review is recognized by its thread name, the one thing that tells it apart.
+19. Every summarizer run pns starts carries `PNS_SUMMARIZING=1`, the Codex turn summarizer's existing
+    variable, and the shim registers nothing under it.
+20. The manifest's `version` is fixed at `"1"`, so only a changed shim or binary path rewrites the
+    plugin.
 
 ## Open questions
 
@@ -347,29 +430,40 @@ The operator runs these after the apply that lands the dotfiles pull request and
    bare `moshi-hook install` write it back and enable it, and every approval then raises two cards. For
    Codex the answer was a merge-time strip in pns (#915). For Hermes the recommendation is to have the
    modify template own `moshi-hooks` in `plugins.disabled`, Hermes's deny list, which wins over
-   `plugins.enabled` (`plugins.py:207-220`). The alternative is to accept the exposure.
+   `plugins.enabled` (`plugins.py:207-220`), appended rather than owning the whole list. moshi's own
+   installer may strip it again (the 0.3.26 binary carries `plugins:disabled` and honors
+   `HERMES_HOME`, worth trying in a scratch home first), in which case the guard re-heals at each apply
+   rather than preventing. The exposure is real: the vendored moshi skill tells agents to run a bare
+   `moshi-hook install` (`dot_agents/skills/moshi/SKILL.md:198`). The alternative is to accept it.
 2. **Do you use the Hermes TUI?** If so, should pns try forwarding TUI approvals to moshi? That needs
-   its own drill, since moshi's plugin never sent them.
+   its own drill, since moshi's plugin never sent them. Hermes defaults `display.interface` to `cli`
+   (`hermes_cli/config.py:1620`) and the modify template does not own it.
 3. **Do you use moshi's Hermes session list, Chat View or Hermes completion pushes?** They stop once
    moshi's plugin is gone. pns could forward `UserPromptSubmit` and `SessionEnd` to moshi if you want
    them back, at the cost of moshi's own pushes outside the presence gate.
 4. **Kanban workers on the default profile** run as headless `hermes chat -q` with `platform="cli"`, so
-   this design notifies for them like any terminal session. Should they be recorded only instead?
+   this design notifies for them like any terminal session. Should they be recorded only instead? If so,
+   the shim can stamp a non-terminal platform whenever `HERMES_KANBAN_TASK` is set in its environment
+   (`hermes_cli/kanban_db.py:7392`), with no pns change.
 
 ## Files this design touches
 
 pns (`pns/crates/`):
 
-- `pns-adapters/src/harness/payload.rs`: `platform` and `surface` fields.
+- `pns-adapters/src/harness/payload.rs`: `platform`, `surface` and `action_id` fields.
 - `pns-adapters/src/harness/hermes.rs` (new): `hermes_records_only`.
 - `pns-adapters/src/harness/message.rs`: an approval's card text from `description` and `command`.
 - `pns-adapters/src/harness/routing.rs`: `moshi_subcommand` takes the surface.
 - `pns-adapters/src/hermes_plugin.rs` and `hermes_plugin/pns_hooks.py` (new): render, install, enable.
+- `pns-adapters/src/recap/summarizer.rs`: `PNS_SUMMARIZING=1` on every summarizer child.
 - `pns/src/hermes_session.rs` (new): the recorded-only row.
 - `pns/src/hook_dispatch.rs`: the recorded-only branch and the answer forward.
-- `pns/src/moshi_submission.rs`: `forward_resolution` and the surface at the call site.
+- `pns/src/moshi_submission.rs`: the forwarded-request marker, `forward_resolution` and the surface at
+  the call site.
 - `pns/src/command_hermes.rs` (new), `invocation.rs`, `lib.rs`, `subcommand_usage.rs`,
   `legacy/usage.rs`: the `pns hermes install-plugin` verb.
+- `pns/tests/support/sandbox/commands.rs`: `PNS_HERMES_BIN` fenced off by default, like
+  `PNS_MOSHI_HOOK_BIN`.
 
 Dotfiles:
 
