@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# The package installer pins each declared formula, driven with a brew double.
+# The pin-verify run_after_ script pins each declared formula, driven with a brew double.
 function set_up_before_script() {
   PIN_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   PIN_RENDER="$(mktemp -d)"
-  mkdir -p "$PIN_RENDER/source/.chezmoitemplates" "$PIN_RENDER/home"
-  cp "$PIN_REPO/.chezmoitemplates/cli-print-style-lib.sh.tmpl" \
-    "$PIN_REPO/.chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl" "$PIN_RENDER/source/.chezmoitemplates/"
+  mkdir -p "$PIN_RENDER/source" "$PIN_RENDER/home"
   : >"$PIN_RENDER/chezmoi.toml"
   jq -n --arg home "$PIN_RENDER/home" '{chezmoi: {os: "darwin", homeDir: $home}, packages: {macos: {
       homebrew: {trusted_taps: [], taps: [], formulae: ["rjyo/moshi/moshi-hook"], casks: [], mas: [],
@@ -15,7 +13,7 @@ function set_up_before_script() {
     --destination "$PIN_RENDER/home" --cache "$PIN_RENDER/cache" \
     --persistent-state "$PIN_RENDER/state.boltdb" --override-data-file "$PIN_RENDER/data.json" \
     execute-template --no-tty \
-    <"$PIN_REPO/.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl" >"$PIN_RENDER/subject.sh"
+    <"$PIN_REPO/.chezmoiscripts/run_after_11-verify-homebrew-pins.sh.tmpl" >"$PIN_RENDER/subject.sh"
 }
 
 function set_up() {
@@ -55,11 +53,10 @@ pin_invoke() {
     /bin/bash "$PIN_RENDER/subject.sh" >"$PIN_CASE/stdout" 2>"$PIN_CASE/stderr" || PIN_EXIT=$?
 }
 
-function test_an_unpinned_formula_at_the_declared_version_is_pinned_after_the_bundle_installs_it() {
+function test_an_unpinned_formula_at_the_declared_version_is_pinned() {
   pin_invoke
   assert_same 0 "$PIN_EXIT"
-  assert_same 'bundle pin' "$(grep -o -E '^(bundle --no-upgrade|pin rjyo/moshi/moshi-hook)' "$PIN_CASE/home/brew-calls" |
-    cut -d' ' -f1 | paste -sd' ' -)"
+  assert_contains 'pin rjyo/moshi/moshi-hook' "$(cat "$PIN_CASE/home/brew-calls")"
   assert_not_contains 'WARNING' "$(cat "$PIN_CASE/stderr")"
 }
 
@@ -77,4 +74,12 @@ function test_a_formula_installed_at_another_version_is_pinned_there_and_reporte
   assert_contains 'pin rjyo/moshi/moshi-hook' "$(cat "$PIN_CASE/home/brew-calls")"
   assert_contains 'rjyo/moshi/moshi-hook is pinned at 0.3.27' "$(cat "$PIN_CASE/stderr")"
   assert_contains 'declares 0.3.26' "$(cat "$PIN_CASE/stderr")"
+}
+
+function test_a_declared_formula_that_is_not_installed_is_warned_about_and_not_pinned() {
+  PIN_INSTALLED=""
+  pin_invoke
+  assert_same 0 "$PIN_EXIT"
+  assert_not_contains 'pin rjyo/moshi/moshi-hook' "$(cat "$PIN_CASE/home/brew-calls")"
+  assert_contains 'is declared pinned at 0.3.26 but is not installed' "$(cat "$PIN_CASE/stderr")"
 }

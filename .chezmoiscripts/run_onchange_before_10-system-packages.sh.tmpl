@@ -168,24 +168,9 @@ grep '^mas ' "$brewfile" >"$brewfile_mas" || true
 report_section "homebrew" "bundle sync"
 "$brew_bin" bundle --no-upgrade --file="$brewfile_main"
 
-# pin_declared <formula> <version>: hold a formula where `brew upgrade`, and so
-# the weekly job, leaves it. A fresh machine installs whatever the tap offers,
-# so the installed version is the one pinned, and a difference from the
-# declared version is reported.
-pin_declared() {
-  local formula="$1" declared="$2" installed
-  installed="$("$brew_bin" list --versions "$formula" | awk '{ print $2 }')"
-  if [[ -z $("$brew_bin" list --pinned "$formula" 2>/dev/null) ]]; then
-    "$brew_bin" pin "$formula"
-  fi
-  if [[ $installed != "$declared" ]]; then
-    printf 'homebrew: WARNING: %s is pinned at %s, but .chezmoidata/system_packages_autoinstall.yaml declares %s, the version proven against this repository.\n' \
-      "$formula" "$installed" "$declared" >&2
-  fi
-}
-{{ range $formula, $version := (dig "pinned" dict .packages.macos.homebrew) -}}
-pin_declared {{ $formula | quote }} {{ $version | quote }}
-{{ end -}}
+# Declared pins are held by run_after_11-verify-homebrew-pins.sh.tmpl, a plain
+# run_after_ script, so a lost pin is caught on every apply rather than only
+# when this script's rendered content changes.
 mas_manifest="$HOME/.local/state/homebrew/mas.Brewfile"
 if [[ -s $brewfile_mas ]]; then
   mkdir -p "${mas_manifest%/*}"
