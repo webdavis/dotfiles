@@ -9,10 +9,12 @@ approval through `moshi-hook hermes-hook`, while Hermes gateway sessions are rec
 delivered nowhere.
 
 **Architecture:** A Python shim embedded in the pns binary (`pns-hooks`) runs inside every Hermes process,
-maps seven Hermes hooks to the existing `pns hook` verbs, stamps each payload with the process's front-end
-platform, and spawns pns asynchronously. pns decides from `platform` and `surface` whether a Hermes event
-is a terminal session (every existing arm) or recorded only (one activity row). `moshi_subcommand` admits
-`hermes` for a CLI approval, and a CLI answer is forwarded so moshi clears its card. `pns hermes
+maps seven Hermes hooks to the existing `pns hook` verbs, stamps each payload with the platform its
+session named, and spawns pns asynchronously. It reports nothing from Hermes's background review thread
+and registers nothing inside a run pns's own summarizer started (`PNS_SUMMARIZING`). pns decides from
+`platform` and `surface` whether a Hermes event is a terminal session (every existing arm) or recorded
+only (one activity row). `moshi_subcommand` admits `hermes` for a CLI (command-line interface) approval,
+and the answer to a request pns forwarded is forwarded too, so moshi clears its card. `pns hermes
 install-plugin` writes and enables the shim; on dresden an apply runs it, removes the Hermes shell hook
 pair from the config modify template, and uninstalls moshi's own Hermes plugin.
 
@@ -31,15 +33,20 @@ chezmoi templates for the dotfiles pull request. Gates: `just test-rust`, `just 
 - The shim registers exactly seven hooks: `pre_llm_call`, `post_llm_call`, `on_session_end`,
   `pre_tool_call`, `post_tool_call`, `pre_approval_request`, `post_approval_response`.
 - `blocked` is always sent as `hook blocked --remind=5m`. No other verb carries a flag.
-- A Hermes event is recorded only when `platform` is a non-empty value other than `cli` and `tui`, or
-  when `platform` is empty and `surface` is `gateway`. Everything else, including both fields missing, is
-  a terminal session.
+- A Hermes event is recorded only when `platform` is a non-empty value other than `cli` and `tui` (the
+  classic CLI and the TUI (terminal user interface)), or when `platform` is empty and `surface` is
+  `gateway`. Everything else, including both fields missing, is a terminal session.
 - moshi receives a Hermes payload only when `surface` is `cli`: the request through `blocked`, presence
-  gated; the answer through `resolved`, never gated.
+  gated; the answer through `resolved`, never gated, and only for an `action_id` whose request pns
+  forwarded.
+- The shim reports nothing raised on a thread named `bg-review`, and registers no hook when
+  `PNS_SUMMARIZING` is set. Every summarizer child pns starts carries `PNS_SUMMARIZING=1`.
 - pns ships no bash. The shim is Python, embedded with `include_str!` and written by the binary. Test
-  stand-ins may be bash (`support::write_script`) or Python fixtures.
-- No test reaches the real Hermes, moshi-hook or Codex: `PNS_HERMES_BIN`, `PNS_MOSHI_HOOK_BIN` and the
-  sandbox's `PNS_CODEX_BIN` point at stand-ins, and every Hermes home is a scratch directory.
+  stand-ins may be bash (`support::write_script`) or Python fixtures. The shim runs under Hermes's own
+  Python 3.11 (`~/.hermes/hermes-agent/venv`), so it uses nothing newer.
+- No test reaches the real Hermes, moshi-hook or Codex: the sandbox fences `PNS_MOSHI_HOOK_BIN` and
+  `PNS_CODEX_BIN` by default and, from Task 7, `PNS_HERMES_BIN`; tests point them at stand-ins, and
+  every Hermes home is a scratch directory.
 - Nothing reads `~/.hermes/config.yaml`, `~/.hermes/.env` or `~/.config/pns/config.toml`.
 - Every `.rs` file stays at 300 lines ideal and 500 hard cap, unit tests included.
 - Comments say what the code does or why it is that way. None explains an absence, a rejected option,
@@ -51,9 +58,13 @@ chezmoi templates for the dotfiles pull request. Gates: `just test-rust`, `just 
 - Create each worktree with
   `herdr worktree create --cwd /Users/stephen/workspaces/Ivy/webdavis/dotfiles --branch <branch> --no-focus`
   and run every command from that worktree's root (`~/.herdr/worktrees/dotfiles/<branch with / as ->`).
-  Rebase on `origin/main` first: open pull requests #917 and #919 touch `hook_dispatch.rs`,
-  `routing.rs`, `moshi_submission.rs` and `legacy/usage.rs`, and the code below does not depend on
-  either landing.
+  Rebase on `origin/main` first. Open pull requests touch the same files, and the code below depends on
+  none of them landing, but its anchors can move: #917 and #919 touch `hook_dispatch.rs`, `routing.rs`,
+  `moshi_submission.rs` and `legacy/usage.rs`; #919 deletes `HookPayload::file_path` and its
+  `parse_payload` line; #917 and #919 each remove a numbered behavior from
+  `pns/docs/specs/hook-compatibility.md`; #915 edits `command_codex.rs`. So new struct fields go at the
+  END of `HookPayload` and of `parse_payload`'s literal, and a new spec behavior takes the next free
+  number on the rebased file, whatever those anchors are called by then.
 - The Rust blocks below are not pre-formatted: run `cargo fmt --all --manifest-path pns/Cargo.toml`
   before the gates.
 - Every pns task ends with `just test-rust` and `just lint-check` green. `just test-rust` needs `chord`
@@ -61,29 +72,33 @@ chezmoi templates for the dotfiles pull request. Gates: `just test-rust`, `just 
 
 ## Order
 
-Task 1 first. Tasks 2, 3 and 4 follow Task 1 and are independent of each other. Task 5 is independent of
-Tasks 1 to 4. Task 6 follows Task 5. Task 7 follows all six merges. Task 8 follows the apply of Task 7.
+Task 1 first. Tasks 2 and 3 follow Task 1, in any order. Task 4 follows Task 3: it calls the
+two-argument `moshi_subcommand` Task 3 introduces and appends to the test file Task 3 extends. Tasks 5
+and 6 are independent of every other task. Task 7 follows Tasks 5 and 6, so no installed shim exists
+before summarizer runs are marked. Task 8 follows all seven merges. Task 9 follows the apply of Task 8.
 
 ## File Structure
 
 | File | Task | Responsibility |
 | --- | --- | --- |
-| `pns/crates/pns-adapters/src/harness/payload.rs` | 1, 2 | `platform` and `surface` fields; the approval's card text in the `message` chain |
+| `pns/crates/pns-adapters/src/harness/payload.rs` | 1, 2, 4 | `platform`, `surface` and `action_id` fields; the approval's card text in the `message` chain |
 | `pns/crates/pns-adapters/src/harness/hermes.rs` (new) | 1 | `hermes_records_only`, the terminal-or-recorded rule |
 | `pns/crates/pns-adapters/src/harness/message.rs` | 2 | `guarded_command`, a Hermes approval's text |
 | `pns/crates/pns-adapters/src/harness/routing.rs` | 3 | `moshi_subcommand(agent, surface)` |
-| `pns/crates/pns-adapters/src/hermes_plugin.rs` (new) | 5, 6 | render, install and enable the plugin |
+| `pns/crates/pns-adapters/src/hermes_plugin.rs` (new) | 5, 7 | render, install and enable the plugin |
 | `pns/crates/pns-adapters/src/hermes_plugin/pns_hooks.py` (new) | 5 | the shim Hermes loads |
 | `pns/crates/pns-adapters/src/hermes_plugin/fixtures/{drive,record}.py` (new) | 5 | the shim's test driver and pns stand-in |
+| `pns/crates/pns-adapters/src/recap/summarizer.rs` | 6 | `PNS_SUMMARIZING=1` on every summarizer child |
 | `pns/crates/pns/src/hermes_session.rs` (new) | 1 | the recorded-only activity row |
 | `pns/crates/pns/src/hook_dispatch.rs` | 1, 4 | the recorded-only branch; the answer forward call |
-| `pns/crates/pns/src/moshi_submission.rs` | 3, 4 | the surface at the call site; `forward_resolution` |
-| `pns/crates/pns/src/command_hermes.rs` (new) | 6 | `pns hermes install-plugin` |
+| `pns/crates/pns/src/moshi_submission.rs` | 3, 4 | the surface at the call site; the forwarded-request marker; `forward_resolution` |
+| `pns/crates/pns/src/command_hermes.rs` (new) | 7 | `pns hermes install-plugin` |
 | `pns/crates/pns/tests/hooks/hermes_sessions.rs` (new) | 1, 3, 4 | end-to-end hook behavior for producer `hermes` |
-| `pns/crates/pns/tests/hermes_commands.rs` (new) | 6 | end-to-end `pns hermes install-plugin` |
-| `.chezmoiscripts/run_after_72-pns-hermes-plugin.sh.tmpl` (new) | 7 | runs `install-plugin` on every apply |
-| `private_dot_hermes/modify_private_config.yaml` | 7 | removes the Hermes shell hook pair |
-| `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` | 7 | uninstalls moshi's Hermes plugin |
+| `pns/crates/pns/tests/hermes_commands.rs` (new) | 7 | end-to-end `pns hermes install-plugin` |
+| `pns/crates/pns/tests/support/sandbox/commands.rs` | 7 | `PNS_HERMES_BIN` fenced off by default |
+| `.chezmoiscripts/run_after_72-pns-hermes-plugin.sh.tmpl` (new) | 8 | runs `install-plugin` on every apply |
+| `private_dot_hermes/modify_private_config.yaml` | 8 | removes the Hermes shell hook pair |
+| `.chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl` | 8 | uninstalls moshi's Hermes plugin |
 
 ---
 
@@ -99,7 +114,7 @@ Branch: `feat/pns-hermes-recorded-only-sessions`.
 - Create: `pns/crates/pns/src/hermes_session.rs`; modify `pns/crates/pns/src/lib.rs`
 - Modify: `pns/crates/pns/src/hook_dispatch.rs` (`hook_mode`, `session_only_event`)
 - Create: `pns/crates/pns/tests/hooks/hermes_sessions.rs`; modify `pns/crates/pns/tests/hooks.rs`
-- Modify: `pns/docs/specs/hook-compatibility.md` (intro, new behavior 29)
+- Modify: `pns/docs/specs/hook-compatibility.md` (intro, one new behavior at the next free number)
 
 **Interfaces:**
 - Produces: `HookPayload::platform: String`, `HookPayload::surface: String`;
@@ -126,7 +141,7 @@ fn a_terminal_platform_notifies_whatever_the_surface_says() {
 
 #[test]
 fn every_other_named_platform_is_recorded_only() {
-    for platform in ["discord", "telegram", "webhook", "api_server", "cron", "acp", "subagent"] {
+    for platform in ["discord", "telegram", "webhook", "api_server", "cron", "acp", "curator", "subagent"] {
         assert!(hermes_records_only(platform, "cli"), "{platform}/cli");
         assert!(hermes_records_only(platform, ""), "{platform}/none");
     }
@@ -276,19 +291,21 @@ Expected: `a_chat_gateway_turn...` and `a_gateway_prompt_and_approval...` FAIL (
 
 - [ ] **Step 4: Add the payload fields**
 
-In `pns/crates/pns-adapters/src/harness/payload.rs`, append to `HookPayload` after `file_path`:
+In `pns/crates/pns-adapters/src/harness/payload.rs`, append at the end of `HookPayload` (after whatever
+field is last on the rebased file; `file_path` today):
 
 ```rust
     /// Which Hermes front end sent the event: `cli`, `tui`, a gateway
-    /// platform's name, `cron`, `acp`, `subagent`. The pns-hooks plugin stamps
-    /// it on every event it sends; no other harness sends the key.
+    /// platform's name, `cron`, `acp`, `curator`, `subagent`. The pns-hooks
+    /// plugin stamps it on every event it sends.
     pub platform: String,
     /// Which approval surface a Hermes approval came through: `cli`, `gateway`
     /// or `mcp-elicitation`. Empty on every other event.
     pub surface: String,
 ```
 
-and append to the struct literal in `parse_payload`, after `file_path: text("file_path"),`:
+and append at the end of the struct literal in `parse_payload` (after `file_path: text("file_path"),`
+today):
 
 ```rust
         platform: text("platform"),
@@ -304,7 +321,7 @@ Create `pns/crates/pns-adapters/src/harness/hermes.rs`:
 ///
 /// THE PLATFORM DECIDES FIRST. `cli` and `tui` are Hermes's terminal front
 /// ends, and every other platform it names (a chat gateway, `webhook`,
-/// `cron`, `acp`, `subagent`) has no operator at a pane. The surface decides
+/// `cron`, `acp`, `curator`, `subagent`) has no operator at a pane. The surface decides
 /// only when no platform arrived, because the TUI's approvals report
 /// `gateway` as well. An event that states neither notifies.
 pub fn hermes_records_only(platform: &str, surface: &str) -> bool {
@@ -332,13 +349,12 @@ Create `pns/crates/pns/src/hermes_session.rs`:
 
 ```rust
 //! A Hermes event from a session with no operator at a pane: one activity row
-//! for the recap, and nothing delivered.
+//! for the recap.
 
 use crate::*;
 
-/// The row `event` would have written, and nothing else: no turn or wait
-/// marker, no reminder, no summarizer, no moshi forward and no destination,
-/// so no banner, phone card, lamp or Discord line.
+/// Writes the activity row `event` would have written, with the state word
+/// its delivering arm raises.
 pub(crate) fn record_only(event: &str, payload: &HookPayload, agent: &str) {
     let recorded = match event {
         "prompt" => {
@@ -378,8 +394,8 @@ In `pns/crates/pns/src/lib.rs` add `mod hermes_session;` beside `mod hook_dispat
 and in `hook_mode` insert directly after the `let agent = ...;` line:
 
 ```rust
-    // A Hermes session with no operator at a pane is recorded for the recap
-    // and reaches no arm below.
+    // A Hermes session with no operator at a pane writes its activity row
+    // and returns.
     if agent == "hermes" && pns_adapters::hermes_records_only(&payload.platform, &payload.surface) {
         crate::hermes_session::record_only(event, &payload, &agent);
         return 0;
@@ -395,10 +411,11 @@ Expected: 4 passed.
 
 In `pns/docs/specs/hook-compatibility.md`, change the intro's "a coding harness (Claude Code or Codex)"
 to "a coding harness (Claude Code, Codex or Hermes Agent)". Append, before "## Environment inputs this
-path reads":
+path reads", one behavior numbered one past the last numbered heading on the rebased file (`N` below;
+29 on today's main, lower once #917 or #919 lands):
 
 ```markdown
-## 29. A Hermes event from a session with no operator at a pane is recorded and delivered nowhere
+## N. A Hermes event from a session with no operator at a pane is recorded and delivered nowhere
 
 Given a payload whose producer is `hermes` and whose `platform` is a non-empty value other than `cli`
 and `tui`, or whose `platform` is empty and whose `surface` is `gateway`
@@ -542,7 +559,8 @@ Expected: all pass.
 
 - [ ] **Step 5: State the behavior in the pns spec**
 
-In `pns/docs/specs/hook-compatibility.md` behavior 6, change the heading to "One `message` is composed
+In `pns/docs/specs/hook-compatibility.md` behavior 6 ("One `message` is composed from four payload
+roads, in a fixed order"), change the heading to "One `message` is composed
 from four payload roads and two fallbacks, in a fixed order", change the Then line's ending to "and
 `tool_request`, then `guarded_command`, are the fallbacks when all four say nothing.", and append to its
 Success bullet: "A Hermes `PermissionRequest` carrying `description` and `command` yields
@@ -701,40 +719,95 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): hand a Hermes CLI approval to moshi-h
 
 ---
 
-### Task 4: A Hermes CLI answer clears moshi's card
+### Task 4: A Hermes CLI answer clears the card moshi raised for it
 
 Branch: `feat/pns-hermes-answer-forward`. Needs Task 3 merged.
 
 **Files:**
-- Modify: `pns/crates/pns/src/moshi_submission.rs` (new `forward_resolution`)
+- Modify: `pns/crates/pns-adapters/src/harness/payload.rs` (`action_id` field)
+- Test: `pns/crates/pns-adapters/src/harness/tests/hermes.rs`
+- Modify: `pns/crates/pns/src/moshi_submission.rs` (the forwarded-request marker, `forward_resolution`)
 - Modify: `pns/crates/pns/src/hook_dispatch.rs` (the `resolved` arm and its comment)
 - Test: `pns/crates/pns/tests/hooks/hermes_sessions.rs`
-- Modify: `pns/docs/specs/hook-compatibility.md` (behavior 19)
+- Modify: `pns/docs/specs/hook-compatibility.md` (behavior 19),
+  `pns/docs/specs/persistence-and-process-lifecycle.md` (Table 1)
 
 **Interfaces:**
-- Consumes: `moshi_subcommand(agent, surface)` from Task 3; the `hermes` test helper from Task 1.
-- Produces: `pub(crate) fn forward_resolution(agent: &str, payload: &HookPayload, payload_json: &str)`.
+- Consumes: `moshi_subcommand(agent, surface)` and `CLI_APPROVAL` from Task 3; the `hermes` test helper
+  from Task 1.
+- Produces: `HookPayload::action_id: String`;
+  `pub(crate) fn forward_resolution(agent: &str, payload: &HookPayload, payload_json: &str)`; the marker
+  `<state dir>/moshi-forwards/<action_id>`, written when `blocking_event`'s spawn of moshi-hook started
+  and removed by the answer it admits.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing unit test**
+
+Append to `pns/crates/pns-adapters/src/harness/tests/hermes.rs`:
+
+```rust
+#[test]
+fn a_payload_yields_its_action_id() {
+    assert_eq!(parse_payload(r#"{"action_id":"a1"}"#).action_id, "a1");
+    assert_eq!(parse_payload("{}").action_id, "");
+}
+```
+
+- [ ] **Step 2: Write the failing end-to-end tests**
 
 Append to `pns/crates/pns/tests/hooks/hermes_sessions.rs`:
 
 ```rust
 const CLI_ANSWER: &str = r#"{"hook_event_name":"PermissionResolved","session_id":"20260922_120000_abc123","cwd":"/tmp","action_id":"a1","command":"rm -rf /tmp/drill","description":"recursive delete","choice":"once","surface":"cli","platform":"cli"}"#;
 
-#[test]
-fn a_cli_answer_is_handed_to_moshi_even_at_the_desk() {
-    let sandbox = Sandbox::new("hermes-cli-answer");
-    let mut command = hermes(&sandbox);
+/// `CLI_APPROVAL` raised while the operator is away, so pns hands it to moshi.
+fn forwarded_request(sandbox: &Sandbox) {
+    let mut command = hermes(sandbox);
+    sandbox.stub_moshi(&mut command, 0);
+    hook_with(command, sandbox, "blocked", CLI_APPROVAL);
+}
+
+/// An answer given at the desk.
+fn desk_answer(sandbox: &Sandbox, payload: &str) -> std::process::Output {
+    let mut command = hermes(sandbox);
     command.env("PNS_SCREEN_IDLE", "0");
     sandbox.stub_moshi(&mut command, 0);
-    let output = hook_with(command, &sandbox, "resolved", CLI_ANSWER);
+    hook_with(command, sandbox, "resolved", payload)
+}
+
+#[test]
+fn the_answer_to_a_request_moshi_carded_is_handed_to_moshi_even_at_the_desk() {
+    let sandbox = Sandbox::new("hermes-cli-answer");
+    forwarded_request(&sandbox);
+    let output = desk_answer(&sandbox, CLI_ANSWER);
     assert_eq!(output.status.code(), Some(0));
-    assert_eq!(submissions(&sandbox), vec!["hermes-hook".to_string()]);
+    assert_eq!(
+        submissions(&sandbox),
+        vec!["hermes-hook".to_string(), "hermes-hook".to_string()]
+    );
     assert_eq!(
         std::fs::read_to_string(sandbox.path("moshi.stdin")).expect("moshi read the answer"),
         CLI_ANSWER
     );
+}
+
+#[test]
+fn a_desk_answer_to_a_request_moshi_never_saw_is_kept_from_moshi() {
+    let sandbox = Sandbox::new("hermes-cli-answer-uncarded");
+    let mut request = hermes(&sandbox);
+    request.env("PNS_SCREEN_IDLE", "0");
+    sandbox.stub_moshi(&mut request, 0);
+    hook_with(request, &sandbox, "blocked", CLI_APPROVAL);
+    desk_answer(&sandbox, CLI_ANSWER);
+    assert_eq!(submissions(&sandbox), Vec::<String>::new());
+}
+
+#[test]
+fn one_forwarded_request_hands_moshi_one_answer() {
+    let sandbox = Sandbox::new("hermes-cli-answer-once");
+    forwarded_request(&sandbox);
+    desk_answer(&sandbox, CLI_ANSWER);
+    desk_answer(&sandbox, CLI_ANSWER);
+    assert_eq!(submissions(&sandbox).len(), 2, "the request and one answer");
 }
 
 #[test]
@@ -745,33 +818,92 @@ fn only_a_hermes_cli_answer_is_handed_to_moshi() {
     );
     for (producer, payload) in [("hermes", tui.as_str()), ("claude", CLI_ANSWER)] {
         let sandbox = Sandbox::new(&format!("hermes-answer-kept-{producer}"));
+        forwarded_request(&sandbox);
         let mut command = with_state_dir(&sandbox);
         command.env("PNS_PRODUCER", producer);
         sandbox.stub_moshi(&mut command, 0);
         hook_with(command, &sandbox, "resolved", payload);
-        assert_eq!(submissions(&sandbox), Vec::<String>::new(), "{producer}: {payload}");
+        assert_eq!(
+            submissions(&sandbox),
+            vec!["hermes-hook".to_string()],
+            "{producer}: {payload}"
+        );
     }
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 3: Run the tests to verify they fail**
+
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters harness::tests::hermes`
+Expected: compile error, `no field action_id`.
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --test hooks hermes_sessions`
-Expected: `a_cli_answer_is_handed_to_moshi_even_at_the_desk` FAILS with `left: []`.
+Expected: `the_answer_to_a_request_moshi_carded...` FAILS with `left: ["hermes-hook"]` and
+`one_forwarded_request_hands_moshi_one_answer` FAILS with `left: 1`; the other two pass already.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 4: Add the payload field**
 
-Append to `pns/crates/pns/src/moshi_submission.rs`, after `blocking_event`:
+In `pns/crates/pns-adapters/src/harness/payload.rs`, append at the end of `HookPayload`:
 
 ```rust
+    /// The id the pns-hooks plugin gives one Hermes approval, carried by its
+    /// request and by its answer.
+    pub action_id: String,
+```
+
+and at the end of the struct literal in `parse_payload`:
+
+```rust
+        action_id: text("action_id"),
+```
+
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters harness::tests::hermes`
+Expected: all pass.
+
+- [ ] **Step 5: Mark a forwarded request and forward only its answer**
+
+In `pns/crates/pns/src/moshi_submission.rs`, replace `MoshiRaiseNotification`'s `forward` with:
+
+```rust
+    fn forward(&self, subcommand: &str, payload_json: &str) -> Option<Self::Forwarded> {
+        let child = pns_application::ApprovalForwarder::forward(
+            &MoshiApprovalForwarder,
+            subcommand,
+            payload_json,
+        )?;
+        // THE SPAWN STARTED, so moshi is carding this request and is owed its
+        // answer.
+        mark_forwarded(&self.payload.action_id);
+        Some(child)
+    }
+```
+
+and append at the end of the file:
+
+```rust
+/// Where a request handed to moshi leaves its `action_id`, or `None` for an
+/// id that cannot be a filename.
+fn forwarded_marker(action_id: &str) -> Option<std::path::PathBuf> {
+    pns_domain::safety::session_id_is_safe(action_id)
+        .then(|| pns_adapters::state_dir().join("moshi-forwards").join(action_id))
+}
+
+/// Records that the request carrying `action_id` was handed to moshi.
+fn mark_forwarded(action_id: &str) {
+    if let Some(marker) = forwarded_marker(action_id) {
+        // A marker that cannot be written costs the card its clearing and
+        // never the request.
+        let _ = pns_adapters::publish_state_line(&marker, "");
+    }
+}
+
 /// A Hermes CLI approval's answer, handed to moshi so the card it raised for
 /// that approval clears.
 ///
 /// NOT PRESENCE-GATED: an operator who left the desk after the card went out
 /// can come back and answer at the pane, and that card still has to clear.
-/// moshi pairs the answer to its card by `action_id`; its own Hermes plugin
-/// sends answers with an empty `action_id` when it holds nothing to pair, so
-/// an answer moshi never carded is one it already takes. Bounded by the same
+/// ONLY FOR A REQUEST THIS PNS HANDED MOSHI, which removing its marker proves,
+/// so every `action_id` moshi is handed is one it carded. Bounded by the same
 /// acknowledgement deadline as every forward.
 pub(crate) fn forward_resolution(agent: &str, payload: &HookPayload, payload_json: &str) {
     if agent != "hermes"
@@ -783,6 +915,12 @@ pub(crate) fn forward_resolution(agent: &str, payload: &HookPayload, payload_jso
     let Some(subcommand) = moshi_subcommand(agent, &payload.surface) else {
         return;
     };
+    let Some(marker) = forwarded_marker(&payload.action_id) else {
+        return;
+    };
+    if std::fs::remove_file(marker).is_err() {
+        return;
+    }
     if let Some(child) =
         pns_application::ApprovalForwarder::forward(&MoshiApprovalForwarder, &subcommand, payload_json)
     {
@@ -803,42 +941,57 @@ and replace the arm comment paragraph that begins "IT LOADS NO CONFIG AND DELIVE
         // IT DELIVERS NOTHING, and the clearing loads no config. A record exists
         // only because the feature was on when the approval arrived, so clearing
         // it is right regardless of what the config says now, and that keeps this
-        // per-batch path to a payload read, a parse and two file operations. A
-        // Hermes CLI answer is also handed to moshi, whose bounded wait reads its
-        // deadline from the config: see `forward_resolution`.
+        // per-batch path to a payload read, a parse and two file operations. The
+        // answer to a Hermes CLI request pns handed moshi goes to moshi too, whose
+        // bounded wait reads its deadline from the config: see
+        // `forward_resolution`.
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --test hooks hermes_sessions`
 Expected: all pass.
 
-- [ ] **Step 5: State the behavior in the pns spec**
+- [ ] **Step 7: State the behavior in the pns specs**
 
-In `pns/docs/specs/hook-compatibility.md` behavior 19, change the heading to "`resolved` clears and
-delivers nothing, and hands a Hermes CLI answer to moshi" and add a bullet: "Required side effects: a
-payload from producer `hermes` with `hook_event_name` `PermissionResolved` and `surface` `cli` is handed
-byte for byte to `moshi-hook hermes-hook`, at the desk as well, so the card moshi raised clears
-(`tests/hooks/hermes_sessions.rs:a_cli_answer_is_handed_to_moshi_even_at_the_desk`)."
+In `pns/docs/specs/hook-compatibility.md` behavior 19 ("`resolved` clears and delivers nothing"),
+change the heading to "`resolved` clears and delivers nothing, and hands moshi the answer to a Hermes
+request it carded" and add a bullet: "Required side effects: a payload from producer `hermes` with
+`hook_event_name` `PermissionResolved` and `surface` `cli` whose `action_id` names a request pns handed
+moshi (the `moshi-forwards/<action_id>` marker `blocking_event` wrote when its spawn started) is handed
+byte for byte to `moshi-hook hermes-hook`, at the desk as well, and the marker is removed
+(`tests/hooks/hermes_sessions.rs:the_answer_to_a_request_moshi_carded_is_handed_to_moshi_even_at_the_desk`,
+`one_forwarded_request_hands_moshi_one_answer`); without the marker nothing is handed on
+(`a_desk_answer_to_a_request_moshi_never_saw_is_kept_from_moshi`)."
 
-- [ ] **Step 6: Run the gates**
+In `pns/docs/specs/persistence-and-process-lifecycle.md` Table 1, add after the `remind/fire.lock` row:
+
+```markdown
+| `moshi-forwards/<action_id>` | file | 0600 | the `blocked` hook, once its spawn of `moshi-hook hermes-hook` started (`src/moshi_submission.rs:mark_forwarded` via `publish_state_line`) | the `resolved` hook (`src/moshi_submission.rs:forward_resolution`) | consumed by `remove_file`; only the answer whose removal succeeds is handed on | removed by the answer; one stays per request whose answer never arrived | internal persistence detail |
+```
+
+Then run `just m`, which realigns the table.
+
+- [ ] **Step 8: Run the gates**
 
 Run: `just test-rust && just lint-check`
 Expected: both exit 0.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add pns/crates/pns/src/moshi_submission.rs pns/crates/pns/src/hook_dispatch.rs \
-  pns/crates/pns/tests/hooks/hermes_sessions.rs pns/docs/specs/hook-compatibility.md
-SKIP_AI_COMMIT=1 git commit -m "feat(pns): hand a Hermes CLI answer to moshi so its card clears"
+git add pns/crates/pns-adapters/src/harness/payload.rs pns/crates/pns-adapters/src/harness/tests/hermes.rs \
+  pns/crates/pns/src/moshi_submission.rs pns/crates/pns/src/hook_dispatch.rs \
+  pns/crates/pns/tests/hooks/hermes_sessions.rs pns/docs/specs/hook-compatibility.md \
+  pns/docs/specs/persistence-and-process-lifecycle.md
+SKIP_AI_COMMIT=1 git commit -m "feat(pns): hand moshi the answer to a Hermes CLI request it carded"
 ```
 
 ---
 
 ### Task 5: The embedded shim maps each Hermes hook to its pns verb
 
-Branch: `feat/pns-hermes-plugin-shim`. Independent of Tasks 1 to 4.
+Branch: `feat/pns-hermes-plugin-shim`. Independent of every other task.
 
 **Files:**
 - Create: `pns/crates/pns-adapters/src/hermes_plugin.rs`
@@ -851,8 +1004,8 @@ Branch: `feat/pns-hermes-plugin-shim`. Independent of Tasks 1 to 4.
 **Interfaces:**
 - Produces: `pub const HERMES_PLUGIN_NAME: &str = "pns-hooks"`;
   `pub struct HermesPlugin { pub init_py: String, pub manifest: String }`;
-  `pub fn render_hermes_plugin(binary: &str, version: &str) -> HermesPlugin`. All exported from
-  `pns_adapters`. Task 6 consumes them.
+  `pub fn render_hermes_plugin(binary: &str) -> HermesPlugin`. All exported from `pns_adapters`. Task 7
+  consumes them.
 
 - [ ] **Step 1: Write the test fixtures**
 
@@ -879,11 +1032,15 @@ Create `pns/crates/pns-adapters/src/hermes_plugin/fixtures/drive.py`:
 
 ```python
 """Loads a rendered pns-hooks plugin, fires one scenario of Hermes hooks at it,
-waits for every delivery, and prints what registered and what each call returned."""
+waits for every delivery, and prints what registered and what each call returned.
+
+A step is `[hook, kwargs]`, or `[hook, kwargs, thread]` to fire it on a thread of
+that name, the way Hermes fires a background review's hooks."""
 
 import importlib.util
 import json
 import sys
+import threading
 
 spec = importlib.util.spec_from_file_location("pns_hooks", sys.argv[1])
 plugin = importlib.util.module_from_spec(spec)
@@ -896,8 +1053,18 @@ class Context:
         hooks[name] = callback
 
 
+def fire(name, kwargs, thread=None):
+    if thread is None:
+        return hooks[name](**kwargs)
+    returned = []
+    worker = threading.Thread(target=lambda: returned.append(hooks[name](**kwargs)), name=thread)
+    worker.start()
+    worker.join()
+    return returned[0]
+
+
 plugin.register(Context())
-returned = [hooks[name](**kwargs) for name, kwargs in json.loads(sys.argv[2])]
+returned = [fire(*step) for step in json.loads(sys.argv[2])]
 plugin._delivery.shutdown(wait=True)
 print(json.dumps({"registered": sorted(hooks), "returned": returned}))
 ```
@@ -914,6 +1081,7 @@ use std::os::unix::fs::PermissionsExt;
 const DRIVER: &str = include_str!("fixtures/drive.py");
 const RECORDER: &str = include_str!("fixtures/record.py");
 const SESSION: &str = "20260922_120000_abc123";
+const CURATOR: &str = "20260922_120001_cur001";
 
 /// What one scenario produced: each call the stand-in pns received, and the
 /// driver's report of what registered and what each callback returned.
@@ -922,14 +1090,20 @@ struct Fired {
     report: Value,
 }
 
-/// Fires `scenario`, a list of `[hook, kwargs]` pairs, at the rendered plugin
-/// through `python3`, with a stand-in recording every pns call.
+/// Fires `scenario`, a list of `[hook, kwargs]` or `[hook, kwargs, thread]`
+/// steps, at the rendered plugin through `python3`, with a stand-in recording
+/// every pns call.
 fn fire(name: &str, scenario: Value) -> Fired {
+    fire_in(name, scenario, &[])
+}
+
+/// `fire`, with `env` added to the driver's environment.
+fn fire_in(name: &str, scenario: Value, env: &[(&str, &str)]) -> Fired {
     let root = crate::state_fixtures::scratch(name);
     let recorder = root.join("pns");
     std::fs::write(&recorder, RECORDER).expect("the stand-in pns");
     std::fs::set_permissions(&recorder, std::fs::Permissions::from_mode(0o755)).expect("chmod");
-    let plugin = render_hermes_plugin(recorder.to_str().expect("a UTF-8 path"), "0.0.0");
+    let plugin = render_hermes_plugin(recorder.to_str().expect("a UTF-8 path"));
     std::fs::write(root.join("__init__.py"), plugin.init_py).expect("the plugin");
     std::fs::write(root.join("drive.py"), DRIVER).expect("the driver");
     let record = root.join("record.jsonl");
@@ -937,6 +1111,8 @@ fn fire(name: &str, scenario: Value) -> Fired {
         .arg(root.join("drive.py"))
         .arg(root.join("__init__.py"))
         .arg(scenario.to_string())
+        .env_remove("PNS_SUMMARIZING")
+        .envs(env.iter().copied())
         .env("PNS_HOOKS_RECORD", &record)
         .output()
         .expect("python3 on PATH");
@@ -965,12 +1141,12 @@ fn keys(call: &Value) -> Vec<String> {
 
 #[test]
 fn the_binary_path_is_a_python_string_literal_and_the_manifest_names_the_plugin() {
-    let plugin = render_hermes_plugin(r#"/opt/odd "dir"\pns"#, "0.2.0");
+    let plugin = render_hermes_plugin(r#"/opt/odd "dir"\pns"#);
     assert!(plugin.init_py.contains(r#"PNS = "/opt/odd \"dir\"\\pns""#), "{}", plugin.init_py);
     assert!(!plugin.init_py.contains("__PNS_BINARY__"));
     assert_eq!(
         plugin.manifest,
-        "name: pns-hooks\nversion: \"0.2.0\"\ndescription: Hands Hermes Agent session events to pns\n"
+        "name: pns-hooks\nversion: \"1\"\ndescription: Hands Hermes Agent session events to pns\n"
     );
 }
 
@@ -984,6 +1160,12 @@ fn the_plugin_registers_exactly_the_seven_hooks_pns_serves() {
             "pre_approval_request", "pre_llm_call", "pre_tool_call"
         ])
     );
+}
+
+#[test]
+fn a_hermes_run_started_by_the_pns_summarizer_registers_no_hook() {
+    let fired = fire_in("hermes-plugin-summarizing", json!([]), &[("PNS_SUMMARIZING", "1")]);
+    assert_eq!(fired.report["registered"], json!([]));
 }
 
 #[test]
@@ -1037,6 +1219,24 @@ fn an_interrupted_turn_resolves_its_waits() {
 }
 
 #[test]
+fn the_background_review_replaying_a_turn_never_reaches_pns() {
+    let fired = fire(
+        "hermes-plugin-background-review",
+        json!([
+            ["pre_llm_call", {"session_id": SESSION, "user_message": "tidy the notes", "platform": "cli"}],
+            ["post_llm_call", {"session_id": SESSION, "assistant_response": "notes tidied", "platform": "cli"}],
+            ["pre_llm_call", {"session_id": SESSION, "user_message": "Review the conversation above", "platform": "cli"}, "bg-review"],
+            ["pre_tool_call", {"tool_name": "clarify", "session_id": SESSION}, "bg-review"],
+            ["post_llm_call", {"session_id": SESSION, "assistant_response": "memory updated", "platform": "cli"}, "bg-review"],
+            ["on_session_end", {"session_id": SESSION, "completed": true, "interrupted": false, "platform": "cli"}, "bg-review"],
+            ["on_session_end", {"session_id": SESSION, "completed": true, "interrupted": false, "platform": "cli"}]
+        ]),
+    );
+    assert_eq!(argv(&fired), vec![json!(["hook", "prompt"]), json!(["hook", "stop"])]);
+    assert_eq!(fired.calls[1]["payload"]["last_assistant_message"], "notes tidied");
+}
+
+#[test]
 fn an_approval_and_its_answer_carry_moshis_keys_and_one_action_id() {
     let approval = json!({
         "command": "rm -rf /tmp/drill", "description": "recursive delete", "pattern_key": "rm_rf",
@@ -1073,7 +1273,7 @@ fn an_approval_and_its_answer_carry_moshis_keys_and_one_action_id() {
 }
 
 #[test]
-fn an_approval_carries_the_platform_its_process_last_named() {
+fn an_approval_carries_the_platform_its_session_named() {
     let fired = fire(
         "hermes-plugin-stamp",
         json!([
@@ -1086,17 +1286,44 @@ fn an_approval_carries_the_platform_its_process_last_named() {
 }
 
 #[test]
-fn a_subagent_reports_its_own_platform_without_becoming_the_process_front_end() {
+fn a_curator_run_in_the_same_process_leaves_a_cli_approval_stamped_cli() {
     let fired = fire(
-        "hermes-plugin-subagent",
+        "hermes-plugin-curator",
         json!([
-            ["pre_llm_call", {"session_id": SESSION, "user_message": "delegate it", "platform": "cli"}],
-            ["pre_llm_call", {"session_id": "20260922_120001_child1", "user_message": "the delegated part", "platform": "subagent"}],
+            ["pre_llm_call", {"session_id": SESSION, "user_message": "clean up", "platform": "cli"}],
+            ["pre_llm_call", {"session_id": CURATOR, "user_message": "curate the skills", "platform": "curator"}],
+            ["on_session_end", {"session_id": CURATOR, "completed": true, "interrupted": false, "platform": "curator"}],
             ["pre_approval_request", {"command": "rm -rf /tmp/drill", "session_key": SESSION, "surface": "cli"}]
         ]),
     );
-    assert_eq!(fired.calls[1]["payload"]["platform"], "subagent");
+    assert_eq!(fired.calls[1]["payload"]["platform"], "curator");
+    assert_eq!(fired.calls[3]["payload"]["platform"], "cli");
+}
+
+#[test]
+fn a_session_no_hook_named_takes_the_terminal_front_end_its_process_named() {
+    let fired = fire(
+        "hermes-plugin-stamp-terminal-miss",
+        json!([
+            ["pre_llm_call", {"session_id": SESSION, "user_message": "clean up", "platform": "cli"}],
+            ["pre_llm_call", {"session_id": CURATOR, "user_message": "curate the skills", "platform": "curator"}],
+            ["pre_approval_request", {"command": "rm -rf /tmp/drill", "session_key": "default", "surface": "cli"}]
+        ]),
+    );
     assert_eq!(fired.calls[2]["payload"]["platform"], "cli");
+}
+
+#[test]
+fn a_gateway_approval_carries_no_platform_so_its_surface_decides() {
+    let fired = fire(
+        "hermes-plugin-stamp-gateway-miss",
+        json!([
+            ["pre_llm_call", {"session_id": SESSION, "user_message": "summarize the thread", "platform": "discord"}],
+            ["pre_approval_request", {"command": "rm -rf /tmp/drill", "session_key": "agent:main:discord:dm:1", "surface": "gateway"}]
+        ]),
+    );
+    assert_eq!(fired.calls[1]["payload"]["platform"], "");
+    assert_eq!(fired.calls[1]["payload"]["surface"], "gateway");
 }
 
 #[test]
@@ -1115,7 +1342,7 @@ fn only_a_clarify_call_reaches_pns_as_asked_and_then_resolved() {
 }
 
 #[test]
-fn an_mcp_elicitation_is_asked_rather_than_blocked() {
+fn a_model_context_protocol_elicitation_is_asked_rather_than_blocked() {
     let fired = fire(
         "hermes-plugin-elicitation",
         json!([["pre_approval_request", {"command": "Authorize Gmail access", "description": "composio asks", "session_key": SESSION, "surface": "mcp-elicitation"}]]),
@@ -1134,10 +1361,11 @@ fn no_callback_returns_anything_hermes_would_act_on() {
             ["post_llm_call", {"session_id": SESSION, "assistant_response": "done"}],
             ["pre_approval_request", {"session_key": SESSION, "surface": "cli"}],
             ["post_approval_response", {"session_key": SESSION, "surface": "cli", "choice": "deny"}],
-            ["on_session_end", {"session_id": SESSION, "completed": true}]
+            ["on_session_end", {"session_id": SESSION, "completed": true}],
+            ["pre_llm_call", {"session_id": SESSION, "platform": "cli"}, "bg-review"]
         ]),
     );
-    assert_eq!(fired.report["returned"], json!([null, null, null, null, null, null, null]));
+    assert_eq!(fired.report["returned"], json!([null, null, null, null, null, null, null, null]));
 }
 ```
 
@@ -1171,6 +1399,11 @@ PNS = __PNS_BINARY__
 # pns bounds its own waits; this only stops one wedged call from holding the queue.
 CALL_DEADLINE_SECS = 120
 REMIND = "--remind=5m"
+# Hermes's memory and skill review replays a finished turn under the operator's
+# own session id and platform, on a thread of this name (run_agent.py,
+# `_spawn_background_review`).
+BACKGROUND_REVIEW_THREAD = "bg-review"
+TERMINAL_PLATFORMS = ("cli", "tui")
 
 # One worker keeps Hermes's order: a prompt before its approval, an approval
 # before its answer, and a turn's end after both.
@@ -1178,7 +1411,8 @@ _delivery = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pns-hooks")
 _pending = defaultdict(deque)
 _pending_lock = threading.Lock()
 _replies = {}
-_front_end = ""
+_platforms = {}
+_terminal = ""
 
 
 def _deliver(verb, flags, payload):
@@ -1211,12 +1445,16 @@ def _session(primary="", kwargs=None):
     return str(kwargs.get("session_id") or primary or kwargs.get("task_id") or "hermes")
 
 
-def _platform(stated=""):
-    """The event's own platform, else the last one this process named for a session it hosts."""
-    global _front_end
-    if stated and stated != "subagent":
-        _front_end = stated
-    return stated or _front_end
+def _platform(session, stated=""):
+    """The event's own platform, else the one its session named, else the
+    terminal front end this process last named."""
+    global _terminal
+    if stated:
+        _platforms[session] = stated
+        if stated in TERMINAL_PLATFORMS:
+            _terminal = stated
+        return stated
+    return _platforms.get(session) or _terminal
 
 
 def _approval_key(session_key, command, pattern_key):
@@ -1228,9 +1466,10 @@ def _is_clarify(tool_name):
 
 
 def on_pre_llm_call(session_id="", user_message="", model="", platform="", **kwargs):
+    session = _session(session_id, kwargs)
     _send(
-        "prompt", "UserPromptSubmit", _session(session_id, kwargs),
-        prompt=user_message, model=model, platform=_platform(platform),
+        "prompt", "UserPromptSubmit", session,
+        prompt=user_message, model=model, platform=_platform(session, platform),
     )
 
 
@@ -1241,7 +1480,7 @@ def on_post_llm_call(session_id="", assistant_response="", **kwargs):
 def on_session_end(session_id="", completed=False, interrupted=False, model="", platform="", **kwargs):
     session = _session(session_id, kwargs)
     reply = _replies.pop(session, "")
-    stated = _platform(platform)
+    stated = _platform(session, platform)
     if interrupted:
         _send("resolved", "TurnInterrupted", session, interrupted=True, platform=stated)
     elif completed:
@@ -1252,18 +1491,20 @@ def on_session_end(session_id="", completed=False, interrupted=False, model="", 
 
 def on_pre_tool_call(tool_name="", args=None, tool_call_id="", **kwargs):
     if _is_clarify(tool_name):
+        session = _session(kwargs=kwargs)
         _send(
-            "asked", "PreToolUse", _session(kwargs=kwargs),
+            "asked", "PreToolUse", session,
             tool_name=tool_name, tool_call_id=tool_call_id, tool_input=args or {},
-            platform=_platform(),
+            platform=_platform(session),
         )
 
 
 def on_post_tool_call(tool_name="", tool_call_id="", **kwargs):
     if _is_clarify(tool_name):
+        session = _session(kwargs=kwargs)
         _send(
-            "resolved", "PostToolUse", _session(kwargs=kwargs),
-            tool_name=tool_name, tool_call_id=tool_call_id, platform=_platform(),
+            "resolved", "PostToolUse", session,
+            tool_name=tool_name, tool_call_id=tool_call_id, platform=_platform(session),
         )
 
 
@@ -1274,10 +1515,11 @@ def on_pre_approval_request(
     with _pending_lock:
         _pending[_approval_key(session_key, command, pattern_key)].append(action_id)
     asks = surface == "mcp-elicitation"
+    session = _session(session_key, kwargs)
     _send(
         "asked" if asks else "blocked",
         "Elicitation" if asks else "PermissionRequest",
-        _session(session_key, kwargs),
+        session,
         () if asks else (REMIND,),
         action_id=action_id,
         command=command,
@@ -1285,7 +1527,7 @@ def on_pre_approval_request(
         pattern_key=pattern_key,
         pattern_keys=pattern_keys or [],
         surface=surface,
-        platform=_platform(),
+        platform=_platform(session),
     )
 
 
@@ -1299,25 +1541,40 @@ def on_post_approval_response(
         action_id = queue.popleft() if queue else ""
         if queue is not None and not queue:
             _pending.pop(key, None)
+    session = _session(session_key, kwargs)
     _send(
-        "resolved", "PermissionResolved", _session(session_key, kwargs),
+        "resolved", "PermissionResolved", session,
         action_id=action_id,
         command=command,
         description=description,
         choice=choice,
         surface=surface,
-        platform=_platform(),
+        platform=_platform(session),
     )
 
 
+def _outside_background_review(callback):
+    def observe(**kwargs):
+        if threading.current_thread().name != BACKGROUND_REVIEW_THREAD:
+            callback(**kwargs)
+
+    return observe
+
+
 def register(ctx):
-    ctx.register_hook("pre_llm_call", on_pre_llm_call)
-    ctx.register_hook("post_llm_call", on_post_llm_call)
-    ctx.register_hook("on_session_end", on_session_end)
-    ctx.register_hook("pre_tool_call", on_pre_tool_call)
-    ctx.register_hook("post_tool_call", on_post_tool_call)
-    ctx.register_hook("pre_approval_request", on_pre_approval_request)
-    ctx.register_hook("post_approval_response", on_post_approval_response)
+    # pns's own summarizer sets this on the Hermes run it starts, which is never a session.
+    if os.environ.get("PNS_SUMMARIZING"):
+        return
+    for name, callback in (
+        ("pre_llm_call", on_pre_llm_call),
+        ("post_llm_call", on_post_llm_call),
+        ("on_session_end", on_session_end),
+        ("pre_tool_call", on_pre_tool_call),
+        ("post_tool_call", on_post_tool_call),
+        ("pre_approval_request", on_pre_approval_request),
+        ("post_approval_response", on_post_approval_response),
+    ):
+        ctx.register_hook(name, _outside_background_review(callback))
 ```
 
 - [ ] **Step 5: Write the renderer**
@@ -1340,6 +1597,11 @@ pub const HERMES_PLUGIN_NAME: &str = "pns-hooks";
 /// The shim's source, with `__PNS_BINARY__` where the binary's path goes.
 const SHIM: &str = include_str!("hermes_plugin/pns_hooks.py");
 
+/// `plugin.yaml`. Hermes shows the version and reads nothing from it, so it
+/// stays fixed and a release that leaves the shim alone rewrites nothing.
+const MANIFEST: &str =
+    "name: pns-hooks\nversion: \"1\"\ndescription: Hands Hermes Agent session events to pns\n";
+
 /// The plugin's two files, as Hermes reads them.
 #[derive(Debug, PartialEq, Eq)]
 pub struct HermesPlugin {
@@ -1349,18 +1611,15 @@ pub struct HermesPlugin {
     pub manifest: String,
 }
 
-/// Both files for `binary`, the manifest stamped with `version`.
+/// Both files for `binary`.
 ///
 /// The path goes in as a JSON string literal, which Python reads as the same
 /// string whatever quotes or backslashes the path holds.
-pub fn render_hermes_plugin(binary: &str, version: &str) -> HermesPlugin {
+pub fn render_hermes_plugin(binary: &str) -> HermesPlugin {
     let literal = serde_json::Value::String(binary.to_string()).to_string();
     HermesPlugin {
         init_py: SHIM.replace("__PNS_BINARY__", &literal),
-        manifest: format!(
-            "name: {HERMES_PLUGIN_NAME}\nversion: \"{version}\"\n\
-             description: Hands Hermes Agent session events to pns\n"
-        ),
+        manifest: MANIFEST.to_string(),
     }
 }
 ```
@@ -1374,7 +1633,21 @@ pub use hermes_plugin::{HERMES_PLUGIN_NAME, HermesPlugin, render_hermes_plugin};
 - [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters hermes_plugin`
-Expected: 11 passed, each well under a second.
+Expected: 16 passed, each well under a second.
+
+Then load the shim under the interpreter Hermes itself runs (Python 3.11, not whatever `python3` is on
+`PATH`), with the driver and an empty scenario:
+
+```bash
+scratch="$(mktemp -d)"
+sed 's|__PNS_BINARY__|"/usr/bin/true"|' pns/crates/pns-adapters/src/hermes_plugin/pns_hooks.py \
+  > "$scratch/__init__.py"
+~/.hermes/hermes-agent/venv/bin/python pns/crates/pns-adapters/src/hermes_plugin/fixtures/drive.py \
+  "$scratch/__init__.py" '[]'
+trash "$scratch"
+```
+
+Expected: one JSON line listing the seven hooks under `registered`.
 
 - [ ] **Step 7: Run the gates**
 
@@ -1391,9 +1664,88 @@ SKIP_AI_COMMIT=1 git commit -m "feat(pns): embed a Hermes plugin that hands sess
 
 ---
 
-### Task 6: `pns hermes install-plugin` writes and enables the plugin
+### Task 6: Every summarizer run pns starts is marked, so no hooked harness reports it
 
-Branch: `feat/pns-hermes-install-plugin`. Needs Task 5 merged.
+Branch: `feat/pns-summarizer-run-marked`. Independent of every other task. If the pull request isolating
+the Codex and Claude summarizer runs has already put a marker on `run_summarizer`'s child, check that it
+is `PNS_SUMMARIZING=1` (the variable the shim reads), keep its test, and skip Steps 1 to 4.
+
+**Files:**
+- Modify: `pns/crates/pns-adapters/src/recap/summarizer.rs` (`run_summarizer`)
+- Test: `pns/crates/pns-adapters/src/recap/summarizer/tests.rs`
+- Modify: `pns/docs/specs/return-recap.md` (behavior 8)
+
+**Interfaces:**
+- Produces: every child `run_summarizer` spawns (the recap's and `pns doctor`'s, every backend) has
+  `PNS_SUMMARIZING=1` in its environment. Task 5's shim registers nothing under it.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `pns/crates/pns-adapters/src/recap/summarizer/tests.rs`:
+
+```rust
+/// A SUMMARIZER RUN IS MARKED, so a harness pns hooks into reports it as no
+/// session: Hermes's pns-hooks plugin registers nothing under the marker.
+#[test]
+fn every_summarizer_run_is_marked_as_pns_summarizing() {
+    let directory = temporary("marked");
+    let invocation = scripted(&directory, "marked", "cat >/dev/null; printf '%s' \"$PNS_SUMMARIZING\"");
+    assert_eq!(
+        run_summarizer(&invocation, Duration::from_secs(5), "what moved").unwrap(),
+        "1"
+    );
+    std::fs::remove_dir_all(&directory).ok();
+}
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters recap::summarizer`
+Expected: `every_summarizer_run_is_marked_as_pns_summarizing` FAILS, its `unwrap` meeting `Silent`
+because the variable it printed is empty.
+
+- [ ] **Step 3: Implement**
+
+In `pns/crates/pns-adapters/src/recap/summarizer.rs` `run_summarizer`, change `command.args(arguments);`
+to:
+
+```rust
+    // MARKED AS PNS'S OWN RUN, so a harness pns hooks into reports it as no
+    // session: Hermes's pns-hooks plugin registers nothing under it, and the
+    // Codex turn summarizer already guards on the same variable.
+    command.args(arguments).env("PNS_SUMMARIZING", "1");
+```
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns-adapters recap::summarizer`
+Expected: all pass.
+
+- [ ] **Step 5: State the behavior in the pns spec**
+
+In `pns/docs/specs/return-recap.md` behavior 8 ("One recap spends one summarizer budget across up to
+three questions"), add a bullet: "Required side effects: every summarizer child runs with
+`PNS_SUMMARIZING=1`, so a harness pns hooks into reports the run as no session
+(`pns-adapters/src/recap/summarizer/tests.rs:every_summarizer_run_is_marked_as_pns_summarizing`)."
+
+- [ ] **Step 6: Run the gates**
+
+Run: `just test-rust && just lint-check`
+Expected: both exit 0.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add pns/crates/pns-adapters/src/recap/summarizer.rs pns/crates/pns-adapters/src/recap/summarizer/tests.rs \
+  pns/docs/specs/return-recap.md
+SKIP_AI_COMMIT=1 git commit -m "feat(pns): mark every summarizer run as pns's own"
+```
+
+---
+
+### Task 7: `pns hermes install-plugin` writes and enables the plugin
+
+Branch: `feat/pns-hermes-install-plugin`. Needs Tasks 5 and 6 merged.
 
 **Files:**
 - Modify: `pns/crates/pns-adapters/src/hermes_plugin.rs` (install and enable)
@@ -1401,17 +1753,30 @@ Branch: `feat/pns-hermes-install-plugin`. Needs Task 5 merged.
 - Create: `pns/crates/pns/src/command_hermes.rs`
 - Modify: `pns/crates/pns/src/command_codex.rs` (`running_binary` becomes `pub(crate)`)
 - Modify: `pns/crates/pns/src/lib.rs`, `invocation.rs`, `subcommand_usage.rs`, `legacy/usage.rs`
+- Modify: `pns/crates/pns/tests/support/sandbox/commands.rs` (`bare` fences `PNS_HERMES_BIN`)
 - Create: `pns/crates/pns/tests/hermes_commands.rs`
 
 **Interfaces:**
 - Consumes: `HERMES_PLUGIN_NAME`, `render_hermes_plugin` from Task 5.
 - Produces: `pub enum HermesPluginInstall { Changed, Unchanged }`;
   `pub fn hermes_plugin_dir(hermes_home: &Path) -> PathBuf`;
-  `pub fn install_hermes_plugin(hermes_home: &Path, binary: &str, version: &str) -> Result<HermesPluginInstall, String>`;
+  `pub fn install_hermes_plugin(hermes_home: &Path, binary: &str) -> Result<HermesPluginInstall, String>`;
   `pub fn enable_hermes_plugin(hermes: &str) -> Result<(), String>`; the CLI verb
-  `pns hermes install-plugin`, which Task 7's script runs.
+  `pns hermes install-plugin`, which Task 8's script runs.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Fence Hermes off in the test sandbox**
+
+In `pns/crates/pns/tests/support/sandbox/commands.rs` `bare`, directly after the
+`PNS_MOSHI_HOOK_BIN` line, add:
+
+```rust
+        // HERMES IS FENCED OFF THE SAME WAY: `pns hermes install-plugin` runs
+        // `hermes plugins enable`, and the `hermes` on PATH is the operator's
+        // own, which would write their live config.
+        command.env("PNS_HERMES_BIN", self.root.join("no-hermes-here"));
+```
+
+- [ ] **Step 2: Write the failing tests**
 
 Create `pns/crates/pns/tests/hermes_commands.rs`:
 
@@ -1481,9 +1846,10 @@ fn the_plugin_calls_the_binary_that_wrote_it() {
 }
 
 #[test]
-fn a_hermes_that_cannot_enable_it_is_an_exit_two_naming_the_command() {
+fn a_hermes_that_cannot_enable_it_is_an_exit_two_naming_the_cost_and_the_command() {
     let sandbox = Sandbox::without_config("hermes-install-plugin-refused");
     let output = run_expecting(2, &mut install(&sandbox, 1));
+    assert!(stderr(&output).contains("do not reach pns"), "{output:?}");
     assert!(stderr(&output).contains("plugins enable pns-hooks"), "{output:?}");
     assert!(plugin_dir(&hermes_home(&sandbox)).join("__init__.py").exists());
 }
@@ -1509,12 +1875,12 @@ fn an_unknown_verb_or_a_stray_argument_is_the_usage_and_exit_two() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 3: Run the tests to verify they fail**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --test hermes_commands`
 Expected: all FAIL; `pns hermes` prints the tool-wide usage and exits 2.
 
-- [ ] **Step 3: Implement install and enable**
+- [ ] **Step 4: Implement install and enable**
 
 Append to `pns/crates/pns-adapters/src/hermes_plugin.rs` (add `use std::path::{Path, PathBuf};` and
 `use std::time::Duration;` at the top):
@@ -1536,15 +1902,11 @@ pub fn hermes_plugin_dir(hermes_home: &Path) -> PathBuf {
 
 /// Write both files, each only when its bytes differ. EVERY FILE IN THE
 /// DIRECTORY IS PNS'S, so each is replaced whole.
-pub fn install_hermes_plugin(
-    hermes_home: &Path,
-    binary: &str,
-    version: &str,
-) -> Result<HermesPluginInstall, String> {
+pub fn install_hermes_plugin(hermes_home: &Path, binary: &str) -> Result<HermesPluginInstall, String> {
     let directory = hermes_plugin_dir(hermes_home);
     std::fs::create_dir_all(&directory)
         .map_err(|error| format!("pns: cannot create {}: {error}", directory.display()))?;
-    let plugin = render_hermes_plugin(binary, version);
+    let plugin = render_hermes_plugin(binary);
     let mut changed = false;
     for (name, text) in [("__init__.py", &plugin.init_py), ("plugin.yaml", &plugin.manifest)] {
         changed |= publish(&directory, name, text)?;
@@ -1583,7 +1945,8 @@ pub fn enable_hermes_plugin(hermes: &str) -> Result<(), String> {
     match crate::run_bounded(command, None, ENABLE_DEADLINE, crate::PROBE_READ_MAX) {
         Some(_) => Ok(()),
         None => Err(format!(
-            "pns: Hermes did not enable the plugin; run `{hermes} plugins enable {HERMES_PLUGIN_NAME}`"
+            "pns: Hermes did not enable the plugin, so Hermes sessions do not reach pns; run \
+`{hermes} plugins enable {HERMES_PLUGIN_NAME}`"
         )),
     }
 }
@@ -1598,7 +1961,7 @@ pub use hermes_plugin::{
 };
 ```
 
-- [ ] **Step 4: Implement the verb**
+- [ ] **Step 5: Implement the verb**
 
 Create `pns/crates/pns/src/command_hermes.rs`:
 
@@ -1640,14 +2003,13 @@ fn install_plugin() -> i32 {
         eprintln!("pns: cannot resolve this binary's own path, so there is no command to install");
         return 2;
     };
-    let installed =
-        match pns_adapters::install_hermes_plugin(&home, &binary, env!("CARGO_PKG_VERSION")) {
-            Ok(installed) => installed,
-            Err(refusal) => {
-                eprintln!("{refusal}");
-                return 2;
-            }
-        };
+    let installed = match pns_adapters::install_hermes_plugin(&home, &binary) {
+        Ok(installed) => installed,
+        Err(refusal) => {
+            eprintln!("{refusal}");
+            return 2;
+        }
+    };
     let hermes = std::env::var("PNS_HERMES_BIN").unwrap_or_else(|_| "hermes".to_string());
     if let Err(refusal) = pns_adapters::enable_hermes_plugin(&hermes) {
         eprintln!("{refusal}");
@@ -1702,7 +2064,7 @@ Wire it:
   pns hermes install-plugin        write and enable pns's Hermes plugin
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns --test hermes_commands`
 Expected: 5 passed.
@@ -1710,26 +2072,27 @@ Expected: 5 passed.
 Run: `cargo test --locked --manifest-path pns/Cargo.toml -p pns subcommand_usage`
 Expected: the listing tests pass with the new row.
 
-- [ ] **Step 6: Run the gates**
+- [ ] **Step 7: Run the gates**
 
 Run: `just test-rust && just lint-check`
 Expected: both exit 0.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add pns/crates/pns-adapters/src/hermes_plugin.rs pns/crates/pns-adapters/src/lib.rs \
   pns/crates/pns/src/command_hermes.rs pns/crates/pns/src/command_codex.rs pns/crates/pns/src/lib.rs \
   pns/crates/pns/src/invocation.rs pns/crates/pns/src/subcommand_usage.rs \
-  pns/crates/pns/src/legacy/usage.rs pns/crates/pns/tests/hermes_commands.rs
+  pns/crates/pns/src/legacy/usage.rs pns/crates/pns/tests/hermes_commands.rs \
+  pns/crates/pns/tests/support/sandbox/commands.rs
 SKIP_AI_COMMIT=1 git commit -m "feat(pns): add pns hermes install-plugin"
 ```
 
 ---
 
-### Task 7: This machine runs pns's Hermes plugin instead of moshi's and the shell hook pair
+### Task 8: This machine runs pns's Hermes plugin instead of moshi's and the shell hook pair
 
-Branch: `feat/hermes-pns-plugin-cutover`. Needs Tasks 1 to 6 merged. This is the only task that changes
+Branch: `feat/hermes-pns-plugin-cutover`. Needs Tasks 1 to 7 merged. This is the only task that changes
 what an apply does.
 
 **Files:**
@@ -1740,7 +2103,7 @@ what an apply does.
 - Modify: `CLAUDE.md` (the two `run_after_72` sentences)
 
 **Interfaces:**
-- Consumes: `pns hermes install-plugin` from Task 6.
+- Consumes: `pns hermes install-plugin` from Task 7.
 
 - [ ] **Step 1: Write the failing template test**
 
@@ -1868,9 +2231,12 @@ CI=1 chezmoi --source "$PWD" execute-template --no-tty \
 shellcheck "$scratch/72.sh"
 cargo build --locked --release --manifest-path pns/Cargo.toml -p pns
 sed "s|^engine=.*|engine=\"$PWD/pns/target/release/pns\"|" "$scratch/72.sh" > "$scratch/72-local.sh"
-HERMES_HOME="$scratch/hermes" PNS_HERMES_BIN=/usr/bin/true bash "$scratch/72-local.sh"; echo "exit $?"
-HERMES_HOME="$scratch/hermes" PNS_HERMES_BIN=/usr/bin/true bash "$scratch/72-local.sh"; echo "exit $?"
+HERMES_HOME="$scratch/hermes" bash "$scratch/72-local.sh"; echo "exit $?"
+HERMES_HOME="$scratch/hermes" bash "$scratch/72-local.sh"; echo "exit $?"
 ls "$scratch/hermes/plugins/pns-hooks"
+HERMES_HOME="$scratch/hermes" hermes plugins list --user
+~/.hermes/hermes-agent/venv/bin/python pns/crates/pns-adapters/src/hermes_plugin/fixtures/drive.py \
+  "$scratch/hermes/plugins/pns-hooks/__init__.py" '[]'
 sed 's|(keepassxc "moshi-hook :: Device Token").Password|"stub-token"|' \
   .chezmoiscripts/run_once_after_60-moshi-hook-setup.sh.tmpl \
   | CI=1 chezmoi --source "$PWD" execute-template --no-tty > "$scratch/60.sh"
@@ -1878,10 +2244,17 @@ bash -n "$scratch/60.sh" && shellcheck "$scratch/60.sh"
 grep -n 'uninstall --target codex,hermes' "$scratch/60.sh"
 ```
 
+The two script runs reach the REAL `hermes`, confined to the scratch home: a `HERMES_HOME` outside
+`~/.hermes` is its own root, so Hermes reads no `active_profile` and writes only under it
+(`hermes_constants.py:112-149`, `hermes_cli/main.py:440-452`). That is what proves Hermes discovers the
+manifest and enables it. The driver line imports the written shim under Hermes's own Python 3.11.
+
 Expected: shellcheck silent; the first run prints the "wrote the Hermes plugin" line and `exit 0`; the
-second prints only `exit 0`; the listing shows `__init__.py` and `plugin.yaml`; the rendered 60 script
+second prints only `exit 0`; the listing shows `__init__.py` and `plugin.yaml`; `hermes plugins list`
+shows `pns-hooks` enabled; the driver prints the seven hooks under `registered`; the rendered 60 script
 parses, lints clean and shows the new uninstall line. Never run the rendered 60 script: it pairs and
-installs moshi for real. Clear the scratch directory with `trash "$scratch"`.
+installs moshi for real, and never point `HERMES_HOME` at `~/.hermes` here. Clear the scratch directory
+with `trash "$scratch"`.
 
 - [ ] **Step 9: Run the gates**
 
@@ -1897,15 +2270,22 @@ git add .chezmoiscripts/run_after_72-pns-hermes-plugin.sh.tmpl private_dot_herme
 SKIP_AI_COMMIT=1 git commit -m "feat(hermes): run pns's Hermes plugin in place of moshi's and the shell hooks"
 ```
 
-The pull request body must tell the operator that the next apply re-fires `run_once_after_60` once (its
-content changed), that KeePassXC must be unlocked for it and for the config template, and that
-`hermes gateway restart` follows the apply.
+The pull request body must tell the operator:
+
+- the next apply re-fires `run_once_after_60` once; its pairing guard skips `pair` on a paired host
+  (as the 2026-09-20 re-fire logged), so what re-runs is the install line, tap trust and a no-op service
+  start;
+- KeePassXC must be unlocked for it and for the config template;
+- `hermes gateway restart` follows the apply;
+- the same apply removes moshi's Hermes plugin before `run_after_72-pns-hermes-plugin` installs pns's,
+  so a transcript line "Hermes did not enable the plugin, so Hermes sessions do not reach pns" means
+  Hermes approvals reach no phone until the command it names is run; the preflight drill checks it.
 
 ---
 
-### Task 8: The drills
+### Task 9: The drills
 
-No branch and no pull request. The operator runs these after applying Task 7 and running
+No branch and no pull request. The operator runs these after applying Task 8 and running
 `hermes gateway restart`. Record each result under "pns validation follow-ups" in
 `docs/remaining-work.md`.
 
@@ -1913,8 +2293,8 @@ No branch and no pull request. The operator runs these after applying Task 7 and
   `hermes hooks list` shows no `pns hook` command.
 - [ ] **H1, desk approval.** In a herdr pane: `hermes chat --cli`, then ask it to run
   `rm -rf /tmp/pns-hermes-drill`. Expect a pns banner naming the command, no phone card, the blocked
-  lamp if lamps are on. Answer once at the pane: the lamp clears, no moshi card or push appears, the turn
-  ends with a `hermes` done banner.
+  lamp if lamps are on. Answer once at the pane: the lamp clears, no moshi card or push appears (pns
+  never forwarded the request, so it forwards no answer), the turn ends with a `hermes` done banner.
 - [ ] **H2, phone approval.** Same prompt with the surface Mobile or Away, set the way drill D8 set it.
   Expect exactly one moshi card. Approve on the phone: moshi types the answer, the command runs, the card
   clears. Repeat with Deny and record the result.
