@@ -43,8 +43,8 @@ fn install_hooks() -> i32 {
         // so a run that changed something says so once.
         Ok(CodexHooksInstall::Changed) => {
             eprintln!(
-                "pns: added or changed Codex hooks in {}. Codex will IGNORE them until you review \
-and trust them: open Codex and run /hooks to approve.",
+                "pns: added or changed Codex hooks in {}. Codex may ignore changed hooks until you \
+review and trust them: open Codex and run /hooks to approve.",
                 pns_adapters::codex_hooks_path(&home).display()
             );
             0
