@@ -2,8 +2,8 @@ use crate::*;
 use pns_adapters::SqliteStore;
 
 /// This session's wait on the operator, recorded where the blocked marker is
-/// written: the row the stale-block escalation reads, and the job that wakes
-/// its fire.
+/// written: the row the return card and the stale-block escalation read, and
+/// the job that wakes its fire.
 ///
 /// THE SAME CALL AS THE MARKER, deliberately. The two are one fact stated to
 /// two readers (a lamp and a page), so they are written at one seam; the row

@@ -20,8 +20,12 @@ impl Recorder {
     }
 }
 impl SessionWaits for Recorder {
-    fn begin(&self, _: &str, _: u64) -> Result<(), String> {
-        self.effect("begin")
+    fn begin(&self, _: &str, _: u64, escalates: bool) -> Result<(), String> {
+        self.effect(if escalates {
+            "begin"
+        } else {
+            "begin unescalated"
+        })
     }
     fn end(&self, _: &str) -> Result<(), String> {
         self.effect("end")
@@ -91,7 +95,9 @@ fn every_waiting_state_arms_it_and_a_later_event_clears_the_row() {
 }
 
 #[test]
-fn a_window_of_zero_arms_nothing_and_still_clears() {
+fn a_window_of_zero_still_records_the_wait_and_arms_no_job() {
+    // THE ROW IS THE WAIT'S, not the escalation's: the return card lists it
+    // whether or not anything pages about it.
     let recorder = Recorder::default();
     track_wait(
         &recorder,
@@ -102,7 +108,8 @@ fn a_window_of_zero_arms_nothing_and_still_clears() {
         Some(100),
         |warning| panic!("unexpected warning: {warning}"),
     );
-    assert!(recorder.steps.borrow().is_empty(), "the feature is off");
+    assert_eq!(*recorder.steps.borrow(), ["begin unescalated"]);
+    assert!(recorder.jobs.borrow().is_empty(), "the escalation is off");
     track_wait(
         &recorder,
         &recorder,
@@ -112,7 +119,7 @@ fn a_window_of_zero_arms_nothing_and_still_clears() {
         Some(100),
         |_| {},
     );
-    assert_eq!(*recorder.steps.borrow(), ["end"]);
+    assert_eq!(*recorder.steps.borrow(), ["begin unescalated", "end"]);
 }
 
 #[test]

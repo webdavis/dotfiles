@@ -1,8 +1,8 @@
 use crate::escalate_stale::WINDOW_OFF;
 use crate::{JobSpool, SessionWaits};
 
-/// This session's wait, recorded and timed: the row the escalation reads, and
-/// the one leased job that wakes a fire an hour later.
+/// This session's wait, recorded and timed: the row the return card and the
+/// escalation read, and the one leased job that wakes a fire an hour later.
 ///
 /// ONE SEAM FOR BOTH, which is the whole design decision here. The row and the
 /// job answer one question ("has this session been waiting, and since when"),
@@ -40,20 +40,13 @@ pub fn track_wait(
     if pns_domain::lights::phase::blocked_marker_action(event_state)
         == pns_domain::lights::phase::Action::End
     {
-        // UNCONDITIONAL, unlike the start below: a row left behind by an
-        // evening when the escalation was armed must still be cleared once the
-        // operator switches the window off, or it would page the day they
-        // switch it back on.
+        // UNCONDITIONAL, like the start below: an open row is a wait the
+        // return card lists, whatever the escalation's window says.
         if let Err(error) = end_wait(waits, session_id) {
             warn(&format!(
                 "pns: state error (this session's wait could not be cleared: {error})"
             ));
         }
-        return;
-    }
-    // A WINDOW OF ZERO IS THE FEATURE OFF, and the switch is read before the
-    // clock so a machine that never armed this writes nothing at all.
-    if window == WINDOW_OFF {
         return;
     }
     // NO CLOCK IS NO WAIT, never a wait at epoch zero: the elapsed time on the
@@ -62,11 +55,18 @@ pub fn track_wait(
     let (Some(now), Some(id)) = (now, pns_domain::stale::job_id(session_id)) else {
         return;
     };
-    if let Err(error) = waits.begin(session_id, now) {
+    // THE ROW IS RECORDED WHETHER OR NOT THE ESCALATION IS ON, because the
+    // return card reads it too; a window of zero only leaves it born claimed,
+    // so nothing ever pages about it.
+    let escalates = window != WINDOW_OFF;
+    if let Err(error) = waits.begin(session_id, now, escalates) {
         warn(&format!(
             "pns: state error (this session's wait could not be recorded: {error}); \
              a stale block will not be escalated"
         ));
+        return;
+    }
+    if !escalates {
         return;
     }
     let due = now.saturating_add(window);

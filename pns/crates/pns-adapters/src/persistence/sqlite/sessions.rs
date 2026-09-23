@@ -32,7 +32,8 @@ pub(in crate::persistence::sqlite) fn create(
     transaction: &Transaction<'_>,
 ) -> Result<(), StoreError> {
     // `blocked_since` and `escalated_at` are created here and written by the
-    // stale-block escalation, so that feature costs no second migration.
+    // wait tracking and the stale-block escalation, so neither costs a second
+    // migration.
     transaction.execute_batch(
         "CREATE TABLE sessions (
           id TEXT PRIMARY KEY,
@@ -96,16 +97,25 @@ impl SqliteStore {
     /// AND IT CLEARS THE PREVIOUS ESCALATION, which is what makes the rule one
     /// page per BLOCK rather than one per session: a new wait is a new thing
     /// nobody has answered, whether or not the last one was ever paged about.
-    pub fn begin_wait(&self, session_id: &str, now: u64) -> Result<(), StoreError> {
+    ///
+    /// A WAIT THAT DOES NOT `escalates` IS BORN CLAIMED instead, so switching
+    /// the escalation on later pages only waits begun after that, never a
+    /// backlog it was never armed for.
+    pub fn begin_wait(
+        &self,
+        session_id: &str,
+        now: u64,
+        escalates: bool,
+    ) -> Result<(), StoreError> {
         self.transaction(|transaction| {
             transaction.execute(
-                "INSERT INTO sessions(id,harness,project,branch,title,first_seen,last_seen,blocked_since)
-                 VALUES (?1,'','','','',?2,?2,?2)
+                "INSERT INTO sessions(id,harness,project,branch,title,first_seen,last_seen,blocked_since,escalated_at)
+                 VALUES (?1,'','','','',?2,?2,?2,CASE WHEN ?3 THEN NULL ELSE ?2 END)
                  ON CONFLICT(id) DO UPDATE SET
                    blocked_since = ?2,
-                   escalated_at = NULL,
+                   escalated_at = CASE WHEN ?3 THEN NULL ELSE ?2 END,
                    last_seen = ?2",
-                rusqlite::params![session_id, now],
+                rusqlite::params![session_id, now, escalates],
             )?;
             Ok(())
         })

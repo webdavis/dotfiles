@@ -104,8 +104,8 @@ impl PresenceDecisions for SqliteStore {
     }
 }
 impl pns_application::SessionWaits for SqliteStore {
-    fn begin(&self, session_id: &str, now: u64) -> Result<(), String> {
-        self.begin_wait(session_id, now)
+    fn begin(&self, session_id: &str, now: u64, escalates: bool) -> Result<(), String> {
+        self.begin_wait(session_id, now, escalates)
             .map_err(|error| error.to_string())
     }
     fn end(&self, session_id: &str) -> Result<(), String> {

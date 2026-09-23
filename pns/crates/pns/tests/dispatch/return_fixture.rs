@@ -102,7 +102,7 @@ pub(super) fn plant_activity_table(
             .expect("the planted activity row");
         if urgent == Some(which) {
             store
-                .begin_wait(&format!("s{which}"), at)
+                .begin_wait(&format!("s{which}"), at, true)
                 .expect("the planted wait");
         }
     }
