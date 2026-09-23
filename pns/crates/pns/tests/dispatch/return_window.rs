@@ -171,6 +171,45 @@ fn a_window_under_the_threshold_delivers_the_catch_up_card_unchanged() {
 }
 
 #[test]
+fn a_busy_return_under_the_default_minimum_away_delivers_the_catch_up_card_unchanged() {
+    // THE CONFIG WIRING, END TO END. Every other fixture in this file plants
+    // the marker an hour back, so the default `[recap] minimum_away` (20
+    // minutes) never has to hold anything back on its own; the event count
+    // alone decides them. This one writes no `[recap]` table at all, plants
+    // the marker ten minutes back with a window loud enough on events alone,
+    // and leaves ONLY the wiring from config into `RecapPolicy` standing
+    // between it and a recap.
+    let sandbox = Sandbox::new("recap-under-default-minimum-away");
+    record_every_event(&sandbox);
+    plant_marker(&sandbox, 600);
+    std::fs::write(activity_path(&sandbox), planted_activity(12, 300, Some(4))).expect("the ring");
+    std::fs::write(journal_path(&sandbox), planted_journal(2)).expect("the journal");
+
+    run(&mut present_event(&sandbox));
+
+    let raised = events(&sandbox, "banner");
+    assert_eq!(
+        raised.len(),
+        2,
+        "the live event and ONE catch-up card: {raised:?}"
+    );
+    assert_eq!(raised[1]["state"], "missed", "{raised:?}");
+    let body = raised[1]["detail"].as_str().expect("a detail");
+    assert!(
+        body.starts_with("2 missed notifications. "),
+        "a ten-minute absence earned a recap under the default 20-minute bar: {body}"
+    );
+    assert!(!body.contains("recap in #pns"), "{body}");
+    assert!(
+        events(&sandbox, "hermes")
+            .iter()
+            .all(|event| event["state"] != "recap"),
+        "a recap was posted under the default minimum_away: {:?}",
+        events(&sandbox, "hermes")
+    );
+}
+
+#[test]
 fn a_window_over_the_threshold_delivers_one_recap_card_with_what_needs_you_first() {
     // THE ONE-CARD RULE. Two layers were locked, phone and Discord, and slice
     // 13 already cards at this same return moment; a recap that raised its own
