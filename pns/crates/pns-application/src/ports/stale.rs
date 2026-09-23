@@ -17,8 +17,9 @@ pub trait SessionWaits {
     /// wait is a new thing nobody has answered. One that does not `escalates`
     /// is recorded as already claimed, so nothing ever pages about it.
     fn begin(&self, session_id: &str, now: u64, escalates: bool) -> Result<(), String>;
-    /// End it, so nothing escalates about a wait that is over.
-    fn end(&self, session_id: &str) -> Result<(), String>;
+    /// End it, so nothing escalates about a wait that is over, unless it
+    /// began after `now`, the moment being cleared for.
+    fn end(&self, session_id: &str, now: Option<u64>) -> Result<(), String>;
 }
 
 /// The rows a fire acts on, and the claim that keeps one page per block.

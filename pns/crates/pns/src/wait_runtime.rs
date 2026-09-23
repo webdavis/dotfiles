@@ -30,12 +30,11 @@ pub(crate) fn track_wait(session_id: &str, event_state: &str, window: u64, now: 
 /// this one name, so a caller cannot end half of it, and a third caller
 /// arriving later gets both without knowing there were two.
 ///
-/// `now` IS THE MOMENT BEING CLEARED FOR, handed down so the marker's End can
-/// refuse a wait armed after it; the row has no such compare, because it is
-/// keyed by session and rewritten by the next wait rather than raced for.
+/// `now` IS THE MOMENT BEING CLEARED FOR, handed down so the marker's End and
+/// the row's both refuse a wait armed after it.
 pub(crate) fn end_blocked_wait(session_id: &str, now: Option<u64>) {
     pns_adapters::marker_files::end_blocked_wait(session_id, now);
-    if let Err(error) = pns_application::end_wait(&SqliteStore::new(state_dir()), session_id) {
+    if let Err(error) = pns_application::end_wait(&SqliteStore::new(state_dir()), session_id, now) {
         eprintln!("pns: state error (this session's wait could not be cleared: {error})");
     }
 }

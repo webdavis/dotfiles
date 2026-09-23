@@ -42,7 +42,7 @@ pub fn track_wait(
     {
         // UNCONDITIONAL, like the start below: an open row is a wait the
         // return card lists, whatever the escalation's window says.
-        if let Err(error) = end_wait(waits, session_id) {
+        if let Err(error) = end_wait(waits, session_id, now) {
             warn(&format!(
                 "pns: state error (this session's wait could not be cleared: {error})"
             ));
@@ -103,9 +103,13 @@ pub fn track_wait(
 ///
 /// AN ID THIS ENGINE DOES NOT FOLLOW ENDS NOTHING, and that is success: it
 /// named no row to begin with.
-pub fn end_wait(waits: &impl SessionWaits, session_id: &str) -> Result<(), String> {
+pub fn end_wait(
+    waits: &impl SessionWaits,
+    session_id: &str,
+    now: Option<u64>,
+) -> Result<(), String> {
     match pns_domain::remind::usable(session_id) {
-        Some(session_id) => waits.end(session_id),
+        Some(session_id) => waits.end(session_id, now),
         None => Ok(()),
     }
 }

@@ -99,12 +99,18 @@ Given a session whose wait is over
 When any state outside `pulse::LAMP_BLOCKED` reaches the event path, or the `prompt` or `resolved` hook
 arm ends the wait directly
 
-Then `blocked_since` and `escalated_at` are both cleared.
+Then `blocked_since` and `escalated_at` are both cleared, unless the wait began after the moment being
+cleared for.
 
 - The three call sites are the record tail's own `SessionWait::track` and `wait_runtime`'s
   `end_blocked_wait`, which ends the marker and the row in one call and is what both hook arms reach.
 - Fail direction: clearing is UNCONDITIONAL of the window, like the start, so an open row always means
   a wait nobody has ended.
+- A late clear keeps a newer wait: every answer arm is async, so a batch's clear can land after the next
+  approval began its wait, and the row compares `blocked_since` against the caller's moment exactly as
+  the blocked marker compares its epoch. No clock is an unconditional clear
+  (`sqlite/tests/sessions.rs:a_late_clear_leaves_a_wait_begun_after_its_own_moment`). A clear that
+  started after the new wait began still takes it, the same residual the marker names.
 - An observation (`model-switch`, `quota`, `config-change`) changes nothing, because the record tail
   returns before either write for any attempt that is not the first. That is the blocked marker's own
   neutrality, deliberately shared.

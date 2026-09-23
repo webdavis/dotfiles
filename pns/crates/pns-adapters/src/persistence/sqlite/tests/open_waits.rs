@@ -33,7 +33,7 @@ fn only_a_session_whose_wait_is_still_open_is_listed_once_with_its_count() {
     row(&store, "answered", "blocked", 115, "Bash: make");
     store.begin_wait("answered", 115, true).unwrap();
     row(&store, "answered", "done", 125, "");
-    store.end_wait("answered").unwrap();
+    store.end_wait("answered", Some(125)).unwrap();
 
     assert_eq!(
         store.open_waits(100, 200).unwrap(),
@@ -120,7 +120,7 @@ fn only_the_waits_nothing_answered_are_counted() {
         row(&store, "s", "blocked", at, "Bash: make");
         store.begin_wait("s", at, true).unwrap();
         row(&store, "s", "resolved", at + 5, "");
-        store.end_wait("s").unwrap();
+        store.end_wait("s", Some(at + 5)).unwrap();
     }
     for (at, asks) in [(180, "Bash: ls"), (190, "Bash: git push")] {
         row(&store, "s", "blocked", at, asks);

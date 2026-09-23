@@ -123,11 +123,17 @@ impl SqliteStore {
 
     /// End it. NOTHING IS INSERTED: a session with no row has no wait to end,
     /// and the escalation reads the row rather than this call's success.
-    pub fn end_wait(&self, session_id: &str) -> Result<(), StoreError> {
+    ///
+    /// AN END NEVER TAKES A WAIT BEGUN AFTER `now`, the moment the caller is
+    /// clearing for, which is the blocked marker's own compare: the answer
+    /// arms are async, so one batch's clear can land after the next approval
+    /// began its wait. No clock is an unconditional end.
+    pub fn end_wait(&self, session_id: &str, now: Option<u64>) -> Result<(), StoreError> {
         self.transaction(|transaction| {
             transaction.execute(
-                "UPDATE sessions SET blocked_since = NULL, escalated_at = NULL WHERE id = ?1",
-                rusqlite::params![session_id],
+                "UPDATE sessions SET blocked_since = NULL, escalated_at = NULL
+                  WHERE id = ?1 AND (?2 IS NULL OR blocked_since IS NULL OR blocked_since <= ?2)",
+                rusqlite::params![session_id, now],
             )?;
             Ok(())
         })

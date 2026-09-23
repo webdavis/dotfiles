@@ -113,7 +113,7 @@ fn a_wait_that_ended_is_selected_again_once_a_new_block_starts() {
     store.note_session(&note("s1", "one", 0)).unwrap();
     store.begin_wait("s1", 1_000, true).unwrap();
     store.claim_escalation("s1", 5_000).unwrap();
-    store.end_wait("s1").unwrap();
+    store.end_wait("s1", Some(5_000)).unwrap();
     assert!(store.stale_blocks(9_000).unwrap().is_empty());
     store.begin_wait("s1", 9_000, true).unwrap();
     assert_eq!(
@@ -165,4 +165,26 @@ fn a_wait_begun_with_the_escalation_off_is_never_paged_about() {
         Some(1_000),
         "the wait itself is still recorded"
     );
+}
+
+#[test]
+fn a_late_clear_leaves_a_wait_begun_after_its_own_moment() {
+    // THE ANSWER ARMS ARE ASYNC, so one batch's clear can land after the
+    // next approval began its wait, and must not take it.
+    let store = SqliteStore::new(state());
+    store.note_session(&note("s1", "one", 0)).unwrap();
+    store.begin_wait("s1", 2_000, true).unwrap();
+    store.end_wait("s1", Some(1_999)).unwrap();
+    assert_eq!(store.newest_wait().map(|wait| wait.since), Some(2_000));
+    store.end_wait("s1", Some(2_000)).unwrap();
+    assert!(store.newest_wait().is_none());
+}
+
+#[test]
+fn a_clear_with_no_clock_ends_the_wait() {
+    let store = SqliteStore::new(state());
+    store.note_session(&note("s1", "one", 0)).unwrap();
+    store.begin_wait("s1", 2_000, true).unwrap();
+    store.end_wait("s1", None).unwrap();
+    assert!(store.newest_wait().is_none());
 }

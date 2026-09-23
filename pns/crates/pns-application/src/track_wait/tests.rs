@@ -7,6 +7,7 @@ use std::cell::RefCell;
 struct Recorder {
     steps: RefCell<Vec<String>>,
     jobs: RefCell<Vec<Job>>,
+    ended_for: RefCell<Vec<Option<u64>>>,
     fail: &'static str,
 }
 impl Recorder {
@@ -27,7 +28,8 @@ impl SessionWaits for Recorder {
             "begin unescalated"
         })
     }
-    fn end(&self, _: &str) -> Result<(), String> {
+    fn end(&self, _: &str, now: Option<u64>) -> Result<(), String> {
+        self.ended_for.borrow_mut().push(now);
         self.effect("end")
     }
 }
@@ -164,4 +166,13 @@ fn a_session_id_that_cannot_be_a_filename_records_nothing_at_all() {
         );
     }
     assert!(recorder.steps.borrow().is_empty());
+}
+
+#[test]
+fn a_wait_is_ended_for_the_events_own_moment() {
+    // THE ROW'S END COMPARES AGAINST THIS, so a clear that lands late never
+    // takes a wait begun after the event that sent it.
+    let recorder = Recorder::default();
+    tracked(&recorder, "done");
+    assert_eq!(*recorder.ended_for.borrow(), [Some(100)]);
 }

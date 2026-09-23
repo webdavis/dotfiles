@@ -108,8 +108,9 @@ impl pns_application::SessionWaits for SqliteStore {
         self.begin_wait(session_id, now, escalates)
             .map_err(|error| error.to_string())
     }
-    fn end(&self, session_id: &str) -> Result<(), String> {
-        self.end_wait(session_id).map_err(|error| error.to_string())
+    fn end(&self, session_id: &str, now: Option<u64>) -> Result<(), String> {
+        self.end_wait(session_id, now)
+            .map_err(|error| error.to_string())
     }
 }
 /// A READ THAT FAILS LISTS NO WAIT, reported to the store's own log: the card
