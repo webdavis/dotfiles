@@ -79,8 +79,8 @@ fn a_block_as_old_as_the_window_is_selected_and_one_second_short_of_it_is_not() 
     store.note_session(&note("s2", "two", 0)).unwrap();
     // One wait a whole window old, and one a second short of it.
     let now = 1_000 + WINDOW;
-    store.begin_wait("s1", 1_000).unwrap();
-    store.begin_wait("s2", 1_001).unwrap();
+    store.begin_wait("s1", 1_000, true).unwrap();
+    store.begin_wait("s2", 1_001, true).unwrap();
     let stale = store.stale_blocks(now - WINDOW).unwrap();
     assert_eq!(
         stale
@@ -98,7 +98,7 @@ fn a_block_as_old_as_the_window_is_selected_and_one_second_short_of_it_is_not() 
 fn the_escalation_is_claimed_once_so_a_later_tick_finds_nothing() {
     let store = SqliteStore::new(state());
     store.note_session(&note("s1", "one", 0)).unwrap();
-    store.begin_wait("s1", 1_000).unwrap();
+    store.begin_wait("s1", 1_000, true).unwrap();
     assert!(store.claim_escalation("s1", 5_000).unwrap());
     assert!(
         !store.claim_escalation("s1", 6_000).unwrap(),
@@ -111,11 +111,11 @@ fn the_escalation_is_claimed_once_so_a_later_tick_finds_nothing() {
 fn a_wait_that_ended_is_selected_again_once_a_new_block_starts() {
     let store = SqliteStore::new(state());
     store.note_session(&note("s1", "one", 0)).unwrap();
-    store.begin_wait("s1", 1_000).unwrap();
+    store.begin_wait("s1", 1_000, true).unwrap();
     store.claim_escalation("s1", 5_000).unwrap();
-    store.end_wait("s1").unwrap();
+    store.end_wait("s1", Some(5_000)).unwrap();
     assert!(store.stale_blocks(9_000).unwrap().is_empty());
-    store.begin_wait("s1", 9_000).unwrap();
+    store.begin_wait("s1", 9_000, true).unwrap();
     assert_eq!(
         store
             .stale_blocks(9_000)
@@ -137,9 +137,9 @@ fn a_new_block_is_selected_again_even_where_no_event_ended_the_last_one() {
     // clear on the way in, that session would never be escalated again.
     let store = SqliteStore::new(state());
     store.note_session(&note("s1", "one", 0)).unwrap();
-    store.begin_wait("s1", 1_000).unwrap();
+    store.begin_wait("s1", 1_000, true).unwrap();
     assert!(store.claim_escalation("s1", 5_000).unwrap());
-    store.begin_wait("s1", 9_000).unwrap();
+    store.begin_wait("s1", 9_000, true).unwrap();
     assert_eq!(
         store
             .stale_blocks(9_000)
@@ -149,4 +149,42 @@ fn a_new_block_is_selected_again_even_where_no_event_ended_the_last_one() {
             .collect::<Vec<_>>(),
         ["s1"]
     );
+}
+
+#[test]
+fn a_wait_begun_with_the_escalation_off_is_never_paged_about() {
+    // BORN CLAIMED, so switching the escalation on later pages only the waits
+    // begun after it, never a backlog of ones it was never armed for.
+    let store = SqliteStore::new(state());
+    store.note_session(&note("s1", "one", 0)).unwrap();
+    store.begin_wait("s1", 1_000, false).unwrap();
+    assert!(store.stale_blocks(9_000).unwrap().is_empty());
+    assert!(!store.claim_escalation("s1", 9_000).unwrap());
+    assert_eq!(
+        store.newest_wait().map(|wait| wait.since),
+        Some(1_000),
+        "the wait itself is still recorded"
+    );
+}
+
+#[test]
+fn a_late_clear_leaves_a_wait_begun_after_its_own_moment() {
+    // THE ANSWER ARMS ARE ASYNC, so one batch's clear can land after the
+    // next approval began its wait, and must not take it.
+    let store = SqliteStore::new(state());
+    store.note_session(&note("s1", "one", 0)).unwrap();
+    store.begin_wait("s1", 2_000, true).unwrap();
+    store.end_wait("s1", Some(1_999)).unwrap();
+    assert_eq!(store.newest_wait().map(|wait| wait.since), Some(2_000));
+    store.end_wait("s1", Some(2_000)).unwrap();
+    assert!(store.newest_wait().is_none());
+}
+
+#[test]
+fn a_clear_with_no_clock_ends_the_wait() {
+    let store = SqliteStore::new(state());
+    store.note_session(&note("s1", "one", 0)).unwrap();
+    store.begin_wait("s1", 2_000, true).unwrap();
+    store.end_wait("s1", None).unwrap();
+    assert!(store.newest_wait().is_none());
 }

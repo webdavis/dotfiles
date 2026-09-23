@@ -348,6 +348,8 @@ mod remind_switch;
 mod sandbox_network;
 #[path = "hooks/stale_arming.rs"]
 mod stale_arming;
+#[path = "hooks/turn_isolation.rs"]
+mod turn_isolation;
 #[path = "hooks/turn_markers.rs"]
 mod turn_markers;
 #[path = "hooks/turn_reply.rs"]

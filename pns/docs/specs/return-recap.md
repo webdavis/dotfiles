@@ -558,7 +558,8 @@ Then the heading is `THE NIGHT IN ORDER`, the mechanical form is one `HH:MM <mar
   `missed_notifications::recap_card` in the PARENT process before the child has even read the ring,
   pinned by
   `tests/dispatch.rs:the_recap_card_is_exactly_what_the_entries_compose_and_nothing_a_model_said`
-  (asserting the card is exactly `claude · blocked · p4. 13 events, 2 missed. recap in #pns`) and by
+  (asserting the card is exactly
+  `claude · blocked · p4: planted 4. 13 events, 2 missed. recap in #pns-events`) and by
   `tests/dispatch.rs:a_summarizer_that_never_answers_costs_the_card_nothing`.
 - Timeout and cancellation: Not applicable at this layer. `night_section` is a total function; the
   deadline was spent in behavior 8.
@@ -790,9 +791,8 @@ When `needs_you_section` composes section 2
 
 Then the heading `NEEDS YOU` is followed by one `- <described entry>` line per waiting entry NEWEST FIRST, or by `- nothing is waiting on you`, and the section is `Trim::Never` in every pass
 
-- Success: `src/recap.rs:needs_you_section` calls `missed_notifications::needing_you(entries)`, which
-  keeps every entry whose state is in
-  `NEEDS_YOU = ["asked", "blocked", "denied", "failed", "plan-ready"]`
+- Success: `src/recap.rs:needs_you_section` keeps every entry whose state is in
+  `NEEDS_YOU = ["asked", "blocked", "denied", "failed"]`
   (`src/missed_notifications.rs:NEEDS_YOU`), then `.rev()` for newest first, and wraps the result in
   `Section::held`, which is `Trim::Never` with `omitted: 0`.
 - Failure sources: none. An empty list is an answer.
@@ -816,9 +816,10 @@ Then the heading `NEEDS YOU` is followed by one `- <described entry>` line per w
 - Idempotency and duplicates: pure.
 - Privacy: the same activity ring fields as the timeline, through the same `described`.
 - Process ownership and cleanup: Not applicable.
-- Compatibility contract: the `NEEDS_YOU` list is shared with the phone card's own composition
-  (`src/missed_notifications.rs:needing_you` serves both), so the two layers of one return agree about
-  what is urgent.
+- Compatibility contract: the phone card answers a different question, which waits begun during the
+  absence are still open at the return, from the `sessions` rows, and the two layers of one return can
+  disagree in both directions. The card lists `asking` turns, which are not in `NEEDS_YOU`, and leaves
+  off answered waits and every `failed` and `denied` event, which this section keeps.
 
 ### 15. The recap posts once, to the one durable route it has
 
