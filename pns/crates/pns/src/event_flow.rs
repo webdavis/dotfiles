@@ -104,6 +104,7 @@ pub(crate) fn run_event(
         &|table, lights, flash, presence| {
             fire_pulse_for_event(table, lights, flash, presence);
         },
+        &SystemCommandRunner,
     )
 }
 /// Where this event's pulse ends up. THE REAL PULSE IN PRODUCTION and a
@@ -127,9 +128,10 @@ fn run_event_pulsing(
     payload: &HookPayload,
     attempt: Attempt,
     pulse: PulseSink<'_>,
+    notifier: &dyn pns_application::CommandRunner,
 ) -> Landed {
     landed(&execution::execute(
-        event, probes, payload, attempt, pulse, None,
+        event, probes, payload, attempt, pulse, notifier, None,
     ))
 }
 

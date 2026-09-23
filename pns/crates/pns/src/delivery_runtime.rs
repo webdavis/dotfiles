@@ -25,6 +25,8 @@ pub(crate) struct DeliveryRuntime<'a> {
     /// config the caller already loaded.
     pub(crate) routes: &'a pns_domain::routes::Routes,
     pub(crate) json: bool,
+    /// What a failure notice's desk banner is spawned through.
+    pub(crate) notifier: &'a dyn pns_application::CommandRunner,
 }
 
 pub(crate) struct SubmissionInput<'a> {
@@ -125,7 +127,7 @@ impl DeliveryRuntime<'_> {
                 // Gated on an outcome that was not delivered, so the ordinary
                 // event path pays no ledger read.
                 if failed(&submitted) {
-                    failure_notice::announce(self.store, window.now);
+                    failure_notice::announce(self.store, window.now, self.notifier);
                 }
                 submitted
             }
