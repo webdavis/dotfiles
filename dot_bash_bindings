@@ -501,133 +501,18 @@ builtin bind -m vi-command '"\C-xoi": "i\C-x0brew install "'
 builtin bind -m vi-insert '"\C-xl": "\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 builtin bind -m vi-command '"\C-xl": "i\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 
-# --- network-host ---
-# Host Bindings: what this machine is on the network.
+# --- network ---
+# Network diagnostics and discovery.
 
-# ╭───────────────╮
-# │ Host Bindings │
-# ╰───────────────╯
-# Print the hostname of the current machine.
-builtin bind -m vi-insert '"\C-xnhh": "\C-x0hostname\r"'
-builtin bind -m vi-command '"\C-xnhh": "i\C-x0hostname\r"'
-
-builtin bind -m vi-insert '"\C-xnhm": "\C-x0__bash_bindings_print_mac_address\r"'
-builtin bind -m vi-command '"\C-xnhm": "i\C-x0__bash_bindings_print_mac_address\r"'
-
-builtin bind -m vi-insert '"\C-xnhi": "\C-x0__bash_bindings_show_current_network_interface\r"'
-builtin bind -m vi-command '"\C-xnhi": "i\C-x0__bash_bindings_show_current_network_interface\r"'
-
-# Show all active network connections and listening ports for troubleshooting.
-builtin bind -m vi-insert '"\C-xnhp": "\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
-builtin bind -m vi-command '"\C-xnhp": "i\C-x0lsof -nP -iTCP -sTCP:LISTEN\r"'
-
-# --- network-lan ---
-# LAN Bindings: the local network, its gateway and its reachability.
-
-# ╭──────────────╮
-# │ LAN Bindings │
-# ╰──────────────╯
-# Shows your local IP address on the current network (LAN).
-builtin bind -m vi-insert '"\C-xnll": "\C-x0ipconfig getifaddr en0\r"'
-builtin bind -m vi-command '"\C-xnll": "i\C-x0ipconfig getifaddr en0\r"'
-
-builtin bind -m vi-insert '"\C-xnlg": "\C-x0__bash_bindings_show_ip_address_of_default_gateway\r"'
-builtin bind -m vi-command '"\C-xnlg": "i\C-x0__bash_bindings_show_ip_address_of_default_gateway\r"'
-
-builtin bind -m vi-insert '"\C-xnlb": "\C-x0__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface\r"'
-builtin bind -m vi-command '"\C-xnlb": "i\C-x0__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface\r"'
-
-builtin bind -m vi-insert '"\C-xnlr": "\C-x0__bash_bindings_ping_default_gateway\r"'
-builtin bind -m vi-command '"\C-xnlr": "i\C-x0__bash_bindings_ping_default_gateway\r"'
-
-builtin bind -m vi-insert '"\C-xnlt": "\C-x0__bash_bindings_check_protocol_connectivity\r"'
-builtin bind -m vi-command '"\C-xnlt": "i\C-x0__bash_bindings_check_protocol_connectivity\r"'
-
-builtin bind -m vi-insert '"\C-xnl2": "\C-x0__bash_bindings_check_protocol_connectivity 22\r"'
-builtin bind -m vi-command '"\C-xnl2": "i\C-x0__bash_bindings_check_protocol_connectivity 22\r"'
-
-builtin bind -m vi-insert '"\C-xnl4": "\C-x0__bash_bindings_check_protocol_connectivity 443\r"'
-builtin bind -m vi-command '"\C-xnl4": "i\C-x0__bash_bindings_check_protocol_connectivity 443\r"'
-
-builtin bind -m vi-insert '"\C-xnl5": "\C-x0__bash_bindings_check_protocol_connectivity 53\r"'
-builtin bind -m vi-command '"\C-xnl5": "i\C-x0__bash_bindings_check_protocol_connectivity 53\r"'
-
-builtin bind -m vi-insert '"\C-xnl8": "\C-x0__bash_bindings_check_protocol_connectivity 80\r"'
-builtin bind -m vi-command '"\C-xnl8": "i\C-x0__bash_bindings_check_protocol_connectivity 80\r"'
-
-builtin bind -m vi-insert '"\C-xnl0": "\C-x0__bash_bindings_check_protocol_connectivity 8080\r"'
-builtin bind -m vi-command '"\C-xnl0": "i\C-x0__bash_bindings_check_protocol_connectivity 8080\r"'
-
-builtin bind -m vi-insert '"\C-xnls": "\C-x0__bash_bindings_scan_common_ports\r"'
-builtin bind -m vi-command '"\C-xnls": "i\C-x0__bash_bindings_scan_common_ports\r"'
-
-builtin bind -m vi-insert '"\C-xnlc": "\C-x0__bash_bindings_capture_packets_on_default_network_interface\r"'
-builtin bind -m vi-command '"\C-xnlc": "i\C-x0__bash_bindings_capture_packets_on_default_network_interface\r"'
-
-# Shows your public IPv4 address (the address visible to the internet).
-builtin bind -m vi-insert '"\C-xn4": "\C-x0curl --ipv4 https://ifconfig.me/all\r"'
-builtin bind -m vi-command '"\C-xn4": "i\C-x0curl --ipv4 https://ifconfig.me/all\r"'
-
-# Shows your public IPv6 address (the address visible to the internet).
-builtin bind -m vi-insert '"\C-xn6": "\C-x0curl --ipv6 https://ifconfig.me/all\r"'
-builtin bind -m vi-command '"\C-xn6": "i\C-x0curl --ipv6 https://ifconfig.me/all\r"'
-
-# Displays your ISP and other public network details.
-builtin bind -m vi-insert '"\C-xni": "\C-x0curl -s https://ipinfo.io | jq .\r"'
-builtin bind -m vi-command '"\C-xni": "i\C-x0curl -s https://ipinfo.io | jq .\r"'
-
-# --- network-dns ---
-# DNS Bindings: resolution, the servers in use and a summary.
-
-builtin bind -m vi-insert '"\C-xndd": "\C-x0__bash_bindings_dns_lookup\r"'
-builtin bind -m vi-command '"\C-xndd": "i\C-x0__bash_bindings_dns_lookup\r"'
-
-builtin bind -m vi-insert '"\C-xndr": "\C-x0__bash_bindings_reverse_dns_lookup\r"'
-builtin bind -m vi-command '"\C-xndr": "i\C-x0__bash_bindings_reverse_dns_lookup\r"'
-
-builtin bind -m vi-insert '"\C-xnda": "\C-x0__bash_bindings_system_dns_servers\r"'
-builtin bind -m vi-command '"\C-xnda": "i\C-x0__bash_bindings_system_dns_servers\r"'
-
-builtin bind -m vi-insert '"\C-xndt": "\__bash_bindings_test_dns_resolution_for_common_domains\r"'
-
-builtin bind -m vi-command '"\C-xndt": "i\C-x0__bash_bindings_test_dns_resolution_for_common_domains\r"'
-
-builtin bind -m vi-insert '"\C-xnds": "\C-x0__bash_bindings_dns_summary\r"'
-builtin bind -m vi-command '"\C-xnds": "i\C-x0__bash_bindings_dns_summary\r"'
-
-# --- network-wan ---
-# WAN Bindings: the path out to the internet.
-
-# ╭──────────────╮
-# │ WAN Bindings │
-# ╰──────────────╯
-# Measure internet connection latency to Cloudflare DNS (1.1.1.1) with three pings.
-builtin bind -m vi-insert '"\C-xnwl": "\C-x0ping -c 3 1.1.1.1 | tail -1\r"'
-builtin bind -m vi-command '"\C-xnwl": "i\C-x0ping -c 3 1.1.1.1 | tail -1\r"'
-
-# Ping Google's DNS server once to check basic internet connectivity.
-builtin bind -m vi-insert '"\C-xnwp": "\C-x0ping -c 1 8.8.8.8\r"'
-builtin bind -m vi-command '"\C-xnwp": "i\C-x0ping -c 1 8.8.8.8\r"'
-
-# Ping (custom) server once to check basic internet connectivity.
-builtin bind -m vi-insert '"\C-xnwP": "\C-x0ping -c 1 "'
-builtin bind -m vi-command '"\C-xnwP": "i\C-x0ping -c 1 "'
-
-# Perform a traceroute to google.com to see the network path and detect routing issues.
-builtin bind -m vi-insert '"\C-xnwt": "\C-x0traceroute google.com"'
-builtin bind -m vi-command '"\C-xnwt": "i\C-x0traceroute google.com"'
-
-builtin bind -m vi-insert '"\C-xnwL": "\C-x0__bash_bindings_latency_traceroute_test\r"'
-builtin bind -m vi-command '"\C-xnwL": "i\C-x0__bash_bindings_latency_traceroute_test\r"'
-
-builtin bind -m vi-insert '"\C-xnwh": "\C-x0__bash_bindings_network_health_check\r"'
-builtin bind -m vi-command '"\C-xnwh": "i\C-x0__bash_bindings_network_health_check\r"'
-
-builtin bind -m vi-insert '"\C-xnws": "\C-x0__bash_bindings_network_summary\r"'
-builtin bind -m vi-command '"\C-xnws": "i\C-x0__bash_bindings_network_summary\r"'
+# Search networking commands and prepare one for execution.
+builtin bind -m vi-insert -x '"\C-xn": "__fzf_network_menu"'
+builtin bind -m vi-command -x '"\C-xn": "__fzf_network_menu"'
+builtin bind -m emacs-standard -x '"\C-xn": "__fzf_network_menu"'
 
 # --- bindings-help ---
 # List every binding these files declare.
 
-builtin bind -m vi-insert '"\C-xv": "\C-x0__bash_bindings_list_bash_bindings\r"'
-builtin bind -m vi-command '"\C-xv": "i\C-x0__bash_bindings_list_bash_bindings\r"'
+# Search Bash shortcuts and prepare a command.
+builtin bind -m vi-insert -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
+builtin bind -m vi-command -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
+builtin bind -m emacs-standard -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
