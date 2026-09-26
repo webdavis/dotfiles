@@ -1,21 +1,30 @@
 #!/usr/bin/env bash
 
-set -uo pipefail
+set -euo pipefail
 
 file_is_valid_json() {
   local file=$1
   jq empty <"$file"
 }
 
-main() {
-  local file status=0
+report_invalid_json_file() {
+  local file=$1
+  printf 'jq-validate: invalid JSON: %s\n' "$file" >&2
+}
+
+validate_every_json_file() {
+  local file validation_status=0
   for file in "$@"; do
     if ! file_is_valid_json "$file"; then
-      printf 'jq-validate: invalid JSON: %s\n' "$file" >&2
-      status=1
+      report_invalid_json_file "$file"
+      validation_status=1
     fi
   done
-  exit "$status"
+  return "$validation_status"
+}
+
+main() {
+  validate_every_json_file "$@" || exit 1
 }
 
 main "$@"

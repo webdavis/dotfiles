@@ -1,52 +1,54 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-set -euo pipefail
-# Every build input is hashed below, at every extension rather than `.rs` alone,
-# because an `include_str!` or `include_bytes!` compiles a fixture into the
-# binary and a `.rs`-only trigger would miss an edit to one. Scoped to `crates/`
-# so cargo's own `target/` at the workspace root stays out: hashing the
-# artifacts this script produces would move the trigger on every build. `stat`
-# drops the directories the glob returns beside the files, since `include` on a
-# directory errors and an erroring template aborts the whole apply.
 {{ $lights := joinPath .chezmoi.sourceDir "lights" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
 {{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
-{{ range (glob (joinPath $lights $pattern)) }}
-{{- if not (stat .).isDir }}
+{{ range (glob (joinPath $lights $pattern)) -}}
+{{ if not (stat .).isDir -}}
 # {{ . }} {{ include . | sha256sum }}
-{{- end }}
-{{- end }}
-{{- end }}
+{{ end -}}
+{{ end -}}
+{{ end -}}
 # Cargo.toml {{ include (joinPath $lights "Cargo.toml") | sha256sum }}
 # Cargo.lock {{ include (joinPath $lights "Cargo.lock") | sha256sum }}
-{{- range (glob (joinPath $lights "crates/*/Cargo.toml")) }}
+{{ range (glob (joinPath $lights "crates/*/Cargo.toml")) -}}
 # {{ . }} {{ include . | sha256sum }}
-{{- end }}
-# A deferred zero-exit build must change the next rendered script to retry.
+{{ end -}}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/lights-build/lights.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "rust-build-lib.sh.tmpl" }}
 
-# Repository SOURCE at the monorepo root, never a deploy target, so the build
-# reads the chezmoi source directory rather than a copy under $HOME.
-crate_dir={{ $lights | quote }}
-install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
-cargo_bin="$HOME/.cargo/bin/cargo"
-retry_marker="$HOME/.cache/lights-build/lights.retry"
+readonly lights_source_dir={{ $lights | quote }}
+readonly built_lights="$lights_source_dir/target/release/lights"
+readonly install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+readonly installed_lights="$install_dir/lights"
+readonly lights_retry_marker="$HOME/.cache/lights-build/lights.retry"
 
-if [[ ! -x $cargo_bin ]]; then
-  # NAMED IN THE LINE ITSELF, because a deferral prints no section above it and
-  # goes to stderr, where it can land anywhere in the apply's output.
-  report_line 'lights: cargo not found at ~/.cargo/bin/cargo; build deferred to the next apply.' >&2
-  mkdir -p "$(dirname "$retry_marker")"
-  touch "$retry_marker"
-  exit 0
-fi
+main() {
+  report_section 'lights' 'keyboard light control'
 
-report_section 'lights'
-report_line 'building the release binary'
-cd "$crate_dir" || exit
-"$cargo_bin" build --release --locked --quiet --bin lights
-mkdir -p "$install_dir"
-/usr/bin/install -m 755 "$crate_dir/target/release/lights" "$install_dir/lights"
-report_line "installed $install_dir/lights"
+  if ! cargo_is_installed; then
+    report_line "cargo not found at $cargo_bin; build deferred to the next apply." >&2
+    defer_build_until_next_apply "$lights_retry_marker"
+    exit 0
+  fi
+
+  report_line "building the release binary..."
+  local build_status=0
+  build_release_binary "$lights_source_dir" lights || build_status=$?
+  if build_failed "$build_status"; then
+    report_line "error[build-failed]: lights did not build; see cargo's output above." >&2
+    exit "$build_status"
+  fi
+  report_line "built $built_lights."
+
+  report_line "installing the release binary..."
+  install_release_binary "$built_lights" "$installed_lights"
+  report_line "installed $installed_lights."
+}
+
+main "$@"
 {{ end -}}
