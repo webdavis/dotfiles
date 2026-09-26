@@ -19,12 +19,10 @@ exit 0
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
 brew_bin="$brew_prefix/bin/brew"
 
-# Homebrew now asks "Do you want to proceed with the installation? [y/n]"
-# when a formula pulls in dependencies. `brew bundle` hides the output of the
-# installs it runs, so that prompt never reaches the terminal and the apply
-# waits on it forever (zero CPU, no child processes). Skip the confirmation for
-# every brew call below; `NONINTERACTIVE=1` does not cover `brew install`.
-export HOMEBREW_NO_ASK=1
+never_wait_on_homebrew_install_confirmations() {
+  export HOMEBREW_NO_ASK=1
+}
+never_wait_on_homebrew_install_confirmations
 
 # DIAGNOSTIC INSTRUMENTATION for task #118: the Homebrew trust store empties
 # during an apply, and no command reproduces it in isolation (brew cleanup, a
