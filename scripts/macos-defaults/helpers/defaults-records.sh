@@ -1,50 +1,86 @@
 # shellcheck shell=bash
 
-resolve_source_dir() {
-  if [[ -n ${MACOS_DEFAULTS_SOURCE_DIR+x} ]]; then
-    if [[ -z $MACOS_DEFAULTS_SOURCE_DIR ]]; then
-      printf 'error: MACOS_DEFAULTS_SOURCE_DIR is set but empty; refusing to resolve another checkout\n' >&2
-      return 1
-    fi
-    printf '%s\n' "$MACOS_DEFAULTS_SOURCE_DIR"
-    return 0
-  fi
+text_is_empty() {
+  local text=$1
+  [[ -z $text ]]
+}
 
-  local worktree_top resolved
-  worktree_top="$(
+file_is_readable() {
+  local file=$1
+  [[ -r $file ]]
+}
+
+source_directory_override_is_set() {
+  [[ -n ${MACOS_DEFAULTS_SOURCE_DIR+x} ]]
+}
+
+print_source_directory_override() {
+  if text_is_empty "$MACOS_DEFAULTS_SOURCE_DIR"; then
+    printf 'error: MACOS_DEFAULTS_SOURCE_DIR is set but empty; refusing to resolve another checkout\n' >&2
+    return 1
+  fi
+  printf '%s\n' "$MACOS_DEFAULTS_SOURCE_DIR"
+}
+
+current_worktree_top() {
+  (
     unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE
     git rev-parse --show-toplevel 2>/dev/null
-  )"
-  if [[ -n $worktree_top && -f "$worktree_top/.chezmoiversion" ]]; then
-    if ! resolved="$(chezmoi --source="$worktree_top" source-path)"; then
-      printf 'error: chezmoi --source=%s source-path failed; refusing to fall back to another checkout\n' \
-        "$worktree_top" >&2
-      return 1
-    fi
-    printf '%s\n' "$resolved"
-    return 0
-  fi
+  )
+}
 
-  if ! resolved="$(chezmoi source-path)"; then
+directory_is_a_chezmoi_source_tree() {
+  local directory=$1
+  [[ -n $directory && -f "$directory/.chezmoiversion" ]]
+}
+
+print_worktree_source_path() {
+  local worktree_top=$1
+  local source_path
+  if ! source_path="$(chezmoi --source="$worktree_top" source-path)"; then
+    printf 'error: chezmoi --source=%s source-path failed; refusing to fall back to another checkout\n' \
+      "$worktree_top" >&2
+    return 1
+  fi
+  printf '%s\n' "$source_path"
+}
+
+print_configured_source_path() {
+  local source_path
+  if ! source_path="$(chezmoi source-path)"; then
     printf 'error: chezmoi source-path failed; the chezmoi source directory is unknown\n' >&2
     return 1
   fi
-  printf '%s\n' "$resolved"
+  printf '%s\n' "$source_path"
+}
+
+resolve_source_directory() {
+  local worktree_top
+  if source_directory_override_is_set; then
+    print_source_directory_override
+    return
+  fi
+  worktree_top="$(current_worktree_top)"
+  if directory_is_a_chezmoi_source_tree "$worktree_top"; then
+    print_worktree_source_path "$worktree_top"
+    return
+  fi
+  print_configured_source_path
 }
 
 macos_defaults_data_file() {
-  local source_dir
-  source_dir="$(resolve_source_dir)" || return 2
-  if [[ -z $source_dir ]]; then
+  local source_directory
+  source_directory="$(resolve_source_directory)" || return 2
+  if text_is_empty "$source_directory"; then
     printf 'error: resolved an empty chezmoi source directory for macos_defaults.yaml\n' >&2
     return 2
   fi
-  printf '%s/.chezmoidata/macos_defaults.yaml\n' "$source_dir"
+  printf '%s/.chezmoidata/macos_defaults.yaml\n' "$source_directory"
 }
 
 require_readable_data_file() {
-  local data_file="$1"
-  if [[ ! -r $data_file ]]; then
+  local data_file=$1
+  if ! file_is_readable "$data_file"; then
     printf 'error: cannot read %s\n' "$data_file" >&2
     return 2
   fi
