@@ -204,7 +204,7 @@ deadline_secs = 21600
 
 [lanes.plannotator]
 type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/unattended-upgrades/update-plannotator.sh" }}"]
+run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-plannotator.sh" }}"]
 deadline_secs = 21600
 
 [lanes.herdr-binary]
@@ -219,7 +219,7 @@ deadline_secs = 21600
 
 [lanes.bgutil-ytdlp-pot-provider]
 type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/unattended-upgrades/update-bgutil-ytdlp-pot-provider.sh" }}"]
+run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-bgutil-ytdlp-pot-provider.sh" }}"]
 deadline_secs = 21600
 
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
