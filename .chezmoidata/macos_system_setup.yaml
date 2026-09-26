@@ -18,7 +18,3 @@ macos:
     - description: "LuLu: create the required outbound allow rules by answering its prompts"
       tier: manual
       runbook: "LuLu rule creation"
-  tailscale_magicdns_fallback_hosts:
-    - fqdn: mister.tail2f2430.ts.net
-      ip: "100.109.58.54"
-      short: mister
