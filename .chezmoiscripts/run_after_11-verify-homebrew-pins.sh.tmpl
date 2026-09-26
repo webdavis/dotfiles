@@ -1,38 +1,123 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# Hold each declared-pinned formula where `brew upgrade`, and so the weekly
-# unattended job, leaves it, and warn when the installed version drifts from
-# the version proven against this repository.
-#
-# Plain run_after_, so a pin lost to an interrupted `just moshi-hook-upgrade`
-# or a manual `brew unpin` is restored on the next apply.
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
-brew_bin="$brew_prefix/bin/brew"
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-pin_declared() {
-  local formula="$1" declared="$2" installed
-  # `brew list --versions` exits non-zero for a formula that is not installed;
-  # `|| true` keeps that from reaching set -e before the not-installed branch
-  # below gets to run.
-  installed="$("$brew_bin" list --versions "$formula" 2>/dev/null | awk '{ print $2 }')" || true
-  if [[ -z $installed ]]; then
-    printf 'homebrew: WARNING: %s is declared pinned at %s but is not installed.\n' "$formula" "$declared" >&2
-    return 0
-  fi
-  if [[ -z $("$brew_bin" list --pinned "$formula" 2>/dev/null) ]]; then
-    "$brew_bin" pin "$formula"
-    printf 'homebrew: pinned %s at %s\n' "$formula" "$installed"
-  fi
-  if [[ $installed != "$declared" ]]; then
-    printf 'homebrew: WARNING: %s is pinned at %s, but .chezmoidata/system_packages_autoinstall.yaml declares %s, the version proven against this repository.\n' \
-      "$formula" "$installed" "$declared" >&2
-  fi
+readonly brew_bin="${HOMEBREW_PREFIX:-/opt/homebrew}/bin/brew"
+readonly pin_declarations_file=".chezmoidata/system_packages_autoinstall.yaml"
+readonly declared_pins=(
+{{- range $formula, $version := (dig "pinned" dict .packages.macos.homebrew) }}
+  {{ printf "%s %s" $formula $version | quote }}
+{{- end }}
+)
+
+section_header_printed=false
+
+section_header_is_printed() {
+  [[ $section_header_printed == true ]]
 }
 
-{{ range $formula, $version := (dig "pinned" dict .packages.macos.homebrew) -}}
-pin_declared {{ $formula | quote }} {{ $version | quote }}
-{{ end -}}
+print_section_header_once() {
+  if section_header_is_printed; then
+    return
+  fi
+  report_section 'homebrew' 'pinned formulae'
+  section_header_printed=true
+}
+
+report_under_header() {
+  local message=$1
+  print_section_header_once
+  report_line "$message"
+}
+
+no_pins_are_declared() {
+  ((${#declared_pins[@]} == 0))
+}
+
+installed_version_of() {
+  local formula=$1
+  "$brew_bin" list --versions "$formula" 2>/dev/null | awk '{ print $2 }' || true
+}
+
+no_version_is_installed() {
+  local installed_version=$1
+  [[ -z $installed_version ]]
+}
+
+formula_is_pinned() {
+  local formula=$1
+  [[ -n "$("$brew_bin" list --pinned "$formula" 2>/dev/null)" ]]
+}
+
+pin_formula() {
+  local formula=$1
+  "$brew_bin" pin "$formula"
+}
+
+ensure_formula_is_pinned() {
+  local formula=$1 installed_version=$2
+  if formula_is_pinned "$formula"; then
+    return
+  fi
+  report_under_header "pinning $formula at $installed_version..."
+  pin_formula "$formula" || return
+  report_under_header "pinned $formula at $installed_version."
+}
+
+pin_failed() {
+  local pin_status=$1
+  ((pin_status != 0))
+}
+
+versions_match() {
+  local installed_version=$1 declared_version=$2
+  [[ $installed_version == "$declared_version" ]]
+}
+
+report_formula_not_installed() {
+  local formula=$1 declared_version=$2
+  report_under_header "error[not-installed]: $formula is declared pinned at $declared_version but is not installed." >&2
+}
+
+report_pin_failure() {
+  local formula=$1
+  report_under_header "error[pin-failed]: brew could not pin $formula; see its output above." >&2
+}
+
+report_version_drift() {
+  local formula=$1 installed_version=$2 declared_version=$3
+  report_under_header "error[version-drift]: $formula is pinned at $installed_version, but $pin_declarations_file declares $declared_version, the version proven against this repository." >&2
+}
+
+main() {
+  if no_pins_are_declared; then
+    return
+  fi
+
+  local declared_pin formula declared_version installed_version pin_status
+  for declared_pin in "${declared_pins[@]}"; do
+    read -r formula declared_version <<<"$declared_pin"
+    installed_version="$(installed_version_of "$formula")"
+    if no_version_is_installed "$installed_version"; then
+      report_formula_not_installed "$formula" "$declared_version"
+      continue
+    fi
+
+    pin_status=0
+    ensure_formula_is_pinned "$formula" "$installed_version" || pin_status=$?
+    if pin_failed "$pin_status"; then
+      report_pin_failure "$formula"
+      exit "$pin_status"
+    fi
+
+    if ! versions_match "$installed_version" "$declared_version"; then
+      report_version_drift "$formula" "$installed_version" "$declared_version"
+    fi
+  done
+}
+
+main "$@"
 {{ end -}}
