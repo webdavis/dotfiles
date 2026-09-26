@@ -171,6 +171,31 @@ worktree_is_clean() {
   return 0
 }
 
+branch_name_from_reference() {
+  local branch_reference=$1
+  printf '%s' "${branch_reference#refs/heads/}"
+}
+
+reason_to_keep_worktree() {
+  local worktree_path=$1 head_commit=$2 branch_reference=$3
+  local branch_name
+  branch_name="$(branch_name_from_reference "$branch_reference")"
+  if worktree_is_current "$worktree_path"; then
+    printf 'the current worktree'
+  elif worktree_is_detached "$branch_reference"; then
+    printf 'detached at %s' "${head_commit:0:short_commit_length}"
+  elif ! commit_is_merged_upstream "$head_commit"; then
+    printf '%s is not merged into %s' "$branch_name" "$upstream_branch"
+  elif ! worktree_is_clean "$worktree_path"; then
+    printf '%s has uncommitted changes' "$branch_name"
+  fi
+}
+
+reason_was_found() {
+  local reason=$1
+  [[ -n $reason ]]
+}
+
 removal_method_for() {
   local worktree_path=$1
   if worktree_is_open_in_herdr "$worktree_path"; then
@@ -226,20 +251,15 @@ remove_worktree() {
 
 decide_worktree() {
   local worktree_path=$1 head_commit=$2 branch_reference=$3
-  local branch_name="${branch_reference#refs/heads/}"
+  local reason_to_keep
   if ! worktree_is_linked "$worktree_path"; then
     return 0
   fi
-  if worktree_is_current "$worktree_path"; then
-    keep_worktree "$worktree_path" 'the current worktree'
-  elif worktree_is_detached "$branch_reference"; then
-    keep_worktree "$worktree_path" "detached at ${head_commit:0:short_commit_length}"
-  elif ! commit_is_merged_upstream "$head_commit"; then
-    keep_worktree "$worktree_path" "$branch_name is not merged into $upstream_branch"
-  elif ! worktree_is_clean "$worktree_path"; then
-    keep_worktree "$worktree_path" "$branch_name has uncommitted changes"
+  reason_to_keep="$(reason_to_keep_worktree "$worktree_path" "$head_commit" "$branch_reference")"
+  if reason_was_found "$reason_to_keep"; then
+    keep_worktree "$worktree_path" "$reason_to_keep"
   else
-    remove_worktree "$worktree_path" "$branch_name"
+    remove_worktree "$worktree_path" "$(branch_name_from_reference "$branch_reference")"
   fi
 }
 
