@@ -19,6 +19,13 @@ exit 0
 brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
 brew_bin="$brew_prefix/bin/brew"
 
+# Homebrew now asks "Do you want to proceed with the installation? [y/n]"
+# when a formula pulls in dependencies. `brew bundle` hides the output of the
+# installs it runs, so that prompt never reaches the terminal and the apply
+# waits on it forever (zero CPU, no child processes). Skip the confirmation for
+# every brew call below; `NONINTERACTIVE=1` does not cover `brew install`.
+export HOMEBREW_NO_ASK=1
+
 # DIAGNOSTIC INSTRUMENTATION for task #118: the Homebrew trust store empties
 # during an apply, and no command reproduces it in isolation (brew cleanup, a
 # non-forced brew bundle cleanup, brew update, an untap, and sixteen rapid
@@ -166,7 +173,7 @@ EOF
 grep -v '^mas ' "$brewfile" >"$brewfile_main"
 grep '^mas ' "$brewfile" >"$brewfile_mas" || true
 report_section "homebrew" "bundle sync"
-"$brew_bin" bundle --no-upgrade --file="$brewfile_main"
+"$brew_bin" bundle --no-upgrade --verbose --file="$brewfile_main" </dev/null
 mas_manifest="$HOME/.local/state/homebrew/mas.Brewfile"
 if [[ -s $brewfile_mas ]]; then
   mkdir -p "${mas_manifest%/*}"
