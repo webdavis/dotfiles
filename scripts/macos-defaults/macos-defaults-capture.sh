@@ -1,203 +1,212 @@
 #!/usr/bin/env bash
-# macos-defaults-capture.sh, append a live setting to macos_defaults.yaml.
-#
-# Reads the current value+type via `defaults read-type` + `defaults read`,
-# normalizes, appends to the YAML if not already tracked. If the entry is
-# already tracked AND the live value matches: no-op (exit 0). If the entry
-# is already tracked but the live value DIVERGES: exit 4 (drift), resolve
-# via `just defaults-apply` (revert) or hand-edit YAML (capture intent).
-#
-# Every appended record declares `tier: enforce`: capture exists to track a
-# value the operator just set and read back, which is the definition of a
-# settable control. A control that belongs to another tier is declared by
-# hand-editing the YAML, not through this tool.
-#
-# Usage: macos-defaults-capture.sh <domain> <key> [--host current] [--scope user|system]
-#
-# --scope system captures from the record's system plist path
-# (/Library/Preferences/<domain>) and appends the record with `scope: system`.
-# It cannot be combined with --host current: ByHost storage is per-user.
-#
-# Exit codes:
-#   0: appended, or already in sync
-#   1: key not currently set on this Mac
-#   2: data file missing or unreadable
-#   3: malformed args
-#   4: YAML has a different value than disk (drift; resolve before re-running)
 
 set -euo pipefail
 
-# shellcheck source=dot_local/libexec/macos-defaults/helpers/defaults-records.sh
-source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
+macos_defaults_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+dotfiles_dir="$(cd "$macos_defaults_dir/../.." && pwd)"
 
-usage() {
-  printf 'usage: macos-defaults-capture <domain> <key> [--host current] [--scope user|system]\n' >&2
-  exit 3
-}
+# shellcheck source=.chezmoitemplates/cli-print-style-lib.sh.tmpl
+source "$dotfiles_dir/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
+# shellcheck source=scripts/macos-defaults/helpers/defaults-records.sh
+source "$macos_defaults_dir/helpers/defaults-records.sh"
 
-[[ $# -lt 2 || $# -gt 6 ]] && usage
+readonly exit_captured_or_already_tracked=0
+readonly exit_setting_not_set=1
+readonly exit_malformed_arguments=3
+readonly exit_tracked_value_differs=4
+readonly safe_identifier_pattern='^[a-zA-Z0-9._-]+$'
 
-domain="$1"
-key="$2"
-shift 2
-
-# Optional host argument. Three accepted forms:
-#   --host=current  (single token, what the justfile recipe emits)
-#   --host current  (two tokens, what a direct CLI invocation might use)
-#   (omitted)       (global storage, no -currentHost flag)
-# Optional scope argument, same two spellings, defaulting to user. The value
-# is validated below AFTER parsing, so a set-but-empty --scope '' is rejected
-# rather than silently treated as the default.
+domain=""
+key=""
 host=""
 scope="user"
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --host=current)
-      host="current"
-      shift
-      ;;
-    --host)
-      [[ $# -lt 2 || $2 != "current" ]] && usage
-      host="current"
-      shift 2
-      ;;
-    --scope=*)
-      scope="${1#*=}"
-      shift
-      ;;
-    --scope)
-      [[ $# -lt 2 ]] && usage
-      scope="$2"
-      shift 2
-      ;;
-    *)
-      usage
-      ;;
-  esac
-done
+capture_temp_file=""
 
-# Scope validation is the shared library's: the scope enum, and the rule that
-# system scope cannot pair with ByHost storage (per-user by definition). The
-# library prints the reason; any refusal is a malformed invocation here, so it
-# maps to exit 3.
-if ! validate_record_scope "$scope" "$host" "" >/dev/null; then
-  printf 'error: rejected --scope %s combined with --host %s\n' "${scope:-''}" "${host:-''}" >&2
-  exit 3
-fi
-
-# Reject domain/key with characters outside the reverse-DNS / identifier set.
-# Defends against yq-expression injection via crafted inputs even though
-# macOS preference domains are constrained to this charset by the OS.
-[[ $domain =~ ^[a-zA-Z0-9._-]+$ ]] || {
-  printf 'error: invalid characters in domain %q\n' "$domain" >&2
-  exit 3
-}
-[[ $key =~ ^[a-zA-Z0-9._-]+$ ]] || {
-  printf 'error: invalid characters in key %q\n' "$key" >&2
-  exit 3
+exit_with_usage() {
+  report_line "usage: macos-defaults-capture.sh <domain> <key> [--host current] [--scope user|system]" >&2
+  exit "$exit_malformed_arguments"
 }
 
-# Resolved after argument validation so a malformed invocation still exits 3, not
-# 2, whatever state the chezmoi source directory is in.
-DATA_FILE="$(macos_defaults_data_file)" || exit $?
-require_readable_data_file "$DATA_FILE" || exit $?
-
-# Read live type. `defaults read-type` outputs e.g. "Type is boolean". A
-# system-scope capture reads from the record's resolved system plist path
-# (readable without sudo; /Library/Preferences is world-readable).
-host_flag=()
-[[ -n $host ]] && host_flag=(-currentHost)
-read_target="$domain"
-if [[ $scope == system ]]; then
-  read_target="$(resolve_system_plist_path "$domain" "")"
-fi
-
-if ! raw_type="$(defaults "${host_flag[@]}" read-type "$read_target" "$key" 2>/dev/null)"; then
-  printf 'error: %s %s is not currently set on this Mac\n' "$domain" "$key" >&2
-  exit 1
-fi
-
-case "$raw_type" in
-  *boolean*) schema_type="bool" ;;
-  *integer*) schema_type="int" ;;
-  *float*) schema_type="float" ;;
-  *string*) schema_type="string" ;;
-  *)
-    printf 'error: unsupported defaults type %q for %s %s (only bool/int/float/string in v1 schema)\n' \
-      "$raw_type" "$domain" "$key" >&2
-    exit 1
-    ;;
-esac
-
-raw_value="$(defaults "${host_flag[@]}" read "$read_target" "$key")"
-
-# Normalize for YAML emission.
-case "$schema_type" in
-  bool)
-    case "$raw_value" in
-      1) yaml_value="true" ;;
-      0) yaml_value="false" ;;
-      *) yaml_value="$raw_value" ;;
+parse_arguments() {
+  if (($# < 2 || $# > 6)); then
+    exit_with_usage
+  fi
+  domain=$1
+  key=$2
+  shift 2
+  while (($# > 0)); do
+    case "$1" in
+      --host=current)
+        host=current
+        shift
+        ;;
+      --host)
+        if (($# < 2)) || [[ $2 != current ]]; then
+          exit_with_usage
+        fi
+        host=current
+        shift 2
+        ;;
+      --scope=*)
+        scope=${1#*=}
+        shift
+        ;;
+      --scope)
+        if (($# < 2)); then
+          exit_with_usage
+        fi
+        scope=$2
+        shift 2
+        ;;
+      *) exit_with_usage ;;
     esac
-    ;;
-  string)
-    # Quote the string for safe YAML emission.
-    yaml_value="\"${raw_value//\"/\\\"}\""
-    ;;
-  *)
-    yaml_value="$raw_value"
-    ;;
-esac
+  done
+}
 
-# Check whether (domain, key, host, scope) is already in the YAML. Scope is
-# part of the identity: the same domain/key may be tracked at user scope AND
-# at system scope, and a scope-blind match would answer "already tracked" and
-# silently skip the append.
-existing_value="$(yq eval -r \
-  ".macos.defaults[] | select(.domain == \"$domain\" and .key == \"$key\" and ((.host // \"\") == \"$host\") and ((.scope // \"user\") == \"$scope\")) | .value" \
-  "$DATA_FILE")"
+require_valid_scope() {
+  if ! validate_record_scope "$scope" "$host" "" >/dev/null; then
+    report_line "error[invalid-scope]: --scope '$scope' cannot be combined with --host '$host'." >&2
+    exit "$exit_malformed_arguments"
+  fi
+}
 
-if [[ -n $existing_value ]]; then
-  # Already tracked. Compare.
+require_safe_identifier() {
+  local label=$1 identifier=$2
+  if [[ ! $identifier =~ $safe_identifier_pattern ]]; then
+    report_line "error[invalid-$label]: '$identifier' contains characters outside letters, digits, dot, underscore and dash." >&2
+    exit "$exit_malformed_arguments"
+  fi
+}
+
+defaults_command() {
+  if [[ -n $host ]]; then
+    defaults -currentHost "$@"
+  else
+    defaults "$@"
+  fi
+}
+
+read_target() {
+  if [[ $scope == system ]]; then
+    resolve_system_plist_path "$domain" ""
+  else
+    printf '%s' "$domain"
+  fi
+}
+
+schema_type_for() {
+  local defaults_type=$1
+  case "$defaults_type" in
+    *boolean*) printf 'bool' ;;
+    *integer*) printf 'int' ;;
+    *float*) printf 'float' ;;
+    *string*) printf 'string' ;;
+    *) return 1 ;;
+  esac
+}
+
+yaml_value_for() {
+  local schema_type=$1 live_value=$2
   case "$schema_type" in
     bool)
-      existing_norm="$existing_value"
-      live_norm="$yaml_value"
+      case "$live_value" in
+        1) printf 'true' ;;
+        0) printf 'false' ;;
+        *) printf '%s' "$live_value" ;;
+      esac
       ;;
-    string)
-      # Compare bare bash strings, not YAML fragments.
-      existing_norm="$existing_value"
-      live_norm="$raw_value"
-      ;;
-    *)
-      existing_norm="$existing_value"
-      live_norm="$yaml_value"
-      ;;
+    string) printf '"%s"' "${live_value//\"/\\\"}" ;;
+    *) printf '%s' "$live_value" ;;
   esac
-  if [[ $existing_norm == "$live_norm" ]]; then
-    printf 'already tracked: %s %s = %s\n' "$domain" "$key" "$existing_value"
-    exit 0
+}
+
+comparable_live_value() {
+  local schema_type=$1 live_value=$2 yaml_value=$3
+  if [[ $schema_type == string ]]; then
+    printf '%s' "$live_value"
   else
-    printf 'drift: %s %s, yaml=%s disk=%s\n' "$domain" "$key" "$existing_value" "$raw_value" >&2
-    # shellcheck disable=SC2016
-    printf '  resolve via `just defaults-apply` (revert) or hand-edit YAML.\n' >&2
-    exit 4
+    printf '%s' "$yaml_value"
   fi
-fi
+}
 
-# Append a new record.
-# Create temp file in the same directory as DATA_FILE so `mv` is atomic
-# (mv across filesystems falls back to copy+delete and loses atomicity).
-tmp="$(mktemp "${DATA_FILE}.XXXXXX")"
-trap 'rm -f "$tmp"' EXIT
+tracked_value() {
+  local data_file=$1
+  yq eval -r \
+    ".macos.defaults[] | select(.domain == \"$domain\" and .key == \"$key\" and ((.host // \"\") == \"$host\") and ((.scope // \"user\") == \"$scope\")) | .value" \
+    "$data_file"
+}
 
-yq eval \
-  ".macos.defaults += [{\"domain\": \"$domain\", \"key\": \"$key\", \"type\": \"$schema_type\", \"value\": $yaml_value, \"tier\": \"enforce\"$([[ -n $host ]] && printf ', "host": "%s"' "$host")$([[ $scope == system ]] && printf ', "scope": "system"')}]" \
-  "$DATA_FILE" >"$tmp"
+new_record_expression() {
+  local schema_type=$1 yaml_value=$2
+  local optional_fields=""
+  if [[ -n $host ]]; then
+    optional_fields+=", \"host\": \"$host\""
+  fi
+  if [[ $scope == system ]]; then
+    optional_fields+=', "scope": "system"'
+  fi
+  printf '.macos.defaults += [{"domain": "%s", "key": "%s", "type": "%s", "value": %s, "tier": "enforce"%s}]' \
+    "$domain" "$key" "$schema_type" "$yaml_value" "$optional_fields"
+}
 
-mv "$tmp" "$DATA_FILE"
-trap - EXIT
+captured_record_details() {
+  local schema_type=$1
+  local details="type $schema_type"
+  if [[ -n $host ]]; then
+    details+=", host $host"
+  fi
+  if [[ $scope == system ]]; then
+    details+=", scope system"
+  fi
+  printf '%s' "$details"
+}
 
-printf 'captured: %s %s = %s (type=%s%s%s)\n' "$domain" "$key" "$raw_value" "$schema_type" \
-  "$([[ -n $host ]] && printf ' host=%s' "$host")" \
-  "$([[ $scope == system ]] && printf ' scope=system')"
+append_record() {
+  local data_file=$1 schema_type=$2 yaml_value=$3
+  capture_temp_file="$(mktemp "$data_file.XXXXXX")"
+  trap 'rm -f "$capture_temp_file"' EXIT
+  yq eval "$(new_record_expression "$schema_type" "$yaml_value")" "$data_file" >"$capture_temp_file"
+  mv "$capture_temp_file" "$data_file"
+  trap - EXIT
+}
+
+main() {
+  parse_arguments "$@"
+  require_valid_scope
+  require_safe_identifier domain "$domain"
+  require_safe_identifier key "$key"
+
+  report_section 'macos-defaults' "capture $domain $key"
+
+  local data_file target defaults_type schema_type live_value yaml_value existing_value
+  data_file="$(macos_defaults_data_file)" || exit $?
+  require_readable_data_file "$data_file" || exit $?
+  target="$(read_target)"
+
+  if ! defaults_type="$(defaults_command read-type "$target" "$key" 2>/dev/null)"; then
+    report_line "error[not-set]: $domain $key is not currently set on this Mac." >&2
+    exit "$exit_setting_not_set"
+  fi
+  if ! schema_type="$(schema_type_for "$defaults_type")"; then
+    report_line "error[unsupported-type]: $domain $key has type '$defaults_type'; only bool, int, float and string are supported." >&2
+    exit "$exit_setting_not_set"
+  fi
+  live_value="$(defaults_command read "$target" "$key")"
+  yaml_value="$(yaml_value_for "$schema_type" "$live_value")"
+
+  existing_value="$(tracked_value "$data_file")"
+  if [[ -n $existing_value ]]; then
+    if [[ $existing_value == "$(comparable_live_value "$schema_type" "$live_value" "$yaml_value")" ]]; then
+      report_line "already tracked: $domain $key = $existing_value"
+      exit "$exit_captured_or_already_tracked"
+    fi
+    report_line "error[tracked-value-differs]: $domain $key is $existing_value in macos_defaults.yaml but $live_value on this Mac; run just macos-defaults-apply to restore it, or edit the YAML to keep it." >&2
+    exit "$exit_tracked_value_differs"
+  fi
+
+  report_line "capturing $domain $key..."
+  append_record "$data_file" "$schema_type" "$yaml_value"
+  report_line "captured $domain $key = $live_value ($(captured_record_details "$schema_type"))."
+}
+
+main "$@"

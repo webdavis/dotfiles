@@ -1,129 +1,164 @@
 #!/usr/bin/env bash
-# macos-defaults-drift.sh, read-only drift checker for tracked macOS defaults.
-#
-# Compares each record in .chezmoidata/macos_defaults.yaml against the live
-# value via `defaults [-currentHost] read` (user scope) or a read of the
-# record's resolved system plist path (system scope). Prints a tab-aligned
-# table of drifted rows, plus one row per INDETERMINATE system-scope record:
-# a plist this user cannot read gets the <unreadable> marker, distinct from
-# <unset>, and is counted separately, never as drift and never skipped.
-# Never writes.
-#
-# Exit codes:
-#   0: every tracked record was read and matches
-#   1: drift detected
-#   2: data file missing or unreadable, or a record failed validation
-#   3: indeterminate row(s) and no confirmed drift. FAIL-CLOSED: an
-#      unreadable control is not a passing control, so a run that could not
-#      verify what it tracks must never exit 0. Distinct from 1 because the
-#      operator action differs: fix readability, not revert a value.
 
 set -euo pipefail
 shopt -s lastpipe
 
-# shellcheck source=dot_local/libexec/macos-defaults/helpers/defaults-records.sh
-source "$(dirname "${BASH_SOURCE[0]}")/macos-defaults-lib.sh"
+macos_defaults_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+dotfiles_dir="$(cd "$macos_defaults_dir/../.." && pwd)"
 
-DATA_FILE="$(macos_defaults_data_file)" || exit $?
-require_readable_data_file "$DATA_FILE" || exit $?
+# shellcheck source=.chezmoitemplates/cli-print-style-lib.sh.tmpl
+source "$dotfiles_dir/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
+# shellcheck source=scripts/macos-defaults/helpers/defaults-records.sh
+source "$macos_defaults_dir/helpers/defaults-records.sh"
 
-# Normalize a value for comparison. macOS stores bools as 0/1; YAML ships them
-# as true/false. Strings/ints/floats compare directly.
-normalize() {
-  local type="$1" value="$2"
-  case "$type" in
-    bool)
-      case "$value" in
-        true | yes | 1) printf '1' ;;
-        false | no | 0) printf '0' ;;
-        *) printf '%s' "$value" ;;
-      esac
-      ;;
+readonly exit_every_setting_matches=0
+readonly exit_drift_detected=1
+readonly exit_invalid_data=2
+readonly exit_some_settings_unreadable=3
+
+checked_count=0
+drift_count=0
+unreadable_count=0
+table_header_printed=0
+
+normalize_value() {
+  local type=$1 value=$2
+  if [[ $type != bool ]]; then
+    printf '%s' "$value"
+    return
+  fi
+  case "$value" in
+    true | yes | 1) printf '1' ;;
+    false | no | 0) printf '0' ;;
     *) printf '%s' "$value" ;;
   esac
 }
 
-# Both counters mutate inside the pipeline's while loop, which is why lastpipe
-# is required above: without it the loop runs in a subshell and both would
-# read 0 after the loop, a silent false negative.
-drift_count=0
-indeterminate_count=0
-header_printed=0
-print_header() {
-  if ((header_printed == 0)); then
+tier_is_known() {
+  local tier=$1
+  [[ $tier == enforce || $tier == verify || $tier == manual ]]
+}
+
+tier_has_an_expected_value() {
+  local tier=$1
+  [[ $tier == enforce || $tier == verify ]]
+}
+
+print_table_header_once() {
+  if ((table_header_printed == 0)); then
     printf 'DOMAIN\tKEY\tEXPECTED\tACTUAL\n'
-    header_printed=1
+    table_header_printed=1
   fi
 }
 
-# Each record arrives as one unit-separated line: domain, key, type, value,
-# host, scope, plist_path, tier. The tier decides what happens first: enforce
-# AND verify records are both compared (detecting drift on a control nobody
-# can set from here is the verify tier's whole purpose), manual records have
-# no check by design (they carry no expected value, only a runbook pointer)
-# and are skipped, and an unrecognized tier aborts rather than guessing (the
-# stream already refused the whole file; the case here keeps this loop honest
-# if the stream's rules ever drift). A record that fails validation (unknown
-# scope, a meaningless field pairing, a relative plist_path) aborts with the
-# data-file status 2 rather than being misread. A system-scope record has
-# THREE read outcomes: the value, <unset> (genuinely not set, compared as
-# drift like any other value), and <unreadable> (indeterminate: reported as
-# its own row, counted separately, never as drift and never skipped).
-# A record with no domain or no key aborts too, rather than being skipped: the
-# stream refuses such a file already, and a silent skip here would report "no
-# drift" for a control nobody actually read. An empty stream is not that case,
-# and needs no guard: the stream emits no line at all when nothing is tracked, so
-# this loop simply never runs and the script exits 0.
-defaults_records_unit_separated "$DATA_FILE" |
-  while IFS=$'\x1f' read -r domain key type value host scope plist_path tier; do
-    validate_record_identity "$domain" "$key" || exit 2
-    case "$tier" in
-      enforce | verify) ;;
-      manual)
-        continue
-        ;;
-      *)
-        printf 'error: unrecognized tier %q on record %s %s; refusing to report on it\n' \
-          "$tier" "$domain" "$key" >&2
-        exit 2
-        ;;
-    esac
-    scope="$(validate_record_scope "$scope" "$host" "$plist_path")" || exit 2
-    expected="$(normalize "$type" "$value")"
-    if [[ $scope == system ]]; then
-      resolved_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || exit 2
-      # The outcome arrives as a STATUS, so no live value can impersonate it.
-      read_status=0
-      actual="$(system_defaults_read_actual "$resolved_plist_path" "$key")" || read_status=$?
-      if [[ $read_status -eq $SYSTEM_READ_UNREADABLE ]]; then
-        print_header
-        printf '%s\t%s\t%s\t%s\n' "$domain" "$key" "$expected" '<unreadable>'
-        indeterminate_count=$((indeterminate_count + 1))
-        continue
-      fi
-      if [[ $read_status -eq $SYSTEM_READ_UNSET ]]; then
-        actual='<unset>'
-      fi
-    elif [[ -n $host ]]; then
-      actual="$(defaults -currentHost read "$domain" "$key" 2>/dev/null || printf '<unset>')"
-    else
-      actual="$(defaults read "$domain" "$key" 2>/dev/null || printf '<unset>')"
-    fi
-    if [[ $expected != "$actual" ]]; then
-      print_header
-      printf '%s\t%s\t%s\t%s\n' "$domain" "$key" "$expected" "$actual"
-      drift_count=$((drift_count + 1))
-    fi
-  done
+print_table_row() {
+  local domain=$1 key=$2 expected=$3 actual=$4
+  print_table_header_once
+  printf '%s\t%s\t%s\t%s\n' "$domain" "$key" "$expected" "$actual"
+}
 
-if ((indeterminate_count > 0)); then
-  printf '\n%d indeterminate row(s): unreadable, not counted as drift, and NOT passing; the gate fails closed.\n' "$indeterminate_count" >&2
-fi
-if ((drift_count > 0)); then
-  printf '\n%d drift row(s) detected.\n' "$drift_count" >&2
-  exit 1
-fi
-if ((indeterminate_count > 0)); then
-  exit 3
-fi
-exit 0
+record_drifted_setting() {
+  print_table_row "$@"
+  drift_count=$((drift_count + 1))
+}
+
+record_unreadable_setting() {
+  local domain=$1 key=$2 expected=$3
+  print_table_row "$domain" "$key" "$expected" '<unreadable>'
+  unreadable_count=$((unreadable_count + 1))
+}
+
+read_user_setting() {
+  local domain=$1 key=$2 host=$3
+  if [[ -n $host ]]; then
+    defaults -currentHost read "$domain" "$key" 2>/dev/null || printf '<unset>'
+  else
+    defaults read "$domain" "$key" 2>/dev/null || printf '<unset>'
+  fi
+}
+
+read_system_setting() {
+  local resolved_plist_path=$1 key=$2
+  local actual read_status=0
+  actual="$(system_defaults_read_actual "$resolved_plist_path" "$key")" || read_status=$?
+  if ((read_status == SYSTEM_READ_UNSET)); then
+    printf '<unset>'
+    return 0
+  fi
+  printf '%s' "$actual"
+  return "$read_status"
+}
+
+check_setting() {
+  local domain=$1 key=$2 type=$3 value=$4 host=$5 scope=$6 plist_path=$7
+  local expected actual resolved_plist_path read_status=0
+  expected="$(normalize_value "$type" "$value")"
+
+  if [[ $scope == system ]]; then
+    resolved_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || exit "$exit_invalid_data"
+    actual="$(read_system_setting "$resolved_plist_path" "$key")" || read_status=$?
+  else
+    actual="$(read_user_setting "$domain" "$key" "$host")"
+  fi
+
+  if ((read_status == SYSTEM_READ_UNREADABLE)); then
+    record_unreadable_setting "$domain" "$key" "$expected"
+  elif [[ $expected != "$actual" ]]; then
+    record_drifted_setting "$domain" "$key" "$expected" "$actual"
+  fi
+}
+
+check_record() {
+  local domain=$1 key=$2 type=$3 value=$4 host=$5 scope=$6 plist_path=$7 tier=$8
+  validate_record_identity "$domain" "$key" || exit "$exit_invalid_data"
+
+  if ! tier_is_known "$tier"; then
+    report_line "error[unknown-tier]: $domain $key has tier '$tier'; refusing to check it." >&2
+    exit "$exit_invalid_data"
+  fi
+  if ! tier_has_an_expected_value "$tier"; then
+    return
+  fi
+
+  scope="$(validate_record_scope "$scope" "$host" "$plist_path")" || exit "$exit_invalid_data"
+  check_setting "$domain" "$key" "$type" "$value" "$host" "$scope" "$plist_path"
+  checked_count=$((checked_count + 1))
+}
+
+check_all_records() {
+  local data_file=$1
+  local domain key type value host scope plist_path tier
+  defaults_records_unit_separated "$data_file" |
+    while IFS=$'\x1f' read -r domain key type value host scope plist_path tier; do
+      check_record "$domain" "$key" "$type" "$value" "$host" "$scope" "$plist_path" "$tier"
+    done
+}
+
+report_verdict_and_exit() {
+  if ((unreadable_count > 0)); then
+    report_line "$unreadable_count setting(s) could not be read; they are not drift, and not passing either." >&2
+  fi
+  if ((drift_count > 0)); then
+    report_line "error[drift]: $drift_count of $checked_count setting(s) differ from macos_defaults.yaml." >&2
+    exit "$exit_drift_detected"
+  fi
+  if ((unreadable_count > 0)); then
+    exit "$exit_some_settings_unreadable"
+  fi
+  report_line "all $checked_count tracked setting(s) match."
+  exit "$exit_every_setting_matches"
+}
+
+main() {
+  report_section 'macos-defaults' 'drift check'
+
+  local data_file
+  data_file="$(macos_defaults_data_file)" || exit $?
+  require_readable_data_file "$data_file" || exit $?
+
+  report_line "checking tracked settings..."
+  check_all_records "$data_file"
+  report_verdict_and_exit
+}
+
+main "$@"
