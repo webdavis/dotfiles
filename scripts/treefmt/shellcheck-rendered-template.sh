@@ -89,7 +89,7 @@ template_or_its_partials_use_keepassxc() {
 
 main() {
   local file status=0
-  init_render_context || exit 1
+  create_render_context || exit 1
   for file in "$@"; do
     is_shell_template "$file" || continue
     template_or_its_partials_use_keepassxc "$file" && continue

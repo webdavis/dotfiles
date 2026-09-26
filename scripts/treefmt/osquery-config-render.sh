@@ -12,7 +12,7 @@ rendered_config_is_valid_json() {
 
 main() {
   local file status=0
-  init_render_context || exit 1
+  create_render_context || exit 1
   for file in "$@"; do
     if ! rendered_config_is_valid_json "$file"; then
       printf 'osquery-config-render: rendered config is not valid JSON: %s\n' "$file" >&2

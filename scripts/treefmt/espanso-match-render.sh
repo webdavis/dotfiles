@@ -12,7 +12,7 @@ rendered_match_file_is_valid_yaml() {
 
 main() {
   local file status=0
-  init_render_context || exit 1
+  create_render_context || exit 1
   for file in "$@"; do
     if ! rendered_match_file_is_valid_yaml "$file"; then
       printf 'espanso-match-render: rendered match file is not valid YAML: %s\n' "$file" >&2
