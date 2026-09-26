@@ -1,162 +1,167 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+{{- $systemPackagesAreSkipped := eq (env "SKIP_SYSTEM_PACKAGES") "1" -}}
+{{- $trustedTaps := .packages.macos.homebrew.trusted_taps -}}
+{{- $graphifyIsDeclared := has "graphifyy" .packages.macos.uv -}}
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-{{ if eq (env "SKIP_SYSTEM_PACKAGES") "1" -}}
-# SKIP_SYSTEM_PACKAGES=1 set: skipping the brew bundle sync entirely, so a
-# `chezmoi apply` from a secondary worktree (whose declared package set differs)
-# cannot uninstall packages this worktree does not list. Only the literal "1"
-# skips -- 0/false/anything-else still run the sync. A later normal apply re-runs
-# this and re-syncs.
-exit 0
-{{ end -}}
-# G2 section headers for the loud stages below (operator ruling 2026-08-05); the
-# library is inlined at render time, so no runtime sourcing.
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
-# Resolve the Homebrew prefix once (honoring HOMEBREW_PREFIX) so every
-# brew/uv/fnm call goes through one place.
-brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
-brew_bin="$brew_prefix/bin/brew"
 
-never_wait_on_homebrew_install_confirmations() {
-  export HOMEBREW_NO_ASK=1
-}
-never_wait_on_homebrew_install_confirmations
+readonly homebrew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
+readonly brew_bin="$homebrew_prefix/bin/brew"
+readonly homebrew_trust_store="${XDG_CONFIG_HOME:-$HOME/.config}/homebrew/trust.json"
+readonly homebrew_trust_store_trace="${TRUST_TRACE:-$HOME/.local/state/homebrew-trust-trace.log}"
+readonly trace_stage_column_width=26
+readonly published_app_store_brewfile="$HOME/.local/state/homebrew/mas.Brewfile"
+{{- if $graphifyIsDeclared }}
+readonly graphify_claude_config_directory="$HOME/.local/share/graphify/claude"
+readonly graphify_skill_bundle_directory="$graphify_claude_config_directory/skills/graphify"
+readonly graphify_executable="$HOME/.local/bin/graphify"
+readonly graphify_install_time_limit_seconds=60
+{{- end }}
+{{- if .packages.macos.fnm }}
+readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
+readonly npm_install_time_limit_seconds=180
+{{- end }}
 
-# DIAGNOSTIC INSTRUMENTATION for task #118: the Homebrew trust store empties
-# during an apply, and no command reproduces it in isolation (brew cleanup, a
-# non-forced brew bundle cleanup, brew update, an untap, and sixteen rapid
-# trust writes were each ruled out by direct experiment on 2026-08-05). Rather
-# than keep guessing at candidates, every stage boundary below records the
-# store's state, so the NEXT failing apply names the stage that loses it.
-#
-# Deliberately jq-free (this is a before_ script that can run before jq exists)
-# and append-only. Remove this block, and its five call sites, when #118 closes.
-TRUST_TRACE="${TRUST_TRACE:-$HOME/.local/state/homebrew-trust-trace.log}"
-trust_checkpoint() {
-  local store="${XDG_CONFIG_HOME:-$HOME/.config}/homebrew/trust.json" state
-  if [[ -f $store ]]; then
-    state="present bytes=$(wc -c <"$store" 2>/dev/null | tr -d ' ')"
-  else
-    state="ABSENT"
-  fi
-  mkdir -p "$(dirname "$TRUST_TRACE")" 2>/dev/null || true
-  printf '%s\t%-26s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$state" >>"$TRUST_TRACE" 2>/dev/null || true
-}
-trust_checkpoint '00-script-start'
-
-# The declared taps Homebrew must be willing to load formulae, casks and
-# commands from. Held in an array so the trust pass can both apply and VERIFY.
-trusted_taps=(
-{{- range .packages.macos.homebrew.trusted_taps }}
+declared_trusted_taps=(
+{{- range $trustedTaps }}
   {{ . | quote }}
 {{- end }}
 )
 
-# Tap, trust, then PROVE the trust persisted, and refuse to continue if it did
-# not. `brew tap-info` is the authority: it prints a bare `Trusted` or
-# `Untrusted` line reflecting the same store brew consults when it loads a cask,
-# so this cannot pass while the store is empty. It is also jq-free, which
-# matters because this is a before_ script that can run before jq is installed.
-#
-# WHY THIS VERIFIES rather than fires and forgets. Measured on dresden
-# 2026-08-05: the old form (`brew trust --tap X 2>/dev/null || true`, per tap)
-# printed success for all sixteen taps while `brew trust --json v1` reported
-# every list empty. The apply then died two hundred lines later inside
-# `brew cleanup` with "Refusing to load cask mediosz/tap/swipeaerospace from
-# untrusted tap mediosz/tap", which reads as a cleanup bug rather than as the
-# trust failure it actually was. Suppressing stderr and forcing exit 0 is what
-# turned a precise failure into a misleading one.
-#
-# The comment this replaces was also wrong about WHEN trust is enforced. It said
-# trust was needed "when HOMEBREW_REQUIRE_TAP_TRUST is set"; that variable is
-# unset on this host, in brew.env and in this repo, and Homebrew enforced tap
-# trust anyway.
-assert_taps_trusted() {
-  local tap missing=()
-  # An empty declaration means there is deliberately nothing to trust.
-  [[ ${#trusted_taps[@]} -gt 0 ]] || return 0
-  for tap in "${trusted_taps[@]}"; do
-    # `brew tap` first (no-op when already tapped) so `brew trust` has a target.
-    "$brew_bin" tap "$tap" >/dev/null 2>&1 || true
-    "$brew_bin" trust --tap "$tap" >/dev/null 2>&1 || true
+never_wait_on_homebrew_install_confirmations() {
+  export HOMEBREW_NO_ASK=1
+}
+
+homebrew_trust_store_exists() {
+  [[ -f $homebrew_trust_store ]]
+}
+
+homebrew_trust_store_size_in_bytes() {
+  wc -c <"$homebrew_trust_store" 2>/dev/null | tr -d ' '
+}
+
+current_utc_time() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+append_line_to_trust_store_trace() {
+  local stage=$1 state=$2
+  mkdir -p "$(dirname "$homebrew_trust_store_trace")" 2>/dev/null || true
+  printf '%s\t%-*s\t%s\n' "$(current_utc_time)" "$trace_stage_column_width" "$stage" "$state" >>"$homebrew_trust_store_trace" 2>/dev/null || true
+}
+
+record_homebrew_trust_store_state() {
+  local stage=$1
+  local state
+  if homebrew_trust_store_exists; then
+    state="present bytes=$(homebrew_trust_store_size_in_bytes)"
+  else
+    state="ABSENT"
+  fi
+  append_line_to_trust_store_trace "$stage" "$state"
+}
+
+no_trusted_taps_are_declared() {
+  ((${#declared_trusted_taps[@]} == 0))
+}
+
+add_tap() {
+  local tap=$1
+  "$brew_bin" tap "$tap" >/dev/null 2>&1 || true
+}
+
+trust_tap() {
+  local tap=$1
+  "$brew_bin" trust --tap "$tap" >/dev/null 2>&1 || true
+}
+
+request_trust_for_each_declared_tap() {
+  local tap
+  for tap in "${declared_trusted_taps[@]}"; do
+    add_tap "$tap"
+    trust_tap "$tap"
   done
-  for tap in "${trusted_taps[@]}"; do
-    "$brew_bin" tap-info "$tap" 2>/dev/null | grep -qx 'Trusted' || missing+=("$tap")
+}
+
+tap_is_trusted() {
+  local tap=$1
+  "$brew_bin" tap-info "$tap" 2>/dev/null | grep -qx 'Trusted'
+}
+
+find_untrusted_taps() {
+  local tap
+  untrusted_taps=()
+  for tap in "${declared_trusted_taps[@]}"; do
+    if ! tap_is_trusted "$tap"; then
+      untrusted_taps+=("$tap")
+    fi
   done
-  [[ ${#missing[@]} -eq 0 ]] && return 0
-  printf 'brew tap trust did not persist for %d of %d declared tap(s): %s\n' \
-    "${#missing[@]}" "${#trusted_taps[@]}" "${missing[*]}" >&2
-  report_line 'Homebrew refuses to load casks from an untrusted tap, so the cleanup stage below would fail with an error that names the cask rather than the trust. Trust them by hand, then re-apply:' >&2
-  printf '  brew trust --tap %s\n' "${missing[@]}" >&2
+}
+
+every_declared_tap_is_trusted() {
+  ((${#untrusted_taps[@]} == 0))
+}
+
+report_untrusted_taps() {
+  local tap
+  report_line "error[untrusted-taps]: brew tap trust did not persist for ${#untrusted_taps[@]} of ${#declared_trusted_taps[@]} declared tap(s): ${untrusted_taps[*]}"
+  report_line 'Homebrew refuses to load casks from an untrusted tap, so the cleanup stage below would fail with an error that names the cask rather than the trust. Trust them by hand, then re-apply:'
+  for tap in "${untrusted_taps[@]}"; do
+    report_line "  brew trust --tap $tap"
+  done
+}
+
+trust_declared_taps() {
+  if no_trusted_taps_are_declared; then
+    return 0
+  fi
+  request_trust_for_each_declared_tap
+  find_untrusted_taps
+  if every_declared_tap_is_trusted; then
+    return 0
+  fi
+  report_untrusted_taps >&2
   return 1
 }
-assert_taps_trusted
-trust_checkpoint '10-after-trust-pass'
 
-# --- live-migration ordering safety (herdr replaces tmux/sesh) ---
-# `brew bundle --cleanup` uninstalls any formula/cask absent from the desired
-# set below, including tmux/sesh once they leave the manifest. Removing the old
-# multiplexer HERE is unsafe: chezmoi runs ALL before_ scripts, THEN updates
-# target files, THEN runs after_ scripts, so a --cleanup in this before_ script
-# would validate and tear down against the PREVIOUS revision's installed herdr,
-# and a broken NEW revision would be discovered only after the fallback was
-# already gone. So this script NEVER removes the legacy multiplexer: while tmux
-# or sesh is installed it withholds --cleanup entirely. run_after_58 owns the
-# teardown (it runs post-target-update): it verifies the just-installed herdr
-# LIVE and, only on success, performs the same cleanup this script withholds.
-# bundle_args always carries --file, so it is never an empty array (safe under
-# set -u).
-#
-# True migration sequence (plugin registration and the session server need a
-# RUNNING herdr server, which ONLY an interactive bashrc starts; a chezmoiscript
-# must never start it): apply once (installs herdr, cleanup deferred here) ->
-# open an interactive terminal so the herdr server starts -> apply again
-# (after_58 verifies herdr and runs the cleanup). On a headless / serverless
-# host the deferral simply persists until an interactive terminal is opened.
-#
-# ROLLBACK: while herdr is unverified, tmux/sesh stay installed and usable; no
-# teardown happens. Keep using tmux until after_58 completes the migration.
-multiplexer_present=false
-for multiplexer in tmux sesh; do
-  if "$brew_bin" list "$multiplexer" &>/dev/null; then
-    multiplexer_present=true
-    break
-  fi
-done
-if [[ $multiplexer_present == true ]]; then
-  report_line 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT cleanup so it is not removed before herdr is verified.' >&2
-  report_line 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.' >&2
-fi
+homebrew_has_installed() {
+  local package=$1
+  "$brew_bin" list "$package" &>/dev/null
+}
 
-# Install all taps, formulae, casks, and macOS App Store apps, then uninstall
-# anything not declared. Homebrew 6.x removed the old `brew bundle --cleanup`
-# behavior: the flag now only PRINTS what it would remove and exits 1 whenever
-# that list is non-empty, which aborts the whole apply under set -e. Removal is
-# now its own command, `brew bundle cleanup --force`. So write the Brewfile to a
-# temp file once, install from it, then (unless the legacy multiplexer is still
-# installed, per the withhold rationale above) run the cleanup command.
-# THE APPLY INSTALLS WHAT IS MISSING AND UPGRADES NOTHING (operator ruling
-# 2026-08-31, after three months of weekly apply stalls). `--no-upgrade` keeps
-# an interactive apply off the upgrade-the-world path entirely: upgrades belong
-# to the weekly unattended job, which has nobody waiting at a prompt. The full
-# Brewfile still declares everything, because the cleanup below judges against
-# it.
-#
-# AND THE APPLY NEVER TALKS TO THE APP STORE AT ALL. `mas` hangs indefinitely
-# when the store session wedges (measured twice on 2026-08-31, once for ten
-# silent minutes), so the mas lines are PUBLISHED for the weekly job, which
-# runs them under a bound. A newly declared App Store app therefore lands
-# within a week rather than wedging the apply an operator is watching.
-brewfile=$(mktemp)
-brewfile_main=$(mktemp)
-brewfile_mas=$(mktemp)
-trap 'rm -f "$brewfile" "$brewfile_main" "$brewfile_mas"' EXIT
-cat >"$brewfile" <<EOF
-{{ $trusted := .packages.macos.homebrew.trusted_taps -}}
+legacy_multiplexer_is_installed() {
+  local multiplexer
+  for multiplexer in tmux sesh; do
+    if homebrew_has_installed "$multiplexer"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+report_cleanup_withheld_until_herdr_is_verified() {
+  report_line 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT cleanup so it is not removed before herdr is verified.'
+  report_line 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.'
+}
+
+create_temporary_brewfiles() {
+  declared_brewfile="$(mktemp)"
+  brewfile_without_app_store_apps="$(mktemp)"
+  app_store_apps_brewfile="$(mktemp)"
+  trap remove_temporary_brewfiles EXIT
+}
+
+remove_temporary_brewfiles() {
+  rm -f "$declared_brewfile" "$brewfile_without_app_store_apps" "$app_store_apps_brewfile"
+}
+
+write_declared_brewfile() {
+  cat >"$declared_brewfile" <<EOF
 {{ range .packages.macos.homebrew.taps -}}
-tap {{ . | quote }}{{ if has . $trusted }}, trusted: true{{ end }}
+tap {{ . | quote }}{{ if has . $trustedTaps }}, trusted: true{{ end }}
 {{ end -}}
 {{ range .packages.macos.homebrew.formulae -}}
 brew {{ . | quote }}
@@ -168,148 +173,291 @@ cask {{ . | quote }}
 mas {{ .name | quote }}, id: {{ .id }}
 {{ end -}}
 EOF
-grep -v '^mas ' "$brewfile" >"$brewfile_main"
-grep '^mas ' "$brewfile" >"$brewfile_mas" || true
-report_section "homebrew" "bundle sync"
-"$brew_bin" bundle --no-upgrade --verbose --file="$brewfile_main" </dev/null
-mas_manifest="$HOME/.local/state/homebrew/mas.Brewfile"
-if [[ -s $brewfile_mas ]]; then
-  mkdir -p "${mas_manifest%/*}"
-  cp "$brewfile_mas" "$mas_manifest"
-  report_line "App Store apps are declared but never synced at apply; the weekly homebrew job installs from ${mas_manifest}, bounded."
-else
-  rm -f "$mas_manifest"
-fi
-trust_checkpoint '20-after-brew-bundle'
+}
+
+write_brewfile_without_app_store_apps() {
+  grep -v '^mas ' "$declared_brewfile" >"$brewfile_without_app_store_apps"
+}
+
+write_app_store_apps_brewfile() {
+  grep '^mas ' "$declared_brewfile" >"$app_store_apps_brewfile" || true
+}
+
+install_missing_homebrew_packages() {
+  "$brew_bin" bundle --no-upgrade --verbose --file="$brewfile_without_app_store_apps" </dev/null
+}
+
+app_store_apps_are_declared() {
+  [[ -s $app_store_apps_brewfile ]]
+}
+
+publish_app_store_brewfile() {
+  mkdir -p "${published_app_store_brewfile%/*}"
+  cp "$app_store_apps_brewfile" "$published_app_store_brewfile"
+}
+
+remove_published_app_store_brewfile() {
+  rm -f "$published_app_store_brewfile"
+}
+
+hand_app_store_apps_to_the_weekly_job() {
+  if app_store_apps_are_declared; then
+    publish_app_store_brewfile
+    report_line "App Store apps are declared but never synced at apply; the weekly homebrew job installs from ${published_app_store_brewfile}, bounded."
+  else
+    remove_published_app_store_brewfile
+  fi
+}
+
+install_declared_homebrew_packages() {
+  create_temporary_brewfiles
+  write_declared_brewfile
+  write_brewfile_without_app_store_apps
+  write_app_store_apps_brewfile
+  report_section 'homebrew' 'bundle sync'
+  install_missing_homebrew_packages
+  hand_app_store_apps_to_the_weekly_job
+  record_homebrew_trust_store_state '20-after-brew-bundle'
+}
+
 {{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
-if [[ $multiplexer_present == false ]]; then
-  # Re-assert trust HERE rather than relying on the pass at the top of this
-  # script. On dresden 2026-08-05 trust was present when this script started
-  # (every tap reported "Already trusted tap") and absent by the time the
-  # cleanup loaded its first cask, inside a single run. The cleanup stage untaps
-  # whatever the Brewfile does not declare, and that is the only thing running
-  # in between, so trust established two hundred lines earlier is not trust the
-  # cleanup can be assumed to see. Cheap to repeat: every call is a no-op once
-  # the store holds the tap.
-  assert_taps_trusted
-  trust_checkpoint '30-after-reassert'
-  # Guarded: refuses a bulk cleanup against a partial/empty Brewfile (returns 0
-  # on refuse or clean, non-zero only on a real cleanup failure).
-  #
-  # `brew bundle cleanup --force` DESTROYS the Homebrew trust store and then
-  # fails on its own trailing `brew cleanup`, which can no longer load casks or
-  # formulae from the taps it just untrusted. Proven on dresden 2026-08-05 by the
-  # checkpoints above: the store read `present bytes=385` at 00, 10, 20 and 30,
-  # and was ABSENT immediately after this call, on an apply that reported
-  # `/opt/homebrew/bin/brew cleanup exited with 1`. Four applies died here.
-  #
-  # So a failure from this call is tolerated ONCE, and only by repairing its
-  # precondition and redoing the step it botched. This is deliberately not a
-  # blanket `|| true`: the retry runs the same command against a restored trust
-  # store, and a second failure is a real one that aborts the apply under set -e.
-  #
-  # Stdout is CAPTURED because `brew bundle cleanup --force` prints nothing at
-  # all when it has nothing to remove, and a header must not stand over no body.
-  cleanup_rc=0
-  cleanup_output="$(brew_bundle_cleanup_guarded "$brewfile")" || cleanup_rc=$?
-  trust_checkpoint '40-after-cleanup'
-  if [[ -n $cleanup_output ]]; then
-    report_section "homebrew" "bundle cleanup"
+
+cleanup_printed_something() {
+  local cleanup_output=$1
+  [[ -n $cleanup_output ]]
+}
+
+report_cleanup_output() {
+  local cleanup_output=$1
+  if cleanup_printed_something "$cleanup_output"; then
+    report_section 'homebrew' 'bundle cleanup'
     report_line "$cleanup_output"
   fi
-  if [[ $cleanup_rc -ne 0 ]]; then
-    printf 'brew bundle cleanup exited %d. Restoring the trust store it destroys and retrying the cleanup once; a second failure aborts.\n' \
-      "$cleanup_rc" >&2
-    assert_taps_trusted
-    trust_checkpoint '50-after-trust-restore'
-    "$brew_bin" cleanup
-    trust_checkpoint '60-after-retry-cleanup'
+}
+
+cleanup_failed() {
+  local exit_status=$1
+  ((exit_status != 0))
+}
+
+redo_trailing_brew_cleanup() {
+  "$brew_bin" cleanup
+}
+
+retry_cleanup_after_restoring_trust() {
+  local exit_status=$1
+  report_line "brew bundle cleanup exited $exit_status. Restoring the trust store it destroys and retrying the cleanup once; a second failure aborts." >&2
+  trust_declared_taps
+  record_homebrew_trust_store_state '50-after-trust-restore'
+  redo_trailing_brew_cleanup
+  record_homebrew_trust_store_state '60-after-retry-cleanup'
+}
+
+remove_undeclared_homebrew_packages() {
+  local cleanup_output cleanup_exit_status=0
+  trust_declared_taps
+  record_homebrew_trust_store_state '30-after-reassert'
+  cleanup_output="$(brew_bundle_cleanup_guarded "$declared_brewfile")" || cleanup_exit_status=$?
+  record_homebrew_trust_store_state '40-after-cleanup'
+  report_cleanup_output "$cleanup_output"
+  if cleanup_failed "$cleanup_exit_status"; then
+    retry_cleanup_after_restoring_trust "$cleanup_exit_status"
   fi
-fi
+}
 
-# The ecosystem tools (uv, fnm) were just installed by the bundle at
-# $brew_prefix/bin, which the apply shell's PATH may not yet include (a fresh
-# machine, or `bash -lc` reaching an unsourced shell). Prepend it once so the
-# `command -v` guards and the invocations below see the SAME binaries -- without
-# this a guard could skip a tool the bundle just installed at an absolute path,
-# and run_onchange would not retry until the data file changes.
-export PATH="$brew_prefix/bin:$PATH"
+put_homebrew_tools_first_on_path() {
+  export PATH="$homebrew_prefix/bin:$PATH"
+}
+{{- if .packages.macos.uv }}
 
-# Install uv tools (runs after Homebrew so uv is available). Guarded on uv being
-# on PATH so a fresh machine (whose PATH now includes the brew prefix above)
-# skips cleanly instead of aborting under set -e when uv is genuinely absent.
-{{ if .packages.macos.uv -}}
-if command -v uv >/dev/null 2>&1; then
-  # uv narrates an already-installed tool on STDERR, so the header rides that
-  # stream rather than landing above a block it does not label.
-  report_section "uv" "tool installs" >&2
-{{- range .packages.macos.uv }}
-  uv tool install {{ if hasPrefix "whisply" . }}--python 3.12 {{ end }}{{ . | quote }}
-{{- if eq . "graphifyy" }}
-  # Seed only an absent app-owned destination. The old Claude directory is
-  # preserved for operator adoption; the weekly lane owns later refreshes.
-  graphify_config="$HOME/.local/share/graphify/claude"
-  graphify_bundle="$graphify_config/skills/graphify"
-  for graphify_dir in "$HOME/.local" "$HOME/.local/share" "$HOME/.local/share/graphify" \
-    "$graphify_config" "$graphify_config/skills" "$graphify_bundle" "$graphify_bundle/references"; do
-    if [[ -L $graphify_dir || (-e $graphify_dir && ! -d $graphify_dir) ]]; then
-      printf 'graphify seed: refusing symlink or non-directory at %s; existing data is preserved\n' "$graphify_dir" >&2
-      exit 1
+uv_is_installed() {
+  command -v uv >/dev/null 2>&1
+}
+
+install_uv_tool() {
+  local package=$1
+  uv tool install "$package"
+}
+
+install_uv_tool_on_python() {
+  local python_version=$1 package=$2
+  uv tool install --python "$python_version" "$package"
+}
+{{- if $graphifyIsDeclared }}
+
+something_other_than_a_directory_is_at() {
+  local path=$1
+  [[ -L $path || (-e $path && ! -d $path) ]]
+}
+
+graphify_claude_config_directory_is_missing() {
+  [[ ! -e $graphify_claude_config_directory ]]
+}
+
+a_non_empty_regular_file_is_at() {
+  local path=$1
+  [[ -f $path && -s $path && ! -L $path ]]
+}
+
+graphify_skill_bundle_is_complete() {
+  a_non_empty_regular_file_is_at "$graphify_skill_bundle_directory/SKILL.md" &&
+    a_non_empty_regular_file_is_at "$graphify_skill_bundle_directory/.graphify_version" &&
+    [[ -d $graphify_skill_bundle_directory/references ]]
+}
+
+install_graphify_skill_bundle() {
+  gtimeout "$graphify_install_time_limit_seconds" /usr/bin/env "CLAUDE_CONFIG_DIR=$graphify_claude_config_directory" \
+    "$graphify_executable" install --platform claude
+}
+
+seed_graphify_skill_bundle() {
+  local directory
+  for directory in "$HOME/.local" "$HOME/.local/share" "$HOME/.local/share/graphify" \
+    "$graphify_claude_config_directory" "$graphify_claude_config_directory/skills" \
+    "$graphify_skill_bundle_directory" "$graphify_skill_bundle_directory/references"; do
+    if something_other_than_a_directory_is_at "$directory"; then
+      report_line "error[unsafe-path]: graphify seed: refusing symlink or non-directory at $directory; existing data is preserved." >&2
+      return 1
     fi
   done
-  if [[ ! -e $graphify_config ]]; then
-    gtimeout 60 /usr/bin/env "CLAUDE_CONFIG_DIR=$graphify_config" \
-      "$HOME/.local/bin/graphify" install --platform claude
-  elif [[ ! -f $graphify_bundle/SKILL.md || ! -s $graphify_bundle/SKILL.md || -L $graphify_bundle/SKILL.md ||
-    ! -f $graphify_bundle/.graphify_version || ! -s $graphify_bundle/.graphify_version || -L $graphify_bundle/.graphify_version ||
-    ! -d $graphify_bundle/references ]]; then
-    printf 'graphify seed: incomplete or linked bundle at %s; preserving it for operator repair\n' "$graphify_config" >&2
-    exit 1
-  fi
-{{- end }}
-{{- end }}
-fi
-{{ end -}}
 
-# Install the fnm-managed node and the npm CLI tools that run on it. fnm owns
-# the runtime: `fnm default` retargets the version-free aliases/default
-# symlink, and each node ships its own npm, which is what installs the
-# packages. fnm's bin dir is prepended for these calls because npm resolves
-# node through PATH (env-node shebang): without the prepend it runs on
-# whatever node PATH finds first and installs into THAT node's prefix.
-#
-# `npm install -g` is deliberately unconditional for INSTALLED packages too: it
-# is also the updater. The two cases fail differently, by ruling:
-#   missing package: MUST install. A failure fails this script, which aborts
-#     the apply: a declared tool that cannot land is not a passing apply.
-#   update pass: best effort. Each attempt gets a deadline so a wedged npm
-#     cannot hang the apply; the first timeout skips the remaining updates
-#     with a warning, and installed versions simply stay put.
-{{ if .packages.macos.fnm -}}
-if command -v fnm >/dev/null 2>&1; then
-  PATH="$HOME/.local/share/fnm/aliases/default/bin:$PATH"
-  npm_updates_broken=""
-  npm_missing_failed=()
-  report_section "fnm" "node + npm CLI tools"
+  if graphify_claude_config_directory_is_missing; then
+    install_graphify_skill_bundle
+  elif ! graphify_skill_bundle_is_complete; then
+    report_line "error[incomplete-bundle]: graphify seed: incomplete or linked bundle at $graphify_claude_config_directory; preserving it for operator repair." >&2
+    return 1
+  fi
+}
+{{- end }}
+
+install_declared_uv_tools() {
+  report_section 'uv' 'tool installs' >&2
+{{- range .packages.macos.uv }}
+{{- if hasPrefix "whisply" . }}
+  install_uv_tool_on_python 3.12 {{ . | quote }}
+{{- else }}
+  install_uv_tool {{ . | quote }}
+{{- end }}
+{{- if eq . "graphifyy" }}
+  seed_graphify_skill_bundle
+{{- end }}
+{{- end }}
+}
+{{- end }}
+{{- if .packages.macos.fnm }}
+
+fnm_is_installed() {
+  command -v fnm >/dev/null 2>&1
+}
+
+use_fnm_default_node_for_npm() {
+  PATH="$fnm_default_node_bin_directory:$PATH"
+}
+
+install_node_version() {
+  local node_version=$1
+  fnm install "$node_version"
+}
+
+make_node_version_the_default() {
+  local node_version=$1
+  fnm default "$node_version"
+}
+
+npm_package_is_installed() {
+  local package=$1
+  npm ls -g "$package" >/dev/null 2>&1
+}
+
+install_npm_package() {
+  local package=$1
+  gtimeout "$npm_install_time_limit_seconds" npm install -g "$package"
+}
+
+install_missing_npm_package() {
+  local package=$1
+  if ! install_npm_package "$package"; then
+    npm_packages_that_failed_to_install+=("$package")
+  fi
+}
+
+update_npm_package() {
+  local package=$1
+  if ! install_npm_package "$package"; then
+    npm_updates_stopped=true
+    report_line 'WARNING: npm update timed out or failed; skipping the remaining npm updates this apply. Installed versions stay as they are.' >&2
+  fi
+}
+
+npm_updates_still_run() {
+  [[ $npm_updates_stopped == false ]]
+}
+
+install_declared_npm_package() {
+  local package=$1
+  if ! npm_package_is_installed "$package"; then
+    install_missing_npm_package "$package"
+  elif npm_updates_still_run; then
+    update_npm_package "$package"
+  fi
+}
+
+some_npm_package_failed_to_install() {
+  ((${#npm_packages_that_failed_to_install[@]} > 0))
+}
+
+install_declared_npm_tools() {
+  use_fnm_default_node_for_npm
+  npm_updates_stopped=false
+  npm_packages_that_failed_to_install=()
+  report_section 'fnm' 'node + npm CLI tools'
 {{- range .packages.macos.fnm }}
-  fnm install {{ .node | quote }}
-  fnm default {{ .node | quote }}
+  install_node_version {{ .node | quote }}
+  make_node_version_the_default {{ .node | quote }}
 {{- range .packages }}
-  if ! npm ls -g {{ . | quote }} >/dev/null 2>&1; then
-    gtimeout 180 npm install -g {{ . | quote }} || npm_missing_failed+=({{ . | quote }})
-  elif [[ -z $npm_updates_broken ]]; then
-    if ! gtimeout 180 npm install -g {{ . | quote }}; then
-      npm_updates_broken=1
-      report_line 'WARNING: npm update timed out or failed; skipping the remaining npm updates this apply. Installed versions stay as they are.' >&2
-    fi
-  fi
+  install_declared_npm_package {{ . | quote }}
 {{- end }}
 {{- end }}
-  if [[ ${#npm_missing_failed[@]} -gt 0 ]]; then
-    printf 'FAILED TO INSTALL (declared but absent): %s\n' "${npm_missing_failed[*]}" >&2
-    exit 1
+  if some_npm_package_failed_to_install; then
+    report_line "error[failed-install]: these declared npm packages were missing and did not install: ${npm_packages_that_failed_to_install[*]}" >&2
+    return 1
   fi
-fi
-{{ end -}}
+}
+{{- end }}
 
+main() {
+{{- if $systemPackagesAreSkipped }}
+  report_section 'system packages' 'Homebrew, uv and npm installs'
+  report_line 'SKIP_SYSTEM_PACKAGES=1 is set, skipping.'
+{{- else }}
+  never_wait_on_homebrew_install_confirmations
+  record_homebrew_trust_store_state '00-script-start'
+  trust_declared_taps
+  record_homebrew_trust_store_state '10-after-trust-pass'
+
+  if legacy_multiplexer_is_installed; then
+    report_cleanup_withheld_until_herdr_is_verified >&2
+    install_declared_homebrew_packages
+  else
+    install_declared_homebrew_packages
+    remove_undeclared_homebrew_packages
+  fi
+
+  put_homebrew_tools_first_on_path
+{{- if .packages.macos.uv }}
+
+  if uv_is_installed; then
+    install_declared_uv_tools
+  fi
+{{- end }}
+{{- if .packages.macos.fnm }}
+
+  if fnm_is_installed; then
+    install_declared_npm_tools
+  fi
+{{- end }}
+{{- end }}
+}
+
+main "$@"
 {{ end -}}

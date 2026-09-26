@@ -1,30 +1,72 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-# If brew installed herdr previously (current state on this Mac as of 2026-06-18),
-# uninstall it before the curl installer takes over.
-if brew list herdr &>/dev/null; then
-  echo "Uninstalling brew-installed herdr (preview channel requires direct install)..."
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly herdr_installer_url="https://herdr.dev/install.sh"
+readonly herdr_update_channel="preview"
+
+homebrew_has_herdr_installed() {
+  brew list herdr &>/dev/null
+}
+
+uninstall_homebrew_herdr() {
   brew uninstall herdr
-fi
+}
 
-# Run the official direct installer (no-op-ish if already present; the installer
-# is idempotent for same-version reinstalls).
-if ! command -v herdr &>/dev/null; then
-  echo "Installing herdr via direct curl installer..."
-  curl -fsSL https://herdr.dev/install.sh | sh
-fi
+herdr_is_installed() {
+  command -v herdr &>/dev/null
+}
 
-# Ensure preview channel is active. The CLI is authoritative; declarative
-# [update] channel = "preview" in config.toml is also set (Task 4) but the
-# CLI invocation here guarantees the runtime state matches.
-if command -v herdr &>/dev/null; then
-  current_channel=$(herdr channel show 2>/dev/null | awk '{print $NF}' || echo "unknown")
-  if [[ $current_channel != "preview" ]]; then
-    echo "Switching herdr to preview channel..."
-    herdr channel set preview
+install_herdr_with_the_direct_installer() {
+  curl -fsSL "$herdr_installer_url" | sh
+}
+
+current_herdr_channel() {
+  herdr channel show 2>/dev/null | awk '{print $NF}' || echo "unknown"
+}
+
+herdr_is_on_the_update_channel() {
+  local channel
+  channel="$(current_herdr_channel)"
+  [[ $channel == "$herdr_update_channel" ]]
+}
+
+switch_herdr_to_the_update_channel() {
+  herdr channel set "$herdr_update_channel"
+}
+
+main() {
+  report_section 'herdr' "agent terminal multiplexer, $herdr_update_channel channel"
+
+  if homebrew_has_herdr_installed; then
+    report_line "uninstalling the Homebrew herdr, since the $herdr_update_channel channel needs the direct install..."
+    uninstall_homebrew_herdr
+    report_line "uninstalled the Homebrew herdr."
   fi
-fi
+
+  if ! herdr_is_installed; then
+    report_line "installing with the direct installer..."
+    install_herdr_with_the_direct_installer
+    report_line "installed herdr."
+  fi
+
+  if ! herdr_is_installed; then
+    report_line "herdr is not on PATH, skipping the channel check."
+    return
+  fi
+
+  if herdr_is_on_the_update_channel; then
+    report_line "already on the $herdr_update_channel channel, skipping."
+    return
+  fi
+
+  report_line "switching to the $herdr_update_channel channel..."
+  switch_herdr_to_the_update_channel
+  report_line "switched to the $herdr_update_channel channel."
+}
+
+main "$@"
 {{ end -}}
