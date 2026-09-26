@@ -94,7 +94,7 @@ remove_legacy_multiplexers() {
     report_line "error[cleanup-refused]: herdr verified but the forced cleanup was refused by the bulk-removal guard (the rendered manifest would remove more than the safety threshold); tmux/sesh may still be installed. Re-run with HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP=1 once the manifest is complete." >&2
     return
   fi
-  report_line "herdr verified as a multiplexer; removed tmux/sesh via brew bundle cleanup (migration complete)."
+  report_line "removed tmux/sesh via brew bundle cleanup (migration complete)."
 }
 
 main() {
