@@ -1,0 +1,48 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $signingKeyEntry := "GPG :: Signing Key (github-webdavis)" -}}
+{{- $signingKeyId := keepassxcAttribute $signingKeyEntry "Public Signing Subkey ID" -}}
+{{- $signingKeyStatus := output "sh" "-c" (printf "gpg --list-secret-keys %s >/dev/null 2>&1 && echo installed || echo missing" $signingKeyId) | trim -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+signing_key_id={{ $signingKeyId | quote }}
+
+signing_key_is_installed() {
+  gpg --list-secret-keys "$signing_key_id" >/dev/null 2>&1
+}
+{{- if eq $signingKeyStatus "missing" }}
+
+import_signing_key() {
+  gpg --batch --import <<'PRIVATE_KEY'
+{{ keepassxcAttachment $signingKeyEntry "private-key.asc" }}
+PRIVATE_KEY
+}
+{{- end }}
+
+main() {
+  report_section 'gpg' 'git signing key'
+
+  if signing_key_is_installed; then
+    report_line "already installed, skipping."
+    return
+  fi
+{{- if eq $signingKeyStatus "missing" }}
+
+  report_line "importing from KeePassXC..."
+  if ! import_signing_key || ! signing_key_is_installed; then
+    report_line "error[import-failed]: GPG has no secret key $signing_key_id after importing it from KeePassXC." >&2
+    exit 1
+  fi
+  report_line "imported signing key $signing_key_id."
+{{- else }}
+
+  report_line "error[key-missing]: $signing_key_id disappeared after this apply started; re-run just apply to import it." >&2
+  exit 1
+{{- end }}
+}
+
+main "$@"
+{{ end -}}

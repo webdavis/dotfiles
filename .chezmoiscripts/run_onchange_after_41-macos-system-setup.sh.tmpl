@@ -1,236 +1,158 @@
-{{- /* shellSingleQuoted, same helper and same rationale as the Tier 1 runner:
-the one way a data field becomes a shell word. POSIX single quotes with every
-embedded single quote rewritten to '\'', so bash performs no expansion of any
-kind inside it. The enforce branch below is EXEMPT by design: an enforce
-record's command field IS shell source, declared as such in the schema, and
-its description keeps its historical double-quoted echo. Every NEW emission of
-data (the manual runbook pointer) goes through this helper. */ -}}
 {{- define "shellSingleQuoted" }}{{ printf "'%s'" (replace "'" "'\\''" (toString .)) }}{{ end -}}
-{{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# Tier 2, macOS sudo system-setup runner.
-# chezmoi hash-gates on the rendered template body; this script re-runs only
-# when .chezmoidata/macos_system_setup.yaml changes.
+
+{{- define "validateTailscaleMagicdnsFallbackHosts" -}}
+{{- $hostNameOwners := dict -}}
+{{- range $hostIndex, $host := . -}}
+{{- range $field := list "fqdn" "ip" "short" -}}
+{{- if or (not (hasKey $host $field)) (kindIs "invalid" (index $host $field)) (eq (toString (index $host $field)) "") -}}
+{{- fail (printf "macos_system_setup.yaml: a tailscale_magicdns_fallback_hosts entry is missing %s (or has it empty); every entry declares fqdn, ip and short" $field) -}}
+{{- end -}}
+{{- if not (kindIs "string" (index $host $field)) -}}
+{{- fail (printf "macos_system_setup.yaml: tailscale_magicdns_fallback_hosts field %s is a %s, not a string; every field is one hosts column, so quote it in YAML" $field (kindOf (index $host $field))) -}}
+{{- end -}}
+{{- if regexMatch "[\\s#]" (toString (index $host $field)) -}}
+{{- fail (printf "macos_system_setup.yaml: tailscale_magicdns_fallback_hosts field %s %q is not a single hosts column (whitespace splits the record, # truncates it)" $field (toString (index $host $field))) -}}
+{{- end -}}
+{{- end -}}
+{{- range $nameField := list "fqdn" "short" -}}
+{{- $hostName := toString (index $host $nameField) -}}
+{{- if and (hasKey $hostNameOwners $hostName) (ne (index $hostNameOwners $hostName) $hostIndex) -}}
+{{- fail (printf "macos_system_setup.yaml: tailscale_magicdns_fallback_hosts name %s %q is claimed by two entries; an entry OWNS both of its names, so the second would delete the first's record on every apply and one declared entry would never exist" $nameField $hostName) -}}
+{{- end -}}
+{{- $_ := set $hostNameOwners $hostName $hostIndex -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateSystemSetupRecord" -}}
+{{- if or (not (hasKey . "description")) (kindIs "invalid" (index . "description")) (eq (toString (index . "description")) "") -}}
+{{- fail "macos_system_setup.yaml: a record has no description; every record needs one, it is the identity in every error and trace line" -}}
+{{- end -}}
+{{- if not (hasKey . "tier") -}}
+{{- fail (printf "macos_system_setup.yaml: record %q has no tier; declare tier: enforce, verify, or manual" .description) -}}
+{{- end -}}
+{{- if kindIs "invalid" (index . "tier") -}}
+{{- fail (printf "macos_system_setup.yaml: record %q has a blank tier; declare tier: enforce, verify, or manual" .description) -}}
+{{- end -}}
+{{- $tier := toString (index . "tier") -}}
+{{- if not (has $tier (list "enforce" "verify" "manual")) -}}
+{{- fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q (expected enforce, verify, or manual)" $tier .description) -}}
+{{- end -}}
+{{- if eq $tier "enforce" -}}
+{{- if or (not (hasKey . "command")) (kindIs "invalid" (index . "command")) (eq (toString (index . "command")) "") -}}
+{{- fail (printf "macos_system_setup.yaml: enforce record %q has no command; an enforce control is a command, so declare one or change the tier" .description) -}}
+{{- end -}}
+{{- if hasKey . "runbook" -}}
+{{- fail (printf "macos_system_setup.yaml: enforce record %q carries runbook; either drop the field or declare the tier that consumes it" .description) -}}
+{{- end -}}
+{{- else -}}
+{{- if hasKey . "command" -}}
+{{- fail (printf "macos_system_setup.yaml: %s record %q carries command, a mutating payload; the runner never runs a command for a %s control, so the declared tier is wrong" $tier .description $tier) -}}
+{{- end -}}
+{{- if hasKey . "sudo" -}}
+{{- fail (printf "macos_system_setup.yaml: %s record %q carries sudo; sudo qualifies a command and a %s control has none" $tier .description $tier) -}}
+{{- end -}}
+{{- if eq $tier "manual" -}}
+{{- if not (hasKey . "runbook") -}}
+{{- fail (printf "macos_system_setup.yaml: manual record %q has no runbook; a manual control must name its runbook section" .description) -}}
+{{- end -}}
+{{- if kindIs "invalid" (index . "runbook") -}}
+{{- fail (printf "macos_system_setup.yaml: manual record %q has a blank runbook; name the runbook section" .description) -}}
+{{- end -}}
+{{- if eq (toString (index . "runbook")) "" -}}
+{{- fail (printf "macos_system_setup.yaml: manual record %q has an empty runbook; name the runbook section" .description) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- if eq .chezmoi.os "darwin" -}}
+{{- $records := .macos.system_setup -}}
+{{- $fallbackHosts := index .macos "tailscale_magicdns_fallback_hosts" -}}
+{{- template "validateTailscaleMagicdnsFallbackHosts" $fallbackHosts -}}
+{{- range $records }}{{ template "validateSystemSetupRecord" . }}{{ end -}}
+{{- $enforceRecordCount := 0 -}}
+{{- range $records }}{{ if eq (toString (index . "tier")) "enforce" }}{{ $enforceRecordCount = add $enforceRecordCount 1 }}{{ end }}{{ end -}}
+#!/usr/bin/env bash
 
 set -euo pipefail
+{{- if and (eq (len $records) 0) (not $fallbackHosts) }}
 
-{{/* `index`, not the dotted-field form, for every optional key: Go's
-     text/template errors on an absent key with the dotted form; `index`
-     returns the empty value (falsy in `if`, a no-op under `range`), the
-     repo's documented Tier-1 runner gotcha. */ -}}
-{{ $pins := index .macos "tailnet_pins" -}}
-{{- /* Tailnet-pin field validation: fqdn, ip and short must each be exactly
-one /etc/hosts column, and each must be a STRING, which is what the schema in
-the data file documents. The refused character set is Go's \s class (space,
-tab, newline, carriage return, form feed) plus #: those are the characters
-that split one pin into extra columns or, for a newline, extra LINES in the
-file the generated command rewrites as root, and the # that starts a hosts
-comment and silently truncates the record. It is deliberately NOT "any
-whitespace": a vertical tab, U+00A0 or U+2003 splits no hosts record, so none
-of them can smuggle a column and none is refused. The same set is re-checked
-inside the helper script, which is a standalone component with its own
-contract. An empty or absent field renders a malformed line, and a non-string
-scalar (a bare `false`, or an unquoted number) silently stringifies into the
-record instead of being caught, which is why the kind is checked rather than
-documented. Same contract as the system_setup validation below: any violation
-aborts the render, so chezmoi refuses the whole apply. */ -}}
-{{- /* NAME OWNERSHIP is exclusive, so the names must be UNIQUE across pins.
-The reconciler drops every line claiming either of a pin's two names and then
-writes its own, by decision (the fallback answers for both names, so an
-unrelated line claiming one is not left to compete). Two pins sharing a name
-therefore delete each other's record on every apply, forever: the first pin
-reports "written", the second deletes it and reports "written", /etc/hosts is
-rewritten twice per apply, one declared pin never exists, and nothing is ever
-nonzero. Only NAME fields are checked, not ip: two names mapping to one address
-is a valid hosts file and destroys nothing. `$pinNameOwners` maps each name to
-the INDEX of the pin that claimed it, so a pin whose fqdn equals its own short
-is not refused (same owner) while two pins sharing a name, or two pins with the
-same fqdn, are. */ -}}
-{{ $pinNameOwners := dict -}}
-{{ range $pinIndex, $pin := $pins -}}
-{{ range $field := list "fqdn" "ip" "short" -}}
-{{ if or (not (hasKey $pin $field)) (kindIs "invalid" (index $pin $field)) (eq (toString (index $pin $field)) "") -}}
-{{ fail (printf "macos_system_setup.yaml: a tailnet pin is missing %s (or has it empty); every pin declares fqdn, ip and short" $field) -}}
-{{ end -}}
-{{ if not (kindIs "string" (index $pin $field)) -}}
-{{ fail (printf "macos_system_setup.yaml: tailnet pin %s is a %s, not a string; every pin field is one hosts column, so quote it in YAML" $field (kindOf (index $pin $field))) -}}
-{{ end -}}
-{{ if regexMatch "[\\s#]" (toString (index $pin $field)) -}}
-{{ fail (printf "macos_system_setup.yaml: tailnet pin %s %q is not a single hosts column (whitespace splits the record, # truncates it)" $field (toString (index $pin $field))) -}}
-{{ end -}}
-{{ end -}}
-{{ range $nameField := list "fqdn" "short" -}}
-{{ $pinName := toString (index $pin $nameField) -}}
-{{ if and (hasKey $pinNameOwners $pinName) (ne (index $pinNameOwners $pinName) $pinIndex) -}}
-{{ fail (printf "macos_system_setup.yaml: tailnet pin %s %q is claimed by two different pins; a pin OWNS both of its names, so the second would delete the first's record on every apply and one declared pin would never exist" $nameField $pinName) -}}
-{{ end -}}
-{{ $_ := set $pinNameOwners $pinName $pinIndex -}}
-{{ end -}}
-{{ end -}}
-{{- /* Validation pass: every record must declare which control tier it
-belongs to, and its payload must MATCH the declared tier, before anything
-renders. The tier decides what the record IS; the payload never does. Any
-violation ABORTS the render via fail, so chezmoi refuses the whole apply: no
-warning, no skipped record, no partial best-effort script. */ -}}
-{{ $enforceRecordCount := 0 -}}
-{{ range .macos.system_setup -}}
-{{- /* Identity first: the description names the record in every error below
-and in the runner's own trace output, so it is required on every record. */ -}}
-{{ if or (not (hasKey . "description")) (kindIs "invalid" (index . "description")) (eq (toString (index . "description")) "") -}}
-{{ fail "macos_system_setup.yaml: a record has no description; every record needs one, it is the identity in every error and trace line" -}}
-{{ end -}}
-{{- /* The control tier is REQUIRED: enforce (render the command), verify
-(drift detection only, render NO command), or manual (render a runbook
-pointer only). Three distinct refusals so the error names what is actually
-wrong; a blank scalar is nil and would otherwise stringify to the literal
-text <nil>, and a set-but-empty tier is rejected as an unrecognized VALUE,
-never conflated with an absent field. */ -}}
-{{ if not (hasKey . "tier") -}}
-{{ fail (printf "macos_system_setup.yaml: record %q has no tier; declare tier: enforce, verify, or manual" .description) -}}
-{{ end -}}
-{{ if kindIs "invalid" (index . "tier") -}}
-{{ fail (printf "macos_system_setup.yaml: record %q has a blank tier; declare tier: enforce, verify, or manual" .description) -}}
-{{ end -}}
-{{ $tier := toString (index . "tier") -}}
-{{ if not (has $tier (list "enforce" "verify" "manual")) -}}
-{{ fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q (expected enforce, verify, or manual)" $tier .description) -}}
-{{ end -}}
-{{ if eq $tier "enforce" -}}
-{{ if or (not (hasKey . "command")) (kindIs "invalid" (index . "command")) (eq (toString (index . "command")) "") -}}
-{{ fail (printf "macos_system_setup.yaml: enforce record %q has no command; an enforce control is a command, so declare one or change the tier" .description) -}}
-{{ end -}}
-{{- /* Nothing consumes a runbook on an enforced control, and silently
-ignored data is how a mislabeled tier hides; refuse it. On a verify record a
-runbook is allowed: the posture check that consumes verify records can point
-the operator at the fix for a detected drift. */ -}}
-{{ if hasKey . "runbook" -}}
-{{ fail (printf "macos_system_setup.yaml: enforce record %q carries runbook; either drop the field or declare the tier that consumes it" .description) -}}
-{{ end -}}
-{{ $enforceRecordCount = add $enforceRecordCount 1 -}}
-{{ else -}}
-{{- /* verify and manual controls are the ones this runner must never run a
-command for; a record that declares one is lying about its tier, and the
-whole point of declaring tiers in data is that the lie aborts the render
-instead of executing. The sudo flag only qualifies a command, so it is
-refused on the same grounds. */ -}}
-{{ if hasKey . "command" -}}
-{{ fail (printf "macos_system_setup.yaml: %s record %q carries command, a mutating payload; the runner never runs a command for a %s control, so the declared tier is wrong" $tier .description $tier) -}}
-{{ end -}}
-{{ if hasKey . "sudo" -}}
-{{ fail (printf "macos_system_setup.yaml: %s record %q carries sudo; sudo qualifies a command and a %s control has none" $tier .description $tier) -}}
-{{ end -}}
-{{ if eq $tier "manual" -}}
-{{ if not (hasKey . "runbook") -}}
-{{ fail (printf "macos_system_setup.yaml: manual record %q has no runbook; a manual control must name its runbook section" .description) -}}
-{{ end -}}
-{{ if kindIs "invalid" (index . "runbook") -}}
-{{ fail (printf "macos_system_setup.yaml: manual record %q has a blank runbook; name the runbook section" .description) -}}
-{{ end -}}
-{{ if eq (toString (index . "runbook")) "" -}}
-{{ fail (printf "macos_system_setup.yaml: manual record %q has an empty runbook; name the runbook section" .description) -}}
-{{ end -}}
-{{ end -}}
-{{ end -}}
-{{ end -}}
-{{ if and (eq (len .macos.system_setup) 0) (not $pins) -}}
-# Early-return if nothing is configured (avoids spurious sudo prompt).
 exit 0
-{{ else -}}
-{{- /* The sudo prelude is only worth a password prompt when something will
-use the credential: an enforce command or a generated pin command. A file of
-only verify/manual records renders its pointers and asks for nothing. */ -}}
-{{ if or (gt $enforceRecordCount 0) $pins -}}
-# Pre-flight: refresh sudo timestamp upfront. One password prompt at start;
-# none during the loop, it covers the generated tailnet-pin commands too.
-sudo -v
+{{- else }}
 
-{{ end -}}
-{{- /* The branch below decides by the DECLARED tier: verify renders nothing
-at all (the command branch is not taken, so this runner physically cannot
-set a verify control), and manual renders only a pointer at the runbook
-section that sets it by hand. The trailing refusal is unreachable while the
-validation pass above holds, and stays so this loop can never fail open into
-running a command if the two passes ever drift apart. Its message deliberately
-differs from the validation pass's, naming this loop as the site that caught
-the record: with byte-identical messages either copy could vanish and every
-test would stay green on the other's output, so the distinct marker is what
-lets each site be pinned alone. Do not quote the marker text in this comment;
-the source-form pin greps for it and a comment copy would satisfy the grep
-with the refusal gone. */ -}}
-{{ range .macos.system_setup -}}
-{{ $tier := toString (index . "tier") -}}
-{{ if eq $tier "enforce" -}}
-echo "→ {{ .description }}"
-{{ if index . "sudo" }}sudo {{ end }}{{ .command }}
-{{ else if eq $tier "verify" -}}
-{{ else if eq $tier "manual" -}}
-echo {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook section %s" .description (toString (index . "runbook"))) }}
-{{ else -}}
-{{ fail (printf "macos_system_setup.yaml: unrecognized tier %q on record %q reached the render loop; the validation pass no longer rejects it" $tier .description) -}}
-{{ end -}}
-{{ end -}}
-{{ if $pins -}}
-{{/* Generated MagicDNS /etc/hosts fallback pins (structured tailnet_pins data).
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-     The reconciliation itself is NOT inlined here. It used to be a ~1KB
-     single-line `sudo sh -c` body with one-letter variable names, and a
-     fail-open loopback gate survived three review passes inside it: the gate
-     grepped ^127\.0\.0\.1[[:space:]], which a COMMENT-ONLY line satisfies
-     while naming nothing a machine could resolve localhost through, so a
-     rebuild that filtered away the real localhost record installed a hosts
-     file where nothing named localhost and exited 0.
+refresh_sudo_credentials() {
+  sudo -v
+}
 
-     The logic is now a Rust tool with its own workspace, `tailnet-pin` at the
-     monorepo root, built by run_onchange_after_40 and installed to
-     ~/.cargo/bin/tailnet-pin. Read its crates for the convergence, ownership,
-     install and gate contracts; this template's only job is to hand it one pin
-     per line.
-
-     ORDERING IS THE SCRIPT NUMBERS, not a property of chezmoi's phases. The
-     binary is BUILT by an after-phase script rather than deployed as a target,
-     so it exists only once 40 has run. chezmoi runs after-phase scripts in
-     lexical order, which is what puts 40 before 41; the guard below still
-     checks, because a partial or hand-driven apply is not a full one and the
-     failure must name the missing binary rather than surface as sudo's
-     "command not found".
-
-     THE FINGERPRINT REPLACES THE OLD SHA256 OF A SOURCE FILE, which a built
-     binary cannot have: its bytes do not exist at render time. It serves the
-     same two jobs. chezmoi hash-gates run_onchange_ scripts on the body alone,
-     so embedding it re-runs the pins when the tool's source changes (same
-     idiom as the `plist hash:` lines in the LaunchAgent loaders). And it is
-     CHECKED against what the builder recorded, which is the gate on what runs
-     as root: the builder DEFERS with exit 0 when cargo is missing on a fresh
-     machine, and without this check that deferral would aim an older binary at
-     /etc/hosts as root.
-
-     Pin data still travels as POSITIONAL ARGUMENTS and never as script text.
-     Earlier versions made the fields safe in the shell and then let them
-     become grep PATTERNS, where a leading dash turned a field into a grep
-     OPTION and a newline turned a -xF pattern into a pattern LIST. The tool
-     compares fields as bytes, uses no grep at all, and builds the record from
-     constants, so a % in the data is not a directive. */ -}}
-tailnet_pin={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "tailnet-pin" | quote }}
-tailnet_pin_expected_fingerprint='{{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum }}'
-tailnet_pin_built_marker="$HOME/.cache/tailnet-pin-build/installed.fingerprint"
-if [[ ! -x $tailnet_pin ]]; then
-  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin is missing or not executable; run chezmoi apply so run_onchange_after_40 builds it" >&2
-  exit 1
-fi
-if [[ ! -r $tailnet_pin_built_marker ]]; then
-  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin_built_marker is missing, so nothing vouches for which source $tailnet_pin was built from" >&2
-  exit 1
-fi
-tailnet_pin_built_fingerprint="$(cat "$tailnet_pin_built_marker")"
-if [[ $tailnet_pin_built_fingerprint != "$tailnet_pin_expected_fingerprint" ]]; then
-  echo "refusing to apply MagicDNS fallback pins: $tailnet_pin was built from source $tailnet_pin_built_fingerprint, not the $tailnet_pin_expected_fingerprint this run was rendered for; re-run chezmoi apply so the builder catches up" >&2
-  exit 1
-fi
-
-{{ range $pins -}}
-echo {{ template "shellSingleQuoted" (printf "→ MagicDNS fallback pin: %s (per CLAUDE.md Tailscale DNS section)" (toString .fqdn)) }}
-sudo "$tailnet_pin" {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
-{{ end -}}
-{{ end -}}
-{{ end -}}
+apply_system_setup_records() {
+{{- range $records }}
+{{- $tier := toString (index . "tier") }}
+{{- if eq $tier "enforce" }}
+  report_line {{ template "shellSingleQuoted" (printf "→ %s" .description) }}
+  {{ if index . "sudo" }}sudo {{ end }}{{ .command }}
+{{- else if eq $tier "manual" }}
+  report_line {{ template "shellSingleQuoted" (printf "→ MANUAL %s: see the runbook section %s" .description (toString (index . "runbook"))) }}
 {{- end }}
+{{- end }}
+  :
+}
+{{- if $fallbackHosts }}
+
+tailnet_pin={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "tailnet-pin" | quote }}
+tailnet_pin_build_record="$HOME/.cache/tailnet-pin-build/installed.fingerprint"
+current_tailnet_pin_source_fingerprint={{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum | quote }}
+
+tailnet_pin_is_installed() {
+  [[ -x $tailnet_pin ]]
+}
+
+tailnet_pin_build_record_exists() {
+  [[ -r $tailnet_pin_build_record ]]
+}
+
+read_tailnet_pin_built_fingerprint() {
+  cat "$tailnet_pin_build_record"
+}
+
+apply_tailscale_magicdns_fallback_hosts() {
+  if ! tailnet_pin_is_installed; then
+    report_line "error[missing-tool]: $tailnet_pin is missing or not executable; Tailscale MagicDNS fallback hosts were not applied. Run chezmoi apply so run_after_40 builds it." >&2
+    exit 1
+  fi
+
+  if ! tailnet_pin_build_record_exists; then
+    report_line "error[missing-file]: $tailnet_pin_build_record is missing, so nothing vouches for which source $tailnet_pin was built from; Tailscale MagicDNS fallback hosts were not applied." >&2
+    exit 1
+  fi
+
+  local built_fingerprint
+  built_fingerprint="$(read_tailnet_pin_built_fingerprint)"
+  if [[ $built_fingerprint != "$current_tailnet_pin_source_fingerprint" ]]; then
+    report_line "error[stale-build]: $tailnet_pin was built from source $built_fingerprint, not $current_tailnet_pin_source_fingerprint; Tailscale MagicDNS fallback hosts were not applied. Re-run chezmoi apply so the builder catches up." >&2
+    exit 1
+  fi
+{{- range $fallbackHosts }}
+
+  report_line {{ template "shellSingleQuoted" (printf "→ Tailscale MagicDNS fallback host: %s" (toString .fqdn)) }}
+  sudo "$tailnet_pin" {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
+{{- end }}
+}
+{{- end }}
+
+main() {
+  report_section 'system setup' 'macOS settings that need admin rights'
+{{- if or (gt $enforceRecordCount 0) $fallbackHosts }}
+  refresh_sudo_credentials
+{{- end }}
+  apply_system_setup_records
+{{- if $fallbackHosts }}
+  apply_tailscale_magicdns_fallback_hosts
+{{- end }}
+}
+
+main "$@"
+{{- end }}
+{{ end -}}
