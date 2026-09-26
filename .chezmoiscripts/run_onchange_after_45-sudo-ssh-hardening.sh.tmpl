@@ -6,6 +6,8 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
 readonly ssh_hardening_tool="$HOME/.local/bin/ssh-hardening.sh"
 
 install_and_verify_sshd_drop_in() {
@@ -14,7 +16,7 @@ install_and_verify_sshd_drop_in() {
 
 main() {
   report_section 'ssh' 'public-key-only sshd drop-in'
-  sudo -v
+  authenticate_sudo_once
 
   report_line "installing and verifying the drop-in..."
   install_and_verify_sshd_drop_in

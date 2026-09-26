@@ -1,0 +1,65 @@
+# shellcheck shell=bash
+
+readonly sudo_ticket_refresh_seconds=60
+
+process_command_name() {
+  local process_id=$1
+  basename "$(ps -o comm= -p "$process_id" 2>/dev/null)"
+}
+
+parent_process_id() {
+  local process_id=$1
+  ps -o ppid= -p "$process_id" 2>/dev/null | tr -d ' '
+}
+
+process_is_chezmoi() {
+  local process_id=$1
+  [[ $(process_command_name "$process_id") == chezmoi ]]
+}
+
+apply_process_id() {
+  local process_id=$PPID
+  while ((process_id > 1)); do
+    if process_is_chezmoi "$process_id"; then
+      printf '%s\n' "$process_id"
+      return
+    fi
+    process_id="$(parent_process_id "$process_id")"
+  done
+  printf '%s\n' "$PPID"
+}
+
+sudo_keepalive_pid_file() {
+  local apply_process=$1
+  printf '%s/sudo-keepalive.%s.pid\n' "${TMPDIR:-/tmp}" "$apply_process"
+}
+
+sudo_keepalive_is_running() {
+  local pid_file=$1
+  [[ -r $pid_file ]] && kill -0 "$(cat "$pid_file")" 2>/dev/null
+}
+
+refresh_sudo_ticket_while_process_lives() {
+  local apply_process=$1
+  while kill -0 "$apply_process" 2>/dev/null; do
+    sudo -n -v 2>/dev/null || return
+    sleep "$sudo_ticket_refresh_seconds"
+  done
+}
+
+keep_sudo_ticket_fresh_until_the_apply_ends() {
+  local apply_process pid_file
+  apply_process="$(apply_process_id)"
+  pid_file="$(sudo_keepalive_pid_file "$apply_process")"
+  if sudo_keepalive_is_running "$pid_file"; then
+    return
+  fi
+  refresh_sudo_ticket_while_process_lives "$apply_process" </dev/null >/dev/null 2>&1 &
+  printf '%s\n' "$!" >"$pid_file"
+  disown
+}
+
+authenticate_sudo_once() {
+  sudo -v
+  keep_sudo_ticket_fresh_until_the_apply_ends
+}

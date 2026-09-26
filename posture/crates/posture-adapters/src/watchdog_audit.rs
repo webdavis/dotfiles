@@ -24,7 +24,7 @@ use manifest::ManifestLines;
 /// number by hand and must move with it: `rust_tools.max_artifact_bytes.pns`
 /// in `.chezmoidata/rust_tools.yaml`, which the builder reads at render time,
 /// and the `max_artifact_bytes` table in
-/// `.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh`. Nothing here
+/// `.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh`. Nothing here
 /// reads either one: this is a tool other people install.
 const PNS_MAX_BYTES: u64 = 14_680_064;
 

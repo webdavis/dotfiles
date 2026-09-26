@@ -47,7 +47,7 @@ working" check; use `atuin daemon status` (reports `Version`, `Protocol`, `Healt
   `${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh` in the bashrc before `atuin init`.
 - `brew` upgrading atuin in-place while the daemon kept running stale code silently broke recording via
   gRPC schema drift. Two independent guards now catch it:
-  `.chezmoiscripts/run_after_45-bounce-atuin-daemon-on-upgrade.sh.tmpl` compares the version recorded in
+  `.chezmoiscripts/run_after_39-bounce-atuin-daemon-on-upgrade.sh.tmpl` compares the version recorded in
   `~/.local/share/atuin/atuin-daemon.pid` against `atuin --version`, and `dot_bashrc.tmpl` compares the
   binary's mtime against that same pid file right after `atuin init`. Either one triggers
   `launchctl kickstart -k gui/$(id -u)/com.webdavis.atuin-daemon`.

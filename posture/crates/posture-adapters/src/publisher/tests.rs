@@ -76,7 +76,7 @@ impl Fixture {
         let tree = root.join("tree");
         fs::create_dir_all(tree.join(".chezmoiscripts")).unwrap();
         fs::write(
-            tree.join(".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"),
+            tree.join(".chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh"),
             b"inert",
         )
         .unwrap();
@@ -124,7 +124,7 @@ fn publication_orders_source_apply_location_and_manifest_with_inherited_io() {
         f.runner.calls[2].1,
         [f.runner
             .tree
-            .join(".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh")
+            .join(".chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh")
             .into_os_string()]
     );
     assert!(f.runner.tree.join("refreshed").is_file());
@@ -154,7 +154,7 @@ fn manifest_failure_or_timeout_keeps_new_source_and_deployed_bytes() {
         assert_eq!(
             f.publish(),
             Err(PublicationRefusal::ManifestRefresh(f.runner.tree.join(
-                ".chezmoiscripts/run_after_05-osquery-known-good-manifests.sh"
+                ".chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh"
             )))
         );
         assert_eq!(fs::read(&f.runner.source).unwrap(), b"new source\n");

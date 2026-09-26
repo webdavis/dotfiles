@@ -121,7 +121,7 @@
 #               manifest match)
 
 # Keep these defaults in sync with the manifest paths in
-# .chezmoiscripts/run_after_05-osquery-known-good-manifests.sh (the producer). Tests
+# .chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh (the producer). Tests
 # pin the literals equal, because the producer and the consumer of a
 # security-critical file must not agree only by copy-paste.
 #
