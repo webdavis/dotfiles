@@ -1,0 +1,9 @@
+# Tailscale peers pinned in /etc/hosts as a MagicDNS fallback, applied by
+# run_onchange_after_46-sudo-tailscale-magicdns-fallback-hosts. Each field is one
+# hosts column, so quote any value YAML would read as a number.
+
+tailscale:
+  magicdns_fallback_hosts:
+    - fqdn: mister.tail2f2430.ts.net
+      ip: "100.109.58.54"
+      short: mister

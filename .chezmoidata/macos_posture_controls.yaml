@@ -1,7 +1,7 @@
 # macOS runtime posture controls, declarative source of truth.
 #
 # The declaration home for verify-tier controls that are neither a `defaults`
-# key nor a `system_setup` command ("FileVault is on", "the Guest account is
+# key nor a command an apply script runs ("FileVault is on", "the Guest account is
 # disabled"). Records here are rendered to
 # ~/.local/libexec/posture/controls.json (by
 # dot_local/libexec/posture/controls.json.tmpl) and consumed at RUNTIME
@@ -110,11 +110,10 @@ macos:
       expect: "disabled"
       remedy: "Disable it: System Settings → Users & Groups → Guest User"
     # verify, not enforce: OverSight is a login item the operator may quit on
-    # purpose, and silently restarting it is not a read-only poller's (or an
-    # apply-time runner's) business; the deviation pages instead. Its
-    # Notification Center delivery (the alert channel, the one interactive
-    # authorization it has) is a separate manual record in
-    # macos_system_setup.yaml.
+    # purpose, and silently restarting it is not a read-only poller's
+    # business; the deviation pages instead. Its Notification Center delivery
+    # (the alert channel, the one interactive authorization it has) is a manual
+    # step in docs/runbooks/macos-fresh-machine-quickstart.md.
     - id: oversight
       description: "The OverSight microphone and camera monitor process"
       tier: verify
