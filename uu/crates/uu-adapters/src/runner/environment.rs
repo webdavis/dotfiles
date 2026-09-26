@@ -203,6 +203,19 @@ mod children {
     }
 
     #[test]
+    fn a_lane_that_sets_no_color_itself_keeps_its_own_value() {
+        let named = runner()
+            .run_in(
+                "/bin/sh",
+                &["-c", r#"printf %s "${NO_COLOR-unset}""#],
+                &Environment::inheriting().with("NO_COLOR", "the lane's own".into()),
+                None,
+            )
+            .expect("the child runs");
+        assert_eq!(named, "the lane's own");
+    }
+
+    #[test]
     fn a_reporting_child_keeps_both_pipes_and_its_verdict() {
         let ran = runner()
             .run_reporting_in(
