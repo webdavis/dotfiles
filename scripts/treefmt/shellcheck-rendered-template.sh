@@ -93,7 +93,7 @@ main() {
   for file in "$@"; do
     is_shell_template "$file" || continue
     template_or_its_partials_use_keepassxc "$file" && continue
-    render_and_shellcheck_one "$file" || status=1
+    shellcheck_rendered_template "$file" || status=1
   done
   exit "$status"
 }
