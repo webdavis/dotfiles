@@ -1,29 +1,24 @@
-#!/bin/bash
-# run_onchange_after_38-load-atuin-daemon-launchagent.sh
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.atuin-daemon.plist.tmpl" | sha256sum }}
 
-{{- if eq .chezmoi.os "darwin" }}
 set -euo pipefail
 
-mkdir -p "$HOME/.local/log"
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-PLIST="$HOME/Library/LaunchAgents/com.webdavis.atuin-daemon.plist"
-TARGET="gui/$(id -u)/com.webdavis.atuin-daemon"
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
 
-# Re-bootstrap the LaunchAgent so a changed plist takes effect. launchd's
-# user-domain registry sometimes still holds the previous registration when
-# bootstrap fires immediately after bootout, the call returns EIO ("Input/
-# output error"). Retry silently up to 3 times before surfacing the real
-# error on the final attempt.
-launchctl bootout "$TARGET" 2>/dev/null || true
+readonly launchagent_label="com.webdavis.atuin-daemon"
+readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
+readonly launchagent_log_directory="$HOME/.local/log"
 
-for _ in 1 2 3; do
-  if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then
-    exit 0
-  fi
-  sleep 1
-done
+main() {
+  report_section 'atuin' 'daemon LaunchAgent'
+  create_launchagent_log_directory "$launchagent_log_directory"
+  report_line "reloading..."
+  reload_launchagent "$launchagent_label" "$launchagent_plist"
+  report_line "loaded."
+}
 
-# Final attempt with stderr passthrough so a non-transient error is visible.
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
-{{- end }}
+main "$@"
+{{ end -}}
