@@ -4,7 +4,7 @@ The open task list for the dotfiles modernization, including pns, posture, uu, l
 review tools and the deferred subprojects. Use the resume order below; task numbers are stable
 references.
 
-Updated as tasks complete. Last updated 2026-09-20.
+Updated as tasks complete. Last updated 2026-09-26.
 
 ## Where things stand
 
@@ -1798,8 +1798,7 @@ The planned Rust lanes are implemented. The following deployment check remains.
 - [x] 2026-09-14: the merged-worktree sweep from 57h became a repository tool in
   [PR #605](https://github.com/webdavis/dotfiles/pull/605)
   (`feat(worktrees): sweep merged, clean worktrees through herdr`, merged), not a numbered task.
-  `dot_local/libexec/executable_prune-merged-worktrees.sh`, deployed to
-  `~/.local/libexec/prune-merged-worktrees.sh`, walks `git worktree list --porcelain`, joins it against
+  `scripts/prune-merged-worktrees.sh` walks `git worktree list --porcelain`, joins it against
   `herdr worktree list` for a workspace id when `HERDR_ENV` is set, and after a `git fetch --prune`
   removes every linked worktree whose HEAD is an ancestor of `origin/main` and whose tree is clean apart
   from `graphify-out/graph.json`. A registered checkout goes through `herdr worktree remove --force` so
@@ -1811,9 +1810,17 @@ The planned Rust lanes are implemented. The following deployment check remains.
   merged, with this recipe as the sweep. A live dry run reported six merged, clean worktrees. Operator
   steps left: run a full `chezmoi apply` (KeePassXC unlocked), then `just worktrees-prune --dry-run`
   followed by `just worktrees-prune` for real, confirming no session is still using a listed worktree
-  first since the sweep cannot detect that itself. The full `chezmoi apply` ran and passed on 2026-09-15
-  and `~/.local/libexec/prune-merged-worktrees.sh` is deployed. Still owed: the
-  `just worktrees-prune --dry-run` read and the real run.
+  first since the sweep cannot detect that itself. The full `chezmoi apply` ran and passed on 2026-09-15.
+  The script has since moved out of `dot_local/libexec` to `scripts/`, which chezmoi does not deploy, so
+  the sweep runs from the checkout and needs no apply. Still owed: the `just worktrees-prune --dry-run`
+  read and the real run.
+
+- [ ] 173. `scripts/prune-merged-worktrees.sh` can force-remove a merged checkout whose state it could
+  not read, filed 2026-09-26 from the readability rewrite of the repository's scripts.
+  `worktree_is_clean` calls a checkout clean when `git status --porcelain` lists no uncommitted change,
+  and a `git status` that fails lists nothing, so the checkout reads as clean and is removed with
+  whatever it held. Fix: treat a failed `git status` as not clean, so the checkout is kept and the sweep
+  prints why.
 
 - [x] 57j. Espanso `,,ee` for `echo $?` (operator request 2026-09-14):
   [PR #565](https://github.com/webdavis/dotfiles/pull/565) (`feat/espanso-echo-exit-status`) adds the
@@ -2601,6 +2608,182 @@ producer.
   observe, and no apply needed before or after. OPEN QUESTION for the operator: the 2026-09-15 sweep is
   unattributed, and the audit recorded that as a finding rather than tracing it, because the resulting
   state is exactly what this task was going to ask for approval to reach.
+
+## Apply scripts
+
+The readability rewrite of the apply scripts under `.chezmoiscripts/`, and of the scripts under
+`scripts/`, found these bugs and gaps already in place and left them as they were. Filed 2026-09-26. One
+more from the same rewrite, task 173, sits with the `just worktrees-prune` entry in the uu section.
+
+- [ ] 174. A failed download leaves a new machine without Homebrew for good.
+  `.chezmoiscripts/run_once_before_00-install-homebrew.sh.tmpl` runs `/bin/bash -c "$(curl -fsSL ...)"`.
+  When curl fails, bash is handed an empty string, runs nothing and exits 0, so chezmoi records the
+  `run_once_` script as done. A machine that is offline on its first apply never gets Homebrew. Fix:
+  download the installer in its own step and stop with an error when the download fails.
+
+- [ ] 175. A trusted tap can read as untrusted and stop the apply. In
+  `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl`, `tap_is_trusted` pipes
+  `brew tap-info` into `grep -qx Trusted`. grep quits at its first match, and if brew is still writing,
+  the broken pipe counts as a failure under `pipefail`, so the tap reads as untrusted and the apply stops
+  with `error[untrusted-taps]`. Fix: capture brew's output first, then look for the line in it.
+
+- [ ] 176. `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` writes the Brewfile through
+  an unquoted `<<EOF` block, so a `$` in a declared package name would be expanded by the shell. Fix:
+  quote the end marker (`<<'EOF'`); everything inside is filled in by chezmoi and needs nothing from the
+  shell.
+
+- [ ] 177. A Brewfile that declares only App Store apps stops the apply.
+  `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` sets the App Store lines aside before
+  `brew bundle` runs, and with nothing else declared the `brew bundle` step fails and the apply stops
+  with exit 1. Fix: skip `brew bundle` when the Brewfile holds nothing but App Store lines.
+
+- [ ] 178. Two shared templates still carry prose comments and print `WARNING:` lines:
+  `.chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl`, which the packages script and
+  `.chezmoiscripts/run_after_58-herdr-migration-verify.sh.tmpl` both include, and
+  `.chezmoitemplates/herdr-health-check.sh.tmpl`, which the herdr migration check includes. Those two
+  scripts depend on the names `herdr_health_check`, `brew_bundle_cleanup_guarded`, `$brew_bin` and
+  `BREW_CLEANUP_OUTCOME`. Fix: rewrite both templates to match the rewritten scripts, keeping those four
+  names or renaming them in both scripts in the same pull request.
+
+- [ ] 179. herdr's switch to its preview update channel can be skipped for good.
+  `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl` installs herdr into `~/.local/bin` and
+  then looks for it on PATH. When `~/.local/bin` is not on the apply's PATH, the script prints
+  `herdr is not on PATH, skipping the channel check.` and exits 0, and chezmoi does not run it again
+  until the script itself changes. Fix: when herdr is not on PATH, run it from `~/.local/bin` by its full
+  path, so the switch happens on the same apply.
+
+- [ ] 180. A failed CodeGraph download is never retried.
+  `.chezmoiscripts/run_onchange_after_15-install-codegraph.sh.tmpl` prints `error[download-failed]` and
+  exits 0, so chezmoi records the script as done and does not run it again until the script changes. Fix:
+  exit with an error when the download fails, or add a retry marker line as the Rust builders do, so the
+  next apply tries again.
+
+- [ ] 181. An error message in `.chezmoiscripts/run_onchange_after_20-himalaya-completion.sh.tmpl` can
+  never print. The script runs with `set -e`, so a failing `mktemp` stops it at
+  `working_directory="$(create_working_directory)"`, before the check that would print
+  `error[no-working-directory]: could not create a working directory`. Fix: test the `mktemp` result in
+  the `if` itself so the message prints, and drop the separate directory check.
+
+- [ ] 182. Three failures in `.chezmoiscripts/run_after_35-setup-yt-dlp.sh.tmpl` pass unnoticed. A
+  release lookup whose answer has no `tag_name` hands `git clone` the branch name `null`. A failed
+  `chmod` of the new yt-dlp binary and a failed `mkdir` of the PO token provider's log directory are both
+  ignored, because each carries `|| true`. Fix: treat a missing `tag_name` as a failed lookup, and let a
+  failed `chmod` or `mkdir` stop the script with an error.
+
+- [ ] 183. The yt-dlp PO token provider LaunchAgent can fail to load and nothing says so. Its loader,
+  `.chezmoiscripts/run_onchange_after_36-reload-yt-dlp-pot-launchagent.sh.tmpl`, makes one quiet
+  `launchctl bootstrap` attempt; when that fails the script still exits 0 and chezmoi marks the loader
+  done. The setup script, `.chezmoiscripts/run_after_35-setup-yt-dlp.sh.tmpl`, loads the LaunchAgent on
+  the next apply when it is not running, but its own attempt is just as quiet and also exits 0. The other
+  loaders try three times and then show launchctl's error. Fix: load it through `load_launchagent` from
+  `.chezmoitemplates/load-launchagent.sh.tmpl` in both scripts.
+
+- [ ] 184. posture's allowlist publisher has never managed to refresh the known-good manifests.
+  `posture/crates/posture-adapters/src/publisher.rs` runs
+  `.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh` with `/bin/bash`, which on macOS is
+  bash 3.2 and has no `declare -A`, and without `CHEZMOI_SOURCE_DIR` set, which the line that loads the
+  shared sudo helpers requires (`${CHEZMOI_SOURCE_DIR:?}`). Either one stops the refresh. Fix: have
+  posture run the script through Homebrew's bash with the source directory set, or make the script find
+  its own source directory.
+
+- [ ] 185. Three leftovers in the manifest refresh. In
+  `.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh`, a failing `shasum` of
+  `.chezmoi.toml.tmpl` ends the run with exit 1 and no message, although that step is best effort, and
+  the refusal to install an empty manifest can never trigger. In
+  `dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh`, a comment still says "Tests pin the
+  literals equal", and no test does. Fix: let the hash step fail with a printed line and carry on, remove
+  the refusal that can never trigger, and correct the comment.
+
+- [ ] 186. An empty herdr plugin roster would break
+  `.chezmoiscripts/run_after_53-install-herdr-third-party-plugins.sh.tmpl`. Its `install_roster_plugins`
+  body is filled in from the roster, and with no entries the body is empty, which bash rejects. The lint
+  gate would catch it before a merge. Fix: give the function body a line that stays valid when the roster
+  is empty.
+
+- [ ] 187. The lights builder, `.chezmoiscripts/run_onchange_after_54-build-lights.sh.tmpl`, never clears
+  its retry marker after a successful build, unlike the other builders, and its hash lines skip
+  `lights/rust-toolchain.toml`, which the pns, posture and uu builders hash. Fix: clear the marker once
+  the build succeeds, and hash the toolchain file so a toolchain change rebuilds lights.
+
+- [ ] 188. `.chezmoiscripts/run_after_56-retire-claude-code-launchagent.sh.tmpl` prints two errors for
+  one failure. When `launchctl bootout` itself fails, the script reports both `error[bootout-failed]` and
+  `error[still-loaded]` ("STILL loaded after bootout"). Fix: when the bootout fails, print only the
+  bootout error.
+
+- [ ] 189. `.chezmoiscripts/run_onchange_after_57-install-cargo-git-tools.sh.tmpl` repeats the roster in
+  comment lines at its top, which were there to rerun the script when the roster changed. The install
+  calls filled in below now carry every field (name, repository, package and revision), so those comment
+  lines add nothing. Fix: remove them.
+
+- [ ] 190. A message in `.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` still
+  names `run_once_before_20` as the script that installs rustup. That script is now
+  `.chezmoiscripts/run_before_20-install-rustup.sh.tmpl`. Fix: name the current script.
+
+- [ ] 191. herdr plugin registration has been deferred nine times on this machine. Both retry markers
+  that `.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` keeps,
+  `~/.cache/herdr-plugin-build/herdr-process.retry` and
+  `~/.cache/herdr-plugin-build/herdr-workspace-jump.retry`, read 9. Fix: read the reason the builder
+  prints on the next apply, fix that cause, and confirm both markers are gone after a successful build.
+
+- [ ] 192. The pns builder's retry marker holds a count that nothing reads.
+  `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl` writes an attempt count into
+  `~/.cache/pns-build/engine.retry`, but its hash line uses only the file's modification time. Fix:
+  either drop the count and just touch the marker, or make something read it.
+
+- [ ] 193. The posture builder, `.chezmoiscripts/run_onchange_after_58-build-posture.sh.tmpl`, never
+  checks whether its build record path is a symlink or a directory; the pns builder does. Fix: add the
+  same check to the posture builder.
+
+- [ ] 194. The uu builder, `.chezmoiscripts/run_onchange_after_59-build-uu.sh.tmpl`, keeps its own copy
+  of the same retry counter (`bump_retry_marker`) instead of calling the shared build library's
+  `increment_retry_attempts`. uu's builder is due to be deleted, so this matters only if it survives.
+  Fix: call the library function, following whatever task 192 settles about the count.
+
+- [ ] 195. Two scripts that run on every apply print even when there is nothing to do. The osquery
+  converge, `.chezmoiscripts/run_after_59-setup-osquery.sh`, and the Codex hook relay,
+  `.chezmoiscripts/run_after_72-relay-codex-hooks.sh.tmpl`, print a start line and a finish line every
+  time, as the LaunchAgent loaders do when they run. `run_after_11-verify-homebrew-pins.sh.tmpl` and
+  `run_after_68-hermes-log-route-status.sh.tmpl` stay silent when all is well, and 11's unit test
+  requires it. Fix: make 59 and 72 print nothing when all is well, so an apply with nothing to do stays
+  quiet.
+
+- [ ] 196. The six osquery LaunchAgent loaders,
+  `.chezmoiscripts/run_onchange_after_60-load-osquery-*-launchagent.sh.tmpl`, reload their LaunchAgents
+  without checking that the posture binary exists. The uu (71) and scalebar (74) loaders check their
+  binary first and leave the loaded LaunchAgent alone when it is missing. Fix: add the same check to the
+  six osquery loaders.
+
+- [ ] 197. When the last `launchctl bootstrap` attempt fails, the LaunchAgent loaders stop with
+  launchctl's own error and exit code instead of an `error[...]` line like the rest of the rewritten
+  scripts. That covers the atuin (38), pns (the two at 70) and scalebar (74) loaders and the six osquery
+  loaders (60). Fix: print an `error[...]` line from `.chezmoitemplates/load-launchagent.sh.tmpl` when
+  the last attempt fails; making the loaders uniform needs that template change plus edits to all eleven
+  scripts that include it.
+
+- [ ] 198. The moshi-hook daemon can miss its restart after an upgrade.
+  `.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl` pipes `lsof` into an `awk` that
+  exits at its first match. When `lsof` prints a lot, that early exit breaks the pipe, the read fails,
+  and the daemon is never restarted. The script also runs `stat -f '%i'`, which assumes the BSD `stat` is
+  first on PATH. Fix: let `awk` read to the end, and call `/usr/bin/stat` by its full path.
+
+- [ ] 199. Two small gaps around `.chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl`. When the
+  gateway cannot be reached, curl prints `000` and the `|| echo` fallback adds another `000`, so the
+  status reads `000000`; this is harmless, since only 404 is checked. And
+  `scripts/chezmoi-apply-logged.sh` drops every line that starts with a space as diff content, so the
+  indented fix lines that 68 prints never reach the apply log. Fix: drop the fallback, and either have
+  the logger withhold only lines inside a diff or have 68 stop indenting its fix lines.
+
+- [ ] 200. The hash lines that decide when chezmoi reruns a script sit in two different places. The
+  LaunchAgent loaders put them right after the first line (`#!/usr/bin/env bash`);
+  `.chezmoiscripts/run_onchange_after_80-bootstrap-nvim.sh.tmpl` puts them after `set -euo pipefail`.
+  Fix: move the Neovim bootstrap's hash lines up to just after its first line, so every script keeps them
+  in the same place.
+
+- [ ] 201. The macOS defaults tools report a missing system setting as unreadable. On this Mac,
+  `defaults read` of a missing key prints "Could not find key", but
+  `scripts/macos-defaults/helpers/defaults-records.sh` looks for "does not exist", so a missing
+  system-scope key comes back as unreadable (exit 3) instead of unset (exit 1). Fix: match "Could not
+  find key" as well.
 
 ## Waiting on the operator
 
