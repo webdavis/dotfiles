@@ -1,0 +1,34 @@
+# shellcheck shell=bash
+
+readonly cargo_bin="$HOME/.cargo/bin/cargo"
+
+cargo_is_installed() {
+  [[ -x $cargo_bin ]]
+}
+
+build_release_binary() {
+  local workspace_dir=$1 binary_name=$2
+  (cd "$workspace_dir" && "$cargo_bin" build --release --locked --quiet --bin "$binary_name")
+}
+
+build_failed() {
+  local build_status=$1
+  ((build_status != 0))
+}
+
+install_release_binary() {
+  local built_binary=$1 installed_binary=$2
+  mkdir -p "$(dirname "$installed_binary")"
+  /usr/bin/install -m 755 "$built_binary" "$installed_binary"
+}
+
+defer_build_until_next_apply() {
+  local retry_marker=$1
+  mkdir -p "$(dirname "$retry_marker")"
+  touch "$retry_marker"
+}
+
+settle_retry_marker() {
+  local retry_marker=$1
+  rm -f "$retry_marker"
+}
