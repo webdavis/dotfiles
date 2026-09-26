@@ -45,7 +45,8 @@ fn spawn(
     if budget.is_zero() {
         return Err(runner.overrun(&Ended::Stopped, b""));
     }
-    match bounded_spawn_in(program, args, Stdio::null(), budget, env) {
+    let environment = super::lane_environment(env);
+    match bounded_spawn_in(program, args, Stdio::null(), budget, &environment) {
         Spawned::Ran(finished) => Ok(finished),
         Spawned::NotRunnable(why) => Err(why),
         Spawned::SpawnStuck => Err(super::overrun::spawn_stuck(
@@ -184,6 +185,21 @@ mod children {
             )
             .expect("the child runs");
         assert_eq!(composed, "/fnm/bin");
+    }
+
+    #[test]
+    fn a_child_in_the_environment_its_lane_chose_is_handed_no_color() {
+        // AN ISOLATED ENVIRONMENT, so the value can only be uu's and never the
+        // one the shell running the tests exported.
+        let named = runner()
+            .run_in(
+                "/bin/sh",
+                &["-c", r#"printf %s "${NO_COLOR-unset}""#],
+                &Environment::only(&std::collections::BTreeMap::new()),
+                None,
+            )
+            .expect("the child runs");
+        assert_eq!(named, "1");
     }
 
     #[test]
