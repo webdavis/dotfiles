@@ -1,64 +1,101 @@
 #!/usr/bin/env bash
-# treefmt formatter: render chezmoi shell templates and shellcheck the result.
-#
-# The old treefmt.nix discovered the safe-to-render set at nix eval time via
-# scripts/render-coverage-classifier.nix. Standalone treefmt has no eval stage,
-# so treefmt.toml hands this script EVERY .chezmoiscripts/*.sh.tmpl and root
-# dot_*.tmpl, and the classification happens here per file:
-#   - not a shell template (no shell shebang / shellcheck directive in the
-#     leading lines, template directives skipped)      -> skip
-#   - the file, or any .chezmoitemplates partial it includes transitively,
-#     invokes keepassxc (needs an interactive unlock)  -> skip
-#   - otherwise render and shellcheck (blank successful render = skip, render
-#     failure = fatal), via scripts/treefmt/lib-shellcheck-rendered-template.sh.
+
 set -uo pipefail
 
-lib="$(dirname "${BASH_SOURCE[0]}")/lib-shellcheck-rendered-template.sh"
-# shellcheck source=/dev/null
-source "$lib"
+treefmt_scripts_dir="$(dirname "${BASH_SOURCE[0]}")"
 
-# shellcheck source=/dev/null
-source "$(dirname "${BASH_SOURCE[0]}")/lib-render-context.sh"
-init_render_context || exit 1
+# shellcheck source=scripts/treefmt/lib-shellcheck-rendered-template.sh
+source "$treefmt_scripts_dir/lib-shellcheck-rendered-template.sh"
+# shellcheck source=scripts/treefmt/lib-render-context.sh
+source "$treefmt_scripts_dir/lib-render-context.sh"
+
+readonly leading_lines_that_decide_the_shell=10
+readonly chezmoi_partials_dir='.chezmoitemplates'
+
+line_is_blank() {
+  local line=$1
+  [[ $line =~ ^[[:space:]]*$ ]]
+}
+
+line_is_only_a_template_directive() {
+  local line=$1
+  [[ $line =~ ^\{\{.*\}\}[[:space:]]*$ ]]
+}
+
+line_is_a_shebang() {
+  local line=$1
+  [[ $line =~ ^#! ]]
+}
+
+shebang_names_a_shell() {
+  local shebang=$1
+  [[ $shebang =~ sh ]]
+}
+
+line_is_a_shellcheck_shell_directive() {
+  local line=$1
+  [[ $line =~ ^#[[:space:]]*shellcheck[[:space:]]+shell= ]]
+}
 
 is_shell_template() {
-  local file="$1" line n=0
-  while IFS= read -r line && ((n < 10)); do
-    n=$((n + 1))
-    # Pure template-directive or blank lines don't decide either way.
-    [[ $line =~ ^[[:space:]]*$ ]] && continue
-    [[ $line =~ ^\{\{.*\}\}[[:space:]]*$ ]] && continue
-    [[ $line =~ ^#! ]] && { [[ $line =~ sh ]] && return 0 || return 1; }
-    [[ $line =~ ^#[[:space:]]*shellcheck[[:space:]]+shell= ]] && return 0
-    return 1
+  local file=$1
+  local line lines_read=0
+  while IFS= read -r line && ((lines_read < leading_lines_that_decide_the_shell)); do
+    lines_read=$((lines_read + 1))
+    if line_is_blank "$line" || line_is_only_a_template_directive "$line"; then
+      continue
+    fi
+    if line_is_a_shebang "$line"; then
+      shebang_names_a_shell "$line"
+      return
+    fi
+    line_is_a_shellcheck_shell_directive "$line"
+    return
   done <"$file"
   return 1
 }
 
-# Transitive keepassxc scan: the file plus every includeTemplate partial it
-# reaches. Grep is deliberately broad (any mention inside the file); the cost
-# of over-matching is one skipped lint, never a false failure.
-renders_unsafe() {
-  local queue=("$1") seen=() f name partial
-  while ((${#queue[@]})); do
-    f="${queue[0]}"
-    queue=("${queue[@]:1}")
-    for s in "${seen[@]:-}"; do [[ $s == "$f" ]] && continue 2; done
-    seen+=("$f")
-    [[ -r $f ]] || continue
-    grep -q 'keepassxc' "$f" && return 0
-    while IFS= read -r name; do
-      partial=".chezmoitemplates/$name"
-      queue+=("$partial")
-    done < <(grep -o 'includeTemplate "[^"]*"' "$f" | sed 's/includeTemplate "//; s/"$//')
+file_mentions_keepassxc() {
+  local file=$1
+  grep -q 'keepassxc' "$file"
+}
+
+partials_included_by() {
+  local file=$1
+  grep -o 'includeTemplate "[^"]*"' "$file" | sed 's/includeTemplate "//; s/"$//'
+}
+
+template_or_its_partials_use_keepassxc() {
+  local file=$1
+  local -a unvisited=("$file") visited=()
+  local current visited_file partial_name
+  while ((${#unvisited[@]})); do
+    current="${unvisited[0]}"
+    unvisited=("${unvisited[@]:1}")
+    for visited_file in "${visited[@]:-}"; do
+      [[ $visited_file == "$current" ]] && continue 2
+    done
+    visited+=("$current")
+    [[ -r $current ]] || continue
+    if file_mentions_keepassxc "$current"; then
+      return 0
+    fi
+    while IFS= read -r partial_name; do
+      unvisited+=("$chezmoi_partials_dir/$partial_name")
+    done < <(partials_included_by "$current")
   done
   return 1
 }
 
-status=0
-for file; do
-  is_shell_template "$file" || continue
-  renders_unsafe "$file" && continue
-  render_and_shellcheck_one "$file" || status=1
-done
-exit "$status"
+main() {
+  local file status=0
+  init_render_context || exit 1
+  for file in "$@"; do
+    is_shell_template "$file" || continue
+    template_or_its_partials_use_keepassxc "$file" && continue
+    render_and_shellcheck_one "$file" || status=1
+  done
+  exit "$status"
+}
+
+main "$@"
