@@ -1,21 +1,33 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-report_section 'rustup' 'install rustc (Rust compiler) and cargo'
+readonly cargo_bin_dir="$HOME/.cargo/bin"
+readonly rustup_installer_url="https://sh.rustup.rs"
 
-cargo_bin_dir="$HOME/.cargo/bin"
+cargo_is_installed() {
+  "$cargo_bin_dir/cargo" --version &>/dev/null
+}
 
-if "$cargo_bin_dir/cargo" --version &>/dev/null; then
-  report_line "already installed, skipping."
-  exit 0
-fi
+install_rustup_unattended() {
+  curl --proto '=https' --tlsv1.2 -sSf "$rustup_installer_url" | sh -s -- -y
+}
 
-report_line "installing..."
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+main() {
+  report_section 'rustup' 'install rustc (Rust compiler) and cargo'
 
-report_line "installed to ${cargo_bin_dir}."
+  if cargo_is_installed; then
+    report_line "already installed, skipping."
+    return
+  fi
+
+  report_line "installing..."
+  install_rustup_unattended
+  report_line "installed to $cargo_bin_dir."
+}
+
+main "$@"
 {{ end -}}
