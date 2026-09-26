@@ -1,15 +1,32 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
+
 set -euo pipefail
 
-# Bootstrap Homebrew on fresh macOS machines. Every other script in this
-# repo (package manifest, autoupdate, etc.) assumes /opt/homebrew/bin/brew
-# exists; this script ensures that.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-if command -v brew &>/dev/null; then
-  exit 0
-fi
+readonly homebrew_installer_url="https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
 
-echo "Homebrew not found. Installing..."
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+homebrew_is_installed() {
+  command -v brew &>/dev/null
+}
+
+install_homebrew() {
+  /bin/bash -c "$(curl -fsSL "$homebrew_installer_url")"
+}
+
+main() {
+  report_section 'homebrew' 'package manager'
+
+  if homebrew_is_installed; then
+    report_line "already installed, skipping."
+    return
+  fi
+
+  report_line "not found, installing..."
+  install_homebrew
+  report_line "installed Homebrew."
+}
+
+main "$@"
 {{ end -}}

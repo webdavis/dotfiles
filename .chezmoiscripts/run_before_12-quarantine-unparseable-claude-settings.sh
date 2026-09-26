@@ -1,67 +1,75 @@
-#!/bin/bash
-# Move an unreadable ~/.claude/settings.json out of the way before the settings
-# modify-template reads it.
-#
-# WHY. private_dot_claude/modify_settings.json is a chezmoi modify-template: it
-# receives the live ~/.claude/settings.json on .chezmoi.stdin and hands it to
-# fromJson, which HARD ERRORS on input that is not JSON. A modify-template that
-# errors aborts the WHOLE apply rather than one target, so every later target and
-# every run_after_ script is skipped and the corrupt file is left in place, which
-# means permissions.deny is not restored either. No template can catch it:
-# chezmoi's three JSON readers all fail the template on bad input and Go's
-# text/template has no recover, so the repair has to run BEFORE the template.
-# test/unit/claude-enabled-plugins.sh pins that limit from the template's side.
-#
-# WHAT IT DOES. An unreadable file is MOVED (never deleted) into
-# ~/workspaces/backups and replaced with `{}`, so the same apply rebuilds every
-# stable field from source. A readable file is left byte-identical and an absent
-# one is left absent, so the common case is a no-op. Idempotent: what a
-# quarantine leaves behind is readable, so the next run does nothing.
-#
-# WHAT THE MOVE COSTS. Per-plugin state (the boolean `claude plugin disable`
-# writes, or a version pin) is READ from the live file rather than declared in
-# the template, so a quarantine loses it and every declared plugin comes back
-# enabled. The warning below says so. The alternative is an apply that cannot run
-# at all.
-#
-# Ordering: after 10-system-packages, which is where jq comes from.
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-settings="$HOME/.claude/settings.json"
-backup_dir="$HOME/workspaces/backups"
+# shellcheck source=.chezmoitemplates/cli-print-style-lib.sh.tmpl
+source "${CHEZMOI_SOURCE_DIR:?}/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 
-warn() { printf 'quarantine-claude-settings: WARNING -- %s\n' "$*" >&2; }
+readonly settings_file="$HOME/.claude/settings.json"
+readonly backup_directory="$HOME/workspaces/backups"
+readonly backup_file_suffix="claude-settings-quarantined.backup.json"
 
-[[ -f $settings ]] || exit 0
+settings_file_exists() {
+  [[ -f $settings_file ]]
+}
 
-# No parser, no verdict. A fresh machine reaches this before Homebrew has
-# installed jq, and a false positive would destroy a healthy settings file, so
-# "cannot tell" leaves the file alone.
-command -v jq >/dev/null 2>&1 || exit 0
+jq_is_installed() {
+  command -v jq >/dev/null 2>&1
+}
 
-# Readable means the file holds AT MOST ONE JSON value. `jq empty` alone is not
-# that test: it accepts a STREAM of values, so `{"a": 1}{"b": 2}` passes it while
-# Go's encoding/json rejects it (`invalid character '{' after top-level value`)
-# and the template dies on exactly the file jq called fine. Slurping and counting
-# is the single-value test. Zero values (an empty or whitespace-only file) count
-# as readable on purpose: the template trims its stdin and treats that shape as
-# an absent file. Every JSON value is accepted, an object or otherwise, because
-# the template survives a whole-file `null` and a whole-file array too.
-if jq -e -s 'length <= 1' <"$settings" >/dev/null 2>&1; then
-  exit 0
-fi
+settings_file_holds_at_most_one_json_value() {
+  jq -e -s 'length <= 1' <"$settings_file" >/dev/null 2>&1
+}
 
-# ISO 8601 with hyphens inside the timestamp: BSD date has no -Is, and a colon in
-# a filename is a poor idea on macOS anyway.
-backup="$backup_dir/$(date -u +"%Y-%m-%dT%H-%M-%S").claude-settings-quarantined.backup.json"
+filename_safe_utc_timestamp() {
+  date -u +"%Y-%m-%dT%H-%M-%S"
+}
 
-if ! mkdir -p "$backup_dir" || ! mv "$settings" "$backup"; then
-  warn "$settings does not parse and could not be moved into $backup_dir."
-  warn "The apply will fail in modify_settings.json until that file is repaired by hand."
-  exit 0
-fi
+move_settings_file_into_backups() {
+  local backup_file=$1
+  mkdir -p "$backup_directory" && mv "$settings_file" "$backup_file"
+}
 
-warn "$settings did not parse. It was MOVED to $backup and replaced with an empty object."
-warn "This apply rebuilds the managed fields. It does NOT restore per-plugin state: re-run 'claude plugin disable <id>' for anything that was disabled."
-printf '{}\n' >"$settings"
+write_empty_json_object_to_settings_file() {
+  printf '{}\n' >"$settings_file"
+}
+
+quarantine_settings_file() {
+  local timestamp
+  timestamp="$(filename_safe_utc_timestamp)"
+  local backup_file="$backup_directory/$timestamp.$backup_file_suffix"
+
+  report_line "settings.json does not parse, moving it into $backup_directory..."
+  if ! move_settings_file_into_backups "$backup_file"; then
+    report_line "error[move-failed]: $settings_file does not parse and could not be moved into $backup_directory." >&2
+    report_line "The apply will fail in modify_settings.json until that file is repaired by hand." >&2
+    return
+  fi
+
+  report_line "error[unparseable-settings]: $settings_file did not parse. It was moved to $backup_file and replaced with an empty object." >&2
+  report_line "This apply rebuilds the managed fields. It does not restore per-plugin state: re-run 'claude plugin disable <id>' for anything that was disabled." >&2
+  write_empty_json_object_to_settings_file
+}
+
+main() {
+  report_section 'claude' 'settings.json parse check'
+
+  if ! settings_file_exists; then
+    report_line "no settings.json to check, skipping."
+    return
+  fi
+
+  if ! jq_is_installed; then
+    report_line "jq is not installed yet, so settings.json cannot be checked, skipping."
+    return
+  fi
+
+  if settings_file_holds_at_most_one_json_value; then
+    report_line "settings.json parses, skipping."
+    return
+  fi
+
+  quarantine_settings_file
+}
+
+main "$@"
