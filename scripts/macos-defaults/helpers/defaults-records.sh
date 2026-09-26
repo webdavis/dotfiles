@@ -273,7 +273,7 @@ data_file_document_count() {
   local data_file=$1
   local line start_marker_count=0 content_before_first_marker=0
   file_is_readable "$data_file" || return 1
-  while IFS= read -r line || [[ -n $line ]]; do
+  while IFS= read -r line || ! text_is_empty "$line"; do
     if line_starts_a_yaml_document "$line"; then
       start_marker_count=$((start_marker_count + 1))
     elif no_document_start_seen_yet "$start_marker_count" && data_file_line_carries_document_content "$line"; then
