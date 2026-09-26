@@ -78,7 +78,7 @@ impl AllowlistPublisher {
                     root.pop();
                 }
                 root.extend_from_slice(
-                    b"/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh",
+                    b"/.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh",
                 );
                 PathBuf::from(OsString::from_vec(root))
             }

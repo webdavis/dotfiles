@@ -180,7 +180,7 @@ else
     had_record=1
   fi
   mv -f "$next_record" "$build_record"
-  if ! bash "${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh" --pipeline-only; then
+  if ! bash "${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh" --pipeline-only; then
     if [[ $had_record == 1 ]]; then
       mv -f "$previous_record" "$build_record"
     else
