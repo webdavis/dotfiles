@@ -1,0 +1,77 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+tailnet_pin_source_dir={{ joinPath .chezmoi.sourceDir "tailnet-pin" | quote }}
+built_tailnet_pin="$tailnet_pin_source_dir/target/release/tailnet-pin"
+install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+installed_tailnet_pin="$install_dir/tailnet-pin"
+cargo_bin="$HOME/.cargo/bin/cargo"
+build_state_dir="$HOME/.cache/tailnet-pin-build"
+installed_source_fingerprint_file="$build_state_dir/installed.fingerprint"
+current_source_fingerprint={{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum | quote }}
+
+tailnet_pin_is_installed() {
+  [[ -x $installed_tailnet_pin ]]
+}
+
+read_installed_source_fingerprint() {
+  if [[ -r $installed_source_fingerprint_file ]]; then
+    cat "$installed_source_fingerprint_file"
+  fi
+}
+
+installed_fingerprint_matches_current_source() {
+  [[ $(read_installed_source_fingerprint) == "$current_source_fingerprint" ]]
+}
+
+cargo_is_installed() {
+  [[ -x $cargo_bin ]]
+}
+
+build_release_binary() {
+  (cd "$tailnet_pin_source_dir" && "$cargo_bin" build --release --locked --quiet --bin tailnet-pin)
+}
+
+install_release_binary() {
+  mkdir -p "$install_dir"
+  /usr/bin/install -m 755 "$built_tailnet_pin" "$installed_tailnet_pin"
+}
+
+record_installed_source_fingerprint() {
+  mkdir -p "$build_state_dir"
+  printf '%s\n' "$current_source_fingerprint" >"$installed_source_fingerprint_file"
+}
+
+main() {
+  report_section 'tailnet-pin' 'MagicDNS fallback pin tool'
+
+  if tailnet_pin_is_installed && installed_fingerprint_matches_current_source; then
+    report_line "up to date, skipping."
+    return
+  fi
+
+  if ! cargo_is_installed; then
+    report_line "error[missing-tool]: cargo is not at $cargo_bin; tailnet-pin was not built." >&2
+    exit 1
+  fi
+
+  report_line "building the release binary..."
+  if ! build_release_binary; then
+    report_line "error[build-failed]: tailnet-pin did not build; see cargo's output above." >&2
+    exit 1
+  fi
+  report_line "built $built_tailnet_pin."
+
+  report_line "installing the release binary..."
+  install_release_binary
+  report_line "installed $installed_tailnet_pin."
+
+  record_installed_source_fingerprint
+  report_line "recorded the source fingerprint."
+}
+
+main "$@"
+{{ end -}}
