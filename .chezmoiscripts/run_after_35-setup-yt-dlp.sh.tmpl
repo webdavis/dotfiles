@@ -66,7 +66,7 @@ install_nightly_ytdlp() {
     report_line "error[download-failed]: could not download yt-dlp." >&2
     return
   fi
-  make_ytdlp_executable
+  make_ytdlp_executable || true
   report_line "installed $ytdlp_binary."
 
   report_line "switching yt-dlp to the nightly channel..."
@@ -200,7 +200,7 @@ main() {
     report_line "error[missing-plist]: $provider_launchagent_plist is not deployed; the PO token provider LaunchAgent was not loaded." >&2
     exit 1
   fi
-  create_provider_log_directory
+  create_provider_log_directory || true
   load_provider_launchagent
 }
 
