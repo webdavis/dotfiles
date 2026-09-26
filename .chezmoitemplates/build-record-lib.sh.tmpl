@@ -1,0 +1,105 @@
+# shellcheck shell=bash
+
+readonly rustc_bin="$HOME/.cargo/bin/rustc"
+readonly pipeline_manifest_refresher='.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh'
+
+next_build_record=''
+previous_build_record=''
+previous_build_record_saved=no
+
+make_new_files_private() {
+  umask 077
+}
+
+artifact_size_in_bytes() {
+  local artifact=$1
+  wc -c <"$artifact" | tr -d ' '
+}
+
+artifact_size_is_allowed() {
+  local artifact_bytes=$1 max_artifact_bytes=$2
+  ((artifact_bytes != 0 && artifact_bytes <= max_artifact_bytes))
+}
+
+artifact_sha256() {
+  local artifact=$1
+  shasum -a 256 "$artifact" | awk '{print $1}'
+}
+
+is_a_sha256_digest() {
+  local digest=$1
+  [[ $digest =~ ^[0-9a-f]{64}$ ]]
+}
+
+compiler_version() {
+  local workspace_dir=$1
+  (cd "$workspace_dir" && "$rustc_bin" --version --verbose)
+}
+
+create_install_directory() {
+  local directory=$1
+  mkdir -p "$directory"
+}
+
+remove_temporary_build_records_on_exit() {
+  trap 'rm -f "$next_build_record" "$previous_build_record"' EXIT
+}
+
+create_temporary_build_records() {
+  local build_record=$1
+  mkdir -p "$(dirname "$build_record")"
+  next_build_record="$(mktemp "${build_record}.new.XXXXXX")"
+  previous_build_record="$(mktemp "${build_record}.previous.XXXXXX")"
+  remove_temporary_build_records_on_exit
+}
+
+write_next_build_record() {
+  local artifact_hash=$1 artifact_bytes=$2 compiler=$3
+  printf 'sha256 %s\nbytes %s\n%s\n' "$artifact_hash" "$artifact_bytes" "$compiler" >"$next_build_record"
+  chmod 600 "$next_build_record"
+}
+
+build_is_already_published() {
+  local built_binary=$1 installed_binary=$2 build_record=$3
+  cmp -s "$built_binary" "$installed_binary" && cmp -s "$next_build_record" "$build_record"
+}
+
+keep_build_record_private() {
+  local build_record=$1
+  chmod 600 "$build_record"
+}
+
+build_record_exists() {
+  local build_record=$1
+  [[ -f $build_record ]]
+}
+
+save_previous_build_record() {
+  local build_record=$1
+  if build_record_exists "$build_record"; then
+    cp -p "$build_record" "$previous_build_record"
+    previous_build_record_saved=yes
+  fi
+}
+
+publish_next_build_record() {
+  local build_record=$1
+  mv -f "$next_build_record" "$build_record"
+}
+
+refresh_pipeline_manifest() {
+  bash "${CHEZMOI_SOURCE_DIR:?}/$pipeline_manifest_refresher" --pipeline-only
+}
+
+previous_build_record_was_saved() {
+  [[ $previous_build_record_saved == yes ]]
+}
+
+roll_back_build_record() {
+  local build_record=$1
+  if previous_build_record_was_saved; then
+    mv -f "$previous_build_record" "$build_record"
+  else
+    rm -f "$build_record"
+  fi
+}

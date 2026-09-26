@@ -1,158 +1,114 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+{{ $posture := joinPath .chezmoi.sourceDir "posture" -}}
+#!/usr/bin/env bash
 
 set -euo pipefail
-umask 077
 
-# Builds the posture binary and installs it where the osquery LaunchAgents will
-# run it. The workspace is repository SOURCE at the monorepo root and never
-# deploys to $HOME, so this compiles out of the chezmoi source directory;
-# nothing else compiles it, so without this script every plist repointed at the
-# binary would find nothing there.
-#
-# Re-runs whenever a build input changes. Two kinds are hashed below, globbed
-# rather than listed so a new module or workspace member cannot miss the
-# trigger: the workspace's own sources, manifests and lock; and the compiler,
-# by the MODIFICATION TIME of every installed toolchain's rustc
-# (never its contents: reading a file at render time aborts the apply on an
-# unreadable node and hangs on a FIFO), so a `rustup update` re-fires the build
-# and the record below moves with the bytes in the same run. Every toolchain is
-# statted rather than the one rustup calls active, because finding the active
-# one would mean reading settings.toml at render time; an update to a toolchain
-# cargo does not use re-fires a build that produces identical bytes and
-# installs nothing.
-#
-# THE SOURCE GLOBS TAKE EVERY EXTENSION, not `.rs` alone: an `include_str!` or
-# `include_bytes!` compiles a fixture into the binary, and this workspace has
-# several. They are also scoped to `crates/` rather than the workspace root,
-# which is what keeps cargo's `target/` out; hashing the artifacts this script
-# produces would move the trigger on every build and make a fresh checkout
-# disagree with a built one. `stat` drops the directories the glob returns
-# beside the files, because `include` on a directory errors and an erroring
-# template aborts the whole apply.
-{{ $crate := joinPath .chezmoi.sourceDir "posture" -}}
 {{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
-{{ range (glob (joinPath $crate $pattern)) }}
-{{- if not (stat .).isDir }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-{{- end }}
-{{- end }}
-{{- range (glob (joinPath $crate "build.rs")) }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-#   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
-#   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
-#   rust-toolchain.toml {{ include (joinPath $crate "rust-toolchain.toml") | sha256sum }}
-{{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-{{- range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) }}
-#   {{ . }} {{ (stat .).modTime }}
-{{- end }}
-#
-# Retry state: chezmoi records a
-# run_onchange script as done on ANY exit 0, so a skipped build (no toolchain,
-# no deployed source) must change this rendered script to re-fire on the next
-# apply. Every deferral appends a byte, so the marker's size changes even
-# within one second. Rendering stats the marker without reading its contents.
-#   retry-marker: {{ $rm := printf "%s/.cache/posture-build/posture.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).size }}{{ else }}settled{{ end }}
+{{ range (glob (joinPath $posture $pattern)) -}}
+{{ if not (stat .).isDir -}}
+# {{ . }} {{ include . | sha256sum }}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+{{ range (glob (joinPath $posture "build.rs")) -}}
+# {{ . }} {{ include . | sha256sum }}
+{{ end -}}
+# Cargo.toml {{ include (joinPath $posture "Cargo.toml") | sha256sum }}
+# Cargo.lock {{ include (joinPath $posture "Cargo.lock") | sha256sum }}
+# rust-toolchain.toml {{ include (joinPath $posture "rust-toolchain.toml") | sha256sum }}
+{{ range (glob (joinPath $posture "crates/*/Cargo.toml")) -}}
+# {{ . }} {{ include . | sha256sum }}
+{{ end -}}
+{{ range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) -}}
+# {{ . }} {{ (stat .).modTime }}
+{{ end -}}
+# retry-marker: {{ $retryMarker := printf "%s/.cache/posture-build/posture.retry" (env "HOME") }}{{ if stat $retryMarker }}{{ (stat $retryMarker).size }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "rust-build-lib.sh.tmpl" }}
+{{ includeTemplate "build-record-lib.sh.tmpl" }}
 
-crate_dir={{ $crate | quote }}
-# ~/.cargo/bin, declared once in .chezmoidata/rust_tools.yaml. Scheduled jobs
-# and the operator share this installed entry point.
-install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
-binary="$install_dir/posture"
-artifact="$crate_dir/target/release/posture"
-retry_marker="$HOME/.cache/posture-build/posture.retry"
-build_record="$HOME/.local/state/posture-build-record"
-# Per-tool, from .chezmoidata/rust_tools.yaml: pns is an order of magnitude
-# larger, so one shared ceiling means one of the two is sized wrong.
-max_artifact_bytes={{ .rust_tools.max_artifact_bytes.posture }}
+readonly posture_workspace_dir={{ $posture | quote }}
+readonly built_posture="$posture_workspace_dir/target/release/posture"
+readonly install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+readonly installed_posture="$install_dir/posture"
+readonly posture_build_record="$HOME/.local/state/posture-build-record"
+readonly posture_max_artifact_bytes={{ .rust_tools.max_artifact_bytes.posture }}
+readonly posture_retry_marker="$HOME/.cache/posture-build/posture.retry"
 
-# Deterministic paths, never a PATH probe: a fresh machine provisions rustup
-# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
-cargo_bin="$HOME/.cargo/bin/cargo"
-
-bump_retry_marker() {
-  mkdir -p "$(dirname "$retry_marker")"
-  printf 'x' >>"$retry_marker"
+grow_retry_marker_by_one_byte() {
+  mkdir -p "$(dirname "$posture_retry_marker")"
+  printf 'x' >>"$posture_retry_marker"
 }
 
-if [[ ! -x $cargo_bin ]]; then
-  report_line 'posture: cargo not found at ~/.cargo/bin/cargo; build deferred to the next apply.' >&2
-  bump_retry_marker
-  exit 0
-fi
+make_installed_posture_executable() {
+  chmod 755 "$installed_posture"
+}
 
-# The two "source is not deployed yet" deferrals that used to sit here are gone
-# with the monorepo move. Both workspaces are read out of the chezmoi source
-# directory now, and the hash comment above already `include`s each manifest at
-# render time, so a missing one aborts the apply before this script is written
-# rather than reaching a runtime guard.
+main() {
+  make_new_files_private
+  report_section 'posture' 'osquery security tools'
 
-report_section 'posture'
-report_line 'building the release binary'
-# A build failure exits non-zero, which chezmoi does not record, so it retries
-# on its own without touching the marker.
-# --locked: build exactly the committed lock, so an apply can never rewrite the
-# deployed lockfile or pull a dependency the lock never recorded.
-# --bin posture: the one target ever installed.
-# RUN FROM THE CRATE DIRECTORY, not with `--manifest-path`. rustup resolves a
-# toolchain by walking up from the CURRENT directory, so a `--manifest-path`
-# build reads $HOME's toolchain (a chezmoiscript's working directory) and
-# silently ignores the crate's `rust-toolchain.toml`.
-(cd "$crate_dir" && "$cargo_bin" build --release --locked --quiet --bin posture)
-
-# Never publish a tuple the audit cannot verify.
-artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
-if ((artifact_bytes == 0 || artifact_bytes > max_artifact_bytes)); then
-  printf 'posture: refusing artifact of %s bytes (allowed 1..%s)\n' "$artifact_bytes" "$max_artifact_bytes" >&2
-  exit 1
-fi
-artifact_hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"
-[[ $artifact_hash =~ ^[0-9a-f]{64}$ ]] || exit 1
-compiler="$(cd "$crate_dir" && "$HOME/.cargo/bin/rustc" --version --verbose)"
-
-mkdir -p "$(dirname "$build_record")" "$install_dir"
-next_record="$(mktemp "${build_record}.new.XXXXXX")"
-previous_record="$(mktemp "${build_record}.previous.XXXXXX")"
-trap 'rm -f "$next_record" "$previous_record"' EXIT
-printf 'sha256 %s\nbytes %s\n%s\n' "$artifact_hash" "$artifact_bytes" "$compiler" >"$next_record"
-chmod 600 "$next_record"
-
-# A byte-identical authorized build retains the tuple and its publication time.
-if cmp -s "$artifact" "$binary" && cmp -s "$next_record" "$build_record"; then
-  chmod 755 "$binary"
-  chmod 600 "$build_record"
-  rm -f "$retry_marker"
-  exit 0
-fi
-
-had_record=0
-if [[ -f $build_record ]]; then
-  cp -p "$build_record" "$previous_record"
-  had_record=1
-fi
-mv -f "$next_record" "$build_record"
-
-# The scoped runner has no second manifest to fail after publishing this one.
-# A failed refresh therefore restores the record while preserving the old tuple.
-if ! bash "${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh" --pipeline-only; then
-  if [[ $had_record == 1 ]]; then
-    mv -f "$previous_record" "$build_record"
-  else
-    rm -f "$build_record"
+  if ! cargo_is_installed; then
+    report_line "cargo not found at $cargo_bin; build deferred to the next apply." >&2
+    grow_retry_marker_by_one_byte
+    exit 0
   fi
-  report_line 'posture: manifest refresh failed; binary unchanged' >&2
-  exit 1
-fi
 
-# The tuple precedes the atomic installation. An install failure retains the
-# new record, so the old binary is drift and the next apply retries the build.
-/usr/bin/install -m 755 "$artifact" "$binary"
-report_line "installed $binary"
-rm -f "$retry_marker"
+  report_line "building the release binary..."
+  local build_status=0
+  build_release_binary "$posture_workspace_dir" posture || build_status=$?
+  if build_failed "$build_status"; then
+    report_line "error[build-failed]: posture did not build; see cargo's output above." >&2
+    exit "$build_status"
+  fi
+  report_line "built $built_posture."
+
+  local artifact_bytes
+  artifact_bytes="$(artifact_size_in_bytes "$built_posture")"
+  if ! artifact_size_is_allowed "$artifact_bytes" "$posture_max_artifact_bytes"; then
+    report_line "error[artifact-size]: refusing a posture artifact of $artifact_bytes bytes (allowed 1..$posture_max_artifact_bytes)." >&2
+    exit 1
+  fi
+
+  local artifact_hash
+  artifact_hash="$(artifact_sha256 "$built_posture")"
+  if ! is_a_sha256_digest "$artifact_hash"; then
+    report_line "error[invalid-digest]: shasum printed no sha256 digest for $built_posture." >&2
+    exit 1
+  fi
+
+  local compiler
+  compiler="$(compiler_version "$posture_workspace_dir")"
+
+  create_install_directory "$install_dir"
+  create_temporary_build_records "$posture_build_record"
+  write_next_build_record "$artifact_hash" "$artifact_bytes" "$compiler"
+
+  if build_is_already_published "$built_posture" "$installed_posture" "$posture_build_record"; then
+    make_installed_posture_executable
+    keep_build_record_private "$posture_build_record"
+    settle_retry_marker "$posture_retry_marker"
+    report_line "already installed from this build, skipping."
+    return
+  fi
+
+  report_line "refreshing the pipeline manifest..."
+  save_previous_build_record "$posture_build_record"
+  publish_next_build_record "$posture_build_record"
+  if ! refresh_pipeline_manifest; then
+    roll_back_build_record "$posture_build_record"
+    report_line "error[manifest-refresh-failed]: the pipeline manifest was not refreshed; the installed posture is unchanged." >&2
+    exit 1
+  fi
+  report_line "refreshed the pipeline manifest."
+
+  report_line "installing the release binary..."
+  install_release_binary "$built_posture" "$installed_posture"
+  report_line "installed $installed_posture."
+  settle_retry_marker "$posture_retry_marker"
+}
+
+main "$@"
 {{ end -}}
