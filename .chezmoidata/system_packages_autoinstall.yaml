@@ -11,14 +11,8 @@ packages:
         - nikitabobko/tap
         - openai/tools
         - openhue/cli
-        - oven-sh/bun
-        - owenthereal/upterm
-        - silverstein/tap
         - rjyo/moshi
-        - steipete/tap
-        - vjeantet/tap
         - xdevplatform/tap
-        - yakitrak/yakitrak
       # Every third-party tap declared above is trusted up front so Homebrew can
       # load its formulae, casks, or commands under the HOMEBREW_REQUIRE_TAP_TRUST
       # gate. The pre-bundle loop in run_onchange_before_10-system-packages.sh.tmpl
@@ -36,20 +30,13 @@ packages:
         - nikitabobko/tap
         - openai/tools
         - openhue/cli
-        - oven-sh/bun
-        - owenthereal/upterm
-        - silverstein/tap
         - rjyo/moshi
-        - steipete/tap
-        - vjeantet/tap
         - xdevplatform/tap
-        - yakitrak/yakitrak
       formulae:
         - act
         - actionlint
         - age
         - agent-safehouse
-        - alerter
         - antoniorodr/memo/memo
         - atomicparsley
         - atuin
@@ -131,7 +118,6 @@ packages:
         - openhue/cli/openhue-cli
         - openjdk
         - opus
-        - oven-sh/bun/bun
         - p7zip
         - parallel
         - pgvector
@@ -150,9 +136,6 @@ packages:
         - shfmt
         - socat
         - starship
-        - steipete/tap/peekaboo
-        - steipete/tap/remindctl
-        - steipete/tap/sag
         - stylua
         - swiftformat
         - swiftlint
@@ -179,7 +162,6 @@ packages:
         - xcp
         - xonsh
         - xz
-        - yakitrak/yakitrak/notesmd-cli
         - yq
         - zig
         - zizmor
@@ -192,22 +174,18 @@ packages:
         rjyo/moshi/moshi-hook: "0.3.26"
       casks:
         - affinity
-        - apple-juice
         - arc
         - blender
-        - bluebubbles
         - brave-browser
         - cardhop
         - chatgpt
         - claude
         - claude-code@latest
         - codex
-        - codex-app
         - discord
         - docker-desktop
         - espanso
         - fantastical
-        - firefox
         - fluidvoice
         - font-fira-code
         - font-fira-code-nerd-font
@@ -215,7 +193,6 @@ packages:
         - gcloud-cli
         - ghostty
         - gitbutler
-        - google-chrome
         - karabiner-elements
         - keepassxc
         - lulu
@@ -223,12 +200,9 @@ packages:
         - mediosz/tap/swipeaerospace
         - microsoft-auto-update
         - microsoft-office
-        - minutes
         - mitmproxy
         - nikitabobko/tap/aerospace
-        - obs
         - obsidian
-        - openemu
         - osquery
         - oversight
         - proton-drive
@@ -237,16 +211,9 @@ packages:
         - raspberry-pi-imager
         - raycast
         - reader
-        - retroarch-metal
-        - signal
-        - slack
         - thaw
         - todoist-app
-        - torguard
-        - upterm
         - xurl
-        - zen
-        - zoom
       mas:
         - name: Actions
           id: "1_586_435_171"
@@ -317,7 +284,6 @@ packages:
           # reinstalls whenever the pin moves.
           - "gnhf@0.1.49"
           - hyperframes
-          - mcporter
   # Tools built from someone else's git repository rather than this one, and
   # installed into rust_tools.install_dir with `cargo install --git`. dam is
   # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn.
