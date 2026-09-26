@@ -1,6 +1,6 @@
 # macOS defaults
 
-`.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl` applies the declarative settings in
+`.chezmoiscripts/run_onchange_after_40-sudo-macos-defaults.sh.tmpl` applies the declarative settings in
 `.chezmoidata/macos_defaults.yaml` at `chezmoi apply` time on darwin, and no-ops on Linux. Mostly
 per-user `defaults write` records; records carrying `scope: system` render instead as
 `system_defaults_write <plist> ...` against `/Library/Preferences/<domain>`. The file also holds a
@@ -10,14 +10,15 @@ plist changes take effect immediately.
 A second data file, `.chezmoidata/macos_posture_controls.yaml`, is verify-tier only and is read by the
 osquery posture poller at runtime rather than by the runner.
 
-Settings that need admin rights are plain scripts, each asking for sudo itself:
-`run_onchange_after_41-macos-firewall.sh.tmpl`, `run_onchange_after_42-ssh-hardening.sh.tmpl`, and
-`run_onchange_after_43-tailscale-magicdns-fallback-hosts.sh.tmpl`, which hands one host per line from
-`.chezmoidata/tailscale.yaml` to `~/.cargo/bin/tailnet-pin` (built by
-`run_after_40-build-tailnet-pin.sh.tmpl`) and refuses to run unless the builder's own record says that
-binary was built from the source this apply rendered. Nix is installed by
-`run_after_38-install-nix.sh.tmpl` and its repair daemon by
-`run_after_39-install-nix-repair-hook.sh.tmpl`.
+Settings that need admin rights are plain scripts that carry `sudo` in their name and run back to back,
+numbered 40 to 46, so one password covers them: `run_onchange_after_40-sudo-macos-defaults.sh.tmpl` (the
+`scope: system` records), `run_after_41-sudo-osquery-known-good-manifests.sh`,
+`run_after_42-sudo-install-nix.sh.tmpl`, `run_after_43-sudo-install-nix-repair-hook.sh.tmpl`,
+`run_onchange_after_44-sudo-macos-firewall.sh.tmpl`, `run_onchange_after_45-sudo-ssh-hardening.sh.tmpl`,
+and `run_onchange_after_46-sudo-tailscale-magicdns-fallback-hosts.sh.tmpl`, which hands one host per line
+from `.chezmoidata/tailscale.yaml` to `~/.cargo/bin/tailnet-pin` (built by
+`run_after_37-build-tailnet-pin.sh.tmpl`) and refuses to run unless the builder's own record says that
+binary was built from the source this apply rendered.
 
 ## Daily workflow
 

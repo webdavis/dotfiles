@@ -384,9 +384,9 @@ dscacheutil -q host -a name <peer>.<tailnet>.ts.net   # not dig, which bypasses 
 ```
 
 Durable fallback: needed peers are pinned in `/etc/hosts` declaratively, from `magicdns_fallback_hosts`
-in `.chezmoidata/tailscale.yaml`. `run_onchange_after_43-tailscale-magicdns-fallback-hosts.sh.tmpl` hands
-one host per line to `~/.cargo/bin/tailnet-pin`, which converges the file to exactly one line per host.
-Tailscaled never manages `/etc/hosts`, so the entries coexist, and tailnet IPs are stable per node.
+in `.chezmoidata/tailscale.yaml`. `run_onchange_after_46-sudo-tailscale-magicdns-fallback-hosts.sh.tmpl`
+hands one host per line to `~/.cargo/bin/tailnet-pin`, which converges the file to exactly one line per
+host. Tailscaled never manages `/etc/hosts`, so the entries coexist, and tailnet IPs are stable per node.
 
 ### Updates
 

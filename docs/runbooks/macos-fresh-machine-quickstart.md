@@ -16,9 +16,8 @@ brand-new Mac before running `chezmoi apply` for the first time.
 
 ## During `chezmoi apply`
 
-The scripts that need admin rights (Nix, the firewall, the sshd drop-in, the Tailscale hosts pins) each
-ask for sudo. One password early in the apply usually covers them, since sudo remembers it for a few
-minutes.
+The scripts that need admin rights carry `sudo` in their name and run back to back (numbers 40 to 46), so
+one password covers them.
 
 ## After first `chezmoi apply`
 

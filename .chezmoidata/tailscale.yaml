@@ -1,5 +1,5 @@
 # Tailscale peers pinned in /etc/hosts as a MagicDNS fallback, applied by
-# run_onchange_after_43-tailscale-magicdns-fallback-hosts. Each field is one
+# run_onchange_after_46-sudo-tailscale-magicdns-fallback-hosts. Each field is one
 # hosts column, so quote any value YAML would read as a number.
 
 tailscale:
