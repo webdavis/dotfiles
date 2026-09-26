@@ -1,60 +1,56 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-# Installs the herdr plugins this machine wants. `herdr plugin install` writes
-# into herdr's OWN store (~/.config/herdr/plugins/github/), so the plugin content
-# is never chezmoi-managed and never reaches the known-good manifest. What this
-# script makes reproducible is the DECLARATION: a fresh machine ends up with the
-# same plugin set without anyone remembering the command.
-#
-# One of the roster entries is ours (herdr-smart-nav), which is the point of
-# extracting it into its own public repository: it arrives by the same
-# convention as everybody else's, and a `ref:` bump in the roster reinstalls
-# it at the next apply. herdr-process and herdr-workspace-jump do not, because
-# each plugin's manifest is generated from this machine's own config;
-# run_onchange_after_58 clones, builds and links those two.
-#
-# run_after, not run_onchange, on purpose. Both the probe and the install talk to
-# a running herdr server, which a scripted apply frequently does not have. A
-# run_onchange script records its trigger as satisfied on ANY exit 0, so one
-# apply with the server down would consume the trigger and the plugin would never
-# be installed, which holds for a moved pin exactly as it holds for a missing
-# plugin. Running on every apply and installing whatever is not at its roster
-# revision makes the failure self-healing, at the cost of one bounded socket call
-# per apply and per plugin, and it costs no retry-marker machinery
-# (run_onchange_after_58 carries that for the two linked plugins this repo
-# still builds, which cannot be converged this cheaply).
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-command -v herdr >/dev/null 2>&1 || exit 0 # run_onchange_before_15 installs it.
-command -v jq >/dev/null 2>&1 || exit 0    # jq reads the plugin-list envelope.
+readonly socket_call_time_limit=10
+readonly plugin_install_time_limit=300
+readonly shortest_commit_pin_length=7
+readonly quota_plugin_id="herdr-agent-quota"
+readonly quota_configuration_time_limit=60
+readonly quota_action_logs_to_read=100
+readonly seconds_between_quota_status_checks=1
 
-# Bound every herdr call. A wedged herdr socket accepts the connection and never
-# replies, which would hang the whole apply; this is the same reasoning, and the
-# same 10s bound, as run_onchange_after_58. Without a timeout binary the
-# calls cannot be bounded safely, so skip and let the next apply retry.
-if command -v timeout >/dev/null 2>&1; then
-  timeout_bin="timeout"
-elif command -v gtimeout >/dev/null 2>&1; then
-  timeout_bin="gtimeout"
-else
-  echo "herdr plugins: no coreutils timeout binary (timeout/gtimeout absent); install skipped, the next apply retries." >&2
-  exit 0
-fi
+herdr_is_installed() {
+  command -v herdr >/dev/null 2>&1
+}
 
-# What herdr records for one registered plugin: the revision its install asked
-# for and the commit that resolved to, tab separated, either field possibly
-# empty. Non-zero when herdr does not report exactly this plugin id. `herdr
-# plugin list` answers with a JSON envelope and returns exit 0 even when that
-# envelope is an error, so the exact-id match is the only trustworthy signal. An
-# unreachable or wedged server fails the call and reads as not-registered to the
-# caller, whose install attempt then fails too and reports the retry line
-# rather than claiming success.
-plugin_source_record() {
-  local response
-  response="$("$timeout_bin" 10 herdr plugin list --plugin "$1" --json 2>/dev/null)" || return 1
-  printf '%s' "$response" | jq -e -r --arg id "$1" '
+jq_is_installed() {
+  command -v jq >/dev/null 2>&1
+}
+
+find_coreutils_timeout() {
+  local candidate
+  for candidate in timeout gtimeout; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+}
+
+coreutils_timeout_is_installed() {
+  [[ -n $(find_coreutils_timeout) ]]
+}
+
+run_with_time_limit() {
+  local time_limit=$1
+  shift
+  local coreutils_timeout
+  coreutils_timeout="$(find_coreutils_timeout)"
+  "$coreutils_timeout" "$time_limit" "$@"
+}
+
+list_plugin_as_json() {
+  local plugin_id=$1
+  run_with_time_limit "$socket_call_time_limit" herdr plugin list --plugin "$plugin_id" --json 2>/dev/null
+}
+
+source_record_in_listing() {
+  local plugin_id=$1 listing=$2
+  printf '%s' "$listing" | jq -e -r --arg id "$plugin_id" '
     [.result.plugins[]? | select(.plugin_id == $id)] as $found
     | if ($found | length) == 1
       then [$found[0].source.requested_ref // "", $found[0].source.resolved_commit // ""] | @tsv
@@ -62,115 +58,216 @@ plugin_source_record() {
       end' 2>/dev/null
 }
 
-# 0 iff that record sits at the pinned revision. The requested revision answers
-# first, because a pin is usually a tag or a branch and that is the field herdr
-# records it in; a commit pin matches the resolved commit, by prefix from seven
-# characters up. Same rule as uu's weekly herdr lane, which reads the same
-# roster and the same listing.
-record_holds_pin() {
-  local requested=$1 commit=$2 pin=$3
-  if [[ $requested == "$pin" ]]; then
-    return 0
-  fi
-  if [[ -z $commit ]]; then
-    return 1
-  fi
-  if [[ $commit == "$pin" ]]; then
-    return 0
-  fi
-  [[ ${#pin} -ge 7 && $commit == "$pin"* ]]
+read_plugin_source_record() {
+  local plugin_id=$1
+  local listing
+  listing="$(list_plugin_as_json "$plugin_id")" || return 1
+  source_record_in_listing "$plugin_id" "$listing"
 }
 
-# 0 iff the plugin is registered and, when the roster pins it, at that pin.
-plugin_at_roster_revision() {
-  local plugin_id=$1 pin=$2 record requested commit
-  record="$(plugin_source_record "$plugin_id")" || return 1
-  if [[ -z $pin ]]; then
-    return 0
-  fi
-  # Split on the tab rather than with `read`, which strips a LEADING tab and
-  # would read a plugin with no requested revision as having one.
-  requested=${record%%$'\t'*}
-  commit=${record#*$'\t'}
-  record_holds_pin "$requested" "$commit" "$pin"
+requested_revision_in() {
+  local source_record=$1
+  printf '%s\n' "${source_record%%$'\t'*}"
 }
 
-# Install one plugin when it is absent, and reinstall it when the roster pins a
-# revision the installed copy is not at. herdr v1 has no `plugin update`, and an
-# install over a GitHub-managed plugin replaces that managed checkout in place,
-# so the pin bump lands at the next apply with no uninstall. Quiet when the
-# plugin already sits where the roster says, so a no-op apply prints nothing.
-# An unpinned entry is left wherever it was installed; uu's weekly run is what
-# moves those to tip. 300s rather than 10s because the install clones the plugin
-# repository, which is a network operation and not a socket round trip.
+resolved_commit_in() {
+  local source_record=$1
+  printf '%s\n' "${source_record#*$'\t'}"
+}
+
+requested_revision_is_pin() {
+  local requested_revision=$1 pin=$2
+  [[ $requested_revision == "$pin" ]]
+}
+
+resolved_commit_is_pin() {
+  local resolved_commit=$1 pin=$2
+  [[ -n $resolved_commit && $resolved_commit == "$pin" ]]
+}
+
+resolved_commit_starts_with_pin() {
+  local resolved_commit=$1 pin=$2
+  [[ -n $resolved_commit && ${#pin} -ge $shortest_commit_pin_length && $resolved_commit == "$pin"* ]]
+}
+
+source_record_holds_pin() {
+  local source_record=$1 pin=$2
+  local requested_revision resolved_commit
+  requested_revision="$(requested_revision_in "$source_record")"
+  resolved_commit="$(resolved_commit_in "$source_record")"
+  requested_revision_is_pin "$requested_revision" "$pin" ||
+    resolved_commit_is_pin "$resolved_commit" "$pin" ||
+    resolved_commit_starts_with_pin "$resolved_commit" "$pin"
+}
+
+plugin_is_pinned() {
+  local pin=$1
+  [[ -n $pin ]]
+}
+
+plugin_is_at_roster_revision() {
+  local plugin_id=$1 pin=$2
+  local source_record
+  source_record="$(read_plugin_source_record "$plugin_id")" || return 1
+  if ! plugin_is_pinned "$pin"; then
+    return 0
+  fi
+  source_record_holds_pin "$source_record" "$pin"
+}
+
+install_plugin_from_repository() {
+  local source_repository=$1 pin=$2
+  run_with_time_limit "$plugin_install_time_limit" herdr plugin install "$source_repository" ${pin:+--ref "$pin"} --yes >/dev/null 2>&1
+}
+
+plugin_was_registered() {
+  local previous_source_record=$1
+  [[ -n $previous_source_record ]]
+}
+
 install_plugin() {
-  local plugin_id=$1 source_repo=$2 ref=${3:-} previous
-  local -a install_args=("$source_repo")
-  if [[ -n $ref ]]; then
-    install_args+=(--ref "$ref")
+  local plugin_id=$1 source_repository=$2 pin=$3
+  if plugin_is_at_roster_revision "$plugin_id" "$pin"; then
+    return
   fi
-  install_args+=(--yes)
-  if plugin_at_roster_revision "$plugin_id" "$ref"; then
-    return 0
+
+  local previous_source_record
+  previous_source_record="$(read_plugin_source_record "$plugin_id" || true)"
+  report_line "installing $plugin_id from $source_repository..."
+  if ! install_plugin_from_repository "$source_repository" "$pin" || ! plugin_is_at_roster_revision "$plugin_id" "$pin"; then
+    report_line "error[install-failed]: herdr plugin install $source_repository failed or is unverified (herdr server down?); the next apply retries." >&2
+    return
   fi
-  # A registered plugin that failed the gate is one the roster has moved, so the
-  # line below reports the move rather than a first install.
-  previous="$(plugin_source_record "$plugin_id" || true)"
-  if "$timeout_bin" 300 herdr plugin install "${install_args[@]}" >/dev/null 2>&1 &&
-    plugin_at_roster_revision "$plugin_id" "$ref"; then
-    if [[ -n $previous ]]; then
-      printf 'herdr plugin %s moved to %s\n' "$plugin_id" "$ref"
-    else
-      printf 'herdr plugin %s installed from %s\n' "$plugin_id" "$source_repo"
-    fi
+  if plugin_was_registered "$previous_source_record"; then
+    report_line "moved $plugin_id to $pin."
   else
-    printf 'herdr plugin install %s failed or is unverified (herdr server down?); the next apply retries.\n' \
-      "$source_repo" >&2
+    report_line "installed $plugin_id from $source_repository."
   fi
 }
 
-# The full surveyed set. herdr reached 0.8.2 on 2026-08-31 (live handoff), which
-# satisfies every version gate that had blocked all but worktrunk: sidebar needs
-# >= 0.8, reviewr >= 0.7.5, workflows >= 0.8.2, and tab-smart-rename needs the
-# `herdr api snapshot` subcommand 0.7.0-preview lacked. The sidebar source path
-# carries a subdirectory because its repository is a monorepo.
-#
-# herdr refuses an install over a plugin registered from a LOCAL LINK, so a
-# roster id still linked from an older build reports the failure above every
-# apply until `herdr plugin unlink <id>` retires the link.
-{{ range .packages.herdr_plugins -}}
-install_plugin {{ .id }} {{ .repo }} {{ dig "ref" "" . | quote }}
-{{ end -}}
+install_roster_plugins() {
+{{- range .packages.herdr_plugins }}
+  install_plugin {{ .id }} {{ .repo }} {{ dig "ref" "" . | quote }}
+{{- end }}
+}
 
-# Quota needs its collectors configured after installation and target updates.
-# Action invocation is asynchronous; wait for this action's recorded result.
-quota="$("$timeout_bin" 10 herdr plugin list --plugin herdr-agent-quota --json 2>/dev/null)" || quota='{}'
-if printf '%s' "$quota" |
-  jq -e 'any(.result.plugins[]?; .plugin_id == "herdr-agent-quota" and .enabled == true)' >/dev/null; then
-  result="$("$timeout_bin" 10 herdr plugin action invoke configure --plugin herdr-agent-quota)"
-  if ! log_id="$(printf '%s' "$result" | jq -er '.result.log.log_id')"; then
-    printf 'herdr quota configuration could not start: %s\n' "$result" >&2
+read_quota_plugin_listing() {
+  local listing
+  listing="$(list_plugin_as_json "$quota_plugin_id")" || listing='{}'
+  printf '%s' "$listing"
+}
+
+quota_plugin_is_enabled() {
+  local listing=$1
+  printf '%s' "$listing" |
+    jq -e 'any(.result.plugins[]?; .plugin_id == "herdr-agent-quota" and .enabled == true)' >/dev/null
+}
+
+invoke_quota_configure_action() {
+  run_with_time_limit "$socket_call_time_limit" herdr plugin action invoke configure --plugin "$quota_plugin_id"
+}
+
+action_log_id_in() {
+  local invoke_result=$1
+  printf '%s' "$invoke_result" | jq -er '.result.log.log_id'
+}
+
+list_quota_action_logs() {
+  run_with_time_limit "$socket_call_time_limit" herdr plugin log list --plugin "$quota_plugin_id" --limit "$quota_action_logs_to_read"
+}
+
+action_status_in() {
+  local action_logs=$1 log_id=$2
+  printf '%s' "$action_logs" | jq -r --arg id "$log_id" '.result.logs[]? | select(.log_id == $id) | .status'
+}
+
+read_quota_action_status() {
+  local log_id=$1
+  local action_logs
+  action_logs="$(list_quota_action_logs)" || return
+  action_status_in "$action_logs" "$log_id"
+}
+
+quota_configuration_is_unfinished() {
+  local action_status=$1
+  [[ $action_status == running || -z $action_status ]]
+}
+
+deadline_has_not_passed() {
+  local deadline=$1
+  ((SECONDS < deadline))
+}
+
+wait_for_quota_configuration() {
+  local log_id=$1
+  local deadline=$((SECONDS + quota_configuration_time_limit))
+  local action_status
+  while deadline_has_not_passed "$deadline"; do
+    action_status="$(read_quota_action_status "$log_id")" || return
+    if ! quota_configuration_is_unfinished "$action_status"; then
+      printf '%s\n' "$action_status"
+      return
+    fi
+    sleep "$seconds_between_quota_status_checks" || return
+  done
+}
+
+quota_configuration_timed_out() {
+  local final_status=$1
+  [[ -z $final_status ]]
+}
+
+quota_configuration_succeeded() {
+  local final_status=$1
+  [[ $final_status == succeeded ]]
+}
+
+main() {
+  report_section 'herdr' 'third-party plugins'
+
+  if ! herdr_is_installed; then
+    report_line "herdr is not installed, skipping."
+    return
+  fi
+  if ! jq_is_installed; then
+    report_line "jq is not installed, skipping."
+    return
+  fi
+  if ! coreutils_timeout_is_installed; then
+    report_line "error[missing-tool]: no coreutils timeout binary (timeout or gtimeout); plugins were not installed, the next apply retries." >&2
+    return
+  fi
+
+  install_roster_plugins
+
+  local quota_listing
+  quota_listing="$(read_quota_plugin_listing)"
+  if ! quota_plugin_is_enabled "$quota_listing"; then
+    report_line "herdr does not list $quota_plugin_id as enabled, skipping its configuration."
+    return
+  fi
+
+  report_line "configuring $quota_plugin_id..."
+  local invoke_result
+  invoke_result="$(invoke_quota_configure_action)"
+  local configure_log_id
+  if ! configure_log_id="$(action_log_id_in "$invoke_result")"; then
+    report_line "error[configure-not-started]: herdr quota configuration could not start: $invoke_result" >&2
     exit 1
   fi
-  deadline=$((SECONDS + 60))
-  while ((SECONDS < deadline)); do
-    result="$("$timeout_bin" 10 herdr plugin log list --plugin herdr-agent-quota --limit 100)"
-    action_status="$(printf '%s' "$result" |
-      jq -r --arg id "$log_id" '.result.logs[]? | select(.log_id == $id) | .status')"
-    case "$action_status" in
-      succeeded)
-        printf 'herdr quota configuration completed\n'
-        exit 0
-        ;;
-      running|"") sleep 1 ;;
-      *)
-        printf 'herdr quota configuration %s; inspect: herdr plugin log list --plugin herdr-agent-quota\n' \
-          "$action_status" >&2
-        exit 1
-        ;;
-    esac
-  done
-  printf 'herdr quota configuration timed out; inspect: herdr plugin log list --plugin herdr-agent-quota\n' >&2
-  exit 1
-fi
+
+  local final_status
+  final_status="$(wait_for_quota_configuration "$configure_log_id")"
+  if quota_configuration_timed_out "$final_status"; then
+    report_line "error[timeout]: herdr quota configuration timed out; inspect: herdr plugin log list --plugin $quota_plugin_id" >&2
+    exit 1
+  fi
+  if ! quota_configuration_succeeded "$final_status"; then
+    report_line "error[configure-failed]: herdr quota configuration $final_status; inspect: herdr plugin log list --plugin $quota_plugin_id" >&2
+    exit 1
+  fi
+  report_line "configured $quota_plugin_id."
+}
+
+main "$@"
 {{ end -}}
