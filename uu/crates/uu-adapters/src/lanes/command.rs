@@ -21,12 +21,12 @@ use uu_protocol::lane_event;
 ///
 /// THE CHILD'S WORLD: `run[0]` is the program, `run[1..]` its arguments, and
 /// `argv[0]` the child sees is `run[0]` verbatim. Env and working directory are
-/// INHERITED from uu's own process; under the tracked LaunchAgent that is the
-/// plist's own PATH plus HOME, with the working directory at `/`. It runs in
-/// a PROCESS GROUP OF ITS OWN, bounded by the lane's `deadline_secs`: a child
-/// that leaves something behind holding its stdout or stderr (a backgrounded
-/// process, a detached daemon) has that group killed at the deadline and the
-/// lane reports the overrun as a failure.
+/// INHERITED from uu's own process, plus `NO_COLOR=1`; under the tracked
+/// LaunchAgent that is the plist's own PATH plus HOME, with the working
+/// directory at `/`. It runs in a PROCESS GROUP OF ITS OWN, bounded by the
+/// lane's `deadline_secs`: a child that leaves something behind holding its
+/// stdout or stderr (a backgrounded process, a detached daemon) has that group
+/// killed at the deadline and the lane reports the overrun as a failure.
 impl LaneAdapter for CommandLane {
     fn parse(label: &str, fields: toml::Table) -> Result<Self, crate::ConfigError> {
         crate::config::parse_command_lane(label, fields)

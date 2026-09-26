@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use crate::lanes::{CommandRunner, Environment, Ran, Verdict, failure_reason};
 use uu_protocol::{DEFERRED_EXIT_CODE, PENDING_EXIT_CODE};
 
-use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn};
+use crate::watchdog::{Ended, Finished, Spawned, bounded_spawn_in};
 
 mod bounds;
 mod environment;
@@ -137,7 +137,8 @@ impl SystemRunner {
         if budget.is_zero() {
             return Err(self.overrun(&Ended::Stopped, b""));
         }
-        match bounded_spawn(program, args, stdin, budget) {
+        let environment = lane_environment(&Environment::inheriting());
+        match bounded_spawn_in(program, args, stdin, budget, &environment) {
             Spawned::Ran(finished) => Ok(finished),
             Spawned::NotRunnable(why) => Err(why),
             Spawned::SpawnStuck => Err(overrun::spawn_stuck(
@@ -149,6 +150,13 @@ impl SystemRunner {
             )),
         }
     }
+}
+
+/// What a lane child runs in: `chosen`, with `NO_COLOR=1` so what the child
+/// prints reaches the record as plain text. uu's own environment is left
+/// alone, so its own terminal output keeps its color.
+fn lane_environment(chosen: &Environment) -> Environment {
+    chosen.clone().with("NO_COLOR", "1".to_string())
 }
 
 /// How a child ended, in the one line every failure path here reasons about.

@@ -101,10 +101,13 @@ impl Home {
         stub
     }
 
+    /// The real binary against this scratch HOME, without the `NO_COLOR` of
+    /// the shell running the suite, so a lane child that sees one got it from uu.
     pub fn uu(&self, args: &[&str]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_uu"))
             .args(args)
             .env("HOME", &self.dir)
+            .env_remove("NO_COLOR")
             .output()
             .expect("spawn uu")
     }
