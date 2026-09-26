@@ -8,7 +8,7 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-signing_key_id={{ $signingKeyId | quote }}
+readonly signing_key_id={{ $signingKeyId | quote }}
 
 signing_key_is_installed() {
   gpg --list-secret-keys "$signing_key_id" >/dev/null 2>&1
