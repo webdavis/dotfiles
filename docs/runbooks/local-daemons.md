@@ -383,10 +383,10 @@ sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
 dscacheutil -q host -a name <peer>.<tailnet>.ts.net   # not dig, which bypasses /etc/resolver
 ```
 
-Durable fallback: needed peers are pinned in `/etc/hosts` declaratively, from structured `tailnet_pins`
-data in `.chezmoidata/macos_system_setup.yaml`. The Tier 2 sudo runner hands one pin per line to
-`~/.cargo/bin/tailnet-pin`, which converges the file to exactly one line per pin. Tailscaled never
-manages `/etc/hosts`, so the entries coexist, and tailnet IPs are stable per node.
+Durable fallback: needed peers are pinned in `/etc/hosts` declaratively, from `magicdns_fallback_hosts`
+in `.chezmoidata/tailscale.yaml`. `run_onchange_after_43-tailscale-magicdns-fallback-hosts.sh.tmpl` hands
+one host per line to `~/.cargo/bin/tailnet-pin`, which converges the file to exactly one line per host.
+Tailscaled never manages `/etc/hosts`, so the entries coexist, and tailnet IPs are stable per node.
 
 ### Updates
 

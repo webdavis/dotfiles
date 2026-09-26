@@ -16,8 +16,9 @@ brand-new Mac before running `chezmoi apply` for the first time.
 
 ## During `chezmoi apply`
 
-The Tier 2 runner (`run_onchange_after_41-macos-system-setup.sh.tmpl`) will prompt once for sudo if the
-system_setup YAML is non-empty. Enter your password.
+The scripts that need admin rights (Nix, the firewall, the sshd drop-in, the Tailscale hosts pins) each
+ask for sudo. One password early in the apply usually covers them, since sudo remembers it for a few
+minutes.
 
 ## After first `chezmoi apply`
 

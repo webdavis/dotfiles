@@ -1,26 +1,23 @@
-# macOS defaults and system setup
+# macOS defaults
 
-Two `.chezmoiscripts/` runners apply declarative macOS settings at `chezmoi apply` time on darwin, and
-no-op on Linux. A third data file, `.chezmoidata/macos_posture_controls.yaml`, is verify-tier only and is
-read by the osquery posture poller at runtime rather than by either runner.
+`.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl` applies the declarative settings in
+`.chezmoidata/macos_defaults.yaml` at `chezmoi apply` time on darwin, and no-ops on Linux. Mostly
+per-user `defaults write` records; records carrying `scope: system` render instead as
+`system_defaults_write <plist> ...` against `/Library/Preferences/<domain>`. The file also holds a
+`killall` list (Dock, Finder, SystemUIServer, cfprefsd, in that order). Killing cfprefsd is what makes
+plist changes take effect immediately.
 
-- `.chezmoidata/macos_defaults.yaml` plus `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`
-  (Tier 1). Mostly per-user `defaults write` records; records carrying `scope: system` render instead as
-  `system_defaults_write <plist> ...` against `/Library/Preferences/<domain>`. The file also holds a
-  `killall` list (Dock, Finder, SystemUIServer, cfprefsd, in that order). Killing cfprefsd is what makes
-  plist changes take effect immediately.
-- `.chezmoidata/macos_system_setup.yaml` plus
-  `.chezmoiscripts/run_onchange_after_41-macos-system-setup.sh.tmpl` (Tier 2). Sudo system commands (one
-  `sudo -v` upfront, then a loop), plus structured `tailnet_pins` data. The runner early-returns when
-  both lists are empty, and it emits the single `sudo -v` only when there is at least one enforce record
-  or pin, so a file of purely verify or manual records prompts for nothing.
+A second data file, `.chezmoidata/macos_posture_controls.yaml`, is verify-tier only and is read by the
+osquery posture poller at runtime rather than by the runner.
 
-The `/etc/hosts` pin work is not inline in the Tier 2 template. The template hands one pin per line to
-`~/.cargo/bin/tailnet-pin` (source: the `tailnet-pin` workspace at the repository root, built by
-`.chezmoiscripts/run_onchange_after_40-build-tailnet-pin.sh.tmpl`), which converges the record to exactly
-one line per pin rather than guarding and appending. The runner refuses to run any pin unless the
-builder's own record says that binary was built from the source this apply rendered, so a deferred build
-on a machine without cargo cannot aim a stale binary at `/etc/hosts` as root.
+Settings that need admin rights are plain scripts, each asking for sudo itself:
+`run_onchange_after_41-macos-firewall.sh.tmpl`, `run_onchange_after_42-ssh-hardening.sh.tmpl`, and
+`run_onchange_after_43-tailscale-magicdns-fallback-hosts.sh.tmpl`, which hands one host per line from
+`.chezmoidata/tailscale.yaml` to `~/.cargo/bin/tailnet-pin` (built by
+`run_after_40-build-tailnet-pin.sh.tmpl`) and refuses to run unless the builder's own record says that
+binary was built from the source this apply rendered. Nix is installed by
+`run_after_38-install-nix.sh.tmpl` and its repair daemon by
+`run_after_39-install-nix-repair-hook.sh.tmpl`.
 
 ## Daily workflow
 
