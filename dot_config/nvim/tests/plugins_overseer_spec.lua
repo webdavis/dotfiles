@@ -247,7 +247,7 @@ return {
     -- recipes became `nil (<cwd>)` and `unique` disposed whichever ran first.
     local hook = hook_for_just()
     local test = { cmd = { "just", "test" }, cwd = "/repo" }
-    local lint = { cmd = { "just", "lint-check" }, cwd = "/repo" }
+    local lint = { cmd = { "just", "lint-gate" }, cwd = "/repo" }
     hook(test, hook_util)
     hook(lint, hook_util)
     assert(not test.name:match("nil"), "the name is still nil-derived: " .. test.name)

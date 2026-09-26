@@ -11,7 +11,7 @@
 -- pipeline whose whole point is the order, and the orchestrator's own task shows
 -- the sequence as children in the task list.
 
-local GATES = { "lint-check", "test", "lint-actions-security" }
+local GATES = { "lint-gate", "test", "lint-actions-security" }
 
 ---@param dir string
 ---@return string|nil path The justfile that defines every gate

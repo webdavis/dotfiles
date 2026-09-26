@@ -43,7 +43,7 @@ jobs:
           test -n "$ref"
           cargo install --git https://github.com/webdavis/chord --rev "$ref" --locked chord
       - name: Lint drift gate (treefmt)
-        run: just lint-check
+        run: just lint-gate
       - name: Run the repo test suite
         run: just test
       - name: Audit GitHub Actions workflows (zizmor)
