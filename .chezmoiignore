@@ -15,6 +15,9 @@ justfile
 scripts/
 test/
 
+# macOS system-setup code:
+macos-system-setup/
+
 # Neovim config: repo metadata and test code never reach $HOME.
 .config/nvim/README.md
 .config/nvim/docs/
@@ -87,10 +90,6 @@ rust-toolchain.toml
 {{- if eq .chezmoi.os "linux" }}
 Library
 .config/lights
-.local/libexec/macos-defaults/macos-defaults-drift.sh
-.local/libexec/macos-defaults/macos-defaults-apply.sh
-.local/libexec/macos-defaults/macos-defaults-capture.sh
-.local/libexec/macos-defaults/helpers/defaults-records.sh
 .local/libexec/brew-shellenv-cache-refresh.sh
 # The pns notification stack is macOS-only: the builder is darwin-gated, the
 # banner needs macOS, and shipping binary callers with no binary would leave

@@ -212,19 +212,19 @@ moshi-hook-upgrade:
 # macOS Defaults: drift, apply, capture
 
 defaults-drift:
-  ~/.local/libexec/macos-defaults/macos-defaults-drift.sh
+  ./scripts/macos-defaults/macos-defaults-drift.sh
 
 defaults-apply:
-  ~/.local/libexec/macos-defaults/macos-defaults-apply.sh
+  ./scripts/macos-defaults/macos-defaults-apply.sh
 
 # Capture a live macOS setting into YAML. Use `current` for ByHost storage.
 defaults-capture domain key current="":
   #!/usr/bin/env bash
   set -euo pipefail
   if [[ -n "{{current}}" ]]; then
-    ~/.local/libexec/macos-defaults/macos-defaults-capture.sh "{{domain}}" "{{key}}" "--host=current"
+    ./scripts/macos-defaults/macos-defaults-capture.sh "{{domain}}" "{{key}}" "--host=current"
   else
-    ~/.local/libexec/macos-defaults/macos-defaults-capture.sh "{{domain}}" "{{key}}"
+    ./scripts/macos-defaults/macos-defaults-capture.sh "{{domain}}" "{{key}}"
   fi
 
 # Read-only macOS Defaults helpers.
@@ -239,7 +239,7 @@ defaults-dump:
 
 # Remove this repository's merged, clean worktrees. --dry-run only reports.
 worktrees-prune *arguments:
-  ~/.local/libexec/prune-merged-worktrees.sh {{arguments}}
+  ./scripts/prune-merged-worktrees.sh {{arguments}}
 
 # Refresh skills through the weekly uu lane.
 update-skills:

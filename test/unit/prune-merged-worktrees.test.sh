@@ -23,7 +23,7 @@
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
-PRUNE_SUBJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/dot_local/libexec/executable_prune-merged-worktrees.sh"
+PRUNE_SUBJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/prune-merged-worktrees.sh"
 
 fixture_git() {
   git -c user.email=fixture@example.invalid -c user.name=fixture \

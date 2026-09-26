@@ -71,7 +71,7 @@
 macos:
   system_setup:
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
-      command: '"$HOME/.local/libexec/install-nix-repair-hook.sh"'
+      command: '"$CHEZMOI_SOURCE_DIR/macos-system-setup/install-nix-repair-hook.sh"'
       sudo: true
       tier: enforce
     - description: "Firewall: enable the application firewall (must stay before the records below so a partial run leaves the firewall on, never policies stored with the firewall off)"
