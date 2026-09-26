@@ -246,7 +246,7 @@ if command -v uv >/dev/null 2>&1; then
   # stream rather than landing above a block it does not label.
   report_section "uv" "tool installs" >&2
 {{- range .packages.macos.uv }}
-  uv tool install {{ . | quote }}
+  uv tool install {{ if hasPrefix "whisply" . }}--python 3.12 {{ end }}{{ . | quote }}
 {{- if eq . "graphifyy" }}
   # Seed only an absent app-owned destination. The old Claude directory is
   # preserved for operator adoption; the weekly lane owns later refreshes.
