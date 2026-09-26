@@ -46,6 +46,19 @@ fn a_refusal_about_a_lane_table_names_it_the_way_the_file_spells_it() {
 }
 
 #[test]
+fn a_file_with_both_a_lane_table_and_a_lanes_table_is_refused_saying_to_use_lane() {
+    let detail = refusal(
+        "[lane.one]\ntype = \"command\"\nrun = [\"/fixture/one\"]\n\n\
+         [lanes.two]\ntype = \"command\"\nrun = [\"/fixture/two\"]\n",
+    );
+    assert!(
+        detail.contains("both a `lane` table and a `lanes` table"),
+        "{detail}"
+    );
+    assert!(detail.contains("`[lane.<name>]`"), "{detail}");
+}
+
+#[test]
 fn a_malformed_file_is_a_loud_error_and_never_an_empty_config() {
     let detail = refusal("[lanes\n");
     assert!(!detail.is_empty());

@@ -146,6 +146,14 @@ pub(crate) fn parse_config(
         })
     })?;
 
+    if document.contains_key("lane") && document.contains_key("lanes") {
+        return Err(ConfigError::Invalid(
+            "the file has both a `lane` table and a `lanes` table; write every lane as \
+             `[lane.<name>]`"
+                .to_string(),
+        ));
+    }
+
     let mut config = Config::default();
     for (key, value) in document {
         match key.as_str() {
