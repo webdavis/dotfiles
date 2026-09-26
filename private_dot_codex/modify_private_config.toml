@@ -157,15 +157,7 @@
        absolute paths inside /Applications, so declaring them would force a
        stale build number back over a live one after every app update. Same for
        shell_environment_policy, whose one key is a client hash the app
-       computes.
-
-       nvim is the Neovim MCP server (spec 7.3, PR 10a) and its command is the
-       RESOLVER rather than nvim-mcp itself: nvim-mcp chooses an instance by
-       current directory or git root, which cannot tell two Neovim panes in one
-       herdr workspace apart. Its WHOLE map is written, not just the command
-       key, because Codex forwards args and env to a stdio server: setting the
-       command alone left a live `env.NVIM_MCP_SOCKET` in place across an apply,
-       which is a pin this repository never declared. --- */ -}}
+       computes. --- */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "composio" "url") "https://connect.composio.dev/mcp" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "composio" "http_headers" "x-consumer-api-key") (keepassxc "Composio :: API Key :: MCP").Password $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "command") "uvx" $merged -}}
@@ -179,20 +171,16 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
 {{- /* scalebar's path comes from .chezmoidata/scalebar.yaml. */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "scalebar" "command") (printf "%s/%s/ScalebarMCP" $home .scalebar.install_dir) $merged -}}
-{{- /* Codex 0.153.4 clears a stdio server's environment down to a fixed
-       whitelist (HOME, LOGNAME, PATH, SHELL, USER, __CF_USER_TEXT_ENCODING,
-       LANG, LC_ALL, TERM, TMPDIR, TZ; codex-rs/rmcp-client/src/utils.rs), so
-       every variable the resolver routes on has to be named here or the
-       server silently falls back to `--connect auto`. env_vars forwards the
-       NAMED variables from Codex's own environment; nothing is hardcoded.
-       HERDR_SOCKET_PATH is the session half of the socket name and the herdr
-       CLI's server address, NVIM_MCP_SOCKET the operator's pin,
-       XDG_RUNTIME_DIR the run root on Linux; the other HERDR_* names are what
-       herdr documents itself as exporting and cost nothing to forward. */ -}}
+{{- /* nvim is the Neovim MCP server. Codex hands a stdio server a short fixed
+       list of variables (codex-rs/rmcp-client/src/utils.rs) that has TMPDIR
+       but not XDG_RUNTIME_DIR. nvim-mcp looks for Neovim's socket in
+       XDG_RUNTIME_DIR, then TMPDIR, so env_vars forwards XDG_RUNTIME_DIR. The
+       whole map is written so no older key survives an apply. */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "nvim")
     (dict
-      "command" (printf "%s/.local/libexec/nvim-mcp/nvim-mcp-connect.sh" $home)
-      "env_vars" (list "HERDR_ENV" "HERDR_PANE_ID" "HERDR_SESSION" "HERDR_SOCKET_PATH" "HERDR_TAB_ID" "HERDR_WORKSPACE_ID" "NVIM_MCP_SOCKET" "XDG_RUNTIME_DIR")) $merged -}}
+      "command" "nvim-mcp"
+      "args" (list "--connect" "auto")
+      "env_vars" (list "XDG_RUNTIME_DIR")) $merged -}}
 
 {{- /* ynab is the local YNAB stdio server and its WRITES ARE ON. Full and
        complete access to the YNAB account is the operator's ruling of
