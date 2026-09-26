@@ -5,6 +5,8 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
 readonly nix_installer="/nix/nix-installer"
 readonly daemon_label="systems.nixos.nix-installer.nix-hook"
 readonly daemon_plist="/Library/LaunchDaemons/$daemon_label.plist"
@@ -75,7 +77,7 @@ main() {
     return
   fi
 
-  sudo -v
+  authenticate_sudo_once
   if ! daemon_plist_is_current; then
     report_line "writing $daemon_plist..."
     write_daemon_plist

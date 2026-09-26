@@ -151,14 +151,12 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
 quit_system_settings() {
   osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
 }
 {{- if $hasSystemScopeRecord }}
-
-refresh_sudo_credentials() {
-  sudo -v
-}
 
 plist_file_written_by_defaults() {
   local plist_path=$1
@@ -225,7 +223,7 @@ main() {
   report_section 'macos defaults' 'user and system settings'
   quit_system_settings
 {{- if $hasSystemScopeRecord }}
-  refresh_sudo_credentials
+  authenticate_sudo_once
 {{- end }}
 
   report_line "writing {{ $enforceRecordCount }} setting(s)..."

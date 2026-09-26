@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run_after_05-osquery-known-good-manifests.sh
+# run_after_41-sudo-osquery-known-good-manifests.sh
 # Refresh the root-owned known-good manifests: the recorded sha256, mode and owner
 # of every file osquery's file-integrity watches judge. osqueryd (root) watches
 # those files; the alerter PAGES a file_events change whose (path, hash, mode, uid)
@@ -123,6 +123,9 @@
 # group column would add on its own is chgrp plus chmod - which the mode column
 # already pages.
 set -euo pipefail
+
+# shellcheck source=.chezmoitemplates/sudo-session.sh.tmpl
+source "${CHEZMOI_SOURCE_DIR:?}/.chezmoitemplates/sudo-session.sh.tmpl"
 
 [[ "$(uname)" == Darwin ]] || exit 0
 
@@ -453,6 +456,7 @@ refresh_manifest() {
   # no manifest at all. Only when it is actually missing, so a normal apply
   # performs no extra privileged call, and idempotent either way.
   refresh_manifest_dir="$(dirname "$refresh_manifest_dest")"
+  authenticate_sudo_once
   if [[ ! -d $refresh_manifest_dir ]]; then
     sudo install -d -o root -g wheel -m 0755 "$refresh_manifest_dir"
   fi

@@ -5,6 +5,8 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
 readonly firewall_tool="/usr/libexec/ApplicationFirewall/socketfilterfw"
 
 enable_application_firewall() {
@@ -25,7 +27,7 @@ allow_downloaded_signed_software() {
 
 main() {
   report_section 'firewall' 'application firewall policy'
-  sudo -v
+  authenticate_sudo_once
 
   report_line "enabling the firewall..."
   enable_application_firewall
