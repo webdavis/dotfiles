@@ -41,8 +41,8 @@ exit_with_error() {
 }
 
 report_decision() {
-  local decision=$1 worktree_path=$2 reason=$3
-  report_line "$(printf '%-12s %s (%s)' "$decision" "$worktree_path" "$reason")"
+  local decision=$1 worktree_path=$2 details=$3
+  report_line "$(printf '%-12s %s (%s)' "$decision" "$worktree_path" "$details")"
 }
 
 parse_arguments() {
@@ -205,6 +205,38 @@ removal_method_for() {
   fi
 }
 
+report_removal() {
+  local decision=$1 worktree_path=$2 branch_reference=$3
+  local branch_name removal_method
+  branch_name="$(branch_name_from_reference "$branch_reference")"
+  removal_method="$(removal_method_for "$worktree_path")"
+  report_decision "$decision" "$worktree_path" "$branch_name, $removal_method"
+}
+
+record_kept_worktree() {
+  local worktree_path=$1 reason=$2
+  report_decision keep "$worktree_path" "$reason"
+  kept_count=$((kept_count + 1))
+}
+
+record_dry_run_removal() {
+  local worktree_path=$1 branch_reference=$2
+  report_removal 'would remove' "$worktree_path" "$branch_reference"
+  removed_count=$((removed_count + 1))
+}
+
+record_removed_worktree() {
+  local worktree_path=$1 branch_reference=$2
+  report_removal remove "$worktree_path" "$branch_reference"
+  removed_count=$((removed_count + 1))
+}
+
+record_failed_removal() {
+  local worktree_path=$1 branch_reference=$2
+  report_removal FAILED "$worktree_path" "$branch_reference"
+  removal_failed=1
+}
+
 remove_worktree_with_herdr() {
   local worktree_path=$1
   local workspace_id
@@ -217,7 +249,7 @@ remove_worktree_with_git() {
   git worktree remove --force "$worktree_path" >/dev/null 2>&1
 }
 
-run_removal() {
+remove_worktree() {
   local worktree_path=$1
   if worktree_is_open_in_herdr "$worktree_path"; then
     remove_worktree_with_herdr "$worktree_path"
@@ -226,26 +258,12 @@ run_removal() {
   fi
 }
 
-keep_worktree() {
-  local worktree_path=$1 reason=$2
-  report_decision keep "$worktree_path" "$reason"
-  kept_count=$((kept_count + 1))
-}
-
-remove_worktree() {
-  local worktree_path=$1 branch_name=$2
-  local reason
-  reason="$branch_name, $(removal_method_for "$worktree_path")"
-
-  if is_dry_run; then
-    report_decision 'would remove' "$worktree_path" "$reason"
-    removed_count=$((removed_count + 1))
-  elif run_removal "$worktree_path"; then
-    report_decision remove "$worktree_path" "$reason"
-    removed_count=$((removed_count + 1))
+attempt_removal() {
+  local worktree_path=$1 branch_reference=$2
+  if remove_worktree "$worktree_path"; then
+    record_removed_worktree "$worktree_path" "$branch_reference"
   else
-    report_decision FAILED "$worktree_path" "$reason"
-    removal_failed=1
+    record_failed_removal "$worktree_path" "$branch_reference"
   fi
 }
 
@@ -257,9 +275,11 @@ decide_worktree() {
   fi
   reason_to_keep="$(reason_to_keep_worktree "$worktree_path" "$head_commit" "$branch_reference")"
   if reason_was_found "$reason_to_keep"; then
-    keep_worktree "$worktree_path" "$reason_to_keep"
+    record_kept_worktree "$worktree_path" "$reason_to_keep"
+  elif is_dry_run; then
+    record_dry_run_removal "$worktree_path" "$branch_reference"
   else
-    remove_worktree "$worktree_path" "$(branch_name_from_reference "$branch_reference")"
+    attempt_removal "$worktree_path" "$branch_reference"
   fi
 }
 
