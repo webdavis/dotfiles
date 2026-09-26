@@ -15,9 +15,6 @@ justfile
 scripts/
 test/
 
-# macOS system-setup code:
-macos-system-setup/
-
 # Neovim config repo metadata and tests:
 .config/nvim/README.md
 .config/nvim/docs/

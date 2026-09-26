@@ -1,0 +1,86 @@
+{{- define "shellSingleQuoted" }}{{ printf "'%s'" (replace "'" "'\\''" (toString .)) }}{{ end -}}
+
+{{- define "validateMagicdnsFallbackHosts" -}}
+{{- $hostNameOwners := dict -}}
+{{- range $hostIndex, $host := . -}}
+{{- range $field := list "fqdn" "ip" "short" -}}
+{{- if or (not (hasKey $host $field)) (kindIs "invalid" (index $host $field)) (eq (toString (index $host $field)) "") -}}
+{{- fail (printf "tailscale.yaml: a magicdns_fallback_hosts entry is missing %s (or has it empty); every entry declares fqdn, ip and short" $field) -}}
+{{- end -}}
+{{- if not (kindIs "string" (index $host $field)) -}}
+{{- fail (printf "tailscale.yaml: magicdns_fallback_hosts field %s is a %s, not a string; every field is one hosts column, so quote it in YAML" $field (kindOf (index $host $field))) -}}
+{{- end -}}
+{{- if regexMatch "[\\s#]" (toString (index $host $field)) -}}
+{{- fail (printf "tailscale.yaml: magicdns_fallback_hosts field %s %q is not a single hosts column (whitespace splits the record, # truncates it)" $field (toString (index $host $field))) -}}
+{{- end -}}
+{{- end -}}
+{{- range $nameField := list "fqdn" "short" -}}
+{{- $hostName := toString (index $host $nameField) -}}
+{{- if and (hasKey $hostNameOwners $hostName) (ne (index $hostNameOwners $hostName) $hostIndex) -}}
+{{- fail (printf "tailscale.yaml: magicdns_fallback_hosts name %s %q is claimed by two entries; an entry OWNS both of its names, so the second would delete the first's record on every apply and one declared entry would never exist" $nameField $hostName) -}}
+{{- end -}}
+{{- $_ := set $hostNameOwners $hostName $hostIndex -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- if eq .chezmoi.os "darwin" -}}
+{{- $hosts := .tailscale.magicdns_fallback_hosts -}}
+{{- template "validateMagicdnsFallbackHosts" $hosts -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly tailnet_pin={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "tailnet-pin" | quote }}
+readonly tailnet_pin_build_record="$HOME/.cache/tailnet-pin-build/installed.fingerprint"
+readonly current_tailnet_pin_source_fingerprint={{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum | quote }}
+
+tailnet_pin_is_installed() {
+  [[ -x $tailnet_pin ]]
+}
+
+tailnet_pin_build_record_exists() {
+  [[ -r $tailnet_pin_build_record ]]
+}
+
+read_tailnet_pin_built_fingerprint() {
+  cat "$tailnet_pin_build_record"
+}
+
+tailnet_pin_was_built_from_this_source() {
+  [[ $(read_tailnet_pin_built_fingerprint) == "$current_tailnet_pin_source_fingerprint" ]]
+}
+
+pin_host() {
+  local fqdn=$1 ip=$2 short=$3
+  report_line "→ $fqdn"
+  sudo "$tailnet_pin" "$fqdn" "$ip" "$short"
+}
+
+main() {
+  report_section 'tailscale' 'MagicDNS fallback hosts in /etc/hosts'
+
+  if ! tailnet_pin_is_installed; then
+    report_line "error[missing-tool]: $tailnet_pin is missing or not executable; no fallback hosts were pinned. Run chezmoi apply so run_after_40 builds it." >&2
+    exit 1
+  fi
+  if ! tailnet_pin_build_record_exists; then
+    report_line "error[missing-file]: $tailnet_pin_build_record is missing, so nothing vouches for which source $tailnet_pin was built from; no fallback hosts were pinned." >&2
+    exit 1
+  fi
+  if ! tailnet_pin_was_built_from_this_source; then
+    report_line "error[stale-build]: $tailnet_pin was built from source $(read_tailnet_pin_built_fingerprint), not $current_tailnet_pin_source_fingerprint; no fallback hosts were pinned. Re-run chezmoi apply so the builder catches up." >&2
+    exit 1
+  fi
+
+  sudo -v
+{{- range $hosts }}
+  pin_host {{ template "shellSingleQuoted" .fqdn }} {{ template "shellSingleQuoted" .ip }} {{ template "shellSingleQuoted" .short }}
+{{- end }}
+  report_line "pinned."
+}
+
+main "$@"
+{{- end }}

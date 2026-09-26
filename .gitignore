@@ -19,6 +19,9 @@ vendor/**
 # Claude Code session data.
 .claude/
 
+# Codex session data.
+.codex/
+
 # Git worktrees (isolated implementation workspaces).
 .worktrees/
 
