@@ -1,0 +1,51 @@
+# shellcheck shell=bash
+
+readonly bootstrap_attempts_before_showing_errors=3
+readonly seconds_for_launchd_to_release_the_old_job=1
+
+launchagent_domain() {
+  printf 'gui/%s\n' "$(id -u)"
+}
+
+launchagent_is_loaded() {
+  local label=$1
+  launchctl list "$label" &>/dev/null
+}
+
+create_launchagent_log_directory() {
+  local directory=$1
+  mkdir -p "$directory"
+}
+
+unload_launchagent() {
+  local label=$1
+  launchctl bootout "$(launchagent_domain)/$label" 2>/dev/null || true
+}
+
+launchagent_bootstrapped() {
+  local plist=$1
+  launchctl bootstrap "$(launchagent_domain)" "$plist" 2>/dev/null
+}
+
+bootstrap_launchagent_showing_errors() {
+  local plist=$1
+  launchctl bootstrap "$(launchagent_domain)" "$plist"
+}
+
+load_launchagent() {
+  local plist=$1
+  local attempt
+  for ((attempt = 1; attempt <= bootstrap_attempts_before_showing_errors; attempt++)); do
+    if launchagent_bootstrapped "$plist"; then
+      return
+    fi
+    sleep "$seconds_for_launchd_to_release_the_old_job"
+  done
+  bootstrap_launchagent_showing_errors "$plist"
+}
+
+reload_launchagent() {
+  local label=$1 plist=$2
+  unload_launchagent "$label"
+  load_launchagent "$plist"
+}
