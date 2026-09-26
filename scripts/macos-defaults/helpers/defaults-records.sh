@@ -28,7 +28,7 @@ source_directory_override_is_set() {
 
 print_source_directory_override() {
   if text_is_empty "$MACOS_DEFAULTS_SOURCE_DIR"; then
-    printf 'error: MACOS_DEFAULTS_SOURCE_DIR is set but empty; refusing to resolve another checkout\n' >&2
+    printf 'error[empty-source-override]: MACOS_DEFAULTS_SOURCE_DIR is set but empty; refusing to resolve another checkout\n' >&2
     return 1
   fi
   printf '%s\n' "$MACOS_DEFAULTS_SOURCE_DIR"
@@ -50,7 +50,7 @@ print_worktree_source_path() {
   local worktree_top=$1
   local source_path
   if ! source_path="$(chezmoi --source="$worktree_top" source-path)"; then
-    printf 'error: chezmoi --source=%s source-path failed; refusing to fall back to another checkout\n' \
+    printf 'error[source-path-failed]: chezmoi --source=%s source-path failed; refusing to fall back to another checkout\n' \
       "$worktree_top" >&2
     return 1
   fi
@@ -60,7 +60,7 @@ print_worktree_source_path() {
 print_configured_source_path() {
   local source_path
   if ! source_path="$(chezmoi source-path)"; then
-    printf 'error: chezmoi source-path failed; the chezmoi source directory is unknown\n' >&2
+    printf 'error[source-path-failed]: chezmoi source-path failed; the chezmoi source directory is unknown\n' >&2
     return 1
   fi
   printf '%s\n' "$source_path"
@@ -84,7 +84,7 @@ macos_defaults_data_file() {
   local source_directory
   source_directory="$(resolve_source_directory)" || return 2
   if text_is_empty "$source_directory"; then
-    printf 'error: resolved an empty chezmoi source directory for macos_defaults.yaml\n' >&2
+    printf 'error[empty-source-directory]: resolved an empty chezmoi source directory for macos_defaults.yaml\n' >&2
     return 2
   fi
   printf '%s/.chezmoidata/macos_defaults.yaml\n' "$source_directory"
@@ -93,7 +93,7 @@ macos_defaults_data_file() {
 require_readable_data_file() {
   local data_file=$1
   if ! file_is_readable "$data_file"; then
-    printf 'error: cannot read %s\n' "$data_file" >&2
+    printf 'error[unreadable-data-file]: cannot read %s\n' "$data_file" >&2
     return 2
   fi
 }
@@ -285,7 +285,7 @@ data_file_document_count() {
 
 print_multiple_documents_refusal() {
   local data_file=$1
-  printf 'error: %s contains more than one YAML document; chezmoi keeps the FIRST document and silently discards the rest, so an apply would write only the records above the first --- while every tool here refuses the file; merge the documents into one\n' \
+  printf 'error[multiple-documents]: %s contains more than one YAML document; chezmoi keeps the FIRST document and silently discards the rest, so an apply would write only the records above the first --- while every tool here refuses the file; merge the documents into one\n' \
     "$data_file" >&2
 }
 
@@ -303,7 +303,7 @@ require_data_file_holds_one_document() {
   local data_file=$1
   local document_count
   if ! document_count="$(data_file_document_count "$data_file")" || ! document_count_is_a_number "$document_count"; then
-    printf 'error: cannot count the YAML documents in %s; refusing a file whose document count could not be read\n' \
+    printf 'error[uncountable-documents]: cannot count the YAML documents in %s; refusing a file whose document count could not be read\n' \
       "$data_file" >&2
     return 2
   fi
@@ -359,7 +359,7 @@ data_file_rules_verdict() {
 read_data_file_rules_answer() {
   local data_file=$1
   if ! yq eval -r "$DEFAULTS_DATA_FILE_RULES_EXPRESSION" "$data_file"; then
-    printf 'error: cannot check the whole-file rules of %s\n' "$data_file" >&2
+    printf 'error[unreadable-file-rules]: cannot check the whole-file rules of %s\n' "$data_file" >&2
     return 2
   fi
 }
@@ -376,19 +376,19 @@ print_data_file_rules_refusal() {
       print_multiple_documents_refusal "$data_file"
       ;;
     duplicate_mapping_key)
-      printf 'error: %s declares the same mapping key twice; chezmoi refuses the whole file (mapping key already defined) while yq keeps both entries and reads the LAST, so the two readers would not even agree on which records exist; delete the duplicate key\n' \
+      printf 'error[duplicate-mapping-key]: %s declares the same mapping key twice; chezmoi refuses the whole file (mapping key already defined) while yq keeps both entries and reads the LAST, so the two readers would not even agree on which records exist; delete the duplicate key\n' \
         "$data_file" >&2
       ;;
     complex_mapping_key)
-      printf 'error: %s uses a mapping key that is not a scalar (a sequence or a mapping as a key); chezmoi refuses the whole file with "found an invalid key for this map" while yq reads it, so the runner template would apply nothing; give every key a plain scalar name\n' \
+      printf 'error[complex-mapping-key]: %s uses a mapping key that is not a scalar (a sequence or a mapping as a key); chezmoi refuses the whole file with "found an invalid key for this map" while yq reads it, so the runner template would apply nothing; give every key a plain scalar name\n' \
         "$data_file" >&2
       ;;
     alias)
-      printf 'error: %s uses a YAML alias or merge key; both are ordinary YAML and the runner template resolves them, but this schema does not allow them, because yq resolves an alias in some expressions and not others and this reader would judge a record by fields it cannot see; write the record out in full\n' \
+      printf 'error[yaml-alias]: %s uses a YAML alias or merge key; both are ordinary YAML and the runner template resolves them, but this schema does not allow them, because yq resolves an alias in some expressions and not others and this reader would judge a record by fields it cannot see; write the record out in full\n' \
         "$data_file" >&2
       ;;
     *)
-      printf 'error: cannot classify the whole-file rules of %s; yq answered %q\n' \
+      printf 'error[unclassifiable-file-rules]: cannot classify the whole-file rules of %s; yq answered %q\n' \
         "$data_file" "$rules_answer" >&2
       ;;
   esac
@@ -425,7 +425,7 @@ data_file_begins_with_byte_order_mark() {
 require_no_byte_order_mark() {
   local data_file=$1
   if data_file_begins_with_byte_order_mark "$data_file"; then
-    printf 'error: %s begins with a UTF-8 byte order mark; yq strips it and reads the file, but the runner template does not and cannot then find .macos at all, so the two readers disagree about this file; remove the first three bytes\n' \
+    printf 'error[byte-order-mark]: %s begins with a UTF-8 byte order mark; yq strips it and reads the file, but the runner template does not and cannot then find .macos at all, so the two readers disagree about this file; remove the first three bytes\n' \
       "$data_file" >&2
     return 2
   fi
@@ -439,7 +439,7 @@ count_is_usable() {
 read_records_shape() {
   local data_file=$1
   if ! yq eval -r "$DEFAULTS_RECORDS_SHAPE_EXPRESSION" "$data_file"; then
-    printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
+    printf 'error[unreadable-records-shape]: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
     return 2
   fi
 }
@@ -453,19 +453,19 @@ print_records_declaration_refusal() {
   local data_file=$1 declaration_verdict=$2 shape_answer=$3
   case $declaration_verdict in
     mistagged)
-      printf 'error: %s tags .macos.defaults as %q; the record list is a real sequence, so only its TAG is wrong, and the only tags accepted on it are %s and the non-specific %s, because the runner template refuses several of the others with a parse error while this reader would take the records, so the two readers would disagree about whether this file has any settings at all; delete the tag\n' \
+      printf 'error[mistagged-records]: %s tags .macos.defaults as %q; the record list is a real sequence, so only its TAG is wrong, and the only tags accepted on it are %s and the non-specific %s, because the runner template refuses several of the others with a parse error while this reader would take the records, so the two readers would disagree about whether this file has any settings at all; delete the tag\n' \
         "$data_file" "$(node_tag_in_shape_answer "$shape_answer")" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_NONSPECIFIC_TAG" >&2
       ;;
     map)
-      printf 'error: %s declares .macos.defaults as a map, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
+      printf 'error[records-map]: %s declares .macos.defaults as a map, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
         "$data_file" >&2
       ;;
     absent)
-      printf 'error: %s declares no .macos.defaults record list, so every tracked setting would be silently skipped and the run would still report success; to track no records, declare an explicitly empty list, defaults: []\n' \
+      printf 'error[missing-records]: %s declares no .macos.defaults record list, so every tracked setting would be silently skipped and the run would still report success; to track no records, declare an explicitly empty list, defaults: []\n' \
         "$data_file" >&2
       ;;
     *)
-      printf 'error: %s does not declare .macos.defaults as a LIST of records; yq answered %q for its kind and tag\n' \
+      printf 'error[records-not-a-list]: %s does not declare .macos.defaults as a LIST of records; yq answered %q for its kind and tag\n' \
         "$data_file" "$shape_answer" >&2
       ;;
   esac
@@ -485,7 +485,7 @@ require_records_declared_as_a_list() {
 read_declared_record_count() {
   local data_file=$1
   if ! yq eval -r "$DEFAULTS_RECORDS_COUNT_EXPRESSION" "$data_file"; then
-    printf 'error: cannot count the records in %s\n' "$data_file" >&2
+    printf 'error[uncountable-records]: cannot count the records in %s\n' "$data_file" >&2
     return 2
   fi
 }
@@ -495,7 +495,7 @@ require_usable_record_count() {
   if count_is_usable "$declared_record_count"; then
     return 0
   fi
-  printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
+  printf 'error[unusable-record-count]: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
     "$data_file" "$declared_record_count" >&2
   return 2
 }
@@ -535,7 +535,7 @@ record_tier_requires_a_runbook() {
 read_raw_record_lines() {
   local data_file=$1
   if ! yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file"; then
-    printf 'error: cannot read the records in %s\n' "$data_file" >&2
+    printf 'error[unreadable-records]: cannot read the records in %s\n' "$data_file" >&2
     return 2
   fi
 }
@@ -550,19 +550,19 @@ validate_record_line() {
   local field_count domain key value_type value host scope plist_path tier
   field_count="$(field_count_of_line "$record_line")"
   if ! field_count_matches_a_record "$field_count"; then
-    printf 'error: %s: %s renders %s fields, not %s; a field value contains a unit separator (0x1f) or a newline\n' \
+    printf 'error[malformed-record]: %s: %s renders %s fields, not %s; a field value contains a unit separator (0x1f) or a newline\n' \
       "$data_file" "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" \
       "$field_count" "$DEFAULTS_RECORD_FIELD_COUNT" >&2
     return 2
   fi
   IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r domain key value_type value host scope plist_path tier <<<"$record_line"
   if ! record_tier_is_known "$tier"; then
-    printf 'error: %s: record (domain %s, key %s) has a missing, blank, or unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
+    printf 'error[unknown-tier]: %s: record (domain %s, key %s) has a missing, blank, or unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
       "$data_file" "$domain" "$key" "$tier" >&2
     return 2
   fi
   if ! validate_defaults_record "$domain" "$key" "$value_type" "$value" "$host" "$scope" "$plist_path" "$tier"; then
-    printf 'error: %s: the record above is not usable; the whole file is refused\n' "$data_file" >&2
+    printf 'error[unusable-record]: %s: the record above is not usable; the whole file is refused\n' "$data_file" >&2
     return 2
   fi
 }
@@ -581,7 +581,7 @@ defaults_records_validate_stream() {
     checked_line_count=$((checked_line_count + 1))
   done <<<"$raw_records"
   if ! line_count_matches_declared_count "$checked_line_count" "$declared_record_count"; then
-    printf 'error: %s declares %s record(s) but the record stream has %s line(s); %s contains a newline\n' \
+    printf 'error[newline-in-record]: %s declares %s record(s) but the record stream has %s line(s); %s contains a newline\n' \
       "$data_file" "$declared_record_count" "$checked_line_count" \
       "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" >&2
     return 2
@@ -628,7 +628,7 @@ killall_list_verdict() {
 read_killall_shape() {
   local data_file=$1
   if ! yq eval -r "$MACOS_DEFAULTS_KILLALL_SHAPE_EXPRESSION" "$data_file"; then
-    printf 'error: cannot determine the shape of .macos.killall in %s\n' "$data_file" >&2
+    printf 'error[unreadable-killall-shape]: cannot determine the shape of .macos.killall in %s\n' "$data_file" >&2
     return 2
   fi
 }
@@ -642,15 +642,15 @@ print_killall_refusal() {
   local data_file=$1 killall_verdict=$2 shape_answer=$3
   case $killall_verdict in
     mistagged)
-      printf 'error: %s tags .macos.killall as %q; the list of process names is a real container, so only its TAG is wrong, and the only tags accepted on it are %s on a list and %s on a mapping, because the runner template refuses several of the others with a parse error while this reader would call the file usable, so the two readers would disagree about whether this file can be applied at all; delete the tag\n' \
+      printf 'error[mistagged-killall]: %s tags .macos.killall as %q; the list of process names is a real container, so only its TAG is wrong, and the only tags accepted on it are %s on a list and %s on a mapping, because the runner template refuses several of the others with a parse error while this reader would call the file usable, so the two readers would disagree about whether this file can be applied at all; delete the tag\n' \
         "$data_file" "$(node_tag_in_shape_answer "$shape_answer")" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_MAP_TAG" >&2
       ;;
     scalar)
-      printf 'error: %s declares .macos.killall as a plain scalar, but it must be a LIST of process names; the runner template walks it and dies with "range can%st iterate over" that value, refusing the whole apply, while every tool here would read the file as usable; write it as a list, killall: [Dock]\n' \
+      printf 'error[scalar-killall]: %s declares .macos.killall as a plain scalar, but it must be a LIST of process names; the runner template walks it and dies with "range can%st iterate over" that value, refusing the whole apply, while every tool here would read the file as usable; write it as a list, killall: [Dock]\n' \
         "$data_file" "'" >&2
       ;;
     *)
-      printf 'error: %s does not declare .macos.killall as a list of process names; yq answered %q for its kind and tag\n' \
+      printf 'error[killall-not-a-list]: %s does not declare .macos.killall as a list of process names; yq answered %q for its kind and tag\n' \
         "$data_file" "$shape_answer" >&2
       ;;
   esac
@@ -673,7 +673,7 @@ DEFAULTS_VALUELESS_RECORD_INDEX_EXPRESSION='.macos.defaults | to_entries | .[] |
 read_valueless_record_indices() {
   local data_file=$1
   if ! yq eval -r "$DEFAULTS_VALUELESS_RECORD_INDEX_EXPRESSION" "$data_file"; then
-    printf 'error: cannot check which records in %s declare a value\n' "$data_file" >&2
+    printf 'error[unreadable-values]: cannot check which records in %s declare a value\n' "$data_file" >&2
     return 2
   fi
 }
@@ -686,7 +686,7 @@ require_records_declare_a_value() {
     return 0
   fi
   first_valueless_index="$(first_line_of_text "$valueless_indices")"
-  printf 'error: %s: record %s (%s) has a blank value; give it a value or remove the field\n' \
+  printf 'error[blank-value]: %s: record %s (%s) has a blank value; give it a value or remove the field\n' \
     "$data_file" "$first_valueless_index" "$(defaults_record_reference "$data_file" "$first_valueless_index")" >&2
   return 2
 }
@@ -757,7 +757,7 @@ defaults_records_field_type_expression() {
 read_mistyped_record_fields() {
   local data_file=$1
   if ! yq eval -r "$(defaults_records_field_type_expression)" "$data_file"; then
-    printf 'error: cannot check the field types of the records in %s\n' "$data_file" >&2
+    printf 'error[unreadable-field-types]: cannot check the field types of the records in %s\n' "$data_file" >&2
     return 2
   fi
 }
@@ -771,7 +771,7 @@ require_records_declare_agreeing_field_types() {
     return 0
   fi
   IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r record_index offending_field offending_kind offending_tag <<<"$first_offender"
-  printf 'error: %s: record %s (%s) declares %s as %s; this reader renders a scalar as the text the file spells it with and the runner template renders it as Go formats the parsed value, so the two would not write the same thing out of this record; quote the value\n' \
+  printf 'error[mistyped-field]: %s: record %s (%s) declares %s as %s; this reader renders a scalar as the text the file spells it with and the runner template renders it as Go formats the parsed value, so the two would not write the same thing out of this record; quote the value\n' \
     "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
     "$offending_field" "$(record_field_node_description "$offending_kind" "$offending_tag")" >&2
   return 2
@@ -802,7 +802,7 @@ declared_fields_expression() {
 read_declared_fields() {
   local data_file=$1
   if ! yq eval -r "$(declared_fields_expression)" "$data_file"; then
-    printf 'error: cannot read which fields the records in %s declare\n' "$data_file" >&2
+    printf 'error[unreadable-fields]: cannot read which fields the records in %s declare\n' "$data_file" >&2
     return 2
   fi
 }
@@ -810,7 +810,7 @@ read_declared_fields() {
 read_declared_field_total() {
   local data_file=$1
   if ! yq eval -r "$DEFAULTS_RECORD_DECLARED_FIELD_TOTAL_EXPRESSION" "$data_file"; then
-    printf 'error: cannot count the fields the records in %s declare\n' "$data_file" >&2
+    printf 'error[uncountable-fields]: cannot count the fields the records in %s declare\n' "$data_file" >&2
     return 2
   fi
 }
@@ -830,13 +830,13 @@ require_every_declared_field_listed() {
   local declared_field_total listed_field_count
   declared_field_total="$(read_declared_field_total "$data_file")" || return 2
   if ! count_is_usable "$declared_field_total"; then
-    printf 'error: %s produced an unusable declared-field count %q; refusing to check rules against a stream that cannot be checked\n' \
+    printf 'error[unusable-field-count]: %s produced an unusable declared-field count %q; refusing to check rules against a stream that cannot be checked\n' \
       "$data_file" "$declared_field_total" >&2
     return 2
   fi
   listed_field_count="$(non_empty_line_count "$declared_fields")"
   if ! line_count_matches_declared_count "$listed_field_count" "$declared_field_total"; then
-    printf 'error: %s: the records declare %s field(s) but the field stream has %s line(s); a field NAME contains a newline, so the rules for its tier cannot be checked against it; rename the field\n' \
+    printf 'error[newline-in-field-name]: %s: the records declare %s field(s) but the field stream has %s line(s); a field NAME contains a newline, so the rules for its tier cannot be checked against it; rename the field\n' \
       "$data_file" "$declared_field_total" "$listed_field_count" >&2
     return 2
   fi
@@ -853,13 +853,13 @@ require_no_record_carries_a_field_its_tier_forbids() {
   while IFS= read -r declared_field; do
     text_is_empty "$declared_field" && continue
     if ! field_count_matches_a_declared_field "$(field_count_of_line "$declared_field")"; then
-      printf 'error: %s: a record declares a field name containing a newline or a unit separator (0x1f), which cannot be checked against the rules for its tier\n' \
+      printf 'error[malformed-field-name]: %s: a record declares a field name containing a newline or a unit separator (0x1f), which cannot be checked against the rules for its tier\n' \
         "$data_file" >&2
       return 2
     fi
     IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r record_index record_tier runbook_is_named record_field <<<"$declared_field"
     if record_field_is_forbidden_for_tier "$record_tier" "$record_field"; then
-      printf 'error: %s: record %s (%s) carries %s; a %s control renders no such payload, so a field it cannot use means the declared tier is wrong; either drop the field or declare the tier that consumes it\n' \
+      printf 'error[field-forbidden-by-tier]: %s: record %s (%s) carries %s; a %s control renders no such payload, so a field it cannot use means the declared tier is wrong; either drop the field or declare the tier that consumes it\n' \
         "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
         "$record_field" "$record_tier" >&2
       return 2
@@ -879,7 +879,7 @@ require_manual_records_name_a_runbook() {
     text_is_empty "$declared_field" && continue
     IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r record_index record_tier runbook_is_named record_field <<<"$declared_field"
     if record_tier_requires_a_runbook "$record_tier" && ! record_names_a_runbook "$runbook_is_named"; then
-      printf 'error: %s: record %s (%s) declares tier %s but names no runbook section; a manual control renders no write, so the runbook pointer is the whole record; name the runbook section\n' \
+      printf 'error[missing-runbook]: %s: record %s (%s) declares tier %s but names no runbook section; a manual control renders no write, so the runbook pointer is the whole record; name the runbook section\n' \
         "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
         "$record_tier" >&2
       return 2
@@ -958,15 +958,15 @@ record_declares_a_plist_path() {
 validate_record_scope() {
   local scope=$1 host=$2 plist_path=$3
   if ! record_scope_is_known "$scope"; then
-    printf 'error: unknown scope %q (expected user or system)\n' "$scope" >&2
+    printf 'error[unknown-scope]: unknown scope %q (expected user or system)\n' "$scope" >&2
     return 1
   fi
   if record_scope_is_system "$scope" && record_targets_current_host "$host"; then
-    printf 'error: scope system cannot be combined with host %q; ByHost storage is per-user\n' "$host" >&2
+    printf 'error[system-scope-with-host]: scope system cannot be combined with host %q; ByHost storage is per-user\n' "$host" >&2
     return 1
   fi
   if record_scope_is_user "$scope" && record_declares_a_plist_path "$plist_path"; then
-    printf 'error: plist_path %q is only honored on scope system records\n' "$plist_path" >&2
+    printf 'error[plist-path-without-system-scope]: plist_path %q is only honored on scope system records\n' "$plist_path" >&2
     return 1
   fi
   printf '%s\n' "$scope"
@@ -975,12 +975,12 @@ validate_record_scope() {
 validate_record_identity() {
   local domain=$1 key=$2
   if text_is_empty "$domain"; then
-    printf 'error: record with key %q has a blank domain; give it a value or remove the field\n' \
+    printf 'error[blank-domain]: record with key %q has a blank domain; give it a value or remove the field\n' \
       "$key" >&2
     return 1
   fi
   if text_is_empty "$key"; then
-    printf 'error: record %q has a blank key; give it a value or remove the field\n' \
+    printf 'error[blank-key]: record %q has a blank key; give it a value or remove the field\n' \
       "$domain" >&2
     return 1
   fi
@@ -998,14 +998,14 @@ validate_record_type() {
   if record_type_is_supported "$value_type"; then
     return 0
   fi
-  printf 'error: unsupported type %q on record %s %s; expected one of %s\n' \
+  printf 'error[unsupported-type]: unsupported type %q on record %s %s; expected one of %s\n' \
     "$value_type" "$domain" "$key" "${MACOS_DEFAULTS_SUPPORTED_TYPES[*]}" >&2
   return 1
 }
 
 print_offending_record_reference() {
   local domain=$1 key=$2
-  printf 'error: the refusal above is on record (domain %s, key %s)\n' "$domain" "$key" >&2
+  printf 'error[refused-record]: the refusal above is on record (domain %s, key %s)\n' "$domain" "$key" >&2
 }
 
 MACOS_DEFAULTS_SYSTEM_PREFERENCES_DIRECTORY='/Library/Preferences'
@@ -1023,12 +1023,12 @@ domain_has_nothing_but_dots() {
 validate_system_domain() {
   local domain=$1
   if domain_contains_a_slash "$domain"; then
-    printf 'error: system-scope domain %q contains a slash; it would escape %s\n' \
+    printf 'error[slash-in-system-domain]: system-scope domain %q contains a slash; it would escape %s\n' \
       "$domain" "$MACOS_DEFAULTS_SYSTEM_PREFERENCES_DIRECTORY" >&2
     return 1
   fi
   if domain_has_nothing_but_dots "$domain"; then
-    printf 'error: system-scope domain %q is empty or nothing but dots; it names no plist\n' \
+    printf 'error[empty-system-domain]: system-scope domain %q is empty or nothing but dots; it names no plist\n' \
       "$domain" >&2
     return 1
   fi
@@ -1052,17 +1052,17 @@ path_climbs_to_a_parent_directory() {
 validate_explicit_plist_path() {
   local plist_path=$1 domain=$2
   if path_is_the_filesystem_root "$plist_path"; then
-    printf 'error: plist_path %q (domain %s) is the filesystem root; it names no plist\n' \
+    printf 'error[root-plist-path]: plist_path %q (domain %s) is the filesystem root; it names no plist\n' \
       "$plist_path" "$domain" >&2
     return 1
   fi
   if ! path_is_absolute "$plist_path"; then
-    printf 'error: relative plist_path %q (domain %s); an absolute path is required\n' \
+    printf 'error[relative-plist-path]: relative plist_path %q (domain %s); an absolute path is required\n' \
       "$plist_path" "$domain" >&2
     return 1
   fi
   if path_climbs_to_a_parent_directory "$plist_path"; then
-    printf 'error: plist_path %q (domain %s) contains a parent-directory component\n' \
+    printf 'error[parent-in-plist-path]: plist_path %q (domain %s) contains a parent-directory component\n' \
       "$plist_path" "$domain" >&2
     return 1
   fi
@@ -1102,7 +1102,7 @@ require_system_plist_path_permitted() {
   if plist_path_is_in_a_permitted_directory "$plist_path"; then
     return 0
   fi
-  printf 'error: plist_path %q is outside every permitted plist directory (%s); grant the directory deliberately in BOTH the Tier 1 template and defaults-records.sh, or use the default /Library/Preferences form\n' \
+  printf 'error[plist-path-not-permitted]: plist_path %q is outside every permitted plist directory (%s); grant the directory deliberately in BOTH the Tier 1 template and defaults-records.sh, or use the default /Library/Preferences form\n' \
     "$plist_path" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[*]}" >&2
   return 1
 }
@@ -1111,7 +1111,7 @@ validate_defaults_record() {
   local domain=$1 key=$2 value_type=$3 host=$5 scope=$6 plist_path=$7 tier=$8
   validate_record_identity "$domain" "$key" || return 1
   if ! record_tier_is_known "$tier"; then
-    printf 'error: record %s %s has an unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
+    printf 'error[unknown-tier]: record %s %s has an unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
       "$domain" "$key" "$tier" >&2
     return 1
   fi
@@ -1212,7 +1212,7 @@ system_defaults_read_actual() {
     return "$SYSTEM_READ_UNREADABLE"
   fi
   if ! read_error_file="$(mktemp)"; then
-    printf 'error: cannot classify the system read of %s %s; mktemp failed\n' \
+    printf 'error[unclassifiable-system-read]: cannot classify the system read of %s %s; mktemp failed\n' \
       "$plist_path" "$key" >&2
     return "$SYSTEM_READ_UNREADABLE"
   fi
