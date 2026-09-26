@@ -1,21 +1,30 @@
 #!/usr/bin/env bash
 
-set -uo pipefail
+set -euo pipefail
 
 file_is_valid_yaml() {
   local file=$1
   yq eval '.' "$file" >/dev/null
 }
 
-main() {
-  local file status=0
+report_invalid_yaml_file() {
+  local file=$1
+  printf 'yq-validate: invalid YAML: %s\n' "$file" >&2
+}
+
+validate_every_yaml_file() {
+  local file validation_status=0
   for file in "$@"; do
     if ! file_is_valid_yaml "$file"; then
-      printf 'yq-validate: invalid YAML: %s\n' "$file" >&2
-      status=1
+      report_invalid_yaml_file "$file"
+      validation_status=1
     fi
   done
-  exit "$status"
+  return "$validation_status"
+}
+
+main() {
+  validate_every_yaml_file "$@" || exit 1
 }
 
 main "$@"
