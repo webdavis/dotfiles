@@ -2,19 +2,19 @@
 
 set -euo pipefail
 
-dotfiles_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+dotfiles_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # shellcheck source=.chezmoitemplates/cli-print-style-lib.sh.tmpl
-source "$dotfiles_dir/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
+source "$dotfiles_directory/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 
-readonly upstream_ref='origin/main'
+readonly script_name="${0##*/}"
+readonly upstream_branch='origin/main'
 readonly graphify_rewritten_path='graphify-out/graph.json'
 readonly end_of_worktree_record=''
 readonly exit_success=0
 readonly exit_failure=1
 readonly exit_bad_arguments=2
 
-script_name="${0##*/}"
 dry_run=0
 removed_count=0
 kept_count=0
@@ -26,7 +26,7 @@ print_usage() {
   printf 'Usage: %s [--dry-run]\n' "$script_name"
   printf '\n'
   printf 'Remove every linked worktree of this repository whose HEAD is an ancestor\n'
-  printf 'of %s and whose tree is clean. Branches are never deleted.\n' "$upstream_ref"
+  printf 'of %s and whose tree is clean. Branches are never deleted.\n' "$upstream_branch"
   printf '\n'
   printf '  -n, --dry-run  Print what would be removed and remove nothing.\n'
   printf '  -h, --help     Print this message.\n'
@@ -73,7 +73,7 @@ jq_is_installed() {
   command -v jq >/dev/null 2>&1
 }
 
-current_worktree_top() {
+current_worktree_root() {
   git rev-parse --show-toplevel 2>/dev/null
 }
 
@@ -81,8 +81,8 @@ fetch_origin() {
   git fetch --prune --quiet origin
 }
 
-upstream_ref_exists() {
-  git rev-parse --verify --quiet "$upstream_ref^{commit}" >/dev/null
+upstream_branch_exists() {
+  git rev-parse --verify --quiet "$upstream_branch^{commit}" >/dev/null
 }
 
 list_open_herdr_worktrees() {
@@ -129,9 +129,9 @@ worktree_is_detached() {
   [[ -z $branch_reference ]]
 }
 
-commit_has_landed_upstream() {
+commit_is_merged_upstream() {
   local commit=$1
-  git merge-base --is-ancestor "$commit" "$upstream_ref" 2>/dev/null
+  git merge-base --is-ancestor "$commit" "$upstream_branch" 2>/dev/null
 }
 
 path_from_status_line() {
@@ -144,7 +144,7 @@ status_line_is_graphify_rewrite() {
   [[ $(path_from_status_line "$status_line") == "$graphify_rewritten_path" ]]
 }
 
-tree_is_clean() {
+worktree_is_clean() {
   local worktree_path=$1
   local status_line
   while IFS= read -r status_line; do
@@ -201,7 +201,7 @@ remove_worktree() {
 }
 
 decide_worktree() {
-  local worktree_path=$1 head=$2 branch_reference=$3
+  local worktree_path=$1 head_commit=$2 branch_reference=$3
   local branch_name="${branch_reference#refs/heads/}"
   if ! worktree_is_linked "$worktree_path"; then
     return 0
@@ -209,10 +209,10 @@ decide_worktree() {
   if worktree_is_current "$worktree_path"; then
     keep_worktree "$worktree_path" 'the current worktree'
   elif worktree_is_detached "$branch_reference"; then
-    keep_worktree "$worktree_path" "detached at ${head:0:12}"
-  elif ! commit_has_landed_upstream "$head"; then
-    keep_worktree "$worktree_path" "$branch_name is not merged into $upstream_ref"
-  elif ! tree_is_clean "$worktree_path"; then
+    keep_worktree "$worktree_path" "detached at ${head_commit:0:12}"
+  elif ! commit_is_merged_upstream "$head_commit"; then
+    keep_worktree "$worktree_path" "$branch_name is not merged into $upstream_branch"
+  elif ! worktree_is_clean "$worktree_path"; then
     keep_worktree "$worktree_path" "$branch_name has uncommitted changes"
   else
     remove_worktree "$worktree_path" "$branch_name"
@@ -220,19 +220,19 @@ decide_worktree() {
 }
 
 decide_every_worktree() {
-  local line worktree_path='' head='' branch_reference=''
+  local line worktree_path='' head_commit='' branch_reference=''
   while IFS= read -r -u3 line; do
     case "$line" in
       'worktree '*)
         worktree_path="${line#worktree }"
-        head=''
+        head_commit=''
         branch_reference=''
         ;;
-      'HEAD '*) head="${line#HEAD }" ;;
+      'HEAD '*) head_commit="${line#HEAD }" ;;
       'branch '*) branch_reference="${line#branch }" ;;
       "$end_of_worktree_record")
         if worktree_directory_exists "$worktree_path"; then
-          decide_worktree "$worktree_path" "$head" "$branch_reference"
+          decide_worktree "$worktree_path" "$head_commit" "$branch_reference"
         fi
         worktree_path=''
         ;;
@@ -256,15 +256,15 @@ main() {
   parse_arguments "$@"
   report_section 'worktrees' 'prune merged'
 
-  if ! current_worktree_path="$(current_worktree_top)"; then
+  if ! current_worktree_path="$(current_worktree_root)"; then
     exit_with_error not-a-worktree 'not inside a git worktree.'
   fi
   report_line "fetching origin..."
   if ! fetch_origin; then
     exit_with_error fetch-failed 'could not fetch origin; nothing was removed.'
   fi
-  if ! upstream_ref_exists; then
-    exit_with_error missing-upstream "$upstream_ref does not exist; nothing was removed."
+  if ! upstream_branch_exists; then
+    exit_with_error missing-upstream "$upstream_branch does not exist; nothing was removed."
   fi
   if herdr_is_installed; then
     if ! jq_is_installed; then
@@ -273,7 +273,7 @@ main() {
     load_herdr_workspace_ids
   fi
 
-  report_line "checking worktrees against $upstream_ref..."
+  report_line "checking worktrees against $upstream_branch..."
   decide_every_worktree
   if ! is_dry_run; then
     deregister_worktrees_whose_directories_are_gone
