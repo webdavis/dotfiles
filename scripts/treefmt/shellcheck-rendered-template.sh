@@ -22,6 +22,11 @@ line_is_only_a_template_directive() {
   [[ $line =~ ^\{\{.*\}\}[[:space:]]*$ ]]
 }
 
+line_can_decide_the_shell() {
+  local line=$1
+  ! line_is_blank "$line" && ! line_is_only_a_template_directive "$line"
+}
+
 line_is_a_shebang() {
   local line=$1
   [[ $line =~ ^#! ]]
@@ -37,22 +42,37 @@ line_is_a_shellcheck_shell_directive() {
   [[ $line =~ ^#[[:space:]]*shellcheck[[:space:]]+shell= ]]
 }
 
-is_shell_template() {
-  local file=$1
-  local line lines_read=0
-  while IFS= read -r line && ((lines_read < leading_lines_that_decide_the_shell)); do
-    lines_read=$((lines_read + 1))
-    if line_is_blank "$line" || line_is_only_a_template_directive "$line"; then
-      continue
-    fi
-    if line_is_a_shebang "$line"; then
-      shebang_names_a_shell "$line"
-      return
-    fi
+line_names_a_shell() {
+  local line=$1
+  if line_is_a_shebang "$line"; then
+    shebang_names_a_shell "$line"
+  else
     line_is_a_shellcheck_shell_directive "$line"
-    return
-  done <"$file"
+  fi
+}
+
+print_leading_lines() {
+  local file=$1
+  head -n "$leading_lines_that_decide_the_shell" "$file"
+}
+
+find_the_line_that_decides_the_shell() {
+  local template=$1
+  local line
+  while IFS= read -r line; do
+    if line_can_decide_the_shell "$line"; then
+      printf '%s\n' "$line"
+      return 0
+    fi
+  done < <(print_leading_lines "$template")
   return 1
+}
+
+template_is_a_shell_script() {
+  local template=$1
+  local deciding_line
+  deciding_line="$(find_the_line_that_decides_the_shell "$template")" || return 1
+  line_names_a_shell "$deciding_line"
 }
 
 file_mentions_keepassxc() {
@@ -91,7 +111,7 @@ main() {
   local file status=0
   create_render_context || exit 1
   for file in "$@"; do
-    is_shell_template "$file" || continue
+    template_is_a_shell_script "$file" || continue
     template_or_its_partials_use_keepassxc "$file" && continue
     shellcheck_rendered_template "$file" || status=1
   done
