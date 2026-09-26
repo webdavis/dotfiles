@@ -1,77 +1,82 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-# Installs CLI tools built from repositories OTHER than this one, at a pinned
-# revision, into the same ~/.cargo/bin every in-tree Rust builder uses.
-#
-# Build inputs: one line per roster entry, so bumping any field (most often
-# `ref`) re-fires this run_onchange script.
 {{ range .packages.cargo_git_tools -}}
-#   {{ .name }}: {{ .repo }} package={{ .package }} ref={{ .ref }}
+# {{ .name }}: {{ .repo }} package={{ .package }} ref={{ .ref }}
 {{ end -}}
-#
-# Retry state, the mechanism the sibling Rust builders use: chezmoi records a
-# run_onchange script as done on ANY exit 0, so a deferred install (no cargo,
-# no network) must change this rendered script to re-fire on the next apply.
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "rust-build-lib.sh.tmpl" }}
 
-# install_root is derived from the same destination the in-tree Rust builders
-# publish to, not hardcoded here, so the two can't drift apart if that
-# destination ever moves. It cannot be found by probing PATH either: a fresh
-# machine provisions rustup during THIS apply, so the destination isn't on
-# the apply shell's PATH yet.
-install_root={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | dir | quote }}
-cargo_bin="$install_root/bin/cargo"
-crates_toml="$install_root/.crates.toml"
-retry_marker="$HOME/.cache/cargo-git-tools/retry"
+readonly install_root={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | dir | quote }}
+readonly installed_crates_record="$install_root/.crates.toml"
+readonly cargo_git_tools_retry_marker="$HOME/.cache/cargo-git-tools/retry"
 
-if [[ ! -x $cargo_bin ]]; then
-  report_line "cargo-git-tools: cargo not found at $cargo_bin; install deferred to the next apply." >&2
-  mkdir -p "$(dirname "$retry_marker")"
-  touch "$retry_marker"
-  exit 0
-fi
-
-# already_installed <repo> <rev> <name>: 0 iff the binary is present AND
-# ~/.cargo/.crates.toml already records this exact git revision installed. The
-# binary check catches a record surviving a removed binary (a hand rm, a
-# partial restore), which would otherwise leave the record alone and never
-# reinstall it. `cargo install --git <url> --rev <rev>` keys each crates.toml
-# line "<pkg> <version> (git+<url>?rev=<rev>#<rev>)" with the URL byte-for-byte
-# as passed (measured: no trailing .git added), so this passes the identical
-# URL and a repo+rev substring match is exact enough without a TOML parser.
-already_installed() {
-  local repo="$1" rev="$2" name="$3"
-  [[ -x "$install_root/bin/$name" ]] || return 1
-  [[ -f $crates_toml ]] || return 1
-  grep -qF "(git+https://github.com/${repo}?rev=${rev}" "$crates_toml"
+tool_binary_is_installed() {
+  local name=$1
+  [[ -x "$install_root/bin/$name" ]]
 }
 
-deferred=0
-{{ range .packages.cargo_git_tools }}
-if already_installed {{ .repo | quote }} {{ .ref | quote }} {{ .name | quote }}; then
-  :
-else
-  report_section 'cargo-git-tools' {{ .name | quote }}
-  report_line 'installing {{ .name }} from {{ .repo }}@{{ .ref }}'
-  if "$cargo_bin" install --git {{ printf "https://github.com/%s" .repo | quote }} --rev {{ .ref | quote }} --locked --root "$install_root" {{ .package | quote }}; then
-    report_line "installed $install_root/bin/{{ .name }}"
-  else
-    report_line 'install failed (network unreachable, or cargo itself failed); deferred to the next apply.' >&2
-    deferred=1
+installed_crates_record_exists() {
+  [[ -f $installed_crates_record ]]
+}
+
+installed_crates_record_lists_revision() {
+  local repo=$1 revision=$2
+  grep -qF "(git+https://github.com/${repo}?rev=${revision}" "$installed_crates_record"
+}
+
+pinned_revision_is_installed() {
+  local repo=$1 revision=$2 name=$3
+  tool_binary_is_installed "$name" && installed_crates_record_exists && installed_crates_record_lists_revision "$repo" "$revision"
+}
+
+cargo_install_from_git() {
+  local repo=$1 revision=$2 package=$3
+  "$cargo_bin" install --git "https://github.com/$repo" --rev "$revision" --locked --root "$install_root" "$package"
+}
+
+install_pinned_revision_if_missing() {
+  local name=$1 repo=$2 package=$3 revision=$4
+  if pinned_revision_is_installed "$repo" "$revision" "$name"; then
+    report_line "$name from $repo@$revision already installed, skipping."
+    return
   fi
-fi
-{{ end -}}
+  report_line "installing $name from $repo@$revision..."
+  if ! cargo_install_from_git "$repo" "$revision" "$package"; then
+    report_line "install failed (network unreachable, or cargo itself failed); deferred to the next apply." >&2
+    return 1
+  fi
+  report_line "installed $install_root/bin/$name."
+}
 
-if [[ $deferred -eq 1 ]]; then
-  mkdir -p "$(dirname "$retry_marker")"
-  touch "$retry_marker"
-  exit 0
-fi
+install_declared_tools() {
+  local install_status=0
+{{- range .packages.cargo_git_tools }}
+  install_pinned_revision_if_missing {{ .name | quote }} {{ .repo | quote }} {{ .package | quote }} {{ .ref | quote }} || install_status=1
+{{- end }}
+  return "$install_status"
+}
 
-rm -f "$retry_marker"
+main() {
+  report_section 'cargo-git-tools' 'CLI tools pinned to a git revision'
+
+  if ! cargo_is_installed; then
+    report_line "cargo not found at $cargo_bin; install deferred to the next apply." >&2
+    defer_build_until_next_apply "$cargo_git_tools_retry_marker"
+    exit 0
+  fi
+
+  if ! install_declared_tools; then
+    defer_build_until_next_apply "$cargo_git_tools_retry_marker"
+    exit 0
+  fi
+
+  settle_retry_marker "$cargo_git_tools_retry_marker"
+}
+
+main "$@"
 {{ end -}}

@@ -5,6 +5,8 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
 readonly nixos_nix_installer_url="https://artifacts.nixos.org/nix-installer"
 readonly default_profile_nix="/nix/var/nix/profiles/default/bin/nix"
 
@@ -25,7 +27,7 @@ main() {
   fi
 
   report_line "installing..."
-  sudo -v
+  authenticate_sudo_once
   install_nix_unattended_with_flakes
   local nix_version
   nix_version="$("$default_profile_nix" --version)"
