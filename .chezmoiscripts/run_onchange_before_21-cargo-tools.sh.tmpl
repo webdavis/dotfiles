@@ -1,6 +1,6 @@
 {{ if eq .chezmoi.os "darwin" -}}
 {{ if .packages.macos.cargo -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
 # run_onchange_before_21-cargo-tools.sh.tmpl:
 #
@@ -12,20 +12,22 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-export PATH="$HOME/.cargo/bin:$PATH"
+readonly install_time_limit=10m
+readonly exit_status_hung=124
 
-report_section 'cargo' 'crate installs' >&2
+declared_crates=(
+{{- range .packages.macos.cargo }}
+  {{ printf "%s %s" .name (get . "version" | default "") | trim | quote }}
+{{- end }}
+)
 
-if ! command -v cargo >/dev/null 2>&1; then
-  report_line 'error[missing-tool]: cargo is not on PATH; no crates were installed.' >&2
-  exit 1
-fi
+cargo_is_installed() {
+  command -v cargo >/dev/null 2>&1
+}
 
 find_coreutils_timeout() {
-  local linux_cmd="timeout"
-  local macos_cmd="gtimeout"
   local candidate
-  for candidate in "$linux_cmd" "$macos_cmd"; do
+  for candidate in timeout gtimeout; do
     if command -v "$candidate" >/dev/null 2>&1; then
       printf '%s\n' "$candidate"
       return
@@ -33,11 +35,9 @@ find_coreutils_timeout() {
   done
 }
 
-timeout_bin="$(find_coreutils_timeout)"
-install_time_limit=10m
-exit_status_hung=124
-
 run_with_time_limit() {
+  local timeout_bin
+  timeout_bin="$(find_coreutils_timeout)"
   if [[ -n $timeout_bin ]]; then
     "$timeout_bin" "$install_time_limit" "$@"
   else
@@ -46,29 +46,45 @@ run_with_time_limit() {
 }
 
 install_crate() {
-  local crate=$1 version=${2:-}
+  local crate=$1 version=$2
   run_with_time_limit cargo install --locked "$crate" ${version:+--version "$version"}
 }
 
-abort_on_failed_install() {
+install_hung() {
+  local exit_status=$1
+  ((exit_status == exit_status_hung))
+}
+
+failed_install_message() {
   local crate=$1 exit_status=$2
-  if ((exit_status == exit_status_hung)); then
-    report_line "error[timeout]: $crate was still installing after $install_time_limit." >&2
+  if install_hung "$exit_status"; then
+    printf 'error[timeout]: %s was still installing after %s.' "$crate" "$install_time_limit"
   else
-    report_line "error[failed-install]: $crate exited with status $exit_status." >&2
+    printf 'error[failed-install]: %s exited with status %s.' "$crate" "$exit_status"
   fi
-  exit 1
 }
 
-install_crate_or_abort_apply() {
-  local crate=$1 version=${2:-} exit_status
-  install_crate "$crate" "$version" && return
-  exit_status=$?
-  abort_on_failed_install "${crate}${version:+ $version}" "$exit_status"
+main() {
+  export PATH="$HOME/.cargo/bin:$PATH"
+  report_section 'cargo' 'crate installs' >&2
+
+  if ! cargo_is_installed; then
+    report_line 'error[missing-tool]: cargo is not on PATH; no crates were installed.' >&2
+    exit 1
+  fi
+
+  local entry crate version exit_status
+  for entry in "${declared_crates[@]}"; do
+    read -r crate version <<<"$entry"
+    exit_status=0
+    install_crate "$crate" "$version" || exit_status=$?
+    if ((exit_status != 0)); then
+      report_line "$(failed_install_message "${crate}${version:+ $version}" "$exit_status")" >&2
+      exit 1
+    fi
+  done
 }
 
-{{ range .packages.macos.cargo }}
-install_crate_or_abort_apply {{ .name | quote }} {{ get . "version" | quote }}
-{{- end }}
+main "$@"
 {{ end -}}
 {{ end -}}
