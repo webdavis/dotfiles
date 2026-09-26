@@ -47,8 +47,8 @@ tracked entry whose live value diverges from YAML (exits 4). Resolve that by run
 ## Implementation gotchas that must not be "cleaned up"
 
 - **`macos-defaults-drift.sh` reads its records from a here-string, never from a pipe**
-  (`scripts/macos-defaults/macos-defaults-drift.sh`, `check_every_record`). Bash runs the right-hand
-  side of a pipeline in a subshell, so the `drift_count` increments inside a `... | while` loop would be
+  (`scripts/macos-defaults/macos-defaults-drift.sh`, `check_every_record`). Bash runs the right-hand side
+  of a pipeline in a subshell, so the `drift_count` increments inside a `... | while` loop would be
   discarded after the loop, and `just D` would exit 0 even when drift exists, a silent false negative.
   The same applies to `unreadable_count`, which drives a separate fail-closed `exit 3`.
 - **The Tier 1 runner template uses `{{ if index . "host" }}`, not `{{ if .host }}`.** Go's
