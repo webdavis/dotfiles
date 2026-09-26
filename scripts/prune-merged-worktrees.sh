@@ -111,6 +111,15 @@ herdr_workspace_id_for() {
   printf '%s' "${herdr_workspace_id_by_path[$worktree_path]:-}"
 }
 
+worktree_is_open_in_herdr() {
+  local worktree_path=$1
+  [[ -n $(herdr_workspace_id_for "$worktree_path") ]]
+}
+
+list_worktree_records() {
+  git worktree list --porcelain
+}
+
 worktree_directory_exists() {
   local worktree_path=$1
   [[ -n $worktree_path && -d $worktree_path ]]
@@ -136,6 +145,11 @@ commit_is_merged_upstream() {
   git merge-base --is-ancestor "$commit" "$upstream_branch" 2>/dev/null
 }
 
+list_uncommitted_changes() {
+  local worktree_path=$1
+  git -C "$worktree_path" status --porcelain
+}
+
 path_from_status_line() {
   local status_line=$1
   printf '%s' "${status_line:status_prefix_length}"
@@ -153,29 +167,37 @@ worktree_is_clean() {
     if ! status_line_is_graphify_rewrite "$status_line"; then
       return 1
     fi
-  done < <(git -C "$worktree_path" status --porcelain)
+  done < <(list_uncommitted_changes "$worktree_path")
   return 0
 }
 
 removal_method_for() {
   local worktree_path=$1
-  local workspace_id
-  workspace_id="$(herdr_workspace_id_for "$worktree_path")"
-  if [[ -n $workspace_id ]]; then
-    printf 'herdr %s' "$workspace_id"
+  if worktree_is_open_in_herdr "$worktree_path"; then
+    printf 'herdr %s' "$(herdr_workspace_id_for "$worktree_path")"
   else
     printf 'git'
   fi
 }
 
-run_removal() {
+remove_worktree_with_herdr() {
   local worktree_path=$1
   local workspace_id
   workspace_id="$(herdr_workspace_id_for "$worktree_path")"
-  if [[ -n $workspace_id ]]; then
-    herdr worktree remove --workspace "$workspace_id" --force >/dev/null 2>&1
+  herdr worktree remove --workspace "$workspace_id" --force >/dev/null 2>&1
+}
+
+remove_worktree_with_git() {
+  local worktree_path=$1
+  git worktree remove --force "$worktree_path" >/dev/null 2>&1
+}
+
+run_removal() {
+  local worktree_path=$1
+  if worktree_is_open_in_herdr "$worktree_path"; then
+    remove_worktree_with_herdr "$worktree_path"
   else
-    git worktree remove --force "$worktree_path" >/dev/null 2>&1
+    remove_worktree_with_git "$worktree_path"
   fi
 }
 
@@ -239,7 +261,7 @@ decide_every_worktree() {
         worktree_path=''
         ;;
     esac
-  done 3< <(git worktree list --porcelain)
+  done 3< <(list_worktree_records)
 }
 
 deregister_worktrees_whose_directories_are_gone() {
