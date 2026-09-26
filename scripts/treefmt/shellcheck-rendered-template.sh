@@ -10,7 +10,7 @@ source "$treefmt_scripts_dir/lib-shellcheck-rendered-template.sh"
 source "$treefmt_scripts_dir/lib-render-context.sh"
 
 readonly leading_lines_that_decide_the_shell=10
-readonly chezmoi_partials_dir='.chezmoitemplates'
+readonly chezmoi_partials_directory='.chezmoitemplates'
 
 line_is_blank() {
   local line=$1
@@ -75,36 +75,71 @@ template_is_a_shell_script() {
   line_names_a_shell "$deciding_line"
 }
 
+file_is_readable() {
+  local file=$1
+  [[ -r $file ]]
+}
+
 file_mentions_keepassxc() {
   local file=$1
   grep -q 'keepassxc' "$file"
 }
 
-partials_included_by() {
-  local file=$1
-  grep -o 'includeTemplate "[^"]*"' "$file" | sed 's/includeTemplate "//; s/"$//'
+list_partial_names_included_by() {
+  local template=$1
+  grep -o 'includeTemplate "[^"]*"' "$template" | sed 's/includeTemplate "//; s/"$//'
 }
 
-template_or_its_partials_use_keepassxc() {
-  local file=$1
-  local -a unvisited=("$file") visited=()
-  local current visited_file partial_name
-  while ((${#unvisited[@]})); do
-    current="${unvisited[0]}"
-    unvisited=("${unvisited[@]:1}")
-    for visited_file in "${visited[@]:-}"; do
-      [[ $visited_file == "$current" ]] && continue 2
-    done
-    visited+=("$current")
-    [[ -r $current ]] || continue
-    if file_mentions_keepassxc "$current"; then
+templates_are_the_same() {
+  local first_template=$1 second_template=$2
+  [[ $first_template == "$second_template" ]]
+}
+
+template_is_in_an_include_loop() {
+  local template=$1
+  shift
+  local -a including_templates=("$@")
+  local including_template
+  for including_template in "${including_templates[@]}"; do
+    if templates_are_the_same "$template" "$including_template"; then
       return 0
     fi
-    while IFS= read -r partial_name; do
-      unvisited+=("$chezmoi_partials_dir/$partial_name")
-    done < <(partials_included_by "$current")
   done
   return 1
+}
+
+list_files_that_make_up() {
+  local template=$1
+  shift
+  local -a including_templates=("$@")
+  local partial_name
+  if template_is_in_an_include_loop "$template" "${including_templates[@]}"; then
+    return 0
+  fi
+  if ! file_is_readable "$template"; then
+    return 0
+  fi
+  printf '%s\n' "$template"
+  while IFS= read -r partial_name; do
+    list_files_that_make_up "$chezmoi_partials_directory/$partial_name" "$template" "${including_templates[@]}"
+  done < <(list_partial_names_included_by "$template")
+}
+
+any_file_mentions_keepassxc() {
+  local file
+  for file in "$@"; do
+    if file_mentions_keepassxc "$file"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+template_needs_keepassxc() {
+  local template=$1
+  local -a files_that_make_up_the_template
+  mapfile -t files_that_make_up_the_template < <(list_files_that_make_up "$template")
+  any_file_mentions_keepassxc "${files_that_make_up_the_template[@]}"
 }
 
 main() {
@@ -112,7 +147,7 @@ main() {
   create_render_context || exit 1
   for file in "$@"; do
     template_is_a_shell_script "$file" || continue
-    template_or_its_partials_use_keepassxc "$file" && continue
+    template_needs_keepassxc "$file" && continue
     shellcheck_rendered_template "$file" || status=1
   done
   exit "$status"
