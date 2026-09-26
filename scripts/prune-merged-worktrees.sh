@@ -10,6 +10,8 @@ source "$dotfiles_directory/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 readonly script_name="${0##*/}"
 readonly upstream_branch='origin/main'
 readonly graphify_rewritten_path='graphify-out/graph.json'
+readonly status_prefix_length=3
+readonly short_commit_length=12
 readonly end_of_worktree_record=''
 readonly exit_success=0
 readonly exit_failure=1
@@ -136,7 +138,7 @@ commit_is_merged_upstream() {
 
 path_from_status_line() {
   local status_line=$1
-  printf '%s' "${status_line:3}"
+  printf '%s' "${status_line:status_prefix_length}"
 }
 
 status_line_is_graphify_rewrite() {
@@ -209,7 +211,7 @@ decide_worktree() {
   if worktree_is_current "$worktree_path"; then
     keep_worktree "$worktree_path" 'the current worktree'
   elif worktree_is_detached "$branch_reference"; then
-    keep_worktree "$worktree_path" "detached at ${head_commit:0:12}"
+    keep_worktree "$worktree_path" "detached at ${head_commit:0:short_commit_length}"
   elif ! commit_is_merged_upstream "$head_commit"; then
     keep_worktree "$worktree_path" "$branch_name is not merged into $upstream_branch"
   elif ! worktree_is_clean "$worktree_path"; then
