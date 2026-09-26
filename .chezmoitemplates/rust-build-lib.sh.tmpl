@@ -28,6 +28,37 @@ defer_build_until_next_apply() {
   touch "$retry_marker"
 }
 
+retry_marker_exists() {
+  local retry_marker=$1
+  [[ -f $retry_marker ]]
+}
+
+is_a_whole_number() {
+  local value=$1
+  [[ $value =~ ^[0-9]+$ ]]
+}
+
+read_retry_attempts() {
+  local retry_marker=$1
+  local recorded_attempts
+  recorded_attempts="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+  if is_a_whole_number "$recorded_attempts"; then
+    printf '%s' "$recorded_attempts"
+  else
+    printf '0'
+  fi
+}
+
+increment_retry_attempts() {
+  local retry_marker=$1
+  local attempts=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if retry_marker_exists "$retry_marker"; then
+    attempts="$(read_retry_attempts "$retry_marker")"
+  fi
+  printf '%d\n' "$((attempts + 1))" >"$retry_marker"
+}
+
 settle_retry_marker() {
   local retry_marker=$1
   rm -f "$retry_marker"
