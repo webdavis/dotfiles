@@ -149,7 +149,8 @@ pub(crate) fn parse_config(
     if document.contains_key("lane") && document.contains_key("lanes") {
         return Err(ConfigError::Invalid(
             "the file has both a `lane` table and a `lanes` table; write every lane as \
-             `[lane.<name>]`"
+             `[lane.<name>]`, and keep or add a `type` line on each lane that is not a command \
+             lane, because a `[lane.<name>]` block with no `type` is a command lane"
                 .to_string(),
         ));
     }

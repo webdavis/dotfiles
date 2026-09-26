@@ -56,6 +56,10 @@ fn a_file_with_both_a_lane_table_and_a_lanes_table_is_refused_saying_to_use_lane
         "{detail}"
     );
     assert!(detail.contains("`[lane.<name>]`"), "{detail}");
+    assert!(
+        detail.contains("keep or add a `type` line on each lane that is not a command lane"),
+        "{detail}"
+    );
 }
 
 #[test]
