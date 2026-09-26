@@ -24,7 +24,7 @@ printf "%s\n" "Running pre-push checks..."
 # Format/lint drift gate. Standalone treefmt has no dry-run mode, so a red
 # gate has ALSO already written the fixes into the working tree: stage them,
 # amend or commit, and push again.
-if ! just lint-check; then
+if ! just lint-gate; then
   printf "\n%s\n" "❌ Lint drift! treefmt already fixed the files; stage the changes, commit, and push again."
   exit 1
 fi

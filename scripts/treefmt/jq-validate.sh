@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# treefmt validator: `jq empty` per file, non-zero on any JSON parse error.
-# Ported verbatim from the old treefmt.nix jqValidate writeShellApplication.
+
 set -uo pipefail
-status=0
-for file; do
-  jq empty <"$file" || {
-    echo "jq-validate: invalid JSON: $file" >&2
-    status=1
-  }
-done
-exit "$status"
+
+file_is_valid_json() {
+  local file=$1
+  jq empty <"$file"
+}
+
+main() {
+  local file status=0
+  for file in "$@"; do
+    if ! file_is_valid_json "$file"; then
+      printf 'jq-validate: invalid JSON: %s\n' "$file" >&2
+      status=1
+    fi
+  done
+  exit "$status"
+}
+
+main "$@"
