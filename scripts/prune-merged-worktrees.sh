@@ -155,16 +155,16 @@ path_from_status_line() {
   printf '%s' "${status_line:status_prefix_length}"
 }
 
-status_line_is_graphify_rewrite() {
+status_line_is_uncommitted_work() {
   local status_line=$1
-  [[ $(path_from_status_line "$status_line") == "$graphify_rewritten_path" ]]
+  [[ $(path_from_status_line "$status_line") != "$graphify_rewritten_path" ]]
 }
 
 worktree_is_clean() {
   local worktree_path=$1
   local status_line
   while IFS= read -r status_line; do
-    if ! status_line_is_graphify_rewrite "$status_line"; then
+    if status_line_is_uncommitted_work "$status_line"; then
       return 1
     fi
   done < <(list_uncommitted_changes "$worktree_path")
