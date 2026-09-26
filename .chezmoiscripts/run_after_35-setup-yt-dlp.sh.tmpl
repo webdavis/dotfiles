@@ -1,150 +1,216 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -uo pipefail
+set -euo pipefail
 
-# G2 section headers for anything this script prints (operator ruling
-# 2026-08-05); the library is inlined at render time, so no runtime sourcing.
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-# =============================================================================
-# Configuration
-# =============================================================================
+readonly ytdlp_binary="$HOME/.local/bin/yt-dlp"
+readonly ytdlp_download_url="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+readonly bgutil_repository="$HOME/.local/share/yt-dlp/bgutil-ytdlp-pot-provider"
+readonly bgutil_repository_url="https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git"
+readonly bgutil_latest_release_api_url="https://api.github.com/repos/Brainicism/bgutil-ytdlp-pot-provider/releases/latest"
+readonly bgutil_server="$bgutil_repository/server"
+readonly npm_packages_allowed_to_run_build_scripts="npm:canvas,npm:@swc/core"
+readonly bgutil_plugin_url="https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
+readonly bgutil_plugin_zip="$HOME/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip"
+readonly provider_launchagent_label="com.webdavis.yt-dlp-pot-provider"
+readonly provider_launchagent_plist="$HOME/Library/LaunchAgents/$provider_launchagent_label.plist"
+readonly provider_log_directory="$HOME/.local/log/yt-dlp"
 
-YTDLP_BIN="${HOME}/.local/bin/yt-dlp"
-YTDLP_URL="https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+deno_is_installed() {
+  command -v deno &>/dev/null
+}
 
-POT_REPO="${HOME}/.local/share/yt-dlp/bgutil-ytdlp-pot-provider"
-POT_SERVER="${POT_REPO}/server"
-POT_REPO_URL="https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git"
-POT_API="https://api.github.com/repos/Brainicism/bgutil-ytdlp-pot-provider/releases/latest"
-POT_PLUGIN_URL="https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
+jq_is_installed() {
+  command -v jq &>/dev/null
+}
 
-PLUGIN_DIR="${HOME}/.config/yt-dlp/plugins"
-PLUGIN_ZIP="${PLUGIN_DIR}/bgutil-ytdlp-pot-provider.zip"
-
-LAUNCHAGENT_LABEL="com.webdavis.yt-dlp-pot-provider"
-LAUNCHAGENT_PLIST="${HOME}/Library/LaunchAgents/${LAUNCHAGENT_LABEL}.plist"
-LAUNCHAGENT_DOMAIN="gui/$(id -u)"
-
-# =============================================================================
-# Helpers
-# =============================================================================
+fetch_url_into_file() {
+  local url=$1 file=$2
+  curl --proto '=https' --tlsv1.2 -L --fail --retry 3 -s -o "$file" "$url"
+}
 
 download_file() {
-  local url="$1" dest="$2"
-  local tmpfile
-  tmpfile="$(mktemp)"
-  if curl --proto '=https' --tlsv1.2 -L --fail --retry 3 -s -o "${tmpfile}" "${url}"; then
-    mkdir -p "$(dirname "${dest}")"
-    mv "${tmpfile}" "${dest}"
-    return 0
-  else
-    rm -f "${tmpfile}"
+  local url=$1 destination=$2
+  local temp_file
+  temp_file="$(mktemp)"
+  if ! fetch_url_into_file "$url" "$temp_file"; then
+    rm -f "$temp_file"
     return 1
   fi
+  mkdir -p "$(dirname "$destination")"
+  mv "$temp_file" "$destination"
 }
 
-fetch_latest_pot_tag() {
-  curl -sf "${POT_API}" | jq -r .tag_name 2>/dev/null
+ytdlp_is_installed() {
+  [[ -x $ytdlp_binary ]]
 }
 
-current_pot_tag() {
-  git -C "${POT_REPO}" describe --tags --exact-match 2>/dev/null
+make_ytdlp_executable() {
+  chmod a+rx "$ytdlp_binary"
 }
 
-# Deno runs an npm package's build script only when that package is named here,
-# and it warns rather than failing for the ones it skipped, so a provider release
-# that adds a dependency builds QUIETLY WRONG until its package is added. The 2.0.0
-# release added @swc/core, which is why it is here. The names are deliberately
-# unpinned: a version would have to be chased on every upgrade, and the decision
-# being made is which package may run code, not which release of it.
-build_pot_server() {
-  echo "Building PO token server..."
-  (cd "${POT_SERVER}" && deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen)
+switch_ytdlp_to_nightly_channel() {
+  "$ytdlp_binary" --update-to nightly
 }
 
-# =============================================================================
-# Install
-# =============================================================================
-
-install_ytdlp() {
-  [[ -x "${YTDLP_BIN}" ]] && return 0
-  echo "Installing yt-dlp..."
-  if download_file "${YTDLP_URL}" "${YTDLP_BIN}"; then
-    chmod a+rx "${YTDLP_BIN}"
-    echo "Switching to nightly channel..."
-    "${YTDLP_BIN}" --update-to nightly || echo "Warning: failed to switch to nightly."
-  else
-    echo "Warning: failed to download yt-dlp."
-    return 1
+install_nightly_ytdlp() {
+  if ytdlp_is_installed; then
+    return
   fi
+
+  report_line "installing yt-dlp..."
+  if ! download_file "$ytdlp_download_url" "$ytdlp_binary"; then
+    report_line "error[download-failed]: could not download yt-dlp." >&2
+    return
+  fi
+  make_ytdlp_executable || true
+  report_line "installed $ytdlp_binary."
+
+  report_line "switching yt-dlp to the nightly channel..."
+  if ! switch_ytdlp_to_nightly_channel; then
+    report_line "error[nightly-switch-failed]: yt-dlp could not switch to the nightly channel." >&2
+    return
+  fi
+  report_line "switched yt-dlp to the nightly channel."
 }
 
-install_pot_server() {
-  [[ -d "${POT_SERVER}/node_modules" ]] && return 0
-  local tag
-  tag="$(fetch_latest_pot_tag)" || true
-  if [[ -z "${tag}" ]]; then
-    echo "Warning: could not fetch latest bgutil release tag."
-    return 1
+bgutil_server_is_built() {
+  [[ -d $bgutil_server/node_modules ]]
+}
+
+fetch_latest_bgutil_release_tag() {
+  curl -sf "$bgutil_latest_release_api_url" | jq -r .tag_name 2>/dev/null
+}
+
+release_tag_is_known() {
+  local release_tag=$1
+  [[ -n $release_tag ]]
+}
+
+bgutil_repository_is_cloned() {
+  [[ -d $bgutil_repository ]]
+}
+
+clone_bgutil_repository() {
+  local release_tag=$1
+  mkdir -p "$(dirname "$bgutil_repository")"
+  git clone --single-branch --branch "$release_tag" "$bgutil_repository_url" "$bgutil_repository" 2>/dev/null
+}
+
+build_bgutil_server() {
+  (cd "$bgutil_server" && deno install --allow-scripts="$npm_packages_allowed_to_run_build_scripts" --frozen)
+}
+
+install_bgutil_server() {
+  if bgutil_server_is_built; then
+    return
   fi
-  if [[ ! -d "${POT_REPO}" ]]; then
-    echo "Cloning bgutil-ytdlp-pot-provider ${tag}..."
-    mkdir -p "$(dirname "${POT_REPO}")"
-    if ! git clone --single-branch --branch "${tag}" "${POT_REPO_URL}" "${POT_REPO}" 2>/dev/null; then
-      echo "Warning: failed to clone bgutil repo."
-      return 1
+
+  local release_tag
+  release_tag="$(fetch_latest_bgutil_release_tag)" || true
+  if ! release_tag_is_known "$release_tag"; then
+    report_line "error[release-lookup-failed]: could not fetch the latest bgutil release tag." >&2
+    return
+  fi
+
+  if ! bgutil_repository_is_cloned; then
+    report_line "cloning bgutil-ytdlp-pot-provider $release_tag..."
+    if ! clone_bgutil_repository "$release_tag"; then
+      report_line "error[clone-failed]: could not clone the bgutil repository." >&2
+      return
     fi
+    report_line "cloned $bgutil_repository."
   fi
-  build_pot_server || { echo "Warning: server build failed."; return 1; }
+
+  report_line "building the PO token server..."
+  if ! build_bgutil_server; then
+    report_line "error[build-failed]: the PO token server did not build." >&2
+    return
+  fi
+  report_line "built the PO token server."
 }
 
-install_plugin() {
-  [[ -f "${PLUGIN_ZIP}" ]] && return 0
-  echo "Downloading bgutil plugin..."
-  if ! download_file "${POT_PLUGIN_URL}" "${PLUGIN_ZIP}"; then
-    echo "Warning: failed to download bgutil plugin."
-    return 1
+bgutil_plugin_is_downloaded() {
+  [[ -f $bgutil_plugin_zip ]]
+}
+
+download_bgutil_plugin() {
+  if bgutil_plugin_is_downloaded; then
+    return
+  fi
+
+  report_line "downloading the bgutil plugin..."
+  if ! download_file "$bgutil_plugin_url" "$bgutil_plugin_zip"; then
+    report_line "error[download-failed]: could not download the bgutil plugin." >&2
+    return
+  fi
+  report_line "downloaded $bgutil_plugin_zip."
+}
+
+provider_launchagent_plist_is_deployed() {
+  [[ -f $provider_launchagent_plist ]]
+}
+
+create_provider_log_directory() {
+  mkdir -p "$provider_log_directory"
+}
+
+provider_launchagent_is_loaded() {
+  launchctl list "$provider_launchagent_label" &>/dev/null
+}
+
+user_gui_domain() {
+  printf 'gui/%s' "$(id -u)"
+}
+
+bootstrap_provider_launchagent() {
+  launchctl bootstrap "$(user_gui_domain)" "$provider_launchagent_plist" 2>/dev/null
+}
+
+load_provider_launchagent() {
+  report_line "loading the PO token provider LaunchAgent..."
+  if bootstrap_provider_launchagent; then
+    report_line "loaded the PO token provider LaunchAgent."
   fi
 }
 
-# =============================================================================
-# LaunchAgent
-# =============================================================================
-
-ensure_pot_launchagent() {
-  [[ -f "${LAUNCHAGENT_PLIST}" ]] || return 1
-  mkdir -p "${HOME}/.local/log/yt-dlp"
-  if launchctl list "${LAUNCHAGENT_LABEL}" &>/dev/null; then
-    return 0
-  fi
-  echo "Loading PO token provider LaunchAgent..."
-  launchctl bootstrap "${LAUNCHAGENT_DOMAIN}" "${LAUNCHAGENT_PLIST}" 2>/dev/null || true
+everything_is_installed() {
+  ytdlp_is_installed && bgutil_server_is_built && bgutil_plugin_is_downloaded
 }
-
-restart_pot_launchagent() {
-  launchctl list "${LAUNCHAGENT_LABEL}" &>/dev/null || return 0
-  echo "Restarting PO token provider..."
-  launchctl kickstart -k "${LAUNCHAGENT_DOMAIN}/${LAUNCHAGENT_LABEL}" 2>/dev/null || true
-}
-
-# =============================================================================
-# Main
-# =============================================================================
 
 main() {
-  if ! command -v deno &>/dev/null || ! command -v jq &>/dev/null; then
-    echo "Warning: required tools not yet available. Skipping yt-dlp setup."
-    return 0
+  report_section 'yt-dlp' 'yt-dlp and its YouTube PO token provider'
+
+  if ! deno_is_installed || ! jq_is_installed; then
+    report_line "deno or jq is not installed yet, skipping."
+    return
   fi
 
-  install_ytdlp
-  install_pot_server
-  install_plugin
+  if everything_is_installed && provider_launchagent_plist_is_deployed; then
+    create_provider_log_directory || true
+    if provider_launchagent_is_loaded; then
+      report_line "everything up to date, skipping."
+    else
+      load_provider_launchagent
+    fi
+    return
+  fi
 
-  ensure_pot_launchagent
+  install_nightly_ytdlp
+  install_bgutil_server
+  download_bgutil_plugin
+
+  if ! provider_launchagent_plist_is_deployed; then
+    report_line "error[missing-plist]: $provider_launchagent_plist is not deployed; the PO token provider LaunchAgent was not loaded." >&2
+    exit 1
+  fi
+  create_provider_log_directory || true
+  if ! provider_launchagent_is_loaded; then
+    load_provider_launchagent
+  fi
 }
 
-main
+main "$@"
 {{ end -}}
