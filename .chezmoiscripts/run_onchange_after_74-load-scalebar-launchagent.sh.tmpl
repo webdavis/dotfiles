@@ -1,57 +1,37 @@
-#!/bin/bash
-# run_onchange_after_74-load-scalebar-launchagent.sh
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.scalebar.plist.tmpl" | sha256sum }}
-#
-# THE BUILDER'S RETRY MARKER IS PART OF THIS SCRIPT'S CONTENT, so a loader that
-# refused for want of a binary re-fires once the build state changes. chezmoi
-# records a run_onchange script as done on ANY exit 0, and the refusal below
-# exits 0 on purpose, so without this line the first apply on a machine with no
-# Scalebar clone would record the loader as done and the app would never be
-# bootstrapped. The marker's MODIFICATION TIME is the trigger, never its
-# contents: reading a file at render time means an unreadable node aborts the
-# apply.
-#   build-retry-marker: {{ $rm := printf "%s/.cache/scalebar-build/scalebar.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
-#
-# THE BINARY'S OWN MODIFICATION TIME IS A TRIGGER TOO, which the Rust loaders do
-# not need and this one does. Scalebar is a long-running app: launchd started it
-# from the binary that existed at login, and installing a new one underneath it
-# changes nothing until the process restarts. Re-firing on a rebuild is what
-# makes the bootout below pick the new build up, and it is the same step the
-# Scalebar README asks for by hand.
-#   binary: {{ $bin := printf "%s/%s/Scalebar" (env "HOME") .scalebar.install_dir }}{{ if stat $bin }}{{ (stat $bin).modTime }}{{ else }}absent{{ end }}
+# build-retry-marker: {{ $retryMarker := printf "%s/.cache/scalebar-build/scalebar.retry" (env "HOME") }}{{ if stat $retryMarker }}{{ (stat $retryMarker).modTime }}{{ else }}settled{{ end }}
+# binary: {{ $scalebarBinary := printf "%s/%s/Scalebar" (env "HOME") .scalebar.install_dir }}{{ if stat $scalebarBinary }}{{ (stat $scalebarBinary).modTime }}{{ else }}absent{{ end }}
 
-{{- if eq .chezmoi.os "darwin" }}
 set -euo pipefail
 
-SCALEBAR={{ joinPath .chezmoi.homeDir .scalebar.install_dir "Scalebar" | quote }}
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-# THE BINARY IS THE PRECONDITION, and it is not guaranteed: the builder beside
-# this one defers on a machine with no clone or no Swift toolchain, and exits 0
-# so the apply carries on. Booting the current app out and bootstrapping a plist
-# that points at nothing would leave the menu bar empty until some later apply;
-# refusing leaves whatever is already loaded running.
-if [[ ! -x $SCALEBAR ]]; then
-  printf 'scalebar: %s is missing or not executable, so the LaunchAgent was left exactly as it is; the build is deferred to the next apply.\n' "$SCALEBAR" >&2
-  exit 0
-fi
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
 
-# launchd will not create the log dir itself.
-mkdir -p "$HOME/.local/log/scalebar"
+readonly scalebar_binary={{ joinPath .chezmoi.homeDir .scalebar.install_dir "Scalebar" | quote }}
+readonly launchagent_label="com.webdavis.scalebar"
+readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
+readonly launchagent_log_directory="$HOME/.local/log/scalebar"
 
-PLIST="$HOME/Library/LaunchAgents/com.webdavis.scalebar.plist"
-TARGET="gui/$(id -u)/com.webdavis.scalebar"
+scalebar_is_installed() {
+  [[ -x $scalebar_binary ]]
+}
 
-# Re-bootstrap so a changed plist or a fresh binary takes effect; launchd
-# sometimes answers EIO right after a bootout, so retry silently before
-# surfacing the real error.
-launchctl bootout "$TARGET" 2>/dev/null || true
+main() {
+  report_section 'scalebar' 'menu-bar app LaunchAgent'
 
-for _ in 1 2 3; do
-  if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null; then
+  if ! scalebar_is_installed; then
+    report_line "$scalebar_binary is missing or not executable, so the LaunchAgent was left exactly as it is; the build is deferred to the next apply." >&2
     exit 0
   fi
-  sleep 1
-done
 
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
-{{- end }}
+  create_launchagent_log_directory "$launchagent_log_directory"
+  report_line "reloading..."
+  reload_launchagent "$launchagent_label" "$launchagent_plist"
+  report_line "loaded."
+}
+
+main "$@"
+{{ end -}}

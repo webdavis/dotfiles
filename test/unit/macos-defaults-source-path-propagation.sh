@@ -112,25 +112,25 @@ call_lib_with_override() {
 write_git_stub missing
 write_chezmoi_stub fail
 status=0
-output="$(call_lib_with_override resolve_source_dir "$work/override")" || status=$?
+output="$(call_lib_with_override resolve_source_directory "$work/override")" || status=$?
 [[ $status -eq 0 ]] ||
   fail "override: MACOS_DEFAULTS_SOURCE_DIR must win outright (got $status, stderr: $(cat "$work/err"))"
 [[ $output == "$work/override" ]] ||
-  fail "override: resolve_source_dir must print the override verbatim (got '$output')"
+  fail "override: resolve_source_directory must print the override verbatim (got '$output')"
 
 write_git_stub found
 write_chezmoi_stub ok
 control_status=0
-control_output="$(call_lib resolve_source_dir)" || control_status=$?
+control_output="$(call_lib resolve_source_directory)" || control_status=$?
 [[ $control_status -eq 0 ]] ||
-  fail "control: resolve_source_dir must succeed when chezmoi succeeds (got $control_status, stderr: $(cat "$work/err"))"
+  fail "control: resolve_source_directory must succeed when chezmoi succeeds (got $control_status, stderr: $(cat "$work/err"))"
 [[ $control_output == "$worktree_top" ]] ||
-  fail "control: resolve_source_dir must print the resolved dir (got '$control_output')"
+  fail "control: resolve_source_directory must print the resolved dir (got '$control_output')"
 
 write_git_stub found
 write_chezmoi_stub fail
 status=0
-output="$(call_lib resolve_source_dir)" || status=$?
+output="$(call_lib resolve_source_directory)" || status=$?
 [[ $status -ne 0 ]] ||
   fail "worktree branch: a failed chezmoi source-path must propagate, not be masked by return 0 (got 0, stdout: '$output')"
 grep -qF 'refusing to fall back' "$work/err" ||
@@ -141,7 +141,7 @@ grep -qF 'refusing to fall back' "$work/err" ||
 write_git_stub missing
 write_chezmoi_stub fail
 status=0
-output="$(call_lib resolve_source_dir)" || status=$?
+output="$(call_lib resolve_source_directory)" || status=$?
 [[ $status -ne 0 ]] ||
   fail "fallback branch: a failed chezmoi source-path must propagate (got 0, stdout: '$output')"
 grep -qF 'source directory is unknown' "$work/err" ||
@@ -169,7 +169,7 @@ output="$(
   PATH="$stub_bin:$PATH" LIB="$LIB" GIT_WORK_TREE="$hijack" GIT_DIR="$hijack/.git" bash -c '
     unset MACOS_DEFAULTS_SOURCE_DIR
     source "$LIB"
-    resolve_source_dir
+    resolve_source_directory
   ' 2>"$work/err"
 )" || status=$?
 [[ $status -eq 0 ]] ||
@@ -180,7 +180,7 @@ output="$(
 write_git_stub found "$markerless_data"
 write_chezmoi_stub ok
 status=0
-output="$(call_lib resolve_source_dir)" || status=$?
+output="$(call_lib resolve_source_directory)" || status=$?
 [[ $status -eq 0 ]] ||
   fail "marked tree without data: resolution must succeed (got $status, stderr: $(cat "$work/err"))"
 [[ $output == "$markerless_data" ]] ||
@@ -189,7 +189,7 @@ output="$(call_lib resolve_source_dir)" || status=$?
 write_git_stub found
 write_chezmoi_stub ok
 status=0
-output="$(call_lib_with_override resolve_source_dir '')" || status=$?
+output="$(call_lib_with_override resolve_source_directory '')" || status=$?
 [[ $status -ne 0 ]] ||
   fail "empty override: a set-but-empty MACOS_DEFAULTS_SOURCE_DIR must be rejected, not skipped (got 0, stdout: '$output')"
 grep -qF 'set but empty' "$work/err" ||
