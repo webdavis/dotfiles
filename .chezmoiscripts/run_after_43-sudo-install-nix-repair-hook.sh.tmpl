@@ -1,0 +1,90 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly nix_installer="/nix/nix-installer"
+readonly daemon_label="systems.nixos.nix-installer.nix-hook"
+readonly daemon_plist="/Library/LaunchDaemons/$daemon_label.plist"
+
+expected_daemon_plist() {
+  cat <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>systems.nixos.nix-installer.nix-hook</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>/bin/wait4path /nix/nix-installer &amp;&amp; /nix/nix-installer repair</string>
+	</array>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>StandardErrorPath</key>
+	<string>/nix/.nix-installer-hook.err.log</string>
+	<key>StandardOutPath</key>
+	<string>/nix/.nix-installer-hook.out.log</string>
+</dict>
+</plist>
+PLIST
+}
+
+nix_installer_is_present() {
+  [[ -x $nix_installer ]]
+}
+
+daemon_plist_is_current() {
+  [[ -f $daemon_plist ]] && diff -q <(expected_daemon_plist) "$daemon_plist" >/dev/null
+}
+
+daemon_is_loaded() {
+  launchctl print "system/$daemon_label" >/dev/null 2>&1
+}
+
+write_daemon_plist() {
+  expected_daemon_plist | sudo tee "$daemon_plist" >/dev/null
+  sudo chown root:wheel "$daemon_plist"
+  sudo chmod 644 "$daemon_plist"
+}
+
+unload_daemon() {
+  sudo launchctl bootout "system/$daemon_label" 2>/dev/null || true
+}
+
+load_daemon() {
+  sudo launchctl bootstrap system "$daemon_plist"
+}
+
+main() {
+  report_section 'nix repair hook' 'LaunchDaemon that runs nix-installer repair at boot'
+
+  if ! nix_installer_is_present; then
+    report_line "$nix_installer is not present, skipping."
+    return
+  fi
+  if daemon_plist_is_current && daemon_is_loaded; then
+    report_line "already installed, skipping."
+    return
+  fi
+
+  sudo -v
+  if ! daemon_plist_is_current; then
+    report_line "writing $daemon_plist..."
+    write_daemon_plist
+    unload_daemon
+  fi
+  report_line "loading $daemon_label..."
+  load_daemon
+  report_line "loaded."
+}
+
+main "$@"
+{{ end -}}
