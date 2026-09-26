@@ -57,7 +57,6 @@ switch_ytdlp_to_nightly_channel() {
 
 install_nightly_ytdlp() {
   if ytdlp_is_installed; then
-    report_line "yt-dlp is already installed, skipping."
     return
   fi
 
@@ -106,7 +105,6 @@ build_bgutil_server() {
 
 install_bgutil_server() {
   if bgutil_server_is_built; then
-    report_line "the PO token server is already built, skipping."
     return
   fi
 
@@ -140,7 +138,6 @@ bgutil_plugin_is_downloaded() {
 
 download_bgutil_plugin() {
   if bgutil_plugin_is_downloaded; then
-    report_line "the bgutil plugin is already downloaded, skipping."
     return
   fi
 
@@ -173,15 +170,14 @@ bootstrap_provider_launchagent() {
 }
 
 load_provider_launchagent() {
-  if provider_launchagent_is_loaded; then
-    report_line "the PO token provider LaunchAgent is already loaded, skipping."
-    return
-  fi
-
   report_line "loading the PO token provider LaunchAgent..."
   if bootstrap_provider_launchagent; then
     report_line "loaded the PO token provider LaunchAgent."
   fi
+}
+
+everything_is_installed() {
+  ytdlp_is_installed && bgutil_server_is_built && bgutil_plugin_is_downloaded
 }
 
 main() {
@@ -189,6 +185,16 @@ main() {
 
   if ! deno_is_installed || ! jq_is_installed; then
     report_line "deno or jq is not installed yet, skipping."
+    return
+  fi
+
+  if everything_is_installed && provider_launchagent_plist_is_deployed; then
+    create_provider_log_directory || true
+    if provider_launchagent_is_loaded; then
+      report_line "everything up to date, skipping."
+    else
+      load_provider_launchagent
+    fi
     return
   fi
 
@@ -201,7 +207,9 @@ main() {
     exit 1
   fi
   create_provider_log_directory || true
-  load_provider_launchagent
+  if ! provider_launchagent_is_loaded; then
+    load_provider_launchagent
+  fi
 }
 
 main "$@"
