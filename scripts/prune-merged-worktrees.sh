@@ -18,6 +18,8 @@ readonly exit_failure=1
 readonly exit_bad_arguments=2
 
 dry_run=0
+help_requested=0
+unknown_argument=''
 removed_count=0
 kept_count=0
 removal_failed=0
@@ -34,10 +36,9 @@ print_usage() {
   printf '  -h, --help     Print this message.\n'
 }
 
-exit_with_error() {
+report_error() {
   local kind=$1 message=$2
   report_line "error[$kind]: $message" >&2
-  exit "$exit_failure"
 }
 
 report_decision() {
@@ -51,20 +52,27 @@ parse_arguments() {
     case "$argument" in
       -n | --dry-run) dry_run=1 ;;
       -h | --help)
-        print_usage
-        exit "$exit_success"
+        help_requested=1
+        return 0
         ;;
       *)
-        report_line "error[unknown-argument]: $argument" >&2
-        print_usage >&2
-        exit "$exit_bad_arguments"
+        unknown_argument=$argument
+        return 1
         ;;
     esac
   done
 }
 
+help_was_requested() {
+  ((help_requested == 1))
+}
+
 is_dry_run() {
   ((dry_run == 1))
+}
+
+a_removal_failed() {
+  ((removal_failed == 1))
 }
 
 herdr_is_installed() {
@@ -77,6 +85,10 @@ jq_is_installed() {
 
 current_worktree_root() {
   git rev-parse --show-toplevel 2>/dev/null
+}
+
+inside_a_git_worktree() {
+  current_worktree_root >/dev/null
 }
 
 fetch_origin() {
@@ -317,22 +329,35 @@ report_summary() {
 }
 
 main() {
-  parse_arguments "$@"
+  if ! parse_arguments "$@"; then
+    report_error unknown-argument "$unknown_argument"
+    print_usage >&2
+    exit "$exit_bad_arguments"
+  fi
+  if help_was_requested; then
+    print_usage
+    exit "$exit_success"
+  fi
   report_section 'worktrees' 'prune merged'
 
-  if ! current_worktree_path="$(current_worktree_root)"; then
-    exit_with_error not-a-worktree 'not inside a git worktree.'
+  if ! inside_a_git_worktree; then
+    report_error not-a-worktree 'not inside a git worktree.'
+    exit "$exit_failure"
   fi
+  current_worktree_path="$(current_worktree_root)"
   report_line "fetching origin..."
   if ! fetch_origin; then
-    exit_with_error fetch-failed 'could not fetch origin; nothing was removed.'
+    report_error fetch-failed 'could not fetch origin; nothing was removed.'
+    exit "$exit_failure"
   fi
   if ! upstream_branch_exists; then
-    exit_with_error missing-upstream "$upstream_branch does not exist; nothing was removed."
+    report_error missing-upstream "$upstream_branch does not exist; nothing was removed."
+    exit "$exit_failure"
   fi
   if herdr_is_installed; then
     if ! jq_is_installed; then
-      exit_with_error missing-tool 'jq is required to read the herdr worktree list.'
+      report_error missing-tool 'jq is required to read the herdr worktree list.'
+      exit "$exit_failure"
     fi
     load_herdr_workspace_ids
   fi
@@ -344,8 +369,9 @@ main() {
   fi
   report_summary
 
-  if ((removal_failed)); then
-    exit_with_error removal-failed 'at least one worktree could not be removed.'
+  if a_removal_failed; then
+    report_error removal-failed 'at least one worktree could not be removed.'
+    exit "$exit_failure"
   fi
 }
 
