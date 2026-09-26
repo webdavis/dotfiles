@@ -100,7 +100,7 @@ impl CommandLane {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::probes::{checked_text, refusal, typed};
+    use crate::config::probes::{checked_text, parsed, refusal, typed};
 
     #[test]
     fn a_command_lane_without_run_is_refused_because_it_names_nothing_to_run() {
@@ -166,6 +166,17 @@ mod tests {
             detail.contains("`lane.mine` key `command` is empty"),
             "{detail}"
         );
+    }
+
+    #[test]
+    fn a_lane_block_with_no_type_runs_its_command_as_the_program_and_its_arguments() {
+        let config = parsed("[lane.mine]\ncommand = [\"/fixture/updater\", \"--yes\"]\n");
+        let lane = &config.lanes["mine"];
+        assert_eq!(lane.type_name(), "command");
+        let expected = CommandLane {
+            run: vec!["/fixture/updater".to_string(), "--yes".to_string()],
+        };
+        assert_eq!(format!("{:?}", lane.adapter), format!("{expected:?}"));
     }
 
     #[test]
