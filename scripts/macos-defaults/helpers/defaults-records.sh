@@ -930,20 +930,42 @@ read_validated_records() {
   print_non_empty_lines "$raw_records"
 }
 
+record_scope_is_known() {
+  local scope=$1
+  [[ $scope == user || $scope == system ]]
+}
+
+record_scope_is_user() {
+  local scope=$1
+  [[ $scope == user ]]
+}
+
+record_scope_is_system() {
+  local scope=$1
+  [[ $scope == system ]]
+}
+
+record_targets_current_host() {
+  local host=$1
+  ! text_is_empty "$host"
+}
+
+record_declares_a_plist_path() {
+  local plist_path=$1
+  ! text_is_empty "$plist_path"
+}
+
 validate_record_scope() {
-  local scope="$1" host="$2" plist_path="$3"
-  case "$scope" in
-    user | system) ;;
-    *)
-      printf 'error: unknown scope %q (expected user or system)\n' "$scope" >&2
-      return 1
-      ;;
-  esac
-  if [[ $scope == system && -n $host ]]; then
+  local scope=$1 host=$2 plist_path=$3
+  if ! record_scope_is_known "$scope"; then
+    printf 'error: unknown scope %q (expected user or system)\n' "$scope" >&2
+    return 1
+  fi
+  if record_scope_is_system "$scope" && record_targets_current_host "$host"; then
     printf 'error: scope system cannot be combined with host %q; ByHost storage is per-user\n' "$host" >&2
     return 1
   fi
-  if [[ $scope == user && -n $plist_path ]]; then
+  if record_scope_is_user "$scope" && record_declares_a_plist_path "$plist_path"; then
     printf 'error: plist_path %q is only honored on scope system records\n' "$plist_path" >&2
     return 1
   fi
@@ -951,13 +973,13 @@ validate_record_scope() {
 }
 
 validate_record_identity() {
-  local domain="$1" key="$2"
-  if [[ -z $domain ]]; then
+  local domain=$1 key=$2
+  if text_is_empty "$domain"; then
     printf 'error: record with key %q has a blank domain; give it a value or remove the field\n' \
       "$key" >&2
     return 1
   fi
-  if [[ -z $key ]]; then
+  if text_is_empty "$key"; then
     printf 'error: record %q has a blank key; give it a value or remove the field\n' \
       "$domain" >&2
     return 1
@@ -966,13 +988,16 @@ validate_record_identity() {
 
 MACOS_DEFAULTS_SUPPORTED_TYPES=("array" "bool" "data" "date" "dict" "float" "int" "string")
 
+record_type_is_supported() {
+  local value_type=$1
+  value_is_one_of "$value_type" "${MACOS_DEFAULTS_SUPPORTED_TYPES[@]}"
+}
+
 validate_record_type() {
-  local value_type="$1" domain="$2" key="$3" supported_type
-  for supported_type in "${MACOS_DEFAULTS_SUPPORTED_TYPES[@]}"; do
-    if [[ $value_type == "$supported_type" ]]; then
-      return 0
-    fi
-  done
+  local value_type=$1 domain=$2 key=$3
+  if record_type_is_supported "$value_type"; then
+    return 0
+  fi
   printf 'error: unsupported type %q on record %s %s; expected one of %s\n' \
     "$value_type" "$domain" "$key" "${MACOS_DEFAULTS_SUPPORTED_TYPES[*]}" >&2
   return 1
@@ -983,33 +1008,60 @@ print_offending_record_reference() {
   printf 'error: the refusal above is on record (domain %s, key %s)\n' "$domain" "$key" >&2
 }
 
+MACOS_DEFAULTS_SYSTEM_PREFERENCES_DIRECTORY='/Library/Preferences'
+
+domain_contains_a_slash() {
+  local domain=$1
+  [[ $domain == */* ]]
+}
+
+domain_has_nothing_but_dots() {
+  local domain=$1
+  text_is_empty "${domain//./}"
+}
+
 validate_system_domain() {
-  local domain="$1"
-  if [[ $domain == */* ]]; then
+  local domain=$1
+  if domain_contains_a_slash "$domain"; then
     printf 'error: system-scope domain %q contains a slash; it would escape %s\n' \
-      "$domain" '/Library/Preferences' >&2
+      "$domain" "$MACOS_DEFAULTS_SYSTEM_PREFERENCES_DIRECTORY" >&2
     return 1
   fi
-  if [[ -z ${domain//./} ]]; then
+  if domain_has_nothing_but_dots "$domain"; then
     printf 'error: system-scope domain %q is empty or nothing but dots; it names no plist\n' \
       "$domain" >&2
     return 1
   fi
 }
 
+path_is_the_filesystem_root() {
+  local path=$1
+  [[ $path == / ]]
+}
+
+path_is_absolute() {
+  local path=$1
+  [[ $path == /* ]]
+}
+
+path_climbs_to_a_parent_directory() {
+  local path=$1
+  [[ $path == *"/../"* || $path == *"/.." ]]
+}
+
 validate_explicit_plist_path() {
-  local plist_path="$1" domain="$2"
-  if [[ $plist_path == / ]]; then
+  local plist_path=$1 domain=$2
+  if path_is_the_filesystem_root "$plist_path"; then
     printf 'error: plist_path %q (domain %s) is the filesystem root; it names no plist\n' \
       "$plist_path" "$domain" >&2
     return 1
   fi
-  if [[ $plist_path != /* ]]; then
+  if ! path_is_absolute "$plist_path"; then
     printf 'error: relative plist_path %q (domain %s); an absolute path is required\n' \
       "$plist_path" "$domain" >&2
     return 1
   fi
-  if [[ $plist_path == *"/../"* || $plist_path == *"/.." ]]; then
+  if path_climbs_to_a_parent_directory "$plist_path"; then
     printf 'error: plist_path %q (domain %s) contains a parent-directory component\n' \
       "$plist_path" "$domain" >&2
     return 1
@@ -1017,10 +1069,10 @@ validate_explicit_plist_path() {
 }
 
 resolve_system_plist_path() {
-  local domain="$1" plist_path="$2"
+  local domain=$1 plist_path=$2
   validate_system_domain "$domain" || return 1
-  if [[ -z $plist_path ]]; then
-    printf '/Library/Preferences/%s\n' "$domain"
+  if ! record_declares_a_plist_path "$plist_path"; then
+    printf '%s/%s\n' "$MACOS_DEFAULTS_SYSTEM_PREFERENCES_DIRECTORY" "$domain"
     return 0
   fi
   validate_explicit_plist_path "$plist_path" "$domain" || return 1
@@ -1029,41 +1081,51 @@ resolve_system_plist_path() {
 
 MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES=("/Library/Objective-See/LuLu/" "/Library/Preferences/")
 
-require_system_plist_path_permitted() {
-  local plist_path="$1" allowed_directory
+path_starts_with_directory() {
+  local path=$1 directory=$2
+  [[ $path == "$directory"* ]]
+}
+
+plist_path_is_in_a_permitted_directory() {
+  local plist_path=$1
+  local allowed_directory
   for allowed_directory in "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[@]}"; do
-    if [[ $plist_path == "$allowed_directory"* ]]; then
+    if path_starts_with_directory "$plist_path" "$allowed_directory"; then
       return 0
     fi
   done
+  return 1
+}
+
+require_system_plist_path_permitted() {
+  local plist_path=$1
+  if plist_path_is_in_a_permitted_directory "$plist_path"; then
+    return 0
+  fi
   printf 'error: plist_path %q is outside every permitted plist directory (%s); grant the directory deliberately in BOTH the Tier 1 template and defaults-records.sh, or use the default /Library/Preferences form\n' \
     "$plist_path" "${MACOS_DEFAULTS_PLIST_PATH_ALLOWED_DIRECTORIES[*]}" >&2
   return 1
 }
 
 validate_defaults_record() {
-  local domain="$1" key="$2" value_type="$3" host="$5"
-  local scope="$6" plist_path="$7" tier="$8"
+  local domain=$1 key=$2 value_type=$3 host=$5 scope=$6 plist_path=$7 tier=$8
   validate_record_identity "$domain" "$key" || return 1
-  case "$tier" in
-    manual) return 0 ;;
-    enforce | verify) ;;
-    *)
-      printf 'error: record %s %s has an unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
-        "$domain" "$key" "$tier" >&2
-      return 1
-      ;;
-  esac
+  if ! record_tier_is_known "$tier"; then
+    printf 'error: record %s %s has an unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
+      "$domain" "$key" "$tier" >&2
+    return 1
+  fi
+  if ! record_tier_has_an_expected_value "$tier"; then
+    return 0
+  fi
   validate_record_type "$value_type" "$domain" "$key" || return 1
   if ! validate_record_scope "$scope" "$host" "$plist_path" >/dev/null; then
     print_offending_record_reference "$domain" "$key"
     return 1
   fi
-  if [[ $scope == system ]]; then
-    if ! resolve_system_plist_path "$domain" "$plist_path" >/dev/null; then
-      print_offending_record_reference "$domain" "$key"
-      return 1
-    fi
+  if record_scope_is_system "$scope" && ! resolve_system_plist_path "$domain" "$plist_path" >/dev/null; then
+    print_offending_record_reference "$domain" "$key"
+    return 1
   fi
 }
 
@@ -1071,42 +1133,94 @@ SYSTEM_READ_OK=0
 SYSTEM_READ_UNSET=1
 SYSTEM_READ_UNREADABLE=2
 
+status_is_success() {
+  local status=$1
+  ((status == 0))
+}
+
+file_exists() {
+  local file=$1
+  [[ -e $file ]]
+}
+
+plist_path_names_the_plist_file() {
+  local plist_path=$1
+  [[ $plist_path == *.plist ]]
+}
+
+plist_file_written_by_defaults() {
+  local plist_path=$1
+  if plist_path_names_the_plist_file "$plist_path"; then
+    printf '%s' "$plist_path"
+  else
+    printf '%s.plist' "$plist_path"
+  fi
+}
+
+make_plist_readable_by_everyone() {
+  local plist_file=$1
+  sudo chown root:wheel "$plist_file"
+  sudo chmod 644 "$plist_file"
+}
+
 system_defaults_write() {
-  local plist_path="$1" key="$2" value_type="$3" value="$4"
-  local write_status=0 written_file="$plist_path"
-  [[ $written_file == *.plist ]] || written_file="$written_file.plist"
+  local plist_path=$1 key=$2 value_type=$3 value=$4
+  local plist_file write_status=0
+  plist_file="$(plist_file_written_by_defaults "$plist_path")"
   sudo defaults write "$plist_path" "$key" "-$value_type" "$value" || write_status=$?
-  if [[ $write_status -eq 0 || -e $written_file ]]; then
-    sudo chown root:wheel "$written_file"
-    sudo chmod 644 "$written_file"
+  if status_is_success "$write_status" || file_exists "$plist_file"; then
+    make_plist_readable_by_everyone "$plist_file"
   fi
   return "$write_status"
 }
 
+file_exists_but_is_unreadable() {
+  local file=$1
+  [[ -e $file && ! -r $file ]]
+}
+
+system_plist_is_unreadable() {
+  local plist_path=$1
+  file_exists_but_is_unreadable "$plist_path" || file_exists_but_is_unreadable "$plist_path.plist"
+}
+
+read_plist_setting() {
+  local plist_path=$1 key=$2
+  defaults read "$plist_path" "$key"
+}
+
+read_error_says_the_setting_does_not_exist() {
+  local read_error_file=$1
+  grep -q 'does not exist' "$read_error_file"
+}
+
+system_read_outcome() {
+  local read_status=$1 read_error_file=$2
+  if status_is_success "$read_status"; then
+    printf '%s' "$SYSTEM_READ_OK"
+  elif read_error_says_the_setting_does_not_exist "$read_error_file"; then
+    printf '%s' "$SYSTEM_READ_UNSET"
+  else
+    printf '%s' "$SYSTEM_READ_UNREADABLE"
+  fi
+}
+
 system_defaults_read_actual() {
-  local plist_path="$1" key="$2"
-  local file_candidate
-  for file_candidate in "$plist_path" "$plist_path.plist"; do
-    if [[ -e $file_candidate && ! -r $file_candidate ]]; then
-      return "$SYSTEM_READ_UNREADABLE"
-    fi
-  done
-  local value read_error_file read_status=0
+  local plist_path=$1 key=$2
+  local value read_error_file read_outcome read_status=0
+  if system_plist_is_unreadable "$plist_path"; then
+    return "$SYSTEM_READ_UNREADABLE"
+  fi
   if ! read_error_file="$(mktemp)"; then
     printf 'error: cannot classify the system read of %s %s; mktemp failed\n' \
       "$plist_path" "$key" >&2
     return "$SYSTEM_READ_UNREADABLE"
   fi
-  value="$(defaults read "$plist_path" "$key" 2>"$read_error_file")" || read_status=$?
-  if [[ $read_status -eq 0 ]]; then
-    rm -f "$read_error_file"
-    printf '%s' "$value"
-    return "$SYSTEM_READ_OK"
-  fi
-  if grep -q 'does not exist' "$read_error_file"; then
-    rm -f "$read_error_file"
-    return "$SYSTEM_READ_UNSET"
-  fi
+  value="$(read_plist_setting "$plist_path" "$key" 2>"$read_error_file")" || read_status=$?
+  read_outcome="$(system_read_outcome "$read_status" "$read_error_file")"
   rm -f "$read_error_file"
-  return "$SYSTEM_READ_UNREADABLE"
+  if status_is_success "$read_status"; then
+    printf '%s' "$value"
+  fi
+  return "$read_outcome"
 }
