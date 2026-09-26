@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 
-set -uo pipefail
-
-treefmt_scripts_dir="$(dirname "${BASH_SOURCE[0]}")"
+set -euo pipefail
 
 # shellcheck source=scripts/treefmt/lib-shellcheck-rendered-template.sh
-source "$treefmt_scripts_dir/lib-shellcheck-rendered-template.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib-shellcheck-rendered-template.sh"
 # shellcheck source=scripts/treefmt/lib-render-context.sh
-source "$treefmt_scripts_dir/lib-render-context.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib-render-context.sh"
 
 readonly leading_lines_that_decide_the_shell=10
 readonly chezmoi_partials_directory='.chezmoitemplates'
@@ -142,15 +140,24 @@ template_needs_keepassxc() {
   any_file_mentions_keepassxc "${files_that_make_up_the_template[@]}"
 }
 
-main() {
-  local file status=0
-  create_render_context || exit 1
-  for file in "$@"; do
-    template_is_a_shell_script "$file" || continue
-    template_needs_keepassxc "$file" && continue
-    shellcheck_rendered_template "$file" || status=1
+template_is_eligible_for_shellcheck() {
+  local template=$1
+  template_is_a_shell_script "$template" && ! template_needs_keepassxc "$template"
+}
+
+shellcheck_every_eligible_template() {
+  local template shellcheck_status=0
+  for template in "$@"; do
+    if template_is_eligible_for_shellcheck "$template"; then
+      shellcheck_rendered_template "$template" || shellcheck_status=1
+    fi
   done
-  exit "$status"
+  return "$shellcheck_status"
+}
+
+main() {
+  create_render_context || exit 1
+  shellcheck_every_eligible_template "$@" || exit 1
 }
 
 main "$@"
