@@ -174,12 +174,15 @@
 {{- /* nvim is the Neovim MCP server. Codex hands a stdio server a short fixed
        list of variables (codex-rs/rmcp-client/src/utils.rs) that has TMPDIR
        but not XDG_RUNTIME_DIR. nvim-mcp looks for Neovim's socket in
-       XDG_RUNTIME_DIR, then TMPDIR, so env_vars forwards XDG_RUNTIME_DIR. The
-       whole map is written so no older key survives an apply. */ -}}
+       XDG_RUNTIME_DIR, then TMPDIR, so env_vars forwards XDG_RUNTIME_DIR.
+       Codex reads a server's tool list once, at session start, so
+       --always-expose-connection-tools lists the Neovim tools even before a
+       Neovim is open. The whole map is written so no older key survives an
+       apply. */ -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "nvim")
     (dict
       "command" "nvim-mcp"
-      "args" (list "--connect" "auto")
+      "args" (list "--connect" "auto" "--always-expose-connection-tools")
       "env_vars" (list "XDG_RUNTIME_DIR")) $merged -}}
 
 {{- /* ynab is the local YNAB stdio server and its WRITES ARE ON. Full and
