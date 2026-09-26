@@ -9,9 +9,6 @@
 
 macos:
   system_setup:
-    - description: "Install Nix with the NixOS-maintained installer"
-      command: '"$CHEZMOI_SOURCE_DIR/macos-system-setup/install-nix.sh"'
-      tier: enforce
     - description: "Install self-healing nix-installer repair LaunchDaemon (NixOS fork)"
       command: '"$CHEZMOI_SOURCE_DIR/macos-system-setup/install-nix-repair-hook.sh"'
       sudo: true
