@@ -1,36 +1,55 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# Reconcile the just-applied config.yaml to the installed hermes version's schema. chezmoi renders
-# private_dot_hermes/modify_private_config.yaml over the live file, overlaying the routes map and
-# the voice id and handing every other line back untouched; this migrates the result forward. No-op once
-# the live file is already at the installed version's schema. EOF-safe: migrate's prompts default to
-# skip on EOF (verified in hermes source); API keys come from .env, not the prompts.
-#
-# NUMBERING. The only ordering this needs is "after chezmoi wrote the config, before run_after_68 reads
-# it", and every run_after_ script satisfies the first half by definition.
+#!/usr/bin/env bash
+
 set -euo pipefail
-command -v hermes >/dev/null 2>&1 || exit 0
-# The migrate subcommand prints an informational block listing every OPTIONAL
-# API key not configured, 180 lines on this machine, with no supported quiet
-# switch (hermes_cli/config.py hardcodes migrate_config(quiet=False), read
-# 2026-08-05). Filter that one ℹ️ block out of OUR relay of its output; the
-# required-keys ⚠️ block and everything else pass through untouched. The run
-# stays best-effort (|| true), exactly as it was before the filter.
-# Blank lines are BUFFERED, not printed on sight: the ones that framed the
-# filtered block (and any run of trailing blanks) would otherwise survive as
-# stray whitespace. A blank prints only when real content follows it.
-# G2 section headers (operator ruling 2026-08-05); the library is inlined at
-# render time, so no runtime sourcing.
+
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
-migrate_output="$(hermes config migrate </dev/null 2>&1 | awk '
+
+hermes_is_installed() {
+  command -v hermes >/dev/null 2>&1
+}
+
+run_hermes_migrate_skipping_prompts() {
+  hermes config migrate </dev/null 2>&1
+}
+
+drop_informational_lines() {
+  awk '
   /^[[:space:]]*$/ { if (!skipping) blanks++; next }
   /Checking configuration for updates/ { next }
   /optional API key\(s\) not configured/ { skipping = 1; blanks = 0; next }
   skipping && /^[[:space:]]*•/ { next }
   { skipping = 0; while (blanks > 0) { print ""; blanks-- }; print }
-' || true)"
-if [[ -n $migrate_output ]]; then
-  report_section "hermes config migrate" "config check"
-  printf '%s\n' "$migrate_output"
-fi
+'
+}
+
+migrate_config_best_effort() {
+  run_hermes_migrate_skipping_prompts | drop_informational_lines || true
+}
+
+migration_reported_nothing() {
+  local migration_report=$1
+  [[ -z $migration_report ]]
+}
+
+main() {
+  report_section 'hermes' 'config migration to the installed version'
+
+  if ! hermes_is_installed; then
+    report_line "hermes is not installed, skipping."
+    return
+  fi
+
+  report_line "migrating the config..."
+  local migration_report
+  migration_report="$(migrate_config_best_effort)"
+  if migration_reported_nothing "$migration_report"; then
+    report_line "nothing to migrate."
+    return
+  fi
+  report_line "$migration_report"
+  report_line "migration finished."
+}
+
+main "$@"
 {{ end -}}

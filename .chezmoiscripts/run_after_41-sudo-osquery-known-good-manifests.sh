@@ -1,470 +1,477 @@
 #!/usr/bin/env bash
-#
-# run_after_41-sudo-osquery-known-good-manifests.sh
-# Refresh the root-owned known-good manifests: the recorded sha256, mode and owner
-# of every file osquery's file-integrity watches judge. osqueryd (root) watches
-# those files; the alerter PAGES a file_events change whose (path, hash, mode, uid)
-# tuple is not in the governing manifest (tamper) and stays silent when it matches
-# (a legitimate apply).
-#
-# Format, one whitespace-separated tuple per line with the PATH LAST so a path
-# containing spaces is still read whole by `read -r hash mode uid path`:
-#
-#   <sha256> <mode> <uid> <path>
-#   unbuilt 0755 <uid> <required-binary-path>
-#
-# mode is exactly four octal digits (0755); uid is decimal.
-#
-# TWO manifests, deliberately separate, because they cover two different trust
-# domains with two different default-deny rules:
-#
-#   pipeline-known-good.sha256    the osquery alerting pipeline's OWN scripts,
-#                                 data and plists (~/.local/libexec/osquery,
-#                                 ~/.local/libexec/posture and our own
-#                                 LaunchAgents). This is the monitor's body. Both
-#                                 directories are tracked whole, so a file PLANTED
-#                                 there is unmanaged, unmanifested, and pages
-#                                 forever, which is what we want of the monitor.
-#
-#   managed-bin-known-good.sha256 the chezmoi-MANAGED scripts under ~/.local/bin.
-#                                 These are not pipeline files, but most of them
-#                                 run UNATTENDED (LaunchAgents and shell hooks fire
-#                                 uu and
-#                                 the claude-* hooks with nobody watching), so a
-#                                 tamper there executes on a timer. Only the
-#                                 MANIFESTED paths are tracked there, because the
-#                                 same directory holds third-party shims (herdr,
-#                                 mise, bob, hermes, yt-dlp, and symlinks into pipx
-#                                 and uv tool dirs) that update themselves; those
-#                                 are not chezmoi's to vouch for and must stay
-#                                 silent rather than page on every self-update.
-#
-# They are separate FILES rather than one list because the osquery pipeline
-# manifest's single responsibility is the pipeline's own integrity (operator
-# ruling, slice 15), and because a corrupt or stale bin manifest must not be able
-# to falsify the monitor's judgment of itself. The generation logic is shared here
-# rather than copied into a second runner: the partial-listing guard, the empty
-# guard, the intent hashing and the privileged install are security-critical, and a
-# second copy would be a second thing to drift.
-#
-# ARM ORDER IS LOAD-BEARING. The pipeline arm runs FIRST and installs before the
-# bin arm starts, so a failure in the bin arm cannot leave the pipeline manifest
-# stale. errexit then aborts the runner, which fails the apply loudly.
-#
-# NOT a template. This runner refreshes the manifests, so it must run on every
-# apply that can change a manifested file. Keeping it plain removes any dependence
-# on which entry types a given apply processes.
-# Darwin is therefore gated at runtime, not with a Go-template guard.
-#
-# Runs in the EARLIEST after-phase slot (05): all target files are written before
-# any after-script runs, so nothing is lost by going first, and the WatchPaths
-# alerter judges a finding exactly once (its cursor advances), so the manifests
-# must be current before the alerter can look at the change it just caused.
-#
-# The manifests are derived from chezmoi's INTENT, never from the tree they
-# protect:
-#   - the file SET comes from `chezmoi managed` (the source state), so a file an
-#     attacker plants in a covered directory is not managed, never enters a
-#     manifest, and is therefore either paged forever (the pipeline home) or left
-#     to the untracked-neighbor path (~/.local/bin) - never blessed;
-#   - each file's CONTENT hash comes from `chezmoi cat` (the source state rendered
-#     as chezmoi would write it), so a managed file tampered on disk is signed with
-#     its INTENDED hash and the tampered bytes then fail the tuple check and page;
-#   - each file's MODE comes from `chezmoi dump` (the same source state, reported as
-#     the perm chezmoi would apply), so it is the mode encoded by the source
-#     attributes - the executable_ and private_ prefixes - and NOT the mode the file
-#     currently carries. A file an attacker chmod-ed on disk is therefore signed
-#     with its intended mode, and the drifted mode then fails the tuple check, for
-#     exactly the reason the content hash is taken from intent rather than a disk
-#     hash. This was verified empirically: chezmoi deploys a file at the perm dump
-#     reports (0755 for executable_, 0644 plain, 0700 for private_executable_),
-#     unclamped by umask, so intent and a clean deployment agree. `dump` needs a
-#     throwaway --persistent-state to run nested; see the call site.
-#   - each file's OWNER is the uid this apply is running as. chezmoi has no owner
-#     attribute; it writes every target file as the invoking user, so the uid that
-#     is running is BY DEFINITION the intended owner. That is process identity, not
-#     a property read out of the protected tree, so an attacker who has already
-#     chown-ed a covered file cannot influence it. (If an operator ever applied as
-#     root, the files really would be root-owned and the manifest would record that,
-#     so the derivation stays self-consistent.)
-# The compiled posture and pns binaries use their authorized builders' records.
-# A missing record enumerates it as unbuilt; no live or target-directory bytes
-# are adopted. The record has the same user-writable trust boundary as source.
-# (`chezmoi status`/`verify` are not usable for this: nested inside an apply they
-# fail with "timeout obtaining persistent state lock". `managed` and `cat` read the
-# source state without that lock and work nested; this was verified empirically.)
-#
-# WHAT THIS DOES AND DOES NOT COVER. It detects tampering of the DEPLOYED tree
-# after generation: bytes that differ from what chezmoi would write, and files that
-# chezmoi does not manage at all. It does NOT defend against a compromised chezmoi
-# SOURCE. The source is user-writable, and it is the authority an apply deploys
-# from, so an attacker who edits a managed source file and then waits for (or
-# races) a legitimate apply gets their bytes both deployed AND manifested, and this
-# root install signs them. That is not fixable at this layer on a single-user
-# machine, where the operator's own authority is what deploys; a git-dirty tripwire
-# would not be a trust boundary either, since the same attacker can commit or
-# rewrite local refs. The boundary this buys is post-deployment integrity, not
-# supply-chain integrity of the source.
-#
-# Nor is the root install a boundary against a user-level attacker on this host.
-# Each manifest is written root-owned 0644 so a process at the user's privilege
-# level cannot rewrite it, and the consumer refuses a manifest that is not (see
-# _pipeline_manifest_is_trustworthy in pipeline-verdict.sh). That raises the bar and
-# stops an unprivileged process from whitelisting a file it just tampered, but the
-# operator account here has passwordless sudo, so a process running AS the operator
-# can escalate with no prompt and rewrite a manifest at will. Every unattended
-# chezmoi script depends on that sudo configuration, this one included, so the limit
-# is recorded rather than closed: root ownership buys a higher bar and a loud
-# failure mode, not integrity against a determined user-level attacker.
-#
-# Blind spot, recorded honestly: the owning GROUP is not bound. chezmoi has no
-# group intent to derive it from, and a chgrp alone cannot make a file writable
-# that the bound mode does not already grant group write to, so the only case a
-# group column would add on its own is chgrp plus chmod - which the mode column
-# already pages.
+
 set -euo pipefail
+
+# shellcheck source=.chezmoitemplates/cli-print-style-lib.sh.tmpl
+source "${CHEZMOI_SOURCE_DIR:?}/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 
 # shellcheck source=.chezmoitemplates/sudo-session.sh.tmpl
 source "${CHEZMOI_SOURCE_DIR:?}/.chezmoitemplates/sudo-session.sh.tmpl"
 
-[[ "$(uname)" == Darwin ]] || exit 0
-
-# A builder needs one publication outcome: never install its governing tuple
-# and then report failure from an unrelated manifest. Other callers keep both.
-refresh_scope=all
-case "$#:$*" in
-  0:) ;;
-  1:--pipeline-only) refresh_scope=pipeline ;;
-  *)
-    printf 'usage: %s [--pipeline-only]\n' "${0##*/}" >&2
-    exit 2
-    ;;
-esac
-
-# Keep these defaults in sync with PIPELINE_MANIFEST and MANAGED_BIN_MANIFEST in
-# dot_local/libexec/osquery/results-alerter/pipeline-verdict.sh (the consumer).
-# Tests pin the literals equal, because the producer and the consumers of a
-# security-critical file must not agree only by copy-paste.
-pipeline_manifest="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good.sha256}"
-managed_bin_manifest="${OSQUERY_MANAGED_BIN_MANIFEST:-/var/osquery/managed-bin-known-good.sha256}"
-
-home="${CHEZMOI_HOME_DIR:-$HOME}"
-
-# chezmoi sets CHEZMOI_SOURCE_DIR for the scripts it runs; pin the nested calls to
-# that same source so this cannot read a different checkout than the apply in
-# progress. Absent (a direct invocation), fall back to the configured default.
-chezmoi_args=()
-[[ -n ${CHEZMOI_SOURCE_DIR:-} ]] && chezmoi_args+=(--source "$CHEZMOI_SOURCE_DIR")
-
-# ONE managed listing and ONE dump serve both arms: they are the expensive calls,
-# and running them twice would also open a window in which the two manifests were
-# built from different source states.
-#
-# The listing is materialized to a file under an EXPLICIT status check rather than
-# piped straight into the loop: a process substitution discards the producer's exit
-# status, so a `chezmoi managed` that emitted some paths and THEN failed would hand
-# the loop a PARTIAL set, pass the non-empty guard below, and root-install a
-# manifest missing tuples over a complete one - making every later legitimate
-# change to a dropped file page forever.
-managed_list="$(mktemp)"
-sorted_list="$(mktemp)"
-dump_json="$(mktemp)"
-perm_pairs="$(mktemp)"
-fresh="$(mktemp)"
-# A THROWAWAY persistent state for the nested `chezmoi dump` below; see the comment
-# at that call for why it cannot share the apply's.
-dump_state_dir="$(mktemp -d)"
-trap 'rm -f "$managed_list" "$sorted_list" "$dump_json" "$perm_pairs" "$fresh"; rm -rf "$dump_state_dir"' EXIT
-
-if ! chezmoi "${chezmoi_args[@]}" managed --path-style=absolute --include=files >"$managed_list"; then
-  printf 'osquery known-good manifests: could not list managed files, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-if ! LC_ALL=C sort "$managed_list" >"$sorted_list"; then
-  printf 'osquery known-good manifests: could not sort the managed listing, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-
-# --- the arm file sets, from managed intent ----------------------------------
-# These filters are one leg of the three-way agreement: the others are the
-# osquery.conf WATCH set and _pipeline_is_tracked in pipeline-verdict.sh. This
-# filter and _pipeline_is_tracked are each pinned by
-# test/unit/posture-manifest-refresh.test.sh; nothing pins the WATCH leg against
-# the other two, so keeping all three in agreement is a review obligation, not a
-# gate. The WATCH leg is the loosest of the three: osquery watches directories,
-# so it reports neighbors of the covered files too, and _pipeline_is_tracked is what
-# classifies those as untracked. What must match exactly is this filter and the
-# tracked set, or a watched-and-tracked file the manifest can never contain pages
-# forever and a manifested file nothing watches is never checked.
-#
-# The bin arm is NON-RECURSIVE on purpose: ~/.local/bin holds tools, and a managed
-# file in a SUBDIRECTORY of it would be a different kind of thing that nothing has
-# asked to cover. There are none today.
-#
-# The libexec arm IS recursive, because nesting is that tree's design: internal
-# tools are grouped by owner (pns/, unattended-upgrades/, macos-defaults/), a tool
-# with private helpers gets its own directory, and shared code sits in helpers/.
-# A `case` pattern's `*` matches slashes, so one arm covers every depth. It sits
-# AFTER the osquery arm so the pipeline keeps its own manifest.
-pipeline_paths=()
-managed_bin_paths=()
-while IFS= read -r target; do
-  case "$target" in
-    "$home"/.local/libexec/osquery/* | "$home"/.local/libexec/posture/*) pipeline_paths+=("$target") ;;
-    # EVERY LaunchAgent this repository owns, not only the osquery-prefixed ones.
-    # The page-launchd allowlist below refuses to suppress a persistence finding
-    # the pipeline manifest cannot vouch for, so an own agent left out of here
-    # pages instead of digesting however it is allowlisted (com.webdavis.scalebar
-    # did, from #564 until this arm widened). The label prefix is what "ours"
-    # means, and the listing this loop reads is chezmoi's managed intent, so an
-    # unmanaged neighbour under another vendor's label cannot enter the manifest.
-    "$home"/Library/LaunchAgents/com.webdavis.*.plist) pipeline_paths+=("$target") ;;
-    # The page-launchd allowlist joins the PIPELINE arm, named as ONE EXACT FILE
-    # rather than by its directory. It decides whether an unknown user LaunchAgent
-    # pages, so it is infrastructure the alerter judges, and the verdict routes any
-    # path outside ~/.local/bin to the pipeline manifest, so this is the only arm
-    # that can vouch for it. The exact path matters: ~/.config/osquery also holds
-    # webhook-secret, the daemon config, packs/ and the allowlist writer's lock
-    # file, and a directory pattern would bind a secret's digest into this
-    # world-readable root-owned manifest and sign a lock file that is recreated on
-    # every curation run.
-    "$home"/.config/osquery/page-launchd-allowlist.txt) pipeline_paths+=("$target") ;;
-    "$home"/.local/bin/*/*) : ;; # a managed file in a subdirectory: not covered
-    "$home"/.local/bin/*) managed_bin_paths+=("$target") ;;
-    "$home"/.local/libexec/*) managed_bin_paths+=("$target") ;;
-  esac
-done <"$sorted_list"
-
-# Resolve BOTH sets before anything else consults them. `chezmoi dump` with NO
-# target arguments dumps the ENTIRE target state, which would render every managed
-# template - including the ones that call keepassxc - from an unattended apply. An
-# empty path list must therefore abort here, before the dump, not only at the
-# empty-manifest guard further down.
-if [[ ${#pipeline_paths[@]} -eq 0 ]]; then
-  printf 'osquery known-good manifests: no managed pipeline files resolved, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-if [[ $refresh_scope == all && ${#managed_bin_paths[@]} -eq 0 ]]; then
-  printf 'osquery known-good manifests: no managed ~/.local/bin files resolved, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-
-# The INTENDED mode of every covered file, in ONE dump of the same source state.
-# `chezmoi dump --format=json` reports each target as chezmoi would write it,
-# including the perm its source attributes (executable_, private_) encode, so the
-# mode column is intent for the same reason the hash column is.
-#
-# --persistent-state IS REQUIRED AND MUST NOT BE REMOVED. Unlike `managed` and
-# `cat`, `dump` opens chezmoi's persistent state, and this script runs NESTED
-# inside the apply that already holds that lock, so a plain `chezmoi dump` here
-# fails with "timeout obtaining persistent state lock" on every real apply
-# (verified empirically; the same trap the docblock records for `status`/`verify`).
-# Pointing it at a throwaway state file gives the dump its own uncontended lock.
-# The persistent state holds entry and script bookkeeping, not the source state, so
-# a fresh one does not change the perm or contents reported for a file target.
-#
-# Materialized under an explicit status check for the same reason the managed
-# listing is: a dump that emitted some entries and then failed must abort, never
-# leave a path silently without a mode.
-#
-# The throwaway state is SEEDED with the config template's hash first. A fresh
-# state has no configState record, and chezmoi compares that nil against the
-# real template's hash on every apply-family command, so the un-seeded dump
-# printed "config file template has changed, run chezmoi init" on EVERY apply,
-# a warning no `chezmoi init` could ever clear because this state file is
-# recreated each run. Diagnosed 2026-08-05 from a --debug apply (the warning
-# surfaced at this script's start) and chezmoi v2.72.0 source (applyArgs in
-# internal/cmd/config.go); proven both ways: unseeded dump warns, seeded is
-# silent. Best-effort on purpose: a failed seed only means the cosmetic warning
-# returns, never a failed manifest rewrite.
-config_template="${CHEZMOI_SOURCE_DIR:-$HOME/workspaces/Ivy/webdavis/dotfiles}/.chezmoi.toml.tmpl"
-if [[ -r $config_template ]]; then
-  config_template_sha256="$(shasum -a 256 "$config_template" | awk '{print $1}')"
-  chezmoi "${chezmoi_args[@]}" --persistent-state "$dump_state_dir/state.boltdb" \
-    state set --bucket=configState --key=configState \
-    --value="{\"configTemplateContentsSHA256\":\"$config_template_sha256\"}" 2>/dev/null || true
-fi
-dump_paths=("${pipeline_paths[@]}")
-[[ $refresh_scope == all ]] && dump_paths+=("${managed_bin_paths[@]}")
-if ! chezmoi "${chezmoi_args[@]}" --persistent-state "$dump_state_dir/state.boltdb" \
-  dump --format=json "${dump_paths[@]}" >"$dump_json"; then
-  printf 'osquery known-good manifests: could not dump the managed files, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-
-# jq, not a hand-rolled parse: the dump is JSON, and jq is already a hard runtime
-# dependency of the alerter these manifests protect. The perm is emitted FIRST and
-# the (destination-relative) name LAST, so `read -r perm rel` reads a name
-# containing spaces whole, the same discipline the manifests themselves use.
-#
-# Materialized to a file rather than read through a process substitution, for the
-# reason recorded above the managed listing: a process substitution discards the
-# producer's exit status, so a jq that emitted some pairs and then failed would
-# hand the loop a partial map and the tuples it could not answer for would be
-# silently missing their mode.
-if ! jq -r 'to_entries[] | "\(.value.perm) \(.key)"' "$dump_json" >"$perm_pairs"; then
-  printf 'osquery known-good manifests: could not read the intended modes out of the dump, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-
-declare -A intended_perm=()
-while read -r perm rel; do
-  [[ -n $perm && -n $rel ]] || continue
-  intended_perm["$home/$rel"]="$perm"
-done <"$perm_pairs"
-if [[ ${#intended_perm[@]} -eq 0 ]]; then
-  printf 'osquery known-good manifests: the dump yielded no modes, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-
-# The OWNER column: the uid this apply is running as, which is the uid chezmoi
-# writes every target file as. Validated as digits so a surprising `id` can never
-# put a non-numeric token in a security-critical column.
-owner_uid="$(id -u)"
-if [[ ! $owner_uid =~ ^[0-9]{1,10}$ ]]; then
-  printf 'osquery known-good manifests: id -u did not report a numeric uid, refusing to rewrite any manifest\n' >&2
-  exit 1
-fi
-
-# The largest artifact each tool may record, keyed by tool. ONE shared ceiling
-# does not work here: pns is an order of magnitude larger than posture, so a
-# ceiling sized for posture refuses every pns record and a ceiling sized for pns
-# lets a runaway posture artifact through. The authority for these numbers is
-# `rust_tools.max_artifact_bytes` in .chezmoidata/rust_tools.yaml, which the two
-# builder TEMPLATES read at render time. This script is a plain script, not a
-# template, so it cannot; the values are repeated here by hand and must be moved
-# with that file and with PNS_MAX_BYTES in posture's watchdog audit.
-declare -A max_artifact_bytes=(
+readonly exit_bad_arguments=2
+readonly pipeline_manifest="${OSQUERY_PIPELINE_MANIFEST:-/var/osquery/pipeline-known-good.sha256}"
+readonly managed_bin_manifest="${OSQUERY_MANAGED_BIN_MANIFEST:-/var/osquery/managed-bin-known-good.sha256}"
+readonly home="${CHEZMOI_HOME_DIR:-$HOME}"
+readonly chezmoi_config_template="$CHEZMOI_SOURCE_DIR/.chezmoi.toml.tmpl"
+readonly highest_valid_permission=4095
+readonly rust_tools_install_directory="$home/.cargo/bin"
+declare -rA rust_tools_max_artifact_bytes=(
   [pns]=14680064
   [posture]=8388608
 )
+readonly -a built_binaries_in_path_order=(pns posture)
+readonly built_binary_mode=0755
+readonly build_record_directory="$home/.local/state"
+readonly unbuilt_binary_digest=unbuilt
 
-# The builder publishes this record before its scoped refresh and installation.
-# Reading only that record retains the tuple on applies that ran no build.
-authorized_record_hash() {
-  local tool="$1" record="$home/.local/state/$1-build-record" digest bytes compiler maximum
-  # A tool with no declared ceiling is a programming error, never a pass: it
-  # would otherwise compare against an empty string and refuse every record
-  # with an arithmetic failure that names nothing.
-  maximum="${max_artifact_bytes[$tool]:-}"
-  if [[ ! $maximum =~ ^[1-9][0-9]{0,18}$ ]]; then
-    printf 'osquery known-good manifests: no artifact ceiling declared for %s, refusing to rewrite the pipeline manifest\n' "$tool" >&2
-    return 1
-  fi
-  if [[ ! -e $record && ! -L $record ]]; then
-    printf unbuilt
-    return 0
-  fi
-  if [[ -f $record && ! -L $record ]] && {
-    IFS= read -r digest && IFS= read -r bytes && IFS= read -r compiler
-  } <"$record" &&
-    [[ $digest =~ ^sha256\ [0-9a-f]{64}$ && $bytes =~ ^bytes\ [1-9][0-9]{0,9}$ && $compiler == 'rustc '?* ]] &&
-    ((${bytes#bytes } <= maximum)); then
-    printf '%s' "${digest#sha256 }"
-    return 0
-  fi
-  printf 'osquery known-good manifests: malformed %s build record, refusing to rewrite the pipeline manifest\n' "$tool" >&2
-  return 1
+refresh_scope=all
+installed_manifest_count=0
+owner_user_id=''
+pipeline_paths=()
+managed_bin_paths=()
+declare -A intended_permissions=()
+
+running_on_macos() {
+  [[ "$(uname)" == Darwin ]]
 }
 
-# refresh_manifest <label> <manifest-path> <paths-array-name>
-#
-# Build this arm's manifest from the shared intent and install it when it differs
-# from what is deployed. Aborts the runner on any refusal, leaving the previously
-# installed manifest in force.
-#
-# errexit is live inside here because this is called as a PLAIN command. Do not
-# "improve" a call site into `refresh_manifest ... || something`: bash suppresses
-# errexit for the whole body of a function that is part of a `||` list, and the
-# explicit checks below would then be the only protection left.
-#
-# The path array arrives by NAME through a nameref. Every local here is prefixed
-# with the function name so a caller's array can never collide with one and make
-# the nameref alias this function's own variable instead (the failure mode
-# test/test-system/nameref-guards.sh exists for), and the two call sites pass
-# names that carry no such prefix.
-refresh_manifest() {
-  local refresh_manifest_label="$1" refresh_manifest_dest="$2"
-  local -n refresh_manifest_paths="$3"
-  local refresh_manifest_target refresh_manifest_hash refresh_manifest_perm
-  local refresh_manifest_mode refresh_manifest_dir refresh_manifest_binary
+arguments_ask_for_every_manifest() {
+  (($# == 0))
+}
 
-  # "<sha256> <mode> <uid> <path>", path-sorted above for a byte-reproducible
-  # manifest, and the path LAST so a reader's final field takes the remainder whole
-  # even for a path holding spaces.
-  #
-  # The hash is captured into a VARIABLE first, deliberately: a command
-  # substitution used directly as a printf argument would discard a failing
-  # `chezmoi cat` (printf itself still succeeds) and emit a tuple with an empty
-  # hash, quietly corrupting the manifest. Its status is then checked EXPLICITLY
-  # rather than left to errexit, because under pipefail a failed `chezmoi cat`
-  # still lets shasum print the hash of an EMPTY stream, which is a well-formed
-  # 64-hex string that no emptiness check would catch.
-  : >"$fresh"
-  for refresh_manifest_target in "${refresh_manifest_paths[@]}"; do
-    if ! refresh_manifest_hash="$(chezmoi "${chezmoi_args[@]}" cat "$refresh_manifest_target" | shasum -a 256 | awk '{print $1}')"; then
-      printf 'osquery known-good manifests: could not hash %s, refusing to rewrite the %s manifest\n' "$refresh_manifest_target" "$refresh_manifest_label" >&2
-      return 1
+arguments_ask_for_the_pipeline_manifest_only() {
+  (($# == 1)) && [[ $1 == --pipeline-only ]]
+}
+
+arguments_are_supported() {
+  arguments_ask_for_every_manifest "$@" || arguments_ask_for_the_pipeline_manifest_only "$@"
+}
+
+managed_bin_manifest_is_in_scope() {
+  [[ $refresh_scope == all ]]
+}
+
+create_scratch_files() {
+  managed_files="$(mktemp)"
+  sorted_managed_files="$(mktemp)"
+  managed_files_dump="$(mktemp)"
+  permission_pairs="$(mktemp)"
+  generated_manifest="$(mktemp)"
+  throwaway_state_directory="$(mktemp -d)"
+  trap remove_scratch_files EXIT
+}
+
+remove_scratch_files() {
+  rm -f "$managed_files" "$sorted_managed_files" "$managed_files_dump" "$permission_pairs" "$generated_manifest"
+  rm -rf "$throwaway_state_directory"
+}
+
+chezmoi_with_apply_source() {
+  chezmoi --source "$CHEZMOI_SOURCE_DIR" "$@"
+}
+
+chezmoi_with_throwaway_state() {
+  chezmoi_with_apply_source --persistent-state "$throwaway_state_directory/state.boltdb" "$@"
+}
+
+list_managed_files() {
+  chezmoi_with_apply_source managed --path-style=absolute --include=files
+}
+
+render_managed_file() {
+  local target=$1
+  chezmoi_with_apply_source cat "$target"
+}
+
+dump_managed_files_as_json() {
+  chezmoi_with_throwaway_state dump --format=json "$@"
+}
+
+store_config_template_hash_in_throwaway_state() {
+  local config_template_hash=$1
+  chezmoi_with_throwaway_state state set --bucket=configState --key=configState \
+    --value="{\"configTemplateContentsSHA256\":\"$config_template_hash\"}"
+}
+
+sort_in_byte_order() {
+  local file=$1
+  LC_ALL=C sort "$file"
+}
+
+config_template_hash() {
+  shasum -a 256 "$chezmoi_config_template" | awk '{print $1}'
+}
+
+intended_content_hash() {
+  local target=$1
+  render_managed_file "$target" | shasum -a 256 | awk '{print $1}'
+}
+
+permission_and_path_pairs_in_dump() {
+  local dump=$1
+  jq -r 'to_entries[] | "\(.value.perm) \(.key)"' "$dump"
+}
+
+save_managed_file_listing() {
+  if ! list_managed_files >"$managed_files"; then
+    report_line "error[list-failed]: could not list managed files, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+}
+
+sort_managed_file_listing() {
+  if ! sort_in_byte_order "$managed_files" >"$sorted_managed_files"; then
+    report_line "error[sort-failed]: could not sort the managed listing, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+}
+
+path_belongs_to_the_pipeline_manifest() {
+  local path=$1
+  case "$path" in
+    "$home"/.local/libexec/osquery/* | "$home"/.local/libexec/posture/*) return 0 ;;
+    "$home"/Library/LaunchAgents/com.webdavis.*.plist) return 0 ;;
+    "$home"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+path_belongs_to_the_managed_bin_manifest() {
+  local path=$1
+  case "$path" in
+    "$home"/.local/bin/*/*) return 1 ;;
+    "$home"/.local/bin/* | "$home"/.local/libexec/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+assign_managed_files_to_manifests() {
+  local path
+  while IFS= read -r path; do
+    if path_belongs_to_the_pipeline_manifest "$path"; then
+      pipeline_paths+=("$path")
+    elif path_belongs_to_the_managed_bin_manifest "$path"; then
+      managed_bin_paths+=("$path")
     fi
-    if [[ ! $refresh_manifest_hash =~ ^[0-9a-f]{64}$ ]]; then
-      printf 'osquery known-good manifests: implausible hash for %s, refusing to rewrite the %s manifest\n' "$refresh_manifest_target" "$refresh_manifest_label" >&2
-      return 1
+  done <"$sorted_managed_files"
+}
+
+no_pipeline_files_were_found() {
+  ((${#pipeline_paths[@]} == 0))
+}
+
+no_managed_bin_files_were_found() {
+  ((${#managed_bin_paths[@]} == 0))
+}
+
+require_managed_files_before_the_dump() {
+  if no_pipeline_files_were_found; then
+    report_line "error[no-pipeline-files]: no managed pipeline files resolved, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+  if managed_bin_manifest_is_in_scope && no_managed_bin_files_were_found; then
+    report_line "error[no-bin-files]: no managed ~/.local/bin files resolved, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+}
+
+config_template_is_readable() {
+  [[ -r $chezmoi_config_template ]]
+}
+
+keep_the_dump_from_warning_about_the_config_template() {
+  if ! config_template_is_readable; then
+    return
+  fi
+  local config_template_sha256
+  config_template_sha256="$(config_template_hash)"
+  store_config_template_hash_in_throwaway_state "$config_template_sha256" 2>/dev/null || true
+}
+
+dump_managed_files_in_scope() {
+  local paths_in_scope=("${pipeline_paths[@]}")
+  if managed_bin_manifest_is_in_scope; then
+    paths_in_scope+=("${managed_bin_paths[@]}")
+  fi
+  if ! dump_managed_files_as_json "${paths_in_scope[@]}" >"$managed_files_dump"; then
+    report_line "error[dump-failed]: could not dump the managed files, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+}
+
+extract_intended_permissions() {
+  if ! permission_and_path_pairs_in_dump "$managed_files_dump" >"$permission_pairs"; then
+    report_line "error[mode-read-failed]: could not read the intended modes out of the dump, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+}
+
+permission_pair_is_complete() {
+  local permission=$1 relative_path=$2
+  [[ -n $permission && -n $relative_path ]]
+}
+
+load_intended_permissions() {
+  local permission relative_path
+  while read -r permission relative_path; do
+    if permission_pair_is_complete "$permission" "$relative_path"; then
+      intended_permissions["$home/$relative_path"]="$permission"
     fi
-    # chezmoi reports perm as a DECIMAL integer (493 for 0755). Validated as digits
-    # and range-bound to the twelve permission bits BEFORE the octal conversion, so
-    # a value that is not a mode aborts instead of being formatted into something
-    # that looks like one. `10#` forces base ten on both uses: a leading zero would
-    # otherwise make bash read the digits as octal.
-    refresh_manifest_perm="${intended_perm["$refresh_manifest_target"]:-}"
-    if [[ ! $refresh_manifest_perm =~ ^[0-9]{1,4}$ ]] || ((10#$refresh_manifest_perm > 4095)); then
-      printf 'osquery known-good manifests: no usable intended mode for %s, refusing to rewrite the %s manifest\n' "$refresh_manifest_target" "$refresh_manifest_label" >&2
-      return 1
-    fi
-    printf -v refresh_manifest_mode '%04o' "$((10#$refresh_manifest_perm))"
-    printf '%s %s %s %s\n' "$refresh_manifest_hash" "$refresh_manifest_mode" "$owner_uid" "$refresh_manifest_target" >>"$fresh"
+  done <"$permission_pairs"
+}
+
+no_intended_permissions_were_found() {
+  ((${#intended_permissions[@]} == 0))
+}
+
+require_intended_permissions() {
+  if no_intended_permissions_were_found; then
+    report_line "error[no-modes]: the dump yielded no modes, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+}
+
+read_owner_user_id() {
+  owner_user_id="$(id -u)"
+}
+
+user_id_is_numeric() {
+  local user_id=$1
+  [[ $user_id =~ ^[0-9]{1,10}$ ]]
+}
+
+require_a_numeric_owner_user_id() {
+  if ! user_id_is_numeric "$owner_user_id"; then
+    report_line "error[bad-user-id]: id -u did not report a numeric uid, refusing to rewrite any manifest." >&2
+    return 1
+  fi
+}
+
+hash_is_a_sha256_digest() {
+  local hash=$1
+  [[ $hash =~ ^[0-9a-f]{64}$ ]]
+}
+
+permission_is_a_valid_mode() {
+  local permission=$1
+  [[ $permission =~ ^[0-9]{1,4}$ ]] && ((10#$permission <= highest_valid_permission))
+}
+
+append_manifest_tuple() {
+  local hash=$1 mode=$2 path=$3
+  printf '%s %s %s %s\n' "$hash" "$mode" "$owner_user_id" "$path" >>"$generated_manifest"
+}
+
+write_managed_file_tuple() {
+  local label=$1 target=$2
+  local content_hash permission mode
+  if ! content_hash="$(intended_content_hash "$target")"; then
+    report_line "error[hash-failed]: could not hash $target, refusing to rewrite the $label manifest." >&2
+    return 1
+  fi
+  if ! hash_is_a_sha256_digest "$content_hash"; then
+    report_line "error[implausible-hash]: implausible hash for $target, refusing to rewrite the $label manifest." >&2
+    return 1
+  fi
+  permission="${intended_permissions["$target"]:-}"
+  if ! permission_is_a_valid_mode "$permission"; then
+    report_line "error[missing-mode]: no usable intended mode for $target, refusing to rewrite the $label manifest." >&2
+    return 1
+  fi
+  printf -v mode '%04o' "$((10#$permission))"
+  append_manifest_tuple "$content_hash" "$mode" "$target"
+}
+
+write_managed_file_tuples() {
+  local label=$1
+  shift
+  local target
+  for target in "$@"; do
+    write_managed_file_tuple "$label" "$target"
   done
-
-  # Built binaries have no chezmoi cat/dump entry. Never adopt their live bytes.
-  # Named in PATH ORDER, which is what the rest of this manifest is sorted by:
-  # `pns` sorts before `posture` because `n` precedes `o`, and the two share a
-  # parent directory. Reversing them leaves the manifest unsorted at its tail.
-  if [[ $refresh_manifest_dest == "$pipeline_manifest" ]]; then
-    for refresh_manifest_binary in pns posture; do
-      refresh_manifest_hash="$(authorized_record_hash "$refresh_manifest_binary")" || return 1
-      printf '%s 0755 %s %s\n' "$refresh_manifest_hash" "$owner_uid" "$home/.cargo/bin/$refresh_manifest_binary" >>"$fresh"
-    done
-  fi
-
-  # Never let an empty render overwrite a good manifest.
-  if [[ ! -s $fresh ]]; then
-    printf 'osquery known-good manifests: refusing to install an EMPTY %s manifest (no managed files resolved)\n' "$refresh_manifest_label" >&2
-    return 1
-  fi
-
-  # The deployed manifest is root-owned 0644 (world-readable), so the compare needs
-  # no privilege; only a real content change warrants the sudo write. A missing
-  # manifest (fresh machine) compares unequal and installs.
-  if cmp -s "$fresh" "$refresh_manifest_dest"; then
-    return 0
-  fi
-
-  # Fresh host: /var/osquery is created by the osquery converge tool, which
-  # run_after_50 calls - AFTER this runner, by design, since the alerter judges a
-  # file change exactly once and the manifests have to be current before it looks.
-  # So on a first apply this arrives before the directory exists. Create the
-  # manifest's parent ourselves rather than fail the apply and leave the host with
-  # no manifest at all. Only when it is actually missing, so a normal apply
-  # performs no extra privileged call, and idempotent either way.
-  refresh_manifest_dir="$(dirname "$refresh_manifest_dest")"
-  authenticate_sudo_once
-  if [[ ! -d $refresh_manifest_dir ]]; then
-    sudo install -d -o root -g wheel -m 0755 "$refresh_manifest_dir"
-  fi
-
-  sudo install -o root -g wheel -m 0644 "$fresh" "$refresh_manifest_dest"
 }
 
-refresh_manifest 'osquery pipeline' "$pipeline_manifest" pipeline_paths
-if [[ $refresh_scope == all ]]; then
-  refresh_manifest 'managed bin' "$managed_bin_manifest" managed_bin_paths
-fi
+artifact_ceiling_is_declared() {
+  local tool=$1
+  [[ ${rust_tools_max_artifact_bytes[$tool]:-} =~ ^[1-9][0-9]{0,18}$ ]]
+}
+
+build_record_is_absent() {
+  local record=$1
+  [[ ! -e $record && ! -L $record ]]
+}
+
+build_record_is_a_regular_file() {
+  local record=$1
+  [[ -f $record && ! -L $record ]]
+}
+
+digest_line_is_well_formed() {
+  local line=$1
+  [[ $line =~ ^sha256\ [0-9a-f]{64}$ ]]
+}
+
+bytes_line_is_well_formed() {
+  local line=$1
+  [[ $line =~ ^bytes\ [1-9][0-9]{0,9}$ ]]
+}
+
+compiler_line_names_rustc() {
+  local line=$1
+  [[ $line == 'rustc '?* ]]
+}
+
+artifact_fits_under_its_ceiling() {
+  local tool=$1 artifact_bytes=$2
+  ((artifact_bytes <= ${rust_tools_max_artifact_bytes[$tool]}))
+}
+
+authorized_digest_in_build_record() {
+  local tool=$1 record=$2
+  local digest_line bytes_line compiler_line
+  build_record_is_a_regular_file "$record" &&
+    { IFS= read -r digest_line && IFS= read -r bytes_line && IFS= read -r compiler_line; } <"$record" &&
+    digest_line_is_well_formed "$digest_line" &&
+    bytes_line_is_well_formed "$bytes_line" &&
+    compiler_line_names_rustc "$compiler_line" &&
+    artifact_fits_under_its_ceiling "$tool" "${bytes_line#bytes }" &&
+    printf '%s' "${digest_line#sha256 }"
+}
+
+built_binary_digest() {
+  local tool=$1
+  local record="$build_record_directory/$tool-build-record"
+  local digest
+  if ! artifact_ceiling_is_declared "$tool"; then
+    report_line "error[missing-ceiling]: no artifact ceiling declared for $tool, refusing to rewrite the pipeline manifest." >&2
+    return 1
+  fi
+  if build_record_is_absent "$record"; then
+    printf '%s' "$unbuilt_binary_digest"
+    return
+  fi
+  if ! digest="$(authorized_digest_in_build_record "$tool" "$record")"; then
+    report_line "error[malformed-build-record]: malformed $tool build record, refusing to rewrite the pipeline manifest." >&2
+    return 1
+  fi
+  printf '%s' "$digest"
+}
+
+write_built_binary_tuples() {
+  local tool digest
+  for tool in "${built_binaries_in_path_order[@]}"; do
+    digest="$(built_binary_digest "$tool")"
+    append_manifest_tuple "$digest" "$built_binary_mode" "$rust_tools_install_directory/$tool"
+  done
+}
+
+clear_generated_manifest() {
+  : >"$generated_manifest"
+}
+
+manifest_is_the_pipeline_manifest() {
+  local manifest=$1
+  [[ $manifest == "$pipeline_manifest" ]]
+}
+
+generated_manifest_is_empty() {
+  [[ ! -s $generated_manifest ]]
+}
+
+generate_manifest() {
+  local label=$1 manifest=$2
+  shift 2
+  clear_generated_manifest
+  write_managed_file_tuples "$label" "$@"
+  if manifest_is_the_pipeline_manifest "$manifest"; then
+    write_built_binary_tuples
+  fi
+  if generated_manifest_is_empty; then
+    report_line "error[empty-manifest]: refusing to install an EMPTY $label manifest (no managed files resolved)." >&2
+    return 1
+  fi
+}
+
+manifest_is_current() {
+  local manifest=$1
+  cmp -s "$generated_manifest" "$manifest"
+}
+
+directory_exists() {
+  local directory=$1
+  [[ -d $directory ]]
+}
+
+create_root_owned_directory() {
+  local directory=$1
+  sudo install -d -o root -g wheel -m 0755 "$directory"
+}
+
+install_root_owned_manifest() {
+  local manifest=$1
+  sudo install -o root -g wheel -m 0644 "$generated_manifest" "$manifest"
+}
+
+install_manifest() {
+  local label=$1 manifest=$2
+  local manifest_directory
+  report_line "installing the $label manifest..."
+  manifest_directory="$(dirname "$manifest")"
+  authenticate_sudo_once
+  if ! directory_exists "$manifest_directory"; then
+    create_root_owned_directory "$manifest_directory"
+  fi
+  install_root_owned_manifest "$manifest"
+  installed_manifest_count=$((installed_manifest_count + 1))
+  report_line "installed $manifest."
+}
+
+refresh_manifest() {
+  local label=$1 manifest=$2
+  shift 2
+  generate_manifest "$label" "$manifest" "$@"
+  if manifest_is_current "$manifest"; then
+    return
+  fi
+  install_manifest "$label" "$manifest"
+}
+
+no_manifest_was_installed() {
+  ((installed_manifest_count == 0))
+}
+
+main() {
+  if ! running_on_macos; then
+    return
+  fi
+  if ! arguments_are_supported "$@"; then
+    report_line "error[bad-arguments]: usage: ${0##*/} [--pipeline-only]" >&2
+    exit "$exit_bad_arguments"
+  fi
+  if arguments_ask_for_the_pipeline_manifest_only "$@"; then
+    refresh_scope=pipeline
+  fi
+
+  report_section 'osquery' 'known-good manifests'
+  create_scratch_files
+  save_managed_file_listing
+  sort_managed_file_listing
+  assign_managed_files_to_manifests
+  require_managed_files_before_the_dump
+  keep_the_dump_from_warning_about_the_config_template
+  dump_managed_files_in_scope
+  extract_intended_permissions
+  load_intended_permissions
+  require_intended_permissions
+  read_owner_user_id
+  require_a_numeric_owner_user_id
+  refresh_manifest 'osquery pipeline' "$pipeline_manifest" "${pipeline_paths[@]}"
+  if managed_bin_manifest_is_in_scope; then
+    refresh_manifest 'managed bin' "$managed_bin_manifest" "${managed_bin_paths[@]}"
+  fi
+  if no_manifest_was_installed; then
+    report_line "already up to date, skipping."
+  fi
+}
+
+main "$@"

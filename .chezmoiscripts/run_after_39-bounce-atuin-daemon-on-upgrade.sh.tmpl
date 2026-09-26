@@ -1,29 +1,97 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# When brew upgrades atuin in-place, the running daemon keeps executing its
-# old in-memory image, KeepAlive doesn't catch this since the daemon hasn't
-# crashed. New shells use the new client; gRPC schema drift silently breaks
-# command recording. Bounce the LaunchAgent if the daemon's recorded version
-# (from its PID file) differs from `atuin --version` on disk.
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-pid_file="$HOME/.local/share/atuin/atuin-daemon.pid"
-atuin_bin="/opt/homebrew/bin/atuin"
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-[[ -f $pid_file && -x $atuin_bin ]] || exit 0
+readonly installed_atuin="/opt/homebrew/bin/atuin"
+readonly daemon_process_id_file="$HOME/.local/share/atuin/atuin-daemon.pid"
+readonly daemon_launchagent_label="com.webdavis.atuin-daemon"
 
-pid=$(sed -n '1p' "$pid_file")
-running_version=$(sed -n '2p' "$pid_file")
-[[ -n $pid && -n $running_version ]] || exit 0
+atuin_is_installed() {
+  [[ -x $installed_atuin ]]
+}
 
-kill -0 "$pid" 2>/dev/null || exit 0
+daemon_process_id_file_exists() {
+  [[ -f $daemon_process_id_file ]]
+}
 
-on_disk_version=$("$atuin_bin" --version | awk '{print $2}')
-[[ -n $on_disk_version ]] || exit 0
+read_daemon_process_id() {
+  sed -n '1p' "$daemon_process_id_file"
+}
 
-if [[ $running_version != "$on_disk_version" ]]; then
-  echo "atuin daemon stale ($running_version → $on_disk_version), bouncing LaunchAgent..."
-  launchctl kickstart -k "gui/$(id -u)/com.webdavis.atuin-daemon"
-fi
+read_daemon_version() {
+  sed -n '2p' "$daemon_process_id_file"
+}
+
+daemon_process_id_file_is_complete() {
+  local daemon_process_id=$1 daemon_version=$2
+  [[ -n $daemon_process_id && -n $daemon_version ]]
+}
+
+process_is_running() {
+  local process_id=$1
+  kill -0 "$process_id" 2>/dev/null
+}
+
+read_installed_version() {
+  "$installed_atuin" --version | awk '{print $2}'
+}
+
+installed_version_is_known() {
+  local installed_version=$1
+  [[ -n $installed_version ]]
+}
+
+daemon_runs_installed_version() {
+  local daemon_version=$1 installed_version=$2
+  [[ $daemon_version == "$installed_version" ]]
+}
+
+restart_daemon_launchagent() {
+  launchctl kickstart -k "gui/$(id -u)/$daemon_launchagent_label"
+}
+
+main() {
+  report_section 'atuin' 'daemon restart after an upgrade'
+
+  if ! daemon_process_id_file_exists; then
+    report_line "the daemon has not written $daemon_process_id_file, skipping."
+    return
+  fi
+  if ! atuin_is_installed; then
+    report_line "atuin is not installed, skipping."
+    return
+  fi
+
+  local daemon_process_id daemon_version
+  daemon_process_id="$(read_daemon_process_id)"
+  daemon_version="$(read_daemon_version)"
+  if ! daemon_process_id_file_is_complete "$daemon_process_id" "$daemon_version"; then
+    report_line "$daemon_process_id_file does not name a process and a version, skipping."
+    return
+  fi
+  if ! process_is_running "$daemon_process_id"; then
+    report_line "the daemon is not running, skipping."
+    return
+  fi
+
+  local installed_version
+  installed_version="$(read_installed_version)"
+  if ! installed_version_is_known "$installed_version"; then
+    report_line "atuin --version printed no version, skipping."
+    return
+  fi
+  if daemon_runs_installed_version "$daemon_version" "$installed_version"; then
+    report_line "the daemon runs the installed version, skipping."
+    return
+  fi
+
+  report_line "the daemon runs $daemon_version but $installed_version is installed; restarting it..."
+  restart_daemon_launchagent
+  report_line "restarted $daemon_launchagent_label."
+}
+
+main "$@"
 {{ end -}}
