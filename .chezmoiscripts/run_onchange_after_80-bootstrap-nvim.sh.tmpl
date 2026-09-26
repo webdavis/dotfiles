@@ -1,29 +1,34 @@
+{{ $nvim := joinPath .chezmoi.sourceDir "dot_config/nvim" -}}
 #!/usr/bin/env bash
 
 set -euo pipefail
 
-{{ $nvim := joinPath .chezmoi.sourceDir "dot_config/nvim" -}}
 # lazy-lock.json {{ include (joinPath $nvim "lazy-lock.json") | sha256sum }}
 # lua/plugins/lsp.lua {{ include (joinPath $nvim "lua/plugins/lsp.lua") | sha256sum }}
 # lua/plugins/treesitter.lua {{ include (joinPath $nvim "lua/plugins/treesitter.lua") | sha256sum }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-fnm_node_bin="$HOME/.local/share/fnm/aliases/default/bin"
-cargo_bin_dir="$HOME/.cargo/bin"
-nix_profile_bin="/nix/var/nix/profiles/default/bin"
+readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
+readonly cargo_bin_directory="$HOME/.cargo/bin"
+readonly nix_default_profile_bin_directory="/nix/var/nix/profiles/default/bin"
+
+directory_exists() {
+  local directory=$1
+  [[ -d $directory ]]
+}
 
 prepend_to_path_if_exists() {
-  local dir=$1
-  if [[ -d $dir ]]; then
-    PATH="$dir:$PATH"
+  local directory=$1
+  if directory_exists "$directory"; then
+    PATH="$directory:$PATH"
   fi
 }
 
-add_tool_dirs_to_path() {
-  prepend_to_path_if_exists "$fnm_node_bin"
-  prepend_to_path_if_exists "$cargo_bin_dir"
-  prepend_to_path_if_exists "$nix_profile_bin"
+add_tool_directories_to_path() {
+  prepend_to_path_if_exists "$fnm_default_node_bin_directory"
+  prepend_to_path_if_exists "$cargo_bin_directory"
+  prepend_to_path_if_exists "$nix_default_profile_bin_directory"
   export PATH
 }
 
@@ -41,7 +46,7 @@ install_mason_tools() {
 
 main() {
   report_section 'nvim' 'plugins and Mason tools'
-  add_tool_dirs_to_path
+  add_tool_directories_to_path
 
   if ! nvim_is_installed; then
     report_line "error[missing-tool]: nvim is not on PATH; plugins and Mason tools were not installed." >&2
