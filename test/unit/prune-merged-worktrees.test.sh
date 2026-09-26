@@ -1,25 +1,4 @@
 #!/usr/bin/env bash
-# The worktree sweep's decisions, taken against a scratch repository with a fake
-# origin and a stubbed herdr.
-#
-# One repository holds one worktree in each state the sweep has to tell apart,
-# and the subject runs over all of them ONCE, which is the situation it meets on
-# this machine. Every behavior below then asks one question of that finished
-# run: is this checkout still on disk, and did the line explaining it say the
-# right thing. The removals are real, so a decision that fires when it should not
-# takes a directory with it and the assertion sees it.
-#
-# Running once is also what keeps this file fast: a checkout, a fetch and a
-# worktree add cost more than every assertion here put together, so paying for
-# them per behavior would buy nothing but seconds.
-#
-# `git` runs through fixture_git, and the inherited GIT_* variables are unset at
-# script scope: this suite runs from the pre-commit hook, and git exports GIT_DIR
-# to every hook, which would point `git init` and the subject's own calls at THIS
-# repository instead of at the fixture.
-#
-# bashunit SOURCES this file, so it carries no `set -euo pipefail` and no
-# executable bit.
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR
 
@@ -31,15 +10,12 @@ fixture_git() {
 }
 
 function set_up_before_script() {
-  # A physical path: git reports one, and the herdr fixture has to agree with it
-  # for a join on the checkout path to find anything.
   PRUNE_ROOT="$(cd "$(mktemp -d)" && pwd -P)"
   export PRUNE_HERDR_LIST="$PRUNE_ROOT/herdr-worktrees.json"
   export PRUNE_HERDR_CALLS="$PRUNE_ROOT/herdr-calls"
   prune_install_herdr_stub "$PRUNE_ROOT/bin"
+
   prune_build_repository "$PRUNE_ROOT/sweep"
-  # One worktree per state the sweep has to tell apart. Only `regenerated` is
-  # left out of the herdr list, which is what sends it down the plain git path.
   prune_add_worktree "$PRUNE_ROOT/sweep" landed
   prune_add_worktree "$PRUNE_ROOT/sweep" in-flight
   fixture_git -C "$PRUNE_ROOT/sweep/in-flight" commit -q --allow-empty -m 'still working'
@@ -56,14 +32,10 @@ function set_up_before_script() {
   PRUNE_SWEEP_OUTPUT="$(prune_run "$PRUNE_ROOT/sweep")"
   PRUNE_SWEEP_CALLS="$(cat "$PRUNE_HERDR_CALLS")"
 
-  # The dry run needs a repository the sweep has not already emptied.
   prune_build_repository "$PRUNE_ROOT/preview"
   prune_add_worktree "$PRUNE_ROOT/preview" landed
-  # A registered worktree whose directory is momentarily absent, which is what
-  # an unmounted volume or a moved checkout looks like. `git worktree prune`
-  # would deregister it on the spot, so a dry run must not reach one.
   prune_add_worktree "$PRUNE_ROOT/preview" unmounted
-  mv "$PRUNE_ROOT/preview/unmounted" "$PRUNE_ROOT/preview/unmounted-aside"
+  prune_move_worktree_aside "$PRUNE_ROOT/preview/unmounted"
   prune_publish_herdr_list "$PRUNE_ROOT/preview/landed" w1
   : >"$PRUNE_HERDR_CALLS"
   PRUNE_PREVIEW_OUTPUT="$(prune_run "$PRUNE_ROOT/preview" --dry-run)"
@@ -74,28 +46,33 @@ function tear_down_after_script() {
   rm -rf "$PRUNE_ROOT"
 }
 
-prune_build_repository() { # <case directory>
-  mkdir -p "$1/repo/graphify-out"
-  fixture_git init -q --bare "$1/origin.git"
-  fixture_git init -q "$1/repo"
-  printf 'readme\n' >"$1/repo/README"
-  printf '{"nodes":1}\n' >"$1/repo/graphify-out/graph.json"
-  fixture_git -C "$1/repo" add -A
-  fixture_git -C "$1/repo" commit -q -m 'first'
-  # Relative, so the remote is the origin beside the checkout wherever it sits.
-  fixture_git -C "$1/repo" remote add origin ../origin.git
-  fixture_git -C "$1/repo" push -q origin main
+prune_build_repository() {
+  local case_directory=$1
+  mkdir -p "$case_directory/repo/graphify-out"
+  fixture_git init -q --bare "$case_directory/origin.git"
+  fixture_git init -q "$case_directory/repo"
+  printf 'readme\n' >"$case_directory/repo/README"
+  printf '{"nodes":1}\n' >"$case_directory/repo/graphify-out/graph.json"
+  fixture_git -C "$case_directory/repo" add -A
+  fixture_git -C "$case_directory/repo" commit -q -m 'first'
+  fixture_git -C "$case_directory/repo" remote add origin ../origin.git
+  fixture_git -C "$case_directory/repo" push -q origin main
 }
 
-prune_add_worktree() { # <case directory> <branch>
-  fixture_git -C "$1/repo" worktree add -q -b "$2" "$1/$2"
+prune_add_worktree() {
+  local case_directory=$1 branch=$2
+  fixture_git -C "$case_directory/repo" worktree add -q -b "$branch" "$case_directory/$branch"
 }
 
-# A herdr that answers `worktree list` from the published fixture and makes
-# `worktree remove` really remove the checkout, the way the real one does.
-prune_install_herdr_stub() { # <bin directory>
-  mkdir -p "$1"
-  cat >"$1/herdr" <<'STUB'
+prune_move_worktree_aside() {
+  local worktree_path=$1
+  mv "$worktree_path" "$worktree_path-aside"
+}
+
+prune_install_herdr_stub() {
+  local bin_directory=$1
+  mkdir -p "$bin_directory"
+  cat >"$bin_directory/herdr" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$PRUNE_HERDR_CALLS"
@@ -124,11 +101,9 @@ case "${2:-}" in
   *) exit 99 ;;
 esac
 STUB
-  chmod 755 "$1/herdr"
+  chmod 755 "$bin_directory/herdr"
 }
 
-# Pairs of <checkout path> <workspace id>. A worktree left out of the list has no
-# sidebar row, which is what sends the subject down the plain git path.
 prune_publish_herdr_list() {
   jq -n --args '{result: {worktrees: [
     range(0; ($ARGS.positional | length); 2) as $pair |
@@ -136,11 +111,8 @@ prune_publish_herdr_list() {
      is_linked_worktree: true}]}}' "$@" >"$PRUNE_HERDR_LIST"
 }
 
-# HERDR_ENV is removed rather than set: the sweep has to reach herdr from any
-# shell, ssh and launchd included, and an inherited value would hide a gate that
-# sent every removal down the plain git path.
-prune_run() { # <case directory> [argument ...]
-  local case_directory="$1"
+prune_run() {
+  local case_directory=$1
   shift
   (cd "$case_directory/repo" &&
     PATH="$PRUNE_ROOT/bin:$PATH" env -u HERDR_ENV "$PRUNE_SUBJECT" "$@" 2>&1)
