@@ -220,11 +220,12 @@ without a verdict rather than risk destroying a healthy file, and a move it cann
 with a warning that the apply will fail in `modify_settings.json` until the file is repaired by hand.
 Repair `~/.claude/settings.json` in either case; the apply's own error names the template.
 
-`test/unit/claude-settings-quarantine.sh` pins the repair side of this: an unreadable file is moved and
-replaced with `{}`, and every shape the template does survive is left byte-identical, including the three
-that are not JSON objects. The template side is unpinned. The test that applied the template into a
-throwaway destination once per live-file shape per target OS was deleted in the 2026-08-05 purge
-(`d348c136`), so everything in the three sections above is held by review rather than by a gate.
+No test pins either side of this any more. `test/unit/claude-settings-quarantine.sh`, which checked the
+repair side (an unreadable file is moved and replaced with `{}`, and every shape the template does
+survive is left byte-identical, including the three that are not JSON objects), was removed on 2026-09-26
+(`5547bfd2`). The test that applied the template into a throwaway destination once per live-file shape
+per target OS was deleted in the 2026-08-05 purge (`d348c136`). So the repair script and everything in
+the three sections above are held by review rather than by a gate.
 
 ## Promoting a `/config` toggle
 
