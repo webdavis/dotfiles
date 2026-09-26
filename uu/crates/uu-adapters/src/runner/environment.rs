@@ -1,5 +1,5 @@
-//! A child spawned in an environment the lane chose, and the `PATH` the
-//! adapter composes for it.
+//! A child spawned in an environment the lane chose, and what the adapter
+//! adds to a child's environment: `NO_COLOR`, and a prefixed `PATH`.
 
 use super::SystemRunner;
 use super::bounds::step_runner;
@@ -45,7 +45,7 @@ fn spawn(
     if budget.is_zero() {
         return Err(runner.overrun(&Ended::Stopped, b""));
     }
-    let environment = super::lane_environment(env);
+    let environment = lane_environment(env);
     match bounded_spawn_in(program, args, Stdio::null(), budget, &environment) {
         Spawned::Ran(finished) => Ok(finished),
         Spawned::NotRunnable(why) => Err(why),
@@ -57,6 +57,19 @@ fn spawn(
             crate::interruption().is_some(),
         )),
     }
+}
+
+/// What a lane child runs in: `chosen`, with `NO_COLOR=1` so what the child
+/// prints reaches the record as plain text. A lane that sets `NO_COLOR` itself
+/// keeps its own value. uu's own environment is left alone, so its own
+/// terminal output keeps its color.
+pub(super) fn lane_environment(chosen: &Environment) -> Environment {
+    let mut environment = chosen.clone();
+    environment
+        .variables
+        .entry("NO_COLOR".to_string())
+        .or_insert_with(|| "1".to_string());
+    environment
 }
 
 /// `prefix` first, then every entry the inherited `PATH` held.

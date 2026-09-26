@@ -19,6 +19,7 @@ mod environment;
 mod file_output;
 mod overrun;
 
+use environment::lane_environment;
 pub(crate) use environment::prefixed_path;
 
 /// The event handed to a command lane's child cannot exceed this, or
@@ -150,19 +151,6 @@ impl SystemRunner {
             )),
         }
     }
-}
-
-/// What a lane child runs in: `chosen`, with `NO_COLOR=1` so what the child
-/// prints reaches the record as plain text. A lane that sets `NO_COLOR` itself
-/// keeps its own value. uu's own environment is left alone, so its own
-/// terminal output keeps its color.
-fn lane_environment(chosen: &Environment) -> Environment {
-    let mut environment = chosen.clone();
-    environment
-        .variables
-        .entry("NO_COLOR".to_string())
-        .or_insert_with(|| "1".to_string());
-    environment
 }
 
 /// How a child ended, in the one line every failure path here reasons about.

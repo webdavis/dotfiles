@@ -1,6 +1,7 @@
 use std::fs::File;
 
-use super::{SystemRunner, lane_environment, overrun};
+use super::environment::lane_environment;
+use super::{SystemRunner, overrun};
 use crate::lanes::Environment;
 use crate::watchdog::{Ended, Spawned, bounded_spawn_to_file};
 
