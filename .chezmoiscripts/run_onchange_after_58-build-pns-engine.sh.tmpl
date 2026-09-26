@@ -1,242 +1,220 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+{{ $pns := joinPath .chezmoi.sourceDir "pns" -}}
+#!/usr/bin/env bash
 
 set -euo pipefail
-umask 077
 
-# Builds the pns engine binary and installs it beside the channels it will
-# replace. The workspace is repository SOURCE at the monorepo root and never
-# deploys to $HOME, so this compiles out of the chezmoi source directory;
-# nothing else compiles it, so without this script every producer repointed at
-# the binary would find nothing there.
-#
-# Re-runs whenever any build input changes: every source file, every manifest
-# and the lock are hashed below, globbed rather than listed so a new module or
-# a new workspace member cannot silently miss the trigger. The member manifests
-# are globbed for the same reason as the sources: a dependency added to one of
-# them changes the binary this installs, and only the root manifest used to be
-# read.
-#
-# EVERY EXTENSION, NOT JUST `.rs`. A crate compiles more than its Rust: an
-# `include_str!` or `include_bytes!` pulls a fixture into the binary, and this
-# workspace has four of them (`resolved-config.snapshot`, the protocol's golden
-# JSON, and the hue transport's two DER files). While these globs read `*.rs`
-# alone, editing one of those changed a build output without moving the trigger,
-# so the apply installed a binary built from the file's PREVIOUS contents.
-#
-# SCOPED TO `crates/`, WHICH IS WHAT KEEPS `target/` OUT. Cargo writes its build
-# directory at the workspace root, so a whole-workspace glob would hash the
-# artifacts this script itself produces: the trigger would then change every
-# time the build ran, and differ between a fresh checkout and a built one.
-#
-# `stat` FILTERS THE DIRECTORIES the glob returns alongside the files. `include`
-# on a directory is an error, and an erroring template aborts the WHOLE apply,
-# so the guard is what makes an extension-free pattern safe to write.
-{{ $crate := joinPath .chezmoi.sourceDir "pns" -}}
 {{ range $pattern := list "crates/*/src/**/*" "crates/*/tests/**/*" "crates/*/fixtures/**/*" "crates/*/build.rs" -}}
-{{ range (glob (joinPath $crate $pattern)) }}
-{{- if not (stat .).isDir }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-{{- end }}
-{{- end }}
-#   Cargo.toml {{ include (joinPath $crate "Cargo.toml") | sha256sum }}
-#   Cargo.lock {{ include (joinPath $crate "Cargo.lock") | sha256sum }}
-#   rust-toolchain.toml {{ include (joinPath $crate "rust-toolchain.toml") | sha256sum }}
-{{- range (glob (joinPath $crate "crates/*/Cargo.toml")) }}
-#   {{ . }} {{ include . | sha256sum }}
-{{- end }}
-#
-# Compiler changes authorize a new record only when this builder runs.
-{{- range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) }}
-#   {{ . }} {{ (stat .).modTime }}
-{{- end }}
-#
-# Retry state, the same mechanism the herdr plugin build uses: chezmoi records a
-# run_onchange script as done on ANY exit 0, so a skipped build (no toolchain)
-# must change this rendered script to re-fire on the next apply.
-#
-# The marker's MODIFICATION TIME is the trigger, never its contents: reading a
-# file at render time means an unreadable node aborts the apply and a FIFO at
-# that path hangs it forever, before any of this script's own recovery can
-# run. Each bump rewrites the marker, which moves the timestamp, which changes
-# this line.
-#   retry-marker: {{ $rm := printf "%s/.cache/pns-build/engine.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+{{ range (glob (joinPath $pns $pattern)) -}}
+{{ if not (stat .).isDir -}}
+# {{ . }} {{ include . | sha256sum }}
+{{ end -}}
+{{ end -}}
+{{ end -}}
+# Cargo.toml {{ include (joinPath $pns "Cargo.toml") | sha256sum }}
+# Cargo.lock {{ include (joinPath $pns "Cargo.lock") | sha256sum }}
+# rust-toolchain.toml {{ include (joinPath $pns "rust-toolchain.toml") | sha256sum }}
+{{ range (glob (joinPath $pns "crates/*/Cargo.toml")) -}}
+# {{ . }} {{ include . | sha256sum }}
+{{ end -}}
+{{ range (glob (printf "%s/.rustup/toolchains/*/bin/rustc" (env "HOME"))) -}}
+# {{ . }} {{ (stat .).modTime }}
+{{ end -}}
+# retry-marker: {{ $retryMarker := printf "%s/.cache/pns-build/engine.retry" (env "HOME") }}{{ if stat $retryMarker }}{{ (stat $retryMarker).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
-crate_dir={{ $crate | quote }}
-# ~/.cargo/bin, declared once in .chezmoidata/rust_tools.yaml: pns is a product
-# people install with `cargo install`, not a private helper of this checkout.
-install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
-retry_marker="$HOME/.cache/pns-build/engine.retry"
-# A kickstart failure leaves the daemon on the old binary. This marker forces
-# the NEXT apply to retry the kickstart even if that apply rebuilds bytes
-# identical to this one, which it otherwise would skip as a no-op.
-pending_marker="$HOME/.cache/pns-build/restart-pending"
-build_record="$HOME/.local/state/pns-build-record"
-# Per-tool, from .chezmoidata/rust_tools.yaml: a ceiling sized for posture
-# would refuse this binary after one dependency bump.
-max_artifact_bytes={{ .rust_tools.max_artifact_bytes.pns }}
+{{ includeTemplate "rust-build-lib.sh.tmpl" }}
+{{ includeTemplate "build-record-lib.sh.tmpl" }}
 
-# Deterministic path, never a PATH probe: a fresh machine provisions rustup
-# during THIS apply and ~/.cargo/bin is not on the apply shell's PATH yet.
-cargo_bin="$HOME/.cargo/bin/cargo"
+readonly pns_workspace_dir={{ $pns | quote }}
+readonly built_pns="$pns_workspace_dir/target/release/pns"
+readonly install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+readonly installed_pns="$install_dir/pns"
+readonly pns_build_record="$HOME/.local/state/pns-build-record"
+readonly pns_max_artifact_bytes={{ .rust_tools.max_artifact_bytes.pns }}
+readonly pns_retry_marker="$HOME/.cache/pns-build/engine.retry"
+readonly restart_pending_marker="$HOME/.cache/pns-build/restart-pending"
+readonly daemon_label='com.webdavis.pns-daemon'
+readonly receiver_label='com.webdavis.pns-github-receiver'
+readonly launchctl_service_not_found_status=113
+readonly installed_pns_absent='absent'
+readonly installed_pns_identical='identical'
+readonly installed_pns_different='different'
 
-bump_retry_marker() {
-  local count=0
-  mkdir -p "$(dirname "$retry_marker")"
-  if [[ -f $retry_marker ]]; then
-    count="$(cat "$retry_marker" 2>/dev/null || printf '0')"
-    [[ $count =~ ^[0-9]+$ ]] || count=0
-  fi
-  printf '%d\n' "$((count + 1))" >"$retry_marker"
+build_record_path_is_taken() {
+  [[ -e $pns_build_record || -L $pns_build_record ]]
 }
 
-if [[ ! -x $cargo_bin ]]; then
-  report_line 'pns: cargo not found at ~/.cargo/bin/cargo; engine build deferred to the next apply.' >&2
-  bump_retry_marker
-  exit 0
-fi
+build_record_is_a_plain_file() {
+  [[ -f $pns_build_record && ! -L $pns_build_record ]]
+}
 
-# The "crate source is not deployed yet" deferral that used to sit here is gone
-# with the monorepo move. The workspace is read out of the chezmoi source
-# directory now, and the hash comment above already `include`s its manifest at
-# render time, so a missing one aborts the apply before this script is written
-# rather than reaching a runtime guard.
+build_record_is_nonregular() {
+  build_record_path_is_taken && ! build_record_is_a_plain_file
+}
 
-report_section 'pns engine'
-report_line 'building the release binary'
-# A build failure exits non-zero, which chezmoi does not record, so it retries
-# on its own without touching the marker.
-# --locked: build exactly the committed lock. Without it cargo may rewrite
-# the deployed lockfile and pull dependencies the lock never recorded.
-# --bin pns: the package also carries two development binaries. They are gated
-# behind `required-features = ["dev-tools"]`, which this build does not pass, so
-# the flag is belt and braces rather than the thing keeping them out.
-# RUN FROM THE CRATE DIRECTORY, not with `--manifest-path`. rustup resolves a
-# toolchain by walking up from the CURRENT directory, so a `--manifest-path`
-# build reads $HOME's toolchain (a chezmoiscript's working directory) and
-# silently ignores the crate's `rust-toolchain.toml`.
-(cd "$crate_dir" && "$cargo_bin" build --release --locked --quiet --bin pns)
+pns_is_installed() {
+  [[ -f $installed_pns ]]
+}
 
-# Only this authorized build may supply the digest to the manifest publisher.
-artifact="$crate_dir/target/release/pns"
-artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
-if ((artifact_bytes == 0 || artifact_bytes > max_artifact_bytes)); then
-  printf 'pns: refusing artifact of %s bytes (allowed 1..%s)\n' "$artifact_bytes" "$max_artifact_bytes" >&2
-  exit 1
-fi
-artifact_hash="$(shasum -a 256 "$artifact" | awk '{print $1}')"
-[[ $artifact_hash =~ ^[0-9a-f]{64}$ ]] || exit 1
-compiler="$(cd "$crate_dir" && "$HOME/.cargo/bin/rustc" --version --verbose)"
-if [[ -e $build_record || -L $build_record ]] && [[ ! -f $build_record || -L $build_record ]]; then
-  printf 'pns: refusing a nonregular build record\n' >&2
-  exit 1
-fi
-mkdir -p "$(dirname "$build_record")"
-next_record="$(mktemp "${build_record}.new.XXXXXX")"
-previous_record="$(mktemp "${build_record}.previous.XXXXXX")"
-trap 'rm -f "$next_record" "$previous_record"' EXIT
-printf 'sha256 %s\nbytes %s\n%s\n' "$artifact_hash" "$artifact_bytes" "$compiler" >"$next_record"
-chmod 600 "$next_record"
+installed_pns_matches_build() {
+  cmp -s "$built_pns" "$installed_pns"
+}
 
-# The build above is unconditional and can reinstall a binary byte-identical
-# to what's already deployed (a deferred build bumps the retry marker above
-# and settles later, which fires this script again for a binary that never
-# changed), so only an ACTUAL change bounces the daemon: compare the freshly
-# built binary against what's currently deployed BEFORE installing. A missing
-# deployed binary (first install) counts as changed. The pns daemon writes no
-# pid file and a kill mid-tick is safe by design (no durable state, no
-# SIGTERM handler), so this does not need the atuin bounce script's pid-file
-# compare.
-binary_changed=1
-first_install=1
-if [[ -f "$install_dir/pns" ]]; then
-  first_install=0
-  cmp -s "$crate_dir/target/release/pns" "$install_dir/pns" && binary_changed=0
-fi
-
-mkdir -p "$install_dir"
-
-# Arm the pending marker BEFORE publishing a changed binary, not after a
-# failed kickstart: a kill between install and the marker write, or a marker
-# directory that cannot be created, must never leave the new bytes installed
-# with nothing left to force the next apply's retry. set -e turns a failed
-# mkdir or touch here into a refusal to publish.
-if [[ $binary_changed == 1 ]]; then
-  mkdir -p "$(dirname "$pending_marker")"
-  touch "$pending_marker"
-fi
-
-# Refresh only the governing manifest. A refusal before publication restores
-# the old record and leaves the old binary and tuple intact. An install failure
-# after publication keeps the new tuple, so the mismatch remains detectable.
-if cmp -s "$artifact" "$install_dir/pns" && cmp -s "$next_record" "$build_record"; then
-  chmod 600 "$build_record"
-else
-  had_record=0
-  if [[ -f $build_record ]]; then
-    cp -p "$build_record" "$previous_record"
-    had_record=1
+compare_installed_pns_with_build() {
+  if ! pns_is_installed; then
+    printf '%s' "$installed_pns_absent"
+  elif installed_pns_matches_build; then
+    printf '%s' "$installed_pns_identical"
+  else
+    printf '%s' "$installed_pns_different"
   fi
-  mv -f "$next_record" "$build_record"
-  if ! bash "${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh" --pipeline-only; then
-    if [[ $had_record == 1 ]]; then
-      mv -f "$previous_record" "$build_record"
-    else
-      rm -f "$build_record"
-    fi
-    report_line 'pns: manifest refresh failed; binary unchanged' >&2
-    exit 1
-  fi
-fi
+}
 
-# install(1) replaces the target through a temporary file and a rename
-# ("Temporary files are no longer optional", install(1) under -S), so a
-# producer firing mid-apply runs either the old binary or the new one and
-# never a half-written file. cp would write in place. No test separates the
-# two: macOS permits overwriting a running binary, so the race is not
-# reproducible in a unit test, and the man page is the evidence.
-/usr/bin/install -m 755 "$crate_dir/target/release/pns" "$install_dir/pns"
-report_line "installed $install_dir/pns"
+build_changes_installed_pns() {
+  local installed_pns_state=$1
+  [[ $installed_pns_state != "$installed_pns_identical" ]]
+}
 
-# 58 runs before 70 in chezmoi's ASCII script ordering, so on a FIRST install
-# neither LaunchAgent is loaded yet: kickstart then fails with "Could not
-# find service" (exit 113), which this treats as "not loaded yet" and stays
-# quiet about, rather than as an error. On a machine that already had a job
-# running, that same 113 means the kickstart never reached it, which is a
-# real problem, not a fresh-machine no-op, so it is loud there too. Any OTHER
-# status (EIO, EPERM, a wrong label) leaves that job on the old binary and
-# must always be loud: capture the status once (a bare `if` condition would
-# read every non-zero the same as 113), print one attributed line to stderr,
-# and refuse to settle the marker. Both jobs run the same installed binary,
-# so one marker governs both and clears only once NEITHER is left on the old
-# bytes; each is attempted regardless of whether the other one failed, so a
-# daemon failure never hides a receiver failure or vice versa.
+this_is_the_first_install() {
+  local installed_pns_state=$1
+  [[ $installed_pns_state == "$installed_pns_absent" ]]
+}
+
+arm_restart_pending_marker() {
+  mkdir -p "$(dirname "$restart_pending_marker")"
+  touch "$restart_pending_marker"
+}
+
+restart_is_pending() {
+  [[ -e $restart_pending_marker ]]
+}
+
+restart_is_owed() {
+  local installed_pns_state=$1
+  build_changes_installed_pns "$installed_pns_state" || restart_is_pending
+}
+
+clear_restart_pending_marker() {
+  rm -f "$restart_pending_marker"
+}
+
 kickstart_job() {
-  local label=$1 name=$2 status=0 output
-  output="$(launchctl kickstart -k "gui/$(id -u)/$label" 2>&1)" || status=$?
-  if [[ $status == 0 ]]; then
-    report_line "pns: $name restarted on a new binary"
-    return 0
-  elif [[ $status == 113 ]] && [[ $first_install == 1 ]]; then
+  local label=$1
+  launchctl kickstart -k "gui/$(id -u)/$label"
+}
+
+kickstart_succeeded() {
+  local kickstart_status=$1
+  ((kickstart_status == 0))
+}
+
+job_is_not_loaded_on_first_install() {
+  local kickstart_status=$1 installed_pns_state=$2
+  ((kickstart_status == launchctl_service_not_found_status)) && this_is_the_first_install "$installed_pns_state"
+}
+
+restart_job() {
+  local label=$1 job_name=$2 installed_pns_state=$3
+  local kickstart_output kickstart_status=0
+  kickstart_output="$(kickstart_job "$label" 2>&1)" || kickstart_status=$?
+  if kickstart_succeeded "$kickstart_status"; then
+    report_line "restarted the $job_name on the new binary."
     return 0
   fi
-  printf 'pns: %s NOT restarted on the new binary (launchctl kickstart exited %s: %s)\n' \
-    "$name" "$status" "$output" >&2
+  if job_is_not_loaded_on_first_install "$kickstart_status" "$installed_pns_state"; then
+    return 0
+  fi
+  report_line "error[restart-failed]: the $job_name was not restarted on the new binary (launchctl kickstart exited $kickstart_status: $kickstart_output)." >&2
   return 1
 }
 
-if [[ $binary_changed == 1 ]] || [[ -e $pending_marker ]]; then
-  ok=1
-  kickstart_job com.webdavis.pns-daemon daemon || ok=0
-  kickstart_job com.webdavis.pns-github-receiver receiver || ok=0
-  if [[ $ok == 1 ]]; then
-    rm -f "$pending_marker"
-  else
+restart_pns_jobs() {
+  local installed_pns_state=$1
+  local restart_status=0
+  restart_job "$daemon_label" daemon "$installed_pns_state" || restart_status=1
+  restart_job "$receiver_label" receiver "$installed_pns_state" || restart_status=1
+  return "$restart_status"
+}
+
+main() {
+  make_new_files_private
+  report_section 'pns engine' 'notification daemon and GitHub receiver'
+
+  if ! cargo_is_installed; then
+    report_line "cargo not found at $cargo_bin; engine build deferred to the next apply." >&2
+    increment_retry_attempts "$pns_retry_marker"
+    exit 0
+  fi
+
+  report_line "building the release binary..."
+  local build_status=0
+  build_release_binary "$pns_workspace_dir" pns || build_status=$?
+  if build_failed "$build_status"; then
+    report_line "error[build-failed]: pns did not build; see cargo's output above." >&2
+    exit "$build_status"
+  fi
+  report_line "built $built_pns."
+
+  local artifact_bytes
+  artifact_bytes="$(artifact_size_in_bytes "$built_pns")"
+  if ! artifact_size_is_allowed "$artifact_bytes" "$pns_max_artifact_bytes"; then
+    report_line "error[artifact-size]: refusing a pns artifact of $artifact_bytes bytes (allowed 1..$pns_max_artifact_bytes)." >&2
     exit 1
   fi
-fi
 
-rm -f "$retry_marker"
+  local artifact_hash
+  artifact_hash="$(artifact_sha256 "$built_pns")"
+  if ! is_a_sha256_digest "$artifact_hash"; then
+    report_line "error[invalid-digest]: shasum printed no sha256 digest for $built_pns." >&2
+    exit 1
+  fi
+
+  local compiler
+  compiler="$(compiler_version "$pns_workspace_dir")"
+
+  if build_record_is_nonregular; then
+    report_line "error[nonregular-record]: refusing $pns_build_record, which is not a regular file." >&2
+    exit 1
+  fi
+
+  create_temporary_build_records "$pns_build_record"
+  write_next_build_record "$artifact_hash" "$artifact_bytes" "$compiler"
+
+  local installed_pns_state
+  installed_pns_state="$(compare_installed_pns_with_build)"
+  create_install_directory "$install_dir"
+  if build_changes_installed_pns "$installed_pns_state"; then
+    arm_restart_pending_marker
+  fi
+
+  if build_is_already_published "$built_pns" "$installed_pns" "$pns_build_record"; then
+    keep_build_record_private "$pns_build_record"
+  else
+    report_line "refreshing the pipeline manifest..."
+    save_previous_build_record "$pns_build_record"
+    publish_next_build_record "$pns_build_record"
+    if ! refresh_pipeline_manifest; then
+      roll_back_build_record "$pns_build_record"
+      report_line "error[manifest-refresh-failed]: the pipeline manifest was not refreshed; the installed pns is unchanged." >&2
+      exit 1
+    fi
+    report_line "refreshed the pipeline manifest."
+  fi
+
+  report_line "installing the release binary..."
+  install_release_binary "$built_pns" "$installed_pns"
+  report_line "installed $installed_pns."
+
+  if restart_is_owed "$installed_pns_state"; then
+    if ! restart_pns_jobs "$installed_pns_state"; then
+      exit 1
+    fi
+    clear_restart_pending_marker
+  fi
+
+  settle_retry_marker "$pns_retry_marker"
+}
+
+main "$@"
 {{ end -}}
