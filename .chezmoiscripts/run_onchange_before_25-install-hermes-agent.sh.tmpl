@@ -1,15 +1,46 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# Install hermes-agent at the pinned ref. run_onchange re-fires only when the ref below changes
-# (a deliberate pin bump). Runs after run_onchange_before_10 has installed uv/node/git via brew.
-# Idempotent: skips when the live checkout is already at the pinned ref, so first-adding this script
-# on an existing machine never needlessly reinstalls a working hermes.
+#!/usr/bin/env bash
+
 set -euo pipefail
-# Pinned hermes-agent ref: {{ .hermes.ref }}
-if command -v hermes >/dev/null 2>&1 &&
-  [[ "$(git -C "$HOME/.hermes/hermes-agent" rev-parse HEAD 2>/dev/null || true)" == "{{ .hermes.ref }}" ]]; then
-  exit 0
-fi
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh |
-  bash -s -- --branch {{ .hermes.branch }} --commit {{ .hermes.ref }} --skip-setup
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly hermes_installer_url="https://hermes-agent.nousresearch.com/install.sh"
+readonly hermes_checkout="$HOME/.hermes/hermes-agent"
+readonly pinned_branch={{ .hermes.branch | quote }}
+readonly pinned_commit={{ .hermes.ref | quote }}
+
+hermes_is_installed() {
+  command -v hermes >/dev/null 2>&1
+}
+
+installed_hermes_commit() {
+  git -C "$hermes_checkout" rev-parse HEAD 2>/dev/null || true
+}
+
+hermes_is_at_the_pinned_commit() {
+  local installed_commit
+  installed_commit="$(installed_hermes_commit)"
+  [[ $installed_commit == "$pinned_commit" ]]
+}
+
+install_hermes_at_the_pinned_commit() {
+  curl -fsSL "$hermes_installer_url" |
+    bash -s -- --branch "$pinned_branch" --commit "$pinned_commit" --skip-setup
+}
+
+main() {
+  report_section 'hermes' 'Nous Research agent at the pinned commit'
+
+  if hermes_is_installed && hermes_is_at_the_pinned_commit; then
+    report_line "already at $pinned_commit, skipping."
+    return
+  fi
+
+  report_line "installing $pinned_commit from the $pinned_branch branch..."
+  install_hermes_at_the_pinned_commit
+  report_line "installed hermes-agent at $pinned_commit."
+}
+
+main "$@"
 {{ end -}}

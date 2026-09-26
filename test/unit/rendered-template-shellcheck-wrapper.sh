@@ -61,7 +61,7 @@ fails=0
 check() { # <name> <expected-rc> <expected-marker: yes|no|any>
   local name="$1" want_rc="$2" want_marker="$3" got_rc=0
   rm -f "$SHELLCHECK_MARKER"
-  if render_and_shellcheck_one "$TEMPLATE"; then got_rc=0; else got_rc=$?; fi
+  if shellcheck_rendered_template "$TEMPLATE"; then got_rc=0; else got_rc=$?; fi
   if [[ $want_rc == zero && $got_rc -ne 0 ]]; then
     printf 'FAIL: %s: expected exit 0, got %d\n' "$name" "$got_rc" >&2
     fails=1

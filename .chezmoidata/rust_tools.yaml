@@ -24,7 +24,7 @@ rust_tools:
   # dependency growth while still catching a runaway or substituted artifact.
   #
   # Two consumers cannot read this file and carry the same numbers by hand:
-  # `.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh` is a plain
+  # `.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh` is a plain
   # script rather than a template, and posture's watchdog audit is a Rust tool
   # other people install, which never reads this repository's data. Both name
   # this key where their constants sit. Move all four together.
