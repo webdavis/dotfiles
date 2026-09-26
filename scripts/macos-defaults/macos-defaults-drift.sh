@@ -128,7 +128,7 @@ check_record() {
 check_all_records() {
   local data_file=$1
   local domain key type value host scope plist_path tier
-  defaults_records_unit_separated "$data_file" |
+  read_validated_records "$data_file" |
     while IFS=$'\x1f' read -r domain key type value host scope plist_path tier; do
       check_record "$domain" "$key" "$type" "$value" "$host" "$scope" "$plist_path" "$tier"
     done

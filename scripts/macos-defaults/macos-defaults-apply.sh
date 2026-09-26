@@ -122,7 +122,7 @@ main() {
   require_readable_data_file "$data_file" || exit $?
 
   quit_system_settings
-  record_stream="$(defaults_records_unit_separated "$data_file")" || exit $?
+  record_stream="$(read_validated_records "$data_file")" || exit $?
 
   report_line "validating every record before writing anything..."
   plan_all_records "$record_stream"

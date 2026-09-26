@@ -10,6 +10,18 @@ file_is_readable() {
   [[ -r $file ]]
 }
 
+value_is_one_of() {
+  local value=$1
+  shift
+  local candidate
+  for candidate in "$@"; do
+    if [[ $value == "$candidate" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 source_directory_override_is_set() {
   [[ -n ${MACOS_DEFAULTS_SOURCE_DIR+x} ]]
 }
@@ -86,40 +98,62 @@ require_readable_data_file() {
   fi
 }
 
+DEFAULTS_RECORD_FIELD_SEPARATOR=$'\x1f'
+DEFAULTS_RECORD_FIELD_COUNT=8
+
 defaults_records_join_expression() {
   local record_selector=$1
-  local unit_separator=$'\x1f'
   printf '%s | [.domain, .key, .type, .value, (.host // ""), (.scope // "user"), (.plist_path // ""), .tier] | join("%s")' \
-    "$record_selector" "$unit_separator"
+    "$record_selector" "$DEFAULTS_RECORD_FIELD_SEPARATOR"
 }
 
-defaults_records_field_count() {
-  local unit_separator=$'\x1f'
-  local separators_only="${1//[!$unit_separator]/}"
+field_count_of_line() {
+  local line=$1
+  local separators_only="${line//[!$DEFAULTS_RECORD_FIELD_SEPARATOR]/}"
   printf '%s' "$((${#separators_only} + 1))"
 }
 
-first_non_blank_line() {
+line_count_of_text() {
+  local text=$1
+  printf '%s\n' "$text" | wc -l | tr -d ' '
+}
+
+first_line_of_text() {
+  local text=$1
+  printf '%s\n' "$text" | head -1
+}
+
+first_non_empty_line() {
   local text=$1
   local line
   while IFS= read -r line; do
-    if [[ -n $line ]]; then
+    if ! text_is_empty "$line"; then
       printf '%s' "$line"
       return 0
     fi
   done <<<"$text"
 }
 
+render_record_at_index() {
+  local data_file=$1 record_index=$2
+  yq eval -r "$(defaults_records_join_expression ".macos.defaults[$record_index]")" "$data_file"
+}
+
+rendered_record_is_malformed() {
+  local rendered_record=$1
+  local line_count field_count
+  line_count="$(line_count_of_text "$rendered_record")"
+  field_count="$(field_count_of_line "$rendered_record")"
+  ((line_count != 1 || field_count != DEFAULTS_RECORD_FIELD_COUNT))
+}
+
 defaults_records_locate_malformed() {
-  local data_file="$1" declared_record_count="$2"
-  local index record_render line_count
-  for ((index = 0; index < declared_record_count; index++)); do
-    record_render="$(yq eval -r "$(defaults_records_join_expression ".macos.defaults[$index]")" "$data_file")" || continue
-    line_count="$(printf '%s\n' "$record_render" | wc -l | tr -d ' ')"
-    if [[ $line_count -ne 1 || $(defaults_records_field_count "$record_render") -ne 8 ]]; then
-      printf 'record %d (domain %s, key %s)' "$index" \
-        "$(yq eval -r ".macos.defaults[$index].domain" "$data_file" | head -1)" \
-        "$(yq eval -r ".macos.defaults[$index].key" "$data_file" | head -1)"
+  local data_file=$1 declared_record_count=$2
+  local record_index rendered_record
+  for ((record_index = 0; record_index < declared_record_count; record_index++)); do
+    rendered_record="$(render_record_at_index "$data_file" "$record_index")" || continue
+    if rendered_record_is_malformed "$rendered_record"; then
+      printf 'record %d (%s)' "$record_index" "$(defaults_record_reference "$data_file" "$record_index")"
       return 0
     fi
   done
@@ -478,47 +512,75 @@ defaults_records_declared_count() {
   printf '%s\n' "$declared_record_count"
 }
 
-defaults_records_raw_stream() {
-  local data_file="$1"
+record_tier_is_known() {
+  local tier=$1
+  [[ $tier == enforce || $tier == verify || $tier == manual ]]
+}
+
+record_tier_has_an_expected_value() {
+  local tier=$1
+  [[ $tier == enforce || $tier == verify ]]
+}
+
+record_tier_is_enforced() {
+  local tier=$1
+  [[ $tier == enforce ]]
+}
+
+record_tier_requires_a_runbook() {
+  local tier=$1
+  [[ $tier == manual ]]
+}
+
+read_raw_record_lines() {
+  local data_file=$1
   if ! yq eval -r "$(defaults_records_join_expression '.macos.defaults[]')" "$data_file"; then
     printf 'error: cannot read the records in %s\n' "$data_file" >&2
     return 2
   fi
 }
 
+field_count_matches_a_record() {
+  local field_count=$1
+  ((field_count == DEFAULTS_RECORD_FIELD_COUNT))
+}
+
+validate_record_line() {
+  local data_file=$1 declared_record_count=$2 record_line=$3
+  local field_count domain key value_type value host scope plist_path tier
+  field_count="$(field_count_of_line "$record_line")"
+  if ! field_count_matches_a_record "$field_count"; then
+    printf 'error: %s: %s renders %s fields, not %s; a field value contains a unit separator (0x1f) or a newline\n' \
+      "$data_file" "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" \
+      "$field_count" "$DEFAULTS_RECORD_FIELD_COUNT" >&2
+    return 2
+  fi
+  IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r domain key value_type value host scope plist_path tier <<<"$record_line"
+  if ! record_tier_is_known "$tier"; then
+    printf 'error: %s: record (domain %s, key %s) has a missing, blank, or unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
+      "$data_file" "$domain" "$key" "$tier" >&2
+    return 2
+  fi
+  if ! validate_defaults_record "$domain" "$key" "$value_type" "$value" "$host" "$scope" "$plist_path" "$tier"; then
+    printf 'error: %s: the record above is not usable; the whole file is refused\n' "$data_file" >&2
+    return 2
+  fi
+}
+
+line_count_matches_declared_count() {
+  local line_count=$1 declared_count=$2
+  ((line_count == declared_count))
+}
+
 defaults_records_validate_stream() {
-  local data_file="$1" declared_record_count="$2" raw_records="$3"
-  local line field_count checked_line_count=0
-  local record_domain record_key record_type record_value
-  local record_host record_scope record_plist_path record_tier
-  while IFS= read -r line; do
-    [[ -z $line ]] && continue
-    field_count="$(defaults_records_field_count "$line")"
-    if [[ $field_count -ne 8 ]]; then
-      printf 'error: %s: %s renders %s fields, not 8; a field value contains a unit separator (0x1f) or a newline\n' \
-        "$data_file" "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" \
-        "$field_count" >&2
-      return 2
-    fi
-    IFS=$'\x1f' read -r record_domain record_key record_type record_value \
-      record_host record_scope record_plist_path record_tier <<<"$line"
-    case "$record_tier" in
-      enforce | verify | manual) ;;
-      *)
-        printf 'error: %s: record (domain %s, key %s) has a missing, blank, or unrecognized tier %q; declare tier: enforce, verify, or manual\n' \
-          "$data_file" "$record_domain" "$record_key" "$record_tier" >&2
-        return 2
-        ;;
-    esac
-    if ! validate_defaults_record "$record_domain" "$record_key" "$record_type" \
-      "$record_value" "$record_host" "$record_scope" "$record_plist_path" "$record_tier"; then
-      printf 'error: %s: the record above is not usable; the whole file is refused\n' "$data_file" >&2
-      return 2
-    fi
+  local data_file=$1 declared_record_count=$2 raw_records=$3
+  local record_line checked_line_count=0
+  while IFS= read -r record_line; do
+    text_is_empty "$record_line" && continue
+    validate_record_line "$data_file" "$declared_record_count" "$record_line" || return 2
     checked_line_count=$((checked_line_count + 1))
   done <<<"$raw_records"
-
-  if [[ $checked_line_count -ne $declared_record_count ]]; then
+  if ! line_count_matches_declared_count "$checked_line_count" "$declared_record_count"; then
     printf 'error: %s declares %s record(s) but the record stream has %s line(s); %s contains a newline\n' \
       "$data_file" "$declared_record_count" "$checked_line_count" \
       "$(defaults_records_locate_malformed "$data_file" "$declared_record_count")" >&2
@@ -606,19 +668,26 @@ require_data_file_killall_is_iterable() {
   return 2
 }
 
-defaults_records_declare_a_value() {
-  local data_file="$1"
-  local valueless_indices first_valueless_index
-  if ! valueless_indices="$(yq eval -r '.macos.defaults | to_entries | .[] | select(.value.tier == "enforce" or .value.tier == "verify") | select((.value | has("value") | not) or (.value.value == null)) | .key' "$data_file")"; then
+DEFAULTS_VALUELESS_RECORD_INDEX_EXPRESSION='.macos.defaults | to_entries | .[] | select(.value.tier == "enforce" or .value.tier == "verify") | select((.value | has("value") | not) or (.value.value == null)) | .key'
+
+read_valueless_record_indices() {
+  local data_file=$1
+  if ! yq eval -r "$DEFAULTS_VALUELESS_RECORD_INDEX_EXPRESSION" "$data_file"; then
     printf 'error: cannot check which records in %s declare a value\n' "$data_file" >&2
     return 2
   fi
-  [[ -z $valueless_indices ]] && return 0
-  first_valueless_index="$(printf '%s\n' "$valueless_indices" | head -1)"
-  printf 'error: %s: record %s (domain %s, key %s) has a blank value; give it a value or remove the field\n' \
-    "$data_file" "$first_valueless_index" \
-    "$(yq eval -r ".macos.defaults[$first_valueless_index].domain" "$data_file" | head -1)" \
-    "$(yq eval -r ".macos.defaults[$first_valueless_index].key" "$data_file" | head -1)" >&2
+}
+
+require_records_declare_a_value() {
+  local data_file=$1
+  local valueless_indices first_valueless_index
+  valueless_indices="$(read_valueless_record_indices "$data_file")" || return 2
+  if text_is_empty "$valueless_indices"; then
+    return 0
+  fi
+  first_valueless_index="$(first_line_of_text "$valueless_indices")"
+  printf 'error: %s: record %s (%s) has a blank value; give it a value or remove the field\n' \
+    "$data_file" "$first_valueless_index" "$(defaults_record_reference "$data_file" "$first_valueless_index")" >&2
   return 2
 }
 
@@ -632,48 +701,76 @@ MACOS_DEFAULTS_CANONICAL_FLOAT_PATTERN='^-?(0|[1-9][0-9]*)[.][0-9]*[1-9]$'
 
 MACOS_DEFAULTS_CANONICAL_FLOAT_DIGIT_BOUND_PATTERN='^-?[0-9.]{1,16}$'
 
+node_kind_is_scalar() {
+  local node_kind=$1
+  [[ $node_kind == "$DEFAULTS_RECORDS_SCALAR_KIND" ]]
+}
+
 record_field_node_description() {
-  local node_kind="$1" node_tag="$2"
-  if [[ $node_kind == "$DEFAULTS_RECORDS_SCALAR_KIND" ]]; then
+  local node_kind=$1 node_tag=$2
+  if node_kind_is_scalar "$node_kind"; then
     printf '%s' "$node_tag"
     return 0
   fi
   printf '%s tagged %s' "$node_kind" "$node_tag"
 }
 
-# shellcheck disable=SC2016  # deliberate: $entry, $field, $fieldKind, $fieldTag
-defaults_records_field_type_expression() {
-  local unit_separator=$'\x1f'
-  local string_only_field string_only_selection='' schema_field_selection
-  for string_only_field in "${MACOS_DEFAULTS_STRING_ONLY_RECORD_FIELDS[@]}"; do
-    [[ -n $string_only_selection ]] && string_only_selection+=' or '
-    string_only_selection+="(\$field.key == \"$string_only_field\")"
+# shellcheck disable=SC2016
+field_name_selection() {
+  local field_name=$1
+  printf '($field.key == "%s")' "$field_name"
+}
+
+string_only_field_selection() {
+  local field_name selection=''
+  for field_name in "${MACOS_DEFAULTS_STRING_ONLY_RECORD_FIELDS[@]}"; do
+    if ! text_is_empty "$selection"; then
+      selection+=' or '
+    fi
+    selection+="$(field_name_selection "$field_name")"
   done
-  schema_field_selection="$string_only_selection or (\$field.key == \"$MACOS_DEFAULTS_VALUE_RECORD_FIELD\")"
-  local canonical_value_spellings
-  canonical_value_spellings="$(printf '((%s == "!!bool") and (%s | test("%s"))) or ((%s == "!!int") and (%s | test("%s"))) or ((%s == "!!float") and (%s | test("%s")) and (%s | test("%s")))' \
+  printf '%s' "$selection"
+}
+
+# shellcheck disable=SC2016
+canonical_value_spelling_selection() {
+  printf '((%s == "!!bool") and (%s | test("%s"))) or ((%s == "!!int") and (%s | test("%s"))) or ((%s == "!!float") and (%s | test("%s")) and (%s | test("%s")))' \
     '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_BOOL_PATTERN" \
     '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_INT_PATTERN" \
     '$fieldTag' '$fieldText' "$MACOS_DEFAULTS_CANONICAL_FLOAT_PATTERN" \
-    '$fieldText' "$MACOS_DEFAULTS_CANONICAL_FLOAT_DIGIT_BOUND_PATTERN")"
+    '$fieldText' "$MACOS_DEFAULTS_CANONICAL_FLOAT_DIGIT_BOUND_PATTERN"
+}
+
+# shellcheck disable=SC2016
+defaults_records_field_type_expression() {
+  local string_only_selection schema_field_selection canonical_value_spellings
+  string_only_selection="$(string_only_field_selection)"
+  schema_field_selection="$string_only_selection or $(field_name_selection "$MACOS_DEFAULTS_VALUE_RECORD_FIELD")"
+  canonical_value_spellings="$(canonical_value_spelling_selection)"
   printf '[.macos.defaults | to_entries | .[] | . as $entry | ($entry.value | to_entries | .[]) as $field | ($field.value | kind) as $fieldKind | ($field.value | tag) as $fieldTag | ($field.value | tostring) as $fieldText | select(((%s) and ($fieldKind != "%s")) or ((%s) and ($fieldTag != "%s")) or (($field.key == "%s") and ($fieldTag != "%s") and ((%s) | not))) | [($entry.key | tostring), ($field.key | tostring), $fieldKind, $fieldTag] | join("%s")] | .[]' \
     "$schema_field_selection" "$DEFAULTS_RECORDS_SCALAR_KIND" \
     "$string_only_selection" "$MACOS_DEFAULTS_PLAIN_STRING_TAG" \
     "$MACOS_DEFAULTS_VALUE_RECORD_FIELD" "$MACOS_DEFAULTS_PLAIN_STRING_TAG" \
-    "$canonical_value_spellings" "$unit_separator"
+    "$canonical_value_spellings" "$DEFAULTS_RECORD_FIELD_SEPARATOR"
 }
 
-defaults_records_declare_agreeing_field_types() {
-  local data_file="$1"
-  local field_types first_offender
-  local record_index offending_field offending_kind offending_tag
-  if ! field_types="$(yq eval -r "$(defaults_records_field_type_expression)" "$data_file")"; then
+read_mistyped_record_fields() {
+  local data_file=$1
+  if ! yq eval -r "$(defaults_records_field_type_expression)" "$data_file"; then
     printf 'error: cannot check the field types of the records in %s\n' "$data_file" >&2
     return 2
   fi
-  first_offender="$(first_non_blank_line "$field_types")"
-  [[ -z $first_offender ]] && return 0
-  IFS=$'\x1f' read -r record_index offending_field offending_kind offending_tag <<<"$first_offender"
+}
+
+require_records_declare_agreeing_field_types() {
+  local data_file=$1
+  local mistyped_fields first_offender record_index offending_field offending_kind offending_tag
+  mistyped_fields="$(read_mistyped_record_fields "$data_file")" || return 2
+  first_offender="$(first_non_empty_line "$mistyped_fields")"
+  if text_is_empty "$first_offender"; then
+    return 0
+  fi
+  IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r record_index offending_field offending_kind offending_tag <<<"$first_offender"
   printf 'error: %s: record %s (%s) declares %s as %s; this reader renders a scalar as the text the file spells it with and the runner template renders it as Go formats the parsed value, so the two would not write the same thing out of this record; quote the value\n' \
     "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
     "$offending_field" "$(record_field_node_description "$offending_kind" "$offending_tag")" >&2
@@ -684,78 +781,83 @@ MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_MANUAL=("type" "value" "host" "scope" "plist_
 MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_ENFORCE=("runbook")
 
 record_field_is_forbidden_for_tier() {
-  local tier="$1" field="$2" forbidden_field
-  local -a forbidden_fields=()
+  local tier=$1 field=$2
   case $tier in
-    manual) forbidden_fields=("${MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_MANUAL[@]}") ;;
-    enforce) forbidden_fields=("${MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_ENFORCE[@]}") ;;
+    manual) value_is_one_of "$field" "${MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_MANUAL[@]}" ;;
+    enforce) value_is_one_of "$field" "${MACOS_DEFAULTS_FIELDS_FORBIDDEN_ON_ENFORCE[@]}" ;;
     *) return 1 ;;
   esac
-  for forbidden_field in "${forbidden_fields[@]}"; do
-    [[ $field == "$forbidden_field" ]] && return 0
-  done
-  return 1
 }
-
-record_tier_requires_a_runbook() {
-  local tier=$1
-  [[ $tier == manual ]]
-}
-
-# shellcheck disable=SC2016  # deliberate: $entry and $field are yq's own
-DEFAULTS_RECORD_DECLARED_FIELDS_EXPRESSION='.macos.defaults | to_entries | .[] | . as $entry | ($entry.value | keys | .[]) as $field | [($entry.key | tostring), ($entry.value.tier // ""), (($entry.value | has("runbook")) and ($entry.value.runbook != null) and ($entry.value.runbook != "")) | tostring, ($field | tostring)] | join("'$'\x1f''")'
 
 DEFAULTS_RECORD_DECLARED_FIELDS_FIELD_COUNT=4
 
 DEFAULTS_RECORD_DECLARED_FIELD_TOTAL_EXPRESSION='[.macos.defaults | .[] | keys | .[]] | length'
 
-defaults_records_declared_field_line_count() {
-  local declared_fields_stream=$1
-  local line line_count=0
-  while IFS= read -r line; do
-    [[ -z $line ]] && continue
-    line_count=$((line_count + 1))
-  done <<<"$declared_fields_stream"
-  printf '%s\n' "$line_count"
+# shellcheck disable=SC2016
+declared_fields_expression() {
+  printf '.macos.defaults | to_entries | .[] | . as $entry | ($entry.value | keys | .[]) as $field | [($entry.key | tostring), ($entry.value.tier // ""), (($entry.value | has("runbook")) and ($entry.value.runbook != null) and ($entry.value.runbook != "")) | tostring, ($field | tostring)] | join("%s")' \
+    "$DEFAULTS_RECORD_FIELD_SEPARATOR"
 }
 
-defaults_records_match_declared_tier() {
-  local data_file="$1"
-  local declared_fields declared_field_total line field_count read_line_count=0
-  local record_index record_tier record_runbook_is_usable record_field
-  local -A record_tier_by_index=() runbook_usable_by_index=()
-  local -a record_indices_in_order=()
-  if ! declared_fields="$(yq eval -r "$DEFAULTS_RECORD_DECLARED_FIELDS_EXPRESSION" "$data_file")"; then
+read_declared_fields() {
+  local data_file=$1
+  if ! yq eval -r "$(declared_fields_expression)" "$data_file"; then
     printf 'error: cannot read which fields the records in %s declare\n' "$data_file" >&2
     return 2
   fi
-  if ! declared_field_total="$(yq eval -r "$DEFAULTS_RECORD_DECLARED_FIELD_TOTAL_EXPRESSION" "$data_file")"; then
+}
+
+read_declared_field_total() {
+  local data_file=$1
+  if ! yq eval -r "$DEFAULTS_RECORD_DECLARED_FIELD_TOTAL_EXPRESSION" "$data_file"; then
     printf 'error: cannot count the fields the records in %s declare\n' "$data_file" >&2
     return 2
   fi
+}
+
+non_empty_line_count() {
+  local text=$1
+  local line line_count=0
+  while IFS= read -r line; do
+    text_is_empty "$line" && continue
+    line_count=$((line_count + 1))
+  done <<<"$text"
+  printf '%s\n' "$line_count"
+}
+
+require_every_declared_field_listed() {
+  local data_file=$1 declared_fields=$2
+  local declared_field_total listed_field_count
+  declared_field_total="$(read_declared_field_total "$data_file")" || return 2
   if ! count_is_usable "$declared_field_total"; then
     printf 'error: %s produced an unusable declared-field count %q; refusing to check rules against a stream that cannot be checked\n' \
       "$data_file" "$declared_field_total" >&2
     return 2
   fi
-  read_line_count="$(defaults_records_declared_field_line_count "$declared_fields")"
-  if [[ $read_line_count -ne $declared_field_total ]]; then
+  listed_field_count="$(non_empty_line_count "$declared_fields")"
+  if ! line_count_matches_declared_count "$listed_field_count" "$declared_field_total"; then
     printf 'error: %s: the records declare %s field(s) but the field stream has %s line(s); a field NAME contains a newline, so the rules for its tier cannot be checked against it; rename the field\n' \
-      "$data_file" "$declared_field_total" "$read_line_count" >&2
+      "$data_file" "$declared_field_total" "$listed_field_count" >&2
     return 2
   fi
-  while IFS= read -r line; do
-    [[ -z $line ]] && continue
-    field_count="$(defaults_records_field_count "$line")"
-    if [[ $field_count -ne $DEFAULTS_RECORD_DECLARED_FIELDS_FIELD_COUNT ]]; then
+}
+
+field_count_matches_a_declared_field() {
+  local field_count=$1
+  ((field_count == DEFAULTS_RECORD_DECLARED_FIELDS_FIELD_COUNT))
+}
+
+require_no_record_carries_a_field_its_tier_forbids() {
+  local data_file=$1 declared_fields=$2
+  local declared_field record_index record_tier runbook_is_named record_field
+  while IFS= read -r declared_field; do
+    text_is_empty "$declared_field" && continue
+    if ! field_count_matches_a_declared_field "$(field_count_of_line "$declared_field")"; then
       printf 'error: %s: a record declares a field name containing a newline or a unit separator (0x1f), which cannot be checked against the rules for its tier\n' \
         "$data_file" >&2
       return 2
     fi
-    IFS=$'\x1f' read -r record_index record_tier record_runbook_is_usable record_field <<<"$line"
-    [[ -n ${record_tier_by_index[$record_index]+x} ]] || record_indices_in_order+=("$record_index")
-    record_tier_by_index["$record_index"]="$record_tier"
-    runbook_usable_by_index["$record_index"]="$record_runbook_is_usable"
+    IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r record_index record_tier runbook_is_named record_field <<<"$declared_field"
     if record_field_is_forbidden_for_tier "$record_tier" "$record_field"; then
       printf 'error: %s: record %s (%s) carries %s; a %s control renders no such payload, so a field it cannot use means the declared tier is wrong; either drop the field or declare the tier that consumes it\n' \
         "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
@@ -763,38 +865,69 @@ defaults_records_match_declared_tier() {
       return 2
     fi
   done <<<"$declared_fields"
+}
 
-  for record_index in "${record_indices_in_order[@]}"; do
-    record_tier_requires_a_runbook "${record_tier_by_index[$record_index]}" || continue
-    [[ ${runbook_usable_by_index[$record_index]} == true ]] && continue
-    printf 'error: %s: record %s (%s) declares tier %s but names no runbook section; a manual control renders no write, so the runbook pointer is the whole record; name the runbook section\n' \
-      "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
-      "${record_tier_by_index[$record_index]}" >&2
-    return 2
-  done
+record_names_a_runbook() {
+  local runbook_is_named=$1
+  [[ $runbook_is_named == true ]]
+}
+
+require_manual_records_name_a_runbook() {
+  local data_file=$1 declared_fields=$2
+  local declared_field record_index record_tier runbook_is_named record_field
+  while IFS= read -r declared_field; do
+    text_is_empty "$declared_field" && continue
+    IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r record_index record_tier runbook_is_named record_field <<<"$declared_field"
+    if record_tier_requires_a_runbook "$record_tier" && ! record_names_a_runbook "$runbook_is_named"; then
+      printf 'error: %s: record %s (%s) declares tier %s but names no runbook section; a manual control renders no write, so the runbook pointer is the whole record; name the runbook section\n' \
+        "$data_file" "$record_index" "$(defaults_record_reference "$data_file" "$record_index")" \
+        "$record_tier" >&2
+      return 2
+    fi
+  done <<<"$declared_fields"
+}
+
+require_records_match_declared_tier() {
+  local data_file=$1
+  local declared_fields
+  declared_fields="$(read_declared_fields "$data_file")" || return 2
+  require_every_declared_field_listed "$data_file" "$declared_fields" || return 2
+  require_no_record_carries_a_field_its_tier_forbids "$data_file" "$declared_fields" || return 2
+  require_manual_records_name_a_runbook "$data_file" "$declared_fields" || return 2
+}
+
+declared_record_field() {
+  local data_file=$1 record_index=$2 field_name=$3
+  yq eval -r ".macos.defaults[$record_index].$field_name" "$data_file" | head -1
 }
 
 defaults_record_reference() {
   local data_file=$1 record_index=$2
   printf 'domain %s, key %s' \
-    "$(yq eval -r ".macos.defaults[$record_index].domain" "$data_file" | head -1)" \
-    "$(yq eval -r ".macos.defaults[$record_index].key" "$data_file" | head -1)"
+    "$(declared_record_field "$data_file" "$record_index" domain)" \
+    "$(declared_record_field "$data_file" "$record_index" key)"
 }
 
-defaults_records_unit_separated() {
-  local data_file="$1"
-  local declared_record_count raw_records line
-  declared_record_count="$(defaults_records_declared_count "$data_file")" || return 2
-  raw_records="$(defaults_records_raw_stream "$data_file")" || return 2
-  defaults_records_validate_stream "$data_file" "$declared_record_count" "$raw_records" || return 2
-  defaults_records_declare_a_value "$data_file" || return 2
-  defaults_records_declare_agreeing_field_types "$data_file" || return 2
-  defaults_records_match_declared_tier "$data_file" || return 2
-  require_data_file_killall_is_iterable "$data_file" || return 2
+print_non_empty_lines() {
+  local text=$1
+  local line
   while IFS= read -r line; do
-    [[ -z $line ]] && continue
+    text_is_empty "$line" && continue
     printf '%s\n' "$line"
-  done <<<"$raw_records"
+  done <<<"$text"
+}
+
+read_validated_records() {
+  local data_file=$1
+  local declared_record_count raw_records
+  declared_record_count="$(defaults_records_declared_count "$data_file")" || return 2
+  raw_records="$(read_raw_record_lines "$data_file")" || return 2
+  defaults_records_validate_stream "$data_file" "$declared_record_count" "$raw_records" || return 2
+  require_records_declare_a_value "$data_file" || return 2
+  require_records_declare_agreeing_field_types "$data_file" || return 2
+  require_records_match_declared_tier "$data_file" || return 2
+  require_data_file_killall_is_iterable "$data_file" || return 2
+  print_non_empty_lines "$raw_records"
 }
 
 validate_record_scope() {
