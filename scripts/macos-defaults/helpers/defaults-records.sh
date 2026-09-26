@@ -136,19 +136,55 @@ DEFAULTS_RECORDS_ABSENT_TAG='!!null'
 
 DEFAULTS_RECORDS_SHAPE_EXPRESSION='.macos.defaults | [kind, tag] | join(" ")'
 DEFAULTS_RECORDS_COUNT_EXPRESSION='.macos.defaults | length'
+MACOS_DEFAULTS_SHAPE_ANSWER_PATTERN='^[[:alpha:]]+ [^[:space:]]+$'
+
+shape_answer_is_one_kind_and_one_tag() {
+  local shape_answer=$1
+  [[ $shape_answer =~ $MACOS_DEFAULTS_SHAPE_ANSWER_PATTERN ]]
+}
+
+node_kind_in_shape_answer() {
+  local shape_answer=$1
+  printf '%s' "${shape_answer%% *}"
+}
+
+node_tag_in_shape_answer() {
+  local shape_answer=$1
+  printf '%s' "${shape_answer#* }"
+}
+
+tag_is_a_plain_list_tag() {
+  local node_tag=$1
+  [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ]]
+}
+
+tag_is_a_plain_or_nonspecific_list_tag() {
+  local node_tag=$1
+  [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" || $node_tag == "$DEFAULTS_RECORDS_NONSPECIFIC_TAG" ]]
+}
+
+tag_is_a_plain_map_tag() {
+  local node_tag=$1
+  [[ $node_tag == "$DEFAULTS_RECORDS_MAP_TAG" ]]
+}
+
+tag_marks_an_absent_node() {
+  local node_tag=$1
+  [[ $node_tag == "$DEFAULTS_RECORDS_ABSENT_TAG" ]]
+}
 
 records_declaration_verdict() {
-  local shape_answer="$1" node_kind node_tag
-  if [[ ! $shape_answer =~ ^([[:alpha:]]+)' '([^[:space:]]+)$ ]]; then
+  local shape_answer=$1
+  local node_kind node_tag
+  if ! shape_answer_is_one_kind_and_one_tag "$shape_answer"; then
     printf 'other\n'
     return 0
   fi
-  node_kind="${BASH_REMATCH[1]}"
-  node_tag="${BASH_REMATCH[2]}"
+  node_kind="$(node_kind_in_shape_answer "$shape_answer")"
+  node_tag="$(node_tag_in_shape_answer "$shape_answer")"
   case $node_kind in
     "$DEFAULTS_RECORDS_LIST_KIND")
-      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ||
-        $node_tag == "$DEFAULTS_RECORDS_NONSPECIFIC_TAG" ]]; then
+      if tag_is_a_plain_or_nonspecific_list_tag "$node_tag"; then
         printf 'list\n'
       else
         printf 'mistagged\n'
@@ -156,7 +192,7 @@ records_declaration_verdict() {
       ;;
     "$DEFAULTS_RECORDS_MAP_KIND") printf 'map\n' ;;
     *)
-      if [[ $node_tag == "$DEFAULTS_RECORDS_ABSENT_TAG" ]]; then
+      if tag_marks_an_absent_node "$node_tag"; then
         printf 'absent\n'
       else
         printf 'other\n'
@@ -169,25 +205,44 @@ DEFAULTS_DATA_FILE_RULES_EXPRESSION='[[.. | select(kind == "map") | keys | selec
 
 MACOS_DEFAULTS_DOCUMENT_START_MARKER_PATTERN='^---([[:space:]].*)?$'
 
+line_is_blank() {
+  local line=$1
+  [[ $line =~ ^[[:space:]]*$ ]]
+}
+
+line_is_a_yaml_comment() {
+  local line=$1
+  [[ $line =~ ^[[:space:]]*# ]]
+}
+
+line_is_a_yaml_directive() {
+  local line=$1
+  [[ $line == %* ]]
+}
+
+line_starts_a_yaml_document() {
+  local line=$1
+  [[ $line =~ $MACOS_DEFAULTS_DOCUMENT_START_MARKER_PATTERN ]]
+}
+
 data_file_line_carries_document_content() {
-  local line="$1"
-  [[ $line =~ ^[[:space:]]*$ ]] && return 1
-  [[ $line =~ ^[[:space:]]*# ]] && return 1
-  [[ $line == %* ]] && return 1
-  return 0
+  local line=$1
+  ! line_is_blank "$line" && ! line_is_a_yaml_comment "$line" && ! line_is_a_yaml_directive "$line"
+}
+
+no_document_start_seen_yet() {
+  local start_marker_count=$1
+  ((start_marker_count == 0))
 }
 
 data_file_document_count() {
-  local data_file="$1"
-  local line start_marker_count=0 content_before_first_marker=0 seen_start_marker=0
-  [[ -r $data_file ]] || return 1
+  local data_file=$1
+  local line start_marker_count=0 content_before_first_marker=0
+  file_is_readable "$data_file" || return 1
   while IFS= read -r line || [[ -n $line ]]; do
-    if [[ $line =~ $MACOS_DEFAULTS_DOCUMENT_START_MARKER_PATTERN ]]; then
+    if line_starts_a_yaml_document "$line"; then
       start_marker_count=$((start_marker_count + 1))
-      seen_start_marker=1
-      continue
-    fi
-    if [[ $seen_start_marker -eq 0 ]] && data_file_line_carries_document_content "$line"; then
+    elif no_document_start_seen_yet "$start_marker_count" && data_file_line_carries_document_content "$line"; then
       content_before_first_marker=1
     fi
   done <"$data_file" || return 1
@@ -200,55 +255,89 @@ print_multiple_documents_refusal() {
     "$data_file" >&2
 }
 
+document_count_is_a_number() {
+  local document_count=$1
+  [[ $document_count =~ ^[0-9]+$ ]]
+}
+
+document_count_is_at_most_one() {
+  local document_count=$1
+  ((document_count <= 1))
+}
+
 require_data_file_holds_one_document() {
-  local data_file="$1" document_count
-  if ! document_count="$(data_file_document_count "$data_file")" ||
-    [[ ! $document_count =~ ^[0-9]+$ ]]; then
+  local data_file=$1
+  local document_count
+  if ! document_count="$(data_file_document_count "$data_file")" || ! document_count_is_a_number "$document_count"; then
     printf 'error: cannot count the YAML documents in %s; refusing a file whose document count could not be read\n' \
       "$data_file" >&2
     return 2
   fi
-  [[ $document_count -le 1 ]] && return 0
+  if document_count_is_at_most_one "$document_count"; then
+    return 0
+  fi
   print_multiple_documents_refusal "$data_file"
   return 2
 }
 
+MACOS_DEFAULTS_BOUNDED_COUNT_PATTERN='(0|[1-9][0-9]{0,6})'
+MACOS_DEFAULTS_USABLE_COUNT_PATTERN="^$MACOS_DEFAULTS_BOUNDED_COUNT_PATTERN\$"
+MACOS_DEFAULTS_RULES_ANSWER_PATTERN="^$MACOS_DEFAULTS_BOUNDED_COUNT_PATTERN $MACOS_DEFAULTS_BOUNDED_COUNT_PATTERN $MACOS_DEFAULTS_BOUNDED_COUNT_PATTERN\$"
+
+text_spans_several_lines() {
+  local text=$1
+  [[ $text == *$'\n'* ]]
+}
+
+rules_answer_is_three_counts() {
+  local rules_answer=$1
+  [[ $rules_answer =~ $MACOS_DEFAULTS_RULES_ANSWER_PATTERN ]]
+}
+
+count_is_above_zero() {
+  local count=$1
+  ((count > 0))
+}
+
 data_file_rules_verdict() {
-  local rules_answer="$1"
+  local rules_answer=$1
   local duplicate_mapping_key_count complex_mapping_key_count alias_count
-  if [[ $rules_answer == *$'\n'* ]]; then
+  if text_spans_several_lines "$rules_answer"; then
     printf 'multiple_documents\n'
     return 0
   fi
-  if [[ ! $rules_answer =~ ^(0|[1-9][0-9]{0,6})' '(0|[1-9][0-9]{0,6})' '(0|[1-9][0-9]{0,6})$ ]]; then
+  if ! rules_answer_is_three_counts "$rules_answer"; then
     printf 'unclassifiable\n'
     return 0
   fi
-  duplicate_mapping_key_count="${BASH_REMATCH[1]}"
-  complex_mapping_key_count="${BASH_REMATCH[2]}"
-  alias_count="${BASH_REMATCH[3]}"
-  if [[ $duplicate_mapping_key_count -gt 0 ]]; then
+  IFS=' ' read -r duplicate_mapping_key_count complex_mapping_key_count alias_count <<<"$rules_answer"
+  if count_is_above_zero "$duplicate_mapping_key_count"; then
     printf 'duplicate_mapping_key\n'
-  elif [[ $complex_mapping_key_count -gt 0 ]]; then
+  elif count_is_above_zero "$complex_mapping_key_count"; then
     printf 'complex_mapping_key\n'
-  elif [[ $alias_count -gt 0 ]]; then
+  elif count_is_above_zero "$alias_count"; then
     printf 'alias\n'
   else
     printf 'satisfied\n'
   fi
 }
 
-require_data_file_rules_satisfied() {
-  local data_file="$1"
-  local rules_answer rules_verdict
-  require_data_file_holds_one_document "$data_file" || return 2
-  if ! rules_answer="$(yq eval -r "$DEFAULTS_DATA_FILE_RULES_EXPRESSION" "$data_file")"; then
+read_data_file_rules_answer() {
+  local data_file=$1
+  if ! yq eval -r "$DEFAULTS_DATA_FILE_RULES_EXPRESSION" "$data_file"; then
     printf 'error: cannot check the whole-file rules of %s\n' "$data_file" >&2
     return 2
   fi
-  rules_verdict="$(data_file_rules_verdict "$rules_answer")"
+}
+
+data_file_rules_are_satisfied() {
+  local rules_verdict=$1
+  [[ $rules_verdict == satisfied ]]
+}
+
+print_data_file_rules_refusal() {
+  local data_file=$1 rules_verdict=$2 rules_answer=$3
   case $rules_verdict in
-    satisfied) return 0 ;;
     multiple_documents)
       print_multiple_documents_refusal "$data_file"
       ;;
@@ -269,70 +358,123 @@ require_data_file_rules_satisfied() {
         "$data_file" "$rules_answer" >&2
       ;;
   esac
+}
+
+require_data_file_rules_satisfied() {
+  local data_file=$1
+  local rules_answer rules_verdict
+  require_data_file_holds_one_document "$data_file" || return 2
+  rules_answer="$(read_data_file_rules_answer "$data_file")" || return 2
+  rules_verdict="$(data_file_rules_verdict "$rules_answer")"
+  if data_file_rules_are_satisfied "$rules_verdict"; then
+    return 0
+  fi
+  print_data_file_rules_refusal "$data_file" "$rules_verdict" "$rules_answer"
   return 2
 }
 
 UTF8_BYTE_ORDER_MARK=$'\xef\xbb\xbf'
 UTF8_BYTE_ORDER_MARK_BYTE_COUNT=3
 
+leading_bytes_of_file() {
+  local file=$1 byte_count=$2
+  LC_ALL=C head -c "$byte_count" -- "$file" 2>/dev/null
+}
+
 data_file_begins_with_byte_order_mark() {
   local data_file=$1
   local leading_bytes
-  leading_bytes="$(LC_ALL=C head -c "$UTF8_BYTE_ORDER_MARK_BYTE_COUNT" -- "$data_file" 2>/dev/null)" || return 1
+  leading_bytes="$(leading_bytes_of_file "$data_file" "$UTF8_BYTE_ORDER_MARK_BYTE_COUNT")" || return 1
   [[ $leading_bytes == "$UTF8_BYTE_ORDER_MARK" ]]
 }
 
-declared_record_count_is_usable() {
-  local count=$1
-  [[ $count =~ ^(0|[1-9][0-9]{0,6})$ ]]
-}
-
-defaults_records_declared_count() {
-  local data_file="$1"
-  local shape_answer declaration_verdict declared_record_count
+require_no_byte_order_mark() {
+  local data_file=$1
   if data_file_begins_with_byte_order_mark "$data_file"; then
     printf 'error: %s begins with a UTF-8 byte order mark; yq strips it and reads the file, but the runner template does not and cannot then find .macos at all, so the two readers disagree about this file; remove the first three bytes\n' \
       "$data_file" >&2
     return 2
   fi
-  if ! shape_answer="$(yq eval -r "$DEFAULTS_RECORDS_SHAPE_EXPRESSION" "$data_file")"; then
+}
+
+count_is_usable() {
+  local count=$1
+  [[ $count =~ $MACOS_DEFAULTS_USABLE_COUNT_PATTERN ]]
+}
+
+read_records_shape() {
+  local data_file=$1
+  if ! yq eval -r "$DEFAULTS_RECORDS_SHAPE_EXPRESSION" "$data_file"; then
     printf 'error: cannot determine the shape of .macos.defaults in %s\n' "$data_file" >&2
     return 2
   fi
-  require_data_file_rules_satisfied "$data_file" || return 2
-  declaration_verdict="$(records_declaration_verdict "$shape_answer")"
+}
+
+records_are_declared_as_a_list() {
+  local declaration_verdict=$1
+  [[ $declaration_verdict == list ]]
+}
+
+print_records_declaration_refusal() {
+  local data_file=$1 declaration_verdict=$2 shape_answer=$3
   case $declaration_verdict in
-    list) ;;
     mistagged)
       printf 'error: %s tags .macos.defaults as %q; the record list is a real sequence, so only its TAG is wrong, and the only tags accepted on it are %s and the non-specific %s, because the runner template refuses several of the others with a parse error while this reader would take the records, so the two readers would disagree about whether this file has any settings at all; delete the tag\n' \
-        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_NONSPECIFIC_TAG" >&2
-      return 2
+        "$data_file" "$(node_tag_in_shape_answer "$shape_answer")" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_NONSPECIFIC_TAG" >&2
       ;;
     map)
       printf 'error: %s declares .macos.defaults as a map, but it must be a LIST of records; a map is read in sorted key order by the runner template and in document order here, so the two would apply records in different orders\n' \
         "$data_file" >&2
-      return 2
       ;;
     absent)
       printf 'error: %s declares no .macos.defaults record list, so every tracked setting would be silently skipped and the run would still report success; to track no records, declare an explicitly empty list, defaults: []\n' \
         "$data_file" >&2
-      return 2
       ;;
     *)
       printf 'error: %s does not declare .macos.defaults as a LIST of records; yq answered %q for its kind and tag\n' \
         "$data_file" "$shape_answer" >&2
-      return 2
       ;;
   esac
-  if ! declared_record_count="$(yq eval -r "$DEFAULTS_RECORDS_COUNT_EXPRESSION" "$data_file")"; then
+}
+
+require_records_declared_as_a_list() {
+  local data_file=$1 shape_answer=$2
+  local declaration_verdict
+  declaration_verdict="$(records_declaration_verdict "$shape_answer")"
+  if records_are_declared_as_a_list "$declaration_verdict"; then
+    return 0
+  fi
+  print_records_declaration_refusal "$data_file" "$declaration_verdict" "$shape_answer"
+  return 2
+}
+
+read_declared_record_count() {
+  local data_file=$1
+  if ! yq eval -r "$DEFAULTS_RECORDS_COUNT_EXPRESSION" "$data_file"; then
     printf 'error: cannot count the records in %s\n' "$data_file" >&2
     return 2
   fi
-  if ! declared_record_count_is_usable "$declared_record_count"; then
-    printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
-      "$data_file" "$declared_record_count" >&2
-    return 2
+}
+
+require_usable_record_count() {
+  local data_file=$1 declared_record_count=$2
+  if count_is_usable "$declared_record_count"; then
+    return 0
   fi
+  printf 'error: %s produced an unusable record count %q; refusing to emit a stream that cannot be checked\n' \
+    "$data_file" "$declared_record_count" >&2
+  return 2
+}
+
+defaults_records_declared_count() {
+  local data_file=$1
+  local shape_answer declared_record_count
+  require_no_byte_order_mark "$data_file" || return 2
+  shape_answer="$(read_records_shape "$data_file")" || return 2
+  require_data_file_rules_satisfied "$data_file" || return 2
+  require_records_declared_as_a_list "$data_file" "$shape_answer" || return 2
+  declared_record_count="$(read_declared_record_count "$data_file")" || return 2
+  require_usable_record_count "$data_file" "$declared_record_count" || return 2
   printf '%s\n' "$declared_record_count"
 }
 
@@ -387,30 +529,31 @@ defaults_records_validate_stream() {
 MACOS_DEFAULTS_KILLALL_SHAPE_EXPRESSION='[(.macos.killall | kind), (.macos.killall | tag)] | join(" ")'
 
 killall_list_verdict() {
-  local shape_answer="$1" node_kind node_tag
-  if [[ ! $shape_answer =~ ^([[:alpha:]]+)' '([^[:space:]]+)$ ]]; then
+  local shape_answer=$1
+  local node_kind node_tag
+  if ! shape_answer_is_one_kind_and_one_tag "$shape_answer"; then
     printf 'unclassifiable\n'
     return 0
   fi
-  node_kind="${BASH_REMATCH[1]}"
-  node_tag="${BASH_REMATCH[2]}"
+  node_kind="$(node_kind_in_shape_answer "$shape_answer")"
+  node_tag="$(node_tag_in_shape_answer "$shape_answer")"
   case $node_kind in
     "$DEFAULTS_RECORDS_LIST_KIND")
-      if [[ $node_tag == "$DEFAULTS_RECORDS_LIST_TAG" ]]; then
+      if tag_is_a_plain_list_tag "$node_tag"; then
         printf 'iterable\n'
       else
         printf 'mistagged\n'
       fi
       ;;
     "$DEFAULTS_RECORDS_MAP_KIND")
-      if [[ $node_tag == "$DEFAULTS_RECORDS_MAP_TAG" ]]; then
+      if tag_is_a_plain_map_tag "$node_tag"; then
         printf 'iterable\n'
       else
         printf 'mistagged\n'
       fi
       ;;
     "$DEFAULTS_RECORDS_SCALAR_KIND")
-      if [[ $node_tag == "$DEFAULTS_RECORDS_ABSENT_TAG" ]]; then
+      if tag_marks_an_absent_node "$node_tag"; then
         printf 'undeclared\n'
       else
         printf 'scalar\n'
@@ -420,18 +563,25 @@ killall_list_verdict() {
   esac
 }
 
-require_data_file_killall_is_iterable() {
-  local data_file="$1" shape_answer killall_verdict
-  if ! shape_answer="$(yq eval -r "$MACOS_DEFAULTS_KILLALL_SHAPE_EXPRESSION" "$data_file")"; then
+read_killall_shape() {
+  local data_file=$1
+  if ! yq eval -r "$MACOS_DEFAULTS_KILLALL_SHAPE_EXPRESSION" "$data_file"; then
     printf 'error: cannot determine the shape of .macos.killall in %s\n' "$data_file" >&2
     return 2
   fi
-  killall_verdict="$(killall_list_verdict "$shape_answer")"
+}
+
+killall_list_is_usable() {
+  local killall_verdict=$1
+  [[ $killall_verdict == iterable || $killall_verdict == undeclared ]]
+}
+
+print_killall_refusal() {
+  local data_file=$1 killall_verdict=$2 shape_answer=$3
   case $killall_verdict in
-    iterable | undeclared) return 0 ;;
     mistagged)
       printf 'error: %s tags .macos.killall as %q; the list of process names is a real container, so only its TAG is wrong, and the only tags accepted on it are %s on a list and %s on a mapping, because the runner template refuses several of the others with a parse error while this reader would call the file usable, so the two readers would disagree about whether this file can be applied at all; delete the tag\n' \
-        "$data_file" "${shape_answer#* }" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_MAP_TAG" >&2
+        "$data_file" "$(node_tag_in_shape_answer "$shape_answer")" "$DEFAULTS_RECORDS_LIST_TAG" "$DEFAULTS_RECORDS_MAP_TAG" >&2
       ;;
     scalar)
       printf 'error: %s declares .macos.killall as a plain scalar, but it must be a LIST of process names; the runner template walks it and dies with "range can%st iterate over" that value, refusing the whole apply, while every tool here would read the file as usable; write it as a list, killall: [Dock]\n' \
@@ -442,6 +592,17 @@ require_data_file_killall_is_iterable() {
         "$data_file" "$shape_answer" >&2
       ;;
   esac
+}
+
+require_data_file_killall_is_iterable() {
+  local data_file=$1
+  local shape_answer killall_verdict
+  shape_answer="$(read_killall_shape "$data_file")" || return 2
+  killall_verdict="$(killall_list_verdict "$shape_answer")"
+  if killall_list_is_usable "$killall_verdict"; then
+    return 0
+  fi
+  print_killall_refusal "$data_file" "$killall_verdict" "$shape_answer"
   return 2
 }
 
@@ -572,7 +733,7 @@ defaults_records_match_declared_tier() {
     printf 'error: cannot count the fields the records in %s declare\n' "$data_file" >&2
     return 2
   fi
-  if ! declared_record_count_is_usable "$declared_field_total"; then
+  if ! count_is_usable "$declared_field_total"; then
     printf 'error: %s produced an unusable declared-field count %q; refusing to check rules against a stream that cannot be checked\n' \
       "$data_file" "$declared_field_total" >&2
     return 2

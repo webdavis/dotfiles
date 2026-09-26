@@ -18,13 +18,13 @@ fail() {
 
 require_count_accepted() {
   local count="$1" description="$2"
-  declared_record_count_is_usable "$count" ||
+  count_is_usable "$count" ||
     fail "$description must be accepted as a record count, and was refused: $(printf '%q' "$count")"
 }
 
 refute_count_accepted() {
   local count="$1" description="$2"
-  if declared_record_count_is_usable "$count"; then
+  if count_is_usable "$count"; then
     fail "$description must be refused as a record count, and was accepted: $(printf '%q' "$count")"
   fi
 }
