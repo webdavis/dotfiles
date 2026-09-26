@@ -1,0 +1,36 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly nixos_nix_installer_url="https://artifacts.nixos.org/nix-installer"
+readonly default_profile_nix="/nix/var/nix/profiles/default/bin/nix"
+
+nix_is_installed() {
+  [[ -x $default_profile_nix ]]
+}
+
+install_nix_unattended_with_flakes() {
+  curl -sSfL "$nixos_nix_installer_url" | sh -s -- install --no-confirm --enable-flakes
+}
+
+main() {
+  report_section 'nix' 'NixOS nix-installer'
+
+  if nix_is_installed; then
+    report_line "already installed, skipping."
+    return
+  fi
+
+  report_line "installing..."
+  sudo -v
+  install_nix_unattended_with_flakes
+  local nix_version
+  nix_version="$("$default_profile_nix" --version)"
+  report_line "installed $nix_version."
+}
+
+main "$@"
+{{ end -}}

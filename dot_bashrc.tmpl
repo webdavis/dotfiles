@@ -178,7 +178,6 @@ nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 # Order matters! These local (user-level) tools should always take precedence in
 # my environment.
 path_prepend "$HOME/.local/bin"
-path_prepend "$HOME/.bun/bin"
 
 # ⚠️ Writes the updated PATH to the Bash env. Must follow every path_prepend above.
 export PATH
