@@ -21,7 +21,7 @@ fetch_url() {
 }
 
 latest_release_tag() {
-  curl -sf "$latest_release_api_url" | jq -r .tag_name 2>/dev/null
+  fetch_url "$latest_release_api_url" | jq -r '.tag_name // empty' || true
 }
 
 installed_release_tag() {
@@ -71,11 +71,11 @@ main() {
 
   local latest installed downloaded_plugin
   latest="$(latest_release_tag)"
-  installed="$(installed_release_tag)"
   if [[ -z $latest ]]; then
-    printf 'could not determine the latest bgutil provider release.\n' >&2
+    printf 'error[release-unknown]: could not determine the latest bgutil release.\n' >&2
     exit "$exit_failure"
   fi
+  installed="$(installed_release_tag)"
 
   if [[ $installed == "$latest" ]]; then
     printf 'bgutil provider is already at %s.\n' "$latest"
