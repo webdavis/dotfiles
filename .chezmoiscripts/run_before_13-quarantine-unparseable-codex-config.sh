@@ -8,7 +8,7 @@
 # chezmoi 2.72.1: `error calling fromToml: toml: line 1: expected '.' or '='`).
 # A modify-template that errors aborts the WHOLE apply rather than one target,
 # so every later target and every run_after_ script is skipped. That includes
-# run_after_05-osquery-known-good-manifests.sh, so a config.toml truncated
+# run_after_41-sudo-osquery-known-good-manifests.sh, so a config.toml truncated
 # mid-write stops the manifests refreshing and the pipeline audit pages CRIT on
 # every tick. No template can catch it: Go's text/template has no recover, so
 # the repair has to run BEFORE the template. This is the same shape as

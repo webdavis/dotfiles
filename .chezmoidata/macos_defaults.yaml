@@ -1,7 +1,7 @@
 # macOS user defaults, declarative source of truth.
 #
 # Each record under `defaults:` is one declared control, applied at
-# `chezmoi apply` time (Tier 1 runner: run_onchange_after_30-macos-defaults).
+# `chezmoi apply` time (Tier 1 runner: run_onchange_after_40-sudo-macos-defaults).
 # What the runner renders for a record is decided by its REQUIRED `tier`:
 #
 #   tier: enforce   settable from the command line; renders one `defaults
