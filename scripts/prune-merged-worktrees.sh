@@ -120,9 +120,22 @@ list_worktree_records() {
   git worktree list --porcelain
 }
 
-worktree_directory_exists() {
-  local worktree_path=$1
-  [[ -n $worktree_path && -d $worktree_path ]]
+print_one_line_per_worktree() {
+  local line worktree_path='' head_commit='' branch_reference=''
+  while IFS= read -r line; do
+    case "$line" in
+      'worktree '*)
+        worktree_path="${line#worktree }"
+        head_commit=''
+        branch_reference=''
+        ;;
+      'HEAD '*) head_commit="${line#HEAD }" ;;
+      'branch '*) branch_reference="${line#branch }" ;;
+      "$end_of_worktree_record")
+        printf '%s\t%s\t%s\n' "$worktree_path" "$head_commit" "$branch_reference"
+        ;;
+    esac
+  done
 }
 
 worktree_is_linked() {
@@ -270,9 +283,6 @@ attempt_removal() {
 decide_worktree() {
   local worktree_path=$1 head_commit=$2 branch_reference=$3
   local reason_to_keep
-  if ! worktree_is_linked "$worktree_path"; then
-    return 0
-  fi
   reason_to_keep="$(reason_to_keep_worktree "$worktree_path" "$head_commit" "$branch_reference")"
   if reason_was_found "$reason_to_keep"; then
     record_kept_worktree "$worktree_path" "$reason_to_keep"
@@ -283,25 +293,15 @@ decide_worktree() {
   fi
 }
 
-decide_every_worktree() {
-  local line worktree_path='' head_commit='' branch_reference=''
-  while IFS= read -r -u3 line; do
-    case "$line" in
-      'worktree '*)
-        worktree_path="${line#worktree }"
-        head_commit=''
-        branch_reference=''
-        ;;
-      'HEAD '*) head_commit="${line#HEAD }" ;;
-      'branch '*) branch_reference="${line#branch }" ;;
-      "$end_of_worktree_record")
-        if worktree_directory_exists "$worktree_path"; then
-          decide_worktree "$worktree_path" "$head_commit" "$branch_reference"
-        fi
-        worktree_path=''
-        ;;
-    esac
-  done 3< <(list_worktree_records)
+decide_every_linked_worktree() {
+  local worktree_lines worktree_line worktree_path head_commit branch_reference
+  mapfile -t worktree_lines < <(list_worktree_records | print_one_line_per_worktree)
+  for worktree_line in "${worktree_lines[@]}"; do
+    IFS=$'\t' read -r worktree_path head_commit branch_reference <<<"$worktree_line"
+    if worktree_is_linked "$worktree_path"; then
+      decide_worktree "$worktree_path" "$head_commit" "$branch_reference"
+    fi
+  done
 }
 
 deregister_worktrees_whose_directories_are_gone() {
@@ -338,7 +338,7 @@ main() {
   fi
 
   report_line "checking worktrees against $upstream_branch..."
-  decide_every_worktree
+  decide_every_linked_worktree
   if ! is_dry_run; then
     deregister_worktrees_whose_directories_are_gone
   fi
