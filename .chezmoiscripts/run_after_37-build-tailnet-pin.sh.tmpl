@@ -1,24 +1,29 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
+
 set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "rust-build-lib.sh.tmpl" }}
 
-tailnet_pin_source_dir={{ joinPath .chezmoi.sourceDir "tailnet-pin" | quote }}
-built_tailnet_pin="$tailnet_pin_source_dir/target/release/tailnet-pin"
-install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
-installed_tailnet_pin="$install_dir/tailnet-pin"
-cargo_bin="$HOME/.cargo/bin/cargo"
-build_state_dir="$HOME/.cache/tailnet-pin-build"
-installed_source_fingerprint_file="$build_state_dir/installed.fingerprint"
-current_source_fingerprint={{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum | quote }}
+readonly tailnet_pin_source_dir={{ joinPath .chezmoi.sourceDir "tailnet-pin" | quote }}
+readonly built_tailnet_pin="$tailnet_pin_source_dir/target/release/tailnet-pin"
+readonly install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+readonly installed_tailnet_pin="$install_dir/tailnet-pin"
+readonly build_state_dir="$HOME/.cache/tailnet-pin-build"
+readonly installed_source_fingerprint_file="$build_state_dir/installed.fingerprint"
+readonly current_source_fingerprint={{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum | quote }}
 
 tailnet_pin_is_installed() {
   [[ -x $installed_tailnet_pin ]]
 }
 
+installed_source_fingerprint_is_readable() {
+  [[ -r $installed_source_fingerprint_file ]]
+}
+
 read_installed_source_fingerprint() {
-  if [[ -r $installed_source_fingerprint_file ]]; then
+  if installed_source_fingerprint_is_readable; then
     cat "$installed_source_fingerprint_file"
   fi
 }
@@ -27,17 +32,8 @@ installed_fingerprint_matches_current_source() {
   [[ $(read_installed_source_fingerprint) == "$current_source_fingerprint" ]]
 }
 
-cargo_is_installed() {
-  [[ -x $cargo_bin ]]
-}
-
-build_release_binary() {
-  (cd "$tailnet_pin_source_dir" && "$cargo_bin" build --release --locked --quiet --bin tailnet-pin)
-}
-
-install_release_binary() {
-  mkdir -p "$install_dir"
-  /usr/bin/install -m 755 "$built_tailnet_pin" "$installed_tailnet_pin"
+tailnet_pin_is_up_to_date() {
+  tailnet_pin_is_installed && installed_fingerprint_matches_current_source
 }
 
 record_installed_source_fingerprint() {
@@ -48,7 +44,7 @@ record_installed_source_fingerprint() {
 main() {
   report_section 'tailnet-pin' 'MagicDNS fallback pin tool'
 
-  if tailnet_pin_is_installed && installed_fingerprint_matches_current_source; then
+  if tailnet_pin_is_up_to_date; then
     report_line "up to date, skipping."
     return
   fi
@@ -59,14 +55,14 @@ main() {
   fi
 
   report_line "building the release binary..."
-  if ! build_release_binary; then
+  if ! build_release_binary "$tailnet_pin_source_dir" tailnet-pin; then
     report_line "error[build-failed]: tailnet-pin did not build; see cargo's output above." >&2
     exit 1
   fi
   report_line "built $built_tailnet_pin."
 
   report_line "installing the release binary..."
-  install_release_binary
+  install_release_binary "$built_tailnet_pin" "$installed_tailnet_pin"
   report_line "installed $installed_tailnet_pin."
 
   record_installed_source_fingerprint
