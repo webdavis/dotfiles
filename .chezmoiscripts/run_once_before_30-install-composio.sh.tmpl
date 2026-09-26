@@ -1,19 +1,33 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-# Bootstrap composio CLI on fresh macOS machines. Installer drops the
-# binary at $COMPOSIO_INSTALL_DIR/composio (default ~/.composio/composio).
-# PATH is owned by dot_bashrc.tmpl, not by the installer's shellrc fallback.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-if [[ -x "${COMPOSIO_INSTALL_DIR:-$HOME/.composio}/composio" ]]; then
-  echo "composio is already installed, skipping."
-  exit 0
-fi
+readonly composio_installer_url="https://composio.dev/install"
+readonly composio_executable="${COMPOSIO_INSTALL_DIR:-$HOME/.composio}/composio"
 
-echo "Installing composio..."
-curl --proto '=https' --tlsv1.2 -fsSL https://composio.dev/install | bash
+composio_is_installed() {
+  [[ -x $composio_executable ]]
+}
 
-echo "composio installation complete."
+install_composio() {
+  curl --proto '=https' --tlsv1.2 -fsSL "$composio_installer_url" | bash
+}
+
+main() {
+  report_section 'composio' 'Composio command-line tool'
+
+  if composio_is_installed; then
+    report_line "already installed, skipping."
+    return
+  fi
+
+  report_line "installing..."
+  install_composio
+  report_line "installed composio."
+}
+
+main "$@"
 {{ end -}}
