@@ -1,11 +1,11 @@
 //! The config edge: `~/.config/uu/config.toml` decides what runs.
 //!
 //! THE FILE SELECTS; it never defines. A lane runs only when its
-//! `[lanes.<name>]` block exists, records post only when `[records]` exists,
-//! and alarms leave the machine only through configured destinations. With no file at
-//! all a bare `uu run` runs nothing, logs what it found and exits clean,
-//! which is what makes a fresh install harmless; `uu run <lane>` still asks
-//! for that lane by name and is refused with exit 1.
+//! `[lane.<name>]` or `[lanes.<name>]` block exists, records post only when
+//! `[records]` exists, and alarms leave the machine only through configured
+//! destinations. With no file at all a bare `uu run` runs nothing, logs what
+//! it found and exits clean, which is what makes a fresh install harmless;
+//! `uu run <lane>` still asks for that lane by name and is refused with exit 1.
 //!
 //! This file owns the top level and the alert-engine setting. `schema` states
 //! the shared table vocabulary, `records` parses record and alarm destinations,
@@ -152,7 +152,7 @@ pub(crate) fn parse_config(
             "schedule" => config.schedule = schedule::parse_schedule(value)?,
             "records" => config.records = Some(parse_records(value)?),
             "alerts" => config.alerts = Some(parse_alerts(value)?),
-            "lanes" => config.lanes = lanes::parse_lanes(value, registrations)?,
+            "lane" | "lanes" => config.lanes = lanes::parse_lanes(&key, value, registrations)?,
             _ => {
                 return Err(ConfigError::Invalid(format!(
                     "unknown top-level key `{key}`; the file serves {}",

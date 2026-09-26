@@ -1,5 +1,5 @@
-//! `[lanes]`: the REGISTRY, whose blocks are keyed by an operator-chosen NAME
-//! and dispatch on the TYPE each one states.
+//! `[lane]`, or the older `[lanes]`: the REGISTRY, whose blocks are keyed by
+//! an operator-chosen NAME and dispatch on the TYPE each one states.
 //!
 //! A TYPE IS REQUIRED, EXPLICIT OR IMPLIED, and an unrecognized one is
 //! refused rather than ignored, which is the one place this file departs
@@ -83,11 +83,14 @@ fn is_plain_path_segment(name: &str) -> bool {
     !name.is_empty() && !name.contains('/') && name != "." && name != ".."
 }
 
+/// `key` is the table the blocks sit under, `lane` or the older `lanes`, so
+/// every refusal names the block the way the file spells it.
 pub(super) fn parse_lanes(
+    key: &str,
     value: toml::Value,
     registrations: &[LaneRegistration],
 ) -> Result<Lanes, ConfigError> {
-    let table = table_of("lanes", value)?;
+    let table = table_of(key, value)?;
     let mut lanes = Lanes::new();
     for (name, block) in table {
         if !is_plain_path_segment(&name) {
@@ -97,7 +100,7 @@ pub(super) fn parse_lanes(
                  or `..`"
             )));
         }
-        let table_label = format!("lanes.{name}");
+        let table_label = format!("{key}.{name}");
         let mut fields = table_of(&table_label, block)?;
         // TAKEN BEFORE THE DISPATCH, because every lane type carries it and
         // none of them has an arm to read it: left in the table it would meet

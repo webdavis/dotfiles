@@ -11,12 +11,38 @@ fn an_empty_config_runs_nothing_and_posts_nothing() {
 
 #[test]
 fn an_unknown_top_level_key_is_refused_and_the_file_lists_what_it_serves() {
-    let detail = refusal("[lane.herdr]\n");
-    assert!(detail.contains("unknown top-level key `lane`"), "{detail}");
+    let detail = refusal("[lans.example]\n");
+    assert!(detail.contains("unknown top-level key `lans`"), "{detail}");
     assert!(
-        detail.contains("alerts, lanes, records, schedule"),
+        detail.contains("alerts, lane, lanes, records, schedule"),
         "{detail}"
     );
+}
+
+#[test]
+fn a_lane_table_means_what_a_lanes_table_means_for_every_lane_type() {
+    for registration in REGISTRATIONS {
+        let kind = registration.type_name();
+        let block = format!(
+            "type = \"{kind}\"\ndeadline_secs = 60\nescalate_after_runs = 2\n{}",
+            required_keys(kind)
+        );
+        let lanes = parsed(&format!("[lanes.chosen]\n{block}")).lanes;
+        let lane = parsed(&format!("[lane.chosen]\n{block}")).lanes;
+        assert_eq!(lane["chosen"].type_name(), kind);
+        assert_eq!(format!("{lane:?}"), format!("{lanes:?}"), "{kind}");
+    }
+}
+
+#[test]
+fn a_refusal_about_a_lane_table_names_it_the_way_the_file_spells_it() {
+    let detail = refusal("[lane.chosen]\ntype = \"herdr\"\nbogus = 1\n");
+    assert!(
+        detail.contains("unknown `lane.chosen` key `bogus`"),
+        "{detail}"
+    );
+    let detail = refusal("lane = 1\n");
+    assert!(detail.contains("`lane` has type"), "{detail}");
 }
 
 #[test]
@@ -117,5 +143,17 @@ fn a_failure_webhook_is_optional_but_a_stated_value_must_be_nonblank_text() {
             why.contains("failure_webhook") && !why.contains("unknown"),
             "{why}"
         );
+    }
+}
+
+/// What each lane type cannot load without.
+fn required_keys(kind: &str) -> &'static str {
+    match kind {
+        "claude-plugins" => "inventory = \"/fixture/inventory.json\"\n",
+        "command" => "run = [\"/fixture/updater\"]\n",
+        "npm" => "binary = \"/fixture/npm\"\n",
+        "nvim-mason" | "nvim-parsers" | "nvim-plugins" => "config = \"/fixture/nvim\"\n",
+        "nvim-smoke-test" => "config = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
+        _ => "",
     }
 }
