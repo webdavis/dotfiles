@@ -1133,6 +1133,16 @@ SYSTEM_READ_OK=0
 SYSTEM_READ_UNSET=1
 SYSTEM_READ_UNREADABLE=2
 
+read_status_means_unset() {
+  local read_status=$1
+  ((read_status == SYSTEM_READ_UNSET))
+}
+
+read_status_means_unreadable() {
+  local read_status=$1
+  ((read_status == SYSTEM_READ_UNREADABLE))
+}
+
 status_is_success() {
   local status=$1
   ((status == 0))

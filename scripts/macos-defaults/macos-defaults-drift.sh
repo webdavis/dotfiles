@@ -1,32 +1,34 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
-shopt -s lastpipe
 
-macos_defaults_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-dotfiles_dir="$(cd "$macos_defaults_dir/../.." && pwd)"
+macos_defaults_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+dotfiles_directory="$(cd "$macos_defaults_directory/../.." && pwd)"
 
 # shellcheck source=.chezmoitemplates/cli-print-style-lib.sh.tmpl
-source "$dotfiles_dir/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
+source "$dotfiles_directory/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 # shellcheck source=scripts/macos-defaults/helpers/defaults-records.sh
-source "$macos_defaults_dir/helpers/defaults-records.sh"
+source "$macos_defaults_directory/helpers/defaults-records.sh"
 
 readonly exit_every_setting_matches=0
 readonly exit_drift_detected=1
 readonly exit_invalid_data=2
 readonly exit_some_settings_unreadable=3
+readonly unset_marker='<unset>'
+readonly unreadable_marker='<unreadable>'
 
 checked_count=0
 drift_count=0
 unreadable_count=0
-table_header_printed=0
+drift_table_started=0
 
-normalize_value() {
-  local type=$1 value=$2
-  if [[ $type != bool ]]; then
-    printf '%s' "$value"
-    return
-  fi
+value_type_is_bool() {
+  local value_type=$1
+  [[ $value_type == bool ]]
+}
+
+bool_as_one_or_zero() {
+  local value=$1
   case "$value" in
     true | yes | 1) printf '1' ;;
     false | no | 0) printf '0' ;;
@@ -34,131 +36,199 @@ normalize_value() {
   esac
 }
 
-tier_is_known() {
-  local tier=$1
-  [[ $tier == enforce || $tier == verify || $tier == manual ]]
-}
-
-tier_has_an_expected_value() {
-  local tier=$1
-  [[ $tier == enforce || $tier == verify ]]
-}
-
-print_table_header_once() {
-  if ((table_header_printed == 0)); then
-    printf 'DOMAIN\tKEY\tEXPECTED\tACTUAL\n'
-    table_header_printed=1
+expected_value_as_defaults_prints_it() {
+  local value_type=$1 value=$2
+  if value_type_is_bool "$value_type"; then
+    bool_as_one_or_zero "$value"
+  else
+    printf '%s' "$value"
   fi
 }
 
-print_table_row() {
-  local domain=$1 key=$2 expected=$3 actual=$4
-  print_table_header_once
-  printf '%s\t%s\t%s\t%s\n' "$domain" "$key" "$expected" "$actual"
+drift_table_has_started() {
+  ((drift_table_started == 1))
 }
 
-record_drifted_setting() {
-  print_table_row "$@"
+start_drift_table() {
+  printf 'DOMAIN\tKEY\tEXPECTED\tACTUAL\n'
+  drift_table_started=1
+}
+
+add_drift_table_row() {
+  local domain=$1 key=$2 expected_value=$3 live_value=$4
+  if ! drift_table_has_started; then
+    start_drift_table
+  fi
+  printf '%s\t%s\t%s\t%s\n' "$domain" "$key" "$expected_value" "$live_value"
+}
+
+count_checked_setting() {
+  checked_count=$((checked_count + 1))
+}
+
+count_drifted_setting() {
   drift_count=$((drift_count + 1))
 }
 
-record_unreadable_setting() {
-  local domain=$1 key=$2 expected=$3
-  print_table_row "$domain" "$key" "$expected" '<unreadable>'
+count_unreadable_setting() {
   unreadable_count=$((unreadable_count + 1))
+}
+
+setting_has_drifted() {
+  local expected_value=$1 live_value=$2
+  [[ $expected_value != "$live_value" ]]
+}
+
+list_setting_if_it_drifted() {
+  local domain=$1 key=$2 expected_value=$3 live_value=$4
+  if setting_has_drifted "$expected_value" "$live_value"; then
+    add_drift_table_row "$domain" "$key" "$expected_value" "$live_value"
+    count_drifted_setting
+  fi
+}
+
+list_unreadable_setting() {
+  local domain=$1 key=$2 expected_value=$3
+  add_drift_table_row "$domain" "$key" "$expected_value" "$unreadable_marker"
+  count_unreadable_setting
+}
+
+print_unset_marker() {
+  printf '%s' "$unset_marker"
+}
+
+read_any_host_setting() {
+  local domain=$1 key=$2
+  defaults read "$domain" "$key" 2>/dev/null
+}
+
+read_current_host_setting() {
+  local domain=$1 key=$2
+  defaults -currentHost read "$domain" "$key" 2>/dev/null
 }
 
 read_user_setting() {
   local domain=$1 key=$2 host=$3
-  if [[ -n $host ]]; then
-    defaults -currentHost read "$domain" "$key" 2>/dev/null || printf '<unset>'
+  if record_targets_current_host "$host"; then
+    read_current_host_setting "$domain" "$key" || print_unset_marker
   else
-    defaults read "$domain" "$key" 2>/dev/null || printf '<unset>'
+    read_any_host_setting "$domain" "$key" || print_unset_marker
   fi
 }
 
 read_system_setting() {
-  local resolved_plist_path=$1 key=$2
-  local actual read_status=0
-  actual="$(system_defaults_read_actual "$resolved_plist_path" "$key")" || read_status=$?
-  if ((read_status == SYSTEM_READ_UNSET)); then
-    printf '<unset>'
+  local plist_path=$1 key=$2
+  local live_value read_status=0
+  live_value="$(system_defaults_read_actual "$plist_path" "$key")" || read_status=$?
+  if read_status_means_unset "$read_status"; then
+    print_unset_marker
     return 0
   fi
-  printf '%s' "$actual"
+  printf '%s' "$live_value"
   return "$read_status"
 }
 
-check_setting() {
-  local domain=$1 key=$2 type=$3 value=$4 host=$5 scope=$6 plist_path=$7
-  local expected actual resolved_plist_path read_status=0
-  expected="$(normalize_value "$type" "$value")"
+check_user_setting() {
+  local domain=$1 key=$2 expected_value=$3 host=$4
+  local live_value
+  live_value="$(read_user_setting "$domain" "$key" "$host")"
+  list_setting_if_it_drifted "$domain" "$key" "$expected_value" "$live_value"
+}
 
-  if [[ $scope == system ]]; then
-    resolved_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || exit "$exit_invalid_data"
-    actual="$(read_system_setting "$resolved_plist_path" "$key")" || read_status=$?
+check_system_setting() {
+  local domain=$1 key=$2 expected_value=$3 plist_path=$4
+  local system_plist_path live_value read_status=0
+  system_plist_path="$(resolve_system_plist_path "$domain" "$plist_path")" || return
+  live_value="$(read_system_setting "$system_plist_path" "$key")" || read_status=$?
+  if read_status_means_unreadable "$read_status"; then
+    list_unreadable_setting "$domain" "$key" "$expected_value"
+    return 0
+  fi
+  list_setting_if_it_drifted "$domain" "$key" "$expected_value" "$live_value"
+}
+
+check_live_setting() {
+  local domain=$1 key=$2 expected_value=$3 host=$4 scope=$5 plist_path=$6
+  if record_scope_is_system "$scope"; then
+    check_system_setting "$domain" "$key" "$expected_value" "$plist_path"
   else
-    actual="$(read_user_setting "$domain" "$key" "$host")"
+    check_user_setting "$domain" "$key" "$expected_value" "$host"
   fi
+}
 
-  if ((read_status == SYSTEM_READ_UNREADABLE)); then
-    record_unreadable_setting "$domain" "$key" "$expected"
-  elif [[ $expected != "$actual" ]]; then
-    record_drifted_setting "$domain" "$key" "$expected" "$actual"
+require_known_record_tier() {
+  local domain=$1 key=$2 tier=$3
+  if record_tier_is_known "$tier"; then
+    return 0
   fi
+  report_line "error[unknown-tier]: $domain $key has tier '$tier'; refusing to check it." >&2
+  return 1
 }
 
 check_record() {
-  local domain=$1 key=$2 type=$3 value=$4 host=$5 scope=$6 plist_path=$7 tier=$8
-  validate_record_identity "$domain" "$key" || exit "$exit_invalid_data"
-
-  if ! tier_is_known "$tier"; then
-    report_line "error[unknown-tier]: $domain $key has tier '$tier'; refusing to check it." >&2
-    exit "$exit_invalid_data"
+  local domain=$1 key=$2 value_type=$3 value=$4 host=$5 scope=$6 plist_path=$7 tier=$8
+  local expected_value
+  validate_record_identity "$domain" "$key" || return
+  require_known_record_tier "$domain" "$key" "$tier" || return
+  if ! record_tier_has_an_expected_value "$tier"; then
+    return 0
   fi
-  if ! tier_has_an_expected_value "$tier"; then
-    return
-  fi
-
-  scope="$(validate_record_scope "$scope" "$host" "$plist_path")" || exit "$exit_invalid_data"
-  check_setting "$domain" "$key" "$type" "$value" "$host" "$scope" "$plist_path"
-  checked_count=$((checked_count + 1))
+  validate_record_scope "$scope" "$host" "$plist_path" >/dev/null || return
+  expected_value="$(expected_value_as_defaults_prints_it "$value_type" "$value")"
+  check_live_setting "$domain" "$key" "$expected_value" "$host" "$scope" "$plist_path" || return
+  count_checked_setting
 }
 
-check_all_records() {
-  local data_file=$1
-  local domain key type value host scope plist_path tier
-  read_validated_records "$data_file" |
-    while IFS=$'\x1f' read -r domain key type value host scope plist_path tier; do
-      check_record "$domain" "$key" "$type" "$value" "$host" "$scope" "$plist_path" "$tier"
-    done
+check_every_record() {
+  local record_lines=$1
+  local domain key value_type value host scope plist_path tier
+  if text_is_empty "$record_lines"; then
+    return 0
+  fi
+  while IFS=$DEFAULTS_RECORD_FIELD_SEPARATOR read -r domain key value_type value host scope plist_path tier; do
+    check_record "$domain" "$key" "$value_type" "$value" "$host" "$scope" "$plist_path" "$tier" || return
+  done <<<"$record_lines"
 }
 
-report_verdict_and_exit() {
-  if ((unreadable_count > 0)); then
-    report_line "$unreadable_count setting(s) could not be read; they are not drift, and not passing either." >&2
-  fi
-  if ((drift_count > 0)); then
-    report_line "error[drift]: $drift_count of $checked_count setting(s) differ from macos_defaults.yaml." >&2
-    exit "$exit_drift_detected"
-  fi
-  if ((unreadable_count > 0)); then
-    exit "$exit_some_settings_unreadable"
-  fi
-  report_line "all $checked_count tracked setting(s) match."
-  exit "$exit_every_setting_matches"
+some_settings_drifted() {
+  ((drift_count > 0))
+}
+
+some_settings_were_unreadable() {
+  ((unreadable_count > 0))
+}
+
+report_unreadable_settings() {
+  report_line "error[unreadable]: $unreadable_count setting(s) could not be read; they are not drift, and not passing either." >&2
+}
+
+report_drifted_settings() {
+  report_line "error[drift]: $drift_count of $checked_count setting(s) differ from macos_defaults.yaml." >&2
 }
 
 main() {
   report_section 'macos-defaults' 'drift check'
 
-  local data_file
+  local data_file record_lines
   data_file="$(macos_defaults_data_file)" || exit $?
   require_readable_data_file "$data_file" || exit $?
 
   report_line "checking tracked settings..."
-  check_all_records "$data_file"
-  report_verdict_and_exit
+  record_lines="$(read_validated_records "$data_file")" || exit $?
+  check_every_record "$record_lines" || exit "$exit_invalid_data"
+
+  if some_settings_were_unreadable; then
+    report_unreadable_settings
+  fi
+  if some_settings_drifted; then
+    report_drifted_settings
+    exit "$exit_drift_detected"
+  fi
+  if some_settings_were_unreadable; then
+    exit "$exit_some_settings_unreadable"
+  fi
+  report_line "all $checked_count tracked setting(s) match."
+  exit "$exit_every_setting_matches"
 }
 
 main "$@"
