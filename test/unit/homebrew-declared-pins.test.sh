@@ -4,6 +4,7 @@ function set_up_before_script() {
   PIN_REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
   PIN_RENDER="$(mktemp -d)"
   mkdir -p "$PIN_RENDER/source" "$PIN_RENDER/home"
+  ln -s "$PIN_REPO/.chezmoitemplates" "$PIN_RENDER/source/.chezmoitemplates"
   : >"$PIN_RENDER/chezmoi.toml"
   jq -n --arg home "$PIN_RENDER/home" '{chezmoi: {os: "darwin", homeDir: $home}, packages: {macos: {
       homebrew: {trusted_taps: [], taps: [], formulae: ["rjyo/moshi/moshi-hook"], casks: [], mas: [],

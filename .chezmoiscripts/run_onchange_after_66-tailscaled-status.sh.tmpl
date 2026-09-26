@@ -1,70 +1,113 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-# Tailscale headless-daemon status reminder (sudo-free). Does NOT start or
-# authenticate anything -- Option A auth is a deliberate one-time manual step.
-# Runs on first deploy (and whenever this script changes) to prompt the cutover;
-# stays quiet once the daemon is up and authenticated. Mirrors the atuin
-# daemon script's "remind if not healthy" shape.
-#
-# Classifies on `tailscale status --json`'s .BackendState so each state gets the
-# right reminder. A command/connection failure (daemon down, or unparseable
-# output) is kept distinct from a backend that is up but not yet authenticated:
-# only the former recommends reinstalling the daemon. Every path exits 0 -- a
-# reminder must never abort `chezmoi apply`.
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-tailscale="${TAILSCALE_BIN:-/opt/homebrew/bin/tailscale}"
-[[ -x $tailscale ]] || exit 0 # formula not installed yet; brew bundle handles that.
-command -v jq >/dev/null 2>&1 || exit 0 # jq parses the status JSON; without it, stay quiet.
+readonly tailscale_bin="${TAILSCALE_BIN:-/opt/homebrew/bin/tailscale}"
+readonly tailscaled_bin="/opt/homebrew/opt/tailscale/bin/tailscaled"
 
-daemon_bin="/opt/homebrew/opt/tailscale/bin/tailscaled"
-
-remind_daemon_down() {
-  echo "tailscaled system daemon is not running. One-time:" >&2
-  echo "  sudo $daemon_bin install-system-daemon" >&2
+tailscale_is_installed() {
+  [[ -x $tailscale_bin ]]
 }
 
-# Probe exactly once, capturing stdout and the exit code.
-rc=0
-raw="$("$tailscale" status --json 2>/dev/null)" || rc=$?
+jq_is_installed() {
+  command -v jq >/dev/null 2>&1
+}
 
-# (a) command/connection failure -> the daemon is down or unreachable.
-if [[ $rc -ne 0 ]]; then
-  remind_daemon_down
-  exit 0
-fi
+read_tailscale_status() {
+  "$tailscale_bin" status --json 2>/dev/null
+}
 
-# (a) rc 0 but the payload is unparseable JSON -> treat as a failed probe.
-if ! state="$(jq -er '.BackendState' <<<"$raw" 2>/dev/null)"; then
-  remind_daemon_down
-  exit 0
-fi
+backend_state_from() {
+  local status_json=$1
+  jq -er '.BackendState' <<<"$status_json" 2>/dev/null
+}
 
-# (b) known BackendState values -> the matching reminder.
-case "$state" in
-  Running)
-    exit 0 # connected + authenticated -- nothing to remind.
-    ;;
-  Starting)
-    echo "tailscaled is starting up (transient) -- no action needed." >&2
-    ;;
-  NeedsLogin)
-    echo "tailscaled is running but NOT authenticated. One-time:" >&2
-    echo "  sudo tailscale up --accept-dns=true" >&2
-    echo "  then flip 'Disable Key Expiry' on this node in the admin console." >&2
-    ;;
-  NeedsMachineAuth)
-    echo "tailscaled is up but this machine awaits tailnet admin approval." >&2
-    echo "  approve it in the admin console (Machines -> this node)." >&2
-    ;;
-  Stopped)
-    echo "tailscale is stopped -- run: sudo tailscale up" >&2
-    ;;
-  # (c) any other state -> report it verbatim; never claim the daemon is missing.
-  *)
-    echo "tailscaled reported an unknown BackendState: $state" >&2
-    ;;
-esac
+backend_is_running() {
+  local backend_state=$1
+  [[ $backend_state == Running ]]
+}
+
+report_tailscale_section() {
+  report_section 'tailscale' 'headless daemon status'
+}
+
+remind_to_install_the_daemon() {
+  report_line "tailscaled system daemon is not running. One-time:"
+  report_line "  sudo $tailscaled_bin install-system-daemon"
+}
+
+report_daemon_is_starting() {
+  report_line "tailscaled is starting up (transient) -- no action needed."
+}
+
+remind_to_sign_in() {
+  report_line "tailscaled is running but NOT authenticated. One-time:"
+  report_line "  sudo tailscale up --accept-dns=true"
+  report_line "  then flip 'Disable Key Expiry' on this node in the admin console."
+}
+
+remind_to_approve_this_machine() {
+  report_line "tailscaled is up but this machine awaits tailnet admin approval."
+  report_line "  approve it in the admin console (Machines -> this node)."
+}
+
+remind_to_start_tailscale() {
+  report_line "tailscale is stopped -- run: sudo tailscale up"
+}
+
+report_unknown_backend_state() {
+  local backend_state=$1
+  report_line "tailscaled reported an unknown BackendState: $backend_state"
+}
+
+remind_about_backend_state() {
+  local backend_state=$1
+  case "$backend_state" in
+    Starting) report_daemon_is_starting ;;
+    NeedsLogin) remind_to_sign_in ;;
+    NeedsMachineAuth) remind_to_approve_this_machine ;;
+    Stopped) remind_to_start_tailscale ;;
+    *) report_unknown_backend_state "$backend_state" ;;
+  esac
+}
+
+main() {
+  if ! tailscale_is_installed; then
+    report_tailscale_section
+    report_line "tailscale is not installed, skipping."
+    return
+  fi
+
+  if ! jq_is_installed; then
+    report_tailscale_section
+    report_line "jq is not installed, skipping."
+    return
+  fi
+
+  local status_json
+  if ! status_json="$(read_tailscale_status)"; then
+    report_tailscale_section >&2
+    remind_to_install_the_daemon >&2
+    return
+  fi
+
+  local backend_state
+  if ! backend_state="$(backend_state_from "$status_json")"; then
+    report_tailscale_section >&2
+    remind_to_install_the_daemon >&2
+    return
+  fi
+
+  if backend_is_running "$backend_state"; then
+    return
+  fi
+
+  report_tailscale_section >&2
+  remind_about_backend_state "$backend_state" >&2
+}
+
+main "$@"
 {{ end -}}

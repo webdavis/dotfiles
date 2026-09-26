@@ -1,15 +1,36 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# Wire pns's Codex notifications into ~/.codex/hooks.json on every apply
-# (idempotent; re-heals after herdr re-installs its integration). The merge
-# lives in the engine itself, as `pns codex install-hooks`. Runs after the
-# 60-series moshi-hook setup (which strips Codex from moshi-hook) so pns owns
-# Codex's pushes.
+#!/usr/bin/env bash
+
 set -euo pipefail
-engine={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" | quote }}
-if [[ -x $engine ]]; then
-  # A refusal is a printed warning rather than a failed apply: the engine
-  # leaves an unreadable hooks file untouched and says so.
-  "$engine" codex install-hooks || true
-fi
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly pns_bin={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" | quote }}
+readonly codex_hooks_file="$HOME/.codex/hooks.json"
+
+pns_is_installed() {
+  [[ -x $pns_bin ]]
+}
+
+merge_pns_hooks_into_codex() {
+  "$pns_bin" codex install-hooks
+}
+
+main() {
+  report_section 'pns' 'Codex hooks'
+
+  if ! pns_is_installed; then
+    report_line "pns is not installed, skipping."
+    return
+  fi
+
+  report_line "merging pns's hooks into $codex_hooks_file..."
+  if ! merge_pns_hooks_into_codex; then
+    report_line "error[hooks-not-merged]: pns did not merge its hooks into $codex_hooks_file; see its message above." >&2
+    return
+  fi
+  report_line "merged pns's hooks into $codex_hooks_file."
+}
+
+main "$@"
 {{ end -}}

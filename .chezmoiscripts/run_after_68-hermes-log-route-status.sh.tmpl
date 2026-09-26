@@ -1,146 +1,268 @@
 {{ if eq .chezmoi.os "darwin" -}}
-#!/bin/bash
-# Reminder, NOT an auto-restart: if ~/.hermes/config.yaml is missing a webhook route this machine
-# depends on, carries one with no secret or no channel, still carries one this repository does not
-# declare, or defines one the running gateway returns 404 for, say so. Mirrors run_onchange_after_66
-# (tailscaled-status) -- a sudo-free, side-effect-free status nudge. We deliberately do NOT auto-restart:
-# `hermes gateway restart` drains in-flight runs (up to 180s) and the routes change ~never, so you
-# restart deliberately. (A secret rotation answers 401 rather than 404, and a restart does not fix that,
-# so 401 is deliberately not reported here as a restart-me condition.)
-#
-# It runs in the AFTER phase, which is what makes the check meaningful: by then chezmoi has rendered
-# private_dot_hermes/modify_private_config.yaml over ~/.hermes/config.yaml and
-# run_after_59-hermes-config-migrate has migrated it forward to the installed hermes version's schema,
-# so the file this reads is the one the next gateway start will load. It is also the only thing that
-# sees the VALUES: the routes are rendered from KeePassXC at apply time, so nothing in git can be
-# checked instead.
-#
-# SIX routes are checked, because they fail differently and most of them fail quietly:
-#   general               the catch-all channel. No producer in this repository posts to it today; it is
-#                         declared so an ad-hoc POST has a signed route rather than borrowing another.
-#   pns-events            agent events. One that never arrives is usually noticed anyway, because
-#                         whatever it was about is still open.
-#   priority              machine health and security, plus the stale-block escalation.
-#   posture-pages         every page the osquery pipeline raises, plus its daily digest and heartbeat.
-#   uu-runs               the weekly RECORD from the unattended jobs. A record that never arrives looks
-#                         exactly like a healthy job with nothing to say, so nothing ever prompts anyone
-#                         to look.
-#   explain               the ONE agent route: a critical page is copied here and an agent's explanation
-#                         of it is what gets delivered. Its silence looks like nothing at all, because
-#                         the page it explains arrived on its own route regardless.
-# Five routes are named for the Discord channel they post to, which is also the name both of their
-# KeePassXC entries are built from (renamed 2026-09-14: `pns` -> `pns-events`, `uu` -> `uu-runs`,
-# `posture` -> `posture-pages`, because the bare tool names became GitHub repo channels; `pns-recap`
-# retired with its channel on 2026-09-15 and the return recap posts to `pns-events`). `explain` is the
-# exception: it posts into #priority, under the page it explains, so its channel id comes from that
-# channel's one vault entry and only its SECRET is named after the route.
-#
-# THE DELIVER_ONLY CHECK IS PER ROUTE, AND IT IS INVERTED FOR `explain`. The other five must be
-# deliver_only or hermes feeds their bodies to an agent; `explain` must NOT be, because an agent is what
-# generates the explanation. Both directions are failures worth reporting, so each route carries its own
-# expectation below rather than sharing one assertion.
-# For the quiet ones this check is the only thing standing between a mistyped or unapplied route and a
-# channel that stays empty forever.
-# Keep this list in step with the route names the producers spell: DEFAULT_RECORD_URL in
-# uu/crates/uu-adapters/src/config/records.rs, severity_route and DEFAULT_ROUTE in
-# posture/crates/posture-domain/src/severity.rs and posture/crates/posture-adapters/src/notify.rs, and
-# the roster in
-# pns/crates/pns-domain/src/routes.rs.
-#
-# THE PER-ROUTE KEY COMPARISON IS GONE. Every route used to be required to carry the ONE secret pns
-# signs with, and this script compared the others against the default route's value. The routes now
-# carry six DIFFERENT secrets, one KeePassXC entry each, so there is nothing left to compare a route
-# against: agreement is between the vault entry a route renders from and the key its senders hold, and
-# neither of those is in this file. What is checkable here is that a secret and a channel are PRESENT,
-# which is what the two value checks below do, by shape and never by value.
+#!/usr/bin/env bash
+
 set -euo pipefail
-cfg="$HOME/.hermes/config.yaml"
-command -v yq >/dev/null 2>&1 || exit 0
-[[ -f $cfg ]] || exit 0
-port="$(yq -r '.platforms.webhook.extra.port // 8644' "$cfg" 2>/dev/null || echo 8644)"
-[[ $port =~ ^[0-9]+$ ]] || port=8644
 
-expected_routes=(explain general pns-events posture-pages priority uu-runs)
-for route in "${expected_routes[@]}"; do
-  # Per-route expectations, defaulted to the delivery shape five of the six share.
-  channel="$route"
-  want_deliver_only=true
-  case $route in
-    explain)
-      channel=priority
-      want_deliver_only=false
-      ;;
-  esac
-  # ABSENT FROM CONFIG. The old version gated the whole script on `has("relay")` and exited 0 otherwise,
-  # so a config that had lost a route was indistinguishable from a machine with no hermes at all.
-  if ! yq -e ".platforms.webhook.extra.routes // {} | has(\"$route\")" "$cfg" >/dev/null 2>&1; then
-    printf '\n  ⚠ hermes: the %s route is NOT in %s, so every message to it will 404.\n    Run: chezmoi apply (the routes render from KeePassXC through private_dot_hermes/modify_private_config.yaml)\n\n' \
-      "$route" "$cfg"
-    continue
-  fi
-  # NO SECRET. Checked for PRESENCE, never printed. A secret-less route inherits the gateway's global
-  # `extra.secret`, which this machine does not set, and the gateway then refuses to start the whole
-  # webhook platform rather than serving the route unauthenticated -- so this takes every route down,
-  # not just one. The usual cause is an empty KeePassXC entry, which renders as an empty string.
-  if [[ -z "$(yq -r ".platforms.webhook.extra.routes.\"${route}\".secret // \"\"" "$cfg" 2>/dev/null || echo '')" ]]; then
-    printf '\n  ⚠ hermes: the %s route has NO secret, so the gateway refuses to start the webhook platform\n    and EVERY route stops answering. Check the KeePassXC entry "Hermes :: Webhook Secret (#%s)" is\n    populated, then: chezmoi apply\n\n' \
-      "$route" "$route"
-  fi
-  # NO CHANNEL NAMED, or one that is not a snowflake. A route whose deliver_extra.chat_id
-  # is empty or absent falls back to the gateway's HOME channel, so every message lands in #general
-  # instead of the channel the route was created for, and nothing about that looks broken from either
-  # end. The shape test is what catches the other half: a Discord snowflake is 17 to 20 digits today, so
-  # a truncated paste or a channel NAME in the vault entry fails here instead of 404-ing at Discord.
-  chat_id="$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_extra.chat_id // \"\"" "$cfg" 2>/dev/null || echo '')"
-  if [[ ! $chat_id =~ ^[0-9]{17,20}$ ]]; then
-    printf '\n  ⚠ hermes: the %s route names no usable channel, so its messages go to the HOME channel\n    instead. A Discord channel id is 17 to 20 digits. Check the KeePassXC entry\n    "Discord (Uriel) :: Channel ID (#%s)", then: chezmoi apply\n\n' \
-      "$route" "$channel"
-  fi
-  # THE WRONG MODE, in either direction. Both spellings are declared by the template, so either
-  # warning only fires when something rewrote the file after chezmoi wrote it, which run_after_59's
-  # `hermes config migrate` is in a position to do.
-  deliver_only="$(yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_only // false" "$cfg" 2>/dev/null || echo false)"
-  if [[ $want_deliver_only == true && $deliver_only != "true" ]]; then
-    # A delivery route that became an agent route hands bodies built from third-party package and
-    # skill names to a model, and delivers the model's prose instead of the message.
-    printf '\n  ⚠ hermes: the %s route is NOT deliver_only, so hermes feeds its messages to an AGENT\n    instead of posting them verbatim, and those messages carry third-party package and skill names.\n    Run: chezmoi apply\n\n' \
-      "$route"
-  elif [[ $want_deliver_only == false && $deliver_only == "true" ]]; then
-    # An agent route that became a delivery route posts the page back verbatim into the channel that
-    # already has it, and the explanation silently stops being generated.
-    printf '\n  ⚠ hermes: the %s route IS deliver_only, so hermes posts the page back verbatim instead of\n    handing it to an agent, and no explanation is generated at all.\n    Run: chezmoi apply\n\n' \
-      "$route"
-  fi
-  # NOT LOADED. The probe is unsigned, and the gateway validates the signature before it dispatches
-  # anything (measured 2026-09-15), so an unsigned `{}` answers 401 on `explain` and starts no model run.
-  code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' -X POST "http://127.0.0.1:${port}/webhooks/${route}" \
-    -H 'Content-Type: application/json' -d '{}' 2>/dev/null || echo 000)"
-  if [[ $code == "404" ]]; then
-    printf '\n  ⚠ hermes: the %s route is in config.yaml but the gateway returns 404 (not loaded).\n    Run: hermes gateway restart\n\n' "$route"
-  fi
-done
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-# AN UNDECLARED ROUTE SURVIVED. The template writes the routes map WHOLE, so a route it does not name
-# is removed by the apply that just ran; one still here means something put it back afterwards. It is
-# reported rather than removed, because this script has no business editing the config and the next
-# apply takes it out anyway. Read on fd 3 so the loop body cannot consume the route list.
-while IFS= read -r -u3 route; do
-  [[ -n $route ]] || continue
-  case " ${expected_routes[*]} " in
-    *" $route "*) ;;
-    *)
-      printf '\n  ⚠ hermes: the %s route is in %s but this repository does not declare it, so it will be\n    removed by the next apply. Anything still posting to it starts 404-ing then.\n\n' \
-        "$route" "$cfg"
-      ;;
-  esac
-done 3< <(yq -r '.platforms.webhook.extra.routes // {} | keys | .[]' "$cfg" 2>/dev/null || true)
+readonly hermes_config="$HOME/.hermes/config.yaml"
+readonly default_webhook_port=8644
+readonly port_pattern='^[0-9]+$'
+readonly declared_routes=(explain general pns-events posture-pages priority uu-runs)
+readonly agent_route=explain
+readonly agent_route_channel=priority
+readonly discord_channel_id_pattern='^[0-9]{17,20}$'
+readonly probe_time_limit_seconds=2
+readonly status_code_not_loaded=404
+readonly status_code_unreachable=000
 
-# NO VOICE. tts.elevenlabs.voice_id is the other value this repository renders from KeePassXC, and an
-# EMPTY one is worse than an absent one: tts_tool.py reads it as
-# `el_config.get("voice_id", DEFAULT_ELEVENLABS_VOICE_ID)`, so a missing key falls back to the built-in
-# voice while an empty string is sent to ElevenLabs as the voice id and the request fails. The usual
-# cause is an empty vault entry, which renders as exactly that empty string.
-if [[ -z "$(yq -r '.tts.elevenlabs.voice_id // ""' "$cfg" 2>/dev/null || echo '')" ]]; then
-  printf '\n  ⚠ hermes: tts.elevenlabs.voice_id is empty, so every ElevenLabs request fails (an empty id is\n    sent as the voice, it is not a fallback). Check the KeePassXC entry "ElevenLabs :: Voice ID" is\n    populated, then: chezmoi apply\n\n'
-fi
+section_header_printed=false
+
+section_header_is_printed() {
+  [[ $section_header_printed == true ]]
+}
+
+print_section_header_once() {
+  if section_header_is_printed; then
+    return
+  fi
+  report_section 'hermes' 'config status'
+  section_header_printed=true
+}
+
+report_under_header() {
+  local message=$1
+  print_section_header_once
+  report_line "$message"
+}
+
+yq_is_installed() {
+  command -v yq >/dev/null 2>&1
+}
+
+hermes_config_exists() {
+  [[ -f $hermes_config ]]
+}
+
+read_webhook_port() {
+  yq -r ".platforms.webhook.extra.port // $default_webhook_port" "$hermes_config" 2>/dev/null || echo "$default_webhook_port"
+}
+
+port_is_a_number() {
+  local port=$1
+  [[ $port =~ $port_pattern ]]
+}
+
+route_is_configured() {
+  local route=$1
+  yq -e ".platforms.webhook.extra.routes // {} | has(\"$route\")" "$hermes_config" >/dev/null 2>&1
+}
+
+read_route_secret() {
+  local route=$1
+  yq -r ".platforms.webhook.extra.routes.\"${route}\".secret // \"\"" "$hermes_config" 2>/dev/null || echo ''
+}
+
+route_has_a_secret() {
+  local route=$1
+  [[ -n "$(read_route_secret "$route")" ]]
+}
+
+read_route_channel_id() {
+  local route=$1
+  yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_extra.chat_id // \"\"" "$hermes_config" 2>/dev/null || echo ''
+}
+
+channel_id_is_usable() {
+  local channel_id=$1
+  [[ $channel_id =~ $discord_channel_id_pattern ]]
+}
+
+route_names_a_usable_channel() {
+  local route=$1
+  channel_id_is_usable "$(read_route_channel_id "$route")"
+}
+
+read_route_deliver_only() {
+  local route=$1
+  yq -r ".platforms.webhook.extra.routes.\"${route}\".deliver_only // false" "$hermes_config" 2>/dev/null || echo false
+}
+
+deliver_only_is_on() {
+  local deliver_only=$1
+  [[ $deliver_only == true ]]
+}
+
+route_is_the_agent_route() {
+  local route=$1
+  [[ $route == "$agent_route" ]]
+}
+
+route_is_a_delivery_route() {
+  local route=$1
+  ! route_is_the_agent_route "$route"
+}
+
+discord_channel_of() {
+  local route=$1
+  if route_is_the_agent_route "$route"; then
+    printf '%s\n' "$agent_route_channel"
+    return
+  fi
+  printf '%s\n' "$route"
+}
+
+probe_route_status_code() {
+  local route=$1 port=$2
+  curl -s -o /dev/null -m "$probe_time_limit_seconds" -w '%{http_code}' -X POST "http://127.0.0.1:${port}/webhooks/${route}" \
+    -H 'Content-Type: application/json' -d '{}' 2>/dev/null || echo "$status_code_unreachable"
+}
+
+gateway_has_not_loaded_route() {
+  local route=$1 port=$2
+  [[ "$(probe_route_status_code "$route" "$port")" == "$status_code_not_loaded" ]]
+}
+
+list_configured_routes() {
+  yq -r '.platforms.webhook.extra.routes // {} | keys | .[]' "$hermes_config" 2>/dev/null || true
+}
+
+route_is_named() {
+  local route=$1
+  [[ -n $route ]]
+}
+
+route_is_declared() {
+  local route=$1
+  [[ " ${declared_routes[*]} " == *" $route "* ]]
+}
+
+read_voice_id() {
+  yq -r '.tts.elevenlabs.voice_id // ""' "$hermes_config" 2>/dev/null || echo ''
+}
+
+voice_id_is_set() {
+  [[ -n "$(read_voice_id)" ]]
+}
+
+report_missing_route() {
+  local route=$1
+  report_under_header "the $route route is NOT in $hermes_config, so every message to it will 404."
+  report_under_header "  Run: chezmoi apply (the routes render from KeePassXC through private_dot_hermes/modify_private_config.yaml)"
+}
+
+report_route_without_secret() {
+  local route=$1
+  report_under_header "the $route route has NO secret, so the gateway refuses to start the webhook platform and EVERY route stops answering."
+  report_under_header "  Check the KeePassXC entry \"Hermes :: Webhook Secret (#$route)\" is populated, then: chezmoi apply"
+}
+
+report_route_without_channel() {
+  local route=$1
+  local channel
+  channel="$(discord_channel_of "$route")"
+  report_under_header "the $route route names no usable channel, so its messages go to the HOME channel instead. A Discord channel id is 17 to 20 digits."
+  report_under_header "  Check the KeePassXC entry \"Discord (Uriel) :: Channel ID (#$channel)\", then: chezmoi apply"
+}
+
+report_delivery_route_that_is_not_deliver_only() {
+  local route=$1
+  report_under_header "the $route route is NOT deliver_only, so hermes feeds its messages to an AGENT instead of posting them verbatim, and those messages carry third-party package and skill names."
+  report_under_header "  Run: chezmoi apply"
+}
+
+report_agent_route_that_is_deliver_only() {
+  local route=$1
+  report_under_header "the $route route IS deliver_only, so hermes posts the page back verbatim instead of handing it to an agent, and no explanation is generated at all."
+  report_under_header "  Run: chezmoi apply"
+}
+
+report_route_not_loaded() {
+  local route=$1
+  report_under_header "the $route route is in config.yaml but the gateway returns $status_code_not_loaded (not loaded)."
+  report_under_header "  Run: hermes gateway restart"
+}
+
+report_undeclared_route() {
+  local route=$1
+  report_under_header "the $route route is in $hermes_config but this repository does not declare it, so it will be removed by the next apply. Anything still posting to it starts 404-ing then."
+}
+
+report_empty_voice_id() {
+  report_under_header "tts.elevenlabs.voice_id is empty, so every ElevenLabs request fails (an empty id is sent as the voice, it is not a fallback)."
+  report_under_header "  Check the KeePassXC entry \"ElevenLabs :: Voice ID\" is populated, then: chezmoi apply"
+}
+
+check_route_delivery_mode() {
+  local route=$1
+  local deliver_only
+  deliver_only="$(read_route_deliver_only "$route")"
+  if route_is_a_delivery_route "$route" && ! deliver_only_is_on "$deliver_only"; then
+    report_delivery_route_that_is_not_deliver_only "$route"
+  elif route_is_the_agent_route "$route" && deliver_only_is_on "$deliver_only"; then
+    report_agent_route_that_is_deliver_only "$route"
+  fi
+}
+
+check_route() {
+  local route=$1 port=$2
+  if ! route_is_configured "$route"; then
+    report_missing_route "$route"
+    return
+  fi
+
+  if ! route_has_a_secret "$route"; then
+    report_route_without_secret "$route"
+  fi
+
+  if ! route_names_a_usable_channel "$route"; then
+    report_route_without_channel "$route"
+  fi
+
+  check_route_delivery_mode "$route"
+
+  if gateway_has_not_loaded_route "$route" "$port"; then
+    report_route_not_loaded "$route"
+  fi
+}
+
+report_undeclared_routes() {
+  local route
+  while IFS= read -r route; do
+    if route_is_named "$route" && ! route_is_declared "$route"; then
+      report_undeclared_route "$route"
+    fi
+  done < <(list_configured_routes)
+}
+
+main() {
+  if ! yq_is_installed; then
+    report_under_header "yq is not installed, skipping."
+    return
+  fi
+
+  if ! hermes_config_exists; then
+    report_under_header "$hermes_config does not exist, skipping."
+    return
+  fi
+
+  local port
+  port="$(read_webhook_port)"
+  if ! port_is_a_number "$port"; then
+    port=$default_webhook_port
+  fi
+
+  local route
+  for route in "${declared_routes[@]}"; do
+    check_route "$route" "$port"
+  done
+
+  report_undeclared_routes
+
+  if ! voice_id_is_set; then
+    report_empty_voice_id
+  fi
+}
+
+main "$@"
 {{ end -}}
