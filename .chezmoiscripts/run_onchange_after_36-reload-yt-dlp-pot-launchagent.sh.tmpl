@@ -1,16 +1,30 @@
-#!/bin/bash
-# run_onchange_after_36-reload-yt-dlp-pot-launchagent.sh
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.yt-dlp-pot-provider.plist.tmpl" | sha256sum }}
 
-{{- if eq .chezmoi.os "darwin" }}
-LABEL="com.webdavis.yt-dlp-pot-provider"
-PLIST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
-DOMAIN="gui/$(id -u)"
+set -euo pipefail
 
-if launchctl list "${LABEL}" &>/dev/null; then
-  echo "Reloading PO token provider LaunchAgent..."
-  launchctl bootout "${DOMAIN}/${LABEL}" 2>/dev/null || true
-fi
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-launchctl bootstrap "${DOMAIN}" "${PLIST}" 2>/dev/null || true
-{{- end }}
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
+
+readonly launchagent_label="com.webdavis.yt-dlp-pot-provider"
+readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
+
+main() {
+  report_section 'yt-dlp' 'PO token provider LaunchAgent'
+
+  if launchagent_is_loaded "$launchagent_label"; then
+    report_line "reloading..."
+    unload_launchagent "$launchagent_label"
+  else
+    report_line "loading..."
+  fi
+
+  if launchagent_bootstrapped "$launchagent_plist"; then
+    report_line "loaded."
+  fi
+}
+
+main "$@"
+{{ end -}}
