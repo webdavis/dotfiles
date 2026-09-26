@@ -1,0 +1,21 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+report_section 'rustup' 'install rustc (Rust compiler) and cargo'
+
+cargo_bin_dir="$HOME/.cargo/bin"
+
+if "$cargo_bin_dir/cargo" --version &>/dev/null; then
+  report_line "already installed, skipping."
+  exit 0
+fi
+
+report_line "installing..."
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+report_line "installed to ${cargo_bin_dir}."
+{{ end -}}
