@@ -1,0 +1,25 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# ssh-hardening.sh: {{ include "dot_local/bin/executable_ssh-hardening.sh" | sha256sum }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly ssh_hardening_tool="$HOME/.local/bin/ssh-hardening.sh"
+
+install_and_verify_sshd_drop_in() {
+  "$ssh_hardening_tool"
+}
+
+main() {
+  report_section 'ssh' 'public-key-only sshd drop-in'
+  sudo -v
+
+  report_line "installing and verifying the drop-in..."
+  install_and_verify_sshd_drop_in
+  report_line "installed."
+}
+
+main "$@"
+{{ end -}}

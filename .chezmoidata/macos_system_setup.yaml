@@ -9,9 +9,6 @@
 
 macos:
   system_setup:
-    - description: "SSH: install the public-key-only sshd drop-in (000-ssh-hardening.conf) and verify the effective configuration"
-      command: '"$HOME/.local/bin/ssh-hardening.sh"'
-      tier: enforce
     - description: "OverSight: allow its Notification Center alerts (its only output channel)"
       tier: manual
       runbook: "OverSight notification delivery"
