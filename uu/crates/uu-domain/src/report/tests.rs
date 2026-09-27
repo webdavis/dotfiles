@@ -4,6 +4,8 @@ use super::*;
 fn a_lane_that_failed_without_saying_anything_still_produces_a_summary() {
     let report = LaneReport {
         name: "herdr".to_string(),
+        exit_code: None,
+        duration: std::time::Duration::ZERO,
         failures: 1,
         verdict: LaneVerdict::Failed,
         lines: Vec::new(),

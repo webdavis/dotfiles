@@ -105,6 +105,14 @@ fn a_child_that_exits_non_zero_is_a_failure_the_alert_summary_names() {
 }
 
 #[test]
+fn a_command_lane_report_keeps_the_exit_code_its_child_ended_with() {
+    let program = "/usr/local/bin/updater";
+    let runner = ScriptedRunner::new(&[&[program]]);
+    let report = command_lane(&[program]).run("mine", &stub_facts(), &runner);
+    assert_eq!(report.exit_code, Some(1));
+}
+
+#[test]
 fn a_child_that_exits_the_deferred_code_is_recorded_deferred_not_failed() {
     let program = "/usr/local/bin/updater";
     let runner = ScriptedRunner::new(&[])

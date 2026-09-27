@@ -21,8 +21,12 @@ impl LaneExecutor for ConfiguredLaneExecutor<'_> {
     ) -> LaneExecution {
         // One runner per lane, holding that lane's own complete budget.
         let runner = SystemRunner::for_lane(name, budget, deadline);
+        let started = std::time::Instant::now();
         match run_lane(name, self.0, facts, &runner) {
-            Some(report) => LaneExecution::Reported(report),
+            Some(mut report) => {
+                report.duration = started.elapsed();
+                LaneExecution::Reported(report)
+            }
             None => LaneExecution::Undeclared,
         }
     }

@@ -22,6 +22,8 @@ pub enum LaneVerdict {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaneReport {
     pub name: String,
+    pub exit_code: Option<i32>,
+    pub duration: std::time::Duration,
     failures: usize,
     verdict: LaneVerdict,
     pub lines: Vec<String>,
@@ -33,6 +35,8 @@ impl LaneReport {
     pub fn new(name: &str) -> Self {
         LaneReport {
             name: name.to_string(),
+            exit_code: None,
+            duration: std::time::Duration::ZERO,
             failures: 0,
             verdict: LaneVerdict::Completed,
             lines: Vec::new(),

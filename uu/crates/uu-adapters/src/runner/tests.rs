@@ -81,6 +81,14 @@ fn run_with_input_reports_a_non_zero_exit_as_a_failure_carrying_the_stderr_tail(
 }
 
 #[test]
+fn run_with_input_keeps_the_exit_code_the_child_ended_with() {
+    let ran = runner()
+        .run_with_input("/bin/sh", &["-c", "exit 2"], "the run event\n")
+        .expect("the child ran");
+    assert_eq!(ran.exit_code, Some(2));
+}
+
+#[test]
 fn run_with_input_reports_the_deferred_exit_code_as_deferred_not_failed() {
     // The distinction this whole capability exists for: DEFERRED_EXIT_CODE
     // (75) is a verdict of its own, never lumped in with every other

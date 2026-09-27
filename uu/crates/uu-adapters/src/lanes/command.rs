@@ -47,6 +47,7 @@ impl LaneAdapter for CommandLane {
         let event = lane_event(name, &crate::record::event_for(facts));
         match runner.run_with_input(program, &args, &event) {
             Ok(ran) => {
+                report.exit_code = ran.exit_code;
                 for line in stdout_lines(&ran.stdout) {
                     report.noted(line);
                 }

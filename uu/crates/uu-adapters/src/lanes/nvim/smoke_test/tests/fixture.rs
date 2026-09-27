@@ -105,6 +105,7 @@ impl CommandRunner for Child<'_> {
             _ => Verdict::Clean,
         };
         Ok(Ran {
+            exit_code: None,
             stdout: "owned output\n".into(),
             stderr: if !prepare && self.mode == "stderr" {
                 "startup stderr".into()

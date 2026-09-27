@@ -19,6 +19,7 @@ impl CommandRunner for Installer {
     }
     fn run_with_input(&self, _: &str, _: &[&str], _: &str) -> Result<Ran, String> {
         Ok(Ran {
+            exit_code: None,
             stdout: String::new(),
             stderr: String::new(),
             verdict: Verdict::Clean,

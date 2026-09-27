@@ -91,10 +91,15 @@ impl SystemRunner {
                 }
             }
         };
+        let exit_code = match finished.ended {
+            Ended::Exited(status) => status.code(),
+            _ => None,
+        };
         Ran {
             stderr: String::from_utf8_lossy(&finished.stderr).to_string(),
             stdout: String::from_utf8_lossy(&finished.stdout).to_string(),
             verdict,
+            exit_code,
         }
     }
 

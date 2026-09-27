@@ -41,6 +41,7 @@ impl StubRunner {
     fn listing_failed_with_stdout(stdout: &str, why: &str) -> Self {
         StubRunner {
             listing: Ok(Ran {
+                exit_code: None,
                 stdout: stdout.to_string(),
                 stderr: String::new(),
                 verdict: Verdict::Failed(why.to_string()),
@@ -118,6 +119,7 @@ impl CommandRunner for StubRunner {
 /// A clean `Ran` carrying `stdout`, the shape most listing fixtures need.
 fn clean_ran(stdout: String) -> Ran {
     Ran {
+        exit_code: None,
         stdout,
         stderr: String::new(),
         verdict: Verdict::Clean,

@@ -151,6 +151,7 @@ impl CommandRunner for Effects {
     fn run_with_input(&self, program: &str, args: &[&str], _: &str) -> Result<Ran, String> {
         let output = self.run(program, args)?;
         Ok(Ran {
+            exit_code: None,
             stdout: output,
             stderr: String::new(),
             verdict: if self.fail_routing && program.ends_with("/routing") {

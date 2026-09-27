@@ -15,6 +15,7 @@ pub struct Ran {
     pub stdout: String,
     pub stderr: String,
     pub verdict: Verdict,
+    pub exit_code: Option<i32>,
 }
 
 /// How a command lane's child ended. `Deferred` and `Failed` each carry the

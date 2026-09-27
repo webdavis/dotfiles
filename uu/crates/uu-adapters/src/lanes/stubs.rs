@@ -204,18 +204,18 @@ impl CommandRunner for ScriptedRunner {
         if self.unrunnable.contains(&call) {
             return Err(format!("could not run {program}: stubbed as unrunnable"));
         }
-        let verdict = if let Some((_, reason)) =
+        let (verdict, exit_code) = if let Some((_, reason)) =
             self.deferring_because.iter().find(|(key, _)| key == &call)
         {
-            Verdict::Deferred(reason.clone())
+            (Verdict::Deferred(reason.clone()), 75)
         } else if let Some((_, reason)) = self.pending.iter().find(|(key, _)| key == &call) {
-            Verdict::Pending(reason.clone())
+            (Verdict::Pending(reason.clone()), 100)
         } else if self.deferring.contains(&call) {
-            Verdict::Deferred("exit 75".to_string())
+            (Verdict::Deferred("exit 75".to_string()), 75)
         } else if self.failing.contains(&call) {
-            Verdict::Failed("exit 1".to_string())
+            (Verdict::Failed("exit 1".to_string()), 1)
         } else {
-            Verdict::Clean
+            (Verdict::Clean, 0)
         };
         let stdout = self.resolved_stdout(&call);
         Ok(Ran {
@@ -227,6 +227,7 @@ impl CommandRunner for ScriptedRunner {
                 .unwrap_or_default(),
             stdout,
             verdict,
+            exit_code: Some(exit_code),
         })
     }
 }
