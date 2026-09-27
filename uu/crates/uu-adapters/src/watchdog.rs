@@ -104,20 +104,9 @@ fn spawn_with_environment(
         let started = Instant::now();
         let mut command = Command::new(&owned_program);
         if let Some(env) = env {
-            if env.only_these {
-                command.env_clear();
-            }
             command.envs(&env.variables);
             if let Some(prefix) = &env.path_prefix {
-                // AN ISOLATED ENVIRONMENT PREFIXES ITS OWN PATH, never uu's
-                // inherited one: `only_these` exists to keep the child from
-                // seeing what uu was started with, and joining against the
-                // real environment here would hand it back regardless.
-                let inherited = if env.only_these {
-                    env.variables.get("PATH").map(std::ffi::OsString::from)
-                } else {
-                    std::env::var_os("PATH")
-                };
+                let inherited = std::env::var_os("PATH");
                 command.env("PATH", prefixed_path(prefix, inherited.as_deref()));
             }
         }

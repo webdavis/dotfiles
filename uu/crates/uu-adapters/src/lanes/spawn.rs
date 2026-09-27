@@ -39,27 +39,16 @@ pub enum Verdict {
 /// at spawn time and a lane stays a function of what it was given.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Environment {
-    /// Set on the child, over whatever uu inherited unless `only_these`.
+    /// Set on the child, over whatever uu inherited.
     pub variables: std::collections::BTreeMap<String, String>,
     /// Put ahead of the inherited `PATH`.
     pub path_prefix: Option<String>,
-    /// Hand the child `variables` alone and nothing uu inherited.
-    pub only_these: bool,
 }
 
 impl Environment {
     /// Whatever uu inherited, unchanged.
     pub fn inheriting() -> Self {
         Self::default()
-    }
-
-    /// `variables` and nothing else.
-    pub fn only(variables: &std::collections::BTreeMap<String, String>) -> Self {
-        Environment {
-            variables: variables.clone(),
-            path_prefix: None,
-            only_these: true,
-        }
     }
 
     pub fn with(mut self, key: &str, value: String) -> Self {

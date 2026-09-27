@@ -179,7 +179,6 @@ fn the_child_runs_with_npms_own_directory_ahead_of_the_inherited_path() {
         vec![Environment {
             variables: Default::default(),
             path_prefix: Some("/Users/someone/.local/share/fnm/aliases/default/bin".into()),
-            only_these: false,
         }],
         "the fnm default bin directory goes first, over the inherited environment"
     );

@@ -22,7 +22,6 @@ fn the_smoke_test_runs_nvim_itself_with_the_four_base_directories_redirected() {
         // NO HELPER PROCESS between the lane and nvim: the base directories
         // are set on the child rather than spelled as argv words.
         assert_eq!(call[0], "/fixture/nvim");
-        assert!(!env.only_these, "nvim keeps what uu inherited");
         for (key, leaf) in [
             ("XDG_CONFIG_HOME", "c"),
             ("XDG_DATA_HOME", "d"),
