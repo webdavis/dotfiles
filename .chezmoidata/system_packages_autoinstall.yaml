@@ -324,9 +324,9 @@ packages:
   herdr_plugins:
     # One roster, two consumers: run_after_53 installs a missing plugin at apply
     # and reinstalls one whose `ref` no longer matches the revision herdr
-    # recorded, and uu's config template renders it into the herdr lane that
-    # refreshes the unpinned ones weekly. Every plugin this machine wants is
-    # listed here except the two linked ones (see herdr_linked_plugins above).
+    # recorded, and uu's herdr plugin script refreshes the unpinned ones
+    # weekly. Every plugin this machine wants is listed here except the two
+    # linked ones (see herdr_linked_plugins above).
     #
     # herdr-smart-nav is ours, in its own public repository so it installs by
     # the same convention as everybody else's. Its `ref` is the revision herdr
