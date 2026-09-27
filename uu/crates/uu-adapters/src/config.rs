@@ -159,12 +159,13 @@ pub(crate) fn parse_config(
     }
 
     let mut config = Config::default();
+    let mut groups = None;
     for (key, value) in document {
         match key.as_str() {
             "schedule" => config.schedule = schedule::parse_schedule(value)?,
             "records" => config.records = Some(parse_records(value)?),
             "alerts" => config.alerts = Some(parse_alerts(value)?),
-            "group" => config.groups = groups::parse_groups(value)?,
+            "group" => groups = Some(value),
             "lane" | "lanes" => config.lanes = lanes::parse_lanes(&key, value, registrations)?,
             _ => {
                 return Err(ConfigError::Invalid(format!(
@@ -173,6 +174,9 @@ pub(crate) fn parse_config(
                 )));
             }
         }
+    }
+    if let Some(groups) = groups {
+        config.groups = groups::parse_groups(groups, &config.lanes)?;
     }
     Ok(config)
 }
