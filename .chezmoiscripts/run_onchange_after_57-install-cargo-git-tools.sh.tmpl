@@ -36,7 +36,7 @@ pinned_revision_is_installed() {
 
 cargo_install_from_git() {
   local repo=$1 revision=$2 package=$3
-  "$cargo_bin" install --git "https://github.com/$repo" --rev "$revision" --locked --root "$install_root" "$package"
+  "$cargo_bin" install --git "https://github.com/$repo" --rev "$revision" --locked --force --root "$install_root" "$package"
 }
 
 install_pinned_revision_if_missing() {
