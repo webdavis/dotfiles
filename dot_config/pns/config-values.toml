@@ -9,8 +9,9 @@
 # (an opt-in feature nobody armed yet); a key this file never mentions
 # renders at its schema default. Every table and key below is here because
 # the shipped template has it live at a value other than that default, or
-# because it is a secret. See `pns/crates/pns-adapters/src/config/render/layout.rs`
-# (`LAYOUT`) for the schema this is walked against.
+# because it is a secret. See the pns repository's
+# `crates/pns-adapters/src/config/render/layout.rs` (`LAYOUT`) for the schema
+# this is walked against.
 
 # EVERY `enabled` REACHES THE RENDERED FILE at its own default, `[gateway]`
 # true and every `[plugins.*]` false, so no table's switch has to be

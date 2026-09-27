@@ -1,4 +1,0 @@
-[package]
-name = "tailnet-pin-protocol"
-version.workspace = true
-edition.workspace = true

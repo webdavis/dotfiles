@@ -63,7 +63,6 @@ diff:
 apply:
   ./scripts/chezmoi-apply-logged.sh
 
-# treefmt does not discover Rust manifests, so each workspace is listed here.
 test-rust:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -71,20 +70,8 @@ test-rust:
     echo 'chord is not installed: cargo install --git https://github.com/webdavis/chord chord' >&2
     exit 1
   fi
-  test_rust_workspace() {
-    local manifest="$1/Cargo.toml"
-    shift
-    cargo test --locked --workspace "$@" --manifest-path "$manifest"
-    cargo fmt --all --check --manifest-path "$manifest"
-    cargo clippy --locked --workspace --all-targets "$@" --manifest-path "$manifest" -- -D warnings
-    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --manifest-path "$manifest"
-  }
-  test_rust_workspace lights
-  test_rust_workspace pns --features dev-tools
   chord check bash --table dot_config/chord/bindings.toml
   chord check menu --table dot_config/chord/bindings.toml
-  test_rust_workspace tailnet-pin
-  test_rust_workspace posture
 
 # Run the Neovim Lua specs against the source tree. Git exports GIT_* variables
 # to its hooks, and specs that build temporary repositories must not inherit them.
@@ -219,5 +206,4 @@ chord-render:
 
 # Regenerate the shipped pns config template from its committed values.
 pns-config-render output="dot_config/pns/private_config.toml.tmpl":
-  cargo run --locked --quiet --features dev-tools --manifest-path pns/Cargo.toml --bin pns-config-render -- \
-    dot_config/pns/config-values.toml {{quote(output)}}
+  pns-config-render dot_config/pns/config-values.toml {{quote(output)}}

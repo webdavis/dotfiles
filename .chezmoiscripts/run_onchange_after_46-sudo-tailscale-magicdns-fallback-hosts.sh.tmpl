@@ -27,32 +27,21 @@
 {{- if eq .chezmoi.os "darwin" -}}
 {{- $hosts := .tailscale.magicdns_fallback_hosts -}}
 {{- template "validateMagicdnsFallbackHosts" $hosts -}}
+{{- $tailnetPin := joinPath .chezmoi.homeDir .rust_tools.install_dir "tailnet-pin" -}}
 #!/usr/bin/env bash
 
 set -euo pipefail
+
+# tailnet-pin: {{ if stat $tailnetPin }}installed{{ else }}missing{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
 {{ includeTemplate "sudo-session.sh.tmpl" }}
 
-readonly tailnet_pin={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "tailnet-pin" | quote }}
-readonly tailnet_pin_build_record="$HOME/.cache/tailnet-pin-build/installed.fingerprint"
-readonly current_tailnet_pin_source_fingerprint={{ includeTemplate "tailnet-pin-source-fingerprint.tmpl" . | sha256sum | quote }}
+readonly tailnet_pin={{ $tailnetPin | quote }}
 
 tailnet_pin_is_installed() {
   [[ -x $tailnet_pin ]]
-}
-
-tailnet_pin_build_record_exists() {
-  [[ -r $tailnet_pin_build_record ]]
-}
-
-read_tailnet_pin_built_fingerprint() {
-  cat "$tailnet_pin_build_record"
-}
-
-tailnet_pin_was_built_from_this_source() {
-  [[ $(read_tailnet_pin_built_fingerprint) == "$current_tailnet_pin_source_fingerprint" ]]
 }
 
 pin_host() {
@@ -65,16 +54,8 @@ main() {
   report_section 'tailscale' 'MagicDNS fallback hosts in /etc/hosts'
 
   if ! tailnet_pin_is_installed; then
-    report_line "error[missing-tool]: $tailnet_pin is missing or not executable; no fallback hosts were pinned. Run chezmoi apply so run_after_37 builds it." >&2
-    exit 1
-  fi
-  if ! tailnet_pin_build_record_exists; then
-    report_line "error[missing-file]: $tailnet_pin_build_record is missing, so nothing vouches for which source $tailnet_pin was built from; no fallback hosts were pinned." >&2
-    exit 1
-  fi
-  if ! tailnet_pin_was_built_from_this_source; then
-    report_line "error[stale-build]: $tailnet_pin was built from source $(read_tailnet_pin_built_fingerprint), not $current_tailnet_pin_source_fingerprint; no fallback hosts were pinned. Re-run chezmoi apply so the builder catches up." >&2
-    exit 1
+    report_line "$tailnet_pin is not installed, skipping."
+    return
   fi
 
   authenticate_sudo_once
