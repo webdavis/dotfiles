@@ -295,7 +295,7 @@ unsuccessful_runs_before_alert = 3
 [lane.vendored-skills-check.settings]
 checks = [
 {{- range .agents.skills.vendored }}
-{{- if hasKey . "upstream" }}
+{{- if and (hasKey . "upstream") (not (dig "upstream" "fork" false .)) }}
   {{ printf "%s %s %s" .name .upstream.url .upstream.path | quote }},
 {{- end }}
 {{- end }}

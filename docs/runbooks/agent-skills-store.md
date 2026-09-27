@@ -64,7 +64,8 @@ A skill in `skills.on_demand` loads only when you call it by name.
 
 - **`vendored-skills-check` prints `name: differs from <repository> at <path>`:** the upstream files and
   the installed copy differ. Compare the upstream with `dot_agents/skills/<name>` and bring over what you
-  want. `moshi` is a fork on purpose, so only port what fits; it differs every week.
+  want. The check skips an upstream marked `fork: true`, such as `moshi`, since a fork differs on
+  purpose.
 - **`clawhub-skills` says `local-changes`:** the installed copy differs from every release. Look at the
   folder, then reinstall it or keep your edit. The lane never passes `--force`.
 - **`claude-plugins` says `needs-approval`:** the plugin wants to run a new install command. Read it, and
