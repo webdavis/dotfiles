@@ -26,12 +26,6 @@ test/
 .mdformat.toml
 treefmt.toml
 
-# Git hooks:
-.githooks/
-
-# Knowledge-graph output:
-graphify-out/
-
 # Stray files:
 tmp.*
 *.rayconfig

@@ -30,7 +30,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
    request. Add `cargo test --locked --manifest-path uu/Cargo.toml` to the gates.
 4. **The command-line surface** is a compatibility contract. Enumerate the in-repo callers first:
 
-       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target --exclude-dir=graphify-out . | grep -v pns/
+       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target . | grep -v pns/
 
    They are the Claude Code hook declarations in `private_dot_claude/modify_settings.json`, the daemon
    LaunchAgent's `pns daemon run`, the bash notifier's `pns loop begin|end` in `dot_bashrc.tmpl`, uu's

@@ -28,13 +28,6 @@ vendor/**
 # Agent scratch (superpowers SDD briefs, reports, evidence, never tracked).
 .superpowers/
 
-# Knowledge-graph output: graph.json is the committed map (rebuilt after each
-# commit by this repo's .githooks/post-commit); everything else in
-# graphify-out/ (html, report, cache, dated snapshots) is a regenerable
-# artifact and stays untracked.
-graphify-out/*
-!graphify-out/graph.json
-
 # Rust build artifacts for vendored herdr projects (plugins + binaries, built in-place, never committed).
 dot_local/share/herdr/**/target/
 

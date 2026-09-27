@@ -21,8 +21,6 @@ function set_up_before_script() {
   fixture_git -C "$PRUNE_ROOT/sweep/in-flight" commit -q --allow-empty -m 'still working'
   prune_add_worktree "$PRUNE_ROOT/sweep" uncommitted
   printf 'edited\n' >"$PRUNE_ROOT/sweep/uncommitted/README"
-  prune_add_worktree "$PRUNE_ROOT/sweep" regenerated
-  printf '{"nodes":2}\n' >"$PRUNE_ROOT/sweep/regenerated/graphify-out/graph.json"
   fixture_git -C "$PRUNE_ROOT/sweep/repo" worktree add -q --detach "$PRUNE_ROOT/sweep/review" HEAD
   prune_publish_herdr_list \
     "$PRUNE_ROOT/sweep/landed" w1 \
@@ -48,11 +46,9 @@ function tear_down_after_script() {
 
 prune_build_repository() {
   local case_directory=$1
-  mkdir -p "$case_directory/repo/graphify-out"
   fixture_git init -q --bare "$case_directory/origin.git"
   fixture_git init -q "$case_directory/repo"
   printf 'readme\n' >"$case_directory/repo/README"
-  printf '{"nodes":1}\n' >"$case_directory/repo/graphify-out/graph.json"
   fixture_git -C "$case_directory/repo" add -A
   fixture_git -C "$case_directory/repo" commit -q -m 'first'
   fixture_git -C "$case_directory/repo" remote add origin ../origin.git
@@ -135,11 +131,6 @@ function test_an_unmerged_worktree_is_kept() {
 function test_a_dirty_worktree_is_kept() {
   assert_directory_exists "$PRUNE_ROOT/sweep/uncommitted"
   assert_contains 'uncommitted has uncommitted changes' "$PRUNE_SWEEP_OUTPUT"
-}
-
-function test_a_worktree_dirty_only_in_the_graphify_artifact_is_removed() {
-  assert_directory_not_exists "$PRUNE_ROOT/sweep/regenerated"
-  assert_contains 'regenerated (regenerated, git)' "$PRUNE_SWEEP_OUTPUT"
 }
 
 function test_a_detached_worktree_is_kept() {
