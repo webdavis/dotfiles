@@ -319,7 +319,7 @@ packages:
     - name: uu
       repo: webdavis/uu
       package: uu
-      ref: c3716feae1c606522ca32dcd092dc4b4c82ebb70
+      ref: 65929c6ca5a7d6be77bcc812723e9d999b299818
 
   # The herdr plugins this machine builds and LINKS rather than installing from
   # GitHub. `herdr plugin install` requires a herdr-plugin.toml committed in the
