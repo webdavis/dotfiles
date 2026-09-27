@@ -18,6 +18,7 @@ pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     ("schedule", &["day", "time"]),
     ("records", &["failure_webhook", "key", "url"]),
     ("alerts", &["binary"]),
+    ("group", &["lanes"]),
 ];
 
 /// The roster row for the file's own top level. THE EMPTY NAME, because that
@@ -164,6 +165,12 @@ mod tests {
                 "key, url",
             ),
             ("[alerts]\nbin = \"pns\"\n", "alerts", "bin", "binary"),
+            (
+                "[group.both]\nlane = [\"x\"]\n",
+                "group.both",
+                "lane",
+                "lanes",
+            ),
             (
                 "[lanes.herdr]\nplugin = []\n",
                 "lanes.herdr",

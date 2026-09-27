@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::schema::{table_of, text_list};
+use super::schema::{admits, table_of, text_list};
 use super::{ConfigError, Lanes};
 
 pub(super) fn parse_groups(
@@ -28,6 +28,9 @@ pub(super) fn parse_groups(
 }
 
 fn parse_members(table_label: &str, table: toml::Table) -> Result<Vec<String>, ConfigError> {
+    for key in table.keys() {
+        admits(table_label, "group", key)?;
+    }
     let setting = table.get("lanes").ok_or_else(|| {
         ConfigError::Invalid(format!(
             "`{table_label}` has no `lanes`, so it names no lane to run"
