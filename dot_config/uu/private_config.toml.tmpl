@@ -220,8 +220,8 @@ deadline_secs = 21600
 # with no core code to touch. Uncomment and rename the block to turn one on;
 # the lane's name is your own choice.
 #
-# `run[0]` is the program, `run[1..]` its arguments, and argv[0] the child
-# sees is `run[0]` verbatim. Env and working directory are INHERITED from uu's
+# `command[0]` is the program, `command[1..]` its arguments, and argv[0] the child
+# sees is `command[0]` verbatim. Env and working directory are INHERITED from uu's
 # own process; under the tracked LaunchAgent that is the plist's own PATH plus
 # HOME, with the working directory at `/`.
 #
