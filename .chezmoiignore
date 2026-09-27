@@ -13,7 +13,6 @@ private/
 justfile
 .envrc
 scripts/
-test/
 
 # Neovim config repo metadata and tests:
 .config/nvim/README.md
