@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "skills-store-lib.sh.tmpl" }}
+
+readonly exit_try_later=75
+readonly exit_failed=1
+readonly skills_cli="skills@{{ .agents.skills.skills_cli_version }}"
+readonly skills_cli_lock="$HOME/.agents/.skill-lock.json"
+readonly repositories_and_skills=(
+{{- range .agents.skills.from_github }}
+  {{ printf "%s %s" .repo (join " " .skills) | quote }}
+{{- end }}
+)
+readonly on_demand_skills=(
+{{- range .agents.skills.from_github }}
+{{- range .skills }}
+{{- if has . $.agents.skills.on_demand }}
+  {{ . | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+)
+
+skill_folder_hashes() {
+  if [[ -f $skills_cli_lock ]]; then
+    jq -r '.skills // {} | to_entries[] | "\(.key)\t\(.value.skillFolderHash // "")"' "$skills_cli_lock"
+  fi
+}
+
+hash_of() {
+  local hashes=$1 skill=$2
+  awk -F '\t' -v skill="$skill" '$1 == skill { print substr($2, 1, 7) }' <<<"$hashes"
+}
+
+add_skills() {
+  local repository=$1
+  shift
+  local -a arguments=(--yes "$skills_cli" add "$repository")
+  local skill
+  for skill in "$@"; do
+    arguments+=(--skill "$skill")
+  done
+  npx "${arguments[@]}" --agent codex -g -y </dev/null
+}
+
+print_changes() {
+  local before=$1 after=$2
+  shift 2
+  local skill old new
+  for skill in "$@"; do
+    old="$(hash_of "$before" "$skill")"
+    new="$(hash_of "$after" "$skill")"
+    if [[ -z $old && -n $new ]]; then
+      printf '%s: added\n' "$skill"
+    elif [[ $old != "$new" ]]; then
+      printf '%s: %s → %s\n' "$skill" "$old" "$new"
+    fi
+  done
+}
+
+main() {
+  if ! hold_skills_lock; then
+    printf 'error[busy]: another skills update holds %s; try later.\n' "$skills_lock" >&2
+    exit "$exit_try_later"
+  fi
+
+  local failed=no entry repository skill_list before after output skill
+  local -a skills
+  for entry in "${repositories_and_skills[@]}"; do
+    read -r repository skill_list <<<"$entry"
+    read -ra skills <<<"$skill_list"
+    before="$(skill_folder_hashes)"
+    if ! output="$(add_skills "$repository" "${skills[@]}" 2>&1)"; then
+      printf 'error[add-failed]: %s could not be updated:\n%s\n' "$repository" "$output" >&2
+      failed=yes
+      continue
+    fi
+    after="$(skill_folder_hashes)"
+    print_changes "$before" "$after" "${skills[@]}"
+  done
+
+  for skill in "${on_demand_skills[@]}"; do
+    if ! mark_codex_file_on_demand "$skill"; then
+      printf 'error[codex-setting]: %s could not be set to load only when asked in Codex.\n' "$skill" >&2
+      failed=yes
+    fi
+  done
+
+  if [[ $failed == yes ]]; then
+    exit "$exit_failed"
+  fi
+}
+
+main "$@"

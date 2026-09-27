@@ -326,6 +326,25 @@ deadline_secs = 21600
 command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-hermes-skills.sh" }}"]
 deadline_secs = 21600
 
+[lane.npx-skills]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-npx-skills.sh" }}"]
+deadline_secs = 21600
+
+[lane.clawhub-skills]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-clawhub-skills.sh" }}"]
+deadline_secs = 21600
+
+[lane.cua-driver-skills]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-cua-driver-skills.sh" }}"]
+deadline_secs = 21600
+
+[lane.vendored-skills-check]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/check-vendored-skills.sh" }}"]
+deadline_secs = 21600
+
+[group.skills]
+lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills"]
+
 # Rotate only these logs, preserving their open descriptors. Weekly rotation keeps
 # five generations; a log can grow past the threshold until the next weekly run.
 # A path that does not exist yet is skipped, not an error.
