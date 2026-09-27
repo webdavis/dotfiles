@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
-# bash-bindings-picker.sh: __bash_bindings_list_bash_bindings reads the records
-# `chord render menu` generates and dispatches on the action kind.
-#
-# WHY THIS EXISTS. The function it replaced scraped the rendered readline
-# bind calls and filtered them on vi-insert, so it silently dropped every
-# emacs-only and mode-less row and every readline-command row, and it could
-# not show a group or a description because the rendering carries neither.
-# These asserts pin the two properties a regression would undo: every record
-# reaches the picker, and the kind decides what running the selection means.
+# Generated binding records prepare shell commands and describe Readline actions.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -56,26 +48,22 @@ __picker_test_function() { touch "$HOME/called-the-function"; }
 picked=""
 fzf() { grep -- "$picked"; }
 
-# 2. A run record executes.
-picked=alt-r __bash_bindings_list_bash_bindings
-[[ -e "$HOME/ran-the-run-row" ]] || fail "the run record did not execute"
+# Commands remain editable and do not execute during selection.
+for pair in 'alt-r|touch ran-the-run-row' 'alt-f|__picker_test_function' 'alt-i|echo seeded'; do
+  picked=${pair%%|*}
+  expected=${pair#*|}
+  READLINE_LINE=pending READLINE_POINT=3
+  __bash_bindings_list_bash_bindings
+  [[ $READLINE_LINE == "$expected" && $READLINE_POINT -eq ${#expected} ]] ||
+    fail "$picked did not prepare its command"
+done
+[[ ! -e "$HOME/ran-the-run-row" && ! -e "$HOME/called-the-function" ]] ||
+  fail "selecting a command executed it"
 
-# 3. A function record calls the function.
-picked=alt-f __bash_bindings_list_bash_bindings
-[[ -e "$HOME/called-the-function" ]] || fail "the function record was not called"
-
-# 4. An insert record seeds an editable line, and what comes back runs.
-picked=alt-i __bash_bindings_list_bash_bindings <<<"touch edited-the-insert-row" >/dev/null
-[[ -e "$HOME/edited-the-insert-row" ]] ||
-  fail "the edited insert record did not run"
-
-# 5. A readline command or macro is refused rather than run as a shell command.
 for key in alt-q alt-w; do
-  if message="$(picked="$key" __bash_bindings_list_bash_bindings 2>&1)"; then
-    fail "$key was accepted as a runnable command"
-  fi
-  [[ $message == *"edits the line rather than running a command"* ]] ||
-    fail "$key was refused without saying why: $message"
+  message="$(picked="$key" __bash_bindings_list_bash_bindings 2>&1)"
+  [[ $message == *"Press $key to use this Readline action"* ]] ||
+    fail "$key did not explain how to use its Readline action"
 done
 
 printf 'PASS: bash-bindings-picker\n'

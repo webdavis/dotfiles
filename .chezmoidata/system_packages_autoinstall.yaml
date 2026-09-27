@@ -129,6 +129,7 @@ packages:
         - portaudio
         - procs
         - pv
+        - python
         - restic
         - ripgrep
         - rjyo/moshi/moshi-hook
