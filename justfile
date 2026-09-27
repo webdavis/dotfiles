@@ -193,7 +193,7 @@ macos-defaults-dump:
 worktrees-prune *arguments:
   ./scripts/prune-merged-worktrees.sh {{arguments}}
 
-# Refresh skills through the weekly uu lane.
+# Refresh skills through the weekly uu lanes.
 update-skills:
   ~/.cargo/bin/uu run skills
 

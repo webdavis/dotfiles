@@ -1,523 +1,101 @@
-# Agent skills: the cross-harness store
-
-`~/.agents/skills` is the single canonical skills store (82 roster skills). It serves Claude Code for the
-roster minus the `claudeDelivery` `"none"` set (symlinks declared in chezmoi:
-`private_dot_claude/skills/symlink_*`), Codex always (it scans the store natively, no declarations), and
-hermes for exactly the store-symlink subset of the delivery model below
-(`private_dot_hermes/private_skills/` and `private_dot_hermes/profiles/<name>/private_skills/` symlinks).
-
-The committed roster is the complete wanted set. Its tables, per-harness declarations and settings
-entries are maintained together by review. The updater validates the fields it consumes before it changes
-the store.
-
-```mermaid
-flowchart LR
-  subgraph provenance["Provenance lanes (dot_agents/custom-skill-lock.json)"]
-    NPX["npxTracked, 65<br/>npx skills add, GitHub"]
-    CLAW["clawhubTracked, 3<br/>clawhub update, ClawHub"]
-    VEND["forks + vendored, 11<br/>dot_agents/skills, chezmoi apply"]
-    APP["app-owned, 2<br/>updated by the owning app"]
-  end
-  NPX --> GEN
-  CLAW --> GEN
-  GEN["Candidate generation<br/>~/.agents/.skills-generations/id/home<br/>published by one atomic exchange"]
-  GEN --> STORE
-  VEND --> STORE
-  APP --> STORE
-  STORE["~/.agents/skills/name<br/>stable symlinks into the live generation"]
-  STORE -->|"private_dot_claude/skills/symlink_*"| CC["Claude Code<br/>~/.claude/skills"]
-  STORE -->|"native store scan"| CODEX["Codex"]
-  STORE -->|"hermesProfiles table"| HERMES["hermes default + 4 specialist profiles"]
-  HUB["hermesRegistry table<br/>hermes -p profile skills update"] --> HERMES
-  WEEK["com.webdavis.uu<br/>configured weekly schedule"] --> GEN
-  WEEK --> HUB
-  WEEK --> APP
-```
-
-The graph shows the lanes. The per-skill rows (which lane, which upstream, which tier, which profiles)
-live in `dot_agents/custom-skill-lock.json`, which is the thing to read for any individual skill.
-
-## Store provenance: who installs and refreshes each store copy
-
-The lock at `dot_agents/custom-skill-lock.json` records it.
-
-### npx-tracked (the `npxTracked` table, 65 skills)
-
-The store copy is installed and refreshed by the official npx `skills` CLI from an official GitHub
-upstream, latest from `main` (no pin). `~/.cargo/bin/uu run skills` installs and refreshes them via an
-explicit
-`npx --yes skills@<configured-version> add <repo> --skill <name> --agent claude-code --agent codex -g -y`
-per repo group, run against the weekly candidate generation. It never uses the bulk `npx skills update`,
-whose lock-walk logs some failures at exit 0; the explicit add also reconciles lock-absent roster skills.
-Codex reads the store natively, so there is no Codex-side declaration. These skills are NOT vendored in
-chezmoi.
-
-Includes the 13 curated HeyGen HyperFrames skills (router `hyperframes`; domains `hyperframes-core`,
-`-animation`, `-keyframes`, `-creative`, `-audio`; `media-use`, `hyperframes-cli`,
-`hyperframes-registry`; workflows `general-video`, `faceless-explainer`, `embedded-captions`,
-`motion-graphics`), with `figma`, `music-to-video` and the rest of that repo deliberately excluded. The
-curated set is upstream's whole CORE tier, which is what `npx hyperframes skills check` calls "core": the
-on-demand workflow skills it lists (`figma`, `music-to-video`, `pr-to-video`, `product-launch-video`,
-`remotion-to-hyperframes`, `slideshow`, `talking-head-recut`) stay out.
-
-Also includes `home-assistant-best-practices` (from the official `homeassistant-ai/skills` repo): Home
-Assistant config and YAML authoring guidance, not runtime control. It complements the clawhub-tracked
-`home-assistant` runtime skill everywhere, and it is the one Home Assistant skill that DOES fan out to
-hermes (default profile), as authoring guidance atop Bob's native Home Assistant runtime tools.
-
-Also includes the five `kepano/obsidian-skills` skills (`defuddle`, `json-canvas`, `obsidian-bases`,
-`obsidian-cli`, `obsidian-markdown`), all `hermesProfiles: []`. `json-canvas` is on-demand; the other
-four are core since 2026-09-13, so `defuddle` fires on its own as the WebFetch substitute it advertises.
-Moving a skill between tiers takes two committed edits, the `tiers` value in the lock and the matching
-`skillOverrides` line in `private_dot_claude/modify_settings.json` (a promotion to core swaps that line
-for a `deleteValueAtPath` so the next apply scrubs the stale override from the live file), so the
-declared tier and Claude behavior continue to agree. That `deleteValueAtPath` line is a TOMBSTONE, and
-the promotion is only finished once it is deleted again, after every machine has applied and
-`jq .skillOverrides ~/.claude/settings.json` lists none of the promoted names.
-
-Also includes `owasp-security` (from `agamm/claude-code-owasp`): the OWASP Top 10:2025 table, a
-finding-triage rubric, the LLM and Agentic AI lists, and ASVS 5.0 requirement ids, as markdown with no
-executable code. Its README installs with `npx degit` straight into `~/.claude/skills/`, which would land
-a real directory beside the symlink declarations and reach Claude Code only; the npx lane sources the
-same repo, so it goes here instead and gets a refresh path the degit copy would not have.
-
-Also includes `lavish` (from `kunchenguid/lavish-axi`): a stub that teaches the agent to run
-`npx -y lavish-axi`, which opens an agent-written HTML artifact in a browser for element and text-range
-annotation and sends the feedback back. Nothing is installed for it, the CLI is fetched per run, so the
-stub cannot go stale against a newer release.
-
-### ClawHub-tracked (the `clawhubTracked` table, 3 skills)
-
-`home-assistant`, `sql-toolkit` and `summarize-pro`. The store copy is installed and refreshed by the
-`clawhub` CLI from ClawHub. The npx lane cannot source ClawHub (`npx skills add` is GitHub-only), so
-ClawHub-only skills get their own auto-update lane instead of staying vendored. Each entry records the
-owner-qualified slug and registry.
-
-`uu run skills` installs an absent one in a throwaway `--workdir` and moves the CLI's output flat into
-the candidate store. The CLI nests its output under `@owner/<name>`, and the code handles both that and a
-flat `skills/<name>` path rather than assuming either; the skill's `.clawhub/origin.json` travels along
-and pins the owner. The weekly lane then refreshes each in place with
-`clawhub --workdir <candidate>/.agents --dir skills update <name> --no-input` (bare store names resolve
-through `origin.json` even when several ClawHub users publish the name).
-
-Finder `.DS_Store` metadata is removed from the owned candidate before a full refresh. The updater also
-strips only its own Codex invocation policy before the package command, preserving upstream metadata, and
-restores that policy afterward. Other local changes remain the package command's decision; a refused
-update is a required failure and leaves the current generation untouched. Automation never passes
-`--force` or `--force-install`. Additive bootstrap preserves healthy content.
-
-### Vendored (committed under `dot_agents/skills/`, refreshed only by `chezmoi apply`)
-
-The `forks` table records each one's upstream for weekly drift-watch. `moshi` is a deliberate content
-fork (`fork: true`). `herdr` is upstream verbatim since 2026-09-13, kept vendored because it was already
-a chezmoi-delivered store entry. `elevenlabs` is vendored because npx cannot install it full-tree (its
-`SKILL.md` sits at the repo root beside a `scripts/` dir npx drops, even with `--full-depth`).
-`tiktok-crawling` is a plain committed dir with no `forks` entry: a ClawHub-published skill left vendored
-because hermes owns its hub copy via `hermesRegistry` and its hub name differs from the roster name
-(`tiktok-scraping-yt-dlp`), and the Hermes update key is that installed name.
-
-`pns-loop` and `pns-work-recap` are committed dirs with no `forks` entry for the other reason: they are
-locally authored content with no upstream to watch, the way a promoted `backpass` extraction is. Their
-content used to live inside the `pns` Claude plugin, which left Codex and hermes unable to see it.
-
-### App-owned (`cua-driver`, `composio-cli`)
-
-Two entries. The shapes differ, the rule does not: the app owns the content and this repo never writes
-into it.
-
-`cua-driver`'s store entry is a symlink into `~/.cua-driver`. The official mechanism covers all three
-harnesses (`cua-driver skills status` links Claude Code, Codex via the store, and hermes itself), and the
-weekly run refreshes the pack via `cua-driver skills update`, the app's own GitHub-Releases updater,
-never a write through the symlink.
-
-`composio-cli` is a REAL directory the composio CLI writes at `~/.agents/skills/composio-cli`, planting
-the `~/.claude/skills/composio-cli` link itself in the same relative form chezmoi declares. The skill
-ships inside the CLI binary and is installed by the CLI, with
-`composio --install-skill composio-cli claude|codex|openclaw` as the manual form, so no lane here
-installs it, it is not vendored, and it carries no provenance-table row, only `tiers` and
-`hermesProfiles` like `cua-driver`. On a machine where composio has not planted it yet,
-`live-reconcile.sh` reports the absent store entry and the CLI is what supplies it.
-
-Its tier is `core` for a mechanical reason, not a preference. An `on-demand` real directory is written
-through: `live-reconcile.sh` appends the Codex policy to `agents/openai.yaml`, and uu's live overlay pass
-reasserts it. composio ships its own `agents/openai.yaml` and rewrites the whole directory on every
-upgrade, so that would be this repo editing app-owned content on a loop. `core` reaches neither writer,
-which leaves composio-cli implicitly invocable in Codex and model-invocable in Claude Code, one harness
-wider than `cua-driver`'s Codex-only asymmetry.
-
-### Locally extracted (`backpass`)
-
-`backpass apply --scope user` is the only writer that can create a store entry out of this machine's own
-agent sessions. Its overflow target is the store itself (`USER_CONFIG_DEFAULTS.skillsDir` is
-`.agents/skills`, and `backpass status --scope user` resolves it under `$HOME`), so an accepted
-extraction lands as a real directory with no lock row, no Claude symlink and no hermes link: Codex's
-native store scan is the one harness that reaches it, and it is not in version control.
-
-Nothing removes it either. The generation exchange absorbs only roster names (`absorb_store_entries`
-walks `roster.tracked_names()`), `live-reconcile.sh` prunes undeclared hermes profile links and never a
-real store directory, and `chezmoi apply` does not delete what it does not manage. The Claude fan-out is
-safe too: backpass plants `~/.claude/skills` only when that path is missing and warns when it is a real
-directory, which is what it is here.
-
-An extraction is locally authored content with no upstream, so it is promoted through the vendored lane,
-with no `forks` entry, the way `tiktok-crawling` is a plain committed dir. `backpass apply` is
-interactive and gates every edit, so the operator is present when one is accepted and the promotion
-belongs to that same sitting:
-
-1. Copy `~/.agents/skills/<name>/` into `dot_agents/skills/<name>/`.
-1. Follow "Adding a skill" below from its `tiers` step, taking the vendored lane in step 1.
-
-Until that lands, the extraction reaches one harness and a store rebuild loses it. Rejecting it at the
-`backpass apply` prompt is the other complete answer.
-
-### Graphify in Claude Code
-
-Graphify owns its Claude skill under `~/.local/share/graphify/claude/skills/graphify`. The managed
-`~/.claude/skills/graphify` link points there directly. It stays outside the canonical store and its lock
-tables, preserving Claude-only delivery without adding it to Codex or Hermes. The skills lane leaves this
-link alone because its target is outside the store.
-
-The `uv-graphify-skill` command lane runs after `uv` in a full weekly run, because lanes run in lane-name
-order and `uv-graphify-skill` sorts after `uv`. It sets `CLAUDE_CONFIG_DIR` only for
-`graphify install --platform claude`, and the installer honors `CLAUDE_CONFIG_DIR` on both of its
-global-scope writes (verified against graphify 0.9.53; re-verify with `grep -n CLAUDE_CONFIG_DIR` in the
-installed package): the skill bundle goes to `$CLAUDE_CONFIG_DIR/skills/graphify` and the registration to
-`$CLAUDE_CONFIG_DIR/CLAUDE.md`. Managed global `~/.claude/CLAUDE.md` therefore receives no registration,
-which matters because it is a rendered chezmoi target where any write is erased by the next apply. The
-lane has a 60-second deadline. A failed uv lane does not prevent this refresh from the installed package,
-and `uu run uv` does not run the separate skill lane.
-
-The refresh cannot clobber an operator edit, because nothing under `~/.local/share/graphify/claude` is
-operator-authored: the whole directory is the installer's own output, seeded and then overwritten by it.
-Operator customizations of the skill belong in a vendored store entry, not here.
-
-The package installer seeds an absent app-owned destination after installing `graphifyy` on macOS, before
-target links are applied. It preserves an existing complete bundle and refuses symlink, non-directory or
-partial destinations, so a half-written destination is reported for repair rather than overwritten.
-Seeding failure aborts that installer. It does not migrate the legacy Claude directory, and no removal
-mechanism reclaims one; `test/unit/graphify-skill-seed.test.sh` pins the guards.
-
-Adopted on dresden on 2026-09-13: `~/.claude/skills/graphify` is the declared link, the target holds the
-0.9.53 bundle (`SKILL.md`, `.graphify_version`, `references/`) and
-`~/.local/share/graphify/claude/CLAUDE.md` holds the registration. The pre-adoption preservation step is
-spent; the July directory the link replaced was not backed up, and the loss was judged nil because it was
-an older copy of the same upstream skill.
-
-To reseed or repair the destination by hand, use this exact command:
-
-```bash
-/usr/bin/env CLAUDE_CONFIG_DIR="$HOME/.local/share/graphify/claude" \
-  "$HOME/.local/bin/graphify" install --platform claude
-```
-
-Scheduled-refresh acceptance is the one thing still open, and it is an observation rather than a change.
-The lane was deployed by the 2026-09-13 18:38 apply, after that day's 18:00 weekly run, so no full run
-has reached it yet. After the next one, `grep -A6 'uv-graphify-skill' ~/.local/log/uu/uu.log` should show
-the installer's own output lines under that lane; the lane records the child's stdout whatever the exit
-code.
-
-## Claude delivery (the lock's `claudeDelivery` table)
-
-A store entry mapped to `"none"` is one this vertical deliberately does NOT deliver to Claude Code. It
-carries no `private_dot_claude/skills` declaration and `uu run skills` skips it in the weekly Claude
-fan-out, so a `~/.claude/skills` link removed by hand stays removed instead of coming back on the next
-weekly run. An absent key is the default, a store symlink. Six entries today: `last30days`, the three
-clean-code skills and the two pns skills.
-
-The three clean-code skills reach Claude Code through a plugin instead. `clean-code`, `clean-code-rust`
-and `clean-code-swift` are `"none"` here because `private_dot_claude/clean-code-marketplace` ships a
-`clean-code` plugin whose three skills (`rust`, `swift` and `base`) are thin wrappers: each reads the
-store copy and follows it, and none of them restates the standard. The reason is the namespacing. A
-plugin skill is always `/<plugin>:<skill>`, so the plugin buys `/clean-code:rust`, `/clean-code:swift`
-and `/clean-code:base` in the picker, while the content stays in one canonical place that Codex scans
-natively and hermes symlinks into. Dropping the three store symlinks is what keeps the picker from
-showing each skill twice. One consequence of the version-bump rule in
-`docs/runbooks/claude-code-settings.md`: editing a WRAPPER needs `plugin.json`'s version bumped in the
-same change, because Claude Code runs the installed copy under `~/.claude/plugins/cache/`; editing the
-store CONTENT needs no bump at all, since the wrappers read the store at run time.
-
-`pns-loop` and `pns-work-recap` are the same shape under a different plugin, since 2026-09-14.
-`private_dot_claude/pns-marketplace` ships a `pns` plugin whose `loop` and `work-recap` skills are thin
-wrappers over those two store copies, which keeps `/pns:loop` and `/pns:work-recap` in the picker while
-the instructions themselves sit in the store, where Codex scans them natively and the hermes default
-profile symlinks them. The wrapper-edit rule applies here too: the plugin went to 0.4.0 in the change
-that made its skills wrappers, and later edits to the store copies need no bump.
-
-The table states only what THIS vertical does: its VALUES name no other delivery mechanism and read no
-other lock, per the operator's strict-decoupling ruling. `"none"` is the only legal value, and a
-malformed table refuses the run rather than failing open, before either weekly execution or bootstrap. A
-skill Claude reaches another way is recorded as `"none"` plus a note in prose naming the mechanism that
-owns it, which is where the clean-code plugin is named: the ruling binds the values, not the notes.
-
-**Retiring an EXISTING link is manual, and the run says so.** Deleting the chezmoi declaration does not
-remove a `~/.claude/skills` link already on the machine (chezmoi never deletes a target it no longer
-manages), and the apply-time `uu bootstrap skills` pass preserves existing destinations. The link
-therefore survives until the next full weekly run reaps it, and for that window Claude Code sees two
-sources under one name. Additive fan-out warns with the absolute path in the additive mode, naming what
-it is leaving behind for the operator to delete. The operator handles any retirement needed before the
-next full weekly run.
-
-## Tier model (the lock's `tiers` table)
-
-Every roster skill is `core` (24) or `on-demand` (57). Core skills auto-load in every harness; on-demand
-skills stay installed everywhere but load only when explicitly invoked:
-
-- Claude Code: `skillOverrides.<name> = "user-invocable-only"`, one `setValueAtPath` per skill in the
-  settings modify-template. The write is per key, so overrides the user sets for other skills drift
-  freely.
-- Codex: an additive `agents/openai.yaml` carrying `policy: allow_implicit_invocation: false`. Codex then
-  never auto-invokes the skill, while explicit `$name` invocation keeps working.
-
-The overlay is committed next to each on-demand vendored skill; core vendored skills carry none, and the
-candidate overlay pass strips only the managed policy block from core skills. For npx- and
-clawhub-tracked skills (whose folders the add and update passes replace wholesale) `uu run skills`
-re-asserts the overlay on every run from the tiers table, and when an upstream skill ships its own
-`agents/openai.yaml` the policy is APPENDED so upstream metadata survives, never overwritten. Store
-entries that are SYMLINKS to app-owned content (`cua-driver`) never get an overlay, since writing through
-the link would modify content this repo does not own, so `cua-driver` stays implicitly invocable in Codex
-(a deliberate, documented asymmetry).
-
-## Hermes delivery is two-lane, under the five-profile architecture
-
-The profiles are default (Bob), elaine, butters, concerned and nicodemus.
-
-### Store-symlink lane (the lock's `hermesProfiles` table)
-
-The store copy is symlinked into the named profiles' `skills/` dirs (`default` = `~/.hermes/skills`, a
-specialist = `~/.hermes/profiles/<name>/private_skills`), declared in chezmoi and re-asserted by
-`uu run skills` at run time, which creates a profile `skills/` dir when absent. `[]` means the store copy
-reaches no hermes profile. Fan-out is driven ENTIRELY by this table: non-empty means symlink, `[]` means
-do not.
-
-The live-truth map: default = `herdr`, `moshi`, `lobster`, `todoist-cli`, `summarize-pro`,
-`home-assistant-best-practices`; butters = `chrome-devtools-axi`; concerned = `elevenlabs`, `last30days`;
-elaine = `lobster`; nicodemus = `gh-axi`, `kubernetes-specialist`, `sql-toolkit`. `home-assistant` maps
-to `[]`: hermes carries native Home Assistant runtime tools, so the runtime skill would be redundant
-there, and its store copy serves Claude and Codex only. The authoring companion,
-`home-assistant-best-practices`, is what default carries.
-
-### Hermes-owned lane (the lock's `hermesRegistry` table)
-
-Hermes installed the skill from a registry (skills.sh, ClawHub, or the official registry) and owns a real
-hub dir in the profile. The weekly `uu run skills` hermes phase keeps these fresh:
-`hermes -p <profile> skills update <lockKey>` per entry, keyed by the entry's `lockKey`, never a list
-name (a ClawHub slug can differ from the skill's frontmatter name: `tiktok-crawling` installs
-`tiktok-scraping-yt-dlp`).
-
-These skills have NO store symlink declaration, because a store symlink would shadow the hub-owned dir,
-which is why `hermesRegistry` and the non-empty `hermesProfiles` set are DISJOINT.
-
-A blocked or refused update does not stop the walk: it records a required failure and preserves its
-output, so remaining entries are still attempted and uu withholds its success marker. Automation never
-passes `--force` (bypassing a security scan needs per-invocation operator confirmation) and never
-uninstalls. `held: true` skips a skill visibly (none currently held). The default profile (Bob) is walked
-like any other, its un-entanglement is done (2026-07-09), and with `sql-toolkit` and `summarize-pro`
-since moved to the clawhub-tracked store lane, the registry table holds no default-profile entry:
-`conventional-commits` in nicodemus, the rest in concerned. The retired hub installs (nicodemus
-`sql-toolkit`, default `summarize-pro`) are unowned live state to hand-remove, never automated.
-
-### Harness-specific lane, outside the store (`babysit`)
-
-One skill is delivered to hermes as a real chezmoi-managed directory,
-`private_dot_hermes/private_skills/babysit/`, with no store copy and no lock row. It is the entry point
-to babysitter's orchestration CLI, and the three harness plugins each ship their own copy of it differing
-only in the harness name it hardcodes (`--harness hermes` against `codex` against `claude-code`).
-
-A store copy would therefore be wrong by construction. Codex scans the store natively with no per-skill
-opt-out, so a hermes-flavoured `babysit` there would put a second skill of that name in front of Codex
-telling it to run `--harness hermes`, which is the collision the catalog-first rule below forbids. Claude
-Code and Codex get their correct copies from the babysitter plugin instead; only hermes, which cannot
-load that plugin at all, needs a file.
-
-`treefmt.toml` excludes `private_dot_hermes/private_skills/**` from mdformat, for the same reason
-`dot_agents/**` is excluded: it is vendored skill content with YAML frontmatter mdformat would mangle.
-
-**Its dependency section is deliberately not upstream's.** Upstream's block reads a pinned SDK version
-out of a `versions.json` beside the plugin bundle and `npm i -g` installs it. Hermes sets no
-`PLUGIN_ROOT` and this delivery ships no `versions.json`, so that resolver produces `latest`, and the
-install line then downgrades the machine's pinned CLI for every tool that shares it. The local copy uses
-the already-installed `babysitter` and installs nothing at all; a missing CLI is reported rather than
-repaired. Keep it that way when porting anything else from upstream.
-
-It carries no `forks` drift-watch entry, and that is deliberate rather than an omission. The rest of the
-file is a stub whose body tells the agent to run `babysitter instructions:babysit-skill --harness hermes`
-and follow what comes back, so the instructions that matter are fetched at run time from the CLI pinned
-in `.chezmoidata/system_packages_autoinstall.yaml`. Re-compare it against `a5c-ai/babysitter-hermes`
-`skills/babysit/SKILL.md` when that pin is bumped, which is the only moment its content can meaningfully
-have moved.
-
-### Name collisions
-
-Collisions resolve catalog-first (operator ruling): the `humanizer` and `hyperframes` store copies serve
-Claude and Codex only and are never symlinked hermes-side, since hermes gets those names from its own
-catalog or hub. `summarize-pro` and `todoist-cli` left the collision set: their only hermes copies were
-hub installs (since retired), so no catalog copy wins those names and the store symlink is the wanted
-delivery. Review these ownership decisions when changing the delivery tables.
-
-## Superpowers to hermes routing (the lock's `superpowersRouting` table)
-
-The live `~/.hermes/skills/hermes-superpowers/` mirror is hand-patched so the five skills with
-hermes-native adaptations (`writing-plans`, `requesting-code-review`, `subagent-driven-development`,
-`systematic-debugging`, `test-driven-development`) are referenced by their adaptation names instead of
-`superpowers:<name>`, keeping the workflow out of the disabled legacy duplicates.
-
-The mapping lives in the lock's `superpowersRouting` table, and
-`~/.local/libexec/unattended-upgrades/agent-skills/assert-hermes-superpowers-routing.sh` re-asserts it
-idempotently on every `uu run skills` run and after any superpowers re-mirror. A re-assert that fixes
-anything is recorded in the lane report; a failed repair counts as a required failure.
-`assert-hermes-superpowers-routing.sh --check` is the health probe: non-zero lists the stale files and
-changes nothing. Scope is the hermes mirror ONLY. Claude Code's superpowers plugin keeps its
-`superpowers:*` references untouched.
-
-## Local forks (`moshi`) and verbatim vendored copies (`herdr`)
-
-`moshi` deliberately diverges from upstream, so `uu run skills` never touches it. When updating it, or
-when its upstream ships new features, first compare against upstream (https://getmoshi.app/skill), then
-port wanted changes into the vendored copy by hand. `herdr` is upstream verbatim: a refresh is copying
-`skills/herdr/SKILL.md` from the upstream repository over the vendored file (it is byte-identical to
-`herdr --skill` on the matching release) and advancing the hash. A `note` on a `forks` entry records
-anything a future maintainer would otherwise have to re-derive (why `elevenlabs` is vendored without
-being a content fork); the entries carry no line-by-line divergence log. The weekly run drift-checks the
-`forks` upstreams and reports changes as pending work in the combined uu record. Pending work escalates
-after the configured number of runs, three in the shipped skills lane. After the hand comparison, bump
-that fork's `lastComparedTreeHash` to the new upstream hash.
-
-Each outcome keeps its own advisory state, because the remedies differ:
-
-- **Drift** (`FORK DRIFT`, `fork-drift`) means upstream content moved, so compare and port, then bump the
-  hash.
-- **A missing path** (`FORK PATH MISSING`, `fork-path-missing`) means the upstream is fine but the
-  recorded `skillPath` is gone, so re-point `skillPath` and leave `lastComparedTreeHash` alone: bumping
-  it would silence a comparison nobody has made.
-- **An unreachable upstream** (`FORK UNREACHABLE`, `fork-upstream-unreachable`) means the fetch failed,
-  and the log carries git's own message so a renamed, deleted or newly private upstream is not filed
-  under "check your network" forever.
-- **An upstream with no usable HEAD** (`FORK NO UPSTREAM HEAD`, `fork-upstream-headless`) cloned fine and
-  has no commit to compare against, so the default branch was renamed or the repository is empty, and the
-  recorded `skillPath` is not what is missing.
-- **An unstageable clone** (`fork-clone-unstageable`) means there was no temp dir to fetch into, so
-  nothing was compared.
-- **A clone that never answered** (`FORK CLONE TIMED OUT`, `fork-clone-timeout`) means the fetch was
-  still running at its deadline (five minutes within the lane budget) and was stopped.
-- **A broken lock** (`fork-lock-broken`, `fork-lock-missing`, `fork-walk-incomplete`) means the `forks`
-  table, one of its entries, or the walk itself could not be used, so some or every upstream went
-  unwatched.
-- **A lock with no `forks` table at all** (`fork-table-absent`) is reported rather than read as a clean
-  zero-entry watch: an empty `{}` is how a lock says there is deliberately nothing to watch, while an
-  absent key is what a typo or a dropped table leaves behind, and that used to print what a healthy run
-  prints.
-
-Each clone has a five-minute deadline within the run's remaining budget. Clone failures and drift stay
-pending rather than failing the skills refresh. The report names the fork and retains the Git error;
-lock-level failures use their own state. Git runs with inherited configuration cleared, including system,
-global and command-scope settings, so URL rewrites cannot silently select a different upstream.
-
-The `forks` table is ADVISORY data: nothing in the mutating path reads it, so a malformed table or entry
-is reported by the watch and never refuses the weekly update (an unquoted `lastComparedTreeHash`, the one
-field edited by hand after clearing a drift, used to refuse every slot). Its shape is checked by the
-advisory watch without blocking publication.
-
-## Generation-exchange updates
-
-Every npx- and clawhub-tracked skill lives inside ONE live generation directory,
-`~/.agents/.skills-current` (real dirs under `skills/`, the npx CLI lock, and `generation.json` as the
-ready marker). The store names `~/.agents/skills/<name>` are stable symlinks into it and
-`~/.agents/.skill-lock.json` is a symlink to its lock, so sibling references like `../hyperframes-core`
-stay coherent within one generation.
-
-The weekly run builds a candidate generation as a fake HOME under
-`~/.agents/.skills-generations/<id>/home`, runs the package-CLI lanes against it under `env -i` (HOME,
-the XDG dirs, TMPDIR and the npm cache all pinned inside), validates the whole candidate, and publishes
-with the platform's atomic directory exchange. A fresh store uses a first rename. A lane or validation
-failure discards the owned candidate workspace and leaves the current generation untouched. Recovery
-validates interrupted publications and retains their journal and outgoing ownership until pruning and
-cleanup succeed.
-
-The honest guarantee: any path resolution during or after the exchange yields a complete tree from
-exactly one generation; a session that cached a resolved path keeps a complete previous generation until
-the next publication retires that previous generation, then gets a clean ENOENT, never partial content.
-
-Out-of-band writers (the HyperFrames workflows self-update via `npx hyperframes skills update`,
-upstream-controlled, no supported disable) bypass this exactly as they always did; the weekly recovery
-pass detects a store real dir where a link is expected and re-absorbs that content into the next
-candidate.
-
-Ready candidates record the roster and updater digests captured for the run. Recovery reuses compatible
-full candidates; otherwise a new candidate is built. The combined uu record carries required failures and
-pending fork work, and uu owns the success marker and per-lane escalation history. Explicit npx adds
-target Claude Code and Codex; other harness delivery comes from the declared profile map.
-
-## Schedule
-
-The skills lane runs with the configured `uu` weekly job. `just update-skills` invokes
-`~/.cargo/bin/uu run skills` manually. There is no activity gate or separate Monday retry window. The uu
-run lock prevents concurrent uu execution; a refused bootstrap exits 1 and its apply wrapper retains
-`~/.local/state/skills/first-install-pending` for the next apply.
-
-Before the cutover apply, the operator stops `com.webdavis.update-skills` and waits for old updater and
-manual `live-reconcile` invocations to finish. Source retirement cannot stop an already loaded job. The
-operator then performs a full apply, which installs uu and runs `uu bootstrap skills`. Bootstrap repairs
-absent or unhealthy roster entries additively, preserving healthy content and existing links. It still
-creates missing Hermes destinations when no publication is needed. Manual `live-reconcile` remains
-separate from running uu jobs.
-
-After successful bootstrap, the operator may remove the retired updater plist, script, skills log tree
-and `~/.local/state/update-skills/`. Preserve `~/.local/state/skills/` and any in-flight generation
-state. A failed or contended bootstrap retains and advances its retry marker; only success clears it.
+# Agent skills and plugins
+
+One list says which skills and plugins every agent gets: `.chezmoidata/agent_skills_and_plugins.yaml`.
+The apply installs whatever is missing from it. Weekly uu lanes update what is installed and print what
+changed. Nothing is ever removed for you: taking something off the list leaves it installed.
+
+## Where things live
+
+- `~/.agents/skills/<name>`: every skill, as a real folder. Codex reads this folder directly.
+- Claude Code (`~/.claude/skills`) and the Hermes profiles get links into it. The apply makes the links
+  from the list.
+- Hermes hub skills live inside their Hermes profile, and Hermes owns them.
+- Plugins stay where each tool keeps them: Claude Code, Codex and Hermes install their own.
+
+## The list, section by section
+
+| Section                        | Installed by                     | Updated by                                                   |
+| ------------------------------ | -------------------------------- | ------------------------------------------------------------ |
+| `skills.from_github`           | the apply (`npx skills add`)     | the `npx-skills` lane                                        |
+| `skills.from_clawhub`          | the apply (`clawhub install`)    | the `clawhub-skills` lane                                    |
+| `skills.vendored`              | the apply (`dot_agents/skills/`) | you, by hand; `vendored-skills-check` says when              |
+| `skills.app_owned`             | the app itself                   | `cua-driver-skills` for Cua Driver; composio updates its own |
+| `hermes.profiles.*.hub_skills` | the apply                        | the `hermes-skills` lane                                     |
+| `claude_code`, `codex` plugins | the apply                        | `claude-plugins`, `codex-plugins`                            |
+| Hermes plugins                 | the apply                        | `hermes-plugins`                                             |
+
+`claude_code.skip_skills` lists skills Claude Code does not get a link for, because a plugin already
+brings them (clean-code, pns) or it is not wanted there. `off_until_enabled` (Claude Code) and
+`enabled: false` (Codex) keep a plugin installed but off.
+
+## The weekly lanes
+
+| Lane                    | What it does                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `npx-skills`            | `npx skills add <repo> --skill … --agent codex -g -y`, once per repository     |
+| `clawhub-skills`        | `clawhub update <name>`, once per skill                                        |
+| `cua-driver-skills`     | `cua-driver skills update`; does nothing when Cua Driver is not installed      |
+| `vendored-skills-check` | compares each vendored skill with its upstream                                 |
+| `claude-plugins`        | refreshes the marketplaces, then `claude plugin update <id>` per plugin        |
+| `codex-plugins`         | `codex plugin marketplace upgrade`, which also refreshes installed plugins     |
+| `hermes-plugins`        | `hermes plugins update <name>` for each plugin installed from git              |
+| `hermes-skills`         | `hermes -p <profile> skills update <name>` per hub skill, skipping `held` ones |
+
+The scripts are in `dot_local/libexec/uu/`. Each prints one line per change
+(`grilling: 1a2b3c4 → 4d5e6f7`, `tdd: added`) and nothing when nothing changed. Problems go to stderr as
+`error[kind]: message`. Exit codes: 0 done, 75 try later, 100 needs you, 1 failed.
+
+`just update-skills` runs `uu run skills`, the `npx-skills`, `clawhub-skills` and `cua-driver-skills`
+lanes in that order.
+
+`npx-skills` and `clawhub-skills` hold the lock `~/.agents/.skills-folder.lock` while they run. If
+another run holds it, they exit 75 and try again next time.
+
+## Only when asked
+
+A skill in `skills.on_demand` loads only when you call it by name.
+
+- Claude Code: `private_dot_claude/modify_settings.json` sets it to user-invocable only.
+- Codex: its `agents/openai.yaml` gets `policy.allow_implicit_invocation: false`, merged in with `yq`.
+  The file's original text is kept in a last line starting `# uu-original-openai:`. `npx-skills` and
+  `clawhub-skills` set it again after every update, because an update replaces the folder. Vendored
+  skills carry their own file, and `cua-driver` is left alone because the app owns it.
+- ClawHub skills get a `.clawhubignore` listing `agents/openai.yaml`, so that file does not count as a
+  local edit when ClawHub updates the skill.
+
+## When a lane needs you
+
+- **`vendored-skills-check` prints `name: old → new`:** the upstream moved. Compare it with the copy in
+  `dot_agents/skills/<name>`, bring over what you want, then set that skill's `last_compared` to the new
+  hash. `moshi` is a fork on purpose, so only port what fits.
+- **`clawhub-skills` says `local-changes`:** the installed copy differs from every release. Look at the
+  folder, then reinstall it or keep your edit. The lane never passes `--force`.
+- **`claude-plugins` says `needs-approval`:** the plugin wants to run a new install command. Read it, and
+  if you trust it, run the command the lane printed. The lane never accepts it for you.
+- **`hermes-skills` says `blocked`:** Hermes refused the update after its security scan. Look at why
+  before you do anything; the lane never forces it. Set `held: true` on the entry to skip it meanwhile.
 
 ## Adding a skill
 
-1. Pick the lane. An official full-tree GitHub upstream gets an `npxTracked` entry
-   (`{"repo": "owner/repo"}`). A ClawHub-published skill gets a `clawhubTracked` entry
-   (`{"slug": "@owner/name", "registry": "https://clawhub.ai"}`). Anything else is vendored under
-   `dot_agents/skills/`, with a `forks` drift-watch entry when it has a watchable upstream. A `backpass`
-   extraction is that lane with no upstream; see "Locally extracted" above.
-1. Add its row to `tiers`, plus the `skillOverrides` template entry and the `agents/openai.yaml` overlay
-   when on-demand.
-1. Add its `hermesProfiles` row (`[]` when hermes should not carry it from the store, the named profiles
-   when it should). Add a `hermesRegistry` entry instead when hermes owns it from a registry; never both
-   a non-empty `hermesProfiles` mapping and a `hermesRegistry` entry, they are disjoint.
-1. Declare its Claude symlink, unless it gets a `claudeDelivery` `"none"` row instead, and, only for
-   store-symlinked skills, the mapped hermes symlinks.
-1. Review every roster table and harness declaration together, then run `just test`.
-1. The operator applies the change. For now, only a vendored skill arrives with the apply.
+1. Pick its section. A GitHub repository goes under `from_github`, beside its repo. A ClawHub skill goes
+   under `from_clawhub` with its slug. Anything else is committed under `dot_agents/skills/<name>` and
+   added to `vendored`, with an `upstream` when there is one to watch.
+1. Add it to `on_demand` if it should load only when asked.
+1. Add it to each Hermes profile that should carry it.
+1. Apply. The apply installs it and makes the links.
 
-**Removing one:** delete the store entry (or `npxTracked` row), every lock table row, and every
-declaration in the same commit.
+To remove one, take it off the list and delete the installed copy by hand.
 
-## On-demand use of an unregistered skill
+## Special cases
 
-Point the agent at the file: "read `~/.agents/skills/<name>/SKILL.md` and follow it." Router and
-search-and-load indirection layers were evaluated and rejected (measured lossy and slow at this library
-size). Hermes's larger native catalog (`~/.hermes/skills/<category>/`) remains Hermes-only.
+- **Graphify** keeps its Claude Code skill outside the store. `~/.claude/skills/graphify` is a normal
+  chezmoi link to `~/.local/share/graphify/claude/skills/graphify`, and the `uv-graphify-skill` lane
+  refreshes it after `uv`. To repair it by hand:
 
-## Plugin update record
+  ```bash
+  /usr/bin/env CLAUDE_CONFIG_DIR="$HOME/.local/share/graphify/claude" \
+    "$HOME/.local/bin/graphify" install --platform claude
+  ```
 
-Claude Code updates marketplaces and their installed plugins at startup (see `extraKnownMarketplaces` in
-`docs/runbooks/claude-code-settings.md`). The `claude-plugins` lane in `uu` records those changes in the
-combined weekly entry. It does not install or upgrade plugins.
-
-- **Source:** the configured `inventory` path, normally `~/.claude/plugins/installed_plugins.json`. Only
-  user-scope records are tracked. Invalid record shapes fail the whole reading; an inventory containing
-  only other scopes is a valid empty reading.
-- **Fingerprint:** a nonempty `version` other than `unknown`, then a nonempty `gitCommitSha`, then
-  `unknown`. `lastUpdated` is not a fingerprint because marketplace refreshes can change it without a
-  plugin update. Records contain plugin identifiers and fingerprints, never installation paths or
-  marketplace source URLs.
-- **State:** `~/.local/state/uu/lanes/claude-plugins/snapshot.tsv`. An existing uu snapshot wins.
-  Otherwise, the lane validates and atomically imports the old
-  `~/.local/state/report-plugin-updates/installed-plugins.snapshot`, including an empty snapshot,
-  preserving its bytes and leaving the legacy file alone. It seeds fresh only when both are absent.
-  Failed reads, validation and publication fail the lane without reseeding.
-- **Delivery timing:** the lane advances its snapshot during the run, before uu delivers the combined
-  record. This differs from the retired bash reporter: a refused record can leave that comparison absent
-  from the next run. Snapshot publication is atomic, and a publication failure is reported.
-- **Bootstrap:** `~/.cargo/bin/uu bootstrap claude-plugins` takes the run lock, seeds or imports the
-  baseline, and prints its report. It sends no record or alert and changes no success marker or streak.
-  Repeated bootstrap keeps existing history without consuming its pending comparison.
-- **Apply ordering:** script 69 invokes bootstrap after uu is deployed. This is the same apply that
-  enables marketplace auto-updates, so nothing between the settings write and the seed may start Claude
-  Code. Seed failure is nonfatal and leaves the next run to retry.
-- **Cutover:** before a full apply, the operator stops the old `com.webdavis.report-plugin-updates` job.
-  After confirming migration, the operator trashes the old plist, reporter, plugin-report log and legacy
-  state. Source retirement does not unload an already running job.
+- **babysit for Hermes** is a real folder in chezmoi, `private_dot_hermes/private_skills/babysit/`, and
+  not in the store. Claude Code and Codex get their own copy from the babysitter plugin.
