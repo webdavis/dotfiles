@@ -56,7 +56,7 @@ fn usage(problem: &str) -> i32 {
     eprintln!(
         "{}\n\
          usage:\n  \
-           uu run [<lane>]     run every enabled lane, or just one\n  \
+           uu run [<name>]     run every enabled lane, one lane, or a group's lanes\n  \
            uu bootstrap <lane> seed a lane without a weekly run\n  \
            uu doctor           what this config turns on, and what it cannot reach\n  \
            uu schedule render  the launchd job for the configured day and time\n\

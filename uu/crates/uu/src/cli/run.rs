@@ -1,5 +1,6 @@
 //! Load run configuration and compose the application with concrete adapters.
 
+use std::path::Path;
 use uu_adapters::{Config, config_path};
 use uu_application::{LockFailure, Run, RunClock, RunOutcome, RunPresentation, RunRequest};
 
@@ -52,7 +53,21 @@ pub fn run_mode(only: Option<&str>) -> i32 {
         Err(code) => return code,
     };
 
-    let log = log_path(&home);
+    let requested: Vec<Option<&str>> = match only.and_then(|name| config.groups.get(name)) {
+        Some(lanes) => lanes.iter().map(|lane| Some(lane.as_str())).collect(),
+        None => vec![only],
+    };
+    for lane in requested {
+        let status = run_once(&home, &path, &config, lane);
+        if status != 0 {
+            return status;
+        }
+    }
+    0
+}
+
+fn run_once(home: &str, path: &Path, config: &Config, only: Option<&str>) -> i32 {
+    let log = log_path(home);
     let presentation = match ConsoleRunPresentation::new(&log) {
         Ok(presentation) => presentation,
         Err(error) => {
@@ -67,7 +82,7 @@ pub fn run_mode(only: Option<&str>) -> i32 {
             return 1;
         }
     };
-    match execute(&home, &config, only, SystemRunClock, presentation) {
+    match execute(home, config, only, SystemRunClock, presentation) {
         RunOutcome::Completed => 0,
         RunOutcome::Interrupted => 1,
         RunOutcome::UndeclaredLane => {
