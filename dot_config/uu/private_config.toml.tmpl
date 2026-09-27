@@ -15,11 +15,10 @@
 # looked up to change it.
 
 # When `uu schedule render` prints a launchd job for. The tracked LaunchAgent
-# is what actually schedules this machine; these two keys feed the rendered
+# is what actually schedules this machine; this key feeds the rendered
 # plist and nothing else.
 [schedule]
-day = "sunday"
-time = "12:00"
+default = "sunday 12:00"
 
 [report]
 command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/send-report-to-hermes.sh" }}"]
