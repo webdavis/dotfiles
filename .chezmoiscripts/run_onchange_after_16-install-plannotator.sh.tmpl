@@ -1,34 +1,36 @@
 #!/usr/bin/env bash
-# updater-hash: {{ include "dot_local/libexec/uu/executable_update-plannotator.sh" | sha256sum }}
 
 set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-readonly plannotator_updater={{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-plannotator.sh" | quote }}
+readonly installer_url="https://raw.githubusercontent.com/backnotprop/plannotator/main/scripts/install.sh"
+readonly binary_only_flag="--minimal"
 
-plannotator_updater_is_installed() {
-  [[ -x $plannotator_updater ]]
+fetch_installer() {
+  curl -fsSL "$installer_url"
 }
 
-run_plannotator_updater() {
-  "$plannotator_updater"
+run_installer() {
+  local installer=$1
+  bash -c "$installer" -- "$binary_only_flag" </dev/null >/dev/null
 }
 
 main() {
   report_section 'plannotator' 'binary only; harness configuration stays in chezmoi'
 
-  if ! plannotator_updater_is_installed; then
-    report_line "error[updater-missing]: $plannotator_updater is not installed; plannotator was not reinstalled." >&2
+  local installer
+  if ! installer="$(fetch_installer)"; then
+    report_line "error[download-failed]: could not download the installer from $installer_url; plannotator was not reinstalled." >&2
     exit 1
   fi
 
-  report_line "running the updater..."
-  if ! run_plannotator_updater; then
-    report_line "error[update-failed]: $plannotator_updater failed." >&2
+  report_line "running the installer..."
+  if ! run_installer "$installer"; then
+    report_line "error[install-failed]: the installer failed; plannotator was not reinstalled." >&2
     exit 1
   fi
-  report_line "updater finished."
+  report_line "installer finished."
 }
 
 main "$@"

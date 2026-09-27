@@ -30,26 +30,24 @@ brings them (clean-code, pns) or it is not wanted there. `off_until_enabled` (Cl
 
 ## The weekly lanes
 
-| Lane                    | What it does                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| `npx-skills`            | `npx skills add <repo> --skill … --agent codex -g -y`, once per repository     |
-| `clawhub-skills`        | `clawhub update <name>`, once per skill                                        |
-| `cua-driver-skills`     | `cua-driver skills update`; does nothing when Cua Driver is not installed      |
-| `vendored-skills-check` | compares each vendored skill with its upstream                                 |
-| `claude-plugins`        | refreshes the marketplaces, then `claude plugin update <id>` per plugin        |
-| `codex-plugins`         | `codex plugin marketplace upgrade`, which also refreshes installed plugins     |
-| `hermes-plugins`        | `hermes plugins update <name>` for each plugin installed from git              |
-| `hermes-skills`         | `hermes -p <profile> skills update <name>` per hub skill, skipping `held` ones |
+| Lane                    | What it does                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `npx-skills`            | `npx skills add <repo> --skill … --agent codex -g -y`, once per repository        |
+| `clawhub-skills`        | `clawhub update --all`, or `clawhub update <name>` per skill when that finds none |
+| `cua-driver-skills`     | `cua-driver skills update`; does nothing when Cua Driver is not installed         |
+| `vendored-skills-check` | compares each vendored skill's files with its upstream's                          |
+| `claude-plugins`        | refreshes the marketplaces, then `claude plugin update <id>` per plugin           |
+| `codex-plugins`         | `codex plugin marketplace upgrade`, which also refreshes installed plugins        |
+| `hermes-plugins`        | `hermes plugins update <name>` for each plugin installed from git                 |
+| `hermes-skills`         | `hermes -p <profile> skills update` for each profile with `hub_skills`            |
 
-The scripts are in `dot_local/libexec/uu/`. Each prints one line per change
-(`grilling: 1a2b3c4 → 4d5e6f7`, `tdd: added`) and nothing when nothing changed. Problems go to stderr as
-`error[kind]: message`. Exit codes: 0 done, 75 try later, 100 needs you, 1 failed.
+Each lane is a uu builtin. Its settings, drawn from the list, are in
+`dot_config/uu/private_config.toml.tmpl`, and `uu lane show <name>` describes it. Each prints one line
+per change (`grilling: 1a2b3c4 -> 4d5e6f7`, `tdd: added`) and nothing when nothing changed. Problems go
+to stderr as `error[kind]: message`. Exit codes: 0 done, 75 try later, 100 needs you, 1 failed.
 
 `just update-skills` runs `uu run skills`, the `npx-skills`, `clawhub-skills` and `cua-driver-skills`
 lanes in that order.
-
-`npx-skills` and `clawhub-skills` hold the lock `~/.agents/.skills-folder.lock` while they run. If
-another run holds it, they exit 75 and try again next time.
 
 ## Only when asked
 
@@ -57,23 +55,23 @@ A skill in `skills.on_demand` loads only when you call it by name.
 
 - Claude Code: `private_dot_claude/modify_settings.json` sets it to user-invocable only.
 - Codex: its `agents/openai.yaml` gets `policy.allow_implicit_invocation: false`, merged in with `yq`.
-  The file's original text is kept in a last line starting `# uu-original-openai:`. `npx-skills` and
-  `clawhub-skills` set it again after every update, because an update replaces the folder. Vendored
-  skills carry their own file, and `cua-driver` is left alone because the app owns it.
-- ClawHub skills get a `.clawhubignore` listing `agents/openai.yaml`, so that file does not count as a
-  local edit when ClawHub updates the skill.
+  The file's original text is kept in a last line starting `# uu-original-openai:`. The apply sets it; an
+  update replaces the folder, so a skill a lane updated loads on its own again until the next apply that
+  reruns the skills step. Vendored skills carry their own file, and `cua-driver` is left alone because
+  the app owns it.
 
 ## When a lane needs you
 
-- **`vendored-skills-check` prints `name: old → new`:** the upstream moved. Compare it with the copy in
-  `dot_agents/skills/<name>`, bring over what you want, then set that skill's `last_compared` to the new
-  hash. `moshi` is a fork on purpose, so only port what fits.
+- **`vendored-skills-check` prints `name: differs from <repository> at <path>`:** the upstream files and
+  the installed copy differ. Compare the upstream with `dot_agents/skills/<name>` and bring over what you
+  want. `moshi` is a fork on purpose, so only port what fits; it differs every week.
 - **`clawhub-skills` says `local-changes`:** the installed copy differs from every release. Look at the
   folder, then reinstall it or keep your edit. The lane never passes `--force`.
 - **`claude-plugins` says `needs-approval`:** the plugin wants to run a new install command. Read it, and
   if you trust it, run the command the lane printed. The lane never accepts it for you.
 - **`hermes-skills` says `blocked`:** Hermes refused the update after its security scan. Look at why
-  before you do anything; the lane never forces it. Set `held: true` on the entry to skip it meanwhile.
+  before you do anything; the lane never forces it. It updates every hub skill in the profile, so
+  `held: true` on an entry no longer skips it.
 
 ## Adding a skill
 
