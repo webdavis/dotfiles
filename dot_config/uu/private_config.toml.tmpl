@@ -1,5 +1,5 @@
 # uu's lane selection. THE FILE SELECTS: a lane runs only when its
-# [lanes.<name>] block exists, records post only when [records] exists, and
+# [lane.<name>] block exists, records post only when [records] exists, and
 # alarms leave the machine only through configured destinations. With no file at all a
 # bare `uu run` runs nothing and exits clean; `uu run <lane>` still asks for
 # that lane by name and is refused with exit 1.
@@ -64,7 +64,7 @@ binary = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
 #
 # Lanes run in NAME order, not the order they are written below: `brew` runs
 # before `herdr` regardless of where either block sits in this file.
-[lanes.herdr]
+[lane.herdr]
 type = "herdr"
 binary = "{{ .chezmoi.homeDir }}/.local/bin/herdr"
 deadline_secs = 21600
@@ -93,7 +93,7 @@ plugins = [
 # WHOLE lane: an unbounded mas step is a week in which nothing after it ran.
 # Nothing else here is bounded per step, so a `brew upgrade` that never returns
 # still costs the lane its deadline and every lane after it in name order.
-[lanes.brew]
+[lane.brew]
 type = "brew"
 brew = "/opt/homebrew/bin/brew"
 mas = "/opt/homebrew/bin/mas"
@@ -119,7 +119,7 @@ deadline_secs = 21600
 # instead of living there unnoticed. NOTHING IS EVER REMOVED, by this lane or
 # any other: the answer to an undeclared line is to declare the package or to
 # leave it installed. node's own `npm` and `corepack` are never reported.
-[lanes.npm]
+[lane.npm]
 type = "npm"
 binary = "{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/npm"
 declared = [
@@ -144,7 +144,7 @@ deadline_secs = 21600
 # `undeclared: <name> <version>` for anything the list does not name. NOTHING
 # IS EVER REMOVED. Each name below is the tool's own, so an extras suffix a
 # declaration installs with is not part of it.
-[lanes.uv]
+[lane.uv]
 type = "uv"
 binary = "/opt/homebrew/bin/uv"
 declared = [
@@ -158,9 +158,8 @@ deadline_secs = 21600
 # is what keeps both of the installer's writes, the bundle and its registration,
 # inside the app-owned directory and out of managed ~/.claude/CLAUDE.md. The
 # Graphify section of docs/runbooks/agent-skills-store.md carries the repair recipe.
-[lanes.uv-graphify-skill]
-type = "command"
-run = [
+[lane.uv-graphify-skill]
+command = [
   "/usr/bin/env",
   "CLAUDE_CONFIG_DIR={{ .chezmoi.homeDir }}/.local/share/graphify/claude",
   "{{ .chezmoi.homeDir }}/.local/bin/graphify",
@@ -176,7 +175,7 @@ deadline_secs = 60
 # with the exact command to run. Set `compile = true` to have the lane build them
 # instead. A git-installed crate is named and skipped, because crates.io has no
 # version of it to compare against.
-[lanes.cargo]
+[lane.cargo]
 type = "cargo"
 cargo = "{{ .chezmoi.homeDir }}/.cargo/bin/cargo"
 compile = false
@@ -186,40 +185,34 @@ deadline_secs = 21600
 # roster, because `rustup update` already walks all of them. The SUMMARY it
 # prints is read rather than just its exit code: rustup exits 0 whether it moved
 # a toolchain or found nothing to do, so a record of "ok" could not say which.
-[lanes.rustup]
+[lane.rustup]
 type = "rustup"
 rustup = "{{ .chezmoi.homeDir }}/.cargo/bin/rustup"
 deadline_secs = 21600
 
 # Keep standalone CLI tools on the same weekly schedule as the other updaters.
-[lanes.composio]
-type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".composio/composio" }}", "upgrade"]
+[lane.composio]
+command = ["{{ joinPath .chezmoi.homeDir ".composio/composio" }}", "upgrade"]
 deadline_secs = 21600
 
-[lanes.codegraph]
-type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".local/bin/codegraph" }}", "upgrade"]
+[lane.codegraph]
+command = ["{{ joinPath .chezmoi.homeDir ".local/bin/codegraph" }}", "upgrade"]
 deadline_secs = 21600
 
-[lanes.plannotator]
-type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-plannotator.sh" }}"]
+[lane.plannotator]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-plannotator.sh" }}"]
 deadline_secs = 21600
 
-[lanes.herdr-binary]
-type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".local/bin/herdr" }}", "update"]
+[lane.herdr-binary]
+command = ["{{ joinPath .chezmoi.homeDir ".local/bin/herdr" }}", "update"]
 deadline_secs = 21600
 
-[lanes.yt-dlp]
-type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".local/bin/yt-dlp" }}", "-U"]
+[lane.yt-dlp]
+command = ["{{ joinPath .chezmoi.homeDir ".local/bin/yt-dlp" }}", "-U"]
 deadline_secs = 21600
 
-[lanes.bgutil-ytdlp-pot-provider]
-type = "command"
-run = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-bgutil-ytdlp-pot-provider.sh" }}"]
+[lane.bgutil-ytdlp-pot-provider]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-bgutil-ytdlp-pot-provider.sh" }}"]
 deadline_secs = 21600
 
 # A `command` lane is the PRODUCER API: it runs ANY executable under uu's
@@ -275,16 +268,15 @@ deadline_secs = 21600
 # A lane that goes three straight runs without a real success (deferred,
 # failed, or both) fires one staleness alert of its own, whatever each
 # individual run's own alert did or did not say.
-# [lanes.example]
-# type = "command"
-# run = ["/usr/local/bin/my-updater", "--yes"]
+# [lane.example]
+# command = ["/usr/local/bin/my-updater", "--yes"]
 # deadline_secs = 21600
 # escalate_after_runs = 3
 
 # Check the committed Neovim plugin pins without changing them. Enabling
 # auto_commit also requires clean, matching source, deployed and installed pins.
 # Failed auto-commit retains recovery state until those pins are reconciled.
-[lanes.nvim-plugins]
+[lane.nvim-plugins]
 type = "nvim-plugins"
 nvim = "/opt/homebrew/bin/nvim"
 config = "{{ .chezmoi.homeDir }}/.config/nvim"
@@ -294,14 +286,14 @@ escalate_after_runs = 3
 deadline_secs = 21600
 
 # Update Mason's configured tools. Language servers remain an operator action in :Mason.
-[lanes.nvim-mason]
+[lane.nvim-mason]
 type = "nvim-mason"
 nvim = "/opt/homebrew/bin/nvim"
 config = "{{ .chezmoi.homeDir }}/.config/nvim"
 deadline_secs = 21600
 
 # Reconcile installed parsers to the revisions pinned by the Treesitter plugin.
-[lanes.nvim-parsers]
+[lane.nvim-parsers]
 type = "nvim-parsers"
 nvim = "/opt/homebrew/bin/nvim"
 config = "{{ .chezmoi.homeDir }}/.config/nvim"
@@ -311,7 +303,7 @@ deadline_secs = 21600
 # verify startup in a fresh Neovim process. The retained plugin and copied Mason
 # trees cost roughly 2.5 gigabytes (2026-09-06 measurement). Health and keymap
 # reports stay under cache. Uncomment to enable; trash that cache to reclaim space.
-# [lanes.nvim-smoke-test]
+# [lane.nvim-smoke-test]
 # type = "nvim-smoke-test"
 # nvim = "/opt/homebrew/bin/nvim"
 # config = "{{ .chezmoi.homeDir }}/.config/nvim"
@@ -319,7 +311,7 @@ deadline_secs = 21600
 # deadline_secs = 21600
 
 # Record user-scope Claude Code plugin changes; Claude Code performs the updates itself.
-[lanes.claude-plugins]
+[lane.claude-plugins]
 type = "claude-plugins"
 inventory = "{{ .chezmoi.homeDir }}/.claude/plugins/installed_plugins.json"
 deadline_secs = 21600
@@ -327,7 +319,7 @@ deadline_secs = 21600
 # Rotate only these logs, preserving their open descriptors. Weekly rotation keeps
 # five generations; a log can grow past the threshold until the next weekly run.
 # A path that does not exist yet is skipped, not an error.
-[lanes.rotate-logs]
+[lane.rotate-logs]
 type = "rotate-logs"
 rotate_at_bytes = 10485760
 archives_kept = 5
