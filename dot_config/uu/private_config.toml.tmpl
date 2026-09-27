@@ -33,7 +33,19 @@ time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
 [lane.brew]
-command = ["scripts/update-brew.sh"]
+builtin = "brew"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.brew.settings]
+cleanup = true
+greedy = false
+
+[lane.brew-upgrade-record]
+after = ["brew"]
+command = ["scripts/brew-upgrade-record.sh"]
 env = {}
 scheduled = true
 time_limit = "6 hours"
@@ -113,6 +125,18 @@ unsuccessful_runs_before_alert = 3
 
 [lane.cua-driver-skills.settings]
 
+[lane.graphify]
+after = ["uv"]
+builtin = "graphify"
+env = {}
+scheduled = true
+time_limit = "1 minute"
+unsuccessful_runs_before_alert = 3
+
+[lane.graphify.settings]
+platforms = ["claude"]
+config_dir = "{{ .chezmoi.homeDir }}/.local/share/graphify/claude"
+
 [lane.herdr]
 builtin = "herdr"
 env = {}
@@ -120,12 +144,16 @@ scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
-[lane.herdr-binary]
-command = ["{{ .chezmoi.homeDir }}/.local/bin/herdr", "update"]
+[lane.herdr.settings]
+
+[lane.herdr-plugins]
+builtin = "herdr-plugins"
 env = {}
 scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
+
+[lane.herdr-plugins.settings]
 
 [lane.hermes-plugins]
 builtin = "hermes-plugins"
@@ -226,6 +254,15 @@ unsuccessful_runs_before_alert = 3
 
 [lane.plannotator.settings]
 
+[lane.posture-converge]
+after = ["brew"]
+command = ["scripts/posture-converge.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+uses_sudo = true
+
 [lane.rotate-logs]
 builtin = "rotate-logs"
 env = {}
@@ -260,11 +297,21 @@ unsuccessful_runs_before_alert = 3
 [lane.rustup.settings]
 
 [lane.skills-on-demand]
+after = ["clawhub-skills", "npx-skills"]
 command = ["scripts/mark-on-demand-skills.sh"]
 env = {}
 scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
+
+[lane.tailscaled-refresh]
+after = ["brew"]
+command = ["scripts/tailscaled-refresh.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+uses_sudo = true
 
 [lane.uv]
 builtin = "uv"
@@ -275,20 +322,6 @@ unsuccessful_runs_before_alert = 3
 
 [lane.uv.settings]
 skip = []
-
-[lane.uv-graphify-skill]
-command = [
-  "/usr/bin/env",
-  "CLAUDE_CONFIG_DIR={{ .chezmoi.homeDir }}/.local/share/graphify/claude",
-  "{{ .chezmoi.homeDir }}/.local/bin/graphify",
-  "install",
-  "--platform",
-  "claude",
-]
-env = {}
-scheduled = true
-time_limit = "1 minute"
-unsuccessful_runs_before_alert = 3
 
 [lane.vendored-skills-check]
 builtin = "vendored-skills-check"
@@ -315,6 +348,9 @@ time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
 [lane.yt-dlp.settings]
+
+[group.brew-and-repairs]
+lanes = ["brew", "posture-converge", "tailscaled-refresh", "brew-upgrade-record"]
 
 [group.skills]
 lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills", "skills-on-demand"]
