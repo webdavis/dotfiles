@@ -41,6 +41,7 @@ pub(super) struct Data {
     pub fail_alerts: bool,
     pub record: Option<RecordOutcome>,
     pub last_ok: BTreeMap<String, i64>,
+    pub report_fails: bool,
 }
 
 #[derive(Clone)]
@@ -68,6 +69,7 @@ impl Fixture {
                 description: "posted".into(),
             }),
             last_ok: BTreeMap::new(),
+            report_fails: false,
         })))
     }
 
@@ -219,7 +221,11 @@ impl RunDelivery for Fixture {
                 .map(|lane| (lane.report.name.clone(), lane.last_ok.clone()))
                 .collect(),
         ));
-        ReportOutcome::Delivered
+        if self.0.borrow().report_fails {
+            ReportOutcome::Failed("fixture report failure".into())
+        } else {
+            ReportOutcome::Delivered
+        }
     }
 }
 

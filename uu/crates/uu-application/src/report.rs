@@ -1,7 +1,9 @@
 use uu_domain::{LaneReport, LaneVerdict, Marker};
 
+use crate::delivery::send_alert;
 use crate::ports::{
-    Notice, ReportedLane, RunDelivery, RunHeader, RunPresentation, RunReport, RunState,
+    AlarmKind, AlertTarget, Notice, ReportOutcome, ReportedLane, RunDelivery, RunHeader,
+    RunPresentation, RunReport, RunState,
 };
 
 pub(crate) fn deliver_report(
@@ -19,11 +21,21 @@ pub(crate) fn deliver_report(
             last_ok: last_ok(state, presentation, header, started, report),
         })
         .collect();
-    delivery.report(RunReport {
+    let outcome = delivery.report(RunReport {
         host: &header.host,
         started_iso: &header.started_iso,
         lanes: &lanes,
     });
+    if let ReportOutcome::Failed(why) = outcome {
+        send_alert(
+            delivery,
+            presentation,
+            AlarmKind::ReportUndelivered,
+            &header.host,
+            AlertTarget::Run,
+            &format!("the run report was NOT delivered: {why}"),
+        );
+    }
 }
 
 fn last_ok(

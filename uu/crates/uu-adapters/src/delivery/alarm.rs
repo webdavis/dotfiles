@@ -16,7 +16,7 @@ impl<P: SignedPost, A> EngineRunDelivery<'_, P, A> {
             AlarmKind::Failed => "failed",
             AlarmKind::Stale => "stale",
             AlarmKind::Pending => "pending",
-            AlarmKind::RecordLost => "record-lost",
+            AlarmKind::RecordLost | AlarmKind::ReportUndelivered => "record-lost",
         };
         let body = record_body(state, host, detail);
         let signature = sign(&records.key, &body)

@@ -41,6 +41,7 @@ pub enum AlarmKind {
     Stale,
     Pending,
     RecordLost,
+    ReportUndelivered,
 }
 
 pub struct RunRecord<'a> {

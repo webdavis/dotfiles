@@ -65,3 +65,30 @@ fn an_unreadable_start_clock_never_records_a_last_ok_time() {
         vec![("alpha".into(), None)]
     )));
 }
+
+#[test]
+fn an_undelivered_report_raises_one_report_undelivered_alert_and_leaves_the_marker_to_the_record() {
+    let fixture = Fixture::new(vec![LaneReport::new("alpha")]);
+    fixture.0.borrow_mut().report_fails = true;
+    assert_eq!(fixture.run(&[("alpha", 60)], None), RunOutcome::Completed);
+    let events = fixture.events();
+    let reported = events
+        .iter()
+        .position(|event| matches!(event, Event::Report(..)))
+        .unwrap();
+    assert_eq!(
+        &events[reported + 1..],
+        [
+            Event::Alert(AlarmKind::ReportUndelivered, "run".into()),
+            Event::Epoch(Some(200)),
+            Event::MarkerWrite(200),
+            Event::Release,
+        ]
+    );
+    let summaries = fixture.0.borrow().summaries.clone();
+    assert_eq!(summaries.len(), 1, "{summaries:?}");
+    assert!(
+        summaries[0].contains("fixture report failure"),
+        "{summaries:?}"
+    );
+}

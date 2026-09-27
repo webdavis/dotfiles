@@ -41,3 +41,19 @@ fn a_run_hands_one_report_holding_every_lane_to_the_report_command() {
     assert!(lane("bad")["last_ok"].is_null(), "{report}");
     assert!(lane("bad")["duration_secs"].is_u64(), "{report}");
 }
+
+#[test]
+fn a_report_command_that_exits_non_zero_is_tried_once_and_raises_report_undelivered() {
+    let home = two_lanes_and(
+        Home::new("report-undelivered"),
+        "cat >/dev/null\nprintf 'attempt\\n' >>\"$HOME/attempts\"\nexit 1\n",
+    );
+    let output = home.uu(&["run"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let attempts = std::fs::read_to_string(home.dir.join("attempts")).expect("the attempts");
+    assert_eq!(attempts, "attempt\n");
+    assert!(
+        stdout(&output).contains("the run report was NOT delivered: exit 1"),
+        "{output:?}"
+    );
+}
