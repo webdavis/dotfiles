@@ -383,10 +383,8 @@ sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
 dscacheutil -q host -a name <peer>.<tailnet>.ts.net   # not dig, which bypasses /etc/resolver
 ```
 
-Durable fallback: needed peers are pinned in `/etc/hosts` declaratively, from `magicdns_fallback_hosts`
-in `.chezmoidata/tailscale.yaml`. `run_onchange_after_46-sudo-tailscale-magicdns-fallback-hosts.sh.tmpl`
-hands one host per line to `~/.cargo/bin/tailnet-pin`, which converges the file to exactly one line per
-host. Tailscaled never manages `/etc/hosts`, so the entries coexist, and tailnet IPs are stable per node.
+Durable fallback: a peer that must stay reachable when names fail gets a `Host` block in `~/.ssh/config`
+with its tailnet address as `HostName`. Tailnet IPs are stable per node.
 
 ### Updates
 
