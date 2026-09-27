@@ -1,9 +1,8 @@
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::os::unix::fs::OpenOptionsExt;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use uu_application::{AlarmKind, AlertTarget, ReportOutcome, RunReport};
 use uu_domain::{DEFAULT_LANE_DEADLINE, LaneVerdict};
@@ -78,11 +77,7 @@ fn outcome(verdict: LaneVerdict) -> LaneOutcome {
     }
 }
 
-pub(super) fn run_with_document(
-    label: &str,
-    command: &[String],
-    document: &str,
-) -> Result<(), String> {
+fn run_with_document(label: &str, command: &[String], document: &str) -> Result<(), String> {
     let input = document_file(document)
         .map_err(|error| format!("could not hand {} its input: {error}", command[0]))?;
     let output = OpenOptions::new()
