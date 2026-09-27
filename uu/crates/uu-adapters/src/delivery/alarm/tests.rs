@@ -55,6 +55,8 @@ fn delivery<'a>(
         records,
         engine,
         report: None,
+        alert: None,
+        log: std::path::Path::new("/dev/null"),
         post: Post {
             calls: RefCell::default(),
             outcome,
@@ -226,6 +228,8 @@ fn an_engine_exit_of_one_is_reported_rather_than_raised() {
         records: None,
         engine: Some("/usr/bin/false"),
         report: None,
+        alert: None,
+        log: std::path::Path::new("/dev/null"),
         post: Post {
             calls: RefCell::default(),
             outcome: PostOutcome::Status(204),

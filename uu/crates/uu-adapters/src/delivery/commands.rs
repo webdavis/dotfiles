@@ -3,10 +3,14 @@ use std::io::{Seek, SeekFrom, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use uu_application::{ReportOutcome, RunReport};
-use uu_domain::{DEFAULT_LANE_DEADLINE, LaneVerdict};
-use uu_protocol::{LaneEntry, LaneOutcome, report_document};
+use std::path::Path;
 
+use uu_application::{AlarmKind, AlertTarget, ReportOutcome, RunReport};
+use uu_domain::{DEFAULT_LANE_DEADLINE, LaneVerdict};
+use uu_protocol::{AlertKind, LaneEntry, LaneOutcome, alert_document, report_document};
+
+use super::target_name;
+use crate::adapters::append_log;
 use crate::lanes::CommandRunner;
 use crate::runner::SystemRunner;
 use crate::system::{iso, now_epoch};
@@ -29,6 +33,39 @@ pub(super) fn deliver_report(command: &[String], report: RunReport<'_>) -> Repor
     match run_with_document("[report]", command, &document) {
         Ok(()) => ReportOutcome::Delivered,
         Err(why) => ReportOutcome::Failed(why),
+    }
+}
+
+pub(super) fn deliver_alert(
+    command: &[String],
+    log: &Path,
+    kind: AlarmKind,
+    host: &str,
+    target: AlertTarget<'_>,
+    summary: &str,
+) {
+    let lane = match target {
+        AlertTarget::Run => None,
+        AlertTarget::Lane(lane) => Some(lane),
+    };
+    let document = alert_document(alert_kind(kind), lane, host, summary);
+    if let Err(why) = run_with_document("[alert]", command, &document) {
+        append_log(
+            log,
+            &format!(
+                "uu: the [alert] command for `{}` failed: {why}",
+                target_name(target)
+            ),
+        );
+    }
+}
+
+fn alert_kind(kind: AlarmKind) -> AlertKind {
+    match kind {
+        AlarmKind::Failed => AlertKind::Failed,
+        AlarmKind::Stale => AlertKind::Stale,
+        AlarmKind::Pending => AlertKind::Pending,
+        AlarmKind::RecordLost | AlarmKind::ReportUndelivered => AlertKind::ReportUndelivered,
     }
 }
 

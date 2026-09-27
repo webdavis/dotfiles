@@ -137,11 +137,12 @@ fn execute(
             )
         })
         .collect();
+    let log = log_path(home);
     let run = Run {
         state: FileRunState(home),
         clock,
         lanes: ConfiguredLaneExecutor(config),
-        delivery: EngineRunDelivery::new(config),
+        delivery: EngineRunDelivery::new(config, &log),
         presentation,
     };
     run.execute(RunRequest {

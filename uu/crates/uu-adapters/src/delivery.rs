@@ -8,6 +8,7 @@ mod alarm;
 mod commands;
 use crate::signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 use std::io::Write;
+use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
 use uu_application::{
@@ -64,16 +65,20 @@ pub struct EngineRunDelivery<'a, P, A> {
     pub records: Option<&'a Records>,
     pub engine: Option<&'a str>,
     pub report: Option<&'a [String]>,
+    pub alert: Option<&'a [String]>,
+    pub log: &'a Path,
 }
 
 impl<'a> EngineRunDelivery<'a, UreqSignedPost, PnsAlerter> {
-    pub fn new(config: &'a Config) -> Self {
+    pub fn new(config: &'a Config, log: &'a Path) -> Self {
         Self {
             post: UreqSignedPost,
             alerter: PnsAlerter,
             records: config.records.as_ref(),
             engine: config.alerts.as_ref().map(|alerts| alerts.binary.as_str()),
             report: config.report.as_deref(),
+            alert: config.alert.as_deref(),
+            log,
         }
     }
 }
@@ -108,6 +113,10 @@ impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {
             if let Err(why) = self.alarm_post(records, url, kind, host, summary) {
                 failures.push(why);
             }
+        }
+        if let Some(command) = self.alert {
+            configured = true;
+            commands::deliver_alert(command, self.log, kind, host, target, summary);
         }
         if !failures.is_empty() {
             AlertOutcome::Failed(failures.join("; "))
