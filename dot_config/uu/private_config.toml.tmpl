@@ -1,170 +1,137 @@
-# uu's lane selection. THE FILE SELECTS: a lane runs only when its
-# [lane.<name>] block exists, reports go out only when [report] exists, and
-# alarms leave the machine only through configured destinations. With no file at all a
-# bare `uu run` runs nothing and exits clean; `uu run <lane>` still asks for
-# that lane by name and is refused with exit 1.
-#
-# Unknown keys are refused BY NAME at load, in the same sentence that lists
-# what the table does serve, and so is a lane whose `type` this build does not
-# serve, or that states none on a name that is not itself a type. A typo
-# therefore blocks the whole file rather than quietly switching a lane off,
-# which is the trade: the loud half is a refusal on stderr, and the quiet half
-# it replaces is a subject that silently stops being updated.
-#
-# Every default is written out below at its default value, so nothing has to be
-# looked up to change it.
+[paths]
+state = "{{ .chezmoi.homeDir }}/.local/state/uu"
 
 [schedule]
 default = "sunday 12:00"
+label = "uu.daemon"
+
+[history]
+keep = 52
+
+[tui]
+default_screen = "runs"
+theme = "catppuccin-macchiato"
+mouse = true
+runs = 20
 
 [report]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/send-report-to-hermes.sh" }}"]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/send-report-to-hermes.sh"]
 
 [alert]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/send-alert-to-pns.sh" }}"]
-
-# Lanes run in NAME order, not the order they are written below: `brew` runs
-# before `herdr` regardless of where either block sits in this file.
-[lane.herdr]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-herdr-plugins.sh" }}"]
-deadline_secs = 21600
-
-[lane.brew]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-brew.sh" }}"]
-deadline_secs = 21600
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/send-alert-to-pns.sh"]
 
 [lane.app-store]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-app-store.sh" }}"]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-app-store.sh"]
+env = {}
+scheduled = true
 deadline_secs = 21600
-
-[lane.npm]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-npm.sh" }}"]
-deadline_secs = 21600
-
-[lane.uv]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-uv.sh" }}"]
-deadline_secs = 21600
-
-# Refresh the app-owned Claude skill after uv in lane-name order. CLAUDE_CONFIG_DIR
-# is what keeps both of the installer's writes, the bundle and its registration,
-# inside the app-owned directory and out of managed ~/.claude/CLAUDE.md. The
-# Graphify section of docs/runbooks/agent-skills-store.md carries the repair recipe.
-[lane.uv-graphify-skill]
-command = [
-  "/usr/bin/env",
-  "CLAUDE_CONFIG_DIR={{ .chezmoi.homeDir }}/.local/share/graphify/claude",
-  "{{ .chezmoi.homeDir }}/.local/bin/graphify",
-  "install",
-  "--platform",
-  "claude",
-]
-deadline_secs = 60
-
-[lane.cargo]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/check-cargo.sh" }}"]
-deadline_secs = 21600
-
-[lane.rustup]
-command = ["rustup", "update"]
-deadline_secs = 21600
-
-# Keep standalone CLI tools on the same weekly schedule as the other updaters.
-[lane.composio]
-command = ["{{ joinPath .chezmoi.homeDir ".composio/composio" }}", "upgrade"]
-deadline_secs = 21600
-
-[lane.codegraph]
-command = ["{{ joinPath .chezmoi.homeDir ".local/bin/codegraph" }}", "upgrade"]
-deadline_secs = 21600
-
-[lane.plannotator]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-plannotator.sh" }}"]
-deadline_secs = 21600
-
-[lane.herdr-binary]
-command = ["{{ joinPath .chezmoi.homeDir ".local/bin/herdr" }}", "update"]
-deadline_secs = 21600
-
-[lane.yt-dlp]
-command = ["{{ joinPath .chezmoi.homeDir ".local/bin/yt-dlp" }}", "-U"]
-deadline_secs = 21600
+escalate_after_runs = 3
 
 [lane.bgutil-ytdlp-pot-provider]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-bgutil-ytdlp-pot-provider.sh" }}"]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-bgutil-ytdlp-pot-provider.sh"]
+env = {}
+scheduled = true
 deadline_secs = 21600
-
-# A `command` lane is the PRODUCER API: it runs ANY executable under uu's
-# locked contract (a JSON run event on stdin, the exit code as the verdict),
-# with no core code to touch. Uncomment and rename the block to turn one on;
-# the lane's name is your own choice.
-#
-# `command[0]` is the program, `command[1..]` its arguments, and argv[0] the child
-# sees is `command[0]` verbatim. Env and working directory are INHERITED from uu's
-# own process; under the daemon that is the PATH `uu daemon install` ran with
-# plus HOME, with the working directory at `/`.
-#
-# `deadline_secs` bounds the WHOLE LANE, not each command it runs, and every
-# lane has one whether or not its block says so (six hours by default). The
-# child runs in a process group of its own, so a child that leaves something
-# behind holding its stdout or stderr open (a backgrounded process, a detached
-# daemon) has that group killed at the deadline instead of stalling uu
-# forever; the lane then reports the overrun as an ordinary failure. The run
-# lock is held across lane execution, which is why the bound matters: a lane
-# that never ends is a lock every later run waits on and never gets.
-#
-# THE WHOLE RUN IS BOUNDED AT 24 HOURS as well, and that is not configurable.
-# Lanes run in sequence under one lock, so enough lanes at six hours each
-# would outlast the week; a lane starting late gets what is left of the day
-# rather than its own full deadline, and says so when it is stopped there.
-#
-# EXIT 75 MEANS DEFERRED, not failed: nothing was attempted, so try again
-# later. This is the exit code the program itself chooses to return, matching
-# the two weekly jobs uu's command lane can eventually replace, both of which
-# already use 75 for "another run holds the lock". A deferred lane never
-# counts as a failure and never advances the last-success marker; the record
-# still names it "deferred" so a quiet week reads differently from a week
-# nothing needed to happen. What a deferral withholds is specifically uu's OWN
-# per-run failure alert, because the lane did not run: it is not a promise of
-# silence. The lane's own program may still alert on its own account, a
-# record the gateway never received alerts regardless of what any lane did,
-# and three straight non-successes (deferred, failed, or a mix) still fire
-# uu's own staleness alert below. Exit 100 means pending; every other non-zero
-# exit is a real failure.
-# THE COLLISION: 75 is also the exit code hermes's own gateway process uses
-# to ask its service manager for a planned restart, so a program that IS
-# hermes, or that forwards hermes's own exit code unchanged, could exit 75
-# for a reason that has nothing to do with deferral; write your own exit
-# code rather than passing one through.
-#
-# EXIT 100 MEANS PENDING: the check succeeded, but updates need operator action.
-# It keeps stdout and the stderr reason, counts as neither failure nor deferral,
-# and allows the last-success marker to advance after the record is delivered.
-# `escalate_after_runs` defaults to 3 for every lane. Consecutive pending runs
-# trigger one alarm at that count; any non-pending verdict resets the count.
-# A refused alarm stays eligible on the next pending run.
-#
-# A lane that goes three straight runs without a real success (deferred,
-# failed, or both) fires one staleness alert of its own, whatever each
-# individual run's own alert did or did not say.
-# [lane.example]
-# command = ["/usr/local/bin/my-updater", "--yes"]
-# deadline_secs = 21600
-# escalate_after_runs = 3
-
-# Check the committed Neovim plugin pins without changing them.
-[lane.nvim-plugins]
-command = [
-  "/opt/homebrew/bin/nvim",
-  "--headless",
-  "-u",
-  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
-  "-l",
-  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/plugins.lua",
-]
 escalate_after_runs = 3
-deadline_secs = 21600
 
-# Update Mason's configured tools. Language servers remain an operator action in :Mason.
+[lane.brew]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-brew.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.cargo]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/check-cargo.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.claude-plugins]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-claude-plugins.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.clawhub-skills]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-clawhub-skills.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.codegraph]
+command = ["{{ .chezmoi.homeDir }}/.local/bin/codegraph", "upgrade"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.codex-plugins]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-codex-plugins.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.composio]
+command = ["{{ .chezmoi.homeDir }}/.composio/composio", "upgrade"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.cua-driver-skills]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-cua-driver-skills.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.herdr]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-herdr-plugins.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.herdr-binary]
+command = ["{{ .chezmoi.homeDir }}/.local/bin/herdr", "update"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.hermes-plugins]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-hermes-plugins.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.hermes-skills]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-hermes-skills.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.npm]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-npm.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.npx-skills]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-npx-skills.sh"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
+
 [lane.nvim-mason]
 command = [
   "/opt/homebrew/bin/nvim",
@@ -174,9 +141,11 @@ command = [
   "-l",
   "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/mason.lua",
 ]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
 
-# Reconcile installed parsers to the revisions pinned by the Treesitter plugin.
 [lane.nvim-parsers]
 command = [
   "/opt/homebrew/bin/nvim",
@@ -186,43 +155,80 @@ command = [
   "-l",
   "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/parsers.lua",
 ]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
 
-[lane.claude-plugins]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-claude-plugins.sh" }}"]
+[lane.nvim-plugins]
+command = [
+  "/opt/homebrew/bin/nvim",
+  "--headless",
+  "-u",
+  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
+  "-l",
+  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/plugins.lua",
+]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
 
-[lane.codex-plugins]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-codex-plugins.sh" }}"]
+[lane.plannotator]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-plannotator.sh"]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
 
-[lane.hermes-plugins]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-hermes-plugins.sh" }}"]
+[lane.rotate-logs]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/rotate-logs.sh"]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
 
-[lane.hermes-skills]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-hermes-skills.sh" }}"]
+[lane.rustup]
+command = ["rustup", "update"]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
 
-[lane.npx-skills]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-npx-skills.sh" }}"]
+[lane.uv]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-uv.sh"]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
 
-[lane.clawhub-skills]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-clawhub-skills.sh" }}"]
-deadline_secs = 21600
-
-[lane.cua-driver-skills]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-cua-driver-skills.sh" }}"]
-deadline_secs = 21600
+[lane.uv-graphify-skill]
+command = [
+  "/usr/bin/env",
+  "CLAUDE_CONFIG_DIR={{ .chezmoi.homeDir }}/.local/share/graphify/claude",
+  "{{ .chezmoi.homeDir }}/.local/bin/graphify",
+  "install",
+  "--platform",
+  "claude",
+]
+env = {}
+scheduled = true
+deadline_secs = 60
+escalate_after_runs = 3
 
 [lane.vendored-skills-check]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/check-vendored-skills.sh" }}"]
+command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/check-vendored-skills.sh"]
+env = {}
+scheduled = true
 deadline_secs = 21600
+escalate_after_runs = 3
+
+[lane.yt-dlp]
+command = ["{{ .chezmoi.homeDir }}/.local/bin/yt-dlp", "-U"]
+env = {}
+scheduled = true
+deadline_secs = 21600
+escalate_after_runs = 3
 
 [group.skills]
 lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills"]
-
-[lane.rotate-logs]
-command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/rotate-logs.sh" }}"]
-deadline_secs = 21600
