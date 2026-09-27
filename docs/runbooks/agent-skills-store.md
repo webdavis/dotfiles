@@ -94,8 +94,8 @@ To remove one, take it off the list and delete the installed copy by hand.
 ## Special cases
 
 - **Graphify** keeps its Claude Code skill outside the store. `~/.claude/skills/graphify` is a normal
-  chezmoi link to `~/.local/share/graphify/claude/skills/graphify`, and the `uv-graphify-skill` lane
-  refreshes it after `uv`. To repair it by hand:
+  chezmoi link to `~/.local/share/graphify/claude/skills/graphify`, and the `graphify` lane refreshes it
+  after `uv` when its version is older than the graphify program's. To repair it by hand:
 
   ```bash
   /usr/bin/env CLAUDE_CONFIG_DIR="$HOME/.local/share/graphify/claude" \
