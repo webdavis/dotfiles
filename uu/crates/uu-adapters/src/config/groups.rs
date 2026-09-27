@@ -9,6 +9,12 @@ pub(super) fn parse_groups(
 ) -> Result<BTreeMap<String, Vec<String>>, ConfigError> {
     let mut groups = BTreeMap::new();
     for (name, block) in table_of("group", value)? {
+        if lanes.contains_key(&name) {
+            return Err(ConfigError::Invalid(format!(
+                "group `{name}` has the same name as a lane, so `uu run {name}` could mean \
+                 either; rename one of them"
+            )));
+        }
         let table_label = format!("group.{name}");
         let table = table_of(&table_label, block)?;
         if let Some(setting) = table.get("lanes") {
@@ -32,6 +38,17 @@ mod tests {
                               [lane.second]\ncommand = [\"/fixture/second\"]\n\n";
     const LANES_TABLE: &str = "[lanes.first]\ntype = \"command\"\nrun = [\"/fixture/first\"]\n\n\
                                [lanes.second]\ntype = \"command\"\nrun = [\"/fixture/second\"]\n\n";
+
+    #[test]
+    fn a_group_that_shares_its_name_with_a_lane_is_refused_naming_it() {
+        for lanes in [LANE_TABLE, LANES_TABLE] {
+            let detail = refusal(&format!("{lanes}[group.first]\nlanes = [\"second\"]\n"));
+            assert!(
+                detail.contains("group `first` has the same name as a lane"),
+                "{detail}"
+            );
+        }
+    }
 
     #[test]
     fn a_group_listing_a_name_no_lane_block_declares_is_refused_naming_the_group_and_the_name() {
