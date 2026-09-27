@@ -1,8 +1,9 @@
-//! `[lanes.<name>]` with `type = "command"`: the PRODUCER API.
+//! `[lane.<name>]` with no `type`, or any lane block with `type = "command"`:
+//! the PRODUCER API.
 //!
-//! `run[0]` is the program and `run[1..]` its arguments. The lane's NAME is
-//! the operator's own choice; nothing here constrains it, which is the whole
-//! point of the producer API.
+//! `command[0]` is the program and `command[1..]` its arguments; `run` is the
+//! older name for the same key. The lane's NAME is the operator's own choice;
+//! nothing here constrains it, which is the whole point of the producer API.
 
 use crate::config::ConfigError;
 use crate::config::schema::admits_lane;
@@ -12,7 +13,8 @@ pub struct CommandLane {
     pub(crate) run: Vec<String>,
 }
 
-/// `run` is required; everything else `admits` already refused.
+/// `command`, or the older `run`, is required, and never both; everything else
+/// `admits` already refused.
 ///
 /// `admits` RUNS FIRST, inside this same loop, before the after-loop check
 /// below for a missing `run`. A block that names an unknown key AND no `run`
@@ -23,10 +25,12 @@ pub(crate) fn parse_command_lane(
     table_label: &str,
     table: toml::Table,
 ) -> Result<CommandLane, ConfigError> {
+    let mut command = None;
     let mut run = None;
     for (name, setting) in table {
         admits_lane(table_label, "command", CommandLane::KEYS, &name)?;
         match name.as_str() {
+            "command" => command = Some(parse_argv(table_label, "command", &setting)?),
             "run" => run = Some(parse_argv(table_label, "run", &setting)?),
             // Read by `lane_type` before this block was dispatched; nothing
             // is left to do with it here.
@@ -35,7 +39,13 @@ pub(crate) fn parse_command_lane(
             _ => {}
         }
     }
-    let run = run.ok_or_else(|| {
+    if command.is_some() && run.is_some() {
+        return Err(ConfigError::Invalid(format!(
+            "`{table_label}` has both `command` and `run`, which mean the same thing; keep \
+             `command` and remove `run`"
+        )));
+    }
+    let run = command.or(run).ok_or_else(|| {
         ConfigError::Invalid(format!(
             "`{table_label}` has no `run`, so it names nothing to run"
         ))
@@ -78,14 +88,19 @@ pub(super) fn parse_argv(
 }
 
 impl CommandLane {
-    pub(crate) const KEYS: &'static [&'static str] =
-        &["deadline_secs", "escalate_after_runs", "run", "type"];
+    pub(crate) const KEYS: &'static [&'static str] = &[
+        "command",
+        "deadline_secs",
+        "escalate_after_runs",
+        "run",
+        "type",
+    ];
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::probes::{checked_text, refusal, typed};
+    use crate::config::probes::{checked_text, parsed, refusal, typed};
 
     #[test]
     fn a_command_lane_without_run_is_refused_because_it_names_nothing_to_run() {
@@ -133,6 +148,46 @@ mod tests {
             detail.contains("unknown `lanes.mine` key `binary`"),
             "{detail}"
         );
+    }
+
+    #[test]
+    fn a_command_lane_reads_command_as_the_program_and_its_arguments_the_way_it_reads_run() {
+        let config = checked_text(
+            "[lanes.mine]\ntype = \"command\"\ncommand = [\"/fixture/updater\", \"--yes\"]\n",
+        );
+        assert_eq!(
+            typed::<CommandLane>(config, "mine"),
+            Some(CommandLane {
+                run: vec!["/fixture/updater".to_string(), "--yes".to_string()],
+            })
+        );
+        let detail = refusal("[lane.mine]\ncommand = []\n");
+        assert!(
+            detail.contains("`lane.mine` key `command` is empty"),
+            "{detail}"
+        );
+    }
+
+    #[test]
+    fn a_lane_block_with_no_type_runs_its_command_as_the_program_and_its_arguments() {
+        let config = parsed("[lane.mine]\ncommand = [\"/fixture/updater\", \"--yes\"]\n");
+        let lane = &config.lanes["mine"];
+        assert_eq!(lane.type_name(), "command");
+        let expected = CommandLane {
+            run: vec!["/fixture/updater".to_string(), "--yes".to_string()],
+        };
+        assert_eq!(format!("{:?}", lane.adapter), format!("{expected:?}"));
+    }
+
+    #[test]
+    fn a_command_lane_with_both_command_and_run_is_refused_naming_both() {
+        let detail =
+            refusal("[lane.mine]\ncommand = [\"/fixture/one\"]\nrun = [\"/fixture/two\"]\n");
+        assert!(
+            detail.contains("`lane.mine` has both `command` and `run`"),
+            "{detail}"
+        );
+        assert!(detail.contains("keep `command`"), "{detail}");
     }
 
     #[test]

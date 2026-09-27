@@ -11,6 +11,7 @@ packages:
         - nikitabobko/tap
         - openai/tools
         - openhue/cli
+        - plannotator/tap
         - rjyo/moshi
         - xdevplatform/tap
       # Every third-party tap declared above is trusted up front so Homebrew can
@@ -30,6 +31,7 @@ packages:
         - nikitabobko/tap
         - openai/tools
         - openhue/cli
+        - plannotator/tap
         - rjyo/moshi
         - xdevplatform/tap
       formulae:
@@ -122,6 +124,7 @@ packages:
         - parallel
         - pgvector
         - pinentry-mac
+        - plannotator/tap/plannotator-tui
         - pnpm
         - portaudio
         - procs

@@ -480,7 +480,7 @@ state. A failed or contended bootstrap retains and advances its retry marker; on
 1. Declare its Claude symlink, unless it gets a `claudeDelivery` `"none"` row instead, and, only for
    store-symlinked skills, the mapped hermes symlinks.
 1. Review every roster table and harness declaration together, then run `just test`.
-1. The operator applies the change; `uu bootstrap skills` repairs missing entries additively.
+1. The operator applies the change. For now, only a vendored skill arrives with the apply.
 
 **Removing one:** delete the store entry (or `npxTracked` row), every lock table row, and every
 declaration in the same commit.
