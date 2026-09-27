@@ -273,42 +273,42 @@ deadline_secs = 21600
 # deadline_secs = 21600
 # escalate_after_runs = 3
 
-# Check the committed Neovim plugin pins without changing them. Enabling
-# auto_commit also requires clean, matching source, deployed and installed pins.
-# Failed auto-commit retains recovery state until those pins are reconciled.
+# Check the committed Neovim plugin pins without changing them.
 [lane.nvim-plugins]
-type = "nvim-plugins"
-nvim = "/opt/homebrew/bin/nvim"
-config = "{{ .chezmoi.homeDir }}/.config/nvim"
-auto_commit = false
-repo = "{{ .chezmoi.sourceDir }}"
+command = [
+  "/opt/homebrew/bin/nvim",
+  "--headless",
+  "-u",
+  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
+  "-l",
+  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/plugins.lua",
+]
 escalate_after_runs = 3
 deadline_secs = 21600
 
 # Update Mason's configured tools. Language servers remain an operator action in :Mason.
 [lane.nvim-mason]
-type = "nvim-mason"
-nvim = "/opt/homebrew/bin/nvim"
-config = "{{ .chezmoi.homeDir }}/.config/nvim"
+command = [
+  "/opt/homebrew/bin/nvim",
+  "--headless",
+  "-u",
+  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
+  "-l",
+  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/mason.lua",
+]
 deadline_secs = 21600
 
 # Reconcile installed parsers to the revisions pinned by the Treesitter plugin.
 [lane.nvim-parsers]
-type = "nvim-parsers"
-nvim = "/opt/homebrew/bin/nvim"
-config = "{{ .chezmoi.homeDir }}/.config/nvim"
+command = [
+  "/opt/homebrew/bin/nvim",
+  "--headless",
+  "-u",
+  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
+  "-l",
+  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/parsers.lua",
+]
 deadline_secs = 21600
-
-# Opt-in: prepare candidate plugins in a private config and data tree, then
-# verify startup in a fresh Neovim process. The retained plugin and copied Mason
-# trees cost roughly 2.5 gigabytes (2026-09-06 measurement). Health and keymap
-# reports stay under cache. Uncomment to enable; trash that cache to reclaim space.
-# [lane.nvim-smoke-test]
-# type = "nvim-smoke-test"
-# nvim = "/opt/homebrew/bin/nvim"
-# config = "{{ .chezmoi.homeDir }}/.config/nvim"
-# cache = "{{ .chezmoi.homeDir }}/.cache/uu/nvim-smoke-test"
-# deadline_secs = 21600
 
 # Record user-scope Claude Code plugin changes; Claude Code performs the updates itself.
 [lane.claude-plugins]
