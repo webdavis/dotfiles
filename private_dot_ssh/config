@@ -50,3 +50,11 @@ Host bob
   HostName 192.168.1.171
   User localadmin
   Port 6040
+
+Host raith
+  HostName 100.86.187.54
+  User stephen
+
+Host dresden
+  HostName 100.77.192.92
+  User stephen
