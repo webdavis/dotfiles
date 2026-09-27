@@ -1,5 +1,5 @@
 # uu's lane selection. THE FILE SELECTS: a lane runs only when its
-# [lane.<name>] block exists, records post only when [records] exists, and
+# [lane.<name>] block exists, reports go out only when [report] exists, and
 # alarms leave the machine only through configured destinations. With no file at all a
 # bare `uu run` runs nothing and exits clean; `uu run <lane>` still asks for
 # that lane by name and is refused with exit 1.
@@ -21,26 +21,11 @@
 day = "sunday"
 time = "12:00"
 
-# The weekly what-happened entry, signed and posted straight to the hermes
-# gateway. Every entry states its own gap since the last clean run: launchd
-# coalesces missed calendar slots, so a healthy job can produce one entry
-# covering three weeks and a missing entry says nothing on its own.
-[records]
-url = "http://127.0.0.1:8644/webhooks/uu-runs"
-key = "{{ (keepassxc "Hermes :: Webhook Secret (#uu-runs)").Password }}"
-# Optional second destination for failed, stale, pending and record-lost alarms,
-# for a machine with no engine to report them through. Signed with the same key.
-# Each configured destination is attempted once; a refusal stays retryable for
-# one-shot alarms without changing the run verdict. Unset here: a failed lane
-# reaches the operator through [alerts] below, which states what the failure IS
-# and lets the engine decide which of its routes pages.
-# failure_webhook = "http://127.0.0.1:8644/webhooks/<route>"
+[report]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/send-report-to-hermes.sh" }}"]
 
-# Where a failed lane is reported. uu is a client here and takes no delivery
-# decision: pns owns presence and escalation. An engine that is not there leaves
-# the failure logged and the run clean.
-[alerts]
-binary = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
+[alert]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/send-alert-to-pns.sh" }}"]
 
 # herdr and every UNPINNED GitHub-sourced plugin, refreshed weekly. herdr has no
 # `plugin update`, so a refresh is an uninstall followed by a fresh install,
