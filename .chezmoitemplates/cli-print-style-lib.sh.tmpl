@@ -23,7 +23,7 @@
 report_section() {
   local tool="$1" context="${2:-}"
   printf '\n'
-  if [[ ${REPORT_LIB_PLAIN:-} == 1 ]]; then
+  if [[ ${REPORT_LIB_PLAIN:-} == 1 || -n ${NO_COLOR:-} ]]; then
     if [[ -n $context ]]; then
       printf '%s ── %s\n' "$tool" "$context"
     else
