@@ -69,9 +69,15 @@ reinstall_system_daemon() {
   sudo -n "$tailscaled" install-system-daemon >/dev/null
 }
 
+untrusted_taps() {
+  brew tap-info --installed --json | jq -r '
+    map(if (.name | type) == "string" and (.trusted | type) == "boolean" then . else error("unreadable") end)
+    | map(select(.trusted | not) | .name) | sort | .[]'
+}
+
 main() {
   local failed=no
-  local header before="" after rows tailscaled
+  local header before="" after rows tailscaled untrusted
   local before_was_read=no
 
   header="$(upgrade_record_header)"
@@ -110,6 +116,14 @@ main() {
 
   if ! posture converge >/dev/null; then
     print_error converge-failed "posture converge failed, so osquery may be on its default configuration; run chezmoi apply"
+    failed=yes
+  fi
+
+  if ! untrusted="$(untrusted_taps)"; then
+    print_error tap-trust-unreadable "could not read tap trust from brew tap-info --installed --json"
+    failed=yes
+  elif [[ -n $untrusted ]]; then
+    print_error untrusted-tap "${untrusted//$'\n'/, }"
     failed=yes
   fi
 
