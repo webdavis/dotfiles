@@ -7,7 +7,6 @@ set -euo pipefail
 
 readonly socket_call_time_limit=10
 readonly plugin_install_time_limit=300
-readonly shortest_commit_pin_length=7
 readonly quota_plugin_id="herdr-agent-quota"
 readonly quota_configuration_time_limit=60
 readonly quota_action_logs_to_read=100
@@ -48,106 +47,40 @@ list_plugin_as_json() {
   run_with_time_limit "$socket_call_time_limit" herdr plugin list --plugin "$plugin_id" --json 2>/dev/null
 }
 
-source_record_in_listing() {
+listing_holds_plugin() {
   local plugin_id=$1 listing=$2
-  printf '%s' "$listing" | jq -e -r --arg id "$plugin_id" '
-    [.result.plugins[]? | select(.plugin_id == $id)] as $found
-    | if ($found | length) == 1
-      then [$found[0].source.requested_ref // "", $found[0].source.resolved_commit // ""] | @tsv
-      else empty
-      end' 2>/dev/null
+  printf '%s' "$listing" | jq -e --arg id "$plugin_id" '[.result.plugins[]? | select(.plugin_id == $id)] | length == 1' >/dev/null 2>&1
 }
 
-read_plugin_source_record() {
+plugin_is_installed() {
   local plugin_id=$1
   local listing
   listing="$(list_plugin_as_json "$plugin_id")" || return 1
-  source_record_in_listing "$plugin_id" "$listing"
-}
-
-requested_revision_in() {
-  local source_record=$1
-  printf '%s\n' "${source_record%%$'\t'*}"
-}
-
-resolved_commit_in() {
-  local source_record=$1
-  printf '%s\n' "${source_record#*$'\t'}"
-}
-
-requested_revision_is_pin() {
-  local requested_revision=$1 pin=$2
-  [[ $requested_revision == "$pin" ]]
-}
-
-resolved_commit_is_pin() {
-  local resolved_commit=$1 pin=$2
-  [[ -n $resolved_commit && $resolved_commit == "$pin" ]]
-}
-
-resolved_commit_starts_with_pin() {
-  local resolved_commit=$1 pin=$2
-  [[ -n $resolved_commit && ${#pin} -ge $shortest_commit_pin_length && $resolved_commit == "$pin"* ]]
-}
-
-source_record_holds_pin() {
-  local source_record=$1 pin=$2
-  local requested_revision resolved_commit
-  requested_revision="$(requested_revision_in "$source_record")"
-  resolved_commit="$(resolved_commit_in "$source_record")"
-  requested_revision_is_pin "$requested_revision" "$pin" ||
-    resolved_commit_is_pin "$resolved_commit" "$pin" ||
-    resolved_commit_starts_with_pin "$resolved_commit" "$pin"
-}
-
-plugin_is_pinned() {
-  local pin=$1
-  [[ -n $pin ]]
-}
-
-plugin_is_at_roster_revision() {
-  local plugin_id=$1 pin=$2
-  local source_record
-  source_record="$(read_plugin_source_record "$plugin_id")" || return 1
-  if ! plugin_is_pinned "$pin"; then
-    return 0
-  fi
-  source_record_holds_pin "$source_record" "$pin"
+  listing_holds_plugin "$plugin_id" "$listing"
 }
 
 install_plugin_from_repository() {
-  local source_repository=$1 pin=$2
-  run_with_time_limit "$plugin_install_time_limit" herdr plugin install "$source_repository" ${pin:+--ref "$pin"} --yes >/dev/null 2>&1
-}
-
-plugin_was_registered() {
-  local previous_source_record=$1
-  [[ -n $previous_source_record ]]
+  local source_repository=$1
+  run_with_time_limit "$plugin_install_time_limit" herdr plugin install "$source_repository" --yes >/dev/null 2>&1
 }
 
 install_plugin() {
-  local plugin_id=$1 source_repository=$2 pin=$3
-  if plugin_is_at_roster_revision "$plugin_id" "$pin"; then
+  local plugin_id=$1 source_repository=$2
+  if plugin_is_installed "$plugin_id"; then
     return
   fi
 
-  local previous_source_record
-  previous_source_record="$(read_plugin_source_record "$plugin_id" || true)"
   report_line "installing $plugin_id from $source_repository..."
-  if ! install_plugin_from_repository "$source_repository" "$pin" || ! plugin_is_at_roster_revision "$plugin_id" "$pin"; then
+  if ! install_plugin_from_repository "$source_repository" || ! plugin_is_installed "$plugin_id"; then
     report_line "error[install-failed]: herdr plugin install $source_repository failed or is unverified (herdr server down?); the next apply retries." >&2
     return
   fi
-  if plugin_was_registered "$previous_source_record"; then
-    report_line "moved $plugin_id to $pin."
-  else
-    report_line "installed $plugin_id from $source_repository."
-  fi
+  report_line "installed $plugin_id from $source_repository."
 }
 
 install_roster_plugins() {
 {{- range .packages.herdr_plugins }}
-  install_plugin {{ .id }} {{ .repo }} {{ dig "ref" "" . | quote }}
+  install_plugin {{ .id }} {{ .repo }}
 {{- end }}
 }
 
