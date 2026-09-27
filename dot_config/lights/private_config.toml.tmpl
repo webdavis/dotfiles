@@ -1,24 +1,17 @@
-# Room used when --room is absent.
 default_room = "3F - Studio"
-# Send a pns event after each write; --notify does it for one command.
-notify = false
+
+[notify]
+command = ["{{ .chezmoi.homeDir }}/.config/lights/scripts/send-to-pns.sh"]
+announce = false
 
 [controller]
 type = "hue"
 address = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
-# The one certificate the bridge may present, and the whole of what makes the
-# address above the device it claims to be: the bridge's certificate carries no
-# name a verifier can check. It is a custom attribute on the same vault entry
-# as the address and key, because this repository is public. Produce the value
-# with `lights enroll --bridge-id <id>` and save the line it prints onto that
-# entry as the attribute named here.
 certificate = {{ keepassxcAttribute "OpenHue :: API Key (hue-bridge-pro)" "certificate-pin" | toToml }}
 key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
-# Seconds allowed per bridge request.
 timeout_secs = 2
 
 [brightness]
-# Percent per step.
 step = 15
 
 [rooms]
@@ -27,13 +20,10 @@ bedroom = "3F - MBedroom"
 kitchen = "2F - Kitchen"
 
 [scenes]
-# Scene order for next and previous; fallback when the room is on none of them.
 rotation = ["Nightlight", "Soho", "Rest", "Dimmed", "Relax", "Read", "Energize"]
 fallback = "Read"
-# Carry on from the room's last rotation scene when the bridge reports none.
 remember_position = true
 
-# `lights preset <name>` runs the steps in order; a step is a scene or `off = true`.
 [presets]
 morning = [
   { room = "studio", scene = "Energize" },
