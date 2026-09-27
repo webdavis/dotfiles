@@ -1,7 +1,0 @@
-#!/bin/bash
-
-set -euo pipefail
-
-plugin_root="$(herdr plugin list --plugin annotate --json |
-  jq -er '.result.plugins[] | select(.plugin_id == "annotate" and .enabled) | .plugin_root')"
-exec "$plugin_root/bin/plannotator-tui.exe" "$@"
