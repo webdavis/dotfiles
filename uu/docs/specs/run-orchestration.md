@@ -90,6 +90,21 @@ sequencing; adapters parse configuration, run commands and deliver records and a
   later retry may reach a destination that accepted the earlier attempt. It does not change the run exit
   or add a condition to marker eligibility. With the webhook absent, delivery remains pns-only.
 
+## Report and alert commands
+
+- **Given** `[report] command = [...]`, **when** the record has been delivered, **then** run it once,
+  whether or not `[records]` is set, with this JSON on stdin: `version` 1, `host`, `started` and `ended`
+  (RFC 3339), `dry_run` false, and `lanes`, each with `name`, `outcome` (`ok`, `deferred`, `pending` or
+  `failed`), `exit_code` (null when no single command ran), `duration_secs`, `output` (the lane's lines)
+  and `last_ok` (RFC 3339 or null, kept in `lanes/<name>/last_ok`). A non-zero exit raises one
+  `report_undelivered` alert and the report is not sent again. The marker is unaffected.
+- **Given** `[alert] command = [...]`, **when** any alert is raised, **then** also run it once per alert
+  with `version` 1, `kind` (`failed`, `stale`, `pending` or `report_undelivered`, which a lost record
+  also uses), `lane` (null for the run), `host` and `message` on stdin. A failing alert command is
+  written to the run log and nothing else happens.
+- Both run like lane commands, under the run lock and the default lane deadline. Each block holds only
+  `command`, a non-empty list of strings.
+
 ## Delivering the record and advancing the marker
 
 - **Given** an unconfigured record channel, **when** reporting a run, **then** log that nothing was

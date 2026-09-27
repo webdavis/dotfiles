@@ -1,6 +1,7 @@
 # WHAT THIS BINARY IS ALLOWED TO SPAWN: the lane subjects themselves (`herdr`,
-# and whatever program a `command` lane's own config declares) and the
-# deployed pns binary for alerts. Nothing else. Records do not spawn anything
+# and whatever program a `command` lane's own config declares), the deployed
+# pns binary for alerts, and the `[report]` and `[alert]` commands. Nothing
+# else. Records do not spawn anything
 # at all: they are one signed POST made in process.
 #
 # NOTHING HERE REACHES ANOTHER TOOL'S WORKSPACE. uu, pns, posture and lights
