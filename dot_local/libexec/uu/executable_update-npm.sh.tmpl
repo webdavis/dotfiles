@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly fnm_default_node_directory="$HOME/.local/share/fnm/aliases/default/bin"
+readonly declared_packages=(
+{{- range .packages.macos.fnm }}
+{{- range .packages }}
+  {{ regexReplaceAll "([^/@])@[^/@]+$" . "${1}" | quote }}
+{{- end }}
+{{- end }}
+)
+
+npm_is_installed() {
+  [[ -x $fnm_default_node_directory/npm ]]
+}
+
+use_fnm_default_node() {
+  PATH="$fnm_default_node_directory:$PATH"
+}
+
+installed_package_versions() {
+  local listing
+  listing="$(npm ls --global --depth=0 --json 2>/dev/null)" || true
+  jq -nr 'input | .dependencies // {} | del(.npm, .corepack) | to_entries[] | "\(.key)\t\(.value.version // "unstated")"' <<<"$listing"
+}
+
+upgrade_all_packages() {
+  npm update --global 2>&1
+}
+
+print_version_changes() {
+  local versions_before=$1 versions_after=$2
+  awk -F '\t' 'NR == FNR { before[$1] = $2; next } NF && ($1 in before) && before[$1] != $2 { print $1 ": " before[$1] " → " $2 }' \
+    <(printf '%s\n' "$versions_before") <(printf '%s\n' "$versions_after")
+}
+
+print_undeclared_packages() {
+  local versions=$1
+  awk -F '\t' 'NR == FNR { declared[$0]; next } NF && !($1 in declared) { print "undeclared: " $1 " " $2 }' \
+    <(printf '%s\n' "${declared_packages[@]}") <(printf '%s\n' "$versions")
+}
+
+main() {
+  if ! npm_is_installed; then
+    printf 'error[missing-tool]: npm is not installed at %s.\n' "$fnm_default_node_directory" >&2
+    exit 1
+  fi
+  use_fnm_default_node
+
+  local versions_before
+  if ! versions_before="$(installed_package_versions)"; then
+    printf 'error[listing-unreadable]: npm ls --global gave no readable package list.\n' >&2
+    exit 1
+  fi
+
+  local upgrade_output upgrade_status=0
+  upgrade_output="$(upgrade_all_packages)" || upgrade_status=$?
+
+  local versions_after
+  if ! versions_after="$(installed_package_versions)"; then
+    printf 'error[listing-unreadable]: npm ls --global gave no readable package list.\n' >&2
+    exit 1
+  fi
+
+  print_version_changes "$versions_before" "$versions_after"
+  print_undeclared_packages "$versions_after"
+
+  if ((upgrade_status != 0)); then
+    printf '%s\n' "$upgrade_output" >&2
+    printf 'error[upgrade-failed]: npm update --global failed.\n' >&2
+    exit 1
+  fi
+}
+
+main "$@"
