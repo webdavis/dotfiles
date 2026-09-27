@@ -1,0 +1,384 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $skills := .agents.skills -}}
+{{- $githubSkills := list -}}
+{{- range $skills.from_github }}{{ $githubSkills = concat $githubSkills .skills }}{{ end -}}
+{{- $clawhubSkills := list -}}
+{{- range $skills.from_clawhub }}{{ $clawhubSkills = append $clawhubSkills .name }}{{ end -}}
+{{- $vendoredSkills := list -}}
+{{- range $skills.vendored }}{{ $vendoredSkills = append $vendoredSkills .name }}{{ end -}}
+{{- $installedSkills := concat $githubSkills $clawhubSkills -}}
+{{- $everySkill := concat $installedSkills $vendoredSkills $skills.app_owned -}}
+{{- $claudeCodeSkipped := .agents.claude_code.skip_skills -}}
+{{- $retryMarker := joinPath .chezmoi.homeDir ".local/state/agent-skills/install.retry" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# .chezmoidata/agent_skills_and_plugins.yaml {{ include ".chezmoidata/agent_skills_and_plugins.yaml" | sha256sum }}
+# retry: {{ if stat $retryMarker }}{{ (stat $retryMarker).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly skills_cli_version={{ $skills.skills_cli_version | quote }}
+readonly skills_folder="$HOME/.agents/skills"
+readonly skills_folder_lock="$HOME/.agents/.skills-folder.lock"
+readonly lock_is_busy_status=75
+readonly retry_marker="$HOME/.local/state/agent-skills/install.retry"
+readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
+readonly claude_code_skills_folder="$HOME/.claude/skills"
+readonly claude_code_link_prefix="../../.agents/skills"
+readonly hermes_default_skills_folder="$HOME/.hermes/skills"
+readonly hermes_default_link_prefix="../../.agents/skills"
+readonly hermes_profiles_folder="$HOME/.hermes/profiles"
+readonly hermes_profile_link_prefix="../../../../.agents/skills"
+readonly hermes_never_linked_skills=(humanizer hyperframes)
+readonly codex_ask_first_expression='.policy.allow_implicit_invocation = false'
+readonly original_file_marker='# uu-original-openai: '
+readonly claude_code_skills=(
+{{- range $everySkill }}{{ if not (has . $claudeCodeSkipped) }}
+  {{ . | quote }}
+{{- end }}{{ end }}
+)
+readonly codex_ask_first_skills=(
+{{- range $skills.on_demand }}{{ if not (or (has . $vendoredSkills) (has . $skills.app_owned)) }}
+  {{ . | quote }}
+{{- end }}{{ end }}
+)
+readonly codex_default_skills=(
+{{- range $installedSkills }}{{ if not (has . $skills.on_demand) }}
+  {{ . | quote }}
+{{- end }}{{ end }}
+)
+
+section_is_printed=no
+failure_count=0
+
+print_section_once() {
+  if [[ $section_is_printed == no ]]; then
+    report_section 'agent skills' 'installs, links and Codex files'
+    section_is_printed=yes
+  fi
+}
+
+report_change() {
+  local message=$1
+  print_section_once
+  report_line "$message"
+}
+
+report_failure() {
+  local message=$1
+  print_section_once
+  report_line "$message" >&2
+  failure_count=$((failure_count + 1))
+}
+
+lock_is_held() {
+  [[ ${AGENT_SKILLS_FOLDER_LOCK_HELD:-} == yes ]]
+}
+
+run_holding_skills_folder_lock() {
+  mkdir -p "$(dirname "$skills_folder_lock")"
+  AGENT_SKILLS_FOLDER_LOCK_HELD=yes lockf -k -s -t 0 "$skills_folder_lock" "$BASH" "$0" "$@"
+}
+
+remember_to_retry() {
+  mkdir -p "$(dirname "$retry_marker")"
+  date >"$retry_marker"
+}
+
+settle_retry_marker() {
+  rm -f "$retry_marker"
+}
+
+tool_is_installed() {
+  local tool=$1
+  command -v "$tool" >/dev/null 2>&1
+}
+
+skill_is_installed() {
+  local skill=$1
+  [[ -f $skills_folder/$skill/SKILL.md ]]
+}
+
+install_from_github() {
+  local repository=$1
+  shift
+  local skill_options=() skill
+  for skill in "$@"; do
+    skill_options+=(--skill "$skill")
+  done
+  npx --yes "skills@$skills_cli_version" add "$repository" "${skill_options[@]}" --agent codex -g -y </dev/null >/dev/null 2>&1
+}
+
+install_missing_skills_from_github() {
+  local repository=$1
+  shift
+  local missing_skills=() still_missing_skills=() skill
+  for skill in "$@"; do
+    if ! skill_is_installed "$skill"; then
+      missing_skills+=("$skill")
+    fi
+  done
+  if ((${#missing_skills[@]} == 0)); then
+    return
+  fi
+  if ! tool_is_installed npx; then
+    report_failure "error[missing-tool]: npx is not installed, so ${missing_skills[*]} from $repository were not installed; the next apply retries."
+    return
+  fi
+  install_from_github "$repository" "${missing_skills[@]}" || true
+  for skill in "${missing_skills[@]}"; do
+    if skill_is_installed "$skill"; then
+      report_change "installed $skill from $repository."
+    else
+      still_missing_skills+=("$skill")
+    fi
+  done
+  if ((${#still_missing_skills[@]} > 0)); then
+    report_failure "error[install-failed]: npx skills add $repository did not install ${still_missing_skills[*]}; the next apply retries."
+  fi
+}
+
+install_from_clawhub() {
+  local skill=$1 slug=$2 registry=$3
+  local work_folder status=0
+  work_folder="$(mktemp -d)"
+  if ! CLAWHUB_DISABLE_TELEMETRY=1 clawhub --no-input --workdir "$work_folder" --dir skills --registry "$registry" install "$slug" </dev/null >/dev/null 2>&1 ||
+    ! mv "$work_folder/skills/$slug" "$skills_folder/$skill" 2>/dev/null; then
+    status=1
+  fi
+  rm -rf "$work_folder"
+  return "$status"
+}
+
+install_missing_skill_from_clawhub() {
+  local skill=$1 slug=$2 registry=$3
+  if skill_is_installed "$skill"; then
+    return
+  fi
+  if ! tool_is_installed clawhub; then
+    report_failure "error[missing-tool]: clawhub is not installed, so $skill was not installed; the next apply retries."
+    return
+  fi
+  if install_from_clawhub "$skill" "$slug" "$registry" && skill_is_installed "$skill"; then
+    report_change "installed $skill from ClawHub."
+  else
+    report_failure "error[install-failed]: clawhub install $slug did not install $skill; the next apply retries."
+  fi
+}
+
+install_missing_skills() {
+{{- range $skills.from_github }}
+  install_missing_skills_from_github {{ .repo | quote }}{{ range .skills }} {{ . | quote }}{{ end }}
+{{- end }}
+{{- range $skills.from_clawhub }}
+  install_missing_skill_from_clawhub {{ .name | quote }} {{ .slug | quote }} {{ .registry | quote }}
+{{- end }}
+}
+
+link_points_at() {
+  local link=$1 target=$2
+  [[ -L $link && $(readlink "$link") == "$target" ]]
+}
+
+path_is_not_a_link() {
+  local path=$1
+  [[ -e $path && ! -L $path ]]
+}
+
+link_skill() {
+  local skill=$1 link_folder=$2 link_prefix=$3 destination=$4
+  local link="$link_folder/$skill" target="$link_prefix/$skill"
+  if link_points_at "$link" "$target"; then
+    return
+  fi
+  if path_is_not_a_link "$link"; then
+    report_failure "error[link-blocked]: $link is a real file or folder, so $skill was not linked into $destination; move it away and the next apply links it."
+    return
+  fi
+  if mkdir -p "$link_folder" && ln -sfn "$target" "$link"; then
+    report_change "linked $skill into $destination."
+  else
+    report_failure "error[link-failed]: could not link $skill into $destination; the next apply retries."
+  fi
+}
+
+link_claude_code_skills() {
+  local skill
+  for skill in "${claude_code_skills[@]}"; do
+    link_skill "$skill" "$claude_code_skills_folder" "$claude_code_link_prefix" "Claude Code"
+  done
+}
+
+skill_is_never_linked_into_hermes() {
+  local skill=$1
+  local never_linked_skill
+  for never_linked_skill in "${hermes_never_linked_skills[@]}"; do
+    if [[ $skill == "$never_linked_skill" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+link_hermes_profile_skills() {
+  local profile=$1
+  shift
+  local link_folder="$hermes_profiles_folder/$profile/skills" link_prefix=$hermes_profile_link_prefix
+  if [[ $profile == default ]]; then
+    link_folder=$hermes_default_skills_folder
+    link_prefix=$hermes_default_link_prefix
+  fi
+  local skill
+  for skill in "$@"; do
+    if ! skill_is_never_linked_into_hermes "$skill"; then
+      link_skill "$skill" "$link_folder" "$link_prefix" "the Hermes $profile profile"
+    fi
+  done
+}
+
+link_hermes_skills() {
+{{- range $profile, $settings := .agents.hermes.profiles }}
+  link_hermes_profile_skills {{ $profile | quote }}{{ range $settings.skills }} {{ . | quote }}{{ end }}
+{{- end }}
+}
+
+codex_file_of() {
+  local skill=$1
+  printf '%s\n' "$skills_folder/$skill/agents/openai.yaml"
+}
+
+yaml_asks_first() {
+  local yaml=$1
+  [[ $(yq '.policy.allow_implicit_invocation' - <<<"$yaml" 2>/dev/null) == false ]]
+}
+
+codex_file_asks_first() {
+  local codex_file=$1
+  [[ -f $codex_file ]] && yaml_asks_first "$(<"$codex_file")"
+}
+
+codex_file_keeps_original() {
+  local codex_file=$1
+  [[ -f $codex_file && $(tail -n 1 "$codex_file") == "$original_file_marker"* ]]
+}
+
+saved_original_in() {
+  local codex_file=$1
+  local last_line
+  last_line="$(tail -n 1 "$codex_file")"
+  printf '%s\n' "${last_line#"$original_file_marker"}"
+}
+
+original_as_json() {
+  local codex_file=$1
+  if codex_file_keeps_original "$codex_file"; then
+    saved_original_in "$codex_file"
+  elif [[ -f $codex_file ]]; then
+    jq -Rs . <"$codex_file"
+  else
+    printf 'null\n'
+  fi
+}
+
+original_text_of() {
+  local original_json=$1
+  jq -e -j 'strings' <<<"$original_json"
+}
+
+render_ask_first_codex_file() {
+  local original_json=$1
+  local rendered
+  if [[ $original_json == null ]]; then
+    rendered="$(yq -n "$codex_ask_first_expression")" || return 1
+  else
+    rendered="$(original_text_of "$original_json" | yq "$codex_ask_first_expression" -)" || return 1
+  fi
+  yaml_asks_first "$rendered" || return 1
+  printf '%s\n%s%s\n' "$rendered" "$original_file_marker" "$original_json"
+}
+
+write_ask_first_codex_file() {
+  local skill=$1
+  local codex_file original_json content
+  codex_file="$(codex_file_of "$skill")"
+  if ! skill_is_installed "$skill" || codex_file_asks_first "$codex_file"; then
+    return
+  fi
+  if original_json="$(original_as_json "$codex_file")" &&
+    content="$(render_ask_first_codex_file "$original_json")" &&
+    mkdir -p "$(dirname "$codex_file")" &&
+    printf '%s\n' "$content" >"$codex_file"; then
+    report_change "set $skill to run only when asked in Codex."
+  else
+    report_failure "error[codex-file-failed]: could not set $skill to run only when asked in Codex; check $codex_file is valid YAML."
+  fi
+}
+
+restore_original_codex_file() {
+  local skill=$1
+  local codex_file original_json original_text
+  codex_file="$(codex_file_of "$skill")"
+  if ! codex_file_keeps_original "$codex_file"; then
+    return
+  fi
+  original_json="$(saved_original_in "$codex_file")"
+  if [[ $original_json == null ]]; then
+    rm -f "$codex_file"
+    report_change "restored the original Codex file of $skill."
+    return
+  fi
+  if original_text="$(original_text_of "$original_json" && printf x)" &&
+    printf '%s' "${original_text%x}" >"$codex_file"; then
+    report_change "restored the original Codex file of $skill."
+  else
+    report_failure "error[codex-file-failed]: could not restore the original Codex file of $skill from $codex_file."
+  fi
+}
+
+write_codex_files() {
+  if ! tool_is_installed yq || ! tool_is_installed jq; then
+    report_failure "error[missing-tool]: yq or jq is not installed, so the Codex files were not written; the next apply retries."
+    return
+  fi
+  local skill
+  for skill in "${codex_ask_first_skills[@]}"; do
+    write_ask_first_codex_file "$skill"
+  done
+  for skill in "${codex_default_skills[@]}"; do
+    restore_original_codex_file "$skill"
+  done
+}
+
+main() {
+  PATH="$fnm_default_node_bin_directory:$PATH"
+
+  if ! lock_is_held; then
+    local status=0
+    run_holding_skills_folder_lock "$@" || status=$?
+    if ((status == lock_is_busy_status)); then
+      report_failure "error[busy]: another script holds $skills_folder_lock; the next apply retries."
+      remember_to_retry
+    elif ((status != 0)); then
+      report_failure "error[stopped]: the agent skills install stopped with status $status; the next apply retries."
+      remember_to_retry
+    fi
+    exit 0
+  fi
+
+  mkdir -p "$skills_folder"
+  install_missing_skills
+  link_claude_code_skills
+  link_hermes_skills
+  write_codex_files
+
+  if ((failure_count > 0)); then
+    remember_to_retry
+  else
+    settle_retry_marker
+  fi
+}
+
+main "$@"
+{{ end -}}

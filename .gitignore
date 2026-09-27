@@ -62,6 +62,4 @@ key.txt
 dot_config/nvim/private/
 
 # bashunit's run state (`.bashunit/last-failed`, what --rerun-failed replays).
-# Written by `just test-bashunit` in whatever directory it runs from, and it
-# describes the last run rather than the repository.
 .bashunit/

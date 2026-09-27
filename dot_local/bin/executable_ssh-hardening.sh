@@ -492,8 +492,7 @@ VERIFY_POLL_SLEEP='/bin/sleep'
 # The KILL is not belt-and-braces. sshd blocked in an open on a named pipe does
 # take the TERM, but nothing makes that true of every process a bounded command
 # can be waiting on: one that traps or ignores TERM survives the first signal
-# and the group has to be killed outright, which is the case
-# test/e2e/ssh-hardening-verify-watchdog.sh drives with a TERM-ignoring wedge.
+# and the group has to be killed outright.
 stop_bounded_group() {
   local child_pid="$1"
   kill -TERM -"$child_pid" 2>/dev/null || :
@@ -770,12 +769,7 @@ check_global() {
 #
 # What this comment does NOT claim is completeness. Four earlier versions of it
 # listed the forms sshd was believed to reject and each list turned out to be
-# wrong about at least one form, so the guarantee now lives in a test rather
-# than in a paragraph: test/integration/ssh-hardening-tokenizer-differential.sh
-# runs a corpus of forms past the REAL binary and requires --verify to refuse
-# every one that sshd accepts and resolves unsafe. That corpus is bounded, so
-# it is evidence and not a proof; what it buys is that the next divergence is
-# found by running the suite instead of by reading this comment closely enough.
+# wrong about at least one form.
 #
 # Forms sshd REJECTS may be read here any way at all: a file carrying one fails
 # `sshd -G`, and reporting that is check_global's job.
