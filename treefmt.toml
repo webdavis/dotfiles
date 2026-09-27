@@ -46,7 +46,6 @@ command = "scripts/treefmt/rust-file-size.sh"
 includes = [
   "dot_local/share/**/*.rs",
   "pns/**/*.rs",
-  "uu/**/*.rs",
   "posture/**/*.rs",
   "lights/**/*.rs",
 ]

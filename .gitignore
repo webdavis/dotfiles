@@ -35,9 +35,6 @@ dot_local/share/herdr/**/target/
 # rebuilt in place rather than committed.
 pns/target/
 
-# Same, for the uu crate.
-uu/target/
-
 # Same, for the lights workspace.
 lights/target/
 

@@ -27,7 +27,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
    `pns::channels::hermes::{SignedPost, UreqSignedPost, PostOutcome, delivered, outcome_line, sign}`,
    so one signed-POST seam exists rather than two. Do not keep that path alive behind a facade: put
    the client in the crate where it belongs and update uu's `Cargo.toml` and imports in the same pull
-   request. Add `cargo test --locked --manifest-path uu/Cargo.toml` to the gates.
+   request.
 4. **The command-line surface** is a compatibility contract. Enumerate the in-repo callers first:
 
        grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target . | grep -v pns/
@@ -177,7 +177,6 @@ client dialing hangs the suite rather than failing it.
     just test-rust
     just lint-check
     just ship
-    cargo test --locked --manifest-path uu/Cargo.toml
     cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml
     just pns-config-render && git diff --exit-code dot_config/pns/private_config.toml.tmpl
 
