@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly shortest_commit_pin_length=7
+readonly short_commit_length=7
+readonly needs_you_exit_code=100
+
+herdr_is_installed() {
+  command -v herdr >/dev/null 2>&1
+}
+
+roster_plugins() {
+{{- range .packages.herdr_plugins }}
+  printf '%s\t%s\t%s\n' {{ .id | quote }} {{ .repo | quote }} {{ dig "ref" "" . | quote }}
+{{- end }}
+}
+
+installed_plugin_sources() {
+  local listing
+  listing="$(herdr plugin list --json 2>/dev/null)" || return 1
+  jq -nr 'input | .result.plugins
+    | if type == "array" then .[] else error("no plugin list") end
+    | select(.plugin_id | type == "string")
+    | [.plugin_id, .source.requested_ref // "", .source.resolved_commit // ""] | @tsv' <<<"$listing"
+}
+
+source_field_of() {
+  local sources=$1 plugin_id=$2 field=$3
+  awk -F '\t' -v id="$plugin_id" -v field="$field" '$1 == id { print $field; exit }' <<<"$sources"
+}
+
+requested_ref_of() {
+  local sources=$1 plugin_id=$2
+  source_field_of "$sources" "$plugin_id" 2
+}
+
+resolved_commit_of() {
+  local sources=$1 plugin_id=$2
+  source_field_of "$sources" "$plugin_id" 3
+}
+
+plugin_is_listed() {
+  local sources=$1 plugin_id=$2
+  awk -F '\t' -v id="$plugin_id" '$1 == id { found = 1; exit } END { exit !found }' <<<"$sources"
+}
+
+plugin_is_pinned() {
+  local pin=$1
+  [[ -n $pin ]]
+}
+
+installed_copy_holds_pin() {
+  local requested_ref=$1 resolved_commit=$2 pin=$3
+  [[ $requested_ref == "$pin" ]] ||
+    [[ -n $resolved_commit && $resolved_commit == "$pin" ]] ||
+    [[ ${#pin} -ge $shortest_commit_pin_length && $resolved_commit == "$pin"* ]]
+}
+
+installed_standing() {
+  local sources=$1 plugin_id=$2
+  if ! plugin_is_listed "$sources" "$plugin_id"; then
+    printf 'not installed'
+    return
+  fi
+  local revision
+  revision="$(resolved_commit_of "$sources" "$plugin_id")"
+  revision="${revision:-$(requested_ref_of "$sources" "$plugin_id")}"
+  printf 'installed at %s' "${revision:-a revision it does not record}"
+}
+
+uninstall_plugin() {
+  local plugin_id=$1
+  herdr plugin uninstall "$plugin_id" >/dev/null 2>&1
+}
+
+install_plugin() {
+  local repository=$1
+  herdr plugin install "$repository" --yes >/dev/null 2>&1
+}
+
+commit_moved() {
+  local commit_before=$1 commit_after=$2
+  [[ -n $commit_before && -n $commit_after && $commit_before != "$commit_after" ]]
+}
+
+main() {
+  if ! herdr_is_installed; then
+    printf 'error[missing-tool]: herdr is not installed.\n' >&2
+    exit 1
+  fi
+
+  local sources_before
+  if ! sources_before="$(installed_plugin_sources)"; then
+    printf 'error[listing-unreadable]: herdr plugin list --json gave no readable plugin list; no plugin was touched.\n' >&2
+    exit 1
+  fi
+
+  local plugin_id repository pin commit_before commit_after
+  local failures=0 pins_to_install=0
+  while IFS=$'\t' read -r plugin_id repository pin <&3; do
+    if plugin_is_pinned "$pin"; then
+      if installed_copy_holds_pin "$(requested_ref_of "$sources_before" "$plugin_id")" "$(resolved_commit_of "$sources_before" "$plugin_id")" "$pin"; then
+        printf 'plugin %s: HELD at %s (pinned, not updated)\n' "$plugin_id" "$pin"
+      else
+        printf 'plugin %s is pinned at %s and is %s. Run the following command to install that revision: herdr plugin install %s --ref %s --yes\n' \
+          "$plugin_id" "$pin" "$(installed_standing "$sources_before" "$plugin_id")" "$repository" "$pin"
+        pins_to_install=$((pins_to_install + 1))
+      fi
+      continue
+    fi
+
+    if ! uninstall_plugin "$plugin_id"; then
+      printf 'error[uninstall-failed]: herdr plugin uninstall %s failed; the installed copy was left alone.\n' "$plugin_id" >&2
+      failures=$((failures + 1))
+      continue
+    fi
+    if ! install_plugin "$repository" && ! install_plugin "$repository"; then
+      printf 'error[reinstall-failed]: herdr plugin install %s failed twice; %s is missing until the next apply or run.\n' "$repository" "$plugin_id" >&2
+      failures=$((failures + 1))
+      continue
+    fi
+
+    commit_before="$(resolved_commit_of "$sources_before" "$plugin_id")"
+    commit_after="$(resolved_commit_of "$(installed_plugin_sources || true)" "$plugin_id")"
+    if commit_moved "$commit_before" "$commit_after"; then
+      printf '%s: %s → %s\n' "$plugin_id" "${commit_before:0:short_commit_length}" "${commit_after:0:short_commit_length}"
+    fi
+  done 3< <(roster_plugins)
+
+  if ((failures > 0)); then
+    exit 1
+  fi
+  if ((pins_to_install > 0)); then
+    exit "$needs_you_exit_code"
+  fi
+}
+
+main "$@"
