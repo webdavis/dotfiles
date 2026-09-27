@@ -389,10 +389,16 @@ with its tailnet address as `HostName`. Tailnet IPs are stable per node.
 ### Updates
 
 `brew upgrade` updates the user-owned formula (no extension re-approval needed), but the running daemon
-is a separate root-owned copy a formula upgrade does not touch. After upgrading the `tailscale` formula,
-re-run `sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon` to refresh the daemon
-copy. On dresden `sudo` is passwordless (the operator's `!authenticate` sudoers config, not managed by
-this repo), so the re-copy is a single command; on a fresh machine expect a password prompt.
+is a separate root-owned copy a formula upgrade does not touch. uu's `tailscaled-refresh` lane runs after
+the `brew` lane: it compares the version on the `Daemon:` line of `tailscale version --daemon` with
+Homebrew's `tailscaled --version`, and when they differ runs
+`sudo /opt/homebrew/opt/tailscale/bin/tailscaled install-system-daemon` to refresh the daemon copy. When
+sudo cannot ask for a password, as under the uu daemon, the lane exits 100 with `error[needs-sudo]`; run
+`uu run tailscaled-refresh` from a terminal. On dresden `sudo` is passwordless (the operator's
+`!authenticate` sudoers config, not managed by this repo), so the lane refreshes the copy unattended; on
+a fresh machine expect a password prompt. The `posture-converge` lane also runs after `brew`: when the
+running osqueryd started before the installed osqueryd binary changed, it runs `posture converge` to
+restart it on the new build, with the same `needs-sudo` exit.
 
 ### Daemon-host role
 

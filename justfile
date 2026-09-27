@@ -104,7 +104,7 @@ setup:
 
 # Run the weekly Homebrew and App Store upgrade lanes manually.
 brew-upgrade:
-  ~/.cargo/bin/uu run brew
+  ~/.cargo/bin/uu run brew-and-repairs
   ~/.cargo/bin/uu run mas
 
 # Refresh the Homebrew shell environment cache.
