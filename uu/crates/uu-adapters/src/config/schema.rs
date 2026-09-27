@@ -11,7 +11,10 @@ use super::ConfigError;
 /// The shared tables' keys. Each typed lane owns its own vocabulary; both
 /// paths refuse mistyped keys and list what to write instead.
 pub const TABLE_KEYS: &[(&str, &[&str])] = &[
-    (TOP_LEVEL, &["alerts", "lanes", "records", "schedule"]),
+    (
+        TOP_LEVEL,
+        &["alerts", "lane", "lanes", "records", "schedule"],
+    ),
     ("schedule", &["day", "time"]),
     ("records", &["failure_webhook", "key", "url"]),
     ("alerts", &["binary"]),
