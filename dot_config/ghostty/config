@@ -56,6 +56,16 @@ quit-after-last-window-closed = true
 # Keybindings
 # =============
 keybind = global:ctrl+grave_accent=toggle_quick_terminal
+# Cmd+1..9 reach herdr, which switches its own tabs with them.
+keybind = super+physical:one=unbind
+keybind = super+physical:two=unbind
+keybind = super+physical:three=unbind
+keybind = super+physical:four=unbind
+keybind = super+physical:five=unbind
+keybind = super+physical:six=unbind
+keybind = super+physical:seven=unbind
+keybind = super+physical:eight=unbind
+keybind = super+physical:nine=unbind
 
 # Security & UX (v2)
 # =============

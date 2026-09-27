@@ -65,13 +65,14 @@ rename_workspace = "prefix+alt+comma"
 edit_scrollback = "prefix+alt+e"
 reload_config = "prefix+shift+r"
 
-# nav tiers: alt = workspaces, {/} = step agents, ctrl = agent count.
+# nav tiers: cmd = tabs, alt = workspaces, ctrl = agents, {/} = step agents.
+switch_tab = ["prefix+1..9", "cmd+1..9"]
 next_agent = "prefix+}"
 previous_agent = "prefix+{"
-focus_agent = "prefix+ctrl+1..9"
+focus_agent = ["prefix+ctrl+1..9", "ctrl+1..9"]
 next_workspace = "prefix+alt+n"
 previous_workspace = "prefix+alt+p"
-switch_workspace = "prefix+alt+1..9"
+switch_workspace = ["prefix+alt+1..9", "alt+1..9"]
 
 new_worktree = "prefix+alt+w"
 open_worktree = "prefix+alt+o"
