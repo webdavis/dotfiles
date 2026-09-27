@@ -127,9 +127,6 @@ scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
-[lane.herdr.settings]
-pinned = []
-
 [lane.herdr-binary]
 command = ["{{ .chezmoi.homeDir }}/.local/bin/herdr", "update"]
 env = {}
@@ -237,6 +234,7 @@ time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
 [lane.rotate-logs.settings]
+compress = true
 files = [
   "{{ .chezmoi.homeDir }}/.local/log/atuin-daemon.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/digest.log",
