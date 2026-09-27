@@ -88,7 +88,6 @@ test-rust:
   chord check bash --table dot_config/chord/bindings.toml
   chord check menu --table dot_config/chord/bindings.toml
   test_rust_workspace tailnet-pin
-  test_rust_workspace uu
   test_rust_workspace posture
 
 # Run the Neovim Lua specs against the source tree. Git exports GIT_* variables

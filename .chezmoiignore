@@ -43,7 +43,6 @@ tmp.*
 
 # Rust tool workspaces (source only; builders install the binaries):
 pns
-uu
 posture
 lights
 tailnet-pin
