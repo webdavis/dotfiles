@@ -14,9 +14,6 @@
 # Every default is written out below at its default value, so nothing has to be
 # looked up to change it.
 
-# When `uu schedule render` prints a launchd job for. The tracked LaunchAgent
-# is what actually schedules this machine; this key feeds the rendered
-# plist and nothing else.
 [schedule]
 default = "sunday 12:00"
 
@@ -103,8 +100,8 @@ deadline_secs = 21600
 #
 # `command[0]` is the program, `command[1..]` its arguments, and argv[0] the child
 # sees is `command[0]` verbatim. Env and working directory are INHERITED from uu's
-# own process; under the tracked LaunchAgent that is the plist's own PATH plus
-# HOME, with the working directory at `/`.
+# own process; under the daemon that is the PATH `uu daemon install` ran with
+# plus HOME, with the working directory at `/`.
 #
 # `deadline_secs` bounds the WHOLE LANE, not each command it runs, and every
 # lane has one whether or not its block says so (six hours by default). The
