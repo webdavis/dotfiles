@@ -140,7 +140,8 @@ path_belongs_to_the_managed_bin_manifest() {
   local path=$1
   case "$path" in
     "$home"/.local/bin/*/*) return 1 ;;
-    "$home"/.local/bin/* | "$home"/.local/libexec/*) return 0 ;;
+    "$home"/.config/uu/scripts/send-report-to-hermes.sh) return 1 ;;
+    "$home"/.local/bin/* | "$home"/.local/libexec/* | "$home"/.config/uu/scripts/*) return 0 ;;
     *) return 1 ;;
   esac
 }

@@ -32,20 +32,9 @@ readonly hermes_default_link_prefix="../../.agents/skills"
 readonly hermes_profiles_folder="$HOME/.hermes/profiles"
 readonly hermes_profile_link_prefix="../../../../.agents/skills"
 readonly hermes_never_linked_skills=(humanizer hyperframes)
-readonly codex_ask_first_expression='.policy.allow_implicit_invocation = false'
-readonly original_file_marker='# uu-original-openai: '
+readonly mark_on_demand_skills_script="$HOME/.config/uu/scripts/mark-on-demand-skills.sh"
 readonly claude_code_skills=(
 {{- range $everySkill }}{{ if not (has . $claudeCodeSkipped) }}
-  {{ . | quote }}
-{{- end }}{{ end }}
-)
-readonly codex_ask_first_skills=(
-{{- range $skills.on_demand }}{{ if not (or (has . $vendoredSkills) (has . $skills.app_owned)) }}
-  {{ . | quote }}
-{{- end }}{{ end }}
-)
-readonly codex_default_skills=(
-{{- range $installedSkills }}{{ if not (has . $skills.on_demand) }}
   {{ . | quote }}
 {{- end }}{{ end }}
 )
@@ -244,111 +233,37 @@ link_hermes_skills() {
 {{- end }}
 }
 
-codex_file_of() {
-  local skill=$1
-  printf '%s\n' "$skills_folder/$skill/agents/openai.yaml"
+mark_on_demand_skills_script_is_installed() {
+  [[ -x $mark_on_demand_skills_script ]]
 }
 
-yaml_asks_first() {
-  local yaml=$1
-  [[ $(yq '.policy.allow_implicit_invocation' - <<<"$yaml" 2>/dev/null) == false ]]
+line_is_an_error() {
+  local line=$1
+  [[ $line == error\[* ]]
 }
 
-codex_file_asks_first() {
-  local codex_file=$1
-  [[ -f $codex_file ]] && yaml_asks_first "$(<"$codex_file")"
-}
-
-codex_file_keeps_original() {
-  local codex_file=$1
-  [[ -f $codex_file && $(tail -n 1 "$codex_file") == "$original_file_marker"* ]]
-}
-
-saved_original_in() {
-  local codex_file=$1
-  local last_line
-  last_line="$(tail -n 1 "$codex_file")"
-  printf '%s\n' "${last_line#"$original_file_marker"}"
-}
-
-original_as_json() {
-  local codex_file=$1
-  if codex_file_keeps_original "$codex_file"; then
-    saved_original_in "$codex_file"
-  elif [[ -f $codex_file ]]; then
-    jq -Rs . <"$codex_file"
-  else
-    printf 'null\n'
+report_marking_line() {
+  local line=$1
+  if line_is_an_error "$line"; then
+    report_failure "$line"
+  elif [[ -n $line ]]; then
+    report_change "$line"
   fi
 }
 
-original_text_of() {
-  local original_json=$1
-  jq -e -j 'strings' <<<"$original_json"
-}
-
-render_ask_first_codex_file() {
-  local original_json=$1
-  local rendered
-  if [[ $original_json == null ]]; then
-    rendered="$(yq -n "$codex_ask_first_expression")" || return 1
-  else
-    rendered="$(original_text_of "$original_json" | yq "$codex_ask_first_expression" -)" || return 1
-  fi
-  yaml_asks_first "$rendered" || return 1
-  printf '%s\n%s%s\n' "$rendered" "$original_file_marker" "$original_json"
-}
-
-write_ask_first_codex_file() {
-  local skill=$1
-  local codex_file original_json content
-  codex_file="$(codex_file_of "$skill")"
-  if ! skill_is_installed "$skill" || codex_file_asks_first "$codex_file"; then
+mark_on_demand_skills_in_codex() {
+  local output line status=0
+  if ! mark_on_demand_skills_script_is_installed; then
+    report_failure "error[missing-script]: $mark_on_demand_skills_script is not installed, so the Codex files were not written; the next apply retries."
     return
   fi
-  if original_json="$(original_as_json "$codex_file")" &&
-    content="$(render_ask_first_codex_file "$original_json")" &&
-    mkdir -p "$(dirname "$codex_file")" &&
-    printf '%s\n' "$content" >"$codex_file"; then
-    report_change "set $skill to run only when asked in Codex."
-  else
-    report_failure "error[codex-file-failed]: could not set $skill to run only when asked in Codex; check $codex_file is valid YAML."
+  output="$("$mark_on_demand_skills_script" </dev/null 2>&1)" || status=$?
+  while IFS= read -r line; do
+    report_marking_line "$line"
+  done <<<"$output"
+  if ((status != 0)); then
+    report_failure "error[codex-files-failed]: $mark_on_demand_skills_script exited $status; the next apply retries."
   fi
-}
-
-restore_original_codex_file() {
-  local skill=$1
-  local codex_file original_json original_text
-  codex_file="$(codex_file_of "$skill")"
-  if ! codex_file_keeps_original "$codex_file"; then
-    return
-  fi
-  original_json="$(saved_original_in "$codex_file")"
-  if [[ $original_json == null ]]; then
-    rm -f "$codex_file"
-    report_change "restored the original Codex file of $skill."
-    return
-  fi
-  if original_text="$(original_text_of "$original_json" && printf x)" &&
-    printf '%s' "${original_text%x}" >"$codex_file"; then
-    report_change "restored the original Codex file of $skill."
-  else
-    report_failure "error[codex-file-failed]: could not restore the original Codex file of $skill from $codex_file."
-  fi
-}
-
-write_codex_files() {
-  if ! tool_is_installed yq || ! tool_is_installed jq; then
-    report_failure "error[missing-tool]: yq or jq is not installed, so the Codex files were not written; the next apply retries."
-    return
-  fi
-  local skill
-  for skill in "${codex_ask_first_skills[@]}"; do
-    write_ask_first_codex_file "$skill"
-  done
-  for skill in "${codex_default_skills[@]}"; do
-    restore_original_codex_file "$skill"
-  done
 }
 
 main() {
@@ -371,7 +286,7 @@ main() {
   install_missing_skills
   link_claude_code_skills
   link_hermes_skills
-  write_codex_files
+  mark_on_demand_skills_in_codex
 
   if ((failure_count > 0)); then
     remember_to_retry

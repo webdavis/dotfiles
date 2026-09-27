@@ -35,19 +35,23 @@ brings them (clean-code, pns) or it is not wanted there. `off_until_enabled` (Cl
 | `npx-skills`            | `npx skills add <repo> --skill … --agent codex -g -y`, once per repository        |
 | `clawhub-skills`        | `clawhub update --all`, or `clawhub update <name>` per skill when that finds none |
 | `cua-driver-skills`     | `cua-driver skills update`; does nothing when Cua Driver is not installed         |
+| `skills-on-demand`      | marks the `on_demand` skills only-when-asked in Codex again after the updates     |
 | `vendored-skills-check` | compares each vendored skill's files with its upstream's                          |
 | `claude-plugins`        | refreshes the marketplaces, then `claude plugin update <id>` per plugin           |
 | `codex-plugins`         | `codex plugin marketplace upgrade`, which also refreshes installed plugins        |
 | `hermes-plugins`        | `hermes plugins update <name>` for each plugin installed from git                 |
 | `hermes-skills`         | `hermes -p <profile> skills update` for each profile with `hub_skills`            |
 
-Each lane is a uu builtin. Its settings, drawn from the list, are in
-`dot_config/uu/private_config.toml.tmpl`, and `uu lane show <name>` describes it. Each prints one line
-per change (`grilling: 1a2b3c4 -> 4d5e6f7`, `tdd: added`) and nothing when nothing changed. Problems go
-to stderr as `error[kind]: message`. Exit codes: 0 done, 75 try later, 100 needs you, 1 failed.
+Each lane but `skills-on-demand` is a uu builtin. Its settings, drawn from the list, are in
+`dot_config/uu/private_config.toml.tmpl`, and `uu lane show <name>` describes it. `skills-on-demand` runs
+`dot_config/uu/scripts/executable_mark-on-demand-skills.sh.tmpl`, whose skills chezmoi fills in from the
+list. Each prints one line per change (`grilling: 1a2b3c4 -> 4d5e6f7`, `tdd: added`) and nothing when
+nothing changed. Problems go to stderr as `error[kind]: message`. Exit codes: 0 done, 75 try later, 100
+needs you, 1 failed.
 
-`just update-skills` runs `uu run skills`, the `npx-skills`, `clawhub-skills` and `cua-driver-skills`
-lanes in that order.
+`just update-skills` runs `uu run skills`, the `npx-skills`, `clawhub-skills`, `cua-driver-skills` and
+`skills-on-demand` lanes in that order. A scheduled run also runs `skills-on-demand` after the other
+three, since lanes run in name order.
 
 ## Only when asked
 
@@ -55,10 +59,12 @@ A skill in `skills.on_demand` loads only when you call it by name.
 
 - Claude Code: `private_dot_claude/modify_settings.json` sets it to user-invocable only.
 - Codex: its `agents/openai.yaml` gets `policy.allow_implicit_invocation: false`, merged in with `yq`.
-  The file's original text is kept in a last line starting `# uu-original-openai:`. The apply sets it; an
-  update replaces the folder, so a skill a lane updated loads on its own again until the next apply that
-  reruns the skills step. Vendored skills carry their own file, and `cua-driver` is left alone because
-  the app owns it.
+  The file's original text is kept in a last line starting `# uu-original-openai:`, and a skill that
+  leaves the list gets that text back. `~/.config/uu/scripts/mark-on-demand-skills.sh` does both,
+  printing `<skill>: marked only-when-asked` or `<skill>: restored` per change. The apply runs it, and so
+  does the `skills-on-demand` lane after the weekly updates, since an update replaces the folder and the
+  file with it. Vendored skills carry their own file, and `cua-driver` is left alone because the app owns
+  it.
 
 ## When a lane needs you
 

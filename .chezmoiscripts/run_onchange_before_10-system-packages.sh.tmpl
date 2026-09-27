@@ -13,7 +13,9 @@ readonly brew_bin="$homebrew_prefix/bin/brew"
 readonly homebrew_trust_store="${XDG_CONFIG_HOME:-$HOME/.config}/homebrew/trust.json"
 readonly homebrew_trust_store_trace="${TRUST_TRACE:-$HOME/.local/state/homebrew-trust-trace.log}"
 readonly trace_stage_column_width=26
-readonly published_app_store_brewfile="$HOME/.local/state/homebrew/mas.Brewfile"
+readonly coreutils_timeout="$homebrew_prefix/bin/gtimeout"
+readonly app_store_install_time_limit_seconds=180
+readonly timed_out_status=124
 {{- if $graphifyIsDeclared }}
 readonly graphify_claude_config_directory="$HOME/.local/share/graphify/claude"
 readonly graphify_skill_bundle_directory="$graphify_claude_config_directory/skills/graphify"
@@ -191,21 +193,39 @@ app_store_apps_are_declared() {
   [[ -s $app_store_apps_brewfile ]]
 }
 
-publish_app_store_brewfile() {
-  mkdir -p "${published_app_store_brewfile%/*}"
-  cp "$app_store_apps_brewfile" "$published_app_store_brewfile"
+install_app_store_apps_within_time_limit() {
+  "$coreutils_timeout" "$app_store_install_time_limit_seconds" \
+    "$brew_bin" bundle --no-upgrade --file="$app_store_apps_brewfile" </dev/null 2>&1
 }
 
-remove_published_app_store_brewfile() {
-  rm -f "$published_app_store_brewfile"
+step_timed_out() {
+  local status=$1
+  ((status == timed_out_status))
 }
 
-hand_app_store_apps_to_the_weekly_job() {
-  if app_store_apps_are_declared; then
-    publish_app_store_brewfile
-    report_line "App Store apps are declared but never synced at apply; the weekly homebrew job installs from ${published_app_store_brewfile}, bounded."
-  else
-    remove_published_app_store_brewfile
+step_failed() {
+  local status=$1
+  ((status != 0))
+}
+
+names_of_apps_installed_in() {
+  local bundle_output=$1
+  sed -n 's/^Installing //p' <<<"$bundle_output" | paste -s -d ',' - | sed 's/,/, /g'
+}
+
+install_missing_app_store_apps() {
+  local bundle_output installed_apps status=0
+  if ! app_store_apps_are_declared; then
+    return 0
+  fi
+  bundle_output="$(install_app_store_apps_within_time_limit)" || status=$?
+  installed_apps="$(names_of_apps_installed_in "$bundle_output")"
+  if step_timed_out "$status"; then
+    report_line "error[timed-out]: installing the missing App Store apps did not finish within $app_store_install_time_limit_seconds seconds; the apply goes on." >&2
+  elif step_failed "$status"; then
+    report_line "error[install-failed]: installing the missing App Store apps exited $status; the apply goes on." >&2
+  elif [[ -n $installed_apps ]]; then
+    report_line "installed from the App Store: $installed_apps."
   fi
 }
 
@@ -216,7 +236,7 @@ install_declared_homebrew_packages() {
   write_app_store_apps_brewfile
   report_section 'homebrew' 'bundle sync'
   install_missing_homebrew_packages
-  hand_app_store_apps_to_the_weekly_job
+  install_missing_app_store_apps
   record_homebrew_trust_store_state '20-after-brew-bundle'
 }
 

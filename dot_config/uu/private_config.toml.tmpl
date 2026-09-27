@@ -25,13 +25,6 @@ command = ["scripts/send-report-to-hermes.sh"]
 [alert]
 command = ["scripts/send-alert-to-pns.sh"]
 
-[lane.app-store]
-command = ["scripts/update-app-store.sh"]
-env = {}
-scheduled = true
-time_limit = "6 hours"
-unsuccessful_runs_before_alert = 3
-
 [lane.bgutil-ytdlp-pot-provider]
 command = ["scripts/update-bgutil-ytdlp-pot-provider.sh"]
 env = {}
@@ -160,6 +153,13 @@ profiles = [
 {{- end }}
 ]
 
+[lane.mas]
+builtin = "mas"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
 [lane.npm]
 builtin = "npm"
 env = {}
@@ -259,6 +259,13 @@ unsuccessful_runs_before_alert = 3
 
 [lane.rustup.settings]
 
+[lane.skills-on-demand]
+command = ["scripts/mark-on-demand-skills.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
 [lane.uv]
 builtin = "uv"
 env = {}
@@ -310,4 +317,4 @@ unsuccessful_runs_before_alert = 3
 [lane.yt-dlp.settings]
 
 [group.skills]
-lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills"]
+lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills", "skills-on-demand"]
