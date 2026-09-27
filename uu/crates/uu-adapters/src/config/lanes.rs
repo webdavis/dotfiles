@@ -1,5 +1,5 @@
-//! `[lanes]`: the REGISTRY, whose blocks are keyed by an operator-chosen NAME
-//! and dispatch on the TYPE each one states.
+//! `[lane]`, or the older `[lanes]`: the REGISTRY, whose blocks are keyed by
+//! an operator-chosen NAME and dispatch on the TYPE each one states.
 //!
 //! A TYPE IS REQUIRED, EXPLICIT OR IMPLIED, and an unrecognized one is
 //! refused rather than ignored, which is the one place this file departs
@@ -83,11 +83,14 @@ fn is_plain_path_segment(name: &str) -> bool {
     !name.is_empty() && !name.contains('/') && name != "." && name != ".."
 }
 
+/// `key` is the table the blocks sit under, `lane` or the older `lanes`, so
+/// every refusal names the block the way the file spells it.
 pub(super) fn parse_lanes(
+    key: &str,
     value: toml::Value,
     registrations: &[LaneRegistration],
 ) -> Result<Lanes, ConfigError> {
-    let table = table_of("lanes", value)?;
+    let table = table_of(key, value)?;
     let mut lanes = Lanes::new();
     for (name, block) in table {
         if !is_plain_path_segment(&name) {
@@ -97,7 +100,7 @@ pub(super) fn parse_lanes(
                  or `..`"
             )));
         }
-        let table_label = format!("lanes.{name}");
+        let table_label = format!("{key}.{name}");
         let mut fields = table_of(&table_label, block)?;
         // TAKEN BEFORE THE DISPATCH, because every lane type carries it and
         // none of them has an arm to read it: left in the table it would meet
@@ -110,7 +113,7 @@ pub(super) fn parse_lanes(
             Some(stated) => super::escalation::parse_escalation(&table_label, &stated)?,
             None => uu_domain::DEFAULT_ESCALATE_AFTER_RUNS,
         };
-        let registration = lane_type(&name, &table_label, &fields, registrations)?;
+        let registration = lane_type(key, &name, &table_label, &fields, registrations)?;
         let adapter = registration.parse(&table_label, fields)?;
         lanes.insert(
             name,
@@ -126,14 +129,16 @@ pub(super) fn parse_lanes(
 }
 
 /// The lane's TYPE: read from its own `type` key, or IMPLIED when the block
-/// says nothing and the NAME itself is a built-in type.
+/// says nothing. A `[lane.<name>]` block is then a command lane, whatever its
+/// name. A `[lanes.<name>]` block takes the type its NAME names.
 ///
-/// ONLY A BUILT-IN NAME GETS THIS DEFAULT, narrower on purpose than pns's
-/// "NOTHING GUESSES A BACKEND": it is what keeps a config written before the
-/// producer API (a bare `[lanes.herdr]`, no `type`) working unchanged. A name
-/// that is not a built-in type and states no `type` names nothing to dispatch
-/// on, so it is refused rather than guessed.
+/// ONLY A BUILT-IN NAME GETS THE `[lanes.<name>]` DEFAULT, narrower on purpose
+/// than pns's "NOTHING GUESSES A BACKEND": it is what keeps a config written
+/// before the producer API (a bare `[lanes.herdr]`, no `type`) working
+/// unchanged. A name that is not a built-in type and states no `type` names
+/// nothing to dispatch on, so it is refused rather than guessed.
 fn lane_type<'a>(
+    key: &str,
     name: &str,
     table_label: &str,
     table: &toml::Table,
@@ -146,6 +151,7 @@ fn lane_type<'a>(
             .collect::<Vec<_>>()
             .join(", ")
     };
+    let implied_type = if key == "lane" { "command" } else { name };
     match table.get("type") {
         Some(value) => {
             let stated = non_empty(table_label, "type", value)?;
@@ -156,7 +162,7 @@ fn lane_type<'a>(
         }
         None => registrations
             .iter()
-            .find(|entry| entry.type_name() == name)
+            .find(|entry| entry.type_name() == implied_type)
             .ok_or_else(|| {
                 ConfigError::Invalid(format!(
                     "lane `{name}` names no `type`; this build serves {}",
@@ -183,13 +189,23 @@ pub(crate) use herdr::Plugin;
 mod tests {
     use super::*;
     use crate::config::probes::parse_config;
-    use crate::config::probes::{checked_text, refusal, typed};
+    use crate::config::probes::{REGISTRATIONS, checked_text, refusal, typed};
 
     #[test]
     fn a_lane_named_after_no_built_in_type_and_naming_no_type_is_refused_by_name() {
         let detail = refusal("[lanes.hedr]\n");
         assert!(detail.contains("lane `hedr` names no `type`"), "{detail}");
         assert!(detail.contains("herdr"), "{detail}");
+    }
+
+    #[test]
+    fn a_lane_table_block_that_names_no_type_is_a_command_lane_whatever_its_name() {
+        let type_names = REGISTRATIONS.iter().map(|entry| entry.type_name());
+        for name in type_names.chain(["chosen"]) {
+            let config = parse_config(&format!("[lane.{name}]\nrun = [\"/fixture/updater\"]\n"))
+                .unwrap_or_else(|error| panic!("`{name}`: {error:?}"));
+            assert_eq!(config.lanes[name].type_name(), "command", "`{name}`");
+        }
     }
 
     #[test]

@@ -67,6 +67,7 @@
   "nvim-jdtls": { "branch": "master", "commit": "6e9d953f0b82bccdb834cfde0e893f3119c22592" },
   "nvim-lint": { "branch": "master", "commit": "3d55c8f67c6ae5c15e1042571e107c7a3d5c5f4e" },
   "nvim-lspconfig": { "branch": "master", "commit": "84252f9832fb5b9024fe9f7258e7c2aff915e6fb" },
+  "nvim-mcp": { "branch": "main", "commit": "986be68135a05ebdb727e73e609ffda0bbbbfdf6" },
   "nvim-nio": { "branch": "master", "commit": "edcc181a875301dd21840189aa2f2f9ad69fc172" },
   "nvim-surround": { "branch": "main", "commit": "2e93e154de9ff326def6480a4358bfc149d5da2c" },
   "nvim-treesitter": { "branch": "main", "commit": "41416e81a6c7f4af4984395bfe0cd8d174e70976" },
