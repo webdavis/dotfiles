@@ -1,6 +1,34 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # updater-hash: {{ include "dot_local/libexec/uu/executable_update-plannotator.sh" | sha256sum }}
 
 set -euo pipefail
 
-exec bash {{ joinPath .chezmoi.sourceDir "dot_local/libexec/uu/executable_update-plannotator.sh" | quote }}
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly plannotator_updater={{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-plannotator.sh" | quote }}
+
+plannotator_updater_is_installed() {
+  [[ -x $plannotator_updater ]]
+}
+
+run_plannotator_updater() {
+  "$plannotator_updater"
+}
+
+main() {
+  report_section 'plannotator' 'binary only; harness configuration stays in chezmoi'
+
+  if ! plannotator_updater_is_installed; then
+    report_line "error[updater-missing]: $plannotator_updater is not installed; plannotator was not reinstalled." >&2
+    exit 1
+  fi
+
+  report_line "running the updater..."
+  if ! run_plannotator_updater; then
+    report_line "error[update-failed]: $plannotator_updater failed." >&2
+    exit 1
+  fi
+  report_line "updater finished."
+}
+
+main "$@"
