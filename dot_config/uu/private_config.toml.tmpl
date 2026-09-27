@@ -121,11 +121,14 @@ unsuccessful_runs_before_alert = 3
 [lane.cua-driver-skills.settings]
 
 [lane.herdr]
-command = ["scripts/update-herdr-plugins.sh"]
+builtin = "herdr"
 env = {}
 scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
+
+[lane.herdr.settings]
+pinned = []
 
 [lane.herdr-binary]
 command = ["{{ .chezmoi.homeDir }}/.local/bin/herdr", "update"]
