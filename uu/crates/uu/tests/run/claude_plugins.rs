@@ -14,7 +14,7 @@ fn a_weekly_plugin_lane_compares_and_advances_history_under_its_declared_name() 
     fs::create_dir_all(&lane).unwrap();
     fs::write(lane.join("snapshot.tsv"), "alpha\t1\n").unwrap();
     let home = home.with_config(&format!(
-        "[lanes.personal]\ntype = \"claude-plugins\"\ninventory = {inventory:?}\n"
+        "[lane.personal]\ntype = \"claude-plugins\"\ninventory = {inventory:?}\n"
     ));
     let output = home.uu(&["run", "personal"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");

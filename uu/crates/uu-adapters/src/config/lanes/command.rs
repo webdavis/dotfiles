@@ -18,7 +18,7 @@ pub struct CommandLane {
 ///
 /// `admits` RUNS FIRST, inside this same loop, before the after-loop check
 /// below for a missing `run`. A block that names an unknown key AND no `run`
-/// (`[lanes.mine]\ntype = "command"\nbogus = 1`) is refused for the key it
+/// (`[lane.mine]\ntype = "command"\nbogus = 1`) is refused for the key it
 /// misspelled, not for the run it never got to declare: the operator fixes
 /// one problem at a time, and "unknown key" is the more specific diagnosis.
 pub(crate) fn parse_command_lane(
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn a_command_lane_without_run_is_refused_because_it_names_nothing_to_run() {
-        let detail = refusal("[lanes.command]\n");
+        let detail = refusal("[lane.command]\n");
         assert!(detail.contains("has no `run`"), "{detail}");
         assert!(detail.contains("names nothing to run"), "{detail}");
     }
@@ -112,17 +112,17 @@ mod tests {
     #[test]
     fn a_run_that_is_empty_not_a_list_or_holds_a_blank_is_refused_by_name() {
         for (text, expect) in [
-            ("[lanes.command]\nrun = []\n", "is empty"),
-            ("[lanes.command]\nrun = \"x\"\n", "not a list"),
-            ("[lanes.command]\nrun = [1]\n", "not a string"),
-            ("[lanes.command]\nrun = [\"\"]\n", "holds a blank entry"),
+            ("[lane.command]\nrun = []\n", "is empty"),
+            ("[lane.command]\nrun = \"x\"\n", "not a list"),
+            ("[lane.command]\nrun = [1]\n", "not a string"),
+            ("[lane.command]\nrun = [\"\"]\n", "holds a blank entry"),
             // Whitespace is blank too: it reads as a filled-in entry and
             // names nothing an exec can find.
-            ("[lanes.command]\nrun = [\" \"]\n", "holds a blank entry"),
+            ("[lane.command]\nrun = [\" \"]\n", "holds a blank entry"),
             // A VALID run[0] must not stop the check: a mutant that
             // validates only the first entry passes every case above.
             (
-                "[lanes.command]\nrun = [\"ok\", \"\"]\n",
+                "[lane.command]\nrun = [\"ok\", \"\"]\n",
                 "holds a blank entry",
             ),
         ] {
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn a_command_lane_reads_run_as_the_program_and_its_arguments() {
         let config =
-            checked_text("[lanes.mine]\ntype = \"command\"\nrun = [\"/bin/x\", \"--yes\"]\n");
+            checked_text("[lane.mine]\ntype = \"command\"\nrun = [\"/bin/x\", \"--yes\"]\n");
         assert_eq!(
             typed::<CommandLane>(config, "mine"),
             Some(CommandLane {
@@ -143,9 +143,9 @@ mod tests {
         );
         // A second way `type` could be ignored: a herdr-only key on a command
         // block must still be refused.
-        let detail = refusal("[lanes.mine]\ntype = \"command\"\nrun = [\"x\"]\nbinary = \"y\"\n");
+        let detail = refusal("[lane.mine]\ntype = \"command\"\nrun = [\"x\"]\nbinary = \"y\"\n");
         assert!(
-            detail.contains("unknown `lanes.mine` key `binary`"),
+            detail.contains("unknown `lane.mine` key `binary`"),
             "{detail}"
         );
     }
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn a_command_lane_reads_command_as_the_program_and_its_arguments_the_way_it_reads_run() {
         let config = checked_text(
-            "[lanes.mine]\ntype = \"command\"\ncommand = [\"/fixture/updater\", \"--yes\"]\n",
+            "[lane.mine]\ntype = \"command\"\ncommand = [\"/fixture/updater\", \"--yes\"]\n",
         );
         assert_eq!(
             typed::<CommandLane>(config, "mine"),
@@ -192,9 +192,9 @@ mod tests {
 
     #[test]
     fn a_command_lane_with_a_bogus_key_is_refused_as_unknown_before_the_run_check() {
-        let detail = refusal("[lanes.command]\nbogus = 1\n");
+        let detail = refusal("[lane.command]\nbogus = 1\n");
         assert!(
-            detail.contains("unknown `lanes.command` key `bogus`"),
+            detail.contains("unknown `lane.command` key `bogus`"),
             "{detail}"
         );
         assert!(!detail.contains("names nothing to run"), "{detail}");

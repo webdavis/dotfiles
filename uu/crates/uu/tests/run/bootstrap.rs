@@ -17,7 +17,7 @@ fn bootstrap_of_an_undeclared_lane_is_refused_like_a_run_of_one() {
     let output = home.uu(&["bootstrap", "hedr"]);
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(
-        stderr(&output).contains("no `[lanes.hedr]` block"),
+        stderr(&output).contains("no `[lane.hedr]` block"),
         "{output:?}"
     );
 }
@@ -91,7 +91,7 @@ fn bootstrap_posts_no_record_and_leaves_the_marker_and_streaks_alone() {
         }
     });
     let pns = home.write_stub("pns", "printf called >\"$HOME/alert-called\"\n");
-    let home=home.with_config(&format!("[lanes.claude-plugins]\ninventory = {inventory:?}\n[records]\nurl = \"http://{address}/record\"\nkey = \"owned-test-key\"\n[alerts]\nbinary = {pns:?}\n"));
+    let home=home.with_config(&format!("[lane.claude-plugins]\ntype = \"claude-plugins\"\ninventory = {inventory:?}\n[records]\nurl = \"http://{address}/record\"\nkey = \"owned-test-key\"\n[alerts]\nbinary = {pns:?}\n"));
     let state = home.dir.join(".local/state/uu");
     let lane = state.join("lanes/claude-plugins");
     fs::create_dir_all(&lane).unwrap();
@@ -123,7 +123,7 @@ fn a_failed_plugin_bootstrap_prints_its_report_and_exits_one() {
     let home = Home::new("bootstrap-failed");
     let inventory = home.dir.join("missing.json");
     let home = home.with_config(&format!(
-        "[lanes.claude-plugins]\ninventory = {inventory:?}\n"
+        "[lane.claude-plugins]\ntype = \"claude-plugins\"\ninventory = {inventory:?}\n"
     ));
     let output = home.uu(&["bootstrap", "claude-plugins"]);
     assert_eq!(output.status.code(), Some(1), "{output:?}");

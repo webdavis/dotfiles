@@ -9,7 +9,7 @@ fn a_staleness_alert_reads_the_previous_streak_before_the_new_count_is_published
         "cat \"$HOME/.local/state/uu/lanes/mine/streak\" >\"$HOME/alert-saw-streak\"\n",
     );
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
          [alerts]\nbinary = \"{}\"\n",
         updater.display(),
         engine.display(),
@@ -41,7 +41,7 @@ fn a_lane_deferring_stale_after_runs_times_in_a_row_fires_one_staleness_alert() 
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));
@@ -71,7 +71,7 @@ fn the_staleness_alert_fires_once_at_the_threshold_and_not_again_while_still_def
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));
@@ -104,7 +104,7 @@ fn a_lane_failing_stale_after_runs_times_in_a_row_also_fires_one_staleness_alert
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));
@@ -137,8 +137,8 @@ fn two_lanes_deferring_together_trip_their_own_staleness_alert_independently() {
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.alpha]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
-         [lanes.beta]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+        "[lane.alpha]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [lane.beta]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
          [alerts]\nbinary = \"{}\"\n",
         stub_a.display(),
         stub_b.display(),
@@ -177,7 +177,7 @@ fn a_success_between_deferrals_resets_the_staleness_streak() {
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));

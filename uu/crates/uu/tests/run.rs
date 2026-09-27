@@ -78,7 +78,7 @@ fn a_deferred_command_lane_leaves_the_marker_unmoved_even_with_zero_failures() {
          exit 75\n",
     );
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
         stub.display()
     ));
     let output = home.uu(&["run"]);
@@ -121,7 +121,7 @@ fn a_deferral_leaves_the_marker_the_last_success_wrote_exactly_as_it_was() {
         ),
     );
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
         stub.display()
     ));
     home.uu(&["run"]);
@@ -147,7 +147,7 @@ fn a_deferred_command_lane_never_fires_the_per_run_failure_alert() {
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));
@@ -176,9 +176,9 @@ fn a_mixed_run_records_each_lanes_own_verdict_alerts_only_the_failed_one_and_sta
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.a-clean]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
-         [lanes.b-failing]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
-         [lanes.c-deferring]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+        "[lane.a-clean]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [lane.b-failing]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
+         [lane.c-deferring]\ntype = \"command\"\nrun = [\"{}\"]\n\n\
          [alerts]\nbinary = \"{}\"\n",
         clean.display(),
         failing.display(),
@@ -256,7 +256,7 @@ fn a_deferred_only_run_posts_a_record_body_stated_deferred_not_completed() {
         "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
     );
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[records]\nurl = \"http://{addr}/uu\"\nkey = \"k\"\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[records]\nurl = \"http://{addr}/uu\"\nkey = \"k\"\n",
         stub.display(),
     ));
     let output = home.uu(&["run"]);

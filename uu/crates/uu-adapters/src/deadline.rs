@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn a_lane_that_states_no_deadline_takes_the_default() {
         assert_eq!(
-            deadline_of("[lanes.herdr]\n", "herdr"),
+            deadline_of("[lane.herdr]\ntype = \"herdr\"\n", "herdr"),
             DEFAULT_LANE_DEADLINE
         );
     }
@@ -69,7 +69,10 @@ mod tests {
     #[test]
     fn a_lane_may_state_its_own_deadline_in_seconds() {
         assert_eq!(
-            deadline_of("[lanes.herdr]\ndeadline_secs = 90\n", "herdr"),
+            deadline_of(
+                "[lane.herdr]\ntype = \"herdr\"\ndeadline_secs = 90\n",
+                "herdr"
+            ),
             Duration::from_secs(90)
         );
     }
@@ -80,27 +83,27 @@ mod tests {
         // rather than inside it for: a lane type added later is bounded by
         // construction, not by its author remembering to carry the field.
         let fixtures: &[(&str, &str)] = &[
-            ("brew", "[lanes.brew]\n"),
+            ("brew", "[lane.brew]\ntype = \"brew\"\n"),
             (
                 "nvim-mason",
-                "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-mason]\ntype = \"nvim-mason\"\nconfig = \"/fixture/nvim\"\n",
             ),
             (
                 "nvim-parsers",
-                "[lanes.nvim-parsers]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-parsers]\ntype = \"nvim-parsers\"\nconfig = \"/fixture/nvim\"\n",
             ),
             (
                 "nvim-plugins",
-                "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-plugins]\ntype = \"nvim-plugins\"\nconfig = \"/fixture/nvim\"\n",
             ),
             (
                 "nvim-smoke-test",
-                "[lanes.nvim-smoke-test]\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
+                "[lane.nvim-smoke-test]\ntype = \"nvim-smoke-test\"\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
             ),
-            ("command", "[lanes.command]\nrun = [\"x\"]\n"),
-            ("herdr", "[lanes.herdr]\n"),
-            ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
-            ("uv", "[lanes.uv]\n"),
+            ("command", "[lane.command]\nrun = [\"x\"]\n"),
+            ("herdr", "[lane.herdr]\ntype = \"herdr\"\n"),
+            ("npm", "[lane.npm]\ntype = \"npm\"\nbinary = \"/n/npm\"\n"),
+            ("uv", "[lane.uv]\ntype = \"uv\"\n"),
         ];
         for (kind, text) in fixtures {
             assert_eq!(deadline_of(text, kind), DEFAULT_LANE_DEADLINE, "{kind}");
@@ -117,7 +120,9 @@ mod tests {
         // Zero would mean the lane may run forever, which is the state the key
         // exists to end; a negative one is no duration at all.
         for stated in ["0", "-1"] {
-            let detail = refusal(&format!("[lanes.herdr]\ndeadline_secs = {stated}\n"));
+            let detail = refusal(&format!(
+                "[lane.herdr]\ntype = \"herdr\"\ndeadline_secs = {stated}\n"
+            ));
             assert!(
                 detail.contains(&format!("key `deadline_secs` is `{stated}`")),
                 "{stated}: {detail}"
@@ -132,7 +137,9 @@ mod tests {
     #[test]
     fn a_deadline_that_is_not_an_integer_is_refused_naming_what_was_written_instead() {
         for (stated, written) in [("\"90\"", "string"), ("1.5", "float"), ("true", "boolean")] {
-            let detail = refusal(&format!("[lanes.herdr]\ndeadline_secs = {stated}\n"));
+            let detail = refusal(&format!(
+                "[lane.herdr]\ntype = \"herdr\"\ndeadline_secs = {stated}\n"
+            ));
             assert!(
                 detail.contains(&format!("has type `{written}`, not an integer")),
                 "{stated}: {detail}"
@@ -142,9 +149,9 @@ mod tests {
 
     #[test]
     fn a_lane_block_naming_a_deadline_is_still_refused_for_a_key_it_misspelled() {
-        let detail = refusal("[lanes.herdr]\ndeadline_secs = 90\nbogus = 1\n");
+        let detail = refusal("[lane.herdr]\ntype = \"herdr\"\ndeadline_secs = 90\nbogus = 1\n");
         assert!(
-            detail.contains("unknown `lanes.herdr` key `bogus`"),
+            detail.contains("unknown `lane.herdr` key `bogus`"),
             "{detail}"
         );
         assert!(

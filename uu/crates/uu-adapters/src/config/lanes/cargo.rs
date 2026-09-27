@@ -1,4 +1,4 @@
-//! `[lanes.<name>]` with `type = "cargo"`: the cargo binary to drive, and
+//! `[lane.<name>]` with `type = "cargo"`: the cargo binary to drive, and
 //! whether this lane compiles or only reports.
 //!
 //! REPORTING IS THE DEFAULT because compiling is not. A `cargo install` builds
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn a_cargo_lane_defaults_to_the_cargo_command_on_the_running_path_and_reports_only() {
         assert_eq!(
-            typed::<CargoLane>(checked_text("[lanes.cargo]\n"), "cargo"),
+            typed::<CargoLane>(checked_text("[lane.cargo]\ntype = \"cargo\"\n"), "cargo"),
             Some(CargoLane {
                 cargo: DEFAULT_CARGO_BINARY.to_string(),
                 compile: false,
@@ -74,7 +74,7 @@ mod tests {
         assert_eq!(
             typed::<CargoLane>(
                 checked_text(
-                    "[lanes.rust-tools]\ntype = \"cargo\"\ncargo = \"/Users/x/.cargo/bin/cargo\"\ncompile = true\n"
+                    "[lane.rust-tools]\ntype = \"cargo\"\ncargo = \"/Users/x/.cargo/bin/cargo\"\ncompile = true\n"
                 ),
                 "rust-tools"
             ),
@@ -89,7 +89,7 @@ mod tests {
     fn compile_that_is_not_a_boolean_is_refused_naming_what_was_written() {
         // A string `"true"` reading as false would silently turn compiling off
         // on a machine whose operator believes it is on.
-        let why = refusal("[lanes.cargo]\ncompile = \"true\"\n");
+        let why = refusal("[lane.cargo]\ntype = \"cargo\"\ncompile = \"true\"\n");
         assert!(why.contains("compile"), "{why}");
     }
 }

@@ -10,7 +10,7 @@ fn a_pending_command_lane_keeps_its_output_and_advances_the_marker() {
     );
     let config = fixture
         .load(
-            &format!("[lanes.mine]\ntype = \"command\"\nrun = [{program:?}]\n"),
+            &format!("[lane.mine]\ntype = \"command\"\nrun = [{program:?}]\n"),
             crate::registrations::LANES,
         )
         .unwrap();
@@ -61,7 +61,7 @@ fn a_pending_command_lane_keeps_its_output_and_advances_the_marker() {
 fn a_command_lane_accepts_its_own_escalation_threshold() {
     let fixture = Fixture::new("pending-threshold");
     let config = fixture.load(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"/fixture/updater\"]\nescalate_after_runs = 2\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"/fixture/updater\"]\nescalate_after_runs = 2\n",
         crate::registrations::LANES,
     );
     assert!(
@@ -96,7 +96,7 @@ fn the_parsed_pending_threshold_uses_its_own_file_and_resets_after_completed_wor
     .unwrap();
     std::fs::set_permissions(&engine, std::fs::Permissions::from_mode(0o700)).unwrap();
     let program = fixture.stub("cat >/dev/null\nexit 100\n");
-    let config = fixture.load(&format!("[alerts]\nbinary = {engine:?}\n[lanes.mine]\ntype = \"command\"\nrun = [{program:?}]\nescalate_after_runs = 2\ndeadline_secs = 1\n"), crate::registrations::LANES).unwrap();
+    let config = fixture.load(&format!("[alerts]\nbinary = {engine:?}\n[lane.mine]\ntype = \"command\"\nrun = [{program:?}]\nescalate_after_runs = 2\ndeadline_secs = 1\n"), crate::registrations::LANES).unwrap();
     let state = fixture.dir.join(".local/state/uu/lanes/mine");
     std::fs::create_dir_all(&state).unwrap();
     std::fs::write(state.join("streak"), "2\n").unwrap();

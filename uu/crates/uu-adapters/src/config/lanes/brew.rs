@@ -1,4 +1,4 @@
-//! `[lanes.brew]`: Homebrew formulae, casks and Mac App Store apps, plus the
+//! `[lane.<name>]` with `type = "brew"`: Homebrew formulae, casks and Mac App Store apps, plus the
 //! two repairs only that lane is positioned to make.
 //!
 //! EVERY PATH IS A KEY, and every key ships at its default, because a machine
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn a_brew_lane_that_states_no_path_runs_at_the_defaults_the_template_ships() {
-        let config = checked_text("[lanes.brew]\n");
+        let config = checked_text("[lane.brew]\ntype = \"brew\"\n");
         let Some(lane) = typed::<BrewLane>(config, "brew") else {
             panic!("expected a brew lane");
         };
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn every_brew_path_the_block_states_is_the_one_the_lane_carries() {
         let config = checked_text(
-            "[lanes.brew]\nbrew = \"/b\"\nmas = \"/m\"\ntailscaled = \"/t\"\n\
+            "[lane.brew]\ntype = \"brew\"\nbrew = \"/b\"\nmas = \"/m\"\ntailscaled = \"/t\"\n\
              osquery_converge = \"/c\"\nmas_manifest = \"/f\"\nupgrade_record = \"/r\"\n",
         );
         let Some(lane) = typed::<BrewLane>(config, "brew") else {
@@ -135,7 +135,9 @@ mod tests {
             ("['']", "blank entry"),
             ("['/p', ' ']", "blank entry"),
         ] {
-            let detail = refusal(&format!("[lanes.brew]\nosquery_converge = {value}\n"));
+            let detail = refusal(&format!(
+                "[lane.brew]\ntype = \"brew\"\nosquery_converge = {value}\n"
+            ));
             assert!(detail.contains("osquery_converge"), "{detail}");
             assert!(detail.contains(why), "{detail}");
         }

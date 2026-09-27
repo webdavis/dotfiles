@@ -1,5 +1,5 @@
-//! `[lane]`, or the older `[lanes]`: the REGISTRY, whose blocks are keyed by
-//! an operator-chosen NAME and dispatch on the TYPE each one states.
+//! `[lane]`: the REGISTRY, whose blocks are keyed by an operator-chosen NAME
+//! and dispatch on the TYPE each one states.
 //!
 //! A TYPE IS REQUIRED, EXPLICIT OR IMPLIED, and an unrecognized one is
 //! refused rather than ignored, which is the one place this file departs
@@ -7,7 +7,7 @@
 //! is a subject that silently never updates, and nothing else on the machine
 //! would ever say so.
 //!
-//! ONE MODULE PER KIND, mirroring `crate::lanes`: what a `[lanes.npm]` block
+//! ONE MODULE PER KIND, mirroring `crate::lanes`: what a `type = "npm"` block
 //! parses into lives in `config::lanes::npm`, and what running that lane does
 //! lives in `lanes::npm`.
 
@@ -46,7 +46,7 @@ pub(crate) use nvim::NvimHost;
 pub use nvim::{NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane};
 pub use uv::UvLane;
 
-/// The lane REGISTRY: every declared `[lanes.<name>]` block, keyed by the name
+/// The lane REGISTRY: every declared `[lane.<name>]` block, keyed by the name
 /// the operator chose. A `BTreeMap` orders lanes by NAME regardless of the
 /// file's own order (`toml::Table` is itself a `BTreeMap`, and neither this
 /// crate nor pns enables the `toml`/`indexmap` `preserve_order` feature, so a
@@ -83,14 +83,11 @@ fn is_plain_path_segment(name: &str) -> bool {
     !name.is_empty() && !name.contains('/') && name != "." && name != ".."
 }
 
-/// `key` is the table the blocks sit under, `lane` or the older `lanes`, so
-/// every refusal names the block the way the file spells it.
 pub(super) fn parse_lanes(
-    key: &str,
     value: toml::Value,
     registrations: &[LaneRegistration],
 ) -> Result<Lanes, ConfigError> {
-    let table = table_of(key, value)?;
+    let table = table_of("lane", value)?;
     let mut lanes = Lanes::new();
     for (name, block) in table {
         if !is_plain_path_segment(&name) {
@@ -100,7 +97,7 @@ pub(super) fn parse_lanes(
                  or `..`"
             )));
         }
-        let table_label = format!("{key}.{name}");
+        let table_label = format!("lane.{name}");
         let mut fields = table_of(&table_label, block)?;
         // TAKEN BEFORE THE DISPATCH, because every lane type carries it and
         // none of them has an arm to read it: left in the table it would meet
@@ -113,7 +110,7 @@ pub(super) fn parse_lanes(
             Some(stated) => super::escalation::parse_escalation(&table_label, &stated)?,
             None => uu_domain::DEFAULT_ESCALATE_AFTER_RUNS,
         };
-        let registration = lane_type(key, &name, &table_label, &fields, registrations)?;
+        let registration = lane_type(&name, &table_label, &fields, registrations)?;
         let adapter = registration.parse(&table_label, fields)?;
         lanes.insert(
             name,
@@ -128,17 +125,9 @@ pub(super) fn parse_lanes(
     Ok(lanes)
 }
 
-/// The lane's TYPE: read from its own `type` key, or IMPLIED when the block
-/// says nothing. A `[lane.<name>]` block is then a command lane, whatever its
-/// name. A `[lanes.<name>]` block takes the type its NAME names.
-///
-/// ONLY A BUILT-IN NAME GETS THE `[lanes.<name>]` DEFAULT, narrower on purpose
-/// than pns's "NOTHING GUESSES A BACKEND": it is what keeps a config written
-/// before the producer API (a bare `[lanes.herdr]`, no `type`) working
-/// unchanged. A name that is not a built-in type and states no `type` names
-/// nothing to dispatch on, so it is refused rather than guessed.
+/// The lane's TYPE: read from its own `type` key, or a command lane, whatever
+/// its name, when the block says nothing.
 fn lane_type<'a>(
-    key: &str,
     name: &str,
     table_label: &str,
     table: &toml::Table,
@@ -151,7 +140,6 @@ fn lane_type<'a>(
             .collect::<Vec<_>>()
             .join(", ")
     };
-    let implied_type = if key == "lane" { "command" } else { name };
     match table.get("type") {
         Some(value) => {
             let stated = non_empty(table_label, "type", value)?;
@@ -162,7 +150,7 @@ fn lane_type<'a>(
         }
         None => registrations
             .iter()
-            .find(|entry| entry.type_name() == implied_type)
+            .find(|entry| entry.type_name() == "command")
             .ok_or_else(|| {
                 ConfigError::Invalid(format!(
                     "lane `{name}` names no `type`; this build serves {}",
@@ -192,13 +180,6 @@ mod tests {
     use crate::config::probes::{REGISTRATIONS, checked_text, refusal, typed};
 
     #[test]
-    fn a_lane_named_after_no_built_in_type_and_naming_no_type_is_refused_by_name() {
-        let detail = refusal("[lanes.hedr]\n");
-        assert!(detail.contains("lane `hedr` names no `type`"), "{detail}");
-        assert!(detail.contains("herdr"), "{detail}");
-    }
-
-    #[test]
     fn a_lane_table_block_that_names_no_type_is_a_command_lane_whatever_its_name() {
         let type_names = REGISTRATIONS.iter().map(|entry| entry.type_name());
         for name in type_names.chain(["chosen"]) {
@@ -210,12 +191,12 @@ mod tests {
 
     #[test]
     fn a_lane_name_that_is_not_a_plain_path_segment_is_refused_at_load() {
-        // Confirmed live (4b's review): `[lanes."../../../../pwned"]` created
+        // Confirmed live (4b's review): `[lane."../../../../pwned"]` created
         // `$HOME/pwned/streak`, escaping the state directory entirely. A lane
         // name flows straight into a path with no other guard, so a typo
         // must not be able to truncate an unrelated file.
         for name in ["..", ".", "../escaped", "a/b", "/absolute"] {
-            let detail = refusal(&format!("[lanes.{name:?}]\ntype = \"herdr\"\n"));
+            let detail = refusal(&format!("[lane.{name:?}]\ntype = \"herdr\"\n"));
             assert!(
                 detail.contains("is not a plain path segment"),
                 "case {name:?}: {detail}"
@@ -225,13 +206,13 @@ mod tests {
 
     #[test]
     fn an_ordinary_lane_name_is_unaffected_by_the_path_segment_check() {
-        assert!(parse_config("[lanes.mine]\ntype = \"herdr\"\n").is_ok());
-        assert!(parse_config("[lanes.my-lane_2]\ntype = \"herdr\"\n").is_ok());
+        assert!(parse_config("[lane.mine]\ntype = \"herdr\"\n").is_ok());
+        assert!(parse_config("[lane.my-lane_2]\ntype = \"herdr\"\n").is_ok());
     }
 
     #[test]
     fn an_unknown_lane_type_is_refused_naming_it_and_the_known_types() {
-        let detail = refusal("[lanes.mine]\ntype = \"hedr\"\n");
+        let detail = refusal("[lane.mine]\ntype = \"hedr\"\n");
         assert!(detail.contains("lane `mine` has type `hedr`"), "{detail}");
         assert!(detail.contains("herdr"), "{detail}");
     }
@@ -240,7 +221,7 @@ mod tests {
     fn a_block_named_for_one_type_that_states_another_is_the_stated_type() {
         // The stated `type` wins over a name that happens to be a type of its
         // own: the name is the operator's label, the type is the contract.
-        let text = "[lanes.herdr]\ntype = \"command\"\nrun = [\"x\"]\n";
+        let text = "[lane.herdr]\ntype = \"command\"\nrun = [\"x\"]\n";
         let config = parse_config(text).unwrap();
         assert_eq!(config.lanes["herdr"].type_name(), "command");
         assert_eq!(
@@ -257,31 +238,31 @@ mod tests {
         // pattern): a type in the roster that the parser refuses would
         // advertise a lane nobody can turn on.
         let fixtures: &[(&str, &str)] = &[
-            ("brew", "[lanes.brew]\n"),
+            ("brew", "[lane.brew]\ntype = \"brew\"\n"),
             (
                 "claude-plugins",
-                "[lanes.claude-plugins]\ninventory = \"/fixture/inventory.json\"\n",
+                "[lane.claude-plugins]\ntype = \"claude-plugins\"\ninventory = \"/fixture/inventory.json\"\n",
             ),
             (
                 "nvim-mason",
-                "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-mason]\ntype = \"nvim-mason\"\nconfig = \"/fixture/nvim\"\n",
             ),
             (
                 "nvim-parsers",
-                "[lanes.nvim-parsers]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-parsers]\ntype = \"nvim-parsers\"\nconfig = \"/fixture/nvim\"\n",
             ),
             (
                 "nvim-plugins",
-                "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-plugins]\ntype = \"nvim-plugins\"\nconfig = \"/fixture/nvim\"\n",
             ),
             (
                 "nvim-smoke-test",
-                "[lanes.nvim-smoke-test]\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
+                "[lane.nvim-smoke-test]\ntype = \"nvim-smoke-test\"\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
             ),
-            ("command", "[lanes.command]\nrun = [\"x\"]\n"),
-            ("herdr", "[lanes.herdr]\n"),
-            ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n"),
-            ("uv", "[lanes.uv]\n"),
+            ("command", "[lane.command]\nrun = [\"x\"]\n"),
+            ("herdr", "[lane.herdr]\ntype = \"herdr\"\n"),
+            ("npm", "[lane.npm]\ntype = \"npm\"\nbinary = \"/n/npm\"\n"),
+            ("uv", "[lane.uv]\ntype = \"uv\"\n"),
         ];
         for (lane_type, text) in fixtures {
             let config = parse_config(text).unwrap_or_else(|error| {
@@ -305,7 +286,7 @@ mod registration_contract {
     #[test]
     fn a_registered_command_alias_accepts_a_distinct_declared_lane_name() {
         let config = crate::config::parse_config(
-            "[lanes.chosen]\ntype = \"fixture-command\"\nrun = [\"/fixture/updater\", \"--yes\"]\n",
+            "[lane.chosen]\ntype = \"fixture-command\"\nrun = [\"/fixture/updater\", \"--yes\"]\n",
             &[crate::LaneRegistration::new::<crate::CommandLane>(
                 "fixture-command",
             )],

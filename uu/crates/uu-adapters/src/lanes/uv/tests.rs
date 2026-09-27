@@ -196,7 +196,7 @@ fn the_lane_upgrades_every_uv_tool_with_one_call_to_the_declared_binary() {
 
 #[test]
 fn a_clean_upgrade_is_one_recorded_line_under_the_lanes_own_name() {
-    // THE LANE'S OWN NAME, never the type's: `[lanes.tools]` with
+    // THE LANE'S OWN NAME, never the type's: `[lane.tools]` with
     // `type = "uv"` is recorded and alerted as `tools`, and a report
     // carrying a hardcoded `uv` would name a lane nobody declared.
     let report = lane().run("tools", &stub_facts(), &StubRunner::clean());

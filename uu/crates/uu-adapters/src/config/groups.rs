@@ -51,8 +51,6 @@ mod tests {
 
     const LANE_TABLE: &str = "[lane.first]\ncommand = [\"/fixture/first\"]\n\n\
                               [lane.second]\ncommand = [\"/fixture/second\"]\n\n";
-    const LANES_TABLE: &str = "[lanes.first]\ntype = \"command\"\nrun = [\"/fixture/first\"]\n\n\
-                               [lanes.second]\ntype = \"command\"\nrun = [\"/fixture/second\"]\n\n";
 
     #[test]
     fn a_group_block_that_is_not_a_non_empty_list_of_lane_names_is_refused_by_name() {
@@ -87,26 +85,24 @@ mod tests {
 
     #[test]
     fn a_group_that_shares_its_name_with_a_lane_is_refused_naming_it() {
-        for lanes in [LANE_TABLE, LANES_TABLE] {
-            let detail = refusal(&format!("{lanes}[group.first]\nlanes = [\"second\"]\n"));
-            assert!(
-                detail.contains("group `first` has the same name as a lane"),
-                "{detail}"
-            );
-        }
+        let detail = refusal(&format!(
+            "{LANE_TABLE}[group.first]\nlanes = [\"second\"]\n"
+        ));
+        assert!(
+            detail.contains("group `first` has the same name as a lane"),
+            "{detail}"
+        );
     }
 
     #[test]
     fn a_group_listing_a_name_no_lane_block_declares_is_refused_naming_the_group_and_the_name() {
-        for lanes in [LANE_TABLE, LANES_TABLE] {
-            let detail = refusal(&format!(
-                "{lanes}[group.both]\nlanes = [\"first\", \"third\"]\n"
-            ));
-            assert!(
-                detail.contains("group `both` lists `third`, which is no lane in this file"),
-                "{detail}"
-            );
-        }
+        let detail = refusal(&format!(
+            "{LANE_TABLE}[group.both]\nlanes = [\"first\", \"third\"]\n"
+        ));
+        assert!(
+            detail.contains("group `both` lists `third`, which is no lane in this file"),
+            "{detail}"
+        );
     }
 
     #[test]

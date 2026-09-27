@@ -1,4 +1,4 @@
-//! `[lanes.<name>]` with `type = "npm"`: the npm to run.
+//! `[lane.<name>]` with `type = "npm"`: the npm to run.
 //!
 //! `declared` IS A REPORT'S REFERENCE, NOT A ROSTER TO INSTALL FROM. The
 //! upgrade is still `npm update -g`, which is already every globally installed
@@ -69,7 +69,7 @@ mod tests {
     fn an_npm_lane_runs_the_npm_it_was_pointed_at_under_any_name() {
         assert_eq!(
             typed::<NpmLane>(
-                checked_text("[lanes.globals]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\n"),
+                checked_text("[lane.globals]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\n"),
                 "globals"
             ),
             Some(NpmLane {
@@ -84,7 +84,7 @@ mod tests {
         assert_eq!(
             typed::<NpmLane>(
                 checked_text(
-                    "[lanes.npm]\nbinary = \"/fnm/bin/npm\"\ndeclared = [\"acpx\", \"@scope/cli\"]\n"
+                    "[lane.npm]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\ndeclared = [\"acpx\", \"@scope/cli\"]\n"
                 ),
                 "npm"
             ),
@@ -99,9 +99,11 @@ mod tests {
     fn a_declared_roster_that_is_not_a_list_of_names_is_refused_naming_the_key() {
         // A bare string read as a one-name roster would report every other
         // installed package as undeclared, weekly.
-        let detail = refusal("[lanes.npm]\nbinary = \"/fnm/bin/npm\"\ndeclared = \"acpx\"\n");
+        let detail =
+            refusal("[lane.npm]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\ndeclared = \"acpx\"\n");
         assert!(detail.contains("`declared`"), "{detail}");
-        let blank = refusal("[lanes.npm]\nbinary = \"/fnm/bin/npm\"\ndeclared = [\" \"]\n");
+        let blank =
+            refusal("[lane.npm]\ntype = \"npm\"\nbinary = \"/fnm/bin/npm\"\ndeclared = [\" \"]\n");
         assert!(blank.contains("`declared`"), "{blank}");
     }
 
@@ -110,14 +112,16 @@ mod tests {
         // There is no useful compiled-in default: fnm's npm lives under the
         // operator's home, and a bare `npm` off the inherited PATH is the
         // wrong-node bug the lane exists to prevent.
-        let detail = refusal("[lanes.npm]\n");
-        assert!(detail.contains("`lanes.npm` has no `binary`"), "{detail}");
+        let detail = refusal("[lane.npm]\ntype = \"npm\"\n");
+        assert!(detail.contains("`lane.npm` has no `binary`"), "{detail}");
     }
 
     #[test]
     fn an_npm_binary_that_is_not_an_absolute_path_is_refused_by_name() {
         for stated in ["npm", "bin/npm", "~/bin/npm"] {
-            let detail = refusal(&format!("[lanes.npm]\nbinary = {stated:?}\n"));
+            let detail = refusal(&format!(
+                "[lane.npm]\ntype = \"npm\"\nbinary = {stated:?}\n"
+            ));
             assert!(
                 detail.contains("is not an absolute path"),
                 "case {stated:?}: {detail}"

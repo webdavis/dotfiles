@@ -214,7 +214,7 @@ fn the_directory_put_first_is_the_one_the_npm_binary_sits_in() {
 
 #[test]
 fn a_clean_upgrade_is_one_recorded_line_under_the_lanes_own_name() {
-    // THE LANE'S OWN NAME, never the type's: `[lanes.globals]` with
+    // THE LANE'S OWN NAME, never the type's: `[lane.globals]` with
     // `type = "npm"` is recorded and alerted as `globals`, and a report
     // carrying a hardcoded `npm` would name a lane nobody declared.
     let report = lane().run("globals", &stub_facts(), &StubRunner::clean());

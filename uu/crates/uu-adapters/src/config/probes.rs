@@ -45,10 +45,10 @@ pub(crate) fn checked_text(text: &str) -> &str {
 pub(crate) fn typed<T: LaneAdapter>(text: &str, name: &str) -> Option<T> {
     let document: toml::Table = text.parse().expect("fixture document");
     let fields = document
-        .get("lanes")?
+        .get("lane")?
         .as_table()?
         .get(name)?
         .as_table()?
         .clone();
-    Some(T::parse(&format!("lanes.{name}"), fields).expect("typed parser fixture"))
+    Some(T::parse(&format!("lane.{name}"), fields).expect("typed parser fixture"))
 }

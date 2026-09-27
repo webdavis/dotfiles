@@ -107,7 +107,7 @@ fn a_converge_that_ran_clean_is_the_quiet_week_it_is_meant_to_be() {
 fn converge_argv_keeps_spaces_and_shell_text_as_literal_arguments() {
     use crate::LaneAdapter;
     let lane = BrewLane::parse(
-        "lanes.brew",
+        "lane.brew",
         "osquery_converge = ['/home with space/posture', 'converge', '$(touch must-not-run)']"
             .parse()
             .unwrap(),

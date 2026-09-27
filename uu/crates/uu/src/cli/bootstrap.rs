@@ -42,7 +42,7 @@ pub fn bootstrap_mode(lane: &str) -> i32 {
                     Paint::for_stderr(),
                     Tone::Bad,
                     &format!(
-                        "uu: lane `{lane}` has no `[lanes.{lane}]` block in {}",
+                        "uu: lane `{lane}` has no `[lane.{lane}]` block in {}",
                         path.display()
                     ),
                 )

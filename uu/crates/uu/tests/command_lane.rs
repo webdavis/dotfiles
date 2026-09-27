@@ -11,7 +11,7 @@ fn a_command_lane_runs_end_to_end_and_the_record_carries_what_it_printed() {
     let home = Home::new("command-lane");
     let stub = home.write_stub("updater", "cat >\"$HOME/event\"; printf '3 upgraded\\n'\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
         stub.display()
     ));
     let output = home.uu(&["run"]);
@@ -37,7 +37,7 @@ fn a_failed_command_lane_alerts_through_the_configured_engine() {
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));

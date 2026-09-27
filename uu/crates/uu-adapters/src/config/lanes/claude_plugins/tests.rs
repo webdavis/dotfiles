@@ -4,14 +4,14 @@ use crate::{LaneAdapter, LaneRegistration};
 fn a_plugin_lane_keeps_the_absolute_inventory_it_was_given_under_any_name() {
     let fields: toml::Table = r#"inventory = "/owned/plugins.json""#.parse().unwrap();
     assert_eq!(
-        ClaudePluginsLane::parse("lanes.personal", fields)
+        ClaudePluginsLane::parse("lane.personal", fields)
             .unwrap()
             .inventory,
         "/owned/plugins.json"
     );
     assert!(
         crate::config::parse_config(
-            r#"[lanes.personal]
+            r#"[lane.personal]
 type = "claude-plugins"
 inventory = "/owned/plugins.json""#,
             &[LaneRegistration::new::<ClaudePluginsLane>("claude-plugins")]
@@ -30,7 +30,7 @@ inventroy = "/other""#,
     ] {
         let fields: toml::Table = text.parse().unwrap();
         assert!(
-            ClaudePluginsLane::parse("lanes.personal", fields).is_err(),
+            ClaudePluginsLane::parse("lane.personal", fields).is_err(),
             "{text}"
         );
     }

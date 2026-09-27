@@ -18,7 +18,7 @@ routing="/bin/routing"
 }
 #[test]
 fn every_skills_path_is_required_and_absolute_and_the_cli_version_is_preserved() {
-    let parsed = SkillsConfig::parse_fields("lanes.mine", fields()).unwrap();
+    let parsed = SkillsConfig::parse_fields("lane.mine", fields()).unwrap();
     assert_eq!(parsed.skills_cli_version, "1.5.22");
     assert_eq!(parsed.agents, "/agents");
     for key in [
@@ -40,7 +40,7 @@ fn every_skills_path_is_required_and_absolute_and_the_cli_version_is_preserved()
             }
             let error = format!(
                 "{:?}",
-                SkillsConfig::parse_fields("lanes.mine", f).unwrap_err()
+                SkillsConfig::parse_fields("lane.mine", f).unwrap_err()
             );
             assert!(error.contains(key), "{key}: {error}");
         }
@@ -53,7 +53,7 @@ fn an_empty_skills_cli_version_or_unknown_field_is_refused_by_name() {
         f.insert(key.into(), toml::Value::String(value.into()));
         let error = format!(
             "{:?}",
-            SkillsConfig::parse_fields("lanes.mine", f).unwrap_err()
+            SkillsConfig::parse_fields("lane.mine", f).unwrap_err()
         );
         assert!(error.contains(key), "{error}");
     }

@@ -87,7 +87,10 @@ impl Home {
         let stub = self.dir.join("herdr-stub");
         std::fs::write(&stub, format!("#!/bin/sh\n{body}")).expect("stub");
         std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).expect("mode");
-        let text = format!("[lanes.herdr]\nbinary = \"{}\"\n{extra}", stub.display());
+        let text = format!(
+            "[lane.herdr]\ntype = \"herdr\"\nbinary = \"{}\"\n{extra}",
+            stub.display()
+        );
         self.with_config(&text)
     }
 

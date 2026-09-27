@@ -29,7 +29,7 @@ impl BootstrapLane for Seed {
 #[test]
 fn a_parsed_bootstrap_capability_receives_its_declared_name_and_private_home() {
     let config = crate::config::parse_config(
-        r#"[lanes.mine]
+        r#"[lane.mine]
 type = "seed"
 message = "owned seed"
 "#,

@@ -86,8 +86,7 @@ fn marker(home: &Path, name: &str) -> String {
 fn interrupted(signal: i32, name: &str) {
     let home = Home::new(name);
     let original_marker = if signal == libc::SIGTERM {
-        let home =
-            home.with_config("[lanes.seed]\ntype = \"command\"\nrun = [\"/usr/bin/true\"]\n");
+        let home = home.with_config("[lane.seed]\ntype = \"command\"\nrun = [\"/usr/bin/true\"]\n");
         assert!(home.uu(&["run"]).status.success());
         let marker = fs::read_to_string(home.marker()).unwrap();
         (home, Some(marker))
@@ -107,8 +106,8 @@ fn interrupted(signal: i32, name: &str) {
     let late = home.write_stub("late", "touch \"$HOME/late-ran\"\n");
     let alert = home.write_stub("alert", "touch \"$HOME/alert-ran\"\n");
     let home = home.with_config(&format!(
-        "[lanes.first]\ntype = \"command\"\nrun = {args}\n\
-         [lanes.later]\ntype = \"command\"\nrun = [{late:?}]\n\
+        "[lane.first]\ntype = \"command\"\nrun = {args}\n\
+         [lane.later]\ntype = \"command\"\nrun = [{late:?}]\n\
          [alerts]\nbinary = {alert:?}\n"
     ));
     let mut run = Command::new(env!("CARGO_BIN_EXE_uu"))

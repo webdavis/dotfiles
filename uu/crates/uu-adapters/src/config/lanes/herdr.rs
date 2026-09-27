@@ -1,5 +1,5 @@
-//! `[lanes.herdr]`: the herdr binary to drive, and the plugin roster to
-//! refresh.
+//! `[lane.<name>]` with `type = "herdr"`: the herdr binary to drive, and the
+//! plugin roster to refresh.
 
 use crate::config::ConfigError;
 use crate::config::schema::{admits_lane, non_empty};
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn the_herdr_lane_still_parses_with_its_type_written_out() {
         assert_eq!(
-            typed::<HerdrLane>(checked_text("[lanes.herdr]\ntype = \"herdr\"\n"), "herdr"),
+            typed::<HerdrLane>(checked_text("[lane.herdr]\ntype = \"herdr\"\n"), "herdr"),
             Some(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
@@ -150,18 +150,7 @@ mod tests {
     #[test]
     fn a_herdr_lane_may_carry_any_name_once_its_type_says_herdr() {
         assert_eq!(
-            typed::<HerdrLane>(checked_text("[lanes.mine]\ntype = \"herdr\"\n"), "mine"),
-            Some(HerdrLane {
-                binary: DEFAULT_HERDR_BINARY.to_string(),
-                plugins: Vec::new(),
-            })
-        );
-    }
-
-    #[test]
-    fn a_lane_block_with_nothing_in_it_is_the_lane_on_with_its_defaults() {
-        assert_eq!(
-            typed::<HerdrLane>(checked_text("[lanes.herdr]\n"), "herdr"),
+            typed::<HerdrLane>(checked_text("[lane.mine]\ntype = \"herdr\"\n"), "mine"),
             Some(HerdrLane {
                 binary: DEFAULT_HERDR_BINARY.to_string(),
                 plugins: Vec::new(),
@@ -172,7 +161,7 @@ mod tests {
     #[test]
     fn the_plugin_roster_is_read_as_id_and_repo_pairs_in_the_order_written() {
         let config = checked_text(
-            "[lanes.herdr]\n\
+            "[lane.herdr]\ntype = \"herdr\"\n\
              plugins = [\n\
                { id = \"worktrunk\", repo = \"owner/herdr-worktrunk\" },\n\
                { id = \"herdr-bar\", repo = \"other/herdr-bar\" },\n\
@@ -201,14 +190,14 @@ mod tests {
     #[test]
     fn half_a_plugin_entry_is_refused_because_a_refresh_uninstalls_before_it_installs() {
         for text in [
-            "[lanes.herdr]\nplugins = [{ id = \"a\" }]\n",
-            "[lanes.herdr]\nplugins = [{ repo = \"o/r\" }]\n",
-            "[lanes.herdr]\nplugins = [{ id = \"\", repo = \"o/r\" }]\n",
-            "[lanes.herdr]\nplugins = [{ id = \"a\", repo = \"\" }]\n",
+            "[lane.herdr]\ntype = \"herdr\"\nplugins = [{ id = \"a\" }]\n",
+            "[lane.herdr]\ntype = \"herdr\"\nplugins = [{ repo = \"o/r\" }]\n",
+            "[lane.herdr]\ntype = \"herdr\"\nplugins = [{ id = \"\", repo = \"o/r\" }]\n",
+            "[lane.herdr]\ntype = \"herdr\"\nplugins = [{ id = \"a\", repo = \"\" }]\n",
             // A blank field is the same uninstall with the same nothing to
             // reinstall from, and it reads as a filled-in entry.
-            "[lanes.herdr]\nplugins = [{ id = \" \", repo = \"o/r\" }]\n",
-            "[lanes.herdr]\nplugins = [{ id = \"a\", repo = \"\t\" }]\n",
+            "[lane.herdr]\ntype = \"herdr\"\nplugins = [{ id = \" \", repo = \"o/r\" }]\n",
+            "[lane.herdr]\ntype = \"herdr\"\nplugins = [{ id = \"a\", repo = \"\t\" }]\n",
         ] {
             let detail = refusal(text);
             assert!(detail.contains("nothing to refresh"), "{detail}");
@@ -226,8 +215,9 @@ mod tests {
             ("ref = \"\"", None),
             ("ref = \"  \"", None),
         ] {
-            let text =
-                format!("[lanes.herdr]\nplugins = [{{ id = \"a\", repo = \"o/a\", {written} }}]\n");
+            let text = format!(
+                "[lane.herdr]\ntype = \"herdr\"\nplugins = [{{ id = \"a\", repo = \"o/a\", {written} }}]\n"
+            );
             let Some(herdr) = typed::<HerdrLane>(checked_text(&text), "herdr") else {
                 panic!("expected a herdr lane for {written}");
             };
@@ -238,8 +228,9 @@ mod tests {
     #[test]
     fn a_non_string_ref_is_refused_rather_than_treated_as_unpinned() {
         for written in ["ref = 2024", "ref = 1.2"] {
-            let text =
-                format!("[lanes.herdr]\nplugins = [{{ id = \"a\", repo = \"o/a\", {written} }}]\n");
+            let text = format!(
+                "[lane.herdr]\ntype = \"herdr\"\nplugins = [{{ id = \"a\", repo = \"o/a\", {written} }}]\n"
+            );
             let detail = refusal(&text);
             assert!(
                 detail.contains("plugin `ref` has type") && detail.contains("revision string"),
@@ -250,12 +241,13 @@ mod tests {
 
     #[test]
     fn a_plugin_entry_refuses_a_key_it_does_not_serve() {
-        let detail =
-            refusal("[lanes.herdr]\nplugins = [{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]\n");
+        let detail = refusal(
+            "[lane.herdr]\ntype = \"herdr\"\nplugins = [{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]\n",
+        );
         // `pin` is NOT the spelling: the revision key is `ref`, because it is
         // handed to `herdr plugin install --ref` unchanged.
         assert!(
-            detail.contains("unknown `lanes.herdr` plugin key `pin`")
+            detail.contains("unknown `lane.herdr` plugin key `pin`")
                 && detail.contains("id, ref, repo"),
             "{detail}"
         );
@@ -264,10 +256,12 @@ mod tests {
     #[test]
     fn a_plugin_list_that_is_not_a_list_of_tables_is_refused_by_name() {
         assert!(
-            refusal("[lanes.herdr]\nplugins = \"worktrunk\"\n").contains("not a list of plugins")
+            refusal("[lane.herdr]\ntype = \"herdr\"\nplugins = \"worktrunk\"\n")
+                .contains("not a list of plugins")
         );
         assert!(
-            refusal("[lanes.herdr]\nplugins = [\"worktrunk\"]\n").contains("not a plugin table")
+            refusal("[lane.herdr]\ntype = \"herdr\"\nplugins = [\"worktrunk\"]\n")
+                .contains("not a plugin table")
         );
     }
 
@@ -277,22 +271,22 @@ mod tests {
         // table on its own and restoring the literal in any one of them
         // leaves the other three green.
         for (plugins, says) in [
-            ("1", "`lanes.mine` key `plugins` has type `integer`"),
-            ("[\"a\"]", "`lanes.mine` key `plugins` holds a `string`"),
+            ("1", "`lane.mine` key `plugins` has type `integer`"),
+            ("[\"a\"]", "`lane.mine` key `plugins` holds a `string`"),
             (
                 "[{ id = \"a\", repo = \"o/r\", pin = \"v1\" }]",
-                "unknown `lanes.mine` plugin key `pin`",
+                "unknown `lane.mine` plugin key `pin`",
             ),
             (
                 "[{ id = \"a\" }]",
-                "`lanes.mine` plugin entry has no usable `repo`",
+                "`lane.mine` plugin entry has no usable `repo`",
             ),
         ] {
             let detail = refusal(&format!(
-                "[lanes.mine]\ntype = \"herdr\"\nplugins = {plugins}\n"
+                "[lane.mine]\ntype = \"herdr\"\nplugins = {plugins}\n"
             ));
             assert!(detail.contains(says), "{detail}");
-            assert!(!detail.contains("lanes.herdr"), "{detail}");
+            assert!(!detail.contains("lane.herdr"), "{detail}");
         }
     }
 }

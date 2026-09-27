@@ -1,4 +1,4 @@
-//! `[lanes.<name>]` with `type = "uv"`: the uv binary to drive.
+//! `[lane.<name>]` with `type = "uv"`: the uv binary to drive.
 //!
 //! `declared` IS A REPORT'S REFERENCE, NOT A ROSTER TO INSTALL FROM. The
 //! upgrade is still `uv tool upgrade --all`, which is already every tool uv
@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn a_uv_lane_defaults_to_the_uv_command_on_the_running_path() {
         assert_eq!(
-            typed::<UvLane>(checked_text("[lanes.uv]\n"), "uv"),
+            typed::<UvLane>(checked_text("[lane.uv]\ntype = \"uv\"\n"), "uv"),
             Some(UvLane {
                 binary: DEFAULT_UV_BINARY.to_string(),
                 declared: None,
@@ -70,7 +70,7 @@ mod tests {
     fn a_uv_lane_may_carry_any_name_and_drive_the_binary_it_states() {
         assert_eq!(
             typed::<UvLane>(
-                checked_text("[lanes.tools]\ntype = \"uv\"\nbinary = \"/opt/homebrew/bin/uv\"\n"),
+                checked_text("[lane.tools]\ntype = \"uv\"\nbinary = \"/opt/homebrew/bin/uv\"\n"),
                 "tools"
             ),
             Some(UvLane {
@@ -84,7 +84,7 @@ mod tests {
     fn a_uv_lane_may_declare_the_roster_its_report_is_measured_against() {
         assert_eq!(
             typed::<UvLane>(
-                checked_text("[lanes.uv]\ndeclared = [\"graphifyy\", \"whisply\"]\n"),
+                checked_text("[lane.uv]\ntype = \"uv\"\ndeclared = [\"graphifyy\", \"whisply\"]\n"),
                 "uv"
             ),
             Some(UvLane {
@@ -98,9 +98,9 @@ mod tests {
     fn a_declared_roster_that_is_not_a_list_of_names_is_refused_naming_the_key() {
         // A bare string read as a one-name roster would report every other
         // installed tool as undeclared, weekly.
-        let detail = refusal("[lanes.uv]\ndeclared = \"graphifyy\"\n");
+        let detail = refusal("[lane.uv]\ntype = \"uv\"\ndeclared = \"graphifyy\"\n");
         assert!(detail.contains("`declared`"), "{detail}");
-        let blank = refusal("[lanes.uv]\ndeclared = [\"\"]\n");
+        let blank = refusal("[lane.uv]\ntype = \"uv\"\ndeclared = [\"\"]\n");
         assert!(blank.contains("`declared`"), "{blank}");
     }
 }

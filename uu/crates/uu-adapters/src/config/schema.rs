@@ -2,7 +2,7 @@
 //! shape one setting has to have.
 //!
 //! EVERY UNKNOWN KEY IS REFUSED BY NAME. The failure that buys is the one a
-//! silent pass-through cannot report: a lane spelled `[lanes.hedr]` is a week
+//! silent pass-through cannot report: a lane spelled `[lane.hedr]` is a week
 //! that quietly updates nothing while the operator reads a config that looks
 //! right.
 
@@ -13,7 +13,7 @@ use super::ConfigError;
 pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
-        &["alerts", "group", "lane", "lanes", "records", "schedule"],
+        &["alerts", "group", "lane", "records", "schedule"],
     ),
     ("schedule", &["day", "time"]),
     ("records", &["failure_webhook", "key", "url"]),
@@ -172,8 +172,8 @@ mod tests {
                 "lanes",
             ),
             (
-                "[lanes.herdr]\nplugin = []\n",
-                "lanes.herdr",
+                "[lane.herdr]\ntype = \"herdr\"\nplugin = []\n",
+                "lane.herdr",
                 "plugin",
                 "binary, deadline_secs, escalate_after_runs, plugins, type",
             ),
@@ -193,7 +193,7 @@ mod tests {
             ("schedule = 3\n", "schedule"),
             ("records = \"x\"\n", "records"),
             ("alerts = true\n", "alerts"),
-            ("lanes = 1\n", "lanes"),
+            ("lane = 1\n", "lane"),
         ] {
             let detail = refusal(text);
             assert!(detail.contains(&format!("`{table}` has type")), "{detail}");
@@ -205,18 +205,18 @@ mod tests {
         // The built-in roster, judged by its own name...
         for registration in REGISTRATIONS {
             let kind = registration.type_name();
-            let detail = refusal(&format!("[lanes.{kind}]\nbogus = 1\n"));
+            let detail = refusal(&format!("[lane.{kind}]\ntype = \"{kind}\"\nbogus = 1\n"));
             assert!(
-                detail.contains(&format!("unknown `lanes.{kind}` key `bogus`")),
+                detail.contains(&format!("unknown `lane.{kind}` key `bogus`")),
                 "{detail}"
             );
         }
         // ...and an operator-chosen name of that same type, judged the same
         // way: the table named in the refusal is the CHOSEN name, and the
         // vocabulary spelled out is still the TYPE's.
-        let detail = refusal("[lanes.mine]\ntype = \"herdr\"\nbogus = 1\n");
+        let detail = refusal("[lane.mine]\ntype = \"herdr\"\nbogus = 1\n");
         assert!(
-            detail.contains("unknown `lanes.mine` key `bogus`"),
+            detail.contains("unknown `lane.mine` key `bogus`"),
             "{detail}"
         );
         assert!(detail.contains("a `herdr` lane serves"), "{detail}");
@@ -240,7 +240,7 @@ mod tests {
             .chain(
                 REGISTRATIONS
                     .iter()
-                    .map(|entry| (format!("lanes.{}", entry.type_name()), entry.keys())),
+                    .map(|entry| (format!("lane.{}", entry.type_name()), entry.keys())),
             );
         for (table, keys) in tables {
             for key in keys {
@@ -255,7 +255,11 @@ mod tests {
                     } else {
                         "true"
                     };
-                    format!("[{table}]\n{key} = {probe}\n")
+                    let stated_type = match table.strip_prefix("lane.") {
+                        Some(kind) if *key != "type" => format!("type = \"{kind}\"\n"),
+                        _ => String::new(),
+                    };
+                    format!("[{table}]\n{stated_type}{key} = {probe}\n")
                 };
                 let detail = match parse_config(&text) {
                     Err(error) => error.detail().to_string(),
@@ -279,7 +283,11 @@ mod tests {
             ("[records]\nkey = \"\"\n", "records", "key"),
             ("[records]\nkey = \"k\"\nurl = \"\"\n", "records", "url"),
             ("[alerts]\nbinary = \"\"\n", "alerts", "binary"),
-            ("[lanes.herdr]\nbinary = \"\"\n", "lanes.herdr", "binary"),
+            (
+                "[lane.herdr]\ntype = \"herdr\"\nbinary = \"\"\n",
+                "lane.herdr",
+                "binary",
+            ),
             ("[schedule]\nday = \"\"\n", "schedule", "day"),
             ("[schedule]\ntime = \"\"\n", "schedule", "time"),
         ] {
@@ -301,7 +309,11 @@ mod tests {
             ("[records]\nkey = \" \"\n", "records", "key"),
             ("[records]\nkey = \"k\"\nurl = \" \"\n", "records", "url"),
             ("[alerts]\nbinary = \"\t\"\n", "alerts", "binary"),
-            ("[lanes.herdr]\nbinary = \"  \"\n", "lanes.herdr", "binary"),
+            (
+                "[lane.herdr]\ntype = \"herdr\"\nbinary = \"  \"\n",
+                "lane.herdr",
+                "binary",
+            ),
             ("[schedule]\nday = \" \"\n", "schedule", "day"),
             ("[schedule]\ntime = \"\t \"\n", "schedule", "time"),
         ] {

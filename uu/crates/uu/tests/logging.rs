@@ -39,7 +39,7 @@ fn scheduled(home: &Home) -> (Output, PathBuf) {
 #[test]
 fn scheduled_output_records_each_run_once() {
     let home = Home::new("scheduled-log")
-        .with_config("[lanes.fixture]\ntype = \"command\"\nrun = [\"/usr/bin/true\"]\n");
+        .with_config("[lane.fixture]\ntype = \"command\"\nrun = [\"/usr/bin/true\"]\n");
     assert!(scheduled(&home).0.status.success());
     assert!(scheduled(&home).0.status.success());
     let log = fs::read_to_string(home.dir.join(".local/log/uu/uu.log")).unwrap();

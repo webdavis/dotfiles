@@ -218,7 +218,7 @@ fn a_crate_the_registry_names_no_version_for_is_recorded_rather_than_called_curr
 
 #[test]
 fn the_lane_is_recorded_under_its_own_name_and_not_the_types() {
-    // `[lanes.rust-tools]` with `type = "cargo"` is recorded as `rust-tools`.
+    // `[lane.rust-tools]` with `type = "cargo"` is recorded as `rust-tools`.
     let report = lane(false).run(
         "rust-tools",
         &stub_facts(),

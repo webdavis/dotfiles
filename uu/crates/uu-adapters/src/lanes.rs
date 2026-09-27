@@ -92,14 +92,14 @@ mod tests {
 
     #[test]
     fn a_lane_block_with_nothing_in_it_turns_the_lane_on() {
-        let config = parse_config("[lanes.herdr]\n").unwrap();
+        let config = parse_config("[lane.herdr]\ntype = \"herdr\"\n").unwrap();
         assert_eq!(names(&config), vec!["herdr"]);
         assert!(run_lane("herdr", &config, &stub_facts(), &ScriptedRunner::new(&[])).is_some());
     }
 
     #[test]
     fn a_lane_this_build_does_not_have_runs_nothing() {
-        let config = parse_config("[lanes.herdr]\n").unwrap();
+        let config = parse_config("[lane.herdr]\ntype = \"herdr\"\n").unwrap();
         assert_eq!(
             run_lane("brew", &config, &stub_facts(), &ScriptedRunner::new(&[])),
             None
@@ -114,31 +114,35 @@ mod tests {
         // runs. `command` needs a `run` to be valid at all, so the block is
         // spelled out per fixture rather than derived from the name alone.
         let fixtures: &[(&str, &str, &str)] = &[
-            ("brew", "[lanes.brew]\n", "brew"),
-            ("command", "[lanes.command]\nrun = [\"x\"]\n", "command"),
+            ("brew", "[lane.brew]\ntype = \"brew\"\n", "brew"),
+            ("command", "[lane.command]\nrun = [\"x\"]\n", "command"),
             (
                 "nvim-mason",
-                "[lanes.nvim-mason]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-mason]\ntype = \"nvim-mason\"\nconfig = \"/fixture/nvim\"\n",
                 "nvim-mason",
             ),
             (
                 "nvim-parsers",
-                "[lanes.nvim-parsers]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-parsers]\ntype = \"nvim-parsers\"\nconfig = \"/fixture/nvim\"\n",
                 "nvim-parsers",
             ),
             (
                 "nvim-plugins",
-                "[lanes.nvim-plugins]\nconfig = \"/fixture/nvim\"\n",
+                "[lane.nvim-plugins]\ntype = \"nvim-plugins\"\nconfig = \"/fixture/nvim\"\n",
                 "nvim-plugins",
             ),
             (
                 "nvim-smoke-test",
-                "[lanes.nvim-smoke-test]\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
+                "[lane.nvim-smoke-test]\ntype = \"nvim-smoke-test\"\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
                 "nvim-smoke-test",
             ),
-            ("herdr", "[lanes.herdr]\n", "herdr"),
-            ("npm", "[lanes.npm]\nbinary = \"/n/npm\"\n", "npm"),
-            ("uv", "[lanes.uv]\n", "uv"),
+            ("herdr", "[lane.herdr]\ntype = \"herdr\"\n", "herdr"),
+            (
+                "npm",
+                "[lane.npm]\ntype = \"npm\"\nbinary = \"/n/npm\"\n",
+                "npm",
+            ),
+            ("uv", "[lane.uv]\ntype = \"uv\"\n", "uv"),
         ];
         for (kind, block, name) in fixtures {
             let config = parse_config(block).unwrap();
@@ -153,7 +157,7 @@ mod tests {
         // The fixture above names its herdr lane "herdr", which cannot tell a
         // report carrying the ACTUAL name apart from one hardcoding the type's
         // own literal. A lane named something else closes that gap.
-        let config = parse_config("[lanes.mine]\ntype = \"herdr\"\n").unwrap();
+        let config = parse_config("[lane.mine]\ntype = \"herdr\"\n").unwrap();
         let report = run_lane("mine", &config, &stub_facts(), &ScriptedRunner::new(&[])).unwrap();
         assert_eq!(report.name, "mine");
     }
@@ -161,7 +165,7 @@ mod tests {
     #[test]
     fn lanes_run_in_name_order_whatever_the_file_order() {
         let config =
-            parse_config("[lanes.zeta]\ntype = \"herdr\"\n\n[lanes.alpha]\ntype = \"herdr\"\n")
+            parse_config("[lane.zeta]\ntype = \"herdr\"\n\n[lane.alpha]\ntype = \"herdr\"\n")
                 .unwrap();
         assert_eq!(names(&config), vec!["alpha", "zeta"]);
     }

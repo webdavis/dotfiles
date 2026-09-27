@@ -9,7 +9,7 @@ fn the_doctor_lists_a_command_lane_with_its_program_resolved() {
     let home = Home::new("command-lane-doctor");
     let stub = home.write_stub("updater", "exit 0\n");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\", \"--yes\"]\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\", \"--yes\"]\n",
         stub.display()
     ));
     let output = home.uu(&["doctor"]);
@@ -26,7 +26,7 @@ fn the_doctor_says_a_missing_program_will_fail_weekly_and_alert_only_if_configur
     let home = Home::new("command-lane-doctor-missing");
     let missing = home.dir.join("no-such-updater");
     let home = home.with_config(&format!(
-        "[lanes.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
         missing.display()
     ));
     let output = home.uu(&["doctor"]);
@@ -54,7 +54,7 @@ fn the_doctor_flags_a_relative_command_path_as_resolving_differently_under_the_w
     // `NOT FOUND` for `./nothing-here` from doctor's own cwd, which says
     // nothing about what the weekly run at `/` will see.
     let home = Home::new("command-lane-doctor-relative");
-    let home = home.with_config("[lanes.mine]\ntype = \"command\"\nrun = [\"./nothing-here\"]\n");
+    let home = home.with_config("[lane.mine]\ntype = \"command\"\nrun = [\"./nothing-here\"]\n");
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let out = stdout(&output);
@@ -81,7 +81,7 @@ fn the_doctor_never_prints_the_records_signing_key() {
 
 #[test]
 fn the_doctor_lists_each_declared_lane_with_its_type() {
-    let home = Home::new("doctor-lanes").with_config("[lanes.mine]\ntype = \"herdr\"\n");
+    let home = Home::new("doctor-lanes").with_config("[lane.mine]\ntype = \"herdr\"\n");
     let output = home.uu(&["doctor"]);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let out = stdout(&output);

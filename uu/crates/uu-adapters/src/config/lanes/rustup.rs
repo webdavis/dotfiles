@@ -1,4 +1,4 @@
-//! `[lanes.<name>]` with `type = "rustup"`: the rustup binary to drive.
+//! `[lane.<name>]` with `type = "rustup"`: the rustup binary to drive.
 //!
 //! There is no roster key, because `rustup update` is already every toolchain
 //! this machine installed.
@@ -51,7 +51,7 @@ mod tests {
     #[test]
     fn a_rustup_lane_defaults_to_the_rustup_command_on_the_running_path() {
         assert_eq!(
-            typed::<RustupLane>(checked_text("[lanes.rustup]\n"), "rustup"),
+            typed::<RustupLane>(checked_text("[lane.rustup]\ntype = \"rustup\"\n"), "rustup"),
             Some(RustupLane {
                 rustup: DEFAULT_RUSTUP_BINARY.to_string(),
             })
@@ -63,7 +63,7 @@ mod tests {
         assert_eq!(
             typed::<RustupLane>(
                 checked_text(
-                    "[lanes.toolchains]\ntype = \"rustup\"\nrustup = \"/Users/x/.cargo/bin/rustup\"\n"
+                    "[lane.toolchains]\ntype = \"rustup\"\nrustup = \"/Users/x/.cargo/bin/rustup\"\n"
                 ),
                 "toolchains"
             ),
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn an_empty_rustup_path_is_refused_rather_than_read_as_the_default() {
-        let why = refusal("[lanes.rustup]\nrustup = \"\"\n");
+        let why = refusal("[lane.rustup]\ntype = \"rustup\"\nrustup = \"\"\n");
         assert!(why.contains("rustup"), "{why}");
     }
 }

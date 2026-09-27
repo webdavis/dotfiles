@@ -22,7 +22,7 @@ impl Fixture {
         let installer = home.write_stub("installer", "printf called >\"$HOME/installer-called\"\nprintf 'unexpected installer\n' >&2\nexit 1\n");
         let other = home.write_stub("other", "exit 0\n");
         let text = format!(
-            "[lanes.mine]\ntype = \"skills\"\nlock = {roster:?}\nagents = {agents:?}\nclaude_skills = {:?}\nhermes = {:?}\nnpx = {installer:?}\nskills_cli_version = \"1.5.22\"\nclawhub = {installer:?}\nhermes_cli = {other:?}\ncua_driver = {other:?}\nrouting = {routing:?}\n",
+            "[lane.mine]\ntype = \"skills\"\nlock = {roster:?}\nagents = {agents:?}\nclaude_skills = {:?}\nhermes = {:?}\nnpx = {installer:?}\nskills_cli_version = \"1.5.22\"\nclawhub = {installer:?}\nhermes_cli = {other:?}\ncua_driver = {other:?}\nrouting = {routing:?}\n",
             home.dir.join(".claude/skills"),
             home.dir.join(".hermes")
         );

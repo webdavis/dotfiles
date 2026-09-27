@@ -5,7 +5,7 @@ use uu_domain::LaneVerdict;
 fn a_registered_nvim_plugins_lane_preserves_a_pending_exit_and_its_output() {
     let fixture = Fixture::new("nvim-plugins-pending");
     let nvim = fixture.stub("printf 'finder: updates available\\n'\nexit 100\n");
-    let config = fixture.load(&format!("[lanes.editor]\ntype = \"nvim-plugins\"\nnvim = {nvim:?}\nconfig = \"/fixture/config\"\n"), crate::registrations::LANES).expect("registered Neovim plugin parser");
+    let config = fixture.load(&format!("[lane.editor]\ntype = \"nvim-plugins\"\nnvim = {nvim:?}\nconfig = \"/fixture/config\"\n"), crate::registrations::LANES).expect("registered Neovim plugin parser");
     let observed = Observed::default();
     assert_eq!(
         execute(
@@ -28,7 +28,7 @@ fn a_registered_nvim_plugins_lane_preserves_a_pending_exit_and_its_output() {
 fn a_registered_mason_lane_records_the_real_child_failure() {
     let fixture = Fixture::new("nvim-mason-failed");
     let nvim = fixture.stub("printf 'owned Mason install failed\\n'\nexit 1\n");
-    let config = fixture.load(&format!("[lanes.editor]\ntype = \"nvim-mason\"\nnvim = {nvim:?}\nconfig = \"/fixture/config\"\n"), crate::registrations::LANES).expect("registered Mason parser");
+    let config = fixture.load(&format!("[lane.editor]\ntype = \"nvim-mason\"\nnvim = {nvim:?}\nconfig = \"/fixture/config\"\n"), crate::registrations::LANES).expect("registered Mason parser");
     let observed = Observed::default();
     assert_eq!(
         execute(
@@ -51,7 +51,7 @@ fn a_registered_mason_lane_records_the_real_child_failure() {
 fn a_registered_parsers_lane_records_the_real_child_failure() {
     let fixture = Fixture::new("nvim-parsers-failed");
     let nvim = fixture.stub("printf 'owned parser compiler tail\\n'\nexit 1\n");
-    let config = fixture.load(&format!("[lanes.editor]\ntype = \"nvim-parsers\"\nnvim = {nvim:?}\nconfig = \"/fixture/config\"\n"), crate::registrations::LANES).expect("registered parsers parser");
+    let config = fixture.load(&format!("[lane.editor]\ntype = \"nvim-parsers\"\nnvim = {nvim:?}\nconfig = \"/fixture/config\"\n"), crate::registrations::LANES).expect("registered parsers parser");
     let observed = Observed::default();
     assert_eq!(
         execute(

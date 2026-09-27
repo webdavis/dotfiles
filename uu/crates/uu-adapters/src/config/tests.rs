@@ -14,24 +14,22 @@ fn an_unknown_top_level_key_is_refused_and_the_file_lists_what_it_serves() {
     let detail = refusal("[lans.example]\n");
     assert!(detail.contains("unknown top-level key `lans`"), "{detail}");
     assert!(
-        detail.contains("alerts, group, lane, lanes, records, schedule"),
+        detail.contains("alerts, group, lane, records, schedule"),
         "{detail}"
     );
 }
 
 #[test]
-fn a_lane_table_means_what_a_lanes_table_means_for_every_lane_type() {
-    for registration in REGISTRATIONS {
-        let kind = registration.type_name();
-        let block = format!(
-            "type = \"{kind}\"\ndeadline_secs = 60\nescalate_after_runs = 2\n{}",
-            required_keys(kind)
-        );
-        let lanes = parsed(&format!("[lanes.chosen]\n{block}")).lanes;
-        let lane = parsed(&format!("[lane.chosen]\n{block}")).lanes;
-        assert_eq!(lane["chosen"].type_name(), kind);
-        assert_eq!(format!("{lane:?}"), format!("{lanes:?}"), "{kind}");
-    }
+fn a_lanes_table_is_refused_saying_it_is_now_a_lane_table() {
+    let detail = refusal("[lanes.mine]\ntype = \"herdr\"\n");
+    assert!(
+        detail.contains("`[lanes.<name>]` is now `[lane.<name>]`"),
+        "{detail}"
+    );
+    assert!(
+        detail.contains("keep or add a `type` line on each lane that is not a command lane"),
+        "{detail}"
+    );
 }
 
 #[test]
@@ -46,28 +44,11 @@ fn a_refusal_about_a_lane_table_names_it_the_way_the_file_spells_it() {
 }
 
 #[test]
-fn a_file_with_both_a_lane_table_and_a_lanes_table_is_refused_saying_to_use_lane() {
-    let detail = refusal(
-        "[lane.one]\ntype = \"command\"\nrun = [\"/fixture/one\"]\n\n\
-         [lanes.two]\ntype = \"command\"\nrun = [\"/fixture/two\"]\n",
-    );
-    assert!(
-        detail.contains("both a `lane` table and a `lanes` table"),
-        "{detail}"
-    );
-    assert!(detail.contains("`[lane.<name>]`"), "{detail}");
-    assert!(
-        detail.contains("keep or add a `type` line on each lane that is not a command lane"),
-        "{detail}"
-    );
-}
-
-#[test]
 fn a_malformed_file_is_a_loud_error_and_never_an_empty_config() {
-    let detail = refusal("[lanes\n");
+    let detail = refusal("[lane\n");
     assert!(!detail.is_empty());
     assert!(matches!(
-        parse_config("[lanes\n"),
+        parse_config("[lane\n"),
         Err(ConfigError::Malformed(_))
     ));
 }
@@ -160,17 +141,5 @@ fn a_failure_webhook_is_optional_but_a_stated_value_must_be_nonblank_text() {
             why.contains("failure_webhook") && !why.contains("unknown"),
             "{why}"
         );
-    }
-}
-
-/// What each lane type cannot load without.
-fn required_keys(kind: &str) -> &'static str {
-    match kind {
-        "claude-plugins" => "inventory = \"/fixture/inventory.json\"\n",
-        "command" => "run = [\"/fixture/updater\"]\n",
-        "npm" => "binary = \"/fixture/npm\"\n",
-        "nvim-mason" | "nvim-parsers" | "nvim-plugins" => "config = \"/fixture/nvim\"\n",
-        "nvim-smoke-test" => "config = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
-        _ => "",
     }
 }
