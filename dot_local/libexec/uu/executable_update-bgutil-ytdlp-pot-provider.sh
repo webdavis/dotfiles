@@ -78,17 +78,15 @@ main() {
   installed="$(installed_release_tag)"
 
   if [[ $installed == "$latest" ]]; then
-    printf 'bgutil provider is already at %s.\n' "$latest"
     return
   fi
 
-  printf 'updating bgutil provider from %s to %s.\n' "${installed:-unknown}" "$latest"
   check_out_release "$latest"
   build_server
   downloaded_plugin="$(download_plugin)"
   install_plugin "$downloaded_plugin"
   restart_server
-  printf 'bgutil provider updated to %s.\n' "$latest"
+  printf 'bgutil-ytdlp-pot-provider: %s → %s\n' "${installed:-unknown}" "$latest"
 }
 
 main "$@"
