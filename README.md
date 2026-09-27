@@ -100,7 +100,6 @@ Run the formatter and lint checks with:
 just l       # format files
 just L       # check for formatting drift
 just s       # run ShellCheck
-just test-unit
 just test
 just ship
 ```

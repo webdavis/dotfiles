@@ -1,6 +1,5 @@
 <!-- Shared global ruleset, included verbatim by ~/.claude/CLAUDE.md and ~/.codex/AGENTS.md. Edit here,
-     never in a harness copy: test/integration/global-instruction-parity.sh byte-compares the rendered
-     block across both targets and fails when they diverge. Harness-specific rules go in the including
+     never in a harness copy. Harness-specific rules go in the including
      file, below the shared block. -->
 
 ## Collaboration style

@@ -59,9 +59,8 @@
        with a stray character) aborts the apply from here, and no template can
        catch it: chezmoi's three JSON readers (fromJson, fromJsonc, fromYaml)
        all fail the template on bad input, and Go's text/template has no
-       recover, so there is nothing to fall back FROM (measured 2026-08-02, and
-       test/unit/claude-enabled-plugins.sh pins the boundary with a case per
-       shape). So the repair runs BEFORE this template instead:
+       recover, so there is nothing to fall back FROM (measured 2026-08-02).
+       So the repair runs BEFORE this template instead:
        .chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh
        moves an unreadable settings file into ~/workspaces/backups and leaves
        `{}` in its place, which this template then rebuilds from.
@@ -460,8 +459,7 @@
        the other way, its manifest default (ON) applies when no entry is
        present, so listing a skill is not what keeps it on and erasing a `false`
        for one REVOKES that disable. Those are not in this roster and are not
-       meant to be. test/unit/claude-enabled-plugins.sh fails when this set and
-       the roster disagree.
+       meant to be.
 
        The list is names only, not name-to-value pairs: membership means "this
        repo manages this plugin, and it is ON unless the machine already says
@@ -533,8 +531,8 @@
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
        `slice`, so the value test below already covers absence. Measured
-       2026-08-02 by replacing the hasKey call with a literal `true`: no case in
-       test/unit/claude-enabled-plugins.sh changed verdict, which is what makes
+       2026-08-02 by replacing the hasKey call with a literal `true`: no test case
+       changed verdict, which is what makes
        it dead rather than defensive. */ -}}
 {{- /* Roster ids marked off_until_enabled default to off rather than on. That
        changes only what a machine with no entry of its own gets, so the

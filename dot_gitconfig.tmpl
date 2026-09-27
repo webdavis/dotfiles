@@ -1,4 +1,4 @@
-{{- /* Homebrew prefix, derived from platform data rather than from a `brew --prefix` at apply time, which would need brew already installed to render this file. Every absolute Homebrew path below comes from it; test/unit/gitconfig-homebrew-prefix-derivation.sh fails if one is pinned to a literal again. */ -}}
+{{- /* Homebrew prefix, derived from platform data rather than from a `brew --prefix` at apply time, which would need brew already installed to render this file. Every absolute Homebrew path below comes from it. */ -}}
 {{- $platform := printf "%s/%s" .chezmoi.os .chezmoi.arch -}}
 {{- $homebrewPrefix := index (dict "darwin/arm64" "/opt/homebrew" "darwin/amd64" "/usr/local") $platform | default "/home/linuxbrew/.linuxbrew" -}}
 [user]
@@ -80,7 +80,6 @@
 # makes git skip the availability check in diff mode. Remove the cmd and the same
 # abort appears on that side too (measured: git difftool exits 128 with "The diff
 # tool nvimdiff is not available as '<path>'"), so neither key is safe to add.
-# test/unit/gitconfig-tool-and-url-hygiene.sh asserts that both stay absent.
 [difftool "nvimdiff"]
   # Shadows the built-in nvimdiff diff command, for `git difftool` only.
   cmd = {{ $homebrewPrefix }}/bin/nvim -d -u ~/.config/nvim/init.lua \"$LOCAL\" \"$REMOTE\"

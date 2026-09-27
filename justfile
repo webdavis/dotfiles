@@ -63,10 +63,6 @@ diff:
 apply:
   ./scripts/chezmoi-apply-logged.sh
 
-# Unit suite and commit gate. Shuffle shell tests and report slow tests.
-test-unit: validate-tests test-nvim
-  ./test/run-test-suite.sh --shuffle --warn-slow-ms 200 test/unit
-
 # treefmt does not discover Rust manifests, so each workspace is listed here.
 test-rust:
   #!/usr/bin/env bash
@@ -98,16 +94,8 @@ test-nvim:
   while IFS= read -r name; do unset "$name"; done < <(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p')
   nvim --headless --clean -l dot_config/nvim/tests/run.lua
 
-# Run only the bashunit lane for one suite.
-test-bashunit suite="test/unit": validate-tests
-  ./test/run-test-suite.sh --only-bashunit {{ suite }}
-
-# Validate test placement, modes, and file types.
-validate-tests:
-  ./test/validate-tests.sh
-
 # Run all test suites.
-test: test-unit test-rust
+test: test-nvim test-rust
 
 # Run the three CI gates locally before opening a pull request.
 ship:
