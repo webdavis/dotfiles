@@ -1,0 +1,159 @@
+{{- $skills := .agents.skills -}}
+{{- $githubSkills := list -}}
+{{- range $skills.from_github }}{{ $githubSkills = concat $githubSkills .skills }}{{ end -}}
+{{- $clawhubSkills := list -}}
+{{- range $skills.from_clawhub }}{{ $clawhubSkills = append $clawhubSkills .name }}{{ end -}}
+{{- $vendoredSkills := list -}}
+{{- range $skills.vendored }}{{ $vendoredSkills = append $vendoredSkills .name }}{{ end -}}
+{{- $installedSkills := concat $githubSkills $clawhubSkills -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly skills_folder="$HOME/.agents/skills"
+readonly codex_ask_first_expression='.policy.allow_implicit_invocation = false'
+readonly original_file_marker='# uu-original-openai: '
+readonly codex_ask_first_skills=(
+{{- range $skills.on_demand }}{{ if not (or (has . $vendoredSkills) (has . $skills.app_owned)) }}
+  {{ . | quote }}
+{{- end }}{{ end }}
+)
+readonly codex_default_skills=(
+{{- range $installedSkills }}{{ if not (has . $skills.on_demand) }}
+  {{ . | quote }}
+{{- end }}{{ end }}
+)
+
+print_error() {
+  local kind=$1
+  local message=$2
+  printf 'error[%s]: %s\n' "$kind" "$message" >&2
+}
+
+tool_is_installed() {
+  local tool=$1
+  command -v "$tool" >/dev/null 2>&1
+}
+
+skill_is_installed() {
+  local skill=$1
+  [[ -f $skills_folder/$skill/SKILL.md ]]
+}
+
+codex_file_of() {
+  local skill=$1
+  printf '%s\n' "$skills_folder/$skill/agents/openai.yaml"
+}
+
+yaml_asks_first() {
+  local yaml=$1
+  [[ $(yq '.policy.allow_implicit_invocation' - <<<"$yaml" 2>/dev/null) == false ]]
+}
+
+codex_file_asks_first() {
+  local codex_file=$1
+  [[ -f $codex_file ]] && yaml_asks_first "$(<"$codex_file")"
+}
+
+codex_file_keeps_original() {
+  local codex_file=$1
+  [[ -f $codex_file && $(tail -n 1 "$codex_file") == "$original_file_marker"* ]]
+}
+
+saved_original_in() {
+  local codex_file=$1
+  local last_line
+  last_line="$(tail -n 1 "$codex_file")"
+  printf '%s\n' "${last_line#"$original_file_marker"}"
+}
+
+original_as_json() {
+  local codex_file=$1
+  if codex_file_keeps_original "$codex_file"; then
+    saved_original_in "$codex_file"
+  elif [[ -f $codex_file ]]; then
+    jq -Rs . <"$codex_file"
+  else
+    printf 'null\n'
+  fi
+}
+
+original_text_of() {
+  local original_json=$1
+  jq -e -j 'strings' <<<"$original_json"
+}
+
+render_ask_first_codex_file() {
+  local original_json=$1
+  local rendered
+  if [[ $original_json == null ]]; then
+    rendered="$(yq -n "$codex_ask_first_expression")" || return 1
+  else
+    rendered="$(original_text_of "$original_json" | yq "$codex_ask_first_expression" -)" || return 1
+  fi
+  yaml_asks_first "$rendered" || return 1
+  printf '%s\n%s%s\n' "$rendered" "$original_file_marker" "$original_json"
+}
+
+write_ask_first_codex_file() {
+  local skill=$1
+  local codex_file original_json content
+  codex_file="$(codex_file_of "$skill")"
+  if ! skill_is_installed "$skill" || codex_file_asks_first "$codex_file"; then
+    return 0
+  fi
+  if original_json="$(original_as_json "$codex_file")" &&
+    content="$(render_ask_first_codex_file "$original_json")" &&
+    mkdir -p "$(dirname "$codex_file")" &&
+    printf '%s\n' "$content" >"$codex_file"; then
+    printf '%s: marked only-when-asked\n' "$skill"
+  else
+    print_error codex-file-failed "could not mark $skill only-when-asked in Codex; check $codex_file is valid YAML"
+    return 1
+  fi
+}
+
+restore_codex_file_from() {
+  local codex_file=$1 original_json=$2
+  local original_text
+  if [[ $original_json == null ]]; then
+    rm -f "$codex_file"
+    return
+  fi
+  original_text="$(original_text_of "$original_json" && printf x)" &&
+    printf '%s' "${original_text%x}" >"$codex_file"
+}
+
+restore_original_codex_file() {
+  local skill=$1
+  local codex_file
+  codex_file="$(codex_file_of "$skill")"
+  if ! codex_file_keeps_original "$codex_file"; then
+    return 0
+  fi
+  if restore_codex_file_from "$codex_file" "$(saved_original_in "$codex_file")"; then
+    printf '%s: restored\n' "$skill"
+  else
+    print_error codex-file-failed "could not restore the original Codex file of $skill from $codex_file"
+    return 1
+  fi
+}
+
+main() {
+  local skill failed=no
+  if ! tool_is_installed yq || ! tool_is_installed jq; then
+    print_error missing-tool "yq or jq is not installed, so no Codex file was changed"
+    exit 1
+  fi
+  for skill in "${codex_ask_first_skills[@]}"; do
+    write_ask_first_codex_file "$skill" || failed=yes
+  done
+  for skill in "${codex_default_skills[@]}"; do
+    restore_original_codex_file "$skill" || failed=yes
+  done
+  if [[ $failed == yes ]]; then
+    exit 1
+  fi
+}
+
+main "$@"

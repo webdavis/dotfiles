@@ -259,6 +259,13 @@ unsuccessful_runs_before_alert = 3
 
 [lane.rustup.settings]
 
+[lane.skills-on-demand]
+command = ["scripts/mark-on-demand-skills.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
 [lane.uv]
 builtin = "uv"
 env = {}
@@ -310,4 +317,4 @@ unsuccessful_runs_before_alert = 3
 [lane.yt-dlp.settings]
 
 [group.skills]
-lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills"]
+lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills", "skills-on-demand"]
