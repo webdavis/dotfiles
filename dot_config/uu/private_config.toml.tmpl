@@ -6,7 +6,12 @@ default = "sunday 12:00"
 label = "uu.daemon"
 
 [history]
-keep = 52
+previous_runs_kept = 52
+
+[logs]
+rotate = true
+max_size = "10 MB"
+previous_logs_kept = 3
 
 [tui]
 default_screen = "runs"

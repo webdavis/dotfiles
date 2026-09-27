@@ -15,8 +15,6 @@ readonly logs=(
   "$log_directory/osquery/uptime-watchdog.log"
   "$log_directory/pns-daemon.log"
   "$log_directory/scalebar/scalebar.log"
-  "$HOME/.local/state/uu/daemon.log"
-  "$HOME/.local/state/uu/uu.log"
   "$log_directory/yt-dlp/pot-provider.log"
 )
 
