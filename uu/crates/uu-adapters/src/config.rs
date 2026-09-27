@@ -24,10 +24,12 @@ mod records;
 pub use records::Records;
 use records::parse_records;
 mod escalation;
+mod groups;
 mod schedule;
 mod schema;
 
 use crate::LaneRegistration;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use schema::{admits, non_empty, table_of};
@@ -61,6 +63,7 @@ pub struct Config {
     /// `[alerts]`, or None when the block is absent, which is alerts off.
     pub alerts: Option<Alerts>,
     pub lanes: Lanes,
+    pub groups: BTreeMap<String, Vec<String>>,
 }
 
 /// `[alerts]`: the pns engine a failed lane is reported through.
@@ -161,6 +164,7 @@ pub(crate) fn parse_config(
             "schedule" => config.schedule = schedule::parse_schedule(value)?,
             "records" => config.records = Some(parse_records(value)?),
             "alerts" => config.alerts = Some(parse_alerts(value)?),
+            "group" => config.groups = groups::parse_groups(value)?,
             "lane" | "lanes" => config.lanes = lanes::parse_lanes(&key, value, registrations)?,
             _ => {
                 return Err(ConfigError::Invalid(format!(
