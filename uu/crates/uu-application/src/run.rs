@@ -53,7 +53,8 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
 
         // Sample the header before work or marker publication. A clock that
         // cannot be read renders as epoch zero, never a plausible current date.
-        let started = self.clock.epoch().unwrap_or(0);
+        let started_read = self.clock.epoch().ok();
+        let started = started_read.unwrap_or(0);
         let marker = self.state.marker();
         let header = self.presentation.header(started, &marker);
         let facts = RunFacts {
@@ -119,6 +120,17 @@ impl<S: RunState, C: RunClock, L: LaneExecutor, D: RunDelivery, P: RunPresentati
             detail: &detail,
         };
         let record_lost = !deliver_record(&self.delivery, &self.presentation, record);
+        if self.interrupted(&header, &reports) {
+            return RunOutcome::Interrupted;
+        }
+        crate::report::deliver_report(
+            &self.state,
+            &self.delivery,
+            &self.presentation,
+            &header,
+            started_read,
+            &reports,
+        );
         if self.interrupted(&header, &reports) {
             return RunOutcome::Interrupted;
         }

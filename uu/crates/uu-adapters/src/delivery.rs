@@ -1,16 +1,18 @@
 //! Process and signed-post adapters for the run application's delivery ports.
 
 use crate::alert::{Alerter, alert_argv};
-use crate::config::Records;
+use crate::config::{Config, Records};
 use crate::record::record_state;
 use crate::system::host;
 mod alarm;
+mod commands;
 use crate::signed_post::{PostOutcome, SignedPost, UreqSignedPost, delivered, outcome_line, sign};
 use std::io::Write;
 use std::process::Stdio;
 use std::time::Duration;
 use uu_application::{
-    AlarmKind, AlertOutcome, AlertTarget, RecordFailure, RecordOutcome, RunDelivery, RunRecord,
+    AlarmKind, AlertOutcome, AlertTarget, RecordFailure, RecordOutcome, ReportOutcome, RunDelivery,
+    RunRecord, RunReport,
 };
 use uu_protocol::record_body;
 
@@ -61,15 +63,17 @@ pub struct EngineRunDelivery<'a, P, A> {
     pub alerter: A,
     pub records: Option<&'a Records>,
     pub engine: Option<&'a str>,
+    pub report: Option<&'a [String]>,
 }
 
 impl<'a> EngineRunDelivery<'a, UreqSignedPost, PnsAlerter> {
-    pub fn new(records: Option<&'a Records>, engine: Option<&'a str>) -> Self {
+    pub fn new(config: &'a Config) -> Self {
         Self {
             post: UreqSignedPost,
             alerter: PnsAlerter,
-            records,
-            engine,
+            records: config.records.as_ref(),
+            engine: config.alerts.as_ref().map(|alerts| alerts.binary.as_str()),
+            report: config.report.as_deref(),
         }
     }
 }
@@ -146,6 +150,13 @@ impl<P: SignedPost, A: Alerter> RunDelivery for EngineRunDelivery<'_, P, A> {
             url: records.url.clone(),
             cause,
             description,
+        }
+    }
+
+    fn report(&self, report: RunReport<'_>) -> ReportOutcome {
+        match self.report {
+            Some(command) => commands::deliver_report(command, report),
+            None => ReportOutcome::NotConfigured,
         }
     }
 }

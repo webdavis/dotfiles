@@ -31,6 +31,12 @@ impl RunState for State {
     fn write_marker(&self, _: i64) -> Result<(), StateWriteFailure> {
         panic!("bootstrap must not write a marker")
     }
+    fn last_ok(&self, _: &str) -> uu_domain::Marker {
+        panic!("bootstrap must not read a last ok time")
+    }
+    fn write_last_ok(&self, _: &str, _: i64) -> Result<(), StateWriteFailure> {
+        panic!("bootstrap must not write a last ok time")
+    }
     fn streak(&self, _: &str, _: StreakKind) -> StreakSnapshot {
         panic!("bootstrap must not read a streak")
     }

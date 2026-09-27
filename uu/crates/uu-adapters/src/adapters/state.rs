@@ -3,6 +3,7 @@ use uu_application::{
 };
 
 use crate::state;
+use uu_domain::Marker;
 
 pub struct FileRunState<'a>(pub &'a str);
 
@@ -33,6 +34,18 @@ impl RunState for FileRunState<'_> {
         })
     }
 
+    fn last_ok(&self, lane: &str) -> Marker {
+        state::read_marker(&last_ok_path(self.0, lane))
+    }
+
+    fn write_last_ok(&self, lane: &str, epoch: i64) -> Result<(), StateWriteFailure> {
+        let path = last_ok_path(self.0, lane);
+        state::write_marker(&path, epoch).map_err(|error| StateWriteFailure {
+            location: path.display().to_string(),
+            cause: error.to_string(),
+        })
+    }
+
     fn streak(&self, lane: &str, kind: StreakKind) -> StreakSnapshot {
         let path = streak_path(self.0, lane, kind);
         StreakSnapshot {
@@ -53,6 +66,10 @@ impl RunState for FileRunState<'_> {
             cause,
         })
     }
+}
+
+fn last_ok_path(home: &str, lane: &str) -> std::path::PathBuf {
+    state::streak_path(home, lane).with_file_name("last_ok")
 }
 
 fn streak_path(home: &str, lane: &str, kind: StreakKind) -> std::path::PathBuf {

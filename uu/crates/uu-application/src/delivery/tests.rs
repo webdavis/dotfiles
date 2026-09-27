@@ -1,5 +1,5 @@
 use super::*;
-use crate::ports::{MarkerSnapshot, RecordFailure, RunHeader};
+use crate::ports::{MarkerSnapshot, RecordFailure, ReportOutcome, RunHeader, RunReport};
 use std::cell::RefCell;
 use uu_domain::LaneReport;
 
@@ -29,6 +29,10 @@ impl RunDelivery for SpyDelivery {
             .borrow_mut()
             .take()
             .expect("one record per run")
+    }
+
+    fn report(&self, _report: RunReport<'_>) -> ReportOutcome {
+        unreachable!("record delivery does not hand over the report")
     }
 }
 

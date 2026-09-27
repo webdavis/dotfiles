@@ -55,10 +55,15 @@ fn no_configured_record_channel_allows_a_clean_run_to_advance_the_marker() {
     assert_eq!(fixture.run(&[("alpha", 60)], None), RunOutcome::Completed);
     let events = fixture.events();
     assert_eq!(
-        &events[events.len() - 5..],
+        &events[events.len() - 7..],
         [
             Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("no records".into()),
+            Event::LastOkWrite("alpha".into(), 100),
+            Event::Report(
+                "epoch-100".into(),
+                vec![("alpha".into(), Some("epoch-100".into()))]
+            ),
             Event::Epoch(Some(200)),
             Event::MarkerWrite(200),
             Event::Release
@@ -77,11 +82,16 @@ fn a_failed_record_keeps_the_marker_even_when_its_alert_is_delivered() {
     assert_eq!(fixture.run(&[("alpha", 60)], None), RunOutcome::Completed);
     let events = fixture.events();
     assert_eq!(
-        &events[events.len() - 4..],
+        &events[events.len() - 6..],
         [
             Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("no response".into()),
             Event::Alert(AlarmKind::RecordLost, "run".into()),
+            Event::LastOkWrite("alpha".into(), 100),
+            Event::Report(
+                "epoch-100".into(),
+                vec![("alpha".into(), Some("epoch-100".into()))]
+            ),
             Event::Release
         ]
     );
@@ -99,10 +109,15 @@ fn a_record_that_cannot_be_signed_keeps_the_marker_without_claiming_delivery() {
     assert_eq!(fixture.run(&[("alpha", 60)], None), RunOutcome::Completed);
     let events = fixture.events();
     assert_eq!(
-        &events[events.len() - 3..],
+        &events[events.len() - 5..],
         [
             Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("signing failed".into()),
+            Event::LastOkWrite("alpha".into(), 100),
+            Event::Report(
+                "epoch-100".into(),
+                vec![("alpha".into(), Some("epoch-100".into()))]
+            ),
             Event::Release
         ]
     );

@@ -13,3 +13,6 @@ uu-application = { path = "../uu-application" }
 libc = "0.2.189"
 
 uu-domain = { path = "../uu-domain" }
+
+[dev-dependencies]
+serde_json = "1.0.151"

@@ -14,12 +14,12 @@ pub enum AlertKind {
     ReportUndelivered,
 }
 
-pub struct ReportedLane<'a> {
+pub struct LaneEntry<'a> {
     pub name: &'a str,
     pub outcome: LaneOutcome,
     pub exit_code: Option<i32>,
     pub duration_secs: u64,
-    pub output: &'a str,
+    pub output: String,
     pub last_ok: Option<&'a str>,
 }
 
@@ -45,12 +45,7 @@ impl AlertKind {
     }
 }
 
-pub fn report_document(
-    host: &str,
-    started: &str,
-    ended: &str,
-    lanes: &[ReportedLane<'_>],
-) -> String {
+pub fn report_document(host: &str, started: &str, ended: &str, lanes: &[LaneEntry<'_>]) -> String {
     let lanes: Vec<serde_json::Value> = lanes
         .iter()
         .map(|lane| {
@@ -93,36 +88,36 @@ mod tests {
     #[test]
     fn the_report_document_carries_the_run_and_every_lane_it_ran() {
         let lanes = [
-            ReportedLane {
+            LaneEntry {
                 name: "first",
                 outcome: LaneOutcome::Ok,
                 exit_code: Some(0),
                 duration_secs: 12,
-                output: "one\ntwo",
+                output: "one\ntwo".into(),
                 last_ok: Some("2026-09-26T12:00:00Z"),
             },
-            ReportedLane {
+            LaneEntry {
                 name: "second",
                 outcome: LaneOutcome::Failed,
                 exit_code: None,
                 duration_secs: 0,
-                output: "",
+                output: "".into(),
                 last_ok: None,
             },
-            ReportedLane {
+            LaneEntry {
                 name: "third",
                 outcome: LaneOutcome::Deferred,
                 exit_code: Some(75),
                 duration_secs: 1,
-                output: "",
+                output: "".into(),
                 last_ok: None,
             },
-            ReportedLane {
+            LaneEntry {
                 name: "fourth",
                 outcome: LaneOutcome::Pending,
                 exit_code: Some(100),
                 duration_secs: 1,
-                output: "",
+                output: "".into(),
                 last_ok: None,
             },
         ];

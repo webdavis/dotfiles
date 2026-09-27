@@ -61,6 +61,8 @@ pub trait RunState {
     fn prune_removed_lanes(&self, declared: &[&str]);
     fn marker(&self) -> MarkerSnapshot;
     fn write_marker(&self, epoch: i64) -> Result<(), StateWriteFailure>;
+    fn last_ok(&self, lane: &str) -> Marker;
+    fn write_last_ok(&self, lane: &str, epoch: i64) -> Result<(), StateWriteFailure>;
     fn streak(&self, lane: &str, kind: StreakKind) -> StreakSnapshot;
     fn write_streak(
         &self,

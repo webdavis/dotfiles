@@ -472,6 +472,7 @@ name = "uu"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "serde_json",
  "uu-adapters",
  "uu-application",
  "uu-domain",

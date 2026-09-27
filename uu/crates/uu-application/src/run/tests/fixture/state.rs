@@ -39,6 +39,21 @@ impl RunState for Fixture {
         self.event(Event::MarkerWrite(epoch));
         Ok(())
     }
+    fn last_ok(&self, lane: &str) -> Marker {
+        self.event(Event::LastOkRead(lane.into()));
+        match self.0.borrow().last_ok.get(lane) {
+            Some(epoch) => Marker::Recorded {
+                epoch: *epoch,
+                iso: format!("epoch-{epoch}"),
+            },
+            None => Marker::NeverRecorded,
+        }
+    }
+    fn write_last_ok(&self, lane: &str, epoch: i64) -> Result<(), StateWriteFailure> {
+        self.event(Event::LastOkWrite(lane.into(), epoch));
+        self.0.borrow_mut().last_ok.insert(lane.into(), epoch);
+        Ok(())
+    }
     fn streak(&self, lane: &str, kind: StreakKind) -> StreakSnapshot {
         self.event(Event::StreakRead(kind, lane.into()));
         let data = self.0.borrow();

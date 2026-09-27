@@ -21,6 +21,9 @@ pub(super) enum Event {
     Record(usize, usize, usize, String),
     Notice(String),
     MarkerWrite(i64),
+    LastOkRead(String),
+    LastOkWrite(String, i64),
+    Report(String, Vec<(String, Option<String>)>),
 }
 
 pub(super) struct Data {
@@ -37,6 +40,7 @@ pub(super) struct Data {
     pub summaries: Vec<String>,
     pub fail_alerts: bool,
     pub record: Option<RecordOutcome>,
+    pub last_ok: BTreeMap<String, i64>,
 }
 
 #[derive(Clone)]
@@ -63,6 +67,7 @@ impl Fixture {
             record: Some(RecordOutcome::Delivered {
                 description: "posted".into(),
             }),
+            last_ok: BTreeMap::new(),
         })))
     }
 
@@ -203,6 +208,18 @@ impl RunDelivery for Fixture {
             record.detail.into(),
         ));
         self.0.borrow_mut().record.take().expect("only one record")
+    }
+    fn report(&self, report: RunReport<'_>) -> ReportOutcome {
+        assert_eq!(report.host, "fixture-host");
+        self.event(Event::Report(
+            report.started_iso.into(),
+            report
+                .lanes
+                .iter()
+                .map(|lane| (lane.report.name.clone(), lane.last_ok.clone()))
+                .collect(),
+        ));
+        ReportOutcome::Delivered
     }
 }
 

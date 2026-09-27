@@ -34,6 +34,11 @@ fn a_whole_run_samples_old_facts_and_holds_the_guard_through_marker_publication(
             Event::StreakWrite(StreakKind::Pending, "alpha".into(), 0),
             Event::Record(0, 0, 0, "fixture record body".into()),
             Event::Notice("posted".into()),
+            Event::LastOkWrite("alpha".into(), 100),
+            Event::Report(
+                "epoch-100".into(),
+                vec![("alpha".into(), Some("epoch-100".into()))]
+            ),
             Event::Epoch(Some(200)),
             Event::MarkerWrite(200),
             Event::Release,
@@ -64,6 +69,8 @@ fn a_lane_failure_is_alerted_before_streak_and_record_publication() {
             Event::StreakWrite(StreakKind::Pending, "alpha".into(), 0),
             Event::Record(1, 0, 0, "fixture record body".into()),
             Event::Notice("posted".into()),
+            Event::LastOkRead("alpha".into()),
+            Event::Report("epoch-100".into(), vec![("alpha".into(), None)]),
             Event::Release,
         ]
     );
@@ -93,6 +100,8 @@ fn a_failed_stale_alert_is_attempted_before_publishing_the_retry_streak() {
             Event::StreakWrite(StreakKind::Pending, "alpha".into(), 0),
             Event::Record(0, 1, 0, "fixture record body".into()),
             Event::Notice("posted".into()),
+            Event::LastOkRead("alpha".into()),
+            Event::Report("epoch-100".into(), vec![("alpha".into(), None)]),
             Event::Release,
         ]
     );

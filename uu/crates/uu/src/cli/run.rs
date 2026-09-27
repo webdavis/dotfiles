@@ -141,10 +141,7 @@ fn execute(
         state: FileRunState(home),
         clock,
         lanes: ConfiguredLaneExecutor(config),
-        delivery: EngineRunDelivery::new(
-            config.records.as_ref(),
-            config.alerts.as_ref().map(|alerts| alerts.binary.as_str()),
-        ),
+        delivery: EngineRunDelivery::new(config),
         presentation,
     };
     run.execute(RunRequest {

@@ -54,6 +54,7 @@ fn delivery<'a>(
     EngineRunDelivery {
         records,
         engine,
+        report: None,
         post: Post {
             calls: RefCell::default(),
             outcome,
@@ -224,6 +225,7 @@ fn an_engine_exit_of_one_is_reported_rather_than_raised() {
     let delivery = EngineRunDelivery {
         records: None,
         engine: Some("/usr/bin/false"),
+        report: None,
         post: Post {
             calls: RefCell::default(),
             outcome: PostOutcome::Status(204),
