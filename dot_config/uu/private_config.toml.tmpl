@@ -20,192 +20,253 @@ mouse = true
 runs = 20
 
 [report]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/send-report-to-hermes.sh"]
+command = ["scripts/send-report-to-hermes.sh"]
 
 [alert]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/send-alert-to-pns.sh"]
+command = ["scripts/send-alert-to-pns.sh"]
 
 [lane.app-store]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-app-store.sh"]
+command = ["scripts/update-app-store.sh"]
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
 
 [lane.bgutil-ytdlp-pot-provider]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-bgutil-ytdlp-pot-provider.sh"]
+command = ["scripts/update-bgutil-ytdlp-pot-provider.sh"]
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
 
 [lane.brew]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-brew.sh"]
+command = ["scripts/update-brew.sh"]
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
 
 [lane.cargo]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/check-cargo.sh"]
+builtin = "cargo"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.cargo.settings]
+upgrade = false
+skip = []
 
 [lane.claude-plugins]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-claude-plugins.sh"]
+builtin = "claude-plugins"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.claude-plugins.settings]
+skip = []
 
 [lane.clawhub-skills]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-clawhub-skills.sh"]
+builtin = "clawhub-skills"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.clawhub-skills.settings]
+workdir = "{{ .chezmoi.homeDir }}/.agents"
+skills = [
+{{- range .agents.skills.from_clawhub }}
+  {{ .name | quote }},
+{{- end }}
+]
 
 [lane.codegraph]
-command = ["{{ .chezmoi.homeDir }}/.local/bin/codegraph", "upgrade"]
+builtin = "codegraph"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.codegraph.settings]
 
 [lane.codex-plugins]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-codex-plugins.sh"]
+builtin = "codex-plugins"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.codex-plugins.settings]
+skip = []
 
 [lane.composio]
-command = ["{{ .chezmoi.homeDir }}/.composio/composio", "upgrade"]
+builtin = "composio"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.composio.settings]
+composio = "{{ .chezmoi.homeDir }}/.composio/composio"
 
 [lane.cua-driver-skills]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-cua-driver-skills.sh"]
+builtin = "cua-driver-skills"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.cua-driver-skills.settings]
 
 [lane.herdr]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-herdr-plugins.sh"]
+command = ["scripts/update-herdr-plugins.sh"]
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
 
 [lane.herdr-binary]
 command = ["{{ .chezmoi.homeDir }}/.local/bin/herdr", "update"]
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
 
 [lane.hermes-plugins]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-hermes-plugins.sh"]
+builtin = "hermes-plugins"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.hermes-plugins.settings]
+skip = []
 
 [lane.hermes-skills]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-hermes-skills.sh"]
+builtin = "hermes-skills"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.hermes-skills.settings]
+profiles = [
+{{- range $profile, $settings := .agents.hermes.profiles }}
+{{- if hasKey $settings "hub_skills" }}
+  {{ $profile | quote }},
+{{- end }}
+{{- end }}
+]
 
 [lane.npm]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-npm.sh"]
+builtin = "npm"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.npm.settings]
+skip = []
 
 [lane.npx-skills]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-npx-skills.sh"]
+builtin = "npx-skills"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.npx-skills.settings]
+repos = [
+{{- range .agents.skills.from_github }}
+  {{ printf "%s %s" .repo (join " " .skills) | quote }},
+{{- end }}
+]
+agents = ["codex"]
+skills_version = {{ .agents.skills.skills_cli_version | quote }}
 
 [lane.nvim-mason]
-command = [
-  "/opt/homebrew/bin/nvim",
-  "--headless",
-  "-u",
-  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
-  "-l",
-  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/mason.lua",
-]
+builtin = "nvim-mason"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.nvim-mason.settings]
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
 
 [lane.nvim-parsers]
-command = [
-  "/opt/homebrew/bin/nvim",
-  "--headless",
-  "-u",
-  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
-  "-l",
-  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/parsers.lua",
-]
+builtin = "nvim-parsers"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.nvim-parsers.settings]
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
 
 [lane.nvim-plugins]
-command = [
-  "/opt/homebrew/bin/nvim",
-  "--headless",
-  "-u",
-  "{{ .chezmoi.homeDir }}/.config/nvim/init.lua",
-  "-l",
-  "{{ .chezmoi.homeDir }}/.config/nvim/lua/uu/plugins.lua",
-]
+builtin = "nvim-plugins"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.nvim-plugins.settings]
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+mode = "restore"
 
 [lane.plannotator]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-plannotator.sh"]
+builtin = "plannotator"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.plannotator.settings]
 
 [lane.rotate-logs]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/rotate-logs.sh"]
+builtin = "rotate-logs"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.rotate-logs.settings]
+files = [
+  "{{ .chezmoi.homeDir }}/.local/log/atuin-daemon.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/digest.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/firewall-gatekeeper-monitor.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/heartbeat.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/results-alerter.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/tailscale-monitor.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/uptime-watchdog.log",
+  "{{ .chezmoi.homeDir }}/.local/log/pns-daemon.log",
+  "{{ .chezmoi.homeDir }}/.local/log/scalebar/scalebar.log",
+  "{{ .chezmoi.homeDir }}/.local/log/yt-dlp/pot-provider.log",
+]
+max_size = "10 MB"
+previous_logs_kept = 5
 
 [lane.rustup]
-command = ["rustup", "update"]
+builtin = "rustup"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.rustup.settings]
 
 [lane.uv]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/update-uv.sh"]
+builtin = "uv"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.uv.settings]
+skip = []
 
 [lane.uv-graphify-skill]
 command = [
@@ -218,22 +279,34 @@ command = [
 ]
 env = {}
 scheduled = true
-deadline_secs = 60
-escalate_after_runs = 3
+time_limit = "1 minute"
+unsuccessful_runs_before_alert = 3
 
 [lane.vendored-skills-check]
-command = ["{{ .chezmoi.homeDir }}/.local/libexec/uu/check-vendored-skills.sh"]
+builtin = "vendored-skills-check"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.vendored-skills-check.settings]
+checks = [
+{{- range .agents.skills.vendored }}
+{{- if hasKey . "upstream" }}
+  {{ printf "%s %s %s" .name .upstream.url .upstream.path | quote }},
+{{- end }}
+{{- end }}
+]
+skills_dir = "{{ .chezmoi.homeDir }}/.agents/skills"
 
 [lane.yt-dlp]
-command = ["{{ .chezmoi.homeDir }}/.local/bin/yt-dlp", "-U"]
+builtin = "yt-dlp"
 env = {}
 scheduled = true
-deadline_secs = 21600
-escalate_after_runs = 3
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.yt-dlp.settings]
 
 [group.skills]
 lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills"]
