@@ -1,62 +1,92 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-POT_REPO="${HOME}/.local/share/yt-dlp/bgutil-ytdlp-pot-provider"
-POT_SERVER="${POT_REPO}/server"
-POT_API="https://api.github.com/repos/Brainicism/bgutil-ytdlp-pot-provider/releases/latest"
-POT_PLUGIN_URL="https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
-PLUGIN_ZIP="${HOME}/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip"
-LAUNCHAGENT_LABEL="com.webdavis.yt-dlp-pot-provider"
-LAUNCHAGENT_DOMAIN="gui/$(id -u)"
+readonly exit_deferred=75
+readonly exit_failure=1
+readonly provider_checkout="$HOME/.local/share/yt-dlp/bgutil-ytdlp-pot-provider"
+readonly provider_server_dir="$provider_checkout/server"
+readonly latest_release_api_url="https://api.github.com/repos/Brainicism/bgutil-ytdlp-pot-provider/releases/latest"
+readonly plugin_download_url="https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip"
+readonly installed_plugin_zip="$HOME/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip"
+readonly server_launch_agent_label="com.webdavis.yt-dlp-pot-provider"
 
-if [[ ! -d ${POT_REPO} ]]; then
-  printf 'bgutil provider is not installed; deferring update.\n' >&2
-  exit 75
-fi
-
-fetch_latest_pot_tag() {
-  curl -sf "${POT_API}" | jq -r .tag_name 2>/dev/null
+provider_is_installed() {
+  [[ -d $provider_checkout ]]
 }
 
-current_pot_tag() {
-  git -C "${POT_REPO}" describe --tags --exact-match 2>/dev/null
+fetch_url() {
+  local url=$1
+  curl --proto '=https' --tlsv1.2 -L --fail --retry 3 -s "$url"
+}
+
+latest_release_tag() {
+  fetch_url "$latest_release_api_url" | jq -r '.tag_name // empty' || true
+}
+
+installed_release_tag() {
+  git -C "$provider_checkout" describe --tags --exact-match 2>/dev/null || true
+}
+
+check_out_release() {
+  local tag=$1
+  git -C "$provider_checkout" fetch --tags origin
+  git -C "$provider_checkout" checkout "$tag"
+}
+
+build_server() {
+  (cd "$provider_server_dir" && deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen)
+}
+
+download_to_file() {
+  local url=$1 destination=$2
+  fetch_url "$url" >"$destination"
 }
 
 download_plugin() {
-  local tmpfile
-  tmpfile="$(mktemp)"
-  if curl --proto '=https' --tlsv1.2 -L --fail --retry 3 -s \
-    -o "${tmpfile}" "${POT_PLUGIN_URL}"; then
-    mkdir -p "$(dirname "${PLUGIN_ZIP}")"
-    mv "${tmpfile}" "${PLUGIN_ZIP}"
-  else
-    rm -f "${tmpfile}"
+  local temp_file
+  temp_file="$(mktemp)"
+  if ! download_to_file "$plugin_download_url" "$temp_file"; then
+    rm -f "$temp_file"
     return 1
   fi
+  printf '%s' "$temp_file"
 }
 
-build_pot_server() {
-  (cd "${POT_SERVER}" && deno install --allow-scripts=npm:canvas,npm:@swc/core --frozen)
+install_plugin() {
+  local downloaded_plugin=$1
+  mkdir -p "$(dirname "$installed_plugin_zip")"
+  mv "$downloaded_plugin" "$installed_plugin_zip"
 }
 
-latest="$(fetch_latest_pot_tag)"
-current="$(current_pot_tag || true)"
+restart_server() {
+  launchctl kickstart -k "gui/$(id -u)/$server_launch_agent_label"
+}
 
-if [[ -z ${latest} ]]; then
-  printf 'could not determine the latest bgutil provider release.\n' >&2
-  exit 1
-fi
+main() {
+  if ! provider_is_installed; then
+    printf 'bgutil provider is not installed; deferring update.\n' >&2
+    exit "$exit_deferred"
+  fi
 
-if [[ ${current} == "${latest}" ]]; then
-  printf 'bgutil provider is already at %s.\n' "${latest}"
-  exit 0
-fi
+  local latest installed downloaded_plugin
+  latest="$(latest_release_tag)"
+  if [[ -z $latest ]]; then
+    printf 'error[release-unknown]: could not determine the latest bgutil release.\n' >&2
+    exit "$exit_failure"
+  fi
+  installed="$(installed_release_tag)"
 
-printf 'updating bgutil provider from %s to %s.\n' "${current:-unknown}" "${latest}"
-git -C "${POT_REPO}" fetch --tags origin
-git -C "${POT_REPO}" checkout "${latest}"
-build_pot_server
-download_plugin
-launchctl kickstart -k "${LAUNCHAGENT_DOMAIN}/${LAUNCHAGENT_LABEL}"
-printf 'bgutil provider updated to %s.\n' "${latest}"
+  if [[ $installed == "$latest" ]]; then
+    return
+  fi
+
+  check_out_release "$latest"
+  build_server
+  downloaded_plugin="$(download_plugin)"
+  install_plugin "$downloaded_plugin"
+  restart_server
+  printf 'bgutil-ytdlp-pot-provider: %s → %s\n' "${installed:-unknown}" "$latest"
+}
+
+main "$@"
