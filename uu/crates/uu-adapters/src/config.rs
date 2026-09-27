@@ -19,7 +19,6 @@
 mod lanes;
 pub use lanes::{CargoLane, RotateLogsLane, RustupLane};
 
-pub use lanes::SkillsConfig;
 mod records;
 pub use records::Records;
 use records::parse_records;

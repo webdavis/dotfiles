@@ -20,12 +20,10 @@ mod npm;
 mod nvim;
 mod rotate_logs;
 mod rustup;
-mod skills;
 pub use rotate_logs::RotateLogsLane;
 pub use rustup::RustupLane;
 
 mod uv;
-pub use skills::SkillsConfig;
 
 use std::collections::BTreeMap;
 use std::time::Duration;

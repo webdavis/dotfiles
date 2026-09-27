@@ -15,17 +15,11 @@ mod npm;
 mod nvim;
 mod rotate_logs;
 mod rustup;
-mod skills;
 
 mod spawn;
 mod text;
 mod undeclared;
 mod uv;
-pub use skills::capture_skills_updater;
-pub use skills::{
-    HermesRegistryEntry, SkillsBuildMode, SkillsCandidate, SkillsForkWatch, SkillsGenerationStore,
-    SkillsPublication, SkillsRecovery, SkillsRoster, exchange_skills_directories,
-};
 
 pub use spawn::{CommandRunner, Environment, Ran, Verdict};
 pub use text::failure_reason;
@@ -62,7 +56,6 @@ pub fn run_lane(
     Some(config.lanes.get(name)?.adapter.run(name, facts, runner))
 }
 
-pub use skills::SkillsEnvironment;
 #[cfg(test)]
 pub(crate) mod stubs;
 

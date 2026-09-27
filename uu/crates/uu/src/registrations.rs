@@ -1,7 +1,7 @@
 use uu_adapters::{
     BrewLane, CargoLane, ClaudePluginsLane, CommandLane, HerdrLane, LaneRegistration, NpmLane,
     NvimMasonLane, NvimParsersLane, NvimPluginsLane, NvimSmokeTestLane, RotateLogsLane, RustupLane,
-    SkillsConfig, UvLane,
+    UvLane,
 };
 
 pub(crate) const LANES: &[LaneRegistration] = &[
@@ -17,6 +17,5 @@ pub(crate) const LANES: &[LaneRegistration] = &[
     LaneRegistration::new::<NvimSmokeTestLane>("nvim-smoke-test"),
     LaneRegistration::new::<RotateLogsLane>("rotate-logs"),
     LaneRegistration::new::<RustupLane>("rustup"),
-    LaneRegistration::new::<SkillsConfig>("skills"),
     LaneRegistration::new::<UvLane>("uv"),
 ];

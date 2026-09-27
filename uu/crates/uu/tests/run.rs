@@ -275,6 +275,3 @@ mod bootstrap;
 
 #[path = "run/claude_plugins.rs"]
 mod claude_plugins;
-
-#[path = "run/skills.rs"]
-mod skills;

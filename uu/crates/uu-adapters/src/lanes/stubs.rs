@@ -32,7 +32,6 @@ pub(crate) struct ScriptedRunner {
     stdout: String,
     calls: RefCell<Vec<Vec<String>>>,
     inputs: RefCell<Vec<String>>,
-    environments: RefCell<Vec<Environment>>,
     /// Every bounded call, with the bound it was given: what a lane test
     /// asserts a step's own deadline against without a real clock.
     deadlines: RefCell<Vec<(Vec<String>, Duration)>>,
@@ -54,7 +53,6 @@ impl ScriptedRunner {
             stdout: String::new(),
             calls: RefCell::new(Vec::new()),
             inputs: RefCell::new(Vec::new()),
-            environments: RefCell::new(Vec::new()),
             deadlines: RefCell::new(Vec::new()),
         }
     }
@@ -119,9 +117,6 @@ impl ScriptedRunner {
         self
     }
 
-    pub(crate) fn environments(&self) -> Vec<Environment> {
-        self.environments.borrow().clone()
-    }
     pub(crate) fn calls(&self) -> Vec<Vec<String>> {
         self.calls.borrow().clone()
     }
@@ -152,10 +147,9 @@ impl CommandRunner for ScriptedRunner {
         &self,
         program: &str,
         args: &[&str],
-        env: &Environment,
+        _env: &Environment,
         most: Option<Duration>,
     ) -> Result<String, String> {
-        self.environments.borrow_mut().push(env.clone());
         match most {
             Some(most) => self.run_with_deadline(program, args, most),
             None => self.run(program, args),
@@ -166,9 +160,8 @@ impl CommandRunner for ScriptedRunner {
         &self,
         program: &str,
         args: &[&str],
-        env: &Environment,
+        _env: &Environment,
     ) -> Result<Ran, String> {
-        self.environments.borrow_mut().push(env.clone());
         self.run_with_input(program, args, "")
     }
 
