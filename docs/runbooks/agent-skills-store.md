@@ -48,8 +48,8 @@ The scripts are in `dot_local/libexec/uu/`. Each prints one line per change
 `just update-skills` runs `uu run skills`, the `npx-skills`, `clawhub-skills` and `cua-driver-skills`
 lanes in that order.
 
-`npx-skills` and `clawhub-skills` hold the lock `~/.agents/.skills.lock` while they run. If another run
-holds it, they exit 75 and try again next time.
+`npx-skills` and `clawhub-skills` hold the lock `~/.agents/.skills-folder.lock` while they run. If
+another run holds it, they exit 75 and try again next time.
 
 ## Only when asked
 

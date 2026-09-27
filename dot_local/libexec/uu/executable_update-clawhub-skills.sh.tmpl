@@ -4,7 +4,6 @@ set -euo pipefail
 
 {{ includeTemplate "skills-store-lib.sh.tmpl" }}
 
-readonly exit_try_later=75
 readonly exit_needs_you=100
 readonly exit_failed=1
 readonly codex_file_ignore_rule='agents/openai.yaml'
@@ -50,9 +49,8 @@ output_mentions() {
 }
 
 main() {
-  if ! hold_skills_lock; then
-    printf 'error[busy]: another skills update holds %s; try later.\n' "$skills_lock" >&2
-    exit "$exit_try_later"
+  if ! skills_folder_lock_is_held; then
+    run_holding_skills_folder_lock "$@"
   fi
 
   local failed=no needs_you=no skill old new output

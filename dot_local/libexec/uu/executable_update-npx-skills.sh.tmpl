@@ -4,7 +4,6 @@ set -euo pipefail
 
 {{ includeTemplate "skills-store-lib.sh.tmpl" }}
 
-readonly exit_try_later=75
 readonly exit_failed=1
 readonly skills_cli="skills@{{ .agents.skills.skills_cli_version }}"
 readonly skills_cli_lock="$HOME/.agents/.skill-lock.json"
@@ -61,9 +60,8 @@ print_changes() {
 }
 
 main() {
-  if ! hold_skills_lock; then
-    printf 'error[busy]: another skills update holds %s; try later.\n' "$skills_lock" >&2
-    exit "$exit_try_later"
+  if ! skills_folder_lock_is_held; then
+    run_holding_skills_folder_lock "$@"
   fi
 
   local failed=no entry repository skill_list before after output skill

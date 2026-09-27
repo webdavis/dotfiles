@@ -1,12 +1,22 @@
 # shellcheck shell=bash
 
 readonly skills_store="$HOME/.agents/skills"
-readonly skills_lock="$HOME/.agents/.skills.lock"
+readonly skills_folder_lock="$HOME/.agents/.skills-folder.lock"
+readonly lock_is_busy_status=75
 readonly codex_original_marker='# uu-original-openai: '
 
-hold_skills_lock() {
-  exec 9>>"$skills_lock"
-  lockf -s -t 0 9
+skills_folder_lock_is_held() {
+  [[ ${AGENT_SKILLS_FOLDER_LOCK_HELD:-} == yes ]]
+}
+
+run_holding_skills_folder_lock() {
+  local status=0
+  mkdir -p "$(dirname "$skills_folder_lock")"
+  AGENT_SKILLS_FOLDER_LOCK_HELD=yes lockf -k -s -t 0 "$skills_folder_lock" "$BASH" "$0" "$@" || status=$?
+  if ((status == lock_is_busy_status)); then
+    printf 'error[busy]: another script holds %s; try later.\n' "$skills_folder_lock" >&2
+  fi
+  exit "$status"
 }
 
 skill_is_installed() {
