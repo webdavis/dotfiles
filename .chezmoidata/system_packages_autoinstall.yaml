@@ -288,7 +288,7 @@ packages:
           # reinstalls whenever the pin moves.
           - "gnhf@0.1.49"
           - hyperframes
-  # Tools built from someone else's git repository rather than this one, and
+  # Tools built from their own git repository rather than this one, and
   # installed into rust_tools.install_dir with `cargo install --git`. dam is
   # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn.
   # chord compiles dot_config/chord/bindings.toml into the two generated files
@@ -303,6 +303,19 @@ packages:
       repo: webdavis/damnit
       package: damnit
       ref: bae8a19a6e268ce0a06b67620eb8b9b80c2eee2c
+    - name: lights
+      repo: webdavis/lights
+      package: lights
+      ref: a792ffaff210e94ca668604296699b06376dc314
+    - name: pns
+      repo: webdavis/pns
+      package: pns
+      ref: 68be9aab567bea384c85e9517171ab822a9d099e
+      features: dev-tools
+    - name: posture
+      repo: webdavis/posture
+      package: posture
+      ref: d6ca9aadd697d759145521394289d873ed190592
     - name: uu
       repo: webdavis/uu
       package: uu

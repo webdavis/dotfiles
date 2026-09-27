@@ -11,17 +11,10 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
 
 ## The consumers outside the folder
 
-1. **The chezmoi builder**, `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl`, runs
-   `cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml`
-   and installs `target/release/pns` into `~/.cargo/bin/pns`. Its cargo line and paths move
-   to the workspace layout in the same pull request as the conversion. Fixed: the workspace lives at
-   `pns/` in the checkout and never deploys to `$HOME`, the binary installs at
-   `~/.cargo/bin/pns`, and the build runs `--locked`.
-2. **The justfile recipes** `test-rust` and `pns-config-render` pass
-   `--manifest-path pns/Cargo.toml`. The workspace conversion has since landed:
-   `crates/pns-{domain,application,protocol,adapters,cli}` exist as skeletons and `test-rust` already
-   passes `--workspace` on its pns lines. `pns-config-render` is a `cargo run` and needs none. Read
-   both recipes before assuming either shape.
+1. **The chezmoi install**, `.chezmoiscripts/run_onchange_after_57-install-cargo-git-tools.sh.tmpl`,
+   runs `cargo install --git` at the revision pinned in `.chezmoidata/system_packages_autoinstall.yaml`
+   with `--features dev-tools`, into `~/.cargo/bin`.
+2. **The justfile recipe** `pns-config-render` runs the installed `pns-config-render` binary.
 3. **`uu`** depends on pns by path and imports
    `pns::channels::hermes::{SignedPost, UreqSignedPost, PostOutcome, delivered, outcome_line, sign}`,
    so one signed-POST seam exists rather than two. Do not keep that path alive behind a facade: put
@@ -29,7 +22,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
    request.
 4. **The command-line surface** is a compatibility contract. Enumerate the in-repo callers first:
 
-       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target . | grep -v pns/
+       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target .
 
    They are the Claude Code hook declarations in `private_dot_claude/modify_settings.json`, the daemon
    LaunchAgent's `pns daemon run`, the bash notifier's `pns loop begin|end` in `dot_bashrc.tmpl`, uu's
@@ -175,7 +168,7 @@ client dialing hangs the suite rather than failing it.
     just test-rust
     just lint-check
     just ship
-    cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml
+    cargo build --release --locked --quiet --bin pns
     just pns-config-render && git diff --exit-code dot_config/pns/private_config.toml.tmpl
 
 `tests/support/mod.rs` enforces the speed guard: over `TEST_BUDGET_MS` (1,000) warns, over

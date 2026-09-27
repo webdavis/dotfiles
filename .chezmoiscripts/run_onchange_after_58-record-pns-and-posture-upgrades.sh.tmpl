@@ -1,0 +1,115 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ range .packages.cargo_git_tools -}}
+{{ if has .name (list "pns" "posture") -}}
+# {{ .name }}: {{ toJson . | sha256sum }}
+{{ end -}}
+{{ end -}}
+# retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
+
+readonly install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+readonly build_record_dir="$HOME/.local/state"
+readonly rustc_bin="$HOME/.cargo/bin/rustc"
+readonly pipeline_manifest_refresher="${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh"
+readonly -a pns_launchagent_labels=(com.webdavis.pns-daemon com.webdavis.pns-github-receiver)
+
+recorded_binary_count=0
+
+binary_is_installed() {
+  local tool=$1
+  [[ -x $install_dir/$tool ]]
+}
+
+binary_digest() {
+  local tool=$1
+  shasum -a 256 "$install_dir/$tool" | awk '{print $1}'
+}
+
+binary_bytes() {
+  local tool=$1
+  wc -c <"$install_dir/$tool" | tr -d ' '
+}
+
+build_record() {
+  local tool=$1
+  printf '%s' "$build_record_dir/$tool-build-record"
+}
+
+recorded_digest_line() {
+  local tool=$1
+  sed -n '1p' "$(build_record "$tool")" 2>/dev/null
+}
+
+binary_is_new() {
+  local tool=$1
+  binary_is_installed "$tool" && [[ $(recorded_digest_line "$tool") != "sha256 $(binary_digest "$tool")" ]]
+}
+
+record_binary() {
+  local tool=$1
+  local record next_record
+  record="$(build_record "$tool")"
+  mkdir -p "$build_record_dir"
+  next_record="$(mktemp "$record.new.XXXXXX")"
+  printf 'sha256 %s\nbytes %s\n%s\n' "$(binary_digest "$tool")" "$(binary_bytes "$tool")" "$("$rustc_bin" --version --verbose)" >"$next_record"
+  mv -f "$next_record" "$record"
+  recorded_binary_count=$((recorded_binary_count + 1))
+}
+
+no_binary_was_recorded() {
+  ((recorded_binary_count == 0))
+}
+
+restart_loaded_pns_launchagents() {
+  local label restart_status=0
+  for label in "${pns_launchagent_labels[@]}"; do
+    if launchagent_is_loaded "$label"; then
+      launchctl kickstart -k "$(launchagent_domain)/$label" || restart_status=1
+    fi
+  done
+  return "$restart_status"
+}
+
+refresh_pipeline_manifest() {
+  bash "$pipeline_manifest_refresher" --pipeline-only
+}
+
+main() {
+  report_section 'pns and posture' 'build records and restarts after an upgrade'
+
+  if binary_is_new pns; then
+    report_line "restarting the loaded pns LaunchAgents on the new binary..."
+    if ! restart_loaded_pns_launchagents; then
+      report_line "error[restart-failed]: pns was not restarted on the new binary; see launchctl's output above." >&2
+      exit 1
+    fi
+    record_binary pns
+    report_line "recorded the new pns binary."
+  fi
+
+  if binary_is_new posture; then
+    record_binary posture
+    report_line "recorded the new posture binary."
+  fi
+
+  if no_binary_was_recorded; then
+    report_line "no new binary, skipping."
+    return
+  fi
+
+  report_line "refreshing the pipeline manifest..."
+  if ! refresh_pipeline_manifest; then
+    report_line "error[manifest-refresh-failed]: the pipeline manifest was not refreshed; the next apply refreshes it." >&2
+    exit 1
+  fi
+  report_line "refreshed the pipeline manifest."
+}
+
+main "$@"
+{{ end -}}

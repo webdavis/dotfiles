@@ -1,7 +1,0 @@
-[package]
-name = "lights-application"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-lights-domain = { path = "../lights-domain" }

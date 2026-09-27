@@ -1,4 +1,0 @@
-[package]
-name = "tailnet-pin-domain"
-version.workspace = true
-edition.workspace = true

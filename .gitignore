@@ -31,19 +31,6 @@ vendor/**
 # Rust build artifacts for vendored herdr projects (plugins + binaries, built in-place, never committed).
 dot_local/share/herdr/**/target/
 
-# Same, for the pns crate: the first `cargo test` writes this tree, and it is
-# rebuilt in place rather than committed.
-pns/target/
-
-# Same, for the lights workspace.
-lights/target/
-
-# Same, for the posture crate.
-posture/target/
-
-# Same, for the tailnet-pin workspace.
-tailnet-pin/target/
-
 # Same, for the morning workspace.
 morning/target/
 

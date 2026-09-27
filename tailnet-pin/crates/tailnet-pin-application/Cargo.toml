@@ -1,8 +1,0 @@
-[package]
-name = "tailnet-pin-application"
-version.workspace = true
-edition.workspace = true
-
-[dependencies]
-tailnet-pin-domain = { path = "../tailnet-pin-domain" }
-tailnet-pin-protocol = { path = "../tailnet-pin-protocol" }
