@@ -95,7 +95,7 @@ impl Home {
     }
 
     /// An executable shell script written into the scratch HOME, for a
-    /// command lane's `run` (or `[alerts]`'s `binary`) to point at.
+    /// command lane's `command` (or `[alerts]`'s `binary`) to point at.
     pub fn write_stub(&self, name: &str, body: &str) -> PathBuf {
         use std::os::unix::fs::PermissionsExt;
         let stub = self.dir.join(name);

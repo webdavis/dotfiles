@@ -14,7 +14,7 @@ fn an_alternate_registration_reaches_execution_and_doctor_with_distinct_names() 
     let fixture = Fixture::new("registration");
     let program = fixture.stub("printf '%s\\n' \"$1\" \"$2\"\ncat\n");
     let config = fixture.load(&format!(
-        "[lane.chosen]\ntype = \"fixture-command\"\nrun = [{program:?}, \"first\", \"second argument\"]\ndeadline_secs = 7\n"
+        "[lane.chosen]\ntype = \"fixture-command\"\ncommand = [{program:?}, \"first\", \"second argument\"]\ndeadline_secs = 7\n"
     ), ALIAS).unwrap();
     let observed = Observed::default();
     assert_eq!(
@@ -51,7 +51,7 @@ fn a_missing_registration_refuses_before_any_command_or_diagnostic_can_run() {
     let program = fixture.stub(&format!("touch {touched:?}\n"));
     let error = fixture
         .load(
-            &format!("[lane.chosen]\ntype = \"fixture-command\"\nrun = [{program:?}]\n"),
+            &format!("[lane.chosen]\ntype = \"fixture-command\"\ncommand = [{program:?}]\n"),
             crate::registrations::LANES,
         )
         .unwrap_err();
@@ -69,7 +69,7 @@ fn the_production_registration_list_loads_and_runs_the_selected_command() {
     let program = fixture.stub("cat >/dev/null\nprintf 'actually ran\\n'\n");
     let config = fixture
         .load(
-            &format!("[lane.mine]\ntype = \"command\"\nrun = [{program:?}]\n"),
+            &format!("[lane.mine]\ntype = \"command\"\ncommand = [{program:?}]\n"),
             crate::registrations::LANES,
         )
         .unwrap();

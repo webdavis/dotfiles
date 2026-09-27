@@ -10,7 +10,7 @@ fn escalate_after_runs_defaults_to_three_on_every_lane_type() {
             "[lane.npm]\ntype = \"npm\"\nbinary = \"/fixture/npm\"\n",
         ),
         ("uv", "[lane.uv]\ntype = \"uv\"\n"),
-        ("command", "[lane.command]\nrun = [\"updater\"]\n"),
+        ("command", "[lane.command]\ncommand = [\"updater\"]\n"),
     ] {
         assert_eq!(
             parsed(text).lanes[name].escalate_after_runs.get(),
@@ -24,7 +24,7 @@ fn escalate_after_runs_defaults_to_three_on_every_lane_type() {
 fn escalation_accepts_both_positive_integer_bounds_and_custom_values() {
     for value in [1, 2, u32::MAX] {
         let config = parsed(&format!(
-            "[lane.mine]\ntype = \"command\"\nrun = [\"updater\"]\nescalate_after_runs = {value}\n"
+            "[lane.mine]\ntype = \"command\"\ncommand = [\"updater\"]\nescalate_after_runs = {value}\n"
         ));
         assert_eq!(config.lanes["mine"].escalate_after_runs.get(), value);
     }
@@ -34,7 +34,7 @@ fn escalation_accepts_both_positive_integer_bounds_and_custom_values() {
 fn invalid_escalation_values_are_refused_by_key_and_lane_name() {
     for value in ["0", "-1", "4294967296", "1.5", "true", "\"three\"", "[]"] {
         let why = refusal(&format!(
-            "[lane.mine]\ntype = \"command\"\nrun = [\"updater\"]\nescalate_after_runs = {value}\n"
+            "[lane.mine]\ntype = \"command\"\ncommand = [\"updater\"]\nescalate_after_runs = {value}\n"
         ));
         assert!(
             why.contains("lane.mine")

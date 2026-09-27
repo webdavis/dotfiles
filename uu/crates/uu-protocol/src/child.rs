@@ -14,7 +14,7 @@
 /// `command -v hermes` first, then captures the result as an `if` condition
 /// (`if update_output="$(hermes ...)"; then ... else ... fi`), never reading
 /// `$?` afterward; every exit either job actually returns comes from its own
-/// explicit `exit N` statements alone. A future `command` lane whose `run` is
+/// explicit `exit N` statements alone. A future `command` lane whose `command` is
 /// hermes itself, or that forwards hermes's own status unchanged, would
 /// collide; the shipped config template says so.
 pub const DEFERRED_EXIT_CODE: i32 = 75;

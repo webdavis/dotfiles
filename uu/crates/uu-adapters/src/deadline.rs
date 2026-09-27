@@ -100,7 +100,7 @@ mod tests {
                 "nvim-smoke-test",
                 "[lane.nvim-smoke-test]\ntype = \"nvim-smoke-test\"\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
             ),
-            ("command", "[lane.command]\nrun = [\"x\"]\n"),
+            ("command", "[lane.command]\ncommand = [\"x\"]\n"),
             ("herdr", "[lane.herdr]\ntype = \"herdr\"\n"),
             ("npm", "[lane.npm]\ntype = \"npm\"\nbinary = \"/n/npm\"\n"),
             ("uv", "[lane.uv]\ntype = \"uv\"\n"),

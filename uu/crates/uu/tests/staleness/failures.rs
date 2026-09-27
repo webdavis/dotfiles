@@ -16,7 +16,7 @@ fn a_staleness_alert_the_engine_refused_is_retried_rather_than_lost_for_good() {
         "[ -f \"$HOME/engine-down\" ] && exit 1\nprintf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n",
     );
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));
@@ -58,7 +58,7 @@ fn an_unreadable_streak_is_treated_as_already_close_to_stale_not_reset_to_zero()
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));
@@ -90,7 +90,7 @@ fn an_unwritable_streak_directory_alerts_instead_of_staying_silent_forever() {
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));
@@ -121,7 +121,7 @@ fn a_streak_file_made_read_only_between_runs_is_still_correctly_advanced() {
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         stub.display(),
         pns_stub.display(),
     ));

@@ -111,11 +111,11 @@ mod tests {
         // One minimal block per BUILT-IN TYPE (the WEEKDAY_NAMES pattern): a
         // registered type that dispatches to nothing, or that loses the
         // lane's own name along the way, would accept a lane it never truly
-        // runs. `command` needs a `run` to be valid at all, so the block is
+        // runs. `command` needs a `command` to be valid at all, so the block is
         // spelled out per fixture rather than derived from the name alone.
         let fixtures: &[(&str, &str, &str)] = &[
             ("brew", "[lane.brew]\ntype = \"brew\"\n", "brew"),
-            ("command", "[lane.command]\nrun = [\"x\"]\n", "command"),
+            ("command", "[lane.command]\ncommand = [\"x\"]\n", "command"),
             (
                 "nvim-mason",
                 "[lane.nvim-mason]\ntype = \"nvim-mason\"\nconfig = \"/fixture/nvim\"\n",

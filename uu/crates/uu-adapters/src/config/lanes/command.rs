@@ -1,9 +1,9 @@
 //! `[lane.<name>]` with no `type`, or any lane block with `type = "command"`:
 //! the PRODUCER API.
 //!
-//! `command[0]` is the program and `command[1..]` its arguments; `run` is the
-//! older name for the same key. The lane's NAME is the operator's own choice;
-//! nothing here constrains it, which is the whole point of the producer API.
+//! `command[0]` is the program and `command[1..]` its arguments. The lane's
+//! NAME is the operator's own choice; nothing here constrains it, which is the
+//! whole point of the producer API.
 
 use crate::config::ConfigError;
 use crate::config::schema::admits_lane;
@@ -13,25 +13,27 @@ pub struct CommandLane {
     pub(crate) run: Vec<String>,
 }
 
-/// `command`, or the older `run`, is required, and never both; everything else
-/// `admits` already refused.
+/// `command` is required; everything else `admits` already refused.
 ///
 /// `admits` RUNS FIRST, inside this same loop, before the after-loop check
-/// below for a missing `run`. A block that names an unknown key AND no `run`
-/// (`[lane.mine]\ntype = "command"\nbogus = 1`) is refused for the key it
-/// misspelled, not for the run it never got to declare: the operator fixes
+/// below for a missing `command`. A block that names an unknown key AND no
+/// `command` (`[lane.mine]\ntype = "command"\nbogus = 1`) is refused for the key
+/// it misspelled, not for the command it never got to declare: the operator fixes
 /// one problem at a time, and "unknown key" is the more specific diagnosis.
 pub(crate) fn parse_command_lane(
     table_label: &str,
     table: toml::Table,
 ) -> Result<CommandLane, ConfigError> {
     let mut command = None;
-    let mut run = None;
     for (name, setting) in table {
+        if name == "run" {
+            return Err(ConfigError::Invalid(format!(
+                "`{table_label}` key `run` is now `command`"
+            )));
+        }
         admits_lane(table_label, "command", CommandLane::KEYS, &name)?;
         match name.as_str() {
             "command" => command = Some(parse_argv(table_label, "command", &setting)?),
-            "run" => run = Some(parse_argv(table_label, "run", &setting)?),
             // Read by `lane_type` before this block was dispatched; nothing
             // is left to do with it here.
             "type" => {}
@@ -39,22 +41,16 @@ pub(crate) fn parse_command_lane(
             _ => {}
         }
     }
-    if command.is_some() && run.is_some() {
-        return Err(ConfigError::Invalid(format!(
-            "`{table_label}` has both `command` and `run`, which mean the same thing; keep \
-             `command` and remove `run`"
-        )));
-    }
-    let run = command.or(run).ok_or_else(|| {
+    let run = command.ok_or_else(|| {
         ConfigError::Invalid(format!(
-            "`{table_label}` has no `run`, so it names nothing to run"
+            "`{table_label}` has no `command`, so it names nothing to run"
         ))
     })?;
     Ok(CommandLane { run })
 }
 
-/// `run`: a non-empty list of non-blank strings. `run[0]` is the program that
-/// gets executed and `run[1..]` its arguments, so a missing, wrongly-typed,
+/// `command`: a non-empty list of non-blank strings. `command[0]` is the program
+/// that gets executed and `command[1..]` its arguments, so a missing, wrongly-typed,
 /// empty or blank entry each names nothing runnable and is refused by name.
 pub(super) fn parse_argv(
     table_label: &str,
@@ -88,13 +84,8 @@ pub(super) fn parse_argv(
 }
 
 impl CommandLane {
-    pub(crate) const KEYS: &'static [&'static str] = &[
-        "command",
-        "deadline_secs",
-        "escalate_after_runs",
-        "run",
-        "type",
-    ];
+    pub(crate) const KEYS: &'static [&'static str] =
+        &["command", "deadline_secs", "escalate_after_runs", "type"];
 }
 
 #[cfg(test)]
@@ -103,26 +94,26 @@ mod tests {
     use crate::config::probes::{checked_text, parsed, refusal, typed};
 
     #[test]
-    fn a_command_lane_without_run_is_refused_because_it_names_nothing_to_run() {
+    fn a_command_lane_without_command_is_refused_because_it_names_nothing_to_run() {
         let detail = refusal("[lane.command]\n");
-        assert!(detail.contains("has no `run`"), "{detail}");
+        assert!(detail.contains("has no `command`"), "{detail}");
         assert!(detail.contains("names nothing to run"), "{detail}");
     }
 
     #[test]
-    fn a_run_that_is_empty_not_a_list_or_holds_a_blank_is_refused_by_name() {
+    fn a_command_that_is_empty_not_a_list_or_holds_a_blank_is_refused_by_name() {
         for (text, expect) in [
-            ("[lane.command]\nrun = []\n", "is empty"),
-            ("[lane.command]\nrun = \"x\"\n", "not a list"),
-            ("[lane.command]\nrun = [1]\n", "not a string"),
-            ("[lane.command]\nrun = [\"\"]\n", "holds a blank entry"),
+            ("[lane.command]\ncommand = []\n", "is empty"),
+            ("[lane.command]\ncommand = \"x\"\n", "not a list"),
+            ("[lane.command]\ncommand = [1]\n", "not a string"),
+            ("[lane.command]\ncommand = [\"\"]\n", "holds a blank entry"),
             // Whitespace is blank too: it reads as a filled-in entry and
             // names nothing an exec can find.
-            ("[lane.command]\nrun = [\" \"]\n", "holds a blank entry"),
-            // A VALID run[0] must not stop the check: a mutant that
+            ("[lane.command]\ncommand = [\" \"]\n", "holds a blank entry"),
+            // A VALID command[0] must not stop the check: a mutant that
             // validates only the first entry passes every case above.
             (
-                "[lane.command]\nrun = [\"ok\", \"\"]\n",
+                "[lane.command]\ncommand = [\"ok\", \"\"]\n",
                 "holds a blank entry",
             ),
         ] {
@@ -132,9 +123,9 @@ mod tests {
     }
 
     #[test]
-    fn a_command_lane_reads_run_as_the_program_and_its_arguments() {
+    fn a_command_lane_reads_command_as_the_program_and_its_arguments() {
         let config =
-            checked_text("[lane.mine]\ntype = \"command\"\nrun = [\"/bin/x\", \"--yes\"]\n");
+            checked_text("[lane.mine]\ntype = \"command\"\ncommand = [\"/bin/x\", \"--yes\"]\n");
         assert_eq!(
             typed::<CommandLane>(config, "mine"),
             Some(CommandLane {
@@ -143,27 +134,10 @@ mod tests {
         );
         // A second way `type` could be ignored: a herdr-only key on a command
         // block must still be refused.
-        let detail = refusal("[lane.mine]\ntype = \"command\"\nrun = [\"x\"]\nbinary = \"y\"\n");
+        let detail =
+            refusal("[lane.mine]\ntype = \"command\"\ncommand = [\"x\"]\nbinary = \"y\"\n");
         assert!(
             detail.contains("unknown `lane.mine` key `binary`"),
-            "{detail}"
-        );
-    }
-
-    #[test]
-    fn a_command_lane_reads_command_as_the_program_and_its_arguments_the_way_it_reads_run() {
-        let config = checked_text(
-            "[lane.mine]\ntype = \"command\"\ncommand = [\"/fixture/updater\", \"--yes\"]\n",
-        );
-        assert_eq!(
-            typed::<CommandLane>(config, "mine"),
-            Some(CommandLane {
-                run: vec!["/fixture/updater".to_string(), "--yes".to_string()],
-            })
-        );
-        let detail = refusal("[lane.mine]\ncommand = []\n");
-        assert!(
-            detail.contains("`lane.mine` key `command` is empty"),
             "{detail}"
         );
     }
@@ -180,18 +154,16 @@ mod tests {
     }
 
     #[test]
-    fn a_command_lane_with_both_command_and_run_is_refused_naming_both() {
-        let detail =
-            refusal("[lane.mine]\ncommand = [\"/fixture/one\"]\nrun = [\"/fixture/two\"]\n");
+    fn a_command_lane_with_run_is_refused_saying_it_is_now_command() {
+        let detail = refusal("[lane.mine]\nrun = [\"/fixture/updater\"]\n");
         assert!(
-            detail.contains("`lane.mine` has both `command` and `run`"),
+            detail.contains("`lane.mine` key `run` is now `command`"),
             "{detail}"
         );
-        assert!(detail.contains("keep `command`"), "{detail}");
     }
 
     #[test]
-    fn a_command_lane_with_a_bogus_key_is_refused_as_unknown_before_the_run_check() {
+    fn a_command_lane_with_a_bogus_key_is_refused_as_unknown_before_the_command_check() {
         let detail = refusal("[lane.command]\nbogus = 1\n");
         assert!(
             detail.contains("unknown `lane.command` key `bogus`"),

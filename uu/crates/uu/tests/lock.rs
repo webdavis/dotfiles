@@ -27,7 +27,7 @@ fn a_second_run_finding_the_lock_already_held_refuses_and_exits_rather_than_raci
     let home = Home::new("lock-held");
     let stub = home.write_stub("updater", "cat >/dev/null\nexit 0\n");
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n",
         stub.display()
     ));
     let lock_path = lock_path(&home.dir);
@@ -116,7 +116,7 @@ fn a_lane_removed_from_the_config_has_its_old_streak_directory_pruned() {
     std::fs::write(gone.join("streak"), "2\n").expect("its old streak");
     let stub = home.write_stub("updater", "cat >/dev/null\nexit 0\n");
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n",
         stub.display()
     ));
     let output = home.uu(&["run"]);
@@ -135,7 +135,7 @@ fn a_lane_still_declared_keeps_its_streak_directory_across_a_run() {
         "cat >/dev/null\nprintf 'nothing was attempted\\n' >&2\nexit 75\n",
     );
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n",
         stub.display()
     ));
     home.uu(&["run"]);
@@ -156,7 +156,7 @@ fn a_new_lane_reusing_a_pruned_names_directory_never_inherits_its_old_streak() {
     // A run with no `mine` lane declared prunes the old directory.
     let elsewhere = home.write_stub("elsewhere-updater", "exit 0\n");
     let home = home.with_config(&format!(
-        "[lane.elsewhere]\ntype = \"command\"\nrun = [\"{}\"]\n",
+        "[lane.elsewhere]\ntype = \"command\"\ncommand = [\"{}\"]\n",
         elsewhere.display()
     ));
     home.uu(&["run"]);
@@ -170,7 +170,7 @@ fn a_new_lane_reusing_a_pruned_names_directory_never_inherits_its_old_streak() {
     );
     let pns_stub = home.write_stub("pns-stub", "printf '%s\\n' \"$*\" >>\"$HOME/alert-args\"\n");
     let home = home.with_config(&format!(
-        "[lane.mine]\ntype = \"command\"\nrun = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
+        "[lane.mine]\ntype = \"command\"\ncommand = [\"{}\"]\n\n[alerts]\nbinary = \"{}\"\n",
         deferring.display(),
         pns_stub.display(),
     ));

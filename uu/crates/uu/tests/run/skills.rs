@@ -53,7 +53,7 @@ fn updater_identity_is_captured_before_an_earlier_lane_replaces_the_running_path
     let config = f.home.dir.join(".config/uu/config.toml");
     let mut text = std::fs::read_to_string(&config).unwrap();
     text.push_str(&format!(
-        "\n[lane.a-before]\ntype = \"command\"\nrun = [{replace:?}]\n"
+        "\n[lane.a-before]\ntype = \"command\"\ncommand = [{replace:?}]\n"
     ));
     std::fs::write(config, text).unwrap();
     let output = f.invoke(&["run"]);

@@ -183,8 +183,10 @@ mod tests {
     fn a_lane_table_block_that_names_no_type_is_a_command_lane_whatever_its_name() {
         let type_names = REGISTRATIONS.iter().map(|entry| entry.type_name());
         for name in type_names.chain(["chosen"]) {
-            let config = parse_config(&format!("[lane.{name}]\nrun = [\"/fixture/updater\"]\n"))
-                .unwrap_or_else(|error| panic!("`{name}`: {error:?}"));
+            let config = parse_config(&format!(
+                "[lane.{name}]\ncommand = [\"/fixture/updater\"]\n"
+            ))
+            .unwrap_or_else(|error| panic!("`{name}`: {error:?}"));
             assert_eq!(config.lanes[name].type_name(), "command", "`{name}`");
         }
     }
@@ -221,7 +223,7 @@ mod tests {
     fn a_block_named_for_one_type_that_states_another_is_the_stated_type() {
         // The stated `type` wins over a name that happens to be a type of its
         // own: the name is the operator's label, the type is the contract.
-        let text = "[lane.herdr]\ntype = \"command\"\nrun = [\"x\"]\n";
+        let text = "[lane.herdr]\ntype = \"command\"\ncommand = [\"x\"]\n";
         let config = parse_config(text).unwrap();
         assert_eq!(config.lanes["herdr"].type_name(), "command");
         assert_eq!(
@@ -259,7 +261,7 @@ mod tests {
                 "nvim-smoke-test",
                 "[lane.nvim-smoke-test]\ntype = \"nvim-smoke-test\"\nconfig = \"/fixture/nvim\"\ncache = \"/fixture/cache\"\n",
             ),
-            ("command", "[lane.command]\nrun = [\"x\"]\n"),
+            ("command", "[lane.command]\ncommand = [\"x\"]\n"),
             ("herdr", "[lane.herdr]\ntype = \"herdr\"\n"),
             ("npm", "[lane.npm]\ntype = \"npm\"\nbinary = \"/n/npm\"\n"),
             ("uv", "[lane.uv]\ntype = \"uv\"\n"),
@@ -286,7 +288,7 @@ mod registration_contract {
     #[test]
     fn a_registered_command_alias_accepts_a_distinct_declared_lane_name() {
         let config = crate::config::parse_config(
-            "[lane.chosen]\ntype = \"fixture-command\"\nrun = [\"/fixture/updater\", \"--yes\"]\n",
+            "[lane.chosen]\ntype = \"fixture-command\"\ncommand = [\"/fixture/updater\", \"--yes\"]\n",
             &[crate::LaneRegistration::new::<crate::CommandLane>(
                 "fixture-command",
             )],

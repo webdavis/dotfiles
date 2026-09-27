@@ -88,8 +88,8 @@ fn interrupt_after_completed_lane(signal: i32, name: &str) {
     };
     let alert = home.write_stub("alert", "touch \"$HOME/alert-ran\"\n");
     let home = home.with_config(&format!(
-        "[lane.first]\ntype = \"command\"\nrun = {}\n\
-         [lane.second]\ntype = \"command\"\nrun = {}\n\
+        "[lane.first]\ntype = \"command\"\ncommand = {}\n\
+         [lane.second]\ntype = \"command\"\ncommand = {}\n\
          [alerts]\nbinary = {alert:?}\n",
         args("leader"),
         args("active")
