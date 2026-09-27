@@ -78,8 +78,16 @@ pub(crate) fn bounded_spawn_to_file(
     input: File,
     output: File,
     budget: Duration,
+    env: &Environment,
 ) -> Spawned {
-    spawn_with_environment(program, args, input.into(), budget, None, Some(output))
+    spawn_with_environment(
+        program,
+        args,
+        input.into(),
+        budget,
+        Some(env.clone()),
+        Some(output),
+    )
 }
 
 fn spawn_with_environment(

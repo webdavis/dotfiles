@@ -1,5 +1,5 @@
-//! A child spawned in an environment the lane chose, and the `PATH` the
-//! adapter composes for it.
+//! A child spawned in an environment the lane chose, and what the adapter
+//! adds to a child's environment: `NO_COLOR`, and a prefixed `PATH`.
 
 use super::SystemRunner;
 use super::bounds::step_runner;
@@ -45,7 +45,8 @@ fn spawn(
     if budget.is_zero() {
         return Err(runner.overrun(&Ended::Stopped, b""));
     }
-    match bounded_spawn_in(program, args, Stdio::null(), budget, env) {
+    let environment = lane_environment(env);
+    match bounded_spawn_in(program, args, Stdio::null(), budget, &environment) {
         Spawned::Ran(finished) => Ok(finished),
         Spawned::NotRunnable(why) => Err(why),
         Spawned::SpawnStuck => Err(super::overrun::spawn_stuck(
@@ -56,6 +57,19 @@ fn spawn(
             crate::interruption().is_some(),
         )),
     }
+}
+
+/// What a lane child runs in: `chosen`, with `NO_COLOR=1` so what the child
+/// prints reaches the record as plain text. A lane that sets `NO_COLOR` itself
+/// keeps its own value. uu's own environment is left alone, so its own
+/// terminal output keeps its color.
+pub(super) fn lane_environment(chosen: &Environment) -> Environment {
+    let mut environment = chosen.clone();
+    environment
+        .variables
+        .entry("NO_COLOR".to_string())
+        .or_insert_with(|| "1".to_string());
+    environment
 }
 
 /// `prefix` first, then every entry the inherited `PATH` held.
@@ -184,6 +198,34 @@ mod children {
             )
             .expect("the child runs");
         assert_eq!(composed, "/fnm/bin");
+    }
+
+    #[test]
+    fn a_child_in_the_environment_its_lane_chose_is_handed_no_color() {
+        // AN ISOLATED ENVIRONMENT, so the value can only be uu's and never the
+        // one the shell running the tests exported.
+        let named = runner()
+            .run_in(
+                "/bin/sh",
+                &["-c", r#"printf %s "${NO_COLOR-unset}""#],
+                &Environment::only(&std::collections::BTreeMap::new()),
+                None,
+            )
+            .expect("the child runs");
+        assert_eq!(named, "1");
+    }
+
+    #[test]
+    fn a_lane_that_sets_no_color_itself_keeps_its_own_value() {
+        let named = runner()
+            .run_in(
+                "/bin/sh",
+                &["-c", r#"printf %s "${NO_COLOR-unset}""#],
+                &Environment::inheriting().with("NO_COLOR", "the lane's own".into()),
+                None,
+            )
+            .expect("the child runs");
+        assert_eq!(named, "the lane's own");
     }
 
     #[test]

@@ -1,6 +1,8 @@
 use std::fs::File;
 
+use super::environment::lane_environment;
 use super::{SystemRunner, overrun};
+use crate::lanes::Environment;
 use crate::watchdog::{Ended, Spawned, bounded_spawn_to_file};
 
 pub(super) fn run(
@@ -14,7 +16,8 @@ pub(super) fn run(
     if budget.is_zero() {
         return Err(runner.overrun(&Ended::Stopped, b""));
     }
-    match bounded_spawn_to_file(program, args, input, output, budget) {
+    let environment = lane_environment(&Environment::inheriting());
+    match bounded_spawn_to_file(program, args, input, output, budget, &environment) {
         Spawned::Ran(finished) => runner.clean_output(finished).map(|_| ()),
         Spawned::NotRunnable(why) => Err(why),
         Spawned::SpawnStuck => Err(overrun::spawn_stuck(
