@@ -144,17 +144,17 @@ return {
   end,
 
   ["plan_launch prompts the pane that was found"] = function()
-    local plan = herdr.plan_launch("wW:p3K", "/somewhere", "/tmp/nvim.sock")
+    local plan = herdr.plan_launch("wW:p3K", "/somewhere")
     assert(plan[1] == "prompt", plan[1])
     assert(plan[2] == "wW:p3K", tostring(plan[2]))
     assert(plan[3] == nil, tostring(plan[3]))
   end,
 
   ["plan_launch splits when no pane was found"] = function()
-    local plan = herdr.plan_launch(nil, "/somewhere", "/tmp/nvim.sock")
+    local plan = herdr.plan_launch(nil, "/somewhere")
     assert(plan[1] == "split", plan[1])
     assert(plan[2] == "/somewhere", tostring(plan[2]))
-    assert(plan[3] == "/tmp/nvim.sock", tostring(plan[3]))
+    assert(plan[3] == nil, tostring(plan[3]))
   end,
 
   -- Finding 1. `agents.list()` is workspace scoped only when HERDR_WORKSPACE_ID

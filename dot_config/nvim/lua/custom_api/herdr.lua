@@ -333,11 +333,11 @@ end
 
 -- The decision half of `launch_or_attach`, kept apart from the three CLI calls
 -- that carry it out so it is answerable without a running herdr.
-function M.plan_launch(pane_id, cwd, servername)
+function M.plan_launch(pane_id, cwd)
   if pane_id then
     return { "prompt", pane_id }
   end
-  return { "split", cwd, servername }
+  return { "split", cwd }
 end
 
 -- herdr reports a failure as a JSON envelope with an `error` object, on stdout
@@ -353,10 +353,8 @@ local function failure(result)
   return vim.trim(said) ~= "" and vim.trim(said) or ("exit " .. result.code)
 end
 
--- The new pane's id is `.result.pane.pane_id`. `--env` pins the socket: the MCP
--- server the CLI starts in that pane inherits it and the resolver connects with
--- no discovery.
-local function split_pane(cwd, servername)
+-- The new pane's id is `.result.pane.pane_id`.
+local function split_pane(cwd)
   local result = herdr_cli({
     "herdr",
     "pane",
@@ -367,8 +365,6 @@ local function split_pane(cwd, servername)
     "--cwd",
     cwd,
     "--focus",
-    "--env",
-    "NVIM_MCP_SOCKET=" .. servername,
   })
   local err = failure(result)
   if err then
@@ -406,7 +402,7 @@ end
 -- split a pane beside the editor and start one there with `--ide`.
 function M.launch_or_attach()
   M.agent_pane(function(pane_id)
-    local plan = M.plan_launch(pane_id, vim.fn.getcwd(), vim.v.servername)
+    local plan = M.plan_launch(pane_id, vim.fn.getcwd())
 
     if plan[1] == "prompt" then
       -- `agent prompt` refuses while that session is blocked on an approval,
@@ -419,7 +415,7 @@ function M.launch_or_attach()
       return
     end
 
-    local new_pane, split_err = split_pane(plan[2], plan[3])
+    local new_pane, split_err = split_pane(plan[2])
     if not new_pane then
       vim.notify("herdr: " .. split_err, vim.log.levels.ERROR)
       return

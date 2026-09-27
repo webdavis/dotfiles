@@ -35,6 +35,10 @@ sequencing; adapters parse configuration, run commands and deliver records and a
   remains six hours. The application passes the resolved duration and does not parse configuration.
   Process enforcement stays with the executor and watchdog. The 24-hour value bounds lane budgets; it is
   not a new timeout around alerting, record delivery, state access or the whole function.
+- **Given** any lane, **when** the runner starts one of its children, **then** set `NO_COLOR=1` in the
+  child's environment unless the lane set `NO_COLOR` itself, so what the child prints reaches the record
+  as plain text. An isolated environment still hands the child nothing uu inherited. uu's own environment
+  is unchanged, so its own terminal output keeps its color.
 
 ## Reporting and retaining history
 
