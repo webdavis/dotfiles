@@ -102,9 +102,10 @@ setup:
     --with mdformat-tables==1.0.0 \
     --with mdformat-config==0.2.1
 
-# Run the weekly Homebrew upgrade lane manually.
+# Run the weekly Homebrew and App Store upgrade lanes manually.
 brew-upgrade:
   ~/.cargo/bin/uu run brew
+  ~/.cargo/bin/uu run app-store
 
 # Refresh the Homebrew shell environment cache.
 brew-cache-refresh:
