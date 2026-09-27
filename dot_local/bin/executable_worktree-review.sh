@@ -30,11 +30,6 @@
 
 set -euo pipefail
 
-# The post-commit hook rewrites this file in every worktree of this repository,
-# so counting it would report every lane as edited and the ranking would say
-# nothing. It is generated output, not somebody's edit.
-readonly GENERATED_PATHS=('graphify-out/graph.json')
-
 readonly DEFAULT_REVIEW_COMMAND=(tuicr)
 
 # Deliberate layout choice, not a stray number: wide enough for this
@@ -157,14 +152,13 @@ emit_worktree() {
 }
 
 # edited_paths <worktree> : one line per non-ignored path the worktree has
-# changed, generated output excluded. A rename's origin path is dropped so one
-# change counts once.
+# changed. A rename's origin path is dropped so one change counts once.
 #
 # --work-tree is named explicitly for the same reason: on a checkout carrying
 # core.bare = true a plain `git status` refuses with "must be run in a work
 # tree", which would report every edit in that checkout as none.
 edited_paths() {
-  local worktree="$1" entry status path generated skip=0
+  local worktree="$1" entry status path skip=0
   while IFS= read -r -d '' entry; do
     if ((skip)); then
       skip=0
@@ -173,9 +167,6 @@ edited_paths() {
     status="${entry:0:2}"
     path="${entry:3}"
     [[ $status == R* || $status == C* ]] && skip=1
-    for generated in "${GENERATED_PATHS[@]}"; do
-      [[ $path == "$generated" ]] && continue 2
-    done
     printf '%s\n' "$path"
   done < <(git -C "$worktree" --work-tree="$worktree" --no-optional-locks \
     status --porcelain=v1 -z --untracked-files=normal)

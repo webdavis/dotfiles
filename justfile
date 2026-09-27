@@ -23,7 +23,7 @@ alias fm := format-markdown
 lint:
   treefmt
 
-# Drift gate used by the pre-push hook. It may write fixes before failing.
+# Drift gate. It may write fixes before failing.
 lint-gate:
   treefmt --no-cache --fail-on-change
 

@@ -72,7 +72,7 @@ build_repository() {
   local root="$fixture/repo"
   mkdir -p "$root"
   fixture_git init --quiet "$root"
-  printf 'graphify-out/\n' >"$root/.gitignore"
+  printf 'build/\n' >"$root/.gitignore"
   printf 'seed\n' >"$root/seed.txt"
   fixture_git -C "$root" add .gitignore seed.txt
   commit_at "$root" 1000000000 "seed"
@@ -189,8 +189,8 @@ function test_a_working_tree_edit_outranks_an_older_commit() {
 function test_the_listing_counts_edited_files_and_skips_ignored_ones() {
   add_worktree messy 1700002000
   printf 'dirty\n' >"$fixture/wt/messy/seed.txt"
-  mkdir -p "$fixture/wt/messy/graphify-out"
-  printf '{}\n' >"$fixture/wt/messy/graphify-out/other.json"
+  mkdir -p "$fixture/wt/messy/build"
+  printf '{}\n' >"$fixture/wt/messy/build/other.json"
   printf 'new\n' >"$fixture/wt/messy/untracked.txt"
   run_subject list
   local row
@@ -198,20 +198,6 @@ function test_the_listing_counts_edited_files_and_skips_ignored_ones() {
   drop_worktree messy
   assert_not_contains 'other.json' "$row"
   assert_contains '2 edited' "$row"
-}
-
-function test_the_post_commit_graph_artifact_is_not_an_edit() {
-  add_worktree graphed 1700002000
-  mkdir -p "$fixture/wt/graphed/graphify-out"
-  printf '{"a":1}\n' >"$fixture/wt/graphed/graphify-out/graph.json"
-  fixture_git -C "$fixture/wt/graphed" add -f graphify-out/graph.json
-  commit_at "$fixture/wt/graphed" 1700002000 "track the graph"
-  printf '{"a":2}\n' >"$fixture/wt/graphed/graphify-out/graph.json"
-  run_subject list
-  local row
-  row="$(row_for graphed)"
-  drop_worktree graphed
-  assert_not_contains 'edited' "$row"
 }
 
 function test_a_deletion_is_dated_by_the_directory_the_unlink_stamped() {

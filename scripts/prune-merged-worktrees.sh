@@ -9,8 +9,6 @@ source "$dotfiles_directory/.chezmoitemplates/cli-print-style-lib.sh.tmpl"
 
 readonly script_name="${0##*/}"
 readonly upstream_branch='origin/main'
-readonly graphify_rewritten_path='graphify-out/graph.json'
-readonly status_prefix_length=3
 readonly short_commit_length=12
 readonly end_of_worktree_record=''
 readonly exit_success=0
@@ -175,25 +173,9 @@ list_uncommitted_changes() {
   git -C "$worktree_path" status --porcelain
 }
 
-path_from_status_line() {
-  local status_line=$1
-  printf '%s' "${status_line:status_prefix_length}"
-}
-
-status_line_is_uncommitted_work() {
-  local status_line=$1
-  [[ $(path_from_status_line "$status_line") != "$graphify_rewritten_path" ]]
-}
-
 worktree_is_clean() {
   local worktree_path=$1
-  local status_line
-  while IFS= read -r status_line; do
-    if status_line_is_uncommitted_work "$status_line"; then
-      return 1
-    fi
-  done < <(list_uncommitted_changes "$worktree_path")
-  return 0
+  [[ -z $(list_uncommitted_changes "$worktree_path") ]]
 }
 
 branch_name_from_reference() {

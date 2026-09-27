@@ -89,15 +89,14 @@ function test_shell_formatter_refuses_to_render_a_template_whose_partial_names_k
 }
 
 # Two fixtures for the two ways unrelated output in the checkout has broken a render:
-# a cargo build's vanishing dep entry, and the post-commit graphify rebuild churning
-# its AST cache under a push, which died on `lstat graphify-out/cache/ast/<name>.tmp:
-# no such file or directory`. A 000 directory stands in for that churn because a walk
-# which descends cannot open it on any run, where a vanishing file races.
+# a cargo build's vanishing dep entry, and a tool churning its cache under a push.
+# A 000 directory stands in for that churn because a walk which descends cannot open
+# it on any run, where a vanishing file races.
 function test_shell_render_ignores_unrelated_build_output_and_keeps_source_hashes() {
   mkdir -p "$RENDER_SOURCE/pns/target/debug/deps"
   ln -s "$RENDER_FIXTURE/absent-rmeta" "$RENDER_SOURCE/pns/target/debug/deps/rmeta-gone"
-  mkdir -p "$RENDER_SOURCE/graphify-out/cache/ast"
-  chmod 000 "$RENDER_SOURCE/graphify-out/cache/ast"
+  mkdir -p "$RENDER_SOURCE/tool-output/cache"
+  chmod 000 "$RENDER_SOURCE/tool-output/cache"
   run_formatter shellcheck-rendered-template.sh shell.tmpl
   assert_successful_code
   assert_same "#!/bin/bash
@@ -109,7 +108,7 @@ $RENDER_SOURCE
 1" "$(cat "$RENDER_CAPTURE" 2>/dev/null)"
   # rm cannot recurse into a 000 directory, so this one gets its owner bits back
   # before tear_down removes the fixture.
-  chmod u+rwx "$RENDER_SOURCE/graphify-out/cache/ast"
+  chmod u+rwx "$RENDER_SOURCE/tool-output/cache"
 }
 
 function test_osquery_render_uses_own_data_despite_nested_worktree_data() {
