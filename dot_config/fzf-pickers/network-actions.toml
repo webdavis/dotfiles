@@ -1,0 +1,339 @@
+# Commands, input prompts, and descriptions for the Ctrl-X n networking menu.
+[[action]]
+id = "hostname"
+title = "Hostname"
+tool = "hostname"
+purpose = "Print the name of this computer."
+command = "hostname"
+
+[[action]]
+id = "mac"
+title = "Hardware address"
+tool = "networksetup"
+purpose = "Show the en0 hardware address."
+command = "networksetup -getmacaddress en0 | awk '{print $3}'"
+
+[[action]]
+id = "interface"
+title = "Default interface"
+tool = "route"
+purpose = "Show the interface used for the default route."
+command = "route -n get default | awk '/interface:/{print $2}'"
+
+[[action]]
+id = "listeners"
+title = "Listening ports"
+tool = "lsof"
+purpose = "Show processes listening for incoming TCP connections."
+command = "lsof -nP -iTCP -sTCP:LISTEN"
+
+[[action]]
+id = "local-ip"
+title = "Local IPv4 address"
+tool = "ipconfig"
+purpose = "Show the en0 IPv4 address."
+command = "ipconfig getifaddr en0"
+
+[[action]]
+id = "gateway"
+title = "Default gateway"
+tool = "route"
+purpose = "Show the default gateway address."
+command = "route -n get default | awk '/gateway:/{print $2}'"
+
+[[action]]
+id = "subnet"
+title = "Subnet and interface summary"
+tool = "ipconfig"
+purpose = "Show subnet and connection details for en0."
+command = "ipconfig getsummary en0"
+
+[[action]]
+id = "gateway-ping"
+title = "Ping gateway"
+tool = "ping"
+purpose = "Send one ping to the default gateway."
+command = "ping -c 1 \"$(route -n get default | awk '/gateway:/{print $2}')\""
+
+[[action]]
+id = "port"
+title = "Probe host and port"
+tool = "nc"
+purpose = "Test whether a TCP port accepts a connection."
+command = "nc -vz -w3 <host> <port>"
+params = ["host", "port"]
+
+[[action]]
+id = "port-22"
+title = "Probe SSH"
+tool = "nc"
+purpose = "Test TCP port 22 on a chosen host."
+command = "nc -vz -w3 <host> 22"
+params = ["host"]
+
+[[action]]
+id = "port-443"
+title = "Probe HTTPS"
+tool = "nc"
+purpose = "Test TCP port 443 on a chosen host."
+command = "nc -vz -w3 <host> 443"
+params = ["host"]
+
+[[action]]
+id = "port-53"
+title = "Probe DNS TCP"
+tool = "nc"
+purpose = "Test TCP port 53 on a chosen host."
+command = "nc -vz -w3 <host> 53"
+params = ["host"]
+
+[[action]]
+id = "port-80"
+title = "Probe HTTP"
+tool = "nc"
+purpose = "Test TCP port 80 on a chosen host."
+command = "nc -vz -w3 <host> 80"
+params = ["host"]
+
+[[action]]
+id = "port-8080"
+title = "Probe HTTP alternative"
+tool = "nc"
+purpose = "Test TCP port 8080 on a chosen host."
+command = "nc -vz -w3 <host> 8080"
+params = ["host"]
+
+[[action]]
+id = "common-ports"
+title = "Probe common ports"
+tool = "nc"
+purpose = "Test TCP ports 22, 53, 80, 443 and 8080."
+command = "nc -vz -w3 <host> 22 53 80 443 8080"
+params = ["host"]
+
+[[action]]
+id = "capture-default"
+title = "Capture 20 packets"
+tool = "tcpdump"
+purpose = "Capture twenty packets on the default interface."
+command = "sudo tcpdump -n -i \"$(route -n get default | awk '/interface:/{print $2}')\" -c 20"
+
+[[action]]
+id = "public-ipv4"
+title = "Public IPv4 details"
+tool = "curl"
+purpose = "Read the public IPv4 address and connection details."
+command = "curl --ipv4 --fail --max-time 15 https://ifconfig.me/all"
+
+[[action]]
+id = "public-ipv6"
+title = "Public IPv6 details"
+tool = "curl"
+purpose = "Read the public IPv6 address and connection details."
+command = "curl --ipv6 --fail --max-time 15 https://ifconfig.me/all"
+
+[[action]]
+id = "provider"
+title = "Internet provider details"
+tool = "curl"
+purpose = "Read the public address and provider details."
+command = "curl --fail --silent --show-error --max-time 15 https://ipinfo.io | jq ."
+
+[[action]]
+id = "dns"
+title = "Forward DNS lookup"
+tool = "dig"
+purpose = "Resolve a hostname."
+command = "dig +time=2 +tries=1 +short <host>"
+params = ["host"]
+
+[[action]]
+id = "reverse-dns"
+title = "Reverse DNS lookup"
+tool = "dig"
+purpose = "Look up the name associated with an IP address."
+command = "dig +time=2 +tries=1 +short -x <ip>"
+params = ["ip"]
+
+[[action]]
+id = "dns-servers"
+title = "Configured DNS servers"
+tool = "scutil"
+purpose = "Show the active system DNS resolvers."
+command = "scutil --dns"
+
+[[action]]
+id = "dns-test"
+title = "Test common domain resolution"
+tool = "dig"
+purpose = "Resolve Google, Cloudflare and Apple with bounded queries."
+command = "for domain in google.com cloudflare.com apple.com; do printf \"\\n%s\\n\" \"$domain\"; dig +time=2 +tries=1 +short \"$domain\"; done"
+
+[[action]]
+id = "dns-summary"
+title = "Forward and reverse DNS summary"
+tool = "dig"
+purpose = "Resolve three common domains and reverse their IPv4 answers."
+command = "for domain in google.com cloudflare.com apple.com; do printf \"\\n%s\\n\" \"$domain\"; dig +time=2 +tries=1 +short A \"$domain\" | while IFS= read -r ip; do case \"$ip\" in *[!0-9.]*|'') continue ;; esac; printf \"%s \" \"$ip\"; dig +time=2 +tries=1 +short -x \"$ip\"; done; done"
+
+[[action]]
+id = "latency"
+title = "Internet latency"
+tool = "ping"
+purpose = "Measure latency with three pings to Cloudflare."
+command = "ping -c 3 1.1.1.1"
+
+[[action]]
+id = "internet-ping"
+title = "Internet reachability"
+tool = "ping"
+purpose = "Send one ping to Google DNS."
+command = "ping -c 1 8.8.8.8"
+
+[[action]]
+id = "custom-ping"
+title = "Ping a host"
+tool = "ping"
+purpose = "Send one ping to a chosen host."
+command = "ping -c 1 <host>"
+params = ["host"]
+
+[[action]]
+id = "traceroute"
+title = "Trace a route"
+tool = "traceroute"
+purpose = "Show the path to a chosen host."
+command = "traceroute <host>"
+params = ["host"]
+
+[[action]]
+id = "trace-latency"
+title = "Trace and measure latency"
+tool = "traceroute"
+purpose = "Trace the route to Google DNS, then send five pings."
+command = "traceroute 8.8.8.8; ping -c 5 8.8.8.8"
+
+[[action]]
+id = "health"
+title = "Network health"
+tool = "ping / dig"
+purpose = "Check gateway, internet reachability and domain resolution."
+command = "ping -c 3 \"$(route -n get default | awk '/gateway:/{print $2}')\"; ping -c 3 8.8.8.8; dig +time=2 +tries=1 +short google.com"
+
+[[action]]
+id = "summary"
+title = "Network summary"
+tool = "ifconfig / route"
+purpose = "Show interfaces, routes and DNS, then check gateway and internet."
+command = "ifconfig; netstat -rn; scutil --dns; ping -c 3 \"$(route -n get default | awk '/gateway:/{print $2}')\"; ping -c 3 8.8.8.8"
+
+[[action]]
+id = "devices"
+title = "Known network devices"
+tool = "UniFi / ARP / NDP / mDNS"
+purpose = "Search controller devices, clients and locally observed neighbours."
+next = "devices"
+
+[[action]]
+id = "hosts"
+title = "Saved hosts"
+tool = "SSH / Tailscale / hosts"
+purpose = "Search static SSH hosts, hosts-file names and Tailscale peers."
+next = "network-hosts"
+
+[[action]]
+id = "routes"
+title = "Routing table"
+tool = "netstat"
+purpose = "Show numeric IPv4 and IPv6 routes."
+command = "netstat -rn"
+
+[[action]]
+id = "resolver"
+title = "System name resolution"
+tool = "dscacheutil"
+purpose = "Look up a host using the macOS resolver."
+command = "dscacheutil -q host -a name <host>"
+params = ["host"]
+
+[[action]]
+id = "route-target"
+title = "Route to host"
+tool = "route"
+purpose = "Show the selected route to a host without sending a probe."
+command = "route -n get <host>"
+params = ["host"]
+
+[[action]]
+id = "dns-records"
+title = "DNS record inspection"
+tool = "dig"
+purpose = "Inspect a selected DNS record type and optional resolver."
+next = "network-dns"
+
+[[action]]
+id = "capture"
+title = "Build a packet capture"
+tool = "tshark / tcpdump"
+purpose = "Choose interface, filter and bounded capture settings."
+next = "network-capture"
+
+[[action]]
+id = "captures"
+title = "Saved captures"
+tool = "tshark / capinfos"
+purpose = "Inspect saved packet captures without name resolution."
+next = "captures"
+
+[[action]]
+id = "url"
+title = "URL timing and certificate"
+tool = "curl / openssl"
+purpose = "Prepare an HTTP timing request or verified TLS certificate inspection."
+next = "url"
+
+[[action]]
+id = "mtr"
+title = "Trace packet loss"
+tool = "mtr"
+purpose = "Report latency and probe loss at each hop."
+command = "mtr --report --report-cycles 20 <host>"
+params = ["host"]
+
+[[action]]
+id = "mtr-tcp"
+title = "Trace packet loss over TCP"
+tool = "mtr"
+purpose = "Report path latency and probe loss using TCP."
+command = "mtr --report --report-cycles 20 --tcp --port <port> <host>"
+params = ["port", "host"]
+
+[[action]]
+id = "mtr-udp"
+title = "Trace packet loss over UDP"
+tool = "mtr"
+purpose = "Report path latency and probe loss using UDP."
+command = "mtr --report --report-cycles 20 --udp <host>"
+params = ["host"]
+
+[[action]]
+id = "iperf"
+title = "Throughput test"
+tool = "iperf3"
+purpose = "Choose client/server, direction, protocol and duration."
+next = "network-iperf"
+
+[[action]]
+id = "quality"
+title = "Network responsiveness"
+tool = "networkQuality"
+purpose = "Measure upload, download and responsiveness against Apple servers."
+command = "networkQuality -v"
+
+[[action]]
+id = "discovery"
+title = "Discover devices on a subnet"
+tool = "nmap"
+purpose = "Prepare a host-discovery scan of an explicitly chosen subnet."
+command = "nmap -sn -n <cidr>"
+params = ["cidr"]

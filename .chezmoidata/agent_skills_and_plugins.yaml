@@ -1,0 +1,357 @@
+agents:
+  skills:
+    skills_cli_version: "1.5.22"
+    from_github:
+      - repo: mattpocock/skills
+        skills:
+          - ask-matt
+          - code-review
+          - codebase-design
+          - diagnosing-bugs
+          - domain-modeling
+          - git-guardrails-claude-code
+          - grill-me
+          - grill-with-docs
+          - grilling
+          - handoff
+          - implement
+          - improve-codebase-architecture
+          - migrate-to-shoehorn
+          - prototype
+          - research
+          - resolving-merge-conflicts
+          - scaffold-exercises
+          - setup-matt-pocock-skills
+          - setup-pre-commit
+          - tdd
+          - teach
+          - to-questionnaire
+          - to-spec
+          - to-tickets
+          - triage
+          - wait-what
+          - wayfinder
+          - wizard
+          - writing-for-agents
+      - repo: tt-a1i/archify
+        skills: [archify]
+      - repo: kunchenguid/chrome-devtools-axi
+        skills: [chrome-devtools-axi]
+      - repo: bastos/skills
+        skills: [conventional-commits]
+      - repo: kepano/obsidian-skills
+        skills:
+          - defuddle
+          - json-canvas
+          - obsidian-bases
+          - obsidian-cli
+          - obsidian-markdown
+      - repo: heygen-com/hyperframes
+        skills:
+          - embedded-captions
+          - faceless-explainer
+          - general-video
+          - hyperframes
+          - hyperframes-animation
+          - hyperframes-audio
+          - hyperframes-cli
+          - hyperframes-core
+          - hyperframes-creative
+          - hyperframes-keyframes
+          - hyperframes-registry
+          - media-use
+          - motion-graphics
+      - repo: kunchenguid/gh-axi
+        skills: [gh-axi]
+      - repo: homeassistant-ai/skills
+        skills: [home-assistant-best-practices]
+      - repo: blader/humanizer
+        skills: [humanizer]
+      - repo: jeffallan/claude-skills
+        skills: [kubernetes-specialist]
+      - repo: mvanhorn/last30days-skill
+        skills: [last30days]
+      - repo: kunchenguid/lavish-axi
+        skills: [lavish]
+      - repo: guwidoe/lobster-skill
+        skills: [lobster]
+      - repo: agamm/claude-code-owasp
+        skills: [owasp-security]
+      - repo: backnotprop/plannotator/apps/skills/core
+        skills:
+          - plannotator
+          - plannotator-annotate
+          - plannotator-review
+      - repo: plannotator/herdr-annotate
+        skills: [plannotator-tui]
+      - repo: Doist/todoist-cli
+        skills: [todoist-cli]
+      - repo: agavra/tuicr
+        skills: [tuicr]
+      - repo: steipete/agent-scripts
+        skills: [video-transcript-downloader]
+    from_clawhub:
+      - { name: home-assistant, slug: "@iahmadzain/home-assistant", registry: https://clawhub.ai }
+      - { name: sql-toolkit, slug: "@gitgoodordietrying/sql-toolkit", registry: https://clawhub.ai }
+      - { name: summarize-pro, slug: "@mkpareek0315/summarize-pro", registry: https://clawhub.ai }
+    vendored:
+      - name: clean-code
+      - name: clean-code-rust
+      - name: clean-code-swift
+      - name: elevenlabs
+        upstream:
+          source: github
+          repo: odrobnik/elevenlabs-skill
+          url: https://github.com/odrobnik/elevenlabs-skill.git
+          path: "."
+          last_compared: 183e73a4ee0ecc5e2fa60cbe45e4c91571821495
+      - name: gitbutler
+      - name: herdr
+        upstream:
+          source: github
+          repo: ogulcancelik/herdr
+          url: https://github.com/ogulcancelik/herdr.git
+          path: skills/herdr
+          last_compared: b9dcfddcfa7ce43e2e4cf60e724c519be553f149
+          fork: false
+      - name: moshi
+        upstream:
+          source: github
+          repo: rjyo/moshi-skill
+          url: https://github.com/rjyo/moshi-skill.git
+          path: skills/moshi-best-practices
+          last_compared: a48151ac60b4970bf15f09f52c401186f418ff27
+          fork: true
+      - name: pns-loop
+      - name: pns-work-recap
+      - name: scalebar
+      - name: tiktok-crawling
+    app_owned: [composio-cli, cua-driver]
+    on_demand:
+      - ask-matt
+      - archify
+      - code-review
+      - codebase-design
+      - cua-driver
+      - diagnosing-bugs
+      - domain-modeling
+      - elevenlabs
+      - embedded-captions
+      - faceless-explainer
+      - general-video
+      - gitbutler
+      - grill-me
+      - grill-with-docs
+      - grilling
+      - home-assistant
+      - home-assistant-best-practices
+      - hyperframes
+      - hyperframes-animation
+      - hyperframes-audio
+      - hyperframes-cli
+      - hyperframes-core
+      - hyperframes-creative
+      - hyperframes-keyframes
+      - hyperframes-registry
+      - implement
+      - improve-codebase-architecture
+      - json-canvas
+      - kubernetes-specialist
+      - last30days
+      - lavish
+      - lobster
+      - media-use
+      - migrate-to-shoehorn
+      - motion-graphics
+      - plannotator
+      - plannotator-annotate
+      - plannotator-review
+      - plannotator-tui
+      - prototype
+      - research
+      - scaffold-exercises
+      - setup-matt-pocock-skills
+      - setup-pre-commit
+      - summarize-pro
+      - tdd
+      - teach
+      - tiktok-crawling
+      - to-questionnaire
+      - to-spec
+      - to-tickets
+      - triage
+      - video-transcript-downloader
+      - wait-what
+      - wayfinder
+      - wizard
+      - writing-for-agents
+  claude_code:
+    marketplaces:
+      - { name: ponytail, source: github, repo: DietrichGebert/ponytail, auto_update: true }
+      - { name: openai-codex, source: github, repo: openai/codex-plugin-cc, auto_update: true }
+      - { name: worktrunk, source: github, repo: max-sixty/worktrunk, auto_update: true }
+      - { name: last30days-skill, source: github, repo: mvanhorn/last30days-skill, auto_update: true }
+      - { name: plannotator, source: github, repo: backnotprop/plannotator, auto_update: true }
+      - { name: a5c.ai, source: github, repo: a5c-ai/babysitter-claude, auto_update: true }
+      - { name: pns, source: directory, path: .claude/pns-marketplace, os: darwin }
+      - { name: strategy, source: directory, path: .claude/strategy-marketplace, os: darwin }
+      - { name: clean-code, source: directory, path: .claude/clean-code-marketplace, os: darwin }
+    plugins:
+      - superpowers@claude-plugins-official
+      - document-skills@anthropic-agent-skills
+      - frontend-design@claude-plugins-official
+      - playwright@claude-plugins-official
+      - security-guidance@claude-plugins-official
+      - swift-lsp@claude-plugins-official
+      - rust-analyzer-lsp@claude-plugins-official
+      - codex@openai-codex
+      - ponytail@ponytail
+      - skill-creator@claude-plugins-official
+      - claude-md-management@claude-plugins-official
+      - code-simplifier@claude-plugins-official
+      - worktrunk@worktrunk
+      - last30days@last30days-skill
+      - plannotator@plannotator
+      - { id: babysitter@a5c.ai, off_until_enabled: true }
+      - { id: pns@pns, os: darwin }
+      - { id: strategy@strategy, os: darwin }
+      - { id: clean-code@clean-code, os: darwin }
+    skip_skills:
+      - clean-code
+      - clean-code-rust
+      - clean-code-swift
+      - last30days
+      - pns-loop
+      - pns-work-recap
+  codex:
+    marketplaces:
+      - { name: claude-plugins-official, source_type: git, source: https://github.com/anthropics/claude-plugins-official.git }
+      - { name: ponytail, source_type: git, source: https://github.com/DietrichGebert/ponytail.git }
+      - { name: babysitter, source_type: git, source: https://github.com/a5c-ai/babysitter-codex.git }
+    plugins:
+      - { id: babysitter@babysitter, enabled: false }
+  hermes:
+    profiles:
+      default:
+        skills:
+          - grill-me
+          - grilling
+          - herdr
+          - home-assistant-best-practices
+          - lobster
+          - moshi
+          - plannotator
+          - plannotator-annotate
+          - plannotator-review
+          - plannotator-tui
+          - pns-loop
+          - pns-work-recap
+          - scalebar
+          - summarize-pro
+          - teach
+          - to-questionnaire
+          - todoist-cli
+          - wait-what
+          - writing-for-agents
+      butters:
+        skills:
+          - chrome-devtools-axi
+          - plannotator
+          - plannotator-annotate
+          - plannotator-review
+          - plannotator-tui
+      concerned:
+        skills:
+          - elevenlabs
+          - last30days
+          - plannotator
+          - plannotator-annotate
+          - plannotator-review
+          - plannotator-tui
+        hub_skills:
+          - name: faceless-explainer
+            identifier: skills-sh/heygen-com/hyperframes/faceless-explainer
+            update_name: faceless-explainer
+            source: skills.sh
+          - name: general-video
+            identifier: skills-sh/heygen-com/hyperframes/general-video
+            update_name: general-video
+            source: skills.sh
+          - name: hyperframes
+            identifier: official/creative/hyperframes
+            update_name: hyperframes
+            source: official
+          - name: hyperframes-keyframes
+            identifier: skills-sh/heygen-com/hyperframes/hyperframes-keyframes
+            update_name: hyperframes-keyframes
+            source: skills.sh
+          - name: hyperframes-registry
+            identifier: skills-sh/heygen-com/hyperframes/hyperframes-registry
+            update_name: hyperframes-registry
+            source: skills.sh
+          - name: motion-graphics
+            identifier: skills-sh/heygen-com/hyperframes/motion-graphics
+            update_name: motion-graphics
+            source: skills.sh
+          - name: tiktok-crawling
+            identifier: clawhub/tiktok-crawling
+            update_name: tiktok-scraping-yt-dlp
+            source: clawhub
+          - name: video-transcript-downloader
+            identifier: skills-sh/steipete/agent-scripts/video-transcript-downloader
+            update_name: video-transcript-downloader
+            source: skills.sh
+      elaine:
+        skills:
+          - lobster
+          - plannotator
+          - plannotator-annotate
+          - plannotator-review
+          - plannotator-tui
+      nicodemus:
+        skills:
+          - ask-matt
+          - archify
+          - clean-code
+          - clean-code-rust
+          - clean-code-swift
+          - code-review
+          - codebase-design
+          - diagnosing-bugs
+          - domain-modeling
+          - gh-axi
+          - git-guardrails-claude-code
+          - grill-me
+          - grill-with-docs
+          - grilling
+          - implement
+          - improve-codebase-architecture
+          - kubernetes-specialist
+          - migrate-to-shoehorn
+          - plannotator
+          - plannotator-annotate
+          - plannotator-review
+          - plannotator-tui
+          - prototype
+          - research
+          - resolving-merge-conflicts
+          - scaffold-exercises
+          - setup-matt-pocock-skills
+          - setup-pre-commit
+          - sql-toolkit
+          - tdd
+          - teach
+          - to-questionnaire
+          - to-spec
+          - to-tickets
+          - triage
+          - tuicr
+          - wait-what
+          - wayfinder
+          - wizard
+          - writing-for-agents
+        hub_skills:
+          - name: conventional-commits
+            identifier: clawhub/conventional-commits
+            update_name: conventional-commits
+            source: clawhub

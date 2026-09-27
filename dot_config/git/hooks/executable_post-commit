@@ -7,10 +7,6 @@
 # override (e.g. what `git lfs install` writes) would shadow it. To keep
 # post-commit behavior per-repo without that override, each repo opts in by
 # tracking an executable `.githooks/post-commit`; this dispatcher runs it.
-# (Graphify rebuilds moved from this dispatcher to exactly that per-repo
-# mechanism: a repo that wants a knowledge-graph rebuild after each commit
-# carries its own `.githooks/post-commit` calling the graphify CLI. Nothing
-# global runs graphify anymore.)
 #
 # Repos without `.githooks/post-commit` get a no-op.
 

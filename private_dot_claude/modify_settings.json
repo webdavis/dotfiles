@@ -59,9 +59,8 @@
        with a stray character) aborts the apply from here, and no template can
        catch it: chezmoi's three JSON readers (fromJson, fromJsonc, fromYaml)
        all fail the template on bad input, and Go's text/template has no
-       recover, so there is nothing to fall back FROM (measured 2026-08-02, and
-       test/unit/claude-enabled-plugins.sh pins the boundary with a case per
-       shape). So the repair runs BEFORE this template instead:
+       recover, so there is nothing to fall back FROM (measured 2026-08-02).
+       So the repair runs BEFORE this template instead:
        .chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh
        moves an unreadable settings file into ~/workspaces/backups and leaves
        `{}` in its place, which this template then rebuilds from.
@@ -452,7 +451,7 @@
 
        This block REPLACES enabledPlugins wholesale, it does not merge into it,
        because setValueAtPath writes the value at the path. So every entry the
-       live file holds for an id missing from the list below is ERASED on the
+       live file holds for an id missing from the declared list is ERASED on the
        next apply, silently. Every MARKETPLACE plugin meant to stay on must be
        listed: Claude Code builds its marketplace-plugin load set out of these
        keys, so erasing an id stops that plugin loading (read out of the shipped
@@ -460,8 +459,7 @@
        the other way, its manifest default (ON) applies when no entry is
        present, so listing a skill is not what keeps it on and erasing a `false`
        for one REVOKES that disable. Those are not in this roster and are not
-       meant to be. test/unit/claude-enabled-plugins.sh fails when this set and
-       the roster disagree.
+       meant to be.
 
        The list is names only, not name-to-value pairs: membership means "this
        repo manages this plugin, and it is ON unless the machine already says
@@ -525,63 +523,45 @@
        that marketplace is registered; the namespaced spelling is preferred
        because it names the marketplace rather than whatever happens to be
        registered. --- */ -}}
-{{- $declaredPlugins := list
-    "superpowers@claude-plugins-official"
-    "document-skills@anthropic-agent-skills"
-    "frontend-design@claude-plugins-official"
-    "playwright@claude-plugins-official"
-    "security-guidance@claude-plugins-official"
-    "swift-lsp@claude-plugins-official"
-    "rust-analyzer-lsp@claude-plugins-official"
-    "codex@openai-codex"
-    "ponytail@ponytail"
-    "skill-creator@claude-plugins-official"
-    "claude-md-management@claude-plugins-official"
-    "code-simplifier@claude-plugins-official"
-    "worktrunk@worktrunk"
-    "last30days@last30days-skill"
-    "plannotator@plannotator"
-    "babysitter@a5c.ai" -}}
 {{- /* DARWIN ONLY, so these declarations and .chezmoiignore agree: the pns, the
        strategy and the clean-code marketplaces are all DIRECTORIES on disk, and
        none of those directories is deployed on Linux. Declaring a marketplace
        whose path is not there is a refresh that fails at every startup, which the
-       six github ones above cannot do. */ -}}
-{{- if eq .chezmoi.os "darwin" -}}
-{{-   $declaredPlugins = append $declaredPlugins "pns@pns" -}}
-{{-   $declaredPlugins = append $declaredPlugins "strategy@strategy" -}}
-{{-   $declaredPlugins = append $declaredPlugins "clean-code@clean-code" -}}
-{{- end -}}
+       six github ones cannot do. */ -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
        `slice`, so the value test below already covers absence. Measured
-       2026-08-02 by replacing the hasKey call with a literal `true`: no case in
-       test/unit/claude-enabled-plugins.sh changed verdict, which is what makes
+       2026-08-02 by replacing the hasKey call with a literal `true`: no test case
+       changed verdict, which is what makes
        it dead rather than defensive. */ -}}
-{{- /* Roster ids whose DEFAULT is off rather than on. Membership changes only
-       what a machine with no entry of its own gets, so the live-state read
-       below still wins and `claude plugin enable <id>` still sticks: this is a
-       default, not an override.
+{{- /* Roster ids marked off_until_enabled default to off rather than on. That
+       changes only what a machine with no entry of its own gets, so the
+       live-state read below still wins and `claude plugin enable <id>` still
+       sticks: this is a default, not an override.
 
-       `babysitter@a5c.ai` is held here over two upstream defects, found in
+       `babysitter@a5c.ai` is held off over two upstream defects, found in
        review 2026-09-05. An ordinary SessionStart with the plugin enabled
        creates a run and executes any `.a5c/hooks/on-run-start/` script it
        discovers in the repository through Bash, non-executable files included,
        with no approval separate from the one the operator gave the plugin's own
        hook. And the installed Claude and Codex adapters both drop Stop's
        `decision: "block"`, so a skill that yields expecting Stop to resume the
-       orchestration can terminate early instead. Take the id off this list once
-       an upstream release fixes both. */ -}}
-{{- $defaultDisabledPlugins := list "babysitter@a5c.ai" -}}
+       orchestration can terminate early instead. Drop its off_until_enabled
+       once an upstream release fixes both. */ -}}
 {{- $enabledPlugins := dict -}}
-{{- range $pluginName := $declaredPlugins -}}
-{{-   $pluginEnabled := not (has $pluginName $defaultDisabledPlugins) -}}
-{{-   $liveValue := index $livePlugins $pluginName -}}
-{{-   $liveValueKind := kindOf $liveValue -}}
-{{-   if or (eq $liveValueKind "bool") (eq $liveValueKind "slice") -}}
-{{-     $pluginEnabled = $liveValue -}}
+{{- range $plugin := .agents.claude_code.plugins -}}
+{{-   if eq (kindOf $plugin) "string" -}}
+{{-     $plugin = dict "id" $plugin -}}
 {{-   end -}}
-{{-   $enabledPlugins = set $enabledPlugins $pluginName $pluginEnabled -}}
+{{-   if eq (get $plugin "os" | default $.chezmoi.os) $.chezmoi.os -}}
+{{-     $pluginEnabled := not (get $plugin "off_until_enabled") -}}
+{{-     $liveValue := index $livePlugins $plugin.id -}}
+{{-     $liveValueKind := kindOf $liveValue -}}
+{{-     if or (eq $liveValueKind "bool") (eq $liveValueKind "slice") -}}
+{{-       $pluginEnabled = $liveValue -}}
+{{-     end -}}
+{{-     $enabledPlugins = set $enabledPlugins $plugin.id $pluginEnabled -}}
+{{-   end -}}
 {{- end -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
 
@@ -612,57 +592,32 @@
        `installLocation` is deliberately not declared. The schema calls it
        auto-generated when absent, and it holds an absolute cache path that
        differs per machine. --- */ -}}
-{{- $merged = setValueAtPath "extraKnownMarketplaces.ponytail" (dict
-    "source" (dict "source" "github" "repo" "DietrichGebert/ponytail")
-    "autoUpdate" true) $merged -}}
-{{- $merged = setValueAtPath "extraKnownMarketplaces.openai-codex" (dict
-    "source" (dict "source" "github" "repo" "openai/codex-plugin-cc")
-    "autoUpdate" true) $merged -}}
-{{- $merged = setValueAtPath "extraKnownMarketplaces.worktrunk" (dict
-    "source" (dict "source" "github" "repo" "max-sixty/worktrunk")
-    "autoUpdate" true) $merged -}}
-{{- $merged = setValueAtPath "extraKnownMarketplaces.last30days-skill" (dict
-    "source" (dict "source" "github" "repo" "mvanhorn/last30days-skill")
-    "autoUpdate" true) $merged -}}
-{{- $merged = setValueAtPath "extraKnownMarketplaces.plannotator" (dict
-    "source" (dict "source" "github" "repo" "backnotprop/plannotator")
-    "autoUpdate" true) $merged -}}
-{{- /* Babysitter's marketplace. `a5c.ai` is the name the marketplace declares
-       for itself, so it is the key `claude plugin marketplace add` writes and
-       the one the `babysitter@a5c.ai` plugin id resolves against. autoUpdate is
-       set here for the same reason as the five above: the CLI never writes it,
-       and without it the marketplace and its plugin sit at the installed
-       version forever. */ -}}
-{{- /* The LIST path form, not the dotted string the siblings use: this key
-       contains a dot, and a dotted path would create a nested `a5c` map with an
+{{- /* The LIST path form, not a dotted string: a name can contain a dot
+       (`a5c.ai`), and a dotted path would create a nested `a5c` map with an
        `ai` child instead of the one key Claude Code writes. */ -}}
-{{- $merged = setValueAtPath (list "extraKnownMarketplaces" "a5c.ai") (dict
-    "source" (dict "source" "github" "repo" "a5c-ai/babysitter-claude")
-    "autoUpdate" true) $merged -}}
-
 {{- /* THIS REPO'S OWN MARKETPLACES, DIRECTORIES rather than repos to fetch.
        `{source: "directory", path: <absolute>}` is the shape `claude plugin
        marketplace add <path>` writes into user settings, read back off a real
        registration on 2.1.251. NO `autoUpdate`: chezmoi is what updates these,
        so asking Claude Code to refresh one at startup would be a second
        updater for a directory that is already converged on every apply. */ -}}
-{{- if eq .chezmoi.os "darwin" -}}
-{{-   $merged = setValueAtPath "extraKnownMarketplaces.pns" (dict
-      "source" (dict "source" "directory" "path" (printf "%s/.claude/pns-marketplace" $home))) $merged -}}
-{{-   $merged = setValueAtPath "extraKnownMarketplaces.strategy" (dict
-      "source" (dict "source" "directory" "path"
-        (printf "%s/.claude/strategy-marketplace" $home))) $merged -}}
-{{-   $merged = setValueAtPath "extraKnownMarketplaces.clean-code" (dict
-      "source" (dict "source" "directory" "path"
-        (printf "%s/.claude/clean-code-marketplace" $home))) $merged -}}
+{{- range $marketplace := .agents.claude_code.marketplaces -}}
+{{-   if eq (get $marketplace "os" | default $.chezmoi.os) $.chezmoi.os -}}
+{{-     $source := omit $marketplace "name" "os" "auto_update" -}}
+{{-     if hasKey $source "path" -}}
+{{-       $source = set $source "path" (joinPath $home $source.path) -}}
+{{-     end -}}
+{{-     $entry := dict "source" $source -}}
+{{-     if hasKey $marketplace "auto_update" -}}
+{{-       $entry = set $entry "autoUpdate" $marketplace.auto_update -}}
+{{-     end -}}
+{{-     $merged = setValueAtPath (list "extraKnownMarketplaces" $marketplace.name) $entry $merged -}}
+{{-   end -}}
 {{- end -}}
 
 {{- /* --- stable: skill tiering (on-demand skills load only when the user
-       invokes them). Source of truth: the tiers table in
-       dot_agents/custom-skill-lock.json: an on-demand skill gets one entry
-       here, a core skill gets none. Nothing checks that the two agree since
-       the 2026-08-05 scope ruling, so move them together by hand (26
-       on-demand rows had no entry on 2026-09-13). Per-key setValueAtPath (not
+       invokes them). Source of truth: agents.skills.on_demand in
+       .chezmoidata/agent_skills_and_plugins.yaml. Per-key setValueAtPath (not
        one whole-dict overwrite) so overrides the user sets for other skills
        via /config pass through untouched. A per-key write never removes a
        key, so a skill promoted to core keeps its stale override in the live
@@ -670,36 +625,8 @@
        no-op when the key or skillOverrides itself is absent, measured on
        chezmoi 2.72.1). Such a line is a TOMBSTONE: add it with the promotion
        and delete it again once every machine has applied. --- */ -}}
-{{- $merged = setValueAtPath "skillOverrides.archify" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.plannotator" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.plannotator-annotate" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.plannotator-review" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.plannotator-tui" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.cua-driver" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.elevenlabs" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.embedded-captions" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.faceless-explainer" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.general-video" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.gitbutler" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.home-assistant" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.home-assistant-best-practices" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes-animation" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes-audio" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes-cli" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes-core" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes-creative" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes-keyframes" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.hyperframes-registry" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.json-canvas" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.kubernetes-specialist" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.last30days" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.lavish" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.lobster" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.media-use" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.motion-graphics" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.summarize-pro" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.tiktok-crawling" "user-invocable-only" $merged -}}
-{{- $merged = setValueAtPath "skillOverrides.video-transcript-downloader" "user-invocable-only" $merged -}}
+{{- range $skill := .agents.skills.on_demand -}}
+{{-   $merged = setValueAtPath (list "skillOverrides" $skill) "user-invocable-only" $merged -}}
+{{- end -}}
 
 {{ $merged | toPrettyJson }}

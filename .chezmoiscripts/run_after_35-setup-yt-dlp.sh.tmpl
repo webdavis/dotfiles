@@ -81,7 +81,7 @@ bgutil_server_is_built() {
 }
 
 fetch_latest_bgutil_release_tag() {
-  curl -sf "$bgutil_latest_release_api_url" | jq -r .tag_name 2>/dev/null
+  curl --proto '=https' --tlsv1.2 -L --fail --retry 3 -s "$bgutil_latest_release_api_url" | jq -r '.tag_name // empty'
 }
 
 release_tag_is_known() {

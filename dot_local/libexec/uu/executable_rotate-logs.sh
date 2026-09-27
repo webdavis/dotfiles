@@ -7,7 +7,6 @@ readonly archives_kept=5
 readonly log_directory="$HOME/.local/log"
 readonly logs=(
   "$log_directory/atuin-daemon.log"
-  "$log_directory/graphify/dotfiles-post-commit.log"
   "$log_directory/osquery/digest.log"
   "$log_directory/osquery/firewall-gatekeeper-monitor.log"
   "$log_directory/osquery/heartbeat.log"

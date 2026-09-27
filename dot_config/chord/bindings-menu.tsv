@@ -146,36 +146,5 @@ ctrl-x o u	packages	run	__bash_bindings_update_package_manager
 ctrl-x o s	packages	insert	brew search	`brew search `
 ctrl-x o i	packages	insert	brew install	`brew install `
 ctrl-x l	files	run	__bash_bindings_git_ls_files_with_last_modified	
-ctrl-x n h h	network-host	run	hostname	╭───────────────╮ │ Host Bindings │ ╰───────────────╯ Print the hostname of the current machine.
-ctrl-x n h m	network-host	run	__bash_bindings_print_mac_address	
-ctrl-x n h i	network-host	run	__bash_bindings_show_current_network_interface	
-ctrl-x n h p	network-host	run	lsof -nP -iTCP -sTCP:LISTEN	Show all active network connections and listening ports for troubleshooting.
-ctrl-x n l l	network-lan	run	ipconfig getifaddr en0	╭──────────────╮ │ LAN Bindings │ ╰──────────────╯ Shows your local IP address on the current network (LAN).
-ctrl-x n l g	network-lan	run	__bash_bindings_show_ip_address_of_default_gateway	
-ctrl-x n l b	network-lan	run	__bash_bindings_show_subnet_mask_and_domain_name_of_current_wifi_or_ethernet_interface	
-ctrl-x n l r	network-lan	run	__bash_bindings_ping_default_gateway	
-ctrl-x n l t	network-lan	run	__bash_bindings_check_protocol_connectivity	
-ctrl-x n l 2	network-lan	run	__bash_bindings_check_protocol_connectivity 22	
-ctrl-x n l 4	network-lan	run	__bash_bindings_check_protocol_connectivity 443	
-ctrl-x n l 5	network-lan	run	__bash_bindings_check_protocol_connectivity 53	
-ctrl-x n l 8	network-lan	run	__bash_bindings_check_protocol_connectivity 80	
-ctrl-x n l 0	network-lan	run	__bash_bindings_check_protocol_connectivity 8080	
-ctrl-x n l s	network-lan	run	__bash_bindings_scan_common_ports	
-ctrl-x n l c	network-lan	run	__bash_bindings_capture_packets_on_default_network_interface	
-ctrl-x n 4	network-lan	run	curl --ipv4 https://ifconfig.me/all	Shows your public IPv4 address (the address visible to the internet).
-ctrl-x n 6	network-lan	run	curl --ipv6 https://ifconfig.me/all	Shows your public IPv6 address (the address visible to the internet).
-ctrl-x n i	network-lan	run	curl -s https://ipinfo.io | jq .	Displays your ISP and other public network details.
-ctrl-x n d d	network-dns	run	__bash_bindings_dns_lookup	
-ctrl-x n d r	network-dns	run	__bash_bindings_reverse_dns_lookup	
-ctrl-x n d a	network-dns	run	__bash_bindings_system_dns_servers	
-ctrl-x n d t	network-dns	macro	\__bash_bindings_test_dns_resolution_for_common_domains\r	
-ctrl-x n d t	network-dns	macro	i\C-x0__bash_bindings_test_dns_resolution_for_common_domains\r	
-ctrl-x n d s	network-dns	run	__bash_bindings_dns_summary	
-ctrl-x n w l	network-wan	run	ping -c 3 1.1.1.1 | tail -1	╭──────────────╮ │ WAN Bindings │ ╰──────────────╯ Measure internet connection latency to Cloudflare DNS (1.1.1.1) with three pings.
-ctrl-x n w p	network-wan	run	ping -c 1 8.8.8.8	Ping Google's DNS server once to check basic internet connectivity.
-ctrl-x n w P	network-wan	insert	ping -c 1	Ping (custom) server once to check basic internet connectivity.
-ctrl-x n w t	network-wan	insert	traceroute google.com	Perform a traceroute to google.com to see the network path and detect routing issues.
-ctrl-x n w L	network-wan	run	__bash_bindings_latency_traceroute_test	
-ctrl-x n w h	network-wan	run	__bash_bindings_network_health_check	
-ctrl-x n w s	network-wan	run	__bash_bindings_network_summary	
-ctrl-x v	bindings-help	run	__bash_bindings_list_bash_bindings	
+ctrl-x n	network	function	__fzf_network_menu	Search networking commands and prepare one for execution.
+ctrl-x v	bindings-help	function	__bash_bindings_list_bash_bindings	Search Bash shortcuts and prepare a command.

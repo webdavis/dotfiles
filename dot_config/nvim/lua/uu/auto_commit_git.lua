@@ -41,7 +41,7 @@ function M.commit(repo)
     repo,
     { "commit", "--only", "-m", "chore(nvim): update plugin pins", "--", M.LOCK },
     false,
-    { SKIP_AI_COMMIT = "1", GRAPHIFY_SKIP_HOOK = "1" }
+    { SKIP_AI_COMMIT = "1" }
   )
   return trim(M.run(repo, { "rev-parse", "HEAD" }))
 end

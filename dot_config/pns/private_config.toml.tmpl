@@ -100,7 +100,7 @@ enabled = true
 # request per event to a hermes route; "discord" posts straight to a
 # channel with pns's own bot and no gateway in between. Anything
 # else, and a table naming none, is refused out loud at load.
-type = "hermes"
+type = "discord"
 # HERMES ONLY: the gateway endpoint. Left out, each route posts to the
 # shipped address with that route as its last path segment, so renaming
 # a route moves the path and not the gateway. NAMED, this one address
@@ -501,7 +501,7 @@ prompt_file = ""
 # `applies` are run a second time with no window at all, which is what
 # fills the `open` section.
 [recap.sources]
-# pull_requests = ["bash", "-c", "gh pr list --search \"updated:>={since}\" --json number,title,headRefName | jq -r '.[] | \"#\\(.number) \\(.headRefName) \\(.title)\"'"]
+pull_requests = ["bash", "-c", "[[ \"$1\" == \"\u007B\"* ]] || gh api graphql -f q=\"author:@me is:pr is:merged merged:$1..$2\" -f query=\"$3\" --jq \"$4\"", "_", "\u007Bsince\u007D", "\u007Buntil\u007D", "query($q: String!) \u007B search(query: $q, type: ISSUE, first: 100) \u007B nodes \u007B ... on PullRequest \u007B number title headRefName repository \u007B name \u007D \u007D \u007D \u007D \u007D", ".data.search.nodes[] | \"#\\(.number) \\(.repository.name) \\(.headRefName) \\(.title)\""]
 # Work with neither an agent session nor a pull request behind it. It
 # ships unnamed, so a fresh install has no `commits` section at all.
 # commits = ["git", "log", "--since={since}", "--until={until}", "--oneline"]

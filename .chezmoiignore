@@ -13,7 +13,6 @@ private/
 justfile
 .envrc
 scripts/
-test/
 
 # Neovim config repo metadata and tests:
 .config/nvim/README.md
@@ -25,12 +24,6 @@ test/
 .editorconfig
 .mdformat.toml
 treefmt.toml
-
-# Git hooks:
-.githooks/
-
-# Knowledge-graph output:
-graphify-out/
 
 # Stray files:
 tmp.*
@@ -49,7 +42,6 @@ tmp.*
 
 # Rust tool workspaces (source only; builders install the binaries):
 pns
-uu
 posture
 lights
 tailnet-pin

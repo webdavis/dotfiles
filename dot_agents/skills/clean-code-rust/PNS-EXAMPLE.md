@@ -14,8 +14,7 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
 1. **The chezmoi builder**, `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl`, runs
    `cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml`
    and installs `target/release/pns` into `~/.cargo/bin/pns`. Its cargo line and paths move
-   to the workspace layout in the same pull request as the conversion, together with
-   `test/unit/pns-engine-build-install.sh`, which stubs that shape. Fixed: the workspace lives at
+   to the workspace layout in the same pull request as the conversion. Fixed: the workspace lives at
    `pns/` in the checkout and never deploys to `$HOME`, the binary installs at
    `~/.cargo/bin/pns`, and the build runs `--locked`.
 2. **The justfile recipes** `test-rust` and `pns-config-render` pass
@@ -27,10 +26,10 @@ delivery-safety rulings, and two rounds of `sol` review. The rulings are recorde
    `pns::channels::hermes::{SignedPost, UreqSignedPost, PostOutcome, delivered, outcome_line, sign}`,
    so one signed-POST seam exists rather than two. Do not keep that path alive behind a facade: put
    the client in the crate where it belongs and update uu's `Cargo.toml` and imports in the same pull
-   request. Add `cargo test --locked --manifest-path uu/Cargo.toml` to the gates.
+   request.
 4. **The command-line surface** is a compatibility contract. Enumerate the in-repo callers first:
 
-       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target --exclude-dir=graphify-out . | grep -v pns/
+       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target . | grep -v pns/
 
    They are the Claude Code hook declarations in `private_dot_claude/modify_settings.json`, the daemon
    LaunchAgent's `pns daemon run`, the bash notifier's `pns loop begin|end` in `dot_bashrc.tmpl`, uu's
@@ -113,8 +112,7 @@ already owns (nothing under 30 seconds, the presence gate from 30, the lights fr
 interactive-TUI skip list, and writes the lights marker under `~/.local/state/pns/lights-shell/<pid>`
 that `pns lights tick` reads back. Move the marker, the skip list and the tiers into pns behind a
 `pns shell begin` / `pns shell end --exit-code <code> --elapsed <secs>` pair, leaving the bashrc as two
-calls. `test/unit/pns-shell-lights-marker.bats` (11 tests) pins that bash today and is deleted in the
-same change in favour of Rust unit tests over the moved logic: pns tests should be in Rust now.
+calls, with Rust unit tests over the moved logic.
 
 The Neovim overhaul's editor-side producer
 (`docs/superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md` section 7.7) is blocked on the flag.
@@ -177,7 +175,6 @@ client dialing hangs the suite rather than failing it.
     just test-rust
     just lint-check
     just ship
-    cargo test --locked --manifest-path uu/Cargo.toml
     cargo build --release --locked --quiet --bin pns --manifest-path pns/Cargo.toml
     just pns-config-render && git diff --exit-code dot_config/pns/private_config.toml.tmpl
 

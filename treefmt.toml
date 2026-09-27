@@ -17,9 +17,6 @@
 [global]
 excludes = [
   ".direnv/**",
-  # Generated knowledge-graph artifacts; the committed graph.json is
-  # machine-written and must never be reformatted.
-  "graphify-out/**",
   ".superpowers/**",
   ".worktrees/**",
   "**/vendor/**",
@@ -49,7 +46,6 @@ command = "scripts/treefmt/rust-file-size.sh"
 includes = [
   "dot_local/share/**/*.rs",
   "pns/**/*.rs",
-  "uu/**/*.rs",
   "posture/**/*.rs",
   "lights/**/*.rs",
 ]
