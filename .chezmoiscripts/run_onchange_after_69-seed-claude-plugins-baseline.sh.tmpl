@@ -1,8 +1,8 @@
 #!/bin/bash
 # run_onchange_after_69-seed-claude-plugins-baseline.sh
-# The builder's retry marker makes a deferred seed run again when build state changes.
+# The cargo git tools retry marker makes a deferred seed run again when install state changes.
 # Read its modification time, never its contents, as loader 71 does.
-# build-retry-marker: {{ $rm := printf "%s/.cache/uu-build/uu.retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
+# install-retry-marker: {{ $rm := printf "%s/.cache/cargo-git-tools/retry" (env "HOME") }}{{ if stat $rm }}{{ (stat $rm).modTime }}{{ else }}settled{{ end }}
 
 {{- if eq .chezmoi.os "darwin" }}
 set -euo pipefail
