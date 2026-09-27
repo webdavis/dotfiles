@@ -306,7 +306,7 @@ packages:
     - name: lights
       repo: webdavis/lights
       package: lights
-      ref: a792ffaff210e94ca668604296699b06376dc314
+      ref: 23ead18c351fa8f633b299040783bb37ef287c19
     - name: pns
       repo: webdavis/pns
       package: pns
