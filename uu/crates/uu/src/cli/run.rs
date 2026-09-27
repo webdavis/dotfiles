@@ -86,14 +86,14 @@ fn run_once(home: &str, path: &Path, config: &Config, only: Option<&str>) -> i32
         RunOutcome::Completed => 0,
         RunOutcome::Interrupted => 1,
         RunOutcome::UndeclaredLane => {
-            if let Some(lane) = only {
+            if let Some(name) = only {
                 eprintln!(
                     "{}",
                     style::row(
                         Paint::for_stderr(),
                         Tone::Bad,
                         &format!(
-                            "uu: lane `{lane}` has no `[lanes.{lane}]` block in {}",
+                            "uu: `{name}` is neither a lane nor a group in {}",
                             path.display()
                         ),
                     )

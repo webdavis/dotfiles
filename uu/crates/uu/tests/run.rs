@@ -36,7 +36,7 @@ fn a_lane_the_config_never_declares_is_refused_by_name_with_exit_one() {
     let output = home.uu(&["run", "hedr"]);
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(
-        stderr(&output).contains("no `[lanes.hedr]` block"),
+        stderr(&output).contains("`hedr` is neither a lane nor a group"),
         "{output:?}"
     );
     assert!(!home.marker().exists(), "{output:?}");
