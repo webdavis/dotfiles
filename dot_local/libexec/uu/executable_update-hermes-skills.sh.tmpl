@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly exit_failed=1
+readonly hub_skills=(
+{{- range $profile, $settings := .agents.hermes.profiles }}
+{{- range (dig "hub_skills" (list) $settings) }}
+{{- if not (dig "held" false .) }}
+  {{ printf "%s %s %s" $profile .name .update_name | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+)
+
+profile_home() {
+  local profile=$1
+  if [[ $profile == default ]]; then
+    printf '%s' "$HOME/.hermes"
+  else
+    printf '%s' "$HOME/.hermes/profiles/$profile"
+  fi
+}
+
+content_hash() {
+  local profile=$1 installed_name=$2
+  local hub_lock
+  hub_lock="$(profile_home "$profile")/skills/.hub/lock.json"
+  if [[ -f $hub_lock ]]; then
+    jq -r --arg name "$installed_name" '.installed[$name].content_hash // empty | ltrimstr("sha256:") | .[0:7]' "$hub_lock"
+  fi
+}
+
+update_skill() {
+  local profile=$1 installed_name=$2
+  hermes -p "$profile" skills update "$installed_name" </dev/null
+}
+
+output_reports_a_refusal() {
+  local output=$1
+  grep -qiE 'blocked|refused' <<<"$output"
+}
+
+main() {
+  local failed=no entry profile name installed_name old new output
+  for entry in "${hub_skills[@]}"; do
+    read -r profile name installed_name <<<"$entry"
+    old="$(content_hash "$profile" "$installed_name")"
+    if ! output="$(update_skill "$profile" "$installed_name" 2>&1)"; then
+      printf 'error[update-failed]: %s/%s could not be updated:\n%s\n' "$profile" "$name" "$output" >&2
+      failed=yes
+    elif output_reports_a_refusal "$output"; then
+      printf 'error[blocked]: hermes refused to update %s/%s:\n%s\n' "$profile" "$name" "$output" >&2
+      failed=yes
+    else
+      new="$(content_hash "$profile" "$installed_name")"
+      if [[ $old != "$new" ]]; then
+        printf '%s/%s: %s → %s\n' "$profile" "$name" "$old" "$new"
+      fi
+    fi
+  done
+
+  if [[ $failed == yes ]]; then
+    exit "$exit_failed"
+  fi
+}
+
+main "$@"

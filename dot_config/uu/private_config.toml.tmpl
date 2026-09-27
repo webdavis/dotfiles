@@ -310,10 +310,20 @@ command = [
 ]
 deadline_secs = 21600
 
-# Record user-scope Claude Code plugin changes; Claude Code performs the updates itself.
 [lane.claude-plugins]
-type = "claude-plugins"
-inventory = "{{ .chezmoi.homeDir }}/.claude/plugins/installed_plugins.json"
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-claude-plugins.sh" }}"]
+deadline_secs = 21600
+
+[lane.codex-plugins]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-codex-plugins.sh" }}"]
+deadline_secs = 21600
+
+[lane.hermes-plugins]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-hermes-plugins.sh" }}"]
+deadline_secs = 21600
+
+[lane.hermes-skills]
+command = ["{{ joinPath .chezmoi.homeDir ".local/libexec/uu/update-hermes-skills.sh" }}"]
 deadline_secs = 21600
 
 # Rotate only these logs, preserving their open descriptors. Weekly rotation keeps
