@@ -14,7 +14,7 @@ fn an_unknown_top_level_key_is_refused_and_the_file_lists_what_it_serves() {
     let detail = refusal("[lans.example]\n");
     assert!(detail.contains("unknown top-level key `lans`"), "{detail}");
     assert!(
-        detail.contains("alerts, group, lane, lanes, records, schedule"),
+        detail.contains("alert, alerts, group, lane, lanes, records, report, schedule"),
         "{detail}"
     );
 }

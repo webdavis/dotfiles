@@ -174,6 +174,7 @@ fn lane_type<'a>(
 
 pub(crate) use brew::parse_brew_lane;
 pub(crate) use cargo::parse_cargo_lane;
+pub(super) use command::parse_argv;
 pub(crate) use command::parse_command_lane;
 pub(crate) use herdr::parse_herdr_lane;
 pub(crate) use npm::parse_npm_lane;

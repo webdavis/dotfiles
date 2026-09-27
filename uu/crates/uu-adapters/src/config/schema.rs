@@ -13,11 +13,15 @@ use super::ConfigError;
 pub const TABLE_KEYS: &[(&str, &[&str])] = &[
     (
         TOP_LEVEL,
-        &["alerts", "group", "lane", "lanes", "records", "schedule"],
+        &[
+            "alert", "alerts", "group", "lane", "lanes", "records", "report", "schedule",
+        ],
     ),
     ("schedule", &["day", "time"]),
     ("records", &["failure_webhook", "key", "url"]),
     ("alerts", &["binary"]),
+    ("report", &["command"]),
+    ("alert", &["command"]),
     ("group", &["lanes"]),
 ];
 

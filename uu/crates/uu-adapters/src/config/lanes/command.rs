@@ -56,7 +56,7 @@ pub(crate) fn parse_command_lane(
 /// `run`: a non-empty list of non-blank strings. `run[0]` is the program that
 /// gets executed and `run[1..]` its arguments, so a missing, wrongly-typed,
 /// empty or blank entry each names nothing runnable and is refused by name.
-pub(super) fn parse_argv(
+pub(in crate::config) fn parse_argv(
     table_label: &str,
     key: &str,
     setting: &toml::Value,

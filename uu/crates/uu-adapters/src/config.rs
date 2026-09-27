@@ -25,6 +25,7 @@ pub use records::Records;
 use records::parse_records;
 mod escalation;
 mod groups;
+mod report_and_alert;
 mod schedule;
 mod schema;
 
@@ -64,6 +65,8 @@ pub struct Config {
     pub alerts: Option<Alerts>,
     pub lanes: Lanes,
     pub groups: BTreeMap<String, Vec<String>>,
+    pub report: Option<Vec<String>>,
+    pub alert: Option<Vec<String>>,
 }
 
 /// `[alerts]`: the pns engine a failed lane is reported through.
@@ -165,6 +168,10 @@ pub(crate) fn parse_config(
             "schedule" => config.schedule = schedule::parse_schedule(value)?,
             "records" => config.records = Some(parse_records(value)?),
             "alerts" => config.alerts = Some(parse_alerts(value)?),
+            "report" => {
+                config.report = Some(report_and_alert::parse_command_block("report", value)?)
+            }
+            "alert" => config.alert = Some(report_and_alert::parse_command_block("alert", value)?),
             "group" => groups = Some(value),
             "lane" | "lanes" => config.lanes = lanes::parse_lanes(&key, value, registrations)?,
             _ => {
