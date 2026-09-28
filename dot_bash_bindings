@@ -747,9 +747,14 @@ builtin bind -m vi-command -x '"\C-xn": "__fzf_network_menu"'
 builtin bind -m emacs-standard -x '"\C-xn": "__fzf_network_menu"'
 
 # --- bindings-help ---
-# List every binding these files declare.
+# Search every binding these files declare, and the fzf pickers by key.
 
 # Search Bash shortcuts and prepare a command.
 builtin bind -m vi-insert -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
 builtin bind -m vi-command -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
 builtin bind -m emacs-standard -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
+
+# Search the fzf pickers by key and start one.
+builtin bind -m vi-insert -x '"\C-xp": "__fzf_pickers_menu"'
+builtin bind -m vi-command -x '"\C-xp": "__fzf_pickers_menu"'
+builtin bind -m emacs-standard -x '"\C-xp": "__fzf_pickers_menu"'

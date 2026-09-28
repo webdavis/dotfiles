@@ -1103,10 +1103,16 @@ function = "__fzf_network_menu"
 
 [[group]]
 name = "bindings-help"
-description = "List every binding these files declare."
+description = "Search every binding these files declare, and the fzf pickers by key."
 
 [[group.binding]]
 key = "ctrl-x v"
 description = "Search Bash shortcuts and prepare a command."
 modes = ["vi-insert", "vi-command", "emacs-standard"]
 function = "__bash_bindings_list_bash_bindings"
+
+[[group.binding]]
+key = "ctrl-x p"
+description = "Search the fzf pickers by key and start one."
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pickers_menu"

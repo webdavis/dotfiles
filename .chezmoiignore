@@ -48,7 +48,6 @@ rust-toolchain.toml
 
 # Inputs to generated files:
 .config/pns/config-values.toml
-.config/chord/bindings.toml
 
 {{- if eq .chezmoi.os "linux" }}
 Library

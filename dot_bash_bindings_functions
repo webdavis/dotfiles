@@ -189,6 +189,14 @@ __bash_bindings_git_ls_files_with_last_modified() {
   done
 }
 
+bindings() {
+  if ! command -v chord &>/dev/null; then
+    echo 'bindings needs chord: cargo install --git https://github.com/webdavis/chord chord' >&2
+    return 1
+  fi
+  chord list --table "$HOME/.config/chord/bindings.toml" "$@"
+}
+
 __bindings_catalog=${BASH_SOURCE[0]%/*}
 [[ $__bindings_catalog != "${BASH_SOURCE[0]}" ]] || __bindings_catalog=.
 __bindings_catalog+=/dot_config/fzf-pickers/lib/shell/catalog.sh

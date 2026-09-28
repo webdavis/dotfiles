@@ -195,3 +195,4 @@ ctrl-t k	fzf-pickers	function	__fzf_pick services	Homebrew, launchd and Docker s
 ctrl-t x	fzf-pickers	function	__fzf_pick quickfix	The saved quickfix list
 ctrl-x n	fzf-pickers	function	__fzf_network_menu	Networking commands to prepare and run
 ctrl-x v	bindings-help	function	__bash_bindings_list_bash_bindings	Search Bash shortcuts and prepare a command.
+ctrl-x p	bindings-help	function	__fzf_pickers_menu	Search the fzf pickers by key and start one.

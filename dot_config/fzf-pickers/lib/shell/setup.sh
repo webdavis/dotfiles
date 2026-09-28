@@ -25,4 +25,5 @@ __fzf_setup() {
   else
     unset FZF_CTRL_T_COMMAND
   fi
+  __fzf_register_next_line_hook
 }
