@@ -2831,6 +2831,13 @@ Each of these gates work that cannot start without it.
   `~/.cargo/bin/tailnet-pin` exists on 2026-09-12.
 - [x] Restart Claude Code after removing `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`. The operator reported
   restarting in the 2026-09-10 handoff.
+- [ ] Give Google consent for the calendar mute, task 126. `[quiet.calendar]` ships with
+  `enabled = false` and reads no calendar until this is done. Run `pns calendar consent` once, and store
+  the client id, client secret and refresh token it works with in KeePassXC. Then, in
+  `dot_config/pns/private_config.toml.tmpl`, set `[quiet.calendar] type = "google"`, add `client_id`,
+  `client_secret` and `refresh_token` as KeePassXC lookups, delete the `command = []` line (a google
+  table that carries `command` is refused at load), set `enabled = true`, and apply. `poll_interval` and
+  `deadline` stay as they are.
 
 ## Additional work recovered from the backlog
 
