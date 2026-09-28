@@ -1,0 +1,36 @@
+# shellcheck shell=bash
+
+readonly checks_for_a_booted_out_launchagent_to_leave=3
+
+launchagent_has_left() {
+  local label=$1
+  local check
+  for ((check = 1; check <= checks_for_a_booted_out_launchagent_to_leave; check++)); do
+    if ! launchagent_is_loaded "$label"; then
+      return 0
+    fi
+    sleep "$seconds_for_launchd_to_release_the_old_job"
+  done
+  return 1
+}
+
+boot_out_launchagent_if_loaded() {
+  local label=$1
+  if launchagent_is_loaded "$label"; then
+    unload_launchagent "$label"
+  fi
+  launchagent_has_left "$label"
+}
+
+trash_if_present() {
+  local path=$1
+  if [[ -e $path ]]; then
+    trash "$path"
+  fi
+}
+
+retire_launchagent() {
+  local label=$1
+  boot_out_launchagent_if_loaded "$label" || return 1
+  trash_if_present "$HOME/Library/LaunchAgents/$label.plist"
+}
