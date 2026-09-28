@@ -50,3 +50,6 @@ dot_config/nvim/private/
 
 # bashunit's run state (`.bashunit/last-failed`, what --rerun-failed replays).
 .bashunit/
+
+# Python bytecode the fzf pickers write beside their sources.
+__pycache__/

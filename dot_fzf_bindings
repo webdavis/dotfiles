@@ -2,14 +2,14 @@
 # vi: set filetype=sh:
 
 __fzf_shell_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-if [[ -d $__fzf_shell_root/dot_local/libexec/fzf-pickers/shell ]]; then
-  __fzf_shell_root+=/dot_local/libexec/fzf-pickers/shell
+if [[ -d $__fzf_shell_root/dot_config/fzf-pickers/lib/shell ]]; then
+  __fzf_shell_root+=/dot_config/fzf-pickers/lib/shell
 else
-  __fzf_shell_root=$HOME/.local/libexec/fzf-pickers/shell
+  __fzf_shell_root=$HOME/.config/fzf-pickers/lib/shell
 fi
-# shellcheck source=dot_local/libexec/fzf-pickers/shell/callbacks.sh
+# shellcheck source=dot_config/fzf-pickers/lib/shell/callbacks.sh
 source "$__fzf_shell_root/callbacks.sh"
-# shellcheck source=dot_local/libexec/fzf-pickers/shell/setup.sh
+# shellcheck source=dot_config/fzf-pickers/lib/shell/setup.sh
 source "$__fzf_shell_root/setup.sh"
 [[ ${FZF_PICKERS_TEST-} == 1 ]] || __fzf_setup "$__fzf_shell_root"
 unset __fzf_shell_root

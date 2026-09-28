@@ -5,7 +5,7 @@ __fzf_setup() {
   if [[ -f $root/executable_picker.py ]]; then
     FZF_PICKERS_HELPER=$root/executable_picker.py
   else
-    FZF_PICKERS_HELPER=$HOME/.local/libexec/fzf-pickers/picker.py
+    FZF_PICKERS_HELPER=$root/picker.py
   fi
   export FZF_PICKERS_HELPER
   export FZF_DEFAULT_OPTS='--height=60% --layout=reverse --cycle --multi --border=rounded --list-border=rounded --input-border=rounded --preview-border=rounded --preview-window="right,50%,border-rounded,<50(down,50%)" --color=bg+:#313244,bg:#1E1E2E,fg:#CDD6F4,fg+:#CDD6F4,hl:#F38BA8,hl+:#F38BA8,header:#A6ADC8,prompt:#CBA6F7,pointer:#CBA6F7,border:#6C7086 --bind=ctrl-n:down,ctrl-p:up,ctrl-alt-n:page-down,ctrl-alt-p:page-up,alt-p:toggle-preview,alt-w:toggle-preview-wrap,alt-W:toggle-wrap,ctrl-r:toggle-sort'

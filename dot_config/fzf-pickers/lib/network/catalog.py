@@ -9,9 +9,8 @@ from .rows import command_row
 
 
 def catalog(state):
-    deployed = Path.home() / ".config/fzf-pickers/network-actions.toml"
-    source = Path(__file__).resolve().parents[4] / "dot_config/fzf-pickers/network-actions.toml"
-    path = Path(state.get("network_catalog", source if source.is_file() else deployed))
+    beside_lib = Path(__file__).resolve().parents[2] / "network-actions.toml"
+    path = Path(state.get("network_catalog", beside_lib))
     with path.open("rb") as stream:
         return tomllib.load(stream)["action"]
 

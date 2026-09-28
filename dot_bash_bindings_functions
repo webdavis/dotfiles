@@ -191,8 +191,8 @@ __bash_bindings_git_ls_files_with_last_modified() {
 
 __bindings_catalog=${BASH_SOURCE[0]%/*}
 [[ $__bindings_catalog != "${BASH_SOURCE[0]}" ]] || __bindings_catalog=.
-__bindings_catalog+=/dot_local/libexec/fzf-pickers/shell/catalog.sh
-[[ -f $__bindings_catalog ]] || __bindings_catalog=$HOME/.local/libexec/fzf-pickers/shell/catalog.sh
-# shellcheck source=dot_local/libexec/fzf-pickers/shell/catalog.sh
+__bindings_catalog+=/dot_config/fzf-pickers/lib/shell/catalog.sh
+[[ -f $__bindings_catalog ]] || __bindings_catalog=$HOME/.config/fzf-pickers/lib/shell/catalog.sh
+# shellcheck source=dot_config/fzf-pickers/lib/shell/catalog.sh
 source "$__bindings_catalog"
 unset __bindings_catalog

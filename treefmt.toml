@@ -159,14 +159,14 @@ includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
 command = "ruff"
 options = ["check"]
 includes = [
-  "dot_local/libexec/fzf-pickers/*.py",
-  "dot_local/libexec/fzf-pickers/**/*.py",
+  "dot_config/fzf-pickers/lib/*.py",
+  "dot_config/fzf-pickers/lib/**/*.py",
 ]
 
 [formatter.ruff-format]
 command = "ruff"
 options = ["format", "--check"]
 includes = [
-  "dot_local/libexec/fzf-pickers/*.py",
-  "dot_local/libexec/fzf-pickers/**/*.py",
+  "dot_config/fzf-pickers/lib/*.py",
+  "dot_config/fzf-pickers/lib/**/*.py",
 ]

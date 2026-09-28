@@ -3,7 +3,7 @@
 __bash_bindings_list_bash_bindings() {
   local records="$HOME/.config/chord/bindings-menu.tsv"
   local source_records
-  source_records="$(dirname -- "${BASH_SOURCE[0]}")/../../../../dot_config/chord/bindings-menu.tsv"
+  source_records="$(dirname -- "${BASH_SOURCE[0]}")/../../../chord/bindings-menu.tsv"
   [[ -r $records || ! -r $source_records ]] || records=$source_records
   if [[ ! -r $records ]]; then
     # shellcheck disable=SC2016
