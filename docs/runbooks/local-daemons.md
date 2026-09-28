@@ -161,7 +161,7 @@ left signing with a key the gateway no longer holds:
 
 | Route           | Sender and the key it reads                                                                                                                                                                                                              |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pns-events`    | `[plugins.log.keys] pns-events` in `dot_config/pns/config-values.toml`                                                                                                                                                                   |
+| `pns-events`    | `[plugins.log.keys] pns-events` in `dot_config/pns/private_config.toml.tmpl`                                                                                                                                                             |
 | `posture-pages` | `[notify.hermes.keys] posture-pages` in `dot_config/posture/private_config.toml.tmpl`, and the same route in pns's own table                                                                                                             |
 | `priority`      | `[plugins.log.keys] priority`, and `[notify.hermes.keys] priority` on posture's own side                                                                                                                                                 |
 | `uu-runs`       | `[records] key` in `dot_config/uu/private_config.toml.tmpl`                                                                                                                                                                              |
@@ -310,12 +310,13 @@ token is read today.
 
 ### Where a message lands
 
-ONE MAP, `[plugins.log.channels]` in `dot_config/pns/config-values.toml`, shared by every producer: the
-GitHub source and an agent session about the same repository resolve the same channel, because the lookup
-tries the event's route, then `owner/name`, then the bare project name, then `pns-events` when there is
-no project at all, then `default`. That is why the GitHub source design's own `[plugins.github.channels]`
-map is cancelled rather than built: one repository, one channel, whichever producer named it. A config
-that still holds `[plugins.github]` is refused out loud, naming `github` as a plugin nothing registered.
+ONE MAP, `[plugins.log.channels]` in `dot_config/pns/private_config.toml.tmpl`, shared by every producer:
+the GitHub source and an agent session about the same repository resolve the same channel, because the
+lookup tries the event's route, then `owner/name`, then the bare project name, then `pns-events` when
+there is no project at all, then `default`. That is why the GitHub source design's own
+`[plugins.github.channels]` map is cancelled rather than built: one repository, one channel, whichever
+producer named it. A config that still holds `[plugins.github]` is refused out loud, naming `github` as a
+plugin nothing registered.
 
 Two of those keys are the fallbacks and are never per project. `default` is `#github-notifications`, the
 catch-all for a repository nobody mapped; `pns-events` is where an event with no repository at all lands,

@@ -160,7 +160,3 @@ chord-render:
     { echo 'chord is not installed: cargo install --git https://github.com/webdavis/chord chord' >&2; exit 1; }
   chord render bash --table dot_config/chord/bindings.toml
   chord render menu --table dot_config/chord/bindings.toml
-
-# Regenerate the shipped pns config template from its committed values.
-pns-config-render output="dot_config/pns/private_config.toml.tmpl":
-  pns-config-render dot_config/pns/config-values.toml {{quote(output)}}
