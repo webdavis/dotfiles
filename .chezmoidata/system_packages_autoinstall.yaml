@@ -292,34 +292,28 @@ packages:
   # installed into rust_tools.install_dir with `cargo install --git`. dam is
   # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn.
   # chord compiles dot_config/chord/bindings.toml into the two generated files
-  # `just chord-render` writes, and its pin is also what CI installs to run the
-  # `chord check` gate. Bumping a `ref` reinstalls that tool on the next apply.
+  # `just chord-render` writes, and CI also installs it to run the `chord check`
+  # gate. A change to this file reinstalls the tools at their latest commit.
   cargo_git_tools:
     - name: chord
       repo: webdavis/chord
       package: chord
-      ref: 16fd068251c49b9d40515a1207ac6337a3f9e483
     - name: dam
       repo: webdavis/damnit
       package: damnit
-      ref: bae8a19a6e268ce0a06b67620eb8b9b80c2eee2c
     - name: lights
       repo: webdavis/lights
       package: lights
-      ref: 23ead18c351fa8f633b299040783bb37ef287c19
     - name: pns
       repo: webdavis/pns
       package: pns
-      ref: 68be9aab567bea384c85e9517171ab822a9d099e
       features: dev-tools
     - name: posture
       repo: webdavis/posture
       package: posture
-      ref: d6ca9aadd697d759145521394289d873ed190592
     - name: uu
       repo: webdavis/uu
       package: uu
-      ref: 76655da8fd6e17963db79742c304a95c76cff34a
 
   # The herdr plugins this machine builds and LINKS rather than installing from
   # GitHub. `herdr plugin install` requires a herdr-plugin.toml committed in the
@@ -329,15 +323,14 @@ packages:
   # declared process profile, and herdr-workspace-jump's are one jump per
   # declared workspace; each renders its manifest from this machine's config
   # via its own `generate` subcommand. The shared builder,
-  # .chezmoiscripts/run_onchange_after_58, clones each pinned revision,
-  # compiles it, generates its manifest and links the result.
+  # .chezmoiscripts/run_onchange_after_58, clones each plugin, compiles it,
+  # generates its manifest and links the result. A change to this file
+  # reinstalls the plugins at their latest commit.
   herdr_linked_plugins:
     - id: herdr-process
       repo: webdavis/herdr-process
-      ref: c587dda54e2fa71722630ae53974101cdf76989f
     - id: herdr-workspace-jump
       repo: webdavis/herdr-workspace-jump
-      ref: 37621d26fff3d10fbb719e231d0cd891e75358d1
 
   herdr_plugins:
     # run_after_53 installs a missing plugin at apply. Every plugin this machine
