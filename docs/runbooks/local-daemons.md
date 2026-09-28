@@ -1,13 +1,15 @@
-# Local daemons: atuin, tailscaled, the hermes gateway, the pns Discord bot
+# Local daemons: atuin, the pns gateway, Scalebar, tailscaled, the hermes gateway, the pns Discord bot
 
-Four long-running services on dresden, each with its own failure mode and diagnostic ladder. Atuin runs
+Five long-running services on dresden, each with its own failure mode and diagnostic ladder. Atuin runs
 as a chezmoi-tracked LaunchAgent: its plist lives under `Library/LaunchAgents/` and its loader is a
 `.chezmoiscripts/run_onchange_after_*` script keyed on the plist's own hash, so the loader re-runs when
-the plist changes rather than on every apply. Tailscaled is a launchd system daemon (see its section
-below), not a chezmoi-tracked LaunchAgent. The hermes gateway is not a LaunchAgent either;
+the plist changes rather than on every apply. The pns gateway and the Scalebar menu-bar app are
+LaunchAgents too, but each tool writes and loads its own plist, and this repository holds only their
+settings and the apply steps that run their installers. Tailscaled is a launchd system daemon (see its
+section below), not a chezmoi-tracked LaunchAgent. The hermes gateway is not a LaunchAgent either;
 `hermes gateway` owns its lifecycle and this repository owns only its configuration. The pns Discord bot
-at the end is a fourth thing again, neither a service nor a daemon: it is pns's own HTTP client, and it
-is here because it delivers the same notifications the gateway does and is configured the same way.
+at the end is another thing again, neither a service nor a daemon: it is pns's own HTTP client, and it is
+here because it delivers the same notifications the gateway does and is configured the same way.
 
 ## Shell history (atuin)
 
@@ -49,6 +51,33 @@ working" check; use `atuin daemon status` (reports `Version`, `Protocol`, `Healt
   gRPC schema drift. The uu lane `atuin-daemon-refresh` runs after the `brew` lane, compares the version
   recorded in `~/.local/share/atuin/atuin-daemon.pid` against `atuin --version`, and on a mismatch runs
   `launchctl kickstart -k gui/$(id -u)/com.webdavis.atuin-daemon`.
+
+## The pns gateway and Scalebar (LaunchAgents their tools install)
+
+|                | pns gateway                                   | Scalebar menu-bar app                                  |
+| -------------- | --------------------------------------------- | ------------------------------------------------------ |
+| Label          | `pns.gateway`, from `[gateway] service`       | `scalebar.menubar`, from `[startup] label`             |
+| Plist          | `~/Library/LaunchAgents/pns.gateway.plist`    | `~/Library/LaunchAgents/scalebar.menubar.plist`        |
+| Installer      | `pns gateway install`                         | `~/.local/libexec/scalebar/Scalebar install`           |
+| Apply step     | `run_onchange_after_57`, after cargo installs | `run_onchange_after_53`, after the build               |
+| Log            | `~/.local/state/pns/gateway.log`              | `~/.local/state/scalebar/scalebar.log`                 |
+| Check, restart | `pns gateway status`, `pns gateway restart`   | `launchctl kickstart -k gui/$(id -u)/scalebar.menubar` |
+
+The labels live in `dot_config/pns/private_config.toml.tmpl` and `dot_config/scalebar/config.toml`. Both
+logs are in uu's `rotate-logs` lane. posture's watchdog checks `pns.gateway`, listed under
+`[watchdog] processes` in `dot_config/posture/private_config.toml.tmpl`, and both labels are in
+`dot_config/osquery/private_page-launchd-allowlist.txt`, so their plists digest rather than page.
+
+`pns gateway install` writes the `PATH` of the shell that ran the apply into the plist, so the jobs the
+gateway starts find what that shell finds, `herdr` in `~/.local/bin` among them. The gateway starts the
+GitHub webhook receiver itself once `[plugins.github] webhook_secret` is set; there is no separate
+receiver LaunchAgent.
+
+Each apply step first boots out and trashes the LaunchAgent chezmoi used to write for that tool, with its
+old log under `~/.local/log`: `com.webdavis.pns-daemon` and `com.webdavis.pns-github-receiver` for pns,
+`io.webdavis.scalebar` for Scalebar. The old pns agents go before `pns gateway install` because the old
+receiver holds port 8648. When a bootout does not take, the step stops before the installer and exits 1,
+and the next apply retries it.
 
 ## Hermes gateway (webhook routes)
 
