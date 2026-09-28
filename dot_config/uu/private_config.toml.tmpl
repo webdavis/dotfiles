@@ -322,6 +322,14 @@ time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 uses_sudo = true
 
+[lane.tldr-pages]
+after = ["brew"]
+command = ["tldr", "--update"]
+env = {}
+scheduled = true
+time_limit = "10 minutes"
+unsuccessful_runs_before_alert = 3
+
 [lane.uv]
 builtin = "uv"
 env = {}
