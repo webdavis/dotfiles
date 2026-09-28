@@ -13,7 +13,7 @@
 // own to double up on.
 import { spawn } from "node:child_process"
 
-{{ includeTemplate "pns-reminder-extension.ts.tmpl" (dict "producer" "omp" "binary" (joinPath .chezmoi.homeDir .rust_tools.install_dir "pns")) }}
+{{ includeTemplate "pns-reminder-extension.ts.tmpl" (dict "producer" "omp" "binary" (joinPath .chezmoi.homeDir ".cargo/bin" "pns")) }}
 
 export default function pnsReminders(omp) {
   omp.on("tool_approval_requested", (event, ctx) => {

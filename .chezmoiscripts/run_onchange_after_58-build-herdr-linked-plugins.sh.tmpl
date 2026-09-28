@@ -3,9 +3,7 @@
 
 set -euo pipefail
 
-{{ range .packages.herdr_linked_plugins -}}
-# pinned revision ({{ .id }}) {{ .ref }}
-{{ end -}}
+# .chezmoidata/system_packages_autoinstall.yaml {{ include ".chezmoidata/system_packages_autoinstall.yaml" | sha256sum }}
 # .config/herdr/config.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/config.toml") | sha256sum }}
 # .config/herdr/processes.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/processes.toml") | sha256sum }}
 # .config/herdr/plugins/config/herdr-workspace-jump/config.toml {{ include (joinPath .chezmoi.sourceDir "dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml") | sha256sum }}
@@ -19,10 +17,10 @@ readonly plugin_checkouts_dir="$HOME/.local/share"
 readonly plugin_retry_markers_dir="$HOME/.cache/herdr-plugin-build"
 readonly herdr_time_limit_seconds=10
 readonly herdr_timed_out_status=124
-readonly fields_per_linked_plugin=3
+readonly fields_per_linked_plugin=2
 readonly linked_plugins=(
 {{- range .packages.herdr_linked_plugins }}
-  {{ .id | quote }} "https://github.com/{{ .repo }}.git" {{ .ref | quote }}
+  {{ .id | quote }} "https://github.com/{{ .repo }}.git"
 {{- end }}
 )
 
@@ -55,14 +53,19 @@ clone_plugin_if_missing() {
   git clone --quiet "$repo_url" "$checkout"
 }
 
-fetch_plugin_tags() {
+fetch_plugin_origin() {
   local checkout=$1
-  git -C "$checkout" fetch --quiet --tags origin
+  git -C "$checkout" fetch --quiet origin && git -C "$checkout" remote set-head origin --auto >/dev/null
 }
 
-check_out_pinned_revision() {
-  local checkout=$1 pinned_ref=$2
-  git -C "$checkout" checkout --quiet --force --detach "$pinned_ref"
+check_out_latest_commit() {
+  local checkout=$1
+  git -C "$checkout" checkout --quiet --force --detach origin/HEAD
+}
+
+checked_out_short_sha() {
+  local checkout=$1
+  git -C "$checkout" rev-parse --short HEAD
 }
 
 build_plugin_release_binary() {
@@ -166,9 +169,10 @@ register_plugin() {
 }
 
 install_linked_plugin() {
-  local plugin_id=$1 repo_url=$2 pinned_ref=$3
+  local plugin_id=$1 repo_url=$2
   local checkout="$plugin_checkouts_dir/$plugin_id"
   local retry_marker="$plugin_retry_markers_dir/$plugin_id.retry"
+  local checked_out_sha
 
   report_section 'herdr plugin' "$plugin_id" >&2
 
@@ -178,7 +182,7 @@ install_linked_plugin() {
     return 0
   fi
 
-  report_line "checking out $pinned_ref..."
+  report_line "checking out the latest commit..."
   if path_blocks_the_checkout "$checkout"; then
     defer_plugin_until_next_apply "$retry_marker" "$checkout exists and is not a git checkout; trash it by hand and the next apply reclones (trigger left retryable)."
     return 0
@@ -187,19 +191,20 @@ install_linked_plugin() {
     defer_plugin_until_next_apply "$retry_marker" "git clone $repo_url failed; $plugin_id build deferred (trigger left retryable)."
     return 0
   fi
-  if ! fetch_plugin_tags "$checkout"; then
+  if ! fetch_plugin_origin "$checkout"; then
     defer_plugin_until_next_apply "$retry_marker" "git fetch in $checkout failed; $plugin_id build deferred (trigger left retryable)."
     return 0
   fi
-  if ! check_out_pinned_revision "$checkout" "$pinned_ref"; then
-    defer_plugin_until_next_apply "$retry_marker" "revision $pinned_ref not found in $repo_url; $plugin_id build deferred (trigger left retryable)."
+  if ! check_out_latest_commit "$checkout"; then
+    defer_plugin_until_next_apply "$retry_marker" "origin/HEAD of $repo_url could not be checked out; $plugin_id build deferred (trigger left retryable)."
     return 0
   fi
-  report_line "checked out $pinned_ref in $checkout."
+  checked_out_sha="$(checked_out_short_sha "$checkout")"
+  report_line "checked out $checked_out_sha in $checkout."
 
   report_line "building the release binary..."
   if ! build_plugin_release_binary "$checkout"; then
-    report_line "error[build-failed]: cargo build failed for $plugin_id at $pinned_ref." >&2
+    report_line "error[build-failed]: cargo build failed for $plugin_id at $checked_out_sha." >&2
     return 1
   fi
   report_line "built $checkout/target/release/$plugin_id."
@@ -217,13 +222,13 @@ install_linked_plugin() {
     return 0
   fi
   settle_retry_marker "$retry_marker"
-  report_line "herdr plugin $plugin_id built at $pinned_ref and registered"
+  report_line "herdr plugin $plugin_id built at $checked_out_sha and registered"
 }
 
 main() {
   local plugin_index
   for ((plugin_index = 0; plugin_index < ${#linked_plugins[@]}; plugin_index += fields_per_linked_plugin)); do
-    install_linked_plugin "${linked_plugins[plugin_index]}" "${linked_plugins[plugin_index + 1]}" "${linked_plugins[plugin_index + 2]}"
+    install_linked_plugin "${linked_plugins[plugin_index]}" "${linked_plugins[plugin_index + 1]}"
   done
 }
 

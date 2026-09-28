@@ -3,17 +3,13 @@
 
 set -euo pipefail
 
-{{ range .packages.cargo_git_tools -}}
-{{ if has .name (list "pns" "posture") -}}
-# {{ .name }}: {{ toJson . | sha256sum }}
-{{ end -}}
-{{ end -}}
+# .chezmoidata/system_packages_autoinstall.yaml {{ include ".chezmoidata/system_packages_autoinstall.yaml" | sha256sum }}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 {{ includeTemplate "load-launchagent.sh.tmpl" }}
 
-readonly install_dir={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | quote }}
+readonly install_dir="$HOME/.cargo/bin"
 readonly build_record_dir="$HOME/.local/state"
 readonly rustc_bin="$HOME/.cargo/bin/rustc"
 readonly pipeline_manifest_refresher="${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh"

@@ -3,37 +3,39 @@
 
 set -euo pipefail
 
-{{ range .packages.cargo_git_tools -}}
-# {{ .name }}: {{ .repo }} package={{ .package }} ref={{ .ref }}{{ with get . "features" }} features={{ . }}{{ end }}
-{{ end -}}
+# .chezmoidata/system_packages_autoinstall.yaml {{ include ".chezmoidata/system_packages_autoinstall.yaml" | sha256sum }}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 {{ includeTemplate "rust-build-lib.sh.tmpl" }}
 
-readonly install_root={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | dir | quote }}
-readonly installed_crates_record="$install_root/.crates2.json"
+readonly installed_crates_record="$HOME/.cargo/.crates2.json"
 readonly cargo_git_tools_retry_marker="$HOME/.cache/cargo-git-tools/retry"
 
 tool_binary_is_installed() {
   local name=$1
-  [[ -x "$install_root/bin/$name" ]]
+  [[ -x "$HOME/.cargo/bin/$name" ]]
 }
 
 installed_crates_record_exists() {
   [[ -f $installed_crates_record ]]
 }
 
-installed_crates_record_lists_revision_with_features() {
-  local repo=$1 revision=$2 features=$3
-  jq -e --arg source "(git+https://github.com/${repo}?rev=${revision}" --arg features "$features" \
-    'any(.installs | to_entries[]; (.key | contains($source)) and (.value.features | join(",")) == $features)' \
+installed_crates_record_lists_package() {
+  local repo=$1 package=$2
+  jq -e --arg package "$package " --arg source "(git+https://github.com/${repo}" \
+    'any(.installs | keys[]; startswith($package) and contains($source))' \
     "$installed_crates_record" >/dev/null
 }
 
-pinned_revision_is_installed() {
-  local repo=$1 revision=$2 name=$3 features=$4
-  tool_binary_is_installed "$name" && installed_crates_record_exists && installed_crates_record_lists_revision_with_features "$repo" "$revision" "$features"
+cargo_tracks_the_package() {
+  local repo=$1 package=$2
+  installed_crates_record_exists && installed_crates_record_lists_package "$repo" "$package"
+}
+
+cargo_does_not_track_the_binary() {
+  local name=$1 repo=$2 package=$3
+  tool_binary_is_installed "$name" && ! cargo_tracks_the_package "$repo" "$package"
 }
 
 features_are_declared() {
@@ -42,38 +44,43 @@ features_are_declared() {
 }
 
 cargo_install_from_git() {
-  local repo=$1 revision=$2 package=$3 features=$4
-  local feature_arguments=()
+  local name=$1 repo=$2 package=$3 features=$4
+  local install_arguments=()
   if features_are_declared "$features"; then
-    feature_arguments=(--features "$features")
+    install_arguments+=(--features "$features")
   fi
-  "$cargo_bin" install --git "https://github.com/$repo" --rev "$revision" --locked --force "${feature_arguments[@]}" --root "$install_root" "$package"
+  if cargo_does_not_track_the_binary "$name" "$repo" "$package"; then
+    install_arguments+=(--force)
+  fi
+  "$cargo_bin" install --git "https://github.com/$repo" --locked "${install_arguments[@]}" "$package"
 }
 
-install_pinned_revision_if_missing() {
-  local name=$1 repo=$2 package=$3 revision=$4 features=$5
-  if pinned_revision_is_installed "$repo" "$revision" "$name" "$features"; then
-    report_line "$name from $repo@$revision already installed, skipping."
-    return
-  fi
-  report_line "installing $name from $repo@$revision..."
-  if ! cargo_install_from_git "$repo" "$revision" "$package" "$features"; then
-    report_line "install failed (network unreachable, or cargo itself failed); deferred to the next apply." >&2
+installed_short_sha() {
+  local repo=$1 package=$2
+  jq -r --arg package "$package " --arg source "(git+https://github.com/${repo}#" \
+    '.installs | keys[] | select(startswith($package) and contains($source)) | split("#")[1][0:7]' \
+    "$installed_crates_record"
+}
+
+install_latest_commit() {
+  local name=$1 repo=$2 package=$3 features=$4
+  if ! cargo_install_from_git "$name" "$repo" "$package" "$features"; then
+    report_line "$name: install failed; deferred to the next apply" >&2
     return 1
   fi
-  report_line "installed $install_root/bin/$name."
+  report_line "$name: $(installed_short_sha "$repo" "$package")"
 }
 
 install_declared_tools() {
   local install_status=0
 {{- range .packages.cargo_git_tools }}
-  install_pinned_revision_if_missing {{ .name | quote }} {{ .repo | quote }} {{ .package | quote }} {{ .ref | quote }} {{ get . "features" | quote }} || install_status=1
+  install_latest_commit {{ .name | quote }} {{ .repo | quote }} {{ .package | quote }} {{ get . "features" | quote }} || install_status=1
 {{- end }}
   return "$install_status"
 }
 
 main() {
-  report_section 'cargo-git-tools' 'CLI tools pinned to a git revision'
+  report_section 'cargo-git-tools' 'CLI tools'
 
   if ! cargo_is_installed; then
     report_line "cargo not found at $cargo_bin; install deferred to the next apply." >&2

@@ -241,7 +241,7 @@
        consent before hermes will run it, recorded in
        ~/.hermes/shell-hooks-allowlist.json. A changed command string is a new
        pair and prompts again. */ -}}
-{{- $pns := joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" -}}
+{{- $pns := joinPath .chezmoi.homeDir ".cargo/bin" "pns" -}}
 {{- $merged = setValueAtPath (list "hooks" "pre_approval_request")
     (list (dict "command" (printf "/usr/bin/env PNS_PRODUCER=hermes %s hook blocked --remind" $pns))) $merged -}}
 {{- $merged = setValueAtPath (list "hooks" "post_approval_response")

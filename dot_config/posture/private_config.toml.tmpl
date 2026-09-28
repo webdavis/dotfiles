@@ -76,7 +76,7 @@ route = "posture-pages"
 # contract says nothing about the arguments: an engine spells its own submit
 # path however it likes.
 [notify.command]
-path = "{{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" }}"
+path = "{{ joinPath .chezmoi.homeDir ".cargo/bin" "pns" }}"
 arguments = ["send", "--json"]
 
 # The mode selected above. `url` is the gateway's webhook base, one path

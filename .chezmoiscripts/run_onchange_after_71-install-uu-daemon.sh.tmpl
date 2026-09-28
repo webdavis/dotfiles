@@ -1,17 +1,13 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
-{{ range .packages.cargo_git_tools -}}
-{{ if eq .name "uu" -}}
-# {{ .name }}: {{ .repo }} package={{ .package }} ref={{ .ref }}
-{{ end -}}
-{{ end -}}
+# .chezmoidata/system_packages_autoinstall.yaml {{ include ".chezmoidata/system_packages_autoinstall.yaml" | sha256sum }}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
 set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-readonly uu_binary={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "uu" | quote }}
+readonly uu_binary={{ joinPath .chezmoi.homeDir ".cargo/bin" "uu" | quote }}
 
 uu_is_installed() {
   [[ -x $uu_binary ]]
