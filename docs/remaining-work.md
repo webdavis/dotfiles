@@ -1653,17 +1653,18 @@ The planned Rust lanes are implemented. The following deployment check remains.
   only `com.webdavis.osquery-*.plist`, was already closed by
   [PR #681](https://github.com/webdavis/dotfiles/pull/681), merged. That arm of
   `.chezmoiscripts/run_after_05-osquery-known-good-manifests.sh` now reads
-  `"$home"/Library/LaunchAgents/com.webdavis.*.plist`, EVERY LaunchAgent this repository owns rather than
-  the osquery-prefixed ones, and its comment names the scalebar case as the reason. So the first
-  `vouch(finding.path)` call has a manifest line to find and no `sha256` pin is needed. What is left is
-  not code: a full `chezmoi apply` has to run `run_after_05` so the pipeline manifest records the new
-  line, and then the next `persistence_launchd` finding for `com.webdavis.scalebar` must digest rather
-  than page, which is a reading the operator takes. Original entry: allowlist the scalebar LaunchAgent.
-  `com.webdavis.scalebar` is loaded by `run_onchange_after_*` on every apply but had no tuple in
-  `dot_config/osquery/private_page-launchd-allowlist.txt`, so its persistence row pages as an unknown
-  agent. [PR #564](https://github.com/webdavis/dotfiles/pull/564) (`fix/scalebar-launchd-allowlist`) adds
-  the tuple (plist path, program `~/.local/libexec/scalebar/Scalebar`, no sha256 pin, like the other
-  host-owned agents); merged 2026-09-14 (`0a52800a`) and deployed by the 2026-09-13 20:15 apply
+  `"$home"/Library/LaunchAgents/com.webdavis.*.plist` and `io.webdavis.*.plist`, EVERY LaunchAgent this
+  repository owns rather than the osquery-prefixed ones, and its comment names the scalebar case as the
+  reason. So the first `vouch(finding.path)` call has a manifest line to find and no `sha256` pin is
+  needed. What is left is not code: a full `chezmoi apply` has to run `run_after_05` so the pipeline
+  manifest records the new line, and then the next `persistence_launchd` finding for
+  `io.webdavis.scalebar` must digest rather than page, which is a reading the operator takes. Original
+  entry: allowlist the scalebar LaunchAgent. `com.webdavis.scalebar` is loaded by `run_onchange_after_*`
+  on every apply but had no tuple in `dot_config/osquery/private_page-launchd-allowlist.txt`, so its
+  persistence row pages as an unknown agent. [PR #564](https://github.com/webdavis/dotfiles/pull/564)
+  (`fix/scalebar-launchd-allowlist`) adds the tuple (plist path, program
+  `~/.local/libexec/scalebar/Scalebar`, no sha256 pin, like the other host-owned agents); merged
+  2026-09-14 (`0a52800a`) and deployed by the 2026-09-13 20:15 apply
   (`~/.config/osquery/page-launchd-allowlist.txt` carries the line). Remaining acceptance: the next
   persistence_launchd finding for that label digests instead of paging. Traced 2026-09-15 through
   `posture/crates/posture-domain/src/allowlist.rs`'s `allowlist_verdict`: the plist path, program and the
@@ -2749,13 +2750,13 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
 
 - [ ] 196. The six osquery LaunchAgent loaders,
   `.chezmoiscripts/run_onchange_after_60-load-osquery-*-launchagent.sh.tmpl`, reload their LaunchAgents
-  without checking that the posture binary exists. The uu (71) and scalebar (74) loaders check their
+  without checking that the posture binary exists. The uu (71) and scalebar (53) loaders check their
   binary first and leave the loaded LaunchAgent alone when it is missing. Fix: add the same check to the
   six osquery loaders.
 
 - [ ] 197. When the last `launchctl bootstrap` attempt fails, the LaunchAgent loaders stop with
   launchctl's own error and exit code instead of an `error[...]` line like the rest of the rewritten
-  scripts. That covers the atuin (38), pns (the two at 70) and scalebar (74) loaders and the six osquery
+  scripts. That covers the atuin (38), pns (the two at 70) and scalebar (53) loaders and the six osquery
   loaders (60). Fix: print an `error[...]` line from `.chezmoitemplates/load-launchagent.sh.tmpl` when
   the last attempt fails; making the loaders uniform needs that template change plus edits to all eleven
   scripts that include it.
@@ -9646,12 +9647,13 @@ transcription was started during this audit.
   `docs/superpowers/specs/2026-09-14-vpt-project-boundaries-design.md`. It compares three code homes (a
   fifth cargo workspace in dotfiles, its own repository built from a local clone, its own repository
   installed by `cargo install --git`) and recommends the second: `webdavis/vpt` from day one, built in
-  the scalebar shape, which is already the proven precedent on this machine (`.chezmoidata/scalebar.yaml`
-  plus a deferral-guarded builder plus one LaunchAgent). dotfiles' share is named file by file and stops
-  at installation and service configuration; the configured output directory holds notes and links under
-  the existing `agent-processing-pipeline/` layout; homelab keeps Open Notebook (L6) and any remote
-  engine, all optional. Apple's container stays the canonical original and is read-only to vpt, including
-  a `mode=ro&immutable=1` SQLite open, with one archive copy outside git because the vault ignores audio
+  the scalebar shape, which is already the proven precedent on this machine
+  (`.chezmoidata/source_builds.yaml` plus one deferral-guarded script that builds, installs and loads one
+  LaunchAgent). dotfiles' share is named file by file and stops at installation and service
+  configuration; the configured output directory holds notes and links under the existing
+  `agent-processing-pipeline/` layout; homelab keeps Open Notebook (L6) and any remote engine, all
+  optional. Apple's container stays the canonical original and is read-only to vpt, including a
+  `mode=ro&immutable=1` SQLite open, with one archive copy outside git because the vault ignores audio
   and no machine backup exists yet. Measured while writing: a `com.webdavis.vpt.plist` and a
   `~/.cargo/bin/vpt` fall outside the osquery known-good manifests, so vpt adds no CRIT coupling; pns
   needs no producer registration and `needs_attention` is real
