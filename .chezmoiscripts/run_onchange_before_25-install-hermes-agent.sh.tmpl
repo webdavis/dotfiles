@@ -6,40 +6,28 @@ set -euo pipefail
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
 readonly hermes_installer_url="https://hermes-agent.nousresearch.com/install.sh"
-readonly hermes_checkout="$HOME/.hermes/hermes-agent"
-readonly pinned_branch={{ .hermes.branch | quote }}
-readonly pinned_commit={{ .hermes.ref | quote }}
+readonly hermes_branch=main
 
 hermes_is_installed() {
   command -v hermes >/dev/null 2>&1
 }
 
-installed_hermes_commit() {
-  git -C "$hermes_checkout" rev-parse HEAD 2>/dev/null || true
-}
-
-hermes_is_at_the_pinned_commit() {
-  local installed_commit
-  installed_commit="$(installed_hermes_commit)"
-  [[ $installed_commit == "$pinned_commit" ]]
-}
-
-install_hermes_at_the_pinned_commit() {
+install_hermes_at_the_latest_commit() {
   curl -fsSL "$hermes_installer_url" |
-    bash -s -- --branch "$pinned_branch" --commit "$pinned_commit" --skip-setup
+    bash -s -- --branch "$hermes_branch" --skip-setup
 }
 
 main() {
-  report_section 'hermes' 'Nous Research agent at the pinned commit'
+  report_section 'hermes' 'Nous Research agent'
 
-  if hermes_is_installed && hermes_is_at_the_pinned_commit; then
-    report_line "already at $pinned_commit, skipping."
+  if hermes_is_installed; then
+    report_line 'already installed; upgrade with hermes update'
     return
   fi
 
-  report_line "installing $pinned_commit from the $pinned_branch branch..."
-  install_hermes_at_the_pinned_commit
-  report_line "installed hermes-agent at $pinned_commit."
+  report_line "installing the latest commit of the $hermes_branch branch..."
+  install_hermes_at_the_latest_commit
+  report_line "installed hermes-agent."
 }
 
 main "$@"
