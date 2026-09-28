@@ -1,6 +1,6 @@
 ---
 name: scalebar
-description: Use when logging or reading Stephen's body weight and gym training data through the Scalebar app. Trigger on a weight said out loud ("182 this morning", "log my bedtime weight"), a set finished at the gym, a workout starting or ending, or a question about weight trend, streak, training volume, personal records, training load, or how an exercise has progressed. The mcp__scalebar__* tools are the only way in; never edit the CSV files by hand.
+description: Use when logging or reading the user's body weight and gym training data through the Scalebar app. Trigger on a weight said out loud ("182 this morning", "log my bedtime weight"), a set finished at the gym, a workout starting or ending, or a question about weight trend, streak, training volume, personal records, training load, or how an exercise has progressed. The mcp__scalebar__* tools are the only way in; never edit the CSV files by hand.
 metadata:
   updatedAt: "2026-09-13"
 ---
@@ -13,13 +13,13 @@ say.
 
 ## Fitness reports
 
-When Stephen asks for fitness stats, training stats, advanced stats, or a fitness report, call
+When the user asks for fitness stats, training stats, advanced stats, or a fitness report, call
 `get_fitness_report` and present its output as returned. Do not rebuild the report by combining
 the lower-level tools, and do not replace its summary table or labeled explanations with a shorter
 summary. The report is the canonical format shared by Claude, Claude Code, Codex, Hermes, and other
 harnesses that load this skill.
 
-Pass `days` when Stephen requests a specific reporting period. If no period is requested, use the
+Pass `days` when the user requests a specific reporting period. If no period is requested, use the
 tool default. Preserve the report's `Date Range:` and `Period:` lines, its three-column summary
 table, explicit labels such as `RIR Definition:`, `Calculation:`, `Meaning:`, `Why It Matters:`,
 and `Why Unavailable:`, and the `PERSONAL RECORDS (PRs)` heading.
@@ -32,11 +32,11 @@ whole interface.
 
 ## Ask rather than guess
 
-A logged number is a record Stephen will read back weeks later and trust. If a value needed to log
+A logged number is a record the user will read back weeks later and trust. If a value needed to log
 something is missing, ask for it. Do not infer a weight from a previous day, an exercise from a
 similar name, or a workout from what was logged yesterday.
 
-The two identifiers, `exerciseId` and `workoutId`, come from Stephen's own naming. Read them back
+The two identifiers, `exerciseId` and `workoutId`, come from the user's own naming. Read them back
 out of `get_gym_history` before inventing one, and ask when nothing matches.
 
 ## Correcting versus removing
