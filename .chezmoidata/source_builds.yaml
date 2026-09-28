@@ -1,5 +1,0 @@
-# Tools built from a checkout under this home and installed under it. Both paths are home-relative.
-source_builds:
-  scalebar:
-    source_dir: "workspaces/Ivy/webdavis/scalebar"
-    install_dir: ".local/libexec/scalebar"

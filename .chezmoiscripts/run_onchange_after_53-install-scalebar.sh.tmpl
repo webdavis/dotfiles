@@ -1,5 +1,5 @@
 {{ if eq .chezmoi.os "darwin" -}}
-{{ $scalebar := joinPath .chezmoi.homeDir .source_builds.scalebar.source_dir -}}
+{{ $scalebar := joinPath .chezmoi.homeDir .packages.source_builds.scalebar.source_dir -}}
 #!/usr/bin/env bash
 {{ range (glob (joinPath $scalebar "Sources/**/*.swift")) -}}
 # {{ . }} {{ include . | sha256sum }}
@@ -12,7 +12,7 @@
 {{ end -}}
 # plist hash: {{ include "Library/LaunchAgents/io.webdavis.scalebar.plist.tmpl" | sha256sum }}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/scalebar-build/scalebar.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
-# binary: {{ if stat (joinPath .chezmoi.homeDir .source_builds.scalebar.install_dir "Scalebar") }}present{{ else }}absent{{ end }}
+# binary: {{ if stat (joinPath .chezmoi.homeDir .packages.source_builds.scalebar.install_dir "Scalebar") }}present{{ else }}absent{{ end }}
 
 set -euo pipefail
 
@@ -22,7 +22,7 @@ set -euo pipefail
 
 readonly scalebar_source_dir={{ $scalebar | quote }}
 readonly built_binaries_dir="$scalebar_source_dir/.build/release"
-readonly install_dir={{ joinPath .chezmoi.homeDir .source_builds.scalebar.install_dir | quote }}
+readonly install_dir={{ joinPath .chezmoi.homeDir .packages.source_builds.scalebar.install_dir | quote }}
 readonly scalebar_binary="$install_dir/Scalebar"
 readonly scalebar_retry_marker="$HOME/.cache/scalebar-build/scalebar.retry"
 readonly launchagent_label="io.webdavis.scalebar"

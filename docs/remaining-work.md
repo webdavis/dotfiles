@@ -9647,9 +9647,9 @@ transcription was started during this audit.
   `docs/superpowers/specs/2026-09-14-vpt-project-boundaries-design.md`. It compares three code homes (a
   fifth cargo workspace in dotfiles, its own repository built from a local clone, its own repository
   installed by `cargo install --git`) and recommends the second: `webdavis/vpt` from day one, built in
-  the scalebar shape, which is already the proven precedent on this machine
-  (`.chezmoidata/source_builds.yaml` plus one deferral-guarded script that builds, installs and loads one
-  LaunchAgent). dotfiles' share is named file by file and stops at installation and service
+  the scalebar shape, which is already the proven precedent on this machine (`packages.source_builds` in
+  `.chezmoidata/system_packages_autoinstall.yaml` plus one deferral-guarded script that builds, installs
+  and loads one LaunchAgent). dotfiles' share is named file by file and stops at installation and service
   configuration; the configured output directory holds notes and links under the existing
   `agent-processing-pipeline/` layout; homelab keeps Open Notebook (L6) and any remote engine, all
   optional. Apple's container stays the canonical original and is read-only to vpt, including a
