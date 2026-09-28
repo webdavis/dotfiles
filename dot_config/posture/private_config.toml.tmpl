@@ -1,32 +1,3 @@
-# posture's notify choice: how one security page reaches the operator.
-#
-# posture knows nothing about any particular notification engine. It either
-# signs the page itself and posts it to a hermes webhook route, or it hands the
-# page to a command on that command's standard input and reads the answer back,
-# or nothing leaves the machine and the page is raised on the local banner
-# alone. The second mode is the producer API: one JSON request in, one JSON
-# result plus an exit code out. Any program may serve it.
-#
-# Every key is written out below at its default, so nothing has to be looked up
-# to change it, and switching modes is a one-word edit to `mode`.
-#
-# An unknown key, an unknown table or an unknown mode is refused BY NAME at
-# load. A typo therefore blocks the whole file rather than quietly switching
-# notification off, which is the trade: the loud half is a named refusal plus a
-# local banner per page, and the quiet half it replaces is a security pipeline
-# that silently stops paging.
-
-# THE LAUNCHD LABEL OF EACH JOB POSTURE INSTALLS, one key per posture
-# subcommand, so a label says what the job DOES rather than what it reads. The
-# watchdog searches launchd for exactly these names, and a page about one of
-# these plists reads as a change to the security tooling rather than as an
-# ordinary startup-folder change.
-#
-# THESE ARE THIS MACHINE'S NAMES, NOT THE SHIPPED ONES. posture defaults every
-# job to `dev.posture.<key>`, which is what a fresh install gets; the labels
-# below are the ones already bootstrapped here, kept verbatim so no job has to
-# be booted out and back in. Renaming them is a separate change that reaches the
-# plists, their loaders and the page allowlist.
 [jobs]
 watchdog = "com.webdavis.osquery-uptime-watchdog"
 alert = "com.webdavis.osquery-results-alerter"
@@ -35,85 +6,22 @@ funnel = "com.webdavis.osquery-tailscale-monitor"
 digest = "com.webdavis.osquery-digest"
 heartbeat = "com.webdavis.osquery-heartbeat"
 
-# WHEN THE TWO DAILY JOBS FIRE, in this machine's own local time, written as
-# `HH:MM`. `posture jobs install` reads these; every other job runs on an
-# interval or on a write to the result log and needs no time of day.
-#
-# The values are rendered from the same data this repository's own plists are
-# rendered from, so the schedule posture would install and the schedule
-# deployed here cannot drift apart. A time that is not `HH:MM` is named in the
-# job's diagnostics and the shipped time is used.
 [jobs.daily]
 digest = "{{ printf "%02d:%02d" (int .posture.osquery.digestHour) (int .posture.osquery.digestMinute) }}"
 heartbeat = "{{ printf "%02d:%02d" (int .posture.osquery.heartbeatHour) (int .posture.osquery.heartbeatMinute) }}"
 
 [notify]
-# THIS MACHINE'S OWN CHOICE, not a requirement of the tool: posture signs each
-# page with the key for the route that page is going to, and posts it itself.
-#
-# The three modes are `hermes`, `command` and `off`. `command` is NOT what this
-# machine uses. pns commits its ledger before it tries any destination, so a
-# critical page bound for `priority` that the gateway refuses comes back to
-# posture as an acceptance: the cursor advances and the finding is gone from
-# both channels. Posting the page here is what makes posture read the gateway's
-# own answer. Switch to `mode = "command"` once the engine named below reports
-# the destination's answer rather than its own ledger.
-#
-# `off` turns off DELIVERY, not the page: nothing leaves the machine and every
-# finding is raised on the local banner instead. It is the mode for a machine
-# with no gateway and no engine, never a way to stop being told.
 mode = "hermes"
-
-# THE ROUTE EVERY PAGE WITHOUT A TIER OF ITS OWN TAKES, whichever mode carries
-# it: the heartbeat, the digest, the cursor-reset warning and every finding
-# below critical. A critical finding overrides it with `priority`, which the
-# operator reserved for machine health and security. `#posture-pages` is the
-# channel the gateway serves; the bare `posture` route was never declared
-# there, and the pages sent to it in 2026-09 were lost.
 route = "posture-pages"
 
-# The command a page is handed to, and its arguments, passed verbatim. The
-# contract says nothing about the arguments: an engine spells its own submit
-# path however it likes.
 [notify.command]
 path = "{{ joinPath .chezmoi.homeDir ".cargo/bin" "pns" }}"
 arguments = ["send", "--json"]
 
-# The mode selected above. `url` is the gateway's webhook base, one path
-# segment above the route: a page for the `posture-pages` route is posted to
-# `<url>/posture-pages`. A route the gateway does not serve answers 404, which
-# is a failed delivery and a local banner, never a page reported as delivered.
 [notify.hermes]
 url = "http://127.0.0.1:8644/webhooks"
-
-# A SECOND ROUTE A CRITICAL PAGE IS COPIED TO, verbatim, once its own post came
-# back delivered. The page is in its channel before the copy is attempted, so a
-# copy route this file holds no key for, or one the gateway refuses, costs a
-# local banner and never the page. Leave the key out for one post per page,
-# which is what a machine with no second route wants.
-#
-# posture holds a route name here and nothing about what reads it. Whether that
-# is another delivery, a checker or something that answers back is the far
-# side's business.
-#
-# The rolling hour of these copies is recorded in
-# `~/.local/state/posture-critical-copy-window.json`, counted by DISTINCT
-# FINDING: a finding paging six times in an hour is copied once. Past five
-# distinct findings in one hour the machine is in trouble rather than five
-# separate things to read about, so the sixth carries ONE combined message
-# listing the hour's findings and everything after it in the hour is left to
-# its own page.
 critical_copy_route = "explain"
 
-# ONE KEY PER ROUTE. The gateway reads each route's secret as a literal, so a
-# page signed with another route's key answers 401 and vanishes. A route this
-# file holds no key for refuses the page and raises the local banner rather
-# than reporting a delivery that never happened.
-#
-# `posture-pages` carries every page below critical; `priority` carries a
-# critical security finding, which is what the operator reserved that channel
-# for (machine health and security only, 2026-09-14); `explain` is the copy
-# route named above.
 [notify.hermes.keys]
 posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
 priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
