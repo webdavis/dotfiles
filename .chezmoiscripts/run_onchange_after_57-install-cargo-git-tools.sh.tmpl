@@ -11,6 +11,7 @@ set -euo pipefail
 
 readonly installed_crates_record="$HOME/.cargo/.crates2.json"
 readonly cargo_git_tools_retry_marker="$HOME/.cache/cargo-git-tools/retry"
+readonly uu_binary="$HOME/.cargo/bin/uu"
 
 tool_binary_is_installed() {
   local name=$1
@@ -79,21 +80,37 @@ install_declared_tools() {
   return "$install_status"
 }
 
+uu_is_installed() {
+  [[ -x $uu_binary ]]
+}
+
+install_uu_daemon() {
+  "$uu_binary" daemon install
+}
+
 main() {
   report_section 'cargo-git-tools' 'CLI tools'
 
   if ! cargo_is_installed; then
     report_line "cargo not found at $cargo_bin; install deferred to the next apply." >&2
     defer_build_until_next_apply "$cargo_git_tools_retry_marker"
-    exit 0
-  fi
-
-  if ! install_declared_tools; then
+  elif install_declared_tools; then
+    settle_retry_marker "$cargo_git_tools_retry_marker"
+  else
     defer_build_until_next_apply "$cargo_git_tools_retry_marker"
+  fi
+
+  report_section 'uu' 'daemon'
+
+  if ! uu_is_installed; then
+    report_line "$uu_binary is missing or not executable, so the daemon was left as it is; the install is deferred to the next apply." >&2
     exit 0
   fi
 
-  settle_retry_marker "$cargo_git_tools_retry_marker"
+  if ! install_uu_daemon; then
+    report_line "error[install-failed]: uu daemon install failed; the next apply retries." >&2
+    exit 1
+  fi
 }
 
 main "$@"
