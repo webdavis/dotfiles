@@ -24,9 +24,12 @@ scripts/
 .editorconfig
 .mdformat.toml
 treefmt.toml
+ruff.toml
 
 # Stray files:
 tmp.*
+**/__pycache__
+**/__pycache__/**
 *.rayconfig
 *extension-diagnostics*
 **/.DS_Store

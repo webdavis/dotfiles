@@ -2,47 +2,38 @@
 
 # shellcheck shell=bash
 
-# Disable SC2016 (which warns about expressions in single quotes):
 # shellcheck disable=SC2016
 
-# The shell the key bindings call: the functions bound with `bind -x` or typed
-# by a chord, the `\C-x0` helper macros those chords start with, and the stty
-# change one of them needs. ~/.bashrc sources this file before
-# ~/.bash_bindings, which `chord render bash` generates from
-# ~/.config/chord/bindings.toml.
+__bash_bindings_clear_chord_prefixes_before_children() {
+  local mode
+  for mode in vi-insert vi-command emacs-standard; do
+    bind -m "$mode" -r '\C-t'
+    bind -m "$mode" -r '\C-g'
+  done
+  bind -m vi-insert -r '\C-x'
+}
+__bash_bindings_clear_chord_prefixes_before_children
 
-# Prefixes must be cleared before their child bindings are registered.
-for __bindings_mode in vi-insert vi-command emacs-standard; do
-  bind -m "$__bindings_mode" -r '\C-t'
-  bind -m "$__bindings_mode" -r '\C-g'
-done
-bind -m vi-insert -r '\C-x'
-unset __bindings_mode
-
-# Unbind Ctrl-w from werase in stty. See https://stackoverflow.com/questions/10980575/
 stty werase undef
 
-builtin bind '"\C-x0": kill-whole-line'     # Clears the entire line.
-builtin bind '"\C-x1": magic-space'         # Performs history expansion and inserts a space.
-builtin bind '"\C-x2": redraw-current-line' # Refreshes the current line.
+builtin bind '"\C-x0": kill-whole-line'
+builtin bind '"\C-x1": magic-space'
+builtin bind '"\C-x2": redraw-current-line'
 
-# Define a function to prepend 'sudo ' to the current command.
 sudo_insert() {
   READLINE_LINE="sudo $READLINE_LINE"
-  READLINE_POINT=${#READLINE_LINE} # Move cursor to the end.
+  READLINE_POINT=${#READLINE_LINE}
 }
 
-# Go-to a projects root directory. The respective keyboard binding is in ~/.inputrc.
 __bash_bindings_go_to_project_root() {
   local path
   path="$(pwd)"
 
-  # Add VCS root indicators (or project markers) to the 'markers' array.
-  local markers=(.git .hg .svn .bzr .build.xml .project .projections.json .root .tasks)
+  local project_root_markers=(.git .hg .svn .bzr .build.xml .project .projections.json .root .tasks)
 
   while :; do
     local marker
-    for marker in "${markers[@]}"; do
+    for marker in "${project_root_markers[@]}"; do
       if [[ -e "${path}/${marker}" || -d "${path}/${marker}" ]]; then
         builtin cd "$path" || return 1
         pwd
@@ -61,7 +52,6 @@ __bash_bindings_go_to_project_root() {
   done
 }
 
-# Copy last git commit message to clipboard.
 __bash_bindings_copy_latest_git_commit_message_to_clipboard() {
   local reset purple
   reset="$(tput sgr0)"
@@ -112,12 +102,10 @@ __bash_bindings_open_github_page() {
   "$open_cmd" "$url"
 }
 
-# git tag --list --sort=v:refname
 __bash_bindings_git_list_tags() {
   git tag --list --sort='v:refname'
 }
 
-# Package manager update:
 __bash_bindings_update_package_manager() {
   local os distro command
   case "$OSTYPE" in
@@ -165,16 +153,13 @@ __bash_bindings_update_package_manager() {
   $command
 }
 
-# Function to redraw the prompt:
 redraw_prompt() {
-  tput rc # Restore cursor position
-  tput ed # Clear to end of screen
-  tput sc # Save cursor position
+  tput rc
+  tput ed
+  tput sc
 }
 
-# List git files with last modified:
 __bash_bindings_git_ls_files_with_last_modified() {
-  # Header:
   printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
   printf "%-25s %-10s %s\n" "-------------------------" "-------" "------------------------ "
 
@@ -184,7 +169,6 @@ __bash_bindings_git_ls_files_with_last_modified() {
 
   local file last_commit_info date commit_hash
 
-  # Capture files with git metadata:
   local -a files=()
   while read -r file; do
     last_commit_info=$(git log -1 --format="%ci|%h" -- "$file")
@@ -193,11 +177,9 @@ __bash_bindings_git_ls_files_with_last_modified() {
     files+=("${date}|${commit_hash}|${file}")
   done < <(git ls-files)
 
-  # Sort files:
   local -a sorted
   mapfile -t sorted < <(printf "%s\n" "${files[@]}" | sort -r)
 
-  # Print sorted files:
   for line in "${sorted[@]}"; do
     IFS="|" read -r date commit_hash file <<<"$line"
     printf "%b%-25s%b %b%-6s%b %s\n" \
@@ -209,8 +191,8 @@ __bash_bindings_git_ls_files_with_last_modified() {
 
 __bindings_catalog=${BASH_SOURCE[0]%/*}
 [[ $__bindings_catalog != "${BASH_SOURCE[0]}" ]] || __bindings_catalog=.
-__bindings_catalog+=/dot_local/libexec/fzf-pickers/shell/catalog.sh
-[[ -f $__bindings_catalog ]] || __bindings_catalog=$HOME/.local/libexec/fzf-pickers/shell/catalog.sh
-# shellcheck source=dot_local/libexec/fzf-pickers/shell/catalog.sh
+__bindings_catalog+=/dot_config/fzf-pickers/lib/shell/catalog.sh
+[[ -f $__bindings_catalog ]] || __bindings_catalog=$HOME/.config/fzf-pickers/lib/shell/catalog.sh
+# shellcheck source=dot_config/fzf-pickers/lib/shell/catalog.sh
 source "$__bindings_catalog"
 unset __bindings_catalog

@@ -151,3 +151,22 @@ includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
 command = "luacheck"
 options = ["--config", "dot_config/nvim/dot_luacheckrc"]
 includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
+
+# The fzf picker suite is the hand-written Python that reaches $HOME. ruff.toml
+# at the root holds its line length and the EXE001 exclusion for the
+# chezmoi-prefixed entry point. Both globs, for the reason stylua gives above.
+[formatter.ruff-check]
+command = "ruff"
+options = ["check"]
+includes = [
+  "dot_config/fzf-pickers/lib/*.py",
+  "dot_config/fzf-pickers/lib/**/*.py",
+]
+
+[formatter.ruff-format]
+command = "ruff"
+options = ["format", "--check"]
+includes = [
+  "dot_config/fzf-pickers/lib/*.py",
+  "dot_config/fzf-pickers/lib/**/*.py",
+]
