@@ -33,6 +33,27 @@ The capture helper is the canonical way to add a tracked setting: toggle it in S
 tracked entry whose live value diverges from YAML (exits 4). Resolve that by running
 `just defaults-apply` to revert the disk, or by hand-editing YAML to capture the new intent.
 
+## Record schema
+
+Each record under `macos.defaults` is one declared control. The runner refuses to render a record whose
+fields do not fit its tier.
+
+| Field        | Meaning                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `domain`     | The preference domain, such as `com.apple.dock` or `NSGlobalDomain`.                                         |
+| `key`        | The preference key inside that domain.                                                                       |
+| `type`       | The `defaults` value type, such as `bool`, `int`, `float` or `string`, on enforce and verify.                |
+| `value`      | The declared value, which must match `type`, on enforce and verify.                                          |
+| `tier`       | Required, and one of `enforce`, `verify` or `manual`.                                                        |
+| `host`       | Optional: `current` writes through `defaults -currentHost`, and it cannot combine with system.               |
+| `scope`      | Optional: `user` by default, or `system` for a root-owned plist written under sudo.                          |
+| `plist_path` | Optional, system scope only: the absolute path of a plist kept outside `/Library/Preferences`, as LuLu's is. |
+| `runbook`    | The section that fixes the control by hand: required on manual, optional on verify, forbidden on enforce.    |
+
+- **`enforce`** is settable from the command line, and the runner renders one `defaults write` for it.
+- **`verify`** is readable but not settable here, so nothing writes it and `just D` compares it.
+- **`manual`** needs an interactive step or a profile, so the runner prints only its runbook pointer.
+
 ## Aerospace required defaults
 
 `com.apple.dock mru-spaces=false` is the single most common Aerospace breakage. Five
