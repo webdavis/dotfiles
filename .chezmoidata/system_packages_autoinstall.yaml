@@ -366,3 +366,9 @@ packages:
     # Depends on the `clauth` binary, which packages.macos.cargo installs.
     - id: clauth
       repo: uwuclxdy/clauth/herdr-plugin
+
+  # Tools built from a clone under this home; both paths are home-relative.
+  source_builds:
+    scalebar:
+      source_dir: "workspaces/Ivy/webdavis/scalebar"
+      install_dir: ".local/libexec/scalebar"

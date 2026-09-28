@@ -14,9 +14,9 @@
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
-    <integer>{{ .osquery.digestHour }}</integer>
+    <integer>{{ .posture.osquery.digestHour }}</integer>
     <key>Minute</key>
-    <integer>{{ .osquery.digestMinute }}</integer>
+    <integer>{{ .posture.osquery.digestMinute }}</integer>
   </dict>
   <key>StandardOutPath</key>
   <string>{{ .chezmoi.homeDir }}/.local/log/osquery/digest.log</string>

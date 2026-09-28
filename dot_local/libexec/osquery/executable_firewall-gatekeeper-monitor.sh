@@ -4,7 +4,7 @@
 # agent. The security-posture monitor: it reads the live firewall (alf),
 # Gatekeeper, AND screen-lock state via osqueryi in the gui/501 user session,
 # plus every control declared in posture/controls.json (the chezmoi render of
-# .chezmoidata/macos_posture_controls.yaml: FileVault, SIP, automatic login,
+# .chezmoidata/posture_controls.yaml: FileVault, SIP, automatic login,
 # the Guest account, and whatever later slices declare), compares against the
 # previous run's baseline, and pages CRIT only on a protection turning OFF or
 # a declared control deviating from its declared value. Silent in steady state.
@@ -22,7 +22,7 @@ GAP="$STATE.gap"                 # page-once marker for a monitoring gap (R2-9)
 PERSIST_GAP="$STATE.persist-gap" # page-once marker for a baseline-persist failure
 OSQUERYI="${OSQUERYI:-$(command -v osqueryi || echo /usr/local/bin/osqueryi)}"
 # The declared posture controls, rendered by chezmoi from
-# .chezmoidata/macos_posture_controls.yaml. The poller reads the FILE rather
+# .chezmoidata/posture_controls.yaml. The poller reads the FILE rather
 # than carrying the control list in its body, so adding a control is a data
 # change. The posture directory's pipeline-integrity watch and known-good
 # manifest cover it: the file decides WHAT gets monitored, so it is part of

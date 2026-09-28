@@ -130,7 +130,7 @@ path_belongs_to_the_pipeline_manifest() {
   local path=$1
   case "$path" in
     "$home"/.local/libexec/osquery/* | "$home"/.local/libexec/posture/*) return 0 ;;
-    "$home"/Library/LaunchAgents/com.webdavis.*.plist) return 0 ;;
+    "$home"/Library/LaunchAgents/com.webdavis.*.plist | "$home"/Library/LaunchAgents/io.webdavis.*.plist) return 0 ;;
     "$home"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
     *) return 1 ;;
   esac

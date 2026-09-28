@@ -44,8 +44,8 @@ heartbeat = "com.webdavis.osquery-heartbeat"
 # deployed here cannot drift apart. A time that is not `HH:MM` is named in the
 # job's diagnostics and the shipped time is used.
 [jobs.daily]
-digest = "{{ printf "%02d:%02d" (int .osquery.digestHour) (int .osquery.digestMinute) }}"
-heartbeat = "{{ printf "%02d:%02d" (int .osquery.heartbeatHour) (int .osquery.heartbeatMinute) }}"
+digest = "{{ printf "%02d:%02d" (int .posture.osquery.digestHour) (int .posture.osquery.digestMinute) }}"
+heartbeat = "{{ printf "%02d:%02d" (int .posture.osquery.heartbeatHour) (int .posture.osquery.heartbeatMinute) }}"
 
 [notify]
 # THIS MACHINE'S OWN CHOICE, not a requirement of the tool: posture signs each

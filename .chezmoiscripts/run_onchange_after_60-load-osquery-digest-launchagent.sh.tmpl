@@ -1,7 +1,7 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.osquery-digest.plist.tmpl" | sha256sum }}
-# schedule: {{ .osquery.digestHour }}:{{ .osquery.digestMinute }}
+# schedule: {{ .posture.osquery.digestHour }}:{{ .posture.osquery.digestMinute }}
 
 set -euo pipefail
 

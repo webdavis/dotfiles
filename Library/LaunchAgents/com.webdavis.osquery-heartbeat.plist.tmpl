@@ -19,9 +19,9 @@
   <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
-    <integer>{{ .osquery.heartbeatHour }}</integer>
+    <integer>{{ .posture.osquery.heartbeatHour }}</integer>
     <key>Minute</key>
-    <integer>{{ .osquery.heartbeatMinute }}</integer>
+    <integer>{{ .posture.osquery.heartbeatMinute }}</integer>
   </dict>
   <key>StandardOutPath</key>
   <string>{{ .chezmoi.homeDir }}/.local/log/osquery/heartbeat.log</string>
