@@ -2705,10 +2705,10 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
   `lights/rust-toolchain.toml`, which the pns, posture and uu builders hash. Fix: clear the marker once
   the build succeeds, and hash the toolchain file so a toolchain change rebuilds lights.
 
-- [ ] 188. `.chezmoiscripts/run_after_56-retire-claude-code-launchagent.sh.tmpl` prints two errors for
+- [x] 188. `.chezmoiscripts/run_after_56-retire-claude-code-launchagent.sh.tmpl` prints two errors for
   one failure. When `launchctl bootout` itself fails, the script reports both `error[bootout-failed]` and
   `error[still-loaded]` ("STILL loaded after bootout"). Fix: when the bootout fails, print only the
-  bootout error.
+  bootout error. Closed 2026-09-27: the script was deleted, since its retirement finished in July.
 
 - [ ] 189. `.chezmoiscripts/run_onchange_after_57-install-cargo-git-tools.sh.tmpl` repeats the roster in
   comment lines at its top, which were there to rerun the script when the roster changed. The install
