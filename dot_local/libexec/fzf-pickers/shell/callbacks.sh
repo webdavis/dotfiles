@@ -38,7 +38,6 @@ __fzf_pick() {
         ;;
     esac
   fi
-  # The picker removes its private result file after the shell has read it.
   python3 "$FZF_PICKERS_HELPER" cleanup "$result"
   return 0
 }

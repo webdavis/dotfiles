@@ -8,6 +8,8 @@ from .process import bounded_output, run
 from .rows import device_row, note, ready
 from .unifi import unifi_devices
 
+BROWSED_SERVICE_TYPES = ("_workstation._tcp", "_ssh._tcp", "_http._tcp")
+
 
 def parse_neighbors(output, source):
     rows = []
@@ -38,16 +40,15 @@ def parse_neighbors(output, source):
 
 
 def mdns_devices():
-    # ponytail: browse three common service types; discover types when broader coverage is needed.
-    types = ("_workstation._tcp", "_ssh._tcp", "_http._tcp")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(BROWSED_SERVICE_TYPES)) as pool:
         outputs = list(
             pool.map(
-                lambda service: bounded_output(["dns-sd", "-B", service, "local."], 1.2), types
+                lambda service: bounded_output(["dns-sd", "-B", service, "local."], 1.2),
+                BROWSED_SERVICE_TYPES,
             )
         )
     instances = []
-    for service, output in zip(types, outputs):
+    for service, output in zip(BROWSED_SERVICE_TYPES, outputs):
         for line in output.splitlines():
             parts = line.split(None, 6)
             if len(parts) == 7 and parts[1] == "Add":

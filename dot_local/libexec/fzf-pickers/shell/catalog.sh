@@ -1,39 +1,30 @@
 # shellcheck shell=bash
 
-# Prepare a command from the generated binding catalog.
 __bash_bindings_list_bash_bindings() {
   local records="$HOME/.config/chord/bindings-menu.tsv"
   local source_records
   source_records="$(dirname -- "${BASH_SOURCE[0]}")/../../../../dot_config/chord/bindings-menu.tsv"
   [[ -r $records || ! -r $source_records ]] || records=$source_records
   if [[ ! -r $records ]]; then
-    # The command hint is literal.
     # shellcheck disable=SC2016
     printf 'no binding records at %s; run `just chord-render` and apply\n' "$records" >&2
     return 1
   fi
 
-  # key, group, description, action, in that order, for both paths below. A
-  # key is never truncated, because the operator needs the whole chord; a
-  # description is, because it is prose of no fixed length.
-  local display='%-14s %-18s %-46.46s %s'
+  local key_group_description_action='%-14s %-18s %-46.46s %s'
 
-  # Without fzf there is nothing to pick with, so print the surface instead.
   if ! command -v fzf &>/dev/null; then
-    awk -F'\t' -v display="$display" '!/^#/ { printf display "\n", $1, $2, $5, $4 }' "$records"
+    awk -F'\t' -v display="$key_group_description_action" '!/^#/ { printf display "\n", $1, $2, $5, $4 }' "$records"
     return 0
   fi
 
-  # Field 1 is the padded display; fzf searches and shows it alone, and
-  # fields 2 and 3 carry the kind and the action back out of the selection.
-  # Awk consumes its own field references.
   # shellcheck disable=SC2016
-  local program='BEGIN { OFS = "\t" }
+  local display_kind_action_description_key='BEGIN { OFS = "\t" }
     !/^#/ { print sprintf(display, $1, $2, $5, $4), $3, $4, $5, $1 }'
   local reload selection
-  printf -v reload '%q ' awk -F $'\t' -v "display=$display" "$program" "$records"
+  printf -v reload '%q ' awk -F $'\t' -v "display=$key_group_description_action" "$display_kind_action_description_key" "$records"
   selection="$(
-    awk -F $'\t' -v "display=$display" "$program" "$records" |
+    awk -F $'\t' -v "display=$key_group_description_action" "$display_kind_action_description_key" "$records" |
       fzf --delimiter=$'\t' --with-nth=1 --id-nth=5 --track --no-multi \
         --prompt='binding> ' \
         --preview="printf '%s\n\n%s\n' {3} {4}" \
