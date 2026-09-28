@@ -16,6 +16,7 @@ readonly trace_stage_column_width=26
 readonly coreutils_timeout="$homebrew_prefix/bin/gtimeout"
 readonly app_store_install_time_limit_seconds=180
 readonly timed_out_status=124
+readonly bulk_cleanup_limit="${HOMEBREW_BUNDLE_CLEANUP_THRESHOLD:-5}"
 {{- if $graphifyIsDeclared }}
 readonly graphify_claude_config_directory="$HOME/.local/share/graphify/claude"
 readonly graphify_skill_bundle_directory="$graphify_claude_config_directory/skills/graphify"
@@ -220,7 +221,42 @@ install_declared_homebrew_packages() {
   record_homebrew_trust_store_state '20-after-brew-bundle'
 }
 
-{{ includeTemplate "brew-bundle-cleanup-guard.sh.tmpl" }}
+preview_bundle_cleanup() {
+  local brewfile=$1
+  "$brew_bin" bundle cleanup --file="$brewfile" 2>/dev/null || true
+}
+
+count_would_be_removals() {
+  local preview=$1
+  { grep -vE '^(Would |Run )' <<<"$preview" || true; } | wc -w | tr -d '[:space:]'
+}
+
+bulk_cleanup_is_allowed() {
+  [[ ${HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP:-} == 1 ]]
+}
+
+removals_exceed_the_limit() {
+  local removals=$1
+  ((removals > bulk_cleanup_limit))
+}
+
+report_refused_bulk_cleanup() {
+  local removals=$1 preview=$2
+  report_line "error[bulk-cleanup-refused]: brew bundle cleanup would remove $removals items, over the limit of $bulk_cleanup_limit, so nothing was removed. Set HOMEBREW_BUNDLE_ALLOW_BULK_CLEANUP=1 to allow it."
+  report_line "$preview"
+}
+
+brew_bundle_cleanup_guarded() {
+  local brewfile=$1
+  local preview removals
+  preview="$(preview_bundle_cleanup "$brewfile")"
+  removals="$(count_would_be_removals "$preview")"
+  if ! bulk_cleanup_is_allowed && removals_exceed_the_limit "${removals:-0}"; then
+    report_refused_bulk_cleanup "$removals" "$preview" >&2
+    return 0
+  fi
+  "$brew_bin" bundle cleanup --force --file="$brewfile"
+}
 
 cleanup_printed_something() {
   local cleanup_output=$1
