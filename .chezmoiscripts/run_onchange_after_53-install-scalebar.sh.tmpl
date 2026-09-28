@@ -27,6 +27,7 @@ readonly scalebar_binary="$install_dir/Scalebar"
 readonly scalebar_retry_marker="$HOME/.cache/scalebar-build/scalebar.retry"
 readonly retired_launchagent_label="io.webdavis.scalebar"
 readonly retired_log_directory="$HOME/.local/log/scalebar"
+readonly usage_of_a_scalebar_that_installs_itself='usage: Scalebar [install'
 
 scalebar_clone_exists() {
   [[ -d $scalebar_source_dir ]]
@@ -42,6 +43,10 @@ build_release_binaries() {
 
 scalebar_is_installed() {
   [[ -x $scalebar_binary ]]
+}
+
+scalebar_can_install_itself() {
+  grep -q -a -F "$usage_of_a_scalebar_that_installs_itself" "$scalebar_binary"
 }
 
 retire_the_old_scalebar_launchagent() {
@@ -82,6 +87,12 @@ main() {
 
   if ! scalebar_is_installed; then
     report_line "$scalebar_binary is missing or not executable, so the LaunchAgent was left exactly as it is; the build is deferred to the next apply." >&2
+    exit 0
+  fi
+
+  if ! scalebar_can_install_itself; then
+    report_line "$scalebar_binary predates Scalebar install, so the LaunchAgent was left exactly as it is; pull $scalebar_source_dir and the next apply installs it." >&2
+    defer_build_until_next_apply "$scalebar_retry_marker"
     exit 0
   fi
 
