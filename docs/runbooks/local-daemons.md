@@ -46,10 +46,8 @@ working" check; use `atuin daemon status` (reports `Version`, `Protocol`, `Healt
 - `bash-preexec` went missing after atuin 18.x dropped its bundle. Fixed by sourcing
   `${HOMEBREW_PREFIX}/etc/profile.d/bash-preexec.sh` in the bashrc before `atuin init`.
 - `brew` upgrading atuin in-place while the daemon kept running stale code silently broke recording via
-  gRPC schema drift. Two independent guards now catch it:
-  `.chezmoiscripts/run_after_39-bounce-atuin-daemon-on-upgrade.sh.tmpl` compares the version recorded in
-  `~/.local/share/atuin/atuin-daemon.pid` against `atuin --version`, and `dot_bashrc.tmpl` compares the
-  binary's mtime against that same pid file right after `atuin init`. Either one triggers
+  gRPC schema drift. The uu lane `atuin-daemon-refresh` runs after the `brew` lane, compares the version
+  recorded in `~/.local/share/atuin/atuin-daemon.pid` against `atuin --version`, and on a mismatch runs
   `launchctl kickstart -k gui/$(id -u)/com.webdavis.atuin-daemon`.
 
 ## Hermes gateway (webhook routes)
