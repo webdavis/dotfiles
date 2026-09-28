@@ -169,8 +169,8 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "command") "codegraph" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "codegraph" "args") (list "serve" "--mcp") $merged -}}
-{{- /* scalebar's path comes from .chezmoidata/scalebar.yaml. */ -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "scalebar" "command") (printf "%s/%s/ScalebarMCP" $home .scalebar.install_dir) $merged -}}
+{{- /* scalebar's path comes from .chezmoidata/source_builds.yaml. */ -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "scalebar" "command") (printf "%s/%s/ScalebarMCP" $home .source_builds.scalebar.install_dir) $merged -}}
 {{- /* nvim is the Neovim MCP server. Codex hands a stdio server a short fixed
        list of variables (codex-rs/rmcp-client/src/utils.rs) that has TMPDIR
        but not XDG_RUNTIME_DIR. nvim-mcp looks for Neovim's socket in

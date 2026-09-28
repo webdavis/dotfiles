@@ -2,7 +2,7 @@
 #!/usr/bin/env bash
 # plist hash: {{ include "Library/LaunchAgents/com.webdavis.scalebar.plist.tmpl" | sha256sum }}
 # build-retry-marker: {{ $retryMarker := printf "%s/.cache/scalebar-build/scalebar.retry" (env "HOME") }}{{ if stat $retryMarker }}{{ (stat $retryMarker).modTime }}{{ else }}settled{{ end }}
-# binary: {{ $scalebarBinary := printf "%s/%s/Scalebar" (env "HOME") .scalebar.install_dir }}{{ if stat $scalebarBinary }}{{ (stat $scalebarBinary).modTime }}{{ else }}absent{{ end }}
+# binary: {{ $scalebarBinary := printf "%s/%s/Scalebar" (env "HOME") .source_builds.scalebar.install_dir }}{{ if stat $scalebarBinary }}{{ (stat $scalebarBinary).modTime }}{{ else }}absent{{ end }}
 
 set -euo pipefail
 
@@ -10,7 +10,7 @@ set -euo pipefail
 
 {{ includeTemplate "load-launchagent.sh.tmpl" }}
 
-readonly scalebar_binary={{ joinPath .chezmoi.homeDir .scalebar.install_dir "Scalebar" | quote }}
+readonly scalebar_binary={{ joinPath .chezmoi.homeDir .source_builds.scalebar.install_dir "Scalebar" | quote }}
 readonly launchagent_label="com.webdavis.scalebar"
 readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
 readonly launchagent_log_directory="$HOME/.local/log/scalebar"
