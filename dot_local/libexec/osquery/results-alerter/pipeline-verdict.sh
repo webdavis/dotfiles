@@ -403,7 +403,7 @@ _pipeline_is_tracked() {
   local target="$1"
   case "$target" in
     "$HOME"/.local/libexec/osquery/* | "$HOME"/.local/libexec/posture/*) return 0 ;;
-    "$HOME"/Library/LaunchAgents/com.webdavis.*.plist) return 0 ;;
+    "$HOME"/Library/LaunchAgents/com.webdavis.*.plist | "$HOME"/Library/LaunchAgents/io.webdavis.*.plist) return 0 ;;
     "$HOME"/.config/osquery/page-launchd-allowlist.txt) return 0 ;;
     "$HOME"/.local/bin/* | "$HOME"/.local/libexec/* | "$HOME"/.config/uu/scripts/*) _managed_bin_is_tracked "$target" ;;
     *) return 1 ;;
