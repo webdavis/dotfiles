@@ -9,6 +9,7 @@ packages:
         - furkankly/tap
         - mediosz/tap
         - nikitabobko/tap
+        - oneleet/tap
         - openai/tools
         - openhue/cli
         - plannotator/tap
@@ -23,6 +24,7 @@ packages:
         - furkankly/tap
         - mediosz/tap
         - nikitabobko/tap
+        - oneleet/tap
         - openai/tools
         - openhue/cli
         - plannotator/tap
@@ -196,6 +198,7 @@ packages:
         - mitmproxy
         - nikitabobko/tap/aerospace
         - obsidian
+        - oneleet/tap/oneleet-agent
         - osquery
         - oversight
         - proton-drive
