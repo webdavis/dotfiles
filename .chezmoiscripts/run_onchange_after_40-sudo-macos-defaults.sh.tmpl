@@ -158,9 +158,14 @@ quit_system_settings() {
 }
 {{- if $hasSystemScopeRecord }}
 
+plist_path_has_plist_extension() {
+  local plist_path=$1
+  [[ $plist_path == *.plist ]]
+}
+
 plist_file_written_by_defaults() {
   local plist_path=$1
-  if [[ $plist_path == *.plist ]]; then
+  if plist_path_has_plist_extension "$plist_path"; then
     printf '%s' "$plist_path"
   else
     printf '%s.plist' "$plist_path"
@@ -173,12 +178,22 @@ make_plist_readable_by_everyone() {
   sudo chmod 644 "$plist_file"
 }
 
+write_succeeded() {
+  local write_status=$1
+  ((write_status == 0))
+}
+
+plist_file_exists() {
+  local plist_file=$1
+  [[ -e $plist_file ]]
+}
+
 system_defaults_write() {
   local plist_path=$1 key=$2 type_option=$3 value=$4
   local plist_file write_status=0
   plist_file="$(plist_file_written_by_defaults "$plist_path")"
   sudo defaults write "$plist_path" "$key" "$type_option" "$value" || write_status=$?
-  if ((write_status == 0)) || [[ -e $plist_file ]]; then
+  if write_succeeded "$write_status" || plist_file_exists "$plist_file"; then
     make_plist_readable_by_everyone "$plist_file"
   fi
   return "$write_status"

@@ -1,0 +1,22 @@
+set nocompatible
+filetype plugin indent on
+syntax on
+
+set encoding=utf-8
+set backspace=indent,eol,start
+set number
+set ruler
+set showmatch
+
+set expandtab
+set shiftwidth=2
+set tabstop=2
+set autoindent
+
+set incsearch
+set hlsearch
+set ignorecase
+set smartcase
+
+let g:is_bash = 1
+autocmd BufRead,BufNewFile *.sh.tmpl set filetype=sh
