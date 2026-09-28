@@ -111,6 +111,10 @@ pns_is_installed() {
   [[ -x $pns_binary ]]
 }
 
+pns_can_preview_its_gateway_install() {
+  "$pns_binary" gateway install --preview >/dev/null
+}
+
 retire_the_old_pns_launchagents() {
   local label log
   for label in "${retired_pns_launchagent_labels[@]}"; do
@@ -130,6 +134,12 @@ install_the_pns_gateway() {
 
   if ! pns_is_installed; then
     report_line "$pns_binary is missing or not executable, so the gateway was left as it is; the install is deferred to the next apply." >&2
+    return 0
+  fi
+
+  if ! pns_can_preview_its_gateway_install; then
+    report_line "$pns_binary could not preview pns gateway install, so the old pns LaunchAgents were left running; the install is deferred to the next apply." >&2
+    defer_build_until_next_apply "$cargo_git_tools_retry_marker"
     return 0
   fi
 
