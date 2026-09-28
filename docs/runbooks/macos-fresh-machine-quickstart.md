@@ -23,6 +23,18 @@ one password covers them.
 
 These steps require GUI interaction or interactive auth. There's no `defaults` equivalent.
 
+### Login shell
+
+The dotfiles set up bash, not zsh, so make Homebrew's bash the login shell, then open a new terminal:
+
+```bash
+echo /opt/homebrew/bin/bash | sudo tee -a /etc/shells && chsh -s /opt/homebrew/bin/bash
+```
+
+Until this runs, every new terminal starts zsh without the dotfiles' `PATH`, so tools installed through
+fnm, cargo or `~/.local/bin` are missing there, and so are hooks that call them (a Claude Code plugin
+hook that runs `node` fails with `node: command not found`).
+
 ### Aerospace compatibility
 
 - **System Settings → Desktop & Dock → Mission Control → Displays have separate Spaces**: set per
