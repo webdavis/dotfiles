@@ -54,6 +54,36 @@ fields do not fit its tier.
 - **`verify`** is readable but not settable here, so nothing writes it and `just D` compares it.
 - **`manual`** needs an interactive step or a profile, so the runner prints only its runbook pointer.
 
+## Posture controls
+
+Each record under `posture.controls` renders into `~/.local/libexec/posture/controls.json`, which
+`posture poll` reads on every tick. Adding a control is a data change and an apply, never a poller edit.
+
+| Field         | Meaning                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `id`          | Unique lowercase `[a-z0-9_]`, and the control's baseline field name, so never a built-in poller one. |
+| `description` | The noun phrase a page prints to name the control.                                                   |
+| `tier`        | Always `verify`, because the poller only reads state and never fixes it.                             |
+| `reader`      | How the poller reads the control, one of the readers below.                                          |
+| `expect`      | The value the control must hold, inside its reader's domain, and any deviation pages.                |
+| `target`      | The absolute binary path whose LuLu rule must exist, required by the rule readers only.              |
+| `remedy`      | Optional fix-it line for the page, kept free of apostrophes because the alert render is bash-quoted. |
+
+| Reader                       | Values                | Note                                                                                 |
+| ---------------------------- | --------------------- | ------------------------------------------------------------------------------------ |
+| `fdesetup_status`            | `on`, `off`           | Runs `fdesetup status`, because osquery's disk query reads FileVault off on APFS.    |
+| `csrutil_status`             | `enabled`, `disabled` | Runs `csrutil status`, and SIP is deliberately disabled on this machine.             |
+| `defaults_autologin`         | `on`, `off`           | Reads the declared `autoLoginUser`, not the effective state FileVault can mask.      |
+| `sysadminctl_guest`          | `enabled`, `disabled` | Runs `sysadminctl -guestAccount status`, which reports on stderr and exits 0 always. |
+| `pgrep_oversight`            | `running`, `stopped`  | Probes the live process, because the app bundle stays on disk after a quit.          |
+| `pgrep_lulu_extension`       | `running`, `stopped`  | Matches only root's processes, because the network extension runs as root.           |
+| `lulu_rule_present`          | `present`, `absent`   | Searches the rules archive for a rule naming `target`.                               |
+| `lulu_rule_resolved_present` | `present`, `absent`   | Resolves `target` first, following the Hermes venv symlink to the real interpreter.  |
+
+Both rule readers prove only that a rule naming the binary exists, never that it allows. Both consult the
+base rules archive, and the poller's active-profile guard pages when a LuLu profile makes that archive
+stale.
+
 ## Aerospace required defaults
 
 `com.apple.dock mru-spaces=false` is the single most common Aerospace breakage. Five

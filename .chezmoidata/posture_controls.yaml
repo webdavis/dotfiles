@@ -1,97 +1,3 @@
-# macOS runtime posture controls, declarative source of truth.
-#
-# The declaration home for verify-tier controls that are neither a `defaults`
-# key nor a command an apply script runs ("FileVault is on", "the Guest account is
-# disabled"). Records here are rendered to
-# ~/.local/libexec/posture/controls.json (by
-# dot_local/libexec/posture/controls.json.tmpl) and consumed at RUNTIME
-# by `posture poll`, whose LaunchAgent reads the rendered file on every 60s
-# tick. Adding a control is a data change here plus a `chezmoi apply`, never a
-# poller edit. Slices 9 and 10 add records.
-#
-# Every record is tier: verify BY DEFINITION: the poller only ever READS state
-# and pages CRIT on a deviation from the declared value; it never fixes
-# anything. A record with any other tier is rejected at render time (the
-# template aborts the apply) AND at runtime (the poller pages a monitoring gap
-# and refuses the whole file): an enforce or manual control does not belong in
-# a file a read-only poller consumes.
-#
-# Schema (all fields required except remedy):
-#   - id:          <string>  # ^[a-z0-9_]+$, unique; the control's baseline
-#                            # field name. Must not collide with the poller's
-#                            # built-in fields (firewall, gatekeeper,
-#                            # screenlock).
-#     description: <string>  # noun phrase naming the control in a page
-#     tier:        verify    # the only accepted value
-#     reader:      <name>    # HOW the poller reads it; one of the poller's
-#                            # reader functions and its value domain:
-#                            #   fdesetup_status            -> on|off
-#                            #   csrutil_status             -> enabled|disabled
-#                            #   defaults_autologin         -> on|off
-#                            #   sysadminctl_guest          -> enabled|disabled
-#                            #   pgrep_oversight            -> running|stopped
-#                            #   pgrep_lulu_extension       -> running|stopped
-#                            #   lulu_rule_present          -> present|absent
-#                            #   lulu_rule_resolved_present -> present|absent
-#     expect:      <value>   # the value the control must hold, inside the
-#                            # reader's domain; ANY in-domain deviation pages
-#     target:      <path>    # REQUIRED by the lulu_rule readers (the absolute
-#                            # binary path whose rule must exist), FORBIDDEN
-#                            # on every other reader. The baseline records the
-#                            # target each value was observed under, so
-#                            # repointing a control re-arms it.
-#     remedy:      <string>  # OPTIONAL: the page's fix-it line. Keep it
-#                            # apostrophe-free (the alerting stack's render jq
-#                            # is bash single-quoted).
-#
-# Reader notes (each verified from the poller's gui/501 session context):
-#   - fdesetup_status runs `fdesetup status`, NOT osquery's disk_encryption
-#     table: FileVault lives on the APFS data volumes, so the obvious
-#     `WHERE name='/dev/disk0'` query reports 0 on a FileVault-on machine, a
-#     false negative that would page "FileVault off" on a healthy system.
-#   - csrutil_status runs `csrutil status`. osquery's sip_config agrees with
-#     it, but the authoritative tool needs no osqueryi startup. SIP is
-#     DELIBERATELY disabled on this machine, so the declared expect is
-#     `disabled`: the control asserts the operator-declared posture, not a
-#     blanket "enabled". Change the declaration when the intent changes.
-#   - defaults_autologin parses /Library/Preferences/com.apple.loginwindow.plist
-#     in process and looks for the autoLoginUser key: the control means
-#     "auto-login is not DECLARED", so the reader asks the declaration itself.
-#     An absent key is the healthy off; a present key is on whatever the value;
-#     a file that cannot be read or parsed is indeterminate. `sysadminctl
-#     -autologin status` was rejected: it reports the EFFECTIVE state and prints
-#     "Automatic login is disabled because FileVault is enabled." even with
-#     autoLoginUser set, so a configured auto-login would read healthy until
-#     FileVault went off and it silently activated.
-#   - sysadminctl_guest runs `sysadminctl -guestAccount status`, which reports
-#     the state on stderr and exits 0 in both states.
-#   - pgrep_oversight runs `pgrep -x -U <uid> OverSight`, a live process-table
-#     read scoped to the poller's own user session. The identity is pinned
-#     from the installed bundle (verified 2026-07-27): /Applications/
-#     OverSight.app carries exactly one executable, Contents/MacOS/OverSight
-#     (CFBundleExecutable "OverSight", CFBundleIdentifier
-#     com.objective-see.oversight), and no LoginItems/ or XPCServices/
-#     helpers, so the application process IS the monitor and its exact
-#     process name is OverSight (ps -o ucomm= on the live pid agrees).
-#     Deliberately NOT a bundle-presence check: the .app directory sits on
-#     disk whether or not the monitor is watching anything, so presence
-#     would report healthy for a quit monitor (verify the artifact, never a
-#     proxy for it). Classification follows pgrep's documented exit
-#     statuses, and the status/output pairing is symmetric: 0 with a
-#     well-formed pid list on stdout (digits, one pid per line, pgrep's only
-#     success output) is running; the no-match exit 1 with no output at all
-#     is stopped; every other outcome (usage or internal error, a timeout
-#     kill, a status/output mismatch in either direction) is indeterminate.
-#
-# posture.osquery is the osquery alerting configuration consumed by templates:
-# the two daily agents' plists and the `[jobs.daily]` table of posture's own
-# config, which is what `posture jobs install` reads.
-# digestHour/digestMinute drive the daily digest agent's StartCalendarInterval
-# (local time). 18:00 is an end-of-day glance; empty days stay silent.
-# heartbeatHour/heartbeatMinute drive the daily heartbeat agent's
-# StartCalendarInterval (local time). 09:00 is a morning proof-of-life: if the
-# silent daily message arrives, the osquery pipeline is scheduled and alive.
-
 posture:
   controls:
     - id: filevault
@@ -118,65 +24,20 @@ posture:
       reader: sysadminctl_guest
       expect: "disabled"
       remedy: "Disable it: System Settings → Users & Groups → Guest User"
-    # verify, not enforce: OverSight is a login item the operator may quit on
-    # purpose, and silently restarting it is not a read-only poller's
-    # business; the deviation pages instead. Its Notification Center delivery
-    # (the alert channel, the one interactive authorization it has) is a manual
-    # step in docs/runbooks/macos-fresh-machine-quickstart.md.
+    # verify, not restarted: the operator may quit OverSight on purpose, so a stop pages instead.
     - id: oversight
       description: "The OverSight microphone and camera monitor process"
       tier: verify
       reader: pgrep_oversight
       expect: "running"
       remedy: "Relaunch it: open -a OverSight, and keep it in System Settings → General → Login Items so it returns at login"
-    # LuLu (slice 10). Three verify records: the outbound-filtering extension
-    # process, and the two safety-critical allow rules. Reader notes:
-    #   - pgrep_lulu_extension runs `pgrep -x -U 0
-    #     com.objective-see.lulu.extension`, root-scoped because the network
-    #     extension runs as root (verified 2026-07-27: pid 636, exact 32-char
-    #     name matches; the process table is world-readable so the user-agent
-    #     poller needs no privilege). Same status/output symmetry as
-    #     pgrep_oversight. Deliberately a PROCESS probe, not
-    #     `systemextensionsctl list`: the list reports registration state,
-    #     which persists even when the extension process is gone. The probe
-    #     proves only that the process EXISTS, not that it is filtering (a
-    #     wedged process can exist and filter nothing); it narrows the
-    #     registration-versus-running gap without closing the
-    #     running-versus-filtering one.
-    #   - the lulu_rule readers are existence-only, stated here so nobody
-    #     upgrades the claim: rules.plist is a keyed archive of LuLu's
-    #     private Rule class, readable only as the path strings it mentions
-    #     (parsed in process, read only). The check proves a rule MENTIONING the
-    #     declared binary exists; it does not prove the rule allows rather than
-    #     blocks, and it must not claim to. (Today that gap is small: all 251
-    #     live rules were action=allow when measured 2026-07-27, and LuLu offers
-    #     no unattended way to flip one.) Recovering the action would mean
-    #     reimplementing NSKeyedUnarchiver over a private, already-once-migrated
-    #     format, which the standing rule against depending on unofficial
-    #     interfaces forbids.
-    #   - lulu_rule_resolved_present resolves the declared launcher with
-    #     `readlink -f` at probe time and searches the archive for the
-    #     RESOLVED binary: LuLu keys rules on the executing Mach-O, and the
-    #     Hermes venv launcher is a symlink chain into a uv-managed CPython,
-    #     so a python upgrade that moves the interpreter pages here instead
-    #     of silently stranding the alerting egress behind a prompt.
-    #   - both lulu_rule readers consult the BASE rules archive, behind the
-    #     poller's active-profile guard: when the base preferences carry a
-    #     currentProfile key, LuLu consults the named profile's own files
-    #     instead (Preferences.m, Rules.m), so the readers go indeterminate
-    #     and the poller pages the gap rather than trusting a file LuLu no
-    #     longer reads.
     - id: lulu_extension
       description: "The LuLu outbound-firewall system extension process"
       tier: verify
       reader: pgrep_lulu_extension
       expect: "running"
       remedy: "Re-enable it: System Settings → General → Login Items & Extensions → Network Extensions, then open -a LuLu (runbook: LuLu system extension approval)"
-    # The two rule-record descriptions are what a page prints, so they claim
-    # only what the reader proves: the archive MENTIONS the binary,
-    # existence-only. Never word them as "the allow rule": the reader cannot
-    # see the rule action or state, and a blocked, disabled, expired,
-    # endpoint-limited, or signing-mismatched rule all read present.
+    # Descriptions say mention, never allow rule: the reader proves only that a rule naming the binary exists.
     - id: lulu_rule_tailscaled
       description: "The LuLu rule-archive mention of /usr/local/bin/tailscaled, existence-only (remote recovery path 2)"
       tier: verify
