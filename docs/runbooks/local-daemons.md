@@ -82,6 +82,29 @@ defers the step to the next apply: pns is asked with `pns gateway install --prev
 which would start the app on any argument it does not know, is checked for its usage text instead. The
 Scalebar build uses `~/workspaces/Ivy/webdavis/scalebar` as it is, so pull that clone first.
 
+## posture: where its pages go, and the launchd page allowlist
+
+`dot_config/posture/private_config.toml.tmpl` sets `[notify] mode = "hermes"`, so posture signs each page
+and posts it to the hermes gateway itself rather than handing it to pns with `mode = "command"`. The
+reason is ordering. pns commits a page to its ledger before it tries any destination, so a critical page
+the gateway refuses would come back to posture as accepted, posture's cursor would move past it, and the
+finding would be gone from both channels. Switch to `command` once pns reports the destination's answer
+rather than its own ledger.
+
+The launchd page allowlist, `dot_config/osquery/private_page-launchd-allowlist.txt`, decides which user
+LaunchAgents digest instead of page. Never edit the deployed copy at
+`~/.config/osquery/page-launchd-allowlist.txt`, because the next apply rewrites it from the source.
+Curate it with `posture allowlist add <label>`, `posture allowlist deny <label>` and
+`posture allowlist list`; the writer captures the entry from the live launchd table, edits the source,
+applies that one file and refreshes the pipeline-integrity manifest.
+
+Each entry binds a label to its plist path and program, and may pin the plist's `sha256`. The pin is
+empty for the `com.webdavis.osquery-*` plists chezmoi writes, because the root-owned pipeline-integrity
+manifest already vouches for their content, and their content changes with the dotfiles. It is empty for
+`pns.gateway` and `scalebar.menubar` too, but the manifest does not cover those two, because their tools
+write them rather than chezmoi, so only the label, path and program bind them. The pns plist carries the
+`PATH` of the shell that ran the install, so a pin on it would page whenever that `PATH` changes.
+
 ## Hermes gateway (webhook routes)
 
 The gateway is the hermes agent's webhook platform, switched on by `WEBHOOK_ENABLED` and `WEBHOOK_PORT`
