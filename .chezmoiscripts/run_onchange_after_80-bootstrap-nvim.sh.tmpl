@@ -32,8 +32,13 @@ add_tool_directories_to_path() {
   export PATH
 }
 
+command_is_on_path() {
+  local command_name=$1
+  command -v "$command_name" >/dev/null 2>&1
+}
+
 nvim_is_installed() {
-  command -v nvim >/dev/null 2>&1
+  command_is_on_path nvim
 }
 
 restore_plugins_to_lockfile() {

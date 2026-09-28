@@ -12,7 +12,7 @@ readonly exit_status_hung=124
 
 readonly declared_crates=(
 {{- range .packages.macos.cargo }}
-  {{ printf "%s %s" .name (get . "version" | default "") | trim | quote }}
+  {{ .name | quote }}
 {{- end }}
 )
 
@@ -55,8 +55,8 @@ run_with_time_limit() {
 }
 
 install_crate() {
-  local crate=$1 version=$2
-  run_with_time_limit cargo install --locked "$crate" ${version:+--version "$version"}
+  local crate=$1
+  run_with_time_limit cargo install --locked "$crate"
 }
 
 install_failed() {
@@ -80,20 +80,19 @@ failed_install_message() {
 
 main() {
   add_cargo_bin_directory_to_path
-  report_section 'cargo' 'crate installs' >&2
+  report_section 'cargo' 'crate installs'
 
   if ! cargo_is_installed; then
     report_line 'error[missing-tool]: cargo is not on PATH; no crates were installed.' >&2
     exit 1
   fi
 
-  local entry crate version exit_status
-  for entry in "${declared_crates[@]}"; do
-    read -r crate version <<<"$entry"
+  local crate exit_status
+  for crate in "${declared_crates[@]}"; do
     exit_status=0
-    install_crate "$crate" "$version" || exit_status=$?
+    install_crate "$crate" || exit_status=$?
     if install_failed "$exit_status"; then
-      report_line "$(failed_install_message "${crate}${version:+ $version}" "$exit_status")" >&2
+      report_line "$(failed_install_message "$crate" "$exit_status")" >&2
       exit 1
     fi
   done
