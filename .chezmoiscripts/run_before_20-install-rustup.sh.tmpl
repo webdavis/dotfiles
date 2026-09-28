@@ -5,11 +5,11 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-readonly cargo_bin_dir="$HOME/.cargo/bin"
+readonly cargo_bin_directory="$HOME/.cargo/bin"
 readonly rustup_installer_url="https://sh.rustup.rs"
 
 cargo_is_installed() {
-  "$cargo_bin_dir/cargo" --version &>/dev/null
+  "$cargo_bin_directory/cargo" --version &>/dev/null
 }
 
 install_rustup_unattended() {
@@ -26,7 +26,7 @@ main() {
 
   report_line "installing..."
   install_rustup_unattended
-  report_line "installed to $cargo_bin_dir."
+  report_line "installed to $cargo_bin_directory."
 }
 
 main "$@"

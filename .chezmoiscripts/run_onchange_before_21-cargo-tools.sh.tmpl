@@ -2,44 +2,53 @@
 {{ if .packages.macos.cargo -}}
 #!/usr/bin/env bash
 
-# run_onchange_before_21-cargo-tools.sh.tmpl:
-#
-# Installs the third-party crates declared in .chezmoidata/system_packages_autoinstall.yaml
-# under packages.macos.cargo. An entry with a `version` is pinned to it; an entry without one
-# installs the latest release from crates.io.
-
 set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
+readonly cargo_bin_directory="$HOME/.cargo/bin"
 readonly install_time_limit=10m
 readonly exit_status_hung=124
 
-declared_crates=(
+readonly declared_crates=(
 {{- range .packages.macos.cargo }}
   {{ printf "%s %s" .name (get . "version" | default "") | trim | quote }}
 {{- end }}
 )
 
+add_cargo_bin_directory_to_path() {
+  export PATH="$cargo_bin_directory:$PATH"
+}
+
+command_is_on_path() {
+  local command_name=$1
+  command -v "$command_name" >/dev/null 2>&1
+}
+
 cargo_is_installed() {
-  command -v cargo >/dev/null 2>&1
+  command_is_on_path cargo
 }
 
 find_coreutils_timeout() {
   local candidate
   for candidate in timeout gtimeout; do
-    if command -v "$candidate" >/dev/null 2>&1; then
+    if command_is_on_path "$candidate"; then
       printf '%s\n' "$candidate"
       return
     fi
   done
 }
 
+timeout_command_was_found() {
+  local timeout_command=$1
+  [[ -n $timeout_command ]]
+}
+
 run_with_time_limit() {
-  local timeout_bin
-  timeout_bin="$(find_coreutils_timeout)"
-  if [[ -n $timeout_bin ]]; then
-    "$timeout_bin" "$install_time_limit" "$@"
+  local timeout_command
+  timeout_command="$(find_coreutils_timeout)"
+  if timeout_command_was_found "$timeout_command"; then
+    "$timeout_command" "$install_time_limit" "$@"
   else
     "$@"
   fi
@@ -48,6 +57,11 @@ run_with_time_limit() {
 install_crate() {
   local crate=$1 version=$2
   run_with_time_limit cargo install --locked "$crate" ${version:+--version "$version"}
+}
+
+install_failed() {
+  local exit_status=$1
+  ((exit_status != 0))
 }
 
 install_hung() {
@@ -65,7 +79,7 @@ failed_install_message() {
 }
 
 main() {
-  export PATH="$HOME/.cargo/bin:$PATH"
+  add_cargo_bin_directory_to_path
   report_section 'cargo' 'crate installs' >&2
 
   if ! cargo_is_installed; then
@@ -78,7 +92,7 @@ main() {
     read -r crate version <<<"$entry"
     exit_status=0
     install_crate "$crate" "$version" || exit_status=$?
-    if ((exit_status != 0)); then
+    if install_failed "$exit_status"; then
       report_line "$(failed_install_message "${crate}${version:+ $version}" "$exit_status")" >&2
       exit 1
     fi
