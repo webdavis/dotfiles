@@ -3,11 +3,7 @@
 
 set -euo pipefail
 
-{{ range .packages.cargo_git_tools -}}
-{{ if has .name (list "pns" "posture") -}}
-# {{ .name }}: {{ toJson . | sha256sum }}
-{{ end -}}
-{{ end -}}
+# .chezmoidata/system_packages_autoinstall.yaml {{ include ".chezmoidata/system_packages_autoinstall.yaml" | sha256sum }}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/cargo-git-tools/retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
