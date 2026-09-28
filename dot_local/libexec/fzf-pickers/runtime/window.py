@@ -6,6 +6,8 @@ import sys
 from .controls import LOCATION_KINDS, SEARCH_DETAILS, TOGGLES, controls, header
 from .providers import module
 
+EXITED_PRODUCER_ERRORS = (ProcessLookupError, PermissionError)
+
 
 def arguments(state, session, command, argument):
     kind = state["kind"]
@@ -82,9 +84,13 @@ def select(args, state, session, entrypoint):
     try:
         return subprocess.run(args, stdin=producer.stdout, stdout=subprocess.PIPE, check=False)
     finally:
-        producer.stdout.close()
-        try:
-            os.killpg(producer.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        producer.wait()
+        stop(producer)
+
+
+def stop(producer):
+    producer.stdout.close()
+    try:
+        os.killpg(producer.pid, signal.SIGKILL)
+    except EXITED_PRODUCER_ERRORS:
+        pass
+    producer.wait()
