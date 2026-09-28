@@ -6,8 +6,7 @@ def run(argv, timeout=3):
     try:
         result = subprocess.run(
             argv,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             errors="replace",
             timeout=timeout,

@@ -63,6 +63,7 @@ def filter_rows(session, query, toggle=False):
         input=data,
         stdout=subprocess.PIPE,
         env={**os.environ, "FZF_DEFAULT_OPTS": "", "FZF_DEFAULT_OPTS_FILE": ""},
+        check=False,
     )
     if result.returncode not in (0, 1):
         raise RuntimeError("Could not filter picker records.")

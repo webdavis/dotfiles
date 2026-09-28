@@ -102,7 +102,7 @@ def contents(project, state, in_git):
         if not state.get("regex"):
             args.append("--fixed-strings")
         args += ["--", query, *names[offset : offset + 128]]
-        result = subprocess.run(args, cwd=project, capture_output=True)
+        result = subprocess.run(args, cwd=project, capture_output=True, check=False)
         if result.returncode not in (0, 1):
             raise RuntimeError(result.stderr.decode(errors="replace").strip())
         for line in result.stdout.splitlines():

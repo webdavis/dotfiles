@@ -8,9 +8,13 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import tomllib
 
 
+class BlueBubblesError(RuntimeError):
+    pass
+
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise RuntimeError(
+        raise BlueBubblesError(
             "BlueBubbles redirected the request. Update its URL in the picker configuration."
         )
 
@@ -19,30 +23,30 @@ def request(path, body, state):
     config_path = Path(state.get("config", "~/.config/fzf-pickers/config.toml")).expanduser()
     try:
         if stat.S_IMODE(config_path.stat().st_mode) & 0o077:
-            raise RuntimeError(
+            raise BlueBubblesError(
                 "Picker credentials must be private. Set config.toml permissions to 0600."
             )
         with config_path.open("rb") as stream:
             config = tomllib.load(stream)["bluebubbles"]
         base, server_password = config["url"], config["server_password"]
         if not isinstance(base, str):
-            raise ValueError("invalid URL type")
+            raise TypeError("invalid URL type")
         base = base.rstrip("/")
     except (OSError, KeyError, TypeError, ValueError) as exc:
-        raise RuntimeError(
+        raise BlueBubblesError(
             "BlueBubbles requires url and server_password in ~/.config/fzf-pickers/config.toml."
         ) from exc
     parts = urlsplit(base)
     if not isinstance(server_password, str) or not server_password:
-        raise RuntimeError("BlueBubbles server_password is empty in the picker configuration.")
+        raise BlueBubblesError("BlueBubbles server_password is empty in the picker configuration.")
     if parts.username or parts.password or parts.query or parts.fragment or not parts.hostname:
-        raise RuntimeError(
+        raise BlueBubblesError(
             "BlueBubbles URL must contain only its scheme, host, port, and optional base path."
         )
     if parts.scheme != "https" and not (
         parts.scheme == "http" and parts.hostname in ("localhost", "127.0.0.1", "::1")
     ):
-        raise RuntimeError("BlueBubbles requires HTTPS outside this Mac.")
+        raise BlueBubblesError("BlueBubbles requires HTTPS outside this Mac.")
     req = Request(
         base + "/api/v1" + path + "?" + urlencode({"password": server_password}),
         data=json.dumps(body).encode(),
@@ -53,15 +57,15 @@ def request(path, body, state):
         with build_opener(NoRedirect()).open(req, timeout=20) as response:
             result = json.load(response)
     except HTTPError as exc:
-        raise RuntimeError(
+        raise BlueBubblesError(
             f"BlueBubbles request failed (HTTP {exc.code}). Check its URL and server password."
         ) from None
     except (URLError, OSError, ValueError):
-        raise RuntimeError(
+        raise BlueBubblesError(
             "BlueBubbles is unavailable or returned an invalid response. Check its server and picker configuration."
         ) from None
     if not isinstance(result, dict) or not isinstance(result.get("data"), list):
-        raise RuntimeError("BlueBubbles returned an unexpected response.")
+        raise BlueBubblesError("BlueBubbles returned an unexpected response.")
     return result
 
 
@@ -82,11 +86,13 @@ def paginate(path, body, state, limit=200):
                 or not isinstance(item.get("guid"), str)
                 or not item["guid"]
             ):
-                raise RuntimeError("BlueBubbles returned a record without a stable identifier.")
+                raise BlueBubblesError("BlueBubbles returned a record without a stable identifier.")
             identities.append(item["guid"])
         if verify_chats:
             if type(total) is not int or total < 0:
-                raise RuntimeError("BlueBubbles omitted its chat count; results are incomplete.")
+                raise BlueBubblesError(
+                    "BlueBubbles omitted its chat count; results are incomplete."
+                )
             if first_ids is None:
                 first_ids, expected_total = set(identities), total
             if (
@@ -94,7 +100,7 @@ def paginate(path, body, state, limit=200):
                 or seen.intersection(identities)
                 or len(set(identities)) != len(identities)
             ):
-                raise RuntimeError(
+                raise BlueBubblesError(
                     "BlueBubbles conversations changed during loading; results are incomplete. Press Alt-R to refresh."
                 )
         if not page:
@@ -107,7 +113,9 @@ def paginate(path, body, state, limit=200):
             fresh += 1
             yield item
         if not fresh:
-            raise RuntimeError("BlueBubbles pagination did not advance; results are incomplete.")
+            raise BlueBubblesError(
+                "BlueBubbles pagination did not advance; results are incomplete."
+            )
         offset += len(page)
         if isinstance(total, int) and offset >= total:
             break
@@ -119,6 +127,6 @@ def paginate(path, body, state, limit=200):
             or check.get("metadata", {}).get("total") != expected_total
             or current_ids != first_ids
         ):
-            raise RuntimeError(
+            raise BlueBubblesError(
                 "BlueBubbles conversations changed during loading; results are incomplete. Press Alt-R to refresh."
             )

@@ -4,7 +4,7 @@ from . import filesystem, history, repository
 from ._git import root
 from .interactions import accept, bindings, preview
 
-__all__ = ["KINDS", "collect", "accept", "bindings", "root", "preview"]
+__all__ = ["KINDS", "accept", "bindings", "collect", "preview", "root"]
 
 COLLECTORS = {
     "files": filesystem.files,

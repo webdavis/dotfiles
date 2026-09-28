@@ -7,11 +7,11 @@ import developer.capture as recording
 import developer.diagnostics.locations as diagnostics_locations
 import developer.discovery.saved as discovery_saved
 import developer.discovery.xcode as discovery_xcode
-import developer.execution as execution
 import developer.projects as project_paths
 import developer.rows as row_model
 import developer.tasks.just as tasks_just
 import developer.tasks.project as tasks_project
+from developer import execution
 
 
 def diagnostics(cwd, state, checks=True):

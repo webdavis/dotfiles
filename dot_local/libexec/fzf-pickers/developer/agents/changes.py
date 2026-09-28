@@ -1,9 +1,9 @@
 import re
 from pathlib import Path
 
-import developer.execution as execution
 import developer.projects as project_paths
 import developer.rows as row_model
+from developer import execution
 
 
 def diff_rows(cwd):

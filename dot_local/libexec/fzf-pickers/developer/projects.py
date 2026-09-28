@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 
-import developer.execution as execution
 import developer.rows as row_model
+from developer import execution
 
 
 def ancestors(cwd):

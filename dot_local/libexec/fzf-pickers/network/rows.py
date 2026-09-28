@@ -12,7 +12,7 @@ def command_row(identity, title, argv=None, text=None, purpose="", settings=""):
         ),
         "value": command,
         "action": "command",
-        "search": " ".join([command, purpose, settings]),
+        "search": f"{command} {purpose} {settings}",
     }
     if argv is not None:
         row["argv"] = argv

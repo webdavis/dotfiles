@@ -3,8 +3,8 @@ import os
 import re
 from pathlib import Path
 
-import developer.execution as execution
 import developer.rows as row_model
+from developer import execution
 
 
 def diagnostic_rows(output, cwd):

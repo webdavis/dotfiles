@@ -113,8 +113,7 @@ def accept(kind, rows, key, state):
         }
     if state.get("checkout") and key == "enter":
         target = row["value"]
-        if target.startswith("refs/heads/"):
-            target = target[len("refs/heads/") :]
+        target = target.removeprefix("refs/heads/")
         return {"type": "command", "argv": ["git", "-C", row["project"], "checkout", target]}
     if kind == "files" and state.get("return_kind") and key == "enter":
         return {

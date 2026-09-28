@@ -80,7 +80,7 @@ def select(args, state, session, entrypoint):
         start_new_session=True,
     )
     try:
-        return subprocess.run(args, stdin=producer.stdout, stdout=subprocess.PIPE)
+        return subprocess.run(args, stdin=producer.stdout, stdout=subprocess.PIPE, check=False)
     finally:
         producer.stdout.close()
         try:

@@ -35,7 +35,7 @@ def historical_files(project, state):
         if not item:
             continue
         metadata, name = item.split(b"\t", 1)
-        mode, kind_name, blob = metadata.decode().split()
+        _, kind_name, blob = metadata.decode().split()
         if kind_name != "blob":
             continue
         path = os.fsdecode(name)

@@ -3,7 +3,7 @@ import subprocess
 
 
 def run(args, cwd, allowed=(0,)):
-    result = subprocess.run(args, cwd=cwd, capture_output=True)
+    result = subprocess.run(args, cwd=cwd, capture_output=True, check=False)
     if result.returncode not in allowed:
         raise RuntimeError(
             result.stderr.decode(errors="replace").strip()
@@ -17,7 +17,9 @@ def git(cwd, *args, allowed=(0,)):
 
 
 def root(cwd):
-    result = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd, capture_output=True)
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], cwd=cwd, capture_output=True, check=False
+    )
     return os.fsdecode(result.stdout).rstrip("\n") if result.returncode == 0 else None
 
 

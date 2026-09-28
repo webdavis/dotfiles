@@ -56,6 +56,7 @@ def ignored(project, state):
         cwd=project,
         input=names,
         capture_output=True,
+        check=False,
     )
     if result.returncode not in (0, 1):
         raise RuntimeError(result.stderr.decode(errors="replace").strip())
@@ -79,7 +80,7 @@ def conflicts(project, state):
     for record in git(project, "ls-files", "-u", "-z").split(b"\0"):
         if record:
             metadata, name = record.split(b"\t", 1)
-            mode, blob, stage = metadata.decode().split()
+            _, blob, stage = metadata.decode().split()
             stages.setdefault(os.fsdecode(name), {})[stage] = blob
     return [
         file_row(os.path.join(project, p), cwd, stages=s, project=project)

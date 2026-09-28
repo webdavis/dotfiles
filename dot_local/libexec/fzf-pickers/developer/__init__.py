@@ -11,7 +11,7 @@ from .discovery import tests, xcode
 from .system import chezmoi, processes, provenance, services
 from .tasks import just
 
-__all__ = ["KINDS", "collect", "accept", "bindings"]
+__all__ = ["KINDS", "accept", "bindings", "collect"]
 
 _COLLECTORS = {
     "just": lambda cwd, state: just.just_recipes(cwd),
