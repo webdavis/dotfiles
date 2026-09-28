@@ -77,7 +77,10 @@ Each apply step first boots out and trashes the LaunchAgent chezmoi used to writ
 old log under `~/.local/log`: `com.webdavis.pns-daemon` and `com.webdavis.pns-github-receiver` for pns,
 `io.webdavis.scalebar` for Scalebar. The old pns agents go before `pns gateway install` because the old
 receiver holds port 8648. When a bootout does not take, the step stops before the installer and exits 1,
-and the next apply retries it.
+and the next apply retries it. A binary too old to install itself leaves the old LaunchAgent running and
+defers the step to the next apply: pns is asked with `pns gateway install --preview` first, and Scalebar,
+which would start the app on any argument it does not know, is checked for its usage text instead. The
+Scalebar build uses `~/workspaces/Ivy/webdavis/scalebar` as it is, so pull that clone first.
 
 ## Hermes gateway (webhook routes)
 
