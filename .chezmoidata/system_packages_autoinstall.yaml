@@ -165,9 +165,6 @@ packages:
         - zizmor
         - zls
         - zoxide
-      # Held; moves only through `just moshi-hook-upgrade`.
-      pinned:
-        rjyo/moshi/moshi-hook: "0.3.26"
       casks:
         - affinity
         - arc

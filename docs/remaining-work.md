@@ -2739,10 +2739,9 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
 - [ ] 195. Two scripts that run on every apply print even when there is nothing to do. The osquery
   converge, `.chezmoiscripts/run_after_59-setup-osquery.sh`, and the Codex hook relay,
   `.chezmoiscripts/run_after_72-relay-codex-hooks.sh.tmpl`, print a start line and a finish line every
-  time, as the LaunchAgent loaders do when they run. `run_after_11-verify-homebrew-pins.sh.tmpl` and
-  `run_after_68-hermes-log-route-status.sh.tmpl` stay silent when all is well, and 11's unit test
-  requires it. Fix: make 59 and 72 print nothing when all is well, so an apply with nothing to do stays
-  quiet.
+  time, as the LaunchAgent loaders do when they run. `run_after_68-hermes-log-route-status.sh.tmpl` stays
+  silent when all is well. Fix: make 59 and 72 print nothing when all is well, so an apply with nothing
+  to do stays quiet.
 
 - [ ] 196. The six osquery LaunchAgent loaders,
   `.chezmoiscripts/run_onchange_after_60-load-osquery-*-launchagent.sh.tmpl`, reload their LaunchAgents
