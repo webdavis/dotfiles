@@ -33,7 +33,7 @@ cargo_tracks_the_package() {
   installed_crates_record_exists && installed_crates_record_lists_package "$repo" "$package"
 }
 
-binary_was_installed_outside_cargo() {
+cargo_does_not_track_the_binary() {
   local name=$1 repo=$2 package=$3
   tool_binary_is_installed "$name" && ! cargo_tracks_the_package "$repo" "$package"
 }
@@ -49,7 +49,7 @@ cargo_install_from_git() {
   if features_are_declared "$features"; then
     install_arguments+=(--features "$features")
   fi
-  if binary_was_installed_outside_cargo "$name" "$repo" "$package"; then
+  if cargo_does_not_track_the_binary "$name" "$repo" "$package"; then
     install_arguments+=(--force)
   fi
   "$cargo_bin" install --git "https://github.com/$repo" --locked "${install_arguments[@]}" "$package"
