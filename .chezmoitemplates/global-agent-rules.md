@@ -190,9 +190,10 @@ Readability rules:
 
 Where the data comes from: `pns recap git`, run in the worktree the work happened in, prints the Git
 block, the stack graph and the file list already in this layout. It reads git for the branch, the
-worktree, the trunk, the stack and the diff, and `gh` for the PR number and state. Paste its output
-rather than composing those parts by hand, and never guess a PR number: `none` is `gh` saying there is
-none, `unknown` is `gh` not answering.
+worktree, the trunk, the stack and the diff, and asks the GitHub API for the PR number and state with the
+token in pns's `[plugins.github] personal_access_token`. Paste its output rather than composing those
+parts by hand, and never guess a PR number: `none` is GitHub saying there is none, `unknown` is no usable
+answer (no token, a refusal or a timeout).
 
 Delivery: the recap goes in the chat reply, and `pns recap agent --stdin` forwards it to the
 `#pns-events` Discord channel. It sanitizes the body and fits it under Discord's limit by collapsing the
@@ -222,12 +223,12 @@ Prefer local CLI tools over MCP servers when both work. MCP only for SaaS APIs w
 - Prefer the `gh-axi` skill over the raw `gh` CLI for every GitHub operation: issues, pull requests,
   workflow runs, releases, everything. `gh` stays installed and authenticated purely as `gh-axi`'s
   runtime dependency; never invoke it directly. This preference binds the agent doing the GitHub work,
-  the process that would type the command. A Rust product this repository ships spawns whichever
-  subprocess suits it on its own merits, the way it chooses `git`, so `pns recap git` keeps calling `gh`
-  for the fields gh-axi does not expose. The same bullet forbids every other client too: never reach the
-  GitHub API through `curl`, a Python or node script, or a raw request, not even for a read, and not even
-  when `gh-axi` cannot reach GitHub. When it cannot, push the branch, write the PR body to a file, say
-  so, and stop; the operator or a later agent finishes the ship once it works again.
+  the process that would type the command. A tool the operator ships reaches GitHub however suits it on
+  its own merits, so `pns recap git` asks the GitHub API itself with its own token and runs no `gh`. The
+  same bullet forbids the agent every other client too: never reach the GitHub API through `curl`, a
+  Python or node script, or a raw request, not even for a read, and not even when `gh-axi` cannot reach
+  GitHub. When it cannot, push the branch, write the PR body to a file, say so, and stop; the operator or
+  a later agent finishes the ship once it works again.
 - Prefer the `chrome-devtools-axi` skill over other browser automation (Claude-in-Chrome, Playwright, raw
   `chrome-devtools-mcp`) whenever DevTools-based automation is needed.
 - Home Assistant work uses both skills together: `home-assistant` (runtime control: entity states,
