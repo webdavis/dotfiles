@@ -198,6 +198,10 @@ delay = "5m"
 
 [producer]
 
+[producer.shell]
+ignored_commands = ["vim", "nvim", "less", "man", "top", "htop", "btop", "ssh", "fzf", "herdr", "claude", "hermes", "codex", "rustnet"]
+notify_after = "30s"
+
 [stale]
 enabled = true
 escalate_after = "1h"

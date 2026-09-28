@@ -4,7 +4,7 @@ The open task list for the dotfiles modernization, including pns, posture, uu, l
 review tools and the deferred subprojects. Use the resume order below; task numbers are stable
 references.
 
-Updated as tasks complete. Last updated 2026-09-26.
+Updated as tasks complete. Last updated 2026-09-28.
 
 ## Where things stand
 
@@ -90,11 +90,12 @@ it with curl. On 2026-09-20 the operator withdrew task 135, Attest, because dam 
 merged (c2565c1) with the client verbs `dam edit --undone`, `dam restore <oid>` and the
 `dam done --force` children and depends dispositions; damnit issue #3 records a pre-existing `dam add -A`
 exit 4 after a committed delete. The two implementation plans merged (damnit.nvim 36 tasks, herdr-damnit
-42 tasks) and each plan's tasks 1 to 3, the in-place rename, are in review. dam's client contract was
-settled on 2026-09-20 for the third damnit pull request: under `--json` the error document is the only
-thing on stderr, every rule dam refuses exits 4 and names its rule, change documents carry a fields list,
-and `status --json` answers rows without embedded objects unless `--full` is given; the two client specs
-still say exit 2 for a refusal and each gets one amendment once that pull request merges.
+42 tasks) and each plan's tasks 1 to 3, the in-place rename, are in review (done: merged as damnit.nvim
+PR #17 and herdr-damnit PR #18). dam's client contract was settled on 2026-09-20 for the third damnit
+pull request: under `--json` the error document is the only thing on stderr, every rule dam refuses exits
+4 and names its rule, change documents carry a fields list, and `status --json` answers rows without
+embedded objects unless `--full` is given; the two client specs still say exit 2 for a refusal and each
+gets one amendment once that pull request merges (done: both specs now say exit 4 for every refusal).
 
 ### Resume order and completion rules
 
@@ -1145,6 +1146,9 @@ operator to create it again. The remaining adapter, delivery and live cutover ch
   whether or not the manifest lists a file; then the digest spool handoff on the next daily digest; then
   the at-least-once retry check against the live cursor with the gateway unreachable.
 
+  LEFTOVERS TRASHED, checked 2026-09-28: `~/.local/libexec/osquery/results-alerter.sh` is gone and
+  `~/.local/libexec/osquery/results-alerter/` holds only `pipeline-verdict.sh`.
+
 - [x] 46. posture 6.4: finish watchdog publication and cutover. Source on `feat/posture-watchdog-health`
   composes state publication, delivery ordering, legacy growth history, independent binary integrity,
   daemon and ledger checks. Independent review passed 944 posture tests and six additional regressions.
@@ -1491,7 +1495,7 @@ Every posture producer is Rust and the old pipeline is off.
 
 The planned Rust lanes are implemented. The following deployment check remains.
 
-- [ ] 57a. Finish uu runtime acceptance and the interruption fixes found on 2026-09-13. The old
+- [x] 57a. Finish uu runtime acceptance and the interruption fixes found on 2026-09-13. The old
   cua-driver drift is resolved: installed config uses `~/.local/bin/cua-driver`, non-secret config and
   the managed job match rendered source, and `uu doctor` exits 0 with styled terminal output. The
   imported Claude-plugin history preserves all 21 rows. Two harmless private runs each logged once and
@@ -1533,6 +1537,10 @@ The planned Rust lanes are implemented. The following deployment check remains.
   code, the log's run-started and done lines, the last-success timestamp, the one new lane state
   directory, each lane's streak file, and confirmation that the notification reached a real destination
   rather than merely logging a 200.
+
+  NO LONGER NEEDED, closed 2026-09-28: the weekly `com.webdavis.uu` job this acceptance waits on was
+  deleted in `62034bd12` ([PR #981](https://github.com/webdavis/dotfiles/pull/981)), and uu now installs
+  its own daemon on apply.
 
 - [x] 57b. Reconcile B2's approved Herdr plugin-pinning requirement with the requested weekly upgrades.
   DONE 2026-09-17. PREMISE CORRECTED 2026-09-17: uu had already stopped rejecting a pin. Commit
@@ -2699,10 +2707,12 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
   gate would catch it before a merge. Fix: give the function body a line that stays valid when the roster
   is empty.
 
-- [ ] 187. The lights builder, `.chezmoiscripts/run_onchange_after_54-build-lights.sh.tmpl`, never clears
+- [x] 187. The lights builder, `.chezmoiscripts/run_onchange_after_54-build-lights.sh.tmpl`, never clears
   its retry marker after a successful build, unlike the other builders, and its hash lines skip
   `lights/rust-toolchain.toml`, which the pns, posture and uu builders hash. Fix: clear the marker once
-  the build succeeds, and hash the toolchain file so a toolchain change rebuilds lights.
+  the build succeeds, and hash the toolchain file so a toolchain change rebuilds lights. No longer
+  needed, closed 2026-09-28: the lights builder was deleted in `b455dd818`
+  ([PR #978](https://github.com/webdavis/dotfiles/pull/978)).
 
 - [x] 188. `.chezmoiscripts/run_after_56-retire-claude-code-launchagent.sh.tmpl` prints two errors for
   one failure. When `launchctl bootout` itself fails, the script reports both `error[bootout-failed]` and
@@ -2724,19 +2734,24 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
   `~/.cache/herdr-plugin-build/herdr-workspace-jump.retry`, read 9. Fix: read the reason the builder
   prints on the next apply, fix that cause, and confirm both markers are gone after a successful build.
 
-- [ ] 192. The pns builder's retry marker holds a count that nothing reads.
+- [x] 192. The pns builder's retry marker holds a count that nothing reads.
   `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl` writes an attempt count into
   `~/.cache/pns-build/engine.retry`, but its hash line uses only the file's modification time. Fix:
-  either drop the count and just touch the marker, or make something read it.
+  either drop the count and just touch the marker, or make something read it. No longer needed, closed
+  2026-09-28: the pns builder was deleted in `b455dd818`
+  ([PR #978](https://github.com/webdavis/dotfiles/pull/978)).
 
-- [ ] 193. The posture builder, `.chezmoiscripts/run_onchange_after_58-build-posture.sh.tmpl`, never
+- [x] 193. The posture builder, `.chezmoiscripts/run_onchange_after_58-build-posture.sh.tmpl`, never
   checks whether its build record path is a symlink or a directory; the pns builder does. Fix: add the
-  same check to the posture builder.
+  same check to the posture builder. No longer needed, closed 2026-09-28: the posture builder was deleted
+  in `b455dd818` ([PR #978](https://github.com/webdavis/dotfiles/pull/978)).
 
-- [ ] 194. The uu builder, `.chezmoiscripts/run_onchange_after_59-build-uu.sh.tmpl`, keeps its own copy
+- [x] 194. The uu builder, `.chezmoiscripts/run_onchange_after_59-build-uu.sh.tmpl`, keeps its own copy
   of the same retry counter (`bump_retry_marker`) instead of calling the shared build library's
   `increment_retry_attempts`. uu's builder is due to be deleted, so this matters only if it survives.
-  Fix: call the library function, following whatever task 192 settles about the count.
+  Fix: call the library function, following whatever task 192 settles about the count. No longer needed,
+  closed 2026-09-28: the uu builder was deleted in `cab4f0efe`
+  ([PR #972](https://github.com/webdavis/dotfiles/pull/972)).
 
 - [ ] 195. Two scripts that run on every apply print even when there is nothing to do. The osquery
   converge, `.chezmoiscripts/run_after_59-setup-osquery.sh`, and the Codex hook relay,
@@ -2921,9 +2936,11 @@ is missing.
   (6) Schedule the two open program items when you want them: the total-runtime performance pass (Todoist
   6hPxWVHM8pG4qgwp) and the /grill-me intent review over all of Part 2, not just lights (Todoist
   6hPxWVwHGX9qFWpG).; (7) Optional, cheap: enable `quiet_hours` on [plugins.hue] if you still want it,
-  which is the only thing standing between slice 7 and a drill.; (8) Decide on the missing hermes routes
-  (Todoist 6hW4H7XQ6fXPJc3G): posture pages currently have nowhere to land, and the fix needs the
-  encrypted hermes config edited, an apply, and `hermes gateway restart`.
+  which is the only thing standing between slice 7 and a drill. No longer needed: `[lights] dim_window`
+  replaced it.; (8) Decide on the missing hermes routes (Todoist 6hW4H7XQ6fXPJc3G): posture pages
+  currently have nowhere to land, and the fix needs the encrypted hermes config edited, an apply, and
+  `hermes gateway restart`. No longer needed: the `pns-recap` and `posture` routes were retired on
+  purpose (pns `c326324f`).
 
 - [x] Evaluate native macOS probes for pns, approved 2026-09-13. MEASURED 2026-09-17; ADOPTION IS TASK
   144 AND WAITS ON ONE OPERATOR DECISION. Benchmark the current `ioreg` idle-time and screen-lock probes
@@ -3117,7 +3134,7 @@ is missing.
   `trash /var/folders/*/*/T/pns-sql-* /var/folders/*/*/T/pns-ledger-* /var/folders/*/*/T/posture-curation-*`
   by hand.
 
-- [ ] 93. Implement `pns/docs/pns-refactor.md`, the agreed refactor plan the operator asked for alongside
+- [x] 93. Implement `pns/docs/pns-refactor.md`, the agreed refactor plan the operator asked for alongside
   the numbered list. The plan merged as documentation in
   [PR #698](https://github.com/webdavis/dotfiles/pull/698) and nothing in it is built yet. Its changes:
   stop using the sender's name as a feature switch (delete the `event.agent != "claude"` check in
@@ -4072,6 +4089,11 @@ is missing.
 
   SLICE STATUS 2026-09-20: merged 1 to 53; in flight 54 and 55; the ladder is 55 slices.
 
+  DONE 2026-09-21: all 55 slices landed. Slice 54 merged as
+  [PR #877](https://github.com/webdavis/dotfiles/pull/877) and slice 55 as
+  [PR #883](https://github.com/webdavis/dotfiles/pull/883), with its follow-up fix
+  [PR #894](https://github.com/webdavis/dotfiles/pull/894).
+
 - [x] 92. CLOSED 2026-09-17, and it was a PRODUCT BUG rather than the flake it was being rerun past.
   Fixed on `fix/pns-dispatch-records-race`, merged as
   [PR #715](https://github.com/webdavis/dotfiles/pull/715). `open_existing` treated
@@ -4630,25 +4652,27 @@ operator deployment. No source correction was warranted by this audit.
   Elixir withholding, so spec 5.3's two adapter rows and plan task 46b step 1 can be amended in a later
   documentation slice (struck, or marked withheld with this document as the reason). (5) Decide whether
   the stale Mason rust-analyzer becomes its own ledger task, and whether Mason packages get a deliberate
-  pin-and-refresh policy rather than the current install-once posture. (6) Decide whether rustaceanvim's
-  raised assertion (its two early returns call `lib.positions.parse_tree` with an empty list) gets
-  reported upstream as an issue. Open questions: (1) Which readiness option for the Rust neotest row: 1
-  (a local `discover_positions` wrapper), 2 (accept the raw adapter and live with save-to-retry), or 3
-  (withhold the row like Java and Elixir)? The recommendation is option 1. Nothing else in this task can
-  proceed until this is answered. (2) Is the mason-lspconfig `exclude` trade acceptable? It makes Rust
-  the one server outside `automatic_enable = true`. If not, rustaceanvim cannot be used for the Rust row
-  at all and option 3 is forced. (3) Does "language coverage complete" mean neotest specifically, or is
-  overseer's `cargo test` plus `just test-rust` enough? Taking the second reading closes the whole Rust
-  row today with no plugin, no pin and no decision. (4) Should the stale Mason rust-analyzer become its
-  own task? It is a live defect on every Rust buffer, independent of neotest, and nothing in the
-  configuration will ever upgrade it. Related: does this repository want Mason packages pinned and
-  refreshed deliberately, or is install-once-never-update the accepted posture? (5) Do spec 5.3's Java
-  and Elixir rows get struck, or marked withheld with this document as the reason? And should the Java
-  row be corrected regardless, since it describes one filetype-lazy pin where the adapter needs a Java
-  Development Kit, a build tool, a language server plugin and a tree-sitter parser? (6) Should the raised
-  assertion be reported upstream to rustaceanvim? Its two early returns call
-  `neotest.lib.positions.parse_tree` with an empty list, which raises in the pinned neotest, and the
-  reproduction is one line. (7) Is a Java or Elixir project anywhere on the horizon? If yes, both
+  pin-and-refresh policy rather than the current install-once posture. No longer needed: uu's
+  `[lane.nvim-mason]` upgrades every installed Mason package, rust-analyzer included. (6) Decide whether
+  rustaceanvim's raised assertion (its two early returns call `lib.positions.parse_tree` with an empty
+  list) gets reported upstream as an issue. Open questions: (1) Which readiness option for the Rust
+  neotest row: 1 (a local `discover_positions` wrapper), 2 (accept the raw adapter and live with
+  save-to-retry), or 3 (withhold the row like Java and Elixir)? The recommendation is option 1. Nothing
+  else in this task can proceed until this is answered. (2) Is the mason-lspconfig `exclude` trade
+  acceptable? It makes Rust the one server outside `automatic_enable = true`. If not, rustaceanvim cannot
+  be used for the Rust row at all and option 3 is forced. (3) Does "language coverage complete" mean
+  neotest specifically, or is overseer's `cargo test` plus `just test-rust` enough? Taking the second
+  reading closes the whole Rust row today with no plugin, no pin and no decision. (4) Should the stale
+  Mason rust-analyzer become its own task? It is a live defect on every Rust buffer, independent of
+  neotest, and nothing in the configuration will ever upgrade it. Related: does this repository want
+  Mason packages pinned and refreshed deliberately, or is install-once-never-update the accepted posture?
+  No longer needed: uu's `[lane.nvim-mason]` upgrades every installed Mason package, rust-analyzer
+  included. (5) Do spec 5.3's Java and Elixir rows get struck, or marked withheld with this document as
+  the reason? And should the Java row be corrected regardless, since it describes one filetype-lazy pin
+  where the adapter needs a Java Development Kit, a build tool, a language server plugin and a
+  tree-sitter parser? (6) Should the raised assertion be reported upstream to rustaceanvim? Its two early
+  returns call `neotest.lib.positions.parse_tree` with an empty list, which raises in the pinned neotest,
+  and the reproduction is one line. (7) Is a Java or Elixir project anywhere on the horizon? If yes, both
   dispositions should be filed as deferred with a named trigger rather than withheld, and each needs the
   toolchain declaration decisions that go with it.
 - [x] Reconcile B96's first-use parser readiness. Go is omitted from the preinstalled parser list,
@@ -5659,7 +5683,7 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   same session two ways; both now use the formatter that already existed.
 
   OPERATOR OWES: deploy the widget the way Scalebar's documentation says, so the vault copy picks up
-  tasks 129 and 130 together.
+  tasks 129 and 130 together. Done, checked 2026-09-28: the vault runs the widget with both changes.
 
 - [x] 131. Show the workout duration on the time button. After Start Workout and End Workout, the button
   on the right reads `<start_time> - <end_time>`; print the duration in smaller text between the two
@@ -5688,7 +5712,8 @@ is what the operator sees; deploy it the way Scalebar's own docs say, never by h
   environment.
 
   OPERATOR OWES: deploy the widget the way Scalebar's documentation says. Tasks 129, 130 and 131 are all
-  merged and all three reach the vault in that one deploy.
+  merged and all three reach the vault in that one deploy. Done, checked 2026-09-28: the vault runs the
+  widget with all three.
 
 ### Recover the remaining design from PR #24
 
@@ -6028,7 +6053,7 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   which instead proposes a read-only advisory over the deterministic daily digest. The v2 master spec's
   section 13 repeats that narrower digest scope.
 
-- [ ] Reconcile the original documents with the Critical-alert-only decision before implementation.
+- [x] Reconcile the original documents with the Critical-alert-only decision before implementation.
   Supersede their daily-digest investigation scope. Keep this as a Hermes-owned workflow, with
   source-specific facts supplied by security producers and immediate original alert delivery. Reconciled
   on 2026-09-14 in `docs/superpowers/specs/2026-09-14-hermes-critical-alert-investigation-design.md`,
@@ -6091,9 +6116,11 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   cover profile configs? It migrates only the root config.yaml forward to the installed schema, so a new
   profile's config.yaml carrying a Docker block can fall behind a pin bump with nothing to catch it. (8)
   Is the advisory's Discord destination the same channel as the page, or a separate one? The ledger notes
-  a named route selects one destination rather than broadcasting to two, so this is a route decision.
+  a named route selects one destination rather than broadcasting to two, so this is a route decision. No
+  longer needed, closed 2026-09-28: superseded by the posture redesign's explainer (webdavis/posture
+  `docs/redesign/spec.md`, section 8).
 
-- [ ] Preserve immediate deterministic alert delivery. Hermes then starts a dedicated, ephemeral
+- [x] Preserve immediate deterministic alert delivery. Hermes then starts a dedicated, ephemeral
   investigator over a bounded copy of the supplied evidence and publishes a separate advisory associated
   with the alert. Failure or timeout must be distinguishable from an all-clear. The investigator cannot
   suppress, delay or rewrite the original alert, approve trust, or perform remediation. Verify the
@@ -6164,9 +6191,10 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   decision. (9) Should `run_after_59-hermes-config-migrate` cover profile configs? The investigator
   profile's `config.yaml` carries the whole execution boundary and nothing migrates it across a pin bump.
   (10) Is the investigator profile named for its function or given a character name, matching `butters`,
-  `concerned`, `elaine` and `nicodemus`?
+  `concerned`, `elaine` and `nicodemus`? No longer needed, closed 2026-09-28: superseded by the posture
+  redesign's explainer (webdavis/posture `docs/redesign/spec.md`, section 8).
 
-- [ ] Define the required alert/evidence metadata through the existing delivery path. The current pns
+- [x] Define the required alert/evidence metadata through the existing delivery path. The current pns
   webhook forwards `agent`, `state`, `project`, `detail` and `request_id`; it does not forward the
   producer's security class or a structured artifact reference. Verify classification and evidence
   references before attaching an investigator, rather than inferring them from rendered prose. Also
@@ -6232,7 +6260,9 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   evidence vocabulary need a fourth kind now for the file-integrity path (a manifest entry), or does
   `file` plus `detector` cover it until that reader exists? (7) `pns doctor` closing with
   `✓ nothing to act on` over two route warnings is a one-line severity change (`RouteVerdict::Missing`
-  from `Mark::Warn` to `Mark::Bad`). Fold it into this work, or file it separately?
+  from `Mark::Warn` to `Mark::Bad`). Fold it into this work, or file it separately? No longer needed,
+  closed 2026-09-28: superseded by the posture redesign's explainer (webdavis/posture
+  `docs/redesign/spec.md`, section 8).
 
 - [x] 2026-09-14: the hermes gateway gained the `posture` and `pns-recap` webhook routes, and posture
   learned to pick its route from a finding's tier, in
@@ -6344,13 +6374,14 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   out of any related PR. Open questions: whether the default of escalating after 60 minutes, with no
   explicit opt-in, is the right default given the nag beside it defaults off; whether the recap section
   from the design's second pull-request bullet, deferred here, should be scheduled to surface a
-  suppressed escalation later or left as an unmentioned self-resolving block; whether a fire suppressed
-  while away should re-arm itself one window out instead of staying a one-shot, if missed pages while
-  away matter more than the extra spawns; and whether the escalation's `blocked <n> minutes, no answer`
-  wording should share one renderer with the nag's more compact `<n>m` form. The full `chezmoi apply` and
-  a `hermes gateway restart` both ran on 2026-09-15. Still owed: one deliberate escalation, either by
-  staying blocked past the hour or by backdating a session's `blocked_since` and running `pns stale` by
-  hand.
+  suppressed escalation later or left as an unmentioned self-resolving block (done: answered and built in
+  [pns PR #21](https://github.com/webdavis/pns/pull/21), which lists each held-back page in the recap's
+  open section); whether a fire suppressed while away should re-arm itself one window out instead of
+  staying a one-shot, if missed pages while away matter more than the extra spawns; and whether the
+  escalation's `blocked <n> minutes, no answer` wording should share one renderer with the nag's more
+  compact `<n>m` form. The full `chezmoi apply` and a `hermes gateway restart` both ran on 2026-09-15.
+  Still owed: one deliberate escalation, either by staying blocked past the hour or by backdating a
+  session's `blocked_since` and running `pns stale` by hand.
 
 - [x] 2026-09-14: the hermes unattended-upgrades route was renamed to `uu`, merged in
   [PR #592](https://github.com/webdavis/dotfiles/pull/592)
@@ -7598,24 +7629,28 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   anything on 2026-09-20 and gh recovered on its own at about 15:30, so the cause is still open; watch
   the next Sunday run.
 
-- [ ] 170. Give `pns recap` one line for the standing dead-letter count, filed 2026-09-20 out of task
+- [x] 170. Give `pns recap` one line for the standing dead-letter count, filed 2026-09-20 out of task
   147's ruling. The watchdog pages on growth only, so the standing population needs a home the operator
   reads every day: the recap's `open` section (the one never shed from a delivered page) prints
   `N legs dead-lettered, run pns failures` when N is nonzero and nothing when it is zero. Its own PR
   after slice 53 lands, because slice 53 replaces the recap engine and is already the largest slice; the
   line reads `SqliteStore::failing_legs` filtered to `deadlettered`, the same query `pns failures` lists,
-  so the two can never disagree. Add the line to the recap design's Sections table in the same PR.
+  so the two can never disagree. Add the line to the recap design's Sections table in the same PR. Done
+  by [PR #895](https://github.com/webdavis/dotfiles/pull/895), merged `a77def034` on 2026-09-21:
+  `pns-domain` `recap/sections.rs` prints the line.
 
-- [ ] 171. Retire `~/.local/libexec/pns/` entirely, operator ruling 2026-09-20: pns ships no bash, and
+- [x] 171. Retire `~/.local/libexec/pns/` entirely, operator ruling 2026-09-20: pns ships no bash, and
   nothing of pns lives under libexec. Its last member, `hooks/codex/install-hooks.sh` (the jq merge of
   pns's four Codex hooks into `~/.codex/hooks.json`, run by
   `.chezmoiscripts/run_after_72-relay-codex-hooks.sh.tmpl` on every apply), becomes a pns verb with the
   same merge semantics and an atomic write, the apply script calls the binary, the `.chezmoiignore` line
   goes, and the directory is deleted from source. Chezmoi never deletes a retired target and this
   repository builds no removal mechanism, so the operator trashes `~/.local/libexec/pns` after the apply
-  that lands it. Pull request in flight.
+  that lands it. Pull request in flight. Done by
+  [PR #886](https://github.com/webdavis/dotfiles/pull/886), merged `6c0207c79` on 2026-09-21 (pns
+  `0a5e57d3`): `pns codex install-hooks` does the merge, and `~/.local/libexec/pns` is gone.
 
-- [ ] 172. A failure notice reading `bad URL` names a fault pns never had, filed 2026-09-22 from the
+- [x] 172. A failure notice reading `bad URL` names a fault pns never had, filed 2026-09-22 from the
   night the test sandbox leaked banners to the desk. `TransportOutcome::NoStatus` is labelled `bad URL`
   (`pns/crates/pns-domain/src/failure/meaning.rs:57`, repeated by `pns failures` at
   `pns/crates/pns/src/command_failures.rs:291`) and, for every destination but the phone, worded "the URL
@@ -7627,7 +7662,8 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   `Failed` and reads `no response` instead (`pns-adapters/src/destinations/hermes.rs:184`). The operator
   is sent to check a URL that was never built. The phone's own wording for the same outcome, "the URL pns
   built from {address} is malformed" (`meaning.rs:140`), is wrong the same way. Relabel from what the
-  outcome records, and word both meaning lines for an unlaunched leg.
+  outcome records, and word both meaning lines for an unlaunched leg. Done by
+  [PR #931](https://github.com/webdavis/dotfiles/pull/931), merged `3b9bcb20a` on 2026-09-23.
 
 - [x] 102. A rejected delivery config silences posture entirely and only a log file says so. DONE
   2026-09-17. Filed the same day 2026-09-17 from the firewall drill's incidental finding.
@@ -7693,7 +7729,7 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   other route and fails naming `priority`. 1200 posture tests pass. OPERATOR STEP: a full `chezmoi apply`
   rebuilds posture, after which `posture doctor` exists.
 
-- [ ] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
+- [x] Revalidate the old Docker/profile, trigger, network and artifact-copy assumptions against supported
   Hermes interfaces. Preserve restricted host access and outbound connectivity, no host secrets, and
   untrusted evidence handling. The old plan includes unverified flags and prompt-based output checks;
   those do not establish sandbox isolation or enforce the promised output limits. Review the actual
@@ -7797,7 +7833,9 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   disable the launch item by label, revert the setting in System Settings)? The publisher can only
   enforce a vocabulary that has been written down. (9) Producer transport identifiers: confirm the
   intended split of a per-delivery-attempt value in `X-Request-ID` and the alert correlation key in the
-  body. Small pns change, and it also fixes pns's currently-ignored `Idempotency-Key` header.
+  body. Small pns change, and it also fixes pns's currently-ignored `Idempotency-Key` header. No longer
+  needed, closed 2026-09-28: superseded by the posture redesign's explainer (webdavis/posture
+  `docs/redesign/spec.md`, section 8).
 
 The posture port plan's section 8 summary still says its fourth decision is waiting on the operator, but
 decision 4 itself records the security mute bypass as settled on 2026-09-06. Correct that stale summary
@@ -7935,13 +7973,14 @@ force.
   the migration specification still owed? done_means asks for 'a reviewed spec and a go/no-go verdict';
   this document is the evaluation, not a migration plan. (3) Does SP4 build its binding table as
   shell-agnostic data with a renderer? That is the single change that would make any future shell
-  evaluation cheap, and it stands on its own merits. (4) Should SP4 take the bash-completion@2 startup
-  win (about 220 ms of roughly 400 ms, measured)? It needs an inventory of completions carapace does not
-  cover first; lazy-loading is the conservative middle path. (5) Do you want the comparison re-measured
-  on an idle machine before ratifying? The ratios held across two passes at different loads, so the
-  verdict does not hang on it, but every absolute millisecond figure is inflated. (6) Is there a workload
-  reason to want Python in the shell that this evaluation missed? The value side was judged from the
-  repository's contents (Rust tooling, Bash scripts, Python only as formatters), which is the weakest
+  evaluation cheap, and it stands on its own merits. Done: SP4's bindings are shell-agnostic data in
+  `dot_config/chord/bindings.toml` that `chord` renders. (4) Should SP4 take the bash-completion@2
+  startup win (about 220 ms of roughly 400 ms, measured)? It needs an inventory of completions carapace
+  does not cover first; lazy-loading is the conservative middle path. (5) Do you want the comparison
+  re-measured on an idle machine before ratifying? The ratios held across two passes at different loads,
+  so the verdict does not hang on it, but every absolute millisecond figure is inflated. (6) Is there a
+  workload reason to want Python in the shell that this evaluation missed? The value side was judged from
+  the repository's contents (Rust tooling, Bash scripts, Python only as formatters), which is the weakest
   evidence in the document. (7) If a migration ever proceeds, is keeping SHELL pointed at Bash agreed?
   Upstream advises it, fzf runs its preview and execute commands with $SHELL -c so the 64 fzf bindings
   require it, and it keeps every non-interactive door untouched.
@@ -8266,8 +8305,9 @@ force.
   `private_dot_codex/modify_private_config.toml`) never touches. This is not the pre-authorized
   `Could not resolve host` retry case, so the branch was left open rather than rerun or merged. Gated on
   confirming whether the failure is CI-runner load or a real `pns-adapters` regression, then rerunning
-  the failed workflow once confirmed as flake and resuming from the poll step. On the operator's ruling
-  of 2026-09-14, the YNAB MCP server was opened to full write access across all three clients in
+  the failed workflow once confirmed as flake and resuming from the poll step. No longer needed: the test
+  no longer times itself (pns `e78c19bd`), and PR #585 merged. On the operator's ruling of 2026-09-14,
+  the YNAB MCP server was opened to full write access across all three clients in
   [PR #606](https://github.com/webdavis/dotfiles/pull/606)
   (`feat(mcp): turn YNAB writes on for Claude Code, Codex and Claude Desktop`, merged):
   `YNAB_ALLOW_WRITES` moved from `"0"` to `"1"` in the Claude Code and Codex declarations, and the same
@@ -9253,25 +9293,25 @@ transcription was started during this audit.
   take it; an unattended upgrade before the decision is fine, but the decision should be made against
   whatever version is then installed. (7) Optional pns follow-up, independent of vpt: `pns submit` works
   (pns/crates/pns/src/invocation.rs:119) but is absent from `pns --help`. Whoever implements a producer
-  against it will not find it from the CLI. Open questions: (1) Is `minutes` kept or replaced? This is
-  the blocking question; vpt's whole scope follows from it, and the ledger has carried it as an open
-  evaluation since before vpt existed. **Decided 2026-09-15: replaced.** vpt is a standalone tool with no
-  dependency on `minutes` at all; see decision 1 in
-  `docs/decisions/2026-09-15-vpt-architecture-decisions.md`. (2) If `minutes` is kept, does vpt call it
-  or run beside it? Calling `minutes transcribe --json` makes it one of vpt's two engines and reuses its
-  summarization, vault sync and speaker work. Running beside it means two tools writing notes about
-  recordings, which is what PLAN-v12 L6 forbids for Open Notebook. **Moot, 2026-09-15:** `minutes` is not
-  kept, so neither branch applies. (3) Does the PLAN-v12 L6 rule ("must not create a second automatic
-  Voice Memos capture/transcription workflow") bind `minutes` against vpt, or was it only ever about Open
-  Notebook? **Moot, 2026-09-15:** vpt does not touch `minutes` for L6 to bind against. (4) Which two
-  engines are the redundant pair? Phase 6 already chose ElevenLabs Scribe v2 with whisply on
-  faster-whisper as the fallback, and Scribe, whisply, openai-whisper and the minutes on-device pipeline
-  are all present here. Cloud-plus-local and two-local differ in cost, in what audio leaves the machine,
-  and in whether a disagreement means anything. Still open: the pairing itself stays a configuration
-  value rather than one fixed pair (decision 3), with Apple Speech and whisply as the two starting
-  first-class adapters (decision 10). (5) Do Voice Memos originals leave the machine at all? L-R5
-  inherits Phase 6's "local processing for sensitive audio", but everyday personal voice memos may all
-  qualify, which would remove the metered cost line and one candidate engine together. **Decided
+  against it will not find it from the CLI. No longer needed: `pns send` replaced `pns submit` and is
+  listed in `pns --help`. Open questions: (1) Is `minutes` kept or replaced? This is the blocking
+  question; vpt's whole scope follows from it, and the ledger has carried it as an open evaluation since
+  before vpt existed. **Decided 2026-09-15: replaced.** vpt is a standalone tool with no dependency on
+  `minutes` at all; see decision 1 in `docs/decisions/2026-09-15-vpt-architecture-decisions.md`. (2) If
+  `minutes` is kept, does vpt call it or run beside it? Calling `minutes transcribe --json` makes it one
+  of vpt's two engines and reuses its summarization, vault sync and speaker work. Running beside it means
+  two tools writing notes about recordings, which is what PLAN-v12 L6 forbids for Open Notebook. **Moot,
+  2026-09-15:** `minutes` is not kept, so neither branch applies. (3) Does the PLAN-v12 L6 rule ("must
+  not create a second automatic Voice Memos capture/transcription workflow") bind `minutes` against vpt,
+  or was it only ever about Open Notebook? **Moot, 2026-09-15:** vpt does not touch `minutes` for L6 to
+  bind against. (4) Which two engines are the redundant pair? Phase 6 already chose ElevenLabs Scribe v2
+  with whisply on faster-whisper as the fallback, and Scribe, whisply, openai-whisper and the minutes
+  on-device pipeline are all present here. Cloud-plus-local and two-local differ in cost, in what audio
+  leaves the machine, and in whether a disagreement means anything. Still open: the pairing itself stays
+  a configuration value rather than one fixed pair (decision 3), with Apple Speech and whisply as the two
+  starting first-class adapters (decision 10). (5) Do Voice Memos originals leave the machine at all?
+  L-R5 inherits Phase 6's "local processing for sensitive audio", but everyday personal voice memos may
+  all qualify, which would remove the metered cost line and one candidate engine together. **Decided
   2026-09-15:** this is the user's choice, not a product rule; local is the default, `vpt setup`
   preselects it, and the operator's own configuration stays local. See decision 2. (6) Repair the vault
   `minutes` symlink now or fold it into the vpt work? Folding it in leaves the vault CLAUDE.md claim
