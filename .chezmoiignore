@@ -24,6 +24,7 @@ scripts/
 .editorconfig
 .mdformat.toml
 treefmt.toml
+ruff.toml
 
 # Stray files:
 tmp.*

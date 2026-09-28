@@ -1,0 +1,7 @@
+line-length = 100
+
+# executable_picker.py carries chezmoi's `executable_` prefix: the mode is set
+# on deploy, so the source file itself is not executable and EXE001 is wrong
+# at that one location.
+[lint.per-file-ignores]
+"dot_local/libexec/fzf-pickers/executable_picker.py" = ["EXE001"]
