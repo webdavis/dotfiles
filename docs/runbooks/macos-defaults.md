@@ -13,8 +13,7 @@ posture poller at runtime rather than by the runner.
 Settings that need admin rights are plain scripts that carry `sudo` in their name and run back to back,
 numbered 40 to 45, so one password covers them: `run_onchange_after_40-sudo-macos-defaults.sh.tmpl` (the
 `scope: system` records), `run_after_41-sudo-osquery-known-good-manifests.sh`,
-`run_after_42-sudo-install-nix.sh.tmpl`, `run_after_43-sudo-install-nix-repair-hook.sh.tmpl`,
-`run_onchange_after_44-sudo-macos-firewall.sh.tmpl` and
+`run_after_42-sudo-install-nix.sh.tmpl`, `run_onchange_after_44-sudo-macos-firewall.sh.tmpl` and
 `run_onchange_after_45-sudo-ssh-hardening.sh.tmpl`.
 
 ## Daily workflow
