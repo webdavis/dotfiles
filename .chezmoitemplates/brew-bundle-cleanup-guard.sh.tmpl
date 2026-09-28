@@ -1,12 +1,3 @@
-{{- /*
-Shared bulk-cleanup guard, consumed via includeTemplate by
-.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl and
-.chezmoiscripts/run_after_58-herdr-migration-verify.sh.tmpl -- the two owners of
-a `brew bundle cleanup --force` against a rendered Brewfile. Under the two-world
-model main's manifest is legitimately partial until later slices land, so an
-unguarded forced cleanup would mass-uninstall at D1. One definition, two call
-sites, so the safety check cannot drift between them.
-*/ -}}
 # --- shared bulk-cleanup guard: .chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl ---
 #
 # brew_bundle_cleanup_guarded <brewfile>: run the forced `brew bundle cleanup`
@@ -20,7 +11,7 @@ sites, so the safety check cannot drift between them.
 # Sets BREW_CLEANUP_OUTCOME to cleaned|refused|failed. Returns 0 for cleaned or
 # refused (both non-fatal, so a caller under `set -e` is not aborted by a
 # refusal), non-zero ONLY when the forced cleanup itself failed.
-# shellcheck disable=SC2034  # BREW_CLEANUP_OUTCOME is read by the after_58 caller; the before_10 caller ignores it
+# shellcheck disable=SC2034  # BREW_CLEANUP_OUTCOME has no reader
 brew_bundle_cleanup_guarded() {
   local brewfile="$1"
   local threshold="${HOMEBREW_BUNDLE_CLEANUP_THRESHOLD:-5}"

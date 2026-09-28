@@ -129,26 +129,6 @@ trust_declared_taps() {
   return 1
 }
 
-homebrew_has_installed() {
-  local package=$1
-  "$brew_bin" list "$package" &>/dev/null
-}
-
-legacy_multiplexer_is_installed() {
-  local multiplexer
-  for multiplexer in tmux sesh; do
-    if homebrew_has_installed "$multiplexer"; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-report_cleanup_withheld_until_herdr_is_verified() {
-  report_line 'Legacy multiplexer (tmux/sesh) still installed: running brew bundle WITHOUT cleanup so it is not removed before herdr is verified.'
-  report_line 'run_after_58 owns the teardown and completes the migration once herdr is healthy: open an interactive terminal (bashrc auto-attaches and starts the herdr server), then run chezmoi apply again so after_58 verifies herdr and removes tmux/sesh.'
-}
-
 create_temporary_brewfiles() {
   declared_brewfile="$(mktemp)"
   brewfile_without_app_store_apps="$(mktemp)"
@@ -455,13 +435,8 @@ main() {
   trust_declared_taps
   record_homebrew_trust_store_state '10-after-trust-pass'
 
-  if legacy_multiplexer_is_installed; then
-    report_cleanup_withheld_until_herdr_is_verified >&2
-    install_declared_homebrew_packages
-  else
-    install_declared_homebrew_packages
-    remove_undeclared_homebrew_packages
-  fi
+  install_declared_homebrew_packages
+  remove_undeclared_homebrew_packages
 
   put_homebrew_tools_first_on_path
 {{- if .packages.macos.uv }}
