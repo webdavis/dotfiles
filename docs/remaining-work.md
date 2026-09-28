@@ -2637,10 +2637,12 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
   `brew bundle` runs, and with nothing else declared the `brew bundle` step fails and the apply stops
   with exit 1. Fix: skip `brew bundle` when the Brewfile holds nothing but App Store lines.
 
-- [ ] 178. `.chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl` still carries prose comments and prints
+- [x] 178. `.chezmoitemplates/brew-bundle-cleanup-guard.sh.tmpl` still carries prose comments and prints
   `WARNING:` lines, and only the packages script includes it now. Fix: rewrite it to match the rewritten
   scripts, or fold it into the packages script. (The herdr migration check and
-  `.chezmoitemplates/herdr-health-check.sh.tmpl` were deleted on 2026-09-27.)
+  `.chezmoitemplates/herdr-health-check.sh.tmpl` were deleted on 2026-09-27.) Closed 2026-09-27: folded
+  into the packages script as plain functions, with an `error[bulk-cleanup-refused]` line instead of the
+  WARNING.
 
 - [ ] 179. herdr's switch to its preview update channel can be skipped for good.
   `.chezmoiscripts/run_onchange_before_15-install-herdr.sh.tmpl` installs herdr into `~/.local/bin` and
