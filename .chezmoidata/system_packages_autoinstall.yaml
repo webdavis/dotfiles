@@ -14,13 +14,7 @@ packages:
         - plannotator/tap
         - rjyo/moshi
         - xdevplatform/tap
-      # Every third-party tap declared above is trusted up front so Homebrew can
-      # load its formulae, casks, or commands under the HOMEBREW_REQUIRE_TAP_TRUST
-      # gate. The pre-bundle loop in run_onchange_before_10-system-packages.sh.tmpl
-      # runs `brew trust --tap` for each (covers command taps too). The gate is a
-      # load-time check, so an untrusted tap only fails when brew must (re)load it
-      #, on a fresh install or an upgrade, which is why trusting all of them up
-      # front is what keeps `brew bundle` from tripping. Keep in sync with `taps:`.
+      # Keep equal to `taps:`; the pre-bundle loop trusts each so `brew bundle` can load it.
       trusted_taps:
         - antoniorodr/memo
         - buo/cask-upgrade
@@ -171,9 +165,7 @@ packages:
         - zizmor
         - zls
         - zoxide
-      # Formulae held at the version proven against this repository. The apply
-      # pins each one, so `brew upgrade` and the weekly job skip it; moshi-hook
-      # moves only through `just moshi-hook-upgrade`.
+      # Held; moves only through `just moshi-hook-upgrade`.
       pinned:
         rjyo/moshi/moshi-hook: "0.3.26"
       casks:
@@ -229,17 +221,8 @@ packages:
           id: "899_247_664"
         - name: Xcode
           id: "497_799_835"
-    # version is optional. An unpinned version resolves to latest on crates.io.
     cargo:
-      # A Claude Code account switcher/manager.
       - name: clauth
-      # The `tree-sitter` command. nvim-treesitter runs it to set up each
-      # language (Python, Lua, Swift...) so Neovim can understand its code.
-      # For each language it installs, it runs:
-      #   1. tree-sitter generate   Turns the language's rules into C code.
-      #                             Only some languages need this. Needs node.
-      #   2. tree-sitter build      Compiles that C code into a file Neovim
-      #                             loads. Every language needs this.
       - name: tree-sitter-cli
     uv:
       - graphifyy
@@ -247,26 +230,12 @@ packages:
       - pymobiledevice3
       - sherlock-project
       - whisply[mlx,app]
-    # fnm-managed node plus the npm CLI tools that run on it. One node version
-    # per group; bumping `node` reinstalls every package under the new version
-    # at the next apply.
     fnm:
       - node: "24"
         packages:
-          # Pinned: the npm `latest` tag still points at 6.0.0 while the three
-          # harness plugin bundles and their versions.json are on 6.0.3, so an
-          # unpinned install would leave the CLI two months behind the plugins
-          # that call it. `npm ls -g <pkg>@<version>` is exact, so the guard
-          # above reinstalls whenever the pin moves.
-          #
-          # -sdk, NOT the @a5c-ai/babysitter metapackage the README names: only
-          # this package ships the `adapters-hooks` bin that every Claude Code
-          # hook command invokes and the Codex hook runtime resolves. The two
-          # packages both declare a `babysitter` bin and cannot coexist.
+          # Pinned to the version the plugin bundles ship. -sdk, not the metapackage: only it
+          # ships the `adapters-hooks` bin, and the two cannot coexist.
           - "@a5c-ai/babysitter-sdk@6.0.3"
-          # The `claude-agent-acp` bin avante.nvim's claude-code provider spawns.
-          # It reaches the Claude Code CLI already on PATH, so avante runs on the
-          # subscription login rather than an API key.
           - "@agentclientprotocol/claude-agent-acp"
           - "@clawdbot/lobster"
           - "@doist/todoist-cli"
@@ -281,19 +250,9 @@ packages:
           - agentmail-cli
           - backpass
           - clawhub
-          # Pinned: an overnight orchestrator that commits unattended, still
-          # pre-1.0 and releasing weekly, so the version it runs under is a
-          # deliberate choice rather than whatever `latest` points at that
-          # night. `npm ls -g <pkg>@<version>` is exact, so the guard above
-          # reinstalls whenever the pin moves.
+          # Pinned: it commits unattended and is pre-1.0.
           - "gnhf@0.1.49"
           - hyperframes
-  # Tools built from their own git repository rather than this one, and
-  # installed into ~/.cargo/bin with `cargo install --git`. dam is
-  # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn.
-  # chord compiles dot_config/chord/bindings.toml into the two generated files
-  # `just chord-render` writes, and CI also installs it to run the `chord check`
-  # gate. A change to this file reinstalls the tools at their latest commit.
   cargo_git_tools:
     - name: chord
       repo: webdavis/chord
@@ -315,17 +274,7 @@ packages:
       repo: webdavis/uu
       package: uu
 
-  # The herdr plugins this machine builds and LINKS rather than installing from
-  # GitHub. `herdr plugin install` requires a herdr-plugin.toml committed in the
-  # plugin repository; a linked plugin ships none, because its actions are a
-  # function of this machine's own configuration rather than a file that could
-  # be committed once for everybody. herdr-process's actions are one set per
-  # declared process profile, and herdr-workspace-jump's are one jump per
-  # declared workspace; each renders its manifest from this machine's config
-  # via its own `generate` subcommand. The shared builder,
-  # .chezmoiscripts/run_onchange_after_58, clones each plugin, compiles it,
-  # generates its manifest and links the result. A change to this file
-  # reinstalls the plugins at their latest commit.
+  # Linked rather than installed: their manifests are generated from this machine's config.
   herdr_linked_plugins:
     - id: herdr-process
       repo: webdavis/herdr-process
@@ -333,18 +282,8 @@ packages:
       repo: webdavis/herdr-workspace-jump
 
   herdr_plugins:
-    # run_after_53 installs a missing plugin at apply. Every plugin this machine
-    # wants is listed here except the two linked ones (see herdr_linked_plugins
-    # above).
-    #
-    # herdr-smart-nav is ours, in its own public repository so it installs by
-    # the same convention as everybody else's.
     - id: herdr-smart-nav
       repo: webdavis/herdr-smart-nav
-    # The task pane. Its config lives at
-    # dot_config/herdr/plugins/config/herdr-damnit/config.toml and names the
-    # KeePassXC entry the token comes from; the plugin refuses to run until one
-    # of its two token indirections resolves.
     - id: herdr-damnit
       repo: webdavis/herdr-damnit
     - id: worktrunk
@@ -363,7 +302,6 @@ packages:
       repo: plannotator/herdr-annotate
     - id: furkankly.zoetrope
       repo: furkankly/zoetrope/herdr-plugin
-    # Depends on the `clauth` binary, which packages.macos.cargo installs.
     - id: clauth
       repo: uwuclxdy/clauth/herdr-plugin
 
