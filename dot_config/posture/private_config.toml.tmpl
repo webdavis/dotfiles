@@ -10,6 +10,9 @@ heartbeat = "com.webdavis.osquery-heartbeat"
 digest = "{{ printf "%02d:%02d" (int .posture.osquery.digestHour) (int .posture.osquery.digestMinute) }}"
 heartbeat = "{{ printf "%02d:%02d" (int .posture.osquery.heartbeatHour) (int .posture.osquery.heartbeatMinute) }}"
 
+[watchdog]
+processes = ["pns.gateway"]
+
 [notify]
 mode = "hermes"
 route = "posture-pages"
