@@ -5,7 +5,7 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-readonly pns_bin={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "pns" | quote }}
+readonly pns_bin={{ joinPath .chezmoi.homeDir ".cargo/bin" "pns" | quote }}
 readonly codex_hooks_file="$HOME/.codex/hooks.json"
 
 pns_is_installed() {

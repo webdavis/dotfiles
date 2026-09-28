@@ -289,7 +289,7 @@ packages:
           - "gnhf@0.1.49"
           - hyperframes
   # Tools built from their own git repository rather than this one, and
-  # installed into rust_tools.install_dir with `cargo install --git`. dam is
+  # installed into ~/.cargo/bin with `cargo install --git`. dam is
   # the task-and-calendar CLI the herdr-damnit and damnit.nvim plugins spawn.
   # chord compiles dot_config/chord/bindings.toml into the two generated files
   # `just chord-render` writes, and CI also installs it to run the `chord check`

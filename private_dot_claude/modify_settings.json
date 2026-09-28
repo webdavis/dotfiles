@@ -342,11 +342,11 @@
      neither PreToolUse's tool name nor StopFailure's error text.
      --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
-{{- /* The pns binary's absolute path, from the one declaration in
-     .chezmoidata/rust_tools.yaml. Absolute rather than a bare `pns` because a
+{{- /* The pns binary's absolute path in ~/.cargo/bin, cargo's default.
+     Absolute rather than a bare `pns` because a
      hook command runs with whatever PATH the harness inherited, which on a GUI
      launch is not the managed shell's. */ -}}
-{{- $pns := joinPath $home .rust_tools.install_dir "pns" -}}
+{{- $pns := joinPath $home ".cargo/bin" "pns" -}}
 {{- $hooks := dict
     "UserPromptSubmit" (list (dict
       "hooks" (list (dict

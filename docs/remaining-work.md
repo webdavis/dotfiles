@@ -331,9 +331,9 @@ Extraction into separate repositories is deferred to the tail; see task 68a.
 
   Shipped as three commits on `refactor/monorepo-layout`. Four things the task did not anticipate:
   `lights-cli` was renamed with the other three, because leaving one command crate on the old suffix
-  would have been the tree's only inconsistency. The declared value is `.chezmoidata/rust_tools.yaml`,
-  and the bashrc reads it as `"$HOME/{{ .rust_tools.install_dir }}/pns"` rather than an absolute render,
-  because a shell rc should expand `$HOME` at runtime. pns's two development binaries went behind
+  would have been the tree's only inconsistency. The tools live in `~/.cargo/bin`, cargo's default, and
+  the bashrc names pns as `"$HOME/.cargo/bin/pns"` rather than an absolute render, because a shell rc
+  should expand `$HOME` at runtime. pns's two development binaries went behind
   `required-features = ["dev-tools"]`, since `cargo install` installs every binary a package declares and
   the rename would otherwise have put a bare `http-capture` in an installing user's `~/.cargo/bin`. And
   posture's tracked-path allowlist matches `~/.cargo/bin/posture` EXACTLY rather than by prefix, because
@@ -2588,12 +2588,11 @@ producer.
   while its caller verification holds. EXACTLY ONE LEFTOVER REMAINS and it is a directory, not a binary:
   the empty, unmanaged `~/.local/libexec/uu/` at mode 0755. THE WHOLE OPERATOR STEP IS
   `trash ~/.local/libexec/uu`. Callers: every live caller in the repository and on the deployed side
-  names `~/.cargo/bin`, most of them resolving `rust_tools.install_dir` from
-  `.chezmoidata/rust_tools.yaml` at render time. One repository file names an old path in live code and
-  is NOT a caller: `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh` builds the legacy
-  pattern list its own `migrate` filter rewrites to the cargo path, and its agent is already the cargo
-  binary. `~/.codex/hooks.json` and all twelve pns commands in `~/.claude/settings.json` name the cargo
-  path. PRESERVED: `~/.local/libexec/pns/` survives, because chezmoi declares
+  names `~/.cargo/bin`, cargo's default, where the tools live. One repository file names an old path in
+  live code and is NOT a caller: `dot_local/libexec/pns/hooks/codex/executable_install-hooks.sh` builds
+  the legacy pattern list its own `migrate` filter rewrites to the cargo path, and its agent is already
+  the cargo binary. `~/.codex/hooks.json` and all twelve pns commands in `~/.claude/settings.json` name
+  the cargo path. PRESERVED: `~/.local/libexec/pns/` survives, because chezmoi declares
   `hooks/codex/install-hooks.sh` there and `channel_dispatch.rs` also defaults the executable-channel
   directory to `~/.local/libexec/pns/channels`; `~/.local/libexec/posture/` survives whole, its seven
   deployed files matching chezmoi's declaration file for file. Two unmanaged `.DS_Store` files in the pns
@@ -3619,7 +3618,7 @@ is missing.
   did not write and collapses duplicates it did. `private_dot_hermes/modify_private_config.yaml` gained a
   `hooks` block wiring `pre_approval_request` to `pns hook blocked --remind` and `post_approval_response`
   to `pns hook resolved`, each list written whole like the routes map beside it, with the pns path built
-  from the one `rust_tools` declaration and no producer prefix because hermes runs a hook command through
+  in `~/.cargo/bin`, cargo's default, and no producer prefix because hermes runs a hook command through
   shlex.split with no shell. The event names were taken from hermes's own documentation in the checkout
   at `~/.hermes/hermes-agent`, which lists both among VALID_HOOKS, and from `hermes hooks --help`; no
   hermes command that sends anything was run. Both files are modify-templates over files their apps
@@ -5436,11 +5435,11 @@ Two tools filed 2026-09-17 from the operator's own pain points, approved the sam
   open pull requests with their CI state (through `gh`), the newest overnight recap, the ledger's
   operator-owned items, and today's Todoist tasks through `td`. It prints one framed page and exits; it
   never applies, merges or edits anything. Its own cargo workspace at the repository root like the other
-  four, installed to `~/.cargo/bin`, declared in `.chezmoidata/rust_tools.yaml`, and it never hardcodes
-  this repository's path (the ledger path and the log path are config). Ships with a `/morning` command
-  for Claude Code (`private_dot_claude/commands/`), Codex and hermes that runs the binary and hands the
-  page to the agent as the day's brief, so the operator's first message of the day is "morning" in any
-  harness. Operator ruling 2026-09-17: a binary plus an agent command, not a `just` recipe.
+  four, installed to `~/.cargo/bin`, cargo's default, and it never hardcodes this repository's path (the
+  ledger path and the log path are config). Ships with a `/morning` command for Claude Code
+  (`private_dot_claude/commands/`), Codex and hermes that runs the binary and hands the page to the agent
+  as the day's brief, so the operator's first message of the day is "morning" in any harness. Operator
+  ruling 2026-09-17: a binary plus an agent command, not a `just` recipe.
 
   Closed 2026-09-18, merged as [PR #784](https://github.com/webdavis/dotfiles/pull/784), `5bbed3a5`.
   `morning` is a sixth Rust workspace at the repository root, four crates in the shape the clean-code

@@ -7,7 +7,7 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-readonly uu_binary={{ joinPath .chezmoi.homeDir .rust_tools.install_dir "uu" | quote }}
+readonly uu_binary={{ joinPath .chezmoi.homeDir ".cargo/bin" "uu" | quote }}
 
 uu_is_installed() {
   [[ -x $uu_binary ]]

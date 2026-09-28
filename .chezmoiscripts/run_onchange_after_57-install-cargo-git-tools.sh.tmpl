@@ -9,13 +9,12 @@ set -euo pipefail
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 {{ includeTemplate "rust-build-lib.sh.tmpl" }}
 
-readonly install_root={{ joinPath .chezmoi.homeDir .rust_tools.install_dir | dir | quote }}
-readonly installed_crates_record="$install_root/.crates2.json"
+readonly installed_crates_record="$HOME/.cargo/.crates2.json"
 readonly cargo_git_tools_retry_marker="$HOME/.cache/cargo-git-tools/retry"
 
 tool_binary_is_installed() {
   local name=$1
-  [[ -x "$install_root/bin/$name" ]]
+  [[ -x "$HOME/.cargo/bin/$name" ]]
 }
 
 installed_crates_record_exists() {
@@ -53,7 +52,7 @@ cargo_install_from_git() {
   if binary_was_installed_outside_cargo "$name" "$repo" "$package"; then
     install_arguments+=(--force)
   fi
-  "$cargo_bin" install --git "https://github.com/$repo" --locked "${install_arguments[@]}" --root "$install_root" "$package"
+  "$cargo_bin" install --git "https://github.com/$repo" --locked "${install_arguments[@]}" "$package"
 }
 
 installed_short_sha() {
