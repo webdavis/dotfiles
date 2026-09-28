@@ -359,10 +359,10 @@ across reboots.
 
 Auth is a one-time manual `sudo tailscale up --accept-dns=true` plus flipping **Disable Key Expiry** on
 the node in the admin console, after which node-key expiry will not force reauthentication (no auth keys,
-no rotation, no KeePassXC). `run_onchange_after_66-tailscaled-status.sh.tmpl` is a sudo-free reminder: it
-reads `tailscale status --json`, branches on `.BackendState`, and prints those one-time steps when the
-daemon is starting, unauthenticated, awaiting machine auth or stopped. It is silent when the daemon is
-running, exits 0 on every path, and never runs sudo or authenticates.
+no rotation, no KeePassXC). `run_after_99-tailscaled-status.sh.tmpl` runs last in every apply as a
+sudo-free reminder: it reads `tailscale status --json`, branches on `.BackendState`, and prints those
+one-time steps when the daemon is starting, unauthenticated, awaiting machine auth or stopped. It is
+silent when the daemon is running, exits 0 on every path, and never runs sudo or authenticates.
 
 ### DNS
 
