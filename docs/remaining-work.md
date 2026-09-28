@@ -2757,11 +2757,13 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
   the last attempt fails; making the loaders uniform needs that template change plus edits to all eleven
   scripts that include it.
 
-- [ ] 198. The moshi-hook daemon can miss its restart after an upgrade.
+- [x] 198. The moshi-hook daemon can miss its restart after an upgrade.
   `.chezmoiscripts/run_after_62-bounce-moshi-hook-on-upgrade.sh.tmpl` pipes `lsof` into an `awk` that
   exits at its first match. When `lsof` prints a lot, that early exit breaks the pipe, the read fails,
   and the daemon is never restarted. The script also runs `stat -f '%i'`, which assumes the BSD `stat` is
-  first on PATH. Fix: let `awk` read to the end, and call `/usr/bin/stat` by its full path.
+  first on PATH. Fix: let `awk` read to the end, and call `/usr/bin/stat` by its full path. Closed
+  2026-09-27: the script was deleted; it also restarted the old `homebrew.mxcl.moshi-hook` label, which
+  Homebrew now names `sh.brew.moshi-hook`.
 
 - [ ] 199. Two small gaps around `.chezmoiscripts/run_after_68-hermes-log-route-status.sh.tmpl`. When the
   gateway cannot be reached, curl prints `000` and the `|| echo` fallback adds another `000`, so the
