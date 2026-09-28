@@ -25,6 +25,14 @@ command = ["scripts/send-report-to-hermes.sh"]
 [alert]
 command = ["scripts/send-alert-to-pns.sh"]
 
+[lane.atuin-daemon-refresh]
+after = ["brew"]
+command = ["scripts/atuin-daemon-refresh.sh"]
+env = {}
+scheduled = true
+time_limit = "1 minute"
+unsuccessful_runs_before_alert = 3
+
 [lane.bgutil-ytdlp-pot-provider]
 command = ["scripts/update-bgutil-ytdlp-pot-provider.sh"]
 env = {}
@@ -350,7 +358,7 @@ unsuccessful_runs_before_alert = 3
 [lane.yt-dlp.settings]
 
 [group.brew-and-repairs]
-lanes = ["brew", "posture-converge", "tailscaled-refresh", "brew-upgrade-record"]
+lanes = ["brew", "atuin-daemon-refresh", "posture-converge", "tailscaled-refresh", "brew-upgrade-record"]
 
 [group.skills]
 lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills", "skills-on-demand"]
