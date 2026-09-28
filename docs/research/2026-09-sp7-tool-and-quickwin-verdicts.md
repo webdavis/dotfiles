@@ -521,9 +521,9 @@ Each of these is a choice this record made because the operator was asleep. Each
 1. **Out of scope, found while probing the network tooling, and untracked anywhere:** `nettop` reports
    `tcp4 *:445 Listen`, and `launchctl print-disabled system` shows `"com.apple.smbd" => enabled`, so
    Server Message Block file sharing is listening on this machine. Nothing in `docs/remaining-work.md` or
-   `.chezmoidata/macos_posture_controls.yaml` mentions port 445 or file sharing, and the ledger's
-   existing exposure section covers SSH only. Should file sharing be off, or a posture control that
-   asserts its state? Filing this as its own item rather than folding it into a quick-wins bullet.
+   `.chezmoidata/posture_controls.yaml` mentions port 445 or file sharing, and the ledger's existing
+   exposure section covers SSH only. Should file sharing be off, or a posture control that asserts its
+   state? Filing this as its own item rather than folding it into a quick-wins bullet.
 1. **Also out of scope:** `~/.cargo/bin/fd` (8.4.0) shadows the declared Homebrew `fd` (10.5.0), and `nu`
    plus `nu_plugin_core_match` are installed there despite the ratified nushell no-go. Both are
    undeclared cargo installs that contradict a declaration. Clean up, or leave?

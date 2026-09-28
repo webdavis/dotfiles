@@ -7,8 +7,8 @@ per-user `defaults write` records; records carrying `scope: system` render inste
 `killall` list (Dock, Finder, SystemUIServer, cfprefsd, in that order). Killing cfprefsd is what makes
 plist changes take effect immediately.
 
-A second data file, `.chezmoidata/macos_posture_controls.yaml`, is verify-tier only and is read by the
-osquery posture poller at runtime rather than by the runner.
+A second data file, `.chezmoidata/posture_controls.yaml`, is verify-tier only and is read by the osquery
+posture poller at runtime rather than by the runner.
 
 Settings that need admin rights are plain scripts that carry `sudo` in their name and run back to back,
 numbered 40 to 45, so one password covers them: `run_onchange_after_40-sudo-macos-defaults.sh.tmpl` (the

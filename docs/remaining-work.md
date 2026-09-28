@@ -8180,8 +8180,8 @@ force.
   Catppuccin for bat, Ghostty `quick-terminal-size`, Ghostty background blur, AeroSpace
   workspace-to-monitor assignment. (8) File the two incidental findings as their own items rather than
   folding them into a quick-wins bullet: Server Message Block file sharing is listening on port 445
-  (`com.apple.smbd` enabled, untracked in the ledger and in macos_posture_controls.yaml), and
-  `~/.cargo/bin` holds an undeclared fd 8.4.0 shadowing the declared Homebrew 10.5.0 plus `nu` and
+  (`com.apple.smbd` enabled, untracked in the ledger and in posture_controls.yaml), and `~/.cargo/bin`
+  holds an undeclared fd 8.4.0 shadowing the declared Homebrew 10.5.0 plus `nu` and
   `nu_plugin_core_match` despite the ratified nushell no-go. Open questions: (1) doggo: adopt? It is the
   one recommended addition, one line between `direnv` and `dust`, install first then declare per the
   Homebrew agent workflow. (2) bandwhich and ouch: accept the declines, or overrule either on taste? If
@@ -9076,8 +9076,8 @@ the separate local credential/chezmoi boundary. Planning does not authorize cred
   `.chezmoiscripts/run_onchange_after_60-load-osquery-tailscale-monitor-launchagent.sh.tmpl`),
   `.chezmoiscripts/run_onchange_after_66-tailscaled-status.sh.tmpl` with
   `test/unit/tailscaled-status.sh`, the `lulu_rule_tailscaled` verify control in
-  `.chezmoidata/macos_posture_controls.yaml`, and the `tailscaled` repair key in the brew lane. F5 and L6
-  own nothing on the laptop at all: `brew search dozzle` reports no formula or cask and
+  `.chezmoidata/posture_controls.yaml`, and the `tailscaled` repair key in the brew lane. F5 and L6 own
+  nothing on the laptop at all: `brew search dozzle` reports no formula or cask and
   `brew search open-notebook` matches nothing, because both are authenticated web interfaces reached over
   the tailnet, so their only laptop-side dependency is the private name resolution F4 may later move.
   L6's one real cross-project dependency is the optional vpt handoff, which stays in the item below and

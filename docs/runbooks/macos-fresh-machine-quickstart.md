@@ -61,7 +61,7 @@ interactive-only; no supported command line writes it:
 1. Confirm the monitor is running: `pgrep -x -U "$(id -u)" OverSight` prints a PID. User-scoped (`-U`)
    exactly like the security-posture poller's probe, so another user's OverSight cannot mask a stopped
    one here; the poller verifies this continuously (the `oversight` record in
-   `.chezmoidata/macos_posture_controls.yaml`) and pages if the process stops.
+   `.chezmoidata/posture_controls.yaml`) and pages if the process stops.
 
 ### LuLu system extension approval
 
@@ -77,7 +77,7 @@ writes that approval:
 1. Confirm it took: `systemextensionsctl list` shows `com.objective-see.lulu.extension` with
    `[activated enabled]`, and `pgrep -x -U 0 com.objective-see.lulu.extension` prints a PID. The
    security-posture poller verifies the process continuously (the `lulu_extension` record in
-   `.chezmoidata/macos_posture_controls.yaml`) and pages if it stops.
+   `.chezmoidata/posture_controls.yaml`) and pages if it stops.
 
 ### LuLu rule creation
 
@@ -86,8 +86,7 @@ not hand-authorable by any supported tool, so every rule is created interactivel
 prompt when a binary first makes an outbound connection or ahead of time via the app's Rules window (LuLu
 menu bar icon → Rules → the plus button, which takes a binary path).
 
-The required rules, from the talker table in `.chezmoidata/macos_posture_controls.yaml`
-(`macos.lulu_talkers`):
+The required rules:
 
 1. **tailscaled** (`/usr/local/bin/tailscaled`): allow. Slice 8's remote recovery path 2 rides the
    tailnet; blocking this removes it.
@@ -97,6 +96,25 @@ The required rules, from the talker table in `.chezmoidata/macos_posture_control
    (`readlink -f ~/.hermes/hermes-agent/venv/bin/python`), so create the rule for that resolved path.
    After a python upgrade moves the interpreter, the `lulu_rule_hermes_gateway` control pages and this
    step is repeated for the new path.
+
+Five talkers deliberately get no rule:
+
+- **The pns and posture loopback POST** (loopback only: pns POSTs pages to `http://127.0.0.1:8644` and
+  posture probes the same URL). The `allowLocalHost` preference keeps loopback unfiltered, so no rule is
+  ever consulted, and a rule on either client would let every process on the machine egress.
+- **Homebrew** (outbound, unattended: the weekly upgrade LaunchAgent). Its egress rides version-pinned
+  Cellar paths that move on every upgrade while the stale rule lingers, plus Apple-signed tools that
+  `allowApple` already covers, so an existence check would read green forever. A missing rule costs one
+  visible prompt, and Homebrew is neither the alerting nor the recovery path.
+- **npm** (outbound, unattended: package installs ride node). node sits at a Cellar path that moves on
+  every upgrade, the same false green as Homebrew, and a blanket rule on node would cover every node
+  process on a machine running many unattended agents.
+- **nix** (outbound, unattended: flake evaluation and store fetches). The binary lives at a hash-pinned
+  `/nix/store` path that moves on every nix upgrade, the same false green as Homebrew. A missing rule
+  costs one visible prompt, and nix is neither the alerting nor the recovery path.
+- **gh** (outbound, unattended: workflow polling and API reads). It has the same Cellar drift as
+  Homebrew, so an existence check on a pinned path cannot prove the live binary is ruled. A missing rule
+  costs one visible prompt, and gh is neither the alerting nor the recovery path.
 
 Both rules are verified continuously by the security-posture poller as existence-only checks: the archive
 is readable enough to prove a rule mentioning the binary exists, but the rule action (allow vs block) is
