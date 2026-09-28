@@ -6,7 +6,7 @@
 // closes it (pi-mono packages/coding-agent/docs/extensions.md).
 import { spawn } from "node:child_process"
 
-{{ includeTemplate "pns-reminder-extension.ts.tmpl" (dict "producer" "pi" "binary" (joinPath .chezmoi.homeDir .rust_tools.install_dir "pns")) }}
+{{ includeTemplate "pns-reminder-extension.ts.tmpl" (dict "producer" "pi" "binary" (joinPath .chezmoi.homeDir ".cargo/bin" "pns")) }}
 
 export default function pnsReminders(pi) {
   pi.on("ui_prompt_start", (event, ctx) => {

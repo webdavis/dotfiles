@@ -6,7 +6,7 @@
   <string>com.webdavis.osquery-firewall-gatekeeper-monitor</string>
   <key>ProgramArguments</key>
   <array>
-    <string>{{ .chezmoi.homeDir }}/{{ .rust_tools.install_dir }}/posture</string>
+    <string>{{ .chezmoi.homeDir }}/.cargo/bin/posture</string>
     <string>poll</string>
   </array>
   <key>EnvironmentVariables</key>
