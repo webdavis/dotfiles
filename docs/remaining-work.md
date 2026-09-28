@@ -6533,13 +6533,13 @@ The original documents are on #24's `docs/osquery-design` branch, not in current
   `~/.cloudflared/config.yml` above the catch-all pointing at `http://127.0.0.1:8648` and restart
   cloudflared (that file is not chezmoi-tracked), give that hostname one Cloudflare Access Bypass policy
   scoped to GitHub's webhook ranges read from `GET https://api.github.com/meta` and no Allow rule, point
-  the App's webhook URL at `https://<hostname>/webhooks/github`, apply, run
-  `launchctl kickstart -k gui/$(id -u)/com.webdavis.pns-github-receiver` (the receiver's LaunchAgent
-  reloads only when its plist changes, so a new or rotated secret needs it), then press Redeliver and
-  expect 204 plus a notification within seconds. TWO QUESTIONS LEFT OPEN: whether a hand-pressed
-  redelivery should force a submission the seen-set would otherwise refuse (under the doorbell it looks
-  like nothing happens, which is probably correct), and whether posture's declared-hostname control gets
-  its own pull request now that a second hostname reaches the internet or waits behind parts 3 and 4.
+  the App's webhook URL at `https://<hostname>/webhooks/github`, apply, run `pns gateway restart` (the
+  gateway starts the receiver itself once the secret is set, but a running receiver keeps the secret it
+  started with, so a rotated secret needs the restart), then press Redeliver and expect 204 plus a
+  notification within seconds. TWO QUESTIONS LEFT OPEN: whether a hand-pressed redelivery should force a
+  submission the seen-set would otherwise refuse (under the doorbell it looks like nothing happens, which
+  is probably correct), and whether posture's declared-hostname control gets its own pull request now
+  that a second hostname reaches the internet or waits behind parts 3 and 4.
 
   PART 3 SHIPPED as [PR #747](https://github.com/webdavis/dotfiles/pull/747), merged `eee9cb0c`, and the
   investigation found MOST OF IT ALREADY BUILT. The colour machinery had shipped with the design: both

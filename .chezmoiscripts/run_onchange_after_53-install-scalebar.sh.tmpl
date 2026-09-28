@@ -10,7 +10,6 @@
 # {{ $manifest }} {{ include $manifest | sha256sum }}
 {{ end -}}
 {{ end -}}
-# plist hash: {{ include "Library/LaunchAgents/io.webdavis.scalebar.plist.tmpl" | sha256sum }}
 # retry-marker: {{ $retry := joinPath (env "HOME") ".cache/scalebar-build/scalebar.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
 # binary: {{ if stat (joinPath .chezmoi.homeDir .packages.source_builds.scalebar.install_dir "Scalebar") }}present{{ else }}absent{{ end }}
 
@@ -19,15 +18,16 @@ set -euo pipefail
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 {{ includeTemplate "rust-build-lib.sh.tmpl" }}
 {{ includeTemplate "load-launchagent.sh.tmpl" }}
+{{ includeTemplate "retire-launchagent.sh.tmpl" }}
 
 readonly scalebar_source_dir={{ $scalebar | quote }}
 readonly built_binaries_dir="$scalebar_source_dir/.build/release"
 readonly install_dir={{ joinPath .chezmoi.homeDir .packages.source_builds.scalebar.install_dir | quote }}
 readonly scalebar_binary="$install_dir/Scalebar"
 readonly scalebar_retry_marker="$HOME/.cache/scalebar-build/scalebar.retry"
-readonly launchagent_label="io.webdavis.scalebar"
-readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
-readonly launchagent_log_directory="$HOME/.local/log/scalebar"
+readonly retired_launchagent_label="io.webdavis.scalebar"
+readonly retired_log_directory="$HOME/.local/log/scalebar"
+readonly usage_of_a_scalebar_that_installs_itself='usage: Scalebar [install'
 
 scalebar_clone_exists() {
   [[ -d $scalebar_source_dir ]]
@@ -43,6 +43,18 @@ build_release_binaries() {
 
 scalebar_is_installed() {
   [[ -x $scalebar_binary ]]
+}
+
+scalebar_can_install_itself() {
+  grep -q -a -F "$usage_of_a_scalebar_that_installs_itself" "$scalebar_binary"
+}
+
+retire_the_old_scalebar_launchagent() {
+  retire_launchagent "$retired_launchagent_label" && trash_if_present "$retired_log_directory"
+}
+
+install_scalebar_startup_file() {
+  "$scalebar_binary" install
 }
 
 main() {
@@ -78,10 +90,21 @@ main() {
     exit 0
   fi
 
-  create_launchagent_log_directory "$launchagent_log_directory"
-  report_line "reloading..."
-  reload_launchagent "$launchagent_label" "$launchagent_plist"
-  report_line "loaded."
+  if ! scalebar_can_install_itself; then
+    report_line "$scalebar_binary predates Scalebar install, so the LaunchAgent was left exactly as it is; pull $scalebar_source_dir and the next apply installs it." >&2
+    defer_build_until_next_apply "$scalebar_retry_marker"
+    exit 0
+  fi
+
+  if ! retire_the_old_scalebar_launchagent; then
+    report_line "error[retire-failed]: $retired_launchagent_label is still loaded or its files were not trashed, so Scalebar install did not run; the next apply retries." >&2
+    exit 1
+  fi
+
+  if ! install_scalebar_startup_file; then
+    report_line "error[install-failed]: Scalebar install failed; the next apply retries." >&2
+    exit 1
+  fi
 }
 
 main "$@"

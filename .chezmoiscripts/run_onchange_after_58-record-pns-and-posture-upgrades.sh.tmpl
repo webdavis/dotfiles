@@ -13,7 +13,7 @@ readonly install_dir="$HOME/.cargo/bin"
 readonly build_record_dir="$HOME/.local/state"
 readonly rustc_bin="$HOME/.cargo/bin/rustc"
 readonly pipeline_manifest_refresher="${CHEZMOI_SOURCE_DIR:?}/.chezmoiscripts/run_after_41-sudo-osquery-known-good-manifests.sh"
-readonly -a pns_launchagent_labels=(com.webdavis.pns-daemon com.webdavis.pns-github-receiver)
+readonly -a pns_launchagent_labels=(pns.gateway)
 
 recorded_binary_count=0
 

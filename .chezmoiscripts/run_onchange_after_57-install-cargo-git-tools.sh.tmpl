@@ -8,10 +8,15 @@ set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 {{ includeTemplate "rust-build-lib.sh.tmpl" }}
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
+{{ includeTemplate "retire-launchagent.sh.tmpl" }}
 
 readonly installed_crates_record="$HOME/.cargo/.crates2.json"
 readonly cargo_git_tools_retry_marker="$HOME/.cache/cargo-git-tools/retry"
 readonly uu_binary="$HOME/.cargo/bin/uu"
+readonly pns_binary="$HOME/.cargo/bin/pns"
+readonly -a retired_pns_launchagent_labels=(com.webdavis.pns-daemon com.webdavis.pns-github-receiver)
+readonly retired_pns_log_directory="$HOME/.local/log"
 
 tool_binary_is_installed() {
   local name=$1
@@ -88,6 +93,67 @@ install_uu_daemon() {
   "$uu_binary" daemon install
 }
 
+install_the_uu_daemon() {
+  report_section 'uu' 'daemon'
+
+  if ! uu_is_installed; then
+    report_line "$uu_binary is missing or not executable, so the daemon was left as it is; the install is deferred to the next apply." >&2
+    return 0
+  fi
+
+  if ! install_uu_daemon; then
+    report_line "error[install-failed]: uu daemon install failed; the next apply retries." >&2
+    return 1
+  fi
+}
+
+pns_is_installed() {
+  [[ -x $pns_binary ]]
+}
+
+pns_can_preview_its_gateway_install() {
+  "$pns_binary" gateway install --preview >/dev/null
+}
+
+retire_the_old_pns_launchagents() {
+  local label log
+  for label in "${retired_pns_launchagent_labels[@]}"; do
+    retire_launchagent "$label" || return 1
+  done
+  for log in "$retired_pns_log_directory"/pns-daemon.log* "$retired_pns_log_directory"/pns-github-receiver.log*; do
+    trash_if_present "$log" || return 1
+  done
+}
+
+install_pns_gateway() {
+  "$pns_binary" gateway install
+}
+
+install_the_pns_gateway() {
+  report_section 'pns' 'gateway'
+
+  if ! pns_is_installed; then
+    report_line "$pns_binary is missing or not executable, so the gateway was left as it is; the install is deferred to the next apply." >&2
+    return 0
+  fi
+
+  if ! pns_can_preview_its_gateway_install; then
+    report_line "$pns_binary could not preview pns gateway install, so the old pns LaunchAgents were left running; the install is deferred to the next apply." >&2
+    defer_build_until_next_apply "$cargo_git_tools_retry_marker"
+    return 0
+  fi
+
+  if ! retire_the_old_pns_launchagents; then
+    report_line "error[retire-failed]: an old pns LaunchAgent is still loaded or its files were not trashed, so pns gateway install did not run; the next apply retries." >&2
+    return 1
+  fi
+
+  if ! install_pns_gateway; then
+    report_line "error[install-failed]: pns gateway install failed; the next apply retries." >&2
+    return 1
+  fi
+}
+
 main() {
   report_section 'cargo-git-tools' 'CLI tools'
 
@@ -100,17 +166,10 @@ main() {
     defer_build_until_next_apply "$cargo_git_tools_retry_marker"
   fi
 
-  report_section 'uu' 'daemon'
-
-  if ! uu_is_installed; then
-    report_line "$uu_binary is missing or not executable, so the daemon was left as it is; the install is deferred to the next apply." >&2
-    exit 0
-  fi
-
-  if ! install_uu_daemon; then
-    report_line "error[install-failed]: uu daemon install failed; the next apply retries." >&2
-    exit 1
-  fi
+  local daemon_status=0
+  install_the_pns_gateway || daemon_status=1
+  install_the_uu_daemon || daemon_status=1
+  return "$daemon_status"
 }
 
 main "$@"
