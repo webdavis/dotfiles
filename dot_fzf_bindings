@@ -11,5 +11,7 @@ fi
 source "$__fzf_shell_root/callbacks.sh"
 # shellcheck source=dot_config/fzf-pickers/lib/shell/setup.sh
 source "$__fzf_shell_root/setup.sh"
+# shellcheck source=dot_config/fzf-pickers/lib/shell/menu.sh
+source "$__fzf_shell_root/menu.sh"
 [[ ${FZF_PICKERS_TEST-} == 1 ]] || __fzf_setup "$__fzf_shell_root"
 unset __fzf_shell_root

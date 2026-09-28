@@ -19,7 +19,8 @@
 # modes, where the command-mode binding enters insert mode first. An empty
 # list binds in whatever keymap is current, with no mode flag at all.
 #
-# The shell functions these rows call live in `dot_bash_bindings_functions`.
+# The shell functions these rows call live in `dot_bash_bindings_functions`,
+# and the fzf pickers' in `dot_config/fzf-pickers/lib/shell/`.
 
 # The `[render]` section is what each rendered file says about itself: where it
 # goes, the comment block it opens with, the readline macro a typed row clears
@@ -47,7 +48,8 @@ header = '''
 #
 # The shell functions these bindings call, and the `\C-x0`, `\C-x1` and
 # `\C-x2` helper macros, live in ~/.bash_bindings_functions, which
-# ~/.bashrc sources first.
+# ~/.bashrc sources first. The fzf pickers' functions live in
+# ~/.config/fzf-pickers/lib/shell/, which ~/.fzf_bindings sources.
 '''
 
 [render.menu]
@@ -808,21 +810,309 @@ key = "ctrl-x l"
 run = "__bash_bindings_git_ls_files_with_last_modified"
 
 [[group]]
-name = "network"
-description = "Network diagnostics and discovery."
+name = "fzf-pickers"
+description = "The fzf pickers. Each key opens one, and Enter puts what you chose on the\ncommand line."
+
+[[group.binding]]
+key = "ctrl-t ctrl-t"
+description = "Files under this folder, from fzf's own Ctrl-T widget"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "fzf-file-widget"
+
+[[group.binding]]
+key = "ctrl-t f"
+description = "Files under this folder"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick files"
+
+[[group.binding]]
+key = "ctrl-t F"
+description = "Files under this folder, hidden ones too"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick files --hidden"
+
+[[group.binding]]
+key = "ctrl-t h"
+description = "Files in your home folder, two levels deep"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick files --root home"
+
+[[group.binding]]
+key = "ctrl-t /"
+description = "Files from the top of the disk, three levels deep"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick files --root /"
+
+[[group.binding]]
+key = "ctrl-t d d"
+description = "Folders under this folder, hidden ones too"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick directories"
+
+[[group.binding]]
+key = "ctrl-t d g"
+description = "Folders in this Git repository"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick directories --root git"
+
+[[group.binding]]
+key = "ctrl-t d /"
+description = "Folders from the top of the disk, three levels deep"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick directories --root /"
+
+[[group.binding]]
+key = "ctrl-t d p"
+description = "The folders above this one"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick parents"
+
+[[group.binding]]
+key = "ctrl-t b"
+description = "Bookmarked folders on the pushd stack"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_bookmarks"
+
+[[group.binding]]
+key = "ctrl-t ctrl-b"
+description = "Bookmark this folder by preparing pushd -n for it"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_bookmark"
+
+[[group.binding]]
+key = "ctrl-g /"
+description = "Lines in this repository's files that match what you type"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick contents"
+
+[[group.binding]]
+key = "ctrl-g ctrl-f"
+description = "Files Git tracks in this repository"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick tracked"
+
+[[group.binding]]
+key = "ctrl-g f f"
+description = "Tracked and untracked files in this repository"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick git-files"
+
+[[group.binding]]
+key = "ctrl-g f c"
+description = "Changed, staged and untracked files"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick changed"
+
+[[group.binding]]
+key = "ctrl-g f h"
+description = "Commits, then the files as they were in the one you choose"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick historical"
+
+[[group.binding]]
+key = "ctrl-g c h"
+description = "The last 500 commits"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick commits"
+
+[[group.binding]]
+key = "ctrl-g b s"
+description = "Branches, remote branches and tags"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick refs"
+
+[[group.binding]]
+key = "ctrl-g k k"
+description = "Branches and tags to check out"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick refs --checkout"
+
+[[group.binding]]
+key = "ctrl-g k c"
+description = "Commits to check out"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick commits --checkout"
+
+[[group.binding]]
+key = "ctrl-g S"
+description = "Stashes"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick stashes"
+
+[[group.binding]]
+key = "ctrl-g l r"
+description = "Reflog entries"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick reflog"
+
+[[group.binding]]
+key = "ctrl-g l s"
+description = "Commits whose changes match what you type"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick log-search"
+
+[[group.binding]]
+key = "ctrl-g w"
+description = "Other worktrees, then a text search inside the one you choose"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick worktrees"
+
+[[group.binding]]
+key = "ctrl-g e"
+description = "Ignored files and the rule that ignores each one"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick ignored"
+
+[[group.binding]]
+key = "ctrl-g x"
+description = "Files with merge conflicts"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick conflicts"
+
+[[group.binding]]
+key = "ctrl-g V"
+description = "Git settings with the scope and file each comes from"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick git-config"
+
+[[group.binding]]
+key = "ctrl-t j"
+description = "Recipes in this project's justfile"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick just"
+
+[[group.binding]]
+key = "ctrl-t p"
+description = "Running processes and the network sockets they hold"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick processes"
+
+[[group.binding]]
+key = "ctrl-t c"
+description = "Files chezmoi manages"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick chezmoi"
+
+[[group.binding]]
+key = "ctrl-t o"
+description = "Every command name and where each one comes from"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_provenance"
+
+[[group.binding]]
+key = "ctrl-t a"
+description = "Code excerpts, diffs, failures and instructions to hand to an agent"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick agents"
+
+[[group.binding]]
+key = "ctrl-t C"
+description = "People in the Contacts app"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick contacts"
+
+[[group.binding]]
+key = "ctrl-t m"
+description = "Messages, conversations, links and attachments from BlueBubbles"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick messages"
+
+[[group.binding]]
+key = "ctrl-t t"
+description = "Tests in this project"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick tests"
+
+[[group.binding]]
+key = "ctrl-t n"
+description = "Devices seen on the local network"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick devices"
+
+[[group.binding]]
+key = "ctrl-t e"
+description = "Compiler and linter errors in this project"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick diagnostics"
+
+[[group.binding]]
+key = "ctrl-t r"
+description = "Recent files in Documents and Downloads"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick recent"
+
+[[group.binding]]
+key = "ctrl-t w"
+description = "Open Arc browser tabs"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick tabs"
+
+[[group.binding]]
+key = "ctrl-t s"
+description = "Shortcuts from the Shortcuts app"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick shortcuts"
+
+[[group.binding]]
+key = "ctrl-t l"
+description = "The last hour of system logs, and crash reports"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick logs"
+
+[[group.binding]]
+key = "ctrl-t v"
+description = "Saved packet captures under this folder"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick captures"
+
+[[group.binding]]
+key = "ctrl-t u"
+description = "Timing and certificate checks for a web address"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick url"
+
+[[group.binding]]
+key = "ctrl-t q"
+description = "Tables, views and indexes in a SQLite file"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick sqlite"
+
+[[group.binding]]
+key = "ctrl-t i"
+description = "Every key and value in a JSON file"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick json"
+
+[[group.binding]]
+key = "ctrl-t k"
+description = "Homebrew, launchd and Docker services"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick services"
+
+[[group.binding]]
+key = "ctrl-t x"
+description = "The saved quickfix list"
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pick quickfix"
 
 [[group.binding]]
 key = "ctrl-x n"
-description = "Search networking commands and prepare one for execution."
+description = "Networking commands to prepare and run"
 modes = ["vi-insert", "vi-command", "emacs-standard"]
 function = "__fzf_network_menu"
 
 [[group]]
 name = "bindings-help"
-description = "List every binding these files declare."
+description = "Search every binding these files declare, and the fzf pickers by key."
 
 [[group.binding]]
 key = "ctrl-x v"
 description = "Search Bash shortcuts and prepare a command."
 modes = ["vi-insert", "vi-command", "emacs-standard"]
 function = "__bash_bindings_list_bash_bindings"
+
+[[group.binding]]
+key = "ctrl-x p"
+description = "Search the fzf pickers by key and start one."
+modes = ["vi-insert", "vi-command", "emacs-standard"]
+function = "__fzf_pickers_menu"

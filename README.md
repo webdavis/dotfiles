@@ -14,6 +14,7 @@ This repository contains the settings/configs for my computers, managed using
 - [Prerequisites](#prerequisites)
 - [Setup](#setup)
 - [Managing Files Using Chezmoi](#managing-files-using-chezmoi)
+- [Keys](#keys)
 - [Development Environment](#development-environment)
   - [Install](#install)
   - [Commands](#commands)
@@ -75,6 +76,21 @@ template files using this abstraction:
 ```bash
 chezmoi edit <FILE>
 ```
+
+## Keys
+
+Every shell key binding is a row in one table,
+[`dot_config/chord/bindings.toml`](./dot_config/chord/bindings.toml). Four ways to find one:
+
+- `Ctrl-x v` searches every binding in fzf. Enter puts the chosen command on the line.
+- `bindings` prints the table: key, group, description and action. `bindings --group git` prints one
+  group; `fzf-pickers` is the group of pickers.
+- `Ctrl-x p` lists the fzf pickers, key first. Enter starts the chosen picker, and what you pick in it
+  lands on the command line.
+- `pickers` does the same from a typed command. What you pick is typed onto the next prompt, and is also
+  in history, so Up brings it back if the terminal doesn't type it.
+
+Inside any picker, `Ctrl-/` or `Alt-/` shows its keys.
 
 ## Development Environment
 

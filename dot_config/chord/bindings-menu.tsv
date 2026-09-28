@@ -146,5 +146,53 @@ ctrl-x o u	packages	run	__bash_bindings_update_package_manager
 ctrl-x o s	packages	insert	brew search	`brew search `
 ctrl-x o i	packages	insert	brew install	`brew install `
 ctrl-x l	files	run	__bash_bindings_git_ls_files_with_last_modified	
-ctrl-x n	network	function	__fzf_network_menu	Search networking commands and prepare one for execution.
+ctrl-t ctrl-t	fzf-pickers	function	fzf-file-widget	Files under this folder, from fzf's own Ctrl-T widget
+ctrl-t f	fzf-pickers	function	__fzf_pick files	Files under this folder
+ctrl-t F	fzf-pickers	function	__fzf_pick files --hidden	Files under this folder, hidden ones too
+ctrl-t h	fzf-pickers	function	__fzf_pick files --root home	Files in your home folder, two levels deep
+ctrl-t /	fzf-pickers	function	__fzf_pick files --root /	Files from the top of the disk, three levels deep
+ctrl-t d d	fzf-pickers	function	__fzf_pick directories	Folders under this folder, hidden ones too
+ctrl-t d g	fzf-pickers	function	__fzf_pick directories --root git	Folders in this Git repository
+ctrl-t d /	fzf-pickers	function	__fzf_pick directories --root /	Folders from the top of the disk, three levels deep
+ctrl-t d p	fzf-pickers	function	__fzf_pick parents	The folders above this one
+ctrl-t b	fzf-pickers	function	__fzf_bookmarks	Bookmarked folders on the pushd stack
+ctrl-t ctrl-b	fzf-pickers	function	__fzf_bookmark	Bookmark this folder by preparing pushd -n for it
+ctrl-g /	fzf-pickers	function	__fzf_pick contents	Lines in this repository's files that match what you type
+ctrl-g ctrl-f	fzf-pickers	function	__fzf_pick tracked	Files Git tracks in this repository
+ctrl-g f f	fzf-pickers	function	__fzf_pick git-files	Tracked and untracked files in this repository
+ctrl-g f c	fzf-pickers	function	__fzf_pick changed	Changed, staged and untracked files
+ctrl-g f h	fzf-pickers	function	__fzf_pick historical	Commits, then the files as they were in the one you choose
+ctrl-g c h	fzf-pickers	function	__fzf_pick commits	The last 500 commits
+ctrl-g b s	fzf-pickers	function	__fzf_pick refs	Branches, remote branches and tags
+ctrl-g k k	fzf-pickers	function	__fzf_pick refs --checkout	Branches and tags to check out
+ctrl-g k c	fzf-pickers	function	__fzf_pick commits --checkout	Commits to check out
+ctrl-g S	fzf-pickers	function	__fzf_pick stashes	Stashes
+ctrl-g l r	fzf-pickers	function	__fzf_pick reflog	Reflog entries
+ctrl-g l s	fzf-pickers	function	__fzf_pick log-search	Commits whose changes match what you type
+ctrl-g w	fzf-pickers	function	__fzf_pick worktrees	Other worktrees, then a text search inside the one you choose
+ctrl-g e	fzf-pickers	function	__fzf_pick ignored	Ignored files and the rule that ignores each one
+ctrl-g x	fzf-pickers	function	__fzf_pick conflicts	Files with merge conflicts
+ctrl-g V	fzf-pickers	function	__fzf_pick git-config	Git settings with the scope and file each comes from
+ctrl-t j	fzf-pickers	function	__fzf_pick just	Recipes in this project's justfile
+ctrl-t p	fzf-pickers	function	__fzf_pick processes	Running processes and the network sockets they hold
+ctrl-t c	fzf-pickers	function	__fzf_pick chezmoi	Files chezmoi manages
+ctrl-t o	fzf-pickers	function	__fzf_provenance	Every command name and where each one comes from
+ctrl-t a	fzf-pickers	function	__fzf_pick agents	Code excerpts, diffs, failures and instructions to hand to an agent
+ctrl-t C	fzf-pickers	function	__fzf_pick contacts	People in the Contacts app
+ctrl-t m	fzf-pickers	function	__fzf_pick messages	Messages, conversations, links and attachments from BlueBubbles
+ctrl-t t	fzf-pickers	function	__fzf_pick tests	Tests in this project
+ctrl-t n	fzf-pickers	function	__fzf_pick devices	Devices seen on the local network
+ctrl-t e	fzf-pickers	function	__fzf_pick diagnostics	Compiler and linter errors in this project
+ctrl-t r	fzf-pickers	function	__fzf_pick recent	Recent files in Documents and Downloads
+ctrl-t w	fzf-pickers	function	__fzf_pick tabs	Open Arc browser tabs
+ctrl-t s	fzf-pickers	function	__fzf_pick shortcuts	Shortcuts from the Shortcuts app
+ctrl-t l	fzf-pickers	function	__fzf_pick logs	The last hour of system logs, and crash reports
+ctrl-t v	fzf-pickers	function	__fzf_pick captures	Saved packet captures under this folder
+ctrl-t u	fzf-pickers	function	__fzf_pick url	Timing and certificate checks for a web address
+ctrl-t q	fzf-pickers	function	__fzf_pick sqlite	Tables, views and indexes in a SQLite file
+ctrl-t i	fzf-pickers	function	__fzf_pick json	Every key and value in a JSON file
+ctrl-t k	fzf-pickers	function	__fzf_pick services	Homebrew, launchd and Docker services
+ctrl-t x	fzf-pickers	function	__fzf_pick quickfix	The saved quickfix list
+ctrl-x n	fzf-pickers	function	__fzf_network_menu	Networking commands to prepare and run
 ctrl-x v	bindings-help	function	__bash_bindings_list_bash_bindings	Search Bash shortcuts and prepare a command.
+ctrl-x p	bindings-help	function	__fzf_pickers_menu	Search the fzf pickers by key and start one.

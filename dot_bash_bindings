@@ -11,7 +11,8 @@
 #
 # The shell functions these bindings call, and the `\C-x0`, `\C-x1` and
 # `\C-x2` helper macros, live in ~/.bash_bindings_functions, which
-# ~/.bashrc sources first.
+# ~/.bashrc sources first. The fzf pickers' functions live in
+# ~/.config/fzf-pickers/lib/shell/, which ~/.fzf_bindings sources.
 
 # --- editing ---
 # Editing-mode switching and the readline motions that make vi-insert
@@ -501,18 +502,259 @@ builtin bind -m vi-command '"\C-xoi": "i\C-x0brew install "'
 builtin bind -m vi-insert '"\C-xl": "\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 builtin bind -m vi-command '"\C-xl": "i\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 
-# --- network ---
-# Network diagnostics and discovery.
+# --- fzf-pickers ---
+# The fzf pickers. Each key opens one, and Enter puts what you chose on the
+# command line.
 
-# Search networking commands and prepare one for execution.
+# Files under this folder, from fzf's own Ctrl-T widget
+builtin bind -m vi-insert -x '"\C-t\C-t": "fzf-file-widget"'
+builtin bind -m vi-command -x '"\C-t\C-t": "fzf-file-widget"'
+builtin bind -m emacs-standard -x '"\C-t\C-t": "fzf-file-widget"'
+
+# Files under this folder
+builtin bind -m vi-insert -x '"\C-tf": "__fzf_pick files"'
+builtin bind -m vi-command -x '"\C-tf": "__fzf_pick files"'
+builtin bind -m emacs-standard -x '"\C-tf": "__fzf_pick files"'
+
+# Files under this folder, hidden ones too
+builtin bind -m vi-insert -x '"\C-tF": "__fzf_pick files --hidden"'
+builtin bind -m vi-command -x '"\C-tF": "__fzf_pick files --hidden"'
+builtin bind -m emacs-standard -x '"\C-tF": "__fzf_pick files --hidden"'
+
+# Files in your home folder, two levels deep
+builtin bind -m vi-insert -x '"\C-th": "__fzf_pick files --root home"'
+builtin bind -m vi-command -x '"\C-th": "__fzf_pick files --root home"'
+builtin bind -m emacs-standard -x '"\C-th": "__fzf_pick files --root home"'
+
+# Files from the top of the disk, three levels deep
+builtin bind -m vi-insert -x '"\C-t/": "__fzf_pick files --root /"'
+builtin bind -m vi-command -x '"\C-t/": "__fzf_pick files --root /"'
+builtin bind -m emacs-standard -x '"\C-t/": "__fzf_pick files --root /"'
+
+# Folders under this folder, hidden ones too
+builtin bind -m vi-insert -x '"\C-tdd": "__fzf_pick directories"'
+builtin bind -m vi-command -x '"\C-tdd": "__fzf_pick directories"'
+builtin bind -m emacs-standard -x '"\C-tdd": "__fzf_pick directories"'
+
+# Folders in this Git repository
+builtin bind -m vi-insert -x '"\C-tdg": "__fzf_pick directories --root git"'
+builtin bind -m vi-command -x '"\C-tdg": "__fzf_pick directories --root git"'
+builtin bind -m emacs-standard -x '"\C-tdg": "__fzf_pick directories --root git"'
+
+# Folders from the top of the disk, three levels deep
+builtin bind -m vi-insert -x '"\C-td/": "__fzf_pick directories --root /"'
+builtin bind -m vi-command -x '"\C-td/": "__fzf_pick directories --root /"'
+builtin bind -m emacs-standard -x '"\C-td/": "__fzf_pick directories --root /"'
+
+# The folders above this one
+builtin bind -m vi-insert -x '"\C-tdp": "__fzf_pick parents"'
+builtin bind -m vi-command -x '"\C-tdp": "__fzf_pick parents"'
+builtin bind -m emacs-standard -x '"\C-tdp": "__fzf_pick parents"'
+
+# Bookmarked folders on the pushd stack
+builtin bind -m vi-insert -x '"\C-tb": "__fzf_bookmarks"'
+builtin bind -m vi-command -x '"\C-tb": "__fzf_bookmarks"'
+builtin bind -m emacs-standard -x '"\C-tb": "__fzf_bookmarks"'
+
+# Bookmark this folder by preparing pushd -n for it
+builtin bind -m vi-insert -x '"\C-t\C-b": "__fzf_bookmark"'
+builtin bind -m vi-command -x '"\C-t\C-b": "__fzf_bookmark"'
+builtin bind -m emacs-standard -x '"\C-t\C-b": "__fzf_bookmark"'
+
+# Lines in this repository's files that match what you type
+builtin bind -m vi-insert -x '"\C-g/": "__fzf_pick contents"'
+builtin bind -m vi-command -x '"\C-g/": "__fzf_pick contents"'
+builtin bind -m emacs-standard -x '"\C-g/": "__fzf_pick contents"'
+
+# Files Git tracks in this repository
+builtin bind -m vi-insert -x '"\C-g\C-f": "__fzf_pick tracked"'
+builtin bind -m vi-command -x '"\C-g\C-f": "__fzf_pick tracked"'
+builtin bind -m emacs-standard -x '"\C-g\C-f": "__fzf_pick tracked"'
+
+# Tracked and untracked files in this repository
+builtin bind -m vi-insert -x '"\C-gff": "__fzf_pick git-files"'
+builtin bind -m vi-command -x '"\C-gff": "__fzf_pick git-files"'
+builtin bind -m emacs-standard -x '"\C-gff": "__fzf_pick git-files"'
+
+# Changed, staged and untracked files
+builtin bind -m vi-insert -x '"\C-gfc": "__fzf_pick changed"'
+builtin bind -m vi-command -x '"\C-gfc": "__fzf_pick changed"'
+builtin bind -m emacs-standard -x '"\C-gfc": "__fzf_pick changed"'
+
+# Commits, then the files as they were in the one you choose
+builtin bind -m vi-insert -x '"\C-gfh": "__fzf_pick historical"'
+builtin bind -m vi-command -x '"\C-gfh": "__fzf_pick historical"'
+builtin bind -m emacs-standard -x '"\C-gfh": "__fzf_pick historical"'
+
+# The last 500 commits
+builtin bind -m vi-insert -x '"\C-gch": "__fzf_pick commits"'
+builtin bind -m vi-command -x '"\C-gch": "__fzf_pick commits"'
+builtin bind -m emacs-standard -x '"\C-gch": "__fzf_pick commits"'
+
+# Branches, remote branches and tags
+builtin bind -m vi-insert -x '"\C-gbs": "__fzf_pick refs"'
+builtin bind -m vi-command -x '"\C-gbs": "__fzf_pick refs"'
+builtin bind -m emacs-standard -x '"\C-gbs": "__fzf_pick refs"'
+
+# Branches and tags to check out
+builtin bind -m vi-insert -x '"\C-gkk": "__fzf_pick refs --checkout"'
+builtin bind -m vi-command -x '"\C-gkk": "__fzf_pick refs --checkout"'
+builtin bind -m emacs-standard -x '"\C-gkk": "__fzf_pick refs --checkout"'
+
+# Commits to check out
+builtin bind -m vi-insert -x '"\C-gkc": "__fzf_pick commits --checkout"'
+builtin bind -m vi-command -x '"\C-gkc": "__fzf_pick commits --checkout"'
+builtin bind -m emacs-standard -x '"\C-gkc": "__fzf_pick commits --checkout"'
+
+# Stashes
+builtin bind -m vi-insert -x '"\C-gS": "__fzf_pick stashes"'
+builtin bind -m vi-command -x '"\C-gS": "__fzf_pick stashes"'
+builtin bind -m emacs-standard -x '"\C-gS": "__fzf_pick stashes"'
+
+# Reflog entries
+builtin bind -m vi-insert -x '"\C-glr": "__fzf_pick reflog"'
+builtin bind -m vi-command -x '"\C-glr": "__fzf_pick reflog"'
+builtin bind -m emacs-standard -x '"\C-glr": "__fzf_pick reflog"'
+
+# Commits whose changes match what you type
+builtin bind -m vi-insert -x '"\C-gls": "__fzf_pick log-search"'
+builtin bind -m vi-command -x '"\C-gls": "__fzf_pick log-search"'
+builtin bind -m emacs-standard -x '"\C-gls": "__fzf_pick log-search"'
+
+# Other worktrees, then a text search inside the one you choose
+builtin bind -m vi-insert -x '"\C-gw": "__fzf_pick worktrees"'
+builtin bind -m vi-command -x '"\C-gw": "__fzf_pick worktrees"'
+builtin bind -m emacs-standard -x '"\C-gw": "__fzf_pick worktrees"'
+
+# Ignored files and the rule that ignores each one
+builtin bind -m vi-insert -x '"\C-ge": "__fzf_pick ignored"'
+builtin bind -m vi-command -x '"\C-ge": "__fzf_pick ignored"'
+builtin bind -m emacs-standard -x '"\C-ge": "__fzf_pick ignored"'
+
+# Files with merge conflicts
+builtin bind -m vi-insert -x '"\C-gx": "__fzf_pick conflicts"'
+builtin bind -m vi-command -x '"\C-gx": "__fzf_pick conflicts"'
+builtin bind -m emacs-standard -x '"\C-gx": "__fzf_pick conflicts"'
+
+# Git settings with the scope and file each comes from
+builtin bind -m vi-insert -x '"\C-gV": "__fzf_pick git-config"'
+builtin bind -m vi-command -x '"\C-gV": "__fzf_pick git-config"'
+builtin bind -m emacs-standard -x '"\C-gV": "__fzf_pick git-config"'
+
+# Recipes in this project's justfile
+builtin bind -m vi-insert -x '"\C-tj": "__fzf_pick just"'
+builtin bind -m vi-command -x '"\C-tj": "__fzf_pick just"'
+builtin bind -m emacs-standard -x '"\C-tj": "__fzf_pick just"'
+
+# Running processes and the network sockets they hold
+builtin bind -m vi-insert -x '"\C-tp": "__fzf_pick processes"'
+builtin bind -m vi-command -x '"\C-tp": "__fzf_pick processes"'
+builtin bind -m emacs-standard -x '"\C-tp": "__fzf_pick processes"'
+
+# Files chezmoi manages
+builtin bind -m vi-insert -x '"\C-tc": "__fzf_pick chezmoi"'
+builtin bind -m vi-command -x '"\C-tc": "__fzf_pick chezmoi"'
+builtin bind -m emacs-standard -x '"\C-tc": "__fzf_pick chezmoi"'
+
+# Every command name and where each one comes from
+builtin bind -m vi-insert -x '"\C-to": "__fzf_provenance"'
+builtin bind -m vi-command -x '"\C-to": "__fzf_provenance"'
+builtin bind -m emacs-standard -x '"\C-to": "__fzf_provenance"'
+
+# Code excerpts, diffs, failures and instructions to hand to an agent
+builtin bind -m vi-insert -x '"\C-ta": "__fzf_pick agents"'
+builtin bind -m vi-command -x '"\C-ta": "__fzf_pick agents"'
+builtin bind -m emacs-standard -x '"\C-ta": "__fzf_pick agents"'
+
+# People in the Contacts app
+builtin bind -m vi-insert -x '"\C-tC": "__fzf_pick contacts"'
+builtin bind -m vi-command -x '"\C-tC": "__fzf_pick contacts"'
+builtin bind -m emacs-standard -x '"\C-tC": "__fzf_pick contacts"'
+
+# Messages, conversations, links and attachments from BlueBubbles
+builtin bind -m vi-insert -x '"\C-tm": "__fzf_pick messages"'
+builtin bind -m vi-command -x '"\C-tm": "__fzf_pick messages"'
+builtin bind -m emacs-standard -x '"\C-tm": "__fzf_pick messages"'
+
+# Tests in this project
+builtin bind -m vi-insert -x '"\C-tt": "__fzf_pick tests"'
+builtin bind -m vi-command -x '"\C-tt": "__fzf_pick tests"'
+builtin bind -m emacs-standard -x '"\C-tt": "__fzf_pick tests"'
+
+# Devices seen on the local network
+builtin bind -m vi-insert -x '"\C-tn": "__fzf_pick devices"'
+builtin bind -m vi-command -x '"\C-tn": "__fzf_pick devices"'
+builtin bind -m emacs-standard -x '"\C-tn": "__fzf_pick devices"'
+
+# Compiler and linter errors in this project
+builtin bind -m vi-insert -x '"\C-te": "__fzf_pick diagnostics"'
+builtin bind -m vi-command -x '"\C-te": "__fzf_pick diagnostics"'
+builtin bind -m emacs-standard -x '"\C-te": "__fzf_pick diagnostics"'
+
+# Recent files in Documents and Downloads
+builtin bind -m vi-insert -x '"\C-tr": "__fzf_pick recent"'
+builtin bind -m vi-command -x '"\C-tr": "__fzf_pick recent"'
+builtin bind -m emacs-standard -x '"\C-tr": "__fzf_pick recent"'
+
+# Open Arc browser tabs
+builtin bind -m vi-insert -x '"\C-tw": "__fzf_pick tabs"'
+builtin bind -m vi-command -x '"\C-tw": "__fzf_pick tabs"'
+builtin bind -m emacs-standard -x '"\C-tw": "__fzf_pick tabs"'
+
+# Shortcuts from the Shortcuts app
+builtin bind -m vi-insert -x '"\C-ts": "__fzf_pick shortcuts"'
+builtin bind -m vi-command -x '"\C-ts": "__fzf_pick shortcuts"'
+builtin bind -m emacs-standard -x '"\C-ts": "__fzf_pick shortcuts"'
+
+# The last hour of system logs, and crash reports
+builtin bind -m vi-insert -x '"\C-tl": "__fzf_pick logs"'
+builtin bind -m vi-command -x '"\C-tl": "__fzf_pick logs"'
+builtin bind -m emacs-standard -x '"\C-tl": "__fzf_pick logs"'
+
+# Saved packet captures under this folder
+builtin bind -m vi-insert -x '"\C-tv": "__fzf_pick captures"'
+builtin bind -m vi-command -x '"\C-tv": "__fzf_pick captures"'
+builtin bind -m emacs-standard -x '"\C-tv": "__fzf_pick captures"'
+
+# Timing and certificate checks for a web address
+builtin bind -m vi-insert -x '"\C-tu": "__fzf_pick url"'
+builtin bind -m vi-command -x '"\C-tu": "__fzf_pick url"'
+builtin bind -m emacs-standard -x '"\C-tu": "__fzf_pick url"'
+
+# Tables, views and indexes in a SQLite file
+builtin bind -m vi-insert -x '"\C-tq": "__fzf_pick sqlite"'
+builtin bind -m vi-command -x '"\C-tq": "__fzf_pick sqlite"'
+builtin bind -m emacs-standard -x '"\C-tq": "__fzf_pick sqlite"'
+
+# Every key and value in a JSON file
+builtin bind -m vi-insert -x '"\C-ti": "__fzf_pick json"'
+builtin bind -m vi-command -x '"\C-ti": "__fzf_pick json"'
+builtin bind -m emacs-standard -x '"\C-ti": "__fzf_pick json"'
+
+# Homebrew, launchd and Docker services
+builtin bind -m vi-insert -x '"\C-tk": "__fzf_pick services"'
+builtin bind -m vi-command -x '"\C-tk": "__fzf_pick services"'
+builtin bind -m emacs-standard -x '"\C-tk": "__fzf_pick services"'
+
+# The saved quickfix list
+builtin bind -m vi-insert -x '"\C-tx": "__fzf_pick quickfix"'
+builtin bind -m vi-command -x '"\C-tx": "__fzf_pick quickfix"'
+builtin bind -m emacs-standard -x '"\C-tx": "__fzf_pick quickfix"'
+
+# Networking commands to prepare and run
 builtin bind -m vi-insert -x '"\C-xn": "__fzf_network_menu"'
 builtin bind -m vi-command -x '"\C-xn": "__fzf_network_menu"'
 builtin bind -m emacs-standard -x '"\C-xn": "__fzf_network_menu"'
 
 # --- bindings-help ---
-# List every binding these files declare.
+# Search every binding these files declare, and the fzf pickers by key.
 
 # Search Bash shortcuts and prepare a command.
 builtin bind -m vi-insert -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
 builtin bind -m vi-command -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
 builtin bind -m emacs-standard -x '"\C-xv": "__bash_bindings_list_bash_bindings"'
+
+# Search the fzf pickers by key and start one.
+builtin bind -m vi-insert -x '"\C-xp": "__fzf_pickers_menu"'
+builtin bind -m vi-command -x '"\C-xp": "__fzf_pickers_menu"'
+builtin bind -m emacs-standard -x '"\C-xp": "__fzf_pickers_menu"'
