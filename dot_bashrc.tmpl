@@ -365,8 +365,8 @@ if [[ $- == *i* ]]; then
   __brew_shellenv_generator="${HOMEBREW_REPOSITORY:-/opt/homebrew/Homebrew}/Library/Homebrew/cmd/shellenv.sh"
   __brew_shellenv_paths_file="${HOMEBREW_PREFIX:-/opt/homebrew}/etc/paths"
   __brew_shellenv_writer="$HOME/.local/libexec/brew-shellenv-cache-refresh.sh"
-  __brew_shellenv_log="$HOME/.local/log/brew-shellenv-selfheal.log"
-  __brew_shellenv_attempt_stamp="$HOME/.local/log/brew-shellenv-selfheal.attempt"
+  __brew_shellenv_log="${XDG_STATE_HOME:-$HOME/.local/state}/brew-shellenv/selfheal.log"
+  __brew_shellenv_attempt_stamp="${XDG_STATE_HOME:-$HOME/.local/state}/brew-shellenv/selfheal.attempt"
   __brew_shellenv_retry_interval_seconds=3600
 
   # Is the cache unusable, stale, or is the paths file it depends on unreadable?
