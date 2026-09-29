@@ -13,7 +13,8 @@ spelled and enforced in Rust, and it wins wherever the two disagree on a number 
 The Rust tools this repository owns today: `pns` (`pns`), `uu`
 (`uu`), and the three herdr plugins, which live in their own repositories under
 `webdavis` since 2026-09-17. The worked
-example is [`PNS-EXAMPLE.md`](PNS-EXAMPLE.md).
+example is [`PNS-EXAMPLE.md`](PNS-EXAMPLE.md), read from `webdavis/pns` at commit `e4632e8` on
+2026-09-28.
 
 ## The workspace
 
