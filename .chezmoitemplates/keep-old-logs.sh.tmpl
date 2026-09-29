@@ -1,0 +1,41 @@
+# shellcheck shell=bash
+
+old_log_is_waiting_to_move() {
+  local old_log=$1 kept_log=$2
+  [[ -e $old_log && ! -e $kept_log ]]
+}
+
+move_old_log() {
+  local old_log=$1 kept_log=$2
+  mkdir -p "${kept_log%/*}"
+  mv "$old_log" "$kept_log"
+}
+
+keep_old_log() {
+  local old_log=$1 kept_log=$2
+  if old_log_is_waiting_to_move "$old_log" "$kept_log"; then
+    move_old_log "$old_log" "$kept_log"
+    report_line "moved $old_log to $kept_log."
+  fi
+}
+
+trash_old_file() {
+  local old_file=$1
+  if [[ -e $old_file ]]; then
+    trash "$old_file"
+    report_line "trashed $old_file."
+  fi
+}
+
+folder_is_empty() {
+  local folder=$1
+  [[ -d $folder && -z "$(ls -A "$folder")" ]]
+}
+
+trash_old_log_folder_once_empty() {
+  local folder=$1
+  if folder_is_empty "$folder"; then
+    trash "$folder"
+    report_line "trashed the empty $folder."
+  fi
+}

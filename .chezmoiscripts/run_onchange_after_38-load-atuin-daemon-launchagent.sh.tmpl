@@ -7,10 +7,13 @@ set -euo pipefail
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
 {{ includeTemplate "load-launchagent.sh.tmpl" }}
+{{ includeTemplate "keep-old-logs.sh.tmpl" }}
 
 readonly launchagent_label="com.webdavis.atuin-daemon"
 readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
-readonly launchagent_log_directory="$HOME/.local/log"
+readonly launchagent_log_directory="$HOME/.local/state/atuin"
+readonly old_launchagent_log="$HOME/.local/log/atuin-daemon.log"
+readonly kept_old_launchagent_log="$launchagent_log_directory/atuin-daemon.old.log"
 
 main() {
   report_section 'atuin' 'daemon LaunchAgent'
@@ -18,6 +21,7 @@ main() {
   report_line "reloading..."
   reload_launchagent "$launchagent_label" "$launchagent_plist"
   report_line "loaded."
+  keep_old_log "$old_launchagent_log" "$kept_old_launchagent_log"
 }
 
 main "$@"
