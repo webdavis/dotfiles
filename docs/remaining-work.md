@@ -7471,7 +7471,7 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   and its quarantine read from `xattr -p com.apple.quarantine` to a sized `libc::getxattr`. Sweep slices
   6, 7 and 8 closed as tasks 165, 166 and 167 below.
 
-- [ ] 162. The pns daemon log on dresden carries recurring state-error lines in bursts, cause unknown,
+- [x] 162. The pns daemon log on dresden carries recurring state-error lines in bursts, cause unknown,
   filed 2026-09-20. `state error (delivery ledger: database refused the operation)` and
   `(decision: unreadable state record)` appear in bursts; eight parallel probes of
   `sample_delivery_health` against the live store on 2026-09-20 never reproduced it, and deliveries are
@@ -7480,7 +7480,11 @@ on a repository that HAS a workflow as a missing trigger rather than as an absen
   error's own sentence, so the next occurrence after the operator's apply names the refused operation.
   Investigate from that line. The first step landed as
   [PR #833](https://github.com/webdavis/dotfiles/pull/833), merged `45f82efc7`, which makes every
-  state-error log line carry the StoreError text, so the next apply names the refused operation.
+  state-error log line carry the StoreError text, so the next apply names the refused operation. No
+  longer needed, closed 2026-09-28: the log carries no state-error line from 2026-09-24 16:57 through
+  2026-09-28, PR #833 makes any recurrence name the refused operation, and since
+  [pns PR #23](https://github.com/webdavis/pns/pull/23) store diagnostics go to
+  `~/.local/state/pns/gateway.log`.
 
 - [x] 163. Orphaned `pns failures serve` processes hold the port every new daemon's child needs, filed
   2026-09-20. Three `pns failures serve` processes from 2026-09-16 and 2026-09-17 outlived their daemons
