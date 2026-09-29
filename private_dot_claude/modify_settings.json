@@ -340,6 +340,15 @@
      cannot answer a question it has no business answering. Deliberately NO
      matcher, and note that a matcher here filters by MCP SERVER NAME, which is
      neither PreToolUse's tool name nor StopFailure's error text.
+
+     SessionEnd fires when a session exits or is cleared, and `pns hook
+     session-end` marks that session ended at once, so `pns agents` stops
+     listing it and any wait it left open is closed. NOT async: the harness
+     is shutting down, a backgrounded hook can be cut off with it, and
+     SessionEnd cannot block anything anyway, so waiting on the one short
+     store write costs nothing. Every SessionEnd hook shares a 1.5 second
+     budget. Deliberately NO matcher: every reason (clear, resume, logout,
+     prompt_input_exit, other) ends this session_id.
      --- */ -}}
 {{- $home := .chezmoi.homeDir -}}
 {{- /* The pns binary's absolute path in ~/.cargo/bin, cargo's default.
@@ -422,6 +431,10 @@
         "type" "command"
         "async" true
         "command" (printf "%s hook resolved" $pns)))))
+    "SessionEnd" (list (dict
+      "hooks" (list (dict
+        "type" "command"
+        "command" (printf "%s hook session-end" $pns)))))
     "SessionStart" (list (dict
       "matcher" "*"
       "hooks" (list (dict
