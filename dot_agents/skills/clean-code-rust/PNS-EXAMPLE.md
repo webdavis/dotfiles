@@ -1,183 +1,130 @@
-# Worked example: the pns refactor
+# Worked example: pns
 
-Everything here is **specific to `pns`**, the notification engine at `pns`. Read it
-for what an answer to the general method looks like in practice. Do not apply any of it to another
-tool without deriving the same answer from that tool's own source.
+`webdavis/pns`, read at commit `e4632e8` on 2026-09-28. The notification engine, a Cargo workspace
+of six crates with 1,247 tracked `.rs` files. Everything here was measured from that commit, not
+recalled; re-read the repository before trusting a number.
 
-Status: the refactor was scoped 2026-09-03 from the operator's draft plus a Fable review round, four
-delivery-safety rulings, and two rounds of `sol` review. The rulings are recorded in
-`~/.claude/pipeline/decision-pns-delivery-safety-2026-09-03.md` and the reviews in
-`~/.claude/pipeline/reviews/sol-0*-2026-09-03.md`.
+Everything here is **specific to `pns`**. Read it for what an answer to the general method looks
+like in practice. Do not apply any of it to another tool without deriving the same answer from that
+tool's own source. Where its shape and the method differ, the difference is noted rather than
+smoothed over.
 
-## The consumers outside the folder
-
-1. **The chezmoi install**, `.chezmoiscripts/run_onchange_after_57-install-cargo-git-tools.sh.tmpl`,
-   runs `cargo install --git` at the revision pinned in `.chezmoidata/system_packages_autoinstall.yaml`
-   with `--features dev-tools`, into `~/.cargo/bin`.
-2. **The justfile recipe** `pns-config-render` runs the installed `pns-config-render` binary.
-3. **`uu`** depends on pns by path and imports
-   `pns::channels::hermes::{SignedPost, UreqSignedPost, PostOutcome, delivered, outcome_line, sign}`,
-   so one signed-POST seam exists rather than two. Do not keep that path alive behind a facade: put
-   the client in the crate where it belongs and update uu's `Cargo.toml` and imports in the same pull
-   request.
-4. **The command-line surface** is a compatibility contract. Enumerate the in-repo callers first:
-
-       grep -rn 'cargo/bin/pns' --exclude-dir=.git --exclude-dir=target .
-
-   They are the Claude Code hook declarations in `private_dot_claude/modify_settings.json`, the daemon
-   LaunchAgent's `pns daemon run`, the bash notifier's `pns loop begin|end` in `dot_bashrc.tmpl`, uu's
-   alert path, and the Codex hook installer. `const USAGE` in the current `main.rs` is the contract.
-5. **The shipped config template** `dot_config/pns/private_config.toml.tmpl` is generated from
-   `dot_config/pns/config-values.toml` by `just pns-config-render`. pns reaches out of the crate in
-   three places to pin it: `src/config.rs:SHIPPED_TEMPLATE` and `src/config.rs:CONFIG_VALUES` are
-   `include_str!` calls four directories up, and `tests/config_render.rs` reaches out at runtime
-   through `env!("CARGO_MANIFEST_DIR")` joined with `../../..`. A fourth `include_str!`, the
-   resolved-config snapshot, stays inside the crate and is fine. All three move out.
-6. **The backlog** in `~/.claude/pipeline/backlog-consolidated-2026-09-02.md` is frozen: every open
-   pns item is absorbed as a named design decision or re-filed in the completion report.
-
-## The crate names
+## The workspace
 
     crates/pns-domain
     crates/pns-application
     crates/pns-protocol
+    crates/pns-hermes
     crates/pns-adapters
     crates/pns
 
-The binary target stays `pns`.
+The root `Cargo.toml` lists all six under `members` with `resolver = "3"` and
+`default-members = ["crates/pns"]`. The path dependencies, read from each crate's own manifest:
 
-## The vocabulary, measured against `src/`
+| Crate             | Depends on                                                      |
+| ----------------- | --------------------------------------------------------------- |
+| `pns-domain`      | nothing                                                         |
+| `pns-application` | `pns-domain`                                                    |
+| `pns-protocol`    | `pns-domain`                                                    |
+| `pns-hermes`      | no pns crate                                                    |
+| `pns-adapters`    | `pns-domain`, `pns-application`, `pns-protocol`, `pns-hermes`   |
+| `pns`             | all five                                                        |
 
-producer, notification, event, signal, attempt, surface, presence, visibility, delivery destination,
-route, recap, missed notification, decision ring, nag, job, claim, lease, pulse, unread, quiet window
-and dim window, home probe, doctor.
+The external dependencies and the rule that admits them ("a dependency is taken only where a
+format demands one") are in `docs/decisions/0015-a-dependency-only-where-a-format-demands-one.md`.
+`pns-domain` and `pns-application` have none. `rusqlite` appears only in `pns-adapters`, pinned
+exactly (`=0.39.0`, `bundled`), and in the binary crate's `[dev-dependencies]`.
 
-Corrections the code forced on an earlier list:
+`crates/pns-domain/tests/boundary.rs` holds the one test that pins a manifest:
+`the_domain_crate_names_no_dependency_so_its_policy_stays_std_only` reads `../Cargo.toml` and fails
+if any non-dev dependency table appears.
 
-- **decision ring** and **journal**, never "decision trace".
-- **unread**, renamed from glow by operator ruling 2026-08-31. "glow" survives in comment prose and
-  in several `tests/dispatch.rs` test names, and `lights-glow` is a FILE that `sweep_legacy_state`
-  deletes rather than reads; its replacement record is `lights-held`. Never "held light".
-- **quiet window**, **quiet hours** and **dim window**, never "quiet place".
-- **the home probe** and **the router**, never "home presence" as a phrase.
-- **signal** names nothing in the current code. It is the new normalized protocol concept and is
-  introduced only there.
+## Where the shape differs from the method
 
-## The expected use cases and roles
+- **The binary crate is `crates/pns`, not `crates/pns-cli`.** Its `[[bin]] name = "pns"` keeps the
+  name every caller invokes. A second binary, `http-capture`, is built only under the `dev-tools`
+  feature.
+- **A sixth crate, `pns-hermes`,** holds the signed Hermes POST client (`SignedPost`,
+  `UreqSignedPost`, `PostOutcome`, `sign`, `delivered`, `outcome_line`, `skipped_line`). It depends
+  on no pns crate. No other repository depends on it: `webdavis/uu` names no pns crate in any
+  manifest at its `main` of the same day.
+- **`main.rs` is three lines** calling `pns::run()`. The composition root is `crates/pns/src/lib.rs`
+  (180 lines), not `main.rs`.
+- **One `rust-toolchain.toml`, at the workspace root** (`channel = "stable"`), rather than one per
+  crate.
 
-`SubmitNotification`, `RequestApproval`, `RecordActivity`, `ReplayMissedNotifications`,
-`BuildReturnRecap`, `RunNag`, `ReadHomeProbe`, `ReconcileLights`, `SetLightsQuiet`,
-`AcquireLoopLease`, `RunDaemonTick`, `ScheduleJob`, `CancelJob`, `RunDoctor`, `RunSetup`.
+## The gates
 
-Roles, kept separate: `NotificationDestination`, `AttentionIndicator`, `EnvironmentSnapshotReader`,
-`DiagnosticCheck`, `ScheduledJob`.
+The `justfile` defines them, and CI (`.github/workflows/ci.yml`, `macos-latest`) runs
+`rustup toolchain install`, `brew install just` and then `just gates`:
 
-**Hue is not a generic destination.** It is a stateful attention indicator with reconciliation, the
-unread state, pulse behavior, leases, phases and quiet policy. **Router and home are an environment
-source**, not a destination.
+    just gates    # fmt-check lint doc test
 
-The normalized signal distinguishes successful outcome, failed outcome, attention required, approval
-requested, resolved attention, observation, and progress. The transport is `pns send --json`
-reading one JSON request from stdin.
+    cargo fmt --all --check
+    cargo clippy --locked --workspace --all-targets --features dev-tools -- -D warnings \
+      -W clippy::undocumented_unsafe_blocks -W clippy::unnecessary_safety_comment
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+    cargo test --locked --workspace --features dev-tools --no-fail-fast
 
-## The legacy surface to preserve
+The two extra clippy lints make a missing `// SAFETY:` comment above an `unsafe` block, or a stray
+one above safe code, a gate failure rather than a review finding.
 
-The lenient argv parser, missing-value warnings, recognized flags not consumed as values, help
-behavior, typo refusal, notification paths not failing the work they report, hook stdout and stderr
-contracts, ordinary hooks exiting zero, blocking approval and gate exit-code translation, the bare
-gate spelling, `pns daemon run`, `pns loop begin|end`, the producer flags, and
-`pns lights pulse <exit-code>` (the operator's manual lamp check).
+`treefmt.toml` runs `scripts/treefmt/rust-file-size.sh` over `crates/**/*.rs`, which fails any file
+over 500 physical lines, plus `mdformat` (with `docs/**` excluded, because the `Given` / `When` /
+`Then` line breaks carry meaning) and `taplo`. At this commit no `.rs` file exceeds 300 lines; the
+largest is `crates/pns/tests/recap_engine.rs` at 298.
 
-The legacy flags `--local-only` and `--remote-only` were independent booleans, and passing both was a
-tested contract: nothing was delivered and the refusal said so. Both flags were retired and replaced
-by one `--scope automatic|local_only|remote_only` flag, matching the delivery-scope enum (`Automatic`,
-`LocalOnly`, `RemoteOnly`) directly; one flag cannot contradict itself, so the both-flags refusal and
-its test went with them.
+`crates/pns/tests/support/budget.rs` is the speed guard: over `TEST_BUDGET_MS` (1,000) warns, over
+`TEST_CEILING_ON_A_LOADED_MAC_OR_A_CI_RUNNER_MS` (20,000) fails unless the test called
+`allow_slow("reason")` (`crates/pns/tests/support/sandbox.rs`) naming a structural cause.
 
-## pns owns the shell notifier (operator, 2026-09-03)
+## The consumers outside the repository
 
-This one is a pns product decision, not a general method. Add `--elapsed <secs>` to the producer
-flags: the producer states how long the work took and pns decides the tier, applying the rule it
-already owns (nothing under 30 seconds, the presence gate from 30, the lights from 300). Reject
-`--elapsed` combined with a caller-supplied tier flag rather than silently preferring one.
+The command-line surface is a compatibility contract. The callers live in `webdavis/dotfiles`
+(41 files at its `main` of the same day); enumerate them there before changing a subcommand or a
+flag. The Claude Code hooks build the binary's path with `joinPath`, so search for the word, not
+the path:
 
-`dot_bashrc.tmpl:498-580` (the `__cmd_notify_*` functions) decides those tiers today, keeps the
-interactive-TUI skip list, and writes the lights marker under `~/.local/state/pns/lights-shell/<pid>`
-that `pns lights tick` reads back. Move the marker, the skip list and the tiers into pns behind a
-`pns shell begin` / `pns shell end --exit-code <code> --elapsed <secs>` pair, leaving the bashrc as two
-calls, with Rust unit tests over the moved logic.
+    grep -rlw pns --exclude-dir=.git --exclude-dir=docs .
 
-The Neovim overhaul's editor-side producer
-(`docs/superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md` section 7.7) is blocked on the flag.
+The ones that call it:
 
-## The state directory, verified against the source
+1. **The install**: `.chezmoiscripts/run_onchange_after_57-install-cargo-git-tools.sh.tmpl` runs
+   `cargo install --git` for the `pns` entry of `.chezmoidata/system_packages_autoinstall.yaml`,
+   with `features: dev-tools`, into `~/.cargo/bin`, and
+   `run_onchange_after_58-record-pns-and-posture-upgrades.sh.tmpl` restarts `pns.gateway` on a new
+   binary.
+2. **The Claude Code hooks** in `private_dot_claude/modify_settings.json` (`pns hook prompt`,
+   `stop`, `model-switch`, `stop-failure`, `quota` and more), and the Codex hooks that
+   `.chezmoiscripts/run_after_72-relay-codex-hooks.sh.tmpl` has pns merge into Codex's hooks file.
+3. **The shell notifier** in `dot_bashrc.tmpl`: `pns shell begin` and
+   `pns shell end --exit-code <code> --elapsed <secs>`.
+4. **`pns loop begin|end`**, from the `pns-loop` skill.
+5. **The gateway LaunchAgent**, `pns.gateway`, running `pns gateway run`.
+6. **pns.nvim** (`dot_config/nvim/lua/plugins/pns.lua`), with `minimum_version = "0.2.0"` against
+   the binary crate's `version = "0.2.0"`.
+7. **The reminder extensions** for the pi and omp harnesses, both rendered from
+   `.chezmoitemplates/pns-reminder-extension.ts.tmpl`.
+8. **Other tools' alert scripts**: `dot_config/uu/scripts/executable_send-alert-to-pns.sh` and
+   `dot_config/lights/scripts/executable_send-to-pns.sh`.
+9. **The config file** `dot_config/pns/private_config.toml.tmpl`. pns reads plain TOML and ships no
+   configuration-manager template syntax (decision 0016); the renderer and the outside-the-package
+   pin of decision 0011 went with it, so the template belongs to the dotfiles alone.
 
-`nag/`, `lights-needs/`, `lights-loop/`, `lights-blocked/`, `lights-shell/`, `daemon/`,
-`daemon-markers/`, `daemon-heartbeat`, `lights-tick.lock`, `fire.lock`, `lights-streak`,
-`lights-held`, `lights-news`, `lights-said`, `lights-quiet`, `lights-quiet-said`, `last-present` and
-its window claims, `session-<id>.start` turn markers, `quiet-until`, `home-staleness`,
-`policy-settings-audit`, `phone-attention.marker`, the decision ring, the missed-notification
-journal, the activity ring, and the per-ring working-name families (`.lock`, `.new.<pid>`,
-`.sweep.<pid>`, `.claim.<pid>`, `.held.<pid>.<seq>`).
+## Where the reasoning lives
 
-Three names are legacy **deletion targets**, not state: `sweep_legacy_state` calls `remove_file` on
-`lights-glow` and `lights-working-since` and `remove_dir_all` on the `lights-needs` directory every
-tick, and reads none of them. Two more deserve a look during classification: nothing in `src/` writes
-`phone-attention.marker` (only the link's own mtime is read), and nothing in `src/` reads
-`policy-settings-audit` outside tests.
+- **The vocabulary**, verified against the source, including the words in circulation that the code
+  does not use: `docs/specs/glossary.md`.
+- **The behavior**, one `Given` / `When` / `Then` specification per area, under `docs/specs/`.
+  `docs/specs/unpinned-behaviors.md` lists every specified behavior no test pins, which is what a
+  later move must close first.
+- **The port contracts** each `pns-application` port promises its use cases:
+  `docs/specs/port-contracts.md`.
+- **The decisions**, `docs/decisions/0001` to `0016`. Several answer questions the method asks of
+  any tool: the lamp state is `unread` and the legacy `glow` file is deleted rather than migrated
+  (0004); passing both delivery-scope flags is refused at the legacy adapter (0007); a notification
+  never fails the work it reports on (0010); the store has two fail directions (0012); delivery is
+  at-least-once with retained outcomes (0013).
 
-## The defects the sol reviews of 2026-09-03 found
-
-Each is a real defect measured against the code. The refactor is the vehicle for all of them; none is
-fixed by a patch that leaves the structure alone.
-
-**Every line number below was read on 2026-09-03 and several have already drifted.** `main.rs` was
-11,937 lines then and is under active refactor, so grep for the named symbol rather than jumping to a
-line.
-
-**The delivery answer is not authoritative, and it is the highest-cost defect.** `was_missed`
-(`missed_notifications.rs:79`) asks the *plan* whether a banner or card was intended, never whether a
-destination accepted anything. Its own doc comment admits two of the three holes. Three more
-authorities compete with the plan: Hermes runs independently of presence and mute, a blocked event
-can flash Hue when `plan.pulse` is false, and approval forwarding (`forward_to_moshi` in `main.rs`)
-decides from surface alone before the plan exists, deliberately ignoring visibility, Focus and mute.
-
-**One instant is not one observation.** The memoized clock makes two call sites share an epoch, which
-was the 2026-08 fix, but `now` is read before the slow probes, desk idle comes back as an age while
-phone and marker timestamps are aged against the earlier clock, visibility is read after the probes
-finish, and Focus is a separate live read. A future marker timestamp becomes age zero through
-`saturating_sub` and claims Mobile until wall time catches up.
-
-**Failure direction is global where it must be per destination.** An unreadable lock reads as
-unlocked, so a fresh idle reading can hold Desk while the screen is locked, losing the phone. An
-unreadable clock discards the phone and marker timestamps while leaving the desk's own idle age
-eligible. A tie between two equally fresh inputs resolves to Desk.
-
-**The crash windows are open.** Delivery happens before both the decision record and the missed
-journal on `main.rs`'s post path. The replay path deletes its claim before delivering, and the test
-`the_claim_never_survives_the_run_whether_the_replay_delivered_or_not` passes, pinning that loss
-window as intended behavior. On a daemon restart mid-drain, `~claim` files are excluded from scans
-while `fire` deletes its claim before spawning, so either window loses the job.
-
-**Three delivery-path tests cannot fail.** `src/channels/hermes.rs:568` and `src/channels/moshi.rs:632`
-and `:674` each join a thread parked on an unbounded `TcpListener::accept()`. A mutant that stops the
-client dialing hangs the suite rather than failing it.
-
-## The pns gates
-
-    just test-rust
-    just lint-check
-    just ship
-    cargo build --release --locked --quiet --bin pns
-    just pns-config-render && git diff --exit-code dot_config/pns/private_config.toml.tmpl
-
-`tests/support/mod.rs` enforces the speed guard: over `TEST_BUDGET_MS` (1,000) warns, over
-`TEST_CEILING_MS` (5,000) fails unless `allow_slow("reason")` names a structural cause. Keep it.
-
-`doctor` and a bare `pulse` are **live-effect commands**: a verification harness that ran them posted
-two real banners and drove the lamps on 2026-09-02. The argv differential at
-`~/.claude/pipeline/extraction-verify.sh` excludes both; reuse or extend it.
-
-The template's five secret actions are pinned by tests: each is
-`{{ (keepassxc "<entry>").<Field> | toToml }}` with no author quotes, and the test stub refuses any
-other action.
+**`doctor` and a bare `pulse` change the real world** (decision 0005): they post real banners and
+drive the lamps, so no test and no verification harness may run them.

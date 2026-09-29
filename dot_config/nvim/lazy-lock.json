@@ -80,7 +80,7 @@
   "oil.nvim": { "branch": "master", "commit": "b73018b75affd13fa38e2fc94ef753b465f770d7" },
   "overseer.nvim": { "branch": "master", "commit": "33dc4f7808b0bb705250362fac7947c7d7dfcf96" },
   "plenary.nvim": { "branch": "master", "commit": "74b06c6c75e4eeb3108ec01852001636d85a932b" },
-  "pns.nvim": { "branch": "main", "commit": "b2025534f335145f3b16e93064f121784fe38890" },
+  "pns.nvim": { "branch": "main", "commit": "7b30e51d2367bbc589e9497610204bf23d28a6bf" },
   "quick-scope": { "branch": "master", "commit": "6cee1d9e0b9ac0fbffeb538d4a5ba9f5628fabbc" },
   "rustaceanvim": { "branch": "main", "commit": "a968f5133b8b24f481de12f08cd79420d1ace559" },
   "smart-splits.nvim": { "branch": "master", "commit": "0c7abbf2f4e64e56519cb036f01e62e83e2cdcf1" },
