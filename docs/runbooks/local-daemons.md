@@ -31,11 +31,11 @@ recording.
 **Diagnostic ladder** when history stops recording:
 
 ```bash
-atuin doctor                              # built-in: socket, db, env, shell hooks
-launchctl list | grep atuin               # status: '0' = healthy, '-' = not running
-ps aux | grep '[a]tuin daemon'            # daemon process
-tail ~/.local/log/atuin-daemon.log        # crash messages
-atuin daemon status; atuin --version      # 'Version' line should equal 'atuin <ver>'
+atuin doctor                                 # built-in: socket, db, env, shell hooks
+launchctl list | grep atuin                  # status: '0' = healthy, '-' = not running
+ps aux | grep '[a]tuin daemon'               # daemon process
+tail ~/.local/state/atuin/atuin-daemon.log   # crash messages
+atuin daemon status; atuin --version         # 'Version' line should equal 'atuin <ver>'
 ```
 
 `atuin status` is for *sync* status only and errors when not logged in. It is not a "is the daemon

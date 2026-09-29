@@ -1,0 +1,46 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "trash-old-logs.sh.tmpl" }}
+
+readonly old_log_directory="$HOME/.local/log"
+readonly old_brew_shellenv_log="$old_log_directory/brew-shellenv-selfheal.log"
+readonly old_brew_shellenv_attempt_stamp="$old_log_directory/brew-shellenv-selfheal.attempt"
+readonly old_graphify_log_directory="$old_log_directory/graphify"
+readonly old_graphify_log="$old_graphify_log_directory/dotfiles-post-commit.log"
+
+brew_shellenv_left_old_files() {
+  [[ -e $old_brew_shellenv_log || -e $old_brew_shellenv_attempt_stamp ]]
+}
+
+graphify_left_an_old_log() {
+  [[ -e $old_graphify_log ]] || folder_is_empty "$old_graphify_log_directory"
+}
+
+trash_the_old_brew_shellenv_files() {
+  if brew_shellenv_left_old_files; then
+    report_section 'brew-shellenv' 'self-heal log moved under ~/.local/state'
+    trash_old_file "$old_brew_shellenv_log"
+    trash_old_file "$old_brew_shellenv_attempt_stamp"
+  fi
+}
+
+trash_the_old_graphify_log() {
+  if graphify_left_an_old_log; then
+    report_section 'graphify' 'post-commit log left by the removed repository hook'
+    trash_old_file "$old_graphify_log"
+    trash_old_log_folder_once_empty "$old_graphify_log_directory"
+  fi
+}
+
+main() {
+  trash_the_old_brew_shellenv_files
+  trash_the_old_graphify_log
+}
+
+main "$@"
+{{ end -}}

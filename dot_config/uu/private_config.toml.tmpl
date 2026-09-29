@@ -282,16 +282,16 @@ unsuccessful_runs_before_alert = 3
 [lane.rotate-logs.settings]
 compress = true
 files = [
-  "{{ .chezmoi.homeDir }}/.local/log/atuin-daemon.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/digest.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/firewall-gatekeeper-monitor.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/heartbeat.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/results-alerter.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/tailscale-monitor.log",
   "{{ .chezmoi.homeDir }}/.local/log/osquery/uptime-watchdog.log",
-  "{{ .chezmoi.homeDir }}/.local/log/yt-dlp/pot-provider.log",
+  "{{ .chezmoi.homeDir }}/.local/state/atuin/atuin-daemon.log",
   "{{ .chezmoi.homeDir }}/.local/state/pns/gateway.log",
   "{{ .chezmoi.homeDir }}/.local/state/scalebar/scalebar.log",
+  "{{ .chezmoi.homeDir }}/.local/state/yt-dlp/pot-provider.log",
 ]
 max_size = "10 MB"
 previous_logs_kept = 5

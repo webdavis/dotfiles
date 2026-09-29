@@ -1,0 +1,22 @@
+# shellcheck shell=bash
+
+trash_old_file() {
+  local old_file=$1
+  if [[ -e $old_file ]]; then
+    trash "$old_file"
+    report_line "trashed $old_file."
+  fi
+}
+
+folder_is_empty() {
+  local folder=$1
+  [[ -d $folder && -z "$(ls -A "$folder")" ]]
+}
+
+trash_old_log_folder_once_empty() {
+  local folder=$1
+  if folder_is_empty "$folder"; then
+    trash "$folder"
+    report_line "trashed the empty $folder."
+  fi
+}
