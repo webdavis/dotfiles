@@ -195,7 +195,7 @@ token in pns's `[plugins.github] personal_access_token`. Paste its output rather
 parts by hand, and never guess a PR number: `none` is GitHub saying there is none, `unknown` is no usable
 answer (no token, a refusal or a timeout).
 
-Delivery: the recap goes in the chat reply, and `pns recap agent --stdin` forwards it to the
+Delivery: the recap goes in the chat reply, and `pns recap post --stdin` forwards it to the
 `#pns-events` Discord channel. It sanitizes the body and fits it under Discord's limit by collapsing the
 file list and then shedding whole sections, never by cutting a line in half, and it never sheds User
 Tasks. It prints one line saying where the post landed; claim the recap was posted only when that line

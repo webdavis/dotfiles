@@ -52,7 +52,7 @@ The recap goes in the chat reply. To forward it to the `#pns-events` Discord
 channel, pipe the same text through pns:
 
 ```bash
-pns recap agent --stdin <recap.md
+pns recap post --stdin <recap.md
 ```
 
 It sanitizes the body and fits it under Discord's message limit, collapsing the
