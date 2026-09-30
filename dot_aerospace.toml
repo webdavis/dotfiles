@@ -57,10 +57,10 @@ automatically-unhide-macos-hidden-apps = false
 # This config version is only available since 'config-version = 2'
 # Fallback value (if you omit the key): persistent-workspaces = []
 persistent-workspaces = [
-  "1:Main",
-  "2:Work",
-  "3:Finances",
-  "4:Relax",
+  "1:main",
+  "2:broccoli",
+  "3:iosle",
+  "4",
   "5",
   "6",
   "7",
@@ -240,10 +240,10 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-i = 'split horizontal'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace
-    alt-ctrl-cmd-shift-1 = 'workspace "1:Main"'
-    alt-ctrl-cmd-shift-2 = 'workspace "2:Work"'
-    alt-ctrl-cmd-shift-3 = 'workspace "3:Finances"'
-    alt-ctrl-cmd-shift-4 = 'workspace "4:Relax"'
+    alt-ctrl-cmd-shift-1 = 'workspace "1:main"'
+    alt-ctrl-cmd-shift-2 = 'workspace "2:broccoli"'
+    alt-ctrl-cmd-shift-3 = 'workspace "3:iosle"'
+    alt-ctrl-cmd-shift-4 = 'workspace 4'
     alt-ctrl-cmd-shift-5 = 'workspace 5'
     alt-ctrl-cmd-shift-6 = 'workspace 6'
     alt-ctrl-cmd-shift-7 = 'workspace 7'
@@ -252,10 +252,10 @@ on-mode-changed = []
     alt-ctrl-cmd-shift-0 = 'workspace "scratchpad"'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#move-node-to-workspace
-    cmd-ctrl-1 = 'move-node-to-workspace "1:Main"'
-    cmd-ctrl-2 = 'move-node-to-workspace "2:Work"'
-    cmd-ctrl-3 = 'move-node-to-workspace "3:Finances"'
-    cmd-ctrl-4 = 'move-node-to-workspace "4:Relax"'
+    cmd-ctrl-1 = 'move-node-to-workspace "1:main"'
+    cmd-ctrl-2 = 'move-node-to-workspace "2:broccoli"'
+    cmd-ctrl-3 = 'move-node-to-workspace "3:iosle"'
+    cmd-ctrl-4 = 'move-node-to-workspace 4'
     cmd-ctrl-5 = 'move-node-to-workspace 5'
     cmd-ctrl-6 = 'move-node-to-workspace 6'
     cmd-ctrl-7 = 'move-node-to-workspace 7'
