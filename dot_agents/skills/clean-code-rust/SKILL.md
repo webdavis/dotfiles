@@ -16,6 +16,23 @@ The Rust tools this repository owns today: `pns` (`pns`), `uu`
 example is [`PNS-EXAMPLE.md`](PNS-EXAMPLE.md), read from `webdavis/pns` at commit `e4632e8` on
 2026-09-28.
 
+## The owner's standards
+
+These win over everything below where they differ.
+
+- TDD (test-driven development): failing behavioral test, minimal implementation, refactor.
+- SOLID (single responsibility, open/closed, substitutability, interface segregation, dependency inversion).
+- DRY (don't repeat yourself), without speculative abstractions.
+- Self-documenting code; comments only for non-obvious intent or safety.
+- Production files should stay within 150 lines, never exceed 250. Separate test files. Split by cohesive
+  domain responsibility.
+- Idiomatic safe Rust: explicit ownership, typed errors, deterministic cleanup, bounded resources, and
+  preserved privacy and durability.
+- Unsafe is rare and fenced off:
+  - Keep each unsafe block as small as possible, isolated in its own small module.
+  - Every single block requires a one- or two-line `// SAFETY:` comment explicitly proving why undefined
+    behavior is impossible.
+
 ## The workspace
 
 The five roles are five crates in one Cargo workspace:
@@ -79,8 +96,9 @@ task confinement, or a transaction.
 Do not introduce Tokio or another async runtime solely to make the architecture look modern. The
 synchronous, deadline-bounded model is acceptable.
 
-Isolate `unsafe` macOS and terminal operations in the smallest possible adapter modules, document the
-safety invariants, and add focused tests.
+Isolate every `unsafe` block, test code included, in its own small module, keep the block as small as
+possible, give each one a one- or two-line `// SAFETY:` comment proving why undefined behavior is
+impossible, and add focused tests.
 
 ## Visibility
 
@@ -156,6 +174,6 @@ Implementation lines are those before the first `#[cfg(test)]`; a file named `te
 `tests/` directory has zero. **A `#[cfg(test)]` item above production code is itself a finding**, not
 a way to shrink the number.
 
-Limits, per the operator's standing rule: 200 implementation lines and 300 total are the targets, 250
-implementation or 400 total normally requires decomposition, and **no handwritten `.rs` file exceeds
-500 total lines, unit tests included, with no waiver**.
+Limits, per the owner's standing rule: production files stay within 150 implementation lines and never
+exceed 250. Test files live apart from production code and stay under 400 total lines, with no
+handwritten `.rs` file over 500.
