@@ -274,17 +274,8 @@ if [[ $- == *i* ]]; then
   eval "$(wt config shell init bash)"
 
   # ── Aliases ──
-  # Every alias that needs no template conditional lives in ~/.bash_aliases:
-  # the git wrappers, navigation, listing, the modern-tool replacements and
-  # the shortcuts. Only the darwin-gated ones below stay here, because that
-  # file is not a template.
+  # Every alias lives in ~/.bash_aliases, including the macOS-only ones.
   [[ -s "$HOME/.bash_aliases" ]] && . "$HOME/.bash_aliases"
-
-  {{ if eq .chezmoi.os "darwin" -}}
-  alias ping='ping --apple-time'
-  alias bu='brew upgrade --formula'
-  alias rm='trash-put'
-  {{- end }}
 
   # Disable flow control. For example, Ctrl+s suspends flow-control, and Ctrl+q resumes flow
   # control. (A detailed explanation can be found at https://stackoverflow.com/questions/791765
