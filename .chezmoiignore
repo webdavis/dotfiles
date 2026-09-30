@@ -11,6 +11,7 @@ private/
 
 # Repo scripts & helpers:
 justfile
+Brewfile.dev
 .envrc
 scripts/
 
