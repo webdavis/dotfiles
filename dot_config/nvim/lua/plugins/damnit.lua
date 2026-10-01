@@ -1,48 +1,34 @@
--- damnit.nvim: Todoist from inside the editor, and the other half of the
--- herdr-damnit pane, which enters `nvim +"Todoist task <id>"` on `e`.
+-- damnit.nvim: dam's tasks from inside the editor, and the editor half of the
+-- herdr-damnit pane. `:Dam task <oid>` opens one object as a buffer.
 --
--- `views` carries the same names as the herdr pane's `[[views]]` entries
--- (dot_config/herdr/plugins/config/herdr-damnit/config.toml), so one word
--- opens one list in both.
+-- `views` carries the same names and queries as the herdr pane's `[[views]]`
+-- entries (dot_config/herdr/plugins/config/herdr-damnit/config.toml), so one
+-- word opens one list in both. Each query is in dam's grammar, and `!done`
+-- keeps a completed task out, because `due:today` matches one too.
 --
--- The token is an indirection: this names the source it comes from and
--- never holds the value. The plugin has no third way to reach one.
---
--- vim.system closes stdin, so an interactive vault CLI (keepassxc-cli) can
--- never resolve here. The macOS keychain is read non-interactively instead;
--- KeePassXC stays the entry of record (see the herdr-damnit config for the
--- one-time operator setup).
---
--- Pinned to the last commit before the plugin's own rename PR, which is also
--- the last commit that registers a user command. Move this pin forward only
--- once the dam cutover lands and damnit.nvim answers to something again.
+-- The plugin holds no token: dam reads the Todoist credential named in
+-- ~/.config/dam/config.toml.
 return {
   "webdavis/damnit.nvim",
-  commit = "f52aee6002e9dadbab9c608f7747ba012ad8aa9d",
-  cmd = "Todoist",
+  commit = "a60975baf023e79174a43c52169ee390c0aa004c",
+  cmd = "Dam",
   opts = {
-    token_command = {
-      "security",
-      "find-generic-password",
-      "-w",
-      "-s",
-      "Todoist API Token",
-    },
     views = {
-      today = "today | overdue",
-      upcoming = "7 days",
-      -- "dotfiles" names two projects; the parent qualifier picks the one
-      -- nested under webdavis, matching this repo's own path.
-      dotfiles = "##webdavis & #dotfiles",
+      today = "!done & (due:today | overdue)",
+      upcoming = "!done & (due:this-week | due:next-week)",
+      -- The Todoist projects webdavis > dotfiles, which dam keeps as this
+      -- path, matching this repo's own path (webdavis/dotfiles).
+      dotfiles = "!done & path:webdavis/dotfiles/",
     },
   },
   keys = {
-    { "<leader>Tt", "<Cmd>Todoist<CR>", desc = "Todoist: every open task" },
-    { "<leader>Td", "<Cmd>Todoist today<CR>", desc = "Todoist: today" },
-    { "<leader>Tb", "<Cmd>Todoist toggle<CR>", desc = "Todoist: toggle the sidebar" },
-    { "<leader>Tp", "<Cmd>Todoist pick<CR>", desc = "Todoist: search the tasks" },
-    { "<leader>Th", "<Cmd>Todoist completed<CR>", desc = "Todoist: the completed history" },
-    { "<leader>Tc", "<Cmd>Todoist capture<CR>", desc = "Todoist: capture a task from here" },
-    { "<leader>Tc", ":Todoist capture<CR>", mode = "x", desc = "Todoist: capture this selection" },
+    { "<leader>Ts", "<Cmd>Dam<CR>", desc = "dam: the staging window" },
+    { "<leader>Tt", "<Cmd>Dam list<CR>", desc = "dam: every open task" },
+    { "<leader>Td", "<Cmd>Dam list today<CR>", desc = "dam: today" },
+    { "<leader>Tb", "<Cmd>Dam toggle<CR>", desc = "dam: toggle the sidebar" },
+    { "<leader>Tp", "<Cmd>Dam pick<CR>", desc = "dam: search the tasks" },
+    { "<leader>Th", "<Cmd>Dam done<CR>", desc = "dam: the completed history" },
+    { "<leader>Tc", "<Cmd>Dam capture<CR>", desc = "dam: capture a task from here" },
+    { "<leader>Tc", ":Dam capture<CR>", mode = "x", desc = "dam: capture this selection" },
   },
 }
