@@ -173,9 +173,14 @@ list_uncommitted_changes() {
   git -C "$worktree_path" status --porcelain
 }
 
-worktree_is_clean() {
+worktree_status_is_unreadable() {
   local worktree_path=$1
-  [[ -z $(list_uncommitted_changes "$worktree_path") ]]
+  ! list_uncommitted_changes "$worktree_path" >/dev/null
+}
+
+worktree_is_clean() {
+  local worktree_path=$1 uncommitted_changes
+  uncommitted_changes="$(list_uncommitted_changes "$worktree_path")" && [[ -z $uncommitted_changes ]]
 }
 
 branch_name_from_reference() {
@@ -193,6 +198,8 @@ reason_to_keep_worktree() {
     printf 'detached at %s' "${head_commit:0:short_commit_length}"
   elif ! commit_is_merged_upstream "$head_commit"; then
     printf '%s is not merged into %s' "$branch_name" "$upstream_branch"
+  elif worktree_status_is_unreadable "$worktree_path"; then
+    printf 'git status failed in %s' "$branch_name"
   elif ! worktree_is_clean "$worktree_path"; then
     printf '%s has uncommitted changes' "$branch_name"
   fi

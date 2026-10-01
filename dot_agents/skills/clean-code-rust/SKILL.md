@@ -142,9 +142,9 @@ under that configuration.
 
 ## Quality gates
 
-    just test-rust
-    just lint-check
-    just ship
+pns, uu, damnit, lights and herdr-damnit run their gates with `just gates`. A repository without that recipe runs the cargo lines below.
+
+    just gates
     cargo fmt --all -- --check
     cargo check --workspace --all-targets
     cargo clippy --workspace --all-targets -- -D warnings
