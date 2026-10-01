@@ -1,3 +1,12 @@
+{{- $machines := list "dresden" "raith" -}}
+{{- $question := "Which machine is this?" -}}
+{{- $hostname := lower .chezmoi.hostname -}}
+{{- $machine := "" -}}
+{{- if has $hostname $machines -}}
+{{-   $machine = promptChoiceOnce . "machine" $question $machines $hostname -}}
+{{- else -}}
+{{-   $machine = promptChoiceOnce . "machine" $question $machines -}}
+{{- end -}}
 # encryption must stay a bare key ABOVE the first [section] or chezmoi ignores it.
 encryption = "age"
 sourceDir = "/Users/stephen/workspaces/Ivy/webdavis/dotfiles"
@@ -17,3 +26,8 @@ workingTree = "/Users/stephen/workspaces/Ivy/webdavis/dotfiles"
 
 [hooks.read-source-state.pre]
   command = "{{ .chezmoi.sourceDir }}/.install-password-manager.sh"
+
+[data]
+  # Asked once by `chezmoi init`; answer it up front with
+  # --promptChoice "Which machine is this?=raith".
+  machine = {{ $machine | quote }}

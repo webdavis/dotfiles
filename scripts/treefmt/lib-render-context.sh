@@ -47,7 +47,7 @@ create_shallow_source() {
 
 write_render_config_naming_the_real_source() {
   local config_file=$1
-  jq -n --arg source "$repository_root" '{data: {chezmoi: {sourceDir: $source}}}' >"$config_file"
+  jq -n --arg source "$repository_root" '{data: {machine: "dresden", chezmoi: {sourceDir: $source}}}' >"$config_file"
 }
 
 create_render_context() {
