@@ -137,7 +137,7 @@ completion claims. A research no-go or an explicitly accepted deferral needs a r
 | SP5, xonsh evaluation    | Research compatibility, startup and existing shell integrations                      | Evaluate before SP4; adopting xonsh requires a separate decision           |
 | SP6, Neovim              | Socket-validation corrections and overhaul acceptance                                | Implementation fixes can proceed; rendered/device checks need the operator |
 | SP7, sweep and backlog   | Remaining tools, installer coverage, research and task/issue reconciliation          | After earlier approved work; scope is listed below                         |
-| SP8, macOS agent manager | pstack skills and the GUI for harness tooling and configuration                      | ON HOLD (operator 2026-09-14); outside the current goal                    |
+| SP8, macOS agent manager | pstack skills and the GUI for harness tooling and configuration                      | Skills declared 2026-10-01 (PR #1038); the GUI stays ON HOLD               |
 | Forzare, #51             | Bob's executive-assistant implementation                                             | In the current goal; after everything else except SP8                      |
 
 Nix packages and per-project Nix flakes remain available by choice. Managing macOS through nix-darwin and
@@ -9760,10 +9760,20 @@ it. Nothing below starts until the operator lifts the hold. Original ordering, k
 final modernization subproject, after SP4, SP5 and the other modernization tasks, including the
 process-toggle plugin and worktree review launcher.
 
-- [ ] Install the upstream skills from [pstack](https://github.com/cursor/plugins/tree/main/pstack)
+- [x] Install the upstream skills from [pstack](https://github.com/cursor/plugins/tree/main/pstack)
   through the managed skills store, recording provenance, harness delivery, and updates through uu. Check
   its Cursor-specific dependencies and compatibility with the harnesses that will build the app. Use
-  pstack's setup, engineering, design, review, and verification skills throughout development.
+  pstack's setup, engineering, design, review, and verification skills throughout development. Done
+  2026-10-01 in [PR #1038](https://github.com/webdavis/dotfiles/pull/1038), read from `cursor/plugins` at
+  `2eb7ed46` (pstack 0.15.5): 42 of its 47 skills are on the `from_github` list as
+  `cursor/plugins/pstack/skills`, so the apply installs them and the `npx-skills` lane updates them, and
+  all 42 are `on_demand`, as pstack's own `disable-model-invocation: true` already makes them in Claude
+  Code. Left out: `tdd` and `teach`, whose names mattpocock/skills already holds; `setup-pstack`, which
+  only writes `~/.cursor/rules/pstack-models.mdc`; `automate-me` and `reflect`, which read Cursor's agent
+  transcripts and hand off to Cursor's built-in `create-skill`. Without that rule file, `arena`, `swarm`
+  and `poteto-mode` fall back to their default model names, which are Cursor's. pstack's two subagents
+  (`agents/`) and its automation are not installed. Owed from the operator: the next apply. The GUI half
+  of SP8 stays on hold.
 
 - [ ] Design and build a macOS graphical frontend for managing agent tooling. Use
   [MoltenBase](https://www.moltenbase.com/) as the product and visual reference, matching its look and
