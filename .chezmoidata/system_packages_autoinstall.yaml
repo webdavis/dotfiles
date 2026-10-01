@@ -91,6 +91,7 @@ packages:
         - hurl
         - hyperfine
         - imagemagick
+        - infisical
         - iperf3
         - jq
         - just
