@@ -185,6 +185,26 @@ agents:
       - wayfinder
       - wizard
       - writing-for-agents
+  claude_desktop:
+    # Uploaded to the Claude account by hand; `just claude-desktop-skills` zips them for that.
+    skills:
+      - ask-matt
+      - code-review
+      - codebase-design
+      - diagnosing-bugs
+      - domain-modeling
+      - grill-me
+      - grill-with-docs
+      - grilling
+      - handoff
+      - prototype
+      - research
+      - teach
+      - to-questionnaire
+      - to-spec
+      - to-tickets
+      - wait-what
+      - writing-for-agents
   claude_code:
     marketplaces:
       - { name: ponytail, source: github, repo: DietrichGebert/ponytail, auto_update: true }

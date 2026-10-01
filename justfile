@@ -149,6 +149,18 @@ macos-defaults-dump:
 worktrees-prune *arguments:
   ./scripts/prune-merged-worktrees.sh {{arguments}}
 
+# Zip each Claude Desktop skill into one folder, ready to drag into Claude Desktop.
+claude-desktop-skills folder=(home_directory() / "Desktop" / "claude-desktop-skills"):
+  #!/usr/bin/env bash
+  set -euo pipefail
+  mkdir -p "{{folder}}"
+  cd ~/.agents/skills
+  for skill in $(yq -r '.agents.claude_desktop.skills[]' "{{justfile_directory()}}/.chezmoidata/agent_skills_and_plugins.yaml"); do
+    [[ -f $skill/SKILL.md ]] || { echo "$skill is not in ~/.agents/skills yet; run just apply first." >&2; exit 1; }
+    zip -FSrq "{{folder}}/$skill.zip" "$skill" -x '*.DS_Store'
+  done
+  echo "Drag the zips in {{folder}} into Claude Desktop."
+
 # Refresh skills through the weekly uu lanes.
 update-skills:
   ~/.cargo/bin/uu run skills
