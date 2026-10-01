@@ -1,0 +1,50 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{ if not (hasKey . "machine") -}}
+{{   fail "No machine is set for this Mac. Run `chezmoi init` (it asks which machine this is), then apply again." }}
+{{ end -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
+readonly machine={{ .machine | quote }}
+readonly -a mac_name_kinds=(ComputerName LocalHostName HostName)
+
+current_mac_name() {
+  local kind=$1
+  scutil --get "$kind" 2>/dev/null || true
+}
+
+mac_name_differs() {
+  local kind=$1
+  [[ $(current_mac_name "$kind") != "$machine" ]]
+}
+
+set_mac_name() {
+  local kind=$1
+  sudo scutil --set "$kind" "$machine"
+}
+
+main() {
+  local kind
+  local -a kinds_to_set=()
+  for kind in "${mac_name_kinds[@]}"; do
+    if mac_name_differs "$kind"; then
+      kinds_to_set+=("$kind")
+    fi
+  done
+  ((${#kinds_to_set[@]})) || return 0
+
+  report_section 'machine name' "naming this Mac $machine"
+  authenticate_sudo_once
+  for kind in "${kinds_to_set[@]}"; do
+    set_mac_name "$kind"
+    report_line "set $kind to $machine."
+  done
+}
+
+main "$@"
+{{ end -}}

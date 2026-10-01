@@ -52,7 +52,9 @@ To use these dotfiles on your system:
    chezmoi init --apply webdavis
    ```
 
-   This initializes and applies the dotfiles, including the configured agent skills and harness links.
+   This initializes and applies the dotfiles, including the configured agent skills and harness links. It
+   asks once which machine this is (`dresden` or `raith`) and names the Mac to match. To answer up front,
+   add `--promptChoice "Which machine is this?=raith"`.
 
 ## Managing Files Using Chezmoi
 
