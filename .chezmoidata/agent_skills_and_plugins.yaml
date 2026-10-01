@@ -213,6 +213,7 @@ agents:
       - { name: last30days-skill, source: github, repo: mvanhorn/last30days-skill, auto_update: true }
       - { name: plannotator, source: github, repo: backnotprop/plannotator, auto_update: true }
       - { name: a5c.ai, source: github, repo: a5c-ai/babysitter-claude, auto_update: true }
+      - { name: pstack-claude, source: github, repo: michael-denyer/pstack-claude, auto_update: true }
       - { name: pns, source: directory, path: .claude/pns-marketplace, os: darwin }
       - { name: strategy, source: directory, path: .claude/strategy-marketplace, os: darwin }
       - { name: clean-code, source: directory, path: .claude/clean-code-marketplace, os: darwin }
@@ -232,6 +233,7 @@ agents:
       - worktrunk@worktrunk
       - last30days@last30days-skill
       - plannotator@plannotator
+      - pstack@pstack-claude
       - { id: babysitter@a5c.ai, off_until_enabled: true }
       - { id: pns@pns, os: darwin }
       - { id: strategy@strategy, os: darwin }
@@ -248,8 +250,10 @@ agents:
       - { name: claude-plugins-official, source_type: git, source: https://github.com/anthropics/claude-plugins-official.git }
       - { name: ponytail, source_type: git, source: https://github.com/DietrichGebert/ponytail.git }
       - { name: babysitter, source_type: git, source: https://github.com/a5c-ai/babysitter-codex.git }
+      - { name: pstack-claude, source_type: git, source: https://github.com/michael-denyer/pstack-claude.git }
     plugins:
       - { id: babysitter@babysitter, enabled: false }
+      - { id: pstack@pstack-claude }
   hermes:
     profiles:
       default:
