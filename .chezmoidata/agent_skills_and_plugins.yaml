@@ -33,6 +33,50 @@ agents:
           - wayfinder
           - wizard
           - writing-for-agents
+      - repo: cursor/plugins/pstack/skills
+        skills:
+          - architect
+          - arena
+          - blast-radius
+          - bro
+          - create-verification-skill
+          - figure-it-out
+          - how
+          - interrogate
+          - maintain-verification-skill
+          - make-bot-ui
+          - no-comments
+          - poteto-mode
+          - principle-attack-the-premise
+          - principle-boundary-discipline
+          - principle-build-the-lever
+          - principle-encode-lessons-in-structure
+          - principle-exhaust-the-design-space
+          - principle-experience-first
+          - principle-fix-root-causes
+          - principle-foundational-thinking
+          - principle-guard-the-context-window
+          - principle-laziness-protocol
+          - principle-make-operations-idempotent
+          - principle-migrate-callers-then-delete-legacy-apis
+          - principle-minimize-reader-load
+          - principle-model-the-domain
+          - principle-never-block-on-the-human
+          - principle-outcome-oriented-execution
+          - principle-prove-it-works
+          - principle-redesign-from-first-principles
+          - principle-separate-before-serializing-shared-state
+          - principle-sequence-verifiable-units
+          - principle-subtract-before-you-add
+          - principle-test-behavior-not-implementation
+          - principle-type-system-discipline
+          - recall
+          - show-me-your-work
+          - swarm
+          - technical-writing
+          - typescript-best-practices
+          - unslop
+          - why
       - repo: tt-a1i/archify
         skills: [archify]
       - repo: kunchenguid/chrome-devtools-axi
@@ -130,14 +174,20 @@ agents:
     on_demand:
       - ask-matt
       - archify
+      - architect
+      - arena
+      - blast-radius
+      - bro
       - code-review
       - codebase-design
+      - create-verification-skill
       - cua-driver
       - diagnosing-bugs
       - domain-modeling
       - elevenlabs
       - embedded-captions
       - faceless-explainer
+      - figure-it-out
       - general-video
       - gitbutler
       - grill-me
@@ -145,6 +195,7 @@ agents:
       - grilling
       - home-assistant
       - home-assistant-best-practices
+      - how
       - hyperframes
       - hyperframes-animation
       - hyperframes-audio
@@ -155,34 +206,69 @@ agents:
       - hyperframes-registry
       - implement
       - improve-codebase-architecture
+      - interrogate
       - json-canvas
       - kubernetes-specialist
       - last30days
       - lavish
       - lobster
+      - maintain-verification-skill
+      - make-bot-ui
       - media-use
       - migrate-to-shoehorn
       - motion-graphics
+      - no-comments
       - plannotator
       - plannotator-annotate
       - plannotator-review
       - plannotator-tui
+      - poteto-mode
+      - principle-attack-the-premise
+      - principle-boundary-discipline
+      - principle-build-the-lever
+      - principle-encode-lessons-in-structure
+      - principle-exhaust-the-design-space
+      - principle-experience-first
+      - principle-fix-root-causes
+      - principle-foundational-thinking
+      - principle-guard-the-context-window
+      - principle-laziness-protocol
+      - principle-make-operations-idempotent
+      - principle-migrate-callers-then-delete-legacy-apis
+      - principle-minimize-reader-load
+      - principle-model-the-domain
+      - principle-never-block-on-the-human
+      - principle-outcome-oriented-execution
+      - principle-prove-it-works
+      - principle-redesign-from-first-principles
+      - principle-separate-before-serializing-shared-state
+      - principle-sequence-verifiable-units
+      - principle-subtract-before-you-add
+      - principle-test-behavior-not-implementation
+      - principle-type-system-discipline
       - prototype
+      - recall
       - research
       - scaffold-exercises
       - setup-matt-pocock-skills
       - setup-pre-commit
+      - show-me-your-work
       - summarize-pro
+      - swarm
       - tdd
       - teach
+      - technical-writing
       - tiktok-crawling
       - to-questionnaire
       - to-spec
       - to-tickets
       - triage
+      - typescript-best-practices
+      - unslop
       - video-transcript-downloader
       - wait-what
       - wayfinder
+      - why
       - wizard
       - writing-for-agents
   claude_desktop:
