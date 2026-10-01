@@ -482,9 +482,8 @@ reason: a typo in a config key otherwise looks exactly like a setting that quiet
 
 Settled. Each is written into the design above; this is the record of what was chosen and why.
 
-1. **Install to `~/.local/libexec/lights`.** The repository rule puts everything a keybinding, launchd, a
-   hook or a `just` recipe invokes under `libexec`, and pns already lives there even though the operator
-   types `pns doctor` by hand. The aerospace keys are the dominant caller.
+1. **Install to `~/.cargo/bin/lights`.** The cargo git tools roster installs it with `cargo install`, like
+   uu, so it no longer lives under `libexec`. The aerospace keys call it by that path.
 
 1. **Brightness up and down send `dimming_delta`.** This removes the client's absolute
    read-modify-write race and delegates clipping to the bridge. Rapid accumulation is unverified until

@@ -170,9 +170,8 @@ Verify replacement semantics from the installed tool before claiming atomic inst
 cargo build --release --locked --quiet --bin lights
 ```
 
-Install path: `~/.local/libexec/lights`, settled. The repository rule puts everything a keybinding,
-launchd, a hook or a `just` recipe invokes under `libexec`, and pns already sits there despite being
-typed by hand too.
+Install path: `~/.cargo/bin/lights`. `run_onchange_after_57-install-cargo-git-tools.sh.tmpl` installs it
+with `cargo install` from the `webdavis/lights` repository, like uu. It no longer goes under `libexec`.
 
 ### The config template
 
@@ -201,9 +200,8 @@ It also updates `.chezmoiignore`, before any operator apply could deploy build o
 
 Source-only exclusion: the bare name `lights` at the target root, which covers the whole workspace at
 once, its target directory, its docs and the committed test fixtures under each member's
-`tests/fixtures` directory included. Match deployed target names, not chezmoi source prefixes. Then two
-entries in the darwin-conditional block, because the whole tool is macOS only: `.local/libexec/lights`
-and `.config/lights`.
+`tests/fixtures` directory included. Match deployed target names, not chezmoi source prefixes. Then one
+entry in the darwin-conditional block, because the whole tool is macOS only: `.config/lights`.
 
 ### The justfile
 
@@ -221,13 +219,13 @@ cargo clippy --locked --workspace --all-targets \
 All seven keys point at one tool, and the two that call `openhue` directly stop doing so:
 
 ```
-f4  = 'exec-and-forget ~/.local/libexec/lights scene "CC Halo Daylight"'
-f5  = 'exec-and-forget ~/.local/libexec/lights scene previous'
-f6  = 'exec-and-forget ~/.local/libexec/lights scene next'
-f7  = 'exec-and-forget ~/.local/libexec/lights scene "CC Halo Amber"'
-f8  = 'exec-and-forget ~/.local/libexec/lights brightness down'
-f9  = 'exec-and-forget ~/.local/libexec/lights toggle'
-f10 = 'exec-and-forget ~/.local/libexec/lights brightness up'
+f4  = 'exec-and-forget ~/.cargo/bin/lights scene "CC Halo Daylight"'
+f5  = 'exec-and-forget ~/.cargo/bin/lights scene previous'
+f6  = 'exec-and-forget ~/.cargo/bin/lights scene next'
+f7  = 'exec-and-forget ~/.cargo/bin/lights scene "CC Halo Amber"'
+f8  = 'exec-and-forget ~/.cargo/bin/lights brightness down'
+f9  = 'exec-and-forget ~/.cargo/bin/lights toggle'
+f10 = 'exec-and-forget ~/.cargo/bin/lights brightness up'
 ```
 
 `dot_aerospace.toml` is excluded from taplo, so the file's existing visual alignment is preserved by
