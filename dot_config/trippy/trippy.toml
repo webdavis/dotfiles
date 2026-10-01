@@ -1,0 +1,3 @@
+[trippy]
+# macOS lets trip trace without sudo in this mode.
+unprivileged = true

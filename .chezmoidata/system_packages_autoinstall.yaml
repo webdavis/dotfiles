@@ -148,6 +148,7 @@ packages:
         - trash-cli
         - tree
         - treefmt
+        - trippy
         - tuicr
         - uv
         - vapor
