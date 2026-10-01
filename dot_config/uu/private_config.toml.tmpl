@@ -197,6 +197,13 @@ scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
+[lane.no-mistakes]
+command = ["{{ .chezmoi.homeDir }}/.no-mistakes/bin/no-mistakes", "update", "-y"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
 [lane.npm]
 builtin = "npm"
 env = {}
