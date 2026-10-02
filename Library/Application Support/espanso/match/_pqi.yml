@@ -1,17 +1,8 @@
 matches:
   # ── Recognition / familiarity ─────────────────────────────────────────────
 
-  - trigger: ",,rc"
-    replace: "I would recognize"
-
-  - trigger: ";;rc"
-    replace: "No I wouldn't recognize anyone."
-
   - trigger: ";;ni"
     replace: "I have no idea."
-
-  - trigger: ";;yf"
-    replace: "Yes, I am familiar with it."
 
   - trigger: ";;nf"
     replace: "I am not familiar."
@@ -19,10 +10,10 @@ matches:
   # ── Applicability / fit ───────────────────────────────────────────────────
 
   - trigger: ";;da"
-    replace: "That doesn't apply."
+    replace: "Doesn't apply."
 
   - trigger: ";;na"
-    replace: "It's not applicable."
+    replace: "Not applicable."
   # Note: was 2×, second entry "It doesn't apply." removed (§6.4); use ;;da for that phrasing.
 
   - trigger: ";;sk"
@@ -36,33 +27,10 @@ matches:
   - trigger: ";;mo"
     replace: "Most important is"
 
-  - trigger: ";;rm"
-    replace: "Remove from PCI. Doesn't want to be called again."
-
-  # ── Survey participants ───────────────────────────────────────────────────
-
-  - trigger: ";;rd"
-    replace: "(the resident)"
-
-  - trigger: ",,rd"
-    replace: "(the residents)"
-
-  - trigger: ";;rp"
-    replace: "(responsible party)"
-
-  - trigger: ";;rs"
-    replace: "(The respondent was unable to complete the remainder of the survey.)"
-
-  - trigger: ";;sw"
-    replace: "social worker"
-
   # ── Reasons / explanations ────────────────────────────────────────────────
 
   - trigger: ";;jb"
     replace: "Just because"
-
-  - trigger: ";;ch"
-    replace: "It was chosen"
 
   - trigger: ";;ict"
     replace: "I can't think of anything."
@@ -79,48 +47,16 @@ matches:
   # ── Quality / values ──────────────────────────────────────────────────────
 
   - trigger: ";;vo"
-    replace: "Very Good"
+    replace: "very good"
 
   - trigger: ";;av"
-    replace: "Average"
-
-  - trigger: ",,acc"
-    replace: "accommodating"
-
-  - trigger: ";;acc"
-    replace: "according"
+    replace: "average"
 
   - trigger: ";;ia"
-    replace: "I appreciate"
+    replace: "Appreciate it"
 
-  # ── Healthcare / facilities ───────────────────────────────────────────────
-
-  - trigger: ";;pt"
-    replace: "physical therapy"
-
-  - trigger: ";;ot"
-    replace: "occupational therapy"
-
-  - trigger: ";;al"
-    replace: "assisted living"
-
-  - trigger: ";;hc"
-    replace: "healthcare"
+  # ── Hard to remember words ────────────────────────────────────────────────
 
   - trigger: "alz"
     replace: "Alzheimer's"
     word: true
-
-  - trigger: ";;ap"
-    replace: "A Place For Mom"
-
-  # ── PCI follow-up emails (migrated from local email.yml §6.5) ─────────────
-
-  - trigger: ";;ff"
-    replace: "0 surveys for the following facilities"
-
-  - trigger: ";;0s"
-    replace: "Dani,\n\nI received 0 surveys on two attempts for the following facilities:\n\n$|$\n\nThe following facilities had 0 PCI:\n\n\nBest,\nStephen Davis\n"
-
-  - trigger: ",,0s"
-    replace: "Dani,\n\nI received 0 additional surveys after completing my second attempt for the following facility:\n\n$|$\n\nBest Regards,\nStephen Davis\n"
