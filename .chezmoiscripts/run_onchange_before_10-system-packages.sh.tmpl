@@ -175,7 +175,7 @@ app_store_apps_are_declared() {
 }
 
 install_app_store_apps_within_time_limit() {
-  "$coreutils_timeout" "$app_store_install_time_limit_seconds" \
+  "$coreutils_timeout" --foreground "$app_store_install_time_limit_seconds" \
     "$brew_bin" bundle --no-upgrade --file="$app_store_apps_brewfile" </dev/null 2>&1
 }
 
