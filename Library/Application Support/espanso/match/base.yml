@@ -4,7 +4,7 @@
 # (`:espanso`, `:date`, `:shell`). chezmoi-managing it as an empty file
 # keeps the auto-bootstrap from re-introducing those examples, and from
 # becoming a kitchen-sink dumping ground that accumulates duplicates with
-# the dedicated files (autocorrect-spelling.yml, snippets.yml, _pqi.yml,
+# the dedicated files (autocorrect-spelling.yml, snippets.yml, _broccoli.yml,
 # identity.yml).
 #
 # Add new matches to the right dedicated file:
@@ -13,15 +13,15 @@
 #   - identity.yml                    name, email, address, phone (templated)
 #   - prompts.yml                     LLM prompt snippets
 #   - snippets.yml                    abbreviations, dates, symbols, URLs
-#   - _pqi.yml                        PCI/work-specific phrases
+#   - _broccoli.yml                   Broccoli/work-specific phrases
 
 # espanso auto-loads every file in this directory EXCEPT those whose name starts
 # with an underscore, which it reserves for sets you include deliberately:
-# https://espanso.org/docs/matches/organizing-matches/. _pqi.yml carries that
+# https://espanso.org/docs/matches/organizing-matches/. _broccoli.yml carries that
 # prefix, so it sat in the directory loading nothing at all. Importing it here
 # is what puts its matches in the set, and keeps the prefix meaning what espanso
 # says it means (included on purpose) instead of meaning nothing.
 imports:
-  - "./_pqi.yml"
+  - "./_broccoli.yml"
 
 matches: []
