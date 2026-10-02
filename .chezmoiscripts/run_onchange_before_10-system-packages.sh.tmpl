@@ -16,6 +16,7 @@ readonly trace_stage_column_width=26
 readonly coreutils_timeout="$homebrew_prefix/bin/gtimeout"
 readonly app_store_install_time_limit_seconds=180
 readonly timed_out_status=124
+readonly grace_seconds_before_kill=5
 readonly bulk_cleanup_limit="${HOMEBREW_BUNDLE_CLEANUP_THRESHOLD:-5}"
 {{- if $graphifyIsDeclared }}
 readonly graphify_claude_config_directory="$HOME/.local/share/graphify/claude"
@@ -174,8 +175,49 @@ app_store_apps_are_declared() {
   [[ -s $app_store_apps_brewfile ]]
 }
 
+terminal_is_available() {
+  { : </dev/tty; } 2>/dev/null
+}
+
+stop_process_group_at_deadline() {
+  local group=$1 seconds=$2
+  sleep "$seconds"
+  kill -TERM -- "-$group" 2>/dev/null || return 0
+  sleep "$grace_seconds_before_kill"
+  kill -KILL -- "-$group" 2>/dev/null || true
+}
+
+deadline_passed() {
+  local started=$1 seconds=$2
+  ((SECONDS - started >= seconds))
+}
+
+run_owning_the_terminal_within() {
+  local seconds=$1
+  shift
+  if ! terminal_is_available; then
+    "$coreutils_timeout" --kill-after="$grace_seconds_before_kill" "$seconds" "$@"
+    return
+  fi
+  (
+    exec {caller_stderr}>&2 2>/dev/tty
+    set -m
+    local started=$SECONDS status=0
+    "$@" 2>&"$caller_stderr" &
+    local group=$!
+    stop_process_group_at_deadline "$group" "$seconds" &
+    local deadline=$!
+    fg %1 >/dev/null || status=$?
+    kill -- "-$deadline" 2>/dev/null || true
+    if ((status > 128)) && deadline_passed "$started" "$seconds"; then
+      return "$timed_out_status"
+    fi
+    return "$status"
+  )
+}
+
 install_app_store_apps_within_time_limit() {
-  "$coreutils_timeout" --foreground "$app_store_install_time_limit_seconds" \
+  run_owning_the_terminal_within "$app_store_install_time_limit_seconds" \
     "$brew_bin" bundle --no-upgrade --file="$app_store_apps_brewfile" </dev/null 2>&1
 }
 
