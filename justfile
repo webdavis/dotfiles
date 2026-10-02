@@ -157,7 +157,7 @@ claude-desktop-skills folder=(home_directory() / "Desktop" / "claude-desktop-ski
   cd ~/.agents/skills
   for skill in $(yq -r '.agents.claude_desktop.skills[]' "{{justfile_directory()}}/.chezmoidata/agent_skills_and_plugins.yaml"); do
     [[ -f $skill/SKILL.md ]] || { echo "$skill is not in ~/.agents/skills yet; run just apply first." >&2; exit 1; }
-    zip -FSrq "{{folder}}/$skill.zip" "$skill" -x '*.DS_Store'
+    zip -FSrq "{{folder}}/$skill.zip" "$skill" -x '*.DS_Store' "$skill/.claude-plugin/*" "$skill/.github/*"
   done
   echo "Drag the zips in {{folder}} into Claude Desktop."
 
