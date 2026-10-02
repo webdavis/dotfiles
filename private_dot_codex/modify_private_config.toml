@@ -162,8 +162,8 @@
 {{- $merged = setValueAtPath (list "mcp_servers" "composio" "http_headers" "x-consumer-api-key") (keepassxc "Composio :: API Key :: MCP").Password $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "command") "uvx" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "args") (list "workspace-mcp" "--tool-tier" "complete") $merged -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_ID") (keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").UserName $merged -}}
-{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_SECRET") (keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").Password $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_ID") (keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").UserName $merged -}}
+{{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "GOOGLE_OAUTH_CLIENT_SECRET") (keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").Password $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "workspace-mcp" "env" "OAUTHLIB_INSECURE_TRANSPORT") "1" $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "command") (printf "%s/.local/bin/cua-driver" $home) $merged -}}
 {{- $merged = setValueAtPath (list "mcp_servers" "cua-driver" "args") (list "mcp") $merged -}}
