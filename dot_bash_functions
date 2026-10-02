@@ -1,9 +1,5 @@
 # shellcheck shell=bash
 # Utility functions sourced by ~/.bashrc.
-#
-# Functions belong here when they: take args needing positional handling,
-# have multi-step or conditional logic, or chain multiple commands. Pure
-# command-rename shortcuts live in ~/.bash_aliases instead.
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Filesystem / shell    ┃
