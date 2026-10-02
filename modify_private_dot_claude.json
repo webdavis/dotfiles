@@ -33,8 +33,8 @@
     "command" "uvx"
     "args" (list "workspace-mcp" "--tool-tier" "complete")
     "env" (dict
-      "GOOGLE_OAUTH_CLIENT_ID" ((keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").UserName)
-      "GOOGLE_OAUTH_CLIENT_SECRET" ((keepassxc "Google Cloud (webdavis.io) :: OAuth :: google-workspace-mcp").Password)
+      "GOOGLE_OAUTH_CLIENT_ID" ((keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").UserName)
+      "GOOGLE_OAUTH_CLIENT_SECRET" ((keepassxc "Google Cloud (webdavis) :: OAuth (google-workspace-mcp)").Password)
       "OAUTHLIB_INSECURE_TRANSPORT" "1") -}}
 {{- $merged = setValueAtPath "mcpServers.workspace-mcp" $workspaceMcp $merged -}}
 
