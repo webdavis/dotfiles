@@ -58,105 +58,67 @@ switch_ascii_input_source_in_prefix = true
 # [keys] is the real name (`herdr --default-config`), not [keybindings].
 [keys]
 prefix = "ctrl+d"
+
+# Navigation grammar for windows, spaces and panes: the key picks the group,
+# the modifier picks the verb. go = prefix+key, rearrange = prefix+shift+key,
+# rename = prefix+alt+key, create = prefix+ctrl+key. Group keys: windows n/p,
+# spaces [ ], panes h/j/k/l (prefix+h/j/k/l are herdr's defaults), agents u/i.
+# Herdr has no action to move a space, jump to a pane by number, or rename or
+# create an agent, so those slots stay empty.
+
+# Windows (herdr calls them tabs). go: herdr's prefix+n/p defaults.
+switch_tab = ["prefix+1..9", "cmd+1..9"]
+move_tab_next = "prefix+shift+n"
+move_tab_previous = "prefix+shift+p"
+rename_tab = "prefix+alt+n"
+new_tab = "prefix+ctrl+n"
+
+# Spaces (herdr calls them workspaces). `ctrl+[` and `alt+[` read as Escape
+# without CSI-u key reporting.
+next_workspace = "prefix+]"
+previous_workspace = "prefix+["
+switch_workspace = ["prefix+alt+1..9", "alt+1..9"]
+rename_workspace = "prefix+alt+["
+new_workspace = "prefix+ctrl+["
+
+# Panes. Creating stays on the tmux split keys.
+swap_pane_left = "prefix+shift+h"
+swap_pane_down = "prefix+shift+j"
+swap_pane_up = "prefix+shift+k"
+swap_pane_right = "prefix+shift+l"
+rename_pane = "prefix+alt+h"
+split_horizontal = "prefix+\""
+split_vertical = "prefix+%"
+# Pane-level MRU toggle; pairs with the workspace toggle below.
+last_pane = "prefix+\\"
+
+# Agents.
+next_agent = "prefix+i"
+previous_agent = "prefix+u"
+focus_agent = ["prefix+ctrl+1..9", "ctrl+1..9"]
+
+# x closes, the modifier picks the size: pane (prefix+x) and window
+# (prefix+shift+x) are herdr's defaults, the worktree is worktrunk's below.
+close_workspace = "prefix+alt+x"
+
 goto = "prefix+g"
-rename_tab = "prefix+comma"
-workspace_picker = "prefix+alt+space"
-rename_workspace = "prefix+alt+comma"
+workspace_picker = "prefix+shift+o"
+copy_mode = "prefix+c"
 edit_scrollback = "prefix+alt+e"
 reload_config = "prefix+shift+r"
 
-# nav tiers: cmd = tabs, alt = workspaces, ctrl = agents, {/} = step agents.
-switch_tab = ["prefix+1..9", "cmd+1..9"]
-next_agent = "prefix+}"
-previous_agent = "prefix+{"
-focus_agent = ["prefix+ctrl+1..9", "ctrl+1..9"]
-next_workspace = "prefix+alt+n"
-previous_workspace = "prefix+alt+p"
-switch_workspace = ["prefix+alt+1..9", "alt+1..9"]
-
-new_worktree = "prefix+alt+w"
-open_worktree = "prefix+alt+o"
-remove_worktree = "prefix+alt+x"
-
-split_horizontal = "prefix+\""
-split_vertical = "prefix+%"
+# worktrunk's chords below cover these, in the same ~/.herdr/worktrees.
+new_worktree = ""
+open_worktree = ""
+remove_worktree = ""
 
 navigate_workspace_up = "ctrl+p"
 navigate_workspace_down = "ctrl+n"
 
-# Pane-level MRU toggle; pairs with the workspace toggle below.
-last_pane = "prefix+\\"
-
-swap_pane_left = "prefix+alt+h"
-swap_pane_down = "prefix+alt+j"
-swap_pane_up = "prefix+alt+k"
-swap_pane_right = "prefix+alt+l"
-
 # ╭────────────────────────╮
 # │  herdr-workspace-jump  │
 # ╰────────────────────────╯
-# Quick-jump chords: herdr has no create-or-focus-by-label builtin.
-[[keys.command]]
-key = "prefix+ctrl+c"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_casually_concerned"
-description = "jump to casually-concerned workspace"
-
-[[keys.command]]
-key = "prefix+ctrl+."
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_dotfiles"
-description = "jump to dotfiles workspace (CSI-u)"
-
-[[keys.command]]
-key = "prefix+."
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_dotfiles"
-description = "jump to dotfiles workspace (non-CSI-u fallback)"
-
-[[keys.command]]
-key = "prefix+ctrl+e"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_essential_feed_case_study"
-description = "jump to essential-feed-case-study workspace"
-
-[[keys.command]]
-key = "prefix+ctrl+f"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_fitness"
-description = "jump to fitness workspace"
-
-[[keys.command]]
-key = "prefix+ctrl+h"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_homelab"
-description = "jump to homelab workspace (auto-start)"
-
-[[keys.command]]
-key = "prefix+ctrl+i"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_ivy"
-description = "jump to Ivy vault workspace"
-
-[[keys.command]]
-key = "prefix+ctrl+j"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_justdavis_ansible"
-description = "jump to justdavis-ansible workspace"
-
-[[keys.command]]
-key = "prefix+ctrl+n"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_netpulse"
-description = "jump to netpulse workspace"
-
-[[keys.command]]
-key = "prefix+ctrl+p"
-type = "plugin_action"
-command = "herdr-workspace-jump.jump_plantpulse"
-description = "jump to plantpulse workspace"
-
-# Workspace-level MRU toggle (same plugin as the jump chords).
+# Workspace-level MRU toggle.
 [[keys.command]]
 key = "prefix+ctrl+\\"
 type = "plugin_action"
@@ -204,7 +166,7 @@ description = "nav right: Neovim split or herdr pane"
 # ╰────────────────╯
 # Sends a literal Ctrl-l for readline clear-screen.
 [[keys.command]]
-key = "prefix+shift+l"
+key = "prefix+ctrl+l"
 type = "shell"
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
 description = "clear screen: send Ctrl-l to the focused pane (like bash)"
@@ -225,19 +187,19 @@ command = "worktrunk.open-current"
 description = "worktree: switch or create from the current branch"
 
 [[keys.command]]
-key = "prefix+shift+g"
+key = "prefix+ctrl+w"
 type = "plugin_action"
 command = "worktrunk.open-with-remotes"
 description = "worktree: switch or create from local or remote branches"
 
 [[keys.command]]
-key = "prefix+backspace"
+key = "prefix+ctrl+x"
 type = "plugin_action"
 command = "worktrunk.remove"
 description = "worktree: remove"
 
 [[keys.command]]
-key = "prefix+shift+m"
+key = "prefix+ctrl+m"
 type = "plugin_action"
 command = "worktrunk.merge"
 description = "worktree: merge into the target branch"
@@ -267,13 +229,13 @@ command = "annotate.last"
 description = "annotate: review the agent's last reply"
 
 [[keys.command]]
-key = "prefix+f"
+key = "prefix+ctrl+a"
 type = "plugin_action"
 command = "annotate.open"
 description = "annotate: review documents in the current folder"
 
 [[keys.command]]
-key = "prefix+m"
+key = "prefix+alt+a"
 type = "plugin_action"
 command = "annotate.manage"
 description = "annotate: manage annotations"
@@ -318,13 +280,13 @@ description = "reviewr: toggle the code-review pane"
 # │  herdr-agent-quota  │
 # ╰─────────────────────╯
 [[keys.command]]
-key = "prefix+u"
+key = "prefix+$"
 type = "plugin_action"
 command = "herdr-agent-quota.open-settings"
 description = "agent quota: open settings"
 
 [[keys.command]]
-key = "prefix+shift+u"
+key = "prefix+#"
 type = "plugin_action"
 command = "herdr-agent-quota.refresh"
 description = "refresh all agent quotas"
@@ -335,7 +297,7 @@ description = "refresh all agent quotas"
 # tuicr's window; Ctrl-C hides it rather than quitting. Other generated
 # actions (split-right, split-below, kill) are available but unbound.
 [[keys.command]]
-key = "prefix+ctrl+t"
+key = "prefix+shift+v"
 type = "plugin_action"
 command = "herdr-process.tuicr:toggle-float"
 description = "tuicr: toggle floating window"
@@ -353,7 +315,7 @@ description = "worktree review: toggle floating window"
 # `worktree-review.sh pick` from a shell to record the new target, then kill
 # here so the next toggle starts a fresh session against it.
 [[keys.command]]
-key = "prefix+r"
+key = "prefix+alt+r"
 type = "plugin_action"
 command = "herdr-process.review:kill"
 description = "worktree review: end the session (re-pick with worktree-review.sh pick)"
@@ -388,13 +350,13 @@ description = "zoetrope: session graph (overlay)"
 # that lost the closing marker leaves the block unterminated). After an edit:
 # herdr server reload-config
 [[keys.command]]
-key = "prefix+shift+v"
+key = "prefix+alt+z"
 type = "plugin_action"
 command = "furkankly.zoetrope.open-split"
 description = "zoetrope: session graph (split)"
 
 [[keys.command]]
-key = "prefix+shift+c"
+key = "prefix+ctrl+z"
 type = "plugin_action"
 command = "furkankly.zoetrope.open-tab"
 description = "zoetrope: session graph (tab)"
@@ -408,7 +370,7 @@ description = "zoetrope: session graph (tab)"
 # focused pane's account as pane metadata, is the plugin's other action and is
 # deliberately unbound: the quota sidebar already names the account in view.
 [[keys.command]]
-key = "prefix+alt+a"
+key = "prefix+@"
 type = "plugin_action"
 command = "clauth.open"
 description = "clauth: manage accounts"
@@ -416,14 +378,21 @@ description = "clauth: manage accounts"
 # ╭────────────────╮
 # │  herdr-damnit  │
 # ╰────────────────╯
-# One chord: the pane's own `v` and number keys switch views, and it opens on
-# `default_view` from the plugin's config. `prefix+t` and both its shifted and
-# controlled forms already belong to tab-smart-rename and tuicr.
+# The pane's own `v` and number keys switch views, and it opens on
+# `default_view` from the plugin's config, so the view:N actions stay unbound.
+# The status screen gets its own chord because staging is why the plugin
+# exists; `doctor` is rare enough for the command bar.
 [[keys.command]]
 key = "prefix+d"
 type = "plugin_action"
 command = "herdr-damnit.toggle"
 description = "damnit: toggle the task pane"
+
+[[keys.command]]
+key = "prefix+shift+d"
+type = "plugin_action"
+command = "herdr-damnit.status"
+description = "damnit: open the pane on the status screen"
 
 # `$clauth` renders the account each Claude Code pane burns and
 # `$clauth_delegate` the delegate behind it, so a per-agent row override is the
