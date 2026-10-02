@@ -46,6 +46,22 @@ local function file_rows()
   return math.max(3, math.min(9, vim.o.lines - rows_around_the_file_list))
 end
 
+---Ask for words (the one under the cursor filled in) and show `yf`'s colored
+---matches in a float that stays open until `q`. `yf` is a bash function, so it
+---runs in a login shell; the words go in as arguments, never pasted into the
+---command string, so a quote or `$` in them stays text.
+local function yaml_find()
+  local guess = vim.fn.expand("<cWORD>"):gsub("^[^%w]+", ""):gsub("[^%w]+$", "")
+  vim.ui.input({ prompt = "yf: ", default = guess }, function(input)
+    local words = vim.split(input or "", "%s+", { trimempty = true })
+    if #words == 0 then
+      return
+    end
+    local cmd = { "bash", "-lc", 'yf "$@" || echo "yf: no YAML values match: $*"', "yf", unpack(words) }
+    Snacks.terminal.open(cmd, { interactive = false, win = { position = "float" } })
+  end)
+end
+
 return {
   {
     "folke/snacks.nvim",
@@ -262,6 +278,7 @@ return {
       { "<leader>sR", function() Snacks.picker.resume() end, desc = "Snacks: Resume Picker" },
       { "<leader>sC", function() Snacks.picker.colorschemes() end, desc = "Snacks: colorschemes" },
       { "<leader>su", function() Snacks.picker.undo() end, desc = "Snacks: undo history" },
+      { "<leader>sy", yaml_find, desc = "Search: YAML values (yf)" },
       { '<leader>s"', function() Snacks.picker.registers() end, desc = "Snacks: registers" },
 
       -- LSP:

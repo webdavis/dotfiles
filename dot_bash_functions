@@ -28,6 +28,40 @@ getcertnames() {
 }
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  YAML                  ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Find YAML values under the current directory, one line per match:
+# `file  path.to.key.0 = value`. Every word must appear on the line, so
+# `yf grilling hermes` narrows to the hermes profiles. Each path level gets
+# its own color; list indexes are dimmed.
+yf() {
+  if [[ -z ${1:-} ]]; then
+    echo "Usage: yf <word> [<word>...]" >&2
+    return 1
+  fi
+  local color=0 file lines word
+  [[ -t 1 ]] && color=1
+  lines=$(rg -l --hidden -g '*.{yaml,yml}' -F -- "$1" | while IFS= read -r file; do
+    yq -o props "$file" | awk -v f="$file" '{ print f "\t" $0 }'
+  done)
+  for word in "$@"; do
+    lines=$(rg -F -- "$word" <<<"$lines")
+  done
+  [[ -n $lines ]] || return 1
+  awk -F'\t' -v color="$color" '
+    function paint(c, s) { return color ? "\033[" c "m" s "\033[0m" : s }
+    {
+      i = index($2, " = ")
+      n = split(substr($2, 1, i - 1), p, ".")
+      path = ""
+      for (j = 1; j <= n; j++)
+        path = path (j > 1 ? "." : "") paint(p[j] ~ /^[0-9]+$/ ? 2 : 31 + (j - 1) % 6, p[j])
+      print paint(90, $1) "  " path " = " paint(1, substr($2, i + 3))
+    }' <<<"$lines"
+}
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
 # ┃  Git wrappers          ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 # Migrated from [alias] in ~/.gitconfig on 2026-04-28.
