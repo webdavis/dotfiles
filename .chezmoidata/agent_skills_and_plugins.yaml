@@ -171,6 +171,8 @@ agents:
       - name: scalebar
       - name: tiktok-crawling
     app_owned: [composio-cli, cua-driver]
+    # Upstream marks these disable-model-invocation; the skills lane strips that so a model can call them.
+    model_invocable: [teach]
     on_demand:
       - ask-matt
       - archify
@@ -256,7 +258,6 @@ agents:
       - summarize-pro
       - swarm
       - tdd
-      - teach
       - technical-writing
       - tiktok-crawling
       - to-questionnaire

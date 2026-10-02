@@ -18,6 +18,11 @@ readonly codex_ask_first_skills=(
   {{ . | quote }}
 {{- end }}{{ end }}
 )
+readonly model_invocable_skills=(
+{{- range $skills.model_invocable }}
+  {{ . | quote }}
+{{- end }}
+)
 readonly codex_default_skills=(
 {{- range $installedSkills }}{{ if not (has . $skills.on_demand) }}
   {{ . | quote }}
@@ -139,6 +144,28 @@ restore_original_codex_file() {
   fi
 }
 
+skill_file_of() {
+  local skill=$1
+  printf '%s\n' "$skills_folder/$skill/SKILL.md"
+}
+
+without_model_invocation_block() {
+  awk 'NR == 1 && /^---$/ { in_front_matter = 1; print; next }
+    in_front_matter && /^---$/ { in_front_matter = 0 }
+    in_front_matter && /^disable-model-invocation:/ { next }
+    { print }' "$1"
+}
+
+allow_model_invocation_of() {
+  local skill=$1 skill_file stripped
+  skill_is_installed "$skill" || return 0
+  skill_file="$(skill_file_of "$skill")"
+  stripped="$(without_model_invocation_block "$skill_file")" || return 1
+  if [[ $stripped != "$(<"$skill_file")" ]]; then
+    printf '%s\n' "$stripped" >"$skill_file"
+  fi
+}
+
 main() {
   local skill failed=no
   if ! tool_is_installed yq || ! tool_is_installed jq; then
@@ -150,6 +177,9 @@ main() {
   done
   for skill in "${codex_default_skills[@]}"; do
     restore_original_codex_file "$skill" || failed=yes
+  done
+  for skill in "${model_invocable_skills[@]}"; do
+    allow_model_invocation_of "$skill" || failed=yes
   done
   if [[ $failed == yes ]]; then
     exit 1
