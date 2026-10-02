@@ -16,6 +16,7 @@ readonly trace_stage_column_width=26
 readonly coreutils_timeout="$homebrew_prefix/bin/gtimeout"
 readonly app_store_install_time_limit_seconds=180
 readonly timed_out_status=124
+readonly grace_seconds_before_kill=5
 readonly bulk_cleanup_limit="${HOMEBREW_BUNDLE_CLEANUP_THRESHOLD:-5}"
 {{- if $graphifyIsDeclared }}
 readonly graphify_claude_config_directory="$HOME/.local/share/graphify/claude"
@@ -174,8 +175,86 @@ app_store_apps_are_declared() {
   [[ -s $app_store_apps_brewfile ]]
 }
 
+terminal_is_available() {
+  { : </dev/tty; } 2>/dev/null
+}
+
+run_with_plain_time_limit() {
+  local seconds=$1
+  shift
+  "$coreutils_timeout" --kill-after="$grace_seconds_before_kill" "$seconds" "$@"
+}
+
+keep_caller_stderr_and_point_stderr_at_terminal() {
+  exec {caller_stderr}>&2 2>/dev/tty
+}
+
+turn_on_job_control() {
+  set -m
+}
+
+start_command_in_its_own_process_group() {
+  "$@" 2>&"$caller_stderr" &
+}
+
+stop_process_group_at_deadline() {
+  local group=$1 seconds=$2
+  sleep "$seconds"
+  kill -TERM -- "-$group" 2>/dev/null || return 0
+  sleep "$grace_seconds_before_kill"
+  kill -KILL -- "-$group" 2>/dev/null || true
+}
+
+start_deadline_timer() {
+  local group=$1 seconds=$2
+  stop_process_group_at_deadline "$group" "$seconds" &
+}
+
+hand_terminal_to_command_and_wait() {
+  fg %1 >/dev/null
+}
+
+stop_deadline_timer() {
+  local timer=$1
+  kill -- "-$timer" 2>/dev/null || true
+}
+
+deadline_passed() {
+  local started=$1 seconds=$2
+  ((SECONDS - started >= seconds))
+}
+
+exit_status_after_time_limit() {
+  local status=$1 started=$2 seconds=$3
+  if ((status > 128)) && deadline_passed "$started" "$seconds"; then
+    return "$timed_out_status"
+  fi
+  return "$status"
+}
+
+terminal_owning_time_limit_policy() {
+  local seconds=$1
+  shift
+  if ! terminal_is_available; then
+    run_with_plain_time_limit "$seconds" "$@"
+    return
+  fi
+  (
+    keep_caller_stderr_and_point_stderr_at_terminal
+    turn_on_job_control
+    local started=$SECONDS status=0 command_group deadline_timer
+    start_command_in_its_own_process_group "$@"
+    command_group=$!
+    start_deadline_timer "$command_group" "$seconds"
+    deadline_timer=$!
+    hand_terminal_to_command_and_wait || status=$?
+    stop_deadline_timer "$deadline_timer"
+    exit_status_after_time_limit "$status" "$started" "$seconds"
+  )
+}
+
 install_app_store_apps_within_time_limit() {
-  "$coreutils_timeout" --foreground "$app_store_install_time_limit_seconds" \
+  terminal_owning_time_limit_policy "$app_store_install_time_limit_seconds" \
     "$brew_bin" bundle --no-upgrade --file="$app_store_apps_brewfile" </dev/null 2>&1
 }
 
