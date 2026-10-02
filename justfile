@@ -149,6 +149,10 @@ macos-defaults-dump:
 worktrees-prune *arguments:
   ./scripts/prune-merged-worktrees.sh {{arguments}}
 
+# List KeePass entries the templates read that the database doesn't have. Asks for the database password.
+check-keepass:
+  ./scripts/check-keepass-entries.sh
+
 # Zip each Claude Desktop skill into one folder, ready to drag into Claude Desktop.
 claude-desktop-skills folder=(home_directory() / "Desktop" / "claude-desktop-skills"):
   #!/usr/bin/env bash
