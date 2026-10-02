@@ -42,25 +42,23 @@ titles_in() {
   printf '%s\n' "$references" | cut -f2 | sort -u
 }
 
-files_using() {
-  local references=$1 title=$2
-  printf '%s\n' "$references" | awk -F '\t' -v title="$title" '$2 == title { print $1 }' | sort -u
-}
-
-where_used() {
-  local references=$1 title=$2 files count
-  files="$(files_using "$references" "$title")"
-  count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
-  if ((count == 1)); then
-    printf '%s' "$files"
-  else
-    printf '%s (+%d more)' "$(printf '%s\n' "$files" | head -n 1)" "$((count - 1))"
-  fi
-}
-
-entry_in_a_group_named() {
-  local entry_names=$1 title=$2
-  printf '%s\n' "$entry_names" | awk -v suffix="/$title" 'substr($0, length($0) - length(suffix) + 1) == suffix { print; exit }'
+where_each_title_is_found() {
+  local entry_names=$1 titles=$2
+  awk -F '\t' '
+    NR == FNR {
+      if ($0 ~ /\/$/) next
+      title = $0
+      sub(/.*\//, "", title)
+      if (!(title in path)) path[title] = $0
+      else extra[title]++
+      next
+    }
+    {
+      found = ($0 in path) ? path[$0] : ""
+      if (found != "" && extra[$0] > 0) found = found " (+" extra[$0] " more with this title)"
+      print $0 "\t" found
+    }
+  ' <(printf '%s\n' "$entry_names") <(printf '%s\n' "$titles")
 }
 
 widest_title() {
@@ -68,37 +66,39 @@ widest_title() {
   printf '%s\n' "$titles" | awk '{ if (length($0) > width) width = length($0) } END { print (width > 50 ? 50 : width) + 0 }'
 }
 
-report_missing_title() {
-  local references=$1 entry_names=$2 title=$3 width=$4 grouped
-  grouped="$(entry_in_a_group_named "$entry_names" "$title")"
-  if [[ -n $grouped ]]; then
-    print_in_red "$(printf '  ✗ %-*s  found only as "%s"' "$width" "$title" "$grouped")"
-  else
-    print_in_red "$(printf '  ✗ %-*s  used in %s' "$width" "$title" "$(where_used "$references" "$title")")"
-  fi
+print_row() {
+  local width=$1 expected=$2 found=$3
+  printf '  %-*s  %s\n' "$width" "$expected" "$found"
 }
 
 main() {
-  local database references titles entry_names missing title width title_count missing_count
+  local database references titles entry_names results expected found width title_count missing_count=0
   database="$(database_path)"
   [[ -n $database ]] || fail_to_check no-database "no keepassxc database is set in $chezmoi_config_template"
   references="$(references_as_file_and_title)" || fail_to_check git-grep "could not read the templates"
   [[ -n $references ]] || fail_to_check no-references "found no keepassxc references in the templates"
   titles="$(titles_in "$references")"
   entry_names="$(keepassxc-cli ls --recursive --flatten "$database")" || fail_to_check keepassxc "could not list $database"
-  missing="$(comm -23 <(printf '%s\n' "$titles") <(printf '%s\n' "$entry_names" | sort -u))"
+  [[ -n $entry_names ]] || fail_to_check empty-database "keepassxc-cli listed no entries in $database"
+  results="$(where_each_title_is_found "$entry_names" "$titles")"
+  unset entry_names
   title_count="$(printf '%s\n' "$titles" | wc -l | tr -d ' ')"
+  width="$(widest_title "$titles")"
 
   report_section 'keepass' "$title_count entries the templates read"
-  if [[ -z $missing ]]; then
-    report_line "  ✓ all $title_count are in the database"
+  print_row "$width" 'expected' 'found'
+  while IFS=$'\t' read -r expected found; do
+    if [[ -n $found ]]; then
+      print_row "$width" "$expected" "$found"
+    else
+      print_in_red "$(print_row "$width" "$expected" 'missing')"
+      missing_count=$((missing_count + 1))
+    fi
+  done < <(printf '%s\n' "$results")
+  if ((missing_count == 0)); then
+    report_line "  all $title_count found"
     exit "$exit_all_found"
   fi
-  missing_count="$(printf '%s\n' "$missing" | wc -l | tr -d ' ')"
-  width="$(widest_title "$missing")"
-  while IFS= read -r title; do
-    report_missing_title "$references" "$entry_names" "$title" "$width"
-  done < <(printf '%s\n' "$missing")
   print_in_red "  $missing_count missing, $((title_count - missing_count)) found"
   exit "$exit_entries_missing"
 }
