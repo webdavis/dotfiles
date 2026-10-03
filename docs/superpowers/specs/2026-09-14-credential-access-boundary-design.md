@@ -585,6 +585,7 @@ no values. Fixture entries from `test/fixtures/render-coverage/` are excluded.
 | `moshi-hook :: Device Token` | `~/.config/pns/config.toml`, moshi pairing script |
 | `OpenHue :: API Key (hue-bridge-pro)` | `~/.config/openhue/config.yaml`, `~/.config/lights/config.toml`, `~/.config/pns/config.toml` |
 | `OpenRouter :: API Key (hermes-agent)` | `~/.hermes/.env` |
+| `OpenRouter :: API Key (herdr-tab-smart-rename)` | `~/.config/herdr/plugins/config/tab-smart-rename/provider.env` |
 | `Personal :: Address` | espanso identity match |
 | `Personal :: Phone` | espanso identity match |
 | `Proton Mail Bridge - IMAP Login` | `~/.config/himalaya/config.toml` |
@@ -596,10 +597,6 @@ Twenty-four rows, twenty-three secret-bearing: the GitHub signing-key row is a p
 is listed because the checker in behavior 12 will see it and it should be registered as non-secret
 rather than reported as a finding.
 
-One inert reference exists and must not become a twenty-fifth row.
-`dot_config/herdr/plugins/config/tab-smart-rename/private_provider.env` contains
-`# OPENAI_API_KEY={{ (keepassxc "OpenAI API").Password }}` on a commented line, and the file has no
-`.tmpl` suffix, so chezmoi never renders it and the template text is deployed literally. Verified by
-reading the source file and its deployed copy, which are the same 2539 bytes. The checker has to
-distinguish a real call site from dead text in a non-template file, or it will report an entry that
-is never read and send the operator looking for a credential that is not in use.
+`dot_config/herdr/plugins/config/tab-smart-rename/private_provider.env.tmpl` reads
+`OpenRouter :: API Key (herdr-tab-smart-rename)` for the plugin's model path (added 2026-10-02). The
+checker still only counts references in template files, so dead text in a plain file is never reported.
