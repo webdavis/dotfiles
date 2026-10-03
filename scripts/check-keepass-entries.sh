@@ -68,20 +68,19 @@ widest_title() {
 readonly bullet='•'
 readonly found_column_width=28
 
+rule_of_width() {
+  printf '%*s' "$1" '' | sed 's/ /─/g'
+}
+
 print_column_headings() {
-  local width=$1 rule
-  rule="$(printf '%*s' "$((width + 2 + found_column_width))" '' | sed 's/ /─/g')"
+  local width=$1
   printf '  %s%-*s  %s%s\n' "$faint" "$width" 'expected' 'found' "$reset"
-  printf '  %s%s%s\n' "$faint" "$rule" "$reset"
+  printf '  %s%s  %s%s\n' "$faint" "$(rule_of_width "$width")" "$(rule_of_width "$found_column_width")" "$reset"
 }
 
 print_row() {
   local width=$1 expected=$2 found=$3
   printf '%s %-*s  %s\n' "$bullet" "$width" "$expected" "$found"
-}
-
-print_line() {
-  printf '%s %s\n' "$bullet" "$*"
 }
 
 main() {
@@ -98,17 +97,19 @@ main() {
   title_count="$(printf '%s\n' "$titles" | wc -l | tr -d ' ')"
   width="$(widest_title "$titles")"
 
-  report_section 'keepass' "$title_count entries the templates read"
+  report_section 'KeePass entry check' "$title_count entries the templates read"
   if [[ -z $results ]]; then
-    report_line "$(print_line "all $title_count found")"
+    report_line "  all $title_count found"
     exit "$exit_all_found"
   fi
+  printf '\n'
   print_column_headings "$width"
   while IFS=$'\t' read -r expected found; do
     print_in_red "$(print_row "$width" "$expected" "$found")"
     issue_count=$((issue_count + 1))
   done < <(printf '%s\n' "$results")
-  print_in_red "$(print_line "$issue_count of $title_count need fixing")"
+  printf '\n'
+  print_in_red "  $issue_count of $title_count need fixing"
   exit "$exit_entries_missing"
 }
 
