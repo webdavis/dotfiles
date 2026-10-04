@@ -144,6 +144,7 @@ packages:
         - taplo
         - tart
         - tealdeer
+        - temporal
         - terminal-notifier
         - tokei
         - trash-cli
