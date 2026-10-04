@@ -251,6 +251,7 @@ packages:
           - agentmail-cli
           - backpass
           - clawhub
+          - dotenv
           # Pinned: it commits unattended and is pre-1.0.
           - "gnhf@0.1.49"
           - hyperframes
