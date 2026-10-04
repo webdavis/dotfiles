@@ -20,6 +20,7 @@ set smartcase
 
 let mapleader = " "
 nnoremap <silent> <leader>uh :set hlsearch!<CR>
+nnoremap <silent> <leader>uw :set wrap!<CR>
 
 let g:is_bash = 1
 autocmd BufRead,BufNewFile *.sh.tmpl set filetype=sh
