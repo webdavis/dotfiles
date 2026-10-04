@@ -4,7 +4,7 @@ syntax on
 
 set encoding=utf-8
 set backspace=indent,eol,start
-set number
+set number relativenumber
 set ruler
 set showmatch
 
@@ -17,6 +17,9 @@ set incsearch
 set hlsearch
 set ignorecase
 set smartcase
+
+let mapleader = " "
+nnoremap <silent> <leader>uh :set hlsearch!<CR>
 
 let g:is_bash = 1
 autocmd BufRead,BufNewFile *.sh.tmpl set filetype=sh
