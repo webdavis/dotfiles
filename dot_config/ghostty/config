@@ -2,8 +2,9 @@
 # ┃    Ghostty Configuration    ┃
 # ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-# Config Paths
-# =============
+# ╭────────────────╮
+# │  Config Paths  │
+# ╰────────────────╯
 #
 #  → System Config: ~/Library/Application Support/com.mitchellh.ghostty/config
 #  ----------------------------------------------------------------------------
@@ -11,14 +12,18 @@
 #  → User Config:   $XDG_CONFIG_HOME/.config/ghostty/config (a.k.a. ~/.config/ghostty/config)
 #  -------------------------------------------------------------------------------------------
 
-# ⚠ Note
-# =============
+# ╭──────────╮
+# │  ⚠ Note  │
+# ╰──────────╯
 # The System Config always overrides the User Config. To use your User Config, delete
 # the System Config with the following command:
 #
 #   $ rm ~/Library/Application\ Support/com.mitchellh.ghostty/config
 #   -----------------------------------------------------------------
 
+# ╭─────────╮
+# │  Shell  │
+# ╰─────────╯
 # Launch Bash via /usr/bin/env to ensure:
 # 1. Ghostty picks the first `bash` in the PATH (so Homebrew Bash is used if present).
 # 2. Ghostty's environment variables, like GHOSTTY_RESOURCES_DIR, are preserved.
@@ -33,15 +38,17 @@
 # Ghostty `command` ref: https://ghostty.org/docs/config/reference#command
 command = "/usr/bin/env bash -i"
 
-# Font
-# =============
+# ╭────────╮
+# │  Font  │
+# ╰────────╯
 font-family   = Menlo
 font-size     = 13
 font-thicken  = true
 font-feature  = -liga
 
-# Appearance
-# =============
+# ╭──────────────╮
+# │  Appearance  │
+# ╰──────────────╯
 theme             = "dark:GitHub Dark Dimmed,light:GitHub Light Default"
 link-url          = true
 link-previews     = true
@@ -49,8 +56,9 @@ cursor-style      = block
 window-colorspace = "display-p3"
 # window-padding-x = 2 # Optional padding (uncomment to enable)
 
-# Behavior
-# =============
+# ╭────────────╮
+# │  Behavior  │
+# ╰────────────╯
 # Stay running with no windows so the quick terminal hotkey keeps working.
 # Cmd+Q still quits.
 quit-after-last-window-closed = false
@@ -62,8 +70,9 @@ quick-terminal-position = top
 quick-terminal-size = 50%,1350px
 quick-terminal-animation-duration = 0.05
 
-# Keybindings
-# =============
+# ╭───────────────╮
+# │  Keybindings  │
+# ╰───────────────╯
 # Hyper+comma: Karabiner turns it into Cmd+Ctrl+comma, because macOS reserves
 # Hyper+comma for its sysdiagnose viewer.
 keybind = global:ctrl+super+comma=toggle_quick_terminal
@@ -78,8 +87,9 @@ keybind = super+physical:seven=unbind
 keybind = super+physical:eight=unbind
 keybind = super+physical:nine=unbind
 
-# Security & UX (v2)
-# =============
+# ╭──────────────────────╮
+# │  Security & UX (v2)  │
+# ╰──────────────────────╯
 clipboard-read = ask
 clipboard-paste-protection = true
 shell-integration-features = cursor,sudo,title
