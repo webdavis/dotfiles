@@ -49,7 +49,7 @@
             ]
           },
           {
-            "description": "Disable macOS sysdiagnose shortcut (Hyper+period) and its open-latest viewer (Hyper+comma).",
+            "description": "Keep macOS sysdiagnose chords (Hyper+period, Hyper+comma, Hyper+slash) from firing: send Cmd+Ctrl+period (KeePassXC in AeroSpace), Cmd+Ctrl+comma (Ghostty quick terminal) and Cmd+Ctrl+slash (Raycast window search) instead.",
             "manipulators": [
               {
                 "from": {
@@ -58,7 +58,7 @@
                     "mandatory": ["command", "control", "option", "shift"]
                   }
                 },
-                "to": [{ "key_code": "vk_none" }],
+                "to": [{ "key_code": "period", "modifiers": ["left_command", "left_control"] }],
                 "type": "basic"
               },
               {
@@ -68,7 +68,17 @@
                     "mandatory": ["command", "control", "option", "shift"]
                   }
                 },
-                "to": [{ "key_code": "vk_none" }],
+                "to": [{ "key_code": "comma", "modifiers": ["left_command", "left_control"] }],
+                "type": "basic"
+              },
+              {
+                "from": {
+                  "key_code": "slash",
+                  "modifiers": {
+                    "mandatory": ["command", "control", "option", "shift"]
+                  }
+                },
+                "to": [{ "key_code": "slash", "modifiers": ["left_command", "left_control"] }],
                 "type": "basic"
               }
             ]

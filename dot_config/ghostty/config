@@ -51,11 +51,20 @@ window-colorspace = "display-p3"
 
 # Behavior
 # =============
-quit-after-last-window-closed = true
+# Stay running with no windows so the quick terminal hotkey keeps working.
+# Cmd+Q still quits.
+quit-after-last-window-closed = false
+
+# Quick terminal: drops from the top, 40% tall. A fixed width is about 40%
+# of the LG (3008 wide) and 70% of the MacBook (1710 wide).
+quick-terminal-position = top
+quick-terminal-size = 40%,1200px
 
 # Keybindings
 # =============
-keybind = global:ctrl+grave_accent=toggle_quick_terminal
+# Hyper+comma: Karabiner turns it into Cmd+Ctrl+comma, because macOS reserves
+# Hyper+comma for its sysdiagnose viewer.
+keybind = global:ctrl+super+comma=toggle_quick_terminal
 # Cmd+1..9 reach herdr, which switches its own tabs with them.
 keybind = super+physical:one=unbind
 keybind = super+physical:two=unbind
