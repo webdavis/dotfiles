@@ -14,9 +14,9 @@ readonly exit_entries_missing=1
 readonly exit_could_not_check=2
 
 if [[ ${REPORT_LIB_PLAIN:-} == 1 || -n ${NO_COLOR:-} ]]; then
-  readonly red='' green='' yellow='' faint='' reset=''
+  readonly red='' green='' yellow='' faint='' italic='' reset=''
 else
-  readonly red=$'\033[38;5;203m' green=$'\033[38;5;42m' yellow=$'\033[38;5;221m' faint=$'\033[38;5;244m' reset=$'\033[0m'
+  readonly red=$'\033[38;5;203m' green=$'\033[38;5;42m' yellow=$'\033[38;5;221m' faint=$'\033[38;5;244m' italic=$'\033[3m' reset=$'\033[0m'
 fi
 
 print_in_red() {
@@ -109,7 +109,7 @@ main() {
     issue_count=$((issue_count + 1))
   done < <(printf '%s\n' "$results")
   printf '\n'
-  printf '  %s%s%s\n' "$yellow" "$issue_count of $title_count need fixing" "$reset"
+  printf '  %s%s%s%s\n' "$yellow" "$italic" "oops! $issue_count of $title_count needs fixing!" "$reset"
   exit "$exit_entries_missing"
 }
 
