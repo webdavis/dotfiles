@@ -165,6 +165,14 @@ claude-desktop-skills folder=(home_directory() / "Desktop" / "claude-desktop-ski
   done
   echo "Drag the zips in {{folder}} into Claude Desktop."
 
+# Raycast has no silent import: pick the file and enter the passphrase by hand.
+# Open Raycast's Import Settings & Data for ~/.config/raycast/raycast.rayconfig.
+raycast-import:
+  @[[ -f ~/.config/raycast/raycast.rayconfig ]] || \
+    { echo 'No ~/.config/raycast/raycast.rayconfig yet; run just apply first.' >&2; exit 1; }
+  @echo 'Pick ~/.config/raycast/raycast.rayconfig and enter the export passphrase.'
+  open "raycast://extensions/raycast/raycast/import-settings-data"
+
 # Refresh skills through the weekly uu lanes.
 update-skills:
   ~/.cargo/bin/uu run skills
