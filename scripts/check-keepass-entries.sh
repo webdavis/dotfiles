@@ -46,7 +46,7 @@ where_each_title_is_found() {
   local entry_names=$1 titles=$2
   awk -F '\t' '
     NR == FNR {
-      if ($0 ~ /\/$/) next
+      if ($0 ~ /\/$/ || $0 ~ /^Recycle Bin\//) next
       title = $0
       sub(/.*\//, "", title)
       count[title]++
