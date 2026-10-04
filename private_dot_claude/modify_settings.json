@@ -108,6 +108,7 @@
 {{- $merged = setValueAtPath "cleanupPeriodDays" 365 $merged -}}
 {{- $merged = setValueAtPath "autoUpdatesChannel" "stable" $merged -}}
 {{- $merged = setValueAtPath "remoteControlAtStartup" true $merged -}}
+{{- $merged = setValueAtPath "syncClaudeAiSkills" true $merged -}}
 {{- /* Spinner tips off everywhere (operator, 2026-08-11). */ -}}
 {{- $merged = setValueAtPath "spinnerTipsEnabled" false $merged -}}
 {{- /* xhigh is the maximum effortLevel enum value (low/medium/high/xhigh) */ -}}
@@ -117,9 +118,12 @@
       the skill-override block above uses. */ -}}
 {{- $merged = setValueAtPath "env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" "1" $merged -}}
 {{- $merged = setValueAtPath "env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY" "1" $merged -}}
-{{- $merged = setValueAtPath "env.DISABLE_TELEMETRY" "1" $merged -}}
 {{- $merged = setValueAtPath "env.DISABLE_ERROR_REPORTING" "1" $merged -}}
 {{- $merged = setValueAtPath "env.DISABLE_NON_ESSENTIAL_MODEL_CALLS" "1" $merged -}}
+{{- /* Telemetry ON (operator, 2026-10-03): the builtin "You should know" plugin
+      only runs with it. Removed rather than left alone, so the "1" earlier
+      applies wrote does not linger in the live file. */ -}}
+{{- $_ := unset (index $merged "env") "DISABLE_TELEMETRY" -}}
 {{- /* Auto-compact window in tokens. This is the SUPPORTED knob (it and the
       `autoCompactWindow` setting are the two Claude Code documents; the env
       var wins). It replaced CLAUDE_AUTOCOMPACT_PCT_OVERRIDE on 2026-09-08,
