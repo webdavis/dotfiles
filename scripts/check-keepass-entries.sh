@@ -14,9 +14,9 @@ readonly exit_entries_missing=1
 readonly exit_could_not_check=2
 
 if [[ ${REPORT_LIB_PLAIN:-} == 1 || -n ${NO_COLOR:-} ]]; then
-  readonly red='' faint='' reset=''
+  readonly red='' green='' faint='' reset=''
 else
-  readonly red=$'\033[31m' faint=$'\033[2m' reset=$'\033[0m'
+  readonly red=$'\033[31m' green=$'\033[32m' faint=$'\033[2m' reset=$'\033[0m'
 fi
 
 print_in_red() {
@@ -99,7 +99,7 @@ main() {
 
   report_section 'KeePass entry check' "$title_count entries the templates read"
   if [[ -z $results ]]; then
-    report_line "  all $title_count found"
+    printf '  %s%s%s\n' "$green" "all $title_count found" "$reset"
     exit "$exit_all_found"
   fi
   printf '\n'
