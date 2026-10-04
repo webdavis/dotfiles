@@ -16,7 +16,7 @@ readonly exit_could_not_check=2
 if [[ ${REPORT_LIB_PLAIN:-} == 1 || -n ${NO_COLOR:-} ]]; then
   readonly red='' green='' faint='' reset=''
 else
-  readonly red=$'\033[31m' green=$'\033[32m' faint=$'\033[2m' reset=$'\033[0m'
+  readonly red=$'\033[31m' green=$'\033[38;5;42m' faint=$'\033[2m' reset=$'\033[0m'
 fi
 
 print_in_red() {
