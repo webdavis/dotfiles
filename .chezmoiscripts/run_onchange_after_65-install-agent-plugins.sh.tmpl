@@ -19,7 +19,7 @@
 {{-   if eq (kindOf $plugin) "string" -}}
 {{-     $plugin = dict "id" $plugin -}}
 {{-   end -}}
-{{-   if eq (get $plugin "os" | default $os) $os -}}
+{{-   if and (eq (get $plugin "os" | default $os) $os) (not (hasSuffix "@builtin" $plugin.id)) -}}
 {{-     $claudeCodePlugins = append $claudeCodePlugins $plugin.id -}}
 {{-     if get $plugin "off_until_enabled" -}}
 {{-       $claudeCodePluginsOffUntilEnabled = append $claudeCodePluginsOffUntilEnabled $plugin.id -}}

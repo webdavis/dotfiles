@@ -321,6 +321,8 @@ agents:
       - last30days@last30days-skill
       - plannotator@plannotator
       - pstack@pstack-claude
+      # Ships inside Claude Code, so there is nothing to install; it only runs with telemetry on.
+      - cc-plugin-you-should-know@builtin
       - { id: babysitter@a5c.ai, off_until_enabled: true }
       - { id: pns@pns, os: darwin }
       - { id: strategy@strategy, os: darwin }
