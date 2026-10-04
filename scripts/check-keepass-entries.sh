@@ -99,7 +99,7 @@ main() {
 
   report_section 'KeePass entry check' "$title_count entries the templates read"
   if [[ -z $results ]]; then
-    printf '  %s%s%s\n' "$green" "all $title_count found" "$reset"
+    printf '  %s%s%s\n' "$green" "success: all $title_count found" "$reset"
     exit "$exit_all_found"
   fi
   printf '\n'
