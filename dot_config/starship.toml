@@ -7,7 +7,7 @@ $shlvl\
 $jobs\
 $directory\
 $nix_shell\
-$direnv\
+${custom.direnv_allowed}${custom.direnv_blocked}${custom.direnv_denied}\
 $aws\
 $git_branch\
 $git_status\
@@ -221,17 +221,26 @@ symbol = " "
 style = "fg:#7eb8da bg:#212736"
 format = '[[](fg:prev_bg bg:#212736) $symbol$state( \($name\))]($style)'
 
-[direnv]
-disabled = false
-# Quiet when the folder's env is loaded and allowed; only a problem gets words.
-symbol = " env"
-loaded_msg = ""
-unloaded_msg = " not loaded"
-allowed_msg = ""
-not_allowed_msg = " blocked"
-denied_msg = " denied"
-style = "fg:#b4befe bg:#212736"
-format = '[[](fg:prev_bg bg:#212736) $symbol$loaded$allowed ]($style)'
+# direnv: one segment per state, so each gets its own color. Starship's own
+# direnv module has one style for every state, and its messages are plain text.
+# A folder counts when it holds .envrc or .env, or a loaded env names its file.
+[custom.direnv_allowed]
+when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 0 ]'''
+shell = ["sh"]
+style = "fg:#a6e3a1 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736)  env ]($style)'
+
+[custom.direnv_blocked]
+when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 1 ]'''
+shell = ["sh"]
+style = "fg:#f9e2af bg:#212736"
+format = '[[](fg:prev_bg bg:#212736)  env blocked ]($style)'
+
+[custom.direnv_denied]
+when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 2 ]'''
+shell = ["sh"]
+style = "fg:#f38ba8 bg:#212736"
+format = '[[](fg:prev_bg bg:#212736)  env denied ]($style)'
 
 [time]
 disabled = false
