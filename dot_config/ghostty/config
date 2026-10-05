@@ -73,9 +73,10 @@ quick-terminal-animation-duration = 0.05
 # ╭───────────────╮
 # │  Keybindings  │
 # ╰───────────────╯
-# Hyper+comma: Karabiner turns it into Cmd+Ctrl+comma, because macOS reserves
-# Hyper+comma for its sysdiagnose viewer.
-keybind = global:ctrl+super+comma=toggle_quick_terminal
+# Hyper+comma: Karabiner turns it into Cmd+Ctrl+F19, because macOS reserves
+# Hyper+comma for its sysdiagnose viewer. F19, not comma: espanso records a comma
+# even with Cmd+Ctrl held, and two of them start its `,,` triggers.
+keybind = global:ctrl+super+f19=toggle_quick_terminal
 # Cmd+1..9 reach herdr, which switches its own tabs with them.
 keybind = super+physical:one=unbind
 keybind = super+physical:two=unbind
