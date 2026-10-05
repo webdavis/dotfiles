@@ -219,12 +219,19 @@ show_milliseconds = true
 disabled = false
 symbol = " "
 style = "fg:#7eb8da bg:#212736"
-format = '[[](fg:prev_bg bg:#212736) $symbol$state( \($name\))]($style)'
+format = '[[](fg:prev_bg bg:#212736) $symbol$state( \($name\))]($style)'
 
 [direnv]
 disabled = false
+# Quiet when the folder's env is loaded and allowed; only a problem gets words.
+symbol = " env"
+loaded_msg = ""
+unloaded_msg = " not loaded"
+allowed_msg = ""
+not_allowed_msg = " blocked"
+denied_msg = " denied"
 style = "fg:#b4befe bg:#212736"
-format = '[[](fg:prev_bg bg:#212736) direnv:$loaded/$allowed ]($style)'
+format = '[[](fg:prev_bg bg:#212736) $symbol$loaded$allowed ]($style)'
 
 [time]
 disabled = false
