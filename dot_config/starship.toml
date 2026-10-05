@@ -224,24 +224,25 @@ format = '[[](fg:prev_bg bg:#212736) $symbol$state( \($name\))]($style)'
 # direnv: one segment per state, so each gets its own text color. Starship's own
 # direnv module has one style for every state, and its messages are plain text.
 # A folder counts when it holds .envrc or .env, or a loaded env names its file.
-# Colors are terminal palette names, so a new terminal theme recolors them.
+# Text colors are terminal palette names, so a new terminal theme recolors them;
+# the background is the time segment's.
 [custom.direnv_allowed]
 when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 0 ]'''
 shell = ["sh"]
-style = "fg:bright-green bg:black"
-format = '[[](fg:prev_bg bg:black)  env ]($style)'
+style = "fg:bright-green bg:#1d2230"
+format = '[[](fg:prev_bg bg:#1d2230)  env ]($style)'
 
 [custom.direnv_blocked]
 when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 1 ]'''
 shell = ["sh"]
-style = "fg:bright-yellow bg:black"
-format = '[[](fg:prev_bg bg:black)  env blocked ]($style)'
+style = "fg:bright-yellow bg:#1d2230"
+format = '[[](fg:prev_bg bg:#1d2230)  env blocked ]($style)'
 
 [custom.direnv_denied]
 when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 2 ]'''
 shell = ["sh"]
-style = "fg:bright-red bg:black"
-format = '[[](fg:prev_bg bg:black)  env denied ]($style)'
+style = "fg:bright-red bg:#1d2230"
+format = '[[](fg:prev_bg bg:#1d2230)  env denied ]($style)'
 
 [time]
 disabled = false
