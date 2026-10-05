@@ -7,7 +7,7 @@ $shlvl\
 $jobs\
 $directory\
 $nix_shell\
-${custom.direnv_allowed}${custom.direnv_blocked}${custom.direnv_denied}\
+${custom.direnv_allowed}${custom.direnv_needs_allow}${custom.direnv_denied}\
 $aws\
 $git_branch\
 $git_status\
@@ -233,11 +233,11 @@ shell = ["sh"]
 style = "fg:bright-green bg:#1d2230"
 format = '[[](fg:prev_bg bg:#1d2230)  env ]($style)'
 
-[custom.direnv_blocked]
+[custom.direnv_needs_allow]
 when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 1 ]'''
 shell = ["sh"]
 style = "fg:bright-yellow bg:#1d2230"
-format = '[[](fg:prev_bg bg:#1d2230)  env blocked ]($style)'
+format = '[[](fg:prev_bg bg:#1d2230)  env needs allow ]($style)'
 
 [custom.direnv_denied]
 when = '''{ [ -f .envrc ] || [ -f .env ] || [ -n "$DIRENV_FILE" ]; } && [ "$(direnv status --json 2>/dev/null | jq '.state.foundRC.allowed')" = 2 ]'''
