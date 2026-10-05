@@ -177,3 +177,19 @@ gfm() {
   git log --pretty=format:'%C(yellow)%h %Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' \
     --decorate --date=short --grep="$1"
 }
+
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃  Claude Code           ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# Inside the broccoli support KB, run Claude Code on the broccoli account;
+# everywhere else, on the global account. clauth has no per-folder account, so
+# `clauth start` gives the session broccoli's own config dir and leaves the
+# global login alone.
+claude() {
+  local broccoli_project="$HOME/workspaces/broccoli/broccoli-support-kb"
+  case "$(pwd -P)/" in
+    "$broccoli_project"/*) clauth start broccoli -- "$@" ;;
+    *) command claude "$@" ;;
+  esac
+}
