@@ -49,7 +49,9 @@ font-feature  = -liga
 # ╭──────────────╮
 # │  Appearance  │
 # ╰──────────────╯
-theme             = "dark:GitHub Dark Dimmed,light:GitHub Light Default"
+# One theme, not a dark:/light: pair: with the pair, the quick terminal came up
+# light while macOS was in Dark mode (Ghostty 1.3.1, 2026-10-06).
+theme             = "GitHub Dark Dimmed"
 link-url          = true
 link-previews     = true
 cursor-style      = block
