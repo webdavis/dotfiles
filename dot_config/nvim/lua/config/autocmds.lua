@@ -126,6 +126,18 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- Indent 2 in every file type. Neovim's own file-type plugins switch some
+-- (Python, Markdown, Rust, ...) to 4, and this runs after them. A project's
+-- .editorconfig still wins: Neovim applies it after the FileType event.
+vim.api.nvim_create_autocmd("FileType", {
+  group = augroup("indent_two"),
+  callback = function(event)
+    vim.bo[event.buf].shiftwidth = 2
+    vim.bo[event.buf].tabstop = 2
+    vim.bo[event.buf].softtabstop = 2
+  end,
+})
+
 -- Wrap and check for spell in text filetypes.
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("wrap_spell"),
