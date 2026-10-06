@@ -63,11 +63,11 @@ window-colorspace = "display-p3"
 # Cmd+Q still quits.
 quit-after-last-window-closed = false
 
-# Quick terminal: drops from the top, half the screen tall. A fixed width is
+# Quick terminal: drops from the top, 60% of the screen tall. A fixed width is
 # about 45% of the LG (3008 wide) and 79% of the MacBook (1710 wide). The
 # slide takes 0.05s instead of the default 0.2s.
 quick-terminal-position = top
-quick-terminal-size = 50%,1350px
+quick-terminal-size = 60%,1350px
 quick-terminal-animation-duration = 0.05
 
 # ╭───────────────╮
