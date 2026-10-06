@@ -13,6 +13,7 @@ packages:
         - openhue/cli
         - plannotator/tap
         - rjyo/moshi
+        - schpet/tap
         - xdevplatform/tap
       # Keep equal to `taps:`; the pre-bundle loop trusts each so `brew bundle` can load it.
       trusted_taps:
@@ -27,6 +28,7 @@ packages:
         - openhue/cli
         - plannotator/tap
         - rjyo/moshi
+        - schpet/tap
         - xdevplatform/tap
       formulae:
         - act
@@ -130,6 +132,7 @@ packages:
         - rjyo/moshi/moshi-hook
         - ruff
         - rustnet
+        - schpet/tap/linear
         - sd
         - sevenzip
         - shellcheck
