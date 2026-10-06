@@ -16,6 +16,9 @@ set autoindent
 " Filetype plugins (Python, Markdown, Rust, Swift, ...) switch to 4-space
 " indents; this runs after them and puts every file back to 2.
 autocmd FileType * setlocal shiftwidth=2 tabstop=2 softtabstop=0
+" A project's .editorconfig wins over the 2-space default above: Vim's bundled
+" EditorConfig plugin loads after this file, so its settings land last.
+packadd! editorconfig
 
 set incsearch
 set hlsearch
