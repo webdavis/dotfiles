@@ -179,6 +179,7 @@ packages:
         - claude
         - claude-code@latest
         - codex
+        - devin-cli
         - discord
         - docker-desktop
         - espanso
