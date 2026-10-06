@@ -22,7 +22,7 @@ opt.colorcolumn = tostring(textwidth)
 opt.breakindent = true
 opt.showmatch = true
 opt.matchtime = 3
-opt.softtabstop = 4
+opt.softtabstop = 2 -- Spaces a Tab or Backspace moves in insert mode; matches shiftwidth
 
 opt.backspace = "indent,eol,start"
 opt.whichwrap = "b,s,<,>,[,]"
