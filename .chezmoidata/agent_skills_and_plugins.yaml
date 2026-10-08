@@ -77,6 +77,33 @@ agents:
           - typescript-best-practices
           - unslop
           - why
+      - repo: addyosmani/agent-skills
+        skills:
+          - api-and-interface-design
+          - browser-testing-with-devtools
+          - ci-cd-and-automation
+          - code-review-and-quality
+          - code-simplification
+          - constraint-driven-development
+          - context-engineering
+          - debugging-and-error-recovery
+          - deprecation-and-migration
+          - documentation-and-adrs
+          - doubt-driven-development
+          - frontend-ui-engineering
+          - git-workflow-and-versioning
+          - idea-refine
+          - incremental-implementation
+          - interview-me
+          - observability-and-instrumentation
+          - performance-optimization
+          - planning-and-task-breakdown
+          - security-and-hardening
+          - shipping-and-launch
+          - source-driven-development
+          - spec-driven-development
+          - test-driven-development
+          - using-agent-skills
       - repo: tt-a1i/archify
         skills: [archify]
       - repo: kunchenguid/chrome-devtools-axi
@@ -301,6 +328,7 @@ agents:
       - { name: plannotator, source: github, repo: backnotprop/plannotator, auto_update: true }
       - { name: a5c.ai, source: github, repo: a5c-ai/babysitter-claude, auto_update: true }
       - { name: pstack-claude, source: github, repo: michael-denyer/pstack-claude, auto_update: true }
+      - { name: addy-agent-skills, source: github, repo: addyosmani/agent-skills, auto_update: true }
       - { name: pns, source: directory, path: .claude/pns-marketplace, os: darwin }
       - { name: strategy, source: directory, path: .claude/strategy-marketplace, os: darwin }
       - { name: clean-code, source: directory, path: .claude/clean-code-marketplace, os: darwin }
@@ -321,6 +349,7 @@ agents:
       - last30days@last30days-skill
       - plannotator@plannotator
       - pstack@pstack-claude
+      - agent-skills@addy-agent-skills
       # Ships inside Claude Code, so there is nothing to install; it only runs with telemetry on.
       - cc-plugin-you-should-know@builtin
       - { id: babysitter@a5c.ai, off_until_enabled: true }
@@ -328,21 +357,48 @@ agents:
       - { id: strategy@strategy, os: darwin }
       - { id: clean-code@clean-code, os: darwin }
     skip_skills:
+      - api-and-interface-design
+      - browser-testing-with-devtools
+      - ci-cd-and-automation
       - clean-code
       - clean-code-rust
       - clean-code-swift
+      - code-review-and-quality
+      - code-simplification
+      - constraint-driven-development
+      - context-engineering
+      - debugging-and-error-recovery
+      - deprecation-and-migration
+      - documentation-and-adrs
+      - doubt-driven-development
+      - frontend-ui-engineering
+      - git-workflow-and-versioning
+      - idea-refine
+      - incremental-implementation
+      - interview-me
       - last30days
+      - observability-and-instrumentation
+      - performance-optimization
+      - planning-and-task-breakdown
       - pns-loop
       - pns-work-recap
+      - security-and-hardening
+      - shipping-and-launch
+      - source-driven-development
+      - spec-driven-development
+      - test-driven-development
+      - using-agent-skills
   codex:
     marketplaces:
       - { name: claude-plugins-official, source_type: git, source: https://github.com/anthropics/claude-plugins-official.git }
       - { name: ponytail, source_type: git, source: https://github.com/DietrichGebert/ponytail.git }
       - { name: babysitter, source_type: git, source: https://github.com/a5c-ai/babysitter-codex.git }
       - { name: pstack-claude, source_type: git, source: https://github.com/michael-denyer/pstack-claude.git }
+      - { name: agent-skills, source_type: git, source: https://github.com/addyosmani/agent-skills.git }
     plugins:
       - { id: babysitter@babysitter, enabled: false }
       - { id: pstack@pstack-claude }
+      - { id: agent-skills@agent-skills }
   hermes:
     profiles:
       default:
@@ -423,24 +479,43 @@ agents:
           - plannotator-tui
       nicodemus:
         skills:
-          - ask-matt
+          - api-and-interface-design
           - archify
+          - ask-matt
+          - browser-testing-with-devtools
+          - ci-cd-and-automation
           - clean-code
           - clean-code-rust
           - clean-code-swift
           - code-review
+          - code-review-and-quality
+          - code-simplification
           - codebase-design
+          - constraint-driven-development
+          - context-engineering
+          - debugging-and-error-recovery
+          - deprecation-and-migration
           - diagnosing-bugs
+          - documentation-and-adrs
           - domain-modeling
+          - doubt-driven-development
+          - frontend-ui-engineering
           - gh-axi
           - git-guardrails-claude-code
+          - git-workflow-and-versioning
           - grill-me
           - grill-with-docs
           - grilling
+          - idea-refine
           - implement
           - improve-codebase-architecture
+          - incremental-implementation
+          - interview-me
           - kubernetes-specialist
           - migrate-to-shoehorn
+          - observability-and-instrumentation
+          - performance-optimization
+          - planning-and-task-breakdown
           - plannotator
           - plannotator-annotate
           - plannotator-review
@@ -449,16 +524,22 @@ agents:
           - research
           - resolving-merge-conflicts
           - scaffold-exercises
+          - security-and-hardening
           - setup-matt-pocock-skills
           - setup-pre-commit
+          - shipping-and-launch
+          - source-driven-development
+          - spec-driven-development
           - sql-toolkit
           - tdd
           - teach
+          - test-driven-development
           - to-questionnaire
           - to-spec
           - to-tickets
           - triage
           - tuicr
+          - using-agent-skills
           - wait-what
           - wayfinder
           - wizard
