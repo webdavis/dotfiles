@@ -1,0 +1,155 @@
+# Skills per harness, grouped by the command that installs them.
+# repo: owner/repo[/path] for npx; slug: @owner/skill for clawhub; skill: a store folder another tool writes.
+# on_demand: loads only when asked. agent: the subagent that gets it. hermes: profiles that link it from the store.
+# claude_desktop: zipped by `just claude-desktop-skills`. hermes: `hermes -p <profile> skills install <identifier>`.
+skills:
+  harnesses:
+    claude: {}
+    codex:
+      npx:
+        - repo: "mattpocock/skills/skills/engineering"
+          on_demand: true
+        - repo: "mattpocock/skills/skills/productivity"
+          on_demand: true
+    codex_and_claude:
+      npx:
+        - repo: "agamm/claude-code-owasp"
+        - repo: "agavra/tuicr"
+        - repo: "backnotprop/plannotator/apps/skills/core"
+          on_demand: true
+        - repo: "bastos/skills/conventional-commits"
+        - repo: "blader/humanizer"
+        - repo: "Doist/todoist-cli"
+        - repo: "heygen-com/hyperframes"
+          agent: "lara"
+          hermes:
+            - "lara"
+        - repo: "guwidoe/lobster-skill"
+          on_demand: true
+        - repo: "homeassistant-ai/skills"
+          on_demand: true
+        - repo: "jeffallan/claude-skills/skills/kubernetes-specialist"
+          on_demand: true
+        - repo: "kunchenguid/chrome-devtools-axi"
+        - repo: "kunchenguid/gh-axi"
+        - repo: "kunchenguid/lavish-axi"
+          on_demand: true
+        - repo: "mvanhorn/last30days-skill"
+          on_demand: true
+        - repo: "ogulcancelik/herdr"
+        - repo: "plannotator/herdr-annotate"
+          on_demand: true
+        - repo: "rjyo/moshi-skill"
+        - repo: "steipete/agent-scripts/skills/video-transcript-downloader"
+          on_demand: true
+        - repo: "tt-a1i/archify"
+          on_demand: true
+        - repo: "webdavis/scalebar"
+          on_demand: true
+        - repo: "webdavis/skills/plugins/tiktok-crawling/skills/tiktok-crawling"
+          on_demand: true
+      clawhub:
+        - slug: "@gitgoodordietrying/sql-toolkit"
+        - slug: "@iahmadzain/home-assistant"
+          on_demand: true
+        - slug: "@mkpareek0315/summarize-pro"
+          on_demand: true
+      elevenlabs:
+        - agent: "lara"
+          hermes:
+            - "lara"
+      but:
+        - skill: "gitbutler"
+          on_demand: true
+          hermes:
+            - "nicodemus"
+      apps:
+        - skill: "cua-driver"
+          on_demand: true
+    claude_desktop:
+      - repo: "mattpocock/skills"
+        skills:
+          - "grill-me"
+          - "grilling"
+          - "wait-what"
+      - repo: "blader/humanizer"
+        skills:
+          - "humanizer"
+    hermes:
+      default:
+        - "skills-sh/Doist/todoist-cli/todoist-cli"
+        - "skills-sh/homeassistant-ai/skills/home-assistant-best-practices"
+        - "skills-sh/ogulcancelik/herdr/herdr"
+        - "skills-sh/rjyo/moshi-skill/moshi-best-practices"
+        - "webdavis/pns/skills/loop"
+        - "webdavis/pns/skills/recap"
+        - "webdavis/scalebar/skills/scalebar"
+        - "clawhub/summarize-pro"
+        - "NousResearch/hermes-agent/skills/apple/findmy"
+        - "NousResearch/hermes-agent/skills/media/youtube-content"
+        - "NousResearch/hermes-agent/skills/productivity/maps"
+        - "skills-sh/guwidoe/lobster-skill/lobster"
+      elaine: []
+      lara:
+        - "skills-sh/steipete/agent-scripts/video-transcript-downloader"
+        - "mvanhorn/last30days-skill/skills/last30days"
+        - "webdavis/skills/plugins/tiktok-crawling/skills/tiktok-crawling"
+      nicodemus:
+        - "skills-sh/addyosmani/agent-skills/api-and-interface-design"
+        - "skills-sh/addyosmani/agent-skills/browser-testing-with-devtools"
+        - "skills-sh/addyosmani/agent-skills/ci-cd-and-automation"
+        - "skills-sh/addyosmani/agent-skills/code-review-and-quality"
+        - "skills-sh/addyosmani/agent-skills/code-simplification"
+        - "skills-sh/addyosmani/agent-skills/constraint-driven-development"
+        - "skills-sh/addyosmani/agent-skills/context-engineering"
+        - "skills-sh/addyosmani/agent-skills/debugging-and-error-recovery"
+        - "skills-sh/addyosmani/agent-skills/deprecation-and-migration"
+        - "skills-sh/addyosmani/agent-skills/documentation-and-adrs"
+        - "skills-sh/addyosmani/agent-skills/doubt-driven-development"
+        - "skills-sh/addyosmani/agent-skills/frontend-ui-engineering"
+        - "skills-sh/addyosmani/agent-skills/git-workflow-and-versioning"
+        - "skills-sh/addyosmani/agent-skills/idea-refine"
+        - "skills-sh/addyosmani/agent-skills/incremental-implementation"
+        - "skills-sh/addyosmani/agent-skills/interview-me"
+        - "skills-sh/addyosmani/agent-skills/observability-and-instrumentation"
+        - "skills-sh/addyosmani/agent-skills/performance-optimization"
+        - "skills-sh/addyosmani/agent-skills/planning-and-task-breakdown"
+        - "skills-sh/addyosmani/agent-skills/security-and-hardening"
+        - "skills-sh/addyosmani/agent-skills/shipping-and-launch"
+        - "skills-sh/addyosmani/agent-skills/source-driven-development"
+        - "skills-sh/addyosmani/agent-skills/spec-driven-development"
+        - "skills-sh/addyosmani/agent-skills/test-driven-development"
+        - "skills-sh/addyosmani/agent-skills/using-agent-skills"
+        - "skills-sh/kunchenguid/chrome-devtools-axi/chrome-devtools-axi"
+        - "skills-sh/mattpocock/skills/ask-matt"
+        - "skills-sh/mattpocock/skills/code-review"
+        - "skills-sh/mattpocock/skills/codebase-design"
+        - "skills-sh/mattpocock/skills/diagnosing-bugs"
+        - "skills-sh/mattpocock/skills/domain-modeling"
+        - "skills-sh/mattpocock/skills/grill-me"
+        - "skills-sh/mattpocock/skills/grill-with-docs"
+        - "skills-sh/mattpocock/skills/grilling"
+        - "skills-sh/mattpocock/skills/implement"
+        - "skills-sh/mattpocock/skills/improve-codebase-architecture"
+        - "skills-sh/mattpocock/skills/prototype"
+        - "skills-sh/mattpocock/skills/research"
+        - "skills-sh/mattpocock/skills/setup-matt-pocock-skills"
+        - "skills-sh/mattpocock/skills/tdd"
+        - "skills-sh/mattpocock/skills/teach"
+        - "skills-sh/mattpocock/skills/to-questionnaire"
+        - "skills-sh/mattpocock/skills/to-spec"
+        - "skills-sh/mattpocock/skills/to-tickets"
+        - "skills-sh/mattpocock/skills/triage"
+        - "skills-sh/mattpocock/skills/wait-what"
+        - "skills-sh/mattpocock/skills/wayfinder"
+        - "skills-sh/mattpocock/skills/wizard"
+        - "skills-sh/mattpocock/skills/writing-for-agents"
+        - "skills-sh/agavra/tuicr/tuicr"
+        - "skills-sh/jeffallan/claude-skills/kubernetes-specialist"
+        - "skills-sh/kunchenguid/gh-axi/gh-axi"
+        - "tt-a1i/archify/archify"
+        - "webdavis/skills/plugins/clean-code/skills/clean-code"
+        - "webdavis/skills/plugins/clean-code/skills/clean-code-rust"
+        - "webdavis/skills/plugins/clean-code/skills/clean-code-swift"
+        - "clawhub/conventional-commits"
+        - "clawhub/sql-toolkit"

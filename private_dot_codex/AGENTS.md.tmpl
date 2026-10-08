@@ -10,9 +10,10 @@
 
 ## Codex
 
-- Skills live in the shared store at `~/.agents/skills/`, which Codex scans natively. A skill carrying
-  `policy: allow_implicit_invocation: false` in its `agents/openai.yaml` is on-demand: it loads only
-  when invoked as `$name`.
+- Skills come from plugins (`$<plugin>:<skill>`) and from the shared store at `~/.agents/skills/`, which
+  Codex scans natively. A store skill carrying `policy: allow_implicit_invocation: false` in its
+  `agents/openai.yaml` is on-demand: it loads only when invoked as `$name`.
+- For any ElevenLabs, video, animation or motion-graphics task, spawn the `lara` agent.
 - Slash commands under `~/.claude/commands/` are Claude Code's, so the flows they describe are read and
   followed by hand here.
 

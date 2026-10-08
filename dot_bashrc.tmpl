@@ -147,11 +147,6 @@ path_prepend "${HOMEBREW_PREFIX}/opt/trash-cli/bin/"
 
 path_prepend "${HOMEBREW_PREFIX}/opt/gnu-getopt/bin/"
 
-# Composio CLI, PATH only (the CLI must resolve in non-interactive shells too).
-# Ref: https://docs.composio.dev/docs/cli
-export COMPOSIO_INSTALL_DIR="$HOME/.composio"
-export PATH="$COMPOSIO_INSTALL_DIR:$PATH"
-
 # Cargo: https://github.com/rust-lang/cargo
 # Direct PATH add instead of sourcing .cargo/env (avoids a file read every start).
 [[ -d "$HOME/.cargo/bin" ]] && path_prepend "$HOME/.cargo/bin"

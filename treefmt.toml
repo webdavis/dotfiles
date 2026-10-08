@@ -24,18 +24,16 @@ excludes = [
   "**/node_modules/**",
 ]
 
-# dot_agents/skills/** is vendored third-party skill content: it must stay
-# byte-identical to upstream/live, so it is never linted or reformatted.
 [formatter.shellcheck]
 command = "shellcheck"
 includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
-excludes = ["*.tmpl", "dot_agents/skills/**"]
+excludes = ["*.tmpl"]
 
 [formatter.shfmt]
 command = "shfmt"
 options = ["-i", "2", "-ci", "-s", "-w"]
 includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
-excludes = ["*.tmpl", "dot_agents/skills/**"]
+excludes = ["*.tmpl"]
 
 # The herdr plugins are vendored under dot_local/share. That root is listed
 # rather than a bare "**/*.rs", which would also sweep untracked target/ trees.
@@ -56,10 +54,6 @@ excludes = [
   "private_dot_claude/agents/**",
   "private_dot_claude/commands/**",
   "private_dot_claude/output-styles/**",
-  "private_dot_claude/pns-marketplace/**",
-  "private_dot_claude/strategy-marketplace/**",
-  "private_dot_claude/clean-code-marketplace/**",
-  "dot_agents/**",
   # Same rule one directory over: a vendored skill with YAML frontmatter, kept
   # byte-identical to its upstream so a comparison against it stays meaningful.
   "private_dot_hermes/private_skills/**",
@@ -101,6 +95,13 @@ excludes = ["modify_*", "**/modify_*"]
 # YAML validation; workflow YAML is actionlint's. The espanso tree is
 # hand-edited YAML that reaches $HOME. A .yml.tmpl is Go-template text no YAML
 # parser can read; espanso-match-render below gates those.
+# The two agent data files are checked together for collisions: a plugin or
+# skill that would reach one harness twice, or an entry that contradicts
+# itself. The script reads both files itself, whatever list it is handed.
+[formatter.agent-data-validate]
+command = "scripts/treefmt/agent-data-validate.sh"
+includes = [".chezmoidata/agent-plugins.yaml", ".chezmoidata/agent-skills.yaml"]
+
 [formatter.yq-validate]
 command = "scripts/treefmt/yq-validate.sh"
 includes = [

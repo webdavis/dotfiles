@@ -1,0 +1,74 @@
+# Plugins per harness: a marketplace owner/repo and the <plugin>@<marketplace> ids installed from it.
+# marketplace_in_settings: false keeps a marketplace out of settings.json because its own tool manages it.
+# hermes lists plugin catalog names.
+plugins:
+  harnesses:
+    codex:
+      - marketplace: "a5c-ai/babysitter-codex"
+        plugins:
+          - "babysitter@babysitter"
+      - marketplace: "addyosmani/agent-skills"
+        plugins:
+          - "agent-skills@agent-skills"
+    claude:
+      - marketplace: "anthropics/claude-plugins-official"
+        plugins:
+          - "superpowers@claude-plugins-official"
+          - "frontend-design@claude-plugins-official"
+          - "playwright@claude-plugins-official"
+          - "security-guidance@claude-plugins-official"
+          - "swift-lsp@claude-plugins-official"
+          - "rust-analyzer-lsp@claude-plugins-official"
+          - "skill-creator@claude-plugins-official"
+          - "claude-md-management@claude-plugins-official"
+          - "code-simplifier@claude-plugins-official"
+      - marketplace: "anthropics/skills"
+        plugins:
+          - "document-skills@anthropic-agent-skills"
+      - marketplace: "openai/codex-plugin-cc"
+        plugins:
+          - "codex@openai-codex"
+      - marketplace: "max-sixty/worktrunk"
+        plugins:
+          - "worktrunk@worktrunk"
+      - marketplace: "backnotprop/plannotator"
+        plugins:
+          - "plannotator@plannotator"
+      - marketplace: "a5c-ai/babysitter-claude"
+        plugins:
+          - "babysitter@a5c.ai"
+      - marketplace: "mattpocock/skills"
+        plugins:
+          - "mattpocock-skills@mattpocock"
+      - marketplace: "uwuclxdy/clauth"
+        plugins:
+          - "clauth@clauth"
+        marketplace_in_settings: false
+      - marketplace: "addyosmani/agent-skills"
+        plugins:
+          - "agent-skills@addy-agent-skills"
+    claude_builtin:
+      - "cc-plugin-you-should-know@builtin"
+    codex_and_claude:
+      - marketplace: "DietrichGebert/ponytail"
+        plugins:
+          - "ponytail@ponytail"
+      - marketplace: "michael-denyer/pstack-claude"
+        plugins:
+          - "pstack@pstack-claude"
+      - marketplace: "kepano/obsidian-skills"
+        plugins:
+          - "obsidian@obsidian-skills"
+      - marketplace: "webdavis/pns"
+        plugins:
+          - "pns@pns"
+      - marketplace: "webdavis/skills"
+        plugins:
+          - "strategy@webdavis"
+          - "clean-code@webdavis"
+    hermes:
+      - "hermes-memory-wiki"
+      - "homeassistant"
+      - "claude-subscription-directsdk"
+      - "quota"
+      - "hermes-tailscale"

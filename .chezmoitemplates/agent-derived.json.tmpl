@@ -1,0 +1,139 @@
+{{- /* agent-derived.json.tmpl: everything the templates derive from
+       .chezmoidata/agent-plugins.yaml and agent-skills.yaml, as one JSON
+       document. Consumers do
+
+           {{ $d := includeTemplate "agent-derived.json.tmpl" . | fromJson }}
+
+       so the derivation rules live in one place: a marketplace's name is the
+       text after the @ in its first plugin id; Claude Code reaches the claude
+       and codex_and_claude groups, Codex the codex and codex_and_claude
+       groups; anthropics/claude-plugins-official ships inside Claude Code and
+       is never added or written to settings; store skill names come from the
+       skills CLI's lock file for npx entries, from the slug for clawhub, from
+       the store folders for the generated elevenlabs set, and from `skill:`
+       for but and apps entries. */ -}}
+{{- $home := .chezmoi.homeDir -}}
+{{- $P := .plugins.harnesses -}}
+{{- $S := .skills.harnesses -}}
+{{- $official := "anthropics/claude-plugins-official" -}}
+
+{{- /* --- plugins --- */ -}}
+{{- $claudeMarketplaces := list -}}
+{{- $claudePlugins := list -}}
+{{- range concat $P.claude $P.codex_and_claude -}}
+{{-   $name := splitList "@" (index .plugins 0) | last -}}
+{{-   $inSettings := true -}}
+{{-   if hasKey . "marketplace_in_settings" -}}{{- $inSettings = .marketplace_in_settings -}}{{- end -}}
+{{-   if ne .marketplace $official -}}
+{{-     $claudeMarketplaces = append $claudeMarketplaces (dict "name" $name "repo" .marketplace "in_settings" $inSettings) -}}
+{{-   end -}}
+{{-   $claudePlugins = concat $claudePlugins .plugins -}}
+{{- end -}}
+{{- $codexMarketplaces := list -}}
+{{- $codexPlugins := list -}}
+{{- range concat $P.codex $P.codex_and_claude -}}
+{{-   $name := splitList "@" (index .plugins 0) | last -}}
+{{-   $codexMarketplaces = append $codexMarketplaces (dict "name" $name "repo" .marketplace) -}}
+{{-   $codexPlugins = concat $codexPlugins .plugins -}}
+{{- end -}}
+
+{{- /* --- hermes --- */ -}}
+{{- $hermesProfiles := list -}}
+{{- $hermesProfilesWithHub := list -}}
+{{- $hermesOptOutProfiles := list -}}
+{{- $hermesHub := list -}}
+{{- range $profile, $identifiers := $S.hermes -}}
+{{-   $hermesProfiles = append $hermesProfiles $profile -}}
+{{-   if gt (len $identifiers) 0 -}}{{- $hermesProfilesWithHub = append $hermesProfilesWithHub $profile -}}{{- end -}}
+{{-   if ne $profile "default" -}}{{- $hermesOptOutProfiles = append $hermesOptOutProfiles $profile -}}{{- end -}}
+{{-   range $identifiers -}}
+{{-     $hermesHub = append $hermesHub (dict "profile" $profile "identifier" .) -}}
+{{-   end -}}
+{{- end -}}
+
+{{- /* --- the skills CLI lock, read when it exists; a fresh machine has none,
+       and then every npx entry has no names until the first apply writes it. --- */ -}}
+{{- $lockPath := joinPath $home ".agents/.skill-lock.json" -}}
+{{- $lockSkills := dict -}}
+{{- if stat $lockPath -}}
+{{-   $lock := include $lockPath | fromJson -}}
+{{-   if eq (kindOf (index $lock "skills")) "map" -}}{{- $lockSkills = index $lock "skills" -}}{{- end -}}
+{{- end -}}
+
+{{- /* --- the generated elevenlabs set, read from the store folders --- */ -}}
+{{- $elevenlabsNames := list -}}
+{{- range glob (joinPath $home ".agents/skills/elevenlabs-*/SKILL.md") -}}
+{{-   $elevenlabsNames = append $elevenlabsNames (base (dir .)) -}}
+{{- end -}}
+
+{{- /* --- skills, group by group --- */ -}}
+{{- $groups := list
+      (dict "key" "claude" "agents" (list "claude-code") "claude" true "codex" false)
+      (dict "key" "codex" "agents" (list "codex") "claude" false "codex" true)
+      (dict "key" "codex_and_claude" "agents" (list "claude-code" "codex") "claude" true "codex" true) -}}
+{{- $npx := list -}}
+{{- $clawhub := list -}}
+{{- $linked := list -}}
+{{- $onDemandClaude := list -}}
+{{- $onDemandCodex := list -}}
+{{- $agentSkills := dict -}}
+{{- range $group := $groups -}}
+{{-   $entries := index $S $group.key -}}
+{{-   range get $entries "npx" | default list -}}
+{{-     $parts := splitList "/" .repo -}}
+{{-     $source := join "/" (slice $parts 0 2) -}}
+{{-     $path := "" -}}
+{{-     if gt (len $parts) 2 -}}{{- $path = join "/" (slice $parts 2) -}}{{- end -}}
+{{-     $names := list -}}
+{{-     range $skillName, $entry := $lockSkills -}}
+{{-       if and (eq (get $entry "source") $source) (or (eq $path "") (hasPrefix (printf "%s/" $path) (get $entry "skillPath" | default ""))) -}}
+{{-         $names = append $names $skillName -}}
+{{-       end -}}
+{{-     end -}}
+{{-     $hermes := get . "hermes" | default list -}}
+{{-     $onDemand := get . "on_demand" | default false -}}
+{{-     $agent := get . "agent" | default "" -}}
+{{-     $npx = append $npx (dict "repo" .repo "source" $source "path" $path "agents" $group.agents "hermes" $hermes "names" $names "on_demand" $onDemand "agent" $agent) -}}
+{{-     if and $onDemand $group.claude -}}{{- $onDemandClaude = concat $onDemandClaude $names -}}{{- end -}}
+{{-     if and $onDemand $group.codex -}}{{- $onDemandCodex = concat $onDemandCodex $names -}}{{- end -}}
+{{-     if ne $agent "" -}}{{- $agentSkills = set $agentSkills $agent (concat (get $agentSkills $agent | default list) $names) -}}{{- end -}}
+{{-   end -}}
+{{-   range get $entries "clawhub" | default list -}}
+{{-     $name := splitList "/" .slug | last -}}
+{{-     $hermes := get . "hermes" | default list -}}
+{{-     $onDemand := get . "on_demand" | default false -}}
+{{-     $clawhub = append $clawhub (dict "slug" .slug "name" $name "claude" $group.claude "hermes" $hermes "on_demand" $onDemand) -}}
+{{-     $linked = append $linked (dict "kind" "clawhub" "match" $name "claude" $group.claude "hermes" $hermes) -}}
+{{-     if and $onDemand $group.claude -}}{{- $onDemandClaude = append $onDemandClaude $name -}}{{- end -}}
+{{-     if and $onDemand $group.codex -}}{{- $onDemandCodex = append $onDemandCodex $name -}}{{- end -}}
+{{-   end -}}
+{{-   range get $entries "elevenlabs" | default list -}}
+{{-     $hermes := get . "hermes" | default list -}}
+{{-     $agent := get . "agent" | default "" -}}
+{{-     $linked = append $linked (dict "kind" "elevenlabs" "match" "elevenlabs-*" "claude" $group.claude "hermes" $hermes) -}}
+{{-     if ne $agent "" -}}{{- $agentSkills = set $agentSkills $agent (concat (get $agentSkills $agent | default list) $elevenlabsNames) -}}{{- end -}}
+{{-   end -}}
+{{-   range $kind := list "but" "apps" -}}
+{{-     range get $entries $kind | default list -}}
+{{-       $hermes := get . "hermes" | default list -}}
+{{-       $onDemand := get . "on_demand" | default false -}}
+{{-       $linked = append $linked (dict "kind" $kind "match" .skill "claude" $group.claude "hermes" $hermes) -}}
+{{-       if and $onDemand $group.claude -}}{{- $onDemandClaude = append $onDemandClaude .skill -}}{{- end -}}
+{{-       if and $onDemand $group.codex -}}{{- $onDemandCodex = append $onDemandCodex .skill -}}{{- end -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+
+{{- dict
+      "claude" (dict "marketplaces" $claudeMarketplaces "plugins" (concat $claudePlugins $P.claude_builtin) "install_plugins" $claudePlugins)
+      "codex" (dict "marketplaces" $codexMarketplaces "plugins" $codexPlugins)
+      "hermes" (dict "plugins" $P.hermes "hub" $hermesHub "profiles" $hermesProfiles "profiles_with_hub" $hermesProfilesWithHub "opt_out_profiles" $hermesOptOutProfiles)
+      "npx" $npx
+      "clawhub" $clawhub
+      "linked" $linked
+      "on_demand_claude" $onDemandClaude
+      "on_demand_codex" $onDemandCodex
+      "agent_skills" $agentSkills
+      "elevenlabs_names" $elevenlabsNames
+      "claude_desktop" $S.claude_desktop
+    | toJson -}}

@@ -5,7 +5,7 @@
 
   Why: `claude mcp add` writes secrets in plaintext to ~/.claude.json.
   Vaulting via KeePassXC keeps secrets out of git and lets them rotate
-  upstream (composio dashboard, Google Cloud Console) without re-editing
+  upstream (Google Cloud Console) without re-editing
   the source tree.
 
   How: chezmoi modify-template. Reads current ~/.claude.json from
@@ -18,14 +18,6 @@
 {{- if $stdin -}}
 {{-   $merged = fromJson $stdin -}}
 {{- end -}}
-
-{{- /* --- stable: composio MCP entry --- */ -}}
-{{- $composio := dict
-    "type" "http"
-    "url" "https://connect.composio.dev/mcp"
-    "headers" (dict
-      "x-consumer-api-key" ((keepassxc "Composio :: API Key :: MCP").Password)) -}}
-{{- $merged = setValueAtPath "mcpServers.composio" $composio $merged -}}
 
 {{- /* --- stable: workspace-mcp entry (Google Workspace via OAuth) --- */ -}}
 {{- $workspaceMcp := dict

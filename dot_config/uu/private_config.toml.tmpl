@@ -1,3 +1,4 @@
+{{- $d := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
 [paths]
 state = "{{ .chezmoi.homeDir }}/.local/state/uu"
 
@@ -91,7 +92,7 @@ unsuccessful_runs_before_alert = 3
 [lane.clawhub-skills.settings]
 workdir = "{{ .chezmoi.homeDir }}/.agents"
 skills = [
-{{- range .agents.skills.from_clawhub }}
+{{- range $d.clawhub }}
   {{ .name | quote }},
 {{- end }}
 ]
@@ -114,16 +115,6 @@ unsuccessful_runs_before_alert = 3
 
 [lane.codex-plugins.settings]
 skip = []
-
-[lane.composio]
-builtin = "composio"
-env = {}
-scheduled = true
-time_limit = "6 hours"
-unsuccessful_runs_before_alert = 3
-
-[lane.composio.settings]
-composio = "{{ .chezmoi.homeDir }}/.composio/composio"
 
 [lane.cua-driver-skills]
 builtin = "cua-driver-skills"
@@ -183,10 +174,8 @@ unsuccessful_runs_before_alert = 3
 
 [lane.hermes-skills.settings]
 profiles = [
-{{- range $profile, $settings := .agents.hermes.profiles }}
-{{- if hasKey $settings "hub_skills" }}
-  {{ $profile | quote }},
-{{- end }}
+{{- range $d.hermes.profiles_with_hub }}
+  {{ . | quote }},
 {{- end }}
 ]
 
@@ -224,14 +213,51 @@ scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
+{{/* A bare repository means every skill under it. One lane per agent set: the
+     codex_and_claude group for both harnesses, the codex group for Codex alone,
+     and one per Hermes profile an npx entry names, with HERMES_HOME pointing at
+     that profile so the skills CLI installs into it. */ -}}
 [lane.npx-skills.settings]
 repos = [
-{{- range .agents.skills.from_github }}
-  {{ printf "%s %s" .repo (join " " .skills) | quote }},
-{{- end }}
+{{- range $d.npx }}{{ if has "claude-code" .agents }}
+  {{ .repo | quote }},
+{{- end }}{{ end }}
+]
+agents = ["claude-code", "codex"]
+
+[lane.npx-skills-codex]
+builtin = "npx-skills"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.npx-skills-codex.settings]
+repos = [
+{{- range $d.npx }}{{ if not (has "claude-code" .agents) }}
+  {{ .repo | quote }},
+{{- end }}{{ end }}
 ]
 agents = ["codex"]
-skills_version = {{ .agents.skills.skills_cli_version | quote }}
+{{- $hermesProfiles := list }}
+{{- range $d.npx }}{{ range .hermes }}{{ if not (has . $hermesProfiles) }}{{ $hermesProfiles = append $hermesProfiles . }}{{ end }}{{ end }}{{ end }}
+{{- range $profile := $hermesProfiles }}
+
+[lane.npx-skills-{{ $profile }}]
+builtin = "npx-skills"
+env = { HERMES_HOME = "{{ if eq $profile "default" }}{{ $.chezmoi.homeDir }}/.hermes{{ else }}{{ $.chezmoi.homeDir }}/.hermes/profiles/{{ $profile }}{{ end }}" }
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.npx-skills-{{ $profile }}.settings]
+repos = [
+{{- range $d.npx }}{{ if has $profile .hermes }}
+  {{ .repo | quote }},
+{{- end }}{{ end }}
+]
+agents = ["hermes-agent"]
+{{- end }}
 
 [lane.nvim-mason]
 builtin = "nvim-mason"
@@ -316,7 +342,7 @@ unsuccessful_runs_before_alert = 3
 [lane.rustup.settings]
 
 [lane.skills-on-demand]
-after = ["clawhub-skills", "npx-skills"]
+after = ["clawhub-skills", "npx-skills", "npx-skills-codex", "tool-skills"]
 command = ["scripts/mark-on-demand-skills.sh"]
 env = {}
 scheduled = true
@@ -331,6 +357,17 @@ scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 uses_sudo = true
+
+{{/* The ElevenLabs and gitbutler skills are written by their CLIs, so they are
+     regenerated after the lanes that upgrade those CLIs. The apply runs the same
+     script from run_after_63. */ -}}
+[lane.tool-skills]
+after = ["brew", "npm"]
+command = ["scripts/generate-tool-skills.sh"]
+env = {}
+scheduled = true
+time_limit = "30 minutes"
+unsuccessful_runs_before_alert = 3
 
 [lane.tldr-pages]
 after = ["brew"]
@@ -350,23 +387,6 @@ unsuccessful_runs_before_alert = 3
 [lane.uv.settings]
 skip = []
 
-[lane.vendored-skills-check]
-builtin = "vendored-skills-check"
-env = {}
-scheduled = true
-time_limit = "6 hours"
-unsuccessful_runs_before_alert = 3
-
-[lane.vendored-skills-check.settings]
-checks = [
-{{- range .agents.skills.vendored }}
-{{- if and (hasKey . "upstream") (not (dig "upstream" "fork" false .)) }}
-  {{ printf "%s %s %s" .name .upstream.url .upstream.path | quote }},
-{{- end }}
-{{- end }}
-]
-skills_dir = "{{ .chezmoi.homeDir }}/.agents/skills"
-
 [lane.yt-dlp]
 builtin = "yt-dlp"
 env = {}
@@ -380,4 +400,4 @@ unsuccessful_runs_before_alert = 3
 lanes = ["brew", "atuin-daemon-refresh", "posture-converge", "tailscaled-refresh", "brew-upgrade-record"]
 
 [group.skills]
-lanes = ["npx-skills", "clawhub-skills", "cua-driver-skills", "skills-on-demand"]
+lanes = ["npx-skills", "npx-skills-codex"{{ range $hermesProfiles }}, "npx-skills-{{ . }}"{{ end }}, "clawhub-skills", "tool-skills", "cua-driver-skills", "skills-on-demand"]

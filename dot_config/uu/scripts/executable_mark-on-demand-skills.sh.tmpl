@@ -1,37 +1,38 @@
-{{- $skills := .agents.skills -}}
-{{- $githubSkills := list -}}
-{{- range $skills.from_github }}{{ $githubSkills = concat $githubSkills .skills }}{{ end -}}
-{{- $clawhubSkills := list -}}
-{{- range $skills.from_clawhub }}{{ $clawhubSkills = append $clawhubSkills .name }}{{ end -}}
-{{- $vendoredSkills := list -}}
-{{- range $skills.vendored }}{{ $vendoredSkills = append $vendoredSkills .name }}{{ end -}}
-{{- $installedSkills := concat $githubSkills $clawhubSkills -}}
+{{- $d := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
+{{- $npxRows := list -}}
+{{- $nameRows := list -}}
+{{- range $d.npx -}}
+{{-   if .on_demand -}}{{- $npxRows = append $npxRows (printf "%s %s" .source (.path | default "-")) -}}{{- end -}}
+{{- end -}}
+{{- range $d.clawhub -}}
+{{-   if .on_demand -}}{{- $nameRows = append $nameRows .name -}}{{- end -}}
+{{- end -}}
+{{- range $d.linked -}}
+{{-   if and (has .kind (list "but" "apps")) (has .match $d.on_demand_codex) -}}{{- $nameRows = append $nameRows .match -}}{{- end -}}
+{{- end -}}
 #!/usr/bin/env bash
+# Marks the on-demand store skills only-when-asked in Codex, by writing
+# `policy.allow_implicit_invocation: false` into each one's agents/openai.yaml,
+# and gives every other store skill its original file back. The apply runs it
+# from .chezmoiscripts/run_onchange_after_64-install-agent-skills.sh.tmpl and
+# the uu `skills-on-demand` lane runs it after the weekly updates, since an
+# update replaces the folder and the file with it.
 
 set -euo pipefail
 
 readonly skills_folder="$HOME/.agents/skills"
+readonly skills_lock="$HOME/.agents/.skill-lock.json"
 readonly codex_ask_first_expression='.policy.allow_implicit_invocation = false'
 readonly original_file_marker='# uu-original-openai: '
-readonly codex_ask_first_skills=(
-{{- range $skills.on_demand }}{{ if not (or (has . $vendoredSkills) (has . $skills.app_owned)) }}
-  {{ . | quote }}
-{{- end }}{{ end }}
-)
-readonly model_invocable_skills=(
-{{- range $skills.model_invocable }}
-  {{ . | quote }}
-{{- end }}
-)
-readonly codex_default_skills=(
-{{- range $installedSkills }}{{ if not (has . $skills.on_demand) }}
-  {{ . | quote }}
-{{- end }}{{ end }}
-)
+# One row per on-demand npx entry: <owner/repo> <path inside it, or ->. The
+# skill names come from the skills CLI's lock file at run time, so a skill the
+# repository adds between applies is marked too.
+readonly on_demand_npx_rows={{ join "\n" $npxRows | squote }}
+# One row per on-demand clawhub, but or apps skill: its store name.
+readonly on_demand_names={{ join "\n" $nameRows | squote }}
 
 print_error() {
-  local kind=$1
-  local message=$2
+  local kind=$1 message=$2
   printf 'error[%s]: %s\n' "$kind" "$message" >&2
 }
 
@@ -40,9 +41,32 @@ tool_is_installed() {
   command -v "$tool" >/dev/null 2>&1
 }
 
+non_blank_lines_of() {
+  local text=$1
+  sed '/^[[:space:]]*$/d' <<<"$text"
+}
+
 skill_is_installed() {
   local skill=$1
   [[ -f $skills_folder/$skill/SKILL.md ]]
+}
+
+lock_skill_names_of() {
+  local source=$1 path=$2
+  [[ -f $skills_lock ]] || return 0
+  [[ $path == - ]] && path=""
+  jq -r --arg source "$source" --arg path "$path" '
+    .skills // {} | to_entries[]
+    | select(.value.source == $source and ($path == "" or ((.value.skillPath // "") | startswith($path + "/"))))
+    | .key' "$skills_lock"
+}
+
+on_demand_skills() {
+  local source path
+  while read -r source path; do
+    lock_skill_names_of "$source" "$path"
+  done < <(non_blank_lines_of "$on_demand_npx_rows")
+  non_blank_lines_of "$on_demand_names"
 }
 
 codex_file_of() {
@@ -144,43 +168,31 @@ restore_original_codex_file() {
   fi
 }
 
-skill_file_of() {
-  local skill=$1
-  printf '%s\n' "$skills_folder/$skill/SKILL.md"
-}
-
-without_model_invocation_block() {
-  awk 'NR == 1 && /^---$/ { in_front_matter = 1; print; next }
-    in_front_matter && /^---$/ { in_front_matter = 0 }
-    in_front_matter && /^disable-model-invocation:/ { next }
-    { print }' "$1"
-}
-
-allow_model_invocation_of() {
-  local skill=$1 skill_file stripped
-  skill_is_installed "$skill" || return 0
-  skill_file="$(skill_file_of "$skill")"
-  stripped="$(without_model_invocation_block "$skill_file")" || return 1
-  if [[ $stripped != "$(<"$skill_file")" ]]; then
-    printf '%s\n' "$stripped" >"$skill_file"
-  fi
+# Every store skill carrying the marker that is no longer on demand gets its
+# original file back; the marker is what says this script wrote the file.
+marked_skills_not_on_demand() {
+  local wanted=$1 codex_file skill
+  for codex_file in "$skills_folder"/*/agents/openai.yaml; do
+    [[ -f $codex_file ]] || continue
+    codex_file_keeps_original "$codex_file" || continue
+    skill="$(basename "$(dirname "$(dirname "$codex_file")")")"
+    grep -qxF -- "$skill" <<<"$wanted" || printf '%s\n' "$skill"
+  done
 }
 
 main() {
-  local skill failed=no
+  local skill wanted failed=no
   if ! tool_is_installed yq || ! tool_is_installed jq; then
     print_error missing-tool "yq or jq is not installed, so no Codex file was changed"
     exit 1
   fi
-  for skill in "${codex_ask_first_skills[@]}"; do
-    write_ask_first_codex_file "$skill" || failed=yes
-  done
-  for skill in "${codex_default_skills[@]}"; do
-    restore_original_codex_file "$skill" || failed=yes
-  done
-  for skill in "${model_invocable_skills[@]}"; do
-    allow_model_invocation_of "$skill" || failed=yes
-  done
+  wanted="$(on_demand_skills | sort -u)"
+  while read -r skill; do
+    [[ -n $skill ]] && { write_ask_first_codex_file "$skill" || failed=yes; }
+  done <<<"$wanted"
+  while read -r skill; do
+    [[ -n $skill ]] && { restore_original_codex_file "$skill" || failed=yes; }
+  done < <(marked_skills_not_on_demand "$wanted")
   if [[ $failed == yes ]]; then
     exit 1
   fi
