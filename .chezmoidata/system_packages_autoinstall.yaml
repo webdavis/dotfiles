@@ -14,6 +14,7 @@ packages:
         - plannotator/tap
         - rjyo/moshi
         - schpet/tap
+        - twilio/brew
         - xdevplatform/tap
       # Keep equal to `taps:`; the pre-bundle loop trusts each so `brew bundle` can load it.
       trusted_taps:
@@ -29,6 +30,7 @@ packages:
         - plannotator/tap
         - rjyo/moshi
         - schpet/tap
+        - twilio/brew
         - xdevplatform/tap
       formulae:
         - act
@@ -155,6 +157,7 @@ packages:
         - treefmt
         - trippy
         - tuicr
+        - twilio/brew/twilio
         - uv
         - vapor
         - websocat
