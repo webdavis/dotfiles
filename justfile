@@ -157,12 +157,20 @@ check-keepass:
 claude-desktop-skills folder=(home_directory() / "Desktop" / "claude-desktop-skills"):
   #!/usr/bin/env bash
   set -euo pipefail
+  data="{{justfile_directory()}}/.chezmoidata/agent-skills.yaml"
   mkdir -p "{{folder}}"
-  cd ~/.agents/skills
-  for skill in $(yq -r '.agents.claude_desktop.skills[]' "{{justfile_directory()}}/.chezmoidata/agent_skills_and_plugins.yaml"); do
-    [[ -f $skill/SKILL.md ]] || { echo "$skill is not in ~/.agents/skills yet; run just apply first." >&2; exit 1; }
-    zip -FSrq "{{folder}}/$skill.zip" "$skill" -x '*.DS_Store' "$skill/.claude-plugin/*" "$skill/.github/*"
-  done
+  stage="$(mktemp -d)"
+  trap 'rm -rf "$stage"' EXIT
+  while read -r repo; do
+    clone="$stage/$(tr / - <<<"$repo")"
+    gh repo clone "$repo" "$clone" -- --depth 1 --quiet
+    for skill in $(yq -r ".skills.harnesses.claude_desktop[] | select(.repo == \"$repo\") | .skills[]" "$data"); do
+      folder="$(find "$clone" -name SKILL.md -not -path '*/node_modules/*' -exec grep -lx "name: $skill" {} + | head -n 1 | xargs -I{} dirname {})"
+      [[ -n $folder ]] || { echo "$repo has no SKILL.md named $skill." >&2; exit 1; }
+      rm -rf "$stage/$skill" && cp -R "$folder" "$stage/$skill"
+      (cd "$stage" && zip -FSrq "{{folder}}/$skill.zip" "$skill" -x '*.DS_Store' "$skill/.claude-plugin/*" "$skill/.github/*" "$skill/.git/*")
+    done
+  done < <(yq -r '.skills.harnesses.claude_desktop[].repo' "$data")
   echo "Drag the zips in {{folder}} into Claude Desktop."
 
 # Raycast has no silent import: pick the file and enter the passphrase by hand.

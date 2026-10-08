@@ -21,20 +21,21 @@ Overwritten from the template on every apply, whatever the live file holds.
     `Read(credentials.json)`, `Read(~/.aws/credentials)`, `Read(~/.ssh/id_*)`, `Read(~/.ssh/*_rsa)`,
     `Read(~/.ssh/*_ed25519)`, `Read(~/.claude/.credentials.json)`, `Read(~/.codex/auth.json)`,
     `Read(~/.config/osquery/webhook-secret)`, `Read(~/.hermes/.env)` and `Read(~/**/*.kdbx)`.
-  - The rendered secret-bearing targets, thirteen rules, twelve of them added 2026-09-14:
+  - The rendered secret-bearing targets, twelve rules, eleven of them added 2026-09-14:
     `Read(~/.config/chezmoi/key.txt)` (the age identity that decrypts the four hermes profile configs),
     `Read(~/.hermes/config.yaml)`, `Read(~/.hermes/profiles/*/config.yaml)`,
     `Read(~/.config/pns/config.toml)`, `Read(~/.config/uu/config.toml)`,
     `Read(~/.config/lights/config.toml)`, `Read(~/.config/atuin/config.toml)`,
     `Read(~/.config/himalaya/config.toml)`, `Read(~/.config/openhue/config.yaml)`,
-    `Read(~/.config/gogcli/credentials.json)`, `Read(~/.composio/user_data.json)`,
+    `Read(~/.config/gogcli/credentials.json)`,
     `Read(~/Library/Application Support/Claude/claude_desktop_config.json)` and
     `Read(~/Library/Application Support/espanso/match/identity.yml)`. The pns rule is the thirteenth: it
     was already denied before this group existed and moved into it, which is how a list of fourteen rules
-    became one of twenty-six with none lost. Each is a target this repo renders a KeePassXC value into,
-    so the secret is in `$HOME` in plaintext while being nowhere in git, and the source template is the
-    copy an agent should be editing anyway. A Read deny rule also blocks Edit and Write on the same path,
-    which is the intent here: editing the deployed copy is drift the next apply reverses.
+    became one of twenty-five with none lost (the Composio rule left with Composio). Each is a target
+    this repo renders a KeePassXC value into, so the secret is in `$HOME` in plaintext while being
+    nowhere in git, and the source template is the copy an agent should be editing anyway. A Read deny
+    rule also blocks Edit and Write on the same path, which is the intent here: editing the deployed copy
+    is drift the next apply reverses.
   - The `~/` prefixes are load-bearing and the first four rules lack one deliberately. A bare or
     `./`-prefixed pattern is CURRENT-DIRECTORY relative, which is exactly right for a project's own
     `.env`, `secrets/` and `credentials.json`, and was wrong for the home-anchored rules:

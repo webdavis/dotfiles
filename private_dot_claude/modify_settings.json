@@ -19,8 +19,8 @@
     STABLE       overwritten from here on every apply, whatever the live file
                  says: permissions, hooks, skillOverrides,
                  cleanupPeriodDays, autoUpdatesChannel, remoteControlAtStartup,
-                 effortLevel, and the nine extraKnownMarketplaces entries this
-                 repo declares.
+                 effortLevel, and the extraKnownMarketplaces entries
+                 .chezmoidata/agent-plugins.yaml declares.
     statusLine   the managed command below, unless the quota plugin has wrapped
                  it with its collector; that wrapper survives applies.
     FREE-DRIFT   passed through untouched: alwaysThinkingEnabled, voiceEnabled,
@@ -79,6 +79,9 @@
 {{- if $stdin -}}
 {{-   $merged = fromJson $stdin -}}
 {{- end -}}
+{{- /* Everything derived from the two agent data files: the plugin roster, the
+       marketplaces and the store skill names the overrides below need. */ -}}
+{{- $d := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
 
 {{- /* The live file's own enabledPlugins, read HERE so no setValueAtPath call
        below can overwrite it before the plugin block consumes it.
@@ -216,7 +219,6 @@
       "Read(~/.config/himalaya/config.toml)"
       "Read(~/.config/openhue/config.yaml)"
       "Read(~/.config/gogcli/credentials.json)"
-      "Read(~/.composio/user_data.json)"
       "Read(~/Library/Application Support/Claude/claude_desktop_config.json)"
       "Read(~/Library/Application Support/espanso/match/identity.yml)")
     "defaultMode" "bypassPermissions" -}}
@@ -524,61 +526,27 @@
        and all five source names are in the shipped 2.1.220 binary, read
        2026-08-02).
 
-       Nine of these come from marketplaces Anthropic does not ship: ponytail,
-       worktrunk, last30days, codex, plannotator, babysitter, pns, strategy and
-       clean-code. An entry here only records that the plugin should be ENABLED
-       once installed, and enabling a plugin that is not installed is inert, so
-       the declaration is safe on a fresh machine. The marketplaces themselves are
-       declared in the block below.
-
-       `pns@pns`, `strategy@strategy` and `clean-code@clean-code` ARE THIS REPO'S
-       OWN, out of marketplaces deployed under ~/.claude/pns-marketplace,
-       ~/.claude/strategy-marketplace and ~/.claude/clean-code-marketplace rather
-       than fetched from anywhere. Installing one is still one deliberate
-       command: `claude plugin install clean-code@clean-code` (exit 0 on
-       2.1.270, 2026-09-13). The bare name resolves to the same plugin once
-       that marketplace is registered; the namespaced spelling is preferred
-       because it names the marketplace rather than whatever happens to be
-       registered. --- */ -}}
-{{- /* DARWIN ONLY, so these declarations and .chezmoiignore agree: the pns, the
-       strategy and the clean-code marketplaces are all DIRECTORIES on disk, and
-       none of those directories is deployed on Linux. Declaring a marketplace
-       whose path is not there is a refresh that fails at every startup, which the
-       six github ones cannot do. */ -}}
+       The roster is every plugin id in the claude, codex_and_claude and
+       claude_builtin groups of .chezmoidata/agent-plugins.yaml. An entry here
+       only records that the plugin should be ENABLED once installed, and
+       enabling a plugin that is not installed is inert, so the declaration is
+       safe on a fresh machine; run_onchange_after_65 installs them. The
+       marketplaces themselves are declared in the block below. --- */ -}}
 {{- /* No hasKey test: $livePlugins is a map by the guard above, so `index` on
        an absent key returns an untyped nil, whose kind is neither `bool` nor
        `slice`, so the value test below already covers absence. Measured
        2026-08-02 by replacing the hasKey call with a literal `true`: no test case
        changed verdict, which is what makes
        it dead rather than defensive. */ -}}
-{{- /* Roster ids marked off_until_enabled default to off rather than on. That
-       changes only what a machine with no entry of its own gets, so the
-       live-state read below still wins and `claude plugin enable <id>` still
-       sticks: this is a default, not an override.
-
-       `babysitter@a5c.ai` is held off over two upstream defects, found in
-       review 2026-09-05. An ordinary SessionStart with the plugin enabled
-       creates a run and executes any `.a5c/hooks/on-run-start/` script it
-       discovers in the repository through Bash, non-executable files included,
-       with no approval separate from the one the operator gave the plugin's own
-       hook. And the installed Claude and Codex adapters both drop Stop's
-       `decision: "block"`, so a skill that yields expecting Stop to resume the
-       orchestration can terminate early instead. Drop its off_until_enabled
-       once an upstream release fixes both. */ -}}
 {{- $enabledPlugins := dict -}}
-{{- range $plugin := .agents.claude_code.plugins -}}
-{{-   if eq (kindOf $plugin) "string" -}}
-{{-     $plugin = dict "id" $plugin -}}
+{{- range $pluginId := $d.claude.plugins -}}
+{{-   $pluginEnabled := true -}}
+{{-   $liveValue := index $livePlugins $pluginId -}}
+{{-   $liveValueKind := kindOf $liveValue -}}
+{{-   if or (eq $liveValueKind "bool") (eq $liveValueKind "slice") -}}
+{{-     $pluginEnabled = $liveValue -}}
 {{-   end -}}
-{{-   if eq (get $plugin "os" | default $.chezmoi.os) $.chezmoi.os -}}
-{{-     $pluginEnabled := not (get $plugin "off_until_enabled") -}}
-{{-     $liveValue := index $livePlugins $plugin.id -}}
-{{-     $liveValueKind := kindOf $liveValue -}}
-{{-     if or (eq $liveValueKind "bool") (eq $liveValueKind "slice") -}}
-{{-       $pluginEnabled = $liveValue -}}
-{{-     end -}}
-{{-     $enabledPlugins = set $enabledPlugins $plugin.id $pluginEnabled -}}
-{{-   end -}}
+{{-   $enabledPlugins = set $enabledPlugins $pluginId $pluginEnabled -}}
 {{- end -}}
 {{- $merged = setValueAtPath "enabledPlugins" $enabledPlugins $merged -}}
 
@@ -598,8 +566,8 @@
 
        WHOLE ENTRY PER MARKETPLACE, not a lone autoUpdate flag, because the same
        schema declares `source` REQUIRED, so writing the flag alone onto a fresh
-       machine would produce an entry Claude Code rejects. The repo owns these
-       nine keys and nothing else under extraKnownMarketplaces: setValueAtPath
+       machine would produce an entry Claude Code rejects. The repo owns the
+       keys the data declares and nothing else under extraKnownMarketplaces: setValueAtPath
        writes at the path, so a marketplace the operator adds through
        `claude plugin marketplace add` keeps its own entry untouched (measured
        2026-08-03 on chezmoi 2.62.3: a sibling key survives, and a parent that
@@ -612,38 +580,47 @@
 {{- /* The LIST path form, not a dotted string: a name can contain a dot
        (`a5c.ai`), and a dotted path would create a nested `a5c` map with an
        `ai` child instead of the one key Claude Code writes. */ -}}
-{{- /* THIS REPO'S OWN MARKETPLACES, DIRECTORIES rather than repos to fetch.
-       `{source: "directory", path: <absolute>}` is the shape `claude plugin
-       marketplace add <path>` writes into user settings, read back off a real
-       registration on 2.1.251. NO `autoUpdate`: chezmoi is what updates these,
-       so asking Claude Code to refresh one at startup would be a second
-       updater for a directory that is already converged on every apply. */ -}}
-{{- range $marketplace := .agents.claude_code.marketplaces -}}
-{{-   if eq (get $marketplace "os" | default $.chezmoi.os) $.chezmoi.os -}}
-{{-     $source := omit $marketplace "name" "os" "auto_update" -}}
-{{-     if hasKey $source "path" -}}
-{{-       $source = set $source "path" (joinPath $home $source.path) -}}
-{{-     end -}}
-{{-     $entry := dict "source" $source -}}
-{{-     if hasKey $marketplace "auto_update" -}}
-{{-       $entry = set $entry "autoUpdate" $marketplace.auto_update -}}
-{{-     end -}}
+{{- /* Every Claude Code marketplace in the data except claude-plugins-official,
+       which ships inside Claude Code, and the ones marked
+       marketplace_in_settings: false, whose own tool manages their entry
+       (clauth re-points its marketplace at a directory it materializes, and a
+       github entry written from here would fight that). */ -}}
+{{- range $marketplace := $d.claude.marketplaces -}}
+{{-   if $marketplace.in_settings -}}
+{{-     $entry := dict "source" (dict "source" "github" "repo" $marketplace.repo) "autoUpdate" true -}}
 {{-     $merged = setValueAtPath (list "extraKnownMarketplaces" $marketplace.name) $entry $merged -}}
 {{-   end -}}
 {{- end -}}
 
-{{- /* --- stable: skill tiering (on-demand skills load only when the user
-       invokes them). Source of truth: agents.skills.on_demand in
-       .chezmoidata/agent_skills_and_plugins.yaml. Per-key setValueAtPath (not
-       one whole-dict overwrite) so overrides the user sets for other skills
-       via /config pass through untouched. A per-key write never removes a
-       key, so a skill promoted to core keeps its stale override in the live
-       file until a deleteValueAtPath "skillOverrides.<name>" line scrubs it (a
-       no-op when the key or skillOverrides itself is absent, measured on
-       chezmoi 2.72.1). Such a line is a TOMBSTONE: add it with the promotion
-       and delete it again once every machine has applied. --- */ -}}
-{{- range $skill := .agents.skills.on_demand -}}
+{{- /* --- stable: skill tiering. Two tiers, both from
+       .chezmoidata/agent-skills.yaml through the derived document:
+       `user-invocable-only` for every store skill of an entry marked
+       on_demand: true that reaches Claude Code, and `name-only` for every
+       store skill of an entry carrying `agent:` (the ElevenLabs and
+       HyperFrames sets), so the main session lists their names and nothing
+       more: the skill listing is capped at one percent of the context window
+       and drops descriptions least-used-first once it overflows, and 53
+       descriptions would push other skills out. The subagent still invokes and
+       preloads them. Plugin skills cannot be overridden; these all come from
+       the store. The npx names come from the skills CLI's lock file at
+       template time, so a fresh machine's first apply writes none and the
+       second fills them in.
+
+       Per-key setValueAtPath (not one whole-dict overwrite) so overrides the
+       user sets for other skills via /config pass through untouched. A per-key
+       write never removes a key, so a skill promoted to core keeps its stale
+       override in the live file until a deleteValueAtPath
+       "skillOverrides.<name>" line scrubs it (a no-op when the key or
+       skillOverrides itself is absent, measured on chezmoi 2.72.1). Such a
+       line is a TOMBSTONE: add it with the promotion and delete it again once
+       every machine has applied. --- */ -}}
+{{- range $skill := $d.on_demand_claude -}}
 {{-   $merged = setValueAtPath (list "skillOverrides" $skill) "user-invocable-only" $merged -}}
+{{- end -}}
+{{- range $agent, $skills := $d.agent_skills -}}
+{{-   range $skill := $skills -}}
+{{-     $merged = setValueAtPath (list "skillOverrides" $skill) "name-only" $merged -}}
+{{-   end -}}
 {{- end -}}
 
 {{ $merged | toPrettyJson }}

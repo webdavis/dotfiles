@@ -1,43 +1,46 @@
 {{ if eq .chezmoi.os "darwin" -}}
-{{- $skills := .agents.skills -}}
-{{- $githubSkills := list -}}
-{{- range $skills.from_github }}{{ $githubSkills = concat $githubSkills .skills }}{{ end -}}
-{{- $clawhubSkills := list -}}
-{{- range $skills.from_clawhub }}{{ $clawhubSkills = append $clawhubSkills .name }}{{ end -}}
-{{- $vendoredSkills := list -}}
-{{- range $skills.vendored }}{{ $vendoredSkills = append $vendoredSkills .name }}{{ end -}}
-{{- $installedSkills := concat $githubSkills $clawhubSkills -}}
-{{- $everySkill := concat $installedSkills $vendoredSkills $skills.app_owned -}}
-{{- $claudeCodeSkipped := .agents.claude_code.skip_skills -}}
+{{- $d := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
+{{- $npxEntries := list -}}
+{{- range $d.npx -}}
+{{-   $npxEntries = append $npxEntries (printf "%s %s %s" (join "," .agents) .repo (join "," .hermes | default "-")) -}}
+{{- end -}}
+{{- $clawhubEntries := list -}}
+{{- range $d.clawhub -}}
+{{-   $clawhubEntries = append $clawhubEntries (printf "%s %s %s %s" .slug .name (ternary "yes" "no" .claude) (join "," .hermes | default "-")) -}}
+{{- end -}}
+{{- $linkedEntries := list -}}
+{{- range $d.linked -}}
+{{-   $linkedEntries = append $linkedEntries (printf "%s %s %s" .match (ternary "yes" "no" .claude) (join "," .hermes | default "-")) -}}
+{{- end -}}
 {{- $retryMarker := joinPath .chezmoi.homeDir ".local/state/agent-skills/install.retry" -}}
 #!/usr/bin/env bash
 
 set -euo pipefail
 
-# .chezmoidata/agent_skills_and_plugins.yaml {{ include ".chezmoidata/agent_skills_and_plugins.yaml" | sha256sum }}
+# agent-skills.yaml: {{ include ".chezmoidata/agent-skills.yaml" | sha256sum }}
 # retry: {{ if stat $retryMarker }}{{ (stat $retryMarker).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
-readonly skills_cli_version={{ $skills.skills_cli_version | quote }}
 readonly skills_folder="$HOME/.agents/skills"
+readonly skills_lock="$HOME/.agents/.skill-lock.json"
 readonly skills_folder_lock="$HOME/.agents/.skills-folder.lock"
 readonly lock_is_busy_status=75
 readonly retry_marker="$HOME/.local/state/agent-skills/install.retry"
 readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
 readonly claude_code_skills_folder="$HOME/.claude/skills"
 readonly claude_code_link_prefix="../../.agents/skills"
-readonly hermes_default_skills_folder="$HOME/.hermes/skills"
 readonly hermes_default_link_prefix="../../.agents/skills"
 readonly hermes_profiles_folder="$HOME/.hermes/profiles"
 readonly hermes_profile_link_prefix="../../../../.agents/skills"
-readonly hermes_never_linked_skills=(humanizer hyperframes)
+readonly clawhub_registry="https://clawhub.ai"
 readonly mark_on_demand_skills_script="$HOME/.config/uu/scripts/mark-on-demand-skills.sh"
-readonly claude_code_skills=(
-{{- range $everySkill }}{{ if not (has . $claudeCodeSkipped) }}
-  {{ . | quote }}
-{{- end }}{{ end }}
-)
+# One line per entry: <agents, comma-joined> <owner/repo[/path]> <hermes profiles, comma-joined, or ->
+readonly npx_entries={{ join "\n" $npxEntries | squote }}
+# One line per entry: <slug> <store name> <linked into Claude Code: yes|no> <hermes profiles or ->
+readonly clawhub_entries={{ join "\n" $clawhubEntries | squote }}
+# One line per entry: <store name or glob> <linked into Claude Code: yes|no> <hermes profiles or ->
+readonly linked_entries={{ join "\n" $linkedEntries | squote }}
 
 section_is_printed=no
 failure_count=0
@@ -85,55 +88,115 @@ tool_is_installed() {
   command -v "$tool" >/dev/null 2>&1
 }
 
+non_blank_lines_of() {
+  local text=$1
+  sed '/^[[:space:]]*$/d' <<<"$text"
+}
+
 skill_is_installed() {
   local skill=$1
   [[ -f $skills_folder/$skill/SKILL.md ]]
 }
 
-install_from_github() {
+# --- npx entries: owner/repo[/path], every skill under it ---
+
+source_of() {
   local repository=$1
-  shift
-  local skill_options=() skill
-  for skill in "$@"; do
-    skill_options+=(--skill "$skill")
-  done
-  npx --yes "skills@$skills_cli_version" add "$repository" "${skill_options[@]}" --agent codex -g -y </dev/null >/dev/null 2>&1
+  cut -d/ -f1,2 <<<"$repository"
 }
 
-install_missing_skills_from_github() {
+path_within() {
   local repository=$1
-  shift
-  local missing_skills=() still_missing_skills=() skill
-  for skill in "$@"; do
-    if ! skill_is_installed "$skill"; then
-      missing_skills+=("$skill")
-    fi
+  cut -d/ -f3- -s <<<"$repository"
+}
+
+# The names the skills CLI's lock file holds for a repository, or for one path
+# inside it. The lock is the only place those names exist.
+lock_skill_names_of() {
+  local repository=$1
+  if [[ ! -f $skills_lock ]]; then
+    return
+  fi
+  jq -r --arg source "$(source_of "$repository")" --arg path "$(path_within "$repository")" '
+    .skills // {} | to_entries[]
+    | select(.value.source == $source and ($path == "" or ((.value.skillPath // "") | startswith($path + "/"))))
+    | .key' "$skills_lock"
+}
+
+npx_entry_is_installed() {
+  local repository=$1
+  [[ -n $(lock_skill_names_of "$repository") ]]
+}
+
+install_from_github() {
+  local repository=$1 agents=$2
+  local agent_options=() agent
+  for agent in ${agents//,/ }; do
+    agent_options+=(--agent "$agent")
   done
-  if ((${#missing_skills[@]} == 0)); then
+  npx --yes skills@latest add "$repository" --skill '*' "${agent_options[@]}" -g -y </dev/null >/dev/null 2>&1
+}
+
+install_missing_npx_entry() {
+  local agents=$1 repository=$2
+  if npx_entry_is_installed "$repository"; then
     return
   fi
   if ! tool_is_installed npx; then
-    report_failure "error[missing-tool]: npx is not installed, so ${missing_skills[*]} from $repository were not installed; the next apply retries."
+    report_failure "error[missing-tool]: npx is not installed, so $repository was not installed; the next apply retries."
     return
   fi
-  install_from_github "$repository" "${missing_skills[@]}" || true
-  for skill in "${missing_skills[@]}"; do
-    if skill_is_installed "$skill"; then
-      report_change "installed $skill from $repository."
-    else
-      still_missing_skills+=("$skill")
-    fi
-  done
-  if ((${#still_missing_skills[@]} > 0)); then
-    report_failure "error[install-failed]: npx skills add $repository did not install ${still_missing_skills[*]}; the next apply retries."
+  install_from_github "$repository" "$agents" || true
+  if npx_entry_is_installed "$repository"; then
+    report_change "installed $(lock_skill_names_of "$repository" | wc -l | tr -d ' ') skill(s) from $repository."
+  else
+    report_failure "error[install-failed]: npx skills add $repository installed nothing; the next apply retries."
   fi
 }
 
+# A Hermes profile gets its own copy of an npx entry, installed by the skills CLI
+# with HERMES_HOME pointing at the profile.
+hermes_profile_lacks_npx_entry() {
+  local profile=$1 repository=$2
+  local skill
+  while read -r skill; do
+    [[ -d $(hermes_skills_folder_of "$profile")/$skill ]] || return 0
+  done < <(lock_skill_names_of "$repository")
+  return 1
+}
+
+install_npx_entry_into_hermes_profile() {
+  local profile=$1 repository=$2
+  if ! npx_entry_is_installed "$repository" || ! hermes_profile_lacks_npx_entry "$profile" "$repository"; then
+    return
+  fi
+  if HERMES_HOME="$(hermes_home_of "$profile")" install_from_github "$repository" hermes-agent &&
+    ! hermes_profile_lacks_npx_entry "$profile" "$repository"; then
+    report_change "installed $repository into the Hermes $profile profile."
+  else
+    report_failure "error[install-failed]: npx skills add $repository --agent hermes-agent did not fill the Hermes $profile profile; the next apply retries."
+  fi
+}
+
+install_missing_npx_entries() {
+  local agents repository profiles profile
+  while read -r -u 3 agents repository profiles; do
+    install_missing_npx_entry "$agents" "$repository"
+    if [[ $profiles != - ]]; then
+      for profile in ${profiles//,/ }; do
+        install_npx_entry_into_hermes_profile "$profile" "$repository"
+      done
+    fi
+  done 3< <(non_blank_lines_of "$npx_entries")
+}
+
+# --- clawhub entries ---
+
 install_from_clawhub() {
-  local skill=$1 slug=$2 registry=$3
+  local skill=$1 slug=$2
   local work_folder status=0
   work_folder="$(mktemp -d)"
-  if ! CLAWHUB_DISABLE_TELEMETRY=1 clawhub --no-input --workdir "$work_folder" --dir skills --registry "$registry" install "$slug" </dev/null >/dev/null 2>&1 ||
+  if ! CLAWHUB_DISABLE_TELEMETRY=1 clawhub --no-input --workdir "$work_folder" --dir skills --registry "$clawhub_registry" install "$slug" </dev/null >/dev/null 2>&1 ||
     ! mv "$work_folder/skills/$slug" "$skills_folder/$skill" 2>/dev/null; then
     status=1
   fi
@@ -142,7 +205,7 @@ install_from_clawhub() {
 }
 
 install_missing_skill_from_clawhub() {
-  local skill=$1 slug=$2 registry=$3
+  local slug=$1 skill=$2
   if skill_is_installed "$skill"; then
     return
   fi
@@ -150,20 +213,43 @@ install_missing_skill_from_clawhub() {
     report_failure "error[missing-tool]: clawhub is not installed, so $skill was not installed; the next apply retries."
     return
   fi
-  if install_from_clawhub "$skill" "$slug" "$registry" && skill_is_installed "$skill"; then
+  if install_from_clawhub "$skill" "$slug" && skill_is_installed "$skill"; then
     report_change "installed $skill from ClawHub."
   else
     report_failure "error[install-failed]: clawhub install $slug did not install $skill; the next apply retries."
   fi
 }
 
-install_missing_skills() {
-{{- range $skills.from_github }}
-  install_missing_skills_from_github {{ .repo | quote }}{{ range .skills }} {{ . | quote }}{{ end }}
-{{- end }}
-{{- range $skills.from_clawhub }}
-  install_missing_skill_from_clawhub {{ .name | quote }} {{ .slug | quote }} {{ .registry | quote }}
-{{- end }}
+install_missing_clawhub_entries() {
+  local slug skill rest
+  while read -r -u 3 slug skill rest; do
+    install_missing_skill_from_clawhub "$slug" "$skill"
+  done 3< <(non_blank_lines_of "$clawhub_entries")
+}
+
+# --- links: store skills into Claude Code and the Hermes profiles ---
+
+hermes_home_of() {
+  local profile=$1
+  if [[ $profile == default ]]; then
+    printf '%s\n' "$HOME/.hermes"
+  else
+    printf '%s\n' "$hermes_profiles_folder/$profile"
+  fi
+}
+
+hermes_skills_folder_of() {
+  local profile=$1
+  printf '%s/skills\n' "$(hermes_home_of "$profile")"
+}
+
+hermes_link_prefix_of() {
+  local profile=$1
+  if [[ $profile == default ]]; then
+    printf '%s\n' "$hermes_default_link_prefix"
+  else
+    printf '%s\n' "$hermes_profile_link_prefix"
+  fi
 }
 
 link_points_at() {
@@ -193,49 +279,40 @@ link_skill() {
   fi
 }
 
-link_claude_code_skills() {
-  local skill
-  for skill in "${claude_code_skills[@]}"; do
-    link_skill "$skill" "$claude_code_skills_folder" "$claude_code_link_prefix" "Claude Code"
-  done
-}
-
-skill_is_never_linked_into_hermes() {
-  local skill=$1
-  local never_linked_skill
-  for never_linked_skill in "${hermes_never_linked_skills[@]}"; do
-    if [[ $skill == "$never_linked_skill" ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
-link_hermes_profile_skills() {
-  local profile=$1
-  shift
-  local link_folder="$hermes_profiles_folder/$profile/skills" link_prefix=$hermes_profile_link_prefix
-  if [[ $profile == default ]]; then
-    link_folder=$hermes_default_skills_folder
-    link_prefix=$hermes_default_link_prefix
-  fi
-  local skill
-  for skill in "$@"; do
-    if ! skill_is_never_linked_into_hermes "$skill"; then
-      link_skill "$skill" "$link_folder" "$link_prefix" "the Hermes $profile profile"
+# A match is a store name, or a glob over store names such as elevenlabs-*.
+store_skills_matching() {
+  local match=$1
+  local folder
+  for folder in "$skills_folder"/$match; do
+    if [[ -f $folder/SKILL.md ]]; then
+      basename "$folder"
     fi
   done
 }
 
-link_hermes_skills() {
-{{- range $profile, $settings := .agents.hermes.profiles }}
-  link_hermes_profile_skills {{ $profile | quote }}{{ range $settings.skills }} {{ . | quote }}{{ end }}
-{{- end }}
+link_matching_skills() {
+  local match=$1 into_claude=$2 profiles=$3
+  local skill profile
+  while read -r skill; do
+    if [[ $into_claude == yes ]]; then
+      link_skill "$skill" "$claude_code_skills_folder" "$claude_code_link_prefix" "Claude Code"
+    fi
+    if [[ $profiles != - ]]; then
+      for profile in ${profiles//,/ }; do
+        link_skill "$skill" "$(hermes_skills_folder_of "$profile")" "$(hermes_link_prefix_of "$profile")" "the Hermes $profile profile"
+      done
+    fi
+  done < <(store_skills_matching "$match")
 }
 
-mark_on_demand_skills_script_is_installed() {
-  [[ -x $mark_on_demand_skills_script ]]
+link_store_skills() {
+  local match into_claude profiles
+  while read -r -u 3 match into_claude profiles; do
+    link_matching_skills "$match" "$into_claude" "$profiles"
+  done 3< <(non_blank_lines_of "$linked_entries")
 }
+
+# --- the Codex on-demand files ---
 
 line_is_an_error() {
   local line=$1
@@ -253,7 +330,7 @@ report_marking_line() {
 
 mark_on_demand_skills_in_codex() {
   local output line status=0
-  if ! mark_on_demand_skills_script_is_installed; then
+  if [[ ! -x $mark_on_demand_skills_script ]]; then
     report_failure "error[missing-script]: $mark_on_demand_skills_script is not installed, so the Codex files were not written; the next apply retries."
     return
   fi
@@ -283,9 +360,14 @@ main() {
   fi
 
   mkdir -p "$skills_folder"
-  install_missing_skills
-  link_claude_code_skills
-  link_hermes_skills
+  if ! tool_is_installed jq; then
+    report_failure "error[missing-tool]: jq is not installed, so no skill was installed or linked; the next apply retries."
+    remember_to_retry
+    exit 0
+  fi
+  install_missing_npx_entries
+  install_missing_clawhub_entries
+  link_store_skills
   mark_on_demand_skills_in_codex
 
   if ((failure_count > 0)); then
