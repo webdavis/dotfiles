@@ -1,0 +1,50 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $accountSid := (keepassxc "Twilio (webdavis) :: Account SID").Password -}}
+{{- $authToken := (keepassxc "Twilio (webdavis) :: Auth Token").Password -}}
+#!/usr/bin/env bash
+
+# Logs the Twilio CLI in from KeePassXC, the scripted form of `twilio login`.
+# Runs again only when one of the two entries changes, because every run makes
+# Twilio mint a fresh API key for the CLI. The CLI keeps the secret in the
+# macOS Keychain; the auth token is on this process's command line while the
+# login runs, since the CLI takes it no other way without a terminal.
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly twilio="/opt/homebrew/bin/twilio"
+readonly profile="webdavis"
+readonly account_sid={{ $accountSid | squote }}
+readonly auth_token={{ $authToken | squote }}
+readonly account_sid_pattern='^AC[0-9a-fA-F]{32}$'
+
+account_sid_looks_right() {
+  [[ $account_sid =~ $account_sid_pattern ]]
+}
+
+log_in() {
+  "$twilio" profiles:create "$account_sid" --auth-token "$auth_token" -p "$profile" --force --silent
+}
+
+make_profile_active() {
+  "$twilio" profiles:use "$profile" >/dev/null
+}
+
+main() {
+  report_section 'twilio' "CLI login as the '$profile' profile"
+  if [[ ! -x $twilio ]]; then
+    report_line "twilio isn't installed yet; the next apply logs it in."
+    return 0
+  fi
+  if ! account_sid_looks_right; then
+    report_line "error[account-sid]: 'Twilio (webdavis) :: Account SID' holds no Account SID (AC + 32 hex) in its password field." >&2
+    return 1
+  fi
+  log_in
+  make_profile_active
+  report_line "logged in and active."
+}
+
+main "$@"
+{{ end -}}
