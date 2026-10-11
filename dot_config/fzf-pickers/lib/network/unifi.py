@@ -1,11 +1,10 @@
 import json
 import ssl
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-
-import tomllib
 
 from .rows import device_row, note
 
