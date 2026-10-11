@@ -226,8 +226,10 @@
 
 {{- /* --- stable: hooks (paths use $home for portability) ---
      SessionStart is herdr's agent-state integration: `herdr integration
-     install claude` writes exactly this entry (and owns the hook FILE at
-     ~/.claude/hooks/herdr-agent-state.sh, which is deliberately unmanaged).
+     install claude` writes exactly this entry, matcher included (v10 lists
+     the five session-start kinds instead of `*`; an apply must reproduce it
+     byte for byte or the two keep flipping it), and owns the hook FILE at
+     ~/.claude/hooks/herdr-agent-state.sh, which is deliberately unmanaged.
      Declared here so an apply keeps it; on a fresh machine the entry points at
      a file the first `herdr integration install claude` creates.
 
@@ -442,7 +444,7 @@
         "type" "command"
         "command" (printf "%s hook session-end" $pns)))))
     "SessionStart" (list (dict
-      "matcher" "*"
+      "matcher" "^(startup|resume|clear|compact|fork)$"
       "hooks" (list (dict
         "type" "command"
         "command" (printf "bash '%s/.claude/hooks/herdr-agent-state.sh' session" $home)
