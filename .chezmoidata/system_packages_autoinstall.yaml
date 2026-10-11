@@ -49,6 +49,8 @@ packages:
         - bore-cli
         - brightness
         - btop
+        # The tab-smart-rename herdr plugin runs on Bun (its README: Bun 1.2.23+).
+        - bun
         - ca-certificates
         - carapace
         - ccusage
