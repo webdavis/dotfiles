@@ -89,6 +89,9 @@ to stderr as `error[kind]: message`. Exit codes: 0 done, 75 try later, 100 needs
 - An npx skill: add `repo: owner/repo[/path]` under the group's `npx` list, with `on_demand`, `agent` or
   `hermes` as needed. Every skill under that repo or path is installed.
 - A Hermes hub skill: add its identifier (`hermes skills search <name>` prints it) under the profile.
+  When the hub refuses it (its security scan) or its index entry is stale, give the skill's npx or
+  clawhub entry a `hermes:` list instead; the skills CLI then installs it into the profile, outside the
+  hub.
 - A Claude Desktop skill: add it under `claude_desktop` and rerun `just claude-desktop-skills`.
 
 Then apply. To remove one, take it off the list and trash the installed copy by hand.

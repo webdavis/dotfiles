@@ -197,9 +197,19 @@ hermes_plugin_names() {
   hermes plugins list --json </dev/null | jq -r '.[].name'
 }
 
+# `hermes plugins list` shows a plugin's own name, which can differ from the
+# catalog entry that installs it: hermes-memory-wiki lists as memory-wiki and
+# claude-subscription-directsdk as claude-subscription-directsdk-experimental
+# (measured 2026-10-11). So presence is the entry, the entry without its hermes-
+# prefix, or the entry with a suffix.
+hermes_plugin_is_installed() {
+  local installed_names=$1 name=$2
+  list_includes "$installed_names" "$name" || list_includes "$installed_names" "${name#hermes-}" || grep -qE "^${name}-" <<<"$installed_names"
+}
+
 install_hermes_plugin_if_missing() {
   local installed_names=$1 name=$2
-  if list_includes "$installed_names" "$name"; then
+  if hermes_plugin_is_installed "$installed_names" "$name"; then
     return
   fi
   run_install_command install-failed hermes plugins install "$name" --enable || return 1
@@ -248,7 +258,7 @@ hermes_in_profile() {
 opt_profile_out_of_bundled_skills() {
   local profile=$1
   local marker
-  marker="$(hermes_home_of "$profile")/skills/.no-bundled-skills"
+  marker="$(hermes_home_of "$profile")/.no-bundled-skills"
   if [[ -e $marker ]]; then
     return
   fi
@@ -264,25 +274,33 @@ opt_profiles_out_of_bundled_skills() {
   return "$status"
 }
 
-# The hub lock records each installed skill's identifier as typed, so presence
-# is a lookup rather than a name guess.
+# The hub lock keys each installed skill by name and records the identifier the
+# hub resolved it to, which is not always the one typed: a GitHub path comes back
+# as skills-sh/<path>, a skill the hub also carries in its own catalog as
+# official/<category>/<name> (measured 2026-10-11). So presence is the typed
+# identifier, the same without its skills-sh/ prefix, or the name.
 hermes_hub_identifiers_installed_in() {
   local profile=$1
   local lock
   lock="$(hermes_home_of "$profile")/skills/.hub/lock.json"
   if [[ -f $lock ]]; then
-    jq -r '.installed[]?.identifier // empty' "$lock"
+    jq -r '.installed // {} | to_entries[] | .key, (.value.identifier // empty), (.value.identifier // "" | ltrimstr("skills-sh/"))' "$lock" | grep -v '^$'
   fi
+}
+
+hermes_hub_skill_is_installed() {
+  local installed=$1 identifier=$2
+  list_includes "$installed" "$identifier" || list_includes "$installed" "${identifier#skills-sh/}" || list_includes "$installed" "${identifier##*/}"
 }
 
 install_hermes_hub_skill_if_missing() {
   local installed_identifiers=$1 profile=$2 identifier=$3
-  if list_includes "$installed_identifiers" "$identifier"; then
+  if hermes_hub_skill_is_installed "$installed_identifiers" "$identifier"; then
     return
   fi
   local output
   output="$(hermes_in_profile "$profile" skills install "$identifier" --yes </dev/null 2>&1)" || true
-  if ! list_includes "$(hermes_hub_identifiers_installed_in "$profile")" "$identifier"; then
+  if ! hermes_hub_skill_is_installed "$(hermes_hub_identifiers_installed_in "$profile")" "$identifier"; then
     report_error install-failed "hermes -p $profile skills install $identifier: $(last_line_of "$output")"
     return 1
   fi
