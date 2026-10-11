@@ -7,10 +7,6 @@ set -euo pipefail
 
 readonly socket_call_time_limit=10
 readonly plugin_install_time_limit=300
-readonly quota_plugin_id="herdr-agent-quota"
-readonly quota_configuration_time_limit=60
-readonly quota_action_logs_to_read=100
-readonly seconds_between_quota_status_checks=1
 
 herdr_is_installed() {
   command -v herdr >/dev/null 2>&1
@@ -84,77 +80,6 @@ install_roster_plugins() {
 {{- end }}
 }
 
-read_quota_plugin_listing() {
-  local listing
-  listing="$(list_plugin_as_json "$quota_plugin_id")" || listing='{}'
-  printf '%s' "$listing"
-}
-
-quota_plugin_is_enabled() {
-  local listing=$1
-  printf '%s' "$listing" |
-    jq -e 'any(.result.plugins[]?; .plugin_id == "herdr-agent-quota" and .enabled == true)' >/dev/null
-}
-
-invoke_quota_configure_action() {
-  run_with_time_limit "$socket_call_time_limit" herdr plugin action invoke configure --plugin "$quota_plugin_id"
-}
-
-action_log_id_in() {
-  local invoke_result=$1
-  printf '%s' "$invoke_result" | jq -er '.result.log.log_id'
-}
-
-list_quota_action_logs() {
-  run_with_time_limit "$socket_call_time_limit" herdr plugin log list --plugin "$quota_plugin_id" --limit "$quota_action_logs_to_read"
-}
-
-action_status_in() {
-  local action_logs=$1 log_id=$2
-  printf '%s' "$action_logs" | jq -r --arg id "$log_id" '.result.logs[]? | select(.log_id == $id) | .status'
-}
-
-read_quota_action_status() {
-  local log_id=$1
-  local action_logs
-  action_logs="$(list_quota_action_logs)" || return
-  action_status_in "$action_logs" "$log_id"
-}
-
-quota_configuration_is_unfinished() {
-  local action_status=$1
-  [[ $action_status == running || -z $action_status ]]
-}
-
-deadline_has_not_passed() {
-  local deadline=$1
-  ((SECONDS < deadline))
-}
-
-wait_for_quota_configuration() {
-  local log_id=$1
-  local deadline=$((SECONDS + quota_configuration_time_limit))
-  local action_status
-  while deadline_has_not_passed "$deadline"; do
-    action_status="$(read_quota_action_status "$log_id")" || return
-    if ! quota_configuration_is_unfinished "$action_status"; then
-      printf '%s\n' "$action_status"
-      return
-    fi
-    sleep "$seconds_between_quota_status_checks" || return
-  done
-}
-
-quota_configuration_timed_out() {
-  local final_status=$1
-  [[ -z $final_status ]]
-}
-
-quota_configuration_succeeded() {
-  local final_status=$1
-  [[ $final_status == succeeded ]]
-}
-
 main() {
   report_section 'herdr' 'third-party plugins'
 
@@ -172,34 +97,6 @@ main() {
   fi
 
   install_roster_plugins
-
-  local quota_listing
-  quota_listing="$(read_quota_plugin_listing)"
-  if ! quota_plugin_is_enabled "$quota_listing"; then
-    report_line "herdr does not list $quota_plugin_id as enabled, skipping its configuration."
-    return
-  fi
-
-  report_line "configuring $quota_plugin_id..."
-  local invoke_result
-  invoke_result="$(invoke_quota_configure_action)"
-  local configure_log_id
-  if ! configure_log_id="$(action_log_id_in "$invoke_result")"; then
-    report_line "error[configure-not-started]: herdr quota configuration could not start: $invoke_result" >&2
-    exit 1
-  fi
-
-  local final_status
-  final_status="$(wait_for_quota_configuration "$configure_log_id")"
-  if quota_configuration_timed_out "$final_status"; then
-    report_line "error[timeout]: herdr quota configuration timed out; inspect: herdr plugin log list --plugin $quota_plugin_id" >&2
-    exit 1
-  fi
-  if ! quota_configuration_succeeded "$final_status"; then
-    report_line "error[configure-failed]: herdr quota configuration $final_status; inspect: herdr plugin log list --plugin $quota_plugin_id" >&2
-    exit 1
-  fi
-  report_line "configured $quota_plugin_id."
 }
 
 main "$@"

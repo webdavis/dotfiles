@@ -300,8 +300,6 @@ packages:
       repo: iurysza/herdr-tab-smart-rename
     - id: persiyanov.reviewr
       repo: persiyanov/herdr-reviewr
-    - id: herdr-agent-quota
-      repo: levi-qiao/herdr-agent-quota
     - id: herdr-bar
       repo: jeffarese/herdr-bar
     - id: chmarax.herdr-nvim

@@ -449,20 +449,9 @@
         "timeout" 10)))) -}}
 {{- $merged = setValueAtPath "hooks" $hooks $merged -}}
 
-{{- /* Keep the quota plugin's collector, which chains our status line.
-       run_after_53 installs the wrapper on a fresh machine. */ -}}
 {{- $statusLine := dict
     "type" "command"
     "command" (printf "bash %s/.claude/statusline-command.sh" $home) -}}
-{{- $liveStatusLine := index $merged "statusLine" -}}
-{{- if eq (kindOf $liveStatusLine) "map" -}}
-{{-   $command := index $liveStatusLine "command" -}}
-{{-   if eq (kindOf $command) "string" -}}
-{{-     if and (contains "/herdr-agent-quota" $command) (hasSuffix " claude-statusline" $command) -}}
-{{-       $statusLine = $liveStatusLine -}}
-{{-     end -}}
-{{-   end -}}
-{{- end -}}
 {{- $merged = setValueAtPath "statusLine" $statusLine $merged -}}
 
 {{- /* --- the declared plugin ROSTER, ON by default, with the machine's own
