@@ -25,8 +25,6 @@ vendor/**
 # Git worktrees (isolated implementation workspaces).
 .worktrees/
 
-# Agent scratch (superpowers SDD briefs, reports, evidence, never tracked).
-.superpowers/
 
 # Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
 *config.yaml.bak*

@@ -499,7 +499,7 @@
        (measured 2026-08-02), which includes `just d`. So any process running as
        this user, which is every agent with Bash under
        `permissions.defaultMode = bypassPermissions`, permanently disables
-       `security-guidance` or `superpowers` by writing one boolean, and nothing
+       `security-guidance` or `playwright` by writing one boolean, and nothing
        in this repo detects it or restores it. Re-enabling is a deliberate act
        too: `claude plugin enable <id>`, per plugin, and `claude plugin disable
        --all` has no `enable --all` counterpart, so recovering from a mass

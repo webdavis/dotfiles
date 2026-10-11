@@ -13,7 +13,6 @@ plugins:
     claude:
       - marketplace: "anthropics/claude-plugins-official"
         plugins:
-          - "superpowers@claude-plugins-official"
           - "frontend-design@claude-plugins-official"
           - "playwright@claude-plugins-official"
           - "security-guidance@claude-plugins-official"
