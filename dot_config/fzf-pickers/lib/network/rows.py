@@ -26,7 +26,7 @@ def note(identity, message):
 
 
 def device_row(source, identity, name, address, fields):
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    now = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
     details = [f"Source: {source}", f"Observed: {now}"]
     details.extend(
         f"{key}: {value}" for key, value in fields.items() if value not in ("", None, [], {})

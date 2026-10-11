@@ -1,8 +1,7 @@
 import ipaddress
 import shlex
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 from . import inputs
 from .rows import command_row
