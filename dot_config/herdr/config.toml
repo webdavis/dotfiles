@@ -67,7 +67,7 @@ prefix = "ctrl+d"
 # create an agent, so those slots stay empty.
 
 # Windows (herdr calls them tabs). go: herdr's prefix+n/p defaults.
-switch_tab = ["prefix+1..9", "cmd+1..9"]
+switch_tab = "prefix+1..9"
 move_tab_next = "prefix+shift+n"
 move_tab_previous = "prefix+shift+p"
 rename_tab = ["prefix+alt+n", "prefix+,"]
