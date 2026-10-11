@@ -1,7 +1,10 @@
 # shellcheck shell=bash
 # vi: set filetype=sh:
 
-__fzf_shell_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# builtin: ~/.bash_aliases maps `cd` to zoxide's `z`, which ~/.bashrc only
+# defines after this file is sourced, so a bare `cd` here is "z: command not
+# found" in every new shell.
+__fzf_shell_root=$(builtin cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 if [[ -d $__fzf_shell_root/dot_config/fzf-pickers/lib/shell ]]; then
   __fzf_shell_root+=/dot_config/fzf-pickers/lib/shell
 else
