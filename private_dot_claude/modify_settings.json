@@ -519,7 +519,7 @@
        2026-08-02).
 
        The roster is every plugin id in the claude, codex_and_claude and
-       claude_builtin groups of .chezmoidata/agent-plugins.yaml. An entry here
+       claude_builtins groups of .chezmoidata/agent-plugins.yaml. An entry here
        only records that the plugin should be ENABLED once installed, and
        enabling a plugin that is not installed is inert, so the declaration is
        safe on a fresh machine; run_onchange_after_65 installs them. The

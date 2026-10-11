@@ -46,7 +46,7 @@ plugins:
       - marketplace: "addyosmani/agent-skills"
         plugins:
           - "agent-skills@addy-agent-skills"
-    claude_builtin:
+    claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:
       - marketplace: "DietrichGebert/ponytail"

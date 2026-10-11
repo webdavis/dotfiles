@@ -125,7 +125,7 @@
 {{- end -}}
 
 {{- dict
-      "claude" (dict "marketplaces" $claudeMarketplaces "plugins" (concat $claudePlugins $P.claude_builtin) "install_plugins" $claudePlugins)
+      "claude" (dict "marketplaces" $claudeMarketplaces "plugins" (concat $claudePlugins $P.claude_builtins) "install_plugins" $claudePlugins)
       "codex" (dict "marketplaces" $codexMarketplaces "plugins" $codexPlugins)
       "hermes" (dict "plugins" $P.hermes "hub" $hermesHub "profiles" $hermesProfiles "profiles_with_hub" $hermesProfilesWithHub "opt_out_profiles" $hermesOptOutProfiles)
       "npx" $npx
