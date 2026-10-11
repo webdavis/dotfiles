@@ -80,15 +80,15 @@ quick-terminal-animation-duration = 0.05
 # even with Cmd+Ctrl held, and two of them start its `,,` triggers.
 keybind = global:ctrl+super+f19=toggle_quick_terminal
 # Cmd+1..9 reach herdr, which switches its own tabs with them.
-keybind = super+physical:one=unbind
-keybind = super+physical:two=unbind
-keybind = super+physical:three=unbind
-keybind = super+physical:four=unbind
-keybind = super+physical:five=unbind
-keybind = super+physical:six=unbind
-keybind = super+physical:seven=unbind
-keybind = super+physical:eight=unbind
-keybind = super+physical:nine=unbind
+keybind = super+1=unbind
+keybind = super+2=unbind
+keybind = super+3=unbind
+keybind = super+4=unbind
+keybind = super+5=unbind
+keybind = super+6=unbind
+keybind = super+7=unbind
+keybind = super+8=unbind
+keybind = super+9=unbind
 
 # ╭──────────────────────╮
 # │  Security & UX (v2)  │
