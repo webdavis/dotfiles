@@ -41,7 +41,6 @@ Reasoning, design, and general knowledge don't require sourcing, only specific v
 
 "Should work" ≠ "works." Evidence before assertions.
 
-- Design: obra/superpowers skill.
 - Code: run tests (or a minimal reproducer); show output.
 - Config: render, parse, or lint it.
 - Script: `shellcheck` and run with representative inputs.
