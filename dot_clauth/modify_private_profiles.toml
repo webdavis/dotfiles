@@ -20,9 +20,9 @@
 
     STABLE      overwritten from here on every apply, whatever the live file
                 says: the profile roster, the fallback chain, `wrap_off`,
-                `refresh_interval_ms` and the whole [herdr] block.
-    FREE-DRIFT  passed through untouched: `active_profile` and anything else
-                clauth adds to this file later.
+                `refresh_interval_ms` and the declared [herdr] keys.
+    FREE-DRIFT  passed through untouched: `active_profile`, the other [herdr]
+                keys and anything else clauth adds to this file later.
 
   `active_profile` IS RUNTIME STATE AND IS NEVER WRITTEN FROM HERE, on the same
   reasoning that keeps [hooks.state] out of the Codex template: a snapshot in
@@ -63,12 +63,13 @@
 {{-   $merged = fromToml $stdin -}}
 {{- end -}}
 
-{{- /* The chain's members, in the order the auto-switch walk tries them.
-       `profiles` is the roster clauth offers; `fallback_chain` is which of
-       them the walk may move between, and a profile absent from the chain is
-       reachable by hand but never switched to automatically. */ -}}
-{{- $chain := list "personal-main" "personal-backup" -}}
-{{- $merged = set $merged "profiles" $chain -}}
+{{- /* `profiles` is the roster clauth offers; `fallback_chain` is which of
+       them the auto-switch walk may move between, in the order it tries them.
+       A profile absent from the chain is reachable by hand but never switched
+       to automatically: `broccoli` is the work account and stays out of it. */ -}}
+{{- $roster := list "main" "backup" "broccoli" -}}
+{{- $chain := list "main" "backup" -}}
+{{- $merged = set $merged "profiles" $roster -}}
 {{- $merged = set $merged "fallback_chain" $chain -}}
 
 {{- /* `wrap_off = false` keeps the chain wrapping back to the first member
@@ -89,14 +90,24 @@
 {{- /* The clauth herdr plugin's own presentation. `pane_tag` and the two
        delegate keys are what make `$clauth` and `$clauth_delegate` render in
        the sidebar row declared in dot_config/herdr/config.toml, so these move
-       together with that row. */ -}}
-{{- $merged = set $merged "herdr" (dict
+       together with that row. Overlaid key by key onto the live [herdr]
+       table rather than replacing it: clauth writes its own keys there too
+       (`first_landing_done`), and replacing the table dropped them and made
+       every apply rewrite the file. */ -}}
+{{- $herdr := dict -}}
+{{- if eq (kindOf (index $merged "herdr")) "map" -}}
+{{-   $herdr = index $merged "herdr" -}}
+{{- end -}}
+{{- range $key, $value := (dict
     "popup_width" "half"
     "pane_tag" true
     "tag_watch_secs" (int64 5)
     "border_label" true
     "delegate_dot" true
     "delegate_row_text" true) -}}
+{{-   $herdr = set $herdr $key $value -}}
+{{- end -}}
+{{- $merged = set $merged "herdr" $herdr -}}
 
 {{- /* Seed only. Present in the live file means the daemon owns it and the
        parse above already carried it through untouched. */ -}}
