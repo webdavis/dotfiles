@@ -70,7 +70,7 @@ prefix = "ctrl+d"
 switch_tab = ["prefix+1..9", "cmd+1..9"]
 move_tab_next = "prefix+shift+n"
 move_tab_previous = "prefix+shift+p"
-rename_tab = "prefix+alt+n"
+rename_tab = ["prefix+alt+n", "prefix+,"]
 new_tab = "prefix+ctrl+n"
 
 # Spaces (herdr calls them workspaces). `ctrl+[` and `alt+[` read as Escape
@@ -78,7 +78,7 @@ new_tab = "prefix+ctrl+n"
 next_workspace = "prefix+]"
 previous_workspace = "prefix+["
 switch_workspace = ["prefix+alt+1..9", "alt+1..9"]
-rename_workspace = "prefix+alt+["
+rename_workspace = ["prefix+alt+[", "prefix+ctrl+,"]
 new_workspace = "prefix+ctrl+["
 
 # Panes. Creating stays on the tmux split keys.
@@ -86,7 +86,7 @@ swap_pane_left = "prefix+shift+h"
 swap_pane_down = "prefix+shift+j"
 swap_pane_up = "prefix+shift+k"
 swap_pane_right = "prefix+shift+l"
-rename_pane = "prefix+alt+h"
+rename_pane = ["prefix+alt+h", "prefix+shift+,"]
 split_horizontal = "prefix+\""
 split_vertical = "prefix+%"
 zoom = "prefix+="
@@ -94,8 +94,8 @@ zoom = "prefix+="
 last_pane = "prefix+\\"
 
 # Agents.
-next_agent = "prefix+i"
-previous_agent = "prefix+u"
+next_agent = "prefix+j"
+previous_agent = "prefix+k"
 focus_agent = ["prefix+ctrl+1..9", "ctrl+1..9"]
 
 # x closes, the modifier picks the size: pane (prefix+x) and window
