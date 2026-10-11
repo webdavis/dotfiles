@@ -230,8 +230,9 @@
      the five session-start kinds instead of `*`; an apply must reproduce it
      byte for byte or the two keep flipping it), and owns the hook FILE at
      ~/.claude/hooks/herdr-agent-state.sh, which is deliberately unmanaged.
-     Declared here so an apply keeps it; on a fresh machine the entry points at
-     a file the first `herdr integration install claude` creates.
+     Declared here so an apply keeps it; run_after_54 runs that install when
+     herdr reports the integration missing or outdated, so a fresh machine
+     gets the file too.
 
      The blocked notification hangs off PermissionRequest, NOT off
      Notification/permission_prompt, and it is deliberately NOT async. Both
