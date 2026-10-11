@@ -113,24 +113,14 @@
        control would replay the onboarding on every apply. --- */ -}}
 {{- $merged = setValueAtPath "tui.vim_mode_default" true $merged -}}
 
-{{- /* --- stable: the marketplaces fetched from git, IDENTITY ONLY, one per
-       Codex marketplace in .chezmoidata/agent-plugins.yaml (the codex and
-       codex_and_claude groups; the name is the text after the @ in the entry's
-       first plugin id, which is also what `codex plugin marketplace add` writes).
-       source_type and source say where a marketplace comes from and are a
-       deliberate choice; last_updated and last_revision say how fresh the local
-       copy is, are written by Codex when it refreshes, and are deliberately NOT
-       declared, because a snapshot of them would reset the record of a refresh
-       that really happened on every apply.
-
-       The other two marketplaces in the live file, openai-bundled and
-       openai-primary-runtime, are local caches the Codex app manages under
-       ~/.codex/.tmp and ~/.cache, so both entries are left to free drift
-       entirely rather than pinned to a cache path this repo does not own. --- */ -}}
-{{- range $marketplace := $d.codex.marketplaces -}}
-{{-   $merged = setValueAtPath (list "marketplaces" $marketplace.name "source_type") "git" $merged -}}
-{{-   $merged = setValueAtPath (list "marketplaces" $marketplace.name "source") (printf "https://github.com/%s.git" $marketplace.repo) $merged -}}
-{{- end -}}
+{{- /* --- free drift: [marketplaces.*]. Codex writes an entry itself when
+       `codex plugin marketplace add` (script 65) clones a marketplace under
+       ~/.codex/.tmp/marketplaces/<name>, and reads the clone next to it. An
+       entry written here before that clone exists makes Codex refuse to list
+       any marketplace ("marketplace root does not contain a supported
+       manifest"), which is what skipped every Codex install on the first apply
+       of this data (2026-10-11). The data in .chezmoidata/agent-plugins.yaml
+       still says which marketplaces exist; script 65 is what makes them so. --- */ -}}
 
 {{- /* --- stable: the MCP servers this repo declares, whole entry each,
        because a server missing its command or url is one Codex rejects. Two
