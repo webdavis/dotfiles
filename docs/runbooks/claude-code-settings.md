@@ -106,8 +106,7 @@ Overwritten from the template on every apply, whatever the live file holds.
   Nothing enforces that the two agree: the roster guard was declaration-consistency checking and went
   with the 2026-08-05 test-scope ruling. Per key, so overrides the user sets for other skills drift
   freely.
-- `statusLine` uses the managed status-line script, retaining herdr-agent-quota's collector when
-  installed. The collector forwards to that script; `run_after_53` configures it on a fresh machine.
+- `statusLine` runs the managed status-line script.
 - `cleanupPeriodDays` (= 365, a year of session retention), `autoUpdatesChannel` (= `stable`, pins the
   release channel so updates lag `latest`), `remoteControlAtStartup` (= `true`, starts the Remote Control
   bridge every session), `spinnerTipsEnabled` (= `false`, operator 2026-08-11: no spinner tips anywhere),
