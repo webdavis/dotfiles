@@ -50,7 +50,7 @@ check_duplicate_plugin_ids() {
   local id
   while IFS= read -r id; do
     problem "plugin id $id is listed twice in agent-plugins.yaml"
-  done < <(plugins_json | jq -r '([.claude, .codex, .codex_and_claude] | add | .[].plugins[]), .claude_builtin[]' | duplicates_in)
+  done < <(plugins_json | jq -r '([.claude, .codex, .codex_and_claude] | add | .[].plugins[]), .claude_builtins[]' | duplicates_in)
 }
 
 check_duplicate_marketplaces() {
