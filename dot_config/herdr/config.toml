@@ -126,18 +126,16 @@ type = "plugin_action"
 command = "herdr-workspace-jump.last_workspace"
 description = "last workspace (MRU toggle)"
 
-# Picker popup: the plugin reads one key inside it and jumps to the
-# workspace claiming it.
+# Picker popup: the plugin sizes it to the herdr window. A workspace's key
+# jumps at once; ctrl+n/p, enter and a / search reach the rest.
 [[keys.command]]
 key = "prefix+ctrl+o"
-type = "popup"
-command = "~/.local/share/herdr-workspace-jump/target/release/herdr-workspace-jump pick"
-description = "pick a workspace by letter"
-width = 40
-height = 18
+type = "plugin_action"
+command = "herdr-workspace-jump.pick"
+description = "pick a workspace"
 
-# The same popup from the workspace build, to preview a change to its look
-# before it is pushed and the installed clone rebuilt.
+# The same popup from the workspace build, at a fixed size, to preview a
+# change to its look before it is pushed and the installed clone rebuilt.
 [[keys.command]]
 key = "prefix+ctrl+p"
 type = "popup"
