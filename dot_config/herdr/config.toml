@@ -133,6 +133,18 @@ key = "prefix+ctrl+o"
 type = "popup"
 command = "~/.local/share/herdr-workspace-jump/target/release/herdr-workspace-jump pick"
 description = "pick a workspace by letter"
+width = 40
+height = 18
+
+# The same popup from the workspace build, to preview a change to its look
+# before it is pushed and the installed clone rebuilt.
+[[keys.command]]
+key = "prefix+ctrl+p"
+type = "popup"
+command = "~/workspaces/Ivy/webdavis/herdr-workspace-jump/target/release/herdr-workspace-jump pick"
+description = "pick a workspace (dev build)"
+width = 40
+height = 13
 
 # ╭───────────────────╮
 # │  herdr-smart-nav  │
