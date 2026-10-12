@@ -132,7 +132,10 @@ return {
         less = { "prettierd" },
         lua = { "stylua" },
         luau = { "stylua" },
-        markdown = { "mdformat" },
+        -- treefmt first where a treefmt.toml exists upward (conform's builtin
+        -- requires that root and is skipped without one), so a repo's own
+        -- Markdown settings win; mdformat alone everywhere else.
+        markdown = { "treefmt", "mdformat", stop_after_first = true },
         ["markdown.mdx"] = { "prettierd" },
         nix = { "nixfmt" },
         ruby = { "rubocop" },
@@ -165,13 +168,18 @@ return {
         shfmt = {
           prepend_args = { "-i", "2", "-ci", "-s" },
         },
-        -- mdformat runs over stdin, so it has no file path to resolve
-        -- .mdformat.toml from and falls back to Neovim's cwd. Editing a repo
-        -- markdown file while cwd is elsewhere would format with mdformat's
-        -- own default wrap instead of the 105 columns treefmt.toml runs, so
-        -- the wrap is passed explicitly rather than left to config discovery.
+        -- Outside a treefmt repo, mdformat runs over stdin, so it has no file
+        -- path to resolve .mdformat.toml from and falls back to Neovim's cwd,
+        -- which would mean mdformat's own default wrap whenever cwd is
+        -- elsewhere; the wrap is passed explicitly rather than left to config
+        -- discovery.
         mdformat = {
           prepend_args = { "--wrap", "105" },
+        },
+        -- conform formats a uniquely named temp copy, so treefmt's evaluation
+        -- cache can never hit and would only grow by one entry per save.
+        treefmt = {
+          prepend_args = { "--no-cache" },
         },
       },
       -- Formatting through a language server for any filetype the table does not
