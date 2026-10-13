@@ -1,0 +1,48 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# update: {{ include ".chezmoitemplates/xcodebuild-nvim-update.sh.tmpl" | sha256sum }}
+# sudoers: {{ include ".chezmoitemplates/xcodebuild-nvim-sudoers.tmpl" | sha256sum }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
+readonly admin_dir="/usr/local/libexec/xcodebuild-nvim"
+readonly sudoers_file="/etc/sudoers.d/xcodebuild-nvim"
+
+write_rendered_files() {
+  local staging=$1
+  cat >"$staging/update" <<'XCODEBUILD_NVIM_UPDATE'
+{{ includeTemplate "xcodebuild-nvim-update.sh.tmpl" . }}
+XCODEBUILD_NVIM_UPDATE
+  cat >"$staging/sudoers" <<'XCODEBUILD_NVIM_SUDOERS'
+{{ includeTemplate "xcodebuild-nvim-sudoers.tmpl" . }}
+XCODEBUILD_NVIM_SUDOERS
+  visudo -c -q -f "$staging/sudoers"
+}
+
+install_admin_files() {
+  local staging=$1
+  sudo install -d -m 755 -o root -g wheel "$admin_dir"
+  sudo install -m 755 -o root -g wheel "$staging/update" "$admin_dir/update"
+  sudo install -m 440 -o root -g wheel "$staging/sudoers" "$sudoers_file"
+}
+
+main() {
+  local staging
+  report_section 'xcodebuild.nvim' 'admin-owned remote_debugger and its sudoers rules'
+  staging=$(mktemp -d)
+  write_rendered_files "$staging"
+  authenticate_sudo_once
+  report_line "installing the updater and the sudoers rules..."
+  install_admin_files "$staging"
+  rm -rf "$staging"
+  report_line "running the first update..."
+  sudo "$admin_dir/update"
+  report_line "installed."
+}
+
+main "$@"
+{{ end -}}
