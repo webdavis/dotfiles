@@ -247,12 +247,12 @@ install_linked_plugin() {
     return
   fi
   if ! build_plugin "$plugin_id" "$checkout" "$previous_sha"; then
-    report_plugin_line "$plugin_id" "error[build-failed]: cargo build failed at $(checked_out_short_sha "$checkout"); the next apply retries." >&2
-    return
+    report_plugin_line "$plugin_id" "error[build-failed]: cargo build failed at $(checked_out_short_sha "$checkout"); the apply fails until the plugin builds." >&2
+    return 1
   fi
   if ! generate_plugin_manifest "$checkout" "$plugin_id"; then
-    report_plugin_line "$plugin_id" "error[generate-failed]: $plugin_id generate failed, so the manifest and registration were left as they are; the next apply retries." >&2
-    return
+    report_plugin_line "$plugin_id" "error[generate-failed]: $plugin_id generate failed, so the manifest and registration were left as they are; the apply fails until it succeeds." >&2
+    return 1
   fi
   if ! manifest_is_current "$checkout"; then
     install_generated_manifest "$checkout"
@@ -269,11 +269,14 @@ install_linked_plugin() {
   report_plugin_line "$plugin_id" "registered $checkout with herdr."
 }
 
+# A plugin whose build or manifest fails is the owner's to fix, so the apply
+# fails once every plugin has had its turn.
 main() {
-  local plugin_index
+  local plugin_index apply_status=0
   for ((plugin_index = 0; plugin_index < ${#linked_plugins[@]}; plugin_index += fields_per_linked_plugin)); do
-    install_linked_plugin "${linked_plugins[plugin_index]}" "${linked_plugins[plugin_index + 1]}"
+    install_linked_plugin "${linked_plugins[plugin_index]}" "${linked_plugins[plugin_index + 1]}" || apply_status=1
   done
+  return "$apply_status"
 }
 
 main "$@"
