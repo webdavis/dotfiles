@@ -7,11 +7,11 @@
 -- module. The plugin carries its own git edge and string helpers;
 -- `custom_api.git` and `custom_api.util` keep theirs for their other consumers.
 --
--- `<leader>Cx` is its only entry point, and this `keys` row IS the mapping: no
--- `map()` call declares it anywhere else. It lives here rather than on
--- `claudecode.lua` because the annotator is not a claudecode.nvim command and
--- needs no WebSocket server; the `<leader>C` prefix stays because the
--- annotation is written FOR an agent to read.
+-- `<leader>Ad` is its only entry point, and this `keys` row IS the mapping: no
+-- `map()` call declares it anywhere else. It sits under herdr-nvim's
+-- `<leader>A` prefix because the annotation lands in herdr-nvim's store, and
+-- it lives here rather than in `herdr-nvim.lua` because it is this plugin's
+-- command, not herdr-nvim's.
 --
 -- The plugin ships `:HerdrAnnotateLine`, which calls `line()` and notifies the
 -- refusal itself. This config binds `line()` directly instead, so the refusal
@@ -24,13 +24,13 @@ return {
   dependencies = { "ChmaraX/herdr-nvim" },
   keys = {
     {
-      "<leader>Cx",
+      "<leader>Ad",
       function()
         require("custom_api.try")(function()
           return require("herdr-nvim-annotate-extension").line()
         end, { label = "herdr-nvim-annotate-extension.line" })
       end,
-      desc = "Claude: annotate line with diagnostic and blame",
+      desc = "herdr-nvim: annotate line with diagnostic and blame",
     },
   },
 }
