@@ -2,10 +2,10 @@
 return {
   "ChmaraX/herdr-nvim",
   lazy = false,
-  opts = { prefix = "<leader>A", keymaps = false },
+  opts = { prefix = "<leader>a", keymaps = false },
   keys = {
     {
-      "<leader>Ac",
+      "<leader>ac",
       function()
         require("herdr-nvim").comment_selection()
       end,
@@ -13,28 +13,28 @@ return {
       desc = "herdr-nvim: comment selection",
     },
     {
-      "<leader>Ac",
+      "<leader>ac",
       function()
         require("herdr-nvim").comment_line()
       end,
       desc = "herdr-nvim: comment line",
     },
     {
-      "<leader>Al",
+      "<leader>al",
       function()
         require("herdr-nvim").list_comments()
       end,
       desc = "herdr-nvim: list comments",
     },
     {
-      "<leader>As",
+      "<leader>as",
       function()
         require("herdr-nvim").send_all({ submit = false })
       end,
       desc = "herdr-nvim: paste comments to agent",
     },
     {
-      "<leader>AS",
+      "<leader>aS",
       function()
         require("herdr-nvim").send_all({ submit = true })
       end,
