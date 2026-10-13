@@ -2724,15 +2724,20 @@ more from the same rewrite, task 173, sits with the `just worktrees-prune` entry
   calls filled in below now carry every field (name, repository, package and revision), so those comment
   lines add nothing. Fix: remove them.
 
-- [ ] 190. A message in `.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` still
+- [x] 190. A message in `.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` still
   names `run_once_before_20` as the script that installs rustup. That script is now
-  `.chezmoiscripts/run_before_20-install-rustup.sh.tmpl`. Fix: name the current script.
+  `.chezmoiscripts/run_before_20-install-rustup.sh.tmpl`. Fix: name the current script. Done 2026-10-12:
+  the builder is now `.chezmoiscripts/run_after_58-build-herdr-linked-plugins.sh.tmpl` and its message
+  names `run_before_20-install-rustup` ([PR #1120](https://github.com/webdavis/dotfiles/pull/1120)).
 
-- [ ] 191. herdr plugin registration has been deferred nine times on this machine. Both retry markers
+- [x] 191. herdr plugin registration has been deferred nine times on this machine. Both retry markers
   that `.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` keeps,
   `~/.cache/herdr-plugin-build/herdr-process.retry` and
   `~/.cache/herdr-plugin-build/herdr-workspace-jump.retry`, read 9. Fix: read the reason the builder
   prints on the next apply, fix that cause, and confirm both markers are gone after a successful build.
+  No longer needed, closed 2026-10-12: the builder runs on every apply and keeps no retry markers;
+  `~/.cache/herdr-plugin-build/` was empty and was trashed
+  ([PR #1120](https://github.com/webdavis/dotfiles/pull/1120)).
 
 - [x] 192. The pns builder's retry marker holds a count that nothing reads.
   `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl` writes an attempt count into
