@@ -19,5 +19,5 @@ bs = "~/workspaces/broccoli/bs"
 netpulse = "~/workspaces/Ivy/webdavis/netpulse"
 plantpulse = { dir = "~/workspaces/Ivy/hobbies/plantpulse", key = "l" }
 
-[pick]
+[picker]
 stripes = true
