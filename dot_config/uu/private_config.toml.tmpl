@@ -289,6 +289,14 @@ scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
+[lane.xcodebuild-nvim]
+after = ["nvim-plugins"]
+command = ["sudo", "-n", "/usr/local/libexec/xcodebuild-nvim/update"]
+env = {}
+scheduled = true
+time_limit = "15 minutes"
+unsuccessful_runs_before_alert = 3
+
 [lane.nvim-plugins.settings]
 config = "{{ .chezmoi.homeDir }}/.config/nvim"
 mode = "restore"
