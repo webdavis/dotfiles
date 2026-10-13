@@ -55,6 +55,8 @@ require("lazy").setup({
     enabled = false, -- check for plugin updates periodically
     notify = false, -- notify on update
   },
+  -- No plugin here needs a Lua package, so lazy's luarocks support is off.
+  rocks = { enabled = false },
   performance = {
     rtp = {
       -- disable some rtp plugins

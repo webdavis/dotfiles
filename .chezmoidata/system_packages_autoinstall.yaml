@@ -79,6 +79,7 @@ packages:
         - fzf
         - gawk
         - gh
+        - ghostscript
         - git
         - git-crypt
         - git-delta
