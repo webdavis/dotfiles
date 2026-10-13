@@ -7,9 +7,9 @@
 -- module. The plugin carries its own git edge and string helpers;
 -- `custom_api.git` and `custom_api.util` keep theirs for their other consumers.
 --
--- `<leader>Ad` is its only entry point, and this `keys` row IS the mapping: no
+-- `<leader>ad` is its only entry point, and this `keys` row IS the mapping: no
 -- `map()` call declares it anywhere else. It sits under herdr-nvim's
--- `<leader>A` prefix because the annotation lands in herdr-nvim's store, and
+-- `<leader>a` prefix because the annotation lands in herdr-nvim's store, and
 -- it lives here rather than in `herdr-nvim.lua` because it is this plugin's
 -- command, not herdr-nvim's.
 --
@@ -24,7 +24,7 @@ return {
   dependencies = { "ChmaraX/herdr-nvim" },
   keys = {
     {
-      "<leader>Ad",
+      "<leader>ad",
       function()
         require("custom_api.try")(function()
           return require("herdr-nvim-annotate-extension").line()
