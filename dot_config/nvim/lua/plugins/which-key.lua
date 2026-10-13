@@ -28,7 +28,7 @@ return {
         { "<leader>/", group = "grep" },
         { "<leader>0", group = "quit" },
         { "<leader>a", group = "herdr" },
-        { "<leader>A", group = "aerial" },
+        { "<leader>i", group = "aerial" },
         { "<leader>c", group = "format" },
         { "<leader>C", group = "claude" },
         { "<leader>d", group = "docker" },

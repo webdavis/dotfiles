@@ -27,20 +27,20 @@ return {
   -- These six carry their own mappings, so each key is declared once rather
   -- than here and again in `config`. lazy.nvim installs the placeholder from
   -- the entry at startup and the real mapping from the same entry on load.
-  -- `<leader>As`, `{` and `}` are not here: `on_attach` owns them, they have
+  -- `<leader>is`, `{` and `}` are not here: `on_attach` owns them, they have
   -- never existed before aerial attached to a buffer, and the event above is
   -- what gets them back.
   -- stylua: ignore start
-  -- `<leader>At` and `<leader>AT` were aliases of `<leader>Aa` and `<leader>AA`
+  -- `<leader>it` and `<leader>iT` were aliases of `<leader>ia` and `<leader>iA`
   -- and were deleted on 2026-09-15. Both letters are free now; what lands on
   -- them, if anything, is the operator's call.
   keys = {
-    { "<leader>Aa", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
-    { "<leader>AA", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
-    { "<leader>Ao", "<cmd>AerialOpen!<cr>",     desc = "Aerial: open sidebar (don't focus)" },
-    { "<leader>AO", "<cmd>AerialOpen<cr>",      desc = "Aerial: open sidebar (and focus)" },
-    { "<leader>Ac", "<cmd>AerialClose<cr>",     desc = "Aerial: close sidebar" },
-    { "<leader>AC", "<cmd>AerialCloseAll<cr>",  desc = "Aerial: close all sidebars" },
+    { "<leader>ia", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
+    { "<leader>iA", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
+    { "<leader>io", "<cmd>AerialOpen!<cr>",     desc = "Aerial: open sidebar (don't focus)" },
+    { "<leader>iO", "<cmd>AerialOpen<cr>",      desc = "Aerial: open sidebar (and focus)" },
+    { "<leader>ic", "<cmd>AerialClose<cr>",     desc = "Aerial: close sidebar" },
+    { "<leader>iC", "<cmd>AerialCloseAll<cr>",  desc = "Aerial: close all sidebars" },
   },
   -- stylua: ignore end
   dependencies = {
@@ -59,7 +59,7 @@ return {
 
         map({
           mode = "n",
-          lhs = "<leader>As",
+          lhs = "<leader>is",
           rhs = function()
             require("aerial").snacks_picker({
               layout = {
