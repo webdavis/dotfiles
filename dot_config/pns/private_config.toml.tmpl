@@ -50,6 +50,7 @@ type = "hue"
 bridge_host = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
 api_key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
 certificate = {{ keepassxcAttribute "OpenHue :: API Key (hue-bridge-pro)" "certificate-pin" | toToml }}
+rooms = ["3F - Studio", "2F - Kitchen"]
 
 [plugins.github]
 enabled = true

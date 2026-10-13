@@ -6,6 +6,5 @@ return {
     producer = "nvim",
     project = nil,
     pane = nil,
-    minimum_version = "0.2.0",
   },
 }
