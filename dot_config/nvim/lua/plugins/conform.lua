@@ -174,7 +174,7 @@ return {
         -- elsewhere; the wrap is passed explicitly rather than left to config
         -- discovery.
         mdformat = {
-          prepend_args = { "--wrap", "105" },
+          prepend_args = { "--wrap", "120" },
         },
         -- conform formats a uniquely named temp copy, so treefmt's evaluation
         -- cache can never hit and would only grow by one entry per save.

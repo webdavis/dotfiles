@@ -1,7 +1,7 @@
 # Dotfiles Improvements Research Report
 
-Date: 2026-04-14 Current setup baseline: macOS, chezmoi 2.70.1, tmux 3.6a, git 2.53.0, bash 5.3.9,
-Ghostty 1.3.1, starship 1.24.2, fzf 0.71.0, atuin 18.13.3, bat 0.26.1
+Date: 2026-04-14 Current setup baseline: macOS, chezmoi 2.70.1, tmux 3.6a, git 2.53.0, bash 5.3.9, Ghostty 1.3.1,
+starship 1.24.2, fzf 0.71.0, atuin 18.13.3, bat 0.26.1
 
 ______________________________________________________________________
 
@@ -11,20 +11,19 @@ ______________________________________________________________________
 
 Your tmux is 3.6a but your config does not use several features introduced in 3.5 and 3.6.
 
-**Extended keys (high value).** Enable this so applications (neovim, fzf) receive modifier key combos
-that tmux previously swallowed:
+**Extended keys (high value).** Enable this so applications (neovim, fzf) receive modifier key combos that tmux
+previously swallowed:
 
 ```tmux
 set-option -g extended-keys on
 set-option -g extended-keys-format csi-u
 ```
 
-If you find some tools misbehave, change `on` to `always` to force-send even when apps do not request
-them.
+If you find some tools misbehave, change `on` to `always` to force-send even when apps do not request them.
 
-**Theme detection (3.6).** Tmux 3.6 added mode 2031 support to automatically report dark/light theme to
-applications. If your Ghostty or neovim supports `COLORFGBG` or OSC 11, tmux will now pass this through
-correctly. No config needed, but be aware it exists if you add light theme support.
+**Theme detection (3.6).** Tmux 3.6 added mode 2031 support to automatically report dark/light theme to applications. If
+your Ghostty or neovim supports `COLORFGBG` or OSC 11, tmux will now pass this through correctly. No config needed, but
+be aware it exists if you add light theme support.
 
 **Terminal overrides cleanup.** Your current config sets:
 
@@ -41,45 +40,43 @@ set-option -g default-terminal "tmux-256color"
 set-option -ga terminal-overrides ",xterm-ghostty:RGB"
 ```
 
-`tmux-256color` is the correct value for tmux 3.x. `RGB` is preferred over `Tc` (same effect, newer
-name). Drop the kitty override since you no longer use Kitty.
+`tmux-256color` is the correct value for tmux 3.x. `RGB` is preferred over `Tc` (same effect, newer name). Drop the
+kitty override since you no longer use Kitty.
 
-**History limit.** You have `history-limit 10000`. Consider raising to `50000` -- with modern memory,
-this is negligible and prevents losing scrollback in long sessions. Ghostty also has its own scrollback,
-but tmux's matters for copy-mode.
+**History limit.** You have `history-limit 10000`. Consider raising to `50000` -- with modern memory, this is negligible
+and prevents losing scrollback in long sessions. Ghostty also has its own scrollback, but tmux's matters for copy-mode.
 
 ### 1.2 Theme: tmux2k vs. Alternatives
 
-tmux2k is still actively maintained and works well. However, the **catppuccin/tmux** plugin (v2.3.0) has
-become the dominant tmux theme in 2025-2026. Since you already use catppuccin palette colors in tmux2k
-(`@tmux2k-theme "catppuccin"`), fzf, and likely neovim, switching to the native catppuccin/tmux plugin
-would give you:
+tmux2k is still actively maintained and works well. However, the **catppuccin/tmux** plugin (v2.3.0) has become the
+dominant tmux theme in 2025-2026. Since you already use catppuccin palette colors in tmux2k
+(`@tmux2k-theme "catppuccin"`), fzf, and likely neovim, switching to the native catppuccin/tmux plugin would give you:
 
 - First-class Mocha/Macchiato/Frappe/Latte support
 - Modular status bar (session, cpu, ram, battery, git, date modules)
 - Active upstream with frequent updates
 - Built-in support for the same monitoring widgets you get from tmux2k
 
-**Verdict:** Not urgent. tmux2k with catppuccin colors works. But if you ever feel like simplifying,
-catppuccin/tmux is the natural successor and has a larger community.
+**Verdict:** Not urgent. tmux2k with catppuccin colors works. But if you ever feel like simplifying, catppuccin/tmux is
+the natural successor and has a larger community.
 
 ### 1.3 New Plugins Worth Adding
 
-**tmux-autoreload** (`b0o/tmux-autoreload`): Watches `.tmux.conf` and auto-reloads on save. Eliminates
-the manual `prefix + R` cycle while iterating on config. Low risk, high convenience.
+**tmux-autoreload** (`b0o/tmux-autoreload`): Watches `.tmux.conf` and auto-reloads on save. Eliminates the manual
+`prefix + R` cycle while iterating on config. Low risk, high convenience.
 
 ```tmux
 set-option -g @plugin 'b0o/tmux-autoreload'
 ```
 
-**tmux-notify** (`ChanderG/tmux-notify`): Sends a macOS notification when a long-running process in a
-background pane finishes. Useful if you run builds or tests in a split pane.
+**tmux-notify** (`ChanderG/tmux-notify`): Sends a macOS notification when a long-running process in a background pane
+finishes. Useful if you run builds or tests in a split pane.
 
 **Plugins to potentially drop:**
 
-- **tmux-copycat**: This plugin is essentially unmaintained and its regex-search features are now partly
-  replicated by tmux's built-in copy-mode search (improved in 3.5+) and by tmux-fuzzback. Consider
-  removing it if you do not actively use its pattern shortcuts.
+- **tmux-copycat**: This plugin is essentially unmaintained and its regex-search features are now partly replicated by
+  tmux's built-in copy-mode search (improved in 3.5+) and by tmux-fuzzback. Consider removing it if you do not actively
+  use its pattern shortcuts.
 
 ### 1.4 Minor Config Fixes
 
@@ -101,8 +98,8 @@ ______________________________________________________________________
 
 You are on Bash 5.3.9, which includes significant new features.
 
-**Forkless command substitution.** The new `${ cmd; }` syntax runs the command in the current shell
-context (no subshell fork). For functions that capture output, this can be measurably faster:
+**Forkless command substitution.** The new `${ cmd; }` syntax runs the command in the current shell context (no subshell
+fork). For functions that capture output, this can be measurably faster:
 
 ```bash
 # Old (forks a subshell):
@@ -112,8 +109,8 @@ result=$(some_function)
 result=${ some_function; }
 ```
 
-This is most useful in heavily-called functions in your prompt or bindings. Not worth refactoring
-everything, but good for new code.
+This is most useful in heavily-called functions in your prompt or bindings. Not worth refactoring everything, but good
+for new code.
 
 **GLOBSORT variable.** Control how pathname expansion results are sorted:
 
@@ -125,19 +122,18 @@ GLOBSORT='-mtime'
 GLOBSORT='size'
 ```
 
-Useful in scripts where you `for f in *.log` and want newest-first ordering without piping through
-`ls -t`.
+Useful in scripts where you `for f in *.log` and want newest-first ordering without piping through `ls -t`.
 
-**`source --path` flag.** The `source` (`.`) builtin now accepts `--path PATH` to specify where to look
-for sourced files, replacing ad-hoc path construction.
+**`source --path` flag.** The `source` (`.`) builtin now accepts `--path PATH` to specify where to look for sourced
+files, replacing ad-hoc path construction.
 
-**`read -E` option.** Allows using Readline for input with tab completion in `read` prompts. Useful for
-interactive scripts.
+**`read -E` option.** Allows using Readline for input with tab completion in `read` prompts. Useful for interactive
+scripts.
 
 ### 2.2 Shell Init Performance
 
-Your `.bashrc` runs many `eval "$(tool init bash)"` calls. Each is a subshell + command execution. On
-Bash 5.3, you could cache the output:
+Your `.bashrc` runs many `eval "$(tool init bash)"` calls. Each is a subshell + command execution. On Bash 5.3, you
+could cache the output:
 
 ```bash
 # Example: cache starship init (regenerate when starship binary changes)
@@ -148,8 +144,8 @@ fi
 source "$_starship_cache"
 ```
 
-This saves ~50-100ms per `eval` call on cold starts. Whether it is worth the complexity depends on
-whether shell startup time bothers you. Your current approach is more maintainable.
+This saves ~50-100ms per `eval` call on cold starts. Whether it is worth the complexity depends on whether shell startup
+time bothers you. Your current approach is more maintainable.
 
 ### 2.3 Readline / inputrc Improvements
 
@@ -160,10 +156,9 @@ Your inputrc is comprehensive. One addition worth considering:
 set enable-bracketed-paste on
 ```
 
-You currently have this set to `off`. Bracketed paste prevents pasted text from being interpreted as
-editing commands, which is a security improvement. Modern terminals (including Ghostty) support it. The
-main reason to keep it off is if you paste into vi-mode and want immediate execution, but the security
-benefit outweighs this.
+You currently have this set to `off`. Bracketed paste prevents pasted text from being interpreted as editing commands,
+which is a security improvement. Modern terminals (including Ghostty) support it. The main reason to keep it off is if
+you paste into vi-mode and want immediate execution, but the security benefit outweighs this.
 
 ______________________________________________________________________
 
@@ -171,8 +166,8 @@ ______________________________________________________________________
 
 ### 3.1 Missing Modules Worth Adding
 
-**Nix shell module.** You use Nix flakes and direnv. Add the `nix_shell` module to see when you are
-inside a `nix develop` environment:
+**Nix shell module.** You use Nix flakes and direnv. Add the `nix_shell` module to see when you are inside a
+`nix develop` environment:
 
 ```toml
 [nix_shell]
@@ -212,13 +207,13 @@ scan_timeout = 30
 command_timeout = 500
 ```
 
-Place rarely-used language modules (Haskell, Scala, PHP) at the bottom of your format string, since
-modules are evaluated in order.
+Place rarely-used language modules (Haskell, Scala, PHP) at the bottom of your format string, since modules are
+evaluated in order.
 
 ### 3.3 Mosh Configuration
 
-You already have `starship-mosh.toml` for Mosh sessions. Make sure it has aggressive timeouts since Mosh
-connections can stall on slow commands:
+You already have `starship-mosh.toml` for Mosh sessions. Make sure it has aggressive timeouts since Mosh connections can
+stall on slow commands:
 
 ```toml
 command_timeout = 200
@@ -231,8 +226,7 @@ ______________________________________________________________________
 
 ### 4.1 Modern Settings from Core Git Developers
 
-These are settings that Git core developers use themselves but are not yet defaults. Add to your
-`dot_gitconfig.tmpl`:
+These are settings that Git core developers use themselves but are not yet defaults. Add to your `dot_gitconfig.tmpl`:
 
 ```gitconfig
 [column]
@@ -279,17 +273,14 @@ Key explanations:
 - **branch.sort = -committerdate**: Most recently active branches first.
 - **fetch.prune = true**: Automatically removes stale remote-tracking branches.
 - **fetch.writeCommitGraph = true**: Writes commit-graph after fetch for faster log traversal.
-- **diff.algorithm = histogram**: Better diffs than the default myers algorithm. Recommended by Git core
-  developers.
-- **diff.mnemonicPrefix = true**: Shows `i/` (index), `w/` (working tree), `c/` (commit) instead of `a/`
-  and `b/` prefixes.
-- **commit.verbose = true**: Shows the diff in your commit message editor. Helps write better commit
-  messages.
-- **rebase.updateRefs = true**: When rebasing stacked branches, automatically updates all intermediate
-  branch pointers. Huge quality-of-life for stacked PRs.
-- **merge.conflictstyle = zdiff3**: You have `diff3`; upgrade to `zdiff3` (available since Git 2.35). It
-  is diff3 but with common unchanged lines in the conflict region removed, making conflict markers much
-  cleaner.
+- **diff.algorithm = histogram**: Better diffs than the default myers algorithm. Recommended by Git core developers.
+- **diff.mnemonicPrefix = true**: Shows `i/` (index), `w/` (working tree), `c/` (commit) instead of `a/` and `b/`
+  prefixes.
+- **commit.verbose = true**: Shows the diff in your commit message editor. Helps write better commit messages.
+- **rebase.updateRefs = true**: When rebasing stacked branches, automatically updates all intermediate branch pointers.
+  Huge quality-of-life for stacked PRs.
+- **merge.conflictstyle = zdiff3**: You have `diff3`; upgrade to `zdiff3` (available since Git 2.35). It is diff3 but
+  with common unchanged lines in the conflict region removed, making conflict markers much cleaner.
 - **transfer.fsckObjects = true**: Validates objects on push/fetch. Catches corruption early.
 
 ### 4.2 Diff Pager: Consolidate on Delta
@@ -307,8 +298,8 @@ You currently have both `diff-so-fancy` and `delta` configured:
   features = custom
 ```
 
-This is contradictory: `core.pager` uses diff-so-fancy but `interactive.diffFilter` uses delta. Delta is
-superior in 2026:
+This is contradictory: `core.pager` uses diff-so-fancy but `interactive.diffFilter` uses delta. Delta is superior in
+2026:
 
 - Levenshtein-based word-level diff highlighting (more accurate than diff-so-fancy)
 - Side-by-side view
@@ -337,8 +328,8 @@ You can then remove `diff-so-fancy` from your Brewfile if nothing else uses it.
 
 ### 4.3 Background Maintenance
 
-Enable `git maintenance` for your frequently-used repositories. This runs gc, commit-graph writes, and
-prefetches in the background via launchd:
+Enable `git maintenance` for your frequently-used repositories. This runs gc, commit-graph writes, and prefetches in the
+background via launchd:
 
 ```bash
 # Run this in each large repo:
@@ -346,8 +337,8 @@ cd ~/Projects/uriel && git maintenance start
 cd ~/Projects/openclaw && git maintenance start
 ```
 
-This registers the repo with macOS launchd to run hourly background maintenance. It replaces the
-disruptive `gc --auto` that sometimes freezes your terminal.
+This registers the repo with macOS launchd to run hourly background maintenance. It replaces the disruptive `gc --auto`
+that sometimes freezes your terminal.
 
 ### 4.4 Aliases Cleanup
 
@@ -363,8 +354,8 @@ Consider adding `--force-with-lease` instead:
 acp = "!acp() { git add ${@} && git commit --amend --no-edit && git push --force-with-lease; }; acp"
 ```
 
-`--force-with-lease` refuses to push if the remote has commits you have not fetched, preventing you from
-accidentally overwriting a collaborator's work.
+`--force-with-lease` refuses to push if the remote has commits you have not fetched, preventing you from accidentally
+overwriting a collaborator's work.
 
 ______________________________________________________________________
 
@@ -374,23 +365,21 @@ ______________________________________________________________________
 
 **Scrollback search** (1.3): Already available via `Cmd+F`. No config needed.
 
-**Quick terminal sizing** (1.2): Configure the size of the quick terminal (toggled via
-`ctrl+grave_accent`):
+**Quick terminal sizing** (1.2): Configure the size of the quick terminal (toggled via `ctrl+grave_accent`):
 
 ```
 quick-terminal-size = 80%,50%
 ```
 
-**Shell integration features.** Ghostty auto-injects shell integration for bash. Verify you have these
-features active:
+**Shell integration features.** Ghostty auto-injects shell integration for bash. Verify you have these features active:
 
 ```
 shell-integration = detect
 shell-integration-features = cursor,sudo,title
 ```
 
-The `sudo` feature preserves Ghostty integration inside sudo sessions. The `title` feature sets the
-terminal title based on the running command.
+The `sudo` feature preserves Ghostty integration inside sudo sessions. The `title` feature sets the terminal title based
+on the running command.
 
 **Background blur** (macOS 26+): If you want a modern translucent look:
 
@@ -401,8 +390,8 @@ background-blur = 20
 
 ### 5.2 Font Configuration
 
-You use Menlo at size 13. You have Fira Code Nerd Font installed (in your Brewfile). If you want
-ligatures and nerd font icons natively:
+You use Menlo at size 13. You have Fira Code Nerd Font installed (in your Brewfile). If you want ligatures and nerd font
+icons natively:
 
 ```
 font-family = "FiraCode Nerd Font"
@@ -421,9 +410,9 @@ clipboard-write = allow
 clipboard-paste-protection = true
 ```
 
-`clipboard-read = ask` prompts you before any program reads your clipboard (prevents clipboard-sniffing
-attacks). `clipboard-paste-protection` warns before pasting text that contains potentially dangerous
-characters (newlines that could execute commands).
+`clipboard-read = ask` prompts you before any program reads your clipboard (prevents clipboard-sniffing attacks).
+`clipboard-paste-protection` warns before pasting text that contains potentially dangerous characters (newlines that
+could execute commands).
 
 ### 5.4 Window Padding
 
@@ -489,8 +478,8 @@ run = ['move-node-to-workspace "2:Work"']
 
 ### 6.4 Sticky Windows
 
-Sticky windows (windows visible on all workspaces) are still not implemented as of April 2026. This is
-tracked as [issue #2](https://github.com/nikitabobko/AeroSpace/issues/2). No workaround available.
+Sticky windows (windows visible on all workspaces) are still not implemented as of April 2026. This is tracked as
+[issue #2](https://github.com/nikitabobko/AeroSpace/issues/2). No workaround available.
 
 ______________________________________________________________________
 
@@ -515,8 +504,8 @@ Key additions:
 
 - **Catppuccin Mocha theme**: Matches your overall color scheme. Install from
   [catppuccin/bat](https://github.com/catppuccin/bat).
-- **--style=numbers,changes,header,grid**: Shows line numbers, git change markers, filename headers, and
-  grid lines. More informative than the default.
+- **--style=numbers,changes,header,grid**: Shows line numbers, git change markers, filename headers, and grid lines.
+  More informative than the default.
 - **--map-syntax for tmpl files**: Your `.tmpl` files will get bash highlighting instead of plain text.
 - **--pager with mouse support**: Enables mouse scrolling in bat output within tmux.
 
@@ -542,8 +531,8 @@ ______________________________________________________________________
 
 ### 8.1 Pre-commit Secret Scanning
 
-Add Gitleaks as a pre-commit hook. It scans staged changes in milliseconds and blocks commits containing
-secrets (API keys, tokens, passwords):
+Add Gitleaks as a pre-commit hook. It scans staged changes in milliseconds and blocks commits containing secrets (API
+keys, tokens, passwords):
 
 ```bash
 brew install gitleaks
@@ -556,8 +545,8 @@ Add to your existing pre-commit hook (or create a new one):
 gitleaks git --staged --no-banner
 ```
 
-For your chezmoi repo specifically, create a `.gitleaks.toml` to allowlist your `.tmpl` files that
-contain `keepassxc` template calls (which look like secrets but are not):
+For your chezmoi repo specifically, create a `.gitleaks.toml` to allowlist your `.tmpl` files that contain `keepassxc`
+template calls (which look like secrets but are not):
 
 ```toml
 [allowlist]
@@ -568,8 +557,8 @@ paths = [
 
 ### 8.2 Bracketed Paste (inputrc)
 
-As noted in Section 2.3, enable `enable-bracketed-paste on` in your inputrc. This prevents pasted text
-from being interpreted as commands, which is a common attack vector.
+As noted in Section 2.3, enable `enable-bracketed-paste on` in your inputrc. This prevents pasted text from being
+interpreted as commands, which is a common attack vector.
 
 ### 8.3 SSH Key Rotation
 
@@ -581,8 +570,8 @@ ssh-keygen -t ed25519 -C "your-email@example.com"
 
 ### 8.4 GPG Subkey Expiration
 
-Your git config references a GPG signing subkey. Ensure your subkeys have expiration dates set (1-2
-years). Unexpiring keys are a risk if compromised. Check with:
+Your git config references a GPG signing subkey. Ensure your subkeys have expiration dates set (1-2 years). Unexpiring
+keys are a risk if compromised. Check with:
 
 ```bash
 gpg --list-keys --keyid-format long
@@ -590,9 +579,8 @@ gpg --list-keys --keyid-format long
 
 ### 8.5 Chezmoi Encryption
 
-Consider using `age` encryption (built into chezmoi 2.70+) for files that currently rely solely on
-`.gitignore` for protection. Age encryption means even if someone gains access to your source state,
-encrypted files remain protected:
+Consider using `age` encryption (built into chezmoi 2.70+) for files that currently rely solely on `.gitignore` for
+protection. Age encryption means even if someone gains access to your source state, encrypted files remain protected:
 
 ```toml
 # In .chezmoi.toml.tmpl:
@@ -601,9 +589,9 @@ identity = "~/.config/chezmoi/key.txt"
 recipient = "age1..."
 ```
 
-Files prefixed with `encrypted_` in the source state will be decrypted on apply. This is complementary to
-your KeePassXC integration -- use KeePassXC for secrets injected into templates, and age for entire files
-that should be encrypted at rest.
+Files prefixed with `encrypted_` in the source state will be decrypted on apply. This is complementary to your KeePassXC
+integration -- use KeePassXC for secrets injected into templates, and age for entire files that should be encrypted at
+rest.
 
 ______________________________________________________________________
 
@@ -626,8 +614,8 @@ args = ["-title", "Chezmoi", "-message", "Apply complete"]
 
 ### 9.2 External Resources via .chezmoiexternal
 
-If you are not already using `.chezmoiexternal.toml`, it can replace manual plugin management. For
-example, managing TPM and tmux plugins:
+If you are not already using `.chezmoiexternal.toml`, it can replace manual plugin management. For example, managing TPM
+and tmux plugins:
 
 ```toml
 [".tmux/plugins/tpm"]
@@ -636,24 +624,22 @@ url = "https://github.com/tmux-plugins/tpm.git"
 refreshPeriod = "168h"
 ```
 
-This is cleaner than the `if-shell` auto-install block in your tmux.conf. Chezmoi handles cloning and
-updating.
+This is cleaner than the `if-shell` auto-install block in your tmux.conf. Chezmoi handles cloning and updating.
 
 ### 9.3 Multiple Externals to Same Target
 
-Chezmoi 2.70 added support for multiple externals to the same target in one `.chezmoiexternal` file. This
-simplifies managing plugin directories.
+Chezmoi 2.70 added support for multiple externals to the same target in one `.chezmoiexternal` file. This simplifies
+managing plugin directories.
 
 ### 9.4 Re-add --recursive
 
-Chezmoi 2.46+ added `chezmoi re-add --recursive`, which re-adds all managed files in a directory. Useful
-after bulk-editing target files.
+Chezmoi 2.46+ added `chezmoi re-add --recursive`, which re-adds all managed files in a directory. Useful after
+bulk-editing target files.
 
 ### 9.5 Template Optimization
 
-Cache expensive template function calls. In your `dot_bashrc.tmpl`, the `keepassxc` call happens at apply
-time, but if you have multiple templates calling the same entry, consider using `$variables` to avoid
-repeated calls:
+Cache expensive template function calls. In your `dot_bashrc.tmpl`, the `keepassxc` call happens at apply time, but if
+you have multiple templates calling the same entry, consider using `$variables` to avoid repeated calls:
 
 ```
 {{ $histignore := (keepassxc "Dotfiles (bashrc) :: HISTIGNORE Regex").Password -}}
@@ -666,12 +652,12 @@ ______________________________________________________________________
 
 ### 10.1 High-Value Additions
 
-**bat-extras** (formula: `bat-extras`): Provides `batgrep`, `batdiff`, `batman`, `batpipe`. `batman`
-replaces your `MANPAGER="nvim +Man!"` with a faster, syntax-highlighted pager that does not require
-loading neovim. `batgrep` combines ripgrep + bat for highlighted search results.
+**bat-extras** (formula: `bat-extras`): Provides `batgrep`, `batdiff`, `batman`, `batpipe`. `batman` replaces your
+`MANPAGER="nvim +Man!"` with a faster, syntax-highlighted pager that does not require loading neovim. `batgrep` combines
+ripgrep + bat for highlighted search results.
 
-**hyperfine** (formula: `hyperfine`): Benchmarking tool. Useful for comparing shell init times, script
-performance, etc. Made by the same author as `bat` and `fd`.
+**hyperfine** (formula: `hyperfine`): Benchmarking tool. Useful for comparing shell init times, script performance, etc.
+Made by the same author as `bat` and `fd`.
 
 ```bash
 # Example: benchmark shell startup
@@ -680,26 +666,24 @@ hyperfine --warmup 3 'bash -i -c exit'
 
 **gitleaks** (formula: `gitleaks`): Secret scanner for git repos. See Section 8.1.
 
-**doggo** or **dog** (formula: `doggo`): Modern DNS lookup tool. Replaces `dig` with colored,
-human-readable output.
+**doggo** or **dog** (formula: `doggo`): Modern DNS lookup tool. Replaces `dig` with colored, human-readable output.
 
-**bandwhich** (formula: `bandwhich`): Real-time network bandwidth monitoring by process. Shows which
-processes are using network and how much, unlike `iftop` which only shows connections.
+**bandwhich** (formula: `bandwhich`): Real-time network bandwidth monitoring by process. Shows which processes are using
+network and how much, unlike `iftop` which only shows connections.
 
-**ouch** (formula: `ouch`): Universal archive decompressor. Handles tar, zip, 7z, gz, bz2, xz, zstd, etc.
-with a single command: `ouch decompress file.tar.gz`.
+**ouch** (formula: `ouch`): Universal archive decompressor. Handles tar, zip, 7z, gz, bz2, xz, zstd, etc. with a single
+command: `ouch decompress file.tar.gz`.
 
 ### 10.2 Tools You Already Have but May Be Underusing
 
-**eza**: You have it installed and use it in bash bindings. Consider adding `--git` flag to your eza
-aliases to show git status per file:
+**eza**: You have it installed and use it in bash bindings. Consider adding `--git` flag to your eza aliases to show git
+status per file:
 
 ```bash
 alias ll='eza -ahlrs date --git --icons'
 ```
 
-**fd**: You have it installed. Make sure fzf uses it as its default command (faster than rg for file
-listing):
+**fd**: You have it installed. Make sure fzf uses it as its default command (faster than rg for file listing):
 
 ```bash
 export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
@@ -724,8 +708,7 @@ ______________________________________________________________________
 
 ### 11.1 Enable Daemon Mode
 
-Your current config has `daemon.enabled = false`. The daemon has stabilized significantly in 18.13.
-Benefits:
+Your current config has `daemon.enabled = false`. The daemon has stabilized significantly in 18.13. Benefits:
 
 - Hot in-memory search index (faster than SQLite queries)
 - Uses nucleo (same algorithm as fzf) for search
@@ -749,8 +732,8 @@ With the daemon enabled, fuzzy search uses the in-memory index automatically.
 
 ### 11.3 AI Suggestions
 
-You have `ai.enabled = true`. To use it, press `?` on an empty prompt, type a natural language
-description, and press Enter to execute or Tab to edit. This is functional as of 18.13.
+You have `ai.enabled = true`. To use it, press `?` on an empty prompt, type a natural language description, and press
+Enter to execute or Tab to edit. This is functional as of 18.13.
 
 ______________________________________________________________________
 
@@ -758,9 +741,8 @@ ______________________________________________________________________
 
 ### High Priority (immediate improvements, low effort)
 
-1. **Git config modernization**: Add `column.ui`, `branch.sort`, `fetch.prune`,
-   `diff.algorithm = histogram`, `merge.conflictstyle = zdiff3`, `rebase.updateRefs`, `commit.verbose`
-   (Section 4.1)
+1. **Git config modernization**: Add `column.ui`, `branch.sort`, `fetch.prune`, `diff.algorithm = histogram`,
+   `merge.conflictstyle = zdiff3`, `rebase.updateRefs`, `commit.verbose` (Section 4.1)
 1. **Consolidate on delta** over diff-so-fancy (Section 4.2)
 1. **Tmux terminal overrides**: Switch to `tmux-256color` and `xterm-ghostty:RGB` (Section 1.1)
 1. **Enable tmux extended-keys** (Section 1.1)
@@ -772,8 +754,7 @@ ______________________________________________________________________
 ### Medium Priority (meaningful improvements, moderate effort)
 
 9. **Add starship nix_shell and direnv modules** (Section 3.1)
-1. **Bat config overhaul**: Catppuccin theme, syntax mappings for .tmpl files, style options (Section
-   7.1)
+1. **Bat config overhaul**: Catppuccin theme, syntax mappings for .tmpl files, style options (Section 7.1)
 1. **Enable Atuin daemon mode** (Section 11.1)
 1. **Install gitleaks** for pre-commit secret scanning (Section 8.1)
 1. **Install bat-extras** for batman, batgrep (Section 10.1)

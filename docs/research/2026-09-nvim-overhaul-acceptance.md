@@ -1,8 +1,8 @@
 # Neovim overhaul acceptance
 
-Audit date: 2026-09-13. Source: `adf14ff2`, the installed Neovim configuration, the September 1 overhaul
-plan's task 63 and design sections 9.1 and 10. This records task 65 in
-[`remaining-work.md`](../remaining-work.md). Acceptance remains incomplete.
+Audit date: 2026-09-13. Source: `adf14ff2`, the installed Neovim configuration, the September 1 overhaul plan's task 63
+and design sections 9.1 and 10. This records task 65 in [`remaining-work.md`](../remaining-work.md). Acceptance remains
+incomplete.
 
 ## Verified checks
 
@@ -21,24 +21,24 @@ plan's task 63 and design sections 9.1 and 10. This records task 65 in
 | Rendered loading | `Lazy! load all` in each rendered start reported 99 declared and 99 loaded, so every plugin loaded with a UI present rather than only the VeryLazy set.                                                  |
 | Rendered snacks  | With a UI attached, `Snacks.input`, `Snacks.picker` and `Snacks.notifier` are all present. `Snacks.select` is absent because snacks ships no such module; select comes from the picker.                  |
 
-Checks used private copies of configuration and installed plugin, Mason and parser data. Home, cache,
-state, data and temporary paths were private, and agent/Herdr connection context was removed. Long socket
-paths and sandbox bind refusals were corrected in the test environment before the unchanged suite passed.
-No source defect was reproduced, and no package or live configuration was changed.
+Checks used private copies of configuration and installed plugin, Mason and parser data. Home, cache, state, data and
+temporary paths were private, and agent/Herdr connection context was removed. Long socket paths and sandbox bind
+refusals were corrected in the test environment before the unchanged suite passed. No source defect was reproduced, and
+no package or live configuration was changed.
 
-Python also attached pyright and ruff as currently configured. Sourcekit used a private Swift package;
-attachment alone does not establish UIKit/Vapor semantic behavior, builds or formatting. The current
-`vim.lsp.config()` and `vim.lsp.enable()` configuration agrees with installed help and the maintained
-[Neovim language server documentation](https://neovim.io/doc/user/lsp.html#lsp-config). A framework
-migration is unnecessary for this acceptance task.
+Python also attached pyright and ruff as currently configured. Sourcekit used a private Swift package; attachment alone
+does not establish UIKit/Vapor semantic behavior, builds or formatting. The current `vim.lsp.config()` and
+`vim.lsp.enable()` configuration agrees with installed help and the maintained
+[Neovim language server documentation](https://neovim.io/doc/user/lsp.html#lsp-config). A framework migration is
+unnecessary for this acceptance task.
 
 ## Performance
 
-Five synthetic warm starts measured 94.373 ms for source and 95.845 ms for the installed copy. The
-retained import-day baseline was 164.178 ms. Although the arithmetic meets `after < baseline - 10`, the
-performance gate remains open: agents were active, paths differed from the fixed benchmark environment,
-and no cold measurement ran. These timings are advisory. Record a quiescent comparison, cold timing and a
-rendered Herdr start with every VeryLazy plugin loaded separately.
+Five synthetic warm starts measured 94.373 ms for source and 95.845 ms for the installed copy. The retained import-day
+baseline was 164.178 ms. Although the arithmetic meets `after < baseline - 10`, the performance gate remains open:
+agents were active, paths differed from the fixed benchmark environment, and no cold measurement ran. These timings are
+advisory. Record a quiescent comparison, cold timing and a rendered Herdr start with every VeryLazy plugin loaded
+separately.
 
 ## Health and deployment differences
 
@@ -56,42 +56,39 @@ rendered Herdr start with every VeryLazy plugin loaded separately.
 | Neovim instructions and task notes were stale                        | Source notes now describe lazy defaults, configured adapters and autosave/format behavior. The inventory mapping below records the annotation plugin extraction.                                                                                                                          |
 | nvim-mcp reports a dirty build                                       | Installed 0.7.2 reports revision `0b5ace3b0369801c9bcb8eec68864427e6b1599c`; clean build provenance was not re-established.                                                                                                                                                               |
 
-Current which-key declarations are `x = xcode`, `X = diagnostics/quickfix`, `d = docker`, `A = herdr`,
-`C = claude`, `t = test` and `L = lazy`. This corrects the stale expected groups for the rendered check.
+Current which-key declarations are `x = xcode`, `X = diagnostics/quickfix`, `d = docker`, `A = herdr`, `C = claude`,
+`t = test` and `L = lazy`. This corrects the stale expected groups for the rendered check.
 
 ## Remaining acceptance
 
-- Rendered STARTUP is done (see the rendered rows above). What remains of this bullet is which-key
-  NAVIGATION and buffer-local key interactions, both of which need a person pressing keys and reading the
-  popup. The group names themselves are reconciled: `lua/plugins/which-key.lua` declares `<leader>x` as
-  `xcode` and `<leader>d` as `docker`, so the record's former `X = xcode` and `d = do` expectations were
-  stale and are corrected here.
-- Run both real agent loops with unsaved Neovim buffers, including ClaudeCodeSend, annotations/paste and
-  blocked-agent refusal.
+- Rendered STARTUP is done (see the rendered rows above). What remains of this bullet is which-key NAVIGATION and
+  buffer-local key interactions, both of which need a person pressing keys and reading the popup. The group names
+  themselves are reconciled: `lua/plugins/which-key.lua` declares `<leader>x` as `xcode` and `<leader>d` as `docker`, so
+  the record's former `X = xcode` and `d = do` expectations were stale and are corrected here.
+- Run both real agent loops with unsaved Neovim buffers, including ClaudeCodeSend, annotations/paste and blocked-agent
+  refusal.
 - Verify UIKit/Xcode and Vapor semantic, build/test and on-save formatting behavior.
 - Verify custom-plugin notification delivery and rendered ledger/annotation interactions.
-- Complete fresh-user bootstrap/full apply and a quiet repeat apply. Cloned installed data is not a fresh
-  installation.
-- Complete the quiescent performance check. Inventory accounting is complete below; its open acceptance
-  and language-coverage items remain open.
+- Complete fresh-user bootstrap/full apply and a quiet repeat apply. Cloned installed data is not a fresh installation.
+- Complete the quiescent performance check. Inventory accounting is complete below; its open acceptance and
+  language-coverage items remain open.
 
 The private audit receipt, complete pin inventory, health capture and exact probes are retained at
-`/private/tmp/dotfiles-modernization/nvim-task65-1789297470562862000/`. The operator runs applies and
-session/device checks. Headless checks do not close those items.
+`/private/tmp/dotfiles-modernization/nvim-task65-1789297470562862000/`. The operator runs applies and session/device
+checks. Headless checks do not close those items.
 
 ## Inventory and merge receipts
 
-Documentation reconciliation date: 2026-09-13, against source `b078de0f` and documentation base
-`706a3143`. The September 1 inventory has 78 numbered entries, decisions A through H and four custom
-items. All 90 are accounted for below. The
+Documentation reconciliation date: 2026-09-13, against source `b078de0f` and documentation base `706a3143`. The
+September 1 inventory has 78 numbered entries, decisions A through H and four custom items. All 90 are accounted for
+below. The
 [canonical design appendix](../superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md#13-appendix-a-inventory-item-to-section-and-pull-request)
 uses planned PR (pull request) labels such as `PR 7a`; the links below name actual GitHub pull requests.
 
-GitHub merge state, commit and body were read through gh-axi. Every linked merge commit is an ancestor of
-this documentation base. These are implementation receipts, with historical verification attributed to
-their pull-request bodies. This pass did not rerun their probes. The private audit above remains the
-source for the 93-pin, 380-check and seven-language-server results; neither the merges nor this mapping
-close the operator checks.
+GitHub merge state, commit and body were read through gh-axi. Every linked merge commit is an ancestor of this
+documentation base. These are implementation receipts, with historical verification attributed to their pull-request
+bodies. This pass did not rerun their probes. The private audit above remains the source for the 93-pin, 380-check and
+seven-language-server results; neither the merges nor this mapping close the operator checks.
 
 The old task list now describes configured behavior in
 [`dot_config/nvim/docs/todo.md`](../../dot_config/nvim/docs/todo.md), and the local instructions describe
@@ -191,9 +188,9 @@ The old task list now describes configured behavior in
 | custom #3 | Annotation composition [#350][pr350] and key [#369][pr369]; extracted published plugin [#391][pr391] owns current implementation. Rendered annotation/paste acceptance remains open.                                                      |
 | custom #4 | Resolver row chosen in [#336][pr336] and shipped in [#339][pr339]. Planned PR 10b is skipped because the maintained server plus owned resolver was selected.                                                                              |
 
-The struck premises remain struck: 8, 14, 36 as originally worded, 45's chezmoi.nvim rationale, 48's
-eager-spec count and 53. Items 22, 38 and 64 retain their informational or deferred dispositions. No
-missing merge is invented for those entries.
+The struck premises remain struck: 8, 14, 36 as originally worded, 45's chezmoi.nvim rationale, 48's eager-spec count
+and 53. Items 22, 38 and 64 retain their informational or deferred dispositions. No missing merge is invented for those
+entries.
 
 [pr283]: https://github.com/webdavis/dotfiles/pull/283
 [pr288]: https://github.com/webdavis/dotfiles/pull/288
