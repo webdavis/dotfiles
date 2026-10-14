@@ -50,10 +50,10 @@ mechanisms above and below, and the third was deliberately skipped.
 **Step: the skill, for Claude Code and Codex.** Generated into the store by the apply, not the wizard. See above.
 
 **Step: global workflow instructions.** The wizard writes its steering block into `~/.claude/CLAUDE.md` and
-`~/.codex/AGENTS.md`. Neither is tracked as written: there is no `~/.claude/CLAUDE.md`, and the Codex file is a chezmoi
-target rendered from `private_dot_codex/AGENTS.md.tmpl`, so a write there survives until the next apply and no longer.
-The steering block was dropped on 2026-10-14 along with the rest of the shared agent rules; the on-demand `gitbutler`
-skill carries the command recipes, and no repository on this machine is a GitButler project yet.
+`~/.codex/AGENTS.md`. Both are chezmoi targets (`private_dot_claude/CLAUDE.md`, `private_dot_codex/AGENTS.md`), so a
+write there survives until the next apply and no longer. The steering block was dropped on 2026-10-14 along with the
+rest of the shared agent rules; the on-demand `gitbutler` skill carries the command recipes, and no repository on this
+machine is a GitButler project yet.
 
 The policy knobs from [tuning agent behavior](https://docs.gitbutler.com/ai-agents/tuning-agent-behavior) that the
 section keeps are the wizard's own defaults: amend local fixes into the commit they belong to, and split unrelated
