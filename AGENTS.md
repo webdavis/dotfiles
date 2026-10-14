@@ -16,9 +16,4 @@
 
 ## Rules
 
-- Delete with `trash`, never `rm`.
 - After the owner runs `just apply`, read `~/.local/state/chezmoi-apply/latest.apply.log`.
-
-## Subagent Delegation
-
-- Delegate all ElevenLabs, video, animation and motion-graphics work to the lara subagent.
