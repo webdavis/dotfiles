@@ -30,9 +30,6 @@ plugins:
       - marketplace: "max-sixty/worktrunk"
         plugins:
           - "worktrunk@worktrunk"
-      - marketplace: "backnotprop/plannotator"
-        plugins:
-          - "plannotator@plannotator"
       - marketplace: "a5c-ai/babysitter-claude"
         plugins:
           - "babysitter@a5c.ai"
