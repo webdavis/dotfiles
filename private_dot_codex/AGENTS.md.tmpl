@@ -1,19 +1,16 @@
-<!-- Evergreen file. General principles, not transient state. Everything between the shared-rules
-     markers comes from .chezmoitemplates/global-agent-rules.md and is byte-identical to the same
-     block in ~/.claude/CLAUDE.md. Edit the partial, not this file. -->
+<!-- Codex reads ~/.codex/AGENTS.md and a project's own AGENTS.md files, never ~/AGENTS.md, so the
+     shared rules in the repo's AGENTS.md (deployed as ~/AGENTS.md for Claude Code) are included here
+     verbatim. Edit that file, not this block. -->
 
 # Global Rules
 
-<!-- shared-rules:begin -->
-{{ includeTemplate "global-agent-rules.md" . }}
-<!-- shared-rules:end -->
+{{ include "AGENTS.md" | trim }}
 
 ## Codex
 
 - Skills come from plugins (`$<plugin>:<skill>`) and from the shared store at `~/.agents/skills/`, which
   Codex scans natively. A store skill carrying `policy: allow_implicit_invocation: false` in its
   `agents/openai.yaml` is on-demand: it loads only when invoked as `$name`.
-- For any ElevenLabs, video, animation or motion-graphics task, spawn the `lara` agent.
 
 <!-- The codegraph CLI owns the marked block below and rewrites it in place. This copy is reflowed to
      the repo's 120-column markdown convention with the em-dashes removed, so a codegraph rewrite shows
