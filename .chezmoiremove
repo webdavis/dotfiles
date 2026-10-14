@@ -1,0 +1,9 @@
+# The git slash commands moved to the git@webdavis plugin (webdavis/skills), so the deployed copies go.
+.claude/commands/amend.md
+.claude/commands/clean-gone.md
+.claude/commands/commit-push-pr.md
+.claude/commands/commit.md
+.claude/commands/pr-merge.md
+.claude/commands/pr.md
+.claude/commands/sync-worktrees.md
+.claude/commands/uncommit.md

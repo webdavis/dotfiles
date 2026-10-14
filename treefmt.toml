@@ -51,7 +51,6 @@ includes = ["*.md"]
 excludes = [
   "private_dot_claude/skills/**",
   "private_dot_claude/agents/**",
-  "private_dot_claude/commands/**",
   "private_dot_claude/output-styles/**",
   # Same rule one directory over: a vendored skill with YAML frontmatter, kept
   # byte-identical to its upstream so a comparison against it stays meaningful.

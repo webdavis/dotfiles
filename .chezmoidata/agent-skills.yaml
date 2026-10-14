@@ -3,7 +3,7 @@
 # on_demand: loads only when asked. agent: the subagent that gets it. hermes: profiles that link it from the store.
 # claude_desktop: zipped by `just claude-desktop-skills`. hermes: `hermes -p <profile> skills install <identifier>`.
 # A skill the hub refuses (its security scan: five of addyosmani's, herdr, moshi, home-assistant, kubernetes) or lists
-# stale (summarize-pro, last30days, conventional-commits, 2026-10-11) reaches a profile through its npx or clawhub
+# stale (summarize-pro, last30days, 2026-10-11) reaches a profile through its npx or clawhub
 # entry's hermes: list instead.
 skills:
   harnesses:
@@ -20,9 +20,6 @@ skills:
         - repo: "agavra/tuicr"
         - repo: "backnotprop/plannotator/apps/skills/core"
           on_demand: true
-        - repo: "bastos/skills/conventional-commits"
-          hermes:
-            - "nicodemus"
         - repo: "blader/humanizer"
         - repo: "Doist/todoist-cli"
         - repo: "heygen-com/hyperframes"
@@ -151,6 +148,7 @@ skills:
         - "skills-sh/mattpocock/skills/wayfinder"
         - "skills-sh/mattpocock/skills/wizard"
         - "skills-sh/mattpocock/skills/writing-for-agents"
+        - "webdavis/skills/plugins/git/skills/conventional-commits"
         - "skills-sh/agavra/tuicr/tuicr"
         - "skills-sh/kunchenguid/gh-axi/gh-axi"
         - "tt-a1i/archify/archify"
