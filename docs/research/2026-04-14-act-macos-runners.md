@@ -19,17 +19,15 @@ ______________________________________________________________________
 
 ## 1. Can `act` Run macOS Workflows?
 
-**Yes, with caveats.** `act` (nektos/act, currently at v0.2.86 as of March 2026) does not natively
-emulate macOS runners in containers the way it emulates Ubuntu runners. macOS cannot run in Docker
-containers. However, `act` supports a **host execution mode** that bypasses Docker entirely and runs
-workflow steps directly on your local machine.
+**Yes, with caveats.** `act` (nektos/act, currently at v0.2.86 as of March 2026) does not natively emulate macOS runners
+in containers the way it emulates Ubuntu runners. macOS cannot run in Docker containers. However, `act` supports a
+**host execution mode** that bypasses Docker entirely and runs workflow steps directly on your local machine.
 
 ### How It Works
 
-The `--no-container` feature (implemented via [PR #1293](https://github.com/nektos/act/pull/1293),
-closing [Issue #97](https://github.com/nektos/act/issues/97)) allows `act` to execute workflow steps
-directly on your host OS rather than inside Docker. This is exposed through the `-self-hosted` platform
-designation.
+The `--no-container` feature (implemented via [PR #1293](https://github.com/nektos/act/pull/1293), closing
+[Issue #97](https://github.com/nektos/act/issues/97)) allows `act` to execute workflow steps directly on your host OS
+rather than inside Docker. This is exposed through the `-self-hosted` platform designation.
 
 ### The Command
 
@@ -37,8 +35,8 @@ designation.
 act -P macos-latest=-self-hosted
 ```
 
-This tells `act`: "When you see `runs-on: macos-latest`, don't look for a Docker image -- run steps
-directly on the host machine."
+This tells `act`: "When you see `runs-on: macos-latest`, don't look for a Docker image -- run steps directly on the host
+machine."
 
 ### What Works
 
@@ -51,12 +49,10 @@ directly on the host machine."
 
 - **Service containers**: These require Docker; they do not function in `-self-hosted` mode
 - **`actions/cache`**: Requires additional setup (a local cache server); does not work out of the box
-- **`RUNNER_TOOL_CACHE` / `AGENT_TOOLSDIRECTORY`**: Known issues where setup actions (e.g.,
-  `setup-python`) try to write to `/Users/runner` and fail with permission errors
-  ([Issue #5974](https://github.com/nektos/act/issues/5974))
+- **`RUNNER_TOOL_CACHE` / `AGENT_TOOLSDIRECTORY`**: Known issues where setup actions (e.g., `setup-python`) try to write
+  to `/Users/runner` and fail with permission errors ([Issue #5974](https://github.com/nektos/act/issues/5974))
 - **`RUNNER_OS` and `RUNNER_ARCH`**: These environment variables may report incorrect values
-  ([Issue #1509](https://github.com/nektos/act/issues/1509),
-  [Issue #2579](https://github.com/nektos/act/issues/2579))
+  ([Issue #1509](https://github.com/nektos/act/issues/1509), [Issue #2579](https://github.com/nektos/act/issues/2579))
 - **Annotations and problem matchers**: Not supported in self-hosted mode
 - **GitHub API interactions**: No native mocking; real API calls will execute
 
@@ -107,8 +103,8 @@ Arguments are loaded in order: XDG `.actrc` -> `~/.actrc` -> project `.actrc` ->
 
 When using `-self-hosted` on macOS:
 
-- `RUNNER_TOOL_CACHE` may conflict with a previous GitHub Actions runner installation's
-  `AGENT_TOOLSDIRECTORY`. A [fix is in progress](https://github.com/nektos/act/pull/6052)
+- `RUNNER_TOOL_CACHE` may conflict with a previous GitHub Actions runner installation's `AGENT_TOOLSDIRECTORY`. A
+  [fix is in progress](https://github.com/nektos/act/pull/6052)
 - `RUNNER_OS` should return `macOS` but may return `darwin`
 - `RUNNER_ARCH` may not be set correctly on Apple Silicon
 
@@ -120,8 +116,8 @@ For teams needing true macOS VM isolation (not just host execution), several too
 
 ### Tart (cirruslabs/tart)
 
-**What it is**: An open-source CLI tool for building, running, and managing macOS and Linux VMs on Apple
-Silicon. Built on Apple's Virtualization.framework for near-native performance.
+**What it is**: An open-source CLI tool for building, running, and managing macOS and Linux VMs on Apple Silicon. Built
+on Apple's Virtualization.framework for near-native performance.
 
 **Repository**: <https://github.com/cirruslabs/tart>
 
@@ -146,18 +142,16 @@ tart run runner
 
 ### Orchard (cirruslabs/orchard)
 
-**What it is**: An orchestration layer on top of Tart for managing clusters of Apple Silicon machines
-running macOS VMs.
+**What it is**: An orchestration layer on top of Tart for managing clusters of Apple Silicon machines running macOS VMs.
 
 **Repository**: <https://github.com/cirruslabs/orchard>
 
-**Use case**: When you have multiple Mac minis or Mac Studios and want to distribute CI jobs across them.
-Supports local development mode for single-machine testing.
+**Use case**: When you have multiple Mac minis or Mac Studios and want to distribute CI jobs across them. Supports local
+development mode for single-machine testing.
 
 ### Tartelet (shapehq/tartelet)
 
-**What it is**: A macOS app that manages up to two GitHub Actions runners in ephemeral Tart VMs on a
-single host.
+**What it is**: A macOS app that manages up to two GitHub Actions runners in ephemeral Tart VMs on a single host.
 
 **Repository**: <https://github.com/shapehq/tartelet>
 
@@ -191,8 +185,8 @@ A community-maintained approach combines Tart VMs with `act`:
 1. Install `act` inside the VM
 1. Run `act -P macos-latest=-self-hosted` inside the VM
 
-This gives you an isolated macOS environment running `act`, closer to what GitHub's hosted runners
-provide. See: <https://gist.github.com/YOU54F/3ac099e54e48a31a69ac2d671aa878f6>
+This gives you an isolated macOS environment running `act`, closer to what GitHub's hosted runners provide. See:
+<https://gist.github.com/YOU54F/3ac099e54e48a31a69ac2d671aa878f6>
 
 ______________________________________________________________________
 
@@ -216,19 +210,19 @@ ______________________________________________________________________
 
 ### GitHub Self-Hosted Runners (Official)
 
-GitHub's official `actions/runner` can be installed on your Mac to receive jobs from GitHub. This is not
-"local testing" per se -- your Mac becomes a real self-hosted runner connected to GitHub's
-infrastructure. Jobs still flow through GitHub's API.
+GitHub's official `actions/runner` can be installed on your Mac to receive jobs from GitHub. This is not "local testing"
+per se -- your Mac becomes a real self-hosted runner connected to GitHub's infrastructure. Jobs still flow through
+GitHub's API.
 
-**2026 enforcement update**: Starting March 16, 2026, GitHub blocks runner registration for versions
-older than v2.329.0.
+**2026 enforcement update**: Starting March 16, 2026, GitHub blocks runner registration for versions older than
+v2.329.0.
 
 ### `github-nix-ci` (Community, Nix-based)
 
 **Repository**: <https://github.com/juspay/github-nix-ci>
 
-A NixOS and nix-darwin module for self-hosting GitHub runners declaratively using Nix. Useful if your CI
-is already Nix-based (like this dotfiles repo).
+A NixOS and nix-darwin module for self-hosting GitHub runners declaratively using Nix. Useful if your CI is already
+Nix-based (like this dotfiles repo).
 
 ______________________________________________________________________
 
@@ -238,8 +232,8 @@ ______________________________________________________________________
 
 **Repository**: <https://github.com/ChristopherHX/github-act-runner>
 
-**What it is**: A reverse-engineered GitHub Actions runner that implements GitHub's runner protocol using
-a modified version of nektos/act to execute steps.
+**What it is**: A reverse-engineered GitHub Actions runner that implements GitHub's runner protocol using a modified
+version of nektos/act to execute steps.
 
 **Key differences from nektos/act**:
 
@@ -261,38 +255,36 @@ a modified version of nektos/act to execute steps.
 **Repository**: <https://github.com/kiegroup/act-js>
 
 A Node.js wrapper around nektos/act for programmatic testing. Pairs with
-[mock-github](https://github.com/redhat-developer/mock-github) for mocking Git repos and GitHub API
-calls. Enables test-driven workflow development with Jest.
+[mock-github](https://github.com/redhat-developer/mock-github) for mocking Git repos and GitHub API calls. Enables
+test-driven workflow development with Jest.
 
 ### actionlint (rhysd/actionlint)
 
 **Repository**: <https://github.com/rhysd/actionlint>
 
-**What it is**: A static analysis linter for GitHub Actions workflow files. Does not execute workflows
-but catches errors before you push.
+**What it is**: A static analysis linter for GitHub Actions workflow files. Does not execute workflows but catches
+errors before you push.
 
-**Checks**: Expression type-checking, action input validation, shell script analysis (integrates with
-shellcheck and pyflakes), security checks for script injection, cron syntax, runner label validation,
-`needs:` dependency verification.
+**Checks**: Expression type-checking, action input validation, shell script analysis (integrates with shellcheck and
+pyflakes), security checks for script injection, cron syntax, runner label validation, `needs:` dependency verification.
 
 **Install**: `brew install actionlint`
 
-**Best used alongside** `act`, not as a replacement. Catches syntax/logic errors instantly without
-needing Docker.
+**Best used alongside** `act`, not as a replacement. Catches syntax/logic errors instantly without needing Docker.
 
 ### zizmor (zizmorcore/zizmor)
 
 **Repository**: <https://github.com/zizmorcore/zizmor>
 
-**What it is**: A security-focused static analysis tool for GitHub Actions workflows. ~24 audit rules
-covering injection vulnerabilities, permission issues, mutable tags, and more.
+**What it is**: A security-focused static analysis tool for GitHub Actions workflows. ~24 audit rules covering injection
+vulnerabilities, permission issues, mutable tags, and more.
 
 **Integration**: Can publish findings to GitHub's Advanced Security tab via `zizmor-action`.
 
 ### Nix Flake Checks (for Nix-based projects)
 
-For projects using Nix flakes (like this dotfiles repo), `nix flake check` provides a way to run all CI
-checks locally using the exact same environment as CI:
+For projects using Nix flakes (like this dotfiles repo), `nix flake check` provides a way to run all CI checks locally
+using the exact same environment as CI:
 
 ```bash
 # Run all checks locally
@@ -305,8 +297,8 @@ nix develop
 nix develop .#run --command ./scripts/lint.sh
 ```
 
-This is already the approach used by this dotfiles repo. The key advantage: **perfect environment parity
-between local and CI** -- no Docker images that differ from GitHub's runners.
+This is already the approach used by this dotfiles repo. The key advantage: **perfect environment parity between local
+and CI** -- no Docker images that differ from GitHub's runners.
 
 ______________________________________________________________________
 
@@ -434,15 +426,14 @@ This repo's CI (`macos-latest` runner, Nix flake) is already well-structured for
 
    This would execute the lint job directly on your Mac, using your real Nix installation.
 
-1. **Consider NOT using `act`** -- given that your CI is purely `nix flake check` + `lint.sh`, you
-   already have perfect local/CI parity through Nix. Adding `act` would add complexity without much
-   benefit beyond validating the workflow YAML structure (which `actionlint` handles better).
+1. **Consider NOT using `act`** -- given that your CI is purely `nix flake check` + `lint.sh`, you already have perfect
+   local/CI parity through Nix. Adding `act` would add complexity without much benefit beyond validating the workflow
+   YAML structure (which `actionlint` handles better).
 
 ### Bottom Line for This Repo
 
-Your current `nix develop .#run --command ./scripts/lint.sh` approach is already the gold standard for
-local CI testing. The main gap is workflow YAML validation, which `actionlint` fills perfectly without
-the overhead of `act`.
+Your current `nix develop .#run --command ./scripts/lint.sh` approach is already the gold standard for local CI testing.
+The main gap is workflow YAML validation, which `actionlint` fills perfectly without the overhead of `act`.
 
 ______________________________________________________________________
 

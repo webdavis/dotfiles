@@ -1,20 +1,18 @@
 # vpt question triage
 
-`docs/decisions/2026-09-15-vpt-decision-brief.md` collected every open question left by vpt's seven
-design documents into forty-five coded rows (B1-B6, D1-D6, T1-T7, F1-F6, R1-R7, S1-S7, H1-H8), plus the
-reconciliation bullet's own nine questions and the Open Notebook handoff bullet's own nine, all filed
-under the `vpt (Voice Processing Tool)` and `Homelab plan coordination` sections of
-`docs/remaining-work.md`. That is 67 questions read, most of them written before the operator had ruled
-on anything.
+`docs/decisions/2026-09-15-vpt-decision-brief.md` collected every open question left by vpt's seven design documents
+into forty-five coded rows (B1-B6, D1-D6, T1-T7, F1-F6, R1-R7, S1-S7, H1-H8), plus the reconciliation bullet's own nine
+questions and the Open Notebook handoff bullet's own nine, all filed under the `vpt (Voice Processing Tool)` and
+`Homelab plan coordination` sections of `docs/remaining-work.md`. That is 67 questions read, most of them written before
+the operator had ruled on anything.
 
-The operator has since ruled on eight architecture questions in conversation (minutes, audio locality,
-the engine pair, reconciliation and review, notification shape, the producer contract, engine adapters,
-and post-processing as its own layer). This document applies those eight rulings, plus this repository's
-own naming, vault, and secrets conventions, to every one of the 67 questions. Fifty-six close outright.
-Eight are moot, their premise gone once the operator ruled `minutes` out. Two need the operator's own
-judgment and are listed first. Nothing here edits `docs/remaining-work.md`: per this pull request's own
-standing rules, the ledger is the orchestrator's to update, and this document is the source it should
-draw from.
+The operator has since ruled on eight architecture questions in conversation (minutes, audio locality, the engine pair,
+reconciliation and review, notification shape, the producer contract, engine adapters, and post-processing as its own
+layer). This document applies those eight rulings, plus this repository's own naming, vault, and secrets conventions, to
+every one of the 67 questions. Fifty-six close outright. Eight are moot, their premise gone once the operator ruled
+`minutes` out. Two need the operator's own judgment and are listed first. Nothing here edits `docs/remaining-work.md`:
+per this pull request's own standing rules, the ledger is the orchestrator's to update, and this document is the source
+it should draw from.
 
 ## Count
 
@@ -22,87 +20,82 @@ draw from.
 | ---- | -------- | ---- | ------------------------------------------------------- |
 | 67   | 56       | 8    | 2 (three raw mentions, one pair collapses to one issue) |
 
-Several questions are the same question asked seven times, once per document, because each design carried
-it forward unresolved ("where does vpt's code live", "is `minutes` in or out"). Each is counted once per
-appearance above, the way it was filed, but answered once and cross-referenced rather than argued seven
-separate ways below.
+Several questions are the same question asked seven times, once per document, because each design carried it forward
+unresolved ("where does vpt's code live", "is `minutes` in or out"). Each is counted once per appearance above, the way
+it was filed, but answered once and cross-referenced rather than argued seven separate ways below.
 
 ## Escalated to the operator
 
-Two decisions. Everything else in the 67 either follows from a rule the operator already set, from a
-convention this repository already holds, or from a default that costs nothing to reconsider later.
+Two decisions. Everything else in the 67 either follows from a rule the operator already set, from a convention this
+repository already holds, or from a default that costs nothing to reconsider later.
 
 ### 1. vpp is not a name vpp can keep
 
-`VPP` is FD.io's Vector Packet Processing, an existing, findable open-source project. This repository's
-own naming rule (root `CLAUDE.md`, "Acronyms in commits and docs") avoids introducing an uncommon acronym
-rather than spelling it out, and the memory note on user-agnostic, self-documenting names points the same
-way. Renaming after `webdavis/vpt` exists and install instructions have circulated is a breaking change
-for a tool nobody has installed yet, which makes now the cheapest possible moment to rename.
+`VPP` is FD.io's Vector Packet Processing, an existing, findable open-source project. This repository's own naming rule
+(root `CLAUDE.md`, "Acronyms in commits and docs") avoids introducing an uncommon acronym rather than spelling it out,
+and the memory note on user-agnostic, self-documenting names points the same way. Renaming after `webdavis/vpt` exists
+and install instructions have circulated is a breaking change for a tool nobody has installed yet, which makes now the
+cheapest possible moment to rename.
 
-- **Keep `vpt`.** Costs nothing today, costs a rename plus a breaking-change apology later, and the name
-  already collides with a real, unrelated project in the first page of any search.
-- **Rename now, before the repository exists.** Costs one naming decision today. Nothing else in the
-  design chain depends on the specific string, only on there being one.
+- **Keep `vpt`.** Costs nothing today, costs a rename plus a breaking-change apology later, and the name already
+  collides with a real, unrelated project in the first page of any search.
+- **Rename now, before the repository exists.** Costs one naming decision today. Nothing else in the design chain
+  depends on the specific string, only on there being one.
 
-Recommendation: rename now. This document cannot pick the name; that is the one piece of judgment no rule
-or convention in this repository supplies.
+Recommendation: rename now. This document cannot pick the name; that is the one piece of judgment no rule or convention
+in this repository supplies.
 
 ### 2. Is vpt's own audio archive the backup?
 
-Two documents ask versions of the same question: the filing design's F1 ("is vpt's copy the backup?") and
-the boundaries design's own question 3 ("is one unbacked copy acceptable until a real backup exists?").
-Rule 3 settles WHERE the archive copy lives (outside any git-tracked tree by default) and the boundaries
-design settles which copy is canonical (Apple's own container, read-only). Neither settles whether a
-SECOND, unbacked copy on one machine is an acceptable state to ship in, or whether vpt's first release
-should wait on a real backup existing.
+Two documents ask versions of the same question: the filing design's F1 ("is vpt's copy the backup?") and the boundaries
+design's own question 3 ("is one unbacked copy acceptable until a real backup exists?"). Rule 3 settles WHERE the
+archive copy lives (outside any git-tracked tree by default) and the boundaries design settles which copy is canonical
+(Apple's own container, read-only). Neither settles whether a SECOND, unbacked copy on one machine is an acceptable
+state to ship in, or whether vpt's first release should wait on a real backup existing.
 
-- **Ship now, unbacked.** vpt's archive copy sits beside Apple's own original; losing the laptop loses
-  both, same as it would today with no vpt at all. Costs nothing to build; the risk is real personal
-  recordings with no second machine holding them.
-- **Wait for a backup.** No machine backup exists yet (recorded in the reconciliation bullet and the
-  boundaries design). This blocks vpt's own shipping date on a separate, larger piece of work.
+- **Ship now, unbacked.** vpt's archive copy sits beside Apple's own original; losing the laptop loses both, same as it
+  would today with no vpt at all. Costs nothing to build; the risk is real personal recordings with no second machine
+  holding them.
+- **Wait for a backup.** No machine backup exists yet (recorded in the reconciliation bullet and the boundaries design).
+  This blocks vpt's own shipping date on a separate, larger piece of work.
 
-Recommendation: ship now, unbacked, on the reasoning that vpt does not make the existing risk worse (the
-original was already a single point of failure before vpt existed) and a backup system is worth building
-on its own schedule rather than as a gate on this one tool. The operator's own risk tolerance for
-personal recordings is the actual deciding factor here, not something derivable from a rule or a file.
+Recommendation: ship now, unbacked, on the reasoning that vpt does not make the existing risk worse (the original was
+already a single point of failure before vpt existed) and a backup system is worth building on its own schedule rather
+than as a gate on this one tool. The operator's own risk tolerance for personal recordings is the actual deciding factor
+here, not something derivable from a rule or a file.
 
 ## One finding to carry into the discovery design
 
-Measured today, not assumed: `~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/`
-holds four subdirectories, `Capture`, `CaptureRecovery`, `CloudRecordings_ckAssets` and
-`EncryptedCloudRecordings`, mode `drwx------`, 28 `.m4a` files total. The existence of
-`EncryptedCloudRecordings` means some recordings may not be plain readable audio at the path vpt expects,
-which none of the seven design documents addresses. This is not a decision either way, it is a known
-unknown the build must probe before `vpt ingest` is written: does a recording ever land in that directory
-on this machine, and if so, what does reading it return.
+Measured today, not assumed: `~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/` holds four
+subdirectories, `Capture`, `CaptureRecovery`, `CloudRecordings_ckAssets` and `EncryptedCloudRecordings`, mode
+`drwx------`, 28 `.m4a` files total. The existence of `EncryptedCloudRecordings` means some recordings may not be plain
+readable audio at the path vpt expects, which none of the seven design documents addresses. This is not a decision
+either way, it is a known unknown the build must probe before `vpt ingest` is written: does a recording ever land in
+that directory on this machine, and if so, what does reading it return.
 
 ## Stale facts corrected
 
 Two claims in the design chain were measured on an earlier day and are now wrong:
 
 - **macOS version.** `docs/superpowers/specs/2026-09-14-vpt-redundant-transcription-design.md` records
-  `minutes apple-speech capabilities` reporting macOS 26.2 build 25C56. This machine is on macOS 27.0
-  (`sw_vers`, checked today). The finding itself, that Apple's SpeechTranscriber is supported with
-  `en_US` installed, does not depend on the exact build number and stands unchanged; only the version
-  string was stale, and the design document has been annotated in place rather than rewritten.
-- **Apple's confidence reporting.** The same document's own open question T2 called Apple's per-word
-  confidence "unknown" and named it the reason not to build the Swift helper yet. It is no longer
-  unknown: the Speech framework's `ConfidenceAttribute` carries `Value = Swift::Double` and its
-  `TimeRangeAttribute` carries `Value = CMTimeRange`, both `available(anyAppleOS 26, *)`, read directly
-  from
+  `minutes apple-speech capabilities` reporting macOS 26.2 build 25C56. This machine is on macOS 27.0 (`sw_vers`,
+  checked today). The finding itself, that Apple's SpeechTranscriber is supported with `en_US` installed, does not
+  depend on the exact build number and stands unchanged; only the version string was stale, and the design document has
+  been annotated in place rather than rewritten.
+- **Apple's confidence reporting.** The same document's own open question T2 called Apple's per-word confidence
+  "unknown" and named it the reason not to build the Swift helper yet. It is no longer unknown: the Speech framework's
+  `ConfidenceAttribute` carries `Value = Swift::Double` and its `TimeRangeAttribute` carries `Value = CMTimeRange`, both
+  `available(anyAppleOS 26, *)`, read directly from
   `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/Speech.framework/Versions/A/Modules/Speech.swiftmodule/arm64e-apple-macos.swiftinterface`,
-  lines 194 to 202, today. Apple supplies per-token confidence and per-token audio time range, which is
-  exactly what the redundant-transcription design's inline uncertainty markers need. This closes T2 (see
-  below); the design document has been annotated in place.
+  lines 194 to 202, today. Apple supplies per-token confidence and per-token audio time range, which is exactly what the
+  redundant-transcription design's inline uncertainty markers need. This closes T2 (see below); the design document has
+  been annotated in place.
 
 ## Answered
 
-One row per question, in the order the seven design documents and the two standalone bullets raised them.
-"Rule N" cites one of the operator's eight 2026-09-15 architecture rulings; a file path cites a
-repository convention; no citation means the question resolves from evidence already in its own design
-document.
+One row per question, in the order the seven design documents and the two standalone bullets raised them. "Rule N" cites
+one of the operator's eight 2026-09-15 architecture rulings; a file path cites a repository convention; no citation
+means the question resolves from evidence already in its own design document.
 
 | Question                                                                                | Answer                                                                                                                                                                                                                                                                                                                                     | Decided by                                                                                                                                                                                                                                                               |
 | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

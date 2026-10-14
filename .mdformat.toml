@@ -1,7 +1,7 @@
 # mdformat Configuration File
 
 # Options: "keep", "no", INTEGER
-wrap = 105
+wrap = 120
 
 # Turn off consecutive numbering for ordered lists.
 number = false

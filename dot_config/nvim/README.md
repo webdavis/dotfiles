@@ -26,8 +26,8 @@ The following modules／files run the show:
 
 ## Profiling Neovim Startup Time
 
-This config can measure how long it takes to start up, helping you identify slow plugins and
-configurations. To enable profiling, set the `PROFILE` environment variable before launching Neovim:
+This config can measure how long it takes to start up, helping you identify slow plugins and configurations. To enable
+profiling, set the `PROFILE` environment variable before launching Neovim:
 
 #### Linux／macOS
 
@@ -42,6 +42,6 @@ $env:PROFILE=1; nvim
 ```
 
 > [!TIP]
-> After launching with profiling enabled, Neovim will generate timing information for each loaded plugin
-> and configuration file. You can evaluate this output to optimize startup performance. (The profiler is
-> set up in [`init.lua`](./init.lua) via `snacks.profiler.startup`.)
+> After launching with profiling enabled, Neovim will generate timing information for each loaded plugin and
+> configuration file. You can evaluate this output to optimize startup performance. (The profiler is set up in
+> [`init.lua`](./init.lua) via `snacks.profiler.startup`.)

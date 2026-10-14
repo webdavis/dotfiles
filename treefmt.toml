@@ -7,7 +7,7 @@
 #
 # Style rules preserved:
 #   - shell: shfmt -i 2 -ci -s; shellcheck (root .shellcheckrc disables SC1090/SC1091)
-#   - markdown: mdformat + GFM plugin, honoring .mdformat.toml (105-column wrap)
+#   - markdown: mdformat + GFM plugin, honoring .mdformat.toml (120-column wrap)
 #   - TOML: taplo, with dot_aerospace.toml excluded (user-preferred alignment)
 #   - JSON/YAML: validation-only via jq/yq (scripts/*-validate.sh)
 #   - chezmoi templates: render-then-check via scripts/ (shellcheck, osquery

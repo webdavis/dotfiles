@@ -1,45 +1,40 @@
 # Native call sweep across the Rust tools
 
-Status: survey, written 2026-09-20. No Rust changed, no dependency added, no apply ran and no
-notification was delivered to produce it. This is the second instalment of the operator's 2026-09-19
-prefer-native ruling: task 144 took the three probes the
-`docs/superpowers/specs/2026-09-17-native-macos-probe-evaluation.md` measurements recommended (merged
+Status: survey, written 2026-09-20. No Rust changed, no dependency added, no apply ran and no notification was delivered
+to produce it. This is the second instalment of the operator's 2026-09-19 prefer-native ruling: task 144 took the three
+probes the `docs/superpowers/specs/2026-09-17-native-macos-probe-evaluation.md` measurements recommended (merged
 `d2a3f36f1`), and this document sweeps every other command the four shipped tools spawn.
 
-Method: `grep -rn "Command::new("` plus a grep for every absolute program path and every configured
-program constant across `pns/crates`, `uu/crates`, `posture/crates` and `lights/crates`, with test
-modules and fixtures excluded. Fifty-seven distinct commands survive that filter, in the fifty table rows
-below: the five `sudo` file utilities share one row, and so do the four skills-lane installers. Every
-native claim below was checked against the headers in `$(xcrun --show-sdk-path)` or against the shipped
-`libc` 0.2.189 source in the local cargo registry; anything that could not be checked that way is marked
-UNVERIFIED in its own row.
+Method: `grep -rn "Command::new("` plus a grep for every absolute program path and every configured program constant
+across `pns/crates`, `uu/crates`, `posture/crates` and `lights/crates`, with test modules and fixtures excluded.
+Fifty-seven distinct commands survive that filter, in the fifty table rows below: the five `sudo` file utilities share
+one row, and so do the four skills-lane installers. Every native claim below was checked against the headers in
+`$(xcrun --show-sdk-path)` or against the shipped `libc` 0.2.189 source in the local cargo registry; anything that could
+not be checked that way is marked UNVERIFIED in its own row.
 
-Finding in one line: **posture is where the money is.** Nine of its commands have a native answer, six of
-those are one call each, and its poller pays for them on every tick. pns is already done (task 144 took
-everything worth taking, and the rest of its spawns are other people's CLIs by design), uu is almost
-entirely product CLIs whose job is to be those CLIs, and lights has exactly one: a `gtimeout` wrapper
-that a bounded wait in process replaces.
+Finding in one line: **posture is where the money is.** Nine of its commands have a native answer, six of those are one
+call each, and its poller pays for them on every tick. pns is already done (task 144 took everything worth taking, and
+the rest of its spawns are other people's CLIs by design), uu is almost entirely product CLIs whose job is to be those
+CLIs, and lights has exactly one: a `gtimeout` wrapper that a bounded wait in process replaces.
 
 ## How to read the columns
 
-- **Deadline** answers whether the replacement can block, and therefore whether it needs the
-  interruptible wrapper. Every shelled command today runs under a deadline enforced from outside the
-  process. A native call in process has no such bound, so an adoption either goes through a wrapper like
-  pns's `bounded_call` (a thread plus `recv_timeout`, in
-  `pns/crates/pns-adapters/src/process/bounded.rs`) or it accepts an unbounded call. `posture` has no
-  such wrapper yet and may not borrow pns's, because no workspace may depend on another, so the first
-  posture adoption carries its own copy.
-- **Saving** is per call, from the orders of magnitude the 2026-09-17 measurements established: a spawn
-  costs tens of milliseconds (the bare `/usr/bin/true` floor alone measured 1.62 ms, and a real probe 4
-  ms to 45 ms), an in-process read costs microseconds. Nothing below was timed again for this survey.
-- **Verdict** is one of replace, keep or defer. "Keep" for a product whose job is another CLI (`git`,
-  `gh`, `herdr`, `brew`) is not a concession: the tool is the interface, and reimplementing it is the
-  opposite of the ruling.
+- **Deadline** answers whether the replacement can block, and therefore whether it needs the interruptible wrapper.
+  Every shelled command today runs under a deadline enforced from outside the process. A native call in process has no
+  such bound, so an adoption either goes through a wrapper like pns's `bounded_call` (a thread plus `recv_timeout`, in
+  `pns/crates/pns-adapters/src/process/bounded.rs`) or it accepts an unbounded call. `posture` has no such wrapper yet
+  and may not borrow pns's, because no workspace may depend on another, so the first posture adoption carries its own
+  copy.
+- **Saving** is per call, from the orders of magnitude the 2026-09-17 measurements established: a spawn costs tens of
+  milliseconds (the bare `/usr/bin/true` floor alone measured 1.62 ms, and a real probe 4 ms to 45 ms), an in-process
+  read costs microseconds. Nothing below was timed again for this survey.
+- **Verdict** is one of replace, keep or defer. "Keep" for a product whose job is another CLI (`git`, `gh`, `herdr`,
+  `brew`) is not a concession: the tool is the interface, and reimplementing it is the opposite of the ruling.
 
 ## pns
 
-Everything the 2026-09-17 evaluation recommended has landed, so the remaining pns rows are either
-adjudicated keeps or other people's programs.
+Everything the 2026-09-17 evaluation recommended has landed, so the remaining pns rows are either adjudicated keeps or
+other people's programs.
 
 | Command                                         | Where                                                            | Why it is spawned                            | Native replacement                                                                                                                                                                                                                                                                                                      | Deadline                  | Saving              | Verdict                                                                                                                                                          |
 | ----------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -89,8 +84,8 @@ Nine replaceable commands, and the poller pays for several of them on every tick
 
 ## uu
 
-uu is a lane runner whose lanes are other people's updaters, so almost every row is a keep by
-construction. Two rows are not.
+uu is a lane runner whose lanes are other people's updaters, so almost every row is a keep by construction. Two rows are
+not.
 
 | Command                                                        | Where                                                     | Why it is spawned                                                     | Native replacement                                                      | Deadline | Saving                                                         | Verdict                                                                                                                                         |
 | -------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -116,37 +111,35 @@ construction. Two rows are not.
 
 ## Not in scope, noted once
 
-`morning` is a fifth workspace of the same shape and spawns `gh`, `td` and whatever else its config
-names, all keeps by the same reasoning as pns's own `gh` row. Its `capture` function is also the cleanest
-existing model for the lights replacement above.
+`morning` is a fifth workspace of the same shape and spawns `gh`, `td` and whatever else its config names, all keeps by
+the same reasoning as pns's own `gh` row. Its `capture` function is also the cleanest existing model for the lights
+replacement above.
 
 ## Proposed slices
 
-One tool per slice, one replacement group per slice, ordered by value. Each is small enough for one pull
-request.
+One tool per slice, one replacement group per slice, ordered by value. Each is small enough for one pull request.
 
 1. **posture: the pgrep family becomes one libproc walk.** The `-P 1 -x osqueryd` parent read and the two
-   `-x -U <uid> <name>` agent reads, through `proc_listpids` plus `PROC_PIDTBSDINFO`, with posture's own
-   copy of an interruptible wrapper (it may not borrow pns's). Three spawns of about 26 ms each leave the
-   tick. Carries the `pbi_name` selection caveat the 2026-09-17 evaluation recorded, so the acceptance
-   gate is agreement with `pgrep` on a live osqueryd and a live OverSight.
-1. **posture: read property lists in process.** Replaces both `plutil` shapes and, on top of the same
-   reader, the `defaults read` of the login window domain. Three commands, several spawns per tick, and
-   the LuLu profile reading stops being a grep over rendered XML.
-1. **posture: the four one-call replacements.** `kill -0` to `libc::kill`, `readlink -f` to
-   `std::fs::canonicalize`, `file` to a four-byte magic read, `xattr -p` to `libc::getxattr`. No
-   framework, no new dependency, and the only unsafe blocks are two libc calls.
-1. **lights: bound the `pns` spawn in process and drop `gtimeout`.** Removes a PATH-resolved Homebrew
-   dependency from a product installed with `cargo install`, which is a correctness fix as much as a
-   spawn saved.
-1. **uu: give the `CommandRunner` port an environment.** Drops `/usr/bin/env` from two lanes and
-   `/bin/sh -c` from the npm lane, and takes the PATH-composition shell text with it.
-1. **posture: the `-fq` osqueryd liveness read.** Held out of slice 1 because `-f` matches the whole
-   command line and the native answer matches the executable path; the slice's first job is pinning which
-   predicate the control actually means, then `proc_pidpath` or `KERN_PROCARGS2`.
-1. **posture: evaluate `codesign` against Security.framework.** A measurement and a record-shape decision
-   before any code: the framework calls are verified to exist, but the enrichment stores `codesign`'s
-   text today and a signing-information dictionary is a different record.
-1. **posture: find out whether the guest account and FileVault have public answers.** A research slice,
-   not a build. Both are keeps today on the strength of a header search finding nothing, which is the
-   weakest evidence in this document.
+   `-x -U <uid> <name>` agent reads, through `proc_listpids` plus `PROC_PIDTBSDINFO`, with posture's own copy of an
+   interruptible wrapper (it may not borrow pns's). Three spawns of about 26 ms each leave the tick. Carries the
+   `pbi_name` selection caveat the 2026-09-17 evaluation recorded, so the acceptance gate is agreement with `pgrep` on a
+   live osqueryd and a live OverSight.
+1. **posture: read property lists in process.** Replaces both `plutil` shapes and, on top of the same reader, the
+   `defaults read` of the login window domain. Three commands, several spawns per tick, and the LuLu profile reading
+   stops being a grep over rendered XML.
+1. **posture: the four one-call replacements.** `kill -0` to `libc::kill`, `readlink -f` to `std::fs::canonicalize`,
+   `file` to a four-byte magic read, `xattr -p` to `libc::getxattr`. No framework, no new dependency, and the only
+   unsafe blocks are two libc calls.
+1. **lights: bound the `pns` spawn in process and drop `gtimeout`.** Removes a PATH-resolved Homebrew dependency from a
+   product installed with `cargo install`, which is a correctness fix as much as a spawn saved.
+1. **uu: give the `CommandRunner` port an environment.** Drops `/usr/bin/env` from two lanes and `/bin/sh -c` from the
+   npm lane, and takes the PATH-composition shell text with it.
+1. **posture: the `-fq` osqueryd liveness read.** Held out of slice 1 because `-f` matches the whole command line and
+   the native answer matches the executable path; the slice's first job is pinning which predicate the control actually
+   means, then `proc_pidpath` or `KERN_PROCARGS2`.
+1. **posture: evaluate `codesign` against Security.framework.** A measurement and a record-shape decision before any
+   code: the framework calls are verified to exist, but the enrichment stores `codesign`'s text today and a
+   signing-information dictionary is a different record.
+1. **posture: find out whether the guest account and FileVault have public answers.** A research slice, not a build.
+   Both are keeps today on the strength of a header search finding nothing, which is the weakest evidence in this
+   document.

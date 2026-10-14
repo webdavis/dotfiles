@@ -1,7 +1,6 @@
 # Sesh Deep Research Report
 
-**Date:** 2026-04-13 **Subject:** Comprehensive analysis of sesh (joshmedeski/sesh) for migration from
-tms
+**Date:** 2026-04-13 **Subject:** Comprehensive analysis of sesh (joshmedeski/sesh) for migration from tms
 
 ______________________________________________________________________
 
@@ -32,19 +31,17 @@ ______________________________________________________________________
 
 ## 1. What Is Sesh
 
-Sesh is a Go-based CLI tool for creating and managing tmux sessions. It is the successor to Josh
-Medeski's original bash-based `t-smart-tmux-session-manager` tmux plugin. The rewrite in Go gives it
-significantly better performance (compiled binary vs background bash parsing) and enables a richer
-feature set.
+Sesh is a Go-based CLI tool for creating and managing tmux sessions. It is the successor to Josh Medeski's original
+bash-based `t-smart-tmux-session-manager` tmux plugin. The rewrite in Go gives it significantly better performance
+(compiled binary vs background bash parsing) and enables a richer feature set.
 
 Key value propositions:
 
-- **Smart session discovery** -- combines zoxide frecency, user-configured sessions, tmuxinator configs,
-  and active tmux sessions into a single unified list
-- **Per-project configuration** -- define startup commands, windows, and preview commands in `sesh.toml`
-  or per-project `.sesh.toml` files imported into the main config
-- **Wildcard configs** -- apply settings to any directory matching a glob pattern (e.g.,
-  `~/workspaces/**`)
+- **Smart session discovery** -- combines zoxide frecency, user-configured sessions, tmuxinator configs, and active tmux
+  sessions into a single unified list
+- **Per-project configuration** -- define startup commands, windows, and preview commands in `sesh.toml` or per-project
+  `.sesh.toml` files imported into the main config
+- **Wildcard configs** -- apply settings to any directory matching a glob pattern (e.g., `~/workspaces/**`)
 - **Multiple picker UIs** -- built-in TUI picker, fzf, television, or gum
 - **Composable** -- works as a simple CLI that pipes into any fuzzy finder or script
 
@@ -58,8 +55,7 @@ ______________________________________________________________________
 brew install sesh
 ```
 
-Other methods: `go install github.com/joshmedeski/sesh/v2@latest`, AUR (`yay -S sesh-bin`), conda/mamba,
-pixi.
+Other methods: `go install github.com/joshmedeski/sesh/v2@latest`, AUR (`yay -S sesh-bin`), conda/mamba, pixi.
 
 **Dependencies:** tmux (required), zoxide (required for directory discovery).
 
@@ -142,8 +138,8 @@ From the source code, two matching modes:
 
 ### Import System
 
-The `import` field merges `[[session]]`, `[[window]]`, and `[[wildcard]]` entries from external files.
-This enables per-project `.sesh.toml` files:
+The `import` field merges `[[session]]`, `[[window]]`, and `[[wildcard]]` entries from external files. This enables
+per-project `.sesh.toml` files:
 
 ```toml
 # ~/.config/sesh/sesh.toml
@@ -220,8 +216,8 @@ ______________________________________________________________________
 
 ### Pattern 1: Full-Featured fzf Popup (Recommended)
 
-This is the canonical binding from the README. It provides cycling through session sources with keyboard
-shortcuts, previews, and session killing:
+This is the canonical binding from the README. It provides cycling through session sources with keyboard shortcuts,
+previews, and session killing:
 
 ```bash
 bind-key "T" run-shell "sesh connect \"$(
@@ -275,8 +271,7 @@ bind-key "W" run-shell "sesh window \"$(sesh window | fzf-tmux -p 60%,50% --prom
 
 ### Pattern 6: Last Session Toggle
 
-Enhanced version of tmux's built-in `switch-client -l` that survives session closures and detach/reattach
-cycles:
+Enhanced version of tmux's built-in `switch-client -l` that survives session closures and detach/reattach cycles:
 
 ```bash
 bind-key L run-shell "sesh last || tmux display-message -d 1000 'Only one session'"
@@ -291,10 +286,10 @@ ______________________________________________________________________
 When a new session is created, sesh determines the startup command using a strategy chain (in order):
 
 1. **Config strategy** -- if the session matches a `[[session]]` entry with `startup_command`, use it
-1. **Wildcard strategy** -- if the session path matches a `[[wildcard]]` with `startup_command`, use it
-   (unless `disable_startup_command` is true)
-1. **Default config strategy** -- fall back to `[default_session].startup_command` (unless
-   `disable_startup_command` is true on the session)
+1. **Wildcard strategy** -- if the session path matches a `[[wildcard]]` with `startup_command`, use it (unless
+   `disable_startup_command` is true)
+1. **Default config strategy** -- fall back to `[default_session].startup_command` (unless `disable_startup_command` is
+   true on the session)
 
 The `{}` placeholder in any startup command is replaced with the session's directory path at runtime.
 
@@ -324,8 +319,8 @@ disable_startup_command = false
 
 ### Example: Startup Script via Windows
 
-Sesh v2 removed the `startup_script` field from `[default_session]` and `[[session]]`. The way to run
-multi-command startup scripts is through `[[window]]` definitions with `startup_script`:
+Sesh v2 removed the `startup_script` field from `[default_session]` and `[[session]]`. The way to run multi-command
+startup scripts is through `[[window]]` definitions with `startup_script`:
 
 ```toml
 [[session]]
@@ -342,8 +337,8 @@ name = "dev-server"
 startup_script = "npm run dev"
 ```
 
-When the session is created, sesh creates a window for each referenced name, sends the `startup_script`
-to each window via `tmux send-keys`, then cycles back to the first window.
+When the session is created, sesh creates a window for each referenced name, sends the `startup_script` to each window
+via `tmux send-keys`, then cycles back to the first window.
 
 ### Example: External Startup Script
 
@@ -433,8 +428,8 @@ Pattern matching rules (from source):
 
 - `~/projects/*` uses Go's `filepath.Match` -- matches exactly one level (e.g., `~/projects/foo` but NOT
   `~/projects/foo/bar`)
-- `~/workspaces/**` uses prefix matching -- matches any depth below `~/workspaces/` (e.g.,
-  `~/workspaces/org/repo` matches)
+- `~/workspaces/**` uses prefix matching -- matches any depth below `~/workspaces/` (e.g., `~/workspaces/org/repo`
+  matches)
 
 Wildcards also support `preview_command` and `windows` arrays.
 
@@ -474,8 +469,8 @@ ______________________________________________________________________
 Sesh uses zoxide as one of its four session sources. How it works:
 
 - `sesh list -z` lists directories from zoxide's frecency database
-- `sesh connect <name>` falls through its strategy chain: tmux pane > tmux session > tmuxinator > config
-  session > config wildcard > directory > zoxide query
+- `sesh connect <name>` falls through its strategy chain: tmux pane > tmux session > tmuxinator > config session >
+  config wildcard > directory > zoxide query
 - When connecting via zoxide, the directory is automatically added to zoxide's database
 
 ### Priming Zoxide
@@ -494,8 +489,8 @@ zoxide add ~/.local/share/chezmoi
 
 ### Hide Duplicates
 
-When a directory appears both as a configured session and a zoxide result, use `--hide-duplicates` (`-d`)
-to show only the first occurrence based on `sort_order`:
+When a directory appears both as a configured session and a zoxide result, use `--hide-duplicates` (`-d`) to show only
+the first occurrence based on `sort_order`:
 
 ```toml
 sort_order = ["tmux", "config", "zoxide"]
@@ -520,8 +515,8 @@ dir_length = 2 # ~/workspaces/webdavis/uriel -> "webdavis/uriel"
 dir_length = 1 # ~/workspaces/webdavis/uriel -> "uriel" (default)
 ```
 
-Session names have dots and colons replaced (tmux restrictions). Characters that tmux cannot handle are
-converted to valid alternatives.
+Session names have dots and colons replaced (tmux restrictions). Characters that tmux cannot handle are converted to
+valid alternatives.
 
 ______________________________________________________________________
 
@@ -560,8 +555,8 @@ bind-key "K" display-popup -h 90% -w 50% -E "sesh picker -i"
 
 ### fzf Integration
 
-The most powerful option. Supports live-reloading session lists, source filtering, previews, and inline
-session killing. See Pattern 1 in section 5.
+The most powerful option. Supports live-reloading session lists, source filtering, previews, and inline session killing.
+See Pattern 1 in section 5.
 
 ### Television Integration
 
@@ -626,8 +621,8 @@ Enable caching for faster `sesh list` responses:
 cache = true
 ```
 
-Uses a stale-while-revalidate strategy: returns cached results immediately while refreshing in the
-background. Cache is automatically invalidated after `sesh connect`.
+Uses a stale-while-revalidate strategy: returns cached results immediately while refreshing in the background. Cache is
+automatically invalidated after `sesh connect`.
 
 ### JSON Output
 
@@ -711,9 +706,9 @@ ______________________________________________________________________
 
 ### Search Dirs Equivalent
 
-tms uses depth-based `search_dirs` to discover projects. Sesh uses **zoxide** instead. Zoxide ranks by
-frecency (frequency + recency), which is arguably better since it surfaces the projects you actually use
-rather than scanning directory trees.
+tms uses depth-based `search_dirs` to discover projects. Sesh uses **zoxide** instead. Zoxide ranks by frecency
+(frequency + recency), which is arguably better since it surfaces the projects you actually use rather than scanning
+directory trees.
 
 To prime zoxide with your search dirs:
 
@@ -724,13 +719,12 @@ find ~/workspaces -maxdepth 2 -type d | xargs -I {} zoxide add {}
 find ~/workspaces/webdavis -maxdepth 2 -type d | xargs -I {} zoxide add {}
 ```
 
-After initial seeding, zoxide learns from your `cd` usage automatically (since zoxide init is in your
-bashrc).
+After initial seeding, zoxide learns from your `cd` usage automatically (since zoxide init is in your bashrc).
 
 ### tms start Equivalent
 
-tms `start` bootstraps all marked sessions at tmux startup. Sesh doesn't have a built-in equivalent, but
-you can replicate it with a simple script:
+tms `start` bootstraps all marked sessions at tmux startup. Sesh doesn't have a built-in equivalent, but you can
+replicate it with a simple script:
 
 ```bash
 #!/usr/bin/env bash
@@ -946,8 +940,8 @@ bind-key -N "Sesh: maeve"              -T SESH m run-shell "sesh connect maeve"
 Key differences from the tms version:
 
 - Uses `run-shell "sesh connect <name>"` instead of `display-popup -E "tms marks open N"`
-- `run-shell` is better than `display-popup -E` for direct session switching because it doesn't flash a
-  popup. The popup is only useful for interactive pickers.
+- `run-shell` is better than `display-popup -E` for direct session switching because it doesn't flash a popup. The popup
+  is only useful for interactive pickers.
 - `sesh last` replaces the need for tmux's built-in `switch-client -l` and works more reliably.
 
 ______________________________________________________________________
@@ -977,20 +971,20 @@ ______________________________________________________________________
 ## 20. Sources
 
 - [GitHub - joshmedeski/sesh](https://github.com/joshmedeski/sesh) -- Official repository and README
-- [Smart tmux sessions with sesh | Josh Medeski](https://www.joshmedeski.com/posts/smart-tmux-sessions-with-sesh/)
-  -- Primary blog post with config examples
+- [Smart tmux sessions with sesh | Josh Medeski](https://www.joshmedeski.com/posts/smart-tmux-sessions-with-sesh/) --
+  Primary blog post with config examples
 - [I made my favorite tmux feature better with sesh | Josh Medeski](https://www.joshmedeski.com/posts/i-made-my-favorite-tmux-feature-better-with-sesh/)
   -- `sesh last` feature
 - [DeepWiki - joshmedeski/sesh](https://deepwiki.com/joshmedeski/sesh) -- Architecture analysis
 - [Raycast Store: Sesh](https://www.raycast.com/joshmedeski/sesh) -- Raycast extension
 - [Why Developers Are Switching to Sesh | Buzzrag](https://buzzrag.com/article/why-developers-are-switching-to-sesh-for-tmux-sessions)
   -- Community perspective
-- [Replacing Tmux-Sessionizer with Sesh | Podcast](https://rss.com/podcasts/linkarzu/2014230/) --
-  Linkarzu podcast with Josh Medeski
-- [sesh Discussion #230](https://github.com/joshmedeski/sesh/discussions/230) -- Performance comparison
-  with t-smart-tmux-session-manager
+- [Replacing Tmux-Sessionizer with Sesh | Podcast](https://rss.com/podcasts/linkarzu/2014230/) -- Linkarzu podcast with
+  Josh Medeski
+- [sesh Discussion #230](https://github.com/joshmedeski/sesh/discussions/230) -- Performance comparison with
+  t-smart-tmux-session-manager
 - [sesh Releases](https://github.com/joshmedeski/sesh/releases) -- Release notes
 - [sesh Go Package Docs](https://pkg.go.dev/github.com/joshmedeski/sesh/v2) -- Go API documentation
 - Source code: `model/config.go`, `startup/startup.go`, `connector/connect.go`, `previewer/previewer.go`,
-  `lister/config_wildcard.go`, `picker/picker.go`, `icon/icon.go`, `namer/namer.go` -- Read directly from
-  the repository for schema accuracy
+  `lister/config_wildcard.go`, `picker/picker.go`, `icon/icon.go`, `namer/namer.go` -- Read directly from the repository
+  for schema accuracy

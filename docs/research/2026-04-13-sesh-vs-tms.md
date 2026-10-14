@@ -6,28 +6,27 @@ ______________________________________________________________________
 
 ## Executive Summary
 
-This report compares two tmux session managers: **sesh** (by Josh Medeski, written in Go) and
-**tms/tmux-sessionizer** (by jrmoulton, written in Rust). Both tools solve the same core problem --
-managing tmux sessions around project directories -- but they differ significantly in philosophy, feature
-set, and community traction.
+This report compares two tmux session managers: **sesh** (by Josh Medeski, written in Go) and **tms/tmux-sessionizer**
+(by jrmoulton, written in Rust). Both tools solve the same core problem -- managing tmux sessions around project
+directories -- but they differ significantly in philosophy, feature set, and community traction.
 
 **Key findings:**
 
-- **Sesh** has 3.4x the GitHub stars (2,275 vs 666), 2.3x the releases (30 vs 13), and a faster
-  development cadence (101 commits since Jan 2025 vs 34 for tms).
-- **TMS has a built-in marks system** that directly maps to the user's current workflow (12 numbered
-  marks bound to single keystrokes via tmux key tables). Sesh has no equivalent built-in feature.
-- **Sesh can replicate the marks pattern** using `sesh connect <name>` with `run-shell` in tmux bindings,
-  but this requires manual session definition in `sesh.toml` and separate tmux keybinding configuration
-  -- two places to maintain instead of one.
-- **Sesh offers richer session configuration** (startup commands, startup scripts, window definitions,
-  wildcard patterns, zoxide integration) that tms does not match.
-- **For this specific user's workflow**, tms remains the better fit because the marks system is the core
-  value proposition, and migrating to sesh would add complexity without proportional gain.
+- **Sesh** has 3.4x the GitHub stars (2,275 vs 666), 2.3x the releases (30 vs 13), and a faster development cadence (101
+  commits since Jan 2025 vs 34 for tms).
+- **TMS has a built-in marks system** that directly maps to the user's current workflow (12 numbered marks bound to
+  single keystrokes via tmux key tables). Sesh has no equivalent built-in feature.
+- **Sesh can replicate the marks pattern** using `sesh connect <name>` with `run-shell` in tmux bindings, but this
+  requires manual session definition in `sesh.toml` and separate tmux keybinding configuration -- two places to maintain
+  instead of one.
+- **Sesh offers richer session configuration** (startup commands, startup scripts, window definitions, wildcard
+  patterns, zoxide integration) that tms does not match.
+- **For this specific user's workflow**, tms remains the better fit because the marks system is the core value
+  proposition, and migrating to sesh would add complexity without proportional gain.
 
-**Recommendation:** Stay with tms. The marks system is purpose-built for the user's keybinding-centric
-workflow, and the migration cost to sesh would not be justified by sesh's advantages in areas the user
-does not currently need (zoxide integration, session startup scripts, built-in picker).
+**Recommendation:** Stay with tms. The marks system is purpose-built for the user's keybinding-centric workflow, and the
+migration cost to sesh would not be justified by sesh's advantages in areas the user does not currently need (zoxide
+integration, session startup scripts, built-in picker).
 
 ______________________________________________________________________
 
@@ -69,18 +68,17 @@ confirm = ["Enter"]
 # Color theming for the built-in fuzzy picker
 ```
 
-TMS configuration is streamlined and focused. The `[marks]` section is the standout feature: a flat
-mapping of integer indices to directory paths. The `[[sessions]]` array defines named sessions that
-`tms start` bootstraps automatically. The `[[search_dirs]]` array defines where tms scans for git
-repositories. There is no support for startup commands, window definitions, or per-session scripts.
+TMS configuration is streamlined and focused. The `[marks]` section is the standout feature: a flat mapping of integer
+indices to directory paths. The `[[sessions]]` array defines named sessions that `tms start` bootstraps automatically.
+The `[[search_dirs]]` array defines where tms scans for git repositories. There is no support for startup commands,
+window definitions, or per-session scripts.
 
-**Source:** [tms GitHub README][1], user's live config at
-`~/.local/share/chezmoi/dot_config/tms/config.toml`
+**Source:** [tms GitHub README][1], user's live config at `~/.local/share/chezmoi/dot_config/tms/config.toml`
 
 ### Sesh
 
-**Config format:** TOML **Config location:** `$XDG_CONFIG_HOME/sesh/sesh.toml` or
-`~/.config/sesh/sesh.toml` **Schema:** JSON Schema available at `sesh.schema.json` in the repository
+**Config format:** TOML **Config location:** `$XDG_CONFIG_HOME/sesh/sesh.toml` or `~/.config/sesh/sesh.toml` **Schema:**
+JSON Schema available at `sesh.schema.json` in the repository
 
 **Configuration capabilities:**
 
@@ -130,8 +128,7 @@ Sesh's configuration is substantially richer. It supports:
 - **Caching** with stale-while-revalidate for performance
 - **tmuxp and tmuxinator** interop fields
 
-**What sesh does NOT have:** Any concept of marks, numbered indices, or instant-access bookmarks in its
-configuration.
+**What sesh does NOT have:** Any concept of marks, numbered indices, or instant-access bookmarks in its configuration.
 
 **Source:** [sesh README][2], [sesh.schema.json][3], [sesh blog post][4]
 
@@ -160,17 +157,16 @@ ______________________________________________________________________
 
 ### TMS
 
-**Session creation:** `tms` (no subcommand) opens a fuzzy finder over all git repositories found in
-configured `search_dirs`. Selecting one creates and attaches to a new tmux session.
+**Session creation:** `tms` (no subcommand) opens a fuzzy finder over all git repositories found in configured
+`search_dirs`. Selecting one creates and attaches to a new tmux session.
 
-**Session switching:** `tms switch` opens a fuzzy finder over active tmux sessions with a preview window
-showing the session's windows and panes.
+**Session switching:** `tms switch` opens a fuzzy finder over active tmux sessions with a preview window showing the
+session's windows and panes.
 
 **Window switching:** `tms windows` shows current session's windows in a fuzzy finder.
 
-**Marks (instant access):** `tms marks open <N>` immediately switches to the session at index N. No
-picker involved -- it is a direct, instant switch. If the session does not exist, tms creates it from the
-path configured in `[marks]`.
+**Marks (instant access):** `tms marks open <N>` immediately switches to the session at index N. No picker involved --
+it is a direct, instant switch. If the session does not exist, tms creates it from the path configured in `[marks]`.
 
 **Session lifecycle:**
 
@@ -179,32 +175,32 @@ path configured in `[marks]`.
 - `tms rename` -- renames session and updates working directory
 - `tms refresh` -- generates missing worktree windows
 
-**Picker interface:** Built-in Rust fuzzy finder with configurable colors and keyboard shortcuts. Not
-pluggable (no fzf/gum integration; the picker is compiled into the binary).
+**Picker interface:** Built-in Rust fuzzy finder with configurable colors and keyboard shortcuts. Not pluggable (no
+fzf/gum integration; the picker is compiled into the binary).
 
 **Source:** [tms README][1], `tms --help` output
 
 ### Sesh
 
-**Session creation:** `sesh connect <name-or-path>` creates and connects to a session. If the session
-does not exist, it is created automatically with the path resolved via zoxide or config.
+**Session creation:** `sesh connect <name-or-path>` creates and connects to a session. If the session does not exist, it
+is created automatically with the path resolved via zoxide or config.
 
-**Session switching:** Sesh is designed around picker integration. The canonical workflow uses fzf-tmux,
-gum, or television in a tmux popup:
+**Session switching:** Sesh is designed around picker integration. The canonical workflow uses fzf-tmux, gum, or
+television in a tmux popup:
 
 ```bash
 bind-key "T" display-popup -E -w 40% \
   "sesh connect \"$(sesh list -i | gum filter --limit 1)\""
 ```
 
-**Built-in picker (v2.23.0+):** `sesh picker` provides a native picker without external dependencies,
-added in February 2025.
+**Built-in picker (v2.23.0+):** `sesh picker` provides a native picker without external dependencies, added in February
+2025\.
 
-**Last session:** `sesh last` toggles to the most recently attached session, fixing tmux's broken native
-`last-session` command that fails after detach/reattach cycles.
+**Last session:** `sesh last` toggles to the most recently attached session, fixing tmux's broken native `last-session`
+command that fails after detach/reattach cycles.
 
-**Advanced picker modes:** The recommended fzf-tmux integration supports multiple source categories
-toggled via ctrl-key chords:
+**Advanced picker modes:** The recommended fzf-tmux integration supports multiple source categories toggled via ctrl-key
+chords:
 
 - `ctrl-a` -- all sources
 - `ctrl-t` -- tmux sessions only
@@ -259,9 +255,9 @@ ______________________________________________________________________
 
 ### Analysis
 
-**Sesh has stronger community traction** by every metric. It has 3.4x the stars despite being 19 months
-younger than tms. Sesh's 30 releases in ~26 months (roughly one every 3.5 weeks) versus tms's 13 releases
-in ~46 months (roughly one every 3.5 months) indicates a much faster development cadence.
+**Sesh has stronger community traction** by every metric. It has 3.4x the stars despite being 19 months younger than
+tms. Sesh's 30 releases in ~26 months (roughly one every 3.5 weeks) versus tms's 13 releases in ~46 months (roughly one
+every 3.5 months) indicates a much faster development cadence.
 
 **Sesh has broader ecosystem support:**
 
@@ -280,9 +276,8 @@ in ~46 months (roughly one every 3.5 months) indicates a much faster development
 - Active contributor community (petersimonsson, junglerobba are recurring contributors)
 - Listed on Repology for distribution packaging
 
-**The Session X factor:** The creator of tmux-sessionx (omerxx), another popular tmux session manager,
-publicly switched to sesh, calling it superior. This endorsement has driven additional adoption toward
-sesh.
+**The Session X factor:** The creator of tmux-sessionx (omerxx), another popular tmux session manager, publicly switched
+to sesh, calling it superior. This endorsement has driven additional adoption toward sesh.
 
 **Source:** GitHub API data, [Buzzrag article][7], [Linkarzu podcast][6]
 
@@ -304,10 +299,9 @@ ______________________________________________________________________
   - Separator-aware fuzzy matching -- February 2025
   - Git bare root namer for worktree support -- January 2025
   - Blacklist support across all sources -- December 2024
-- **Trajectory:** Sesh had a burst of activity in January-February 2025 with significant feature
-  additions. Activity continued through March 2026, but the pace has moderated. The project appears to be
-  in a "mature feature" phase, where most core functionality is implemented and development shifts toward
-  refinement and bug fixes.
+- **Trajectory:** Sesh had a burst of activity in January-February 2025 with significant feature additions. Activity
+  continued through March 2026, but the pace has moderated. The project appears to be in a "mature feature" phase, where
+  most core functionality is implemented and development shifts toward refinement and bug fixes.
 
 ### TMS
 
@@ -319,16 +313,15 @@ ______________________________________________________________________
   - Jujutsu (jj) VCS support -- v0.5.0, August 2025
   - Migration from git2 to gitoxide -- v0.5.0, August 2025
   - Picker cycling (top-to-bottom wrap) -- v0.4.5, March 2025
-- **Trajectory:** TMS has a slower but steady development pace. The marks feature (the user's primary
-  value) was added in March 2025, indicating the project is responsive to user needs. The jujutsu support
-  in v0.5.0 shows forward-looking development. However, the project has not had a release in over 8
-  months (since August 2025), and the last push was February 2026.
+- **Trajectory:** TMS has a slower but steady development pace. The marks feature (the user's primary value) was added
+  in March 2025, indicating the project is responsive to user needs. The jujutsu support in v0.5.0 shows forward-looking
+  development. However, the project has not had a release in over 8 months (since August 2025), and the last push was
+  February 2026.
 
 ### Relative Assessment
 
-Sesh is growing faster in both community size and feature breadth. TMS is a smaller, more focused tool
-with a slower but deliberate development cycle. Neither project appears abandoned, but sesh has more
-momentum.
+Sesh is growing faster in both community size and feature breadth. TMS is a smaller, more focused tool with a slower but
+deliberate development cycle. Neither project appears abandoned, but sesh has more momentum.
 
 **Source:** GitHub API data, [tms releases][10], [sesh releases][11]
 
@@ -348,8 +341,8 @@ ______________________________________________________________________
 | Cargo             | Published crate (`cargo install tmux-sessionizer`)         |
 | Shell completions | Bash, Zsh, Fish                                            |
 
-TMS has no plugin system and no external integrations beyond tmux itself. Its value is in being a
-self-contained binary that does one thing well.
+TMS has no plugin system and no external integrations beyond tmux itself. Its value is in being a self-contained binary
+that does one thing well.
 
 ### Sesh Integrations
 
@@ -370,9 +363,9 @@ self-contained binary that does one thing well.
 | Conda/mamba/Pixi  | Package available                                            |
 | Shell completions | Bash, Zsh, Fish, PowerShell                                  |
 
-Sesh has a significantly broader integration ecosystem, particularly with external picker tools and
-desktop launchers. The Raycast integration is notable for macOS users who want session access from
-anywhere in the OS, not just within tmux.
+Sesh has a significantly broader integration ecosystem, particularly with external picker tools and desktop launchers.
+The Raycast integration is notable for macOS users who want session access from anywhere in the OS, not just within
+tmux.
 
 **Source:** [sesh README][2], [tms README][1]
 
@@ -380,8 +373,8 @@ ______________________________________________________________________
 
 ## 6. Keybinding Support -- Critical Analysis
 
-This section addresses the user's primary concern: the ability to bind specific keys to switch to
-specific named projects instantly, without a picker.
+This section addresses the user's primary concern: the ability to bind specific keys to switch to specific named
+projects instantly, without a picker.
 
 ### Current TMS Workflow
 
@@ -411,8 +404,7 @@ bind-key -T TMUX_SESSIONIZER n display-popup -E "tms marks open 6"   # nvim
 1. If the session does not exist, tms creates it from the configured path in `[marks]`.
 1. The mark index-to-path mapping lives in `config.toml`, co-located with other tms config.
 1. The tmux keybinding only needs the index number -- it does not need to know the session name or path.
-1. Adding a new project requires two changes: add the mark in `config.toml` and add the keybinding in
-   `tmux.conf`.
+1. Adding a new project requires two changes: add the mark in `config.toml` and add the keybinding in `tmux.conf`.
 
 ### Can Sesh Replicate This?
 
@@ -424,8 +416,7 @@ bind-key -T TMUX_SESSIONIZER n display-popup -E "tms marks open 6"   # nvim
 > bind-key 1 run-shell -b "sesh connect 'Downloads'"
 > ```
 >
-> As of right now sesh doesn't make any changes to tmux, it's just a binary you can use to interact with
-> tmux.
+> As of right now sesh doesn't make any changes to tmux, it's just a binary you can use to interact with tmux.
 
 So the equivalent sesh setup would be:
 
@@ -471,17 +462,17 @@ path = "~/.local/share/chezmoi"
 
 Two relevant issues confirm that sesh's maintainer considers marks/shortcuts out of scope:
 
-1. **[Issue #107: "Shortcut per session as configuration"][12]** (May 2024) -- A user requested
-   `shortcut = "<C-1>"` in session config. Medeski closed it, pointing to the `run-shell` pattern above.
-   His philosophy: "sesh doesn't make any changes to tmux."
+1. **[Issue #107: "Shortcut per session as configuration"][12]** (May 2024) -- A user requested `shortcut = "<C-1>"` in
+   session config. Medeski closed it, pointing to the `run-shell` pattern above. His philosophy: "sesh doesn't make any
+   changes to tmux."
 
-1. **[Issue #255: "Add Session Marker System for Activity Tracking"][13]** (May 2025) -- A PR
-   implementing a marker system with visual indicators was rejected. Medeski responded: "I don't think
-   this approach is quite the right fit for this particular project. The scope feels out of place."
+1. **[Issue #255: "Add Session Marker System for Activity Tracking"][13]** (May 2025) -- A PR implementing a marker
+   system with visual indicators was rejected. Medeski responded: "I don't think this approach is quite the right fit
+   for this particular project. The scope feels out of place."
 
-**Conclusion:** Sesh will not add a marks system. The maintainer has drawn a clear boundary: sesh is a
-session connection tool, not a tmux configuration manager. Any keybinding-to-session mapping must be done
-manually in `tmux.conf`.
+**Conclusion:** Sesh will not add a marks system. The maintainer has drawn a clear boundary: sesh is a session
+connection tool, not a tmux configuration manager. Any keybinding-to-session mapping must be done manually in
+`tmux.conf`.
 
 **Source:** [sesh issue #107][12], [sesh issue #255][13], [tms README][1], user's `dot_tmux.conf`
 
@@ -518,40 +509,38 @@ ______________________________________________________________________
 
 ### For This User: Stay with TMS
 
-The user's workflow is built around a specific pattern: **tmux key tables + tms marks = instant,
-no-picker project switching via mnemonic single-key chords.** This pattern is the central productivity
-feature, and tms supports it as a first-class, built-in capability.
+The user's workflow is built around a specific pattern: **tmux key tables + tms marks = instant, no-picker project
+switching via mnemonic single-key chords.** This pattern is the central productivity feature, and tms supports it as a
+first-class, built-in capability.
 
 **Reasons to stay with TMS:**
 
-1. **The marks system is the killer feature.** It is exactly what the user needs, and it works
-   seamlessly. Sesh has no equivalent and the maintainer has explicitly rejected adding one.
+1. **The marks system is the killer feature.** It is exactly what the user needs, and it works seamlessly. Sesh has no
+   equivalent and the maintainer has explicitly rejected adding one.
 
-1. **Single source of truth.** TMS marks live in `config.toml` alongside other tms configuration. With
-   sesh, the same information would be split across `sesh.toml` (session definitions) and `tmux.conf`
-   (keybindings), creating a maintenance burden.
+1. **Single source of truth.** TMS marks live in `config.toml` alongside other tms configuration. With sesh, the same
+   information would be split across `sesh.toml` (session definitions) and `tmux.conf` (keybindings), creating a
+   maintenance burden.
 
-1. **`tms start` bootstraps sessions.** The user has `[[sessions]]` configured for uriel, openclaw, and
-   Homelab that auto-create on tmux startup. Sesh has no equivalent.
+1. **`tms start` bootstraps sessions.** The user has `[[sessions]]` configured for uriel, openclaw, and Homelab that
+   auto-create on tmux startup. Sesh has no equivalent.
 
-1. **Git worktree auto-windowing.** TMS automatically opens checked-out worktrees as tmux windows. This
-   is a unique tms feature with no sesh equivalent.
+1. **Git worktree auto-windowing.** TMS automatically opens checked-out worktrees as tmux windows. This is a unique tms
+   feature with no sesh equivalent.
 
-1. **Migration cost is real.** The user has 12 marks, 3 auto-start sessions, 3 bookmarks, and 4 search
-   directories configured. Replicating this in sesh would require redefining all sessions in `sesh.toml`,
-   rewriting all keybindings in `tmux.conf` to use `sesh connect` instead of `tms marks open`, and giving
-   up `tms start` bootstrapping.
+1. **Migration cost is real.** The user has 12 marks, 3 auto-start sessions, 3 bookmarks, and 4 search directories
+   configured. Replicating this in sesh would require redefining all sessions in `sesh.toml`, rewriting all keybindings
+   in `tmux.conf` to use `sesh connect` instead of `tms marks open`, and giving up `tms start` bootstrapping.
 
-1. **TMS is not abandoned.** The last release (v0.5.0) was August 2025, and the last push was February
-   2026\. Development is slower than sesh but ongoing.
+1. **TMS is not abandoned.** The last release (v0.5.0) was August 2025, and the last push was February 2026. Development
+   is slower than sesh but ongoing.
 
 **When sesh would be the better choice:**
 
 - If the user wanted per-session startup commands (e.g., auto-run `npm run dev` when opening a project).
 - If the user wanted zoxide-powered directory discovery instead of explicit `search_dirs`.
 - If the user wanted to launch tmux sessions from Raycast.
-- If the user primarily used picker-based (fuzzy finding) session switching rather than instant
-  keybinding switching.
+- If the user primarily used picker-based (fuzzy finding) session switching rather than instant keybinding switching.
 - If tms development stalled completely.
 
 ### Risk Assessment
@@ -573,28 +562,28 @@ ______________________________________________________________________
 
 ### Research Phases Executed
 
-1. **SCOPE:** Decomposed the comparison into 6 dimensions (config, UI/UX, community, growth,
-   integrations, keybindings). Identified the marks/keybinding workflow as the critical evaluation axis
-   based on the user's existing tms configuration.
+1. **SCOPE:** Decomposed the comparison into 6 dimensions (config, UI/UX, community, growth, integrations, keybindings).
+   Identified the marks/keybinding workflow as the critical evaluation axis based on the user's existing tms
+   configuration.
 
-1. **PLAN:** Identified primary sources (GitHub repos, READMEs, release notes, issues) and secondary
-   sources (blog posts, podcasts, community discussions). Planned triangulation via GitHub API metrics,
-   issue tracker analysis, and author statements.
+1. **PLAN:** Identified primary sources (GitHub repos, READMEs, release notes, issues) and secondary sources (blog
+   posts, podcasts, community discussions). Planned triangulation via GitHub API metrics, issue tracker analysis, and
+   author statements.
 
-1. **RETRIEVE:** Parallel web searches and fetches across 20+ sources. GitHub API queries for precise
-   metrics (stars, forks, contributors, commit counts, release counts). Direct inspection of user's live
-   tms config and tmux keybindings. Local `tms` CLI help output.
+1. **RETRIEVE:** Parallel web searches and fetches across 20+ sources. GitHub API queries for precise metrics (stars,
+   forks, contributors, commit counts, release counts). Direct inspection of user's live tms config and tmux
+   keybindings. Local `tms` CLI help output.
 
-1. **TRIANGULATE:** Cross-referenced GitHub star counts across multiple sources. Verified marks feature
-   rejection via two independent issues (#107 and #255) with author responses. Confirmed `sesh connect`
-   direct-switch pattern via author's own code example. Validated release dates against GitHub API.
+1. **TRIANGULATE:** Cross-referenced GitHub star counts across multiple sources. Verified marks feature rejection via
+   two independent issues (#107 and #255) with author responses. Confirmed `sesh connect` direct-switch pattern via
+   author's own code example. Validated release dates against GitHub API.
 
-1. **SYNTHESIZE:** Connected configuration structure, keybinding patterns, and maintainer philosophy into
-   a coherent recommendation. Identified the "two-file maintenance" problem as a concrete migration cost
-   unique to sesh's architecture.
+1. **SYNTHESIZE:** Connected configuration structure, keybinding patterns, and maintainer philosophy into a coherent
+   recommendation. Identified the "two-file maintenance" problem as a concrete migration cost unique to sesh's
+   architecture.
 
-1. **PACKAGE:** Structured report with comparison tables, code examples from the user's actual config,
-   and evidence-cited recommendation.
+1. **PACKAGE:** Structured report with comparison tables, code examples from the user's actual config, and
+   evidence-cited recommendation.
 
 ### Sources Consulted
 
@@ -608,11 +597,10 @@ ______________________________________________________________________
 
 ### Outline Refinement (Phase 4.5)
 
-Initial outline included "Performance benchmarks" as a section. After Phase 3, this was dropped because
-neither tool publishes benchmarks and both are compiled single-binaries with negligible startup times.
-The keybinding section was expanded from a subsection to a full dedicated section (Section 6) after
-discovering the two rejected sesh issues (#107 and #255), which provided critical evidence for the
-recommendation.
+Initial outline included "Performance benchmarks" as a section. After Phase 3, this was dropped because neither tool
+publishes benchmarks and both are compiled single-binaries with negligible startup times. The keybinding section was
+expanded from a subsection to a full dedicated section (Section 6) after discovering the two rejected sesh issues (#107
+and #255), which provided critical evidence for the recommendation.
 
 [1]: https://github.com/jrmoulton/tmux-sessionizer "tmux-sessionizer GitHub Repository"
 [2]: https://github.com/joshmedeski/sesh "sesh GitHub Repository"

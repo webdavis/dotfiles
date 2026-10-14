@@ -2,9 +2,9 @@
 
 Comprehensive review of <https://github.com/jessfraz/dotfiles> (main branch, April 2026).
 
-Jess's dotfiles are Linux-primary (Debian/i3/urxvt) but include macOS support. She now uses Nix Home
-Manager for deployment (previously Make + symlinks) and OpenAI Codex for AI-assisted development. Her
-setup reflects deep container/security expertise with a pragmatic, opinionated approach.
+Jess's dotfiles are Linux-primary (Debian/i3/urxvt) but include macOS support. She now uses Nix Home Manager for
+deployment (previously Make + symlinks) and OpenAI Codex for AI-assisted development. Her setup reflects deep
+container/security expertise with a pragmatic, opinionated approach.
 
 ______________________________________________________________________
 
@@ -29,23 +29,22 @@ ______________________________________________________________________
 
 ## 1. Repository Architecture
 
-**Structure:** Jess uses a flat layout with dotfiles at root (`.aliases`, `.functions`, `.exports`,
-`.bash_prompt`, `.dockerfunc`, `.nixbash`). System configs live under `etc/` and scripts under `bin/`.
-Deployment uses Nix Home Manager (`flake.nix` with `homeManagerModules.default`), which replaced the
-earlier Makefile symlink approach.
+**Structure:** Jess uses a flat layout with dotfiles at root (`.aliases`, `.functions`, `.exports`, `.bash_prompt`,
+`.dockerfunc`, `.nixbash`). System configs live under `etc/` and scripts under `bin/`. Deployment uses Nix Home Manager
+(`flake.nix` with `homeManagerModules.default`), which replaced the earlier Makefile symlink approach.
 
-**Compared to Stephen's setup:** Stephen uses chezmoi with `dot_` prefixes, `.tmpl` suffix for templates,
-and KeePassXC for secrets. The architectures solve different problems: chezmoi handles templating/secrets
-well; Jess's Nix approach handles reproducible environments better.
+**Compared to Stephen's setup:** Stephen uses chezmoi with `dot_` prefixes, `.tmpl` suffix for templates, and KeePassXC
+for secrets. The architectures solve different problems: chezmoi handles templating/secrets well; Jess's Nix approach
+handles reproducible environments better.
 
-**Interesting pattern: writable config via Home Manager.** Jess defines a `mkWritableConfig` helper in
-`flake.nix` that copies files with `install -m 0644` instead of symlinking, so tools that need to write
-to their own config (like Codex) can do so without fighting read-only Nix store symlinks. Stephen doesn't
-have this problem with chezmoi (it copies by default), but it's a clever Nix pattern.
+**Interesting pattern: writable config via Home Manager.** Jess defines a `mkWritableConfig` helper in `flake.nix` that
+copies files with `install -m 0644` instead of symlinking, so tools that need to write to their own config (like Codex)
+can do so without fighting read-only Nix store symlinks. Stephen doesn't have this problem with chezmoi (it copies by
+default), but it's a clever Nix pattern.
 
-**What Stephen could adopt:** Nothing structural. Chezmoi is the right tool for Stephen's needs. The file
-separation pattern (`.aliases`, `.functions`, `.exports` as separate sourced files) is already
-well-understood but Stephen chose a single `dot_bashrc.tmpl` which works fine with chezmoi templating.
+**What Stephen could adopt:** Nothing structural. Chezmoi is the right tool for Stephen's needs. The file separation
+pattern (`.aliases`, `.functions`, `.exports` as separate sourced files) is already well-understood but Stephen chose a
+single `dot_bashrc.tmpl` which works fine with chezmoi templating.
 
 ______________________________________________________________________
 
@@ -150,8 +149,8 @@ Cross-platform file size reporting.
 tre() { tree -aC -I '.git' --dirsfirst "$@" | less -FRNX; }
 ```
 
-Stephen has `alias tree='tree -C'` but this adds hidden file display, .git exclusion, directories-first
-sorting, and piping to less.
+Stephen has `alias tree='tree -C'` but this adds hidden file display, .git exclusion, directories-first sorting, and
+piping to less.
 
 **`getcertnames()`** -- Show SSL certificate names (CNs and SANs) for a domain:
 
@@ -294,14 +293,13 @@ ______________________________________________________________________
 
 ### What Jess Has That Stephen Doesn't
 
-**`help.autocorrect = 1`** -- Automatically corrects and executes mistyped git commands after 0.1 second
-delay. E.g., `git stauts` becomes `git status`. Stephen should consider adopting this.
+**`help.autocorrect = 1`** -- Automatically corrects and executes mistyped git commands after 0.1 second delay. E.g.,
+`git stauts` becomes `git status`. Stephen should consider adopting this.
 
-**`push.default = simple`** -- Jess explicitly sets this. Stephen has `autoSetupRemote = true` which is
-better.
+**`push.default = simple`** -- Jess explicitly sets this. Stephen has `autoSetupRemote = true` which is better.
 
-**`pull.rebase = true`** -- Jess rebases on pull by default. Stephen doesn't have this set. Worth
-considering if Stephen prefers linear history.
+**`pull.rebase = true`** -- Jess rebases on pull by default. Stephen doesn't have this set. Worth considering if Stephen
+prefers linear history.
 
 ### Git Aliases Jess Has That Stephen Doesn't
 
@@ -360,9 +358,8 @@ Jess's hardened sshd_config is a reference-quality example:
 | `ClientAliveCountMax`             | `0`       | Disconnect immediately on timeout          |
 | `LogLevel`                        | `VERBOSE` | Detailed logging for forensics             |
 
-**Stephen already has** `executable_ssh-hardening.sh` in his bin. He should compare his settings against
-this reference and consider adding `MaxStartups 2`, `AllowTcpForwarding no` (if not using tunnels), and
-`ClientAliveCountMax 0`.
+**Stephen already has** `executable_ssh-hardening.sh` in his bin. He should compare his settings against this reference
+and consider adding `MaxStartups 2`, `AllowTcpForwarding no` (if not using tunnels), and `ClientAliveCountMax 0`.
 
 ### Kernel Security Sysctls (`etc/sysctl.d/kernel.conf`)
 
@@ -378,15 +375,14 @@ Not directly applicable to macOS but shows the security-first mindset.
 
 ### Docker Security
 
-The `etc/docker/seccomp/chrome.json` is a custom seccomp profile for running Chrome in Docker -- a
-whitelist-only approach (defaultAction: SCMP_ACT_ERRNO) that only allows specific syscalls. This is
-Jess's famous "running desktop apps in containers" approach.
+The `etc/docker/seccomp/chrome.json` is a custom seccomp profile for running Chrome in Docker -- a whitelist-only
+approach (defaultAction: SCMP_ACT_ERRNO) that only allows specific syscalls. This is Jess's famous "running desktop apps
+in containers" approach.
 
 ### GPG and Yubikey
 
-The `bin/yubikey-ssh-setup` script automates moving GPG subkeys to a Yubikey smartcard. It creates
-signing, encryption, and authentication subkeys, then moves them to the card. The GPG config in the
-script uses strong cipher preferences:
+The `bin/yubikey-ssh-setup` script automates moving GPG subkeys to a Yubikey smartcard. It creates signing, encryption,
+and authentication subkeys, then moves them to the card. The GPG config in the script uses strong cipher preferences:
 
 - `personal-cipher-preferences AES256 AES192 AES CAST5`
 - `cert-digest-algo SHA512`
@@ -401,14 +397,14 @@ Stephen could reference this if he ever moves to hardware-backed GPG keys.
 git remote set-url --push origin no_push
 ```
 
-This prevents accidental pushes to upstream repos when working on forks. The push URL is set to the
-literal string "no_push" which will always fail. Stephen should consider this pattern for any repos where
-he's a contributor but shouldn't push directly to origin.
+This prevents accidental pushes to upstream repos when working on forks. The push URL is set to the literal string
+"no_push" which will always fail. Stephen should consider this pattern for any repos where he's a contributor but
+shouldn't push directly to origin.
 
 ### Privacy -- `gitdate` Script
 
-The `bin/gitdate` script converts git commit timestamps to UTC to obscure timezone-based geolocation.
-Creative privacy measure. Not practical for daily use but interesting concept.
+The `bin/gitdate` script converts git commit timestamps to UTC to obscure timezone-based geolocation. Creative privacy
+measure. Not practical for daily use but interesting concept.
 
 ______________________________________________________________________
 
@@ -416,8 +412,8 @@ ______________________________________________________________________
 
 ### `bin/htotheizzo` -- Universal System Updater
 
-A single script that detects the OS and runs all update commands: apt, docker, containerd, runc, kubectl,
-rust, firmware, BIOS. Stephen could create a macOS equivalent:
+A single script that detects the OS and runs all update commands: apt, docker, containerd, runc, kubectl, rust,
+firmware, BIOS. Stephen could create a macOS equivalent:
 
 ```bash
 # Concept:
@@ -433,13 +429,12 @@ Stephen already has `alias bu='brew upgrade --formula'` but could expand it into
 ### `bin/openprs` -- List All Open PRs Across Repos
 
 Uses the GitHub API to enumerate all repos for a user and list open PRs with details. Stephen could use
-`gh search prs --state=open --author=@me` for a simpler version, but this script's pagination logic is
-instructive.
+`gh search prs --state=open --author=@me` for a simpler version, but this script's pagination logic is instructive.
 
 ### `bin/update-repos` -- Update All Local Repos
 
-Finds all `.git` directories under `$HOME` (maxdepth 2), pulls each, and runs project-specific commands
-(make, etc.). Stephen could adapt this pattern:
+Finds all `.git` directories under `$HOME` (maxdepth 2), pulls each, and runs project-specific commands (make, etc.).
+Stephen could adapt this pattern:
 
 ```bash
 # Pull all repos under ~/Projects
@@ -450,14 +445,14 @@ done
 
 ### `bin/generate-md-toc` -- Markdown TOC Generator
 
-Generates a GitHub-compatible table of contents by parsing rendered HTML. Stephen probably doesn't need
-this (most editors have TOC generation), but the approach of using GitHub's Markdown API to get rendered
-HTML and then parsing anchors is clever.
+Generates a GitHub-compatible table of contents by parsing rendered HTML. Stephen probably doesn't need this (most
+editors have TOC generation), but the approach of using GitHub's Markdown API to get rendered HTML and then parsing
+anchors is clever.
 
 ### `bin/keysign` -- GPG Key Signing Utility
 
-Interactive GPG key signing workflow: receives key from keyserver, displays fingerprint, enters edit mode
-for signing, and optionally uploads to keyserver. Useful reference for GPG workflows.
+Interactive GPG key signing workflow: receives key from keyserver, displays fingerprint, enters edit mode for signing,
+and optionally uploads to keyserver. Useful reference for GPG workflows.
 
 ______________________________________________________________________
 
@@ -489,15 +484,15 @@ ______________________________________________________________________
 
 Stephen's inputrc is significantly more customized and feature-rich.
 
-**One recommendation:** Consider adding `"\e[3;3~": kill-word` (Alt+Delete to delete the next word) from
-Jess's config. This is a nice editing shortcut.
+**One recommendation:** Consider adding `"\e[3;3~": kill-word` (Alt+Delete to delete the next word) from Jess's config.
+This is a nice editing shortcut.
 
 ______________________________________________________________________
 
 ## 8. macOS Defaults Script
 
-Jess's `bin/macos-defaults` is a comprehensive macOS configuration script (based on Mathias Bynens's
-`.macos`). Key settings Stephen should consider:
+Jess's `bin/macos-defaults` is a comprehensive macOS configuration script (based on Mathias Bynens's `.macos`). Key
+settings Stephen should consider:
 
 ### High Value for Stephen
 
@@ -532,11 +527,11 @@ sudo -v
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 ```
 
-This keeps sudo alive throughout the script execution. Clever pattern for long-running scripts that need
-intermittent root access.
+This keeps sudo alive throughout the script execution. Clever pattern for long-running scripts that need intermittent
+root access.
 
-**Recommendation:** Stephen should create a `macOS-defaults.sh` script managed by chezmoi to codify his
-preferred macOS settings. This makes machine setup reproducible.
+**Recommendation:** Stephen should create a `macOS-defaults.sh` script managed by chezmoi to codify his preferred macOS
+settings. This makes machine setup reproducible.
 
 ______________________________________________________________________
 
@@ -551,13 +546,11 @@ Jess migrated from a Makefile-based approach to Nix Home Manager. Her `flake.nix
 - Conditionally includes Linux-only files (i3, urxvt, X11)
 - Installs `terminal-notifier` on Darwin for notifications
 
-Stephen already has a Nix flake for his dev shell (linting tools). He doesn't use Home Manager since
-chezmoi handles dotfile deployment. The two approaches serve different purposes and Stephen's is
-appropriate for his needs.
+Stephen already has a Nix flake for his dev shell (linting tools). He doesn't use Home Manager since chezmoi handles
+dotfile deployment. The two approaches serve different purposes and Stephen's is appropriate for his needs.
 
-**Interesting pattern:** The CI workflow (`nix.yml`) runs `nix flake check --all-systems` which validates
-the flake for all supported platforms without needing runners for each. Stephen already does this in his
-CI.
+**Interesting pattern:** The CI workflow (`nix.yml`) runs `nix flake check --all-systems` which validates the flake for
+all supported platforms without needing runners for each. Stephen already does this in his CI.
 
 ______________________________________________________________________
 
@@ -599,16 +592,15 @@ Stephen's CLAUDE.md is already well-structured. From Jess's approach:
 1. **"No breadcrumbs" rule** -- add to CLAUDE.md: don't leave `// moved to X` comments.
 1. **Papercut fix permission** -- explicitly allow small, low-risk fixes without asking.
 1. **Web search before pivoting** -- currently implicit, could be explicit.
-1. **Nix bug workaround** -- Jess documents a known Codex PATH mutation bug. Stephen should document
-   known tool limitations similarly.
+1. **Nix bug workaround** -- Jess documents a known Codex PATH mutation bug. Stephen should document known tool
+   limitations similarly.
 
 ______________________________________________________________________
 
 ## 11. Docker Functions
 
-Jess's `.dockerfunc` is legendary -- running desktop apps (Chrome, Firefox, Slack, etc.) in Docker
-containers with X11 forwarding. This is Linux-specific and not applicable to Stephen's macOS setup, but
-the patterns are interesting:
+Jess's `.dockerfunc` is legendary -- running desktop apps (Chrome, Firefox, Slack, etc.) in Docker containers with X11
+forwarding. This is Linux-specific and not applicable to Stephen's macOS setup, but the patterns are interesting:
 
 - **`dcleanup()`** -- comprehensive Docker cleanup (containers, volumes, dangling images, system prune)
 - **`del_stopped()`** -- remove a stopped container by name
@@ -616,8 +608,8 @@ the patterns are interesting:
 - **`nginx_config()`** -- dynamically generates nginx reverse proxy configs and restarts nginx container
 - Chrome with Tor proxy: `--proxy-server="socks5://torproxy:9050"`
 
-**Pattern worth noting:** The `relies_on` function is a mini dependency resolver for containers. If
-Stephen ever does container-based development, this pattern is useful.
+**Pattern worth noting:** The `relies_on` function is a mini dependency resolver for containers. If Stephen ever does
+container-based development, this pattern is useful.
 
 ______________________________________________________________________
 
@@ -630,9 +622,9 @@ Jess uses Starship (like Stephen) with a custom Ghostty title integration in `.b
 - Uses a DEBUG trap with preexec/precmd pattern
 - Detects when the running command is a shell itself and shows the directory instead
 
-**Interesting pattern:** The `starship_precmd_user_func` variable hooks into Starship's precmd lifecycle
-to update the terminal title. Stephen could use this with Ghostty to get dynamic tab titles showing the
-current directory or running command.
+**Interesting pattern:** The `starship_precmd_user_func` variable hooks into Starship's precmd lifecycle to update the
+terminal title. Stephen could use this with Ghostty to get dynamic tab titles showing the current directory or running
+command.
 
 ### Shell Init Order (.nixbash)
 
@@ -654,8 +646,8 @@ if [[ -n $BASHRC_BENCH ]]; then
 fi
 ```
 
-Set `BASHRC_BENCH=1` to see how long each sourced file takes to load. Stephen could add this to debug
-slow shell startup.
+Set `BASHRC_BENCH=1` to see how long each sourced file takes to load. Stephen could add this to debug slow shell
+startup.
 
 ### SSH Config Tab Completion
 
@@ -665,8 +657,8 @@ slow shell startup.
   -W "$(grep "^Host" ~/.ssh/config | grep -v "[?*]" | cut -d " " -f2 | tr ' ' '\n')" scp sftp ssh
 ```
 
-This provides tab completion for SSH hostnames from `~/.ssh/config`. Stephen likely gets this from
-bash-completion, but this is a good fallback if the completion package isn't installed.
+This provides tab completion for SSH hostnames from `~/.ssh/config`. Stephen likely gets this from bash-completion, but
+this is a good fallback if the completion package isn't installed.
 
 ______________________________________________________________________
 
@@ -680,9 +672,9 @@ Jess's `.codex/notify.py` is a Python script for sending macOS notifications whe
 - Handles `agent-turn-complete` notification type
 - Groups notifications under "codex" group
 
-**Pattern for Stephen:** Stephen is building Hue light pulse notifications for terminal events. He could
-combine `terminal-notifier` (visual) + Hue (ambient) for a multi-modal notification system. The Ghostty
-detection pattern (`TERM_PROGRAM`, `__CFBundleIdentifier`, `TERM`) is useful for Stephen's Ghostty setup.
+**Pattern for Stephen:** Stephen is building Hue light pulse notifications for terminal events. He could combine
+`terminal-notifier` (visual) + Hue (ambient) for a multi-modal notification system. The Ghostty detection pattern
+(`TERM_PROGRAM`, `__CFBundleIdentifier`, `TERM`) is useful for Stephen's Ghostty setup.
 
 ______________________________________________________________________
 

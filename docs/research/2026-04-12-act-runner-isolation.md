@@ -1,7 +1,7 @@
 # Isolating GitHub Actions Local Testing on macOS
 
-**Date:** 2026-04-12 **Problem:** `act -P macos-latest=-self-hosted` runs directly on the host Mac with
-zero isolation. It can modify files, install packages, and affect system state.
+**Date:** 2026-04-12 **Problem:** `act -P macos-latest=-self-hosted` runs directly on the host Mac with zero isolation.
+It can modify files, install packages, and affect system state.
 
 ______________________________________________________________________
 
@@ -24,11 +24,11 @@ ______________________________________________________________________
 
 ## Option 1: Tart VMs (Recommended)
 
-**What it is:** [Tart](https://github.com/cirruslabs/tart) is a virtualization toolset from Cirrus Labs
-that manages macOS and Linux VMs on Apple Silicon using Apple's native Virtualization.Framework.
+**What it is:** [Tart](https://github.com/cirruslabs/tart) is a virtualization toolset from Cirrus Labs that manages
+macOS and Linux VMs on Apple Silicon using Apple's native Virtualization.Framework.
 
-**Isolation level:** Full VM isolation. The guest OS has its own kernel, filesystem, and network stack.
-Even if a workflow runs `rm -rf /`, it only affects the disposable VM.
+**Isolation level:** Full VM isolation. The guest OS has its own kernel, filesystem, and network stack. Even if a
+workflow runs `rm -rf /`, it only affects the disposable VM.
 
 ### Setup
 
@@ -58,8 +58,8 @@ tart run test-run-001
 tart run test-run-001 --dir=repo:~/path/to/repo
 ```
 
-Inside the VM, the repo appears at `/Volumes/My Shared Files/repo`. This is a read-write mount by
-default. For read-only:
+Inside the VM, the repo appears at `/Volumes/My Shared Files/repo`. This is a read-write mount by default. For
+read-only:
 
 ```bash
 tart run test-run-001 --dir=repo:~/path/to/repo:ro
@@ -73,8 +73,8 @@ The Tart Guest Agent (included in all non-vanilla Cirrus images) enables `tart e
 tart exec test-run-001 -- bash -c 'cd "/Volumes/My Shared Files/repo" && act -P macos-latest=-self-hosted'
 ```
 
-This uses gRPC over virtio-vsock (no SSH, no network needed). Each `tart exec` invocation streams I/O and
-returns the exit code.
+This uses gRPC over virtio-vsock (no SSH, no network needed). Each `tart exec` invocation streams I/O and returns the
+exit code.
 
 **SSH approach (fallback):**
 
@@ -137,8 +137,8 @@ exit $EXIT_CODE
 
 ### Resource Requirements
 
-- **Disk:** ~25 GB per macOS base image (stored once). Clones use copy-on-write, so minimal extra space
-  until divergence.
+- **Disk:** ~25 GB per macOS base image (stored once). Clones use copy-on-write, so minimal extra space until
+  divergence.
 - **RAM:** 4 GB default per VM (configurable)
 - **CPU:** 2 cores default per VM (configurable)
 - **Constraint:** Apple's Virtualization.Framework allows a maximum of 2 concurrent macOS VMs per host.
@@ -160,9 +160,9 @@ ______________________________________________________________________
 
 ## Option 2: Cirrus CLI + Tart (Alternative to act)
 
-**What it is:** [Cirrus CLI](https://github.com/cirruslabs/cirrus-cli) is a local CI runner from the same
-team that made Tart. Instead of using `act` to run GitHub Actions, you use `cirrus run` to execute tasks
-inside Tart VMs. This is a different workflow definition format but provides isolation by default.
+**What it is:** [Cirrus CLI](https://github.com/cirruslabs/cirrus-cli) is a local CI runner from the same team that made
+Tart. Instead of using `act` to run GitHub Actions, you use `cirrus run` to execute tasks inside Tart VMs. This is a
+different workflow definition format but provides isolation by default.
 
 ### Setup
 
@@ -206,8 +206,8 @@ Cirrus CLI automatically:
 
 - Isolation is automatic and built-in (every task runs in a fresh VM)
 - No need to manually manage VM lifecycle
-- Same config works locally and in CI (Cirrus CI, or via
-  [cirrus-action](https://github.com/cirruslabs/cirrus-action) in GitHub Actions)
+- Same config works locally and in CI (Cirrus CI, or via [cirrus-action](https://github.com/cirruslabs/cirrus-action) in
+  GitHub Actions)
 
 ### Cons
 
@@ -219,9 +219,8 @@ ______________________________________________________________________
 
 ## Option 3: Tartelet (Full Ephemeral Runner)
 
-**What it is:** [Tartelet](https://github.com/shapehq/tartelet) is a macOS app that manages ephemeral
-GitHub Actions runners inside Tart VMs. It is designed for self-hosted runner farms, but works for local
-testing.
+**What it is:** [Tartelet](https://github.com/shapehq/tartelet) is a macOS app that manages ephemeral GitHub Actions
+runners inside Tart VMs. It is designed for self-hosted runner farms, but works for local testing.
 
 ### How It Works
 
@@ -239,8 +238,7 @@ testing.
 1. Create a GitHub App with runner permissions
 1. Install Tart and pull a base image
 1. Install Tartelet from [releases](https://github.com/shapehq/tartelet/releases)
-1. Configure: select VM image, enter SSH credentials (admin/admin for Cirrus images), enter GitHub App
-   details
+1. Configure: select VM image, enter SSH credentials (admin/admin for Cirrus images), enter GitHub App details
 
 ### Pros
 
@@ -259,13 +257,13 @@ ______________________________________________________________________
 
 ## Option 4: sandbox-exec Wrappers
 
-**What it is:** macOS includes a built-in sandboxing facility called `sandbox-exec` that restricts what a
-process can do at the kernel level. Several tools wrap it for practical use.
+**What it is:** macOS includes a built-in sandboxing facility called `sandbox-exec` that restricts what a process can do
+at the kernel level. Several tools wrap it for practical use.
 
 ### Option 4a: Agent Safehouse
 
-[Agent Safehouse](https://github.com/eugene1g/agent-safehouse) is a single Bash script that applies a
-deny-first sandbox profile to any CLI command.
+[Agent Safehouse](https://github.com/eugene1g/agent-safehouse) is a single Bash script that applies a deny-first sandbox
+profile to any CLI command.
 
 ```bash
 brew install eugene1g/safehouse/agent-safehouse
@@ -304,12 +302,11 @@ safehouse --add-dirs="$PWD" act -P macos-latest=-self-hosted
 bx exec ~/my-repo -- act -P macos-latest=-self-hosted
 ```
 
-It scans `$HOME`, blocks sibling directories and sensitive locations, and allows only the specified
-working directory.
+It scans `$HOME`, blocks sibling directories and sensitive locations, and allows only the specified working directory.
 
-**Key difference from Safehouse:** bx-mac uses an allow-first / blocklist model (everything accessible by
-default, sensitive paths blocked). Safehouse uses deny-first (everything blocked, only specified paths
-allowed). Safehouse is more secure; bx-mac is more compatible.
+**Key difference from Safehouse:** bx-mac uses an allow-first / blocklist model (everything accessible by default,
+sensitive paths blocked). Safehouse uses deny-first (everything blocked, only specified paths allowed). Safehouse is
+more secure; bx-mac is more compatible.
 
 ### Option 4c: Raw sandbox-exec
 
@@ -356,23 +353,21 @@ EOF
 sandbox-exec -f /tmp/act-sandbox.sb act -P macos-latest=-self-hosted
 ```
 
-**Warning:** sandbox-exec is deprecated by Apple. It still works as of macOS 26 (Tahoe), but Apple could
-remove it in a future release. The profile syntax is undocumented Scheme/LISP and may change.
+**Warning:** sandbox-exec is deprecated by Apple. It still works as of macOS 26 (Tahoe), but Apple could remove it in a
+future release. The profile syntax is undocumented Scheme/LISP and may change.
 
 ______________________________________________________________________
 
 ## Option 5: SandVault (User Account Isolation)
 
-**What it is:** [SandVault](https://github.com/webcoyote/sandvault) creates a dedicated limited macOS
-user account (`sandvault-$USER`) and runs commands as that user, combined with `sandbox-exec` for
-additional restrictions.
+**What it is:** [SandVault](https://github.com/webcoyote/sandvault) creates a dedicated limited macOS user account
+(`sandvault-$USER`) and runs commands as that user, combined with `sandbox-exec` for additional restrictions.
 
 ### How It Works
 
 Two-layer isolation:
 
-1. **User account separation:** Commands run as a dedicated limited user with no access to your home
-   directory
+1. **User account separation:** Commands run as a dedicated limited user with no access to your home directory
 1. **sandbox-exec overlay:** Further restricts filesystem access on top of the user separation
 
 ### Setup
@@ -404,8 +399,8 @@ ______________________________________________________________________
 
 ## Option 6: Lima VMs
 
-**What it is:** [Lima](https://github.com/lima-vm/lima) is a CNCF incubating project for running Linux
-VMs on macOS. As of v2.1 (March 2026), it experimentally supports macOS guests.
+**What it is:** [Lima](https://github.com/lima-vm/lima) is a CNCF incubating project for running Linux VMs on macOS. As
+of v2.1 (March 2026), it experimentally supports macOS guests.
 
 ### macOS Guest Support
 
@@ -414,8 +409,7 @@ brew install lima
 limactl start template:macos
 ```
 
-This creates a macOS VM using the `vz` (Virtualization.Framework) driver. You can then run commands
-inside it.
+This creates a macOS VM using the `vz` (Virtualization.Framework) driver. You can then run commands inside it.
 
 ### Pros
 
@@ -437,29 +431,26 @@ ______________________________________________________________________
 
 ### Can act Use a macOS Docker Container?
 
-**No.** There is no macOS Docker image. macOS cannot run in a Docker container because Docker containers
-share the host kernel, and macOS requires the XNU kernel which Docker (Linux kernel) cannot provide.
+**No.** There is no macOS Docker image. macOS cannot run in a Docker container because Docker containers share the host
+kernel, and macOS requires the XNU kernel which Docker (Linux kernel) cannot provide.
 
 ### Linux Containers as Approximation
 
-If your workflow does not require macOS-specific tools (Xcode, macOS SDK), you can run `act` with Linux
-containers:
+If your workflow does not require macOS-specific tools (Xcode, macOS SDK), you can run `act` with Linux containers:
 
 ```bash
 # Default act behavior -- uses Docker containers
 act
 ```
 
-This provides full container isolation but runs Linux, not macOS. For workflows that only run shellcheck,
-shfmt, nix, and similar cross-platform tools (like the lint workflow in this repo), this may be
-sufficient.
+This provides full container isolation but runs Linux, not macOS. For workflows that only run shellcheck, shfmt, nix,
+and similar cross-platform tools (like the lint workflow in this repo), this may be sufficient.
 
 ### The Fundamental Problem
 
-`act` was designed around Docker containers for Linux. macOS support was bolted on via `-self-hosted`
-which just means "run on the host." There is an
-[open feature request](https://github.com/nektos/act/issues/2105) to integrate Tart as a VM backend for
-act, but it has been in the backlog since November 2023 with no implementation.
+`act` was designed around Docker containers for Linux. macOS support was bolted on via `-self-hosted` which just means
+"run on the host." There is an [open feature request](https://github.com/nektos/act/issues/2105) to integrate Tart as a
+VM backend for act, but it has been in the backlog since November 2023 with no implementation.
 
 ______________________________________________________________________
 
@@ -486,29 +477,28 @@ This provides:
 - **Process isolation:** No sandboxing of what commands can do
 - **Network isolation:** No network restrictions
 
-Nix is complementary to the other approaches, not a replacement. It ensures the right tools are available
-but does not prevent a malicious workflow from reading `~/.ssh/id_rsa`.
+Nix is complementary to the other approaches, not a replacement. It ensures the right tools are available but does not
+prevent a malicious workflow from reading `~/.ssh/id_rsa`.
 
 ______________________________________________________________________
 
 ## What GitHub Recommends
 
-From the
-[official documentation](https://docs.github.com/en/actions/reference/runners/self-hosted-runners):
+From the [official documentation](https://docs.github.com/en/actions/reference/runners/self-hosted-runners):
 
-1. **Use the `--ephemeral` flag** when configuring self-hosted runners. This makes the runner accept only
-   one job and automatically deregister afterward.
+1. **Use the `--ephemeral` flag** when configuring self-hosted runners. This makes the runner accept only one job and
+   automatically deregister afterward.
 
-1. **Never use self-hosted runners with public repositories.** Forks could submit PRs that run arbitrary
-   code on your runner.
+1. **Never use self-hosted runners with public repositories.** Forks could submit PRs that run arbitrary code on your
+   runner.
 
 1. **Treat runners as ephemeral.** Use automation to provide a clean environment for each job.
 
 1. **Use Actions Runner Controller (ARC)** on Kubernetes for automatic Pod-per-job isolation.
 
-GitHub provides NO built-in isolation for self-hosted runners. They explicitly state: "Self-hosted
-runners for GitHub do not have guarantees around running in ephemeral clean virtual machines, and can be
-persistently compromised by untrusted code in a workflow."
+GitHub provides NO built-in isolation for self-hosted runners. They explicitly state: "Self-hosted runners for GitHub do
+not have guarantees around running in ephemeral clean virtual machines, and can be persistently compromised by untrusted
+code in a workflow."
 
 ______________________________________________________________________
 
@@ -516,24 +506,22 @@ ______________________________________________________________________
 
 Based on GitHub Discussions, issues, and blog posts:
 
-1. **Most common:** Accept the risk and run `act -self-hosted` directly on the host. This is the path of
-   least resistance and what most individuals do for local testing.
+1. **Most common:** Accept the risk and run `act -self-hosted` directly on the host. This is the path of least
+   resistance and what most individuals do for local testing.
 
-1. **Infrastructure teams:** Use Tart + Tartelet or similar to run ephemeral VMs per job. This is common
-   for companies with Mac Mini farms.
+1. **Infrastructure teams:** Use Tart + Tartelet or similar to run ephemeral VMs per job. This is common for companies
+   with Mac Mini farms.
 
-1. **Security-conscious individuals:** Use sandbox-exec wrappers (Safehouse, bx-mac) for lightweight
-   process-level isolation.
+1. **Security-conscious individuals:** Use sandbox-exec wrappers (Safehouse, bx-mac) for lightweight process-level
+   isolation.
 
-1. **Linux-only workflows:** Run `act` with default Docker containers, avoiding the macOS problem
-   entirely.
+1. **Linux-only workflows:** Run `act` with default Docker containers, avoiding the macOS problem entirely.
 
-1. **Alternative CI systems:** Switch to Cirrus CLI + Tart for local testing, keeping GitHub Actions for
-   the actual CI.
+1. **Alternative CI systems:** Switch to Cirrus CLI + Tart for local testing, keeping GitHub Actions for the actual CI.
 
-The [act issue tracker](https://github.com/nektos/act/issues/2105) shows community demand for Tart
-integration, but no implementation exists yet. The act maintainer for Apple platforms acknowledged the
-request but cannot develop for Apple M-series platforms personally.
+The [act issue tracker](https://github.com/nektos/act/issues/2105) shows community demand for Tart integration, but no
+implementation exists yet. The act maintainer for Apple platforms acknowledged the request but cannot develop for Apple
+M-series platforms personally.
 
 ______________________________________________________________________
 
@@ -557,8 +545,7 @@ ______________________________________________________________________
 ## Recommended Approach for This Repo
 
 Given that this repo's CI workflow (`.github/workflows/lint.yml`) runs on `macos-latest` and executes
-`nix flake check --all-systems` plus the lint suite (shellcheck, shfmt, mdformat, nixfmt), here are two
-practical paths:
+`nix flake check --all-systems` plus the lint suite (shellcheck, shfmt, mdformat, nixfmt), here are two practical paths:
 
 ### Quick Win: Safehouse + act (5 minutes)
 
@@ -571,9 +558,9 @@ brew install eugene1g/safehouse/agent-safehouse
 safehouse --add-dirs="$PWD" act -P macos-latest=-self-hosted -W .github/workflows/lint.yml
 ```
 
-This prevents the workflow from touching anything outside the repo directory. It does NOT provide
-VM-level isolation, but it stops the most common accidents (overwriting dotfiles, installing system
-packages to unexpected locations, reading secrets).
+This prevents the workflow from touching anything outside the repo directory. It does NOT provide VM-level isolation,
+but it stops the most common accidents (overwriting dotfiles, installing system packages to unexpected locations,
+reading secrets).
 
 ### Full Isolation: Tart VM + act (30 minutes first time, then seconds)
 
