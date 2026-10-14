@@ -62,6 +62,7 @@ plugins:
         plugins:
           - "strategy@webdavis"
           - "clean-code@webdavis"
+          - "git@webdavis"
     hermes:
       - "hermes-memory-wiki"
       - "homeassistant"
