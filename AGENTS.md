@@ -14,6 +14,11 @@
   - `scripts/treefmt/agent-data-validate.sh` rejects `.chezmoidata/agent-plugins.yaml` and
     `.chezmoidata/agent-skills.yaml` when a repository listed in them would reach one harness twice.
 
+## Rules
+
+- Delete with `trash`, never `rm`.
+- After the owner runs `just apply`, read `~/.local/state/chezmoi-apply/latest.apply.log`.
+
 ## Subagent Delegation
 
 - Delegate all ElevenLabs, video, animation and motion-graphics work to the lara subagent.
