@@ -17,4 +17,5 @@
 ## Rules
 
 - After the owner runs `just apply`, read `~/.local/state/chezmoi-apply/latest.apply.log`.
-- Don't commit a change I'm still trying out. Wait until I say it looks right, then open one PR.
+- Don't automatically merge PRs for changes unless I have told you
+- Don't commit a change I'm still trying out. Wait until I have approved it looks right, then open one PR.
