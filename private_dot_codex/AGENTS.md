@@ -1,6 +1,7 @@
 ## Rules
 
 - Delete with `trash`, never `rm`.
+- Never merge a PR unless I've said you can for the work we're doing.
 
 ## Subagent Delegation
 
