@@ -16,5 +16,9 @@
 
 ## Rules
 
-- After the owner runs `just apply`, read `~/.local/state/chezmoi-apply/latest.apply.log`.
-- Don't commit a change I'm still trying out. Wait until I say it looks right, then open one PR.
+- Agent Rules: go in this file, not in your memory.
+- chezmoi: After the owner runs `just apply`, read `~/.local/state/chezmoi-apply/latest.apply.log`.
+- version-control (git/GitHub):
+  - Don't commit a change I'm still trying out. Wait until I have approved it looks right.
+  - Don't open a PR or merge unless I ask for that step.
+  - Fix an open PR by editing or renaming it. Don't close it and open a new one.
