@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -78,10 +79,22 @@ def default_action(rows, key, state):
                 ],
             }
         argv = shlex.split(os.environ.get("EDITOR_CMD") or os.environ.get("EDITOR") or "nvim")
+        name = os.path.basename(argv[0])
+        # A bare name reads better in history; sudo keeps the full path, since its PATH may lack it.
+        if key != "ctrl-s" and shutil.which(name) == argv[0]:
+            argv[0] = name
         if row.get("line"):
             argv += ["+" + str(int(row["line"]))]
-        argv += ["--", *dict.fromkeys(r["path"] for r in rows if r.get("path"))]
-        return {"type": "command", "argv": (["sudo"] if key == "ctrl-s" else []) + argv}
+        cwd = state.get("cwd") or os.getcwd()
+        paths = [
+            os.path.relpath(p, cwd) if Path(p).is_relative_to(cwd) else p
+            for p in dict.fromkeys(r["path"] for r in rows if r.get("path"))
+        ]
+        # nvim reads a leading "+" as a command to run, so such names get "./" instead of "--".
+        argv += ["./" + p if p.startswith(("-", "+")) else p for p in paths]
+        if key == "ctrl-s":
+            argv = ["sudo", *argv]
+        return {"type": "run" if key == "alt-enter" else "command", "argv": argv}
     action = row.get("action", "insert")
     if action == "none":
         return {"type": "reload"}

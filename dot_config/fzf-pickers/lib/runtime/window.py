@@ -53,7 +53,7 @@ def arguments(state, session, command, argument):
         args.append("--no-multi")
     custom = set(module(kind).bindings(kind, state)) - TOGGLES - {"alt-y"}
     if kind in LOCATION_KINDS:
-        custom |= {"ctrl-o", "ctrl-s", "alt-c", "alt-q"}
+        custom |= {"ctrl-o", "ctrl-s", "alt-c", "alt-q", "alt-enter"}
     args += ["--expect=" + ",".join(sorted(custom | {"enter"}))]
     if kind in SEARCH_DETAILS:
         source_keys = ["alt-r", *sorted(TOGGLES & keys.keys())]

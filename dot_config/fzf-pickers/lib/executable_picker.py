@@ -100,10 +100,12 @@ def initial_state(arguments):
 
 
 def write_result(action):
-    if not action or action["type"] not in ("insert", "command"):
+    if not action or action["type"] not in ("insert", "command", "run"):
         return
     if action["type"] == "insert":
         fields = action["values"]
+    elif action["type"] == "run":
+        fields = action["argv"]
     else:
         fields = [action.get("text") or shlex.join(action["argv"])]
     record = "\0".join([action["type"], *fields]) + "\0"

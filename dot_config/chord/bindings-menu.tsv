@@ -146,7 +146,7 @@ ctrl-x o u	packages	run	__bash_bindings_update_package_manager
 ctrl-x o s	packages	insert	brew search	`brew search `
 ctrl-x o i	packages	insert	brew install	`brew install `
 ctrl-x l	files	run	__bash_bindings_git_ls_files_with_last_modified	
-ctrl-t ctrl-t	fzf-pickers	function	fzf-file-widget	Files under this folder, from fzf's own Ctrl-T widget
+ctrl-t ctrl-t	fzf-pickers	function	__fzf_pick files	Files under this folder (same as ctrl-t f)
 ctrl-t f	fzf-pickers	function	__fzf_pick files	Files under this folder
 ctrl-t F	fzf-pickers	function	__fzf_pick files --hidden	Files under this folder, hidden ones too
 ctrl-t h	fzf-pickers	function	__fzf_pick files --root home	Files in your home folder, two levels deep

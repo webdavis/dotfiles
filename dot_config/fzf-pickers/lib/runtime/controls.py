@@ -65,6 +65,7 @@ def controls(kind, state):
     if kind in LOCATION_KINDS:
         result.update(
             {
+                "alt-enter": "Open in editor (Ctrl-Enter in Ghostty)",
                 "ctrl-o": "Prepare opening",
                 "ctrl-s": "Prepare sudo edit",
                 "alt-c": "Prepare containing directory",
