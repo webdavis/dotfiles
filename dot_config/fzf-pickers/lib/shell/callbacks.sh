@@ -20,6 +20,18 @@ __fzf_run_picker() {
   python3 "$FZF_PICKERS_HELPER" run "$@"
 }
 
+# Submit the command line as if Enter were pressed, so bash runs it, records it and
+# redraws the whole prompt. The terminal answers the \e[5n status request with \e[0n,
+# which readline reads after this widget returns; \C-x\C-z disarms that key again.
+__fzf_submit_line() {
+  local mode
+  for mode in vi-insert vi-command emacs-standard; do
+    bind -m "$mode" -x '"\C-x\C-z": __fzf_disarm_next_line'
+    bind -m "$mode" '"\e[0n": "\C-x\C-z\C-m"'
+  done
+  printf '\e[5n' >/dev/tty
+}
+
 __fzf_pick() {
   local result key value
   result=$(mktemp "${TMPDIR:-/tmp}/fzf-result.XXXXXXXX") || return 0
@@ -29,6 +41,12 @@ __fzf_pick() {
     key=${fields[0]-}
     case $key in
       insert) __fzf_insert_arguments "${fields[@]:1}" ;;
+      run)
+        printf -v value '%q ' "${fields[@]:1}"
+        READLINE_LINE=${value% }
+        READLINE_POINT=${#READLINE_LINE}
+        __fzf_submit_line
+        ;;
       command)
         value=${fields[1]-}
         if [[ -n $value ]]; then

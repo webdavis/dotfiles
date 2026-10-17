@@ -79,6 +79,9 @@ quick-terminal-animation-duration = 0.05
 # Hyper+comma for its sysdiagnose viewer. F19, not comma: espanso records a comma
 # even with Cmd+Ctrl held, and two of them start its `,,` triggers.
 keybind = global:ctrl+super+f19=toggle_quick_terminal
+# Terminals send Ctrl+Enter as a plain Enter, so it is sent as Alt+Enter, which fzf
+# pickers bind to "open in the editor".
+keybind = ctrl+enter=text:\x1b\r
 
 # ╭──────────────────────╮
 # │  Security & UX (v2)  │

@@ -815,9 +815,9 @@ description = "The fzf pickers. Each key opens one, and Enter puts what you chos
 
 [[group.binding]]
 key = "ctrl-t ctrl-t"
-description = "Files under this folder, from fzf's own Ctrl-T widget"
+description = "Files under this folder (same as ctrl-t f)"
 modes = ["vi-insert", "vi-command", "emacs-standard"]
-function = "fzf-file-widget"
+function = "__fzf_pick files"
 
 [[group.binding]]
 key = "ctrl-t f"
