@@ -20,6 +20,10 @@ scripts/
 .config/nvim/docs/
 .config/nvim/tests/
 
+# herdr-picker's Broccoli picker tests and their synthetic fixtures:
+.config/herdr/plugins/config/herdr-picker/pickers/lib/broccoli/test_*.py
+.config/herdr/plugins/config/herdr-picker/pickers/lib/broccoli/fixtures/
+
 # Formatter and linter configs:
 .shellcheckrc
 .editorconfig
