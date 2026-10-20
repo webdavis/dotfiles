@@ -44,10 +44,22 @@ return {
   -- loads. lazy's placeholder holds the key and the press that loads the plugin
   -- is re-fed to the toggle snacks registers.
   keys = { { "<leader>uv", desc = "Toggle Autosave" } },
+  -- Registered at startup, before auto-save.nvim adds its own autocmds for the
+  -- same events, so it runs first and the write that follows knows it came from
+  -- an immediate trigger and keeps formatting (custom_api/autosave.lua).
+  init = function()
+    local autosave = require("custom_api.autosave")
+    vim.api.nvim_create_autocmd(autosave.IMMEDIATE_EVENTS, {
+      group = vim.api.nvim_create_augroup("AutoSaveImmediateMark", { clear = true }),
+      callback = function(args)
+        autosave.mark_immediate(args.buf)
+      end,
+    })
+  end,
   opts = {
     enabled = false,
     trigger_events = {
-      immediate_save = { "BufLeave", "FocusLost", "QuitPre", "VimSuspend" },
+      immediate_save = require("custom_api.autosave").IMMEDIATE_EVENTS,
       defer_save = { "InsertLeave", "TextChanged" },
       cancel_deferred_save = { "InsertEnter" },
     },

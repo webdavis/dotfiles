@@ -21,9 +21,31 @@ function M.should_save(bufnr)
   return vim.b[bufnr].claudecode_diff_tab_name == nil
 end
 
+--- The auto-save.nvim triggers that write at once because the operator is done
+--- with the buffer for now: leaving it, losing focus, suspending, quitting. A
+--- write on one of these keeps formatting; only the mid-typing saves skip it.
+M.IMMEDIATE_EVENTS = { "BufLeave", "FocusLost", "QuitPre", "VimSuspend" }
+
+--- Note that the next automatic write of `bufnr` comes from an immediate
+--- trigger. Called from an autocmd registered before auto-save.nvim's own, so it
+--- runs first on the same event; the mark lasts until the event loop turns.
+---@param bufnr integer
+function M.mark_immediate(bufnr)
+  vim.b[bufnr].autosave_immediate = true
+  vim.schedule(function()
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      vim.b[bufnr].autosave_immediate = nil
+    end
+  end)
+end
+
 --- Raise the flag conform's format-on-save hook reads, for one automatic write.
+--- A write from an immediate trigger raises nothing, so it formats like `:w`.
 ---@param bufnr integer
 function M.mark_write(bufnr)
+  if vim.b[bufnr].autosave_immediate then
+    return
+  end
   vim.b[bufnr].autosave_write = true
 
   -- auto-save.nvim drops the flag in its post event, but a `BufWritePre`
