@@ -312,8 +312,6 @@ packages:
       repo: iurysza/herdr-tab-smart-rename
     - id: persiyanov.reviewr
       repo: persiyanov/herdr-reviewr
-    - id: chmarax.herdr-nvim
-      repo: ChmaraX/herdr-nvim
     - id: annotate
       repo: plannotator/herdr-annotate
     - id: furkankly.zoetrope
