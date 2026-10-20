@@ -124,15 +124,14 @@ return {
       mode = "x",
       desc = "Claude: send selection",
     },
-    -- The convenience for question 2 above: `none` auto-launches nothing, so
-    -- this prompts `/ide` at the Claude agent herdr-nvim-2 resolves, or splits
-    -- a pane beside the editor and starts one there.
+    -- herdr-nvim-2's `:Herdr ide`: prompts `/ide` at the agent it resolves, or
+    -- splits a pane beside the editor and starts one there.
     {
       "<leader>Cc",
       function()
-        require("custom_api.herdr").launch_or_attach()
+        require("herdr-nvim-2").ide()
       end,
-      desc = "Claude: launch or attach --ide",
+      desc = "Claude: connect agent to Neovim (/ide)",
     },
   },
   -- The plugin's logger sends WARN and ERROR through `vim.notify`, and INFO, DEBUG
