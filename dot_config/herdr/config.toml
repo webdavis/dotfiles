@@ -116,14 +116,14 @@ remove_worktree = ""
 navigate_workspace_up = "ctrl+p"
 navigate_workspace_down = "ctrl+n"
 
-# ╭────────────────────────╮
-# │  herdr-workspace-jump  │
-# ╰────────────────────────╯
+# ╭────────────────╮
+# │  herdr-picker  │
+# ╰────────────────╯
 # Workspace-level MRU toggle.
 [[keys.command]]
 key = "prefix+ctrl+\\"
 type = "plugin_action"
-command = "herdr-workspace-jump.last_workspace"
+command = "herdr-picker.last_workspace"
 description = "last workspace (MRU toggle)"
 
 # Picker popup: the plugin sizes it to the herdr window. A workspace's key
@@ -131,7 +131,7 @@ description = "last workspace (MRU toggle)"
 [[keys.command]]
 key = "prefix+ctrl+o"
 type = "plugin_action"
-command = "herdr-workspace-jump.pick"
+command = "herdr-picker.pick"
 description = "pick a workspace"
 
 # The same popup from the workspace build, at a fixed size, to preview a
@@ -139,10 +139,24 @@ description = "pick a workspace"
 [[keys.command]]
 key = "prefix+ctrl+p"
 type = "popup"
-command = "~/workspaces/Ivy/webdavis/herdr-workspace-jump/target/release/herdr-workspace-jump pick"
+command = "~/workspaces/Ivy/webdavis/herdr-picker/target/release/herdr-picker pick"
 description = "pick a workspace (dev build)"
 width = 40
 height = 13
+
+# A popup over the focused pane that reads the picker's letter, the same one
+# the shell's ctrl-t or ctrl-g chord takes; enter searches every picker.
+[[keys.command]]
+key = "prefix+ctrl+t"
+type = "plugin_action"
+command = "herdr-picker.launch_ctrl_t"
+description = "pickers on ctrl-t over this pane"
+
+[[keys.command]]
+key = "prefix+ctrl+g"
+type = "plugin_action"
+command = "herdr-picker.launch_ctrl_g"
+description = "pickers on ctrl-g over this pane"
 
 # ╭───────────────────╮
 # │  herdr-smart-nav  │
@@ -214,15 +228,6 @@ key = "prefix+ctrl+m"
 type = "plugin_action"
 command = "worktrunk.merge"
 description = "worktree: merge into the target branch"
-
-# ╭─────────────╮
-# │  herdr-bar  │
-# ╰─────────────╯
-[[keys.command]]
-key = "prefix+space"
-type = "plugin_action"
-command = "herdr-bar.open"
-description = "command bar: fuzzy jump to any tab, pane or agent"
 
 # ╭────────────╮
 # │  annotate  │

@@ -40,5 +40,5 @@ key.txt
 # first and third are already global rules above, so only private/ is new here.
 dot_config/nvim/private/
 
-# Python bytecode the fzf pickers write beside their sources.
+# Python bytecode herdr-picker's own pickers write beside their sources.
 __pycache__/

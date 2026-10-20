@@ -290,8 +290,8 @@ packages:
   herdr_linked_plugins:
     - id: herdr-process
       repo: webdavis/herdr-process
-    - id: herdr-workspace-jump
-      repo: webdavis/herdr-workspace-jump
+    - id: herdr-picker
+      repo: webdavis/herdr-picker
 
   herdr_plugins:
     - id: herdr-smart-nav
@@ -304,8 +304,6 @@ packages:
       repo: iurysza/herdr-tab-smart-rename
     - id: persiyanov.reviewr
       repo: persiyanov/herdr-reviewr
-    - id: herdr-bar
-      repo: jeffarese/herdr-bar
     - id: chmarax.herdr-nvim
       repo: ChmaraX/herdr-nvim
     - id: annotate

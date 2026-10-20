@@ -1,0 +1,71 @@
+# The jump chords' targets: one action per entry, rendered into the plugin's
+# manifest at apply time. The pick popup lists them in this order and selects
+# on `key`, which defaults to the label's first letter; the declared keys keep
+# each family together (d/D damnit, p/P pns) and the dot for dotfiles.
+[workspaces]
+dotfiles = { dir = "~/workspaces/Ivy/webdavis/dotfiles", key = "." }
+pns = "~/workspaces/Ivy/webdavis/pns"
+"pns.nvim" = { dir = "~/workspaces/Ivy/webdavis/pns.nvim", key = "P" }
+posture = { dir = "~/workspaces/Ivy/webdavis/posture", key = "o" }
+uu = "~/workspaces/Ivy/webdavis/uu"
+skills = "~/workspaces/Ivy/webdavis/skills"
+"essential-feed-case-study" = "~/workspaces/Ivy/webdavis/essential-feed-case-study"
+vpt = "~/workspaces/Ivy/webdavis/vpt"
+damnit = "~/workspaces/Ivy/webdavis/damnit"
+"herdr-damnit" = { dir = "~/workspaces/Ivy/webdavis/herdr-damnit", key = "t" }
+"damnit.nvim" = { dir = "~/workspaces/Ivy/webdavis/damnit.nvim", key = "D" }
+homelab = "~/workspaces/Ivy/webdavis/homelab"
+bs = "~/workspaces/broccoli/bs"
+netpulse = "~/workspaces/Ivy/webdavis/netpulse"
+plantpulse = { dir = "~/workspaces/Ivy/hobbies/plantpulse", key = "l" }
+
+[picker]
+stripes = true
+
+# The network picker's UniFi controller. Its API key lives in the Keychain:
+# security add-generic-password -s "UniFi API key" -a "$USER" -w
+[pickers.network.unifi]
+url = "https://192.168.1.1"
+keychain-service = "UniFi API key"
+
+# Messages come from BlueBubbles. Its server password lives in the Keychain:
+# security add-generic-password -s "BlueBubbles server password" -a "$USER" -w
+[pickers.apple.bluebubbles]
+url = {{ (keepassxc "BlueBubbles :: Server Password (dresden)").URL | toToml }}
+keychain-service = "BlueBubbles server password"
+[pickers.dotfiles]
+key = "ctrl-t ."
+title = "Dotfiles"
+description = "What the dotfiles manage: files, packages, agent skills and plugins, shell, PATH"
+command = "dotfiles"
+sources = ["files", "packages", "skills", "plugins", "aliases", "functions", "environment", "path"]
+
+[pickers.broccoli]
+key = "ctrl-t b"
+title = "Broccoli"
+description = "Broccoli work: a call's Temporal workflow, radars, team stats, tickets"
+command = "broccoli"
+
+[pickers.broccoli.steps.calls]
+command = "broccoli calls"
+
+[pickers.broccoli.steps.explain-calls]
+command = "broccoli explain-calls"
+
+[pickers.broccoli.steps.workflow]
+command = "broccoli workflow"
+
+[pickers.broccoli.steps.explain]
+command = "broccoli explain"
+
+[pickers.broccoli.steps.failures]
+command = "broccoli failures"
+
+[pickers.broccoli.steps.missed]
+command = "broccoli missed"
+
+[pickers.broccoli.steps.stats]
+command = "broccoli stats"
+
+[pickers.broccoli.steps.tickets]
+command = "broccoli tickets"
