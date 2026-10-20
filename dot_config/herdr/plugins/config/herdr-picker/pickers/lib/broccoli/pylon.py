@@ -115,7 +115,7 @@ def ticket_rows(found, tabs, workspace, now):
             enter = {"herdr": {"focus_tab": tab["tab_id"]}}
         else:
             place = f"--workspace {shlex.quote(workspace)} " if workspace else ""
-            label = shlex.quote(title(issue)[:40])
+            label = shlex.quote(" ".join(title(issue).split())[:40])
             enter = {"run": f"herdr tab create {place}--label {label} --focus"}
         preview = (
             f"{title(issue)}\nstate: {issue.get('state')}\nassignee: {person(issue)}\n"
