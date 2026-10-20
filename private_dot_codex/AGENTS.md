@@ -1,6 +1,7 @@
 ## Rules
 
 - Delete with `trash`, never `rm`.
+- Make git worktrees with `wt switch --create <branch>`. After merging a PR, run `wt step prune`.
 
 ## Subagent Delegation
 
