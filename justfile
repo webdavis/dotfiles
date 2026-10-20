@@ -145,9 +145,9 @@ macos-defaults-show domain:
 macos-defaults-dump:
   defaults read | less
 
-# Remove this repository's merged, clean worktrees. --dry-run only reports.
+# Remove this repository's merged, clean worktrees and branches. --dry-run only reports.
 worktrees-prune *arguments:
-  ./scripts/prune-merged-worktrees.sh {{arguments}}
+  wt step prune {{arguments}}
 
 # List KeePass entries the templates read that the database doesn't have. Asks for the database password.
 check-keepass:
