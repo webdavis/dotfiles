@@ -94,6 +94,35 @@ return {
     assert(vim.b[buf].autosave_write == true)
   end,
 
+  -- Leaving, suspending or quitting means the operator is done typing, so that
+  -- write formats like a manual `:w` instead of standing conform down.
+  ["a write from an immediate trigger raises no flag"] = function()
+    local buf = scratch()
+    autosave().mark_immediate(buf)
+    autosave().mark_write(buf)
+    assert(vim.b[buf].autosave_write == nil, "an immediate write skipped formatting")
+  end,
+
+  ["the immediate mark lasts only until the event loop turns"] = function()
+    local buf = scratch()
+    autosave().mark_immediate(buf)
+    assert(
+      vim.wait(1000, function()
+        return vim.b[buf].autosave_immediate == nil
+      end, 10),
+      "mark stayed up, so the next deferred write would format"
+    )
+    autosave().mark_write(buf)
+    assert(vim.b[buf].autosave_write == true)
+  end,
+
+  ["marking a deleted buffer immediate is not an error"] = function()
+    local buf = scratch()
+    autosave().mark_immediate(buf)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    vim.wait(50)
+  end,
+
   -- auto-save.nvim raises the flag before its write and drops it after, but a
   -- BufWritePre handler that throws escapes that write and the post event never
   -- runs. A flag left up would silently disable formatting for every later
