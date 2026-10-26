@@ -18,5 +18,11 @@ return {
     -- custom_api.markdown_task (`<C-CR>`) is the one task toggle; without this,
     -- obsidian's `<CR>` toggles a checkbox too.
     checkbox = { enabled = false },
+    -- Git projects live under webdavis/; their markdown is not notes.
+    frontmatter = {
+      enabled = function(relative_path)
+        return not vim.startswith(relative_path, "webdavis/")
+      end,
+    },
   },
 }
