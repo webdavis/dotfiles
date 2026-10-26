@@ -103,7 +103,12 @@ return {
   },
   {
     "nvim-lualine/lualine.nvim",
-    lazy = false,
+    -- Drawn right after the first screen; the blank statusline set in `init` holds its place so
+    -- Neovim's own statusline never shows for that moment.
+    event = "VeryLazy",
+    init = function()
+      vim.o.statusline = " "
+    end,
     dependencies = { "nvim-tree/nvim-web-devicons" },
     opts = {
       options = {
