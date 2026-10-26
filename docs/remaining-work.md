@@ -7132,8 +7132,7 @@ operator-only actions remain in force.
   gate.
 - [ ] SP7, sweep and backlog reconciliation, detailed below. Finish the earlier approved work first.
 - [ ] Revisit Neovim's explicitly deferred conform.nvim/nvim-lint migration and Agent Client Protocol option only after
-  a separate decision, using the v4 design. Replacing noice with private `vim._core.ui2` was excluded; it is not an
-  approved follow-up.
+  a separate decision, using the v4 design.
 - [ ] Revisit the babysitter execute-bit issue draft in `~/.claude/pipeline/babysitter-issues/` when the operator
   releases its 2026-09-06 deferral.
 - [ ] Reconcile babysitter's separate Stop-decision defect against a released artifact and rerun the recorded A/B
