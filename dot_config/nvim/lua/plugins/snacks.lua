@@ -129,6 +129,24 @@ return {
         layout = {
           preset = "default",
         },
+        -- The prompt edits like bash (readline). The snacks actions those keys held move to Alt:
+        -- select all to <a-a>, preview scroll to <a-j>/<a-k>, list scroll up to <a-u> (<c-d> still
+        -- scrolls down; <a-d> stays snacks' inspect).
+        win = {
+          input = {
+            keys = {
+              ["<c-a>"] = { "<Home>", mode = "i", expr = true, desc = "start of line" },
+              ["<c-e>"] = { "<End>", mode = "i", expr = true, desc = "end of line" },
+              ["<c-f>"] = { "<Right>", mode = "i", expr = true, desc = "right one character" },
+              ["<c-b>"] = { "<Left>", mode = "i", expr = true, desc = "left one character" },
+              ["<c-u>"] = { "<C-u>", mode = "i", expr = true, desc = "delete to start of line" },
+              ["<a-a>"] = { "select_all", mode = { "n", "i" } },
+              ["<a-j>"] = { "preview_scroll_down", mode = { "n", "i" } },
+              ["<a-k>"] = { "preview_scroll_up", mode = { "n", "i" } },
+              ["<a-u>"] = { "list_scroll_up", mode = { "n", "i" } },
+            },
+          },
+        },
         sources = {
           explorer = {
             diagnostics_open = true,
