@@ -29,8 +29,9 @@ return {
         useDefaults = false,
         -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua), and `in`/`an`
         -- are Neovim's own grow/shrink selection, so the number object moves
-        -- to `id`/`ad` below.
-        disabledDefaults = { "iN", "aN", "in", "an" },
+        -- to `id`/`ad` below. mini.ai's `q` and `b` replace this plugin's any
+        -- quote (`iq`) and any bracket (`io`), and also take next and last.
+        disabledDefaults = { "iN", "aN", "in", "an", "iq", "aq", "io", "ao" },
       },
     },
     config = function(_, opts)
