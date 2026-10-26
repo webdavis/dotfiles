@@ -314,31 +314,4 @@ return {
       },
     },
   },
-  {
-    -- none-ls is here for its CODE ACTIONS and nothing else. Formatting moved to
-    -- conform.nvim (plugins/conform.lua) and diagnostics to nvim-lint
-    -- (plugins/nvim-lint.lua); neither of those replaces a code-action source, so
-    -- the plugin stays, narrowed to the two sources that provide one.
-    --
-    -- Do not add a formatter or a diagnostic back here. A none-ls source is a
-    -- language server as far as Neovim is concerned, so a formatter registered
-    -- here would compete with conform for the buffer and a diagnostic would
-    -- publish into the shared LSP namespace instead of nvim-lint's own.
-    "nvimtools/none-ls.nvim",
-    event = { "BufReadPre", "BufNewFile" },
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-    },
-    config = function()
-      local null_ls = require("null-ls")
-      local code_actions = null_ls.builtins.code_actions
-
-      null_ls.setup({
-        sources = {
-          code_actions.gitsigns,
-          code_actions.refactoring, -- Filetypes: go, javascript, lua, python, typescript.
-        },
-      })
-    end,
-  },
 }

@@ -298,7 +298,6 @@ blink-cmp-git `d3f2a906`.
 | which-key | `<C-g>` group labels; octo `<localleader>` groups | `lua/plugins/which-key.lua:11-27`, `G:1653-1663` |
 | lualine | `branch`, `diff` components and `fugitive` extension | `lua/plugins/ui.lua:119,182` |
 | catppuccin | `gitsigns`, `octo` integrations | `lua/plugins/ui.lua:44,61` |
-| none-ls | `code_actions.gitsigns` | `lua/plugins/lsp.lua:338` |
 | autosave | must keep writing `acwrite` buffers of octo (pushes to GitHub) and gitsigns (stages a hunk) | `lua/custom_api/autosave.lua:16-18`, `tests/autosave_spec.lua:7,70-75` |
 | close-with-`q` autocmd | `gitsigns-blame` filetype | `lua/config/autocmds.lua:93` |
 | tests | `tests/git_spec.lua`, `tests/github_spec.lua`, `tests/plugins_git_spec.lua`, `tests/plugins_snacks_gitsigns_toggle_spec.lua`, `tests/dump_state.lua:134-144` (waits for gitsigns `]g`) | |
