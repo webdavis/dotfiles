@@ -1,6 +1,6 @@
 return {
   "monaqa/dial.nvim",
-  lazy = false,
+  event = "VeryLazy",
   config = function()
     local augend = require("dial.augend")
 
