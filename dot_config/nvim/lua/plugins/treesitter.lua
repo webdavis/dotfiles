@@ -32,7 +32,7 @@ return {
       config = function()
         require("nvim-treesitter-textobjects").setup({
           select = {
-            -- Jumps forward to the next text object when the cursor is not on one, as targets.vim does.
+            -- Jumps forward to the next text object when the cursor is not on one.
             lookahead = true,
             selection_modes = {
               ["@parameter.outer"] = "v",
