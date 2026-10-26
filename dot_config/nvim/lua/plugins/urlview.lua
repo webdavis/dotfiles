@@ -24,10 +24,8 @@ return {
       silent = true,
     },
     -- Trigger-only, no rhs: urlview binds `[u` and `]u` itself inside `setup`
-    -- (urlview/jump.lua), and vim-unimpaired claims the same pair only when
-    -- `maparg` reports them free. A lazy placeholder holds them until the press
-    -- that loads urlview, so unimpaired's guard still skips and the press lands
-    -- on urlview's own jump rather than on URL encode and decode.
+    -- (urlview/jump.lua), so these placeholders only load it on the first
+    -- press, which then lands on urlview's own jump.
     { "[u", desc = "Previous URL" },
     { "]u", desc = "Next URL" },
   },
