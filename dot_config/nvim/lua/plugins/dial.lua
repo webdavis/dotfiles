@@ -1,9 +1,9 @@
 -- dial.nvim owns <C-a>/<C-x>: numbers and dates as it ships them, plus the word cycles boole.nvim
--- used to toggle (dropped in the same commit). Loaded eagerly like the bare spec it replaces: no
--- startup trigger moves before PR 30a.
+-- used to toggle (dropped in the same commit). Loaded right after the first screen, which keeps its
+-- 2 ms off startup; until then <C-a>/<C-x> are Neovim's own.
 return {
   "monaqa/dial.nvim",
-  lazy = false,
+  event = "VeryLazy",
   config = function()
     local augend = require("dial.augend")
 
