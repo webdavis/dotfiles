@@ -102,7 +102,6 @@ return {
     event = { "InsertEnter", "CmdlineEnter" },
     opts_extend = {
       "sources.completion.enabled_providers",
-      "sources.compat",
       "sources.default",
     },
     dependencies = {
@@ -115,11 +114,6 @@ return {
       "Kaiser-Yang/blink-cmp-git",
       "moyiz/blink-emoji.nvim",
       "joelazar/blink-calc",
-      {
-        "saghen/blink.compat",
-        -- use v2.* for blink.cmp v1.*
-        version = "2.*",
-      },
       {
         "mikavilpas/blink-ripgrep.nvim",
         version = "*", -- use the latest stable version
@@ -190,7 +184,6 @@ return {
       -- Default list of enabled providers defined so that you can extend it
       -- elsewhere in your config, without redefining it, due to `opts_extend`
       sources = {
-        compat = {},
         providers = {
           lazydev = {
             name = "LazyDev",
@@ -311,24 +304,5 @@ return {
         enabled = true,
       },
     },
-    config = function(_, opts)
-      -- setup compat sources
-      local enabled = opts.sources.default
-      for _, source in ipairs(opts.sources.compat or {}) do
-        opts.sources.providers[source] = vim.tbl_deep_extend(
-          "force",
-          { name = source, module = "blink.compat.source" },
-          opts.sources.providers[source] or {}
-        )
-        if type(enabled) == "table" and not vim.tbl_contains(enabled, source) then
-          table.insert(enabled, source)
-        end
-      end
-
-      -- Unset custom prop to pass blink.cmp validation
-      opts.sources.compat = nil
-
-      require("blink.cmp").setup(opts)
-    end,
   },
 }
