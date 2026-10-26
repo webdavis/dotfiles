@@ -59,7 +59,6 @@ return {
     event = { "InsertEnter", "CmdlineEnter" },
     opts_extend = {
       "sources.completion.enabled_providers",
-      "sources.compat",
       "sources.default",
     },
     dependencies = {
@@ -71,10 +70,6 @@ return {
       "Kaiser-Yang/blink-cmp-git",
       "moyiz/blink-emoji.nvim",
       "joelazar/blink-calc",
-      {
-        "saghen/blink.compat",
-        version = "2.*",
-      },
       {
         "mikavilpas/blink-ripgrep.nvim",
         version = "*",
@@ -120,7 +115,6 @@ return {
       },
 
       sources = {
-        compat = {},
         providers = {
           lazydev = {
             name = "LazyDev",
@@ -228,23 +222,5 @@ return {
         enabled = true,
       },
     },
-    config = function(_, opts)
-      local enabled = opts.sources.default
-      for _, source in ipairs(opts.sources.compat or {}) do
-        opts.sources.providers[source] = vim.tbl_deep_extend(
-          "force",
-          { name = source, module = "blink.compat.source" },
-          opts.sources.providers[source] or {}
-        )
-        if type(enabled) == "table" and not vim.tbl_contains(enabled, source) then
-          table.insert(enabled, source)
-        end
-      end
-
-      -- blink.cmp's validation rejects this custom key.
-      opts.sources.compat = nil
-
-      require("blink.cmp").setup(opts)
-    end,
   },
 }
