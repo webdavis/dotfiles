@@ -72,16 +72,6 @@ export TEMPORAL_PROFILE=broccoli
 
 # Forces `retell` to read ~/.config/retell/credentials.json instead of pulling credentials from the Keychain.
 export RETELL_DISABLE_KEYRING=1
-{{ if eq .chezmoi.os "darwin" -}}
-# Suffix custom_api/preview_host.resolve appends to the hostname for the markdown
-# preview server. Set, the preview advertises a derived hostname; unset, it advertises
-# a loopback URL that no other device can follow. It does NOT decide what the server
-# listens on: mkdp_open_to_the_world binds 0.0.0.0 either way. It belongs in this
-# NON-INTERACTIVE-SAFE block rather than beside the aliases: it is read by a child
-# process (nvim), so an `ssh dresden nvim ...` or a `bash -lc` launch, neither of which
-# is interactive, would otherwise advertise a loopback URL.
-export NVIM_MKDP_HOST=home.webdavis.io
-{{- end }}
 
 # Bash history is handled entirely by atuin's daemon (v2 §1.1). Bash built-in
 # history flags (HISTFILE, HISTSIZE, histappend, HISTCONTROL, HISTIGNORE) were
