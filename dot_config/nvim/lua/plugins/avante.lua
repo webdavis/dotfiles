@@ -26,7 +26,7 @@ return {
   dependencies = {
     "nvim-lua/plenary.nvim",
     "MunifTanjim/nui.nvim",
-    -- Already in this configuration for noice, aerial and the pickers. Declared
+    -- Already in this configuration for aerial and the pickers. Declared
     -- so lazy.nvim loads them ahead of avante, which uses snacks for its input
     -- prompt and devicons in its file selector.
     "folke/snacks.nvim",

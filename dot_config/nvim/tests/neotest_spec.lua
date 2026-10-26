@@ -459,8 +459,7 @@ local function route(rust_discover_positions)
   end
 
   --- Press one of `GATED_KEYS` from a scratch buffer of `filetype`, and report what the request
-  --- waited for on its way to neotest. A pure notify recorder, never a pass-through: headless
-  --- noice drops the continuation.
+  --- waited for on its way to neotest. A pure notify recorder, never a pass-through.
   ---@param key string
   ---@param filetype string
   ---@return { installs: string[], requests: integer, notified: string[] }

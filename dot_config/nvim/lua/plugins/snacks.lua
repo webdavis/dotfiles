@@ -122,12 +122,8 @@ return {
       image = { enabled = true },
       indent = { enabled = false },
       input = { enabled = true },
-      notifier = {
-        enabled = true,
-        timeout = 3000,
-        width = { min = 40, max = 0.9 },
-        style = "compact",
-      },
+      -- Off: notifications go to ui2's message window with every other message (init.lua).
+      notifier = { enabled = false },
       picker = {
         enabled = true,
         layout = {
@@ -218,11 +214,6 @@ return {
       { "<C-g>.", function() Snacks.picker.git_grep() end, desc = "Snacks (Git): grep git files" },
       { "<leader>g.", function() Snacks.picker.git_grep() end, desc = "Snacks (Git): grep git files (alt)" },
       { "<leader>ee", function() Snacks.explorer() end, desc = "File Explorer (Snacks)" },
-
-      -- Notifications:
-      { "<leader>nn", function() Snacks.picker.notifications() end, desc = "Snacks (Notifications): history (picker)" },
-      { "<leader>nb", function() Snacks.notifier.show_history() end, desc = "Snacks (Notifications): history (buffer)" },
-      { "<leader>nd", function() Snacks.notifier.hide() end, desc = "Snacks (Notifications): dismiss all" },
 
       -- Find:
       { "<leader>fb", function() Snacks.picker.buffers() end, desc = "Snacks: open buffers" },

@@ -13,6 +13,19 @@ map({
   desc = "LSP: code action",
 })
 
+-- ┏━━━━━━━━━━━━━━━━┓
+-- ┃    Messages    ┃
+-- ┗━━━━━━━━━━━━━━━━┛
+
+map({
+  mode = "n",
+  lhs = "<leader>nh",
+  rhs = function()
+    require("custom_api.message_history").pick()
+  end,
+  desc = "Messages: history",
+})
+
 -- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 -- ┃    Faster File Manipulation    ┃
 -- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

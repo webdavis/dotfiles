@@ -18,6 +18,11 @@ if vim.env.PROFILE then
   })
 end
 
+-- Neovim 0.12's built-in message and cmdline UI. Every message, notifications
+-- included, goes to its one message window; <leader>nh lists them all.
+require("vim._core.ui2").enable({ msg = { target = "msg" } })
+require("custom_api.message_history").record()
+
 -- Global Helpers. This runs BEFORE config.options assigns vim.g.mapleader, so it
 -- must require the one module that publishes `map` and nothing else: a module
 -- that installs a mapping at load would install it against no leader.
