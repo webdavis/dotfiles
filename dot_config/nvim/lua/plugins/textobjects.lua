@@ -16,10 +16,9 @@ return {
       keymaps = {
         -- The default set installs at `VeryLazy`, in the callback below.
         useDefaults = false,
-        -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua), and `in`/`an`
-        -- are Neovim's own grow/shrink selection, so the number object moves
-        -- to `id`/`ad` below.
-        disabledDefaults = { "iN", "aN", "in", "an" },
+        -- `iN`/`aN` are mini.ai's "next", and `in`/`an` are Neovim's own grow/shrink
+        -- selection. mini.ai's `q` and `b` cover any quote and any bracket, with next and last.
+        disabledDefaults = { "iN", "aN", "in", "an", "iq", "aq", "io", "ao" },
       },
     },
     config = function(_, opts)
