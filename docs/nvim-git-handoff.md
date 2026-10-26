@@ -310,3 +310,7 @@ No git code in `lua/plugins/herdr-nvim.lua` (grep found none).
   things today: `:GBrowse` for GitHub remotes (`<C-g>of`/`<C-g>ol` open the file or line; `:GBrowse!` copies the
   URL instead), and completion of GitHub issues and `@users` in commit messages through its `omnifunc`, which
   blink.cmp's `omni` source shows (`lua/plugins/blink-cmp.lua`).
+- **pwe owns the git rebuild.** The git mappings move into pwe's Neovim bundle, so this document is input for pwe.
+- **atlas.nvim is gone** (removed 2026-10-26). Its rows above stay as a record of what it did. octo still covers
+  pull requests, issues and reviews. Atlas's one feature without a replacement is local review notes: notes
+  written in a diff that never post to GitHub (`<leader>gtn`).
