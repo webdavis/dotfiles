@@ -9,15 +9,17 @@ return {
   },
   {
     "chrisgrieser/nvim-various-textobjs",
-    -- Loaded at startup, because this plugin alone owns `im`, `am`, `ik` and `ak`, and they must
-    -- work from the first keystroke.
+    -- Loaded at startup, because this plugin alone owns `im`, `am`, `ik`, `ak`, `id` and `ad`, and
+    -- they must work from the first keystroke.
     lazy = false,
     opts = {
       keymaps = {
         -- The default set installs at `VeryLazy`, in the callback below.
         useDefaults = false,
-        -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua).
-        disabledDefaults = { "iN", "aN" },
+        -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua), and `in`/`an`
+        -- are Neovim's own grow/shrink selection, so the number object moves
+        -- to `id`/`ad` below.
+        disabledDefaults = { "iN", "aN", "in", "an" },
       },
     },
     config = function(_, opts)
@@ -25,12 +27,14 @@ return {
 
       various_textobjs.setup(opts)
 
-      -- Only these four at startup, because the full default set would take keys from other plugins.
+      -- Only these at startup, because the full default set would take keys from other plugins.
       local EARLY_KEYS = {
         { lhs = "im", textobj = "chainMember", scope = "inner" },
         { lhs = "am", textobj = "chainMember", scope = "outer" },
         { lhs = "ik", textobj = "key", scope = "inner" },
         { lhs = "ak", textobj = "key", scope = "outer" },
+        { lhs = "id", textobj = "number", scope = "inner" },
+        { lhs = "ad", textobj = "number", scope = "outer" },
       }
       for _, early in ipairs(EARLY_KEYS) do
         map({
@@ -44,7 +48,7 @@ return {
       end
 
       -- Installing the defaults at `VeryLazy` leaves other plugins their keys during startup.
-      -- `setup` with `useDefaults = true` installs them and replaces the four above.
+      -- `setup` with `useDefaults = true` installs them and replaces the keys above.
       local function install_defaults()
         various_textobjs.setup({ keymaps = { useDefaults = true } })
 
