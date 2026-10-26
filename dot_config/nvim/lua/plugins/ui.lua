@@ -65,6 +65,16 @@ return {
         which_key = true,
       },
       dim_inactive = { enabled = true, shade = "light", percentage = 0.35 },
+      -- The treesitter-context header pinned to the top of the window gets its own background and a
+      -- lavender line under it, so it reads as a header rather than as the first lines of the file.
+      custom_highlights = function(colors)
+        return {
+          TreesitterContext = { bg = colors.surface0 },
+          TreesitterContextLineNumber = { fg = colors.lavender, bg = colors.surface0 },
+          TreesitterContextBottom = { underline = true, sp = colors.lavender },
+          TreesitterContextLineNumberBottom = { fg = colors.lavender, underline = true, sp = colors.lavender },
+        }
+      end,
     },
     config = function(_, opts)
       require("catppuccin").setup(opts)
