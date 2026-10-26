@@ -27,8 +27,10 @@ return {
         -- below. Only the four keys the eager load exists for are installed at
         -- startup.
         useDefaults = false,
-        -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua).
-        disabledDefaults = { "iN", "aN" },
+        -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua), and `in`/`an`
+        -- are Neovim's own grow/shrink selection, so the number object moves
+        -- to `id`/`ad` below.
+        disabledDefaults = { "iN", "aN", "in", "an" },
       },
     },
     config = function(_, opts)
@@ -48,6 +50,8 @@ return {
         { lhs = "am", textobj = "chainMember", scope = "outer" },
         { lhs = "ik", textobj = "key", scope = "inner" },
         { lhs = "ak", textobj = "key", scope = "outer" },
+        { lhs = "id", textobj = "number", scope = "inner" },
+        { lhs = "ad", textobj = "number", scope = "outer" },
       }
       for _, early in ipairs(EARLY_KEYS) do
         map({
