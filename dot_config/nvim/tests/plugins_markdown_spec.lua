@@ -14,11 +14,10 @@ local SHADOWING_KEYS = {
   { mode = "i", lhs = "<Tab>", rhs = "<Plug>(MarkdownPlusListIndent)" },
   { mode = "i", lhs = "<S-Tab>", rhs = "<Plug>(MarkdownPlusListOutdent)" },
   { mode = "i", lhs = "<BS>", rhs = "<Plug>(MarkdownPlusListBackspace)" },
-  { mode = "i", lhs = "<C-t>", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 }
 
--- 63 declared mappings, two of them visual and so stored in both visual and select mode.
-local MARKDOWN_PLUS_MAPPINGS_PER_BUFFER = 65
+-- 61 declared mappings, one of them visual and so stored in both visual and select mode.
+local MARKDOWN_PLUS_MAPPINGS_PER_BUFFER = 62
 
 local MODES = { "n", "x", "s", "i" }
 

@@ -47,15 +47,11 @@ local markdown_plus_keymaps = {
   { mode = "i", lhs = "<Tab>", rhs = "<Plug>(MarkdownPlusListIndent)" },
   { mode = "i", lhs = "<S-Tab>", rhs = "<Plug>(MarkdownPlusListOutdent)" },
   { mode = "i", lhs = "<BS>", rhs = "<Plug>(MarkdownPlusListBackspace)" },
-  { mode = "i", lhs = "<C-t>", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 
   { mode = "n", lhs = "o", rhs = "<Plug>(MarkdownPlusNewListItemBelow)" },
   { mode = "n", lhs = "O", rhs = "<Plug>(MarkdownPlusNewListItemAbove)" },
   { mode = "n", lhs = "<localleader>r", rhs = "<Plug>(MarkdownPlusRenumberLists)" },
   { mode = "n", lhs = "<localleader>d", rhs = "<Plug>(MarkdownPlusDebugLists)" },
-  { mode = "n", lhs = "<localleader>X", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
-
-  { mode = "x", lhs = "<localleader>mx", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 
   { mode = "n", lhs = "<localleader>mq", rhs = "<Plug>(MarkdownPlusToggleQuote)" },
   { mode = "x", lhs = "<localleader>mq", rhs = "<Plug>(MarkdownPlusToggleQuote)" },
@@ -89,6 +85,15 @@ local function set_markdown_plus_keymaps()
   for _, keymap in ipairs(markdown_plus_keymaps) do
     vim.keymap.set(keymap.mode, keymap.lhs, keymap.rhs, { buffer = true })
   end
+
+  -- custom_api.markdown_task is the only task toggle, so the plugin's own
+  -- defaults for it go: `<C-t>` belongs to another tool.
+  for _, default in ipairs({ { "i", "<C-t>" }, { "n", "<localleader>mx" }, { "x", "<localleader>mx" } }) do
+    pcall(vim.keymap.del, default[1], default[2], { buffer = true })
+  end
+  vim.keymap.set({ "n", "i" }, "<C-CR>", function()
+    require("custom_api.markdown_task").apply()
+  end, { buffer = true, desc = "Markdown: toggle task" })
 end
 
 return {
@@ -161,62 +166,6 @@ return {
         end,
       })
       markview_buffer_toggle:map("<leader>uU")
-
-      map({
-        mode = "n",
-        lhs = "<localleader>x",
-        rhs = function()
-          local bufnr = vim.api.nvim_get_current_buf()
-          local row, _ = unpack(vim.api.nvim_win_get_cursor(0)) -- 1-based row
-          local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-
-          local start_row = row
-
-          local end_row = row
-          while end_row < #lines and lines[end_row + 1]:match("^%s") do
-            end_row = end_row + 1
-          end
-
-          local first_line = lines[start_row]
-
-          local unchecked = first_line:match("^%s*%- %[ %]") ~= nil
-          local checked = first_line:match("^%s*%- %[[xX]%]") ~= nil
-
-          local new_checked
-          if unchecked then
-            lines[start_row] = first_line:gsub("^(%s*%-+%s*)%[ %]", "%1[x]")
-            new_checked = true
-          elseif checked then
-            lines[start_row] = first_line:gsub("^(%s*%-+%s*)%[[xX]%]", "%1[ ]")
-            new_checked = false
-          else
-            vim.notify("Not a valid Markdown task", vim.log.levels.WARN, { title = "Markview" })
-            return
-          end
-
-          local last_line = lines[end_row]
-          local comment_pattern = "%s*<!%-%- completed: %d%d%d%d%-%d%d%-%d%d %-%->"
-          local comment = " <!-- completed: " .. os.date("%Y-%m-%d") .. " -->"
-
-          if new_checked then
-            if not last_line:match(comment_pattern) then
-              lines[end_row] = last_line .. comment
-            end
-          else
-            lines[end_row] = last_line:gsub(comment_pattern, "")
-          end
-
-          -- stylua: ignore
-          vim.api.nvim_buf_set_lines(
-            bufnr,
-            start_row - 1,
-            end_row,
-            false,
-            vim.list_slice(lines, start_row, end_row)
-          )
-        end,
-        desc = "Markdown: toggle checkbox (postfix completion date)",
-      })
     end,
   },
 }
