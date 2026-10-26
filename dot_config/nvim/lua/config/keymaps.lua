@@ -7,6 +7,15 @@ map({
   desc = "LSP: code action",
 })
 
+map({
+  mode = "n",
+  lhs = "<leader>nh",
+  rhs = function()
+    require("custom_api.message_history").pick()
+  end,
+  desc = "Messages: history",
+})
+
 map({ mode = "n", lhs = "<C-s>", rhs = "write", desc = "Save file" })
 
 map({

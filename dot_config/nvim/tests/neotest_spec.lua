@@ -397,7 +397,7 @@ local function route(rust_discover_positions)
   end
 
   --- Press one of `GATED_KEYS` from a `filetype` buffer and report what the request waited for.
-  --- Notify only records, because headless noice drops the continuation.
+  --- Notify only records.
   ---@param key string
   ---@param filetype string
   ---@return { installs: string[], requests: integer, notified: string[] }

@@ -44,7 +44,7 @@ return {
         { "<leader>j", group = "split／join" },
         { "<leader>L", group = "lazy" },
         { "<leader>l", group = "LSP" },
-        { "<leader>n", group = "notifications／messages" },
+        { "<leader>n", group = "messages" },
         { "<leader>o", group = "overseer" },
         { "<leader>r", group = "rename／find-and-replace" },
         { "<leader>R", group = "rest (kulala)" },

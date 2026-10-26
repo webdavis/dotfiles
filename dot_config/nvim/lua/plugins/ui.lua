@@ -50,7 +50,6 @@ return {
         neogit = true,
         neotest = true,
         neotree = true,
-        noice = true,
         nvim_surround = true,
         octo = true,
         overseer = true,
@@ -120,10 +119,10 @@ return {
           },
           {
             function()
-              return require("noice").api.status.mode.get()
+              return "recording @" .. vim.fn.reg_recording()
             end,
             cond = function()
-              return package.loaded["noice"] and require("noice").api.status.mode.has()
+              return vim.fn.reg_recording() ~= ""
             end,
           },
           {
