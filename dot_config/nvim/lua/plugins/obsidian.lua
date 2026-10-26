@@ -15,5 +15,8 @@ return {
     workspaces = { { name = "Ivy", path = vault } },
     -- markview.nvim already renders markdown; two renderers fight over conceal.
     ui = { enable = false },
+    -- custom_api.markdown_task (`<C-CR>`) is the one task toggle; without this,
+    -- obsidian's `<CR>` toggles a checkbox too.
+    checkbox = { enabled = false },
   },
 }

@@ -29,7 +29,6 @@ local SHADOWING_KEYS = {
   { mode = "i", lhs = "<Tab>", rhs = "<Plug>(MarkdownPlusListIndent)" },
   { mode = "i", lhs = "<S-Tab>", rhs = "<Plug>(MarkdownPlusListOutdent)" },
   { mode = "i", lhs = "<BS>", rhs = "<Plug>(MarkdownPlusListBackspace)" },
-  { mode = "i", lhs = "<C-t>", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 }
 
 -- How many buffer-local mappings onto a markdown-plus `<Plug>` target one
@@ -41,7 +40,7 @@ local SHADOWING_KEYS = {
 -- table rows are gone from the count: they targeted `<Plug>(markdown-plus-
 -- table-*)`, a spelling the plugin never registers (it uses `<Plug>(MarkdownPlus
 -- Table*)`), so the plugin's own working defaults now cover those keys.
-local MARKDOWN_PLUS_MAPPINGS_PER_BUFFER = 65
+local MARKDOWN_PLUS_MAPPINGS_PER_BUFFER = 62
 
 local MODES = { "n", "x", "s", "i" }
 
