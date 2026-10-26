@@ -232,28 +232,8 @@ return {
 
       integrations = {
         ["mason-lspconfig"] = true,
-        ["mason-null-ls"] = true,
         ["mason-nvim-dap"] = true,
       },
     },
-  },
-  {
-    -- Provides code actions only, because conform and nvim-lint already format and lint.
-    "nvimtools/none-ls.nvim",
-    event = { "BufReadPre", "BufNewFile" },
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-    },
-    config = function()
-      local null_ls = require("null-ls")
-      local code_actions = null_ls.builtins.code_actions
-
-      null_ls.setup({
-        sources = {
-          code_actions.gitsigns,
-          code_actions.refactoring,
-        },
-      })
-    end,
   },
 }
