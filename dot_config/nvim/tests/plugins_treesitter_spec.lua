@@ -4,7 +4,7 @@
 -- nvim-treesitter will only ever build a grammar it knows about. Asked for one
 -- it does not have, it logs "skipping unsupported language" to stderr and the
 -- hook then polls thirty seconds for a parser that is never coming. Plugins
--- name their own scratch buffers (`snacks_notif`, `atlas.notes`), so that class
+-- name their own scratch buffers (`snacks_notif`, `someplugin.notes`), so that class
 -- of filetype is open-ended and the hook has to ask rather than carry a list.
 --
 -- nvim-treesitter is a plugin, absent under `nvim --clean`, so both of its
@@ -112,11 +112,11 @@ return {
   end,
 
   ["a dotted filetype whose base language has no grammar is never queued"] = function()
-    -- `get_lang` reduces `atlas.notes` to `atlas`, so one availability test on
-    -- the language covers every atlas.nvim window without a prefix match.
+    -- `get_lang` reduces `someplugin.notes` to `someplugin`, so one availability
+    -- test on the language covers every window of that plugin without a prefix match.
     with_treesitter(function(recorder)
-      open("atlas.notes")
-      assert(#recorder.installs == 0, "installed " .. joined(recorder.installs) .. " for atlas.notes")
+      open("someplugin.notes")
+      assert(#recorder.installs == 0, "installed " .. joined(recorder.installs) .. " for someplugin.notes")
     end)
   end,
 

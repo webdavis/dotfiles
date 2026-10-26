@@ -277,8 +277,8 @@ return {
     -- nvim-treesitter refuses a language missing from its own parser table,
     -- logging "skipping unsupported language" to stderr, and the poll below then
     -- waits thirty seconds for a parser that is never coming. Plugins name their
-    -- own scratch buffers (snacks.nvim's `snacks_notif`, atlas.nvim's
-    -- `atlas.notes`), so asking is the only test that keeps working as plugins
+    -- own scratch buffers (snacks.nvim's `snacks_notif`, or a dotted name such
+    -- as `someplugin.notes`), so asking is the only test that keeps working as plugins
     -- come and go.
     --
     -- Asked on every call rather than once per session: `:TSUpdate` and
