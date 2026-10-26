@@ -130,7 +130,20 @@ return {
       },
       sections = {
         lualine_a = { "mode" },
-        lualine_b = { "branch", "diff" },
+        lualine_b = {
+          -- The linked worktree's folder name, shown only inside a linked worktree.
+          {
+            function()
+              return require("custom_api.worktree").name()
+            end,
+            icon = "󰙅",
+            cond = function()
+              return require("custom_api.worktree").name() ~= nil
+            end,
+          },
+          "branch",
+          "diff",
+        },
         lualine_c = {
           {
             "filename",
@@ -141,6 +154,16 @@ return {
           { "diagnostics", sources = { "nvim_diagnostic" } },
         },
         lualine_x = {
+          -- A Claude Code session connected to this Neovim through claudecode.nvim (`--ide`).
+          {
+            function()
+              return "claude"
+            end,
+            icon = "󰚩",
+            cond = function()
+              return package.loaded.claudecode ~= nil and require("claudecode").is_claude_connected()
+            end,
+          },
           -- Overseer task counts, one glyph and count per status, hidden when
           -- idle. The counting lives in custom_api.overseer_status.
           {
@@ -180,7 +203,9 @@ return {
       },
       -- Open buffers on the left, tabs on the right: what bufferline showed.
       tabline = {
-        lualine_a = { { "buffers", mode = 2, use_mode_colors = true } },
+        lualine_a = {
+          { "buffers", mode = 2, use_mode_colors = true },
+        },
         lualine_z = {
           {
             "tabs",
