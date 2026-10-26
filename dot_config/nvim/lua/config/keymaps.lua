@@ -26,6 +26,28 @@ map({
   desc = "Messages: history",
 })
 
+-- ┏━━━━━━━━━━━━━━━━━━━━━━┓
+-- ┃    Files in Folder   ┃
+-- ┗━━━━━━━━━━━━━━━━━━━━━━┛
+
+map({
+  mode = "n",
+  lhs = "]f",
+  rhs = function()
+    require("custom_api.folder_files").jump(vim.v.count1)
+  end,
+  desc = "Next file in folder",
+})
+
+map({
+  mode = "n",
+  lhs = "[f",
+  rhs = function()
+    require("custom_api.folder_files").jump(-vim.v.count1)
+  end,
+  desc = "Previous file in folder",
+})
+
 -- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 -- ┃    Faster File Manipulation    ┃
 -- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

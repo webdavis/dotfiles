@@ -239,8 +239,8 @@ return {
       -- Code coverage. `code_coverage.enabled` is turned on in opts above, and the inline marks
       -- were the only part of it reachable: the report and the two jumps have no keys today and,
       -- unlike most of the rest, the jumps are not in the action picker either. They stay inside
-      -- the `<leader>x` group rather than taking global `[`/`]` pairs, which unimpaired and the
-      -- treesitter textobject motions already crowd.
+      -- the `<leader>x` group rather than taking global `[`/`]` pairs, which the treesitter
+      -- textobject motions already crowd.
       { "<leader>xv", "<cmd>XcodebuildToggleCodeCoverage<cr>", desc = "Xcode: toggle code coverage" },
       { "<leader>xV", "<cmd>XcodebuildShowCodeCoverageReport<cr>", desc = "Xcode: show code coverage report" },
       { "<leader>x]", "<cmd>XcodebuildJumpToNextCoverage<cr>", desc = "Xcode: jump to next coverage mark" },

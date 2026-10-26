@@ -59,7 +59,7 @@ end
 -- never reaches lazy.nvim's own `vim.schedule` after `UIEnter` (spec 9.1), and
 -- this dump runs in its own process rather than inheriting the phase block's
 -- startup runs, so without this the dump misses every VeryLazy-triggered plugin
--- (which-key, noice, textobjects, unimpaired, claudecode after PR 30c9) on BOTH
+-- (which-key, textobjects, claudecode after PR 30c9) on BOTH
 -- sides of a diff, which is a comparison that passes for the wrong reason.
 vim.cmd("doautocmd User VeryLazy")
 
@@ -115,7 +115,7 @@ local function project_keymap(m)
   end
   if row.rhs then
     -- A classic Vimscript script-local function reference (a compat shim some
-    -- plugins use, e.g. unimpaired's `<Plug>` mappings) is numbered by a
+    -- plugins use for `<Plug>` mappings) is numbered by a
     -- per-process sourcing-order counter, confirmed to vary between separate
     -- nvim invocations of the SAME unchanged config (<SNR>126_ one run,
     -- <SNR>124_ the next). Strip the number; the function name is the part
