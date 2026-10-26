@@ -183,7 +183,22 @@ return {
         lualine_z = { "location" },
       },
       tabline = {
-        lualine_a = { { "buffers", mode = 2, use_mode_colors = true } },
+        lualine_a = {
+          {
+            "buffers",
+            mode = 2,
+            use_mode_colors = true,
+            symbols = { modified = " ●", alternate_file = "", directory = "" },
+            filetype_names = {
+              checkhealth = "Health",
+              lazy = "Lazy",
+              mason = "Mason",
+              oil = "Oil",
+              snacks_dashboard = "Dashboard",
+              snacks_picker_list = "Explorer",
+            },
+          },
+        },
         lualine_z = {
           {
             "tabs",
