@@ -204,7 +204,20 @@ return {
       -- Open buffers on the left, tabs on the right: what bufferline showed.
       tabline = {
         lualine_a = {
-          { "buffers", mode = 2, use_mode_colors = true },
+          {
+            "buffers",
+            mode = 2,
+            use_mode_colors = true,
+            symbols = { modified = " ●", alternate_file = "", directory = "" },
+            filetype_names = {
+              checkhealth = "Health",
+              lazy = "Lazy",
+              mason = "Mason",
+              oil = "Oil",
+              snacks_dashboard = "Dashboard",
+              snacks_picker_list = "Explorer",
+            },
+          },
         },
         lualine_z = {
           {
