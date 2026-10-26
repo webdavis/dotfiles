@@ -342,8 +342,21 @@ return {
               { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2, name = "Conceal Level" }
             )
             :map("<leader>uc")
-          Snacks.toggle.diagnostics():map("<leader>ud")
-          Snacks.toggle.dim():map("<leader>uD")
+          Snacks.toggle.diagnostics():map("<leader>uD")
+          Snacks.toggle.dim():map("<leader>ux")
+          -- Compare this window with the other windows in the tab that have it on.
+          Snacks.toggle
+            .new({
+              id = "diff",
+              name = "Diff",
+              get = function()
+                return vim.wo.diff
+              end,
+              set = function(state)
+                vim.cmd(state and "diffthis" or "diffoff")
+              end,
+            })
+            :map("<leader>ud")
           Snacks.toggle.words():map("<leader>ui")
           Snacks.toggle.indent():map("<leader>uI")
 
@@ -376,6 +389,8 @@ return {
             :map("<leader>ut")
           Snacks.toggle.treesitter():map("<leader>uT")
           Snacks.toggle.option("wrap", { name = "Wrap" }):map("<leader>uw")
+          Snacks.toggle.option("list", { name = "Whitespace" }):map("<leader>u<Tab>")
+          Snacks.toggle.option("ignorecase", { name = "Ignore Case" }):map("<leader>uC")
 
           -- Toggle the cursorline and cursorcolumn simultaneously.
           Snacks.toggle
