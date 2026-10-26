@@ -10,17 +10,6 @@ return {
     end,
   },
   {
-    "wellle/targets.vim",
-    -- Eager, and it stays that way. Its surface is operator-pending and visual
-    -- text objects installed by its own plugin file, with no <Plug> mappings to
-    -- put behind a trigger, and no filetype or command of its own. A `keys` list
-    -- would have to name every object it declares (the quote, argument, pair,
-    -- separator and tag families, each in `i`/`a` with the `n`/`l` variants),
-    -- and every one of those is a key someone reaches for mid-edit, where a
-    -- first-press load is exactly the pause a text object must not have.
-    lazy = false,
-  },
-  {
     "chrisgrieser/nvim-various-textobjs",
     -- Eager, not `VeryLazy`. This plugin is the only owner of `im`, `am`, `ik`
     -- and `ak` now that treesitter's shadowed declarations are gone, and on
@@ -38,6 +27,8 @@ return {
         -- below. Only the four keys the eager load exists for are installed at
         -- startup.
         useDefaults = false,
+        -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua).
+        disabledDefaults = { "iN", "aN" },
       },
     },
     config = function(_, opts)
