@@ -8,11 +8,6 @@ return {
     end,
   },
   {
-    "wellle/targets.vim",
-    -- Loaded at startup, because a text object must answer on the first press.
-    lazy = false,
-  },
-  {
     "chrisgrieser/nvim-various-textobjs",
     -- Loaded at startup, because this plugin alone owns `im`, `am`, `ik` and `ak`, and they must
     -- work from the first keystroke.
@@ -21,6 +16,8 @@ return {
       keymaps = {
         -- The default set installs at `VeryLazy`, in the callback below.
         useDefaults = false,
+        -- `iN`/`aN` are mini.ai's "next" (plugins/mini-ai.lua).
+        disabledDefaults = { "iN", "aN" },
       },
     },
     config = function(_, opts)
