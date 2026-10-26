@@ -16,6 +16,24 @@ map({
   desc = "Messages: history",
 })
 
+map({
+  mode = "n",
+  lhs = "]f",
+  rhs = function()
+    require("custom_api.folder_files").jump(vim.v.count1)
+  end,
+  desc = "Next file in folder",
+})
+
+map({
+  mode = "n",
+  lhs = "[f",
+  rhs = function()
+    require("custom_api.folder_files").jump(-vim.v.count1)
+  end,
+  desc = "Previous file in folder",
+})
+
 map({ mode = "n", lhs = "<C-s>", rhs = "write", desc = "Save file" })
 
 map({

@@ -21,7 +21,6 @@ return {
       silent = true,
     },
     -- These entries only load the plugin, because urlview binds `[u` and `]u` itself.
-    -- Listing them here also keeps vim-unimpaired from taking them first.
     { "[u", desc = "Previous URL" },
     { "]u", desc = "Next URL" },
   },
