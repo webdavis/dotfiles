@@ -13,7 +13,7 @@ Agent instructions belong in this file alone.
 - Install: add it under its package manager in `.chezmoidata/system_packages_autoinstall.yaml`. A Homebrew tap goes in both `taps` and `trusted_taps`.
 - Remove:
   1. Remove its entry, and for a tap both `taps` and `trusted_taps` lines.
-  2. Uninstall it with that package manager (`brew uninstall`, `brew untap`, `cargo uninstall`, `uv tool uninstall`, `npm uninstall -g`).
+  2. Uninstall it with that package manager, and `brew untap` a removed tap.
 
 ### A group in `.chezmoidata/system_packages_autoinstall.yaml` with its own script
 
@@ -41,7 +41,10 @@ Agent instructions belong in this file alone.
   - Hermes: its catalog name.
 - Remove:
   1. Remove its id, and its marketplace when no plugin of it remains.
-  2. Claude Code: `claude plugin uninstall <plugin>@<marketplace>`. Codex: `codex plugin remove <plugin>@<marketplace>`. Hermes plugin: `hermes plugins remove <name>`.
+  2. Uninstall it:
+     - Claude Code: `claude plugin uninstall <plugin>@<marketplace>`.
+     - Codex: `codex plugin remove <plugin>@<marketplace>`.
+     - Hermes plugin: `hermes plugins remove <name>`.
   3. A removed marketplace: `claude plugin marketplace remove <name>` or `codex plugin marketplace remove <name>`.
   4. Hermes hub skill: `hermes -p <profile> skills uninstall <name> --yes` in each profile that had it.
 
@@ -50,7 +53,9 @@ Agent instructions belong in this file alone.
 - Install: add its entry under its harness in `.chezmoidata/agent-skills.yaml`.
 - Remove:
   1. Remove its entry.
-  2. npx entry: `npx skills remove <skill> -g` for each skill `~/.agents/.skill-lock.json` lists for its repo. clawhub entry: `trash ~/.agents/skills/<skill>`.
+  2. Remove the installed skill:
+     - npx entry: `npx skills remove <skill> -g` for each skill `~/.agents/.skill-lock.json` lists for its repo.
+     - clawhub entry: `trash ~/.agents/skills/<skill>`.
   3. `trash` its links in `~/.claude/skills/` and in each Hermes profile under its `hermes:` key.
 
 ### Each skill reaches each harness once
@@ -58,24 +63,28 @@ Agent instructions belong in this file alone.
 - Codex loads every skill in `~/.agents/skills/`, so such a skill reaches Codex through that folder alone.
 - `just lint` refuses a skill or plugin that reaches a harness twice.
 
-## Neovim Plugin
+## Neovim
+
+### Plugin
 
 - Install:
-  1. Write its lazy.nvim spec in `dot_config/nvim/lua/plugins/`. A file named for a topic rather than a plugin takes the plugins of that topic. Any other plugin gets its own file, named after its repo without `.nvim`. Set `version` only when the README asks for it.
+  1. Write its lazy.nvim spec in `dot_config/nvim/lua/plugins/`:
+     1. A file named for a topic rather than a plugin takes the plugins of that topic.
+     2. Any other plugin gets its own file, named after its repo without `.nvim`.
+     3. Set `version` only when the README asks for it.
   2. `chezmoi apply` that file.
   3. `nvim --headless "+Lazy! install" +qa` clones it and adds its lock line.
   4. `chezmoi re-add ~/.config/nvim/lazy-lock.json`.
 - Remove:
-  1. File holds only this plugin: `chezmoi destroy --force` it. File holds others too: delete its table, then `chezmoi apply` the file.
+  1. Remove its spec:
+     - File holds only this plugin: `chezmoi destroy --force` it.
+     - File holds others too: delete its table, then `chezmoi apply` the file.
   2. `nvim --headless "+Lazy! clean" +qa` deletes the clone and its lock line.
   3. `chezmoi re-add ~/.config/nvim/lazy-lock.json`.
 
-## Neovim Settings
+### Config
 
 - Options, keymaps and autocmds: `dot_config/nvim/lua/config/`.
-
-## My Custom Neovim API
-
 - Our own Lua modules: `dot_config/nvim/lua/custom_api/`.
 
 ## Editing
