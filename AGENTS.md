@@ -87,6 +87,14 @@ Agent instructions belong in this file alone.
 - Options, keymaps and autocmds: `dot_config/nvim/lua/config/`.
 - Our own Lua modules: `dot_config/nvim/lua/custom_api/`.
 
+## Code
+
+- Code is self-documenting. A comment is the last resort.
+- One feature per component. Components talk only through their boundaries. Follow SOLID.
+- Keep files small. Split a file before it holds a second feature.
+- Code is test-driven: write the failing test first, against the public interface at the feature boundary. Shell scripts and config files are exempt.
+- Tests live in their own files, never beside production code.
+
 ## Comments
 
 - Comment only what a developer cannot read from the code or setting name. Delete a comment that restates it.
