@@ -41,13 +41,13 @@ step beyond that unlock.
 
 1. Make sure the KeePassXC database is reachable (iCloud Drive or an offline backup) at the path in
    `.chezmoi.toml.tmpl`.
-1. Run `chezmoi init --apply` once. The `run_before_05-restore-age-key` script (darwin-only, idempotent) reads the
+2. Run `chezmoi init --apply` once. The `run_before_05-restore-age-key` script (darwin-only, idempotent) reads the
    private key from the KeePassXC entry `chezmoi :: Private Key :: age`, streams it into `~/.config/chezmoi/key.txt`
    (mode 600) at execution time, validates it, and only then decrypts any encrypted file. The secret is never written
    into the script body.
-1. If you need to restore the key by hand (the script did not run, or a non-macOS host), copy the Password field of
+3. If you need to restore the key by hand (the script did not run, or a non-macOS host), copy the Password field of
    `chezmoi :: Private Key :: age` into `~/.config/chezmoi/key.txt`, then `chmod 600 ~/.config/chezmoi/key.txt`.
-1. Confirm recovery without printing any plaintext:
+4. Confirm recovery without printing any plaintext:
    `chezmoi cat ~/.hermes/profiles/butters/config.yaml | shasum -a 256`. A hash (not an error) means every encrypted
    target will decrypt.
 
@@ -70,26 +70,26 @@ it is available; confirm with `chezmoi --version` before starting.
 
    - Rollback: delete `~/.config/chezmoi/key.new.txt`. Nothing else has changed yet.
 
-1. **Append the new identity to the live key file, keeping the old one.** Add the new `AGE-SECRET-KEY-1…` line to
+2. **Append the new identity to the live key file, keeping the old one.** Add the new `AGE-SECRET-KEY-1…` line to
    `~/.config/chezmoi/key.txt` as an additional line (do not replace the old line). Both identities are now active;
    either decrypts existing captures.
 
    - Rollback: remove the appended line from `key.txt`; you are back to the old-only identity.
 
-1. **Update the recipient in config and KeePassXC.** Set the new `age1…` recipient in `.chezmoi.toml.tmpl` under
+3. **Update the recipient in config and KeePassXC.** Set the new `age1…` recipient in `.chezmoi.toml.tmpl` under
    `[age]`. In the KeePassXC entry `chezmoi :: Private Key :: age`, put the new `AGE-SECRET-KEY-1…` line in the Password
    field, and keep the previous key in a dated attribute or history entry until rotation is verified.
 
    - Rollback: revert the `.chezmoi.toml.tmpl` recipient and the KeePassXC Password to the old values.
 
-1. **Regenerate the rendered config.** Run `chezmoi init` (or `chezmoi apply --init`) so the recipient change in
+4. **Regenerate the rendered config.** Run `chezmoi init` (or `chezmoi apply --init`) so the recipient change in
    `.chezmoi.toml.tmpl` is written into `~/.config/chezmoi/chezmoi.toml`. A plain `chezmoi apply` does NOT regenerate
    that config file, so the new recipient would otherwise not take effect.
 
    - Rollback: after reverting `.chezmoi.toml.tmpl` (previous step), run `chezmoi init` again to restore the old
      rendered recipient.
 
-1. **Re-encrypt each managed target to the new recipient, listed explicitly by path.** Scope the command to the four
+5. **Re-encrypt each managed target to the new recipient, listed explicitly by path.** Scope the command to the four
    encrypted files so it cannot ingest an unrelated modified file:
 
    ```
@@ -106,7 +106,7 @@ it is available; confirm with `chezmoi --version` before starting.
    - Rollback: `git -C ~/.local/share/chezmoi restore -- <the encrypted_ paths>` (or your worktree) to bring back the
      old-recipient ciphertext; the old identity still decrypts it.
 
-1. **Verify every capture decrypts with the NEW identity alone.** Temporarily point the identity at a file holding ONLY
+6. **Verify every capture decrypts with the NEW identity alone.** Temporarily point the identity at a file holding ONLY
    the new `AGE-SECRET-KEY-1…` line and hash each target (no plaintext printed):
    `for t in ~/.hermes/profiles/*/config.yaml; do chezmoi cat "$t" | shasum -a 256; done`. Each must produce a hash, not
    an error.
@@ -114,14 +114,14 @@ it is available; confirm with `chezmoi --version` before starting.
    - Rollback: if any target fails to decrypt under the new-only identity, restore the old identity line in `key.txt`
      (both keys active again) and investigate before proceeding; do not remove the old key.
 
-1. **Retire the old identity.** Only after every target verifies under the new-only identity: remove the old
+7. **Retire the old identity.** Only after every target verifies under the new-only identity: remove the old
    `AGE-SECRET-KEY-1…` line from `~/.config/chezmoi/key.txt` (leaving the new line), delete
    `~/.config/chezmoi/key.new.txt` if you used it, and remove the retained previous key from KeePassXC.
 
    - Rollback: none needed past this point; if a problem surfaces later, the old ciphertext is still in git history, but
      only the compromise-response steps below, not re-adding the old key, are the correct response to exposure.
 
-1. **Commit.** Commit the rotated `encrypted_` files and the `.chezmoi.toml.tmpl` recipient change.
+8. **Commit.** Commit the rotated `encrypted_` files and the `.chezmoi.toml.tmpl` recipient change.
 
 ## Compromise response: a leaked key is not fixed by rotation alone
 
@@ -133,12 +133,12 @@ whoever holds the key, which is a reason to rotate those vault entries, not only
 
 1. Rotate the age key using the procedure above, so new captures are encrypted to a recipient the attacker does not
    hold.
-1. Rotate every underlying credential carried in the four configs AT ITS SOURCE: revoke and reissue each token, webhook
+2. Rotate every underlying credential carried in the four configs AT ITS SOURCE: revoke and reissue each token, webhook
    secret, HMAC (hash-based message authentication code) key, and password, so the values the attacker can still read
    from history are dead.
-1. Re-encrypt the captures only AFTER those underlying values have changed, so the new ciphertext holds the new secrets.
+3. Re-encrypt the captures only AFTER those underlying values have changed, so the new ciphertext holds the new secrets.
    Re-encrypting unchanged secrets to a new key protects nothing.
-1. Assume the historical ciphertext stays readable by whoever holds the leaked key. Rewriting git history does not reach
+4. Assume the historical ciphertext stays readable by whoever holds the leaked key. Rewriting git history does not reach
    clones or forks that already exist, so the credential rotation in step 2, not history surgery, is what actually
    contains the exposure.
 

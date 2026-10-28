@@ -117,8 +117,8 @@ L-R5 carries three things the dotfiles copy does not:
 1. **The exact pns integration contract**: "`pns submit --json`, with `producer: "vpt"` and
    `signal.kind: "needs_attention"`. Keep review state in vpt; a notification receipt does not mean the user reviewed or
    corrected the note. Reverify the protocol when implementing."
-1. **The disagreement targets**: "particularly names, numbers and dates."
-1. **The evaluation aid carried forward from the earlier trial**: "three uses per week, review usefulness after a
+2. **The disagreement targets**: "particularly names, numbers and dates."
+3. **The evaluation aid carried forward from the earlier trial**: "three uses per week, review usefulness after a
    month," explicitly "not permission to delete recordings or notes."
 
 I reverified the pns contract as L-R5 asks. It holds: `pns/crates/pns/src/invocation.rs:119` routes the bare word
@@ -185,10 +185,10 @@ Three facts settle the relationship to vpt:
 1. **Its input is a URL, not a recording.** Every one of the three workflows takes a link (a YouTube URL in 6.3 and 6.4,
    a posted payload in 6.5) and runs `yt-dlp` to get audio. It is a "transcribe this video" pipeline. Nothing in it
    discovers a local audio file.
-1. **It runs on `lash` under hermes, not on the Mac.** Its outputs land in
+2. **It runs on `lash` under hermes, not on the Mac.** Its outputs land in
    `transcripts/<YYYY-MM-DD>-<title>.{md,srt,json}` on the homelab side. The only Mac-side surface is the client that
    posts a URL to 6.5.
-1. **Its state is planned, not built.** Every bullet carries the plan marker. The ledger's acceptance line ("All three
+3. **Its state is planned, not built.** Every bullet carries the plan marker. The ledger's acceptance line ("All three
    transcription trigger paths produce a transcript within ~2 min") is unchecked, and the cost table lists ElevenLabs
    Scribe v2 at "~$10 to 60 by volume, Planned (Phase 6)."
 
@@ -281,9 +281,9 @@ Three measured facts the ingestion design should not have to rediscover:
    reported 27 rows, 26 with a path. Copying it together with `-wal` and `-shm` reported 28 rows, 28 with a path,
    matching the 28 files exactly. The checkpointed file was nine days and one recording behind. A reader that copies one
    file and not three will silently miss the newest recordings, which are the only ones a watcher cares about.
-1. **`ZEVICTIONDATE` is not an "audio is absent" signal.** Two rows carry an eviction date and **both** their local
+2. **`ZEVICTIONDATE` is not an "audio is absent" signal.** Two rows carry an eviction date and **both** their local
    files are present. Every one of the 28 rows' paths exists on disk. A design must test the file, not trust the column.
-1. **Nothing is a dataless placeholder at the moment of reading.** `ls -lO` shows no file flags set on any of the 28
+3. **Nothing is a dataless placeholder at the moment of reading.** `ls -lO` shows no file flags set on any of the 28
    recordings, so none is an APFS dataless stub awaiting download. That is the current state, not a guarantee: the empty
    `CloudRecordings_ckAssets/` directory is very likely where an in-flight CloudKit asset lands, which would make it the
    place to watch for an incomplete download, but that is inference from the name and the timestamps, **not measured**,
@@ -307,9 +307,9 @@ not establish "a background service can read it." That needs a real test under l
 1. **Apple Voice Memos discovery**: finding fully synced recordings in the group container, reading their titles and
    capture metadata out of the Core Data store, and handling interrupted sync, retries and repeated discovery without
    duplicates or loss. Absent from all four sources.
-1. **Redundant transcription with disagreement comparison**, focused on names, numbers and dates, preserving
+2. **Redundant transcription with disagreement comparison**, focused on names, numbers and dates, preserving
    alternatives and source references. Absent from all four.
-1. **pns notification of uncertain text and unsupported notes** through `pns submit --json` as `producer: "vpt"` with
+3. **pns notification of uncertain text and unsupported notes** through `pns submit --json` as `producer: "vpt"` with
    `signal.kind: "needs_attention"`, with review state held in vpt. Absent from all four.
 
 Everything else on the vpt list either exists in `minutes` today or is a convention the vault already defines. That is
@@ -324,24 +324,24 @@ the operator can reverse any of them without invalidating the measurements.
    the three named sources only, report that they reconcile, and let the design task discover the overlap later. I
    rejected that because the task's stated purpose is "before designing a second transcription system", and `minutes` is
    the first one.
-1. **I treated the `minutes` evaluation as genuinely open rather than as tacit acceptance.** Its cask is declared and it
+2. **I treated the `minutes` evaluation as genuinely open rather than as tacit acceptance.** Its cask is declared and it
    has been used, which could be read as "adopted". Alternative reading: it is adopted, so vpt is automatically the
    adapter scope. I did not take that reading because `remaining-work.md` line 2084 and Todoist `6hPV483GJgGHX95M` both
    still list it as an evaluation retaining its old scope, and because none of its automation is wired, which is not
    what an adopted tool looks like.
-1. **I read the vault `minutes` symlink as drift to be repaired, not as a deliberate unmanaged link.** Alternative: the
+3. **I read the vault `minutes` symlink as drift to be repaired, not as a deliberate unmanaged link.** Alternative: the
    operator wanted the link without the tool's vault integration, and `minutes vault status` reporting "not configured"
    is the intended state. I flagged it as drift because the vault `CLAUDE.md` claims the link is "managed by
    `minutes vault setup --subdir`", and that claim is now false either way.
-1. **I did not run `pns submit --json` live.** Alternative: send a real request with `producer: "vpt"` to prove the
+4. **I did not run `pns submit --json` live.** Alternative: send a real request with `producer: "vpt"` to prove the
    contract end to end. I verified it from source instead, because a live submit would have raised a real banner, a
    Discord message and possibly a phone notification while the operator was asleep. The contract is verified at the
    level of "the subcommand exists, the field names and the enum spelling are correct"; it is not verified at the level
    of "a vpt-shaped request is accepted and routed."
-1. **I did not run `minutes cleanup`, `minutes vault setup`, or `minutes service install`.** Alternative: exercise the
+5. **I did not run `minutes cleanup`, `minutes vault setup`, or `minutes service install`.** Alternative: exercise the
    retention and vault paths to measure them rather than reading their help text and JSON. I did not, because all three
    mutate state outside this repository.
-1. **I left the ALAC size implication unresolved rather than proposing a storage policy.** Roughly 1 GB for 28
+6. **I left the ALAC size implication unresolved rather than proposing a storage policy.** Roughly 1 GB for 28
    recordings, with a 188 MB single file, bears on whether originals are copied, hard-linked or referenced in place, and
    on cloud-engine cost. That is the ingestion task's decision, not this one's.
 
@@ -366,24 +366,24 @@ the operator can reverse any of them without invalidating the measurements.
 
 1. **Is `minutes` kept or replaced?** This is the blocking one. Everything about vpt's scope follows from it, and the
    ledger has carried it as an open evaluation since before vpt existed.
-1. **If `minutes` is kept, does vpt call it or run beside it?** Calling `minutes transcribe --json` makes it one of
+2. **If `minutes` is kept, does vpt call it or run beside it?** Calling `minutes transcribe --json` makes it one of
    vpt's two engines and reuses its summarization, vault sync and speaker work. Running beside it means two tools
    writing notes about recordings, which is the thing `PLAN-v12` L6 forbids for Open Notebook.
-1. **Does the `PLAN-v12` L6 rule ("must not create a second automatic Voice Memos capture/transcription workflow") bind
+3. **Does the `PLAN-v12` L6 rule ("must not create a second automatic Voice Memos capture/transcription workflow") bind
    `minutes` against vpt?** It was written for Open Notebook. If it is a general rule, it decides question 2 on its own.
-1. **Which two engines are the redundant pair?** Phase 6 already chose ElevenLabs Scribe v2 with whisply on
+4. **Which two engines are the redundant pair?** Phase 6 already chose ElevenLabs Scribe v2 with whisply on
    faster-whisper as a fallback, and all three of Scribe, whisply and `openai-whisper` are installed here, as is
    `minutes`'s own on-device pipeline. "Cloud plus local" and "two local" differ in cost, in what audio leaves the
    machine, and in whether disagreement is meaningful.
-1. **Do Voice Memos originals leave the machine?** L-R5 inherits Phase 6's "local processing for sensitive audio", but a
+5. **Do Voice Memos originals leave the machine?** L-R5 inherits Phase 6's "local processing for sensitive audio", but a
    Voice Memos recording is everyday personal audio by definition. A blanket local-only rule for this source would
    remove the metered cost line and one of the two candidate engines at the same time.
-1. **Repair the vault `minutes` link now, or fold it into the vpt work?** The immediate repair is the operator running
+6. **Repair the vault `minutes` link now, or fold it into the vpt work?** The immediate repair is the operator running
    `minutes vault setup --strategy symlink --subdir agent-processing-pipeline/minutes` (which would also restore the
    missing config file), plus a correction to the vault `CLAUDE.md` claim. Folding it into vpt means the documented
    integration stays false until vpt ships.
-1. **Should the four unwired transcription installs stay declared?** `whisply`, `openai-whisper`, `@elevenlabs/cli` and
+7. **Should the four unwired transcription installs stay declared?** `whisply`, `openai-whisper`, `@elevenlabs/cli` and
    the `minutes` cask are all in the package data and none is reached by any script. They are either vpt's future inputs
    or removable weight, and the answer depends on question 4.
-1. **Does `minutes` get upgraded to 0.26.2 before the disposition decision?** Its feature set is the input to that
+8. **Does `minutes` get upgraded to 0.26.2 before the disposition decision?** Its feature set is the input to that
    decision, and the installed copy is one release behind.

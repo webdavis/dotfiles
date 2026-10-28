@@ -265,19 +265,19 @@ operator can overturn it cheaply.
    dist-tag does not count. *Alternative:* accept `staging` as a release channel for this package. This is moot today
    (the newest `staging` publish predates the merge by thirteen days), so overturning it changes nothing now, but it
    would change what a future check accepts.
-1. **Nothing was filed upstream.** Not a duplicate of #1761, which the ledger forbids, and also not the two unreported
+2. **Nothing was filed upstream.** Not a duplicate of #1761, which the ledger forbids, and also not the two unreported
    items: the Codex Stop allowlist and the execute-bit defect. *Alternative:* file the Codex Stop omission now, since
    #1761 is closed, no duplicate exists, and it is a distinct mechanism in a distinct package. Filing was withheld
    because both holds are the operator's and the ledger keeps the execute-bit draft behind an explicit deferral.
-1. **Neither template was edited.** `private_dot_claude/modify_settings.json` keeps `babysitter@a5c.ai` in
+3. **Neither template was edited.** `private_dot_claude/modify_settings.json` keeps `babysitter@a5c.ai` in
    `$defaultDisabledPlugins`, and `private_dot_codex/modify_private_config.toml` keeps
    `plugins."babysitter@babysitter".enabled = false`. *Alternative:* split the coupled condition in both comments now,
    so each hold names the one defect it waits on. This is the operator's explicit half of the task, so it was not done
    silently.
-1. **No release watcher was built.** Learning that a fix shipped stays a manual recheck of the three `npm view` lines
+4. **No release watcher was built.** Learning that a fix shipped stays a manual recheck of the three `npm view` lines
    above. *Alternative:* a uu probe or a weekly lane step that compares the published versions against the pin. Withheld
    under the standing "no speculative mechanism" preference and because the check is three commands.
-1. **The recommendation is "keep the hold", not "enable with an inert loop".** *Alternative:* enable babysitter for its
+5. **The recommendation is "keep the hold", not "enable with an inert loop".** *Alternative:* enable babysitter for its
    non-orchestration features and accept that the continuation loop does not resume, plus the execute-bit exposure. Not
    recommended, because the loop is the reason the plugin exists and the execute-bit behavior runs repository-supplied
    scripts under one unrelated approval.
@@ -303,15 +303,15 @@ operator can overturn it cheaply.
 1. **Does the enablement condition stay "both defects resolved"?** As written it cannot be satisfied: the execute-bit
    defect has no upstream report, so no release can fix it. Recommendation: decouple, so each hold names the defect it
    waits on.
-1. **Is the execute-bit draft filed now, releasing its 2026-09-06 deferral?** Without that, "both resolved" has no path
+2. **Is the execute-bit draft filed now, releasing its 2026-09-06 deferral?** Without that, "both resolved" has no path
    forward at any date.
-1. **Is the Codex Stop allowlist omission reported, and does it join the Codex hold's condition explicitly?** Today the
+3. **Is the Codex Stop allowlist omission reported, and does it join the Codex hold's condition explicitly?** Today the
    Codex comment cites the same "adapters both drop Stop's decision" reason as the Claude comment, but a released #1777
    fixes only the Claude side.
-1. **When a release lands that fixes only the Stop defect, does babysitter get enabled in Claude Code while the
+4. **When a release lands that fixes only the Stop defect, does babysitter get enabled in Claude Code while the
    execute-bit behavior stands?** The two defects differ in kind: one is a broken feature, the other runs
    repository-supplied scripts under an unrelated approval.
-1. **Does the repository get a release watcher, or does this stay a manual recheck?** If manual, on what cadence, and
+5. **Does the repository get a release watcher, or does this stay a manual recheck?** If manual, on what cadence, and
    does it live in the ledger entry or in a Todoist task?
-1. **Is a `staging` dist-tag ever acceptable as the pin?** The answer decides what a future check is allowed to accept,
+6. **Is a `staging` dist-tag ever acceptable as the pin?** The answer decides what a future check is allowed to accept,
    even though it changes nothing today.

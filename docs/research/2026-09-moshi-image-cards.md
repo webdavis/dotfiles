@@ -206,7 +206,7 @@ Two pull requests, each under 300 lines including tests, per the design's split:
 
 1. Move recap card ownership into the detached `pns recap` child, text card unchanged, behavior-neutral, pinned by tests
    that the hook process posts nothing for that moment and the child posts exactly one.
-1. The renderer, the upload leg, the image body, and the knob.
+2. The renderer, the upload leg, the image body, and the knob.
 
 New surface in (2): a render seam beside the existing `HttpPost` so a fake can record; a multipart upload call;
 `[plugins.mobile] image_cards = false`, shipped commented out per the config hygiene ruling; and a fallback that is
@@ -228,24 +228,24 @@ it can be overturned.
    upload", condition 2 fails and the task stays blocked exactly as written. This document takes the broader reading,
    because pns does not use moshi-hook for the card at all: it posts to `api.getmoshi.app/api/webhook` itself, so a web
    endpoint is the surface it would actually call.
-1. **No probe was run that uses the operator's token or sends a card.** The route-existence probe used a bogus bearer
+2. **No probe was run that uses the operator's token or sends a card.** The route-existence probe used a bogus bearer
    and a control path. The alternative was to read the token out of `~/.config/pns/config.toml` and settle actual image
    display tonight, which would have spent one of the ten hourly uploads and pushed a real notification to a sleeping
    phone. The task reserves the probe for the operator, so it stays reserved.
-1. **The probe is re-specified as the phone's own image test action first, curl second.** The recorded probe was a
+3. **The probe is re-specified as the phone's own image test action first, curl second.** The recorded probe was a
    data-URL card, which the documentation now answers without a probe. The alternative is to run the recorded probe
    anyway for the record; that spends a notification to confirm a documented negative.
-1. **A hand-built multipart body is preferred to `ureq`'s `multipart` feature.** The alternative is to enable the
+4. **A hand-built multipart body is preferred to `ureq`'s `multipart` feature.** The alternative is to enable the
    feature and accept the `unversioned` module's no-major-bump policy on a tool other people install with
    `cargo install`.
-1. **The token may ride an `Authorization` header on the upload leg, subject to the operator's ruling.** The alternative
+5. **The token may ride an `Authorization` header on the upload leg, subject to the operator's ruling.** The alternative
    is to treat `moshi.rs`'s "body and nowhere else" sentence as binding as written, which refuses the upload leg and
    leaves the task blocked on the same transport it just got.
-1. **The design's value judgment was carried forward, not re-opened.** This pass verified that the design's code claims
+6. **The design's value judgment was carried forward, not re-opened.** This pass verified that the design's code claims
    still hold and did not re-rank the five producers or re-argue whether one saved tap is worth the work. The
    alternative is a fresh value pass, which would need the operator's own sense of how often they read a recap card on
    the phone, which no document can measure for them.
-1. **The pull request sizing was not re-costed.** The design's two-pull-request, sub-300-line estimate is carried
+7. **The pull request sizing was not re-costed.** The design's two-pull-request, sub-300-line estimate is carried
    forward on the strength of its call sites still existing, not on a fresh line count.
 
 ## What would change the verdict
@@ -274,7 +274,7 @@ build to answer with evidence. Questions 1, 4 and the unrelated moshi-hook item 
 
 1. **Does the phone's own image test action display a rich image notification on `mister`?** Settings, notifications,
    the image test action. Zero code, no token handling, one tap. Everything below is moot if this fails.
-1. **Is one saved tap into Discord worth two pull requests and moving recap card ownership into the detached child?**
+2. **Is one saved tap into Discord worth two pull requests and moving recap card ownership into the detached child?**
    **Answered: the capability is approved**, and it covers every card type, the recap included. What the operator
    declined is an image on their own recap card, which is a setting in their own config, not a limit on the capability;
    another user might want exactly that for their recap. The pattern is the one this repository already uses everywhere:
@@ -282,14 +282,14 @@ build to answer with evidence. Questions 1, 4 and the unrelated moshi-hook item 
    because of a real tradeoff: a Moshi card's `data` carries one `type`, so turning images on for a card type gives up
    the deep link that focuses the originating herdr pane when that card is tapped. The operator's own configuration
    keeps the recap card's images off and keeps its deep link.
-1. **May the Moshi token ride an `Authorization: Bearer` header on the upload leg?** The documented interface requires
+3. **May the Moshi token ride an `Authorization: Bearer` header on the upload leg?** The documented interface requires
    it, and `moshi.rs`'s rule currently says body and nowhere else. **Left open**: now that image cards are approved,
    this question is live again, and it is left for the build to answer with evidence rather than re-decided here.
-1. **Do you want the real round trip proved with your token, and if so may it happen while you are awake?** The two
+4. **Do you want the real round trip proved with your token, and if so may it happen while you are awake?** The two
    commands are below. They spend one of ten hourly uploads and send one real card.
-1. **Does the ledger entry get rewritten, or does the task get closed outright?** Rewritten: the entry now reads
+5. **Does the ledger entry get rewritten, or does the task get closed outright?** Rewritten: the entry now reads
    transport-available, capability-approved-as-opt-in, not-yet-started, tracked as ledger task 88.
-1. **Unrelated to this task, and noticed while checking it: moshi-hook is six releases behind** (0.3.16 installed,
+6. **Unrelated to this task, and noticed while checking it: moshi-hook is six releases behind** (0.3.16 installed,
    0.3.22 in the tap). Worth a separate `brew upgrade moshi-hook` decision, since 0.3.20 through 0.3.22 carry Pi agent
    detection, Codex named-session reset fixes and Herdr sidebar controls that touch this machine's daily path.
 

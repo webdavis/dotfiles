@@ -47,10 +47,10 @@ chezmoi has no explicit dependency graph. All ordering is controlled through two
 execution phase attributes and alphabetical sorting within each phase. The full application order is deterministic:
 
 1. Read source and destination states
-1. Compute the target state
-1. Run `run_before_` scripts in alphabetical order
-1. Update all entries (files, directories, externals, plain `run_` scripts) in ASCII order of target name
-1. Run `run_after_` scripts in alphabetical order
+2. Compute the target state
+3. Run `run_before_` scripts in alphabetical order
+4. Update all entries (files, directories, externals, plain `run_` scripts) in ASCII order of target name
+5. Run `run_after_` scripts in alphabetical order
 
 The community universally uses zero-padded numeric prefixes to control execution order within a phase. For a typical
 development environment setup, the dependency chain looks like this:

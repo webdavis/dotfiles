@@ -6,26 +6,26 @@ ______________________________________________________________________
 
 ## Table of Contents
 
-1. [What Is Sesh](#1-what-is-sesh)
-1. [Installation](#2-installation)
-1. [Complete Configuration Reference](#3-complete-configuration-reference)
-1. [CLI Commands Reference](#4-cli-commands-reference)
-1. [Tmux Integration Patterns](#5-tmux-integration-patterns)
-1. [Startup Commands and Scripts](#6-startup-commands-and-scripts)
-1. [Window Definitions](#7-window-definitions)
-1. [Wildcard Configurations](#8-wildcard-configurations)
-1. [Preview System](#9-preview-system)
-1. [Zoxide Integration](#10-zoxide-integration)
-1. [Session Naming Strategy](#11-session-naming-strategy)
-1. [Nerd Font Icons](#12-nerd-font-icons)
-1. [Picker Options](#13-picker-options)
-1. [Raycast Extension](#14-raycast-extension)
-1. [Advanced Features](#15-advanced-features)
-1. [Migration Plan: tms to sesh](#16-migration-plan-tms-to-sesh)
-1. [Recommended sesh.toml for Your Setup](#17-recommended-seshtoml-for-your-setup)
-1. [Recommended tmux.conf Changes](#18-recommended-tmuxconf-changes)
-1. [Recommended tmux-refresh.sh Rewrite](#19-recommended-tmux-refreshsh-rewrite)
-1. [Sources](#20-sources)
+01. [What Is Sesh](#1-what-is-sesh)
+02. [Installation](#2-installation)
+03. [Complete Configuration Reference](#3-complete-configuration-reference)
+04. [CLI Commands Reference](#4-cli-commands-reference)
+05. [Tmux Integration Patterns](#5-tmux-integration-patterns)
+06. [Startup Commands and Scripts](#6-startup-commands-and-scripts)
+07. [Window Definitions](#7-window-definitions)
+08. [Wildcard Configurations](#8-wildcard-configurations)
+09. [Preview System](#9-preview-system)
+10. [Zoxide Integration](#10-zoxide-integration)
+11. [Session Naming Strategy](#11-session-naming-strategy)
+12. [Nerd Font Icons](#12-nerd-font-icons)
+13. [Picker Options](#13-picker-options)
+14. [Raycast Extension](#14-raycast-extension)
+15. [Advanced Features](#15-advanced-features)
+16. [Migration Plan: tms to sesh](#16-migration-plan-tms-to-sesh)
+17. [Recommended sesh.toml for Your Setup](#17-recommended-seshtoml-for-your-setup)
+18. [Recommended tmux.conf Changes](#18-recommended-tmuxconf-changes)
+19. [Recommended tmux-refresh.sh Rewrite](#19-recommended-tmux-refreshsh-rewrite)
+20. [Sources](#20-sources)
 
 ______________________________________________________________________
 
@@ -286,9 +286,9 @@ ______________________________________________________________________
 When a new session is created, sesh determines the startup command using a strategy chain (in order):
 
 1. **Config strategy** -- if the session matches a `[[session]]` entry with `startup_command`, use it
-1. **Wildcard strategy** -- if the session path matches a `[[wildcard]]` with `startup_command`, use it (unless
+2. **Wildcard strategy** -- if the session path matches a `[[wildcard]]` with `startup_command`, use it (unless
    `disable_startup_command` is true)
-1. **Default config strategy** -- fall back to `[default_session].startup_command` (unless `disable_startup_command` is
+3. **Default config strategy** -- fall back to `[default_session].startup_command` (unless `disable_startup_command` is
    true on the session)
 
 The `{}` placeholder in any startup command is replaced with the session's directory path at runtime.
@@ -440,9 +440,9 @@ ______________________________________________________________________
 The preview system uses a strategy chain:
 
 1. **Active tmux session** -- captures the current pane content (`tmux capture-pane`)
-1. **Config session with preview_command** -- runs the custom command with `{}` path substitution
-1. **Config session without preview_command** -- lists the directory
-1. **Directory** -- lists the directory contents
+2. **Config session with preview_command** -- runs the custom command with `{}` path substitution
+3. **Config session without preview_command** -- lists the directory
+4. **Directory** -- lists the directory contents
 
 ### Custom Preview Examples
 
@@ -505,8 +505,8 @@ ______________________________________________________________________
 Sesh auto-generates session names using a hierarchy:
 
 1. **Git bare repository worktrees** -- `repo/worktree-name`
-1. **Git repositories** -- `repo/subdirectory/path` (relative to repo root)
-1. **Directories** -- last N components of path (controlled by `dir_length`)
+2. **Git repositories** -- `repo/subdirectory/path` (relative to repo root)
+3. **Directories** -- last N components of path (controlled by `dir_length`)
 
 The `dir_length` config controls how many path components appear in directory-based names:
 

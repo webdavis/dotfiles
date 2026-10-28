@@ -97,7 +97,7 @@ Two management facts matter, and only one of them is a gap.
    defaults, `~/.minutes` is empty, and the output directory is the default `~/meetings`. Declaring a config template
    today would be declaring the defaults.
 
-1. **The command-line interface is not reproducible on a fresh machine.** `~/.local/bin/minutes` is a symlink to
+2. **The command-line interface is not reproducible on a fresh machine.** `~/.local/bin/minutes` is a symlink to
    `/Applications/Minutes.app/Contents/MacOS/minutes`, created 2026-07-19, before the cask was adopted. Nothing in
    chezmoi declares it; the application's own "install CLI" action made it. The Homebrew cask caveat says so explicitly:
    "For the CLI (record, stop, search from terminal): brew install silverstein/tap/minutes". That formula is not
@@ -126,18 +126,18 @@ rather than to a new one.
    node's prefix and leaves an undeclared global behind in the old one. Today's state is therefore "upgraded but not
    reproducible", and the failure mode is a silent disappearance at the next node bump, not a stale version.
 
-1. **The task's "(pinned, like the other npm tools there)" does not describe the lane.** Of the fifteen entries in that
+2. **The task's "(pinned, like the other npm tools there)" does not describe the lane.** Of the fifteen entries in that
    list exactly one is pinned, `"@a5c-ai/babysitter-sdk@6.0.3"`, and the comment above it explains why that pin is an
    exception. Pinning `gnhf` is a defensible choice, but it is a new convention for that list, not the existing one.
 
-1. **Its rollback path is a gated command.** Upstream's README describes failed iterations rolling back with
+3. **Its rollback path is a gated command.** Upstream's README describes failed iterations rolling back with
    `git reset --hard`, preserving uncommitted work only when the commit itself failed. `git reset --hard` is on the
    operator's per-invocation destructive-action gate list, and gnhf runs it unattended by design. The `--worktree` flag
    and the `gnhf/` branch prefix (both confirmed in `gnhf --help` and the README) are what keep that reset inside
    throwaway state, which makes them constraints rather than options. `--max-iterations`, `--max-tokens`,
    `--max-rate-limit-wait` and an abort after three consecutive failures are the other rails upstream documents.
 
-1. **Licensing is recorded in one place only.** The GitHub API reports `MIT` for `kunchenguid/gnhf` (4016 stars, last
+4. **Licensing is recorded in one place only.** The GitHub API reports `MIT` for `kunchenguid/gnhf` (4016 stars, last
    pushed 2026-09-04); the npm registry record for `gnhf@0.1.49` carries no `license` field. That is weaker provenance
    than a package with both, and it is the same class of note the 2026-08-30 dossier made for `herdr-tab-smart-rename`.
 
@@ -249,7 +249,7 @@ alternative.
    nothing and accept that a fresh machine needs the application's "install CLI" click. It works, and it is the only
    option with a manual step in the fresh-machine path.
 
-1. **`apple/container` is declined as an addition, not evaluated as a replacement.** The ledger line asked for an
+2. **`apple/container` is declined as an addition, not evaluated as a replacement.** The ledger line asked for an
    adopt-or-decline verdict on adding it, so that is the question answered. *Alternative:* if the intent behind the
    original evaluation was to retire Docker Desktop (lighter runtime, no persistent virtual machine or Electron
    dashboard, Apache-2.0 instead of a commercial product), that is a different and larger decision: it costs `container`
@@ -257,11 +257,11 @@ alternative.
    against `act` and against any Docker software development kit client such as strix before Docker Desktop is removed.
    This record does not open that.
 
-1. **`strix` is deferred rather than declined outright.** Nothing found argues against the tool; only its inputs are
+3. **`strix` is deferred rather than declined outright.** Nothing found argues against the tool; only its inputs are
    missing. *Alternative:* decline it now and delete the item. That is the right call if there is no asset the operator
    wants scanned, and it costs nothing to reverse, since the whole adoption is one line in the `uv` list.
 
-1. **`gnhf`'s npm entry is recommended unpinned, matching the fourteen unpinned entries in that list, with the pin
+4. **`gnhf`'s npm entry is recommended unpinned, matching the fourteen unpinned entries in that list, with the pin
    question handed back.** The ledger task says "pinned"; the lane's actual convention is unpinned except for one
    documented exception. *Alternative:* pin it, on the grounds that a 0.x tool that runs unattended overnight and calls
    `git reset --hard` is exactly where an unreviewed upgrade hurts most. This is the stronger argument on safety and the
@@ -289,14 +289,14 @@ alternative.
 
 1. **minutes command-line interface:** declare the `silverstein/tap/minutes` formula and remove the
    `~/.local/bin/minutes` symlink by hand, or declare that symlink in chezmoi instead? (Assumption taken: the formula.)
-1. **apple/container:** is declining the addition the whole answer, or was the original intent to retire Docker Desktop?
+2. **apple/container:** is declining the addition the whole answer, or was the original intent to retire Docker Desktop?
    The second reading turns this into a separate design task.
-1. **strix target:** is there an asset to point it at (a repository of yours, a homelab service, a deployed
+3. **strix target:** is there an asset to point it at (a repository of yours, a homelab service, a deployed
    application), and is unattended OpenRouter spend acceptable on it?
-1. **strix key exposure:** per-repository `.envrc` through direnv, a wrapper that reads KeePassXC at call time, or an
+4. **strix key exposure:** per-repository `.envrc` through direnv, a wrapper that reads KeePassXC at call time, or an
    export in the managed shell? The first two keep the current blast radius; the third widens a vault secret to every
    interactive shell.
-1. **gnhf pin:** pin the npm entry (safer for an unattended tool that calls `git reset --hard`) or leave it unpinned
+5. **gnhf pin:** pin the npm entry (safer for an unattended tool that calls `git reset --hard`) or leave it unpinned
    (matches the lane)?
-1. **git-absorb:** the rejection has no record beyond the ledger sentence. Should that sentence stand as the record, or
+6. **git-absorb:** the rejection has no record beyond the ledger sentence. Should that sentence stand as the record, or
    is a one-line reason worth adding next to it so the question stops recurring?

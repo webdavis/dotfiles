@@ -63,14 +63,14 @@ ______________________________________________________________________
 ## Table of contents
 
 1. Notification system rewrite (relay + Hue) -- the original ask
-1. Branch combination + incremental PR delivery -- a new git/process workstream
-1. Whole-repo creative sweep
-1. Possible shell replacement: bash -> nushell
-1. Install `stonerl/Thaw`
-1. Neovim: re-evaluate and finally implement the existing nvim-overhaul design
-1. Cross-cutting open questions
-1. Reference strategy: essential-feed-case-study (binding on *how*, not *what*)
-1. Operational items out of scope
+2. Branch combination + incremental PR delivery -- a new git/process workstream
+3. Whole-repo creative sweep
+4. Possible shell replacement: bash -> nushell
+5. Install `stonerl/Thaw`
+6. Neovim: re-evaluate and finally implement the existing nvim-overhaul design
+7. Cross-cutting open questions
+8. Reference strategy: essential-feed-case-study (binding on *how*, not *what*)
+9. Operational items out of scope
 
 You decide how these relate to each other -- whether they're one giant effort, several independent ones, or some
 sequenced combination. Nothing about their order here implies priority.
@@ -134,15 +134,15 @@ is:
 
 1. **Redundant header in the notification body.** Used to repeat `state - project` (already in the title) ahead of the
    content, wasting the phone/banner preview space. Changed to lead with the actual summary/branch instead.
-1. **Mid-sentence truncation on the phone/banner preview.** Long summaries got cut wherever the character limit landed.
+2. **Mid-sentence truncation on the phone/banner preview.** Long summaries got cut wherever the character limit landed.
    Changed to trim at the last complete sentence within ~260 chars; the Discord/Hermes copy stays untrimmed.
-1. **No desk-vs-away awareness.** The phone push fired unconditionally. Changed to check macOS input-idle time
+3. **No desk-vs-away awareness.** The phone push fired unconditionally. Changed to check macOS input-idle time
    (`ioreg`/`HIDIdleTime`) and skip the phone push below a ~10-min idle threshold -- local banner and Discord log fire
    either way. Chosen because idle time is independent of display/system sleep state, composing cleanly with an existing
    "never sleep" power-management plan for this Mac -- see
    `docs/superpowers/plans/2026-07-01-dresden-never-sleep-power-policy.md` if relevant to your presence-detection
    design.
-1. **Hue pulse blocked the Claude `Stop` hook and had no concurrency protection.** Synchronous call (~5s hook stall),
+4. **Hue pulse blocked the Claude `Stop` hook and had no concurrency protection.** Synchronous call (~5s hook stall),
    zero locking, so two near-simultaneous pulses could interleave their `openhue` calls. Changed to fire detached, plus
    an atomic `mkdir`-based lock so concurrent pulses serialize.
 
@@ -181,7 +181,7 @@ that process -- it's a symptom, not the bug.
 **"Progressive" notification system -- concrete spec from the human (verbatim intent, not a summary):**
 
 1. Detect whether the human is at their computer or not.
-1. **At the computer** -> deliver via the local desktop channel (today's `terminal-notifier` banner). **Away from the
+2. **At the computer** -> deliver via the local desktop channel (today's `terminal-notifier` banner). **Away from the
    computer** -> deliver to the phone via moshi, and *not* to the computer.
    > The human's own wording said "send the notification to my computer via moshi" for the at-computer case. Everywhere
    > else in this system (and everywhere else in this brief) moshi is specifically the phone-push channel, distinct from
@@ -189,7 +189,7 @@ that process -- it's a symptom, not the bug.
    > reading that's internally consistent with the rest of the architecture -- **confirm this with the human before
    > building it**, in case moshi actually supports a distinct "deliver to this computer" target that isn't documented
    > elsewhere in this brief.
-1. **Hue pulse, gated on a *different* presence signal than "at the computer":** if a command or agent response takes
+3. **Hue pulse, gated on a *different* presence signal than "at the computer":** if a command or agent response takes
    longer than some threshold to complete, pulse the lights -- green for success, red for failure/error -- but **only if
    the human is physically in the house**. This is not the same check as "at the computer" (idle time): a laptop can be
    at a desk while the human is out, or the human could be home without being at that specific machine. This repo
@@ -199,7 +199,7 @@ that process -- it's a symptom, not the bug.
    but the Claude `Stop`-hook path (`claude-stop-pulse.sh`) only ever pulses green -- there's no defined notion of
    "failure" for an agent turn yet (a thrown error? a blocked/stuck state? something else?). That gap needs a real
    answer, not just a threshold tweak.
-1. **Every notification, regardless of the human's location, still gets logged to the Hermes `relay` webhook -> Discord
+4. **Every notification, regardless of the human's location, still gets logged to the Hermes `relay` webhook -> Discord
    `#relay`, unconditionally.** This one is not new -- it matches current behavior (the Hermes/Discord channel already
    fires unconditionally) -- but it's now an explicit, permanent requirement: the Discord log must never be gated on
    presence, only the phone/local/Hue channels are.
@@ -261,15 +261,15 @@ CLAUDE.md source) states this explicitly as of this brief being written; `gh` it
 1. Take this branch (PR #31, `feat/cli-agent-tracking-workflow`, including whatever this brief's other workstreams add
    to it) and `feat/osquery-alerter-three-tier` (PR #25), and combine **all** the work from both (every feature, nothing
    dropped) into one integration branch containing the union.
-1. Push that combined branch as one PR, but **do not merge it to `main`.** It's a staging artifact, not a shippable
+2. Push that combined branch as one PR, but **do not merge it to `main`.** It's a staging artifact, not a shippable
    unit.
-1. From that combined superset, carve out a sequence of smaller PRs. Each one must be **a complete unit of work that
+3. From that combined superset, carve out a sequence of smaller PRs. Each one must be **a complete unit of work that
    stands on its own** -- fully wired in, fully working, reviewable in isolation. **No PR may ship code that isn't
    actually used** -- no dead code, no half-wired feature waiting on a later PR to activate it. This likely means
    re-ordering/re-splitting commits by feature rather than by original authorship order.
-1. Ship these small PRs one at a time (or in whatever order makes sense) until every behavior in the original giant
+4. Ship these small PRs one at a time (or in whatever order makes sense) until every behavior in the original giant
    combined PR has landed via a small PR the human could review quickly.
-1. You may pause at any point and ask the human to run `chezmoi apply` (never run a bare one yourself from automation --
+5. You may pause at any point and ask the human to run `chezmoi apply` (never run a bare one yourself from automation --
    see the KeePassXC-gated-template list in this repo's `CLAUDE.md`).
 
 ### Open question for you
@@ -368,10 +368,10 @@ plugin-managed via `lazy.nvim` (not a distribution like LazyVim -- vanilla `lazy
    human explicitly wants this critically re-evaluated, the same way this whole document invites pushback on everything
    in it. If v3's decisions (e.g. retiring `delegate.lua` for `coder/claudecode.nvim`) still hold up, say why; if not,
    propose better.
-1. **Migrate the entire Neovim config into this dotfiles repo, tracked by chezmoi** -- flatten `~/.config/nvim`
+2. **Migrate the entire Neovim config into this dotfiles repo, tracked by chezmoi** -- flatten `~/.config/nvim`
    (currently the separate `webdavis/neovim-config` repo) into `dot_config/nvim/` here, per whatever the re-evaluated
    design settles on.
-1. **Improve the config significantly for the modern development world** -- the existing specs already catalog known
+3. **Improve the config significantly for the modern development world** -- the existing specs already catalog known
    bugs (~17) and stale plugins (6-8) and target startup-time reduction; treat those as a floor, not a ceiling. Research
    current best practice rather than assuming the 2026-05/06 specs are still state-of-the-art.
 

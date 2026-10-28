@@ -72,12 +72,12 @@ declaration. Its only two outputs are skill files and steering text.
 on 2026-09-14 by running it inside a throwaway clone of this repository under a throwaway `HOME`, it makes four changes:
 
 1. Switches `HEAD` from `main` to a new `gitbutler/workspace` branch.
-1. Writes five local config keys: `gitbutler.project.targetref` (`refs/remotes/origin/main`),
+2. Writes five local config keys: `gitbutler.project.targetref` (`refs/remotes/origin/main`),
    `gitbutler.project.targetcommitid`, `gitbutler.project.pushremote` (`origin`), `gitbutler.project.portedmeta`, and
    `log.excludedecoration` (`refs/gitbutler`).
-1. Installs `.git/hooks/pre-commit` and `.git/hooks/post-checkout`, both marked `GITBUTLER_MANAGED_HOOK_V1`, preserving
+3. Installs `.git/hooks/pre-commit` and `.git/hooks/post-checkout`, both marked `GITBUTLER_MANAGED_HOOK_V1`, preserving
    any existing hook as `<name>-user`.
-1. Registers the repository in `~/Library/Application Support/com.gitbutler.app/projects.json`.
+4. Registers the repository in `~/Library/Application Support/com.gitbutler.app/projects.json`.
 
 Three reasons it stayed undone:
 

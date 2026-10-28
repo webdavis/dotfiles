@@ -146,13 +146,13 @@ which the pair normally comes with, is likewise absent.
 Adopting dadbod-ui as a working tool means four pieces, not one:
 
 1. `tpope/vim-dadbod`, the engine. Upstream lists it as required by the UI.
-1. `kristijanhusak/vim-dadbod-ui`, the drawer.
-1. `kristijanhusak/vim-dadbod-completion`, which upstream lists as optional but which is the whole point of editing SQL
+2. `kristijanhusak/vim-dadbod-ui`, the drawer.
+3. `kristijanhusak/vim-dadbod-completion`, which upstream lists as optional but which is the whole point of editing SQL
    in Neovim rather than in a terminal user interface. It is an nvim-cmp source, and this configuration uses blink.cmp,
    not nvim-cmp. That is survivable: `blink.compat` is already in the lock and
    `dot_config/nvim/lua/plugins/blink-cmp.lua` already has a generic bridge, where a name added to `opts.sources.compat`
    is rewritten into a provider with `module = "blink.compat.source"`. So it is a two-line addition, not a rewrite.
-1. A `sql` treesitter parser. There is none. `dot_config/nvim/lua/plugins/treesitter.lua` lists 53 parsers and `sql` is
+4. A `sql` treesitter parser. There is none. `dot_config/nvim/lua/plugins/treesitter.lua` lists 53 parsers and `sql` is
    not among them, `dot_config/nvim/lua/plugins/lsp.lua` declares 21 language servers and none is a SQL server, and the
    Mason tool list has no SQL linter or formatter. Neovim on this machine has no SQL language support at all today.
 
@@ -460,17 +460,17 @@ keep sitting on disk. Retire the service first, then the declaration, never the 
 1. **Should `:ReviewLedger` keep opening the native quickfix window?** If yes, nvim-bqf is the adopt above. If you would
    rather it opened Trouble, say so and nvim-bqf closes instead, with a one-word change to
    `dot_config/nvim/lua/config/keymaps.lua`.
-1. **Did the 2026-05-16 PostgreSQL daily-use date arrive?** There is no psql history on this machine and `psql` is not
+2. **Did the 2026-05-16 PostgreSQL daily-use date arrive?** There is no psql history on this machine and `psql` is not
    on `PATH`, which reads as "no". If the work happened somewhere else, the dadbod and dblab verdicts flip from defer to
    a real evaluation.
-1. **Trial dblab before declaring it, or declare it now?** The trial is one `brew install` and commits nothing.
+3. **Trial dblab before declaring it, or declare it now?** The trial is one `brew install` and commits nothing.
    Declaring now is one alphabetical line and keeps the weekly bundle current, at the cost of maintaining a formula that
    may go unused.
-1. **Is a two-setting `Host *` block worth adding, or should the task just close?** The honest content is
+4. **Is a two-setting `Host *` block worth adding, or should the task just close?** The honest content is
    `HashKnownHosts yes` plus a comment explaining why four checklist settings are deliberately absent. Separately: do
    you want the existing 168 plaintext `known_hosts` entries retro-hashed with `ssh-keygen -H`, which makes the file
    permanently unreadable to you?
-1. **What is `open_brain`, and should its server keep running?** It holds two rows behind `trust` authentication on
+5. **What is `open_brain`, and should its server keep running?** It holds two rows behind `trust` authentication on
    loopback, restarted at every login by an untracked `brew services` LaunchAgent, and reachable by any agent session on
    this machine without passing a permission gate. Three dispositions: keep it and record the agent plus the `trust`
    decision in the repository; keep the formula but stop the service (`brew services stop postgresql@17`) until there is

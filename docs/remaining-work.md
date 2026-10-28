@@ -96,17 +96,17 @@ preserving branches and worktrees that contain retained work.
 1. Complete the operator acceptance checks for merged #530 and #531 below. The operator reported a successful apply on
    2026-09-13. Their source changes, independent reviews, required checks, merges and local main synchronization are
    complete, including matching Scalebar #4. Continue independent work while operator interaction checks are pending.
-1. Preserve the planning work in 68c and finish repository hygiene, tasks 67 and 68. Obtain approval of exact removal
+2. Preserve the planning work in 68c and finish repository hygiene, tasks 67 and 68. Obtain approval of exact removal
    candidates before further cleanup; pending cleanup must not block independent fixes.
-1. Complete pns tap, tasks 71, 71a, 72 and 71b. Investigate 76 before deciding whether to build 74. Handle SSH exposure
+3. Complete pns tap, tasks 71, 71a, 72 and 71b. Investigate 76 before deciding whether to build 74. Handle SSH exposure
    task 75 separately and verify its listener ownership before choosing a mechanism.
-1. Finish lights acceptance and cutover, tasks 61 to 63. Task 64's conditional optimization was declined by the recorded
+4. Finish lights acceptance and cutover, tasks 61 to 63. Task 64's conditional optimization was declined by the recorded
    measurement. Complete the separate uu deployment check and available Neovim acceptance work while waiting for device
    checks.
-1. Finish posture implementation and cutovers, tasks 39 to 50, then cleanup and closure, 58 to 60.
-1. Recover the remaining design from #24 and reconcile its security integrations. Hermes owns the sandboxed
+5. Finish posture implementation and cutovers, tasks 39 to 50, then cleanup and closure, 58 to 60.
+6. Recover the remaining design from #24 and reconcile its security integrations. Hermes owns the sandboxed
    investigation workflow that consumes alerts from posture and other security producers.
-1. Follow the deferred-project start gates below, including SP5 research before SP4. SP8 is ON HOLD (operator
+7. Follow the deferred-project start gates below, including SP5 research before SP4. SP8 is ON HOLD (operator
    2026-09-14): the current goal is complete when everything else in this ledger is complete, SP8 excluded. Forzare
    (#51) is PART of the current goal (same ruling) and starts after all other non-SP8 modernization work is complete,
    which supersedes the 2026-09-12 "after SP8" ordering.
@@ -3873,9 +3873,9 @@ where to resume; an old unchecked plan or Todoist task alone is not proof that c
 
   1. `pns lights enroll --bridge-id <the bridge id>` on dresden with the bridge reachable, then check the printed
      certificate common name equals that bridge id.
-  1. Paste the printed `certificate = "sha256:..."` line as a custom attribute on the "OpenHue :: API Key
+  2. Paste the printed `certificate = "sha256:..."` line as a custom attribute on the "OpenHue :: API Key
      (hue-bridge-pro)" KeePassXC entry. One value serves both tools.
-  1. One full `chezmoi apply`.
+  3. One full `chezmoi apply`.
 
 - [x] 89. DONE 2026-09-15 in [PR #693](https://github.com/webdavis/dotfiles/pull/693), merged `5257bf24`, which wrote
   `docs/superpowers/specs/2026-09-15-unifi-client-certificate-pinning-design.md` (416 lines) and no code. The bullet's
@@ -8844,24 +8844,24 @@ KeePassXC/Strongbox, or Forzare's final position in the schedule.
 
 1. RESOLVED 2026-09-12. Hermes investigates Critical alerts only, with immediate original delivery and a separate
    advisory afterward. Daily-digest investigation is excluded.
-1. RESOLVED 2026-09-12. Pause persistent agent-status lighting during `pns quiet` and macOS Focus; preserve the approved
+2. RESOLVED 2026-09-12. Pause persistent agent-status lighting during `pns quiet` and macOS Focus; preserve the approved
    security-banner and phone-alert mute bypass. Resolve the separate hook timing/card-content choices after verifying
    which harness events can implement them reliably.
-1. uu plugin pinning: Herdr supports `plugin install --ref`. Proposed policy, awaiting the operator: retain weekly
+3. uu plugin pinning: Herdr supports `plugin install --ref`. Proposed policy, awaiting the operator: retain weekly
    automatic updates by default, with an optional explicit revision per plugin to hold it until unpinned. The
    alternative is requiring review before each plugin update.
-1. Zig: maintain a working Zig/ZLS development workflow, or remove the unusable unused configuration. This choice gates
+4. Zig: maintain a working Zig/ZLS development workflow, or remove the unusable unused configuration. This choice gates
    that language's setup, not Neovim's other corrections.
-1. New development integrations: select the default harness/profile audience for no-mistakes, firstmate and any
+5. New development integrations: select the default harness/profile audience for no-mistakes, firstmate and any
    additional OWASP delivery, subject to each upstream's supported integrations. Plannotator's scope is resolved: all
    configured harnesses, with upstream support gaps recorded during implementation. Existing tuicr/archify/codegraph
    choices already specify Claude Code, Codex and Hermes nicodemus.
-1. YNAB: select the harnesses and Hermes profiles that need financial access. Keep read-only behavior; this decision
+6. YNAB: select the harnesses and Hermes profiles that need financial access. Keep read-only behavior; this decision
    does not grant writes or authorize reading credentials during planning.
-1. OpenSpec and agent workflow tools: select the initial project roots. Configure global defaults without automatically
+7. OpenSpec and agent workflow tools: select the initial project roots. Configure global defaults without automatically
    generating files throughout every checkout. Preserve per-project instructions and the existing review/merge
    boundaries.
-1. vpt: decide permitted local/cloud processing and cost before selecting redundant engines. Then settle whether vpt
+8. vpt: decide permitted local/cloud processing and cost before selecting redundant engines. Then settle whether vpt
    reads optional calendar/Todoist context directly or accepts it from Bob, which calendars and projects it may read,
    and requested versus scheduled briefs. Discuss these separately rather than treating them as one approval. Choose
    output layout and retention before ingestion starts.

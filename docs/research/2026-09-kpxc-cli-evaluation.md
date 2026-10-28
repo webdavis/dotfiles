@@ -31,12 +31,12 @@ Each of these was a choice I made in your place. The alternative is named so you
    the whole point of the surrounding section is that agents do not get to create credential paths on their own.
    *Alternative:* you run the five command sequence under "What would change the verdict" yourself against a throwaway
    database, which converts findings 1 through 4 from source-read to measured.
-1. **I read "can it replace the current integration" as all 43 call sites, not a subset.** A partial answer (kpxc-cli
+2. **I read "can it replace the current integration" as all 43 call sites, not a subset.** A partial answer (kpxc-cli
    for a handful of new agent-scoped secrets, `keepassxc-cli` for the existing ones) is technically possible through a
    different chezmoi function and is written up below, but I did not treat it as satisfying the task. *Alternative:* you
    accept a two-store split as the target, in which case the verdict on the narrow question becomes "adopt for new agent
    secrets only" and the open questions change.
-1. **I treated the pain kpxc-cli would relieve as "one master-password typing per `chezmoi apply`".** I could not find a
+3. **I treated the pain kpxc-cli would relieve as "one master-password typing per `chezmoi apply`".** I could not find a
    recorded statement of what problem it was being considered for, so I inferred it from what the tool uniquely offers
    (Touch ID unlock) against the current integration's cost. *Alternative:* if the real motive was unattended agent
    applies, say so, because kpxc-cli does not deliver that and the verdict below is then not even close.
@@ -309,15 +309,15 @@ Concretely, the verdict flips only on one of these:
    possible client side, and blockers (b) and (c) weaken. It would still hand plaintext to a local process, so it does
    not touch the isolation finding.
 
-1. **You accept URL-keyed entries as the vault's naming convention.** That is your call about your own vault, not a
+2. **You accept URL-keyed entries as the vault's naming convention.** That is your call about your own vault, not a
    technical question. It costs 23 URL fields, a rewrite of 43 template actions, the loss of the
    `Vendor :: Kind :: Detail` titles on any protocol write, and the `KPH: ` renames.
 
-1. **The motive turns out to be Touch ID convenience only, with isolation explicitly out of scope.** Then the honest
+3. **The motive turns out to be Touch ID convenience only, with isolation explicitly out of scope.** Then the honest
    framing is a supplementary path through `secret.command`, and the question becomes whether one fewer password typing
    per apply is worth a durable on-disk read-write vault credential. My recommendation stays no, on blast radius.
 
-1. **The four behaviors measure differently than the sources read.** Everything above is source reading; I did not run
+4. **The four behaviors measure differently than the sources read.** Everything above is source reading; I did not run
    the tool. If you want it measured, this is the sequence, against a **throwaway** database, never `keepass.kdbx`:
 
    ```bash
@@ -340,18 +340,18 @@ Concretely, the verdict flips only on one of these:
    isolation? The verdict is "reject" either way, but the follow-up differs completely: the first leads to the
    `secret.command` bridge question below, the second leads nowhere and the item should be closed against the A6
    Infisical direction instead.
-1. **Do you want a supplementary kpxc-cli path at all, through `secret.command`, for new agent-scoped secrets only?**
+2. **Do you want a supplementary kpxc-cli path at all, through `secret.command`, for new agent-scoped secrets only?**
    This is the one decision I deliberately did not make for you. It is the only supported way to reach the tool from
    chezmoi, it leaves the existing 43 call sites untouched, and its cost is a durable on-disk read-write vault
    credential plus a second unlock path per apply. My recommendation is no.
-1. **Should this item be ticked closed, or kept open as a watch on `get-database-entries`?** The evaluation is complete
+3. **Should this item be ticked closed, or kept open as a watch on `get-database-entries`?** The evaluation is complete
    and the answer will not change without an upstream protocol change. I have not ticked it, because closing it is a
    disposition call and the item sits inside a section you are actively designing.
-1. **Do the two non-template paths get their own ledger items now?** The age-key script's direct `keepassxc-cli` call
+4. **Do the two non-template paths get their own ledger items now?** The age-key script's direct `keepassxc-cli` call
    and the moshi token in an argument vector are both named in the section's later items. Neither is affected by any
    decision about kpxc-cli, and both are real exposure today. They read like separate work rather than part of this
    evaluation.
-1. **Is "no audit record of a remembered credential read" a finding you want pursued?** Finding 6 is based on four
+5. **Is "no audit record of a remembered credential read" a finding you want pursued?** Finding 6 is based on four
    files; proving it needs either a read of the whole 2.7.12 tree or one live observation. It bears directly on the
    section's "audit records without secret values" requirement, and it applies to the browser extension you already use,
    not only to a hypothetical kpxc-cli.

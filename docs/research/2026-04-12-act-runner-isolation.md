@@ -7,18 +7,18 @@ ______________________________________________________________________
 
 ## Table of Contents
 
-1. [Option 1: Tart VMs (Recommended)](#option-1-tart-vms-recommended)
-1. [Option 2: Cirrus CLI + Tart (Alternative to act)](#option-2-cirrus-cli--tart-alternative-to-act)
-1. [Option 3: Tartelet (Full ephemeral runner)](#option-3-tartelet-full-ephemeral-runner)
-1. [Option 4: sandbox-exec Wrappers](#option-4-sandbox-exec-wrappers)
-1. [Option 5: SandVault (User Account Isolation)](#option-5-sandvault-user-account-isolation)
-1. [Option 6: Lima VMs](#option-6-lima-vms)
-1. [Option 7: Docker-based Approaches](#option-7-docker-based-approaches)
-1. [Option 8: Nix Shells](#option-8-nix-shells)
-1. [What GitHub Recommends](#what-github-recommends)
-1. [What the Community Does](#what-the-community-does)
-1. [Comparison Matrix](#comparison-matrix)
-1. [Recommended Approach for This Repo](#recommended-approach-for-this-repo)
+01. [Option 1: Tart VMs (Recommended)](#option-1-tart-vms-recommended)
+02. [Option 2: Cirrus CLI + Tart (Alternative to act)](#option-2-cirrus-cli--tart-alternative-to-act)
+03. [Option 3: Tartelet (Full ephemeral runner)](#option-3-tartelet-full-ephemeral-runner)
+04. [Option 4: sandbox-exec Wrappers](#option-4-sandbox-exec-wrappers)
+05. [Option 5: SandVault (User Account Isolation)](#option-5-sandvault-user-account-isolation)
+06. [Option 6: Lima VMs](#option-6-lima-vms)
+07. [Option 7: Docker-based Approaches](#option-7-docker-based-approaches)
+08. [Option 8: Nix Shells](#option-8-nix-shells)
+09. [What GitHub Recommends](#what-github-recommends)
+10. [What the Community Does](#what-the-community-does)
+11. [Comparison Matrix](#comparison-matrix)
+12. [Recommended Approach for This Repo](#recommended-approach-for-this-repo)
 
 ______________________________________________________________________
 
@@ -198,9 +198,9 @@ cirrus run
 Cirrus CLI automatically:
 
 1. Starts a Tart VM
-1. Copies the working directory into the VM
-1. Runs the scripts inside the VM
-1. Tears down the VM
+2. Copies the working directory into the VM
+3. Runs the scripts inside the VM
+4. Tears down the VM
 
 ### Pros
 
@@ -225,20 +225,20 @@ runners inside Tart VMs. It is designed for self-hosted runner farms, but works 
 ### How It Works
 
 1. Clones a Tart VM
-1. Boots the VM
-1. SSHes in and installs the GitHub Actions runner application
-1. Registers the runner with your GitHub org/repo
-1. Runner picks up and executes one job
-1. Deregisters the runner
-1. Shuts down and deletes the VM
-1. Loops back to step 1
+2. Boots the VM
+3. SSHes in and installs the GitHub Actions runner application
+4. Registers the runner with your GitHub org/repo
+5. Runner picks up and executes one job
+6. Deregisters the runner
+7. Shuts down and deletes the VM
+8. Loops back to step 1
 
 ### Setup
 
 1. Create a GitHub App with runner permissions
-1. Install Tart and pull a base image
-1. Install Tartelet from [releases](https://github.com/shapehq/tartelet/releases)
-1. Configure: select VM image, enter SSH credentials (admin/admin for Cirrus images), enter GitHub App details
+2. Install Tart and pull a base image
+3. Install Tartelet from [releases](https://github.com/shapehq/tartelet/releases)
+4. Configure: select VM image, enter SSH credentials (admin/admin for Cirrus images), enter GitHub App details
 
 ### Pros
 
@@ -368,7 +368,7 @@ ______________________________________________________________________
 Two-layer isolation:
 
 1. **User account separation:** Commands run as a dedicated limited user with no access to your home directory
-1. **sandbox-exec overlay:** Further restricts filesystem access on top of the user separation
+2. **sandbox-exec overlay:** Further restricts filesystem access on top of the user separation
 
 ### Setup
 
@@ -489,12 +489,12 @@ From the [official documentation](https://docs.github.com/en/actions/reference/r
 1. **Use the `--ephemeral` flag** when configuring self-hosted runners. This makes the runner accept only one job and
    automatically deregister afterward.
 
-1. **Never use self-hosted runners with public repositories.** Forks could submit PRs that run arbitrary code on your
+2. **Never use self-hosted runners with public repositories.** Forks could submit PRs that run arbitrary code on your
    runner.
 
-1. **Treat runners as ephemeral.** Use automation to provide a clean environment for each job.
+3. **Treat runners as ephemeral.** Use automation to provide a clean environment for each job.
 
-1. **Use Actions Runner Controller (ARC)** on Kubernetes for automatic Pod-per-job isolation.
+4. **Use Actions Runner Controller (ARC)** on Kubernetes for automatic Pod-per-job isolation.
 
 GitHub provides NO built-in isolation for self-hosted runners. They explicitly state: "Self-hosted runners for GitHub do
 not have guarantees around running in ephemeral clean virtual machines, and can be persistently compromised by untrusted
@@ -509,15 +509,15 @@ Based on GitHub Discussions, issues, and blog posts:
 1. **Most common:** Accept the risk and run `act -self-hosted` directly on the host. This is the path of least
    resistance and what most individuals do for local testing.
 
-1. **Infrastructure teams:** Use Tart + Tartelet or similar to run ephemeral VMs per job. This is common for companies
+2. **Infrastructure teams:** Use Tart + Tartelet or similar to run ephemeral VMs per job. This is common for companies
    with Mac Mini farms.
 
-1. **Security-conscious individuals:** Use sandbox-exec wrappers (Safehouse, bx-mac) for lightweight process-level
+3. **Security-conscious individuals:** Use sandbox-exec wrappers (Safehouse, bx-mac) for lightweight process-level
    isolation.
 
-1. **Linux-only workflows:** Run `act` with default Docker containers, avoiding the macOS problem entirely.
+4. **Linux-only workflows:** Run `act` with default Docker containers, avoiding the macOS problem entirely.
 
-1. **Alternative CI systems:** Switch to Cirrus CLI + Tart for local testing, keeping GitHub Actions for the actual CI.
+5. **Alternative CI systems:** Switch to Cirrus CLI + Tart for local testing, keeping GitHub Actions for the actual CI.
 
 The [act issue tracker](https://github.com/nektos/act/issues/2105) shows community demand for Tart integration, but no
 implementation exists yet. The act maintainer for Apple platforms acknowledged the request but cannot develop for Apple

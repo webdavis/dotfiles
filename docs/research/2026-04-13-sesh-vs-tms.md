@@ -401,10 +401,10 @@ bind-key -T TMUX_SESSIONIZER n display-popup -E "tms marks open 6"   # nvim
 **What makes this work:**
 
 1. `tms marks open <N>` is a **direct, instant switch**. No picker, no fuzzy finding.
-1. If the session does not exist, tms creates it from the configured path in `[marks]`.
-1. The mark index-to-path mapping lives in `config.toml`, co-located with other tms config.
-1. The tmux keybinding only needs the index number -- it does not need to know the session name or path.
-1. Adding a new project requires two changes: add the mark in `config.toml` and add the keybinding in `tmux.conf`.
+2. If the session does not exist, tms creates it from the configured path in `[marks]`.
+3. The mark index-to-path mapping lives in `config.toml`, co-located with other tms config.
+4. The tmux keybinding only needs the index number -- it does not need to know the session name or path.
+5. Adding a new project requires two changes: add the mark in `config.toml` and add the keybinding in `tmux.conf`.
 
 ### Can Sesh Replicate This?
 
@@ -466,7 +466,7 @@ Two relevant issues confirm that sesh's maintainer considers marks/shortcuts out
    session config. Medeski closed it, pointing to the `run-shell` pattern above. His philosophy: "sesh doesn't make any
    changes to tmux."
 
-1. **[Issue #255: "Add Session Marker System for Activity Tracking"][13]** (May 2025) -- A PR implementing a marker
+2. **[Issue #255: "Add Session Marker System for Activity Tracking"][13]** (May 2025) -- A PR implementing a marker
    system with visual indicators was rejected. Medeski responded: "I don't think this approach is quite the right fit
    for this particular project. The scope feels out of place."
 
@@ -518,21 +518,21 @@ first-class, built-in capability.
 1. **The marks system is the killer feature.** It is exactly what the user needs, and it works seamlessly. Sesh has no
    equivalent and the maintainer has explicitly rejected adding one.
 
-1. **Single source of truth.** TMS marks live in `config.toml` alongside other tms configuration. With sesh, the same
+2. **Single source of truth.** TMS marks live in `config.toml` alongside other tms configuration. With sesh, the same
    information would be split across `sesh.toml` (session definitions) and `tmux.conf` (keybindings), creating a
    maintenance burden.
 
-1. **`tms start` bootstraps sessions.** The user has `[[sessions]]` configured for uriel, openclaw, and Homelab that
+3. **`tms start` bootstraps sessions.** The user has `[[sessions]]` configured for uriel, openclaw, and Homelab that
    auto-create on tmux startup. Sesh has no equivalent.
 
-1. **Git worktree auto-windowing.** TMS automatically opens checked-out worktrees as tmux windows. This is a unique tms
+4. **Git worktree auto-windowing.** TMS automatically opens checked-out worktrees as tmux windows. This is a unique tms
    feature with no sesh equivalent.
 
-1. **Migration cost is real.** The user has 12 marks, 3 auto-start sessions, 3 bookmarks, and 4 search directories
+5. **Migration cost is real.** The user has 12 marks, 3 auto-start sessions, 3 bookmarks, and 4 search directories
    configured. Replicating this in sesh would require redefining all sessions in `sesh.toml`, rewriting all keybindings
    in `tmux.conf` to use `sesh connect` instead of `tms marks open`, and giving up `tms start` bootstrapping.
 
-1. **TMS is not abandoned.** The last release (v0.5.0) was August 2025, and the last push was February 2026. Development
+6. **TMS is not abandoned.** The last release (v0.5.0) was August 2025, and the last push was February 2026. Development
    is slower than sesh but ongoing.
 
 **When sesh would be the better choice:**
@@ -566,23 +566,23 @@ ______________________________________________________________________
    Identified the marks/keybinding workflow as the critical evaluation axis based on the user's existing tms
    configuration.
 
-1. **PLAN:** Identified primary sources (GitHub repos, READMEs, release notes, issues) and secondary sources (blog
+2. **PLAN:** Identified primary sources (GitHub repos, READMEs, release notes, issues) and secondary sources (blog
    posts, podcasts, community discussions). Planned triangulation via GitHub API metrics, issue tracker analysis, and
    author statements.
 
-1. **RETRIEVE:** Parallel web searches and fetches across 20+ sources. GitHub API queries for precise metrics (stars,
+3. **RETRIEVE:** Parallel web searches and fetches across 20+ sources. GitHub API queries for precise metrics (stars,
    forks, contributors, commit counts, release counts). Direct inspection of user's live tms config and tmux
    keybindings. Local `tms` CLI help output.
 
-1. **TRIANGULATE:** Cross-referenced GitHub star counts across multiple sources. Verified marks feature rejection via
+4. **TRIANGULATE:** Cross-referenced GitHub star counts across multiple sources. Verified marks feature rejection via
    two independent issues (#107 and #255) with author responses. Confirmed `sesh connect` direct-switch pattern via
    author's own code example. Validated release dates against GitHub API.
 
-1. **SYNTHESIZE:** Connected configuration structure, keybinding patterns, and maintainer philosophy into a coherent
+5. **SYNTHESIZE:** Connected configuration structure, keybinding patterns, and maintainer philosophy into a coherent
    recommendation. Identified the "two-file maintenance" problem as a concrete migration cost unique to sesh's
    architecture.
 
-1. **PACKAGE:** Structured report with comparison tables, code examples from the user's actual config, and
+6. **PACKAGE:** Structured report with comparison tables, code examples from the user's actual config, and
    evidence-cited recommendation.
 
 ### Sources Consulted

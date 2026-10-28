@@ -429,12 +429,12 @@ re-runs the runner script if the YAML hash differs from the last successful run,
 workflow for drift remediation is:
 
 1. `just D`, see what's drifted.
-1. Decide: was the drift accidental (revert), or did you actually want this setting changed permanently (update YAML)?
-1. If revert: `just a` (chezmoi apply) won't re-run the runner because the YAML is unchanged. Workaround:
+2. Decide: was the drift accidental (revert), or did you actually want this setting changed permanently (update YAML)?
+3. If revert: `just a` (chezmoi apply) won't re-run the runner because the YAML is unchanged. Workaround:
    `chezmoi apply --refresh-externals` or, more reliably,
    `touch .chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl && chezmoi apply` to bump the hash. (Or simpler:
    a `just defaults-reapply` target that calls `defaults write` directly via the same data file.)
-1. If update: edit YAML, commit, `chezmoi apply` runs the runner with the new value.
+4. If update: edit YAML, commit, `chezmoi apply` runs the runner with the new value.
 
 Step 3 is mildly awkward, chezmoi correctly skips re-runs when content hasn't changed, but drift correction needs an
 unconditional re-run. The cleanest fix is a separate `dot_local/bin/macos-defaults-apply.sh` script (parallel to the
@@ -829,9 +829,9 @@ That's 31 settings. The user should:
 
 1. Review each, some (like `tilesize: 48`, `orientation: bottom`) are taste preferences that should match what the user
    already has on their main machine.
-1. Run `defaults read <domain> <key>` for each on a machine they like, and snapshot the values into the YAML.
-1. Add domain-specific killall entries if needed (e.g., `Mail` for Mail.app preferences).
-1. Document how to discover new settings: `defaults read | grep -i <pattern>`, `defaults read-type <domain> <key>`
+2. Run `defaults read <domain> <key>` for each on a machine they like, and snapshot the values into the YAML.
+3. Add domain-specific killall entries if needed (e.g., `Mail` for Mail.app preferences).
+4. Document how to discover new settings: `defaults read | grep -i <pattern>`, `defaults read-type <domain> <key>`
    (returns `Type is integer`, etc.), and the macos-defaults.com catalog as a starting reference [43].
 
 ### Bootstrap on a fresh Mac
@@ -839,10 +839,10 @@ That's 31 settings. The user should:
 Walk-through of what happens on first run:
 
 1. User clones chezmoi repo via `chezmoi init <github-user>` (existing process).
-1. `chezmoi apply` runs: `run_onchange_before_10-system-packages.sh.tmpl` installs Homebrew packages (existing); other
+2. `chezmoi apply` runs: `run_onchange_before_10-system-packages.sh.tmpl` installs Homebrew packages (existing); other
    run_once / run_onchange scripts execute; `run_onchange_after_30-macos-defaults.sh.tmpl` finally runs the defaults
    loop and killalls Dock/Finder/etc.
-1. Result: ~30 settings applied in \<1s, Dock and Finder restarted, machine matches declared state.
+3. Result: ~30 settings applied in \<1s, Dock and Finder restarted, machine matches declared state.
 
 No manual handholding beyond chezmoi init. The user's hard requirement #1 is met.
 
@@ -851,13 +851,13 @@ No manual handholding beyond chezmoi init. The user's hard requirement #1 is met
 Add a setting:
 
 1. Edit `.chezmoidata/macos_defaults.yaml`, append a record.
-1. `just l` (lint), yq validates structure, shellcheck stays happy.
-1. `just a` (chezmoi apply), runner re-runs because YAML hash changed.
+2. `just l` (lint), yq validates structure, shellcheck stays happy.
+3. `just a` (chezmoi apply), runner re-runs because YAML hash changed.
 
 Remove a setting:
 
 1. Delete the line from YAML.
-1. `just a`, runner runs but no longer writes that key. **Caveat:** the live system still has the value you deleted. If
+2. `just a`, runner runs but no longer writes that key. **Caveat:** the live system still has the value you deleted. If
    you want it reverted to macOS default, run `defaults delete <domain> <key>` manually. (This asymmetry,
    chezmoi-managed adds vs unmanaged removes, is a fundamental property of `defaults write`, not specific to the
    recommendation.)
@@ -953,7 +953,7 @@ Two findings rest on single sources or single observations:
 1. **The dsully/macos-defaults `--dry-run` fix landing 2026-04-26 with no release**: confirmed by issue #10 + the HEAD
    commit on the same day. If the maintainer cuts a release within days, this caveat softens. Re-check before adopting
    dsully.
-1. **Zero public chezmoi+nix-darwin defaults-only precedent**: a negative finding from a single GitHub code search. It's
+2. **Zero public chezmoi+nix-darwin defaults-only precedent**: a negative finding from a single GitHub code search. It's
    possible such a setup exists in private repos or has been discussed informally; the absence of a public example
    doesn't mean nobody has done it. The point stands directionally, there's no documented playbook to copy from.
 
@@ -1003,28 +1003,28 @@ commits behind origin/main" check at the top of the drift script. Not load-beari
 1. **Create `.chezmoidata/macos_defaults.yaml`** with the starter list from Finding 7, customized to the user's
    preferences. Spend 15 minutes on each machine running `defaults read <domain> <key>` for any settings the user
    already has dialed in to capture them as the baseline.
-1. **Create `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`** with the runner from Finding 7. Verify it
+2. **Create `.chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`** with the runner from Finding 7. Verify it
    lints (`just l`) and renders cleanly
    (`CI=1 chezmoi execute-template --no-tty < .chezmoiscripts/run_onchange_after_30-macos-defaults.sh.tmpl`).
-1. **Create `dot_local/bin/executable_macos-defaults-drift.sh`** with the drift checker. Test it on the current machine
+3. **Create `dot_local/bin/executable_macos-defaults-drift.sh`** with the drift checker. Test it on the current machine
    to verify it correctly identifies "no drift" against the YAML you just created.
-1. **Create `dot_local/bin/executable_macos-defaults-apply.sh`** with the forced reapplier.
-1. **Add `D` and `defaults-apply` targets to the justfile.**
-1. **Add a section to CLAUDE.md** documenting the new pattern, mirroring the existing "Claude Code Settings" / "Homebrew
+4. **Create `dot_local/bin/executable_macos-defaults-apply.sh`** with the forced reapplier.
+5. **Add `D` and `defaults-apply` targets to the justfile.**
+6. **Add a section to CLAUDE.md** documenting the new pattern, mirroring the existing "Claude Code Settings" / "Homebrew
    install workflow" sections.
-1. **Run `just a`** to apply on the current machine. Verify settings stick (open Dock preferences, check tilesize
+7. **Run `just a`** to apply on the current machine. Verify settings stick (open Dock preferences, check tilesize
    matches; open Finder, verify list view).
-1. **Commit as one logical unit** with conventional-commit message:
+8. **Commit as one logical unit** with conventional-commit message:
    `feat(macos-defaults): declarative defaults management via chezmoi data + runner`.
 
 ### Near-term (next month)
 
-9. **Document the manual setup checklist** at `docs/MACOS_MANUAL_SETUP.md`: TCC grants for Ghostty / Karabiner /
-   Hammerspoon / etc., Bluetooth toggles, Remote Login enable, screen recording / accessibility permissions for any
-   tools that need them. Reference this from CLAUDE.md and the README. This documents the "30% that defaults can no
-   longer touch" honestly so future-you doesn't try to automate it.
-1. **Run the drift checker on a 30-day cadence** (or hook it into the `osquery-report.sh` daily report). Drift will be
-   rare on a single user's machine but worth catching when it happens.
+09. **Document the manual setup checklist** at `docs/MACOS_MANUAL_SETUP.md`: TCC grants for Ghostty / Karabiner /
+    Hammerspoon / etc., Bluetooth toggles, Remote Login enable, screen recording / accessibility permissions for any
+    tools that need them. Reference this from CLAUDE.md and the README. This documents the "30% that defaults can no
+    longer touch" honestly so future-you doesn't try to automate it.
+10. **Run the drift checker on a 30-day cadence** (or hook it into the `osquery-report.sh` daily report). Drift will be
+    rare on a single user's machine but worth catching when it happens.
 
 ### Quarterly review
 
@@ -1033,7 +1033,7 @@ commits behind origin/main" check at the top of the drift script. Not load-beari
     grown in ways that would matter for the user's use case. If the answer is yes-yes-yes, swap the runner for
     `macos-defaults apply ~/.config/macos-defaults/` and keep the drift checker (which still has value as a justfile
     target even if dsully provides its own).
-01. **Re-evaluate nix-darwin if and when broader Nix-for-system adoption is on the table.** If the user ever wants to
+12. **Re-evaluate nix-darwin if and when broader Nix-for-system adoption is on the table.** If the user ever wants to
     declaratively manage system services, LaunchAgents, or system-wide packages via Nix, the marginal cost of adding
     `system.defaults` to the existing nix-darwin config drops dramatically.
 

@@ -29,7 +29,7 @@ bash-preexec works by combining two Bash primitives:
    being run interactively (as opposed to internally by PROMPT_COMMAND or other shell infrastructure), and fires the
    `preexec` hook if appropriate.
 
-1. **`PROMPT_COMMAND`**: This built-in Bash variable specifies a command to run after the previous command line
+2. **`PROMPT_COMMAND`**: This built-in Bash variable specifies a command to run after the previous command line
    completes and before the next prompt is displayed. bash-preexec uses this to fire the `precmd` hook.
 
 A critical implementation challenge is that the DEBUG trap fires not just before user commands, but before every simple
@@ -40,8 +40,8 @@ interactive command line, not once per sub-command.
 For a compound command like `echo 1; echo 2 && echo 3`, the flow is:
 
 1. `preexec` fires once (before all commands begin)
-1. Each sub-command executes
-1. `precmd` fires once (after all commands complete, before the next prompt)
+2. Each sub-command executes
+3. `precmd` fires once (after all commands complete, before the next prompt)
 
 ### Installation
 
@@ -94,7 +94,7 @@ ______________________________________________________________________
 Atuin needs to intercept two moments in the shell command lifecycle:
 
 1. **Before a command runs**: to record the command text, timestamp, working directory, and generate a history ID.
-1. **After a command completes**: to record the exit code and duration.
+2. **After a command completes**: to record the exit code and duration.
 
 Zsh and Fish provide these hooks natively. Bash does not. This is why Atuin depends on bash-preexec (or ble.sh) when
 running under Bash.
@@ -115,21 +115,21 @@ This function runs before each command via bash-preexec's preexec mechanism. It:
 
 1. **Detects the active backend**: Determines whether ble.sh or bash-preexec is providing the hooks via
    `__atuin_update_preexec_backend`.
-1. **Starts a history entry**: Calls `atuin history start` with the command text, which creates a new record in the
+2. **Starts a history entry**: Calls `atuin history start` with the command text, which creates a new record in the
    SQLite database and returns a history ID.
-1. **Captures the start time**: Records `EPOCHREALTIME` (on Bash 5.0+) for later duration calculation.
-1. **Stores the history ID**: Saves it in `ATUIN_HISTORY_ID` for correlation with the subsequent precmd call.
+3. **Captures the start time**: Records `EPOCHREALTIME` (on Bash 5.0+) for later duration calculation.
+4. **Stores the history ID**: Saves it in `ATUIN_HISTORY_ID` for correlation with the subsequent precmd call.
 
 ### The `__atuin_precmd` Function
 
 This function runs after each command completes, via bash-preexec's precmd mechanism. It:
 
 1. **Captures exit status immediately**: Records `$?` before any other operation can alter it.
-1. **Calculates duration**: Computes elapsed time using `EPOCHREALTIME` (Bash 5.0+) or ble.sh's `_ble_exec_time_ata`.
-1. **Finalizes the history entry**: Calls
+2. **Calculates duration**: Computes elapsed time using `EPOCHREALTIME` (Bash 5.0+) or ble.sh's `_ble_exec_time_ata`.
+3. **Finalizes the history entry**: Calls
    `atuin history end --exit "$EXIT" --duration="$duration" -- "$ATUIN_HISTORY_ID"` to update the database record with
    the exit code and duration.
-1. **Runs asynchronously**: Executes in the background to avoid blocking prompt display.
+4. **Runs asynchronously**: Executes in the background to avoid blocking prompt display.
 
 ### Session and Environment Management
 

@@ -10,13 +10,13 @@ Karl's dotfiles repo is a chezmoi-managed setup targeting macOS and Ubuntu, cent
 interesting and transferable elements are:
 
 1. A sophisticated **Claude Code skill and command system** for automated quality triage
-1. A **progressive notification escalation system** (desktop -> mobile push via ntfy.sh)
-1. **Claude Code hooks** in settings.json for Stop and Notification events
-1. A **Claude Code Review GitHub Action** for automated PR reviews
-1. Templated `settings.json` and `settings.local.json` for Claude Code
-1. A **subagent architecture** pattern using TOON (Token-Oriented Object Notation)
-1. Chezmoi **auto-commit and auto-push** for source directory changes
-1. **psqlrc** with timing, custom prompts, and pager configuration
+2. A **progressive notification escalation system** (desktop -> mobile push via ntfy.sh)
+3. **Claude Code hooks** in settings.json for Stop and Notification events
+4. A **Claude Code Review GitHub Action** for automated PR reviews
+5. Templated `settings.json` and `settings.local.json` for Claude Code
+6. A **subagent architecture** pattern using TOON (Token-Oriented Object Notation)
+7. Chezmoi **auto-commit and auto-push** for source directory changes
+8. **psqlrc** with timing, custom prompts, and pager configuration
 
 ______________________________________________________________________
 
@@ -154,10 +154,10 @@ Flow: Desktop notification -> wait 120s -> if marker still exists (user didn't c
 Marker-based atomic claim pattern:
 
 1. Create marker file with JSON metadata (session_id, event_type, timestamp, pid, cwd)
-1. Desktop notification callback deletes marker on click
-1. Background escalation worker sleeps, then attempts `mv marker marker.claimed`
-1. Only one process (callback or worker) can successfully `mv` -- kernel guarantees atomicity
-1. Worker only sends push if it won the race
+2. Desktop notification callback deletes marker on click
+3. Background escalation worker sleeps, then attempts `mv marker marker.claimed`
+4. Only one process (callback or worker) can successfully `mv` -- kernel guarantees atomicity
+5. Worker only sends push if it won the race
 
 ### 2.3 Integration Points
 
@@ -460,23 +460,23 @@ ______________________________________________________________________
 ### Tier 1 -- High Impact, Moderate Effort
 
 1. **Add Claude Code hooks** (Stop + Notification) to `settings.json` for task completion awareness
-1. **Add ntfy.sh mobile push** notifications for long-running tasks (could reuse Karl's pattern adapted for bash/tmux)
-1. **Template settings.json** via chezmoi for portable path references
-1. **Add Claude Code Review GitHub Action** for automated PR reviews
-1. **Add `/pr-merge` slash command** -- simple, high-frequency time saver
+2. **Add ntfy.sh mobile push** notifications for long-running tasks (could reuse Karl's pattern adapted for bash/tmux)
+3. **Template settings.json** via chezmoi for portable path references
+4. **Add Claude Code Review GitHub Action** for automated PR reviews
+5. **Add `/pr-merge` slash command** -- simple, high-frequency time saver
 
 ### Tier 2 -- Medium Impact, Higher Effort
 
-6. **Build quality triage skills** adapted from Karl's pattern (but for Stephen's bash-centric stack)
-1. **Add `cleanupPeriodDays: 36525`** and `alwaysThinkingEnabled: true` to Claude settings
-1. **Add deny rules** for .env, credentials, SSH keys in Claude settings
-1. **Enable `git_metrics`** in Starship config
-1. **Add `push.autoSetupRemote = true`** to gitconfig if not present
+06. **Build quality triage skills** adapted from Karl's pattern (but for Stephen's bash-centric stack)
+07. **Add `cleanupPeriodDays: 36525`** and `alwaysThinkingEnabled: true` to Claude settings
+08. **Add deny rules** for .env, credentials, SSH keys in Claude settings
+09. **Enable `git_metrics`** in Starship config
+10. **Add `push.autoSetupRemote = true`** to gitconfig if not present
 
 ### Tier 3 -- Low Impact or Situational
 
 11. **Consider chezmoi auto-commit/auto-push** for the dotfiles repo
-01. **Add psqlrc** if using PostgreSQL
-01. **Add git find-merge/show-merge aliases**
-01. **Add "evergreen" guidance** to CLAUDE.md header
-01. **Add starship-lite variant** for degraded terminal situations
+12. **Add psqlrc** if using PostgreSQL
+13. **Add git find-merge/show-merge aliases**
+14. **Add "evergreen" guidance** to CLAUDE.md header
+15. **Add starship-lite variant** for degraded terminal situations
