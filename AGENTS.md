@@ -34,9 +34,11 @@ Agent instructions belong in this file alone.
 
 ## Agent Skills and Plugins
 
-### Claude Code or Codex marketplace skill or plugin
+### Marketplace or Hermes plugin or skill
 
-- Install: add its marketplace and its `<plugin>@<marketplace>` id under its harness in `.chezmoidata/agent-plugins.yaml`.
+- Install, in `.chezmoidata/agent-plugins.yaml` under its harness:
+  - Claude Code or Codex: its marketplace and its `<plugin>@<marketplace>` id.
+  - Hermes: its catalog name.
 - Remove:
   1. Remove its id, and its marketplace when no plugin of it remains.
   2. Claude Code: `claude plugin uninstall <plugin>@<marketplace>`. Codex: `codex plugin remove <plugin>@<marketplace>`. Hermes plugin: `hermes plugins remove <name>`.
@@ -54,7 +56,7 @@ Agent instructions belong in this file alone.
 ### Each skill reaches each harness once
 
 - Codex loads every skill in `~/.agents/skills/`, so such a skill reaches Codex through that folder alone.
-- `scripts/treefmt/agent-data-validate.sh` checks both YAML files for this.
+- `just lint` refuses a skill or plugin that reaches a harness twice.
 
 ## Neovim Plugin
 
@@ -76,12 +78,35 @@ Agent instructions belong in this file alone.
 
 - Our own Lua modules: `dot_config/nvim/lua/custom_api/`.
 
+## Editing
+
+- Edit the source in this repo, never its target under `~`. `chezmoi source-path <target>` names the source.
+- Run `just lint` before handing work over.
+- Run `just ship` before opening a PR.
+
 ## Applying Changes
 
 - After the owner runs `just apply`, read `~/.local/state/chezmoi-apply/latest.apply.log`.
 
 ## Git and GitHub
 
-- Commit only after the owner has approved the change.
-- Open a PR or merge only when the owner asks for that step.
-- Fix an open PR by editing or renaming it, and keep the same PR.
+- Worktrees and branches:
+  - Use `wt switch --create <branch>` to create a branch connected to a worktree.
+  - Isolate pieces of work within their own worktree. Unrelated work should be done in separate worktrees.
+- Commits:
+  - One commit per behavior change. History reads as what changed, never as how the work went.
+  - Commit a behavior change once it is done.
+  - Feedback on a commit that main does not hold yet, including an edit the owner makes by hand, is folded into that commit, never into a new one:
+    - Use `git commit --amend` for the latest commit.
+    - Use `git commit --fixup <commit>` and `git rebase --autosquash` for an older commit.
+    - If the branch has already been pushed, then use `git push --force-with-lease` to push the updates.
+  - Write a commit body only when it adds to the subject line. Keep it short.
+  - The body holds only the why and what the diff does not show. No trailers, links or sign-offs that name the tool, model or session that wrote the commit.
+- Pull Requests:
+  - Opening a PR, merging it, and setting auto-merge are three separate requests. Do one only when the owner asks for it by name. A request to open a PR is not a request to merge it.
+  - Opening: one PR per piece of work. Unrelated work gets its own PR.
+  - Fixing: fix an open PR by editing or renaming it, and keep the same PR.
+  - Merging:
+    1. Use `wt switch main` to move to the `main` branch checkout.
+    2. Then use `npx -y gh-axi pr merge <number> --rebase --delete-branch` to merge the PR and delete the remote branch.
+    3. Then use `wt remove <branch>` to remove the worktree and the local branch.
