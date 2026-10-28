@@ -49,10 +49,10 @@ Three consequences follow, and they are the reasons for the verdict:
 
 1. **Terminal-backend isolation does confine the tools the old design cares about** (shell, and the file tools, which
    are built on the shell contract). That part of the old design is correct and is configurable here.
-1. **It confines nothing else the agent process does.** Upstream lists the exclusions: the code-execution tool, Model
+2. **It confines nothing else the agent process does.** Upstream lists the exclusions: the code-execution tool, Model
    Context Protocol subprocesses, plugin loading, hook dispatch and skill loading all run in the agent's own interpreter
    or as host subprocesses. Any of those in the investigator's tool surface reopens the host.
-1. **The outbound allowlist the old design proposed to build is unnecessary in the shape it proposed, and insufficient
+3. **The outbound allowlist the old design proposed to build is unnecessary in the shape it proposed, and insufficient
    in the shape it promised.** Unnecessary because the model call is made by the host controller process, not from
    inside the container, so the container needs no outbound access at all and can run fully networkless (measured
    below). Insufficient because a Docker-network allowlist would not have covered the host-side leg, which is where the
@@ -674,26 +674,26 @@ settled.
    `--max-retries`, `--idempotency-key` and `--workspace dir:` with it. *Alternative:* Shape A, a webhook agent route,
    widened with `platform_toolsets.webhook`. That deliberately reopens a door upstream closed for untrusted third-party
    content, and collides with the tracked route checker's `deliver_only` invariant.
-1. **Assumed: `--network=none` on the container rather than an outbound allowlist.** Rationale: the container needs no
+2. **Assumed: `--network=none` on the container rather than an outbound allowlist.** Rationale: the container needs no
    outbound access, measured. *Alternative:* an allowlist, which is strictly more machinery for strictly less
    containment, or whole-process wrapping under NVIDIA OpenShell, which is the only reviewed option that constrains the
    **host-side** leg and is what upstream names for this input class.
-1. **Assumed: the evidence directory is a throwaway under a dedicated root, accepting the read-write bind.** Rationale:
+3. **Assumed: the evidence directory is a throwaway under a dedicated root, accepting the read-write bind.** Rationale:
    `docker_mount_cwd_to_workspace` produces no `:ro` variant and is per-task, which the read-only `docker_volumes` route
    is not. *Alternative:* the attachments root mounted `:ro`, accepting cross-task visibility, at the cost of needing an
    upgrade before a producer can attach anything programmatically.
-1. **Assumed: the investigator's tool surface is `terminal` and `file` only.** Rationale: those cover `codesign`,
+4. **Assumed: the investigator's tool surface is `terminal` and `file` only.** Rationale: those cover `codesign`,
    `spctl`, `strings`, `otool` and reading the copied evidence, and both run inside the container. *Alternative:* adding
    `web` so the investigator can look up a hash or a bundle identifier. That restores a host-side outbound path for
    untrusted-derived queries and should be a deliberate decision, not a convenience.
-1. **Assumed: `gateway.strict: true` is acceptable gateway-wide.** Rationale: the artifact-upload path is live for every
+5. **Assumed: `gateway.strict: true` is acceptable gateway-wide.** Rationale: the artifact-upload path is live for every
    agent route today. *Alternative:* leaving it off and relying on the publisher never forwarding a path, which leaves
    the notifier's own artifact scan unguarded on the same channel.
-1. **Assumed: the advisory is a separate message correlating by identifier, not a threaded reply.** Rationale: the
+6. **Assumed: the advisory is a separate message correlating by identifier, not a threaded reply.** Rationale: the
    supported metadata path carries only a pre-existing thread identifier. *Alternative:* a dedicated Discord thread per
    alert, created by the producer, whose identifier is then passed as `deliver_extra.thread_id`. That is expressible but
    adds a thread-lifecycle problem nobody has scoped.
-1. **Assumed: the installed revision (a4091e49, 2026-06-25) is the target, not an upgrade.** Rationale: the task asks
+7. **Assumed: the installed revision (a4091e49, 2026-06-25) is the target, not an upgrade.** Rationale: the task asks
    what supported interfaces provide, and this is what is installed. *Alternative:* upgrade to at least the reviewed
    upstream revision to get the `kanban_attach` tools and the review subcommands, at the cost of a configuration
    migration that `.chezmoiscripts/run_after_59-hermes-config-migrate.sh.tmpl` would have to carry.
@@ -723,26 +723,26 @@ settled.
 1. **Execution and network boundary: terminal-backend isolation with `--network=none`, or whole-process wrapping?**
    Upstream's own policy says the second for content the operator does not control. The first is a handful of
    configuration keys on this host; the second is a project. Which tier is this workflow held to?
-1. **Permitted evidence: what may be copied into the box, and who resolves it?** The old design says only the artifact
+2. **Permitted evidence: what may be copied into the box, and who resolves it?** The old design says only the artifact
    at the finding's structured `path` field, resolved deterministically, never chosen by the agent. Is the referenced
    binary or script in scope, are narrowly scoped logs in scope, and what is the byte ceiling per investigation?
-1. **Model-provider disclosure.** The live configuration routes to `provider: openai-codex` at
+3. **Model-provider disclosure.** The live configuration routes to `provider: openai-codex` at
    `https://chatgpt.com/backend-api/codex`. An investigator sends attacker-controlled artifact text to that endpoint
    under your account. Is that acceptable, does the investigator profile get a different provider, or does this wait for
    a local model?
-1. **Credential policy for the investigator profile.** A profile carries its own `auth.json`. Does the investigator get
+4. **Credential policy for the investigator profile.** A profile carries its own `auth.json`. Does the investigator get
    its own credential (blast radius bounded, one more secret to manage through KeePassXC) or share an existing one?
-1. **Evidence-upload posture: turn on `gateway.strict` now?** The unguarded artifact path in finding 16 is live today
+5. **Evidence-upload posture: turn on `gateway.strict` now?** The unguarded artifact path in finding 16 is live today
    for every agent route on this gateway, independent of this workflow. Turning it on is one key and needs an allowlist
    root decided for anything you do want delivered.
-1. **Tirith: install it or stop claiming it?** The configuration enables a scanner that is not installed, with
+6. **Tirith: install it or stop claiming it?** The configuration enables a scanner that is not installed, with
    `fail_open: true`. Either is defensible; the current state claims a control that does not run.
-1. **Route reconciliation: add a `posture` route, and extend the tracked checker?** Posture pins the name `posture`; the
+7. **Route reconciliation: add a `posture` route, and extend the tracked checker?** Posture pins the name `posture`; the
    configuration has no such route; the checker covers only `pns` and `unattended-upgrades`. Separately, if an agent
    route is ever added, the checker's `deliver_only` invariant needs a documented carve-out for it.
-1. **Advisory scope: does the fixed response vocabulary from the old design's section 6 stand?** Quarantine the file,
+8. **Advisory scope: does the fixed response vocabulary from the old design's section 6 stand?** Quarantine the file,
    disable the launch item by label, revert the setting in System Settings. The publisher can only enforce a vocabulary
    that has been written down.
-1. **Producer transport identifiers.** Confirm the intended split: a per-delivery-attempt value in `X-Request-ID`, and
+9. **Producer transport identifiers.** Confirm the intended split: a per-delivery-attempt value in `X-Request-ID`, and
    the alert correlation key in the body. This is a pns change, small, and it also fixes the fact that pns's current
    `Idempotency-Key` header is ignored by Hermes entirely.

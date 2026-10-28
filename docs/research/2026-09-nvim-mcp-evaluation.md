@@ -278,13 +278,13 @@ holds two or more Neovims started by hand. Three facts bound it.
 
 1. **Today, before task 23 lands `<leader>Cc`, every agent is started by hand**, so injection covers nothing yet and the
    resolver's topology step carries the whole load. That is temporary.
-1. **One Neovim per workspace is the normal shape, and topology resolves it with no picker.** herdr anchors a workspace
+2. **One Neovim per workspace is the normal shape, and topology resolves it with no picker.** herdr anchors a workspace
    to one directory and one Neovim serves it; the second Neovim in a workspace is a deliberate act. **No count backs
    this, and the count this run took was worthless.** The census was `pgrep -f 'nvim --embed'`, which matches only a
    command line containing `nvim --embed`. It cannot match the `nvim --clean -u /tmp/mc/init.lua` instances this
    evaluation itself launched, and it cannot match an ordinary `nvim` the operator starts, so its zero is not evidence
    of zero. No complete process census was taken. The claim rests on the workspace model alone.
-1. **The tab narrows it further.** Even with two Neovims in a workspace, the agent pane's tab usually holds only one of
+3. **The tab narrows it further.** Even with two Neovims in a workspace, the agent pane's tab usually holds only one of
    them, and step 2 picks that one deterministically (shown below). The picker only fires for two verified Neovims in
    the agent's own tab, which is the two-editors-side-by-side layout and nothing else.
 
@@ -424,29 +424,29 @@ clean single resolution once the stale entry was pruned.
 1. **Do not call `require("nvim-mcp").setup()` with defaults on macOS.** It errors at startup for both of this
    operator's repository roots (criterion 1). Either omit the plugin spec, since the resolver pins by path and the
    registry uses `v:servername`, or pass `pipe` under a root short enough to keep the whole name at or under 104 bytes.
-1. **The runtime-root fallback is a graveyard and must be filtered before any RPC.** The listing 7.3 names,
+2. **The runtime-root fallback is a graveyard and must be filtered before any RPC.** The listing 7.3 names,
    `${XDG_RUNTIME_DIR:-${TMPDIR}nvim.${USER}}/*/nvim.*.0`, returned 383 socket files on this machine with zero live
    Neovim behind any of them; Neovim leaves the file behind whenever it does not exit cleanly, and herdr pane closes are
    one such exit. A dead socket refuses in 17 ms, so a blind probe of all of them costs about 6.5 s; `kill -0` on the
    pid embedded in each filename filtered all 383 in 17 ms and is the right pre-filter, with the identity check still
    run on whatever survives (a pid can be reused too).
-1. **Editing is `exec_lua`.** The 7.5 rule and the resolver's tool description have to say that buffer edits go through
+3. **Editing is `exec_lua`.** The 7.5 rule and the resolver's tool description have to say that buffer edits go through
    `exec_lua` with `nvim_buf_set_lines` (undoable, in memory), because no `edit` tool exists and an agent that does not
    know this will write the file.
-1. **The Codex table goes into `modify_private_config.toml`** as a stable `setValueAtPath` field beside the four
+4. **The Codex table goes into `modify_private_config.toml`** as a stable `setValueAtPath` field beside the four
    existing `mcp_servers` entries (PR #306). Spec 7.3's sentence about a `private_config.toml.tmpl` predates that merge
    and is superseded by it.
-1. **Pane ids are session-compact.** herdr renumbers pane ids as panes close, so the registry must hold the id Neovim
+5. **Pane ids are session-compact.** herdr renumbers pane ids as panes close, so the registry must hold the id Neovim
    itself read from `HERDR_PANE_ID` at start, and the identity check has to compare against what the instance reports
    now, which is what step 3 does.
-1. **The resolver's protocol behavior is unexercised, and PR 10a owes the transcript.** Steps 2 to 5 were exercised by a
+6. **The resolver's protocol behavior is unexercised, and PR 10a owes the transcript.** Steps 2 to 5 were exercised by a
    bash script whose picker case is printed text and exit code 4. Nothing was run over the Model Context Protocol
    against the resolver, so PR 10a must record an end-to-end client transcript, initialization through the two-candidate
    tool result, before the resolver is said to close criterion 3.
-1. **Direction-B injection is unexercised, and PR 10a owes that too.** `herdr pane split --env` sets the variable for
+7. **Direction-B injection is unexercised, and PR 10a owes that too.** `herdr pane split --env` sets the variable for
    the launched process only, so an agent cannot pin a Neovim it spawns and then read the pin itself. The registry is
    the intended cover and it needs a demonstration.
-1. **Criterion 6 passes only under this record's amendment**, which swaps the spec's "YAML-declared toolchain" for the
+8. **Criterion 6 passes only under this record's amendment**, which swaps the spec's "YAML-declared toolchain" for the
    guarded `$HOME/.cargo/bin/cargo` path pns and uu already use. PR 10a carries that amendment forward or, if the
    operator rejects it, does not ship at all.
 

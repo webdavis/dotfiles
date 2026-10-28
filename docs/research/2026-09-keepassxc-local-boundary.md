@@ -56,10 +56,10 @@ The task splits into four, and this document answers all four:
 
 1. Which local operations can a supported KeePassXC integration cover, and which still need the operator? (The task's
    `done_means`.)
-1. Why does an outbound credential proxy not solve that boundary by itself?
-1. What is the difference between handing an agent a password and letting a tool use it for an approved operation, in
+2. Why does an outbound credential proxy not solve that boundary by itself?
+3. What is the difference between handing an agent a password and letting a tool use it for an approved operation, in
    mechanisms that exist on this machine?
-1. Which supported integration should be preferred over a custom broker?
+4. Which supported integration should be preferred over a custom broker?
 
 "Local operations" means the work that happens on the laptop with no network destination: chezmoi rendering a config
 file, chezmoi decrypting an age file, a script restoring the age identity, a script pairing a device, and the lint gates
@@ -355,8 +355,8 @@ read out of, and the approval is bounded. It requires all three of:
 
 1. a **use boundary**, some place the agent cannot reach into (a different user id, a different machine, a hardware
    element);
-1. an **approval act** bound to the specific operation, not to a session or a machine;
-1. a **record** of what was used for what, without the value.
+2. an **approval act** bound to the specific operation, not to a session or a machine;
+3. a **record** of what was used for what, without the value.
 
 Measured against that test, this is what exists on dresden today:
 
@@ -479,27 +479,27 @@ each is the operator's to reverse.
    operator prefers the other reading, the `kpxc-cli` rejection in this document weakens to "possible, at the cost of a
    title-to-URL migration across the vault and a shim with no security gain", and the `kpxc-cli` evaluation task at
    ledger line 2056 should be re-scoped accordingly.
-1. **The threat model assumed is an agent with arbitrary shell as the operator's own user, which is the configuration
+2. **The threat model assumed is an agent with arbitrary shell as the operator's own user, which is the configuration
    this machine runs.** `defaultMode = bypassPermissions` plus `Bash(cat *)` in the allow list is what makes findings 7
    and 8 bite. The alternative model, an agent whose reads are actually constrained, would change the verdict
    materially, and it is reachable: tightening `defaultMode` and dropping the broad `Bash` allow entries is a settings
    change, not a credential change. I did not propose it because it is a large behavioral change to how the operator
    works and it belongs to the boundary-definition task at ledger line 2058, not to this evaluation.
-1. **The verdict treats "the agent can already read every deployed secret" as a fact to design around rather than a
+3. **The verdict treats "the agent can already read every deployed secret" as a fact to design around rather than a
    defect to fix first.** The alternative is to treat it as the primary defect, in which case the whole Infisical
    direction gets reordered behind it: there is little point brokering a credential to keep it off the laptop while
    fourteen others sit at 0600 in `$HOME`. I lean toward the alternative and did not act on it, because reordering an
    approved plan is the operator's call.
-1. **The Moshi pairing token was treated as a defect worth naming but not worth proposing a fix for.** The alternative
+4. **The Moshi pairing token was treated as a defect worth naming but not worth proposing a fix for.** The alternative
    is to file a fix task now. I held back because the available fix is partial: it removes the token from the source
    render but not from the argument list, since `moshi-hook pair` takes the token only as `--token` and patching a
    third-party tool is forbidden. A partial fix to a single-use credential is a judgment about how much a persistent
    exposure of a spent token matters, which is the operator's to make rather than mine.
-1. **The YubiKey path was written up as a deferred candidate rather than left out.** The alternative is to leave
+5. **The YubiKey path was written up as a deferred candidate rather than left out.** The alternative is to leave
    hardware out of a software evaluation. I included it because without it the document says only "no supported
    integration helps", which is true and not actionable, and because it is the only mechanism that passes the
    use-boundary test for chezmoi's rendering at all.
-1. **The scratchpad probe directory was left in place.** The alternative is to trash it now. The destructive-action rule
+6. **The scratchpad probe directory was left in place.** The alternative is to trash it now. The destructive-action rule
    puts directory removal behind the operator's confirmation, including scratch directories an agent made itself, so
    leaving it and naming it is the conservative reading. It holds only dummy strings.
 
@@ -531,24 +531,24 @@ each is the operator's to reverse.
    supported, that task's scope changes and this document's rejection of the browser protocol weakens to a cost
    argument. My recommendation: it does not count, and `kpxc-cli` should be closed as rejected with this document as the
    evidence.
-1. **Is the YubiKey path worth pricing?** It is the only supported configuration that creates a real per-run boundary
+2. **Is the YubiKey path worth pricing?** It is the only supported configuration that creates a real per-run boundary
    for chezmoi's rendering. It costs hardware, an experimental chezmoi mode and a recovery design, and the touch
    authorizes a whole run. My recommendation: yes, price it, as its own task, after the two questions below.
-1. **Should the deployed-secret exposure be fixed before any broker work?** Fourteen files at 0600 in `$HOME` plus five
+3. **Should the deployed-secret exposure be fixed before any broker work?** Fourteen files at 0600 in `$HOME` plus five
    age-encrypted targets that need no vault mean an agent on this machine can read nearly every credential today. My
    recommendation: yes, and it reorders the Infisical tasks behind it.
-1. **Should the source tree be treated as a trust boundary?** An agent that edits a template or
+4. **Should the source tree be treated as a trust boundary?** An agent that edits a template or
    `.install-password-manager.sh` reaches the operator's unlocked apply, and nothing in the gates catches it. My
    recommendation: yes, and it belongs in the boundary-definition task at ledger line 2058 rather than here, because it
    needs a mechanism decision, not more research.
-1. **Is the half fix to the Moshi pairing token worth making?** `moshi-hook pair` takes its token only as `--token`,
+5. **Is the half fix to the Moshi pairing token worth making?** `moshi-hook pair` takes its token only as `--token`,
    verified, so the argument-list exposure cannot be removed without patching a third-party tool, which is forbidden.
    The render-time exposure can be removed by fetching at execution time the way `run_before_05` does. My
    recommendation: yes, as a small standalone change, because the token currently sits in the source state rather than
    only in a momentary argument list.
-1. **Should `keepassxcAttribute` be verified against a real custom attribute under `mode = "open"`?** One unlocked
+6. **Should `keepassxcAttribute` be verified against a real custom attribute under `mode = "open"`?** One unlocked
    command settles whether the deferred candidate is viable at all.
-1. **Should the orphaned `test/fixtures/render-coverage/` fixtures get a test, or be deleted?** The vault-exclusion
+7. **Should the orphaned `test/fixtures/render-coverage/` fixtures get a test, or be deleted?** The vault-exclusion
    logic in the lint formatter is untested and its fixtures are referenced by nothing. My recommendation: one small
    test, because the logic decides which templates get linted and a silent regression there is a lint gap nobody would
    notice.

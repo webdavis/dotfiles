@@ -26,11 +26,11 @@ measured costs decide it anyway.
 1. **Interactive startup roughly doubles.** Two interleaved measurement passes put the fully configured xonsh shell at
    1.89x and 1.95x the median time to first prompt of the deployed `~/.bashrc`, and the gap is the Python interpreter
    floor, which no amount of configuration tuning removes. Every new Herdr pane pays it.
-1. **A permanent per-command tax of roughly 20 to 35 ms.** atuin's Bash hook backgrounds `atuin history end`; its xonsh
+2. **A permanent per-command tax of roughly 20 to 35 ms.** atuin's Bash hook backgrounds `atuin history end`; its xonsh
    hook cannot, because of xonsh issue 5224, which upstream **closed as not planned**. The generated xonsh snippet
    carries the disabled background call and the issue link as a comment. That call therefore blocks the prompt after
    every single command, forever, unless upstream reverses that decision.
-1. **The runtime is fragile in exactly the way this machine is managed.** xonsh's own installation guidance says setting
+3. **The runtime is fragile in exactly the way this machine is managed.** xonsh's own installation guidance says setting
    it as the default login shell "is not recommended" and that a core-shell xonsh needs a Python environment kept
    "stable, predictable, and independent of system changes", explicitly adding that `venv`, `pipx` and `rye` "do not
    fully address this requirement" and pointing at Miniconda or Micromamba. The Homebrew formula (`xonsh 0.24.2`,
@@ -350,16 +350,16 @@ the cheap lever this repository controls.
 
 1. **xonsh's interpreter floor drops below roughly 150 ms**, so that a fully configured xonsh reaches the prompt no
    slower than the deployed Bash. Today an empty xonsh already costs what all of Bash's configuration costs.
-1. **xonsh issue 5224 is reopened and fixed**, letting atuin's xonsh hook background `atuin history end` the way its
+2. **xonsh issue 5224 is reopened and fixed**, letting atuin's xonsh hook background `atuin history end` the way its
    Bash hook does, removing the per-command tax.
-1. **direnv ships `direnv hook xonsh` and fnm ships `--shell xonsh`**, removing the two hand-rolled or unmaintained
+3. **direnv ships `direnv hook xonsh` and fnm ships `--shell xonsh`**, removing the two hand-rolled or unmaintained
    integrations.
-1. **Upstream drops the "not recommended as a login shell" guidance**, or the operator accepts an isolated Python
+4. **Upstream drops the "not recommended as a login shell" guidance**, or the operator accepts an isolated Python
    installer (Miniconda or Micromamba) into the locked-in toolchain and accepts that the interactive shell now depends
    on it.
-1. **The daily workload shifts toward Python-shaped shell work**, where inline Python expressions and structured
+5. **The daily workload shifts toward Python-shaped shell work**, where inline Python expressions and structured
    pipelines pay for the move. Today the tooling is Rust and Bash.
-1. **SP4 builds its binding table as a shell-agnostic data table with a renderer.** That is the lever: if the 1,926-line
+6. **SP4 builds its binding table as a shell-agnostic data table with a renderer.** That is the lever: if the 1,926-line
    binding layer becomes data plus one readline renderer, then re-evaluating any shell later costs one more renderer
    instead of a rewrite, and this verdict becomes cheap to revisit rather than expensive. Recommend building it that way
    regardless of the shell decision.
@@ -417,18 +417,18 @@ Removing the first pair is `trash ~/.local/share/xonsh ~/.cache/xonsh`, for the 
 
 1. **Ratify the no-go?** If yes, this document files beside `docs/research/2026-07-09-sp4-nushell-evaluation.md` and the
    ledger records both, so neither question is re-litigated.
-1. **Is the migration specification still owed?** The ledger's `done_means` says "a reviewed spec and a go/no-go
+2. **Is the migration specification still owed?** The ledger's `done_means` says "a reviewed spec and a go/no-go
    verdict"; this document is the evaluation, not a migration plan. Say whether a no-go discharges the spec half or
    whether a follow-up writes the plan anyway.
-1. **Does SP4 build its binding table as shell-agnostic data with a renderer?** That is the single change that would
+3. **Does SP4 build its binding table as shell-agnostic data with a renderer?** That is the single change that would
    make any future shell evaluation cheap, and it is worth doing on its own merits.
-1. **Should SP4 take the bash-completion@2 startup win?** Roughly 220 ms of about 400 ms, measured. The open risk is
+4. **Should SP4 take the bash-completion@2 startup win?** Roughly 220 ms of about 400 ms, measured. The open risk is
    which completions carapace does not cover; that needs an inventory before anything is dropped, and lazy-loading is
    the conservative middle path.
-1. **Do you want the comparison re-measured on an idle machine before ratifying?** The ratios held across two passes at
+5. **Do you want the comparison re-measured on an idle machine before ratifying?** The ratios held across two passes at
    different loads, so the verdict does not hang on it, but the absolute numbers in this document are inflated.
-1. **Is there a workload reason to want Python in the shell that this evaluation missed?** The value side was judged
+6. **Is there a workload reason to want Python in the shell that this evaluation missed?** The value side was judged
    from the repository's contents (Rust tooling, Bash scripts, Python only as formatters). That is the weakest evidence
    here, and it is the operator's call, not a measurement.
-1. **If a migration ever proceeds, is `SHELL` staying as Bash agreed?** Upstream advises it, fzf's `$SHELL -c` previews
+7. **If a migration ever proceeds, is `SHELL` staying as Bash agreed?** Upstream advises it, fzf's `$SHELL -c` previews
    require it, and it keeps every non-interactive door untouched.

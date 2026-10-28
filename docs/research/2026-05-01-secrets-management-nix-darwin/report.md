@@ -41,11 +41,11 @@ Vault-for-homelab-only split, because that depends on what you actually run in t
 1. **sops-nix has first-class nix-darwin support.** I previously hedged on this; it's wrong.
    `sops-nix.darwinModules.sops` is a real, documented, actively-maintained module with a 12.6 KB
    `modules/nix-darwin/default.nix`. Production users include `nix-community/infra` running darwin builders.
-1. **OIDC is NOT one of Vault Agent's auto-auth methods.** I conflated OIDC (for human `vault login`) with Agent
+2. **OIDC is NOT one of Vault Agent's auto-auth methods.** I conflated OIDC (for human `vault login`) with Agent
    auto-auth. Agent's 13 methods are token_file (dev-only), approle, jwt, kubernetes, aws, azure, gcp, cert, cf,
    kerberos, oci, ldap, userpass. Workstation patterns require either a periodic interactive `vault login` flow or
    AppRole/JWT bootstrap from disk.
-1. **Vault's "automated rotation" is narrower than the marketing implies.** Dynamic secrets engines rotate; KV v2
+3. **Vault's "automated rotation" is narrower than the marketing implies.** Dynamic secrets engines rotate; KV v2
    versions but doesn't rotate; GitHub PATs/OAuth/Stripe tokens still require manual upstream rotation regardless of
    which secrets manager fronts them.
 
@@ -71,12 +71,12 @@ Four parallel research agents were dispatched per the deep-research skill's Phas
 
 1. **sops-nix macOS support verification**: README, modules directory layout, open issues filtered for "darwin OR
    macOS", recent commit cadence, real public dotfiles configs.
-1. **Vault Agent + Nix reality check**: official auto-auth/template docs, recommended human-auth methods, search for any
+2. **Vault Agent + Nix reality check**: official auto-auth/template docs, recommended human-auth methods, search for any
    nix-darwin/home-manager Vault module, bootstrap-credential location, single-node Raft homelab patterns.
-1. **home-manager secrets idioms + chezmoi vault**: chezmoi's `vault` and `keepassxc` template functions, home-manager's
+3. **home-manager secrets idioms + chezmoi vault**: chezmoi's `vault` and `keepassxc` template functions, home-manager's
    idiomatic patterns for secret-bearing files, per-template migration targets for the user's six KeePassXC-touching
    templates.
-1. **Operational risks + rotation comparison**: exact sops rotation commands, Vault dynamic vs static rotation
+4. **Operational risks + rotation comparison**: exact sops rotation commands, Vault dynamic vs static rotation
    distinction, unsealing model, what happens at `darwin-rebuild switch` if Vault is unreachable, age-key-loss recovery,
    audit-log retention.
 
@@ -203,10 +203,10 @@ workstation the realistic patterns are:
 1. **Periodic human OIDC login + `token_file`.** User runs `vault login -method=oidc` periodically (the OIDC token's TTL
    determines how often), the resulting token lands at `~/.vault-token`, Agent reads it via `token_file` auto-auth and
    renews it until TTL expiry. Docs mark `token_file` as dev-only [20].
-1. **AppRole.** Long-lived `role_id` and short-lived `secret_id` written to disk, Agent reads them at startup;
+2. **AppRole.** Long-lived `role_id` and short-lived `secret_id` written to disk, Agent reads them at startup;
    `secret_id` is deleted after first read by default. The bootstrap problem becomes: how do you get the initial
    `secret_id` onto the machine securely [21]?
-1. **JWT.** Workstation-issued JWT (e.g., signed with a local key) presented to Vault for exchange. Less common for
+3. **JWT.** Workstation-issued JWT (e.g., signed with a local key) presented to Vault for exchange. Less common for
    personal workstations.
 
 **Single-node Raft is acceptable for homelab but actively discouraged by HashiCorp.** From the official Raft tutorial:
@@ -518,11 +518,11 @@ workstation secrets question.
 1. **Dynamic database credentials for homelab services.** A self-hosted Postgres serving multiple apps benefits from
    per-app, per-session ephemeral credentials. App restarts fetch fresh creds with 1h leases; if an app is compromised,
    the blast radius is bounded by lease TTL.
-1. **Audit logging.** Knowing who/what accessed secret `secret/homelab/jellyfin/api_key` and when, with the audit log
+2. **Audit logging.** Knowing who/what accessed secret `secret/homelab/jellyfin/api_key` and when, with the audit log
    preserved off-server.
-1. **PKI / certificate issuance.** Vault's PKI engine can act as the homelab's internal CA, issuing short-lived
+3. **PKI / certificate issuance.** Vault's PKI engine can act as the homelab's internal CA, issuing short-lived
    certificates for service-to-service mTLS.
-1. **Centralized policy.** A single place to define which app/service can read which secret, with policies as code.
+4. **Centralized policy.** A single place to define which app/service can read which secret, with policies as code.
 
 **Single-node Raft is acceptable for homelab use** despite HashiCorp's "strongly discouraged for production" framing
 [22]. The risk is data loss on disk corruption, mitigation is regular backups of the Raft data directory plus a solid
@@ -716,7 +716,7 @@ ______________________________________________________________________
      yet.
    - **Effort:** ~2 to 4 hours including Determinate Nix coexistence verification.
 
-1. **Add sops-nix as a flake input and import `darwinModules.sops`.**
+2. **Add sops-nix as a flake input and import `darwinModules.sops`.**
 
    - **What:** Add `sops-nix.url = "github:Mic92/sops-nix";` to `mac-dev-config/flake.nix` inputs. Import
      `sops-nix.darwinModules.sops` in the dresden modules list.
@@ -726,7 +726,7 @@ ______________________________________________________________________
      age public key. Verify decryption via `sops -d secrets/test.yaml` before integrating into the module.
    - **Effort:** ~1 to 2 hours.
 
-1. **Decide on the homelab Vault question.**
+3. **Decide on the homelab Vault question.**
 
    - **What:** Audit your homelab services. List which (if any) would benefit from dynamic database credentials,
      internal PKI, or centralized audit. If the list is empty or thin, drop Vault from the plan entirely and use
@@ -756,7 +756,7 @@ ______________________________________________________________________
      inevitable edge cases.
    - **Effort:** ~2 hours per template, ~12 hours total over 6 weeks.
 
-1. **Set up the age-key recovery story.**
+2. **Set up the age-key recovery story.**
 
    - **What:** Configure `.sops.yaml` with at least two recipients: your laptop's age key + a backup age key stored in
      your existing KeePassXC database. Run `sops updatekeys` against any existing encrypted files. Optionally add a
@@ -767,7 +767,7 @@ ______________________________________________________________________
      recipients → `sops updatekeys secrets/*.yaml`.
    - **Effort:** ~1 hour first time, plus discipline to repeat after any recipient change.
 
-1. **Adopt home-manager incrementally for non-secret-heavy dotfiles.**
+3. **Adopt home-manager incrementally for non-secret-heavy dotfiles.**
 
    - **What:** Migrate `dot_tmux.conf`, `dot_bash_aliases`, etc. to `programs.tmux`, `home.shellAliases` over time.
      Don't try to do everything at once.
@@ -775,7 +775,7 @@ ______________________________________________________________________
      dominated by the templated/secret files. The plain dotfiles can wait.
    - **Effort:** Open-ended; do as time permits.
 
-1. **(Conditional) If homelab Vault is justified after the audit in immediate-step 3:** stand up single-node Vault on
+4. **(Conditional) If homelab Vault is justified after the audit in immediate-step 3:** stand up single-node Vault on
    the homelab, with disk-level encryption + backup of the Raft data dir. Configure for manual Shamir unsealing
    initially; auto-unseal only if you're willing to maintain a Transit-seal Vault. Use the chezmoi `vault` template
    function for any *workstation* file that genuinely needs a homelab secret, don't run Vault Agent on the workstation.
@@ -785,9 +785,9 @@ ______________________________________________________________________
 1. **YubiKey-resident age identities on macOS.** Whether the convenience of `age-plugin-yubikey` is mature enough to be
    the primary recipient (instead of a backup recipient). Worth a 1-hour investigation when you set up the backup
    recovery story.
-1. **home-manager #6536 status.** Watch for resolution. If fixed, you can simplify the architecture by using
+2. **home-manager #6536 status.** Watch for resolution. If fixed, you can simplify the architecture by using
    `homeManagerModules.sops` everywhere instead of routing per-user files through the system darwin module.
-1. **chezmoi residual scope.** After 3 months of nix-darwin, audit which files are still in chezmoi and why. Some will
+3. **chezmoi residual scope.** After 3 months of nix-darwin, audit which files are still in chezmoi and why. Some will
    be genuine fits (modify-templates); some will be inertia and can be migrated.
 
 ______________________________________________________________________

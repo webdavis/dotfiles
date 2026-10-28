@@ -13,8 +13,8 @@ Devbox has no built-in mechanism for automatically activating a shell environmen
 automatic activation, Devbox explicitly relies on direnv. The official workflow is:
 
 1. Run `devbox generate direnv` in your project directory.
-1. This creates a `.envrc` file containing `eval "$(devbox generate direnv --print-envrc)"`.
-1. direnv detects the `.envrc` on directory entry and activates the Devbox environment.
+2. This creates a `.envrc` file containing `eval "$(devbox generate direnv --print-envrc)"`.
+3. direnv detects the `.envrc` on directory entry and activates the Devbox environment.
 
 Without direnv, the only options are:
 
@@ -43,12 +43,12 @@ Devbox provides two activation modes:
 ### Interactive shell (`devbox shell`)
 
 1. Detects your shell from `$SHELL`.
-1. Generates a temporary shellrc file that:
+2. Generates a temporary shellrc file that:
    - Sources your original RC file (preserves existing customizations).
    - Exports all Devbox environment variables.
    - Adds a `(devbox)` prompt prefix (unless `$DEVBOX_NO_PROMPT` is set).
    - Sources init hooks from `.devbox/gen/scripts/.hooks.sh`.
-1. Launches a sub-shell using shell-specific mechanisms:
+3. Launches a sub-shell using shell-specific mechanisms:
    - bash: `--rcfile` flag
    - zsh: `ZDOTDIR` override
    - fish: `-C ". <shellrc>"`
@@ -294,7 +294,7 @@ blocking issues are:
 1. **mdformat + mdformat-gfm** requires `python.withPackages`, which devbox cannot express natively (issue #2408). You
    would need either a pip virtualenv (losing reproducibility) or a companion flake.nix (defeating the purpose).
 
-1. **nixfmt-tree** is not indexed on Nixhub and requires a manual flake reference in devbox.json.
+2. **nixfmt-tree** is not indexed on Nixhub and requires a manual flake reference in devbox.json.
 
 If your needs were limited to simple packages (chezmoi, shellcheck, shfmt), devbox would be a clear win in simplicity.
 But the Python plugin composition and nixfmt-tree dependency make the flake.nix approach strictly more capable for this

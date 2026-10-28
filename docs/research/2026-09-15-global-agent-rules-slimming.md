@@ -171,22 +171,22 @@ silently skipped.
 
 1. Collaboration style, Verification and sources, Verification before completion, Destructive action gates, Code
    discipline - KEEP, no action.
-1. **Shell scripts - MOVE.** Create `~/.agents/skills/bash-style/SKILL.md` (new vendored skill: the full "Adding a
+2. **Shell scripts - MOVE.** Create `~/.agents/skills/bash-style/SKILL.md` (new vendored skill: the full "Adding a
    skill" recipe in `docs/runbooks/agent-skills-store.md`). Touches: the new skill directory, a `tiers` row and
    `skillOverrides` entry in `dot_agents/custom-skill-lock.json`, a `hermesProfiles` row, a Claude symlink under
    `private_dot_claude/skills/bash-style`, and the partial (shrink to stub).
-1. Git commits - KEEP, no action.
-1. **Git worktrees - MOVE.** Fold content into the existing `~/.agents/skills/herdr/SKILL.md`. Touches: that file, and
+3. Git commits - KEEP, no action.
+4. **Git worktrees - MOVE.** Fold content into the existing `~/.agents/skills/herdr/SKILL.md`. Touches: that file, and
    the partial (shrink to stub). No lock changes; `herdr` is already registered.
-1. **GitButler - MOVE.** Fold content into the existing `~/.agents/skills/gitbutler/SKILL.md`. Touches: that file, and
+5. **GitButler - MOVE.** Fold content into the existing `~/.agents/skills/gitbutler/SKILL.md`. Touches: that file, and
    the partial (shrink to stub). No lock changes; already registered.
-1. **Work recaps - MOVE.** Fold the layout, trigger list, and delivery mechanics into the existing
+6. **Work recaps - MOVE.** Fold the layout, trigger list, and delivery mechanics into the existing
    `~/.agents/skills/pns-work-recap/SKILL.md`. Touches: that file, and the partial (shrink to stub). No lock changes.
-1. Pull request descriptions, Task tracking - KEEP, no action.
-1. **Tool preferences - PARTIAL MOVE.** Edit `~/.agents/skills/gh-axi/SKILL.md`,
+7. Pull request descriptions, Task tracking - KEEP, no action.
+8. **Tool preferences - PARTIAL MOVE.** Edit `~/.agents/skills/gh-axi/SKILL.md`,
    `~/.agents/skills/chrome-devtools-axi/SKILL.md`, and `~/.agents/skills/home-assistant/SKILL.md` to each state its own
    preference-over-alternatives. Touches: those three files, and the partial (trim to the one-line principle plus a
    pointer).
-1. Open Neovim buffers, Backups (disagreement above, operator may override), Toolchain, Agents - KEEP.
+9. Open Neovim buffers, Backups (disagreement above, operator may override), Toolchain, Agents - KEEP.
 
 Re-render both targets after every accepted pass and record the new line count before the next pass.

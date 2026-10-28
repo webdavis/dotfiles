@@ -14,10 +14,10 @@ Four separate questions travel under one ledger bullet:
 
 1. Does each of `bandwhich`, `doggo` and `ouch` earn a line in `.chezmoidata/system_packages_autoinstall.yaml`? (Roadmap
    row P6, Todoist `6gfVJCvxV34W3hgM`.)
-1. What is actually left of the "remaining quick wins" list? (Roadmap row P8, Todoist `6gfVJ8Rfh8ppwpqv`, sourced from
+2. What is actually left of the "remaining quick wins" list? (Roadmap row P8, Todoist `6gfVJ8Rfh8ppwpqv`, sourced from
    `docs/research/2026-04-14-dotfiles-improvements.md`.)
-1. Is the optional Tart clean-machine virtual machine worth building? (Roadmap row P13, Todoist `6gfVJ8v6pjjF5Qwv`.)
-1. Do setup steps S1, S2 and S4 from `docs/superpowers/specs/2026-05-15-dotfiles-tasks-design.md` still apply to the
+3. Is the optional Tart clean-machine virtual machine worth building? (Roadmap row P13, Todoist `6gfVJ8v6pjjF5Qwv`.)
+4. Do setup steps S1, S2 and S4 from `docs/superpowers/specs/2026-05-15-dotfiles-tasks-design.md` still apply to the
    files as they stand? (S3 is not in scope, but one of its two issues is noted below.)
 
 ## Verdicts
@@ -436,19 +436,19 @@ Each of these is a choice this record made because the operator was asleep. Each
    record adopts it for split-Domain-Name-System correctness instead, which means the value claim rests on code that
    shipped two weeks ago. *Alternative:* judge it on the original cosmetic grounds, in which case it is a decline like
    the other two, because `dig` already prints answers.
-1. **The picker fix is `--hidden` on the existing ripgrep line, not a tool swap and not a deletion.** *Alternatives:*
+2. **The picker fix is `--hidden` on the existing ripgrep line, not a tool swap and not a deletion.** *Alternatives:*
    swap to fd (rejected because PATH resolves an undeclared, stale fd), or delete the override and use fzf's built-in
    walker (correct and shorter, but measured at 0.9 to 5.2 seconds against ripgrep's 0.65 to 0.83).
-1. **The picker fix is recommended for now rather than folded into SP4.** SP4 is chartered to rewrite exactly this area
+3. **The picker fix is recommended for now rather than folded into SP4.** SP4 is chartered to rewrite exactly this area
    ("one binding table that drives both key bindings and an fzf menu"), so there is an argument for waiting. This record
    treats a one-word correctness fix as too small to hold hostage to a subproject that has not started. *Alternative:*
    fold it into SP4's diff and leave the blind spot for now.
-1. **ouch is declined rather than left undecided.** Its only delta is ergonomic and the operator may simply want it.
+4. **ouch is declined rather than left undecided.** Its only delta is ergonomic and the operator may simply want it.
    *Alternative:* adopt it as an interactive convenience, accepting that no script may call it.
-1. **Tart is deferred rather than rejected.** The clean-machine idea has real value that nothing else covers, but not at
+5. **Tart is deferred rather than rejected.** The clean-machine idea has real value that nothing else covers, but not at
    p4 and not as filed. *Alternative:* reject outright and remove `tart` from the declaration, or accept the project now
    with the stated ceiling.
-1. **S1 is declined rather than rescheduled.** *Alternative:* execute the archive move as specified, accepting the
+6. **S1 is declined rather than rescheduled.** *Alternative:* execute the archive move as specified, accepting the
    path-reference sweep across all eleven referring files.
 
 ## What would change these verdicts
@@ -475,28 +475,28 @@ Each of these is a choice this record made because the operator was asleep. Each
 
 1. **doggo: adopt?** It is the one recommended addition. One line between `direnv` and `dust`, installed first per the
    Homebrew agent workflow, then declared.
-1. **bandwhich and ouch: accept the declines, or overrule either on taste?** If bandwhich is wanted, the pns skip-list
+2. **bandwhich and ouch: accept the declines, or overrule either on taste?** If bandwhich is wanted, the pns skip-list
    question needs an answer first: extend `shell_is_interactive` and teach it about `sudo`, or accept a notification
    after every session?
-1. **The picker fix: apply `--hidden` now, or hold it for SP4?** And should `dot_fzf*` be added to treefmt's shellcheck
+3. **The picker fix: apply `--hidden` now, or hold it for SP4?** And should `dot_fzf*` be added to treefmt's shellcheck
    and shfmt includes, so an edit there is linted at all?
-1. **Tart: retire P13, or charter the clean-machine rehearsal as its own project?** If retired, should `tart` and `act`
+4. **Tart: retire P13, or charter the clean-machine rehearsal as its own project?** If retired, should `tart` and `act`
    come out of the formulae declaration, given that both are installed, unused, and in `act`'s case recommended against
    by its own research?
-1. **Issue #17: confirm it stays open.** This record recommends against the S4 fallback that would close it, because the
+5. **Issue #17: confirm it stays open.** This record recommends against the S4 fallback that would close it, because the
    SP7 section lists it as live. Please confirm, since the spec's instruction says otherwise.
-1. **Issue #13 (Zellij): no decision needed here.** The separate ledger bullet at line 2022 already owns it ("#13
+6. **Issue #13 (Zellij): no decision needed here.** The separate ledger bullet at line 2022 already owns it ("#13
    (Zellij predates the Herdr decision)"), so this record only confirms the state it found: #13 open, #5 closed. Decide
    it there, not here.
-1. **The four taste items:** Catppuccin for bat, Ghostty `quick-terminal-size` and background blur, and AeroSpace
+7. **The four taste items:** Catppuccin for bat, Ghostty `quick-terminal-size` and background blur, and AeroSpace
    workspace-to-monitor assignment. Each is a small diff, none has a correctness argument.
-1. **Out of scope, found while probing the network tooling, and untracked anywhere:** `nettop` reports
+8. **Out of scope, found while probing the network tooling, and untracked anywhere:** `nettop` reports
    `tcp4 *:445 Listen`, and `launchctl print-disabled system` shows `"com.apple.smbd" => enabled`, so Server Message
    Block file sharing is listening on this machine. Nothing in `docs/remaining-work.md` or
    `.chezmoidata/posture_controls.yaml` mentions port 445 or file sharing, and the ledger's existing exposure section
    covers SSH only. Should file sharing be off, or a posture control that asserts its state? Filing this as its own item
    rather than folding it into a quick-wins bullet.
-1. **Also out of scope:** `~/.cargo/bin/fd` (8.4.0) shadows the declared Homebrew `fd` (10.5.0), and `nu` plus
+9. **Also out of scope:** `~/.cargo/bin/fd` (8.4.0) shadows the declared Homebrew `fd` (10.5.0), and `nu` plus
    `nu_plugin_core_match` are installed there despite the ratified nushell no-go. Both are undeclared cargo installs
    that contradict a declaration. Clean up, or leave?
 

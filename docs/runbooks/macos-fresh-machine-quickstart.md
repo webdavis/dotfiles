@@ -6,12 +6,12 @@ before running `chezmoi apply` for the first time.
 ## Before first `chezmoi apply`
 
 1. **Install Xcode Command Line Tools**: `xcode-select --install`. Required for git and brew.
-1. **Sign into Apple ID**: System Settings → Apple ID. Required for iCloud Drive (KeePassXC db sync) and `mas` App Store
+2. **Sign into Apple ID**: System Settings → Apple ID. Required for iCloud Drive (KeePassXC db sync) and `mas` App Store
    installs.
-1. **Retrieve the KeePassXC database**: from offline backup or iCloud Drive. Place at the path referenced in
+3. **Retrieve the KeePassXC database**: from offline backup or iCloud Drive. Place at the path referenced in
    `.chezmoi.toml.tmpl`.
-1. **Install chezmoi**: `brew install chezmoi` (or pre-install via homebrew bootstrap).
-1. **Initialize chezmoi**: `chezmoi init <repo-url>`. This will require the KeePassXC db to be reachable for any
+4. **Install chezmoi**: `brew install chezmoi` (or pre-install via homebrew bootstrap).
+5. **Initialize chezmoi**: `chezmoi init <repo-url>`. This will require the KeePassXC db to be reachable for any
    KeePassXC-templated files.
 
 ## During `chezmoi apply`
@@ -61,12 +61,12 @@ so a dead alert channel reads as healthy. The authorization is interactive-only;
 
 1. Launch OverSight once (`open -a OverSight`). First launch registers it with Notification Center and prompts to allow
    notifications; click Allow.
-1. If the prompt was dismissed or denied: System Settings → Notifications → OverSight → turn on Allow notifications, and
+2. If the prompt was dismissed or denied: System Settings → Notifications → OverSight → turn on Allow notifications, and
    pick the Alerts style so an activation that fires while you are away stays on screen (banners dismiss themselves).
-1. Grant nothing under Privacy & Security. OverSight watches device activation events (CoreMediaIO property listeners),
+3. Grant nothing under Privacy & Security. OverSight watches device activation events (CoreMediaIO property listeners),
    never microphone or camera content; the installed 2.4.0 bundle declares no usage-description keys and no
    entitlements, so macOS never lists it under Microphone or Camera and no such grant exists to give.
-1. Confirm the monitor is running: `pgrep -x -U "$(id -u)" OverSight` prints a PID. User-scoped (`-U`) exactly like the
+4. Confirm the monitor is running: `pgrep -x -U "$(id -u)" OverSight` prints a PID. User-scoped (`-U`) exactly like the
    security-posture poller's probe, so another user's OverSight cannot mask a stopped one here; the poller verifies this
    continuously (the `oversight` record in `.chezmoidata/posture_controls.yaml`) and pages if the process stops.
 
@@ -76,11 +76,11 @@ LuLu (the Objective-See outbound firewall, installed as a cask) filters through 
 only activates after an interactive security consent. No supported command line writes that approval:
 
 1. Launch LuLu once (`open -a LuLu`) and follow its prompts.
-1. Approve the extension: System Settings → General → Login Items & Extensions → Network Extensions → enable LuLu. macOS
+2. Approve the extension: System Settings → General → Login Items & Extensions → Network Extensions → enable LuLu. macOS
    may also raise a "System Extension Blocked" dialog with an Allow button; allow it.
-1. When prompted "LuLu would like to Filter Network Content", click Allow. This is the network-content filter consent,
+3. When prompted "LuLu would like to Filter Network Content", click Allow. This is the network-content filter consent,
    separate from the extension approval.
-1. Confirm it took: `systemextensionsctl list` shows `com.objective-see.lulu.extension` with `[activated enabled]`, and
+4. Confirm it took: `systemextensionsctl list` shows `com.objective-see.lulu.extension` with `[activated enabled]`, and
    `pgrep -x -U 0 com.objective-see.lulu.extension` prints a PID. The security-posture poller verifies the process
    continuously (the `lulu_extension` record in `.chezmoidata/posture_controls.yaml`) and pages if it stops.
 
@@ -95,7 +95,7 @@ The required rules:
 
 1. **tailscaled** (`/usr/local/bin/tailscaled`): allow. Slice 8's remote recovery path 2 rides the tailnet; blocking
    this removes it.
-1. **The Hermes gateway interpreter**: allow. This is the alerting channel's real egress hop. The gateway runs under the
+2. **The Hermes gateway interpreter**: allow. This is the alerting channel's real egress hop. The gateway runs under the
    venv launcher `~/.hermes/hermes-agent/venv/bin/python`, a symlink into a uv-managed CPython; LuLu keys the rule on
    the RESOLVED binary (`readlink -f ~/.hermes/hermes-agent/venv/bin/python`), so create the rule for that resolved
    path. After a python upgrade moves the interpreter, the `lulu_rule_hermes_gateway` control pages and this step is
@@ -152,8 +152,8 @@ To change one of the six declared values:
 
 1. Change it in the LuLu app (menu bar icon → Preferences), which updates the running extension over its own channel and
    persists the file itself.
-1. Update the record's `value` in `.chezmoidata/macos_defaults.yaml` to the new intent.
-1. Run `just D` and confirm the declaration and the live file agree again.
+2. Update the record's `value` in `.chezmoidata/macos_defaults.yaml` to the new intent.
+3. Run `just D` and confirm the declaration and the live file agree again.
 
 Promotion gate: return these records to `tier: enforce` only when a LuLu version demonstrably re-reads an external write
 to the file (a reload mechanism in its source or release notes, verified by observing a CONSULTED preference take
@@ -199,7 +199,7 @@ configuration tree at all refuses instead of exiting 0, because it cannot say ev
 Before running `--reload` on a machine you are not sitting at:
 
 1. Above all, keep any SSH session you still have OPEN until a new login succeeds.
-1. Confirm Screen Sharing over the tailnet works BEFORE the reload, not during the incident.
+2. Confirm Screen Sharing over the tailnet works BEFORE the reload, not during the incident.
 
 If `--reload` fails, warns about a possible lockout, or a new session cannot connect: from the physical console or
 Screen Sharing over the tailnet, run `ssh-hardening.sh --rollback` (or
@@ -243,13 +243,13 @@ open, which is why the reload preamble above says to keep one.
 socket that address as its local address, which is exactly what the block keys on, so no second device is needed:
 
 1. Allowed over IPv4: `ssh stephen@100.77.192.92 true` succeeds, source and destination both on the tailnet.
-1. Refused over IPv4: `ssh -o BatchMode=yes stephen@192.168.1.26 true` ends with
+2. Refused over IPv4: `ssh -o BatchMode=yes stephen@192.168.1.26 true` ends with
    `Connection closed by 192.168.1.26 port 22`.
-1. The IPv6 pair, the same way: `ssh stephen@"$(tailscale ip -6)" true` succeeds (that address is in
+3. The IPv6 pair, the same way: `ssh stephen@"$(tailscale ip -6)" true` succeeds (that address is in
    `fd7a:115c:a1e0::/48`), and `ssh -o BatchMode=yes stephen@"$(ifconfig en0 | awk '/inet6 fe80/{print $2}')" true` is
    refused. en0 carries no routable IPv6 on this network, so the refused address is the link-local one and it needs its
    `%en0` scope suffix, which that command keeps.
-1. A real phone tap: one Back Tap, then `pns tap info` reports a "Last tap" of a few seconds and `Fresh: yes`. The tap
+4. A real phone tap: one Back Tap, then `pns tap info` reports a "Last tap" of a few seconds and `Fresh: yes`. The tap
    arrives over whatever the Shortcut's `Hostname` global variable holds, so a Shortcut pointed at `192.168.1.26` or at
    a `.local` name stops working here and nowhere else. Move it to `100.77.192.92` or the MagicDNS name before
    deploying, and confirm a tap over the tailnet first, so a failing tap afterwards means something.

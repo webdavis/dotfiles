@@ -267,19 +267,19 @@ ______________________________________________________________________
 1. **Channel transitions:** Navigate through a chain of data sources (git-repos -> files -> text) within a single
    session, with results flowing between stages. fzf requires separate invocations or complex `reload` scripting.
 
-1. **Declarative channel definitions:** Define new fuzzy-finding workflows in TOML without shell scripting. Lower
+2. **Declarative channel definitions:** Define new fuzzy-finding workflows in TOML without shell scripting. Lower
    barrier to entry for simple use cases.
 
-1. **Context-aware shell integration:** Automatically selects the appropriate channel based on the current command being
+3. **Context-aware shell integration:** Automatically selects the appropriate channel based on the current command being
    typed (e.g., `cd` triggers directory search, `git checkout` triggers branch search). fzf's Ctrl+T always uses the
    same finder.
 
-1. **Frecency sorting:** Built-in frecency-based result ordering (v0.15.0). fzf has no native frecency support.
+4. **Frecency sorting:** Built-in frecency-based result ordering (v0.15.0). fzf has no native frecency support.
 
-1. **Built-in channel browsing:** Ctrl+T opens a channel picker -- effectively a "meta-fuzzy-finder" for choosing what
+5. **Built-in channel browsing:** Ctrl+T opens a channel picker -- effectively a "meta-fuzzy-finder" for choosing what
    to fuzzy-find.
 
-1. **Community channel repository:** `tv update-channels` pulls community-contributed channels. fzf has no equivalent
+6. **Community channel repository:** `tv update-channels` pulls community-contributed channels. fzf has no equivalent
    package system.
 
 ### What fzf Can Do That Television Cannot
@@ -287,26 +287,26 @@ ______________________________________________________________________
 1. **Event-action binding framework:** 250+ actions bindable to keys and events. Build calculators, clipboard searchers,
    LLM chat interfaces. Television's action system is limited to executing external commands on selection.
 
-1. **`become()` action:** Replace the fzf process with another command, enabling seamless transitions (e.g., fzf becomes
+2. **`become()` action:** Replace the fzf process with another command, enabling seamless transitions (e.g., fzf becomes
    vim at the selected file and line). No Television equivalent.
 
-1. **Dynamic reload with mode switching:** Toggle between ripgrep-powered search and fzf fuzzy matching within a single
+3. **Dynamic reload with mode switching:** Toggle between ripgrep-powered search and fzf fuzzy matching within a single
    session using `transform` actions and environment variables. Television has source cycling but not this level of
    conditional logic.
 
-1. **tmux popup integration:** `--popup` launches fzf in a tmux popup or Zellij floating pane. Television has no
+4. **tmux popup integration:** `--popup` launches fzf in a tmux popup or Zellij floating pane. Television has no
    terminal multiplexer integration.
 
-1. **Readline integration:** fzf's shell bindings manipulate the readline buffer directly (`READLINE_LINE`,
+5. **Readline integration:** fzf's shell bindings manipulate the readline buffer directly (`READLINE_LINE`,
    `READLINE_POINT`). The user's 850-line config extensively uses this for `__insert_text_at_cursor`. Television's shell
    integration is simpler (Ctrl+T/Ctrl+R only).
 
-1. **Massive third-party ecosystem:** tmux-fzf-url, tmux-fuzzback, forgit, zoxide integration, fzf.vim, fzf-lua, and
+6. **Massive third-party ecosystem:** tmux-fzf-url, tmux-fuzzback, forgit, zoxide integration, fzf.vim, fzf-lua, and
    hundreds more. Television has a fraction of this.
 
-1. **Proven scalability:** Handles 100MB+ files, millions of lines. Television has reported failures on large datasets.
+7. **Proven scalability:** Handles 100MB+ files, millions of lines. Television has reported failures on large datasets.
 
-1. **Preview debouncing:** Mature handling of rapid scrolling through results without preview lag.
+8. **Preview debouncing:** Mature handling of rapid scrolling through results without preview lag.
 
 ______________________________________________________________________
 
@@ -367,15 +367,15 @@ reasons:
    effort. Television cannot replicate this functionality due to architectural differences (no readline manipulation, no
    tmux awareness, limited action system).
 
-1. **Ecosystem lock-in:** tmux-fzf-url and tmux-fuzzback have no Television equivalents. These are daily workflow tools.
+2. **Ecosystem lock-in:** tmux-fzf-url and tmux-fuzzback have no Television equivalents. These are daily workflow tools.
 
-1. **Performance risk:** Television has reported issues with large files and input responsiveness that fzf does not
+3. **Performance risk:** Television has reported issues with large files and input responsiveness that fzf does not
    have.
 
-1. **Maturity gap:** Television is pre-1.0 and ~1.5 years old. fzf is 12+ years mature with a stable API. Configuration
+4. **Maturity gap:** Television is pre-1.0 and ~1.5 years old. fzf is 12+ years mature with a stable API. Configuration
    breakage during upgrades is a real concern with Television.
 
-1. **fzf continues to improve:** v0.71.0 added Zellij support, 1.8x performance improvements, and cross-reload item
+5. **fzf continues to improve:** v0.71.0 added Zellij support, 1.8x performance improvements, and cross-reload item
    tracking. The project is not stagnating.
 
 ### Secondary Recommendation: Consider as a Narrow Complement
@@ -386,7 +386,7 @@ Television could complement fzf for two specific use cases:
    environment variables) without writing shell scripts, `tv` with its channel picker is faster to set up than a new fzf
    pipeline.
 
-1. **Quick one-off searches:** `tv text` for ripgrep-powered text search with built-in preview is arguably faster to
+2. **Quick one-off searches:** `tv text` for ripgrep-powered text search with built-in preview is arguably faster to
    invoke than constructing an fzf pipeline from scratch, though your Ctrl+G Ctrl+G binding already does this.
 
 Installation would be trivial (`brew install television`) and would not conflict with fzf. The `tv` binary is
@@ -413,16 +413,16 @@ ______________________________________________________________________
 1. Television GitHub Repository. alexpasmantier/television. https://github.com/alexpasmantier/television Accessed
    2026-04-13. v0.15.5, 5.6k stars, 84 contributors.
 
-1. Television Documentation. alexpasmantier. https://alexpasmantier.github.io/television/ Accessed 2026-04-13. Official
+2. Television Documentation. alexpasmantier. https://alexpasmantier.github.io/television/ Accessed 2026-04-13. Official
    docs covering channels, configuration, shell integration.
 
-1. fzf GitHub Repository. junegunn/fzf. https://github.com/junegunn/fzf Accessed 2026-04-13. v0.71.0, 79.4k stars, 320
+3. fzf GitHub Repository. junegunn/fzf. https://github.com/junegunn/fzf Accessed 2026-04-13. v0.71.0, 79.4k stars, 320
    contributors.
 
-1. fzf Advanced Usage. junegunn/fzf. https://github.com/junegunn/fzf/blob/master/ADVANCED.md Accessed 2026-04-13.
+4. fzf Advanced Usage. junegunn/fzf. https://github.com/junegunn/fzf/blob/master/ADVANCED.md Accessed 2026-04-13.
    Event-action binding framework, dynamic reload, become action.
 
-1. fzf Release Notes: 0.71.0. junegunn. https://junegunn.github.io/fzf/releases/0.71.0/ Apr 4, 2026. Performance
+5. fzf Release Notes: 0.71.0. junegunn. https://junegunn.github.io/fzf/releases/0.71.0/ Apr 4, 2026. Performance
    improvements, Zellij integration, --popup rename.
 
 ### Community Discussions
@@ -430,13 +430,13 @@ ______________________________________________________________________
 6. "Television: Fast general purpose fuzzy finder TUI." Hacker News. https://news.ycombinator.com/item?id=42651487 Jan
    2025\. Performance reports, fzf comparison, large-file failure reports.
 
-1. "tv isn't intended to be a direct competitor to fzf." Hacker News. https://news.ycombinator.com/item?id=42654835 Jan
+7. "tv isn't intended to be a direct competitor to fzf." Hacker News. https://news.ycombinator.com/item?id=42654835 Jan
    2025\. Author's positioning of Television relative to fzf.
 
-1. "Thoughts about Nucleo?" junegunn/fzf Discussion #3491. https://github.com/junegunn/fzf/discussions/3491 Performance
+8. "Thoughts about Nucleo?" junegunn/fzf Discussion #3491. https://github.com/junegunn/fzf/discussions/3491 Performance
    comparison between Nucleo and fzf's matching algorithm.
 
-1. Television Ratatui Forum Discussion. https://forum.ratatui.rs/t/television-a-general-purpose-fuzzy-finder-tui/141
+9. Television Ratatui Forum Discussion. https://forum.ratatui.rs/t/television-a-general-purpose-fuzzy-finder-tui/141
    Community feedback on UI design, documentation, and architecture.
 
 ### Reviews and Blog Posts
@@ -445,13 +445,13 @@ ______________________________________________________________________
     https://vluv.space/television/ Multi-shell user perspective; highlights cross-shell consistency as primary
     advantage.
 
-01. "Television: a modern fuzzy finder for the terminal." Xin Fu.
+11. "Television: a modern fuzzy finder for the terminal." Xin Fu.
     https://imfing.com/til/television-modern-fuzzy-finder-terminal/ Overview of channels system and Zed integration.
 
-01. "Television - Fuzzy Finder for Files, Text, Git Logs and More." Kostiantyn Lysenko.
+12. "Television - Fuzzy Finder for Files, Text, Git Logs and More." Kostiantyn Lysenko.
     https://lysenko.dev/posts/2025-02-television-fuzzy-finder/ Brief introduction to channels and installation.
 
-01. "Television - A fuzzy finder with channels." Fryboyter.
+13. "Television - A fuzzy finder with channels." Fryboyter.
     https://fryboyter.de/en/television-a-fuzzy-finder-with-channels/ Independent review (access restricted during
     research).
 
@@ -459,11 +459,11 @@ ______________________________________________________________________
 
 14. Television on crates.io. https://crates.io/crates/television Rust package metadata, dependency graph.
 
-01. Television on lib.rs. https://lib.rs/crates/television Rust ecosystem listing.
+15. Television on lib.rs. https://lib.rs/crates/television Rust ecosystem listing.
 
-01. tmux-fzf-url. wfxr/tmux-fzf-url. https://github.com/wfxr/tmux-fzf-url fzf-dependent tmux plugin for URL extraction.
+16. tmux-fzf-url. wfxr/tmux-fzf-url. https://github.com/wfxr/tmux-fzf-url fzf-dependent tmux plugin for URL extraction.
 
-01. tmux-fuzzback. roosta/tmux-fuzzback. https://github.com/roosta/tmux-fuzzback fzf-dependent tmux plugin for
+17. tmux-fuzzback. roosta/tmux-fuzzback. https://github.com/roosta/tmux-fuzzback fzf-dependent tmux plugin for
     scrollback search.
 
 ______________________________________________________________________
@@ -478,21 +478,21 @@ This report followed the standard 6-phase deep research methodology:
    features) with special attention to migration feasibility for a power user with 850 lines of custom fzf
    configuration.
 
-1. **PLAN:** Identified primary sources (GitHub repos, official docs, release notes) and secondary sources (Hacker News
+2. **PLAN:** Identified primary sources (GitHub repos, official docs, release notes) and secondary sources (Hacker News
    discussions, blog reviews, crate registries). Planned triangulation across author claims, community reports, and
    independent reviews.
 
-1. **RETRIEVE:** Parallel web searches (8 queries) and web fetches (12 URLs) covering both tools. Local file analysis of
+3. **RETRIEVE:** Parallel web searches (8 queries) and web fetches (12 URLs) covering both tools. Local file analysis of
    user's `dot_fzf_bindings` (850 lines), `dot_bashrc.tmpl`, and `dot_tmux.conf` to understand integration depth.
 
-1. **TRIANGULATE:** Cross-referenced performance claims against community reports (Hacker News users contradicted some
+4. **TRIANGULATE:** Cross-referenced performance claims against community reports (Hacker News users contradicted some
    of Television's speed claims). Verified feature lists against official documentation. Confirmed ecosystem gap (no
    tmux plugins for Television) across multiple sources.
 
-1. **SYNTHESIZE:** Connected architectural differences (composable primitive vs. self-contained app) to practical
+5. **SYNTHESIZE:** Connected architectural differences (composable primitive vs. self-contained app) to practical
    migration implications. Identified the readline manipulation gap as the critical blocker.
 
-1. **PACKAGE:** Structured report with executive summary, detailed comparison tables, migration analysis specific to
+6. **PACKAGE:** Structured report with executive summary, detailed comparison tables, migration analysis specific to
    user's setup, and actionable recommendation.
 
 ### Outline Refinement (Phase 4.5)

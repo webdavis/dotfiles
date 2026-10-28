@@ -357,8 +357,8 @@ Three edits, in this order, and none of them writes an id into this repository:
 
 1. Create `#<project>-dev` in the guild, the one channel that project gets. It carries that repository's CI, pull
    requests, GitHub notifications and agent session threads.
-1. Create `Discord (Uriel) :: Channel ID (#<project>-dev)` in KeePassXC, holding the channel id in its Password field.
-1. Add one line to `[plugins.log.channels]` keyed on the repository's bare name, naming that entry and field, exactly as
+2. Create `Discord (Uriel) :: Channel ID (#<project>-dev)` in KeePassXC, holding the channel id in its Password field.
+3. Add one line to `[plugins.log.channels]` keyed on the repository's bare name, naming that entry and field, exactly as
    every line already there does. A repository whose bare name will collide after a `git subtree split` takes a second
    line keyed `owner/name`, which the lookup tries first.
 

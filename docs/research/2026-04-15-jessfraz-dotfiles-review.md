@@ -10,20 +10,20 @@ ______________________________________________________________________
 
 ## Table of Contents
 
-1. [Repository Architecture](#1-repository-architecture)
-1. [Bash Aliases -- Adoptable Ideas](#2-bash-aliases----adoptable-ideas)
-1. [Bash Functions -- Adoptable Ideas](#3-bash-functions----adoptable-ideas)
-1. [Git Configuration Differences](#4-git-configuration-differences)
-1. [Security Hardening](#5-security-hardening)
-1. [Useful Scripts](#6-useful-scripts)
-1. [inputrc Differences](#7-inputrc-differences)
-1. [macOS Defaults Script](#8-macos-defaults-script)
-1. [Nix Flake and Home Manager](#9-nix-flake-and-home-manager)
-1. [AI Agent Configuration (Codex/Claude)](#10-ai-agent-configuration-codexclaude)
-1. [Docker Functions](#11-docker-functions)
-1. [Bash Prompt and Shell Init](#12-bash-prompt-and-shell-init)
-1. [Notification System](#13-notification-system)
-1. [Summary of Top Recommendations](#14-summary-of-top-recommendations)
+01. [Repository Architecture](#1-repository-architecture)
+02. [Bash Aliases -- Adoptable Ideas](#2-bash-aliases----adoptable-ideas)
+03. [Bash Functions -- Adoptable Ideas](#3-bash-functions----adoptable-ideas)
+04. [Git Configuration Differences](#4-git-configuration-differences)
+05. [Security Hardening](#5-security-hardening)
+06. [Useful Scripts](#6-useful-scripts)
+07. [inputrc Differences](#7-inputrc-differences)
+08. [macOS Defaults Script](#8-macos-defaults-script)
+09. [Nix Flake and Home Manager](#9-nix-flake-and-home-manager)
+10. [AI Agent Configuration (Codex/Claude)](#10-ai-agent-configuration-codexclaude)
+11. [Docker Functions](#11-docker-functions)
+12. [Bash Prompt and Shell Init](#12-bash-prompt-and-shell-init)
+13. [Notification System](#13-notification-system)
+14. [Summary of Top Recommendations](#14-summary-of-top-recommendations)
 
 ______________________________________________________________________
 
@@ -590,9 +590,9 @@ Her AGENTS.md includes personality directives like:
 Stephen's CLAUDE.md is already well-structured. From Jess's approach:
 
 1. **"No breadcrumbs" rule** -- add to CLAUDE.md: don't leave `// moved to X` comments.
-1. **Papercut fix permission** -- explicitly allow small, low-risk fixes without asking.
-1. **Web search before pivoting** -- currently implicit, could be explicit.
-1. **Nix bug workaround** -- Jess documents a known Codex PATH mutation bug. Stephen should document known tool
+2. **Papercut fix permission** -- explicitly allow small, low-risk fixes without asking.
+3. **Web search before pivoting** -- currently implicit, could be explicit.
+4. **Nix bug workaround** -- Jess documents a known Codex PATH mutation bug. Stephen should document known tool
    limitations similarly.
 
 ______________________________________________________________________
@@ -631,10 +631,10 @@ command.
 Jess's `.nixbash` is the main bashrc entry point (loaded by Nix):
 
 1. Interactive check
-1. Set color prompt
-1. Source dotfiles: `.aliases`, `.functions`, `.dockerfunc`, `.exports`, `.bash_prompt`
-1. SSH hostname tab completion from `~/.ssh/config`
-1. Tool completions (zoo, rustup)
+2. Set color prompt
+3. Source dotfiles: `.aliases`, `.functions`, `.dockerfunc`, `.exports`, `.bash_prompt`
+4. SSH hostname tab completion from `~/.ssh/config`
+5. Tool completions (zoo, rustup)
 
 **Benchmarking pattern:**
 
@@ -682,42 +682,42 @@ ______________________________________________________________________
 
 ### Must-Have (High Impact, Easy to Add)
 
-1. **Directory navigation aliases**: `..`, `...`, `....` for quick cd-up
-1. **`calc()` function**: CLI calculator using bc
-1. **`mkd()` and `tmpd()` functions**: create-and-cd helpers
-1. **`timer` alias**: instant CLI stopwatch
-1. **`pubip`/`localip` aliases**: quick IP checking
-1. **`flush` alias**: DNS cache flush for macOS
-1. **`sudo` alias with trailing space**: enables aliases after sudo
-1. **`map` alias**: intuitive xargs wrapper
-1. **`help.autocorrect = 1` in gitconfig**: auto-correct typos
-1. **`pull.rebase = true` in gitconfig**: linear history on pull
+01. **Directory navigation aliases**: `..`, `...`, `....` for quick cd-up
+02. **`calc()` function**: CLI calculator using bc
+03. **`mkd()` and `tmpd()` functions**: create-and-cd helpers
+04. **`timer` alias**: instant CLI stopwatch
+05. **`pubip`/`localip` aliases**: quick IP checking
+06. **`flush` alias**: DNS cache flush for macOS
+07. **`sudo` alias with trailing space**: enables aliases after sudo
+08. **`map` alias**: intuitive xargs wrapper
+09. **`help.autocorrect = 1` in gitconfig**: auto-correct typos
+10. **`pull.rebase = true` in gitconfig**: linear history on pull
 
 ### Should-Have (Medium Impact, Worth the Effort)
 
 11. **Git aliases**: `pr`, `go`, `dm`, `fb`, `fc`, `fm`, `undo`, `unreleased`
-01. **`getcertnames()` function**: SSL certificate debugging
-01. **`digga()` function**: enhanced DNS lookup
-01. **`restart_gpgagent()` function**: GPG agent restart
-01. **`gitsetoriginnopush()` function**: prevent accidental pushes to upstream
-01. **`tre()` function**: better tree with less paging
-01. **`gz()` function**: compression ratio checker
-01. **macOS defaults script**: codify macOS preferences in chezmoi
-01. **`fs()` function**: cross-platform file size
-01. **AGENTS.md "no breadcrumbs" and "papercut fix" rules** for CLAUDE.md
+12. **`getcertnames()` function**: SSL certificate debugging
+13. **`digga()` function**: enhanced DNS lookup
+14. **`restart_gpgagent()` function**: GPG agent restart
+15. **`gitsetoriginnopush()` function**: prevent accidental pushes to upstream
+16. **`tre()` function**: better tree with less paging
+17. **`gz()` function**: compression ratio checker
+18. **macOS defaults script**: codify macOS preferences in chezmoi
+19. **`fs()` function**: cross-platform file size
+20. **AGENTS.md "no breadcrumbs" and "papercut fix" rules** for CLAUDE.md
 
 ### Nice-to-Have (Low Impact or Niche)
 
 21. **Bashrc benchmarking**: `BASHRC_BENCH=1` pattern for debugging slow startup
-01. **Ghostty title integration** from `.bash_prompt`
-01. **`dataurl()` function**: create data URLs
-01. **`cwd` alias**: copy working directory to clipboard
-01. **`week` alias**: ISO week number
-01. **`cleanup()` function**: multi-language cache cleanup
-01. **SSH config tab completion** as fallback
-01. **`hosts` alias**: quick /etc/hosts editing
-01. **`untar` alias**: easier tar extraction
-01. **`uv_venv()` function**: one-liner Python venv setup
+22. **Ghostty title integration** from `.bash_prompt`
+23. **`dataurl()` function**: create data URLs
+24. **`cwd` alias**: copy working directory to clipboard
+25. **`week` alias**: ISO week number
+26. **`cleanup()` function**: multi-language cache cleanup
+27. **SSH config tab completion** as fallback
+28. **`hosts` alias**: quick /etc/hosts editing
+29. **`untar` alias**: easier tar extraction
+30. **`uv_venv()` function**: one-liner Python venv setup
 
 ### Skip (Already Covered or Not Applicable)
 
