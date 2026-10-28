@@ -124,22 +124,22 @@ One tool per slice, one replacement group per slice, ordered by value. Each is s
    interruptible wrapper (it may not borrow pns's). Three spawns of about 26 ms each leave the tick. Carries the
    `pbi_name` selection caveat the 2026-09-17 evaluation recorded, so the acceptance gate is agreement with `pgrep` on a
    live osqueryd and a live OverSight.
-1. **posture: read property lists in process.** Replaces both `plutil` shapes and, on top of the same reader, the
+2. **posture: read property lists in process.** Replaces both `plutil` shapes and, on top of the same reader, the
    `defaults read` of the login window domain. Three commands, several spawns per tick, and the LuLu profile reading
    stops being a grep over rendered XML.
-1. **posture: the four one-call replacements.** `kill -0` to `libc::kill`, `readlink -f` to `std::fs::canonicalize`,
+3. **posture: the four one-call replacements.** `kill -0` to `libc::kill`, `readlink -f` to `std::fs::canonicalize`,
    `file` to a four-byte magic read, `xattr -p` to `libc::getxattr`. No framework, no new dependency, and the only
    unsafe blocks are two libc calls.
-1. **lights: bound the `pns` spawn in process and drop `gtimeout`.** Removes a PATH-resolved Homebrew dependency from a
+4. **lights: bound the `pns` spawn in process and drop `gtimeout`.** Removes a PATH-resolved Homebrew dependency from a
    product installed with `cargo install`, which is a correctness fix as much as a spawn saved.
-1. **uu: give the `CommandRunner` port an environment.** Drops `/usr/bin/env` from two lanes and `/bin/sh -c` from the
+5. **uu: give the `CommandRunner` port an environment.** Drops `/usr/bin/env` from two lanes and `/bin/sh -c` from the
    npm lane, and takes the PATH-composition shell text with it.
-1. **posture: the `-fq` osqueryd liveness read.** Held out of slice 1 because `-f` matches the whole command line and
+6. **posture: the `-fq` osqueryd liveness read.** Held out of slice 1 because `-f` matches the whole command line and
    the native answer matches the executable path; the slice's first job is pinning which predicate the control actually
    means, then `proc_pidpath` or `KERN_PROCARGS2`.
-1. **posture: evaluate `codesign` against Security.framework.** A measurement and a record-shape decision before any
+7. **posture: evaluate `codesign` against Security.framework.** A measurement and a record-shape decision before any
    code: the framework calls are verified to exist, but the enrichment stores `codesign`'s text today and a
    signing-information dictionary is a different record.
-1. **posture: find out whether the guest account and FileVault have public answers.** A research slice, not a build.
+8. **posture: find out whether the guest account and FileVault have public answers.** A research slice, not a build.
    Both are keeps today on the strength of a header search finding nothing, which is the weakest evidence in this
    document.

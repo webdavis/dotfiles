@@ -445,10 +445,10 @@ indirect.
    cron jobs with `delivery.mode=webhook` + `cron.webhookToken` from KeePassXC. Add a
    `com.webdavis.openclaw-notify-receiver.plist` LaunchAgent on the Mac running a Python HTTP server bound to the Mac's
    tailnet IP. Receiver verifies bearer, parses CronEvent, fires `alerter` + `hue-pulse.sh`."
-1. **P11 (`6gfVJ9P5vpX64JhM`) needs splitting:** the gh-notify-and-hue-blue half is a Mac-side change to `hue-pulse.sh`
+2. **P11 (`6gfVJ9P5vpX64JhM`) needs splitting:** the gh-notify-and-hue-blue half is a Mac-side change to `hue-pulse.sh`
    (add color arg) and a gh-notify hook. The OpenClaw-notification half is inbound to OpenClaw via `/hooks/wake` or
    `/hooks/agent`, different surface from P10's outbound cron-webhook. The spec should rename or split this task.
-1. **Karl's wkflw-ntfy review (P10's secondary goal):** the relevant adoptable ideas are the marker-based atomic-claim
+3. **Karl's wkflw-ntfy review (P10's secondary goal):** the relevant adoptable ideas are the marker-based atomic-claim
    escalation pattern and the bats-based test approach for notification scripts. Reject ntfy.sh as transport; reject
    nushell-specific implementation. Apply the test pattern to the new Python receiver and to the existing
    `hue-pulse.sh`.
@@ -561,10 +561,10 @@ ______________________________________________________________________
    (`cron.webhookToken` from KeePassXC). Add `com.webdavis.openclaw-notify-receiver.plist` LaunchAgent on the Mac with a
    Python webhook receiver bound to the tailnet IP; receiver fires `alerter` + `hue-pulse.sh` per CronEvent." Link this
    research file in the description.
-1. **Split P11** (`td task update id:6gfVJ9P5vpX64JhM`) into two clearer halves: (a) gh-notify hook → blue hue-pulse
+2. **Split P11** (`td task update id:6gfVJ9P5vpX64JhM`) into two clearer halves: (a) gh-notify hook → blue hue-pulse
    (Mac-only); (b) gh-notify → OpenClaw inbound notification via `/hooks/agent` (uses OpenClaw's inbound webhook
    surface, different from P10's outbound).
-1. **Verify the cron-webhook retry policy** by reading `src/gateway/server-cron-notifications.ts` in the OpenClaw repo
+3. **Verify the cron-webhook retry policy** by reading `src/gateway/server-cron-notifications.ts` in the OpenClaw repo
    before relying on Option A for critical events. If no retries, escalate the question of Option B promotion.
 
 ### Next Steps (after the audit cycle completes)
@@ -572,13 +572,13 @@ ______________________________________________________________________
 1. **Decide whether to upstream a general task-complete API to OpenClaw** (GitHub issues #69186 and #44925 already
    request this). A small PR adding `events.onTaskComplete` config that POSTs the existing `RunCompletedTelemetry` to a
    webhook would address all three open issues simultaneously. Defer until the dotfiles tasks plan is complete.
-1. **Document the receiver protocol** in the chezmoi repo's README or CLAUDE.md so future-you remembers the shape
+2. **Document the receiver protocol** in the chezmoi repo's README or CLAUDE.md so future-you remembers the shape
    (bearer auth, expected payload, what triggers alerter vs hue-pulse).
 
 ### Further Research Needs
 
 1. **Plugin SDK lifecycle surface**: if OpenClaw documents this in a future release, it may obsolete Option C. Watch.
-1. **Mac wake-on-network reliability**: empirical question, does the user's Mac wake reliably for tailnet traffic when
+2. **Mac wake-on-network reliability**: empirical question, does the user's Mac wake reliably for tailnet traffic when
    on AC power with "wake for network access" enabled? If yes, the Option A failure-mode story improves materially.
 
 ______________________________________________________________________

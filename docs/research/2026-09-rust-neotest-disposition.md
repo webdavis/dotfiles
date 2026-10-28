@@ -15,11 +15,11 @@ Three questions, in the order the ledger asks them.
 1. Does Rust have a working neotest workflow, and can Neovim language coverage be called complete without one? Spec 5.3
    of `docs/superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md` assigns the Rust row to `mrcjkb/rustaceanvim`'s own
    neotest adapter. B95 recorded two blockers against that row and neither was root-caused.
-1. What is the disposition of Java and Elixir, measured against plan task 46b step 2
+2. What is the disposition of Java and Elixir, measured against plan task 46b step 2
    (`docs/superpowers/plans/2026-09-01-nvim-overhaul-plan.md:1348`), which says "An adapter that cannot be shown working
    is removed from this PR rather than shipped unproven, and the body says which and why"? Their absence from the
    configured adapter list is not by itself an instruction to add them.
-1. Is B95's duplicate-client blocker still live against the configuration on `main` today?
+3. Is B95's duplicate-client blocker still live against the configuration on `main` today?
 
 ## Verdict
 
@@ -56,22 +56,22 @@ reverse it.
 1. **"Rust's intended workflow" was read as spec 5.3's table row**, that is, rustaceanvim's own neotest adapter reached
    from `<leader>tt`. *Alternative:* read it as "any way to run a Rust test from Neovim", in which case finding 9
    already satisfies it through overseer and the Rust row closes with no plugin, no pin and no decision.
-1. **Measurements used Mason's rust-analyzer**, because that is the copy Neovim actually resolves inside this
+2. **Measurements used Mason's rust-analyzer**, because that is the copy Neovim actually resolves inside this
    configuration (finding 6). *Alternative:* add the rustup component first, giving a toolchain-matched server, which
    very likely removes the `cargo metadata` failure and shifts every timing in finding 3.
-1. **The scratch project was a single crate with two tests in one `mod tests`**, which is the shape plan 46 step 2 asks
+3. **The scratch project was a single crate with two tests in one `mod tests`**, which is the shape plan 46 step 2 asks
    for. *Alternative:* measure against one of this repository's four real cargo workspaces, whose workspace load is far
    slower, which would widen the unready window rather than narrow it. That makes the finding worse, not better, so the
    smaller project is the conservative choice.
-1. **A pre-ready answer from rust-analyzer was treated as a readiness problem, not as an adapter bug in itself.**
+4. **A pre-ready answer from rust-analyzer was treated as a readiness problem, not as an adapter bug in itself.**
    *Alternative:* treat the silent empty tree and the raised assertion as two upstream defects and open issues on
    rustaceanvim. Finding 3 gives the exact reproduction either way; the raised assertion in particular looks like a
    genuine upstream bug.
-1. **Plan 46b step 2's "cannot be shown working" was read as including "cannot be attempted, because the toolchain is
+5. **Plan 46b step 2's "cannot be shown working" was read as including "cannot be attempted, because the toolchain is
    absent and undeclared".** *Alternative:* read it as requiring the toolchain be installed and declared first and only
    then verified, which would mean adding a JDK, Maven or Gradle, `jdtls`, the `java` parser, Elixir and Erlang to the
    machine before any disposition could be written.
-1. **Nothing was installed or updated.** *Alternative:* the operator updates Mason's rust-analyzer and asks for the
+6. **Nothing was installed or updated.** *Alternative:* the operator updates Mason's rust-analyzer and asks for the
    finding-3 probe to be re-run, which is one command and roughly four minutes.
 
 ## What was checked, and how
@@ -111,11 +111,11 @@ reproducible as long as that scratchpad exists.
 
 1. `raw_runnables.lua`: a bare `vim.lsp.start` with no rustaceanvim and no neotest, sending `experimental/runnables` by
    hand. It answers "does rust-analyzer produce test runnables for this file at all".
-1. `timeline.lua`: the same request every 400 ms for ten seconds after `client.initialized` goes true, printing each
+2. `timeline.lua`: the same request every 400 ms for ten seconds after `client.initialized` goes true, printing each
    answer's runnable labels. It answers "when does it produce them".
-1. `adapter_internals.lua`: rustaceanvim's own server start, then its own `rust_analyzer.get_client_for_file` and its
+3. `adapter_internals.lua`: rustaceanvim's own server start, then its own `rust_analyzer.get_client_for_file` and its
    own nio request, at five fixed offsets. It answers "what does the adapter itself see, and through which client".
-1. `adapter_long.lua` and `adapter_windows.lua`: `require('rustaceanvim.neotest').discover_positions` called inside
+4. `adapter_long.lua` and `adapter_windows.lua`: `require('rustaceanvim.neotest').discover_positions` called inside
    `nio.run` at fixed offsets, printing the resulting position tree or the error. It answers "what tree does neotest
    get".
 
@@ -380,19 +380,19 @@ reject: it is not cheaper than Option 3 in anything but pins, and it buys a know
 1. **Which readiness option for the Rust row: 1, 2 or 3?** The recommendation is Option 1. Nothing else in this task can
    proceed until this is answered, because it decides whether the row is a pin, a pin plus fifteen lines, or a struck
    row.
-1. **Is the mason-lspconfig `exclude` trade acceptable?** It makes Rust the one server not covered by
+2. **Is the mason-lspconfig `exclude` trade acceptable?** It makes Rust the one server not covered by
    `automatic_enable = true`. If not, the Rust row cannot use rustaceanvim at all and Option 3 is forced.
-1. **Does "language coverage complete" mean neotest specifically, or is overseer's `cargo test` plus `just test-rust`
+3. **Does "language coverage complete" mean neotest specifically, or is overseer's `cargo test` plus `just test-rust`
    enough?** This is assumption 1, and it is the cheapest possible close for the whole task.
-1. **Should the stale Mason rust-analyzer become its own task?** It is a live defect on every Rust buffer, independent
+4. **Should the stale Mason rust-analyzer become its own task?** It is a live defect on every Rust buffer, independent
    of neotest, and nothing in the configuration will ever upgrade it. It also needs a decision on the general shape:
    does this repository want Mason packages pinned and refreshed deliberately, or is "installed once, never updated" the
    accepted posture?
-1. **Do spec 5.3's Java and Elixir rows get struck, or marked withheld with this document as the reason?** Related:
+5. **Do spec 5.3's Java and Elixir rows get struck, or marked withheld with this document as the reason?** Related:
    should spec 5.3's Java row be corrected regardless, since it describes one filetype-lazy pin where the adapter needs
    a JDK, a build tool, a language server plugin and a parser?
-1. **Should the raised assertion in finding 3 be reported upstream to rustaceanvim?** Its two early returns call
+6. **Should the raised assertion in finding 3 be reported upstream to rustaceanvim?** Its two early returns call
    `lib.positions.parse_tree` with an empty list, which raises in the pinned neotest. That looks like a straightforward
    upstream bug with a one-line reproduction.
-1. **Is a Java or Elixir project anywhere on the horizon?** If yes, both dispositions should be filed as deferred with a
+7. **Is a Java or Elixir project anywhere on the horizon?** If yes, both dispositions should be filed as deferred with a
    trigger rather than withheld, and they need the toolchain decisions in question 4's shape.

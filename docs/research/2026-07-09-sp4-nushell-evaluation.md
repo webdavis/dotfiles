@@ -83,27 +83,27 @@ Ordered hardest-first. "Hard parts" flagged 🔴.
    - **Realistic estimate:** this is not a weekend. It is the single largest line-count + muscle-memory asset in the
      shell config, and the target editor is strictly less capable for this style.
 
-1. 🔴 **atuin recording.** Re-init under nu (hooks or pty-proxy "hex"), then **prove** the daemon + `filter_mode=host` +
+2. 🔴 **atuin recording.** Re-init under nu (hooks or pty-proxy "hex"), then **prove** the daemon + `filter_mode=host` +
    LaunchAgent + `--force` self-heal + upgrade-bounce all still hold. This is the fragile one: the repo's existing atuin
    diagnostic ladder (CLAUDE.md) exists *because* atuin recording has broken 3× on bash already; nushell is a
    less-traveled path. Highest re-stabilization risk.
 
-1. **Long-running-command notifier.** Rewrite the `__cmd_notify_preexec`/`__cmd_notify_precmd` block
+3. **Long-running-command notifier.** Rewrite the `__cmd_notify_preexec`/`__cmd_notify_precmd` block
    (`dot_bashrc.tmpl:282-323`) as nu `pre_execution`/`pre_prompt` hooks. Clean in nu (native hooks, no bash-preexec
    dependency), but a full rewrite incl. the TUI-skip list, `$SECONDS` timing, exit-code capture, and the
    `≥60s local / ≥300s full+hue` thresholds. **Note:** SP3 moves those thresholds into the Rust binary anyway, so this
    hook shrinks to "measure duration, exec the binary."
 
-1. **Init ordering + PROMPT_COMMAND semantics.** bash's ordered `PROMPT_COMMAND` writers (direnv → starship → zoxide →
+4. **Init ordering + PROMPT_COMMAND semantics.** bash's ordered `PROMPT_COMMAND` writers (direnv → starship → zoxide →
    atuin, atuin last) become nu hook-list ordering. Different model (`pre_prompt`/`env_change` hook arrays), needs
    re-derivation and testing; the "atuin last, after zoxide, both after starship" invariant has to be re-established in
    nu's terms.
 
-1. **Aliases + interactive niceties.** `cd=z`, eza/bat/dust/procs aliases, `rm=trash-put`, navigation aliases, the
+5. **Aliases + interactive niceties.** `cd=z`, eza/bat/dust/procs aliases, `rm=trash-put`, navigation aliases, the
    mosh/ssh `STARSHIP_CONFIG` branch, `stty -ixon`, flow-control. Mostly mechanical in `config.nu` (chezmoi `.tmpl`
    templating is fine, C5), but each is a line to re-verify.
 
-1. **carapace / starship / zoxide / direnv re-init.** Mechanical (C3/C4). Lowest risk.
+6. **carapace / starship / zoxide / direnv re-init.** Mechanical (C3/C4). Lowest risk.
 
 **Not migrated (stays bash, this is the containment win):** `dot_bashrc.tmpl` non-interactive PATH/env half,
 `dot_profile`, `dot_bash_profile`, brew-shellenv cache (the deployed writer

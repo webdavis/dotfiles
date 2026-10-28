@@ -24,10 +24,10 @@ they matter.
 1. **The test has no timing assumption to fix.** Its assertions are satisfied by either arm of the bound it exercises,
    so an early expiry under load produces the same observable as a late one. The reasoning is in "The assertion is
    direction-independent" below, off the current source.
-1. **390 executions of the two condenser deadline tests produced zero failures**, across four arms including sixteen
+2. **390 executions of the two condenser deadline tests produced zero failures**, across four arms including sixteen
    added busy loops on an eight-core machine and a twenty-way concurrency arm at load average 55. The worst sandbox
    lifetime measured was 1885 ms against a 5000 ms hard ceiling.
-1. **The mechanism that could plausibly have cost 30 s is gone, and a recurrence can no longer cost 30 s quietly.** A
+3. **The mechanism that could plausibly have cost 30 s is gone, and a recurrence can no longer cost 30 s quietly.** A
    forked grandchild surviving a single-process kill is measured below; the process-group guardian that now reaps it
    landed on 2026-09-08, eleven days after the report. And the sandbox speed guard that landed on 2026-09-01 hard-fails
    any sandbox living past 5 s locally, so a future stall shows up as a named failure in five seconds rather than as
@@ -228,14 +228,14 @@ machine's load average on its own.
 1. **Close 6hPCHVmfhXPM9FPM on this evidence, or hold it for a CI reading?** Recommended: close it. The alternative is
    holding it until the drill has run on a GitHub runner, which costs a throwaway workflow run and answers a question no
    observed failure has raised.
-1. **Where do the two other flakes get filed?** Recommended: fold them into the existing ledger item "Split and
+2. **Where do the two other flakes get filed?** Recommended: fold them into the existing ledger item "Split and
    reconcile 6hPJVf2FJc3RHxqM", which already names ordinary hook fixtures inheriting the five-second payload deadline
    and already carries B105's approval-submission exit-code failure under load. The alternative is a new Todoist task
    and a new ledger bullet, which splits one class across two items.
-1. **Is a fixture ceiling equal to the production deadline it observes acceptable?** `HANG_LIMIT` is 5 s and the default
+3. **Is a fixture ceiling equal to the production deadline it observes acceptable?** `HANG_LIMIT` is 5 s and the default
    payload deadline is 5 s. Answering this decides whether the fix for the approval-payload flake is a longer fixture
    ceiling, a shorter injected production deadline in that test, or a smaller payload.
-1. **Is the 1000 ms advisory review line worth what it now costs?** The two condenser sandboxes cross it under load
+4. **Is the 1000 ms advisory review line worth what it now costs?** The two condenser sandboxes cross it under load
    while behaving correctly, and `allow_slow` cannot quiet them: reading `Drop for Sandbox` in
    `tests/support/sandbox.rs`, the excuse lifts the 5000 ms hard ceiling only, while the warning fires off `over_budget`
    unconditionally. So the options are accepting a recurring "test budget" line from tests that are correct, raising the

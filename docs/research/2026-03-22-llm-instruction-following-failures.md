@@ -13,9 +13,9 @@ Three patterns keep recurring despite explicit, clear instructions:
 
 1. **Gateway restart without warning**, told to warn first, wait, then restart in a separate turn. Keeps bundling or
    skipping the warning.
-1. **Long-running work inline**, told anything >5 seconds should be spawned as a sub-agent. Keeps doing complex work
+2. **Long-running work inline**, told anything >5 seconds should be spawned as a sub-agent. Keeps doing complex work
    inline.
-1. **Implementing before approval**, told to get plan approval before writing code or making significant changes. Keeps
+3. **Implementing before approval**, told to get plan approval before writing code or making significant changes. Keeps
    implementing without waiting.
 
 This document investigates *why* this keeps happening, drawing on what is known about LLM behavior, training dynamics,
@@ -66,8 +66,8 @@ gateway," the model has learned that the helpful thing is to *restart the gatewa
 The procedural constraint (warn first, wait, then restart) requires the model to:
 
 1. Recognize that completing the goal requires *not* fully completing it in this turn
-1. Prioritize process over the immediate reward of task completion
-1. Resist the strong pull toward the satisfying "I did the thing" response
+2. Prioritize process over the immediate reward of task completion
+3. Resist the strong pull toward the satisfying "I did the thing" response
 
 This is fundamentally **competing with the training signal**. The model has to override its deepest instinct (complete
 the task helpfully) to comply with a procedural meta-rule. Without explicit, repeated reinforcement in fine-tuning, the
@@ -139,9 +139,9 @@ ______________________________________________________________________
 When a user writes "go ahead and restart the gateway now," several things compete:
 
 1. **System prompt** (far back): "Warn first, wait, then restart in a separate turn"
-1. **Conversation history** (middle): Various task completions showing direct action
-1. **User's current message** (immediate): "restart the gateway now"
-1. **Model's completion instinct** (always-present): Complete what was asked
+2. **Conversation history** (middle): Various task completions showing direct action
+3. **User's current message** (immediate): "restart the gateway now"
+4. **Model's completion instinct** (always-present): Complete what was asked
 
 The user's message activates the strongest, most recent, most direct signal. The system prompt's procedural rule
 requires the model to generate a response that *contradicts what the user just asked for* in the name of a process rule.
@@ -192,8 +192,8 @@ completion.
 Many procedural failures happen at the last moment. The model may:
 
 1. Correctly reason that it should warn first
-1. Generate the warning message
-1. Then, because the task is now "right there," continue generating the restart command in the same turn
+2. Generate the warning message
+3. Then, because the task is now "right there," continue generating the restart command in the same turn
 
 This is the gateway restart problem exactly: the model generates the warning text, then helpfully completes the restart
 without stopping. The act of completing the warning *activates* the completion instinct for the task it just warned
@@ -235,8 +235,8 @@ ______________________________________________________________________
 **Finding:** Instructions followed most reliably when placed:
 
 1. At the very beginning of the system prompt (highest priority position)
-1. Structured as explicit checklists the model must mentally "check off"
-1. Repeated near the point of relevance (e.g., a reminder in the section about gateway operations)
+2. Structured as explicit checklists the model must mentally "check off"
+3. Repeated near the point of relevance (e.g., a reminder in the section about gateway operations)
 
 **Implication:** A rule buried in a SOUL.md paragraph is less effective than a rule in a "BEFORE YOU ACT: CHECK THESE"
 section at the top of the system prompt.

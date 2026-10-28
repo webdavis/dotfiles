@@ -56,9 +56,9 @@ Three intertwined questions:
 
 1. How should GitHub Actions workflow pass/fail events trigger the user's local notification stack (alerter + hue-pulse
    \+ Discord-via-mouse)?
-1. How should the notification pipeline be queued so concurrent events from different sources (local command completion,
+2. How should the notification pipeline be queued so concurrent events from different sources (local command completion,
    AI agent events, GitHub workflow events) don't race on shared sinks like the Hue lights?
-1. What two Hue colors should signal GitHub workflow pass/fail, distinct from the existing green/red/blue palette
+3. What two Hue colors should signal GitHub workflow pass/fail, distinct from the existing green/red/blue palette
    already in use?
 
 ### Scope & Methodology
@@ -194,13 +194,13 @@ production"); ngrok free tier (unstable URLs); Pushover/ntfy.sh (user-rejected p
 **The receiver is small.** A 50-line Python or bash script that:
 
 1. Reads `Content-Type: application/json` POST body.
-1. Computes `HMAC-SHA256` over the body using a per-repo secret pulled from KeePassXC (chezmoi-template-rendered at
+2. Computes `HMAC-SHA256` over the body using a per-repo secret pulled from KeePassXC (chezmoi-template-rendered at
    apply time per the same pattern as other secrets).
-1. Compares to the `X-Hub-Signature-256` header (constant-time comparison).
-1. Optionally checks source IP is in GitHub's `hooks` allowlist.
-1. Parses the `workflow_run` payload, extracts `conclusion` (`success` / `failure`), `repository.full_name`,
+3. Compares to the `X-Hub-Signature-256` header (constant-time comparison).
+4. Optionally checks source IP is in GitHub's `hooks` allowlist.
+5. Parses the `workflow_run` payload, extracts `conclusion` (`success` / `failure`), `repository.full_name`,
    `workflow.name`, `html_url`.
-1. **Writes a JSON record to the notification queue (per Finding 4), does NOT call alerter / hue-pulse directly.**
+6. **Writes a JSON record to the notification queue (per Finding 4), does NOT call alerter / hue-pulse directly.**
 
 Routing through the queue is the key invariant: the receiver writes a queue entry and exits in milliseconds; the queue's
 consumer does the actual dispatch. This eliminates the receiver as a synchronization point and uses the same queue for
@@ -218,10 +218,10 @@ The race scenario:
 
 1. Caller A invokes `hue-pulse.sh 0` (green). Script snapshots prior bulb state to a per-invocation `mktemp` file.
    Issues `openhue set room --on -x 0.17 -y 0.7 --brightness 70`. Sleeps 1.2s. Repeats 4 times. Restores prior state.
-1. **50 ms after caller A snapshots**, caller B invokes `hue-pulse.sh 1` (red). Script snapshots prior state, but this
+2. **50 ms after caller A snapshots**, caller B invokes `hue-pulse.sh 1` (red). Script snapshots prior state, but this
    snapshot now captures caller A's mid-pulse state (dim, partially-green). Caller B issues red pulses against the same
    bulbs. Both pulse trains overlap.
-1. When caller A's "restore prior state" runs, it restores to the real prior state. When caller B's restore runs, it
+3. When caller A's "restore prior state" runs, it restores to the real prior state. When caller B's restore runs, it
    restores to the BOGUS mid-pulse-A state, leaving the bulbs dim and partially green even though the user's actual
    prior state was something else.
 
@@ -255,9 +255,9 @@ each processed file, otherwise the job will be restarted after `ThrottleInterval
 bash/python script that:
 
 1. Reads all `.json` files in the queue directory, sorted by filename (which is timestamp-prefixed → chronological).
-1. For each: parses the record, dispatches to alerter + hue-pulse + mouse **sequentially** (block on hue-pulse's full
+2. For each: parses the record, dispatches to alerter + hue-pulse + mouse **sequentially** (block on hue-pulse's full
    ~5s pulse before processing the next event).
-1. `rm` the file after successful dispatch.
+3. `rm` the file after successful dispatch.
 
 This collapses all races: only one hue-pulse runs at a time; alerter is still serialized by macOS; mouse POSTs go out
 one-at-a-time. **The hue snapshot-during-pulse bug is fixed by construction** because no second caller exists.
@@ -475,19 +475,19 @@ construction).
 
 1. **Drop the gh-notify automation half entirely.** gh-notify is an interactive ad-hoc command, not a hook surface. No
    automation needed.
-1. **Replace it with: configure GitHub workflow_run webhook → Tailscale Funnel → receiver → queue.** Per-repo webhook
+2. **Replace it with: configure GitHub workflow_run webhook → Tailscale Funnel → receiver → queue.** Per-repo webhook
    config in GitHub settings (no per-workflow YAML changes).
-1. **Hue color: orange for fail, purple for pass** (not blue as the original P11 proposed). Implement via `hue-pulse.sh`
+3. **Hue color: orange for fail, purple for pass** (not blue as the original P11 proposed). Implement via `hue-pulse.sh`
    profile arg.
-1. **The mouse notification half stays**, gh_workflow becomes a 4th payload type for the `/hooks/notify` endpoint
+4. **The mouse notification half stays**, gh_workflow becomes a 4th payload type for the `/hooks/notify` endpoint
    (extending the 3 types in P10).
 
 **Spec implications for P10 (`6gfVJ7VwcFQvg7xM`):**
 
 1. **All sources now write to the queue, not directly to alerter / hue-pulse / mouse.** P10's bashrc + Claude Code hook
    extensions write JSON queue records instead of POSTing to mouse directly.
-1. The mouse POST happens from the queue consumer, not from the hook.
-1. Add a new LaunchAgent: `com.webdavis.notify-consumer.plist.tmpl`.
+2. The mouse POST happens from the queue consumer, not from the hook.
+3. Add a new LaunchAgent: `com.webdavis.notify-consumer.plist.tmpl`.
 
 **P7 (`6gfVJGJCfjwCVXQv`, improve hue-pulse) is now larger.** Add the profile-arg extension as part of P7's "improve
 pulse behavior" sub-task. The hue race is no longer "iterate on pulse behavior subjectively", it's "consumer-serialized
@@ -507,9 +507,9 @@ The launchd QueueDirectories chokepoint solves three independent problems with t
 
 1. **Hue race elimination.** No two `hue-pulse.sh` invocations can overlap because the consumer waits for each to
    complete.
-1. **Cross-source serialization.** Local commands, agent events, and GitHub workflows can fire in any combination
+2. **Cross-source serialization.** Local commands, agent events, and GitHub workflows can fire in any combination
    without interleaving.
-1. **Sink failure isolation.** If the Hue bridge is down or `mouse` is offline, only that one sink fails, alerter still
+3. **Sink failure isolation.** If the Hue bridge is down or `mouse` is offline, only that one sink fails, alerter still
    fires, and the queue entry can be marked attempted-and-failed without blocking the next event.
 
 Designing a single mechanism that solves three problems is high-leverage. The cost (two LaunchAgents and a small
@@ -616,11 +616,11 @@ ______________________________________________________________________
 
 1. **Update P11 (Todoist `6gfVJ9P5vpX64JhM`) scope.** Replace gh-notify automation with: configure GitHub `workflow_run`
    webhook → Tailscale Funnel → HMAC receiver → queue. Discord/mouse half stays. Colors: orange/purple instead of blue.
-1. **Update P10 (Todoist `6gfVJ7VwcFQvg7xM`) to write to the queue rather than calling sinks directly.**
-1. **Update P7 (Todoist `6gfVJGJCfjwCVXQv`) to include the `hue-pulse.sh` profile-arg extension** AND the consumer-side
+2. **Update P10 (Todoist `6gfVJ7VwcFQvg7xM`) to write to the queue rather than calling sinks directly.**
+3. **Update P7 (Todoist `6gfVJGJCfjwCVXQv`) to include the `hue-pulse.sh` profile-arg extension** AND the consumer-side
    serialization (which obsoletes the original "tune pulse behavior" subjective work, the race is fixed by
    construction).
-1. **Add a new Todoist task in `#dotfiles` for the queue + consumer + receiver plumbing.** This is foundational. Title:
+4. **Add a new Todoist task in `#dotfiles` for the queue + consumer + receiver plumbing.** This is foundational. Title:
    "Build cross-source notification queue (launchd QueueDirectories) + Tailscale Funnel webhook receiver". Priority p2.
    Block P10/P11 on this.
 
@@ -628,16 +628,16 @@ ______________________________________________________________________
 
 1. **Roll out the queue first.** Build the consumer LaunchAgent and convert the existing GHA watcher to write queue
    records instead of calling alerter/hue-pulse directly. Verify the local hue race is fixed. ~1 to 2 hours.
-1. **Add the webhook receiver second.** Tailscale Funnel + 50-line script. Configure one test repo's webhook, validate
+2. **Add the webhook receiver second.** Tailscale Funnel + 50-line script. Configure one test repo's webhook, validate
    end-to-end. ~1 hour.
-1. **Migrate remaining repos** to use the webhook once validated. The existing `gha-watcher.sh` poller stays as the
+3. **Migrate remaining repos** to use the webhook once validated. The existing `gha-watcher.sh` poller stays as the
    missed-event safety net.
 
 ### Further Research Needs
 
 1. **OpenClaw hook concurrency**, if Stephen plans heavy use of `/hooks/notify`, source-code verification of the hook
    handler's queue interaction is worth one focused session. Not a blocker.
-1. **Notification rate-limit observation**, once the queue is live, log dispatch rates for a week. If workflow
+2. **Notification rate-limit observation**, once the queue is live, log dispatch rates for a week. If workflow
    notifications exceed ~10/hour sustained, consider per-source rate limits or grouping in alerter.
 
 ______________________________________________________________________

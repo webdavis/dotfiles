@@ -7,13 +7,13 @@ ______________________________________________________________________
 ## Table of Contents
 
 1. [Can `act` Run macOS Workflows?](#1-can-act-run-macos-workflows)
-1. [The `-self-hosted` Flag](#2-the--self-hosted-flag)
-1. [Tart / Orchard / macOS VMs](#3-tart--orchard--macos-vms)
-1. [GitHub's Own Local Runner Options](#4-githubs-own-local-runner-options)
-1. [Alternative Tools to `act`](#5-alternative-tools-to-act)
-1. [`act` Issues/Discussions -- State of macOS Support](#6-act-issuesdiscussions--state-of-macos-support)
-1. [Best Way to Test CI/CD Workflows Locally in 2026](#7-best-way-to-test-cicd-workflows-locally-in-2026)
-1. [Recommendations for This Dotfiles Repo](#8-recommendations-for-this-dotfiles-repo)
+2. [The `-self-hosted` Flag](#2-the--self-hosted-flag)
+3. [Tart / Orchard / macOS VMs](#3-tart--orchard--macos-vms)
+4. [GitHub's Own Local Runner Options](#4-githubs-own-local-runner-options)
+5. [Alternative Tools to `act`](#5-alternative-tools-to-act)
+6. [`act` Issues/Discussions -- State of macOS Support](#6-act-issuesdiscussions--state-of-macos-support)
+7. [Best Way to Test CI/CD Workflows Locally in 2026](#7-best-way-to-test-cicd-workflows-locally-in-2026)
+8. [Recommendations for This Dotfiles Repo](#8-recommendations-for-this-dotfiles-repo)
 
 ______________________________________________________________________
 
@@ -181,9 +181,9 @@ Virtualization.framework.
 A community-maintained approach combines Tart VMs with `act`:
 
 1. Clone a Tart macOS image
-1. Boot the VM, SSH in
-1. Install `act` inside the VM
-1. Run `act -P macos-latest=-self-hosted` inside the VM
+2. Boot the VM, SSH in
+3. Install `act` inside the VM
+4. Run `act -P macos-latest=-self-hosted` inside the VM
 
 This gives you an isolated macOS environment running `act`, closer to what GitHub's hosted runners provide. See:
 <https://gist.github.com/YOU54F/3ac099e54e48a31a69ac2d671aa878f6>
@@ -410,7 +410,7 @@ This repo's CI (`macos-latest` runner, Nix flake) is already well-structured for
 
    This would catch workflow YAML errors without pushing.
 
-1. **`act` with `.actrc`** -- for testing the full workflow orchestration locally:
+2. **`act` with `.actrc`** -- for testing the full workflow orchestration locally:
 
    ```
    # .actrc (project root, gitignored or chezmoi-ignored)
@@ -426,7 +426,7 @@ This repo's CI (`macos-latest` runner, Nix flake) is already well-structured for
 
    This would execute the lint job directly on your Mac, using your real Nix installation.
 
-1. **Consider NOT using `act`** -- given that your CI is purely `nix flake check` + `lint.sh`, you already have perfect
+3. **Consider NOT using `act`** -- given that your CI is purely `nix flake check` + `lint.sh`, you already have perfect
    local/CI parity through Nix. Adding `act` would add complexity without much benefit beyond validating the workflow
    YAML structure (which `actionlint` handles better).
 

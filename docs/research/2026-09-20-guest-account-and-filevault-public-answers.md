@@ -108,12 +108,12 @@ Behaviours a build slice pins:
 1. `GuestEnabled` true reads as `Known(Enabled)`, false as `Known(Disabled)`. Verified against `sysadminctl` for the
    false case above; the true case is a fixture, because turning the guest account on is a system change this work is
    not allowed to make.
-1. The key absent from an otherwise valid list reads as `Known(Disabled)`. This is the one judgement call: the macOS
+2. The key absent from an otherwise valid list reads as `Known(Disabled)`. This is the one judgement call: the macOS
    default is off and the key is written when the setting is toggled, but that default is not proven by anything
    measured here, so it is a fixture-pinned decision rather than an observation.
-1. The file missing, unreadable, or not a property list reads as `Indeterminate`, matching `classify_autologin`'s `None`
+3. The file missing, unreadable, or not a property list reads as `Indeterminate`, matching `classify_autologin`'s `None`
    arm at `classify.rs:53`.
-1. A value of the wrong type (a string, a number) reads as `Indeterminate` rather than being coerced.
+4. A value of the wrong type (a string, a number) reads as `Indeterminate` rather than being coerced.
 
 ## FileVault
 

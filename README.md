@@ -43,7 +43,7 @@ To use these dotfiles on your system:
    brew install chezmoi
    ```
 
-1. **Initialize this setup**
+2. **Initialize this setup**
 
    ```bash
    chezmoi init --apply webdavis
