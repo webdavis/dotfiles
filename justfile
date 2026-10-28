@@ -10,15 +10,6 @@ alias l := lint
 alias s := ship
 alias t := test
 
-alias D := macos-defaults-drift
-alias J := lint-json
-alias S := lint-shell
-alias T := lint-toml
-alias Y := lint-yaml
-
-alias fs := format-shell
-alias fm := format-markdown
-
 # Format all supported files through the configured treefmt binary.
 lint:
   treefmt
@@ -26,31 +17,6 @@ lint:
 # Drift gate. It may write fixes before failing.
 lint-gate:
   treefmt --no-cache --fail-on-change
-
-lint-shell:
-  treefmt --formatters shellcheck,shellcheck-rendered-template
-
-format-shell:
-  treefmt --formatters shfmt
-
-format-markdown:
-  treefmt --formatters mdformat
-
-lint-toml:
-  treefmt --formatters taplo
-
-lint-json:
-  treefmt --formatters jq-validate,osquery-config-render
-
-lint-yaml:
-  treefmt --formatters yq-validate
-
-# GitHub Actions syntax and security checks.
-lint-actions: lint-actions-syntax lint-actions-security
-
-# Run actionlint through treefmt.
-lint-actions-syntax:
-  treefmt --formatters actionlint
 
 # Run the offline zizmor audit used by CI.
 lint-actions-security:
@@ -132,20 +98,6 @@ macos-defaults-capture domain key current="":
   else
     ./scripts/macos-defaults/macos-defaults-capture.sh "{{domain}}" "{{key}}"
   fi
-
-# Read-only macOS Defaults helpers.
-macos-defaults-list:
-  defaults domains | tr ',' '\n' | sort
-
-macos-defaults-show domain:
-  defaults read "{{domain}}"
-
-macos-defaults-dump:
-  defaults read | less
-
-# Remove this repository's merged, clean worktrees and branches. --dry-run only reports.
-worktrees-prune *arguments:
-  wt step prune {{arguments}}
 
 # List KeePass entries the templates read that the database doesn't have. Asks for the database password.
 check-keepass:
