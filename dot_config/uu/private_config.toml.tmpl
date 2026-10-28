@@ -204,9 +204,7 @@ time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
 [lane.npm.settings]
-# The babysitter SDK is pinned in system_packages_autoinstall.yaml to the version the
-# plugin bundle needs (only it ships `adapters-hooks`), while npm's `latest` tag points
-# at an older release, so an update would move it backwards.
+# npm's `latest` tag for the babysitter SDK is older than the pinned version the plugin needs.
 skip = ["@a5c-ai/babysitter-sdk"]
 
 [lane.npx-skills]

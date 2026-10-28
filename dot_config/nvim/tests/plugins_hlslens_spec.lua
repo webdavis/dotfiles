@@ -1,16 +1,4 @@
--- The direction of `n` and `N` in every mode that maps them.
---
--- `lua/config/keymaps.lua` wants the vim-galore recipe that keeps `n` always
--- forward and `N` always backward whichever way the search was started, and it
--- sets that in normal, visual and operator-pending mode.
--- `lua/plugins/hlslens.lua` then re-maps normal mode alone, so before this spec
--- `n` moved backward after a `?` search while `dn` operated forward. The two
--- disagreeing is the defect; the fix keeps hlslens's documented composition and
--- puts the direction-stable motion inside it.
---
--- The spec exercises the real mappings rather than reading their text: it runs
--- the plugin file's `config` with hlslens faked, seeds a backward search
--- (`v:searchforward == 0`) and feeds the keys.
+-- `n` stays forward and `N` backward in every mode, including the hlslens normal-mode remap.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
@@ -21,9 +9,7 @@ vim.opt.shortmess:append("S")
 
 local lens_starts
 
--- `config` calls the global `map()` that `init.lua` installs, and requires
--- hlslens itself. Both are supplied here, so the mappings under test are the
--- shipped ones.
+-- Supplies the global `map()` and a fake hlslens, so the shipped mappings run.
 local function install_mappings()
   lens_starts = 0
   _G.map = require("custom_api.keymap").map
@@ -33,15 +19,12 @@ local function install_mappings()
       lens_starts = lens_starts + 1
     end,
   }
-  -- The startup order: `init.lua` runs `config/keymaps.lua` first, then
-  -- lazy.nvim loads hlslens, whose `config` re-maps normal mode over it.
+  -- Loads in startup order, so hlslens re-maps normal mode after the keymaps.
   dofile(config_root .. "/lua/config/keymaps.lua")
   dofile(config_root .. "/lua/plugins/hlslens.lua").config()
 end
 
--- A buffer whose matches sit on lines 1, 3 and 5, the cursor between the last
--- two, and a search register that remembers a BACKWARD search. A
--- direction-stable `n` goes to line 5; a plain `n` goes to line 3.
+-- Matches on lines 1, 3 and 5, cursor between the last two, after a BACKWARD search. A direction-stable `n` lands on 5.
 local function backward_search_buffer()
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, LINES)
@@ -52,8 +35,7 @@ local function backward_search_buffer()
   return buf
 end
 
--- `normal` without a bang so the mappings under test are used, and `silent!` so
--- the motion's own search echo stays out of the runner's report.
+-- `normal` without a bang uses the mappings. `silent!` keeps the search echo out of the report.
 local function feed(keys)
   vim.cmd("silent! normal " .. keys)
 end

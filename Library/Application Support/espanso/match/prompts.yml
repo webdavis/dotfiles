@@ -1,6 +1,4 @@
 matches:
-  # ── Existing chatbot triggers ─────────────────────────────────────────────
-
   - trigger: ";;si"
     replace: "System instruction:"
 
@@ -21,11 +19,9 @@ matches:
       - Add context to [PROMPT].
       - If [PROMPT] calls for it, provide links to relative resources in the form of a URL.
 
-  # ── New AI prompt triggers (§6.9) ─────────────────────────────────────────
-
   - trigger: ";;review"
     replace: "Review this code for bugs, security issues, and readability:"
-    # right_word keeps this from firing until the word ends, so ;;reviewproject stays typeable.
+    # Fires only at word end, so ;;reviewproject stays typeable.
     right_word: true
 
   - trigger: ";;explain"

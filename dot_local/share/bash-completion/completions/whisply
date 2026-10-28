@@ -1,5 +1,3 @@
-# whisply (typer) completion. Regenerate with:
-#   _TYPER_COMPLETE_TEST_DISABLE_SHELL_DETECTION=1 whisply --show-completion bash
 _whisply_completion() {
     local IFS=$'
 '

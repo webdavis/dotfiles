@@ -1,5 +1,3 @@
--- Some recommended exclusions. You can use `:lua print(vim.bo.filetype)` to
--- get the filetype string for the current buffer.
 local excluded_filetypes = {
   "gitcommit",
   "NvimTree",
@@ -25,7 +23,7 @@ local function save_condition(buf)
   then
     return false
   end
-  -- claudecode.nvim's proposed-edit buffers, which a timed write would accept.
+  -- Skips claudecode.nvim's proposed-edit buffers, because a timed write would accept the edit.
   return require("custom_api.autosave").should_save(buf)
 end
 
@@ -35,14 +33,7 @@ return {
     "folke/snacks.nvim",
   },
   version = "^1.0.0",
-  -- The toggle key is the whole trigger. This spec ships `enabled = false`, so
-  -- auto-save writes nothing until `<leader>uv` turns it on, and no edit event
-  -- needs to load it first.
-  --
-  -- Trigger-only, no rhs: `<leader>uv` is a snacks toggle built in `config` from
-  -- this spec's own `opts` table, so the mapping cannot exist before the plugin
-  -- loads. lazy's placeholder holds the key and the press that loads the plugin
-  -- is re-fed to the toggle snacks registers.
+  -- Auto-save starts disabled, so the toggle key is the only load trigger.
   keys = { { "<leader>uv", desc = "Toggle Autosave" } },
   opts = {
     enabled = false,
@@ -62,10 +53,7 @@ return {
     local autosave = require("auto-save")
     autosave.setup(opts)
 
-    -- An automatic write must not reformat the buffer under the operator's
-    -- cursor, so it announces itself and conform's format-on-save hook
-    -- (plugins/conform.lua) stands down while the flag is set. An explicit `:w`
-    -- never sets it and keeps formatting.
+    -- conform skips format-on-save while this flag is set, so a timed write leaves the cursor alone.
     local write_flag_group = vim.api.nvim_create_augroup("AutoSaveWriteFlag", { clear = true })
 
     vim.api.nvim_create_autocmd("User", {

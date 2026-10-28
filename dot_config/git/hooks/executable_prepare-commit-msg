@@ -1,37 +1,20 @@
 #!/usr/bin/env bash
-# Global prepare-commit-msg hook, AI-generated conventional commit messages.
-# Activated by core.hooksPath in dot_gitconfig.tmpl.
-#
-# Never blocks a commit: worst case the editor opens with an empty message
-# and the user writes their own.
-#
-# Escape hatches:
-#   SKIP_AI_COMMIT=1 git commit   # skip the hook entirely
-#   git commit -m "msg"           # hook skips when $2 is set (message source)
-#
-# Bails during merges/rebases/cherry-picks. Chains to repo-local
-# .git/hooks/prepare-commit-msg if present.
+# Drafts a Conventional Commits message with Claude. SKIP_AI_COMMIT=1 turns it off.
 
-# Bail early if user opted out, or commit carries a prepared message
-# (-m/-F/merge/squash). $2 is the message source per git's hook spec.
 [[ -n ${SKIP_AI_COMMIT:-} ]] && exit 0
+# Skips a commit that already has a message, such as one from -m, -F, a merge or a squash.
 [[ -n ${2:-} ]] && exit 0
 
 GIT_DIR="$(git rev-parse --git-dir)"
 
-# Bail during in-progress merges, rebases, cherry-picks.
 [[ -f "${GIT_DIR}/MERGE_HEAD" ]] && exit 0
 [[ -f "${GIT_DIR}/CHERRY_PICK_HEAD" ]] && exit 0
 [[ -d "${GIT_DIR}/rebase-merge" || -d "${GIT_DIR}/rebase-apply" ]] && exit 0
 
-# Full staged diff, no truncation (Sonnet handles large diffs).
 diff="$(git diff --cached --diff-algorithm=histogram 2>/dev/null)"
 [[ -z $diff ]] && exit 0
 
-# 30-second timeout on the model call. timeout(1) is provided by Homebrew
-# coreutils (in the manifest). On failure/timeout, msg stays empty and the
-# editor opens with an empty first line. Larger than the old 10s because
-# Sonnet is slower than haiku and the diff is no longer truncated.
+# On failure or timeout the editor opens empty, so the commit still goes through.
 msg="$(printf '%s' "$diff" | timeout 30 \
   env CLAUDECODE= MAX_THINKING_TOKENS=0 claude -p \
   --no-session-persistence --model=sonnet --tools='' \
@@ -41,7 +24,6 @@ msg="$(printf '%s' "$diff" | timeout 30 \
 
 [[ -n $msg ]] && printf '%s\n\n' "$msg" >"$1"
 
-# Chain to repo-local hook if present.
 local_hook="${GIT_DIR}/hooks/prepare-commit-msg"
 [[ -x $local_hook ]] && exec "$local_hook" "$@"
 

@@ -10,8 +10,7 @@ return {
     library = {
       { path = "${3rd}/luv/library", words = { "vim%.uv" } },
       { path = "snacks.nvim", words = { "Snacks" } },
-      -- every file under lua/plugins is a lazy.nvim spec, so these types are
-      -- always wanted: an entry with no words is loaded globally
+      -- Loads in every Lua file, because every file under lua/plugins is a lazy.nvim spec.
       "lazy.nvim",
     },
   },

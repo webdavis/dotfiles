@@ -1,15 +1,6 @@
--- `custom_api.overseer.overseer_runner`: what it hands to overseer.
---
--- The pure part is the decision between the two task shapes. One command has to
--- stay a shell string, because every one-command caller in `plugins/git.lua`
--- passes git format specifiers in single quotes that only a shell reads. Two or
--- more have to become an orchestrator, because `;` runs the next command whether
--- or not the last one worked.
-
 local runner = require("custom_api.overseer")
 
----Run `overseer_runner` with `overseer` faked, and return the task definition it
----asked for. Nothing is started; the fake's `start` only records that it was.
+---Run `overseer_runner` with `overseer` faked, and return the task definition.
 ---@param opts table
 ---@return table definition
 ---@return boolean started
@@ -87,16 +78,14 @@ return {
   end,
 
   ["no command is ever joined with a semicolon"] = function()
-    -- The defect this replaced: `;` runs the next command whether or not the
-    -- last one worked, so a failed `git init` still created the repository.
+    -- `;` would run the next command after a failure.
     local defn = definition_for({ cmds = { "git init", "gh repo create" } })
     local encoded = vim.inspect(defn)
     assert(not encoded:match("git init%s*;"), "a semicolon-joined command survived: " .. encoded)
   end,
 
   ["the notify component is asked for before the default alias"] = function()
-    -- Components are a no-op if already present, so the customised
-    -- on_complete_notify has to come before `default`, which also adds one.
+    -- `on_complete_notify` comes before `default`, which adds its own.
     local defn = definition_for({ cmds = "git status" })
     assert(type(defn.components[1]) == "table", "the first component is not the customised one")
     assert(defn.components[1][1] == "on_complete_notify", "first component was " .. vim.inspect(defn.components[1]))

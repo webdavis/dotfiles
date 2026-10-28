@@ -1,13 +1,8 @@
 return {
   "Wansmer/treesj",
   dependencies = { "nvim-treesitter/nvim-treesitter" },
-  -- treesj creates its three commands from inside `setup()`, which `config`
-  -- runs, so they have to be named up front or the first use does nothing.
+  -- treesj creates these commands in `setup()`, so they are listed to trigger the load.
   cmd = { "TSJJoin", "TSJSplit", "TSJToggle" },
-  -- These rows are the mappings themselves, not a second copy of them: lazy.nvim
-  -- installs the placeholder at startup and sets the real mapping from the same
-  -- row on the first press. `require` sits inside each callback because the
-  -- plugin is not on the runtimepath until that press loads it.
   -- stylua: ignore start
   keys = {
     { "<leader>jt", function() require("treesj").toggle({ split = { recursive = true } }) end, desc = "TreeSJ: toggle (recursive)", silent = true },

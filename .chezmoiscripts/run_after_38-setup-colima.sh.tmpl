@@ -1,12 +1,6 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
 
-# Colima (Homebrew formula) runs the Docker engine in a Linux VM. This loads its
-# brew service so the VM starts now and at login, points the docker CLI at it,
-# and points ~/.docker/config.json at Homebrew's plugins and keychain helper
-# instead of Docker Desktop's. Each step is skipped when already done, so a
-# no-op apply prints nothing.
-
 set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
@@ -33,8 +27,8 @@ context_is_colima() {
   [[ $("$docker_bin" context show 2>/dev/null) == colima ]]
 }
 
-# Docker Desktop's "desktop" credential helper goes away with the app, and the
-# CLI looks for Homebrew's compose and buildx only where this list says.
+# Docker Desktop's credential helper is removed with the app, so the config must not use it.
+# The docker CLI finds Homebrew's compose and buildx only in the folders this config lists.
 config_is_set() {
   [[ -f $docker_config ]] || return 1
   jq -e --arg plugins "$homebrew_plugins_directory" \
@@ -42,7 +36,7 @@ config_is_set() {
     "$docker_config" >/dev/null 2>&1
 }
 
-# Links Docker Desktop made into its app bundle; they dangle once the app is gone.
+# Lists the links Docker Desktop made into its app, which break once the app is removed.
 dangling_desktop_links() {
   local folder link
   for folder in "${desktop_link_folders[@]}"; do

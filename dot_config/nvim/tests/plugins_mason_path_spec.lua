@@ -1,15 +1,5 @@
--- Mason's bin directory on PATH at startup, from `lua/plugins/lsp.lua`.
---
--- Every spec in that file is lazy, so nothing calls `mason.setup()` during startup
--- any more and nothing does its PATH prepend either. Treesitter builds parsers from
--- `LazyDone` and from a fileless `:TSUpdate`, both before any buffer trigger fires,
--- and `tree-sitter` lives only under Mason's bin on this machine. The `init` on the
--- mason.nvim spec is what closes that window, so this reads the shipped spec table
--- rather than restating the path here.
---
--- `vim.env` is swapped for a plain table around each call: `init` writes through
--- whatever `vim.env` names, so a plain table captures the write and the real process
--- environment is never touched.
+-- Treesitter needs `tree-sitter` from the Mason bin before any buffer trigger, so the mason.nvim `init` puts it on PATH.
+-- `vim.env` is a plain table around each call, so the real environment stays untouched.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
@@ -25,7 +15,7 @@ end
 local mason_bin = vim.fn.stdpath("data") .. "/mason/bin"
 
 -- Run the spec's `init` against a stub PATH and hand back what it left behind.
--- `calls` runs it more than once, which is how the duplicate guard is observed.
+-- `calls` runs it more than once, to check the duplicate guard.
 local function path_after(starting_path, calls)
   local spec = mason_spec()
   local init = assert(spec.init, "the mason.nvim spec has no `init`")
@@ -88,9 +78,7 @@ return {
   end,
 
   ["moves the directory to the front when something already sits ahead of it"] = function()
-    -- Present is not the same as first. With Homebrew ahead of it, `shfmt` and `stylua`
-    -- resolve to Homebrew's copies rather than Mason's, which is what an eager
-    -- `mason.setup()` used to prevent.
+    -- The Mason bin goes first, so its `shfmt` and `stylua` beat the Homebrew copies.
     local path = path_after("/opt/homebrew/bin:" .. mason_bin .. ":/usr/bin:/bin")
     assert(
       path == mason_bin .. ":/opt/homebrew/bin:/usr/bin:/bin",
@@ -99,9 +87,7 @@ return {
   end,
 
   ["keeps an empty component, which means the working directory, in place"] = function()
-    -- `/usr/bin::/bin` deliberately looks in `.` between the two. An earlier `init` dropped
-    -- it, and an executable in the working directory stopped resolving for every child
-    -- process Neovim spawned.
+    -- An empty PATH entry means the working directory and must survive.
     local path = path_after("/usr/bin::/bin")
     assert(path == mason_bin .. ":/usr/bin::/bin", "the empty component was dropped or moved: " .. path)
   end,

@@ -30,7 +30,7 @@ def executions(prefix=None, after=None, status=None, limit=200):
     folder = fixtures()
     if folder:
         listed = json.loads((folder / "list.json").read_text())
-        # Fixtures are a frozen day, so `after` is not applied to them.
+        # Fixtures are a frozen day, so they skip the `after` filter.
         found = [
             item
             for item in map(execution, listed)

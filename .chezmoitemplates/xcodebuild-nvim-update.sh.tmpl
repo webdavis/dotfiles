@@ -1,6 +1,5 @@
 #!/bin/bash
-# Runs as root under the xcodebuild-nvim sudoers rule, so its only inputs are
-# the plugin's pinned commit id and the developer's GitHub, never a user-owned file.
+# Runs as root under the sudoers rule, so it reads only the pinned commit id and the developer's GitHub.
 set -euo pipefail
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 

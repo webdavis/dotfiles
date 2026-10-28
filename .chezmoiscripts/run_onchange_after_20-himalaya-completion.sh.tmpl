@@ -30,8 +30,6 @@ remove_working_directory() {
   rm -rf "$working_directory"
 }
 
-# himalaya 2 prints the script to stdout (1.x wrote himalaya.bash into the
-# working directory on its own), so the file is written here.
 write_completion_into_directory() {
   local directory=$1
   himalaya completion bash >"$directory/$completion_file_name" 2>/dev/null

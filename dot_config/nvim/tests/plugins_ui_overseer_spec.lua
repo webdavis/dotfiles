@@ -1,13 +1,8 @@
--- The overseer task counter in lualine's statusline (`lua/plugins/ui.lua`).
---
--- The component stays hidden until there is something to report, and the
--- counting is read out of a faked task list, so these cases need neither
--- overseer nor lualine running.
+-- The lualine overseer counter, read from a faked task list.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
----Run `fn(component)` with overseer faked, and the fake still in place while it
----runs: the component's callbacks `require` at call time, not at build time.
+---Run `fn(component)` with overseer faked throughout, because the callbacks require it at call time.
 ---@param tasks table[] What `list_tasks` should answer
 ---@param fn fun(component: table)
 local function with_tasks(tasks, fn)
@@ -27,8 +22,7 @@ local function with_tasks(tasks, fn)
   _G.__list_opts = function()
     return list_opts
   end
-  -- The counter reads `package.loaded` rather than requiring overseer, so this
-  -- is what decides whether it considers itself live at all.
+  -- The counter checks `package.loaded`, so this marks overseer as loaded.
   package.loaded["overseer"] = {}
 
   local ok, err = pcall(function()
@@ -61,9 +55,7 @@ end
 
 return {
   ["it counts every task, not one per name"] = function()
-    -- `list_tasks({ unique = true })` returns the OLDER completed task sharing a
-    -- name, so running one shell command twice, succeeding then failing, showed
-    -- only the success. Both tasks are visible in the list; both must be counted.
+    -- Both tasks of a repeated command count.
     with_tasks({ { status = "SUCCESS" }, { status = "FAILURE" } }, function(component)
       local text = component[1]()
       assert(text:match("\u{f0134}"), "the success is missing from " .. text)
@@ -104,8 +96,7 @@ return {
   end,
 
   ["each status keeps a real glyph, not a stripped empty string"] = function()
-    -- These are Nerd Font private-use codepoints, which have been silently
-    -- dropped in transit before now.
+    -- Nerd Font private-use codepoints, which are easy to lose in an edit.
     with_tasks(tasks(1, "CANCELED"), function(component)
       local text = component[1]()
       assert(text:match("\u{f46e}"), "the canceled glyph is missing from " .. vim.inspect(text))

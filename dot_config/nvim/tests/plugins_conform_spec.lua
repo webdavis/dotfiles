@@ -1,18 +1,7 @@
--- The formatter table and the format-on-save hook in `lua/plugins/conform.lua`,
--- plus the removal of the workaround they replaced.
---
--- conform.nvim is a plugin, absent under `nvim --clean`, so nothing here calls
--- into it: the spec table IS the mapping, and the hook is a plain function of
--- two switches. That a formatter really runs is proved by formatting real files,
--- not from here.
---
--- The expected filetypes are written out rather than read back off the spec, so
--- a row dropped from the plugin file fails this instead of agreeing with itself.
+-- Expected filetypes are written out, so a row dropped from the plugin fails here.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
--- Every filetype a none-ls formatting source covered before the migration, and
--- the formatter that took it over.
 local EXPECTED = {
   astro = "prettierd",
   css = "prettierd",
@@ -107,9 +96,6 @@ return {
     )
   end,
 
-  -- The old per-filetype `exclude` lists kept a language server out of the queue
-  -- wherever a dedicated formatter owned the filetype. "fallback" is the same
-  -- rule stated once: the server formats only what the table does not name.
   ["a language server formats only a filetype with no formatter of its own"] = function()
     local defaults = assert(opts().default_format_opts, "no default_format_opts")
     assert(defaults.lsp_format == "fallback", "lsp_format is " .. tostring(defaults.lsp_format))
@@ -124,8 +110,7 @@ return {
     assert(on_save(false, nil) == nil, "formatted with autoformat-on-save off")
   end,
 
-  -- auto-save.nvim writes on a timer, and reformatting a buffer the operator did
-  -- not ask to write moves their cursor and their undo history.
+  -- auto-save writes on a timer, and formatting then would move the cursor and undo history.
   ["an automatic write formats nothing"] = function()
     assert(on_save(true, true) == nil, "formatted an automatic write")
   end,

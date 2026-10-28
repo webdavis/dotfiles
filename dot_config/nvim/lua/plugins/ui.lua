@@ -8,12 +8,12 @@ return {
     name = "catppuccin",
     priority = 1000,
     opts = {
-      flavour = "macchiato", -- latte, frappe, macchiato, mocha
-      background = { -- :h background
+      flavour = "macchiato",
+      background = {
         light = "latte",
         dark = "macchiato",
       },
-      transparent_background = false, -- disables setting the background color.
+      transparent_background = false,
       lsp_styles = {
         underlines = {
           errors = { "undercurl" },
@@ -22,14 +22,8 @@ return {
           information = { "undercurl" },
         },
       },
-      -- Upstream 058e83d turned auto-detection on by default; its vim.pack.get()
-      -- call leaves an empty site/pack/core that :checkhealth lazy then flags.
-      -- Turning it back off means every integration this roster wants has to be
-      -- named here, and five were not: measured against auto-detection, 92
-      -- highlight groups were missing, all of them `BlinkCmp*`, `Dap*`,
-      -- `Octo*` and `NvimSurround*`. A table value counts as ON only when it
-      -- carries `enabled = true` (catppuccin's lib/mapper.lua), so `blink_cmp`
-      -- styled but never enabled was contributing nothing at all.
+      -- Auto-detection stays off, because it creates an empty folder that `:checkhealth lazy` flags.
+      -- Each integration is listed by hand instead, and a table entry needs `enabled = true` to count.
       auto_integrations = false,
       integrations = {
         aerial = true,
@@ -70,18 +64,7 @@ return {
     config = function(_, opts)
       require("catppuccin").setup(opts)
 
-      -- Same theme under two names across a pin bump: the old pin only ships
-      -- `catppuccin`, so the new name fails there. Editing lazy-lock.json installs
-      -- nothing until `:Lazy restore`, so the window between an apply and that
-      -- restore is real, and lazy reports the failure through `vim.notify`, which
-      -- makes it silent at startup.
-      --
-      -- Which name exists is settled BEFORE loading rather than by trying one and
-      -- falling back when it raises. A fallback fires on ANY error, so an error
-      -- raised once from a ColorScheme callback ran the whole loader a second
-      -- time, and a persistent one was reported as "neither loaded" with both
-      -- real errors thrown away. `getcompletion` answers off the `colors/` files
-      -- on the runtimepath, which is the question actually being asked.
+      -- Older catppuccin ships only `catppuccin`, so load whichever name the runtimepath has.
       local installed = vim.fn.getcompletion("catppuccin", "color")
       local name
       for _, candidate in ipairs({ "catppuccin-nvim", "catppuccin" }) do
@@ -127,8 +110,6 @@ return {
           { "diagnostics", sources = { "nvim_diagnostic" } },
         },
         lualine_x = {
-          -- Overseer task counts, one glyph and count per status, hidden when
-          -- idle. The counting lives in custom_api.overseer_status.
           {
             function()
               return require("custom_api.overseer_status").render()
@@ -164,7 +145,6 @@ return {
         lualine_y = { "progress" },
         lualine_z = { "location" },
       },
-      -- Open buffers on the left, tabs on the right: what bufferline showed.
       tabline = {
         lualine_a = { { "buffers", mode = 2, use_mode_colors = true } },
         lualine_z = {

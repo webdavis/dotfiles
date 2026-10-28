@@ -57,8 +57,7 @@ def npm_package(name):
 
 
 def entries(tree):
-    """Each listed package as (manager, name, line, installed, commands); installed is None
-    where nothing on disk says."""
+    """Each package as (manager, name, line, installed, commands); installed None means unknown."""
     links, built = linked_commands(), crates()
     root = tree["packages"]
     brew = root["macos"]["homebrew"]

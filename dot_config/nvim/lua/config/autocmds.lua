@@ -1,17 +1,8 @@
--- ╭──────────────╮
--- │   Autocmds   │
--- ╰──────────────╯
-
--- If needed, this is a good place to remove existing autocmds by group name.
--- For example, uncomment the following line to remove the "nvim_config_auto_create_dir" group:
---
--- vim.api.nvim_del_augroup_by_name("nvim_config_auto_create_dir")
-
 local function augroup(name)
   return vim.api.nvim_create_augroup("nvim_config_" .. name, { clear = true })
 end
 
--- Check if we need to reload the file when it changed.
+-- Reload files changed outside Neovim when focus returns.
 vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
   group = augroup("checktime"),
   callback = function()
@@ -21,14 +12,9 @@ vim.api.nvim_create_autocmd({ "FocusGained", "TermClose", "TermLeave" }, {
   end,
 })
 
--- Follow the file when something outside Neovim writes it (spec 5.4). The
--- group above only fires on focus change, which never happens while Neovim
--- sits idle in one herdr pane and an agent writes the file from another, so a
--- normal file buffer also watches its own file.
+-- Watch each file buffer so a write from another pane reloads it while Neovim sits idle.
 local auto_reload = require("custom_api.auto_reload")
--- Held in a local and reused below, because `augroup` above passes
--- `clear = true`: calling it a second time for this group would delete the
--- autocmd the first call registered.
+-- Both autocmds share one group, because each augroup() call clears it.
 local auto_reload_group = augroup("auto_reload")
 
 vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
@@ -47,7 +33,6 @@ vim.api.nvim_create_autocmd({ "BufDelete", "BufUnload" }, {
   end,
 })
 
--- Highlight on yank.
 vim.api.nvim_create_autocmd("TextYankPost", {
   group = augroup("highlight_yank"),
   callback = function()
@@ -55,7 +40,6 @@ vim.api.nvim_create_autocmd("TextYankPost", {
   end,
 })
 
--- Resize splits if window got resized.
 vim.api.nvim_create_autocmd({ "VimResized" }, {
   group = augroup("resize_splits"),
   callback = function()
@@ -65,7 +49,6 @@ vim.api.nvim_create_autocmd({ "VimResized" }, {
   end,
 })
 
--- Go to last loc when opening a buffer.
 vim.api.nvim_create_autocmd("BufReadPost", {
   group = augroup("last_loc"),
   callback = function(event)
@@ -83,7 +66,6 @@ vim.api.nvim_create_autocmd("BufReadPost", {
   end,
 })
 
--- Close some filetypes with <q>.
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("close_with_q"),
   pattern = {
@@ -117,7 +99,7 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- Make it easier to close man-files when opened inline.
+-- Unlist man pages so they close easily.
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("man_unlisted"),
   pattern = { "man" },
@@ -126,9 +108,8 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- Indent 2 in every file type. Neovim's own file-type plugins switch some
--- (Python, Markdown, Rust, ...) to 4, and this runs after them. A project's
--- .editorconfig still wins: Neovim applies it after the FileType event.
+-- Sets a two-space indent after the file-type plugins that set four.
+-- A project's .editorconfig still wins.
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("indent_two"),
   callback = function(event)
@@ -138,7 +119,6 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- Wrap and check for spell in text filetypes.
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("wrap_spell"),
   pattern = { "text", "plaintex", "typst", "gitcommit" },
@@ -148,7 +128,7 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
--- Fix conceallevel for json files
+-- Show JSON quotes instead of concealing them.
 vim.api.nvim_create_autocmd({ "FileType" }, {
   group = augroup("json_conceal"),
   pattern = { "json", "jsonc", "json5" },
@@ -157,7 +137,6 @@ vim.api.nvim_create_autocmd({ "FileType" }, {
   end,
 })
 
--- Auto create directory when saving a file, in case some intermediate directory does not exist.
 vim.api.nvim_create_autocmd({ "BufWritePre" }, {
   group = augroup("auto_create_dir"),
   callback = function(event)
@@ -169,7 +148,7 @@ vim.api.nvim_create_autocmd({ "BufWritePre" }, {
   end,
 })
 
--- Close sidebar windows (Snacks Explorer, Overseer) when they are the last non-floating windows.
+-- Close sidebar windows when only they and floating windows remain.
 vim.api.nvim_create_autocmd("QuitPre", {
   group = augroup("close_sidebars_on_quit"),
   callback = function()

@@ -1,55 +1,19 @@
 #!/usr/bin/env bash
-# worktree-review.sh: pick one of this repository's worktrees and start a
-# review in it, without moving the caller.
-#
-# An agent orchestrating several lanes sits on main and never leaves it, so
-# every git read here goes through `git -C <worktree>` and nothing in this
-# script changes the caller's working directory or HEAD. The review itself runs
-# in a child process that does chdir into the chosen checkout, which is the
-# child's own environment and not the caller's.
-#
-# Selection is deterministic: git is the only source of truth, there is no
-# agent-to-worktree registry and no language-model call.
-#
-# The review program is an ARGUMENT, not a hardcoded name, for the same reason
-# the herdr-process plugin stays independent of the program it hosts. `reviewr`
-# is not installed on this machine; `tuicr` is, so it is the default, and a
-# herdr process profile that wants something else names it in its own args.
-#
-#   worktree-review.sh list                     the ranked table
-#   worktree-review.sh pick                     choose one, print its path
-#   worktree-review.sh resume [-- cmd args...]  review the chosen one
-#   worktree-review.sh refresh                  recompute the activity cache
-#
-# `scan` is the per-worktree unit the refresh fans out over; it is not part of
-# the operator-facing surface.
-#
-# `resume` is what a herdr process profile runs: with no target chosen it opens
-# the picker first, and every later toggle reuses the recorded selection, so
-# discovery happens once.
+# Starts a review in one of this repository's worktrees, leaving the caller where it is.
 
 set -euo pipefail
 
 readonly DEFAULT_REVIEW_COMMAND=(tuicr)
 
-# Deliberate layout choice, not a stray number: wide enough for this
-# repository's branch names today, not computed from the widest one on
-# screen. A longer branch just pushes the activity column out of alignment
-# for that one row.
+# Fits current branch names. A longer name only shifts its own row.
 readonly BRANCH_COLUMN_WIDTH=44
 
-# Worktrees are scanned concurrently because the cold scan is three git
-# invocations per checkout and nothing else: 300 checkouts took 13.5 s in one
-# process and 2.0 s across eight. Each scan writes exactly one short line, well
-# under PIPE_BUF, so the interleaved writes stay whole lines and the sort that
-# follows puts them back in order.
+# Parallel scans each write one line under PIPE_BUF, so lines stay whole for the sort.
 scan_jobs() {
   printf '%s' "${WORKTREE_REVIEW_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 8)}"
 }
 
-# Seconds a displayed generation may be stale before the next invocation
-# recomputes one in the background. The display itself always reads a whole
-# generation, so a refresh never reorders the list under the cursor.
+# Once the cache is older than this, the next run refreshes it in the background.
 readonly CACHE_TTL_SECONDS="${WORKTREE_REVIEW_CACHE_TTL:-60}"
 
 usage() {
@@ -66,18 +30,13 @@ working directory.
 USAGE
 }
 
-# Every refusal here is an argument error, so each one names the problem and
-# prints the usage next to it, on stderr, and never falls through to help with
-# a success status.
 die() {
   printf 'worktree-review.sh: %s\n' "$1" >&2
   usage >&2
   exit 2
 }
 
-# fail : a runtime refusal (nothing selected, a recorded target gone bad).
-# The arguments were fine, so this skips the usage block die() always prints;
-# a cancelled fzf should not dump the whole usage text into the review pane.
+# A runtime refusal skips the usage, so a cancelled fzf leaves the pane clean.
 fail() {
   printf 'worktree-review.sh: %s\n' "$1" >&2
   exit 1
@@ -87,7 +46,7 @@ now_epoch() {
   printf '%s' "${WORKTREE_REVIEW_NOW:-$(date +%s)}"
 }
 
-# mtime <path...> : one line per path, portable across BSD and GNU stat.
+# Tries BSD stat, then GNU stat.
 mtime() {
   stat -f '%m' -- "$@" 2>/dev/null || stat -c '%Y' -- "$@" 2>/dev/null || true
 }
@@ -97,17 +56,14 @@ common_git_dir() {
     die 'not inside a git repository'
 }
 
-# One state directory per repository, named after its common git directory so
-# two checkouts of the same repository share one generation and one selection.
+# Named for the common git dir, so checkouts of one repository share state.
 state_dir() {
   local slug="${1//\//_}" base
   base="${WORKTREE_REVIEW_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/worktree-review}"
   printf '%s/%s' "$base" "${slug#_}"
 }
 
-# base_ref : the ref a lane's own commits are counted against. Empty when the
-# repository has none of the usual trunk names, which makes every count zero
-# rather than failing the listing.
+# Empty when no trunk exists, which makes every count zero.
 base_ref() {
   local candidate
   for candidate in refs/remotes/origin/HEAD refs/remotes/origin/main \
@@ -120,17 +76,7 @@ base_ref() {
   printf ''
 }
 
-# worktree_paths <common git dir> : every checkout that is actually on disk. A
-# registration whose directory is gone is dropped, so a checkout somebody
-# deleted cannot occupy a row, and so is a bare repository's own entry, whose
-# path IS the git directory and which has no working tree to review.
-#
-# The `bare` marker cannot be that filter. A checkout can carry core.bare =
-# true and still have a full working tree, which git then reports as bare: the
-# dashboard spec's environment leak wrote exactly that into this repository on
-# 2026-09-15, and the marker would have dropped the operator's primary checkout,
-# the one row they orchestrate from. The git directory is the honest test and
-# stays right after the config is repaired.
+# Compares paths, since a checkout with core.bare = true still has a working tree.
 worktree_paths() {
   local common="$1" key value path=''
   while IFS=' ' read -r key value; do
@@ -151,12 +97,8 @@ emit_worktree() {
   return 0
 }
 
-# edited_paths <worktree> : one line per non-ignored path the worktree has
-# changed. A rename's origin path is dropped so one change counts once.
-#
-# --work-tree is named explicitly for the same reason: on a checkout carrying
-# core.bare = true a plain `git status` refuses with "must be run in a work
-# tree", which would report every edit in that checkout as none.
+# A rename's origin is skipped so each change counts once.
+# --work-tree lets status run on a checkout with core.bare = true.
 edited_paths() {
   local worktree="$1" entry status path skip=0
   while IFS= read -r -d '' entry; do
@@ -172,8 +114,7 @@ edited_paths() {
     status --porcelain=v1 -z --untracked-files=normal)
 }
 
-# record <worktree> <base ref> : one cache row,
-# activity<TAB>branch<TAB>ahead<TAB>edited<TAB>path
+# One tab-separated row: activity, branch, ahead, edited, path.
 record() {
   local worktree="$1" base="$2" branch head_time ahead=0 activity
   local -a edited=() stamped=()
@@ -190,8 +131,7 @@ record() {
   while IFS= read -r path; do
     edited+=("$path")
     full="$worktree/$path"
-    # A deleted file has no mtime of its own; its parent directory is what the
-    # unlink stamped, so that is the honest timestamp for the deletion.
+    # A deleted file's parent directory carries the deletion's mtime.
     if [[ -e $full ]]; then
       stamped+=("$full")
     else
@@ -211,8 +151,7 @@ record() {
     "$activity" "$branch" "$ahead" "${#edited[@]}" "$worktree"
 }
 
-# refresh_cache : recompute every row and publish the result with one rename,
-# so a concurrent display reads one whole generation and never a torn file.
+# One rename publishes the result, so a reader never sees a torn file.
 refresh_cache() {
   local cache="$1" common="$2" base temporary
   base="$(base_ref)"
@@ -243,14 +182,12 @@ render() {
   ' "$1"
 }
 
-# ensure_cache : a first load has to compute; every later load reads the file.
 ensure_cache() {
   local cache="$1" common="$2"
   [[ -s $cache ]] || refresh_cache "$cache" "$common"
 }
 
-# refresh_in_background : ordering is recomputed off the display path, so the
-# rows on screen belong to the generation the caller already read.
+# Refreshes off the display path, so the rows on screen stay as read.
 refresh_in_background() {
   local cache="$1" stamp age lock
   stamp="$(mtime "$cache")"
@@ -258,10 +195,8 @@ refresh_in_background() {
   age=$(($(now_epoch) - stamp))
   ((age > CACHE_TTL_SECONDS)) || return 0
   lock="$cache.lock"
-  # mkdir is the atomic test-and-set: a second caller inside the same scan
-  # window finds it already there and skips its own scan.
-  # ponytail: no stale-lock timeout, a refresh killed mid-scan leaves the
-  # lock behind; `rmdir` it by hand if that ever happens.
+  # mkdir is an atomic lock, so one caller scans at a time.
+  # A refresh killed mid-scan leaves the lock behind; rmdir it by hand.
   mkdir "$lock" 2>/dev/null || return 0
   (
     "$0" refresh >/dev/null 2>&1
@@ -281,20 +216,7 @@ choose() {
   printf '%s' "${chosen##*$'\t'}"
 }
 
-# record_selection remembers the chosen worktree so a later resume can reuse
-# it without walking the list again.
-#
-# It does not record the originating workspace or pane. The wired path
-# (`resume`, run by the herdr-process plugin as `spec.program`) never has
-# HERDR_WORKSPACE_ID or HERDR_PANE_ID in its environment: the plugin strips
-# every HERDR_-prefixed variable before spawning its child (herdr-process
-# startup.rs `private_variable`), and it spawns the process once per profile
-# rather than once per toggle, so even an unstripped value would belong to
-# whichever pane happened to trigger the first spawn, not whoever is looking
-# now. The plugin already tracks the live requesting target itself
-# (`Session::context_for`); forwarding it to the child needs a channel the
-# plugin updates on every toggle, not a spawn-time environment variable, so
-# it stays out of this script.
+# Remembers the chosen worktree so a later resume reuses it.
 record_selection() {
   printf '%s\n' "$1" >"$2"
 }

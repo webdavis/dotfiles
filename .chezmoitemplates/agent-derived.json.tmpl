@@ -1,23 +1,10 @@
-{{- /* agent-derived.json.tmpl: everything the templates derive from
-       .chezmoidata/agent-plugins.yaml and agent-skills.yaml, as one JSON
-       document. Consumers do
-
-           {{ $d := includeTemplate "agent-derived.json.tmpl" . | fromJson }}
-
-       so the derivation rules live in one place: a marketplace's name is the
-       text after the @ in its first plugin id; Claude Code reaches the claude
-       and codex_and_claude groups, Codex the codex and codex_and_claude
-       groups; anthropics/claude-plugins-official ships inside Claude Code and
-       is never added or written to settings; store skill names come from the
-       skills CLI's lock file for npx entries, from the slug for clawhub, from
-       the store folders for the generated elevenlabs set, and from `skill:`
-       for but and apps entries. */ -}}
+{{- /* The agent plugin and skill data, derived as one JSON document so the rules live in one place.
+       anthropics/claude-plugins-official ships inside Claude Code, so it stays out of settings. */ -}}
 {{- $home := .chezmoi.homeDir -}}
 {{- $P := .plugins.harnesses -}}
 {{- $S := .skills.harnesses -}}
 {{- $official := "anthropics/claude-plugins-official" -}}
 
-{{- /* --- plugins --- */ -}}
 {{- $claudeMarketplaces := list -}}
 {{- $claudePlugins := list -}}
 {{- range concat $P.claude $P.codex_and_claude -}}
@@ -37,7 +24,6 @@
 {{-   $codexPlugins = concat $codexPlugins .plugins -}}
 {{- end -}}
 
-{{- /* --- hermes --- */ -}}
 {{- $hermesProfiles := list -}}
 {{- $hermesProfilesWithHub := list -}}
 {{- $hermesOptOutProfiles := list -}}
@@ -51,8 +37,7 @@
 {{-   end -}}
 {{- end -}}
 
-{{- /* --- the skills CLI lock, read when it exists; a fresh machine has none,
-       and then every npx entry has no names until the first apply writes it. --- */ -}}
+{{- /* A fresh machine has no skills CLI lock, so npx entries have no names until the first apply. */ -}}
 {{- $lockPath := joinPath $home ".agents/.skill-lock.json" -}}
 {{- $lockSkills := dict -}}
 {{- if stat $lockPath -}}
@@ -60,13 +45,11 @@
 {{-   if eq (kindOf (index $lock "skills")) "map" -}}{{- $lockSkills = index $lock "skills" -}}{{- end -}}
 {{- end -}}
 
-{{- /* --- the generated elevenlabs set, read from the store folders --- */ -}}
 {{- $elevenlabsNames := list -}}
 {{- range glob (joinPath $home ".agents/skills/elevenlabs-*/SKILL.md") -}}
 {{-   $elevenlabsNames = append $elevenlabsNames (base (dir .)) -}}
 {{- end -}}
 
-{{- /* --- skills, group by group --- */ -}}
 {{- $groups := list
       (dict "key" "claude" "agents" (list "claude-code") "claude" true "codex" false)
       (dict "key" "codex" "agents" (list "codex") "claude" false "codex" true)

@@ -1,12 +1,5 @@
--- Stamp each task with a monotonically increasing number every time it STARTS.
---
--- Overseer records `time_start` with `os.time()`, one-second resolution, so two
--- tasks started inside the same second compare equal and "the newest task" is
--- undecidable. A creation id does not help either: an older task restarted last
--- is the newest run, and its id is still the lower one.
---
--- The counter is a file-local, and `require` returns one module table per
--- process, so every task stamped here shares the same sequence.
+-- Stamps each task with a rising number when it starts,
+-- because `time_start` counts only whole seconds.
 local sequence = 0
 
 ---@type overseer.ComponentFileDefinition

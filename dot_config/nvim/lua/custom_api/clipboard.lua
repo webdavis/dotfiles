@@ -1,35 +1,11 @@
 ---@class custom_api.clipboard
----Yanks that land in the system clipboard and tell the truth about what they
----copied.
----
----THE SELECTION IS YANKED WHERE IT STANDS, with no range and no `gv`. Three
----spellings were measured against charwise, linewise and blockwise selections
----(`tests/clipboard_spec.lua` pins the survivor):
----
----  * `:'<,'>y+`, the Ex range this replaced, is ALWAYS linewise, so selecting
----    one word copied its whole line. That was the reported bug.
----  * `normal! gv"+y` is wrong for a different reason: the callback of a
----    Visual-mode mapping runs while the mode is STILL visual and before `'<`
----    and `'>` are set, so `gv` there swaps in the PREVIOUS selection. On the
----    first selection of a session it copied nothing at all.
----  * `normal! "+y` yanks the live selection with its own mode, which is what
----    the operator's own hands would do, `curswant` and a ragged `<C-v>$` edge
----    included.
 local M = {}
 
----The register every function here writes. Spelled once, because a second
----spelling is a yank that silently lands somewhere else.
 local REGISTER = "+"
 
----How much yanked text a notification shows before it is cut short.
 local PREVIEW_LIMIT = 60
 
----A one-line preview of yanked text, short enough to read in a notification.
----
----A whole paragraph or buffer in a notification body is a wall nobody reads,
----so a long first line is cut and a multi-line yank says how many lines it
----carried instead of printing them. The cut counts CHARACTERS rather than
----bytes, or it lands inside a multi-byte character and prints a broken glyph.
+---Cuts by characters so a multi-byte glyph stays whole.
 ---@param text string The yanked text.
 ---@return string preview One line, never longer than the limit plus a count.
 function M.summarize(text)
@@ -44,11 +20,7 @@ function M.summarize(text)
   return first
 end
 
----Yank the visual selection to the clipboard, exactly as selected.
----
----Called from a Visual-mode mapping, while that selection is still live. The
----cursor is put back where it was, which is what the mapping this replaced
----claimed to do and did not.
+---Yanks the live selection, because `gv` in a Visual-mode mapping reselects the previous one.
 ---@return nil
 function M.yank_selection()
   local cursor = vim.api.nvim_win_get_cursor(0)
@@ -57,28 +29,12 @@ function M.yank_selection()
   vim.api.nvim_win_set_cursor(0, cursor)
 end
 
----Yank the LINES the visual selection sits in to the clipboard, whole.
----
----The capital is Vim's own convention for the linewise form, so `<leader>y`
----copies what is selected and `Y` copies the lines it covers. Before this, `Y`
----in Visual mode reached neither the clipboard nor the selection: it fell
----through to the built-in linewise yank into the unnamed register.
----
----NO CURSOR RESTORE, unlike `yank_selection` above: a linewise yank follows
----Vim's own built-in post-yank position (the first yanked line), which is
----what the operator's hand already expects from a bare `Y`.
 ---@return nil
 function M.yank_selected_lines()
   vim.cmd('normal! "' .. REGISTER .. "Y")
 end
 
----Yank from the cursor to the last non-blank character of the line, or, with
----a count, of the count-th line down.
----
----GUARDED ONLY WHEN COUNTLESS, because `g_` has no target on a blank line
----and the unguarded form beeped instead of saying anything. A count changes
----the target line, so a blank CURRENT line is not necessarily a blank
----TARGET line and the guard steps aside for it.
+---Without a count, warns on a blank line, where `g_` has no target.
 ---@return nil
 function M.yank_to_line_end()
   local count = vim.v.count > 0 and tostring(vim.v.count) or ""
@@ -89,18 +45,8 @@ function M.yank_to_line_end()
   vim.cmd('normal! "' .. REGISTER .. count .. "yg_")
 end
 
----Yank the text inside a delimiter pair to the clipboard.
----
----THE CLIPBOARD IS RESTORED WHEN THE TEXT OBJECT IS NOT THERE, which is the
----defect this replaces. The previous version yanked and then read the register
----back to report what it got, so `yi(` on a line holding no parentheses
----announced the PREVIOUS clipboard contents as freshly yanked. Emptying the
----register first makes an absent text object detectable, and putting the old
----value back means a failed yank costs the operator nothing.
----
----Ceiling: an EMPTY pair (`()`) reads as a miss, because Vim yanks nothing for
----either one and the register cannot tell them apart. The report is a warning
----and the clipboard is intact, which is the right outcome for both.
+---Empties the register first so a missing text object shows, then restores it.
+---An empty pair `()` also counts as a miss.
 ---@param delimiter string One delimiter character, for example `(` or `"`.
 ---@param label string What to call the pair when it is missing.
 ---@return boolean yanked Whether anything was actually copied.

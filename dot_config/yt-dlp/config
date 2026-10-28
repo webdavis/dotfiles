@@ -1,12 +1,9 @@
-# Output location and naming
 -o '~/Downloads/yt-dlp/%(title)s [%(id)s].%(ext)s'
 
-# Prefer mp4 with h264/aac (native macOS playback)
+# mp4 with h264/aac plays natively on macOS.
 -S res,ext:mp4:m4a,codec:avc:m4a
 
-# Embed metadata and thumbnails into the file
 --embed-metadata
 --embed-thumbnail
 
-# Don't overwrite existing files
 --no-overwrites

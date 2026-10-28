@@ -46,8 +46,8 @@ macos:
       type: bool
       value: false
       tier: enforce
-    # All six LuLu records are verify: the extension rewrites this plist from memory, clobbering outside writes.
-    # allowLocalHost must stay true: pns and posture page through 127.0.0.1:8644.
+    # LuLu rewrites this plist from memory and undoes outside writes, so these records only verify.
+    # allowLocalHost must stay true because pns and posture send their alerts through localhost.
     - domain: com.objective-see.lulu
       key: allowLocalHost
       type: bool
@@ -83,7 +83,6 @@ macos:
       scope: system
       plist_path: /Library/Objective-See/LuLu/preferences.plist
       tier: verify
-    # passiveModeAction and passiveModeRules are unconsulted while this is false, so not declared.
     - domain: com.objective-see.lulu
       key: passiveMode
       type: bool

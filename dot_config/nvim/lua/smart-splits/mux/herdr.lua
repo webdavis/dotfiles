@@ -3,16 +3,9 @@ local Direction = types.Direction
 local log = require("smart-splits.log")
 local utils = require("smart-splits.utils")
 
--- Custom smart-splits.nvim multiplexer backend for the herdr terminal
--- multiplexer (https://herdr.dev). smart-splits resolves backends with a plain
--- `require('smart-splits.mux.' .. integration)` and has no allow-list, so
--- dropping this file on the runtimepath + `multiplexer_integration = 'herdr'`
--- wires herdr in with no fork of smart-splits. Each method shells out to the
--- `herdr` CLI (one socket round-trip); smart-splits only calls these at a split
--- edge, so the latency is fine.
+-- smart-splits.nvim backend for herdr, loaded by `multiplexer_integration = "herdr"`.
 local herdr_bin = vim.env.HERDR_BIN_PATH or "herdr"
 
----Run a herdr CLI subcommand and return its decoded JSON result, or nil on failure.
 ---@param args string[]
 ---@return table|nil
 local function herdr_json(args)
@@ -35,8 +28,7 @@ local M = {} ---@diagnostic disable-line: missing-fields
 
 M.type = "herdr" ---@diagnostic disable-line: assign-type-mismatch
 
----herdr exports HERDR_PANE_ID into every pane it owns; its presence means we are
----inside a herdr session.
+---HERDR_PANE_ID is set in every herdr pane.
 function M.is_in_session()
   local pane = vim.env.HERDR_PANE_ID
   return pane ~= nil and #pane > 0
@@ -55,8 +47,7 @@ function M.current_pane_id()
   return nil
 end
 
----`herdr pane edges` reports, per side, whether this pane is AT the edge there:
----true = at the edge (no neighbor that direction), false = a neighbor exists.
+---`herdr pane edges` reports true on each side with no neighbor.
 function M.current_pane_at_edge(direction)
   if not M.is_in_session() then
     return false
@@ -79,9 +70,7 @@ function M.next_pane(direction)
   if not M.is_in_session() then
     return false
   end
-  -- herdr returns exit 0 + JSON even when there is no neighbor; smart-splits
-  -- guards real movement by comparing current_pane_id() before/after, so a
-  -- truthy return here is safe.
+  -- smart-splits checks for real movement itself, so any reply counts as success.
   return herdr_json({ "pane", "focus", "--direction", direction, "--current" }) ~= nil
 end
 
@@ -92,7 +81,7 @@ function M.resize_pane(direction, amount)
   return herdr_json({ "pane", "resize", "--direction", direction, "--amount", tostring(amount), "--current" }) ~= nil
 end
 
----herdr only splits right|down; map left->right and up->down.
+---herdr splits only right or down.
 function M.split_pane(direction, size)
   local herdr_dir = (direction == Direction.left or direction == Direction.right) and "right" or "down"
   local args = { "pane", "split", "--current", "--direction", herdr_dir }

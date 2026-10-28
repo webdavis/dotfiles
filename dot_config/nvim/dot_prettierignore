@@ -1,2 +1,2 @@
-# Lazy automatically writes this file on plugin changes, so it shouldn't be touched by formatters.
+# Keeps formatters off this file, because Lazy rewrites it whenever plugins change.
 lazy-lock.json

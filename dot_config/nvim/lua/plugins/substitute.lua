@@ -1,14 +1,5 @@
--- The operator keys are upstream's own suggestions. `s`, `S` and visual `s` are
--- free here: nvim-surround takes `ys`, `ds`, `cs` and visual `S`, flash.nvim
--- ships with `char` mode disabled so it never claims `s`, and
--- nvim-various-textobjs maps `iS`/`aS` rather than a bare one.
---
--- The range family is on `<leader>S`, because `<leader>s` is the snacks picker
--- group (23 keys) and an operator there would swallow the whole group.
---
--- `on_substitute` hands the substituted text to yanky, which owns `y`, `p` and
--- `P` in this configuration. Without it a substitute bypasses the yank ring and
--- the history picker on `<leader>p` goes stale.
+-- The range family is on `<leader>S`, because `<leader>s` is the snacks picker group.
+-- `on_substitute` sends substituted text to yanky, which owns `y` and `p` here.
 return {
   "gbprod/substitute.nvim",
   dependencies = {

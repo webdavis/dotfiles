@@ -1,8 +1,4 @@
--- The runner's own two self-checks (spec 6.3). A runner that reported failure
--- only in its output would be a gate that cannot fail, and an empty run would
--- otherwise exit 0 and read as a pass, so both are pinned against a scratch
--- copy of run.lua whose directory holds exactly the spec files the case needs
--- (run.lua reads its specs from its own directory).
+-- Each case uses a scratch copy of run.lua, which reads specs from its own directory.
 
 local runner = arg[0]
 
@@ -30,8 +26,7 @@ return {
   end,
 
   ["a spec that returned no cases is refused, by name"] = function()
-    -- A gutted spec reports nothing and leaves the failure count at zero, so
-    -- without this the run exits 0 and reads as a pass.
+    -- An empty spec must fail the run instead of passing silently.
     local copy = scratch_runner("return {}")
     local code, output = run(copy, "failing_spec")
     assert(code ~= 0, "exit code " .. code .. ": " .. output)

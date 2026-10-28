@@ -2,14 +2,9 @@ local M = {}
 
 local util = require("custom_api.util")
 
--- The shell seam (spec 6.2). Every shell call in this module goes through
--- `M.runner`, so a test replaces this one field instead of reaching into
--- `util`, and nothing here shells out behind the seam's back.
+-- Every shell call goes through `M.runner`, so a test can replace it.
 M.runner = util.run_shell_command
 
--- ╭──────────╮
--- │  Helpers │
--- ╰──────────╯
 local function convert_remote_protocol(remote_url, from_prefix, to_prefix)
   local user_repo = remote_url:match("^" .. from_prefix .. "(.+)")
 
@@ -30,9 +25,6 @@ local function to_ssh_protocol(remote_url)
   return convert_remote_protocol(remote_url, "https://github.com/", "git@github.com:")
 end
 
--- ╭──────╮
--- │  API │
--- ╰──────╯
 local function initialized(opts)
   local _ = opts
   local code, _ = M.runner({ cmd = { "git", "rev-parse", "--git-dir" } })
@@ -88,7 +80,7 @@ local function fetch_branches()
 end
 
 local function extract_upstream(tokens)
-  -- Upstream branch specification always starts at index 3, if it exists at all.
+  -- The upstream branch, when there is one, always starts at the third token.
   local i = 3
 
   if not tokens[i] or tokens[i]:sub(1, 1) ~= "[" then
@@ -164,7 +156,7 @@ local function with_branch_list_helper(opts)
     return nil, current_name_or_err_msg
   end
 
-  -- Handle empty repo or detached HEAD.
+  -- An empty repository or a detached HEAD lists no branches but still names the current one.
   if branches_output == "" and current_name_or_err_msg ~= "" then
     local branch = empty_repo_branch(current_name_or_err_msg)
     return current_only and branch or { branch }
@@ -199,11 +191,7 @@ local function current_branch()
   return with_branch_list_helper({ current = true })
 end
 
--- `cwd` is the directory git runs in, and defaults to Neovim's own, which is
--- only the right repository when the caller happens to be sitting in it.
--- `blame_sha` derives its own from the file it blames; this function has no
--- file to derive one from, so the caller states it. `repo_name` does NOT do
--- this job: it labels this function's error messages and selects nothing.
+-- `cwd` picks the repository, so a caller outside it passes one.
 local function latest_commit(opts)
   opts = opts or {}
   local repo_name = opts.repo_name
@@ -232,10 +220,7 @@ local function latest_commit(opts)
   return { hash = hash, summary = util.normalize(summary), body = util.normalize(body) }
 end
 
--- Local only (spec 6.2): the remote-tracking refs this checkout already has,
--- and nothing else. Asking GitHub is `github.default_branch`, which the keymap
--- layer falls through to; keeping the network call here is what gave this
--- function a repository argument it then read off a string (item 4).
+-- Reads only the local remote-tracking refs.
 local function default_branch()
   local main_ok = M.runner({ cmd = { "git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/main" } })
   if main_ok == 0 then
@@ -322,9 +307,7 @@ local function copy_url_to_clipboard(opts)
   return ("Copied *%s* %s URL to clipboard: `%s`"):format(remote, protocol:upper(), final_URL)
 end
 
--- The first porcelain line is `<sha> <orig-line> <final-line> <count>`. Only the
--- SHA is read; `%s` after the token is what keeps a `fatal:` from matching as
--- hex on its leading letters.
+-- Read only the SHA. The trailing `%s` keeps a `fatal:` line from matching as hex.
 local function parse_blame_porcelain(text)
   local sha = (text or ""):match("^(%x+)%s")
 
@@ -332,9 +315,7 @@ local function parse_blame_porcelain(text)
     return nil, "no blame line to read"
   end
 
-  -- What git blame prints as the SHA of a line that is not committed yet is a
-  -- SHA of zeros: forty of them in a SHA-1 repository and sixty-four in a
-  -- SHA-256 one, so the digits are what identify it and never their count.
+  -- An uncommitted line has an all-zero SHA, in either hash length.
   if sha:match("^0+$") then
     return nil, "not committed yet"
   end
@@ -342,34 +323,20 @@ local function parse_blame_porcelain(text)
   return sha
 end
 
--- What each `fileformat` puts between lines when the buffer is written out.
 local LINE_SEPARATOR = { unix = "\n", dos = "\r\n", mac = "\r" }
 
--- The text the editor is showing for `file`. Blaming the saved copy answers for
--- a line the operator may have already replaced, so what the buffer holds is
--- what goes to git; git reports a line that is only in the buffer as
--- uncommitted, which is the true answer. The keymaps blame the current buffer,
--- so a name that does not match it means there is nothing unsaved to send.
---
--- These have to be the bytes the file itself would hold, not the lines glued
--- with LF and a newline stapled on: a `fileformat=dos` buffer rejoined with LF,
--- or a file with no trailing newline given one, differs from its own committed
--- blob, so every line of an UNCHANGED file blamed as uncommitted.
+-- The buffer as the file would hold it, so blame sees unsaved edits
+-- and an unchanged file matches its blob.
 local function buffer_contents(file)
   if vim.api.nvim_buf_get_name(0) ~= file then
     return nil
   end
 
-  -- `binary` writes the buffer out with LF between the lines whatever
-  -- `fileformat` says, so it settles the separator before the format is read.
+  -- `binary` writes LF whatever `fileformat` says.
   local separator = vim.bo.binary and "\n" or (LINE_SEPARATOR[vim.bo.fileformat] or "\n")
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
 
-  -- A `fileformat=mac` buffer is split on carriage returns, and nvim shows an LF
-  -- byte sitting INSIDE one of those lines as a carriage return as well. Joining
-  -- with a carriage return would write the file's own LF back out as a line
-  -- break, so the two are told apart here: a carriage return still inside a line
-  -- is the LF it was read from.
+  -- In a `fileformat=mac` buffer, a CR inside a line is the LF it was read from.
   if separator == "\r" then
     lines = vim.tbl_map(function(line)
       return (line:gsub("\r", "\n"))
@@ -396,10 +363,7 @@ local function blame_sha(opts)
   local range = ("%d,%d"):format(line, line)
   local contents = buffer_contents(file)
 
-  -- A symlink gives nvim the TARGET's text under the LINK's name, and the link's
-  -- own blob holds a path rather than that text, so blaming the link compared
-  -- the two and called every line uncommitted. The link's name is what the
-  -- buffer is called and stays the key for matching it; git gets the real file.
+  -- Blame the symlink target, whose blob holds the text the buffer shows.
   local blamed = vim.uv.fs_realpath(file) or file
 
   local cmd = { "git", "blame", "-L", range, "--porcelain" }
@@ -417,8 +381,7 @@ local function blame_sha(opts)
   return parse_blame_porcelain(output)
 end
 
--- The pure helpers are exported so the spec can call them directly (spec 6.3);
--- they take strings and tables and reach nothing outside this file.
+-- Pure helpers, exported for the spec.
 M.convert_remote_protocol = convert_remote_protocol
 M.parse_blame_porcelain = parse_blame_porcelain
 M.normalize_branch = normalize_branch

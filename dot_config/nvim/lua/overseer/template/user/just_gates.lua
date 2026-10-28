@@ -1,15 +1,4 @@
--- `just ship`, but one task per gate, through the orchestrator strategy.
---
--- The recipe runs the three gates as three lines of one shell command, so a
--- failure gives one status and one pile of output to read. The orchestrator
--- strategy runs them as separate tasks in the same order, so each gate carries
--- its own status, its own output buffer and its own quickfix, and a red run says
--- which gate went red without reading anything.
---
--- The orchestrator over the `dependencies` component, which reaches the same end:
--- dependencies attach to a task that then runs LAST, which reads backwards for a
--- pipeline whose whole point is the order, and the orchestrator's own task shows
--- the sequence as children in the task list.
+-- Runs `just ship` as one task per gate, so a failure names its gate.
 
 local GATES = { "lint-gate", "test", "lint-actions-security" }
 
@@ -37,13 +26,8 @@ local function justfile_with_gates(dir)
   end
 end
 
--- No `cache_key`. Overseer caches provider results globally by that key, and the
--- built-in `just` provider returns the same justfile path, so the two collided:
--- once discovery ran past `template_cache_threshold_ms` the cache served just's
--- 35 recipes for both providers, listing every recipe twice and losing this
--- pipeline entirely. Measured with the threshold at 1 ms: cold 36 templates with
--- the pipeline, warm 70 with 35 duplicated names and no pipeline. This provider
--- only reads one file, so there is nothing worth caching anyway.
+-- No `cache_key`, because the built-in `just` provider keys on the same justfile
+-- and the cache would mix the two.
 ---@type overseer.TemplateFileProvider
 return {
   generator = function(opts)
