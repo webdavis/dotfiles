@@ -11,12 +11,8 @@
 {{-   if and (has .kind (list "but" "apps")) (has .match $d.on_demand_codex) -}}{{- $nameRows = append $nameRows .match -}}{{- end -}}
 {{- end -}}
 #!/usr/bin/env bash
-# Marks the on-demand store skills only-when-asked in Codex, by writing
-# `policy.allow_implicit_invocation: false` into each one's agents/openai.yaml,
-# and gives every other store skill its original file back. The apply runs it
-# from .chezmoiscripts/run_onchange_after_64-install-agent-skills.sh.tmpl and
-# the uu `skills-on-demand` lane runs it after the weekly updates, since an
-# update replaces the folder and the file with it.
+# Makes Codex run the on-demand skills only when asked.
+# It restores the original Codex file of every other skill.
 
 set -euo pipefail
 
@@ -24,9 +20,8 @@ readonly skills_folder="$HOME/.agents/skills"
 readonly skills_lock="$HOME/.agents/.skill-lock.json"
 readonly codex_ask_first_expression='.policy.allow_implicit_invocation = false'
 readonly original_file_marker='# uu-original-openai: '
-# One row per on-demand npx entry: <owner/repo> <path inside it, or ->. The
-# skill names come from the skills CLI's lock file at run time, so a skill the
-# repository adds between applies is marked too.
+# One row per on-demand npx entry: <owner/repo> <path inside it, or ->.
+# Skill names come from the lock file at run time, so newly added skills get marked too.
 readonly on_demand_npx_rows={{ join "\n" $npxRows | squote }}
 # One row per on-demand clawhub, but or apps skill: its store name.
 readonly on_demand_names={{ join "\n" $nameRows | squote }}
@@ -168,8 +163,7 @@ restore_original_codex_file() {
   fi
 }
 
-# Every store skill carrying the marker that is no longer on demand gets its
-# original file back; the marker is what says this script wrote the file.
+# The marker shows this script wrote the file.
 marked_skills_not_on_demand() {
   local wanted=$1 codex_file skill
   for codex_file in "$skills_folder"/*/agents/openai.yaml; do

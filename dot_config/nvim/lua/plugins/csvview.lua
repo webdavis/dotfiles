@@ -18,7 +18,6 @@ return {
   },
   config = function(_, opts)
     require("csvview").setup(opts)
-    -- On by default: every csv and tsv buffer opens already aligned.
     vim.api.nvim_create_autocmd("FileType", {
       group = vim.api.nvim_create_augroup("CsvViewAutoEnable", { clear = true }),
       pattern = { "csv", "tsv" },

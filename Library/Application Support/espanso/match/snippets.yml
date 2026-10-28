@@ -1,6 +1,4 @@
 matches:
-  # ── Abbreviations (;; + 2-3 letters) ─────────────────────────────────────
-
   - trigger: ";;bc"
     replace: "because"
     word: true
@@ -13,9 +11,8 @@ matches:
 
   - trigger: ";;con"
     replace: "conscientious"
-    # right_word keeps this from firing until the word ends, so ;;continue stays typeable.
+    # Fires only at word end, so ;;continue stays typeable.
     right_word: true
-  # Note: ';;con' (convenient) was the colliding entry, removed; use full word 'convenient'.
 
   - trigger: ";;ao"
     replace: "anyone"
@@ -38,11 +35,10 @@ matches:
 
   - trigger: ";;et"
     replace: "everything"
-  # Note: ';;evt' removed, duplicate of ';;et' (§6.5)
 
   - trigger: ";;exp"
     replace: "experience"
-    # right_word keeps this from firing until the word ends, so ;;explain stays typeable.
+    # Fires only at word end, so ;;explain stays typeable.
     right_word: true
 
   - trigger: ";;fe"
@@ -106,12 +102,11 @@ matches:
 
   - trigger: ";;rn"
     replace: "right now"
-  # Note: bare 'rn' trigger removed, duplicate of ';;rn' (§6.5)
 
   - trigger: ";;com"
     replace: "communication"
     propagate_case: true
-    # right_word keeps this from firing until the word ends, so ;;commits / ;;comprehensive stays typeable.
+    # Fires only at word end, so ;;commits / ;;comprehensive stays typeable.
     right_word: true
 
   - trigger: ";;sr"
@@ -135,7 +130,7 @@ matches:
 
   - trigger: ";;re"
     replace: "return"
-    # right_word keeps this from firing until the word ends, so ;;review / ;;reviewproject stays typeable.
+    # Fires only at word end, so ;;review / ;;reviewproject stays typeable.
     right_word: true
 
   - trigger: ";;fu"
@@ -143,7 +138,7 @@ matches:
 
   - trigger: ";;t"
     replace: "#task"
-    # right_word keeps this from firing until the word ends, so ;;ty stays typeable.
+    # Fires only at word end, so ;;ty stays typeable.
     right_word: true
 
   - trigger: ";;#"
@@ -152,8 +147,6 @@ matches:
   - trigger: "natm"
     replace: "Not at the moment."
     word: true
-
-  # ── Quick phrases (new per §6.9) ──────────────────────────────────────────
 
   - trigger: ";;ty"
     replace: "Thank you"
@@ -170,14 +163,11 @@ matches:
   - trigger: ";;afaik"
     replace: "As far as I know"
 
-  # ── Titles (;; proper nouns) ──────────────────────────────────────────────
-
   - trigger: ";;yt"
     replace: "YouTube"
 
   - trigger: ";;gh"
     replace: "GitHub"
-  # Note: browser.yml ';;gh' (github.com URL) renamed to ',,ghu' (§6.4)
 
   - trigger: ";;cc"
     replace: "Claude Code"
@@ -197,8 +187,6 @@ matches:
 
   - trigger: ";py"
     replace: "Python"
-
-  # ── Formatting / dates / symbols (,, triggers) ───────────────────────────
 
   - trigger: ",,dt"
     replace: "{{my_datetime}}"
@@ -280,8 +268,6 @@ matches:
     replace: "thank you"
     propagate_case: true
 
-  # ── Symbols ───────────────────────────────────────────────────────────────
-
   - trigger: ",,ex"
     replace: "❌"
 
@@ -324,53 +310,40 @@ matches:
   - trigger: ",,-d"
     replace: "↓"
 
-  # ── URLs (migrated from browser.yml; ;;XXX → ,,XXX per §6.7) ─────────────
-
   - trigger: ",,wno"
     label: White noise
     replace: "https://www.youtube.com/watch?v=nMfPqeZjc2c"
-  # Note: was ';;wn', became ',,wno' (3-letter per convention)
 
   - trigger: ",,azo"
     replace: "https://www.amazon.com/gp/css/order-history"
-  # Note: was ';;ao', renamed to ',,azo' to fix collision with ';;ao' (anyone) (§6.4)
 
   - trigger: ",,ro"
     replace: "https://100.64.18.88/"
-  # Note: was ';;ro'
 
   - trigger: ",,wo"
     replace: "https://www.walmart.com/orders"
-  # Note: was ';;wo'
 
   - trigger: ",,mu"
     replace: "https://www.meetup.com/your-events/"
-  # Note: was ';;mu'
 
   - trigger: ",,ghu"
     replace: "https://www.github.com/"
-  # Note: was ';;gh' in browser.yml, renamed to ',,ghu' to fix collision with ';;gh' (GitHub title) (§6.4)
 
   - trigger: ",,jda"
     replace: "https://www.github.com/karlmdavis/justdavis-ansible/"
-  # Note: was ';;ja'
 
   - trigger: ",,hml"
     replace: "https://www.github.com/webdavis/Homelab/"
-  # Note: was ';;hl'
 
   - trigger: ",,efc"
     replace: "https://www.github.com/webdavis/essential-feed-case-study/"
-  # Note: was ';;ed' in browser.yml, renamed to ',,efc' to fix collision with ';;ed' (everyday) (§6.4)
-
-  # ── Project names (,, triggers; literal kebab-case identifiers) ──────────
 
   - trigger: ",,ed"
     replace: "essential-feed-case-study"
 
   - trigger: ",,cc"
     replace: "casually-concerned"
-    # right_word keeps this from firing until the word ends, so ,,ccs / ,,cci stays typeable.
+    # Fires only at word end, so ,,ccs / ,,cci stays typeable.
     right_word: true
 
   - trigger: ",,ja"
@@ -378,8 +351,6 @@ matches:
 
   - trigger: ",,hf"
     replace: "happy-focus"
-
-  # ── Commands (,, triggers; literal shell commands) ───────────────────────
 
   - trigger: ",,ca"
     replace: "chezmoi apply"

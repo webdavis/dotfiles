@@ -1,5 +1,3 @@
--- Ref: https://github.com/stevearc/overseer.nvim/blob/master/doc/tutorials.md#run-a-file-on-save
-
 -- stylua: ignore start
 local cmd_map = {
   go = function(file) return { "go", "run", file } end,
@@ -23,13 +21,12 @@ return {
     local cmd_entry = cmd_map[ft]
 
     if not cmd_entry then
-      return nil -- unsupported filetype
+      return nil
     end
 
-    -- Expand current file path if needed
     local file = vim.fn.expand("%:p")
     if file == "" and type(cmd_entry) == "function" then
-      return nil -- nothing to run on unsaved buffer
+      return nil
     end
 
     local cmd

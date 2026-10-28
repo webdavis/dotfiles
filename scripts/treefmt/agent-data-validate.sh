@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
-# Refuses the agent data files when a plugin or skill would reach one harness
-# twice, or an entry contradicts itself. treefmt hands this script the two
-# files; every rule spans both, so it always reads both from the repository
-# root and ignores the list it is handed.
-#
-#   plugins: every id in one entry shares its @suffix (that suffix is the
-#            marketplace name); no plugin id twice; no marketplace repo twice
-#            within one harness's reach (Claude Code: claude + codex_and_claude;
-#            Codex: codex + codex_and_claude)
-#   skills:  no repo, slug or skill twice; no Hermes identifier in two profiles;
-#            no whole-repository npx entry whose owner/repo is a marketplace repo
-#            reaching the same harness (a path entry takes a subset on purpose)
+# Refuses the agent data files when a plugin or skill would reach one harness twice.
+# Every rule spans both files, so it reads both from the repository root.
 
 set -euo pipefail
 

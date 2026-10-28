@@ -1,23 +1,12 @@
--- Whether auto-save.nvim may write a buffer, and the flag that tells conform
--- an automatic write is under way (spec 5.3, item 42).
---
--- claudecode.nvim opens a proposed edit in a scratch buffer and treats a write
--- as "accepted". Auto-save fires on a timer, so without this rule an agent's
--- proposal is accepted by nobody, seconds after it appears.
+-- Keeps auto-save off claudecode proposed-edit buffers, where a write means "accept".
 
 local M = {}
 
---- Whether a buffer is safe for auto-save.nvim to write.
 ---@param bufnr integer
 ---@return boolean
 function M.should_save(bufnr)
-  -- claudecode marks the buffers it opens for a proposed edit, on both the
-  -- native and the unified diff paths, and the marker is what identifies them.
-  -- The buftype cannot: `acwrite` is shared, and refusing it would also stop
-  -- auto-save on Octo's issue and pull-request buffers, whose writes push to
-  -- GitHub, and on gitsigns' editable index diff, whose writes stage a hunk.
-  -- The legacy `(New)` proposal carries no marker but is `nofile`, which Neovim
-  -- refuses to write anyway.
+  -- Checks the claudecode marker rather than the `acwrite` buftype, because Octo and gitsigns
+  -- buffers use that buftype too and should still auto-save.
   return vim.b[bufnr].claudecode_diff_tab_name == nil
 end
 
@@ -26,18 +15,9 @@ end
 function M.mark_write(bufnr)
   vim.b[bufnr].autosave_write = true
 
-  -- auto-save.nvim drops the flag in its post event, but a `BufWritePre`
-  -- handler that throws escapes the write and that event never runs. A flag
-  -- left up would silently skip formatting on every later manual write of the
-  -- buffer, so the clear is scheduled here as well; on the normal path the post
-  -- event has already run by then and this is a no-op.
+  -- Also clear on a schedule, because a throwing `BufWritePre` skips the auto-save post event.
   vim.schedule(function()
-    -- `vim.schedule` is not an after-write barrier. An earlier `BufWritePre`
-    -- handler that yields (a wait, a nested write) pumps the event loop mid
-    -- write, which runs this callback while the write is still going. Clearing
-    -- here would let the format handler further down the chain read no flag and
-    -- format the automatic write. `SafeState` is the real barrier: it fires once
-    -- Neovim is idle again, which is necessarily after the write.
+    -- While a write is still running, wait for SafeState so the format hook still sees the flag.
     if vim.fn.state("x") == "" then
       M.clear_write(bufnr)
       return
@@ -52,7 +32,6 @@ function M.mark_write(bufnr)
   end)
 end
 
---- Drop the flag, if the buffer is still around to carry it.
 ---@param bufnr integer
 function M.clear_write(bufnr)
   if vim.api.nvim_buf_is_valid(bufnr) then

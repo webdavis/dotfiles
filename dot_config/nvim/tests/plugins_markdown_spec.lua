@@ -1,24 +1,9 @@
--- The keymap scope of the `markdown-plus.nvim` block in `lua/plugins/markdown.lua`.
---
--- The spec loads on `ft = "markdown"`, which says WHEN the plugin loads and
--- nothing at all about where its mappings apply: a `vim.keymap.set` with no
--- `buffer` option is global, so one markdown file used to replace `gd`, `]]`,
--- `[[`, `o`, `O` and five insert-mode keys in every buffer for the rest of the
--- session. The keys have to be buffer-local, and the whole set has to survive.
---
--- markdown-plus.nvim is absent under `nvim --clean`, so its module is faked. Its
--- `<Plug>` targets are therefore unmapped here, which is why the markdown arm
--- asserts the scope and target of each key rather than what pressing it does:
--- the real plugin's behavior is not under test, its reachability is. The
--- non-markdown arm does measure behavior, because the keys it cares about are
--- Vim's own motions and `--clean` has all of them.
+-- markdown-plus maps must stay buffer-local, because a global one would replace keys like `gd` and `o` in every buffer.
+-- The plugin is faked, so its `<Plug>` targets are unmapped and the markdown arm checks scope and target only.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
--- Every key that shadows a Vim built-in, with the target the spec points it at.
--- These ten are the defect: a global copy of any of them breaks an unrelated
--- buffer. The rest of the block is `<localleader>` keys, which are covered by
--- the "nothing global" assertion below rather than one row each.
+-- Every key that shadows a Vim built-in, with its target. The `<localleader>` keys fall under the nothing-global check.
 local SHADOWING_KEYS = {
   { mode = "n", lhs = "gd", rhs = "<Plug>(MarkdownPlusFollowLink)" },
   { mode = "n", lhs = "]]", rhs = "<Plug>(MarkdownPlusNextHeader)" },
@@ -32,15 +17,7 @@ local SHADOWING_KEYS = {
   { mode = "i", lhs = "<C-t>", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 }
 
--- How many buffer-local mappings onto a markdown-plus `<Plug>` target one
--- markdown buffer must end up with: the spec declares 63, two of which are
--- visual-mode ("v") and so are stored once in visual and once in select. Losing
--- a mapping in a refactor fails here instead of going unnoticed until a hand
--- reaches for the key. Only this configuration's own mappings are counted, so
--- what Neovim's markdown ftplugin adds to the same buffer cannot move it. The
--- table rows are gone from the count: they targeted `<Plug>(markdown-plus-
--- table-*)`, a spelling the plugin never registers (it uses `<Plug>(MarkdownPlus
--- Table*)`), so the plugin's own working defaults now cover those keys.
+-- 63 declared mappings, two of them visual and so stored in both visual and select mode.
 local MARKDOWN_PLUS_MAPPINGS_PER_BUFFER = 65
 
 local MODES = { "n", "x", "s", "i" }
@@ -63,8 +40,7 @@ local function with_markdown_plus(fn)
   assert(ok, err)
 end
 
----Open a buffer of `filetype` and fire `FileType` for it, which is what lazy.nvim
----does after loading an `ft` spec.
+---Open a buffer of `filetype` and fire `FileType`, as lazy.nvim does after loading an `ft` spec.
 ---@param filetype string
 ---@param lines string[]
 ---@return integer
@@ -98,9 +74,7 @@ local function mapping(mode, lhs)
   return type(found) == "table" and found or {}
 end
 
----Whether a right-hand side is one of markdown-plus's `<Plug>` targets. The
----plugin spells them two ways: `<Plug>(MarkdownPlusBold)` for most features and
----`<Plug>(markdown-plus-table-create)` for the table ones.
+---Whether `rhs` is a markdown-plus `<Plug>` target, in either of its two spellings.
 ---@param rhs any
 ---@return boolean
 local function is_markdown_plus_target(rhs)
@@ -110,8 +84,7 @@ local function is_markdown_plus_target(rhs)
   return rhs:find("MarkdownPlus", 1, true) ~= nil or rhs:find("markdown-plus-table", 1, true) ~= nil
 end
 
----Every mapping whose right-hand side is one of markdown-plus's `<Plug>` targets,
----taken from the global tables of all four modes the spec maps in.
+---Every global mapping, in the four modes the spec maps, that points at a markdown-plus target.
 ---@return string[]
 local function global_plug_mappings()
   local leaked = {}
@@ -172,8 +145,6 @@ return {
   end,
 
   ["a Lua buffer opened after a markdown buffer keeps Vim's own gd, ]] and [["] = function()
-    -- The measurement from the audit, inverted into a test. Before the fix all
-    -- three stood still because a `<Plug>` target had replaced them globally.
     with_markdown_plus(function()
       open("markdown", { "# One", "", "## Two" })
 
@@ -199,9 +170,7 @@ return {
       open("markdown", { "# One" })
       local bufnr = open("lua", LUA_LINES)
       for _, key in ipairs(SHADOWING_KEYS) do
-        -- Not "unmapped": Neovim itself ships a global insert-mode `<Tab>`
-        -- (`vim.snippet.jump if active, otherwise <Tab>`). What must be gone is
-        -- the markdown mapping, at which point Vim's own behavior is back.
+        -- Neovim ships its own global insert-mode `<Tab>`, so check that the markdown mapping is gone.
         local found = mapping(key.mode, key.lhs)
         assert(found.buffer ~= 1, ("%s %s is buffer-local in a Lua buffer"):format(key.mode, key.lhs))
         assert(
@@ -214,8 +183,7 @@ return {
   end,
 
   ["a second markdown buffer gets the mappings too"] = function()
-    -- A one-shot `FileType` autocmd, or a set applied only to the buffer that
-    -- loaded the plugin, would leave every later markdown file bare.
+    -- Every later markdown file needs the mappings too.
     with_markdown_plus(function()
       open("markdown", { "# One" })
       open("lua", LUA_LINES)

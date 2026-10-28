@@ -1,9 +1,4 @@
--- The project-local task provider in `lua/overseer/template/user/project_tasks.lua`.
---
--- The subject is what it accepts and what it refuses. A task file comes out of
--- someone's repository, so a malformed entry has to be skipped with a reason
--- rather than raising and taking the whole task picker down with it. These cases
--- drive the real generator against real files in a scratch directory.
+-- Drives the real generator against real files in a scratch directory.
 
 local provider = require("overseer.template.user.project_tasks")
 
@@ -55,10 +50,7 @@ return {
   end,
 
   ["the built task keeps the entry's name"] = function()
-    -- The builder dropped `name`, so two entries with the same command and
-    -- different environments both became a task called after the command. The
-    -- picker told them apart; the task list, notifications and saved bundles
-    -- did not.
+    -- Each task keeps the name the file gave it.
     local templates = generate({
       tasks = {
         { name = "Deploy staging", cmd = { "true" }, env = { TARGET = "stage" } },
@@ -96,8 +88,7 @@ return {
   end,
 
   ["a non-list tags is skipped, and siblings still load"] = function()
-    -- `"tags": 42` used to raise inside ipairs. Overseer catches that at the
-    -- provider level, so the whole file was discarded rather than the one entry.
+    -- A bad `tags` skips one entry, not the whole file.
     local templates, warnings = generate({
       tasks = { { name = "good", cmd = { "true" } }, { name = "bad", cmd = { "true" }, tags = 42 } },
     })

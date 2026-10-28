@@ -98,8 +98,6 @@ skill_is_installed() {
   [[ -f $skills_folder/$skill/SKILL.md ]]
 }
 
-# --- npx entries: owner/repo[/path], every skill under it ---
-
 source_of() {
   local repository=$1
   cut -d/ -f1,2 <<<"$repository"
@@ -110,8 +108,8 @@ path_within() {
   cut -d/ -f3- -s <<<"$repository"
 }
 
-# The names the skills CLI's lock file holds for a repository, or for one path
-# inside it. The lock is the only place those names exist.
+# Prints the skill names the skills CLI lock file holds for a repository or one path inside it.
+# Only the lock file records those names.
 lock_skill_names_of() {
   local repository=$1
   if [[ ! -f $skills_lock ]]; then
@@ -190,8 +188,6 @@ install_missing_npx_entries() {
   done 3< <(non_blank_lines_of "$npx_entries")
 }
 
-# --- clawhub entries ---
-
 install_from_clawhub() {
   local skill=$1 slug=$2
   local work_folder status=0
@@ -226,8 +222,6 @@ install_missing_clawhub_entries() {
     install_missing_skill_from_clawhub "$slug" "$skill"
   done 3< <(non_blank_lines_of "$clawhub_entries")
 }
-
-# --- links: store skills into Claude Code and the Hermes profiles ---
 
 hermes_home_of() {
   local profile=$1
@@ -311,8 +305,6 @@ link_store_skills() {
     link_matching_skills "$match" "$into_claude" "$profiles"
   done 3< <(non_blank_lines_of "$linked_entries")
 }
-
-# --- the Codex on-demand files ---
 
 line_is_an_error() {
   local line=$1

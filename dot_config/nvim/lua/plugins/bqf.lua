@@ -1,5 +1,5 @@
 return {
-  -- Quickfix preview, fzf filter and sign-based filtering over the native quickfix window.
+  -- Adds a preview, an fzf filter and sign-based filtering to the quickfix window.
   "kevinhwang91/nvim-bqf",
   ft = "qf",
   config = function()

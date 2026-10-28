@@ -1,10 +1,4 @@
--- What `lua/plugins/substitute.lua` hands lazy.nvim.
---
--- The range family has to stay off `<leader>s`, which is the snacks picker
--- group: an operator mapped there consumes the group's prefix and all 23 of its
--- keys stop answering. And the substituted text has to reach yanky, which owns
--- `y`, `p` and `P` in this configuration, or a substitute silently bypasses the
--- yank ring that `<leader>p` reads.
+-- Range maps stay off `<leader>s`, the snacks picker group, and substituted text reaches the yanky ring.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
@@ -52,8 +46,7 @@ return {
   end,
   ["the substituted text is handed to yanky"] = function()
     local opts = spec().opts
-    -- A function, not a table: yanky is a dependency, so its integration module
-    -- exists only once lazy.nvim has loaded the plugin and evaluates `opts`.
+    -- A function, because the yanky integration module exists only after lazy.nvim loads yanky.
     assert(type(opts) == "function", "opts is a table, so it is resolved before yanky is loaded")
 
     local asked = false

@@ -1,13 +1,4 @@
-# mdformat Configuration File
-
-# Options: "keep", "no", INTEGER
 wrap = 120
-
-# Number ordered lists consecutively.
 number = true
-
-# Use Linux/macOS line endings.
 end_of_line = "lf"
-
-# Validate that the rendered HTML is consistent.
 validate = true

@@ -1,13 +1,5 @@
--- The `:ReviewLedger` awk program (spec 7.7).
---
--- There is no Lua parser to test: the command shells out to ONE awk program, so
--- these cases drive that same program rather than a copy of it. `config.keymaps`
--- exports it for exactly this reason; `map()` is stubbed because the file is a
--- side-effecting config file, not a module.
---
--- Five rows, not the three the format needs, so the banged case asserts a count
--- the default case cannot reach by accident, and so both closed dispositions
--- (`FIXED` and `FIXED-NOTEST`) are represented.
+-- Drives the real awk program from config.keymaps, with `map()` stubbed.
+-- Five rows, so the banged case asserts a count the default cannot reach, and both closed dispositions appear.
 
 local rows = {
   "| id | step | severity | summary | disposition | evidence |",
@@ -19,9 +11,7 @@ local rows = {
   "| F5 | 6v | LOW | closed, and untestable | FIXED-NOTEST | 9abcdef, no testable surface |",
 }
 
--- A real file, not stdin: the fallback location comes from awk's own `FILENAME`
--- now, so the expectations stay path-shaped and the cases feed the program the
--- way the command feeds it.
+-- A real file, because the fallback location comes from awk FILENAME.
 local fixture_path
 
 local function write_register(lines)
@@ -54,8 +44,7 @@ local function run(all)
   return awk_over(fixture(), all)
 end
 
--- A markdown table cell may hold a pipe two ways: escaped, and inside a code
--- span. Splitting on the raw character shifts every column after it.
+-- A cell can hold a pipe escaped or inside a code span.
 local location_rows = {
   "| F1 | 6v | LOW | a version bump to v1.2.3:45 landed | ACCEPTED | rationale |",
   "| F2 | 6v | LOW | see https://x.y/z:80 for the report | ACCEPTED | rationale |",
@@ -100,10 +89,6 @@ return {
     assert(lines[4] == fixture() .. ":6: F4 LOW FIXED: closed with no path token", "got " .. tostring(lines[4]))
   end,
 
-  -- `complete = "file"` means Neovim expands the argument BEFORE the callback
-  -- sees it, exactly as `:edit` does. Expanding it a second time unescapes what
-  -- that first pass already unescaped, so a register whose name carries a
-  -- backslash is looked for under the wrong name and never read.
   -- A location is a path-shaped token, not any word carrying a colon and digits.
   ["reads a version number as prose, not as a location"] = function()
     local register = write_register(location_rows)
@@ -127,10 +112,6 @@ return {
     assert(lines[4]:find("^src/first%.lua:12: F4 LOW ACCEPTED: "), lines[4])
   end,
 
-  -- A real register carries this shape: the possessive follows the location.
-  -- A column number belongs to neither the filename nor the line.
-  -- Splitting on whitespace cut a delimited path in half and pointed quickfix at
-  -- a file whose name is the tail of the real one.
   ["keeps a delimited path holding a space in one piece"] = function()
     local lines = awk_over(write_register(location_rows), 0)
     assert(lines[7]:find("^src/my file%.lua:4: F7 LOW ACCEPTED: "), lines[7])
@@ -146,9 +127,7 @@ return {
     assert(lines[5]:find("^hooks%.rs:2757: F5 LOW ACCEPTED: "), lines[5])
   end,
 
-  -- A run of N backticks opens a span that only a run of N closes, so a doubled
-  -- delimiter is one span rather than two toggles, an unmatched run is literal
-  -- text, and a backslash inside a span is not an escape.
+  -- Only a run of N backticks closes a run of N. An unmatched run is literal text.
   ["reads a doubled backtick delimiter as one span"] = function()
     local lines = awk_over(write_register(piped_rows), 0)
     assert(lines[3]:find("F3 LOW ACCEPTED: a doubled span ``left|FIXED`` inside it", 1, true), lines[3])
@@ -188,9 +167,6 @@ return {
     assert(#info.items == 1, "entries: " .. #info.items)
   end,
 
-  -- awk's `-v` runs escape processing over the value, so a register path holding
-  -- a literal backslash-n arrived at the program as a real newline and split the
-  -- record it was supposed to prefix.
   ["keeps a backslash in the register path out of awk's escape processing"] = function()
     local dir = vim.fn.tempname()
     vim.fn.mkdir(dir, "p")
@@ -206,12 +182,7 @@ return {
     assert(listed == vim.fn.resolve(register), "filename: " .. listed)
   end,
 
-  -- The id is matched in its COLUMN, never as a substring of the whole output.
-  -- Every line begins with the register's own path, that path carries a random
-  -- component, and a two-character needle finds itself inside one sooner or
-  -- later: CI drew the temp directory `nvim.runner/cF5NkO` and this case read
-  -- its own fixture path as an F5 row. Two open rows is the behaviour anyway,
-  -- so the count carries most of the assertion.
+  -- Match the id in its column, because the random temp path can contain it.
   ["reads FIXED-NOTEST as closed as well, so the skip is a prefix match"] = function()
     local open = run(0)
     assert(#open == 2, "open entries: " .. #open .. ": " .. table.concat(open, "\n"))

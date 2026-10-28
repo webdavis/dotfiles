@@ -1,28 +1,8 @@
-{{- /* controls.json: the runtime rendering of
-.chezmoidata/posture_controls.yaml, read on every tick by `posture poll`.
-It lives in ~/.local/libexec/posture so the pipeline-integrity watch and
-known-good manifest cover it: this file decides WHAT the posture poller
-monitors, so it is part of the monitor's body.
-
-A posture.controls data change reaches the machine at the next operator-run
-full apply, alongside the known-good manifest refresh.
-
-Validation mirrors the tier-guard discipline of the Tier 1/2 runners: any
-malformed record ABORTS the render (and with it the apply), naming the record.
-A posture control is verify BY DEFINITION (the poller only READS state), so
-any other tier is refused outright. The poller re-validates the deployed file
-at runtime and pages a monitoring gap on a bad one, so both halves fail
-closed. `index`, never the bare dotted form, for every optional field: the
-dotted form errors on absent keys; a blank scalar is nil and would stringify
-to the literal text <nil>, so blank is its own refusal, never conflated with
-absent. The reader/domain table below must match the poller's reader_domain
-function; the poller-vs-data agreement test holds the two together. */ -}}
+{{- /* Optional fields use `index`: the dotted form errors on absent keys. */ -}}
 {{- if not (hasKey .posture "controls") -}}
 {{-   fail "posture_controls.yaml: posture.controls is missing" -}}
 {{- end -}}
-{{- /* The top-level shape, fail-closed: a blank key (nil) and an empty list
-would both render cleanly (range over either is zero iterations) into a file
-that monitors nothing. A blank control set is not an empty control set. */ -}}
+{{- /* A blank or empty control list would render a file that monitors nothing. */ -}}
 {{- if kindIs "invalid" .posture.controls -}}
 {{-   fail "posture_controls.yaml: posture.controls is blank; a blank control set is not an empty one, declare the verify-tier records" -}}
 {{- end -}}
@@ -39,10 +19,7 @@ that monitors nothing. A blank control set is not an empty control set. */ -}}
       "pgrep_lulu_extension" (list "running" "stopped")
       "lulu_rule_present" (list "present" "absent")
       "lulu_rule_resolved_present" (list "present" "absent") -}}
-{{- /* The readers that consume a per-record target (the absolute binary path
-whose LuLu rule must exist). Required there, forbidden everywhere else: a
-target on a targetless reader would be silently ignored data, which is how a
-mislabeled record hides. */ -}}
+{{- /* Readers that take a target, the binary whose LuLu rule must exist; others reject one so a mislabeled record shows. */ -}}
 {{- $readerTargets := dict
       "lulu_rule_present" true
       "lulu_rule_resolved_present" true -}}

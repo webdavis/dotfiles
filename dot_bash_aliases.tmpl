@@ -1,11 +1,4 @@
 # shellcheck shell=bash
-# Bash aliases sourced by ~/.bashrc inside the interactive block.
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Git wrappers          ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Migrated from [alias] in ~/.gitconfig on 2026-04-28. Bash forms
-# preferred to avoid the ~/.gitconfig alias namespace entirely.
 
 alias ga='git add'
 alias gcm='git checkout main'
@@ -22,48 +15,29 @@ alias gunstage='git restore --staged'
 alias grecent='git for-each-ref --sort=-committerdate --count=10 --format="%(refname:short)" refs/heads'
 alias gwhoami='git config --get user.name'
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Navigation            ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-# zoxide's `z` stands in for cd. Its init runs later in ~/.bashrc than this
-# file is sourced, which an alias does not mind: it expands when it is used.
+# zoxide loads later in ~/.bashrc; the alias expands only when used, so the order works.
 alias cd='z'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Listing               ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-# --icons takes an optional WHEN value and eza's parser eats the NEXT argv
-# word for it, so `ll dir/` fails with "invalid value 'dir/' for '--icons'"
-# unless the value is attached with =.
+# --icons needs its value after =, or eza reads the next word as the value.
 alias ls='eza --icons=auto'
 alias ll='eza -la --git --icons=auto'
 alias la='eza -a --icons=auto'
 alias lt='eza --tree --level=2 --icons=auto --git-ignore'
 alias tree='tree -C'
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Modern replacements   ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 alias bat='bat --color=always'
 alias du='dust'
 alias ps='procs'
 alias grep='grep --color=auto'
 alias p='python3'
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Confirm before clobber┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 alias cp='cp -i'
 alias mv='mv -i'
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Shortcuts             ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-# The same action the prefix+ctrl+h chord fires, so the label and the working
-# directory stay in the plugin manifest rather than being repeated here.
+# Runs the prefix+ctrl+h chord's action, so its label and folder live in the plugin manifest.
 alias h='herdr plugin action invoke herdr-picker.jump_homelab'
 alias fman='compgen -c | fzf | xargs man'
 alias path='echo $PATH | tr ":" "\n"'
@@ -72,9 +46,6 @@ alias timer='echo "Timer started. Stop with Ctrl-D." && time cat'
 alias git-weekly='git diff --name-status "@{7 days ago}" | sort -u | grep -v "Templates" > weekly-review-files.md'
 {{- if eq .chezmoi.os "darwin" }}
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  macOS                 ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 alias ping='ping --apple-time'
 alias bu='brew upgrade --formula'
 alias rm='trash-put'

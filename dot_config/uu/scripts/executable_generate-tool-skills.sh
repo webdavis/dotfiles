@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
-# Regenerates the skills that two CLIs write themselves: the ElevenLabs set
-# (`elevenlabs generate-skills`, one elevenlabs-* folder per API group) and the
-# GitButler skill (`but skill install`). Both land in the shared store,
-# ~/.agents/skills, where the apply links them and Codex reads them.
-#
-# Prints one line per changed skill set and nothing when nothing changed.
-# Problems go to stderr as `error[kind]: message`. The apply runs this from
-# .chezmoiscripts/run_after_63-generate-tool-skills.sh.tmpl and the uu
-# `tool-skills` lane runs it after the lanes that upgrade the two CLIs, so a
-# new CLI version regenerates its skills without waiting for an apply.
+# Regenerates the ElevenLabs and GitButler skills, which their own CLIs write.
 
 set -euo pipefail
 
@@ -25,8 +16,6 @@ tool_is_installed() {
   local tool=$1
   command -v "$tool" >/dev/null 2>&1
 }
-
-# --- elevenlabs ---
 
 elevenlabs_folders_in() {
   local folder=$1
@@ -78,8 +67,6 @@ regenerate_elevenlabs_skills() {
   rm -rf "$generated"
   return "$status"
 }
-
-# --- gitbutler ---
 
 skill_version_in() {
   local folder=$1

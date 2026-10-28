@@ -2,7 +2,6 @@ return {
   "folke/noice.nvim",
   event = "VeryLazy",
   dependencies = {
-    -- if you lazy-load any plugin below, make sure to add proper `module="..."` entries
     "MunifTanjim/nui.nvim",
   },
   opts = {
@@ -15,8 +14,7 @@ return {
     },
     views = {
       hover = {
-        -- noice pins this view to "none" instead of leaving it to nui's 'winborder' default,
-        -- so point it at the option every other float follows.
+        -- noice gives this view no border, so it follows 'winborder' like every other float.
         border = { style = vim.o.winborder },
       },
     },
@@ -36,7 +34,7 @@ return {
     presets = {
       bottom_search = false,
       long_message_to_split = true,
-      inc_rename = false, -- the preset's plugin, inc-rename.nvim, is not installed
+      inc_rename = false, -- this preset needs inc-rename.nvim, which is not installed
       command_palette = {
         views = {
           cmdline_popup = {
@@ -63,9 +61,7 @@ return {
     -- stylua: ignore end
   },
   config = function(_, opts)
-    -- HACK: noice shows messages from before it was enabled,
-    -- but this is not ideal when Lazy is installing plugins,
-    -- so clear the messages in this case.
+    -- Clear messages from before noice loaded while Lazy is installing plugins.
     if vim.o.filetype == "lazy" then
       vim.cmd([[messages clear]])
     end

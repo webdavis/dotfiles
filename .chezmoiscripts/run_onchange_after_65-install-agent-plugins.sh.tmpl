@@ -197,11 +197,8 @@ hermes_plugin_names() {
   hermes plugins list --json </dev/null | jq -r '.[].name'
 }
 
-# `hermes plugins list` shows a plugin's own name, which can differ from the
-# catalog entry that installs it: hermes-memory-wiki lists as memory-wiki and
-# claude-subscription-directsdk as claude-subscription-directsdk-experimental
-# (measured 2026-10-11). So presence is the entry, the entry without its hermes-
-# prefix, or the entry with a suffix.
+# `hermes plugins list` can show a plugin without its hermes- prefix or with a suffix,
+# so this matches all three forms. For example, hermes-memory-wiki lists as memory-wiki.
 hermes_plugin_is_installed() {
   local installed_names=$1 name=$2
   list_includes "$installed_names" "$name" || list_includes "$installed_names" "${name#hermes-}" || grep -qE "^${name}-" <<<"$installed_names"
@@ -231,8 +228,6 @@ install_missing_hermes_plugins() {
   return "$status"
 }
 
-# The default profile lives in ~/.hermes and takes no -p; every other profile
-# lives under ~/.hermes/profiles/<name>.
 hermes_home_of() {
   local profile=$1
   if [[ $profile == default ]]; then
@@ -252,9 +247,8 @@ hermes_in_profile() {
   fi
 }
 
-# Hermes seeds its bundled skills into every profile. The profiles below get
-# only what the data gives them, so each one opts out once; the marker file is
-# what makes the opt-out stick across Hermes updates.
+# Hermes copies its bundled skills into every profile.
+# The marker file keeps this opt-out in place across Hermes updates.
 opt_profile_out_of_bundled_skills() {
   local profile=$1
   local marker
@@ -274,11 +268,8 @@ opt_profiles_out_of_bundled_skills() {
   return "$status"
 }
 
-# The hub lock keys each installed skill by name and records the identifier the
-# hub resolved it to, which is not always the one typed: a GitHub path comes back
-# as skills-sh/<path>, a skill the hub also carries in its own catalog as
-# official/<category>/<name> (measured 2026-10-11). So presence is the typed
-# identifier, the same without its skills-sh/ prefix, or the name.
+# The hub lock can record a resolved identifier other than the typed one, such as skills-sh/<path>,
+# so this also matches the bare path and the name.
 hermes_hub_identifiers_installed_in() {
   local profile=$1
   local lock

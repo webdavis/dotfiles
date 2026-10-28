@@ -1,8 +1,4 @@
--- What `lua/plugins/avante.lua` hands lazy.nvim.
---
--- Avante skips any key lazy.nvim still owns, so every declared key needs a
--- callable right hand side. Its own automatic maps stay disabled because the
--- upstream `<leader>a` family belongs to aerial in this configuration.
+-- Every key needs a callable rhs, and Avante keeps its own maps off because aerial owns `<leader>a`.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 

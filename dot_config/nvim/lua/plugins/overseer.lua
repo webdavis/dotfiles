@@ -8,7 +8,6 @@ local function toggle_runner(window)
     return
   end
 
-  -- Check for Overseer window.
   local task_list = require("overseer.task_list")
   local tasks = overseer.list_tasks({
     status = {
@@ -28,10 +27,7 @@ local function toggle_runner(window)
   end
 end
 
--- A window that always shows the newest task's output, rather than one task's
--- output frozen at the moment it was opened. Overseer builds it from any window;
--- this opens a split and hands that window over, and the view then follows every
--- task started afterwards.
+-- A split that always shows the newest task's output, following every task started later.
 local function output_view()
   local overseer = require("overseer")
   vim.cmd("botright split")
@@ -41,15 +37,10 @@ local function output_view()
         return task.time_start ~= nil
       end,
     },
-    -- The newest task, always. Overseer keeps whichever task the cursor was last
-    -- over in the sidebar, and preferring that pinned the view to it: hover an
-    -- older task, close the sidebar, and every task started afterwards was
-    -- ignored while the view sat on the old one.
+    -- Always the newest task, so the view never stays on the task last hovered in the sidebar.
     select = function(_, tasks)
-      -- By start sequence, not `time_start`: that is `os.time()`, so two starts
-      -- in one second compare equal and the earlier task stayed displayed.
-      -- time_start is only the tiebreak for a task carrying no sequence, which
-      -- means it was started with components of its own.
+      -- By start sequence, because `time_start` has one-second resolution and ties.
+      -- `time_start` breaks ties for tasks started without a sequence.
       table.sort(tasks, function(a, b)
         local sa = a.metadata and a.metadata.start_sequence or 0
         local sb = b.metadata and b.metadata.start_sequence or 0
@@ -63,9 +54,7 @@ local function output_view()
   })
 end
 
--- The other half of the template preload in `config`. A provider's cache_key
--- invalidates on its own file, so this is for the cases that miss: a recipe added
--- to a justfile further up the tree, or a template edited in this config.
+-- Catches what a provider's cache_key misses, such as a recipe added to a justfile further up the tree.
 local function refresh_templates()
   local overseer = require("overseer")
   local dir = vim.uv.cwd()
@@ -85,22 +74,8 @@ return {
   "stevearc/overseer.nvim",
   dependencies = { "webdavis/pns.nvim" },
   opts = {},
-  -- Every command overseer registers itself (overseer/init.lua `commands`) plus
-  -- the five this file's `config` creates, minus `OverseerShell`, which gets the
-  -- loader below instead. A command defined only inside `config` cannot trigger
-  -- the load unless its name is here, so it would simply not exist until
-  -- something else loaded the plugin.
-  --
-  -- Every name left here survives a placeholder. lazy's placeholder is
-  -- `nargs="*"` and replays the command from `event.fargs`, EXCEPT when the real
-  -- command's `nargs` contains `1` or `?`, where it replays the raw `event.args`
-  -- untouched (lazy/core/handler/cmd.lua). So the `nargs="?"` five
-  -- (`OverseerDeleteBundle`, `OverseerLoadBundle`, `OverseerOpen`,
-  -- `OverseerSaveBundle`, `OverseerToggle`) and the `nargs=0` four
-  -- (`OverseerClose`, `OverseerRestartLast`, `OverseerTaskAction`,
-  -- `OverseerWatchRun`) are all safe. `OverseerRun` is `nargs="*"`, but
-  -- `commands._run_template` reads only `fargs`, which is the one thing the
-  -- placeholder reproduces faithfully.
+  -- Every command overseer and `config` define, so any of them loads the plugin.
+  -- `OverseerShell` gets its own loader below.
   cmd = {
     "OverseerClose",
     "OverseerDeleteBundle",
@@ -113,59 +88,33 @@ return {
     "OverseerToggle",
     "OverseerWatchRun",
   },
-  -- `OverseerShell` is the one command here that reads the RAW argument string:
-  -- `commands._run_shell` takes `params.args` and makes it the task's `cmd`. A
-  -- placeholder hands `event.fargs` to `nvim_cmd` as a LIST, and that API keeps
-  -- each element as one argument while rebuilding the `args` STRING by joining
-  -- them with a single space. So `fargs` arrives intact and `args` does not,
-  -- which is why `OverseerRun` needs no loader and this does: the FIRST
-  -- `:OverseerShell! ls a\ b` reached overseer as `ls a b` and turned one
-  -- filename into two, and repeated spaces collapsed the same way. Once overseer
-  -- had loaded the real command took over and every later call was right, which
-  -- is what made it easy to miss.
-  --
-  -- So this declares what overseer declares and replays the untouched
-  -- `event.args`. Deleting the proxy BEFORE the load is what makes the replay
-  -- safe: overseer's `create_commands` would overwrite the name anyway, but if
-  -- the load ever failed to define it, re-dispatching into this same callback
-  -- would recurse instead of failing with E492.
+  -- lazy's placeholder rebuilds `args` by joining `fargs` with single spaces, which breaks the raw
+  -- string `OverseerShell` runs. This proxy replays the untouched `event.args` instead, and deletes
+  -- itself first so a failed load ends in E492 rather than recursion.
   init = function()
     vim.api.nvim_create_user_command("OverseerShell", function(event)
       vim.api.nvim_del_user_command("OverseerShell")
       require("lazy").load({ plugins = { "overseer.nvim" } })
       vim.cmd({
         cmd = "OverseerShell",
-        -- A bare `:OverseerShell` prompts for the command instead, and `nvim_cmd`
-        -- rejects an empty string as an argument ("expected non-whitespace"), so
-        -- the no-argument call has to pass no argument rather than one empty one.
+        -- `nvim_cmd` rejects an empty argument, and a bare `:OverseerShell` prompts for the command.
         args = event.args ~= "" and { event.args } or {},
         bang = event.bang or nil,
         mods = event.smods,
-        -- `shellcmdline` completion already expanded `%`, `#` and `<cword>` while
-        -- the command line was parsed, so `event.args` is a RESULT, not a pattern.
-        -- Expanding it again rewrote text the operator had escaped to keep: with a
-        -- buffer named, `:OverseerShell! printf '\%s\n' hello` became
-        -- `printf '<that buffer's path>s\n' hello`, and with no buffer name it
-        -- failed outright with E499. `nvim_cmd` expands by default, so the replay
-        -- has to turn it off.
+        -- `shellcmdline` completion already expanded `%`, `#` and `<cword>`, so expanding again
+        -- would rewrite text the user escaped.
         magic = { file = false },
       })
     end, {
-      -- Overseer's own declaration at the pin, copied field for field. It takes
-      -- no range and no count, so neither is forwarded.
+      -- Matches overseer's own declaration, which takes no range or count.
       bang = true,
       nargs = "*",
-      -- A built-in completion type, so the command line completes here without
-      -- loading overseer at all. The placeholder had to load the plugin to
-      -- answer the first `<Tab>`.
+      -- A built-in completion type, so completion works before overseer loads.
       complete = "shellcmdline",
       desc = "Run a shell command as an overseer task. With `!` the task is created but not started",
     })
   end,
-  -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
-  -- same rhs when the plugin loads, so there is no second copy in `config`. The
-  -- four `:`-prefixed rows leave the cmdline open for an argument, so they carry
-  -- no `silent`.
+  -- The four `:`-prefixed rows leave the cmdline open for an argument, so they carry no `silent`.
   keys = {
     {
       "<leader>or",
@@ -193,38 +142,18 @@ return {
     { "<leader>o%", view("vsplit"), desc = "Overseer: open task in vsplit" },
     { "<M-8>", view("vsplit"), desc = "Overseer: open task in vsplit" },
     { "<M-;>", view("float"), desc = "Overseer: open task in floating window" },
-    -- `<leader>ow`, not the `<M-[>` this was bound to until 2026-09-15. `<M-[>`
-    -- is also how a terminal opens an escape sequence (ESC `[` is CSI), so
-    -- whether Neovim ever sees it as a key depends on the terminal and on
-    -- `timeoutlen`. Every other Alt row here has a `<leader>o` twin; this one
-    -- had none, so it moves into the group rather than onto another Alt key.
+    -- `<M-[>` starts a terminal escape sequence, so watch-run lives in the `<leader>o` group.
     { "<leader>ow", "<cmd>OverseerWatchRun<cr>", desc = overseer_watch_run_desc, silent = true },
   },
   config = function()
     local overseer = require("overseer")
 
-    -- Neovim's default errorformat already parses luacheck and every other
-    -- `file:line:col: message` tool this repo runs. It does not parse this repo's
-    -- own Neovim test runner, which prints
-    -- `FAIL <spec>: <case>: <file>:<line>: <message>`: `%f` swallows the whole
-    -- prefix into the filename, so the entry jumps nowhere.
-    --
-    -- The two skipped fields are `%*[^:]`, not `%.%#`. A greedy `.*` runs to the
-    -- LAST `file:line` on the line, so an assertion message that mentions another
-    -- location sent the entry there instead of to the failure. Bounding both
-    -- fields to colon-free runs stops the prefix at the assertion's own location.
-    -- The cost is that a case name containing a colon does not match and falls
-    -- back to the stock format; the runner's own names avoid one for that reason.
+    -- Parses this repo's Neovim test runner output, `FAIL <spec>: <case>: <file>:<line>: <message>`.
+    -- `%*[^:]` stops at the first colon, so a location inside the message is never picked instead.
     local quickfix_errorformat = "FAIL %*[^:]: %*[^:]: %f:%l: %m," .. vim.o.errorformat
 
-    -- Two actions overseer does not ship.
-    --
-    -- `dispose all finished` is the manual sweep that stands in for the
-    -- `on_complete_dispose` component this config deliberately omits: tasks have
-    -- to outlive the upstream timeout, so something has to clear them by hand.
-    --
-    -- `copy command` answers "what did that actually run", which matters because
-    -- a template builds the argv rather than the operator typing it.
+    -- `dispose all finished` clears tasks by hand, since tasks are kept past overseer's dispose timeout.
+    -- `copy command` shows what a template actually ran.
     local task_actions = {
       ["dispose all finished"] = {
         desc = "Dispose every finished task, not only this one",
@@ -248,20 +177,15 @@ return {
       },
     }
 
-    -- Every option overseer exposes at the pinned commit is set here, on purpose:
-    -- the operator asked for the plugin fully featured. Where an option has a
-    -- preference rather than an obvious answer, the comment beside it says which
-    -- way it went and why. Nothing is left at a default silently.
     overseer.setup({
-      -- nvim-dap is present (xcodebuild.nvim depends on it), so preLaunchTask and
-      -- postDebugTask in a debug configuration run as real tasks.
+      -- nvim-dap is present, so preLaunchTask and postDebugTask run as real tasks.
       dap = true,
       -- WARN keeps template-provider errors visible without narrating every task.
       log_level = vim.log.levels.WARN,
       output = {
         -- A terminal buffer, so a task that draws progress bars or colors renders.
         use_terminal = true,
-        -- Clear on restart: a watch task's output should show this run, not a pile.
+        -- Clear on restart, so a watch task shows only the current run.
         preserve_output = false,
       },
       task_list = {
@@ -270,20 +194,15 @@ return {
         min_width = { 40, 0.1 },
         max_height = { 20, 0.1 },
         min_height = 8,
-        -- Light box-drawing rather than the heavy default.
         separator = "────────────────────────────────────────",
         child_indent = { "┃ ", "┣━", "┗━" },
-        -- format_standard over format_compact and format_verbose: it is what this
-        -- config has actually been rendering, so the familiar view is kept.
         render = function(task)
           return require("overseer.render").format_standard(task)
         end,
         sort = function(a, b)
           return require("overseer.task_list").default_sort(a, b)
         end,
-        -- Merged over the defaults case-insensitively, so only additions belong
-        -- here. Every action with no key of its own gets one, which is what makes
-        -- the list a full surface rather than a viewer.
+        -- Merged over the defaults case-insensitively, so only additions belong here.
         keymaps = {
           ["<C-r>"] = { "keymap.run_action", opts = { action = "restart" }, desc = "Restart task" },
           ["s"] = { "keymap.run_action", opts = { action = "start" }, desc = "Start task" },
@@ -315,7 +234,6 @@ return {
           [";"] = "keymap.toggle_preview",
         },
       },
-      -- Two actions this config needs that overseer does not ship. See below.
       actions = task_actions,
       form = {
         border = "rounded",
@@ -337,54 +255,36 @@ return {
         },
       },
       component_aliases = {
-        -- on_complete_dispose is deliberately absent, and is the one place this
-        -- alias must stay spelled out: OverseerRestartLast, the
-        -- <M-7>/<M-8>/<M-;> openers and the bundle commands all look up a
-        -- FINISHED task, so tasks have to outlive the upstream five-minute
-        -- dispose timeout. The "dispose all finished" action is the manual sweep
-        -- that replaces it.
+        -- Leaves out on_complete_dispose, because OverseerRestartLast, the openers and the bundle
+        -- commands need finished tasks. The "dispose all finished" action clears them by hand.
         default = {
           "on_exit_set_status",
           "pns.report",
           { "on_complete_notify", system = "unfocused" },
           {
             "on_output_quickfix",
-            -- Without this every task replaces the quickfix with its entire
-            -- output as unnavigable text, clobbering whatever was there. Keep
-            -- only the lines that parse as a location.
+            -- Keeps only lines that parse as a location instead of replacing the quickfix with all output.
             items_only = true,
             set_diagnostics = true,
             open_on_match = true,
           },
-          -- Paired with set_diagnostics above. Fires only when the errorformat
-          -- matched something, so a clean run leaves no diagnostics behind.
+          -- Fires only when the errorformat matched, so a clean run leaves no diagnostics.
           { "on_result_diagnostics", remove_on_restart = true },
-          -- Orders the live output view; see the component for why
-          -- time_start cannot.
+          -- Stamps each task's start order, which the live output view sorts by.
           "user.start_sequence",
-          -- The live equivalent of the dead `open_on_start = true` this config
-          -- used to pass. `on_start` has to be "always": its own default,
-          -- "if_no_on_output_quickfix", means it would never fire here, because
-          -- every task in this alias carries on_output_quickfix. Docked rather
-          -- "horizontal" rather than the component's own "dock" default:
-          -- docking binds the window to the task list, and with the list closed,
-          -- which is the normal state here, starting a task never returned. A
-          -- split opens in 1.2 s, measured, and `focus = false` keeps the cursor
-          -- in the buffer being worked in.
+          -- `on_start = "always"`, because its default never fires when on_output_quickfix is present.
+          -- A horizontal split, because a docked window needs the task list open.
           { "open_output", on_start = "always", direction = "horizontal", focus = false },
         },
         -- Tasks read out of a .vscode/tasks.json.
         default_vscode = {
           "default",
           "on_result_diagnostics",
-          -- A VS Code task's diagnostics come from its problem matcher rather
-          -- than this config's errorformat, so on_output_quickfix in `default`
-          -- never sees them. This is the route that does.
+          -- A VS Code task's diagnostics come from its problem matcher, not this config's errorformat.
           { "on_result_diagnostics_quickfix", open = true },
         },
-        -- Tasks the vim.system and jobstart wrappers create. These are other
-        -- plugins' background jobs, not the operator's, so they clean up after
-        -- themselves and never stack.
+        -- Tasks the vim.system and jobstart wrappers create. They are other plugins' background jobs,
+        -- so they clean up after themselves.
         default_builtin = {
           "on_exit_set_status",
           "on_complete_dispose",
@@ -398,34 +298,28 @@ return {
           { "on_result_diagnostics", remove_on_restart = true },
           "user.start_sequence",
         },
-        -- trouble.nvim is installed, so a task can route its diagnostics there
-        -- instead of the quickfix. Opt in per task with the task editor.
+        -- Routes a task's diagnostics to trouble.nvim instead of the quickfix.
         trouble = {
           "default",
           { "on_result_diagnostics_trouble", close = true },
         },
-        -- A watch task re-runs on every write, so it notifies only when the
-        -- verdict CHANGES and cancels itself if a run wedges.
+        -- A watch task re-runs on every write, so it notifies only when the verdict changes and
+        -- cancels a run that hangs.
         watched = {
           "on_exit_set_status",
           { "on_complete_notify", on_change = true, system = "unfocused" },
           { "on_output_quickfix", items_only = true, set_diagnostics = true },
           { "on_result_diagnostics", remove_on_restart = true },
-          -- The component written for exactly this: a long-running task that
-          -- produces new results periodically, notifying on the verdict rather
-          -- than on every completion.
           { "on_result_notify", on_change = true, system = "unfocused" },
           { "timeout", timeout = 600 },
           "user.start_sequence",
         },
-        -- A flaky task worth another go on its own. Not in `default`, where
-        -- restarting on every failure is a loop rather than a retry.
+        -- Kept out of `default`, where restarting on every failure would loop.
         retry = {
           "default",
           { "on_complete_restart", statuses = { "FAILURE" }, delay = 2000 },
         },
-        -- nvim-notify is installed, so a long task can show a live output
-        -- summary in the notification instead of only its final status.
+        -- Shows a live output summary in the notification.
         live_notify = {
           "on_exit_set_status",
           { "on_output_notify", output_on_complete = true, max_lines = 3 },
@@ -434,34 +328,18 @@ return {
           "user.start_sequence",
         },
       },
-      -- Empty on purpose. Our own templates already live under the default
-      -- `lua/overseer/template/**` glob, and this key is runtimepath-relative, so
-      -- it cannot reach a project directory. Project-local tasks come from the
-      -- `.overseer/` provider and from `.vscode/tasks.json` instead.
+      -- This config's templates live under the default `lua/overseer/template/**` glob. Project
+      -- tasks come from the `.overseer/` provider and `.vscode/tasks.json`.
       template_dirs = {},
-      -- Empty on purpose: this key only ever REMOVES providers, and every one of
-      -- the fourteen builtins is wanted. Measured in this repo, resolving all of
-      -- them costs 150 ms cold and 19 ms warm, so there is nothing to buy back.
+      -- This key only removes providers, and every builtin is wanted.
       disable_template_modules = {},
       template_timeout_ms = 3000,
       template_cache_threshold_ms = 200,
-      -- Every vim.system and jobstart call becomes a task, so a plugin's
-      -- background job is inspectable instead of invisible. list_tasks excludes
-      -- wrapped tasks unless asked for them, so they stay out of the task list
-      -- until `g.` reveals them.
+      -- Every vim.system and jobstart call becomes a task, so a plugin's background job is
+      -- inspectable with `g.` in the task list.
       --
-      -- The condition declines a command whose binary is not there. Overseer's
-      -- wrapper returns the task's process handle, which stays nil when the
-      -- spawn failed, and it swallows the ENOENT that `vim.system` documents as
-      -- a raise. A caller written against that contract, `vim.system(cmd):wait()`,
-      -- then indexes nil: rustaceanvim's health check crashed on exactly that
-      -- while probing for the absent optional `lspmux` binary. Declining the
-      -- unspawnable case hands it back to the builtin, which raises as
-      -- documented, and leaves every command that can actually run wrapped.
-      --
-      -- The condition guards both wrappers, and `jobstart`'s string form always
-      -- spawns the shell, so it can never hit the nil-handle defect this guards
-      -- against: it is accepted outright rather than checked against PATH.
+      -- A table command whose binary is missing goes to the builtin, which raises as documented.
+      -- overseer's wrapper would return a nil handle instead. A string `jobstart` always spawns the shell.
       experimental_wrap_builtins = {
         enabled = true,
         condition = function(cmd)
@@ -474,20 +352,10 @@ return {
       },
     })
 
-    -- The generic errorformat is a task DEFAULT, not a component parameter.
-    -- `on_output_quickfix.errorformat` carries `default_from_task`, which fills
-    -- in only when the component does not set it, so pinning it in the alias
-    -- overrode every template that ships one of its own: a Cargo error resolved
-    -- to the nonexistent `--> src/lib.rs` buffer instead of to `src/lib.rs:2:3`.
-    -- Setting it here leaves a template's own format in place and supplies ours
-    -- to the templates with none.
+    -- The generic errorformat is set as a task default, so a template's own format still wins.
     overseer.add_template_hook(nil, function(task_defn)
-      -- Overseer expands aliases before calling a hook, so `components` IS the
-      -- shared alias table. Component initialization fills `default_from_task`
-      -- into those params IN PLACE, so the first task built wrote its resolved
-      -- errorformat into the table every later task shares: an ordinary task
-      -- first made Cargo inherit the generic format despite shipping its own,
-      -- and Cargo first contaminated ordinary tasks. Each task gets its own copy.
+      -- `components` is the shared alias table, and initialization writes into it, so each task
+      -- gets its own copy.
       task_defn.components = vim.deepcopy(task_defn.components)
 
       local defaults = task_defn.default_component_params or {}
@@ -497,25 +365,12 @@ return {
       end
     end)
 
-    -- Re-running a gate should replace the last run of it, not stack a second
-    -- copy beside it. `unique` does that, and a template hook is how a component
-    -- reaches templates this config does not own. Scoped to the `just` provider
-    -- because that is where the repeat-a-gate habit lives; ad-hoc shell commands
-    -- and VS Code tasks are left alone, since two of those side by side is often
-    -- the point.
+    -- `unique` makes re-running a `just` recipe replace its last run instead of stacking a copy.
     overseer.add_template_hook({ module = "^just$" }, function(task_defn, util)
-      -- `unique` compares task NAMES, and every worktree of this repository
-      -- offers the same recipes, so `just test` started in one stopped and
-      -- disposed the run in another. Putting the directory in the name is what
-      -- makes that comparison see two different tasks.
-      -- The pinned `just` builder returns `cmd` and `cwd` and NO name, so
-      -- interpolating `task_defn.name` gave every recipe the same `nil (<cwd>)`
-      -- and `unique` disposed whichever was already running. The command is what
-      -- distinguishes them when the builder names nothing.
+      -- `unique` compares names, so the name carries the directory to keep worktrees apart, and the
+      -- command when the `just` builder gives no name.
       if task_defn.cwd then
-        -- json over a space join: joining argv threw the argument boundaries
-        -- away, so a two-parameter recipe called with {"a b", "c"} and with
-        -- {"a", "b c"} produced one name and `unique` disposed the running one.
+        -- JSON keeps argument boundaries, so {"a b", "c"} and {"a", "b c"} get different names.
         local name = task_defn.name
           or (type(task_defn.cmd) == "table" and vim.json.encode(task_defn.cmd))
           or tostring(task_defn.cmd)
@@ -524,11 +379,8 @@ return {
       util.add_component(task_defn, { "unique", replace = true })
     end)
 
-    -- Every template provider runs on the first :OverseerRun in a directory, and
-    -- the `just` one shells out to `just --dump` for each justfile above the
-    -- cwd. Measured in this repo that is 150 ms cold against 19 ms warm, so this
-    -- moves the wait off the first keystroke. DirChanged as well as VimEnter,
-    -- because the templates a directory offers are the thing that changed.
+    -- Warms the template cache, because the first :OverseerRun runs `just --dump` for each justfile
+    -- above the cwd.
     vim.api.nvim_create_autocmd({ "VimEnter", "DirChanged" }, {
       group = vim.api.nvim_create_augroup("OverseerPreloadTemplates", { clear = true }),
       desc = "Overseer: warm the task template cache for this directory",
@@ -555,23 +407,8 @@ return {
       end
     end, {})
 
-    -- Task bundles.
-    --
-    -- Overseer shipped OverseerSaveBundle and OverseerLoadBundle until they were
-    -- removed; `bundles` is not a config key at the pinned commit and `bundle`
-    -- appears nowhere in the plugin's source. What survived is the pair the
-    -- feature was built on, `Task:serialize()` and `new_task()`, which is exactly
-    -- what the plugin's own resession extension uses. These three commands are
-    -- that same pair with a file behind it, so the capability is back without
-    -- taking on a session manager to get it.
-    --
-    -- Loading APPENDS; it does not replace the task list. Loading the same
-    -- bundle three times leaves three copies of each task. An ordinary load
-    -- starts them, so any task carrying a persisted `unique` component replaces
-    -- its previous instance as it starts and the list settles; a bang load
-    -- starts nothing, so its duplicates simply sit there pending. Clearing
-    -- first is the "dispose all finished" action, deliberately a separate
-    -- keystroke rather than something a load does on the operator's behalf.
+    -- Task bundles are tasks saved with `Task:serialize()` and restored with `new_task()`.
+    -- Loading a bundle adds to the task list, so run "dispose all finished" first for a clean list.
     local bundle_dir = vim.fs.joinpath(vim.fn.stdpath("state"), "overseer", "bundles")
 
     local function bundle_path(name)
@@ -589,7 +426,7 @@ return {
       return names
     end
 
-    -- A bundle with no name is this project's bundle, which is the common case.
+    -- A bundle with no name is this project's bundle.
     local function default_bundle_name()
       return vim.fs.basename(vim.uv.cwd() or "overseer")
     end
@@ -609,17 +446,12 @@ return {
       end
       local serialized = vim.tbl_map(function(task)
         local defn = task:serialize()
-        -- `Task:serialize()` drops `default_component_params`, and the built-in
-        -- "open output in quickfix" action reads those task defaults directly
-        -- rather than the component's resolved copy. Without them a restored
-        -- task's action fell back to the stock errorformat and targeted
-        -- `FAIL util_spec: assertion: actual.lua:42` instead of `actual.lua`.
+        -- `Task:serialize()` drops `default_component_params`, and the quickfix action reads them.
         defn.default_component_params = task.default_component_params
         return defn
       end, tasks)
       vim.fn.mkdir(bundle_dir, "p")
-      -- writefile over io.open: it writes the file in one call and reports failure
-      -- as a non-zero return rather than leaving a half-written bundle behind.
+      -- writefile reports failure as a non-zero return.
       if vim.fn.writefile({ vim.json.encode(serialized) }, bundle_path(name)) ~= 0 then
         vim.notify("Could not write bundle " .. name, vim.log.levels.ERROR, overseer_title)
         return
@@ -640,14 +472,9 @@ return {
         return
       end
       for _, params in ipairs(decoded) do
-        -- `Task:serialize()` keeps `from_template`, and `new_task` treats that
-        -- as "rebuild me from the template", which threw away everything the
-        -- bundle had saved: an edited command came back as the template's, with
-        -- the environment and any hand-added component gone, while the restore
-        -- still reported success. The saved definition IS the thing to restore.
+        -- Restores the saved definition rather than rebuilding it from its template.
         params.from_template = nil
         local task = overseer.new_task(params)
-        -- Bang means restore the tasks without running them.
         if not args.bang then
           task:start()
         end
@@ -670,21 +497,12 @@ return {
     end, { nargs = "?", complete = complete_bundle, desc = "Overseer: delete a task bundle" })
 
     vim.api.nvim_create_user_command("OverseerWatchRun", function()
-      -- `autostart = false` is load-bearing. `run_task` starts the task BEFORE
-      -- this callback runs, so components attached here miss their `on_start`:
-      -- the timeout never armed its timer on the first run, and only a restart
-      -- gave the watch the cancellation it promises. Attach first, then start.
+      -- `autostart = false`, so the components attached below see `on_start`.
       overseer.run_task({ name = "run script", autostart = false }, function(task)
         if task then
-          -- A watch task re-runs on every write, so it wants the `watched` set
-          -- rather than the everyday one: notify only when the verdict CHANGES,
-          -- and cancel a run that wedges instead of leaving it to sit. This
-          -- upserts by component name, so the template's own components stay and
-          -- only the ones `watched` names are re-parameterised.
+          -- `watched` notifies only when the verdict changes and cancels a hung run.
           task:set_components({ "watched" })
-          -- The template's `default` brings `open_output` with it, which would
-          -- open the output on start and leave the explicit split below opening
-          -- a second window on the same task.
+          -- The split below opens the output, so this drops the template's own opener.
           task:remove_component("open_output")
           task:add_component({ "restart_on_save", paths = { vim.fn.expand("%:p") } })
           task:start()

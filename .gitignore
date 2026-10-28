@@ -1,44 +1,32 @@
-# Ensure Bash secret files can never be committed no matter what.
 *bash_secret*
 
-# Ignore macOS Finder metadata.
 .DS_Store
 
-# Ignore Ruby project dependencies.
 vendor/**
 .vendor/**
 .ruby-lsp/**
 
-# Ignore Vim/Neovim swap files.
 *.sw*
 
 # Raycast exports and diagnostics.
 *.rayconfig
 *extension-diagnostics*
 
-# Claude Code session data.
 .claude/
 
-# Codex session data.
 .codex/
 
-# Git worktrees (isolated implementation workspaces).
 .worktrees/
 
-
-# Hermes secret-bearing plaintext backups + any stray age identity (never commit to a public repo).
+# Hermes backups and age identities hold plaintext secrets.
 *config.yaml.bak*
 *config.yaml.corrupt*
 *config.yaml.*.backup
 private_dot_hermes/backups/
 private_dot_hermes/**/pre-migration-*.zip
-# The age identity filename only (anchored to the basename in any directory). A bare `*key.txt`
-# overmatched unrelated names like hotkey.txt; `key.txt` catches the stray identity without that.
 key.txt
 
-# Neovim config: its own .gitignore carried .DS_Store, private/ and *.sw*; the
-# first and third are already global rules above, so only private/ is new here.
 dot_config/nvim/private/
 
-# Python bytecode herdr-picker's own pickers write beside their sources.
+# The pickers write Python bytecode beside their sources.
 __pycache__/

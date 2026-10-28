@@ -3,11 +3,8 @@
 {{- $authToken := (keepassxc "Twilio (webdavis) :: Auth Token").Password -}}
 #!/usr/bin/env bash
 
-# Logs the Twilio CLI in from KeePassXC, the scripted form of `twilio login`.
-# Runs again only when one of the two entries changes, because every run makes
-# Twilio mint a fresh API key for the CLI. The CLI keeps the secret in the
-# macOS Keychain; the auth token is on this process's command line while the
-# login runs, since the CLI takes it no other way without a terminal.
+# Runs only when a credential changes, because every login makes Twilio mint a fresh API key.
+# Without a terminal the CLI takes the auth token only on its command line.
 
 set -euo pipefail
 

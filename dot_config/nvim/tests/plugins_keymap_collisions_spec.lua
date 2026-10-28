@@ -1,18 +1,5 @@
--- Two owners for one key in one mode is a silent overwrite: whichever spec
--- lazy.nvim resolves last wins and the other key simply stops working, with no
--- warning at startup and nothing in `:messages`.
---
--- The scan reads the two places this configuration declares a key statically:
--- the `keys` list of every spec under `lua/plugins`, walked recursively so a
--- nested spec and a spec declared as a dependency are both reached, and the
--- `map()` calls in `lua/config/keymaps.lua`, collected by standing a recording
--- `map` in front of that file. A `keys` field may be a function, which lazy.nvim
--- calls at resolve time, so this calls it too.
---
--- Keys a third-party plugin installs from its own defaults are outside the scan,
--- because they exist only once that plugin has loaded. nvim-surround's `ys`,
--- `ds`, `cs` and visual `S` and nvim-various-textobjs' `i`/`a` family are the
--- two large sets in that category.
+-- Two owners for one key in one mode silently overwrite each other.
+-- Scans every spec `keys` list and the `map()` calls in config/keymaps.lua. Keys a plugin installs at load time are out of reach.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
@@ -20,8 +7,7 @@ local function overlapping_modes(mode)
   return mode == "v" and { "x", "s" } or { mode }
 end
 
--- todo-comments.lua requires snacks at file scope, so the module has to answer
--- something for the file to load at all.
+-- todo-comments.lua requires snacks at file scope.
 local function stub_snacks()
   package.preload["snacks"] = function()
     return setmetatable({}, {
@@ -32,8 +18,7 @@ local function stub_snacks()
   end
 end
 
----Every (mode, lhs) pair the configuration declares, each mapped to the list of
----sources that claim it, plus the files that could not be read.
+---Every (mode, lhs) pair mapped to the sources that claim it, plus unreadable files.
 local function survey()
   local real_preload = package.preload["snacks"]
   local real_loaded = package.loaded["snacks"]
@@ -132,8 +117,7 @@ return {
   end,
   ["the scan reaches both declaring places"] = function()
     local owners = survey()
-    -- One key from each source. A collector that stopped reading either place
-    -- would report no collisions at all, which is the failure this rules out.
+    -- One key from each source proves both sources were read.
     assert(owners["n <leader>p"], "no plugin spec keys were collected")
     assert(owners["n <C-s>"], "no config/keymaps.lua mappings were collected")
   end,

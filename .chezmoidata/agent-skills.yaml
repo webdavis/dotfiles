@@ -2,9 +2,7 @@
 # repo: owner/repo[/path] for npx; slug: @owner/skill for clawhub; skill: a store folder another tool writes.
 # on_demand: loads only when asked. agent: the subagent that gets it. hermes: profiles that link it from the store.
 # claude_desktop: zipped by `just claude-desktop-skills`. hermes: `hermes -p <profile> skills install <identifier>`.
-# A skill the hub refuses (its security scan: five of addyosmani's, herdr, moshi, home-assistant, kubernetes) or lists
-# stale (summarize-pro, last30days, 2026-10-11) reaches a profile through its npx or clawhub
-# entry's hermes: list instead.
+# A skill the Hermes hub refuses or lists stale reaches a profile through its npx or clawhub entry's hermes: list.
 skills:
   harnesses:
     claude: {}

@@ -1,21 +1,13 @@
 #!/usr/bin/env bash
-#
-# Run an apply and keep a readable transcript of it.
-#
-# Seventeen targets render vault secrets, so the apply stays non-verbose and any
-# diff content in the output is withheld and counted.
-#
-# `script` gives the apply a real terminal, which is what makes chezmoi draw its
-# passphrase prompt normally, and copies every byte to both the screen and the
-# capture.
+# Logs each apply without its diff lines, because some deployed files hold secrets.
+# The apply runs inside `script` so the passphrase prompt still gets a terminal.
 
 set -uo pipefail
 
 log_dir="${CHEZMOI_APPLY_LOG_DIR:-$HOME/.local/state/chezmoi-apply}"
 repo_root="$(cd -- "${BASH_SOURCE[0]%/*}/.." && pwd)"
 
-# Timestamp first so a listing sorts chronologically. No colons: not portable
-# in a path.
+# Timestamp first so a listing sorts by time; dashes keep the path portable.
 stamp="$(date -u +"%Y-%m-%dT%H-%M-%SZ")"
 log="$log_dir/$stamp.apply.log"
 
@@ -29,7 +21,7 @@ chmod 700 "$log_dir"
 raw="$(mktemp "$log_dir/.$stamp.raw.XXXXXX")"
 trap 'rm -f "$raw"' EXIT INT TERM
 
-# Withhold unified-diff content. '--- ' and '+++ ' are kept: they name paths.
+# Leaves out unified-diff content but keeps '--- ' and '+++ ' lines, because they name paths.
 is_content() {
   case $1 in
     '--- '* | '+++ '*) return 1 ;;
@@ -38,9 +30,7 @@ is_content() {
   esac
 }
 
-# Append the capture to the log, withholding content lines and counting them.
-# `|| [[ -n $line ]]` catches a final line with no trailing newline. The sed
-# strips terminal escape sequences: colour, erase, and cursor and mouse modes.
+# `|| [[ -n $line ]]` catches a final line with no trailing newline. The sed strips terminal escape sequences.
 filter_into_log() {
   local source_file=$1 line withheld=0
   while IFS= read -r line || [[ -n $line ]]; do
@@ -90,7 +80,6 @@ filter_into_log "$raw"
   fi
 } >>"$log"
 
-# A stable path to the newest run.
 ln -sfn "$log" "$log_dir/latest.apply.log"
 
 printf '\napply exit %d, log: %s\n' "$status" "$log_dir/latest.apply.log" >&2

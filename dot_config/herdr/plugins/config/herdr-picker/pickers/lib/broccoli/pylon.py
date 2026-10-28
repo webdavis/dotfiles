@@ -14,7 +14,7 @@ API = "https://api.usepylon.com/issues"
 
 
 def issues(days=30):
-    """Issues created in the last days, read only: this module never writes to Pylon."""
+    """Issues created in the last days; this module only reads Pylon."""
     folder = fixtures()
     if folder:
         return json.loads((folder / "pylon-issues.json").read_text())["data"]

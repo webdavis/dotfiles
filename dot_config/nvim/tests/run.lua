@@ -1,30 +1,9 @@
--- Headless Lua test runner for the custom_api specs (spec 6.3).
---
--- Usage: nvim --headless --clean -l tests/run.lua [--config <dir>] [<name>_spec]
---
--- `--config` names the CONFIG ROOT whose `lua/` goes on `package.path`, and it
--- defaults to this file's grandparent. That one argument is why `tests/` can
--- stay out of $HOME (it is chezmoiignored): the same runner tests the source
--- tree from `just test-nvim` and the deployed tree from the bootstrap, and the
--- Lua under test is whichever root it was pointed at. The spec files always
--- come from this file's own directory.
---
--- A spec file returns a table of `["what it does"] = function() ... end` cases
--- and asserts with plain `assert`. No plenary, no busted.
+-- Headless Lua test runner for the custom_api specs.
+-- Run it as nvim --headless --clean -l tests/run.lua [--config <dir>] [<name>_spec]
+-- `--config` names the config root whose `lua/` goes on `package.path`. Specs come from this file's directory.
+-- A spec returns a table of named case functions and asserts with plain `assert`.
 
--- GIT'S OWN REPOSITORY VARIABLES ARE TAKEN OUT OF THIS PROCESS FIRST.
---
--- A git hook exports `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` to every
--- command it runs, and this suite runs from this repository's own pre-commit
--- hook. A spec that builds a scratch repository inherits them, so its
--- `git init` no-ops and every git call it makes (its own, and the module's
--- under test) acts on the REAL repository instead: measured 2026-09-15, when
--- one spec committed its fixture file to the branch being committed.
---
--- Cleared HERE rather than per spec, because both halves of the leak have to
--- go: a spec can scrub the environment of children it spawns itself, and it
--- cannot scrub the one the code under test reads. Nothing in this suite has
--- any business being pointed at a repository it did not create.
+-- Clear the git hook variables, so scratch repositories and the code under test never touch the real repository.
 for _, name in ipairs({ "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE" }) do
   vim.env[name] = nil
 end
@@ -60,11 +39,7 @@ end
 
 local failures = 0
 
--- Not `print`: under `nvim -l` that routes through the message system, which
--- swallows the newline after a line exactly `columns` wide (80 by default, so a
--- case whose report lands on 80 characters merges into the next one) and leaves
--- the final line unterminated. `io.write` goes straight to stdout and is
--- flushed by `os.exit`.
+-- `io.write`, because `print` under `nvim -l` drops the newline after a line exactly `columns` wide.
 local function report(line)
   io.write(line, "\n")
 end
@@ -73,9 +48,7 @@ for _, path in ipairs(spec_files) do
   local spec = path:match("([^/]+)%.lua$")
   local cases = dofile(path)
 
-  -- A spec with no cases reports nothing and adds nothing to the failure count,
-  -- so gutting one would leave the run green and silent. Named, because the
-  -- aggregate run is where a gutted spec would otherwise disappear.
+  -- A spec with no cases fails by name, so a gutted spec cannot pass silently.
   if type(cases) ~= "table" or next(cases) == nil then
     error(spec .. " returned no cases")
   end

@@ -1,15 +1,8 @@
--- Reload a buffer when something outside Neovim writes its file (spec 5.4).
---
--- `checktime` on focus change and cursor movement never fires while Neovim
--- sits idle in one herdr pane and an agent writes the file from another, so
--- the file itself is watched. The augroup in `config/autocmds.lua` decides
--- which buffers get a watch; this module owns the handles.
+-- Reload a buffer when another process writes its file, even while Neovim sits idle.
 
 local M = {}
 
--- The live `vim.uv` fs_event handles, keyed by buffer number. Public because a
--- leaked second handle is invisible from anywhere else, and the spec asserts
--- against it.
+-- Live fs_event handles by buffer number, public so tests can count them.
 M.handles = {}
 
 local start
@@ -19,17 +12,7 @@ start = function(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local path = vim.uv.fs_realpath(name)
   if not path then
-    -- A path that still exists but does not resolve is the case worth saying
-    -- out loud: a watch that silently never starts is worse than no watch,
-    -- because the buffer then goes stale with nothing to show for it. A name
-    -- that resolves to nothing (an unwritten buffer, a deleted file) is the
-    -- ordinary case and stays quiet. Reached from the re-arm below it is also
-    -- the known ceiling: anything that leaves the buffer's own path resolving
-    -- to nothing stops the buffer following for good, measured on a writer that
-    -- unlinks the file and recreates it a tick or more later and on a rename of
-    -- a parent directory. Neovim says E211 on that `checktime`, and the
-    -- focus-change group in `config/autocmds.lua` still catches the file on the
-    -- next focus.
+    -- Warn only when the file exists but its path does not resolve.
     if name ~= "" and vim.uv.fs_lstat(name) then
       vim.notify_once(
         "auto_reload: cannot resolve " .. name .. ", buffer will not follow the file",
@@ -51,15 +34,8 @@ start = function(bufnr)
         M.unwatch(bufnr)
         return
       end
-      -- On a buffer with unsaved changes `checktime` prompts (W12) instead of
-      -- reloading, and this fires while Neovim sits idle, where before only a
-      -- focus change reached it. That prompt is Neovim's own answer to the
-      -- conflict, so it stands.
       vim.cmd("checktime " .. bufnr)
-      -- The watch is on the inode, so a writer that renames a new file into
-      -- place (most formatters, and any agent that writes a temp file and
-      -- moves it) leaves this handle on an inode nothing will ever touch
-      -- again. Re-arm after every event, on the path as it is now.
+      -- The watch follows the inode, so re-arm on the current path after each event.
       M.unwatch(bufnr)
       M.handles[bufnr] = start(bufnr)
     end)
@@ -68,8 +44,7 @@ start = function(bufnr)
   return handle
 end
 
--- Idempotent: a second call while a watch is live is a no-op, so the repeated
--- `BufWritePost` on one buffer cannot leak a handle per write.
+-- Idempotent, so each BufWritePost reuses the live handle.
 function M.watch(bufnr)
   if M.handles[bufnr] then
     return
@@ -77,7 +52,6 @@ function M.watch(bufnr)
   M.handles[bufnr] = start(bufnr)
 end
 
--- A no-op on a buffer that was never watched.
 function M.unwatch(bufnr)
   local handle = M.handles[bufnr]
   if not handle then

@@ -24,7 +24,7 @@ posture:
       reader: sysadminctl_guest
       expect: "disabled"
       remedy: "Disable it: System Settings → Users & Groups → Guest User"
-    # verify, not restarted: the operator may quit OverSight on purpose, so a stop pages instead.
+    # OverSight may be quit on purpose, so a stopped process sends an alert and is never restarted.
     - id: oversight
       description: "The OverSight microphone and camera monitor process"
       tier: verify
@@ -37,7 +37,7 @@ posture:
       reader: pgrep_lulu_extension
       expect: "running"
       remedy: "Re-enable it: System Settings → General → Login Items & Extensions → Network Extensions, then open -a LuLu (runbook: LuLu system extension approval)"
-    # Descriptions say mention, never allow rule: the reader proves only that a rule naming the binary exists.
+    # The reader proves only that a rule naming the binary exists, so descriptions say mention.
     - id: lulu_rule_tailscaled
       description: "The LuLu rule-archive mention of /usr/local/bin/tailscaled, existence-only (remote recovery path 2)"
       tier: verify

@@ -1,15 +1,4 @@
--- custom_api.autosave (spec 5.3, item 42): auto-save.nvim keeps its hands off
--- the buffers claudecode.nvim opens for a proposed edit, so a diff is resolved
--- by `<leader>Cy`/`<leader>Cn` and never by a write that fired on a timer, and
--- an automatic write announces itself so conform can stand down.
---
--- `should_save` identifies a proposal by the marker claudecode sets on it, not
--- by buftype: `acwrite` is a shared buftype that Octo and gitsigns also use for
--- buffers whose writes are real work, so rejecting it would disable auto-save
--- well outside claudecode.
-
--- Required per case rather than once at the top of the file, so a missing
--- module fails every case by name instead of aborting the run before the first.
+-- Required per case, so a missing module fails each case by name.
 local function autosave()
   return require("custom_api.autosave")
 end
@@ -18,8 +7,7 @@ local function scratch()
   return vim.api.nvim_create_buf(false, true)
 end
 
--- A real file buffer under Neovim's own temp tree, because the case below has to
--- perform an actual write for `BufWritePre` handlers to run at all.
+-- A real file buffer, because `BufWritePre` runs only on an actual write.
 local function file_buffer()
   local dir = vim.fn.tempname()
   assert(vim.fn.mkdir(dir, "p") == 1, "could not create " .. dir)
@@ -28,8 +16,7 @@ local function file_buffer()
   return buf
 end
 
--- Runs one automatic write of `bufnr` the way the plugin does, and reports what
--- a format handler sitting after `earlier` would have seen on the flag.
+-- Runs one automatic write and reports what a format handler after `earlier` saw on the flag.
 local function flag_seen_by_formatter(bufnr, earlier)
   local group = vim.api.nvim_create_augroup("AutosaveSpecWrite", { clear = true })
   if earlier then
@@ -56,19 +43,15 @@ local function flag_seen_by_formatter(bufnr, earlier)
 end
 
 return {
-  -- ── which buffers auto-save may write ──
 
-  -- claudecode marks every proposal buffer it opens, on both the native and the
-  -- unified diff paths (`diff.lua:710`, `diff_inline.lua:287` at the pin).
+  -- claudecode marks every proposal buffer, on both diff paths.
   ["a claudecode proposal buffer is not auto-saved"] = function()
     local buf = scratch()
     vim.b[buf].claudecode_diff_tab_name = "lsp.lua (proposed)"
     assert(autosave().should_save(buf) == false)
   end,
 
-  -- Octo gives every issue, pull request and discussion buffer `acwrite`, and
-  -- writing one pushes the edit to GitHub; gitsigns uses it for the editable
-  -- index diff. Neither carries claudecode's marker, and both keep auto-save.
+  -- Octo and gitsigns use `acwrite` for buffers whose writes do real work.
   ["an acwrite buffer without the marker is auto-saved"] = function()
     local buf = scratch()
     vim.bo[buf].buftype = "acwrite"
@@ -86,18 +69,13 @@ return {
     assert(autosave().should_save(buf) == true)
   end,
 
-  -- ── the write flag conform reads ──
-
   ["the write flag is up for the write itself"] = function()
     local buf = scratch()
     autosave().mark_write(buf)
     assert(vim.b[buf].autosave_write == true)
   end,
 
-  -- auto-save.nvim raises the flag before its write and drops it after, but a
-  -- BufWritePre handler that throws escapes that write and the post event never
-  -- runs. A flag left up would silently disable formatting for every later
-  -- manual write on the buffer, so raising it also schedules its own clear.
+  -- A flag left up would skip formatting on every later manual write.
   ["the write flag comes back down when the post event never fires"] = function()
     local buf = scratch()
     autosave().mark_write(buf)
@@ -113,27 +91,14 @@ return {
     assert(flag_seen_by_formatter(file_buffer(), nil) == true)
   end,
 
-  -- A `BufWritePre` handler that yields pumps the event loop, which runs anything
-  -- merely scheduled from the pre event. A clear that rides on `vim.schedule`
-  -- alone therefore lands BEFORE the format handler reads the flag, and the
-  -- automatic write is formatted after all.
+  -- A yielding handler runs scheduled callbacks before the format handler reads the flag.
   ["an automatic write is still flagged when an earlier handler yields"] = function()
     assert(flag_seen_by_formatter(file_buffer(), function()
       vim.wait(1)
     end) == true)
   end,
 
-  -- The two hazards together, which is the combination nothing else covers: the
-  -- flag is raised from inside an autocmd (so the scheduled clear sees an
-  -- executing autocommand and defers), an earlier handler yields (so that
-  -- deferral is actually taken), and a later one throws (so auto-save's post
-  -- event never arrives to clear it). `SafeState` is then the only thing left
-  -- that can drop the flag, and it has to.
-  --
-  -- The event is raised here rather than waited for: under `nvim -l` the editor
-  -- never returns to its main loop, so Neovim itself never emits `SafeState`.
-  -- What belongs to this config is the one-shot handler and what it does, and
-  -- that is what driving the event exercises.
+  -- Raises SafeState by hand, because under `nvim -l` Neovim never returns to its main loop.
   ["a write that yields and then throws drops the flag once SafeState arrives"] = function()
     local buf = file_buffer()
     local group = vim.api.nvim_create_augroup("AutosaveSpecSafeState", { clear = true })

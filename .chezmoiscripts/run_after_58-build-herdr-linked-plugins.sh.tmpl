@@ -18,8 +18,8 @@ readonly linked_plugins=(
 
 reported_plugin=''
 
-# The section header goes out with the first line about a plugin, so an apply
-# that finds every plugin current prints nothing.
+# Prints the section header with the first line about a plugin,
+# so an apply that finds every plugin current prints nothing.
 report_plugin_line() {
   local plugin_id=$1 text=$2
   if [[ $reported_plugin != "$plugin_id" ]]; then
@@ -74,8 +74,6 @@ build_plugin_release_binary() {
   (cd "$checkout" && "$cargo_bin" build --release --locked --quiet)
 }
 
-# The manifest is generated beside the build, under the gitignored target
-# directory, and copied into place only when it differs from the one herdr has.
 generated_manifest_path() {
   local checkout=$1
   printf '%s\n' "$checkout/target/generated-manifest/herdr-plugin.toml"
@@ -189,9 +187,7 @@ register_plugin() {
   plugin_is_registered "$plugin_id"
 }
 
-# Clones on a fresh machine, otherwise moves the checkout to the newest commit
-# on the default branch. A failed fetch keeps the current checkout, so an
-# offline apply still builds and registers what is there.
+# A failed fetch keeps the current checkout, so an offline apply still builds and registers it.
 update_plugin_checkout() {
   local plugin_id=$1 repo_url=$2 checkout=$3
   if ! checkout_is_a_git_repository "$checkout"; then
@@ -206,8 +202,8 @@ update_plugin_checkout() {
   check_out_latest_commit "$checkout"
 }
 
-# cargo is run even when nothing changed: it finishes at once on a current
-# build and repairs one that a failed earlier apply left stale.
+# Runs cargo even when nothing changed. It finishes at once on a current build
+# and repairs a build that an earlier failed apply left stale.
 build_plugin() {
   local plugin_id=$1 checkout=$2 previous_sha=$3
   local current_sha reason=''
@@ -269,8 +265,8 @@ install_linked_plugin() {
   report_plugin_line "$plugin_id" "registered $checkout with herdr."
 }
 
-# A plugin whose build or manifest fails is the owner's to fix, so the apply
-# fails once every plugin has had its turn.
+# Gives every plugin its turn, then fails the apply if any build or manifest failed.
+# Those failures need a fix by hand.
 main() {
   local plugin_index apply_status=0
   for ((plugin_index = 0; plugin_index < ${#linked_plugins[@]}; plugin_index += fields_per_linked_plugin)); do

@@ -98,25 +98,5 @@ return {
         },
       },
     })
-
-    -- map({
-    --   mode = "n",
-    --   lhs = "]k",
-    --   rhs = function()
-    --     todo_comments.jump_next({ keywords = todo_keywords })
-    --   end,
-    --   desc = "Jump to next todo-comments.keyword",
-    --   expr = true,
-    -- })
-    --
-    -- map({
-    --   mode = "n",
-    --   lhs = "[k",
-    --   rhs = function()
-    --     todo_comments.jump_prev({ keywords = todo_keywords })
-    --   end,
-    --   desc = "Jump to previous todo-comments.keyword",
-    --   expr = true,
-    -- })
   end,
 }

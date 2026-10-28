@@ -1,21 +1,9 @@
 ---@class custom_api.overseer
----Overseer task orchestration.
 local M = {}
 
----Turn a list of shell commands into ONE runnable task.
----
----Two shapes, because the callers have two needs.
----
----A single command stays a shell string. Every one-command caller here passes
----git format specifiers wrapped in single quotes
----(`--pretty=format:'%C(yellow)%h%C(reset)'`), which only mean anything to a
----shell; handing those to argv would run them literally.
----
----Two or more commands go to overseer's orchestrator strategy rather than being
----joined with `;`. `;` runs the next command whether or not the last one
----worked, so `git init ; gh repo create` created the GitHub repository even when
----`git init` had failed. The orchestrator runs them in order, STOPS at the first
----failure, and gives each step its own status and output.
+---Runs one shell command, or a list of them, as a single task.
+---One command runs as a shell string, so quoted git format specifiers work.
+---Several run in order through the orchestrator, which stops at the first failure.
 ---@param opts { cmds: string|string[] }
 function M.overseer_runner(opts)
   opts = opts or {}

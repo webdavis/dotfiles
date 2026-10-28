@@ -16,7 +16,7 @@ packages:
         - schpet/tap
         - twilio/brew
         - xdevplatform/tap
-      # Keep equal to `taps:`; the pre-bundle loop trusts each so `brew bundle` can load it.
+      # Lists every tap in taps again. brew bundle loads a tap only after it is trusted.
       trusted_taps:
         - antoniorodr/memo
         - buo/cask-upgrade
@@ -49,7 +49,7 @@ packages:
         - bore-cli
         - brightness
         - btop
-        # The tab-smart-rename herdr plugin runs on Bun (its README: Bun 1.2.23+).
+        # The tab-smart-rename herdr plugin runs on Bun.
         - bun
         - ca-certificates
         - carapace
@@ -251,8 +251,8 @@ packages:
     fnm:
       - node: "24"
         packages:
-          # Pinned to the version the plugin bundles ship. -sdk, not the metapackage: only it
-          # ships the `adapters-hooks` bin, and the two cannot coexist.
+          # Pinned to the version the babysitter plugins ship.
+          # Only this -sdk package provides the adapters-hooks command.
           - "@a5c-ai/babysitter-sdk@6.0.3"
           - "@agentclientprotocol/claude-agent-acp"
           - "@clawdbot/lobster"
@@ -270,7 +270,7 @@ packages:
           - agentmail-cli
           - backpass
           - clawhub
-          # Pinned: it commits unattended and is pre-1.0.
+          # Pinned because it makes commits on its own and is not yet stable.
           - "gnhf@0.1.49"
           - hyperframes
   cargo_git_tools:
@@ -294,7 +294,8 @@ packages:
       repo: webdavis/uu
       package: uu
 
-  # Linked rather than installed: their manifests are generated from this machine's config.
+  # Built from a local clone and linked into herdr,
+  # because their manifests come from this machine's config.
   herdr_linked_plugins:
     - id: herdr-process
       repo: webdavis/herdr-process
@@ -321,7 +322,7 @@ packages:
     - id: clauth
       repo: uwuclxdy/clauth/herdr-plugin
 
-  # Tools built from a clone under this home; both paths are home-relative.
+  # Tools built from a local clone. Both paths are relative to the home folder.
   source_builds:
     scalebar:
       source_dir: "workspaces/Ivy/webdavis/scalebar"

@@ -1,32 +1,14 @@
--- The `<leader>uG` Git Signs toggle declared in `lua/plugins/snacks.lua`.
---
--- gitsigns loads on file events, so with no file open it
--- is not loaded and `gitsigns.config` is not in `package.loaded`. The toggle's
--- `get` runs whenever snacks paints that entry, and a bare `require` there would
--- reach lazy.nvim's own package loader and pull gitsigns off its trigger, which
--- is exactly what the trigger is for. It reads `package.loaded` instead.
---
--- Under `--clean` gitsigns is not on `package.path`, so a `get` that did
--- `require` it would merely fail to find it and still answer false. The third
--- case therefore makes both modules loadable through `package.preload`, the
--- searcher `require` consults right after `package.loaded`, and records any
--- load: a `get` that loads either module on a run with gitsigns unloaded is the
--- premature load the trigger exists to prevent.
---
--- The toggles are declared inside the spec's `init`, on a `User VeryLazy`
--- autocommand, against the global `Snacks`. Both are faked here, so these cases
--- need neither snacks nor gitsigns running.
+-- The toggle `get` reads `package.loaded`, so painting the entry never loads gitsigns off its trigger.
+-- `Snacks` and gitsigns are faked, so no plugin runs.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
----Run the snacks spec's `init` with `Snacks` faked, and answer the toggle
----options table declared under `name`.
+---Run the snacks spec `init` with `Snacks` faked, and return the toggle options declared under `name`.
 ---@param name string
 ---@return table
 local function toggle_named(name)
   local captured = {}
-  -- Every `:map(lhs)` call answers something chainable; the lhs is not what
-  -- these cases are about.
+  -- Every `:map(lhs)` call returns something chainable.
   local chainable = {}
   chainable.map = function()
     return chainable
@@ -36,8 +18,7 @@ local function toggle_named(name)
       captured[opts.name] = opts
       return chainable
     end,
-    -- `.option`, `.animate`, `.new` and the rest all build a toggle and answer
-    -- the same chainable, and `.new` carries its options the same way.
+    -- Every builder returns the same chainable.
     __index = function(_, key)
       return function(...)
         local opts = select(key == "option" and 2 or 1, ...)
@@ -58,9 +39,7 @@ local function toggle_named(name)
   -- The callback also installs keymaps through the config's global helper.
   _G.map = function() end
 
-  -- The callback is called here rather than reached by firing the event.
-  -- `nvim_exec_autocmds` catches whatever an autocommand callback raises and
-  -- merely reports it, so a broken `init` would leave these cases green.
+  -- Call the callback directly, because `nvim_exec_autocmds` swallows its errors.
   local very_lazy
   local ok, err = pcall(function()
     vim.api.nvim_create_autocmd = function(event, opts)
@@ -88,8 +67,7 @@ local function toggle_named(name)
   return assert(captured[name], "no toggle named " .. name .. " was declared")
 end
 
----Run `fn` with `gitsigns.config` present in `package.loaded` under `signcolumn`,
----and restore whatever was there before.
+---Run `fn` with `gitsigns.config` loaded under `signcolumn`, then restore.
 local function with_gitsigns_loaded(signcolumn, fn)
   local saved = { package.loaded["gitsigns.config"] }
   package.loaded["gitsigns.config"] = { config = { signcolumn = signcolumn } }
@@ -98,10 +76,7 @@ local function with_gitsigns_loaded(signcolumn, fn)
   assert(ok, err)
 end
 
----Run `fn` with gitsigns unloaded but LOADABLE: `package.preload` stand-ins for
----`gitsigns.config` and `gitsigns` that append their name to `loads` when
----required. Restores `package.preload` and `package.loaded` afterwards, so a
----load the stand-ins did record does not leak into the next case.
+---Run `fn` with gitsigns unloaded but loadable through `package.preload` stand-ins that record each load.
 ---@param fn fun(loads: string[])
 local function with_gitsigns_loadable(fn)
   local names = { "gitsigns.config", "gitsigns" }
@@ -128,9 +103,7 @@ return {
       local value = toggle.get()
       assert(#loads == 0, "get loaded " .. table.concat(loads, ", ") .. " with gitsigns unloaded")
       assert(value == false, "expected false with gitsigns unloaded, got " .. vim.inspect(value))
-      -- The same getter, once gitsigns is loaded, reads the loaded module and
-      -- still goes through no loader: false can only come from the loaded
-      -- table, since the stand-in answers true.
+      -- Once gitsigns is loaded the getter reads the loaded table. The stand-in answers true, so false proves it.
       with_gitsigns_loaded(false, function()
         assert(toggle.get() == false, "expected the loaded module's signcolumn=false")
       end)

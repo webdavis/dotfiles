@@ -1,28 +1,7 @@
--- Keymap, which-key group, and plugin-state dump for the zero-behavior-change proof
--- (docs/superpowers/specs/2026-09-01-nvim-overhaul-design-v4.md, 3.7 check 5).
---
--- Usage: nvim --headless -u <config>/init.lua -l tests/dump_state.lua <out.json>
--- Run WITHOUT --clean, from cd "$BENCH". The `-u` flag is load-bearing: `-l` on its
--- own skips source-state initialization entirely (`:help -l`, `:help startup`, item
--- 9 "-es/-Es/-l ... skipped"), so a bare `nvim --headless -l dump_state.lua` never
--- loads init.lua, never bootstraps lazy.nvim, and silently dumps nothing.
---
--- This is a keymap-metadata dump, not a full behavior proof: a Lua callback is
--- fingerprinted by its source file and defined line, not its actual behavior, so
--- two different callbacks defined on the same line of the same file (impossible in
--- practice) would compare equal, and a callback's runtime behavior is never
--- exercised. Buffer-local coverage is the gitsigns surface on a plain text buffer
--- only (opening $DOTFILES/justfile); filetype-local maps (markdown, octo, etc.) are
--- not captured here.
---
--- Covered: keymaps, which-key group metadata declared in lua/plugins/which-key.lua
--- (not octo's dynamic <localleader> groups, registered on the octo FileType below the
--- buffer-local pass; PR 24 checks those by hand), and each plugin's lazy/loaded flags.
--- NOT covered, at all: Vim options, autocmds, user commands, LSP server config, the
--- colorscheme, and a plugin's own `opts` table. A change confined to that uncovered
--- set moves zero rows here (measured: flipping opt.ignorecase produced no diff). A
--- PR whose change lives outside the covered set cannot rest its zero-behavior-change
--- claim on this dump's diff alone.
+-- Dumps keymaps, which-key groups and plugin lazy/loaded flags as JSON lines, for diffing two configs.
+-- Run it as nvim --headless -u <config>/init.lua -l tests/dump_state.lua <out.json>
+-- `-u` is required, because `-l` alone skips init.lua.
+-- Callbacks are fingerprinted by source location, not by behavior.
 
 local out_path = arg[1]
 if not out_path or out_path == "" then
@@ -41,10 +20,7 @@ end
 local MODES = { "n", "v", "x", "s", "o", "i", "c", "t" }
 local CONFIG_ROOT = vim.fn.stdpath("config")
 
--- Normalize the config root out of a `debug.getinfo` source string: a pre-merge
--- preview runs against a scratch deployment at a different absolute path than
--- the live config, and an "@/abs/path/to/plugins/noice.lua:53" fingerprint would
--- otherwise differ by root alone even when the file content is identical.
+-- Strip the config root, so a scratch deployment fingerprints like the live config.
 local function normalize_source(source)
   if source and source:sub(1, 1) == "@" then
     local path = source:sub(2)
@@ -55,12 +31,7 @@ local function normalize_source(source)
   return source or "?"
 end
 
--- Fire the event lazy.nvim's own VeryLazy-triggered specs wait on. Headless `+qa`
--- never reaches lazy.nvim's own `vim.schedule` after `UIEnter` (spec 9.1), and
--- this dump runs in its own process rather than inheriting the phase block's
--- startup runs, so without this the dump misses every VeryLazy-triggered plugin
--- (which-key, noice, textobjects, unimpaired, claudecode after PR 30c9) on BOTH
--- sides of a diff, which is a comparison that passes for the wrong reason.
+-- Fire VeryLazy, because a headless run never reaches the lazy.nvim schedule after `UIEnter`.
 vim.cmd("doautocmd User VeryLazy")
 
 local wk_runtime = require("lazy.core.config").plugins["which-key.nvim"]
@@ -68,7 +39,6 @@ if not (wk_runtime and wk_runtime._ and wk_runtime._.loaded) then
   error("which-key.nvim did not load after firing User VeryLazy; the VeryLazy firing did not take")
 end
 
--- Global pass.
 local keymap_rows = {}
 
 local function project_keymap(m)
@@ -84,21 +54,10 @@ local function project_keymap(m)
     rhs = m.rhs,
   }
   if m.callback then
-    -- A function address differs every run and can't be JSON-encoded. Fingerprint
-    -- its source location instead of a flat "<callback>" placeholder, so a keymap
-    -- whose callback moves to a different function (same lhs, different action)
-    -- shows up as a changed row instead of comparing equal (amendment I6).
+    -- Fingerprint a callback by source location, because its address changes every run.
     local info = debug.getinfo(m.callback, "Su")
     local fingerprint = string.format("%s:%d", normalize_source(info.source), info.linedefined or -1)
-    -- custom_api.keymap's `map()` wraps every mapping whose rhs is not a bare Vim
-    -- command in the SAME literal closure, defined once at one fixed line
-    -- (keymap.lua:114 today). Source+line alone therefore fingerprints every one
-    -- of those wrapped mappings identically regardless of the action it runs:
-    -- 305 real mappings collapsed to one row, and changing `<leader>00` from
-    -- `quit` to `quit!` produced no diff (sol finding 1). Fingerprint what the
-    -- wrapper closes over instead of where the wrapper lives: a closed-over
-    -- string action is encoded directly, a closed-over function action is
-    -- fingerprinted by its OWN source location, the same way as above.
+    -- `map()` wraps most mappings in one shared closure, so fingerprint the action it closes over.
     for i = 1, (info.nups or 0) do
       local up_name, up_value = debug.getupvalue(m.callback, i)
       if up_name == "rhs" then
@@ -114,12 +73,7 @@ local function project_keymap(m)
     row.rhs = "<callback:" .. fingerprint .. ">"
   end
   if row.rhs then
-    -- A classic Vimscript script-local function reference (a compat shim some
-    -- plugins use, e.g. unimpaired's `<Plug>` mappings) is numbered by a
-    -- per-process sourcing-order counter, confirmed to vary between separate
-    -- nvim invocations of the SAME unchanged config (<SNR>126_ one run,
-    -- <SNR>124_ the next). Strip the number; the function name is the part
-    -- that carries behavior.
+    -- `<SNR>` numbers follow sourcing order and vary between runs.
     row.rhs = row.rhs:gsub("<SNR>%d+_", "<SNR>_")
   end
   return row
@@ -131,11 +85,7 @@ for _, mode in ipairs(MODES) do
   end
 end
 
--- Buffer-local pass. `]g` is the first map gitsigns `on_attach` sets (git.lua
--- today); `vim.b.gitsigns_head` is NOT the signal, it is set before `on_attach`
--- runs. Octo's dynamic `<localleader>` groups are which-key metadata registered
--- on the `octo` FileType, not buffer keymaps, so they are never captured here
--- and are excluded on purpose (PR 24 checks them by hand).
+-- Wait for `]g`, because `vim.b.gitsigns_head` is set before `on_attach` runs.
 vim.cmd("edit " .. vim.fn.fnameescape(justfile))
 local attached = vim.wait(5000, function()
   return vim.fn.maparg("]g", "n", false, true).buffer == 1
@@ -159,10 +109,7 @@ table.sort(keymap_rows, function(a, b)
   return a.buffer < b.buffer
 end)
 
--- A block's own `mode` field (a string or a list) applies to every item nested
--- inside it that does not set its own; which-key itself defaults to normal mode
--- when nothing in the chain sets one. Returned sorted, so the JSON encoding of
--- an unordered set is stable across runs.
+-- A block `mode` applies to its nested items, defaulting to normal. Sorted for stable JSON.
 local function sorted_modes(mode)
   local list = type(mode) == "table" and mode or { mode or "n" }
   local copy = {}
@@ -173,16 +120,7 @@ local function sorted_modes(mode)
   return copy
 end
 
--- Which-key pass. `opts.spec` is a list of blocks; each block carries a shared
--- `mode` and nests its actual group rows one level deeper as its own array part
--- (`{ mode = {...}, { "<C-g>", group = "git-1" }, ... }`). A read of `opts.spec`
--- itself finds no `.group` fields on either side and compares equal on zero
--- groups (amendment I4), so this walks every nesting depth instead of assuming
--- exactly one. `inherited_mode` carries the nearest enclosing block's `mode`
--- down to its nested rows: a naive read of only the row's own (absent) `.mode`
--- field left every row's mode blank regardless of the block's, so narrowing
--- `which-key.lua:10` from normal-plus-visual to normal-only left all 52 group
--- rows identical (sol finding 6).
+-- Walks every nesting depth and carries the nearest block `mode` down to its rows.
 local function collect_groups(node, out, inherited_mode)
   local mode = node.mode or inherited_mode
   for _, item in ipairs(node) do
@@ -206,9 +144,7 @@ table.sort(groups, function(a, b)
   return a.prefix < b.prefix
 end)
 
--- Plugin state pass. A plugin's NAME does not change when it flips between eager
--- and lazy (amendment I5), so this carries the runtime lazy and loaded flags per
--- plugin rather than a bare sorted name list.
+-- Records lazy and loaded flags, because a name stays the same when a plugin flips between eager and lazy.
 local plugin_rows = {}
 for _, p in ipairs(require("lazy").plugins()) do
   table.insert(plugin_rows, {
@@ -221,15 +157,7 @@ table.sort(plugin_rows, function(a, b)
   return a.name < b.name
 end)
 
--- One JSON object per line, discriminated by `kind`, each section already sorted
--- above, so a diff names the exact row that changed. Key order is built by hand
--- (not `vim.json.encode` on a whole table) because a Lua table's hash-part
--- iteration order is not guaranteed stable across separate process runs: the
--- same plugin row was observed encoding as both
--- `{"lazy":false,"kind":"plugin","loaded":true,"name":"witch-line"}` and
--- `{"kind":"plugin","name":"witch-line","lazy":false,"loaded":true}` between
--- two runs of the identical config, which would make every line in this file
--- compare unequal regardless of any real change.
+-- One JSON object per line with keys in a fixed order, because Lua table order varies between runs.
 local function json_line(kind, fields)
   local parts = { string.format('"kind":%s', vim.json.encode(kind)) }
   for _, pair in ipairs(fields) do

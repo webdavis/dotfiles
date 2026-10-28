@@ -1,10 +1,4 @@
--- config.autocmds: every file type indents 2 by default, overriding the
--- built-in file-type plugins that switch to 4, and a project's .editorconfig
--- still wins over that default.
---
--- Real files under Neovim's own temp tree, opened with `:edit`, because the
--- behavior under test is the ORDER in which Neovim's own FileType plugins,
--- this autocmd and its bundled EditorConfig run on a real read.
+-- Real files opened with `:edit`, because the test covers the order FileType plugins, this autocmd and EditorConfig run in.
 
 local function write(path, text)
   local handle = assert(io.open(path, "w"), "could not write " .. path)

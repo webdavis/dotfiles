@@ -1,4 +1,3 @@
-# https://github.com/agavra/tuicr/blob/main/docs/CONFIG.md
 theme = "catppuccin-mocha"
 compact_folders = true
 show_pr_checks = true

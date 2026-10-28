@@ -1,22 +1,3 @@
-# Profiles for the herdr-process plugin: one entry per long-lived process that
-# gets a herdr-owned window. The plugin GENERATES its herdr-plugin.toml from
-# this file at apply time (four actions per profile: split-right, split-below,
-# toggle-float, kill), so the table has to exist even while it holds nothing;
-# the plugin cannot be linked without a manifest and cannot render a manifest
-# without this file.
-#
-# An entry becomes reachable only once a `prefix+` chord in config.toml names
-# `herdr-process.<profile>:<action>` with type = "plugin_action"; the plugin
-# rejects a chord for a profile that is not declared here.
-#
-# Shape of an entry:
-#   [windows.notes]
-#   program = "nvim"
-#   args = ["/Users/stephen/notes"]
-#   cwd = "~/notes"      # absolute, or ~/-relative; "~/" alone resolves to home ("~" bare does not)
-#   width = "80%"        # 1-100, integer or percentage string
-#   height = "80%"
-#   ctrl_c = "hide"      # hide | quit
 [windows.tuicr]
 program = "tuicr"
 cwd = "~/workspaces/Ivy/webdavis/dotfiles"
@@ -24,19 +5,8 @@ width = "85%"
 height = "85%"
 ctrl_c = "hide"
 
-# The worktree review launcher. `worktree-review.sh resume` opens the picker the
-# first time and reuses the recorded selection on every later toggle, so the
-# review resumes without walking the worktree list again. cwd decides which
-# repository's worktrees the picker lists.
-#
-# The review program itself is an argument, not a name this plugin knows: append
-# "--" and a command to args to run something other than tuicr. reviewr is not
-# installed on this machine, which is exactly why the command is configurable.
-#
-# Switching to a different worktree mid-session is two steps, since the
-# session outlives any one toggle: `worktree-review.sh pick` from a shell
-# records the new target, then `review:kill` (bound in config.toml) ends the
-# running session so the next toggle spawns a fresh one against it.
+# `resume` reuses the recorded worktree, so each toggle returns to the same review.
+# cwd picks which repository's worktrees the picker lists.
 [windows.review]
 program = "worktree-review.sh"
 args = ["resume"]

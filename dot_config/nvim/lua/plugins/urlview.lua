@@ -1,9 +1,6 @@
 return {
   "axieax/urlview.nvim",
-  -- `UrlView` is the only command urlview registers (urlview/command.lua).
   cmd = "UrlView",
-  -- Each row IS the mapping: lazy sets a placeholder at startup and installs this
-  -- same rhs when the plugin loads, so there is no second copy in `config`.
   keys = {
     {
       "<leader>UU",
@@ -23,11 +20,8 @@ return {
       desc = "UrlView: open an installed plugin's page",
       silent = true,
     },
-    -- Trigger-only, no rhs: urlview binds `[u` and `]u` itself inside `setup`
-    -- (urlview/jump.lua), and vim-unimpaired claims the same pair only when
-    -- `maparg` reports them free. A lazy placeholder holds them until the press
-    -- that loads urlview, so unimpaired's guard still skips and the press lands
-    -- on urlview's own jump rather than on URL encode and decode.
+    -- These entries only load the plugin, because urlview binds `[u` and `]u` itself.
+    -- Listing them here also keeps vim-unimpaired from taking them first.
     { "[u", desc = "Previous URL" },
     { "]u", desc = "Next URL" },
   },
