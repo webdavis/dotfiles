@@ -117,5 +117,5 @@ Agent instructions belong in this file alone.
   - Fixing: fix an open PR by editing or renaming it, and keep the same PR.
   - Merging:
     1. Use `wt switch main` to move to the `main` branch checkout.
-    2. Then use `npx -y gh-axi pr merge <number> --rebase --delete-branch` to merge the PR and delete the remote branch.
-    3. Then use `wt remove <branch>` to remove the worktree and the local branch.
+    2. Then use `npx -y gh-axi pr merge <number> --rebase --delete-branch` to merge the PR and delete the remote branch, the local branch and its worktree.
+    3. Then check `wt list`. If the branch or its worktree is still listed, use `wt remove <branch>`, and report what gh left behind and why.
