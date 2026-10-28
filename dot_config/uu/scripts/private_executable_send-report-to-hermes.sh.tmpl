@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly route_url="http://127.0.0.1:8644/webhooks/uu-runs"
+readonly signing_key='{{ (keepassxc "Hermes :: Webhook Secret (#uu-runs)").Password }}'
+readonly post_time_limit_seconds=10
+readonly delivered_status_pattern='^2[0-9][0-9]$'
+readonly exit_failure=1
+readonly body_from_report='
+  def detail_character_limit: 2000;
+  def count(outcome): [.lanes[] | select(.outcome == outcome)] | length;
+  def state:
+    if count("failed") > 0 then "failed"
+    elif count("deferred") > 0 then "deferred"
+    elif count("pending") > 0 then "pending"
+    else "completed" end;
+  def lane_detail:
+    "\n\(.name): \(.outcome)\n"
+    + (.output | split("\n") | map(select(. != "") | "  \(.)\n") | join(""))
+    + (if .outcome == "ok" then "" else "  last ok: \(.last_ok // "never")\n" end);
+  def detail:
+    "run at \(.started) on \(.host)\n"
+    + (if (.lanes | length) == 0 then "no lane is enabled in this config, so nothing was updated\n" else "" end)
+    + (.lanes | map(lane_detail) | join(""))
+    + "\n=== done, \(count("failed")) failure(s), \(count("deferred")) deferred, \(count("pending")) pending ===\n";
+  def cut:
+    if length > detail_character_limit then "..." + .[-(detail_character_limit - 3):] else . end;
+  if .version != 1 then error("unsupported version") else . end
+  | {agent: "uu", state: state, project: .host, detail: (detail | cut)}'
+
+signing_key_is_set() {
+  [[ -n $signing_key ]]
+}
+
+build_body() {
+  local report=$1
+  jq -c "$body_from_report" <<<"$report"
+}
+
+sign_body() {
+  local body=$1
+  printf '%s' "$body" | webhook_secret="$signing_key" perl -MDigest::SHA=hmac_sha256_hex -e 'print hmac_sha256_hex(<STDIN>, @ENV{webhook_secret})'
+}
+
+post_body() {
+  local body=$1 signature=$2
+  printf '%s' "$body" | curl -s -o /dev/null -w '%{http_code}' --max-time "$post_time_limit_seconds" \
+    -H 'Content-Type: application/json' -H "X-Webhook-Signature: $signature" \
+    --data-binary @- "$route_url"
+}
+
+status_is_delivered() {
+  local status=$1
+  [[ $status =~ $delivered_status_pattern ]]
+}
+
+main() {
+  if ! signing_key_is_set; then
+    printf 'error[no-key]: the signing key is empty, so the report could not be signed.\n' >&2
+    exit "$exit_failure"
+  fi
+
+  local body
+  if ! body="$(build_body "$(cat)")"; then
+    printf 'error[bad-report]: stdin is not a version 1 uu report.\n' >&2
+    exit "$exit_failure"
+  fi
+
+  local signature
+  signature="$(sign_body "$body")"
+
+  local status
+  if ! status="$(post_body "$body" "$signature")"; then
+    printf 'error[no-response]: no answer from %s (is the gateway up?).\n' "$route_url" >&2
+    exit "$exit_failure"
+  fi
+
+  if ! status_is_delivered "$status"; then
+    printf 'error[rejected]: %s answered HTTP %s.\n' "$route_url" "$status" >&2
+    exit "$exit_failure"
+  fi
+}
+
+main "$@"

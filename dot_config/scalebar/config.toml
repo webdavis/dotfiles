@@ -1,0 +1,20 @@
+[chart]
+min_weight = 170.0
+max_weight = 210.0
+chart_days = 42
+
+[data]
+csv_file_path = "~/workspaces/Ivy/hobbies/fitness/data/weight-log.csv"
+gym_log_file_path = "~/workspaces/Ivy/hobbies/fitness/data/gym-log.csv"
+workout_sessions_file_path = "~/workspaces/Ivy/hobbies/fitness/data/workout-sessions.csv"
+rollover_hour = 2
+
+[menu_bar]
+show_both_weights = true
+
+[obsidian]
+vault = "Ivy"
+folder = "hobbies/fitness"
+
+[startup]
+label = "scalebar.menubar"

@@ -1,0 +1,9 @@
+{{- $entry := "temporal-cloud-broccoli-api-key" -}}
+{{- $login := keepassxc $entry -}}
+[profile.broccoli]
+address = "{{ $login.URL }}"
+api_key = "{{ $login.Password }}"
+namespace = "{{ keepassxcAttribute $entry "namespace" }}"
+
+[profile.broccoli.codec]
+endpoint = "{{ keepassxcAttribute $entry "codec-server-url" }}"

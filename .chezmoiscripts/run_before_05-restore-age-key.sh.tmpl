@@ -1,0 +1,179 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly key_file={{ .chezmoi.config.age.identity | quote }}
+readonly expected_recipient={{ .chezmoi.config.age.recipient | quote }}
+readonly keepassxc_database={{ .chezmoi.config.keepassxc.database | quote }}
+readonly keepassxc_entry="chezmoi :: Private Key :: age"
+readonly runbook="docs/runbooks/age-key.md"
+readonly age_secret_key_pattern='^AGE-SECRET-KEY-(PQ-)?1[A-Z0-9]+'
+
+temporary_key_file=""
+
+key_file_is_a_symlink() {
+  [[ -L $key_file ]]
+}
+
+key_file_exists() {
+  [[ -e $key_file ]]
+}
+
+key_file_is_a_regular_file() {
+  [[ -f $key_file ]]
+}
+
+age_keygen_is_installed() {
+  command -v age-keygen >/dev/null 2>&1
+}
+
+keepassxc_cli_is_installed() {
+  command -v keepassxc-cli >/dev/null 2>&1
+}
+
+derive_recipient() {
+  local identity_file=$1
+  age-keygen -y "$identity_file" 2>/dev/null | head -1
+}
+
+recipient_is_known() {
+  local recipient=$1
+  [[ -n $recipient ]]
+}
+
+recipient_is_expected() {
+  local recipient=$1
+  [[ $recipient == "$expected_recipient" ]]
+}
+
+identity_derives_the_expected_recipient() {
+  local identity_file=$1
+  local recipient
+  recipient="$(derive_recipient "$identity_file" || true)"
+  recipient_is_expected "$recipient"
+}
+
+make_private() {
+  local file=$1
+  chmod 600 "$file"
+}
+
+make_new_files_private() {
+  umask 077
+}
+
+key_directory() {
+  dirname "$key_file"
+}
+
+create_key_directory() {
+  mkdir -p "$(key_directory)"
+}
+
+create_temporary_key_file() {
+  mktemp "$(key_directory)/key.txt.XXXXXX"
+}
+
+remove_temporary_key_file() {
+  rm -f "$temporary_key_file"
+}
+
+read_key_from_keepassxc() {
+  local destination=$1
+  keepassxc-cli show -s -a Password "$keepassxc_database" "$keepassxc_entry" >"$destination"
+}
+
+file_holds_an_age_secret_key() {
+  local file=$1
+  grep -qE "$age_secret_key_pattern" "$file"
+}
+
+install_temporary_key_file() {
+  make_private "$temporary_key_file"
+  mv "$temporary_key_file" "$key_file"
+  trap - EXIT
+}
+
+validate_existing_key_file() {
+  if ! key_file_is_a_regular_file; then
+    report_line "error[not-a-regular-file]: $key_file exists but is not a regular file; leaving it untouched ($runbook)." >&2
+    return
+  fi
+
+  if ! age_keygen_is_installed; then
+    make_private "$key_file"
+    report_line "age-keygen is not installed yet, skipping validation."
+    return
+  fi
+
+  local recipient
+  recipient="$(derive_recipient "$key_file" || true)"
+  if ! recipient_is_known "$recipient"; then
+    report_line "error[invalid-key]: $key_file is empty or not a valid age identity; not overwriting it ($runbook)." >&2
+    return
+  fi
+
+  if ! recipient_is_expected "$recipient"; then
+    report_line "error[recipient-mismatch]: $key_file derives a recipient that does not match the configured recipient; not overwriting it ($runbook)." >&2
+    return
+  fi
+
+  make_private "$key_file"
+  report_line "already in place and valid, skipping."
+}
+
+restore_key_file_from_keepassxc() {
+  report_line "restoring from KeePassXC..."
+  make_new_files_private
+  create_key_directory
+  if ! temporary_key_file="$(create_temporary_key_file)"; then
+    report_line "error[temporary-file-failed]: could not create a temporary file beside $key_file; skipping restore ($runbook)." >&2
+    return
+  fi
+  trap remove_temporary_key_file EXIT
+
+  if ! read_key_from_keepassxc "$temporary_key_file"; then
+    report_line "error[read-failed]: keepassxc-cli could not read '$keepassxc_entry'; leaving $key_file absent ($runbook)." >&2
+    return
+  fi
+
+  if ! file_holds_an_age_secret_key "$temporary_key_file"; then
+    report_line "error[not-an-age-key]: the value from '$keepassxc_entry' is not an age identity; not installing it ($runbook)." >&2
+    return
+  fi
+
+  if age_keygen_is_installed && ! identity_derives_the_expected_recipient "$temporary_key_file"; then
+    report_line "error[recipient-mismatch]: the restored key derives a recipient that does not match the configured recipient; not installing it ($runbook)." >&2
+    return
+  fi
+
+  install_temporary_key_file
+  report_line "restored the age identity to $key_file from KeePassXC."
+}
+
+main() {
+  report_section 'age' 'chezmoi encryption key'
+
+  if key_file_is_a_symlink; then
+    report_line "error[symlink]: $key_file is a symlink; refusing to read or write through it. Investigate ($runbook)." >&2
+    return
+  fi
+
+  if key_file_exists; then
+    validate_existing_key_file
+    return
+  fi
+
+  if ! keepassxc_cli_is_installed; then
+    report_line "error[missing-tool]: keepassxc-cli not found; cannot restore the age identity to $key_file ($runbook)." >&2
+    return
+  fi
+
+  restore_key_file_from_keepassxc
+}
+
+main "$@"
+{{ end -}}

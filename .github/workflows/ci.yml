@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gates:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the lint and test toolchain (Homebrew + uv, no nix)
+        run: |
+          brew install actionlint age bash chezmoi coreutils emmylua_ls fzf jq just luacheck neovim python ripgrep shellcheck shfmt stylua taplo treefmt uv yq zizmor
+          echo "HOMEBREW_PREFIX=$(brew --prefix)" >> "$GITHUB_ENV"
+          uv tool install mdformat==0.7.22 --with mdformat-gfm==0.4.1 --with mdformat-gfm-alerts==2.0.0 --with mdformat-frontmatter==2.0.8 --with mdformat-footnote==0.1.1 --with mdformat-tables==1.0.0 --with mdformat-config==0.2.1
+      # `just test-rust` runs the two `chord check` lines that guard this
+      # repository's generated binding files, and chord lives in its own
+      # repository now. This step installs the latest commit of chord's default
+      # branch.
+      - name: Install chord at its latest commit
+        run: cargo install --git https://github.com/webdavis/chord --locked chord
+      - name: Lint drift gate (treefmt)
+        run: just lint-gate
+      - name: Run the repo test suite
+        run: just test
+      - name: Audit GitHub Actions workflows (zizmor)
+        run: just lint-actions-security

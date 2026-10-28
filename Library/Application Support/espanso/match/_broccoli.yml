@@ -1,0 +1,62 @@
+matches:
+  # ── Recognition / familiarity ─────────────────────────────────────────────
+
+  - trigger: ";;ni"
+    replace: "I have no idea."
+
+  - trigger: ";;nf"
+    replace: "I am not familiar."
+
+  # ── Applicability / fit ───────────────────────────────────────────────────
+
+  - trigger: ";;da"
+    replace: "Doesn't apply."
+
+  - trigger: ";;na"
+    replace: "Not applicable."
+  # Note: was 2×, second entry "It doesn't apply." removed (§6.4); use ;;da for that phrasing.
+
+  - trigger: ";;sk"
+    replace: "skip it"
+
+  # ── Recommendations / improvements ────────────────────────────────────────
+
+  - trigger: ",,imp"
+    replace: "No I wouldn't recommend any improvements."
+
+  - trigger: ";;mo"
+    replace: "Most important is"
+
+  # ── Reasons / explanations ────────────────────────────────────────────────
+
+  - trigger: ";;jb"
+    replace: "Just because"
+
+  - trigger: ";;ict"
+    replace: "I can't think of anything."
+
+  - trigger: ";;nt"
+    replace: "Not at this time."
+
+  - trigger: ";;iw"
+    replace: "I would tell them"
+
+  - trigger: ",,iw"
+    replace: "I would say"
+
+  # ── Quality / values ──────────────────────────────────────────────────────
+
+  - trigger: ";;vo"
+    replace: "very good"
+
+  - trigger: ";;av"
+    replace: "average"
+
+  - trigger: ";;ia"
+    replace: "Appreciate it"
+
+  # ── Hard to remember words ────────────────────────────────────────────────
+
+  - trigger: "alz"
+    replace: "Alzheimer's"
+    word: true

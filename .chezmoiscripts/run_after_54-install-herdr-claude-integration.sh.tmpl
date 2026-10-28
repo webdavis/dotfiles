@@ -1,0 +1,38 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+herdr_is_installed() {
+  command -v herdr >/dev/null 2>&1
+}
+
+# Capture first: with pipefail, `grep -q` closing the pipe early makes herdr
+# exit 141 and the check report "not current" on every apply.
+claude_integration_is_current() {
+  local status
+  status=$(herdr integration status 2>/dev/null)
+  grep -qE '^claude: current' <<<"$status"
+}
+
+install_claude_integration() {
+  herdr integration install claude >/dev/null 2>&1
+}
+
+main() {
+  if ! herdr_is_installed || claude_integration_is_current; then
+    return
+  fi
+  report_section 'herdr' 'Claude Code integration'
+  report_line "installing the claude integration (hook file and SessionStart entry)..."
+  if ! install_claude_integration; then
+    report_line "error[install-failed]: herdr integration install claude failed; the next apply retries." >&2
+    return
+  fi
+  report_line "installed."
+}
+
+main "$@"
+{{ end -}}

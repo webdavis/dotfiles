@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# himalaya version: {{ output "sh" "-c" "himalaya --version 2>/dev/null | head -1 || echo none" | trim }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly completion_directory="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+readonly installed_completion="$completion_directory/himalaya"
+readonly staging_completion="$completion_directory/.himalaya.staging"
+readonly completion_file_name="himalaya.bash"
+
+working_directory=""
+
+himalaya_is_installed() {
+  command -v himalaya >/dev/null 2>&1
+}
+
+create_working_directory() {
+  mktemp -d
+}
+
+directory_exists() {
+  local directory=$1
+  [[ -d $directory ]]
+}
+
+remove_working_directory() {
+  rm -rf "$working_directory"
+}
+
+# himalaya 2 prints the script to stdout (1.x wrote himalaya.bash into the
+# working directory on its own), so the file is written here.
+write_completion_into_directory() {
+  local directory=$1
+  himalaya completion bash >"$directory/$completion_file_name" 2>/dev/null
+}
+
+file_has_content() {
+  local file=$1
+  [[ -s $file ]]
+}
+
+file_defines_the_completion_function() {
+  local file=$1
+  grep -q '^_himalaya()' "$file"
+}
+
+install_completion_with_one_rename() {
+  local generated_completion=$1
+  mkdir -p "$completion_directory"
+  cp -- "$generated_completion" "$staging_completion"
+  chmod 0644 "$staging_completion"
+  mv -f -- "$staging_completion" "$installed_completion"
+}
+
+main() {
+  report_section 'himalaya' 'bash completion'
+
+  if ! himalaya_is_installed; then
+    report_line "himalaya is not installed, skipping."
+    return
+  fi
+
+  working_directory="$(create_working_directory)"
+  if ! directory_exists "$working_directory"; then
+    report_line "error[no-working-directory]: could not create a working directory; refusing to continue." >&2
+    exit 1
+  fi
+  trap remove_working_directory EXIT
+
+  report_line "generating the completion..."
+  if ! write_completion_into_directory "$working_directory"; then
+    report_line "error[subcommand-failed]: the completion subcommand failed; leaving any existing completion alone." >&2
+    exit 1
+  fi
+
+  local generated_completion="$working_directory/$completion_file_name"
+  if ! file_has_content "$generated_completion"; then
+    report_line "error[no-completion-file]: the subcommand produced no completion file; leaving any existing completion alone." >&2
+    exit 1
+  fi
+  if ! file_defines_the_completion_function "$generated_completion"; then
+    report_line "error[not-a-completion]: the generated file does not define _himalaya; refusing to install it." >&2
+    exit 1
+  fi
+
+  install_completion_with_one_rename "$generated_completion"
+  report_line "installed $installed_completion."
+}
+
+main "$@"

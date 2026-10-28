@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.clauth-daemon</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ .chezmoi.homeDir }}/.cargo/bin/clauth</string>
+    <string>daemon</string>
+    <!-- --standby: clauth runs one daemon at a time, and a plain `clauth
+         daemon` exits 0 at once when another already holds the lock, so a
+         unit without this flag would quit whenever the TUI's `start daemon`
+         got there first. With it, launchd's instance parks behind a manually
+         started daemon and takes over the moment that one exits, which is the
+         pairing clauth's Daemon wiki page prescribes for a launchd unit. -->
+    <string>--standby</string>
+  </array>
+  <!-- The TUI's own `start daemon` runs it from here too. -->
+  <key>WorkingDirectory</key>
+  <string>{{ .chezmoi.homeDir }}/.clauth</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <!-- Restart after a crash only; a clean exit stays down (the wiki's pairing
+       with --standby). -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <!-- launchd opens these in append mode, which clauth's in-place size cap on
+       daemon.log relies on; the TUI's `start daemon` appends to the same file. -->
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.clauth/daemon.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.clauth/daemon.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>{{ .chezmoi.homeDir }}</string>
+    <key>PATH</key>
+    <string>{{ .chezmoi.homeDir }}/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

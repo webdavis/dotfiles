@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+
+from agents import plugins, skills  # noqa: E402
+from packages import packages  # noqa: E402
+from rows import edit, emit, home, main, run  # noqa: E402
+from shell import aliases, environment, functions, path  # noqa: E402
+
+
+def files():
+    listing = ["chezmoi", "managed", "--include=files,symlinks", "--path-style=all"]
+    managed = json.loads(run([*listing, "--format=json", "--no-tty"]))
+    for item in sorted(managed.values(), key=lambda item: item["absolute"]):
+        source = item["sourceAbsolute"]
+        preview = {"path": source} if Path(source).is_file() else home(source)
+        emit(home(item["absolute"]), edit(source), preview)
+
+
+main(
+    {
+        "files": files,
+        "packages": packages,
+        "skills": skills,
+        "plugins": plugins,
+        "aliases": aliases,
+        "functions": functions,
+        "environment": environment,
+        "path": path,
+    }
+)

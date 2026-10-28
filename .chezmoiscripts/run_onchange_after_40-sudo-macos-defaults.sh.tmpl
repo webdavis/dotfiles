@@ -1,0 +1,252 @@
+{{- define "shellSingleQuoted" }}{{ printf "'%s'" (replace "'" "'\\''" (toString .)) }}{{ end -}}
+
+{{- define "validateRecordIdentity" -}}
+{{- $record := . -}}
+{{- range $identityField := list "domain" "key" -}}
+{{- if kindIs "invalid" (index $record $identityField) -}}
+{{- fail (printf "macos_defaults.yaml: record %v %v has a blank %s; give it a value or remove the field" (index $record "domain") (index $record "key") $identityField) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateRecordTier" -}}
+{{- if not (hasKey . "tier") -}}
+{{- fail (printf "macos_defaults.yaml: record %s %s has no tier; declare tier: enforce, verify, or manual" .domain .key) -}}
+{{- end -}}
+{{- if kindIs "invalid" (index . "tier") -}}
+{{- fail (printf "macos_defaults.yaml: record %s %s has a blank tier; declare tier: enforce, verify, or manual" .domain .key) -}}
+{{- end -}}
+{{- $tier := toString (index . "tier") -}}
+{{- if not (has $tier (list "enforce" "verify" "manual")) -}}
+{{- fail (printf "macos_defaults.yaml: unrecognized tier %q on record %s %s (expected enforce, verify, or manual)" $tier .domain .key) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateRecordStreamSafe" -}}
+{{- $record := . -}}
+{{- range $streamField := list "domain" "key" "value" "plist_path" -}}
+{{- $streamValue := toString (index $record $streamField | default "") -}}
+{{- if or (contains "\n" $streamValue) (contains "\x1f" $streamValue) -}}
+{{- fail (printf "macos_defaults.yaml: record %v %v has a %s containing a newline or a unit separator, which the record stream cannot represent unambiguously" (index $record "domain") (index $record "key") $streamField) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateManualRecord" -}}
+{{- $record := . -}}
+{{- if not (hasKey . "runbook") -}}
+{{- fail (printf "macos_defaults.yaml: manual record %s %s has no runbook; a manual control must name its runbook section" .domain .key) -}}
+{{- end -}}
+{{- if kindIs "invalid" (index . "runbook") -}}
+{{- fail (printf "macos_defaults.yaml: manual record %s %s has a blank runbook; name the runbook section" .domain .key) -}}
+{{- end -}}
+{{- if eq (toString (index . "runbook")) "" -}}
+{{- fail (printf "macos_defaults.yaml: manual record %s %s has an empty runbook; name the runbook section" .domain .key) -}}
+{{- end -}}
+{{- range $forbiddenField := list "type" "value" "host" "scope" "plist_path" -}}
+{{- if hasKey $record $forbiddenField -}}
+{{- fail (printf "macos_defaults.yaml: manual record %v %v carries %s; a manual control renders no write, so a write payload means the declared tier is wrong" (index $record "domain") (index $record "key") $forbiddenField) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateRecordScope" -}}
+{{- $scope := "user" -}}
+{{- if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
+{{- if and (ne $scope "user") (ne $scope "system") -}}
+{{- fail (printf "macos_defaults.yaml: unknown scope %q on record %s %s (expected user or system)" $scope .domain .key) -}}
+{{- end -}}
+{{- if and (eq $scope "system") (index . "host") -}}
+{{- fail (printf "macos_defaults.yaml: record %s %s combines scope system with host; ByHost storage is per-user" .domain .key) -}}
+{{- end -}}
+{{- if and (ne $scope "system") (index . "plist_path") -}}
+{{- fail (printf "macos_defaults.yaml: record %s %s declares plist_path outside scope system" .domain .key) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateRecordTypeAndValue" -}}
+{{- $record := .record -}}
+{{- $supportedTypes := .supportedTypes -}}
+{{- if not (hasKey $record "type") -}}
+{{- fail (printf "macos_defaults.yaml: record %v %v has no type; declare one of %s" (index $record "domain") (index $record "key") (join " " $supportedTypes)) -}}
+{{- end -}}
+{{- if kindIs "invalid" (index $record "type") -}}
+{{- fail (printf "macos_defaults.yaml: record %v %v has a blank type; declare one of %s" (index $record "domain") (index $record "key") (join " " $supportedTypes)) -}}
+{{- end -}}
+{{- if not (has (index $record "type") $supportedTypes) -}}
+{{- fail (printf "macos_defaults.yaml: unsupported type %q on record %v %v; expected one of %s" (toString (index $record "type")) (index $record "domain") (index $record "key") (join " " $supportedTypes)) -}}
+{{- end -}}
+{{- if kindIs "invalid" (index $record "value") -}}
+{{- fail (printf "macos_defaults.yaml: record %v %v has a blank value; give it a value or remove the field" (index $record "domain") (index $record "key")) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateSystemPlistPath" -}}
+{{- $record := .record -}}
+{{- $allowedDirectories := .allowedDirectories -}}
+{{- if contains "/" $record.domain -}}
+{{- fail (printf "macos_defaults.yaml: system-scope domain %q on record %s contains a slash; it would escape the default plist directory" $record.domain $record.key) -}}
+{{- end -}}
+{{- if eq (trimAll "." $record.domain) "" -}}
+{{- fail (printf "macos_defaults.yaml: system-scope domain %q on record %s is empty or nothing but dots; it names no plist" $record.domain $record.key) -}}
+{{- end -}}
+{{- $declaredPath := index $record "plist_path" | default "" -}}
+{{- if or (hasPrefix "../" $declaredPath) (contains "/../" $declaredPath) (hasSuffix "/.." $declaredPath) -}}
+{{- fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s contains a parent-directory component" $declaredPath $record.domain $record.key) -}}
+{{- end -}}
+{{- if eq $declaredPath "/" -}}
+{{- fail (printf "macos_defaults.yaml: system-scope plist_path %q on record %s %s is the filesystem root; it names no plist" $declaredPath $record.domain $record.key) -}}
+{{- end -}}
+{{- if ne $declaredPath "" -}}
+{{- $plistPathPermitted := false -}}
+{{- range $allowedDirectory := $allowedDirectories -}}
+{{- if hasPrefix $allowedDirectory $declaredPath }}{{ $plistPathPermitted = true }}{{ end -}}
+{{- end -}}
+{{- if not $plistPathPermitted -}}
+{{- fail (printf "macos_defaults.yaml: plist_path %q on record %s %s is outside every permitted plist directory (%s); grant the directory deliberately in the template or use the default /Library/Preferences form" $declaredPath $record.domain $record.key (join ", " $allowedDirectories)) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "validateEnforceRecord" -}}
+{{- if hasKey . "runbook" -}}
+{{- fail (printf "macos_defaults.yaml: enforce record %s %s carries runbook; either drop the field or declare the tier that consumes it" .domain .key) -}}
+{{- end -}}
+{{- end -}}
+
+{{- if eq .chezmoi.os "darwin" -}}
+{{- if ne (kindOf .macos.defaults) "slice" -}}
+{{- fail (printf "macos_defaults.yaml: .macos.defaults is a %s, but it must be a LIST of records; a map would be applied in a different order here than by the macos-defaults scripts" (kindOf .macos.defaults)) -}}
+{{- end -}}
+{{- $records := .macos.defaults -}}
+{{- $supportedTypes := list "array" "bool" "data" "date" "dict" "float" "int" "string" -}}
+{{- $plistPathAllowedDirectories := list "/Library/Objective-See/LuLu/" "/Library/Preferences/" -}}
+{{- $enforceRecordCount := 0 -}}
+{{- $hasSystemScopeRecord := false -}}
+{{- range $records -}}
+{{- $scope := "user" -}}
+{{- if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end -}}
+{{- template "validateRecordIdentity" . -}}
+{{- template "validateRecordTier" . -}}
+{{- template "validateRecordStreamSafe" . -}}
+{{- $tier := toString (index . "tier") -}}
+{{- if eq $tier "manual" -}}
+{{- template "validateManualRecord" . -}}
+{{- else -}}
+{{- template "validateRecordScope" . -}}
+{{- template "validateRecordTypeAndValue" (dict "record" . "supportedTypes" $supportedTypes) -}}
+{{- if eq $scope "system" -}}
+{{- template "validateSystemPlistPath" (dict "record" . "allowedDirectories" $plistPathAllowedDirectories) -}}
+{{- end -}}
+{{- end -}}
+{{- if eq $tier "enforce" -}}
+{{- template "validateEnforceRecord" . -}}
+{{- $enforceRecordCount = add $enforceRecordCount 1 -}}
+{{- if eq $scope "system" }}{{ $hasSystemScopeRecord = true }}{{ end -}}
+{{- end -}}
+{{- end -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
+quit_system_settings() {
+  osascript -e 'tell application "System Settings" to quit' 2>/dev/null || true
+}
+{{- if $hasSystemScopeRecord }}
+
+plist_path_has_plist_extension() {
+  local plist_path=$1
+  [[ $plist_path == *.plist ]]
+}
+
+plist_file_written_by_defaults() {
+  local plist_path=$1
+  if plist_path_has_plist_extension "$plist_path"; then
+    printf '%s' "$plist_path"
+  else
+    printf '%s.plist' "$plist_path"
+  fi
+}
+
+make_plist_readable_by_everyone() {
+  local plist_file=$1
+  sudo chown root:wheel "$plist_file"
+  sudo chmod 644 "$plist_file"
+}
+
+write_succeeded() {
+  local write_status=$1
+  ((write_status == 0))
+}
+
+plist_file_exists() {
+  local plist_file=$1
+  [[ -e $plist_file ]]
+}
+
+system_defaults_write() {
+  local plist_path=$1 key=$2 type_option=$3 value=$4
+  local plist_file write_status=0
+  plist_file="$(plist_file_written_by_defaults "$plist_path")"
+  sudo defaults write "$plist_path" "$key" "$type_option" "$value" || write_status=$?
+  if write_succeeded "$write_status" || plist_file_exists "$plist_file"; then
+    make_plist_readable_by_everyone "$plist_file"
+  fi
+  return "$write_status"
+}
+{{- end }}
+
+write_enforced_settings() {
+{{- range $records }}
+{{- $tier := toString (index . "tier") }}
+{{- $scope := "user" }}
+{{- if hasKey . "scope" }}{{ $scope = index . "scope" }}{{ end }}
+{{- if eq $tier "enforce" }}
+{{- if eq $scope "system" }}
+  system_defaults_write {{ template "shellSingleQuoted" (index . "plist_path" | default (printf "/Library/Preferences/%s" .domain)) }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
+{{- else }}
+  defaults {{ if index . "host" }}-currentHost {{ end }}write {{ template "shellSingleQuoted" .domain }} {{ template "shellSingleQuoted" .key }} -{{ .type }} {{ template "shellSingleQuoted" .value }}
+{{- end }}
+{{- end }}
+{{- end }}
+  :
+}
+
+report_manual_controls() {
+{{- range $records }}
+{{- if eq (toString (index . "tier")) "manual" }}
+  report_line {{ template "shellSingleQuoted" (printf "manual control %s %s: not settable here; see the runbook section %s" .domain .key (toString (index . "runbook"))) }}
+{{- end }}
+{{- end }}
+  :
+}
+
+restart_affected_processes() {
+{{- if hasKey .macos "killall" }}
+{{- range .macos.killall }}
+  killall {{ template "shellSingleQuoted" . }} 2>/dev/null || true
+{{- end }}
+{{- end }}
+  :
+}
+
+main() {
+  report_section 'macos defaults' 'user and system settings'
+  quit_system_settings
+{{- if $hasSystemScopeRecord }}
+  authenticate_sudo_once
+{{- end }}
+
+  report_line "writing {{ $enforceRecordCount }} setting(s)..."
+  write_enforced_settings
+  report_manual_controls
+  restart_affected_processes
+  report_line "wrote {{ $enforceRecordCount }} setting(s)."
+}
+
+main "$@"
+{{ end -}}

@@ -1,0 +1,9 @@
+# Settings for the broccoli picker. None of this is secret: the API keys live in the
+# macOS Keychain, copied from KeePassXC, and are read only while a picker runs.
+
+[temporal]
+# The Broccoli prod Temporal Cloud endpoint and namespace, e.g. "<namespace>.<account>.tmprl.cloud:7233".
+address = ""
+namespace = ""
+# The codec server, once payloads are encoded; leave empty while they are plain JSON.
+codec_endpoint = ""

@@ -1,0 +1,318 @@
+{
+ "events": [
+  {
+   "eventId": "1",
+   "eventTime": "2026-10-19T15:00:00Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+   "workflowExecutionStartedEventAttributes": {
+    "workflowType": {
+     "name": "postCallWorkflow"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "IntcImNhbGxJZFwiOiBcImNtN3EyeDlrMVwiLCBcIm9yZ0lkXCI6IFwib3JnXzRmOGEyY1wiLCBcImFnZW50SWRcIjogXCJhZ3RfMzFcIiwgXCJkaXJlY3Rpb25cIjogXCJpbmJvdW5kXCJ9Ig=="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "2",
+   "eventTime": "2026-10-19T15:00:01Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "2",
+    "activityType": {
+     "name": "getOrgFromDB"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJvcmdJZCI6ICJvcmdfNGY4YTJjIn0="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "3",
+   "eventTime": "2026-10-19T15:00:01Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "2",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "4",
+   "eventTime": "2026-10-19T15:00:01Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "activityTaskCompletedEventAttributes": {
+    "scheduledEventId": "2",
+    "startedEventId": "3",
+    "result": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "IntcIm5hbWVcIjogXCJFeGFtcGxlIFBsdW1iaW5nIENvXCIsIFwidGltZXpvbmVcIjogXCJBbWVyaWNhL0RlbnZlclwiLCBcInNldHRpbmdzXCI6IHtcIm1pc3NlZEFjdGlvbnNFbmFibGVkXCI6IHRydWUsIFwiY3JtXCI6IFwiZXhhbXBsZWNybVwiLCBcImZvbGxvd1VwSG91cnNcIjogMjR9fSI="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "5",
+   "eventTime": "2026-10-19T15:00:03Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "5",
+    "activityType": {
+     "name": "getCallDetailsFromVoiceAgent"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJjYWxsSWQiOiAiY203cTJ4OWsxIn0="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "6",
+   "eventTime": "2026-10-19T15:00:03Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "5",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "7",
+   "eventTime": "2026-10-19T15:00:03Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "activityTaskCompletedEventAttributes": {
+    "scheduledEventId": "5",
+    "startedEventId": "6",
+    "result": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "IntcImR1cmF0aW9uU2Vjb25kc1wiOiAyMTQsIFwicmVhZGFibGVUcmFuc2NyaXB0V2l0aFRvb2xDYWxsc1wiOiBcIkFnZW50OiBUaGFua3MgZm9yIGNhbGxpbmcgRXhhbXBsZSBQbHVtYmluZywgaG93IGNhbiBJIGhlbHA/XFxuQ2FsbGVyOiBNeSB3YXRlciBoZWF0ZXIgaXMgbGVha2luZy5cXG5bdG9vbF0gbG9va3VwQ3VzdG9tZXIocGhvbmU9KzEtNTU1LTAxMDApIC0+IGZvdW5kXFxuQWdlbnQ6IEkgY2FuIGJvb2sgYSB2aXNpdCBmb3IgdG9tb3Jyb3cgYXQgOS5cXG5DYWxsZXI6IFBsZWFzZSBkbywgYW5kIHNlbmQgbWUgdGhlIHByaWNlIGxpc3QuXFxuW3Rvb2xdIGJvb2tBcHBvaW50bWVudChzbG90PTA5OjAwKSAtPiBva1wifSI="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "8",
+   "eventTime": "2026-10-19T15:00:09Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "8",
+    "activityType": {
+     "name": "judgeMissedActions"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJjYWxsSWQiOiAiY203cTJ4OWsxIn0="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "9",
+   "eventTime": "2026-10-19T15:00:09Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "8",
+    "attempt": 1
+   }
+  },
+  {
+   "eventId": "10",
+   "eventTime": "2026-10-19T15:00:09Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+   "activityTaskCompletedEventAttributes": {
+    "scheduledEventId": "8",
+    "startedEventId": "9",
+    "result": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "IntcIm1pc3NlZEFjdGlvbnNcIjogW3tcImFjdGlvblwiOiBcIlNlbmQgdGhlIHByaWNlIGxpc3QgYnkgZW1haWxcIn1dLCBcInJlYXNvbmluZ1wiOiBcIlRoZSBjYWxsZXIgYXNrZWQgZm9yIHRoZSBwcmljZSBsaXN0IGFuZCBubyBlbWFpbCB0b29sIHdhcyBjYWxsZWQuXCJ9Ig=="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "11",
+   "eventTime": "2026-10-19T15:00:12Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+   "activityTaskScheduledEventAttributes": {
+    "activityId": "11",
+    "activityType": {
+     "name": "syncCallToCrm"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJjYWxsSWQiOiAiY203cTJ4OWsxIn0="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "12",
+   "eventTime": "2026-10-19T15:00:12Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+   "activityTaskStartedEventAttributes": {
+    "scheduledEventId": "11",
+    "attempt": 3,
+    "lastFailure": {
+     "message": "connect ECONNRESET",
+     "cause": {
+      "message": "socket hang up"
+     }
+    }
+   }
+  },
+  {
+   "eventId": "13",
+   "eventTime": "2026-10-19T15:00:12Z",
+   "eventType": "EVENT_TYPE_ACTIVITY_TASK_FAILED",
+   "activityTaskFailedEventAttributes": {
+    "scheduledEventId": "11",
+    "startedEventId": "12",
+    "failure": {
+     "message": "CRM rejected the record: 422 missing contact email"
+    }
+   }
+  },
+  {
+   "eventId": "14",
+   "eventTime": "2026-10-19T15:00:13Z",
+   "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+   "startChildWorkflowExecutionInitiatedEventAttributes": {
+    "workflowId": "customer-sync-interaction-int_5521",
+    "workflowType": {
+     "name": "customerSyncInteraction"
+    },
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJpbnRlcmFjdGlvbklkIjogImludF81NTIxIn0="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "15",
+   "eventTime": "2026-10-19T15:00:13Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+   "childWorkflowExecutionStartedEventAttributes": {
+    "initiatedEventId": "14",
+    "workflowExecution": {
+     "workflowId": "customer-sync-interaction-int_5521",
+     "runId": "run-sync-1"
+    },
+    "workflowType": {
+     "name": "customerSyncInteraction"
+    }
+   }
+  },
+  {
+   "eventId": "16",
+   "eventTime": "2026-10-19T15:00:20Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+   "childWorkflowExecutionCompletedEventAttributes": {
+    "initiatedEventId": "14",
+    "workflowExecution": {
+     "workflowId": "customer-sync-interaction-int_5521",
+     "runId": "run-sync-1"
+    },
+    "result": null
+   }
+  },
+  {
+   "eventId": "17",
+   "eventTime": "2026-10-19T15:00:21Z",
+   "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+   "startChildWorkflowExecutionInitiatedEventAttributes": {
+    "workflowId": "call-cm7q2x9k1-org_4f8a2c-rerun-missed-action",
+    "workflowType": {
+     "name": "rerunMissedAction"
+    },
+    "parentClosePolicy": "PARENT_CLOSE_POLICY_ABANDON",
+    "input": {
+     "payloads": [
+      {
+       "metadata": {
+        "encoding": "anNvbi9wbGFpbg=="
+       },
+       "data": "eyJjYWxsSWQiOiAiY203cTJ4OWsxIn0="
+      }
+     ]
+    }
+   }
+  },
+  {
+   "eventId": "18",
+   "eventTime": "2026-10-19T15:00:21Z",
+   "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+   "childWorkflowExecutionStartedEventAttributes": {
+    "initiatedEventId": "17",
+    "workflowExecution": {
+     "workflowId": "call-cm7q2x9k1-org_4f8a2c-rerun-missed-action",
+     "runId": "run-rerun-1"
+    },
+    "workflowType": {
+     "name": "rerunMissedAction"
+    }
+   }
+  },
+  {
+   "eventId": "19",
+   "eventTime": "2026-10-19T15:00:22Z",
+   "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_FAILED",
+   "workflowExecutionFailedEventAttributes": {
+    "failure": {
+     "message": "activity syncCallToCrm failed",
+     "cause": {
+      "message": "CRM rejected the record: 422 missing contact email"
+     }
+    }
+   }
+  }
+ ]
+}

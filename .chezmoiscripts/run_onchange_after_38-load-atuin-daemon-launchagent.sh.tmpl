@@ -1,0 +1,27 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# plist hash: {{ include "Library/LaunchAgents/com.webdavis.atuin-daemon.plist.tmpl" | sha256sum }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
+{{ includeTemplate "trash-old-logs.sh.tmpl" }}
+
+readonly launchagent_label="com.webdavis.atuin-daemon"
+readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
+readonly launchagent_log_directory="$HOME/.local/state/atuin"
+readonly old_launchagent_log="$HOME/.local/log/atuin-daemon.log"
+
+main() {
+  report_section 'atuin' 'daemon LaunchAgent'
+  create_launchagent_log_directory "$launchagent_log_directory"
+  report_line "reloading..."
+  reload_launchagent "$launchagent_label" "$launchagent_plist"
+  report_line "loaded."
+  trash_old_file "$old_launchagent_log"
+}
+
+main "$@"
+{{ end -}}

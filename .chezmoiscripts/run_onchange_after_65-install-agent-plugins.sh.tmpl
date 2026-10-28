@@ -1,0 +1,365 @@
+{{- $home := .chezmoi.homeDir -}}
+{{- $d := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
+{{- $claudeCodeMarketplaces := list -}}
+{{- range $d.claude.marketplaces -}}
+{{-   $claudeCodeMarketplaces = append $claudeCodeMarketplaces (printf "%s %s" .name .repo) -}}
+{{- end -}}
+{{- $codexMarketplaces := list -}}
+{{- range $d.codex.marketplaces -}}
+{{-   $codexMarketplaces = append $codexMarketplaces (printf "%s %s" .name .repo) -}}
+{{- end -}}
+{{- $hermesHubSkills := list -}}
+{{- range $d.hermes.hub -}}
+{{-   $hermesHubSkills = append $hermesHubSkills (printf "%s %s" .profile .identifier) -}}
+{{- end -}}
+#!/usr/bin/env bash
+# agent-plugins.yaml: {{ include ".chezmoidata/agent-plugins.yaml" | sha256sum }}
+# agent-skills.yaml: {{ include ".chezmoidata/agent-skills.yaml" | sha256sum }}
+# retry-marker: {{ $retryMarker := joinPath $home ".cache/agent-plugins/retry" }}{{ if stat $retryMarker }}{{ (stat $retryMarker).modTime }}{{ else }}settled{{ end }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly retry_marker="$HOME/.cache/agent-plugins/retry"
+readonly claude_code_marketplaces={{ join "\n" $claudeCodeMarketplaces | squote }}
+readonly claude_code_plugins={{ join "\n" $d.claude.install_plugins | squote }}
+readonly codex_marketplaces={{ join "\n" $codexMarketplaces | squote }}
+readonly codex_plugins={{ join "\n" $d.codex.plugins | squote }}
+readonly hermes_plugins={{ join "\n" $d.hermes.plugins | squote }}
+readonly hermes_hub_skills={{ join "\n" $hermesHubSkills | squote }}
+readonly hermes_opt_out_profiles={{ join "\n" $d.hermes.opt_out_profiles | squote }}
+
+section_header_printed=false
+
+section_header_is_printed() {
+  [[ $section_header_printed == true ]]
+}
+
+print_section_header_once() {
+  if section_header_is_printed; then
+    return
+  fi
+  report_section 'agent plugins' 'Claude Code, Codex and Hermes'
+  section_header_printed=true
+}
+
+report_under_header() {
+  local message=$1
+  print_section_header_once
+  report_line "$message"
+}
+
+report_error() {
+  local kind=$1 message=$2
+  print_section_header_once
+  report_line "error[$kind]: $message; the next apply retries." >&2
+}
+
+command_is_installed() {
+  local command_name=$1
+  command -v "$command_name" >/dev/null 2>&1
+}
+
+non_blank_lines_of() {
+  local text=$1
+  sed '/^[[:space:]]*$/d' <<<"$text"
+}
+
+last_line_of() {
+  local text=$1
+  non_blank_lines_of "$text" | tail -n 1
+}
+
+list_includes() {
+  local list=$1 entry=$2
+  grep -qxF -- "$entry" <<<"$list"
+}
+
+no_entries_in() {
+  local list=$1
+  [[ -z $(non_blank_lines_of "$list") ]]
+}
+
+run_install_command() {
+  local error_kind=$1
+  shift
+  local install_command=("$@")
+  local output
+  if ! output="$("${install_command[@]}" </dev/null 2>&1)"; then
+    report_error "$error_kind" "${install_command[*]}: $(last_line_of "$output")"
+    return 1
+  fi
+}
+
+retry_at_the_next_apply() {
+  mkdir -p "$(dirname "$retry_marker")"
+  touch "$retry_marker"
+}
+
+settle_retry_marker() {
+  rm -f "$retry_marker"
+}
+
+claude_code_marketplace_names() {
+  claude plugin marketplace list --json </dev/null | jq -r '.[].name'
+}
+
+claude_code_plugin_ids() {
+  claude plugin list --json </dev/null | jq -r '.[].id'
+}
+
+add_claude_code_marketplace_if_missing() {
+  local present_names=$1 name=$2 source=$3
+  if list_includes "$present_names" "$name"; then
+    return
+  fi
+  run_install_command marketplace-add-failed claude plugin marketplace add "$source" || return 1
+  report_under_header "claude code: added marketplace $name"
+}
+
+install_claude_code_plugin_if_missing() {
+  local installed_ids=$1 plugin_id=$2
+  if list_includes "$installed_ids" "$plugin_id"; then
+    return
+  fi
+  run_install_command install-failed claude plugin install "$plugin_id" || return 1
+  report_under_header "claude code: installed $plugin_id"
+}
+
+install_missing_claude_code_plugins() {
+  local present_names installed_ids name source plugin_id status=0
+  if ! present_names="$(claude_code_marketplace_names)"; then
+    report_error list-failed "claude plugin marketplace list --json did not answer"
+    return 1
+  fi
+  while read -r -u 3 name source; do
+    add_claude_code_marketplace_if_missing "$present_names" "$name" "$source" || status=1
+  done 3< <(non_blank_lines_of "$claude_code_marketplaces")
+
+  if ! installed_ids="$(claude_code_plugin_ids)"; then
+    report_error list-failed "claude plugin list --json did not answer"
+    return 1
+  fi
+  while read -r -u 3 plugin_id; do
+    install_claude_code_plugin_if_missing "$installed_ids" "$plugin_id" || status=1
+  done 3< <(non_blank_lines_of "$claude_code_plugins")
+  return "$status"
+}
+
+codex_marketplace_names() {
+  codex plugin marketplace list --json </dev/null | jq -r '.marketplaces[].name'
+}
+
+codex_plugin_ids() {
+  codex plugin list --json </dev/null | jq -r '.installed[].pluginId'
+}
+
+add_codex_marketplace_if_missing() {
+  local present_names=$1 name=$2 source=$3
+  if list_includes "$present_names" "$name"; then
+    return
+  fi
+  run_install_command marketplace-add-failed codex plugin marketplace add "$source" || return 1
+  report_under_header "codex: added marketplace $name"
+}
+
+install_codex_plugin_if_missing() {
+  local installed_ids=$1 plugin_id=$2
+  if list_includes "$installed_ids" "$plugin_id"; then
+    return
+  fi
+  run_install_command install-failed codex plugin add "$plugin_id" || return 1
+  report_under_header "codex: installed $plugin_id"
+}
+
+install_missing_codex_plugins() {
+  local present_names installed_ids name source plugin_id status=0
+  if ! present_names="$(codex_marketplace_names)"; then
+    report_error list-failed "codex plugin marketplace list --json did not answer"
+    return 1
+  fi
+  while read -r -u 3 name source; do
+    add_codex_marketplace_if_missing "$present_names" "$name" "$source" || status=1
+  done 3< <(non_blank_lines_of "$codex_marketplaces")
+
+  if ! installed_ids="$(codex_plugin_ids)"; then
+    report_error list-failed "codex plugin list --json did not answer"
+    return 1
+  fi
+  while read -r -u 3 plugin_id; do
+    install_codex_plugin_if_missing "$installed_ids" "$plugin_id" || status=1
+  done 3< <(non_blank_lines_of "$codex_plugins")
+  return "$status"
+}
+
+hermes_plugin_names() {
+  hermes plugins list --json </dev/null | jq -r '.[].name'
+}
+
+# `hermes plugins list` shows a plugin's own name, which can differ from the
+# catalog entry that installs it: hermes-memory-wiki lists as memory-wiki and
+# claude-subscription-directsdk as claude-subscription-directsdk-experimental
+# (measured 2026-10-11). So presence is the entry, the entry without its hermes-
+# prefix, or the entry with a suffix.
+hermes_plugin_is_installed() {
+  local installed_names=$1 name=$2
+  list_includes "$installed_names" "$name" || list_includes "$installed_names" "${name#hermes-}" || grep -qE "^${name}-" <<<"$installed_names"
+}
+
+install_hermes_plugin_if_missing() {
+  local installed_names=$1 name=$2
+  if hermes_plugin_is_installed "$installed_names" "$name"; then
+    return
+  fi
+  run_install_command install-failed hermes plugins install "$name" --enable || return 1
+  report_under_header "hermes: installed plugin $name"
+}
+
+install_missing_hermes_plugins() {
+  if no_entries_in "$hermes_plugins"; then
+    return
+  fi
+  local installed_names name status=0
+  if ! installed_names="$(hermes_plugin_names)"; then
+    report_error list-failed "hermes plugins list --json did not answer"
+    return 1
+  fi
+  while read -r -u 3 name; do
+    install_hermes_plugin_if_missing "$installed_names" "$name" || status=1
+  done 3< <(non_blank_lines_of "$hermes_plugins")
+  return "$status"
+}
+
+# The default profile lives in ~/.hermes and takes no -p; every other profile
+# lives under ~/.hermes/profiles/<name>.
+hermes_home_of() {
+  local profile=$1
+  if [[ $profile == default ]]; then
+    printf '%s\n' "$HOME/.hermes"
+  else
+    printf '%s\n' "$HOME/.hermes/profiles/$profile"
+  fi
+}
+
+hermes_in_profile() {
+  local profile=$1
+  shift
+  if [[ $profile == default ]]; then
+    hermes "$@"
+  else
+    hermes -p "$profile" "$@"
+  fi
+}
+
+# Hermes seeds its bundled skills into every profile. The profiles below get
+# only what the data gives them, so each one opts out once; the marker file is
+# what makes the opt-out stick across Hermes updates.
+opt_profile_out_of_bundled_skills() {
+  local profile=$1
+  local marker
+  marker="$(hermes_home_of "$profile")/.no-bundled-skills"
+  if [[ -e $marker ]]; then
+    return
+  fi
+  run_install_command opt-out-failed hermes_in_profile "$profile" skills opt-out --remove --yes || return 1
+  report_under_header "hermes: profile $profile now carries no bundled skills"
+}
+
+opt_profiles_out_of_bundled_skills() {
+  local profile status=0
+  while read -r -u 3 profile; do
+    opt_profile_out_of_bundled_skills "$profile" || status=1
+  done 3< <(non_blank_lines_of "$hermes_opt_out_profiles")
+  return "$status"
+}
+
+# The hub lock keys each installed skill by name and records the identifier the
+# hub resolved it to, which is not always the one typed: a GitHub path comes back
+# as skills-sh/<path>, a skill the hub also carries in its own catalog as
+# official/<category>/<name> (measured 2026-10-11). So presence is the typed
+# identifier, the same without its skills-sh/ prefix, or the name.
+hermes_hub_identifiers_installed_in() {
+  local profile=$1
+  local lock
+  lock="$(hermes_home_of "$profile")/skills/.hub/lock.json"
+  if [[ -f $lock ]]; then
+    jq -r '.installed // {} | to_entries[] | .key, (.value.identifier // empty), (.value.identifier // "" | ltrimstr("skills-sh/"))' "$lock" | grep -v '^$'
+  fi
+}
+
+hermes_hub_skill_is_installed() {
+  local installed=$1 identifier=$2
+  list_includes "$installed" "$identifier" || list_includes "$installed" "${identifier#skills-sh/}" || list_includes "$installed" "${identifier##*/}"
+}
+
+install_hermes_hub_skill_if_missing() {
+  local installed_identifiers=$1 profile=$2 identifier=$3
+  if hermes_hub_skill_is_installed "$installed_identifiers" "$identifier"; then
+    return
+  fi
+  local output
+  output="$(hermes_in_profile "$profile" skills install "$identifier" --yes </dev/null 2>&1)" || true
+  if ! hermes_hub_skill_is_installed "$(hermes_hub_identifiers_installed_in "$profile")" "$identifier"; then
+    report_error install-failed "hermes -p $profile skills install $identifier: $(last_line_of "$output")"
+    return 1
+  fi
+  report_under_header "hermes: installed $identifier in profile $profile"
+}
+
+hermes_profiles_with_hub_skills() {
+  non_blank_lines_of "$hermes_hub_skills" | awk '{ print $1 }' | uniq
+}
+
+hub_skills_of_profile() {
+  local profile=$1
+  non_blank_lines_of "$hermes_hub_skills" | awk -v profile="$profile" '$1 == profile { print $2 }'
+}
+
+install_missing_hermes_hub_skills_in_profile() {
+  local profile=$1
+  local installed_identifiers identifier status=0
+  installed_identifiers="$(hermes_hub_identifiers_installed_in "$profile")"
+  while read -r -u 3 identifier; do
+    install_hermes_hub_skill_if_missing "$installed_identifiers" "$profile" "$identifier" || status=1
+  done 3< <(hub_skills_of_profile "$profile")
+  return "$status"
+}
+
+install_missing_hermes_hub_skills() {
+  local profile status=0
+  while read -r -u 4 profile; do
+    install_missing_hermes_hub_skills_in_profile "$profile" || status=1
+  done 4< <(hermes_profiles_with_hub_skills)
+  return "$status"
+}
+
+main() {
+  if ! command_is_installed jq; then
+    report_error missing-tool "jq is not installed, so no agent plugins were checked"
+    retry_at_the_next_apply
+    exit 0
+  fi
+
+  local status=0
+  if command_is_installed claude; then
+    install_missing_claude_code_plugins || status=1
+  fi
+  if command_is_installed codex; then
+    install_missing_codex_plugins || status=1
+  fi
+  if command_is_installed hermes; then
+    install_missing_hermes_plugins || status=1
+    opt_profiles_out_of_bundled_skills || status=1
+    install_missing_hermes_hub_skills || status=1
+  fi
+
+  if ((status == 0)); then
+    settle_retry_marker
+  else
+    retry_at_the_next_apply
+  fi
+  exit 0
+}
+
+main "$@"

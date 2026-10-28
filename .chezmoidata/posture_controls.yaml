@@ -1,0 +1,60 @@
+posture:
+  controls:
+    - id: filevault
+      description: "FileVault disk encryption"
+      tier: verify
+      reader: fdesetup_status
+      expect: "on"
+      remedy: "Re-enable it: System Settings → Privacy & Security → FileVault"
+    - id: sip
+      description: "System Integrity Protection"
+      tier: verify
+      reader: csrutil_status
+      expect: "disabled"
+      remedy: "This machine declares SIP deliberately disabled; if enabling it was intended, update expect in posture_controls.yaml, otherwise investigate (csrutil changes state from Recovery only)"
+    - id: autologin
+      description: "Automatic login at the login window"
+      tier: verify
+      reader: defaults_autologin
+      expect: "off"
+      remedy: "Turn it off: System Settings → Users & Groups → Automatically log in as"
+    - id: guest
+      description: "The macOS Guest account"
+      tier: verify
+      reader: sysadminctl_guest
+      expect: "disabled"
+      remedy: "Disable it: System Settings → Users & Groups → Guest User"
+    # verify, not restarted: the operator may quit OverSight on purpose, so a stop pages instead.
+    - id: oversight
+      description: "The OverSight microphone and camera monitor process"
+      tier: verify
+      reader: pgrep_oversight
+      expect: "running"
+      remedy: "Relaunch it: open -a OverSight, and keep it in System Settings → General → Login Items so it returns at login"
+    - id: lulu_extension
+      description: "The LuLu outbound-firewall system extension process"
+      tier: verify
+      reader: pgrep_lulu_extension
+      expect: "running"
+      remedy: "Re-enable it: System Settings → General → Login Items & Extensions → Network Extensions, then open -a LuLu (runbook: LuLu system extension approval)"
+    # Descriptions say mention, never allow rule: the reader proves only that a rule naming the binary exists.
+    - id: lulu_rule_tailscaled
+      description: "The LuLu rule-archive mention of /usr/local/bin/tailscaled, existence-only (remote recovery path 2)"
+      tier: verify
+      reader: lulu_rule_present
+      expect: "present"
+      target: /usr/local/bin/tailscaled
+      remedy: "Recreate the allow rule for /usr/local/bin/tailscaled in the LuLu Rules window; see the runbook section LuLu rule creation"
+    - id: lulu_rule_hermes_gateway
+      description: "The LuLu rule-archive mention of the resolved Hermes gateway interpreter, existence-only (the alerting egress hop)"
+      tier: verify
+      reader: lulu_rule_resolved_present
+      expect: "present"
+      target: /Users/stephen/.hermes/hermes-agent/venv/bin/python
+      remedy: "A python upgrade likely moved the interpreter; recreate its allow rule in the LuLu Rules window (runbook: LuLu rule creation)"
+
+  osquery:
+    digestHour: 18
+    digestMinute: 0
+    heartbeatHour: 9
+    heartbeatMinute: 0

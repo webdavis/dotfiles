@@ -1,0 +1,78 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+# Apple's `container` tool (Homebrew formula) needs two one-time steps after
+# install: its API server running as a brew service, and a Linux kernel for
+# the VMs it boots. Both are skipped when already done, so a no-op apply prints
+# nothing.
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly container_bin="/opt/homebrew/bin/container"
+readonly kernels_directory="$HOME/Library/Application Support/com.apple.container/kernels"
+
+container_is_installed() {
+  [[ -x $container_bin ]]
+}
+
+# `brew services start container` bootstraps a one-shot launch agent that runs
+# `container system start`, which registers com.apple.container.apiserver with
+# launchd itself and exits. So "loaded" (the brew agent is bootstrapped, runs at
+# login) and "answering" (the API server is up now) are two separate checks;
+# brew's own `running` flag is always false here.
+brew_service_is_loaded() {
+  brew services info container --json 2>/dev/null | jq -e '.[0].loaded' >/dev/null 2>&1
+}
+
+api_server_answers() {
+  "$container_bin" system property list >/dev/null 2>&1
+}
+
+kernel_is_installed() {
+  [[ -n $(find "$kernels_directory" -type f -name 'vmlinux*' 2>/dev/null | head -n 1) ]]
+}
+
+wait_for_api_server() {
+  local _attempt
+  for _attempt in 1 2 3 4 5 6 7 8 9 10; do
+    api_server_answers && return 0
+    sleep 1
+  done
+  report_line "the API server did not answer after 10 s; check: brew services info container" >&2
+  return 1
+}
+
+load_brew_service() {
+  report_line "loading the container brew service (starts the API server now and at login)"
+  brew services start container >/dev/null
+  wait_for_api_server
+}
+
+start_api_server() {
+  report_line "starting the container API server"
+  "$container_bin" system start --disable-kernel-install >/dev/null
+  wait_for_api_server
+}
+
+install_recommended_kernel() {
+  report_line "installing the recommended kernel (one-time download)"
+  "$container_bin" system kernel set --recommended
+}
+
+main() {
+  container_is_installed || return 0
+
+  if brew_service_is_loaded && api_server_answers && kernel_is_installed; then
+    return 0
+  fi
+
+  report_section 'container' 'apple container runtime'
+  brew_service_is_loaded || load_brew_service
+  api_server_answers || start_api_server
+  kernel_is_installed || install_recommended_kernel
+}
+
+main "$@"
+{{ end -}}

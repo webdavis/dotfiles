@@ -1,0 +1,31 @@
+[jobs]
+watchdog = "com.webdavis.osquery-uptime-watchdog"
+alert = "com.webdavis.osquery-results-alerter"
+poll = "com.webdavis.osquery-firewall-gatekeeper-monitor"
+funnel = "com.webdavis.osquery-tailscale-monitor"
+digest = "com.webdavis.osquery-digest"
+heartbeat = "com.webdavis.osquery-heartbeat"
+
+[jobs.daily]
+digest = "{{ printf "%02d:%02d" (int .posture.osquery.digestHour) (int .posture.osquery.digestMinute) }}"
+heartbeat = "{{ printf "%02d:%02d" (int .posture.osquery.heartbeatHour) (int .posture.osquery.heartbeatMinute) }}"
+
+[watchdog]
+processes = ["pns.gateway"]
+
+[notify]
+mode = "hermes"
+route = "posture-pages"
+
+[notify.command]
+path = "{{ joinPath .chezmoi.homeDir ".cargo/bin" "pns" }}"
+arguments = ["send", "--json"]
+
+[notify.hermes]
+url = "http://127.0.0.1:8644/webhooks"
+critical_copy_route = "explain"
+
+[notify.hermes.keys]
+posture-pages = {{ (keepassxc "Hermes :: Webhook Secret (#posture-pages)").Password | toToml }}
+priority = {{ (keepassxc "Hermes :: Webhook Secret (#priority)").Password | toToml }}
+explain = {{ (keepassxc "Hermes :: Webhook Secret (#explain)").Password | toToml }}

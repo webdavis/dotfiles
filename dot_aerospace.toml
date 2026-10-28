@@ -1,0 +1,225 @@
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃    AeroSpace Configuration    ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+# Hyper = alt-ctrl-cmd-shift (Tab held, via Karabiner).
+# Guide:    https://nikitabobko.github.io/AeroSpace/guide
+# Commands: https://nikitabobko.github.io/AeroSpace/commands
+
+config-version = 2
+
+# ╭───────────╮
+# │  General  │
+# ╰───────────╯
+start-at-login = true
+automatically-unhide-macos-hidden-apps = false
+on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+on-mode-changed = []
+
+# Window borders (JankyBorders).
+after-startup-command = [
+  'exec-and-forget borders active_color=0xffe61a52 inactive_color=0xff494d64 width=7.0'
+]
+
+persistent-workspaces = [
+  "1:main",
+  "2:broccoli",
+  "3:iosle",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10"
+]
+
+# ╭──────────╮
+# │  Layout  │
+# ╰──────────╯
+# Flattening removes one-window groups. The opposite-orientation rule is off,
+# so layout keys never rotate surrounding windows.
+enable-normalization-flatten-containers = true
+enable-normalization-opposite-orientation-for-nested-containers = false
+
+accordion-padding = 30
+default-root-container-layout = 'tiles'
+default-root-container-orientation = 'auto' # wide monitor: horizontal, tall: vertical
+
+[key-mapping]
+    preset = 'qwerty'
+
+# ╭────────╮
+# │  Gaps  │
+# ╰────────╯
+[gaps]
+    inner.horizontal = 7
+    inner.vertical =   7
+    outer.left =       7
+    outer.bottom =     7
+    outer.top =        7
+    outer.right =      7
+
+# ╭─────────────╮
+# │  Main mode  │
+# ╰─────────────╯
+[mode.main.binding]
+    cmd-h = []     # disable "hide application"
+    cmd-alt-h = [] # disable "hide others"
+
+    # Apps
+    ctrl-cmd-period = 'exec-and-forget open -a KeePassXC' # also Hyper+period, via Karabiner
+    alt-ctrl-cmd-shift-backtick = 'exec-and-forget open -na Brave\ Browser --args --incognito'
+    alt-ctrl-cmd-shift-semicolon = 'exec-and-forget open -a Ghostty'
+    alt-ctrl-cmd-shift-enter = 'exec-and-forget open -na Ghostty'
+    alt-ctrl-cmd-shift-a = 'exec-and-forget open -a Activity\ Monitor'
+    alt-ctrl-cmd-shift-b = 'exec-and-forget open -a Arc'
+    alt-ctrl-cmd-shift-n = "exec-and-forget osascript -e 'tell application \"Arc\" to make new window' -e 'tell application \"Arc\" to activate'"
+    alt-ctrl-cmd-shift-c = 'exec-and-forget open -a Claude'
+    alt-ctrl-cmd-shift-d = 'exec-and-forget open -a Discord'
+    alt-ctrl-cmd-shift-e = 'exec-and-forget open -a Messages'
+    alt-ctrl-cmd-shift-f = 'exec-and-forget open -a Fantastical'
+    alt-ctrl-cmd-shift-g = 'exec-and-forget open -a Finder'
+    alt-ctrl-cmd-shift-m = 'exec-and-forget open -a Slack'
+    alt-ctrl-cmd-shift-o = 'exec-and-forget open -a Obsidian'
+    alt-ctrl-cmd-shift-r = 'exec-and-forget open -a Reader'
+    alt-ctrl-cmd-shift-t = 'exec-and-forget open -a Todoist'
+    alt-ctrl-cmd-shift-v = 'exec-and-forget open -a System\ Settings'
+    alt-ctrl-cmd-shift-x = 'exec-and-forget open -a Xcode'
+
+    # Utilities
+    alt-ctrl-cmd-shift-up = [
+      'exec-and-forget /opt/homebrew/bin/espanso restart',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Restarted Espanso" -group aerospace-config'
+    ]
+    # Hide the focused app (replaces Cmd+H).
+    alt-ctrl-cmd-shift-down = "exec-and-forget osascript -e 'tell application \"System Events\" to set visible of first process whose frontmost is true to false'"
+
+    # Lights: time-of-day presets
+    f1  = 'exec-and-forget ~/.cargo/bin/lights preset morning'
+    f2  = 'exec-and-forget ~/.cargo/bin/lights preset afternoon'
+    f3  = 'exec-and-forget ~/.cargo/bin/lights preset evening'
+    f4  = 'exec-and-forget ~/.cargo/bin/lights preset dusk'
+    f7  = 'exec-and-forget ~/.cargo/bin/lights preset night'
+
+    # Lights: Studio scenes, power and brightness
+    f5  = 'exec-and-forget ~/.cargo/bin/lights scene previous'
+    f6  = 'exec-and-forget ~/.cargo/bin/lights scene next'
+    f8  = 'exec-and-forget ~/.cargo/bin/lights brightness down'
+    f9  = 'exec-and-forget ~/.cargo/bin/lights toggle'
+    f10 = 'exec-and-forget ~/.cargo/bin/lights brightness up'
+
+    # Focus
+    alt-ctrl-cmd-shift-h = 'focus --boundaries-action wrap-around-the-workspace left'
+    alt-ctrl-cmd-shift-j = 'focus --boundaries-action wrap-around-the-workspace down'
+    alt-ctrl-cmd-shift-k = 'focus --boundaries-action wrap-around-the-workspace up'
+    alt-ctrl-cmd-shift-l = 'focus --boundaries-action wrap-around-the-workspace right'
+
+    # Move
+    cmd-ctrl-h = 'move left'
+    cmd-ctrl-j = 'move down'
+    cmd-ctrl-k = 'move up'
+    cmd-ctrl-l = 'move right'
+
+    # Join with a neighbor into a new group
+    ctrl-shift-h = 'join-with left'
+    ctrl-shift-j = 'join-with down'
+    ctrl-shift-k = 'join-with up'
+    ctrl-shift-l = 'join-with right'
+
+    # Layout: each key sets one fixed layout
+    alt-ctrl-cmd-shift-s = 'layout v_accordion' # stack, top to bottom
+    alt-ctrl-cmd-shift-w = 'layout h_accordion' # tabs, side to side
+    alt-ctrl-cmd-shift-u = 'layout tiles'       # every window visible
+    alt-ctrl-cmd-shift-space = 'layout floating tiling'
+    alt-ctrl-cmd-shift-equal = 'fullscreen'
+    alt-ctrl-cmd-shift-0 = 'flatten-workspace-tree' # reset: one row
+
+    # Workspaces
+    alt-ctrl-cmd-shift-1 = 'workspace "1:main"'
+    alt-ctrl-cmd-shift-2 = 'workspace "2:broccoli"'
+    alt-ctrl-cmd-shift-3 = 'workspace "3:iosle"'
+    alt-ctrl-cmd-shift-4 = 'workspace 4'
+    alt-ctrl-cmd-shift-5 = 'workspace 5'
+    alt-ctrl-cmd-shift-6 = 'workspace 6'
+    alt-ctrl-cmd-shift-7 = 'workspace 7'
+    alt-ctrl-cmd-shift-8 = 'workspace 8'
+    alt-ctrl-cmd-shift-9 = 'workspace 9'
+    alt-ctrl-cmd-shift-rightSquareBracket = 'workspace next'
+    alt-ctrl-cmd-shift-leftSquareBracket = 'workspace prev'
+    alt-ctrl-cmd-shift-backslash = 'workspace-back-and-forth'
+
+    # Send window to workspace
+    cmd-ctrl-1 = 'move-node-to-workspace "1:main"'
+    cmd-ctrl-2 = 'move-node-to-workspace "2:broccoli"'
+    cmd-ctrl-3 = 'move-node-to-workspace "3:iosle"'
+    cmd-ctrl-4 = 'move-node-to-workspace 4'
+    cmd-ctrl-5 = 'move-node-to-workspace 5'
+    cmd-ctrl-6 = 'move-node-to-workspace 6'
+    cmd-ctrl-7 = 'move-node-to-workspace 7'
+    cmd-ctrl-8 = 'move-node-to-workspace 8'
+    cmd-ctrl-9 = 'move-node-to-workspace 9'
+
+    # Config and modes
+    alt-ctrl-cmd-shift-home = [
+      'reload-config',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Config reloaded" -group aerospace-config'
+    ]
+    alt-ctrl-cmd-shift-q = [
+      'mode service',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"service\" mode" -group aerospace-config'
+    ]
+    cmd-ctrl-r = [
+      'mode resize',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"resize\" mode" -group aerospace-config'
+    ]
+
+# ╭────────────────╮
+# │  Service mode  │
+# ╰────────────────╯
+[mode.service.binding]
+    esc = [
+      'reload-config',
+      'mode main',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"main\" mode" -group aerospace-config'
+    ]
+    r = [ # reset layout
+      'flatten-workspace-tree',
+      'mode main',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"main\" mode" -group aerospace-config'
+    ]
+    f = [ # floating <-> tiling
+      'layout floating tiling',
+      'mode main',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"main\" mode" -group aerospace-config'
+    ]
+    backspace = [
+      'close-all-windows-but-current',
+      'mode main',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"main\" mode" -group aerospace-config'
+    ]
+
+# ╭───────────────╮
+# │  Resize mode  │
+# ╰───────────────╯
+[mode.resize.binding]
+    b = 'balance-sizes'
+    h = 'resize width -50'
+    j = 'resize height +50'
+    k = 'resize height -50'
+    l = 'resize width +50'
+    enter = [
+      'mode main',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"main\" mode" -group aerospace-config'
+    ]
+    esc = [
+      'mode main',
+      'exec-and-forget /opt/homebrew/bin/terminal-notifier -title "Aerospace" -message "Entered \"main\" mode" -group aerospace-config'
+    ]
+
+# ╭────────────────╮
+# │  Window rules  │
+# ╰────────────────╯
+[[on-window-detected]]
+    if.app-id = 'com.apple.systempreferences'
+    check-further-callbacks = true
+    run = ['layout floating']

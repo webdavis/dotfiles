@@ -1,0 +1,90 @@
+# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+# ┃    Ghostty Configuration    ┃
+# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+# ╭────────────────╮
+# │  Config Paths  │
+# ╰────────────────╯
+#
+#  → System Config: ~/Library/Application Support/com.mitchellh.ghostty/config
+#  ----------------------------------------------------------------------------
+#
+#  → User Config:   $XDG_CONFIG_HOME/.config/ghostty/config (a.k.a. ~/.config/ghostty/config)
+#  -------------------------------------------------------------------------------------------
+
+# ╭──────────╮
+# │  ⚠ Note  │
+# ╰──────────╯
+# The System Config always overrides the User Config. To use your User Config, delete
+# the System Config with the following command:
+#
+#   $ rm ~/Library/Application\ Support/com.mitchellh.ghostty/config
+#   -----------------------------------------------------------------
+
+# ╭─────────╮
+# │  Shell  │
+# ╰─────────╯
+# Launch Bash via /usr/bin/env to ensure:
+# 1. Ghostty picks the first `bash` in the PATH (so Homebrew Bash is used if present).
+# 2. Ghostty's environment variables, like GHOSTTY_RESOURCES_DIR, are preserved.
+# 3. The -i flag runs Bash interactively, sourcing ~/.bashrc for PATH changes,
+#    aliases, completions, and shell integration.
+#
+# We use /usr/bin/env instead of a direct path to ensure Ghostty's shell integration
+# works correctly. Ghostty sets environment variables (e.g., GHOSTTY_RESOURCES_DIR)
+# that must exist before Bash starts. This approach preserves those variables and
+# is recommended in the discussion below.
+# Discussion: https://github.com/ghostty-org/ghostty/discussions/7931#discussioncomment-13746978
+# Ghostty `command` ref: https://ghostty.org/docs/config/reference#command
+command = "/usr/bin/env bash -i"
+
+# ╭────────╮
+# │  Font  │
+# ╰────────╯
+font-family   = Menlo
+font-size     = 13
+font-thicken  = true
+font-feature  = -liga
+
+# ╭──────────────╮
+# │  Appearance  │
+# ╰──────────────╯
+# One theme, not a dark:/light: pair: with the pair, the quick terminal came up
+# light while macOS was in Dark mode (Ghostty 1.3.1, 2026-10-06).
+theme             = "GitHub Dark Dimmed"
+link-url          = true
+link-previews     = true
+cursor-style      = block
+window-colorspace = "display-p3"
+# window-padding-x = 2 # Optional padding (uncomment to enable)
+
+# ╭────────────╮
+# │  Behavior  │
+# ╰────────────╯
+# Stay running with no windows so the quick terminal hotkey keeps working.
+# Cmd+Q still quits.
+quit-after-last-window-closed = false
+
+# Quick terminal: drops from the top, 55% of the screen tall and 85% wide
+# (about 2557px on the LG, 1454px on the MacBook). The
+# slide takes 0.05s instead of the default 0.2s.
+quick-terminal-position = top
+quick-terminal-size = 55%,85%
+quick-terminal-animation-duration = 0.05
+
+# ╭───────────────╮
+# │  Keybindings  │
+# ╰───────────────╯
+# Hyper+comma: Karabiner turns it into Cmd+Ctrl+F19, because macOS reserves
+# Hyper+comma for its sysdiagnose viewer. F19, not comma: espanso records a comma
+# even with Cmd+Ctrl held, and two of them start its `,,` triggers.
+keybind = global:ctrl+super+f19=toggle_quick_terminal
+
+# ╭──────────────────────╮
+# │  Security & UX (v2)  │
+# ╰──────────────────────╯
+clipboard-read = ask
+clipboard-paste-protection = true
+shell-integration-features = cursor,sudo,title
+window-padding-x = 4
+window-padding-y = 2

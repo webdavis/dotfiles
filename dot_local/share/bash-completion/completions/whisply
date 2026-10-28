@@ -1,0 +1,12 @@
+# whisply (typer) completion. Regenerate with:
+#   _TYPER_COMPLETE_TEST_DISABLE_SHELL_DETECTION=1 whisply --show-completion bash
+_whisply_completion() {
+    local IFS=$'
+'
+    COMPREPLY=( $( env COMP_WORDS="${COMP_WORDS[*]}" \
+                   COMP_CWORD=$COMP_CWORD \
+                   _WHISPLY_COMPLETE=complete_bash $1 ) )
+    return 0
+}
+
+complete -o default -F _whisply_completion whisply

@@ -1,0 +1,34 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly hermes_installer_url="https://hermes-agent.nousresearch.com/install.sh"
+readonly hermes_branch=main
+
+hermes_is_installed() {
+  command -v hermes >/dev/null 2>&1
+}
+
+install_hermes_at_the_latest_commit() {
+  curl -fsSL "$hermes_installer_url" |
+    bash -s -- --branch "$hermes_branch" --skip-setup
+}
+
+main() {
+  report_section 'hermes' 'Nous Research agent'
+
+  if hermes_is_installed; then
+    report_line 'already installed; upgrade with hermes update'
+    return
+  fi
+
+  report_line "installing the latest commit of the $hermes_branch branch..."
+  install_hermes_at_the_latest_commit
+  report_line "installed hermes-agent."
+}
+
+main "$@"
+{{ end -}}

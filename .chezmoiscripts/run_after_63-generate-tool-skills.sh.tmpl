@@ -1,0 +1,46 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# Runs before 64 so the generated skill folders exist when 64 links them. The
+# work lives in ~/.config/uu/scripts/generate-tool-skills.sh, which the uu
+# `tool-skills` lane also runs; this script only wraps its output in the apply's
+# print style.
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly generate_script="$HOME/.config/uu/scripts/generate-tool-skills.sh"
+
+section_is_printed=no
+
+report_under_section() {
+  local message=$1
+  if [[ $section_is_printed == no ]]; then
+    report_section 'tool skills' 'ElevenLabs and GitButler'
+    section_is_printed=yes
+  fi
+  report_line "$message"
+}
+
+main() {
+  if [[ ! -x $generate_script ]]; then
+    report_under_section "error[missing-script]: $generate_script is not installed; the next apply retries." >&2
+    exit 0
+  fi
+  local output line status=0
+  output="$("$generate_script" </dev/null 2>&1)" || status=$?
+  while IFS= read -r line; do
+    if [[ $line == error\[* ]]; then
+      report_under_section "$line; the next apply retries." >&2
+    elif [[ -n $line ]]; then
+      report_under_section "$line."
+    fi
+  done <<<"$output"
+  if ((status != 0)) && [[ -z $output ]]; then
+    report_under_section "error[generate-failed]: $generate_script exited $status; the next apply retries." >&2
+  fi
+  exit 0
+}
+
+main "$@"
+{{ end -}}

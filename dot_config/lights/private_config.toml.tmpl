@@ -1,0 +1,52 @@
+default_room = "3F - Studio"
+
+[notify]
+command = ["{{ .chezmoi.homeDir }}/.config/lights/scripts/send-to-pns.sh"]
+announce = false
+
+[controller]
+type = "hue"
+address = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").UserName | toToml }}
+certificate = {{ keepassxcAttribute "OpenHue :: API Key (hue-bridge-pro)" "certificate-pin" | toToml }}
+key = {{ (keepassxc "OpenHue :: API Key (hue-bridge-pro)").Password | toToml }}
+timeout_secs = 2
+
+[brightness]
+step = 15
+
+[rooms]
+studio = "3F - Studio"
+bedroom = "3F - MBedroom"
+kitchen = "2F - Kitchen"
+
+[scenes]
+rotation = ["Nightlight", "Soho", "Rest", "Dimmed", "Relax", "Read", "Energize"]
+fallback = "Read"
+remember_position = true
+
+[presets]
+morning = [
+  { room = "studio", scene = "Energize" },
+  { room = "bedroom", scene = "Energize" },
+  { room = "kitchen", scene = "Energize" },
+]
+afternoon = [
+  { room = "studio", scene = "Concentrate" },
+  { room = "bedroom", scene = "Concentrate" },
+  { room = "kitchen", scene = "Concentrate" },
+]
+evening = [
+  { room = "studio", scene = "Relax" },
+  { room = "bedroom", scene = "Relax" },
+  { room = "kitchen", scene = "Relax" },
+]
+dusk = [
+  { room = "studio", scene = "Rest" },
+  { room = "bedroom", scene = "Rest" },
+  { room = "kitchen", scene = "Rest" },
+]
+night = [
+  { room = "studio", scene = "Nightlight" },
+  { room = "bedroom", scene = "Nightlight" },
+  { room = "kitchen", scene = "Nightlight" },
+]

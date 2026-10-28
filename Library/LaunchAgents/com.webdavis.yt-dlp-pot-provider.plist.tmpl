@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.webdavis.yt-dlp-pot-provider</string>
+  <!-- Run the Node.js build, not the Deno script. Deno + macOS + the npm
+       canvas native module crashes (SIGSEGV in Backend::setCanvas) on
+       every few requests, confirmed by ~4 deno-*.ips DiagnosticReports
+       per day. Canvas was originally written for Node's NAPI and is
+       stable there; upstream is also migrating jsdom→happy-dom (issues
+       #208/#219) which will eventually drop the canvas dep entirely.
+       After updating the bgutil-ytdlp-pot-provider checkout, run
+       `cd .../server && npm ci && npx tsc` to refresh build/main.js. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ .chezmoi.homeDir }}/.local/share/fnm/aliases/default/bin/node</string>
+    <string>build/main.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>{{ .chezmoi.homeDir }}/.local/share/yt-dlp/bgutil-ytdlp-pot-provider/server</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>StandardOutPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/state/yt-dlp/pot-provider.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{ .chezmoi.homeDir }}/.local/state/yt-dlp/pot-provider.log</string>
+</dict>
+</plist>

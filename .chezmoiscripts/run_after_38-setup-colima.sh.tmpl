@@ -1,0 +1,114 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+# Colima (Homebrew formula) runs the Docker engine in a Linux VM. This loads its
+# brew service so the VM starts now and at login, points the docker CLI at it,
+# and points ~/.docker/config.json at Homebrew's plugins and keychain helper
+# instead of Docker Desktop's. Each step is skipped when already done, so a
+# no-op apply prints nothing.
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly colima_bin="/opt/homebrew/bin/colima"
+readonly docker_bin="/opt/homebrew/bin/docker"
+readonly docker_config="$HOME/.docker/config.json"
+readonly homebrew_plugins_directory="/opt/homebrew/lib/docker/cli-plugins"
+readonly desktop_link_folders=("$HOME/.docker/cli-plugins" "$HOME/.docker/bin")
+
+colima_is_installed() {
+  [[ -x $colima_bin && -x $docker_bin ]]
+}
+
+brew_service_is_loaded() {
+  brew services info colima --json 2>/dev/null | jq -e '.[0].loaded' >/dev/null 2>&1
+}
+
+docker_answers() {
+  "$docker_bin" info >/dev/null 2>&1
+}
+
+context_is_colima() {
+  [[ $("$docker_bin" context show 2>/dev/null) == colima ]]
+}
+
+# Docker Desktop's "desktop" credential helper goes away with the app, and the
+# CLI looks for Homebrew's compose and buildx only where this list says.
+config_is_set() {
+  [[ -f $docker_config ]] || return 1
+  jq -e --arg plugins "$homebrew_plugins_directory" \
+    '.credsStore != "desktop" and any(.cliPluginsExtraDirs[]?; . == $plugins)' \
+    "$docker_config" >/dev/null 2>&1
+}
+
+# Links Docker Desktop made into its app bundle; they dangle once the app is gone.
+dangling_desktop_links() {
+  local folder link
+  for folder in "${desktop_link_folders[@]}"; do
+    for link in "$folder"/*; do
+      [[ -L $link && ! -e $link && $(readlink "$link") == /Applications/Docker.app/* ]] && printf '%s\n' "$link"
+    done
+  done
+}
+
+# The first start downloads the VM image, which takes a minute or two.
+wait_for_docker() {
+  local _attempt
+  for _attempt in $(seq 180); do
+    docker_answers && return 0
+    sleep 1
+  done
+  report_line "docker did not answer after 180 s; check: colima status" >&2
+  return 1
+}
+
+load_brew_service() {
+  report_line "loading the colima brew service (starts the VM now and at login)"
+  brew services start colima >/dev/null
+  wait_for_docker
+}
+
+use_colima_context() {
+  report_line "switching the docker context to colima"
+  "$docker_bin" context use colima >/dev/null
+}
+
+set_config() {
+  report_line "pointing $docker_config at the osxkeychain helper and $homebrew_plugins_directory"
+  mkdir -p "${docker_config%/*}"
+  [[ -f $docker_config ]] || printf '{}\n' >"$docker_config"
+  local updated
+  updated=$(jq --arg plugins "$homebrew_plugins_directory" '
+    (if .credsStore == "desktop" then .credsStore = "osxkeychain" else . end)
+    | .cliPluginsExtraDirs = ((.cliPluginsExtraDirs // []) + [$plugins] | unique)
+  ' "$docker_config")
+  printf '%s\n' "$updated" >"$docker_config"
+}
+
+trash_dangling_desktop_links() {
+  local link
+  while IFS= read -r link; do
+    trash "$link"
+    report_line "trashed the dangling Docker Desktop link $link."
+  done < <(dangling_desktop_links)
+}
+
+main() {
+  colima_is_installed || return 0
+
+  if brew_service_is_loaded && docker_answers && context_is_colima && config_is_set \
+    && [[ -z $(dangling_desktop_links) ]]; then
+    return 0
+  fi
+
+  report_section 'colima' 'docker engine in a Linux VM'
+  brew_service_is_loaded || load_brew_service
+  docker_answers || wait_for_docker
+  context_is_colima || use_colima_context
+  config_is_set || set_config
+  trash_dangling_desktop_links
+}
+
+main "$@"
+{{ end -}}

@@ -1,0 +1,283 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "rust-build-lib.sh.tmpl" }}
+
+readonly plugin_checkouts_dir="$HOME/.local/share"
+readonly herdr_time_limit_seconds=10
+readonly herdr_timed_out_status=124
+readonly fields_per_linked_plugin=2
+readonly linked_plugins=(
+{{- range .packages.herdr_linked_plugins }}
+  {{ .id | quote }} "https://github.com/{{ .repo }}.git"
+{{- end }}
+)
+
+reported_plugin=''
+
+# The section header goes out with the first line about a plugin, so an apply
+# that finds every plugin current prints nothing.
+report_plugin_line() {
+  local plugin_id=$1 text=$2
+  if [[ $reported_plugin != "$plugin_id" ]]; then
+    report_section 'herdr plugin' "$plugin_id"
+    reported_plugin=$plugin_id
+  fi
+  report_line "$text"
+}
+
+path_exists() {
+  local path=$1
+  [[ -e $path ]]
+}
+
+checkout_is_a_git_repository() {
+  local checkout=$1
+  [[ -d $checkout/.git ]]
+}
+
+path_blocks_the_checkout() {
+  local checkout=$1
+  path_exists "$checkout" && ! checkout_is_a_git_repository "$checkout"
+}
+
+clone_plugin() {
+  local repo_url=$1 checkout=$2
+  git clone --quiet "$repo_url" "$checkout"
+}
+
+fetch_plugin_origin() {
+  local checkout=$1
+  git -C "$checkout" fetch --quiet origin && git -C "$checkout" remote set-head origin --auto >/dev/null
+}
+
+check_out_latest_commit() {
+  local checkout=$1
+  git -C "$checkout" checkout --quiet --force --detach origin/HEAD
+}
+
+checked_out_short_sha() {
+  local checkout=$1
+  git -C "$checkout" rev-parse --short HEAD
+}
+
+release_binary_path() {
+  local checkout=$1 plugin_id=$2
+  printf '%s\n' "$checkout/target/release/$plugin_id"
+}
+
+build_plugin_release_binary() {
+  local checkout=$1
+  (cd "$checkout" && "$cargo_bin" build --release --locked --quiet)
+}
+
+# The manifest is generated beside the build, under the gitignored target
+# directory, and copied into place only when it differs from the one herdr has.
+generated_manifest_path() {
+  local checkout=$1
+  printf '%s\n' "$checkout/target/generated-manifest/herdr-plugin.toml"
+}
+
+generate_plugin_manifest() {
+  local checkout=$1 plugin_id=$2
+  local output_dir
+  output_dir="$(dirname "$(generated_manifest_path "$checkout")")"
+  mkdir -p "$output_dir"
+  (cd "$checkout" && "./target/release/$plugin_id" generate --output "$output_dir")
+}
+
+manifest_is_current() {
+  local checkout=$1
+  cmp -s "$(generated_manifest_path "$checkout")" "$checkout/herdr-plugin.toml"
+}
+
+install_generated_manifest() {
+  local checkout=$1
+  cp "$(generated_manifest_path "$checkout")" "$checkout/herdr-plugin.toml"
+}
+
+command_is_on_path() {
+  local command_name=$1
+  command -v "$command_name" >/dev/null 2>&1
+}
+
+find_coreutils_timeout() {
+  local candidate
+  for candidate in timeout gtimeout; do
+    if command_is_on_path "$candidate"; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+}
+
+herdr_calls_can_be_time_limited() {
+  [[ -n $(find_coreutils_timeout) ]]
+}
+
+run_herdr_with_time_limit() {
+  local timeout_command
+  timeout_command="$(find_coreutils_timeout)"
+  "$timeout_command" "$herdr_time_limit_seconds" herdr "$@"
+}
+
+list_registered_plugin() {
+  local plugin_id=$1
+  run_herdr_with_time_limit plugin list --plugin "$plugin_id" --json 2>/dev/null
+}
+
+herdr_reported_an_error() {
+  local response=$1
+  printf '%s' "$response" | jq -e '.error' >/dev/null 2>&1
+}
+
+count_plugins_registered_as() {
+  local response=$1 plugin_id=$2
+  printf '%s' "$response" | jq --arg id "$plugin_id" '[.result.plugins[]? | select(.plugin_id == $id)] | length' 2>/dev/null
+}
+
+plugin_is_registered() {
+  local plugin_id=$1
+  local response registered_count
+  response="$(list_registered_plugin "$plugin_id")" || return 1
+  if herdr_reported_an_error "$response"; then
+    return 1
+  fi
+  registered_count="$(count_plugins_registered_as "$response" "$plugin_id" || printf '0')"
+  [[ $registered_count == 1 ]]
+}
+
+link_plugin_checkout() {
+  local checkout=$1
+  run_herdr_with_time_limit plugin link "$checkout" 2>&1
+}
+
+herdr_call_timed_out() {
+  local call_status=$1
+  ((call_status == herdr_timed_out_status))
+}
+
+link_error_message() {
+  local link_output=$1
+  printf '%s' "$link_output" | jq -e -r '.error.message // empty' 2>/dev/null
+}
+
+link_reported_an_error() {
+  local link_error=$1
+  [[ -n $link_error ]]
+}
+
+register_plugin() {
+  local plugin_id=$1 checkout=$2
+  local link_output link_status=0 link_error
+  if ! herdr_calls_can_be_time_limited; then
+    report_plugin_line "$plugin_id" "error[missing-tool]: no coreutils timeout binary (timeout or gtimeout); herdr calls cannot be bounded, registration skipped, the next apply retries." >&2
+    return 1
+  fi
+  link_output="$(link_plugin_checkout "$checkout")" || link_status=$?
+  if herdr_call_timed_out "$link_status"; then
+    report_plugin_line "$plugin_id" "error[timeout]: herdr plugin link timed out (server wedged?); the next apply retries." >&2
+    return 1
+  fi
+  link_error="$(link_error_message "$link_output" || true)"
+  if link_reported_an_error "$link_error"; then
+    report_plugin_line "$plugin_id" "herdr plugin link returned an error envelope: $link_error" >&2
+  fi
+  plugin_is_registered "$plugin_id"
+}
+
+# Clones on a fresh machine, otherwise moves the checkout to the newest commit
+# on the default branch. A failed fetch keeps the current checkout, so an
+# offline apply still builds and registers what is there.
+update_plugin_checkout() {
+  local plugin_id=$1 repo_url=$2 checkout=$3
+  if ! checkout_is_a_git_repository "$checkout"; then
+    report_plugin_line "$plugin_id" "cloning $repo_url..."
+    clone_plugin "$repo_url" "$checkout"
+    return
+  fi
+  if ! fetch_plugin_origin "$checkout"; then
+    report_plugin_line "$plugin_id" "git fetch failed (offline?); keeping $(checked_out_short_sha "$checkout") until the next apply." >&2
+    return
+  fi
+  check_out_latest_commit "$checkout"
+}
+
+# cargo is run even when nothing changed: it finishes at once on a current
+# build and repairs one that a failed earlier apply left stale.
+build_plugin() {
+  local plugin_id=$1 checkout=$2 previous_sha=$3
+  local current_sha reason=''
+  current_sha="$(checked_out_short_sha "$checkout")"
+  if [[ $current_sha != "$previous_sha" ]]; then
+    reason="checked out $current_sha${previous_sha:+ (was $previous_sha)}"
+  elif ! path_exists "$(release_binary_path "$checkout" "$plugin_id")"; then
+    reason='release binary missing'
+  fi
+  if [[ -n $reason ]]; then
+    report_plugin_line "$plugin_id" "$reason, building..."
+  fi
+  build_plugin_release_binary "$checkout" || return
+  if [[ -n $reason ]]; then
+    report_plugin_line "$plugin_id" "built target/release/$plugin_id at $current_sha."
+  fi
+}
+
+install_linked_plugin() {
+  local plugin_id=$1 repo_url=$2
+  local checkout="$plugin_checkouts_dir/$plugin_id"
+  local previous_sha='' needs_link=''
+
+  if ! cargo_is_installed; then
+    report_plugin_line "$plugin_id" "cargo not found at $cargo_bin (run_before_20-install-rustup provisions it); the next apply retries." >&2
+    return
+  fi
+  if path_blocks_the_checkout "$checkout"; then
+    report_plugin_line "$plugin_id" "error[checkout-blocked]: $checkout exists and is not a git checkout; trash it by hand and the next apply reclones." >&2
+    return
+  fi
+  if checkout_is_a_git_repository "$checkout"; then
+    previous_sha="$(checked_out_short_sha "$checkout")"
+  fi
+  if ! update_plugin_checkout "$plugin_id" "$repo_url" "$checkout"; then
+    report_plugin_line "$plugin_id" "error[checkout-failed]: $repo_url could not be cloned or checked out; the next apply retries." >&2
+    return
+  fi
+  if ! build_plugin "$plugin_id" "$checkout" "$previous_sha"; then
+    report_plugin_line "$plugin_id" "error[build-failed]: cargo build failed at $(checked_out_short_sha "$checkout"); the apply fails until the plugin builds." >&2
+    return 1
+  fi
+  if ! generate_plugin_manifest "$checkout" "$plugin_id"; then
+    report_plugin_line "$plugin_id" "error[generate-failed]: $plugin_id generate failed, so the manifest and registration were left as they are; the apply fails until it succeeds." >&2
+    return 1
+  fi
+  if ! manifest_is_current "$checkout"; then
+    install_generated_manifest "$checkout"
+    report_plugin_line "$plugin_id" "generated the plugin manifest."
+    needs_link=1
+  fi
+  if [[ -z $needs_link ]] && plugin_is_registered "$plugin_id"; then
+    return
+  fi
+  if ! register_plugin "$plugin_id" "$checkout"; then
+    report_plugin_line "$plugin_id" "error[register-failed]: registration is unverified (herdr server unreachable?); the next apply retries." >&2
+    return
+  fi
+  report_plugin_line "$plugin_id" "registered $checkout with herdr."
+}
+
+# A plugin whose build or manifest fails is the owner's to fix, so the apply
+# fails once every plugin has had its turn.
+main() {
+  local plugin_index apply_status=0
+  for ((plugin_index = 0; plugin_index < ${#linked_plugins[@]}; plugin_index += fields_per_linked_plugin)); do
+    install_linked_plugin "${linked_plugins[plugin_index]}" "${linked_plugins[plugin_index + 1]}" || apply_status=1
+  done
+  return "$apply_status"
+}
+
+main "$@"
+{{ end -}}

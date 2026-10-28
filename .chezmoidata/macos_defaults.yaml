@@ -1,0 +1,98 @@
+macos:
+  defaults:
+    - domain: com.apple.dock
+      key: mru-spaces
+      type: bool
+      value: false
+      tier: enforce
+    - domain: com.apple.dock
+      key: expose-group-apps
+      type: bool
+      value: false
+      tier: enforce
+    - domain: com.apple.WindowManager
+      key: GloballyEnabled
+      type: bool
+      value: false
+      tier: enforce
+    - domain: com.apple.WindowManager
+      key: EnableStandardClickToShowDesktop
+      type: bool
+      value: false
+      tier: enforce
+    - domain: com.apple.WindowManager
+      key: EnableTilingByEdgeDrag
+      type: bool
+      value: false
+      tier: enforce
+    - domain: com.apple.WindowManager
+      key: EnableTilingOptionAccelerator
+      type: bool
+      value: false
+      tier: enforce
+    - domain: com.apple.WindowManager
+      key: EnableTopTilingByEdgeDrag
+      type: bool
+      value: false
+      tier: enforce
+    - domain: com.apple.SoftwareUpdate
+      key: AutomaticCheckEnabled
+      type: bool
+      value: true
+      scope: system
+      tier: enforce
+    - domain: com.apple.Safari
+      key: AutoOpenSafeDownloads
+      type: bool
+      value: false
+      tier: enforce
+    # All six LuLu records are verify: the extension rewrites this plist from memory, clobbering outside writes.
+    # allowLocalHost must stay true: pns and posture page through 127.0.0.1:8644.
+    - domain: com.objective-see.lulu
+      key: allowLocalHost
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: verify
+    - domain: com.objective-see.lulu
+      key: allowApple
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: verify
+    - domain: com.objective-see.lulu
+      key: allowDNS
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: verify
+    - domain: com.objective-see.lulu
+      key: allowInstalled
+      type: bool
+      value: true
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: verify
+    - domain: com.objective-see.lulu
+      key: blockMode
+      type: bool
+      value: false
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: verify
+    # passiveModeAction and passiveModeRules are unconsulted while this is false, so not declared.
+    - domain: com.objective-see.lulu
+      key: passiveMode
+      type: bool
+      value: false
+      scope: system
+      plist_path: /Library/Objective-See/LuLu/preferences.plist
+      tier: verify
+  killall:
+    - Dock
+    - Finder
+    - SystemUIServer
+    - cfprefsd

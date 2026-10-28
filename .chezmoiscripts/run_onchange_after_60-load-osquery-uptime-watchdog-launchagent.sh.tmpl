@@ -1,0 +1,22 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+# plist hash: {{ include "Library/LaunchAgents/com.webdavis.osquery-uptime-watchdog.plist.tmpl" | sha256sum }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
+
+readonly launchagent_label="com.webdavis.osquery-uptime-watchdog"
+readonly launchagent_plist="$HOME/Library/LaunchAgents/$launchagent_label.plist"
+
+main() {
+  report_section 'osquery' 'uptime watchdog LaunchAgent'
+  report_line "reloading..."
+  reload_launchagent "$launchagent_label" "$launchagent_plist"
+  report_line "loaded."
+}
+
+main "$@"
+{{ end -}}

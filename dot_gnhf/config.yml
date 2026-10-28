@@ -1,0 +1,25 @@
+# gnhf, the overnight agent orchestrator. Runtime caps (iterations, tokens,
+# rate-limit wait, stop condition) are per-run CLI flags and are deliberately
+# absent here, so a config change can never widen a run that is already going.
+
+# Coding agent gnhf drives. It invokes this one non-interactively as
+# `claude -p <prompt> --verbose --output-format stream-json --json-schema
+# <schema> --dangerously-skip-permissions`, which is the machine's existing
+# permission posture; the settings.json deny list is what still guards the
+# sensitive paths.
+agent: claude
+
+# Commit subject lines for each successful iteration. Without this, gnhf writes
+# `gnhf <iteration>: <summary>` instead, and nothing else would supply a
+# Conventional Commits subject: gnhf commits with `-m`, and the user-wide
+# prepare-commit-msg hook bails whenever a message is already supplied.
+commitMessage:
+  preset: conventional
+
+# Abort a run after this many consecutive failed iterations.
+maxConsecutiveFailures: 3
+
+# Hold the machine awake for the length of a run (caffeinate on macOS). A run is
+# never aborted because that mechanism is unavailable; the exit summary reports
+# it instead.
+preventSleep: true

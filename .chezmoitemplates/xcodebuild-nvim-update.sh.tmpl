@@ -1,0 +1,43 @@
+#!/bin/bash
+# Runs as root under the xcodebuild-nvim sudoers rule, so its only inputs are
+# the plugin's pinned commit id and the developer's GitHub, never a user-owned file.
+set -euo pipefail
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+readonly lock_file="{{ .chezmoi.homeDir }}/.config/nvim/lazy-lock.json"
+readonly helper_dir="{{ .chezmoi.homeDir }}/Library/xcodebuild.nvim"
+readonly helper="$helper_dir/remote_debugger"
+readonly upstream="https://raw.githubusercontent.com/wojciech-kulik/xcodebuild.nvim"
+
+pinned_commit() {
+  local commit
+  commit=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["xcodebuild.nvim"]["commit"])' "$lock_file")
+  if [[ ! $commit =~ ^[0-9a-f]{40}$ ]]; then
+    printf 'lazy-lock.json: xcodebuild.nvim commit is not a 40-hex id: %s\n' "$commit" >&2
+    return 1
+  fi
+  printf '%s\n' "$commit"
+}
+
+helper_is_current() {
+  local fetched=$1
+  [[ -f $helper ]] && cmp -s "$fetched" "$helper"
+}
+
+install_helper() {
+  local commit=$1 fetched
+  fetched=$(mktemp)
+  curl -fsSL "$upstream/$commit/tools/remote_debugger" -o "$fetched"
+  if helper_is_current "$fetched"; then
+    rm -f "$fetched"
+    return
+  fi
+  chflags nouchg "$helper_dir" "$helper" 2>/dev/null || true
+  install -d -m 755 -o root -g wheel "$helper_dir"
+  install -m 755 -o root -g wheel "$fetched" "$helper"
+  chflags uchg "$helper" "$helper_dir"
+  rm -f "$fetched"
+  printf 'remote_debugger: installed from %s\n' "${commit:0:7}"
+}
+
+install_helper "$(pinned_commit)"

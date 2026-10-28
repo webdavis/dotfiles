@@ -1,0 +1,4 @@
+# Included when the administrative Git directory matches a configured temp
+# prefix. A temporary linked checkout can keep that directory elsewhere.
+[core]
+  fsmonitor = false

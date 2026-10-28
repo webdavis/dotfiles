@@ -1,0 +1,20 @@
+[accounts.casuallyconcerned]
+email = "contact@casuallyconcerned.com"
+display-name = "Casually Concerned"
+default = true
+
+backend.type = "imap"
+backend.host = "127.0.0.1"
+backend.port = 1143
+backend.encryption.type = "none"
+backend.login = "{{ (keepassxc "Proton Mail Bridge - IMAP Login").UserName }}"
+backend.auth.type = "password"
+backend.auth.raw = "{{ (keepassxc "Proton Mail Bridge - IMAP Login").Password }}"
+
+message.send.backend.type = "smtp"
+message.send.backend.host = "127.0.0.1"
+message.send.backend.port = 1025
+message.send.backend.encryption.type = "none"
+message.send.backend.login = "{{ (keepassxc "Proton Mail Bridge - SMTP Login").UserName }}"
+message.send.backend.auth.type = "password"
+message.send.backend.auth.raw = "{{ (keepassxc "Proton Mail Bridge - SMTP Login").Password }}"

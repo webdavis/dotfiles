@@ -1,0 +1,103 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly socket_call_time_limit=10
+readonly plugin_install_time_limit=300
+
+herdr_is_installed() {
+  command -v herdr >/dev/null 2>&1
+}
+
+jq_is_installed() {
+  command -v jq >/dev/null 2>&1
+}
+
+find_coreutils_timeout() {
+  local candidate
+  for candidate in timeout gtimeout; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+}
+
+coreutils_timeout_is_installed() {
+  [[ -n $(find_coreutils_timeout) ]]
+}
+
+run_with_time_limit() {
+  local time_limit=$1
+  shift
+  local coreutils_timeout
+  coreutils_timeout="$(find_coreutils_timeout)"
+  "$coreutils_timeout" "$time_limit" "$@"
+}
+
+list_plugin_as_json() {
+  local plugin_id=$1
+  run_with_time_limit "$socket_call_time_limit" herdr plugin list --plugin "$plugin_id" --json 2>/dev/null
+}
+
+listing_holds_plugin() {
+  local plugin_id=$1 listing=$2
+  printf '%s' "$listing" | jq -e --arg id "$plugin_id" '[.result.plugins[]? | select(.plugin_id == $id)] | length == 1' >/dev/null 2>&1
+}
+
+plugin_is_installed() {
+  local plugin_id=$1
+  local listing
+  listing="$(list_plugin_as_json "$plugin_id")" || return 1
+  listing_holds_plugin "$plugin_id" "$listing"
+}
+
+install_plugin_from_repository() {
+  local source_repository=$1
+  run_with_time_limit "$plugin_install_time_limit" herdr plugin install "$source_repository" --yes >/dev/null 2>&1
+}
+
+install_plugin() {
+  local plugin_id=$1 source_repository=$2
+  if plugin_is_installed "$plugin_id"; then
+    return
+  fi
+
+  report_line "installing $plugin_id from $source_repository..."
+  if ! install_plugin_from_repository "$source_repository" || ! plugin_is_installed "$plugin_id"; then
+    report_line "error[install-failed]: herdr plugin install $source_repository failed or is unverified (herdr server down?); the next apply retries." >&2
+    return
+  fi
+  report_line "installed $plugin_id from $source_repository."
+}
+
+install_roster_plugins() {
+{{- range .packages.herdr_plugins }}
+  install_plugin {{ .id }} {{ .repo }}
+{{- end }}
+}
+
+main() {
+  report_section 'herdr' 'third-party plugins'
+
+  if ! herdr_is_installed; then
+    report_line "herdr is not installed, skipping."
+    return
+  fi
+  if ! jq_is_installed; then
+    report_line "jq is not installed, skipping."
+    return
+  fi
+  if ! coreutils_timeout_is_installed; then
+    report_line "error[missing-tool]: no coreutils timeout binary (timeout or gtimeout); plugins were not installed, the next apply retries." >&2
+    return
+  fi
+
+  install_roster_plugins
+}
+
+main "$@"
+{{ end -}}

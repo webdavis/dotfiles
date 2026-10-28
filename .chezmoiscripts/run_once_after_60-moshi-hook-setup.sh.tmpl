@@ -1,0 +1,70 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $token := (keepassxc "moshi-hook :: Device Token").Password -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly moshi_hook="/opt/homebrew/bin/moshi-hook"
+readonly brew="/opt/homebrew/bin/brew"
+readonly device_token={{ $token | quote }}
+readonly paired_status_pattern='^status: *paired'
+readonly harnesses_moshi_hook_notifies="opencode,gemini,cursor,kimi,qwen,grok,omp,pi"
+readonly moshi_tap="rjyo/moshi"
+
+read_pairing_status() {
+  "$moshi_hook" status 2>/dev/null || true
+}
+
+host_is_paired() {
+  local pairing_status=$1
+  printf '%s' "$pairing_status" | grep -q "$paired_status_pattern"
+}
+
+pair_host_with_phone() {
+  "$moshi_hook" pair --token "$device_token"
+}
+
+remove_moshi_hook_from_codex() {
+  "$moshi_hook" uninstall --target codex 2>/dev/null || true
+}
+
+install_moshi_hook_into_harnesses() {
+  "$moshi_hook" install --target "$harnesses_moshi_hook_notifies"
+}
+
+trust_current_moshi_tap_revision() {
+  "$brew" trust --tap "$moshi_tap" 2>/dev/null || true
+}
+
+start_moshi_hook_service() {
+  "$brew" services start moshi-hook
+}
+
+main() {
+  report_section 'moshi-hook' 'phone pairing, agent hooks and the background service'
+
+  local pairing_status
+  pairing_status="$(read_pairing_status)"
+  if host_is_paired "$pairing_status"; then
+    report_line "already paired, skipping the pairing."
+  else
+    report_line "pairing this host with the Moshi app..."
+    pair_host_with_phone
+    report_line "paired."
+  fi
+
+  report_line "installing hooks for $harnesses_moshi_hook_notifies..."
+  remove_moshi_hook_from_codex
+  install_moshi_hook_into_harnesses
+  report_line "installed hooks."
+
+  report_line "starting the moshi-hook service..."
+  trust_current_moshi_tap_revision
+  start_moshi_hook_service
+  report_line "started the moshi-hook service."
+}
+
+main "$@"
+{{ end -}}

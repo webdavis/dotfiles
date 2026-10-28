@@ -1,0 +1,55 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+hermes_is_installed() {
+  command -v hermes >/dev/null 2>&1
+}
+
+run_hermes_migrate_skipping_prompts() {
+  hermes config migrate </dev/null 2>&1
+}
+
+drop_informational_lines() {
+  awk '
+  /^[[:space:]]*$/ { if (!skipping) blanks++; next }
+  /Checking configuration for updates/ { next }
+  /optional API key\(s\) not configured/ { skipping = 1; blanks = 0; next }
+  skipping && /^[[:space:]]*•/ { next }
+  { skipping = 0; while (blanks > 0) { print ""; blanks-- }; print }
+'
+}
+
+migrate_config_best_effort() {
+  run_hermes_migrate_skipping_prompts | drop_informational_lines || true
+}
+
+migration_reported_nothing() {
+  local migration_report=$1
+  [[ -z $migration_report ]]
+}
+
+main() {
+  report_section 'hermes' 'config migration to the installed version'
+
+  if ! hermes_is_installed; then
+    report_line "hermes is not installed, skipping."
+    return
+  fi
+
+  report_line "migrating the config..."
+  local migration_report
+  migration_report="$(migrate_config_best_effort)"
+  if migration_reported_nothing "$migration_report"; then
+    report_line "nothing to migrate."
+    return
+  fi
+  report_line "$migration_report"
+  report_line "migration finished."
+}
+
+main "$@"
+{{ end -}}

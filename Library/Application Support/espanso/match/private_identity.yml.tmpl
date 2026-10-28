@@ -1,0 +1,70 @@
+matches:
+  # ── Name ──────────────────────────────────────────────────────────────────
+
+  - trigger: ",,sad"
+    replace: "Stephen A. Davis"
+
+  - trigger: ",,sd"
+    replace: "Stephen Davis"
+
+  - trigger: ",,fn"
+    replace: "Stephen"
+
+  - trigger: ",,ln"
+    replace: "Davis"
+
+  # ── Email addresses ───────────────────────────────────────────────────────
+
+  - trigger: ",,em"
+    replace: "stephen@webdavis.io"
+
+  - trigger: ",,ep"
+    replace: "stephen+$|$@webdavis.io"
+
+  - trigger: ",,gm"
+    replace: "sdstephena@gmail.com"
+
+  - trigger: ",,gp"
+    replace: "sdstephena+$|$@gmail.com"
+
+  - trigger: ",,rs"
+    replace: "ksesqcdt@feed.readwise.io"
+
+  # ── Closings / signatures ─────────────────────────────────────────────────
+
+  - trigger: ",,wa"
+    replace: "With Appreciation,\nStephen Davis"
+
+  - trigger: ",,br"
+    replace: "Best,\nStephen Davis"
+
+  - trigger: ",,sig"
+    replace: "Best,\nStephen Davis\nstephen@webdavis.io"
+
+  - trigger: ",,wsig"
+    replace: "Thank you,\nStephen Davis\nBroccoli AI"
+
+  # ── Address (KeePassXC password field) ────────────────────────────────────
+
+  - trigger: ",,ma"
+{{- if (env "CI") }}
+    replace: "FAKE_ADDRESS"
+{{- else }}
+    replace: {{ (keepassxc "Personal :: Address").Password | quote }}
+{{- end }}
+
+  # ── Phone numbers (KeePassXC password field) ──────────────────────────────
+
+  - trigger: ",,pn"
+{{- if (env "CI") }}
+    replace: "FAKE_PHONE"
+{{- else }}
+    replace: {{ (keepassxc "Personal :: Phone").Password | quote }}
+{{- end }}
+
+  - trigger: ",,pf"
+{{- if (env "CI") }}
+    replace: "FAKE_PHONE_FORMATTED"
+{{- else }}
+    replace: {{ (keepassxc "Personal :: Phone").UserName | quote }}
+{{- end }}

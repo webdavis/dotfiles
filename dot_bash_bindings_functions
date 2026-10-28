@@ -1,0 +1,198 @@
+# vi:filetype=sh shiftwidth=2 softtabstop=2 tabstop=8:
+
+# shellcheck shell=bash
+
+# shellcheck disable=SC2016
+
+__bash_bindings_clear_chord_prefixes_before_children() {
+  local mode
+  for mode in vi-insert vi-command emacs-standard; do
+    bind -m "$mode" -r '\C-t'
+    bind -m "$mode" -r '\C-g'
+  done
+  bind -m vi-insert -r '\C-x'
+}
+__bash_bindings_clear_chord_prefixes_before_children
+
+stty werase undef
+
+builtin bind '"\C-x0": kill-whole-line'
+builtin bind '"\C-x1": magic-space'
+builtin bind '"\C-x2": redraw-current-line'
+
+sudo_insert() {
+  READLINE_LINE="sudo $READLINE_LINE"
+  READLINE_POINT=${#READLINE_LINE}
+}
+
+__bash_bindings_go_to_project_root() {
+  local path
+  path="$(pwd)"
+
+  local project_root_markers=(.git .hg .svn .bzr .build.xml .project .projections.json .root .tasks)
+
+  while :; do
+    local marker
+    for marker in "${project_root_markers[@]}"; do
+      if [[ -e "${path}/${marker}" || -d "${path}/${marker}" ]]; then
+        builtin cd "$path" || return 1
+        pwd
+        return 0
+      fi
+    done
+
+    if [[ $path == "/" ]]; then
+      local yellow reset
+      yellow="$(tput setaf 3)"
+      reset="$(tput sgr0)"
+      printf "${yellow}Warning[%s]: No project root found.${reset}\n" "${FUNCNAME[0]}" >&2
+      return 1
+    fi
+    path="$(dirname "$path")"
+  done
+}
+
+__bash_bindings_copy_latest_git_commit_message_to_clipboard() {
+  local reset purple
+  reset="$(tput sgr0)"
+  purple="$(tput setaf 5)"
+  printf "${purple}$ %s${reset}\n" "git log -1 --pretty=%B | pbcopy"
+  git log -1 --pretty=%B | pbcopy
+}
+
+__bash_bindings_helper_get_open_cmd() {
+  command -v open 2>/dev/null && return 0
+  command -v xdg-open 2>/dev/null && return 0
+
+  printf "Error [%s]: Cannot determine open command for operating sysem: %s\n" \
+    "${FUNCNAME[*]}" \
+    "$OSTYPE" \
+    >&2
+  return 1
+}
+
+__bash_bindings_open_github_page() {
+  local url_suffix="${1:-}"
+  local page_desc="${2:-$1}"
+  page_desc="${page_desc^}"
+
+  local repo json_field jq_filter
+  local url="https://github.com"
+
+  case "$url_suffix" in
+    "feed") ;;
+    "profile") json_field="owner" jq_filter="owner.login" url_suffix="" ;;
+    *) json_field="nameWithOwner" jq_filter="nameWithOwner" ;;
+  esac
+
+  local IFS=":"
+  if [[ -n $json_field ]]; then
+    repo="$(gh repo view --json ${json_field} --jq ."${jq_filter}" 2>/dev/null)" || {
+      printf "Error [%s]: Could not determine GitHub repository. Are you in a git repo with a GitHub remote?\n" "${FUNCNAME[0]}" >&2
+      return 1
+    }
+
+    url="${url}/${repo}/${url_suffix}"
+  fi
+
+  local open_cmd
+  open_cmd="$(__bash_bindings_helper_get_open_cmd)" || return 1
+
+  printf "Opening GitHub%s page%s in browser.\n" "${page_desc:+ $page_desc}" "${repo:+ for $repo}"
+  "$open_cmd" "$url"
+}
+
+__bash_bindings_git_list_tags() {
+  git tag --list --sort='v:refname'
+}
+
+__bash_bindings_update_package_manager() {
+  local os distro command
+  case "$OSTYPE" in
+    solaris*) os='solaris' ;;
+    darwin*)
+      os='osx'
+      command -v brew &>/dev/null || return
+      ;;
+    linux*) os='linux' ;;
+    bsd*) os='bsd' ;;
+    msys*) os='windows' ;;
+    *)
+      printf "Warning [%s]: Cannot update. Unknown operating system detected: '%s'\n." \
+        "${FUNCNAME[0]}" "${OSTYPE}" >&2
+      return 1
+      ;;
+  esac
+
+  case "${os}" in
+    'linux')
+      if [[ -f '/etc/os-release' ]]; then
+        distro="$(grep '^NAME=' /etc/os-release | sed -e's/NAME="\(.*\)"/\1/g')"
+      fi
+      ;;
+    'osx')
+      distro="osx"
+      ;;
+    *)
+      printf '%s\n' "Cannot update. Unknown distro detected." 1>&2
+      return 1
+      ;;
+  esac
+
+  case "${distro}" in
+    'osx')
+      command='brew upgrade'
+      ;;
+    'Arch Linux')
+      command='sudo pacman --noconfirm --sync --refresh --sysupgrade'
+      ;;
+    'Ubuntu')
+      command='sudo apt update && sudo apt upgrade --yes'
+      ;;
+  esac
+  $command
+}
+
+redraw_prompt() {
+  tput rc
+  tput ed
+  tput sc
+}
+
+__bash_bindings_git_ls_files_with_last_modified() {
+  printf "\n%-25s %-7s %s\n" "Last Modified" "Commit" "File"
+  printf "%-25s %-10s %s\n" "-------------------------" "-------" "------------------------ "
+
+  local blue='\033[34m'
+  local yellow='\033[33m'
+  local reset='\033[0m'
+
+  local file last_commit_info date commit_hash
+
+  local -a files=()
+  while read -r file; do
+    last_commit_info=$(git log -1 --format="%ci|%h" -- "$file")
+    date="${last_commit_info%%|*}"
+    commit_hash="${last_commit_info##*|}"
+    files+=("${date}|${commit_hash}|${file}")
+  done < <(git ls-files)
+
+  local -a sorted
+  mapfile -t sorted < <(printf "%s\n" "${files[@]}" | sort -r)
+
+  for line in "${sorted[@]}"; do
+    IFS="|" read -r date commit_hash file <<<"$line"
+    printf "%b%-25s%b %b%-6s%b %s\n" \
+      "$blue" "$date" "$reset" \
+      "$yellow" "$commit_hash" "$reset" \
+      "$file"
+  done
+}
+
+bindings() {
+  if ! command -v chord &>/dev/null; then
+    echo 'bindings needs chord: cargo install --git https://github.com/webdavis/chord chord' >&2
+    return 1
+  fi
+  chord list --table "$HOME/.config/chord/bindings.toml" "$@"
+}

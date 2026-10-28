@@ -1,0 +1,414 @@
+{{- $d := includeTemplate "agent-derived.json.tmpl" . | fromJson -}}
+[paths]
+state = "{{ .chezmoi.homeDir }}/.local/state/uu"
+
+[schedule]
+default = "sunday 12:00"
+label = "uu.daemon"
+
+[history]
+previous_runs_kept = 52
+
+[logs]
+rotate = true
+max_size = "10 MB"
+previous_logs_kept = 3
+
+[tui]
+default_screen = "runs"
+theme = "catppuccin-macchiato"
+mouse = true
+runs = 20
+
+[report]
+command = ["scripts/send-report-to-hermes.sh"]
+
+[alert]
+command = ["scripts/send-alert-to-pns.sh"]
+
+[lane.atuin-daemon-refresh]
+after = ["brew"]
+command = ["scripts/atuin-daemon-refresh.sh"]
+env = {}
+scheduled = true
+time_limit = "1 minute"
+unsuccessful_runs_before_alert = 3
+
+[lane.bgutil-ytdlp-pot-provider]
+command = ["scripts/update-bgutil-ytdlp-pot-provider.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.brew]
+builtin = "brew"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.brew.settings]
+cleanup = true
+greedy = false
+restart_services = true
+
+[lane.brew-upgrade-record]
+after = ["brew"]
+command = ["scripts/brew-upgrade-record.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.cargo]
+builtin = "cargo"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.cargo.settings]
+upgrade = false
+skip = []
+
+[lane.claude-plugins]
+builtin = "claude-plugins"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.claude-plugins.settings]
+skip = []
+
+[lane.clawhub-skills]
+builtin = "clawhub-skills"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.clawhub-skills.settings]
+workdir = "{{ .chezmoi.homeDir }}/.agents"
+skills = [
+{{- range $d.clawhub }}
+  {{ .name | quote }},
+{{- end }}
+]
+
+[lane.codegraph]
+builtin = "codegraph"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.codegraph.settings]
+
+[lane.codex-plugins]
+builtin = "codex-plugins"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.codex-plugins.settings]
+skip = []
+
+[lane.cua-driver-skills]
+builtin = "cua-driver-skills"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.cua-driver-skills.settings]
+
+[lane.graphify]
+after = ["uv"]
+builtin = "graphify"
+env = {}
+scheduled = true
+time_limit = "1 minute"
+unsuccessful_runs_before_alert = 3
+
+[lane.graphify.settings]
+platforms = ["claude"]
+config_dir = "{{ .chezmoi.homeDir }}/.local/share/graphify/claude"
+
+[lane.herdr]
+builtin = "herdr"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.herdr.settings]
+
+[lane.herdr-plugins]
+builtin = "herdr-plugins"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.herdr-plugins.settings]
+
+[lane.hermes-plugins]
+builtin = "hermes-plugins"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.hermes-plugins.settings]
+skip = []
+
+[lane.hermes-skills]
+builtin = "hermes-skills"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.hermes-skills.settings]
+profiles = [
+{{- range $d.hermes.profiles_with_hub }}
+  {{ . | quote }},
+{{- end }}
+]
+
+[lane.mas]
+builtin = "mas"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+{{/* Rendered only once the no-mistakes installer has run, so the lane never fails for a missing binary. */ -}}
+{{ if stat (joinPath .chezmoi.homeDir ".no-mistakes/bin/no-mistakes") -}}
+[lane.no-mistakes]
+command = ["{{ .chezmoi.homeDir }}/.no-mistakes/bin/no-mistakes", "update", "-y"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+{{ end -}}
+[lane.npm]
+builtin = "npm"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.npm.settings]
+# The babysitter SDK is pinned in system_packages_autoinstall.yaml to the version the
+# plugin bundle needs (only it ships `adapters-hooks`), while npm's `latest` tag points
+# at an older release, so an update would move it backwards.
+skip = ["@a5c-ai/babysitter-sdk"]
+
+[lane.npx-skills]
+builtin = "npx-skills"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+{{/* A bare repository means every skill under it. One lane per agent set: the
+     codex_and_claude group for both harnesses, the codex group for Codex alone,
+     and one per Hermes profile an npx entry names, with HERMES_HOME pointing at
+     that profile so the skills CLI installs into it. */ -}}
+[lane.npx-skills.settings]
+repos = [
+{{- range $d.npx }}{{ if has "claude-code" .agents }}
+  {{ .repo | quote }},
+{{- end }}{{ end }}
+]
+agents = ["claude-code", "codex"]
+
+[lane.npx-skills-codex]
+builtin = "npx-skills"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.npx-skills-codex.settings]
+repos = [
+{{- range $d.npx }}{{ if not (has "claude-code" .agents) }}
+  {{ .repo | quote }},
+{{- end }}{{ end }}
+]
+agents = ["codex"]
+{{- $hermesProfiles := list }}
+{{- range $d.npx }}{{ range .hermes }}{{ if not (has . $hermesProfiles) }}{{ $hermesProfiles = append $hermesProfiles . }}{{ end }}{{ end }}{{ end }}
+{{- range $profile := $hermesProfiles }}
+
+[lane.npx-skills-{{ $profile }}]
+builtin = "npx-skills"
+env = { HERMES_HOME = "{{ if eq $profile "default" }}{{ $.chezmoi.homeDir }}/.hermes{{ else }}{{ $.chezmoi.homeDir }}/.hermes/profiles/{{ $profile }}{{ end }}" }
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.npx-skills-{{ $profile }}.settings]
+repos = [
+{{- range $d.npx }}{{ if has $profile .hermes }}
+  {{ .repo | quote }},
+{{- end }}{{ end }}
+]
+agents = ["hermes-agent"]
+{{- end }}
+
+[lane.nvim-mason]
+builtin = "nvim-mason"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.nvim-mason.settings]
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+
+[lane.nvim-parsers]
+builtin = "nvim-parsers"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.nvim-parsers.settings]
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+
+[lane.nvim-plugins]
+builtin = "nvim-plugins"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.xcodebuild-nvim]
+after = ["nvim-plugins"]
+command = ["sudo", "-n", "/usr/local/libexec/xcodebuild-nvim/update"]
+env = {}
+scheduled = true
+time_limit = "15 minutes"
+unsuccessful_runs_before_alert = 3
+
+[lane.nvim-plugins.settings]
+config = "{{ .chezmoi.homeDir }}/.config/nvim"
+mode = "restore"
+
+[lane.plannotator]
+builtin = "plannotator"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.plannotator.settings]
+
+[lane.posture-converge]
+after = ["brew"]
+command = ["scripts/posture-converge.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+uses_sudo = true
+
+[lane.rotate-logs]
+builtin = "rotate-logs"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.rotate-logs.settings]
+compress = true
+files = [
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/digest.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/firewall-gatekeeper-monitor.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/heartbeat.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/results-alerter.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/tailscale-monitor.log",
+  "{{ .chezmoi.homeDir }}/.local/log/osquery/uptime-watchdog.log",
+  "{{ .chezmoi.homeDir }}/.local/state/atuin/atuin-daemon.log",
+  "{{ .chezmoi.homeDir }}/.local/state/pns/gateway.log",
+  "{{ .chezmoi.homeDir }}/.local/state/scalebar/scalebar.log",
+  "{{ .chezmoi.homeDir }}/.local/state/yt-dlp/pot-provider.log",
+]
+max_size = "10 MB"
+previous_logs_kept = 5
+
+[lane.rustup]
+builtin = "rustup"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.rustup.settings]
+
+[lane.skills-on-demand]
+after = ["clawhub-skills", "npx-skills", "npx-skills-codex", "tool-skills"]
+command = ["scripts/mark-on-demand-skills.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.tailscaled-refresh]
+after = ["brew"]
+command = ["scripts/tailscaled-refresh.sh"]
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+uses_sudo = true
+
+{{/* The ElevenLabs and gitbutler skills are written by their CLIs, so they are
+     regenerated after the lanes that upgrade those CLIs. The apply runs the same
+     script from run_after_63. */ -}}
+[lane.tool-skills]
+after = ["brew", "npm"]
+command = ["scripts/generate-tool-skills.sh"]
+env = {}
+scheduled = true
+time_limit = "30 minutes"
+unsuccessful_runs_before_alert = 3
+
+[lane.tldr-pages]
+after = ["brew"]
+command = ["tldr", "--update"]
+env = {}
+scheduled = true
+time_limit = "10 minutes"
+unsuccessful_runs_before_alert = 3
+
+[lane.uv]
+builtin = "uv"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.uv.settings]
+skip = []
+
+[lane.yt-dlp]
+builtin = "yt-dlp"
+env = {}
+scheduled = true
+time_limit = "6 hours"
+unsuccessful_runs_before_alert = 3
+
+[lane.yt-dlp.settings]
+
+[group.brew-and-repairs]
+lanes = ["brew", "atuin-daemon-refresh", "posture-converge", "tailscaled-refresh", "brew-upgrade-record"]
+
+[group.skills]
+lanes = ["npx-skills", "npx-skills-codex"{{ range $hermesProfiles }}, "npx-skills-{{ . }}"{{ end }}, "clawhub-skills", "tool-skills", "cua-driver-skills", "skills-on-demand"]

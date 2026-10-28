@@ -1,0 +1,58 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+# Docker Scout has no Homebrew formula, so its own installer puts it in
+# ~/.docker/cli-plugins as a docker CLI plugin. It reruns only when the
+# installed version differs from the latest release, so a no-op apply prints
+# nothing.
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly docker_bin="/opt/homebrew/bin/docker"
+readonly installer_url="https://raw.githubusercontent.com/docker/scout-cli/main/install.sh"
+readonly latest_release_url="https://github.com/docker/scout-cli/releases/latest"
+
+installed_version() {
+  "$docker_bin" scout version 2>/dev/null | sed -nE 's/^version: (v[0-9][^ ]*).*/\1/p' | head -n 1
+}
+
+# The latest-release page redirects to .../releases/tag/<tag>.
+latest_version() {
+  curl -fsSI "$latest_release_url" | tr -d '\r' | sed -nE 's#^[Ll]ocation: .*/tag/(v[^ ]+)$#\1#p'
+}
+
+run_installer() {
+  local installer
+  if ! installer="$(curl -fsSL "$installer_url")"; then
+    report_line "error[download-failed]: could not download the installer from $installer_url; docker scout was not installed." >&2
+    exit 1
+  fi
+  if ! sh -c "$installer" -- </dev/null >/dev/null; then
+    report_line "error[install-failed]: the installer failed; docker scout was not installed." >&2
+    exit 1
+  fi
+}
+
+main() {
+  if [[ ! -x $docker_bin ]]; then
+    report_section 'docker scout' 'skipped: the docker CLI is not installed'
+    return 0
+  fi
+
+  local installed latest
+  installed=$(installed_version || true)
+  latest=$(latest_version || true)
+  if [[ -n $installed && ($installed == "$latest" || -z $latest) ]]; then
+    return 0
+  fi
+
+  report_section 'docker scout' 'vulnerability scanner docker CLI plugin'
+  report_line "installing ${latest:-the latest release} (installed: ${installed:-none})"
+  run_installer
+  report_line "installed $(installed_version)."
+}
+
+main "$@"
+{{ end -}}

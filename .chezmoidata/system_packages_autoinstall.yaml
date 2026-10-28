@@ -1,0 +1,328 @@
+packages:
+  macos:
+    homebrew:
+      taps:
+        - antoniorodr/memo
+        - buo/cask-upgrade
+        - eugene1g/safehouse
+        - felixkratz/formulae
+        - furkankly/tap
+        - mediosz/tap
+        - nikitabobko/tap
+        - openai/tools
+        - openhue/cli
+        - plannotator/tap
+        - rjyo/moshi
+        - schpet/tap
+        - twilio/brew
+        - xdevplatform/tap
+      # Keep equal to `taps:`; the pre-bundle loop trusts each so `brew bundle` can load it.
+      trusted_taps:
+        - antoniorodr/memo
+        - buo/cask-upgrade
+        - eugene1g/safehouse
+        - felixkratz/formulae
+        - furkankly/tap
+        - mediosz/tap
+        - nikitabobko/tap
+        - openai/tools
+        - openhue/cli
+        - plannotator/tap
+        - rjyo/moshi
+        - schpet/tap
+        - twilio/brew
+        - xdevplatform/tap
+      formulae:
+        - act
+        - actionlint
+        - age
+        - agent-safehouse
+        - antoniorodr/memo/memo
+        - atomicparsley
+        - atuin
+        - bash
+        - bashunit
+        - bash-completion@2
+        - bash-preexec
+        - bat
+        - bat-extras
+        - bore-cli
+        - brightness
+        - btop
+        # The tab-smart-rename herdr plugin runs on Bun (its README: Bun 1.2.23+).
+        - bun
+        - ca-certificates
+        - carapace
+        - ccusage
+        - chezmoi
+        - cloudflared
+        - cmake
+        - cmake-docs
+        - colima
+        - container
+        - coreutils
+        - croc
+        - csvlens
+        - curl
+        - deno
+        - difftastic
+        - direnv
+        - docker
+        - docker-agent
+        - docker-buildx
+        - docker-compose
+        - docker-credential-helper
+        - docker-debug
+        - dockerfmt
+        - droast
+        - dust
+        - elixir
+        - emmylua_ls
+        - espeak-ng
+        - eza
+        - fd
+        - felixkratz/formulae/borders
+        - ffmpeg
+        - fnm
+        - furkankly/tap/zoetrope
+        - fzf
+        - gawk
+        - gh
+        - ghostscript
+        - git
+        - git-crypt
+        - git-delta
+        - git-filter-repo
+        - git-sizer
+        - gitleaks
+        - glow
+        - gnu-getopt
+        - gnu-sed
+        - gnupg
+        - go
+        - gogcli
+        - grpcurl
+        - himalaya
+        - httpie
+        - hurl
+        - hyperfine
+        - imagemagick
+        - infisical
+        - iperf3
+        - jq
+        - just
+        - librsvg
+        - luacheck
+        - mas
+        - maven
+        - mosh
+        - mtr
+        - neovim
+        - netcat
+        - ngrep
+        - nmap
+        - nushell
+        - obsidian-cli
+        - ollama
+        - onefetch
+        - openai-whisper
+        - openai/tools/softnet
+        - openhue/cli/openhue-cli
+        - openjdk
+        - opus
+        - p7zip
+        - parallel
+        - pgvector
+        - pinentry-mac
+        - plannotator/tap/plannotator-tui
+        - pnpm
+        - portaudio
+        - procs
+        - pv
+        - python
+        - restic
+        - ripgrep
+        - rjyo/moshi/moshi-hook
+        - ruff
+        - rustnet
+        - schpet/tap/linear
+        - sd
+        - sevenzip
+        - shellcheck
+        - shfmt
+        - socat
+        - starship
+        - stylua
+        - swiftformat
+        - swiftlint
+        - switchaudio-osx
+        - tailscale
+        - taplo
+        - tart
+        - tealdeer
+        - temporal
+        - terminal-notifier
+        - tokei
+        - trash-cli
+        - tree
+        - treefmt
+        - trippy
+        - tuicr
+        - twilio/brew/twilio
+        - uv
+        - vapor
+        - websocat
+        - wget
+        - wireshark
+        - worktrunk
+        - xcbeautify
+        - xcode-build-server
+        - xcodegen
+        - xcp
+        - xonsh
+        - xz
+        - yq
+        - zig
+        - zizmor
+        - zls
+        - zoxide
+      casks:
+        - affinity
+        - arc
+        - blender
+        - brave-browser
+        - cardhop
+        - chatgpt
+        - claude
+        - claude-code@latest
+        - codex
+        - devin-cli
+        - discord
+        - espanso
+        - fantastical
+        - fluidvoice
+        - font-fira-code
+        - font-fira-code-nerd-font
+        - font-symbols-only-nerd-font
+        - gcloud-cli
+        - ghostty
+        - gitbutler
+        - karabiner-elements
+        - keepassxc
+        - lulu
+        - lunar
+        - mediosz/tap/swipeaerospace
+        - microsoft-auto-update
+        - microsoft-office
+        - mitmproxy
+        - nikitabobko/tap/aerospace
+        - obsidian
+        - osquery
+        - oversight
+        - proton-drive
+        - proton-mail
+        - proton-mail-bridge
+        - raspberry-pi-imager
+        - raycast
+        - reader
+        - thaw
+        - todoist-app
+        - xurl
+      mas:
+        - name: Actions
+          id: "1_586_435_171"
+        - name: DaVinci Resolve
+          id: "571_213_070"
+        - name: Strongbox
+          id: "897_283_731"
+        - name: TestFlight
+          id: "899_247_664"
+        - name: Xcode
+          id: "497_799_835"
+    cargo:
+      - name: clauth
+      - name: tree-sitter-cli
+    uv:
+      - graphifyy
+      - nano-pdf
+      - pymobiledevice3
+      - sherlock-project
+      - whisply[mlx,app]
+    fnm:
+      - node: "24"
+        packages:
+          # Pinned to the version the plugin bundles ship. -sdk, not the metapackage: only it
+          # ships the `adapters-hooks` bin, and the two cannot coexist.
+          - "@a5c-ai/babysitter-sdk@6.0.3"
+          - "@agentclientprotocol/claude-agent-acp"
+          - "@clawdbot/lobster"
+          - "@doist/todoist-cli"
+          - "@earendil-works/pi-coding-agent"
+          - "@elevenlabs/cli"
+          - "@fission-ai/openspec"
+          - "@google/gemini-cli"
+          - "@mistweaverco/kulala-ls"
+          - "@oliverames/mcp-server-for-ynab"
+          - "@retell-ai/retell-cli"
+          - "@tobilu/qmd"
+          - "@toon-format/cli"
+          - acpx
+          - agentmail-cli
+          - backpass
+          - clawhub
+          # Pinned: it commits unattended and is pre-1.0.
+          - "gnhf@0.1.49"
+          - hyperframes
+  cargo_git_tools:
+    - name: chord
+      repo: webdavis/chord
+      package: chord
+    - name: dam
+      repo: webdavis/damnit
+      package: damnit
+    - name: lights
+      repo: webdavis/lights
+      package: lights
+    - name: pns
+      repo: webdavis/pns
+      package: pns
+      features: dev-tools
+    - name: posture
+      repo: webdavis/posture
+      package: posture
+    - name: uu
+      repo: webdavis/uu
+      package: uu
+
+  # Linked rather than installed: their manifests are generated from this machine's config.
+  herdr_linked_plugins:
+    - id: herdr-process
+      repo: webdavis/herdr-process
+    - id: herdr-picker
+      repo: webdavis/herdr-picker
+
+  herdr_plugins:
+    - id: herdr-smart-nav
+      repo: webdavis/herdr-smart-nav
+    - id: herdr-damnit
+      repo: webdavis/herdr-damnit
+    - id: worktrunk
+      repo: devashish2203/herdr-worktrunk
+    - id: tab-smart-rename
+      repo: iurysza/herdr-tab-smart-rename
+    - id: persiyanov.reviewr
+      repo: persiyanov/herdr-reviewr
+    - id: chmarax.herdr-nvim
+      repo: ChmaraX/herdr-nvim
+    - id: annotate
+      repo: plannotator/herdr-annotate
+    - id: furkankly.zoetrope
+      repo: furkankly/zoetrope/herdr-plugin
+    - id: clauth
+      repo: uwuclxdy/clauth/herdr-plugin
+
+  # Tools built from a clone under this home; both paths are home-relative.
+  source_builds:
+    scalebar:
+      source_dir: "workspaces/Ivy/webdavis/scalebar"
+      install_dir: ".local/libexec/scalebar"

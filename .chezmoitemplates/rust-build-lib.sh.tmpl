@@ -1,0 +1,65 @@
+# shellcheck shell=bash
+
+readonly cargo_bin="$HOME/.cargo/bin/cargo"
+
+cargo_is_installed() {
+  [[ -x $cargo_bin ]]
+}
+
+build_release_binary() {
+  local workspace_dir=$1 binary_name=$2
+  (cd "$workspace_dir" && "$cargo_bin" build --release --locked --quiet --bin "$binary_name")
+}
+
+build_failed() {
+  local build_status=$1
+  ((build_status != 0))
+}
+
+install_release_binary() {
+  local built_binary=$1 installed_binary=$2
+  mkdir -p "$(dirname "$installed_binary")"
+  /usr/bin/install -m 755 "$built_binary" "$installed_binary"
+}
+
+defer_build_until_next_apply() {
+  local retry_marker=$1
+  mkdir -p "$(dirname "$retry_marker")"
+  touch "$retry_marker"
+}
+
+retry_marker_exists() {
+  local retry_marker=$1
+  [[ -f $retry_marker ]]
+}
+
+is_a_whole_number() {
+  local value=$1
+  [[ $value =~ ^[0-9]+$ ]]
+}
+
+read_retry_attempts() {
+  local retry_marker=$1
+  local recorded_attempts
+  recorded_attempts="$(cat "$retry_marker" 2>/dev/null || printf '0')"
+  if is_a_whole_number "$recorded_attempts"; then
+    printf '%s' "$recorded_attempts"
+  else
+    printf '0'
+  fi
+}
+
+increment_retry_attempts() {
+  local retry_marker=$1
+  local attempts=0
+  mkdir -p "$(dirname "$retry_marker")"
+  if retry_marker_exists "$retry_marker"; then
+    attempts="$(read_retry_attempts "$retry_marker")"
+  fi
+  printf '%d\n' "$((attempts + 1))" >"$retry_marker"
+}
+
+settle_retry_marker() {
+  local retry_marker=$1
+  rm -f "$retry_marker"
+}

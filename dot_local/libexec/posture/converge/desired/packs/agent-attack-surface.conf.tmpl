@@ -1,0 +1,28 @@
+{
+  "queries": {
+    "agent_exposure_changed": {
+      "query": "SELECT lp.address, lp.port, lp.protocol, lp.family, p.name, p.path FROM listening_ports lp JOIN processes p ON lp.pid = p.pid WHERE lp.port != 0 AND lp.address NOT IN ('127.0.0.1', '::1') AND lp.address NOT LIKE '127.%' AND (p.cmdline LIKE '%mcp%' OR lp.port IN (5432, 6767, 8644) OR p.path LIKE '%hermes%');",
+      "interval": 600,
+      "platform": "darwin",
+      "description": "An agent control-plane / MCP / data service bound off-loopback. Pattern-based, NOT a fixed port list (MCP servers multiply and their ports drift): any MCP server (cmdline ~ mcp: qmd 8181, workspace-mcp 8000-8004, future ones), the hermes gateway (8644), the paseo daemon (6767), or postgres (5432). These belong on 127.0.0.1; off-loopback exposes the operator's remote-access / data surface off-box. Pages. Excludes ONLY real loopback (127.0.0.0/8, ::1) and the port-0 placeholder (the Paseo.app GUI socket that false-paged on every GUI relaunch); the %/Paseo% path clause was dropped for the same reason (the real paseo daemon is covered by the 6767 port clause). IPv6 link-local (fe80::) is NOT excluded, it is reachable by any host on the same link (RFC 4291), so an agent bound to a link-local address is a real off-box exposure; the family column carries the address scope in the rendered alert."
+    },
+    "agent_authfile_changed": {
+      "query": "SELECT path, sha256 FROM hash WHERE path IN ('{{ .chezmoi.homeDir }}/.paseo/cli-client-id', '{{ .chezmoi.homeDir }}/.hermes/.env', '{{ .chezmoi.homeDir }}/.codex/config.toml');",
+      "interval": 600,
+      "platform": "darwin",
+      "description": "A content change to a NON-secret agent config file (.env, config.toml, cli-client-id). All three digest. Content-hashed on purpose: these are configuration, not key material, so their sha256 in results.log discloses nothing. The two true secrets are watched by agent_secretfile_changed via metadata instead, never through the hash table. The alerter renders the basename only; the sha256 never reaches the payload."
+    },
+    "agent_secretfile_changed": {
+      "query": "SELECT path, size, mtime, ctime, inode FROM file WHERE path IN ('{{ .chezmoi.homeDir }}/.config/osquery/webhook-secret', '{{ .chezmoi.homeDir }}/.paseo/daemon-keypair.json');",
+      "interval": 600,
+      "platform": "darwin",
+      "description": "A rewrite of a true agent secret file: webhook-secret (forge or mute alerts) and daemon-keypair.json (hijack agent access). Pages. Watched via file-table METADATA (size, mtime, ctime, inode), NOT a content hash: results.log is group-readable, and a secret's digest must never be written there. inode catches atomic-rename replacement, size and mtime catch in-place edits, and ctime catches an edit whose mtime was restored afterward (utimes cannot rewind ctime). Accepted limit: a deliberate forgery that preserves size and both timestamps (clock manipulation or raw device writes) is not detected."
+    },
+    "agent_binary_changed": {
+      "query": "SELECT f.path, f.size, f.inode, f.mtime, s.cdhash, s.team_identifier, s.signed FROM file f LEFT JOIN signature s ON f.path = s.path AND s.arch = '' WHERE f.path IN ('/opt/homebrew/bin/codex', '/opt/homebrew/bin/paseo');",
+      "interval": 3600,
+      "platform": "darwin",
+      "description": "An agent CLI binary change. LOG-ONLY (recorded in results.log for forensics, never delivered): a hash cannot tell a legit frequent self-update from a swap, and the honest limits below make a page unwarranted. HONEST COVERAGE (R2-12): this does NOT detect CONTENT changes for these binaries. codex is a ~260 MB Mach-O that exceeds osquery read_max, so its sha256 is ALWAYS empty (verified live); a re-signed content swap is invisible to the hash table. What IS detected: the signature columns (signed / cdhash / team_identifier, LEFT JOINed at arch=''). codex is signed (verified live: Developer ID Application, OpenAI OpCo team 2DC432GLL2, codesign --verify rc=0), so a cdhash change or a signed-to-unsigned transition IS a real unsafe signal for it, recorded here for forensics. paseo is UNSIGNED (verified live: signed=0, codesign --verify rc=1), so it has NO cdhash signal and its ONLY signal is the coarse (size, inode, mtime) tuple, which an in-place edit can preserve; a content change to an oversized-or-unsigned binary can go undetected. claude is excluded (also over read_max, and not an attack-surface CLI here). The robust fix (an external-hashing user poller that shasum's the resolved binary out-of-band, sidestepping read_max) is tracked as follow-up task #23; until then this tier stays log-only and makes no false promise of content-change detection."
+    }
+  }
+}

@@ -1,0 +1,52 @@
+# Repo metadata:
+README.md
+LICENSE
+AGENTS.md
+CLAUDE.md
+.gitignore
+.gitattributes
+assets/
+docs/
+private/
+
+# Repo scripts & helpers:
+justfile
+Brewfile.dev
+.envrc
+scripts/
+
+# Neovim config repo metadata and tests:
+.config/nvim/README.md
+.config/nvim/docs/
+.config/nvim/tests/
+
+# herdr-picker's Broccoli picker tests and their synthetic fixtures:
+.config/herdr/plugins/config/herdr-picker/pickers/lib/broccoli/test_*.py
+.config/herdr/plugins/config/herdr-picker/pickers/lib/broccoli/fixtures/
+
+# Formatter and linter configs:
+.shellcheckrc
+.editorconfig
+.mdformat.toml
+treefmt.toml
+ruff.toml
+
+# Stray files:
+tmp.*
+**/__pycache__
+**/__pycache__/**
+*.rayconfig
+*extension-diagnostics*
+**/.DS_Store
+
+{{- if eq .chezmoi.os "linux" }}
+Library
+.config/lights
+.local/libexec/brew-shellenv-cache-refresh.sh
+.config/pns
+.pi
+.omp
+.config/uu
+.config/posture
+.config/scalebar
+{{- end }}

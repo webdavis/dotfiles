@@ -1,0 +1,213 @@
+return {
+  {
+    "catppuccin/nvim",
+    lazy = false,
+    dependencies = {
+      "folke/snacks.nvim",
+    },
+    name = "catppuccin",
+    priority = 1000,
+    opts = {
+      flavour = "macchiato", -- latte, frappe, macchiato, mocha
+      background = { -- :h background
+        light = "latte",
+        dark = "macchiato",
+      },
+      transparent_background = false, -- disables setting the background color.
+      lsp_styles = {
+        underlines = {
+          errors = { "undercurl" },
+          hints = { "undercurl" },
+          warnings = { "undercurl" },
+          information = { "undercurl" },
+        },
+      },
+      -- Upstream 058e83d turned auto-detection on by default; its vim.pack.get()
+      -- call leaves an empty site/pack/core that :checkhealth lazy then flags.
+      -- Turning it back off means every integration this roster wants has to be
+      -- named here, and five were not: measured against auto-detection, 92
+      -- highlight groups were missing, all of them `BlinkCmp*`, `Dap*`,
+      -- `Octo*` and `NvimSurround*`. A table value counts as ON only when it
+      -- carries `enabled = true` (catppuccin's lib/mapper.lua), so `blink_cmp`
+      -- styled but never enabled was contributing nothing at all.
+      auto_integrations = false,
+      integrations = {
+        aerial = true,
+        alpha = true,
+        blink_cmp = { enabled = true, style = "bordered" },
+        cmp = true,
+        dap = true,
+        dap_ui = true,
+        dashboard = true,
+        flash = true,
+        fzf = true,
+        gitsigns = true,
+        grug_far = true,
+        harpoon = true,
+        headlines = true,
+        illuminate = { enabled = true, lsp = false },
+        indent_blankline = { enabled = true },
+        leap = true,
+        lsp_trouble = true,
+        markview = true,
+        mason = true,
+        mini = true,
+        navic = { enabled = true, custom_bg = "lualine" },
+        neogit = true,
+        neotest = true,
+        neotree = true,
+        noice = true,
+        nvim_surround = true,
+        octo = true,
+        overseer = true,
+        notify = true,
+        snacks = { enabled = true, indent_scope_color = "lavender" },
+        treesitter_context = true,
+        which_key = true,
+      },
+      dim_inactive = { enabled = true, shade = "light", percentage = 0.35 },
+    },
+    config = function(_, opts)
+      require("catppuccin").setup(opts)
+
+      -- Same theme under two names across a pin bump: the old pin only ships
+      -- `catppuccin`, so the new name fails there. Editing lazy-lock.json installs
+      -- nothing until `:Lazy restore`, so the window between an apply and that
+      -- restore is real, and lazy reports the failure through `vim.notify`, which
+      -- makes it silent at startup.
+      --
+      -- Which name exists is settled BEFORE loading rather than by trying one and
+      -- falling back when it raises. A fallback fires on ANY error, so an error
+      -- raised once from a ColorScheme callback ran the whole loader a second
+      -- time, and a persistent one was reported as "neither loaded" with both
+      -- real errors thrown away. `getcompletion` answers off the `colors/` files
+      -- on the runtimepath, which is the question actually being asked.
+      local installed = vim.fn.getcompletion("catppuccin", "color")
+      local name
+      for _, candidate in ipairs({ "catppuccin-nvim", "catppuccin" }) do
+        if vim.tbl_contains(installed, candidate) then
+          name = candidate
+          break
+        end
+      end
+
+      if not name then
+        vim.notify("catppuccin: neither `catppuccin-nvim` nor `catppuccin` is installed", vim.log.levels.WARN)
+        return
+      end
+
+      local ok, err = pcall(vim.cmd.colorscheme, name)
+      if not ok then
+        vim.notify(("catppuccin: `%s` failed to load: %s"):format(name, err), vim.log.levels.WARN)
+      end
+    end,
+  },
+  {
+    "nvim-lualine/lualine.nvim",
+    lazy = false,
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    opts = {
+      options = {
+        theme = "auto",
+        globalstatus = true,
+        component_separators = { left = "", right = "" },
+        section_separators = { left = "", right = "" },
+        disabled_filetypes = { statusline = { "snacks_dashboard" } },
+      },
+      sections = {
+        lualine_a = { "mode" },
+        lualine_b = { "branch", "diff" },
+        lualine_c = {
+          {
+            "filename",
+            path = 1,
+            newfile_status = true,
+            symbols = { modified = "●", readonly = "", unnamed = "[no name]" },
+          },
+          { "diagnostics", sources = { "nvim_diagnostic" } },
+        },
+        lualine_x = {
+          -- Overseer task counts, one glyph and count per status, hidden when
+          -- idle. The counting lives in custom_api.overseer_status.
+          {
+            function()
+              return require("custom_api.overseer_status").render()
+            end,
+            cond = function()
+              return not require("custom_api.overseer_status").is_idle()
+            end,
+          },
+          {
+            function()
+              return require("noice").api.status.mode.get()
+            end,
+            cond = function()
+              return package.loaded["noice"] and require("noice").api.status.mode.has()
+            end,
+          },
+          {
+            function()
+              local names = {}
+              for _, client in ipairs(vim.lsp.get_clients({ bufnr = 0 })) do
+                table.insert(names, client.name)
+              end
+              return table.concat(names, " ")
+            end,
+            icon = "",
+            cond = function()
+              return #vim.lsp.get_clients({ bufnr = 0 }) > 0
+            end,
+          },
+          "searchcount",
+          "filetype",
+        },
+        lualine_y = { "progress" },
+        lualine_z = { "location" },
+      },
+      -- Open buffers on the left, tabs on the right: what bufferline showed.
+      tabline = {
+        lualine_a = { { "buffers", mode = 2, use_mode_colors = true } },
+        lualine_z = {
+          {
+            "tabs",
+            mode = 1,
+            cond = function()
+              return #vim.api.nvim_list_tabpages() > 1
+            end,
+          },
+        },
+      },
+      extensions = {
+        "aerial",
+        "fugitive",
+        "lazy",
+        "man",
+        "mason",
+        "nvim-dap-ui",
+        "oil",
+        "overseer",
+        "quickfix",
+        "trouble",
+      },
+    },
+  },
+  {
+    "Bekaboo/deadcolumn.nvim",
+    lazy = false,
+    config = function()
+      require("deadcolumn").setup({
+        scope = "buffer",
+        modes = function(mode)
+          return mode:find("^[nictRss\x13]") ~= nil
+        end,
+        extra = {
+          follow_tw = "+1",
+        },
+      })
+    end,
+  },
+  {
+    "OXY2DEV/helpview.nvim",
+    lazy = false,
+  },
+}

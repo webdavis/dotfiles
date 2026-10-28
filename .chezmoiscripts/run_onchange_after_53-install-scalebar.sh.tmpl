@@ -1,0 +1,111 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{ $scalebar := joinPath .chezmoi.homeDir .packages.source_builds.scalebar.source_dir -}}
+#!/usr/bin/env bash
+{{ range (glob (joinPath $scalebar "Sources/**/*.swift")) -}}
+# {{ . }} {{ include . | sha256sum }}
+{{ end -}}
+{{ range (list "Package.swift" "Package.resolved") -}}
+{{ $manifest := joinPath $scalebar . -}}
+{{ if stat $manifest -}}
+# {{ $manifest }} {{ include $manifest | sha256sum }}
+{{ end -}}
+{{ end -}}
+# retry-marker: {{ $retry := joinPath (env "HOME") ".cache/scalebar-build/scalebar.retry" }}{{ if stat $retry }}{{ (stat $retry).modTime }}{{ else }}settled{{ end }}
+# binary: {{ if stat (joinPath .chezmoi.homeDir .packages.source_builds.scalebar.install_dir "Scalebar") }}present{{ else }}absent{{ end }}
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+{{ includeTemplate "rust-build-lib.sh.tmpl" }}
+{{ includeTemplate "load-launchagent.sh.tmpl" }}
+{{ includeTemplate "retire-launchagent.sh.tmpl" }}
+
+readonly scalebar_source_dir={{ $scalebar | quote }}
+readonly built_binaries_dir="$scalebar_source_dir/.build/release"
+readonly install_dir={{ joinPath .chezmoi.homeDir .packages.source_builds.scalebar.install_dir | quote }}
+readonly scalebar_binary="$install_dir/Scalebar"
+readonly scalebar_retry_marker="$HOME/.cache/scalebar-build/scalebar.retry"
+readonly retired_launchagent_label="io.webdavis.scalebar"
+readonly retired_log_directory="$HOME/.local/log/scalebar"
+readonly usage_of_a_scalebar_that_installs_itself='usage: Scalebar [install'
+
+scalebar_clone_exists() {
+  [[ -d $scalebar_source_dir ]]
+}
+
+swift_is_installed() {
+  command -v swift >/dev/null 2>&1
+}
+
+build_release_binaries() {
+  (cd "$scalebar_source_dir" && swift build -c release -q)
+}
+
+scalebar_is_installed() {
+  [[ -x $scalebar_binary ]]
+}
+
+scalebar_can_install_itself() {
+  grep -q -a -F "$usage_of_a_scalebar_that_installs_itself" "$scalebar_binary"
+}
+
+retire_the_old_scalebar_launchagent() {
+  retire_launchagent "$retired_launchagent_label" && trash_if_present "$retired_log_directory"
+}
+
+install_scalebar_startup_file() {
+  "$scalebar_binary" install
+}
+
+main() {
+  report_section 'scalebar' 'menu-bar app and MCP server'
+
+  if ! scalebar_clone_exists; then
+    report_line "no clone at $scalebar_source_dir (git clone git@github.com:webdavis/scalebar.git); the build runs on the next apply." >&2
+    defer_build_until_next_apply "$scalebar_retry_marker"
+  elif ! swift_is_installed; then
+    report_line "swift not on PATH (install the Xcode command line tools); the build runs on the next apply." >&2
+    defer_build_until_next_apply "$scalebar_retry_marker"
+  else
+    report_line "building the release binaries..."
+    local build_status=0
+    build_release_binaries || build_status=$?
+    if build_failed "$build_status"; then
+      report_line "error[build-failed]: scalebar did not build; see swift's output above." >&2
+      exit "$build_status"
+    fi
+    report_line "built Scalebar and ScalebarMCP in $built_binaries_dir."
+
+    report_line "installing the release binaries..."
+    install_release_binary "$built_binaries_dir/Scalebar" "$scalebar_binary"
+    install_release_binary "$built_binaries_dir/ScalebarMCP" "$install_dir/ScalebarMCP"
+    settle_retry_marker "$scalebar_retry_marker"
+    report_line "installed Scalebar and ScalebarMCP into $install_dir."
+  fi
+
+  report_section 'scalebar' 'menu-bar app LaunchAgent'
+
+  if ! scalebar_is_installed; then
+    report_line "$scalebar_binary is missing or not executable, so the LaunchAgent was left exactly as it is; the build is deferred to the next apply." >&2
+    exit 0
+  fi
+
+  if ! scalebar_can_install_itself; then
+    report_line "$scalebar_binary predates Scalebar install, so the LaunchAgent was left exactly as it is; pull $scalebar_source_dir and the next apply installs it." >&2
+    defer_build_until_next_apply "$scalebar_retry_marker"
+    exit 0
+  fi
+
+  if ! retire_the_old_scalebar_launchagent; then
+    report_line "error[retire-failed]: $retired_launchagent_label is still loaded or its files were not trashed, so Scalebar install did not run; the next apply retries." >&2
+    exit 1
+  fi
+
+  if ! install_scalebar_startup_file; then
+    report_line "error[install-failed]: Scalebar install failed; the next apply retries." >&2
+    exit 1
+  fi
+}
+
+main "$@"
+{{ end -}}

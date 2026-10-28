@@ -1,0 +1,222 @@
+# Claude Code settings (the modify-template)
+
+`private_dot_claude/modify_settings.json` is a chezmoi **modify-template** (no `.tmpl` extension, by chezmoi convention)
+that selectively enforces a fixed set of stable fields in `~/.claude/settings.json`. On every `chezmoi apply`, the
+script reads the current target file, overlays the stable fields below via `setValueAtPath`, and writes the merged
+result back.
+
+The retired `--exclude=templates` did not skip a modify-template (measured 2026-08-02), so this path runs on every
+`just a`, not only on a full apply.
+
+Fields fall into **three** categories, not two.
+
+## 1. Chezmoi-controlled stable fields
+
+Overwritten from the template on every apply, whatever the live file holds.
+
+- `permissions.allow` (read-only tools: Read, Grep, Glob, WebFetch, WebSearch, plus eight read-only `Bash(...)` globs:
+  `find`, `cat`, `ls`, `head`, `tail`, `wc`, `grep`, `tree`), `permissions.deny` (26 rules, listed below),
+  `permissions.defaultMode` = `bypassPermissions`.
+  - Credentials and keys, thirteen rules: `Read(.env)`, `Read(.env.*)`, `Read(secrets/**)`, `Read(credentials.json)`,
+    `Read(~/.aws/credentials)`, `Read(~/.ssh/id_*)`, `Read(~/.ssh/*_rsa)`, `Read(~/.ssh/*_ed25519)`,
+    `Read(~/.claude/.credentials.json)`, `Read(~/.codex/auth.json)`, `Read(~/.config/osquery/webhook-secret)`,
+    `Read(~/.hermes/.env)` and `Read(~/**/*.kdbx)`.
+  - The rendered secret-bearing targets, twelve rules, eleven of them added 2026-09-14:
+    `Read(~/.config/chezmoi/key.txt)` (the age identity that decrypts the four hermes profile configs),
+    `Read(~/.hermes/config.yaml)`, `Read(~/.hermes/profiles/*/config.yaml)`, `Read(~/.config/pns/config.toml)`,
+    `Read(~/.config/uu/config.toml)`, `Read(~/.config/lights/config.toml)`, `Read(~/.config/atuin/config.toml)`,
+    `Read(~/.config/himalaya/config.toml)`, `Read(~/.config/openhue/config.yaml)`,
+    `Read(~/.config/gogcli/credentials.json)`, `Read(~/Library/Application Support/Claude/claude_desktop_config.json)`
+    and `Read(~/Library/Application Support/espanso/match/identity.yml)`. The pns rule is the thirteenth: it was already
+    denied before this group existed and moved into it, which is how a list of fourteen rules became one of twenty-five
+    with none lost (the Composio rule left with Composio). Each is a target this repo renders a KeePassXC value into, so
+    the secret is in `$HOME` in plaintext while being nowhere in git, and the source template is the copy an agent
+    should be editing anyway. A Read deny rule also blocks Edit and Write on the same path, which is the intent here:
+    editing the deployed copy is drift the next apply reverses.
+  - The `~/` prefixes are load-bearing and the first four rules lack one deliberately. A bare or `./`-prefixed pattern
+    is CURRENT-DIRECTORY relative, which is exactly right for a project's own `.env`, `secrets/` and `credentials.json`,
+    and was wrong for the home-anchored rules: `Read(.ssh/id_*)` in user settings matched a project's own `.ssh`
+    directory and never `~/.ssh` (found 2026-08-05).
+  - Two path facts behind the new rules, from the Claude Code permissions reference (read 2026-09-14). Read and Edit
+    rules use gitignore pattern syntax, in which a single `*` matches within one path segment, so
+    `Read(~/.hermes/profiles/*/config.yaml)` covers exactly the profile-directory level. And a path holding literal
+    spaces needs no quoting or escaping, which is what makes the two `~/Library/Application Support/...` rules legal as
+    written; only the gitignore metacharacters are special, and that page states parentheses need no escaping either.
+- `hooks`, 14 event keys:
+  - `UserPromptSubmit` runs `pns hook prompt`, which marks the turn's start.
+  - `Stop` runs ONE async command, `pns hook stop`: the engine reports the turn and decides the lights in the same pass,
+    where a second hook used to decide the tier on its own.
+  - `PostModelSwitch` runs `pns hook model-switch` async, restricted to `source == "auto"`, and redirects its own stdout
+    to `/dev/null` because this is one of the events whose exit-0 stdout reaches the model's next turn regardless of the
+    `async` flag.
+  - `StopFailure` runs `pns hook stop-failure`, async for the same reason `Stop` is: it fires INSTEAD of `Stop` when a
+    turn dies rather than finishing, so without it a dead pane gets no card at all.
+  - `Notification` carries two matchers. One exact pipe-separated matcher names the three `quota_auto_resume_*` types,
+    async, running `pns hook quota`. The second is `permission_prompt`, async, running `pns hook waiting`, and it exists
+    for the sandbox network approval dialog: that dialog reaches the dialog host with no `PermissionRequest` at all, and
+    the host defaults its typeless notification to `permission_prompt`, which is also every ordinary tool approval's
+    type, so the matcher cannot narrow it and an exact message allowlist in the binary
+    (`hook_observations.rs:sandbox_network_detail`) is the discriminator, admitting the sandbox dialog alone. Ordinary
+    tool approvals are the ones `PermissionRequest` already reports; the dialog host raises at least fifteen other
+    messages on this same type (a managed-settings review, a cross-session approval, Claude wanting the browser, a
+    review-artifact approval, teammate setup, a proposed session goal, a paused session, and more), and those stay
+    deliberately unreported, out of this change's scope rather than covered by something else. An earlier
+    `permission_prompt` entry ran `alerter` directly, the last notification path that reached the operator without
+    passing the presence engine, and it double-fired against the approval hook below; it was deleted rather than
+    replaced, and what takes the slot now goes through the engine like everything else. The approval itself hangs off
+    `PermissionRequest`, which runs `pns hook blocked` NOT async, because the harness waits for it and registers the
+    card before the prompt is drawn. Its exit code is NOT the operator's answer: that comes back through moshi's own
+    bridge typing into the prompt (measured 2026-08-29, `modify_settings.json`: approve and deny both leave the hook
+    exiting 0 with empty stdout).
+  - `PermissionDenied` runs `pns hook denied` async, reporting the tool call auto-mode refused without ever asking;
+    async is what keeps pns out of the retry decision the harness awaits on this hook. It is routed as an OBSERVATION,
+    so it neither arms the waiting lamp nor clears a wait: the decision has already been taken and nobody is answering
+    anything.
+  - `Elicitation` runs `pns hook asked` async, carding the MCP server that stopped mid-tool-call to ask the operator for
+    input; async is what keeps pns out of the answer, since this hook runs before the dialog is shown and exit code 2
+    alone would decline the request outright.
+  - `PostToolBatch` runs `pns hook resolved` async with no matcher, clearing the reminder record when an assistant tool
+    batch resolves, whether the operator approved the call or denied it: a denied call still produces a tool_result, so
+    it resolves the batch rather than skipping it. The classifier's own refusals are `PermissionDenied`'s to report, not
+    this entry's.
+  - `PostToolUse` carries two matchers, `AskUserQuestion` and `ExitPlanMode`, both async and both calling
+    `pns hook resolved`. For those two tools the tool IS the dialog, so the hook fires when the operator answered: it
+    ends the wait `PermissionRequest` armed before the card was drawn, rather than arming a second one and reading the
+    operator's own choice back to them, which is what `pns hook asked` and the deleted `pns hook plan-ready` used to do
+    here.
+  - `ElicitationResult` runs `pns hook resolved` async with no matcher. It is an elicitation's own answer signal, and a
+    matcher there would filter by server name while every answered elicitation is a clearing signal. Async for
+    `Elicitation`'s reason: this hook can observe or override the response before it is sent to the server, and pns has
+    no business answering one.
+  - `SubagentStop` runs `pns hook resolved` async, ending a wait a subagent was holding at the subagent's own end rather
+    than at the parent session's Stop.
+  - `SessionStart` is herdr's own agent-state integration, and ownership is split. `herdr integration install claude`
+    creates the hook FILE at `~/.claude/hooks/herdr-agent-state.sh`, which is deliberately unmanaged, and writes this
+    ENTRY the first time. The template then redeclares the same entry, because the `hooks` write is whole-value and
+    would otherwise erase it.
+- `skillOverrides`, one `setValueAtPath` per on-demand skill (29 today), each set to `user-invocable-only`, transcribed
+  BY HAND from the tiers table in `dot_agents/custom-skill-lock.json`. Nothing enforces that the two agree: the roster
+  guard was declaration-consistency checking and went with the 2026-08-05 test-scope ruling. Per key, so overrides the
+  user sets for other skills drift freely.
+- `statusLine` runs the managed status-line script.
+- `cleanupPeriodDays` (= 365, a year of session retention), `autoUpdatesChannel` (= `stable`, pins the release channel
+  so updates lag `latest`), `remoteControlAtStartup` (= `true`, starts the Remote Control bridge every session),
+  `spinnerTipsEnabled` (= `false`, operator 2026-08-11: no spinner tips anywhere), `effortLevel` (= `xhigh`, the top of
+  the `low`/`medium`/`high`/`xhigh` enum; stable rather than free-drift so a `/config` write cannot quietly leave a
+  session on a lower reasoning budget).
+- `env`, six keys, written per key so an env var the operator sets by hand drifts freely:
+  `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` = `1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` = `1`, `DISABLE_TELEMETRY` = `1`,
+  `DISABLE_ERROR_REPORTING` = `1`, `DISABLE_NON_ESSENTIAL_MODEL_CALLS` = `1`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = `75`.
+- `attribution.commit` and `attribution.pr`, both set to the empty string, which is the native switch for the co-author
+  trailer and the generated-with footer the global rules already forbid by hand.
+- `extraKnownMarketplaces`, nine entries on darwin and six on Linux. The six GitHub ones each carry `autoUpdate` =
+  `true`: `ponytail`, `openai-codex`, `worktrunk`, `last30days-skill`, `plannotator`, `a5c.ai`. Claude Code refreshes a
+  marketplace and its installed plugins at startup on its own, but only defaults that on for marketplaces Anthropic
+  publishes (read out of the shipped 2.1.220 binary on 2026-08-03), so without those six entries those plugins sit at
+  their install version forever. `a5c.ai` is the one key written through the list path form, since its own name holds a
+  dot that a dotted path would split into a nested map. The other three, `pns`, `strategy` and `clean-code`, are
+  darwin-only and deliberately carry NO `autoUpdate`: they are this repo's own marketplaces, directories under
+  `~/.claude/` that chezmoi converges on every apply, and `.chezmoiignore` drops all three on Linux, where declaring one
+  would be a startup refresh that always fails. The write is per marketplace key, so a marketplace added with
+  `claude plugin marketplace add` keeps its own entry. What those silent startup updates changed is recorded weekly by
+  the `claude-plugins` lane in `uu`; see the plugin update record in `docs/runbooks/agent-skills-store.md`. One
+  consequence for all three: Claude Code runs the INSTALLED copy under
+  `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, not the marketplace directory, and
+  `claude plugin update pns@pns` copies it again only when `plugin.json` declares a new version (measured 2026-09-13: a
+  skill added under the same 0.1.0 stayed invisible, "already at the latest version"). Adding or changing a skill under
+  one of those `plugins/<name>/` trees therefore bumps that plugin's version in the same change; after the apply, run
+  `claude plugin update <plugin>@<marketplace>` and restart Claude Code. The `clean-code` and `pns` plugins ship skills
+  that are thin wrappers reading `~/.agents/skills` at run time, so a change to the STORE CONTENT ITSELF needs no bump;
+  only a change to a wrapper does.
+
+`plannotator` is declared here rather than installed from its own `curl | bash` script on purpose. That script writes a
+binary, hooks, skills and slash commands into `~/.claude/` and `~/.codex/`, which are chezmoi targets, so the next full
+apply would erase part of what it wrote and leave the rest. The marketplace route delivers the plan-review hooks, which
+is the part worth having, and touches nothing chezmoi owns.
+
+## 2. Free-drift (Claude Code owns)
+
+`alwaysThinkingEnabled`, `useAutoModeDuringPlan`, `voiceEnabled`, `skipDangerousModePermissionPrompt`, and any future
+setting `/config` adds.
+
+## 3. `enabledPlugins`, which is neither
+
+The **roster** is chezmoi-controlled and the per-plugin **state** is not. The template declares fourteen plugin ids on
+every OS and appends `pns@pns`, `strategy@strategy` and `clean-code@clean-code` on darwin, so seventeen on this machine
+(keys are `<name>@<marketplace>`, which is the form Claude Code writes, not the bare name the CLI prints on success) and
+the write is whole-value, so a marketplace plugin enabled live but missing from the declaration is turned OFF by the
+next apply. Within that roster, both members of Claude Code's own union for this key are the machine's to set and are
+carried through unchanged: the JSON boolean `false` that `claude plugin disable` writes, and the JSON array of version
+constraints that its schema calls the extended format (a plugin held at a reviewed release). Every other shape renders
+`true`: an absent key, a JSON null, a string and a number.
+
+So `claude plugin disable <id>` STICKS across applies for the declared ids, and applying is not the way to turn one back
+on: use `claude plugin enable <id>`. The trade was taken deliberately, because a containment verb a scheduled apply can
+silently revoke is not containment.
+
+**The promise stops at the declared roster, and an erased entry costs different things depending on where the plugin
+came from.** Claude Code 2.1.220 resolves the two kinds differently (read out of the shipped binary on 2026-08-02). A
+marketplace plugin is discovered THROUGH this key: the loader walks the merged settings' `enabledPlugins` entries and
+skips any whose value is undefined, so an id the file does not hold is never loaded. Erasing an undeclared marketplace
+plugin's `false` therefore leaves it off, by a different mechanism, though the file stops recording why. A plugin under
+`~/.claude/skills/` is found by scanning that directory instead, and its entry only adjusts state afterwards; with no
+entry it falls back to the plugin manifest's `defaultEnabled`, which defaults to true. Every skill this repo symlinks
+into `~/.claude/skills/` is that second kind, so a `claude plugin disable` on one writes a `false` that the next apply
+erases, and the skill comes back on. Nothing is drifting today, the live file holds exactly the declared ids, but the
+skills case needs one `claude plugin disable` to become real.
+
+**Read the price before relying on this.** It is not the recovery ergonomics (though those are real:
+`claude plugin disable --all` is one command, there is no `enable --all`, so undoing a mass disable is one
+`claude plugin enable` per declared plugin). The price is that **this repo no longer re-asserts plugin state at all.**
+The old whole-value write forced every declared plugin back to `true` on every apply, which incidentally remediated
+tampering. Now a live `false` is carried forward for as long as it sits in the file, and because the render reproduces
+it byte for byte, `chezmoi status` and `chezmoi diff` print nothing for it (measured 2026-08-02), which includes
+`just d`. Stated plainly: any process running as this user, which is every agent with Bash under
+`permissions.defaultMode = bypassPermissions`, permanently disables `security-guidance` or `superpowers` by writing one
+boolean, and nothing in this repo detects it or restores it. Auditing that key means reading `~/.claude/settings.json`
+or running `claude plugin list`; drift tooling will not raise it.
+
+**And "sticks" means "against an apply", not "cannot load".** Settings precedence runs user, project, local, flag,
+policy, so a repo whose project settings enable the plugin loads it there whatever `~/.claude/settings.json` says.
+Claude Code ships an `ineffective-disable` diagnostic for exactly that case (the diagnostic id and all five source names
+are in the shipped 2.1.220 binary, read 2026-08-02).
+
+## When the live file is not JSON, a run_before script quarantines it
+
+Reading the live file is what makes preserving its state possible, and a modify-template that cannot read it fails the
+entire run: every later target and every `run_after_` script is skipped, and the unreadable file is left in place, so
+`permissions.deny` is not restored either. Whitespace-only and empty files are handled (the read is trimmed first), and
+so is anything that parses. A file that is non-empty and is not JSON, such as a write truncated by a crash or a full
+disk, is not, and no template can fix it: chezmoi's JSON readers all fail the template on bad input and Go templates
+have no error recovery, so there is nothing to fall back from. That is why the repair runs BEFORE the template rather
+than inside it.
+
+**So a corrupt live file does not normally block the apply.**
+`.chezmoiscripts/run_before_12-quarantine-unparseable-claude-settings.sh` moves an unreadable settings file into
+`~/workspaces/backups/<timestamp>.claude-settings-quarantined.backup.json` (moved, never deleted; the timestamp uses
+hyphens, not colons), warns loudly, and leaves `{}` for the template to rebuild from. A readable file is left
+byte-identical, including the shapes that are not JSON objects (empty, whitespace-only, a whole-file array), and an
+absent one stays absent. What the move costs is per-plugin state, which lives only in the live file: every declared
+plugin comes back enabled, so a disable has to be re-applied with `claude plugin disable <id>` after a quarantine.
+
+Two cases the script hands back to a human, and it says both out loud. With no `jq` on PATH it exits without a verdict
+rather than risk destroying a healthy file, and a move it cannot complete is reported with a warning that the apply will
+fail in `modify_settings.json` until the file is repaired by hand. Repair `~/.claude/settings.json` in either case; the
+apply's own error names the template.
+
+No test pins either side of this any more. `test/unit/claude-settings-quarantine.sh`, which checked the repair side (an
+unreadable file is moved and replaced with `{}`, and every shape the template does survive is left byte-identical,
+including the three that are not JSON objects), was removed on 2026-09-26 (`5547bfd2`). The test that applied the
+template into a throwaway destination once per live-file shape per target OS was deleted in the 2026-08-05 purge
+(`d348c136`). So the repair script and everything in the three sections above are held by review rather than by a gate.
+
+## Promoting a `/config` toggle
+
+Add a `setValueAtPath` call for that key in `private_dot_claude/modify_settings.json` and commit.
+
+Background: `/config` writes ergonomic toggles directly into `~/.claude/settings.json` (verified empirically), and
+Claude Code does not provide a user-level `~/.claude/settings.local.json` for overrides, only project-scope
+`.claude/settings.local.json` exists. The modify-template approach is the cleanest way to keep policy fields under
+chezmoi control while letting `/config` mutate everything else freely. See
+https://www.chezmoi.io/user-guide/manage-different-types-of-file/ for the `modify_` template and `setValueAtPath`
+reference.
