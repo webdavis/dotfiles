@@ -9,8 +9,8 @@ herdr_is_installed() {
   command -v herdr >/dev/null 2>&1
 }
 
-# Capture first: with pipefail, `grep -q` closing the pipe early makes herdr
-# exit 141 and the check report "not current" on every apply.
+# Saves the status before grep reads it. With pipefail, grep -q closing the pipe early
+# makes herdr fail, and the check would report the integration as stale on every apply.
 claude_integration_is_current() {
   local status
   status=$(herdr integration status 2>/dev/null)

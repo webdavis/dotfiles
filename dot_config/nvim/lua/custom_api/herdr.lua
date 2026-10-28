@@ -1,25 +1,10 @@
--- The shared herdr seam for selection sends and launch-or-attach (spec 7.4).
--- `herdr-nvim` owns the agent listing and display
--- (`agents.list`, `agents.display`) and the dispatch verb (`dispatch.send`).
--- This module adds the workspace gate, live-tab selection, Claude filter,
--- picker row, interrupt policy and launch plan.
---
--- Every `require("herdr-nvim.…")` sits INSIDE the function that needs it. The
--- headless spec runner starts `--clean` with only this config's `lua/` on
--- `package.path` (tests/run.lua), so a top-level require would make the whole
--- module unloadable there and take the pure functions down with it.
+-- Sends selections to this workspace's Claude agent, and launches one when none runs.
+-- Require herdr-nvim inside each function, so the test runner can load this module without it.
 
 local M = {}
 
--- ╭──────────────────────╮
--- │ The interrupt policy │
--- ╰──────────────────────╯
-
--- Spec 7.4's table, verbatim. `working` warns and sends because both harnesses
--- queue input that arrives mid-turn; `blocked` refuses because text typed into a
--- pane waiting on an approval ANSWERS that approval. There is no queue, no
--- waiter and no recheck: a refusal is final and the operator presses the key
--- again once the approval is answered.
+-- `working` warns and sends, because the agents queue input sent mid-turn.
+-- `blocked` refuses, because typed text would answer the pending approval.
 local VERDICTS = {
   idle = "send",
   done = "send",
@@ -27,34 +12,17 @@ local VERDICTS = {
   blocked = "refuse",
 }
 
--- "send", "warn" (warn and send) or "refuse". `unknown` takes the `working` row,
--- and so does any state herdr grows later: an unlisted state must not become a
--- silent refusal, and must not become a silent send either.
+-- Any other state, `unknown` included, warns and sends.
 function M.may_send(status)
   return VERDICTS[status] or "warn"
 end
-
--- ╭───────────────────╮
--- │ Talking to herdr  │
--- ╰───────────────────╯
 
 local function herdr_cli(argv)
   return require("herdr-nvim.exec").default_exec(argv)
 end
 
--- Where this editor's pane IS, as opposed to where it was started. herdr stamps
--- HERDR_WORKSPACE_ID, HERDR_TAB_ID and HERDR_PANE_ID into the environment when
--- the TERMINAL launches and never updates them, but a cross-workspace pane move
--- keeps that terminal and changes all three. Measured on herdr 0.8.2: a pane
--- moved from w18:p2 to w19:p2 kept terminal term_65ab65225b56329 while its shell
--- still reported HERDR_WORKSPACE_ID=w18.
---
--- `pane current --current` is the one place this seam asks that question, and it
--- is the right one to ask here: the command answers the CALLER's pane, which is
--- a trap for anything wanting the FOCUSED pane and is exactly what is wanted for
--- "which pane am I". It resolves by terminal rather than by the environment, so
--- it answered w19:p2 for the moved pane above. Returns nil when it cannot say,
--- and the caller refuses on nil rather than guessing.
+-- The pane this editor is in now. The HERDR_* variables keep the launch-time pane after a move.
+-- Returns nil when herdr cannot say.
 local function live_pane()
   local result = herdr_cli({ "herdr", "pane", "current", "--current" })
   if result.code ~= 0 then
@@ -71,16 +39,8 @@ local function live_pane()
   return pane
 end
 
--- ╭────────────╮
--- │ Which pane │
--- ╰────────────╯
-
--- Why the editor must prove it is inside herdr before anything is looked up:
--- `herdr agent list` is machine-wide and `agents.list()` narrows it to
--- HERDR_WORKSPACE_ID only when that variable is SET. Started outside a herdr
--- pane it therefore answers with every workspace's agents (measured: `wW` and
--- `wX` both came back), and a lone Claude anywhere on the machine would be
--- resolved silently and sent this buffer. Returns the reason to refuse, or nil.
+-- `agents.list()` spans every workspace when HERDR_WORKSPACE_ID is unset, so refuse first.
+-- Returns the reason, or nil.
 function M.workspace_refusal(herdr_env, workspace_id)
   if herdr_env ~= "1" then
     return "not running inside herdr, so an agent lookup would cross every workspace"
@@ -91,10 +51,7 @@ function M.workspace_refusal(herdr_env, workspace_id)
   return nil
 end
 
--- The second half of the gate, once the live pane is known. Refusing rather than
--- adapting to the live workspace is deliberate: `agents.list` inside
--- `herdr-nvim` scopes its listing to HERDR_WORKSPACE_ID. A cross-workspace move
--- leaves that value stale, so the operator must restart the editor in its pane.
+-- `agents.list` scopes by the launch-time workspace, so after a move the editor must restart.
 function M.stale_workspace_refusal(env_workspace_id, live_workspace_id)
   if not live_workspace_id then
     return "herdr could not say which pane this editor is in, so a lookup cannot be scoped"
@@ -108,30 +65,21 @@ function M.stale_workspace_refusal(env_workspace_id, live_workspace_id)
   return nil
 end
 
--- The Claude agents of ONE workspace. The workspace test is repeated here
--- rather than left to `agents.list()`, whose own filter is a third-party
--- plugin's implementation detail: scoping the send is this seam's promise, so
--- this seam is where it is kept and where it is pinned.
+-- Filter by workspace here too, because scoping the send is this module's promise.
 function M.claude_agents_here(agents, workspace_id)
   return vim.tbl_filter(function(agent)
     return agent.kind == "claude" and agent.workspace_id == workspace_id
   end, agents)
 end
 
--- The picker row. `agents.display` renders kind, status and cwd basename, which
--- two Claude agents in two tabs of one repository share exactly; the pane id is
--- the field that tells them apart before the text goes anywhere.
+-- The pane id tells apart two agents whose display text matches.
 function M.picker_label(display, pane_id)
   return display .. " [" .. pane_id .. "]"
 end
 
--- `on_pane` rather than a return value: the picker goes through
--- `vim.ui.select`, which snacks.nvim replaces with an asynchronous picker, so
--- the ambiguous case cannot answer in the caller's stack frame. It is called
--- with the pane id, or with nil when this workspace runs no Claude agent. A
--- refusal and a cancelled picker call it NOT AT ALL, which is what keeps
--- `launch_or_attach` from splitting a pane on the strength of a lookup that
--- never happened.
+-- Takes a callback, because the picker is asynchronous.
+-- The callback gets the pane id, or nil when no Claude agent runs in this workspace.
+-- A refusal or a cancelled picker never calls it.
 function M.agent_pane(on_pane)
   local refusal = M.workspace_refusal(vim.env.HERDR_ENV, vim.env.HERDR_WORKSPACE_ID)
   if refusal then
@@ -139,8 +87,7 @@ function M.agent_pane(on_pane)
     return
   end
 
-  -- Before the listing, not after: a listing that ran would already have read
-  -- the agents of the workspace this editor merely used to be in.
+  -- Check the live pane before listing, so the listing never reads a workspace the editor has left.
   local pane = live_pane()
   refusal = M.stale_workspace_refusal(vim.env.HERDR_WORKSPACE_ID, pane and pane.workspace_id)
   if refusal then
@@ -155,17 +102,14 @@ function M.agent_pane(on_pane)
     return
   end
 
-  -- The live workspace, not the environment's copy of it: the two are equal by
-  -- the gate above, and reading the live one keeps that true if the gate moves.
   local claude = M.claude_agents_here(all, pane.workspace_id)
 
   if #claude == 0 then
     return on_pane(nil)
   end
 
-  -- The plugin's `agents.resolve` reads launch-time HERDR_TAB_ID. A move between
-  -- tabs in this workspace leaves it stale, so select using the live tab here.
-  -- Keep the lone workspace fallback and never use UI-wide focus (spec 7.2).
+  -- Match the live tab, because the plugin's `agents.resolve` reads the launch-time HERDR_TAB_ID.
+  -- Fall back to the lone agent in the workspace, never to UI focus.
   local in_tab = vim.tbl_filter(function(agent)
     return agent.tab_id == pane.tab_id
   end, claude)
@@ -174,7 +118,7 @@ function M.agent_pane(on_pane)
     return on_pane(one.pane_id)
   end
 
-  -- Not `ui.pick_agent`: its rows are `agents.display` alone, which collides.
+  -- Uses its own picker, because `ui.pick_agent` cannot tell apart two rows with the same text.
   vim.ui.select(claude, {
     prompt = "Send to Claude agent",
     format_item = function(agent)
@@ -187,14 +131,7 @@ function M.agent_pane(on_pane)
   end)
 end
 
--- ╭─────────────╮
--- │ How to send │
--- ╰─────────────╯
-
--- The agent's state at send time, read fresh rather than taken from the listing
--- `agent_pane` resolved on: a picker the operator sat in front of for a while is
--- exactly the case where the cached status has gone stale. Anything unreadable
--- is `unknown`, which the 7.4 table already has a row for.
+-- Read the status fresh, because a picker can stay open long enough for the listing to go stale.
 local function agent_status(pane_id)
   local result = herdr_cli({ "herdr", "agent", "get", pane_id })
   if result.code ~= 0 then
@@ -208,14 +145,8 @@ local function agent_status(pane_id)
   return agent.agent_status or "unknown"
 end
 
--- Submitting is the only mode this seam offers, and it is required rather than
--- defaulted so a caller cannot ask for the unsafe one by omission. `herdr agent
--- prompt` presses Enter itself and REFUSES an agent that is already blocked;
--- `herdr pane send-text` does neither, so a non-submitting send can lose the
--- race between the status read below and the dispatch and type into an approval
--- dialog. A second status check does not close that race, only a guarded
--- non-submitting verb would, and herdr 0.8.2 has none. No key name is ever sent,
--- so nothing is split on newlines.
+-- `submit` is required, because `herdr agent prompt` refuses a blocked agent
+-- and a send that does not submit could type into an approval dialog.
 function M.send(text, opts)
   if not (opts and opts.submit) then
     error("custom_api.herdr.send: submit = true is required; herdr has no guarded non-submitting send")
@@ -244,12 +175,7 @@ function M.send(text, opts)
   end)
 end
 
--- ╭──────────────╮
--- │ What to send │
--- ╰──────────────╯
-
--- The paragraph under the cursor: the run of non-blank lines around it. A blank
--- line is its own paragraph, which sends nothing and is caught by the caller.
+-- The run of non-blank lines around the cursor, or nil on a blank line.
 local function paragraph_range()
   local buffer = vim.api.nvim_get_current_buf()
   local cursor = vim.api.nvim_win_get_cursor(0)[1]
@@ -273,27 +199,13 @@ local function paragraph_range()
   return first, final
 end
 
--- The visual selection, or the paragraph under the cursor in normal mode, sent
--- with `submit = true`: the run-this-there behavior vim-slime was carried for.
--- There is no target-picking keymap and no `<leader>CP` (spec 7.4):
--- `agent_pane` resolves the target and prompts only when it is genuinely
--- ambiguous, so a stored target would be a second answer to a settled question.
--- The lines of the CURRENT Visual selection. Called while the mode is still
--- visual, because both of the things it has to read are gone once it is not:
--- `mode()` answers "v", "V" or CTRL-V, the exact spelling `getregion` wants for
--- its `type` (`visualmode()` would answer for the PREVIOUS selection), and
--- `curswant` at `v:maxcol` is the only record that a blockwise selection was
--- taken to the END of each line. Without that second read, `<C-v>j$` from `b`
--- over `abc123456` / `xyz` returned `bc1` / `yz` where Neovim yanks `bc123456` /
--- `yz`. Leaving Visual mode is what materializes `'<` and `'>`, so it happens
--- after both reads and before the marks are used.
+-- Call while still in Visual mode, because `mode()` and `curswant` describe only the live selection.
+-- `curswant` at `v:maxcol` marks a blockwise selection taken to each line end.
 function M.visual_lines()
   local visual = vim.fn.mode()
   local to_end_of_line = vim.fn.getcurpos()[5] == vim.v.maxcol
   vim.cmd([[execute "normal! \<esc>"]])
   local kind = (visual == "\22" and to_end_of_line) and ("\22" .. vim.v.maxcol) or visual
-  -- Not the line range: `getregion` reads charwise, linewise and blockwise
-  -- exactly, so half a line selected sends half a line.
   return vim.fn.getregion(vim.fn.getpos("'<"), vim.fn.getpos("'>"), { type = kind })
 end
 
@@ -318,21 +230,13 @@ function M.send_selection_or_paragraph()
   M.send(text, { submit = true })
 end
 
--- ╭──────────────────╮
--- │ Launch or attach │
--- ╰──────────────────╯
-
--- Spec 7.2. herdr agent names must match `[a-z][a-z0-9_-]{0,31}` and be unique
--- among LIVE agents, so both transforms are load bearing and a fixed name would
--- fail in the second workspace that launches. Pane ids are never reused and a
--- name is cleared when its agent exits, so the derived name is free unless a
--- case-folded twin is live.
+-- herdr names must match `[a-z][a-z0-9_-]{0,31}` and be unique among live agents,
+-- so the name comes from the pane id.
 function M.agent_name(pane_id)
   return "claude-" .. pane_id:lower():gsub(":", "-")
 end
 
--- The decision half of `launch_or_attach`, kept apart from the three CLI calls
--- that carry it out so it is answerable without a running herdr.
+-- The decision half of `launch_or_attach`, pure so tests need no running herdr.
 function M.plan_launch(pane_id, cwd)
   if pane_id then
     return { "prompt", pane_id }
@@ -340,11 +244,7 @@ function M.plan_launch(pane_id, cwd)
   return { "split", cwd }
 end
 
--- herdr reports a failure as a JSON envelope with an `error` object, on stdout
--- for some verbs and on stderr for others, alongside a non-zero exit (measured
--- on herdr 0.8.2: `agent get` on an unknown pane answers on stdout, `agent
--- start` under a taken name on stderr). Both streams are searched rather than
--- guessed at.
+-- herdr reports a failure on stdout or stderr depending on the verb, so read both.
 local function failure(result)
   if result.code == 0 then
     return nil
@@ -353,7 +253,6 @@ local function failure(result)
   return vim.trim(said) ~= "" and vim.trim(said) or ("exit " .. result.code)
 end
 
--- The new pane's id is `.result.pane.pane_id`.
 local function split_pane(cwd)
   local result = herdr_cli({
     "herdr",
@@ -398,16 +297,13 @@ local function start_agent(name, pane_id)
   return failure(result)
 end
 
--- `<leader>Cc`: prompt `/ide` at the Claude agent already in this workspace, or
--- split a pane beside the editor and start one there with `--ide`.
+-- Prompt `/ide` at this workspace's Claude agent, or split a pane and start one with `--ide`.
 function M.launch_or_attach()
   M.agent_pane(function(pane_id)
     local plan = M.plan_launch(pane_id, vim.fn.getcwd())
 
     if plan[1] == "prompt" then
-      -- `agent prompt` refuses while that session is blocked on an approval,
-      -- which is the right behavior: typing `/ide` into a blocked prompt with
-      -- `pane run` would ANSWER the approval instead.
+      -- `agent prompt` refuses a blocked session, so `/ide` never answers an approval.
       local err = failure(herdr_cli({ "herdr", "agent", "prompt", plan[2], "/ide" }))
       if err then
         vim.notify("herdr: herdr agent prompt failed: " .. err, vim.log.levels.ERROR)
@@ -423,10 +319,8 @@ function M.launch_or_attach()
 
     local name = M.agent_name(new_pane)
     local err = start_agent(name, new_pane)
-    -- The one way the derived name is taken is a live case-folded twin, and
-    -- herdr says so by name (`agent_name_taken`, measured), so one retry under a
-    -- suffixed name is the whole recovery. Any other failure is reported rather
-    -- than retried, which would only double a 30-second readiness timeout.
+    -- The name can clash only with a live agent whose name differs just in letter case,
+    -- so retry once with a suffix.
     if err and err:find("agent_name_taken", 1, true) then
       err = start_agent(name .. "-2", new_pane)
     end

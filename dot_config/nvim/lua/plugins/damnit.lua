@@ -1,13 +1,5 @@
--- damnit.nvim: dam's tasks from inside the editor, and the editor half of the
--- herdr-damnit pane. `:Dam task <oid>` opens one object as a buffer.
---
--- `views` carries the same names and queries as the herdr pane's `[[views]]`
--- entries (dot_config/herdr/plugins/config/herdr-damnit/config.toml), so one
--- word opens one list in both. Each query is in dam's grammar, and `!done`
--- keeps a completed task out, because `due:today` matches one too.
---
--- The plugin holds no token: dam reads the Todoist credential named in
--- ~/.config/dam/config.toml.
+-- `views` uses the same names and queries as the herdr-damnit pane, so one word opens one list in both.
+-- `!done` leaves out completed tasks, because `due:today` matches them too.
 return {
   "webdavis/damnit.nvim",
   commit = "a60975baf023e79174a43c52169ee390c0aa004c",
@@ -16,8 +8,7 @@ return {
     views = {
       today = "!done & (due:today | overdue)",
       upcoming = "!done & (due:this-week | due:next-week)",
-      -- The Todoist projects webdavis > dotfiles, which dam keeps as this
-      -- path, matching this repo's own path (webdavis/dotfiles).
+      -- dam stores the Todoist project webdavis > dotfiles under this path.
       dotfiles = "!done & path:webdavis/dotfiles/",
     },
   },

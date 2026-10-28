@@ -1,8 +1,5 @@
 ---@class custom_api.overseer_status
 ---The overseer task counter rendered by the lualine statusline component.
----
----Kept in a module so the statusline component captures nothing and the
----counting can be tested without lualine or overseer running.
 local M = {}
 
 -- Running first, so a live task is the first thing read.
@@ -14,19 +11,14 @@ local ICONS = {
   CANCELED = "",
 }
 
----Task counts by status.
 ---@return table<string, integer>
 function M.counts()
-  -- `package.loaded` rather than require: overseer lazy-loads itself, and asking
-  -- for it here would drag it in on every statusline redraw.
+  -- `package.loaded`, so a statusline redraw never loads overseer.
   if not package.loaded["overseer"] then
     return {}
   end
   local by_status = {}
-  -- Not `unique`: at this pin it returns the OLDER completed task sharing a name,
-  -- so running one command twice, succeeding then failing, reported only the
-  -- success while both tasks sat in the list. Wrapped background jobs stay out
-  -- either way, so this counts exactly what the task list shows.
+  -- `list_tasks`, not `unique`, so two runs of one command both count.
   for _, task in ipairs(require("overseer.task_list").list_tasks({})) do
     by_status[task.status] = (by_status[task.status] or 0) + 1
   end

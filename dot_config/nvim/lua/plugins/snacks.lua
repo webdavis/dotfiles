@@ -1,14 +1,6 @@
--- The dashboard is a doorway, not a room (operator 2026-09-15). Neovim gets
--- opened to work on a particular file, so the whole dashboard is a ranked list
--- of files plus one row of verbs, and every panel that once sat beside it was
--- removed for failing that test: Git Status duplicated the file list's own
--- change markers, and Git Log, Notifications, Open Issues, Open PRs and Browse
--- Repo are all news or browser work rather than the file at hand.
 local dashboard_width = 60
 
----The action keys, all `hidden`: the compact verb row in the sections below is
----the rendering, and these exist only to bind the keys. Without `hidden` the
----dashboard drew the same seven lines twice.
+---Each key is `hidden`, because the verb row below draws them and these entries only bind the keys.
 -- stylua: ignore
 local action_keys = {
   { icon = " ", key = "f", desc = "Find File",    action = ":lua Snacks.dashboard.pick('files')", hidden = true },
@@ -20,9 +12,7 @@ local action_keys = {
   { icon = " ", key = "q", desc = "Quit",         action = ":qa", hidden = true },
 }
 
--- A key claimed twice is not broken, it is quietly wrong: the dashboard draws
--- both rows and one of them does the other's work. `n` was claimed by New File
--- AND by a Notifications pane for exactly that reason. Refuse at load instead.
+-- A key claimed twice makes one dashboard row do another's work, so refuse at load.
 do
   local claimed = {}
   for _, item in ipairs(action_keys) do
@@ -33,23 +23,18 @@ do
   end
 end
 
--- What the rows around the file list cost: the label above it, the verb row,
--- and a margin so the list never runs to the last line of the window.
+-- The label above the file list, the verb row, and a bottom margin.
 local rows_around_the_file_list = 8
 
----How many file rows this window has room for, between a floor that keeps the
----list useful and a ceiling set by how many single-keystroke rows are worth
----offering at all. Read on every render, because the dashboard redraws on
+---File rows that fit this window. Read on every render, because the dashboard redraws on
 ---`VimResized`.
 ---@return number
 local function file_rows()
   return math.max(3, math.min(9, vim.o.lines - rows_around_the_file_list))
 end
 
----Ask for words (the one under the cursor filled in) and show `yf`'s colored
----matches in a float that stays open until `q`. `yf` is a bash function, so it
----runs in a login shell; the words go in as arguments, never pasted into the
----command string, so a quote or `$` in them stays text.
+---Shows `yf`'s matches for the words under the cursor in a float. `yf` is a bash function, so it
+---runs in a login shell. The words pass as arguments, so quotes and `$` stay plain text.
 local function yaml_find()
   local guess = vim.fn.expand("<cWORD>"):gsub("^[^%w]+", ""):gsub("[^%w]+$", "")
   vim.ui.input({ prompt = "yf: ", default = guess }, function(input)
@@ -75,11 +60,6 @@ return {
         width = dashboard_width,
         preset = { keys = action_keys },
         sections = {
-          -- FILES FIRST. The dashboard is a doorway, not a room (operator
-          -- 2026-09-15): Neovim is opened to work on a specific file, so the
-          -- ranked file list takes the top rows and the verbs move under it.
-          -- The banner went with them, because it spent the most valuable rows
-          -- on screen naming the program that had just been launched.
           {
             padding = 1,
             -- stylua: ignore
@@ -88,8 +68,7 @@ return {
           function()
             return require("custom_api.dashboard_files").section(file_rows(), dashboard_width)
           end,
-          -- One row, not eight. Every verb here is also on the leader map, so
-          -- the dashboard only has to remind rather than teach.
+          -- Every verb here is also on the leader map, so one reminder row is enough.
           {
             padding = 1,
             -- stylua: ignore
@@ -103,22 +82,16 @@ return {
               { "q", hl = "key" }, { " quit", hl = "desc" },
             },
           },
-          -- The keys themselves, declared but not drawn. `hidden` belongs on
-          -- each key rather than here: on this wrapper it does not reach the
-          -- rows the section generates, and snacks drew a second copy of all
-          -- seven lines under the compact row above.
+          -- Binds the hidden keys above without drawing them.
           { section = "keys" },
         },
       },
       explorer = {
         enabled = true,
-        replace_netrw = false, -- Don't replace netrw with the snacks explorer.
+        replace_netrw = false,
         trash = true,
       },
-      -- The gate on xcodebuild.nvim's SwiftUI, UIKit and AppKit previews and on its
-      -- snapshot-test diffs: both refuse to render unless `snacks.image.config.enabled`
-      -- is true (`core/previews.lua:78`). Both produce PNG, which Ghostty draws through
-      -- the Kitty graphics protocol, and `magick` is installed for the other formats.
+      -- xcodebuild.nvim's previews and snapshot diffs render only when this is enabled.
       image = { enabled = true },
       indent = { enabled = false },
       input = { enabled = true },
@@ -160,9 +133,6 @@ return {
               preview = false,
             },
           },
-          -- Wrap text in  Snacks.picker.notifications() previews.
-          -- Without this it's almost impossible to read notifications using Snacks.
-          -- Ref: https://www.reddit.com/r/neovim/comments/1mvlp86/lazyvim_snacks_picker_how_to_turn_on_preview/
           notifications = {
             win = {
               preview = {
@@ -172,14 +142,10 @@ return {
               },
             },
             actions = {
-              -- Variant 1
-              --  Yank the current item message
               yank_msg = function(_, item)
                 vim.fn.setreg("+", item.item.msg)
               end,
-              -- Variant 2
-              --  Yank the current item message, or
-              --  if multiple items are selected (with <Tab>), yank them concatenated with ' '
+              -- Joins every <Tab>-selected message with spaces.
               yank_many_msg = function(picker)
                 local selected = picker:selected({ fallback = true })
                 local messages = vim.tbl_map(function(s)
@@ -199,7 +165,7 @@ return {
       words = { enabled = true },
       styles = {
         notification = {
-          -- Wrap text in vim.notify messages. Note: doesn't affect Snacks.picker.notifications()
+          -- Wraps notification popups only, because the notifications picker sets its own wrap above.
           wo = { wrap = true },
         },
         input = {
@@ -210,7 +176,6 @@ return {
     keys = {
       -- stylua: ignore start
 
-      -- Top Pickers:
       { "<leader>fs", function() Snacks.picker.smart() end, desc = "Snacks: smart find files" },
       { "<leader>s:", function() Snacks.picker.command_history() end, desc = "Snacks: command history" },
       { "<C-g><C-f>", function() Snacks.picker.git_files() end, desc = "Snacks (Git): find files" },
@@ -219,12 +184,10 @@ return {
       { "<leader>g.", function() Snacks.picker.git_grep() end, desc = "Snacks (Git): grep git files (alt)" },
       { "<leader>ee", function() Snacks.explorer() end, desc = "File Explorer (Snacks)" },
 
-      -- Notifications:
       { "<leader>nn", function() Snacks.picker.notifications() end, desc = "Snacks (Notifications): history (picker)" },
       { "<leader>nb", function() Snacks.notifier.show_history() end, desc = "Snacks (Notifications): history (buffer)" },
       { "<leader>nd", function() Snacks.notifier.hide() end, desc = "Snacks (Notifications): dismiss all" },
 
-      -- Find:
       { "<leader>fb", function() Snacks.picker.buffers() end, desc = "Snacks: open buffers" },
       { "<leader>fB", function() Snacks.picker.buffers({ hidden = true, nofile = true }) end, desc = "Snacks: buffers (all)" },
       { "<leader>fc", function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end, desc = "Snacks: find config file" },
@@ -233,7 +196,6 @@ return {
       { "<leader>fr", function() Snacks.picker.recent() end, desc = "Snacks: recent files" },
       { "<leader>fR", function() Snacks.picker.recent({ filter = { cwd = true }}) end, desc = "Snacks: recent files (cwd)" },
 
-      -- Grep:
       { "<leader>/g", function() Snacks.picker.git_grep() end, desc = "Snacks (Git): grep git files" },
       { "<leader>/p", function() Snacks.picker.grep() end, desc = "Grep: entire project" },
       { "<leader>/e", function() Snacks.picker.grep() end, desc = "Grep: entire project (alt)" },
@@ -242,7 +204,6 @@ return {
       { "<leader>/w", function() Snacks.picker.grep_word() end, desc = "Grep: <cword> / visual selection", mode = { "n", "x" } },
       { "<leader>/b", function() Snacks.picker.grep_buffers() end, desc = "Grep: available buffers" },
 
-      -- Git:
       { "<leader>go", function() Snacks.gitbrowse() end, desc = "Snacks (Git): browse (opens file on GitHub)", mode = { "n", "v" } },
       { "<leader>gb", function() Snacks.picker.git_branches() end, desc = "Snacks (Git): branches" },
       { "<leader>gd", function() Snacks.picker.git_diff() end, desc = "Snacks (Git): diff hunks" },
@@ -252,13 +213,11 @@ return {
       { "<leader>gs", function() Snacks.picker.git_status() end, desc = "Snacks (Git): status" },
       { "<leader>gS", function() Snacks.picker.git_stash() end, desc = "Snacks (Git): stash" },
 
-      -- gh:
       { "<leader>ghfi", function() Snacks.picker.gh_issue() end, desc = "GitHub Issues (open)" },
       { "<leader>ghfI", function() Snacks.picker.gh_issue({ state = "all" }) end, desc = "GitHub Issues (all)" },
       { "<leader>ghfp", function() Snacks.picker.gh_pr() end, desc = "GitHub Pull Requests (open)" },
       { "<leader>ghfP", function() Snacks.picker.gh_pr({ state = "all" }) end, desc = "GitHub Pull Requests (all)" },
 
-      -- Search:
       { "<leader>s/", function() Snacks.picker.search_history() end, desc = "Snacks: search history" },
       { "<leader>sa", function() Snacks.picker.autocmds() end, desc = "Snacks: autocmds" },
       { "<leader>sb", function() Snacks.picker.lines() end, desc = "Snacks: buffer lines" },
@@ -281,7 +240,6 @@ return {
       { "<leader>sy", yaml_find, desc = "Search: YAML values (yf)" },
       { '<leader>s"', function() Snacks.picker.registers() end, desc = "Snacks: registers" },
 
-      -- LSP:
       { "<leader>ld", function() Snacks.picker.lsp_definitions() end, desc = "Snacks (LSP): go-to definition" },
       { "<leader>lD", function() Snacks.picker.lsp_declarations() end, desc = "Snacks (LSP): go-to declaration" },
       { "<leader>li", function() Snacks.picker.lsp_implementations() end, desc = "Snacks (LSP): go-to implementation" },
@@ -290,14 +248,11 @@ return {
       { "<leader>lw", function() Snacks.picker.lsp_workspace_symbols() end, desc = "Snacks (LSP): workspace symbols" },
       { "<leader>lt", function() Snacks.picker.lsp_type_definitions() end, desc = "Snacks (LSP): go-to type definition" },
 
-      -- Debug:
       { "<leader>Dps", function() Snacks.profiler.scratch() end, desc = "Snacks (Debug): profiler scratch buffer" },
 
-      -- Scratch Buffer:
       { "<leader>s.", function() Snacks.scratch() end, desc = "Snacks: toggle scratch buffer" },
       { "<leader>s>", function() Snacks.scratch.select() end, desc = "Snacks: select scratch buffer" },
 
-      -- Misc:
       { "<c-/>", function() Snacks.terminal() end, desc = "Snacks: toggle terminal" },
       { "<c-_>", function() Snacks.terminal() end, desc = "Snacks: which_key_ignore" },
       { "<leader>bd", function() Snacks.bufdelete() end, desc = "Snacks: delete buffer" },
@@ -329,17 +284,14 @@ return {
       vim.api.nvim_create_autocmd("User", {
         pattern = "VeryLazy",
         callback = function()
-          -- Setup some globals for debugging (lazy-loaded)
           _G.dd = function(...)
             Snacks.debug.inspect(...)
           end
           _G.bt = function()
             Snacks.debug.backtrace()
           end
-          vim.print = _G.dd -- Override print to use snacks for `:=` command
+          vim.print = _G.dd -- makes `:=` print through snacks
 
-          -- Toggle Options
-          -- ——————————————————————————————————————————————————————————————————
           Snacks.toggle.animate():map("<leader>ua")
           Snacks.toggle
             .option("showtabline", { off = 0, on = vim.o.showtabline > 0 and vim.o.showtabline or 2, name = "Tabline" })
@@ -359,10 +311,7 @@ return {
           Snacks.toggle({
             name = "Git Signs",
             get = function()
-              -- Read the module only if something else already loaded it. A bare
-              -- `require` here would pull gitsigns off its own trigger through
-              -- lazy.nvim's loader, and with no file open it is not loaded at
-              -- all, so there are no signs to report.
+              -- Read gitsigns only when already loaded, so this toggle never loads it.
               local gitsigns_config = package.loaded["gitsigns.config"]
               return gitsigns_config ~= nil and gitsigns_config.config.signcolumn or false
             end,
@@ -386,7 +335,6 @@ return {
           Snacks.toggle.treesitter():map("<leader>uT")
           Snacks.toggle.option("wrap", { name = "Wrap" }):map("<leader>uw")
 
-          -- Toggle the cursorline and cursorcolumn simultaneously.
           Snacks.toggle
             .new({
               id = "cursor_guides",

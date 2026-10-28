@@ -3,19 +3,9 @@
 ---@field lhs string
 ---@field rhs string The `<Plug>` target markdown-plus registers globally.
 
----Every mapping this configuration adds on top of markdown-plus.nvim, applied
----buffer-locally to each markdown buffer by the `FileType` autocmd in `config`
----below. Buffer-local is not a preference: ten of these shadow a Vim built-in
----(`gd`, `]]`, `[[`, `o`, `O` and insert-mode `<CR>`, `<Tab>`, `<S-Tab>`, `<BS>`
----and `<C-t>`), so a global copy replaced those motions in every other buffer
----for the rest of the session once a single markdown file had been opened. The
----`<Plug>` targets are registered globally by the plugin, which is what lets a
----buffer-local left-hand side reach them.
+---Buffer-local, because many of these shadow Vim built-ins such as `gd`, `]]`, `o` and insert-mode `<CR>`.
 ---@type markdown_plus_keymap[]
 local markdown_plus_keymaps = {
-  -- Text Formatting
-  -----------------------
-  -- Normal mode:
   { mode = "n", lhs = "<localleader>mb", rhs = "<Plug>(MarkdownPlusBold)" },
   { mode = "n", lhs = "<localleader>mi", rhs = "<Plug>(MarkdownPlusItalic)" },
   { mode = "n", lhs = "<localleader>ms", rhs = "<Plug>(MarkdownPlusStrikethrough)" },
@@ -23,7 +13,6 @@ local markdown_plus_keymaps = {
   { mode = "n", lhs = "<localleader>mw", rhs = "<Plug>(MarkdownPlusCodeBlock)" },
   { mode = "n", lhs = "<localleader>mC", rhs = "<Plug>(MarkdownPlusClearFormatting)" },
 
-  -- Visual mode:
   { mode = "x", lhs = "<localleader>mb", rhs = "<Plug>(MarkdownPlusBold)" },
   { mode = "x", lhs = "<localleader>mi", rhs = "<Plug>(MarkdownPlusItalic)" },
   { mode = "x", lhs = "<localleader>ms", rhs = "<Plug>(MarkdownPlusStrikethrough)" },
@@ -31,8 +20,6 @@ local markdown_plus_keymaps = {
   { mode = "x", lhs = "<localleader>mw", rhs = "<Plug>(MarkdownPlusCodeBlock)" },
   { mode = "x", lhs = "<localleader>mC", rhs = "<Plug>(MarkdownPlusClearFormatting)" },
 
-  -- Headers
-  -----------------------
   { mode = "n", lhs = "]]", rhs = "<Plug>(MarkdownPlusNextHeader)" },
   { mode = "n", lhs = "[[", rhs = "<Plug>(MarkdownPlusPrevHeader)" },
   { mode = "n", lhs = "<localleader>h+", rhs = "<Plug>(MarkdownPlusPromoteHeader)" },
@@ -40,13 +27,9 @@ local markdown_plus_keymaps = {
   { mode = "n", lhs = "<localleader>hT", rhs = "<Plug>(MarkdownPlusOpenTocWindow)" },
   { mode = "n", lhs = "gd", rhs = "<Plug>(MarkdownPlusFollowLink)" },
 
-  -- Table of Contents
-  -----------------------
   { mode = "n", lhs = "<localleader>ht", rhs = "<Plug>(MarkdownPlusGenerateTOC)" },
   { mode = "n", lhs = "<localleader>hu", rhs = "<Plug>(MarkdownPlusUpdateTOC)" },
 
-  -- Links & References
-  -----------------------
   { mode = "n", lhs = "<localleader>l", rhs = "<Plug>(MarkdownPlusInsertLink)" },
   { mode = "v", lhs = "<localleader>l", rhs = "<Plug>(MarkdownPlusSelectionToLink)" },
   { mode = "n", lhs = "<localleader>e", rhs = "<Plug>(MarkdownPlusEditLink)" },
@@ -54,16 +37,11 @@ local markdown_plus_keymaps = {
   { mode = "n", lhs = "<localleader>R", rhs = "<Plug>(MarkdownPlusConvertToReference)" },
   { mode = "n", lhs = "<localleader>I", rhs = "<Plug>(MarkdownPlusConvertToInline)" },
 
-  -- Image Links
-  -----------------------
   { mode = "n", lhs = "<localleader>L", rhs = "<Plug>(MarkdownPlusInsertImage)" },
   { mode = "v", lhs = "<localleader>L", rhs = "<Plug>(MarkdownPlusSelectionToImage)" },
   { mode = "n", lhs = "<localleader>E", rhs = "<Plug>(MarkdownPlusEditImage)" },
   { mode = "n", lhs = "<localleader>A", rhs = "<Plug>(MarkdownPlusToggleImageLink)" },
 
-  -- List Management
-  -----------------------
-  -- Insert mode:
   { mode = "i", lhs = "<CR>", rhs = "<Plug>(MarkdownPlusListEnter)" },
   { mode = "i", lhs = "<A-CR>", rhs = "<Plug>(MarkdownPlusListShiftEnter)" },
   { mode = "i", lhs = "<Tab>", rhs = "<Plug>(MarkdownPlusListIndent)" },
@@ -71,31 +49,23 @@ local markdown_plus_keymaps = {
   { mode = "i", lhs = "<BS>", rhs = "<Plug>(MarkdownPlusListBackspace)" },
   { mode = "i", lhs = "<C-t>", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 
-  -- Normal mode:
   { mode = "n", lhs = "o", rhs = "<Plug>(MarkdownPlusNewListItemBelow)" },
   { mode = "n", lhs = "O", rhs = "<Plug>(MarkdownPlusNewListItemAbove)" },
   { mode = "n", lhs = "<localleader>r", rhs = "<Plug>(MarkdownPlusRenumberLists)" },
   { mode = "n", lhs = "<localleader>d", rhs = "<Plug>(MarkdownPlusDebugLists)" },
   { mode = "n", lhs = "<localleader>X", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 
-  -- Visual mode:
   { mode = "x", lhs = "<localleader>mx", rhs = "<Plug>(MarkdownPlusToggleCheckbox)" },
 
-  -- Quotes Management
-  -----------------------
   { mode = "n", lhs = "<localleader>mq", rhs = "<Plug>(MarkdownPlusToggleQuote)" },
   { mode = "x", lhs = "<localleader>mq", rhs = "<Plug>(MarkdownPlusToggleQuote)" },
 
-  -- Callouts
-  -----------------------
   { mode = "n", lhs = "<localleader>mQi", rhs = "<Plug>(MarkdownPlusInsertCallout)" },
   { mode = "x", lhs = "<localleader>mQi", rhs = "<Plug>(MarkdownPlusInsertCallout)" },
   { mode = "n", lhs = "<localleader>mQt", rhs = "<Plug>(MarkdownPlusToggleCalloutType)" },
   { mode = "n", lhs = "<localleader>mQc", rhs = "<Plug>(MarkdownPlusConvertToCallout)" },
   { mode = "n", lhs = "<localleader>mQb", rhs = "<Plug>(MarkdownPlusConvertToBlockquote)" },
 
-  -- Footnotes
-  -----------------------
   { mode = "n", lhs = "<localleader>fi", rhs = "<Plug>(MarkdownPlusFootnoteInsert)" },
   { mode = "n", lhs = "<localleader>fe", rhs = "<Plug>(MarkdownPlusFootnoteEdit)" },
   { mode = "n", lhs = "<localleader>fd", rhs = "<Plug>(MarkdownPlusFootnoteDelete)" },
@@ -106,7 +76,6 @@ local markdown_plus_keymaps = {
   { mode = "n", lhs = "<localleader>fl", rhs = "<Plug>(MarkdownPlusFootnoteList)" },
 }
 
--- Header levels 1-6.
 for level = 1, 6 do
   table.insert(markdown_plus_keymaps, {
     mode = "n",
@@ -115,7 +84,6 @@ for level = 1, 6 do
   })
 end
 
----Apply every mapping above to the current buffer.
 ---@return nil
 local function set_markdown_plus_keymaps()
   for _, keymap in ipairs(markdown_plus_keymaps) do
@@ -135,10 +103,7 @@ return {
         },
       })
 
-      -- Registered after the plugin's own `MarkdownPlus` group, so these keys
-      -- win over its defaults on the ones where this configuration chose a
-      -- different left-hand side. lazy.nvim re-fires `FileType` after loading an
-      -- `ft` spec, so the buffer that triggered the load is covered too.
+      -- Created after the plugin's own group, so these keys win over its defaults.
       vim.api.nvim_create_autocmd("FileType", {
         group = vim.api.nvim_create_augroup("MarkdownPlusUserKeymaps", { clear = true }),
         pattern = "markdown",
@@ -155,7 +120,6 @@ return {
     config = function()
       local markview = require("markview")
 
-      -- Integrate advanced code editor feature.
       require("markview.extras.editor").setup()
 
       local snacks = require("snacks")
@@ -206,10 +170,8 @@ return {
           local row, _ = unpack(vim.api.nvim_win_get_cursor(0)) -- 1-based row
           local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
 
-          -- 1. Start row is always the current line (checkbox line)
           local start_row = row
 
-          -- 2. End row expands downward while lines are indented
           local end_row = row
           while end_row < #lines and lines[end_row + 1]:match("^%s") do
             end_row = end_row + 1
@@ -217,24 +179,21 @@ return {
 
           local first_line = lines[start_row]
 
-          -- 3. Detect checkbox state on first line of task.
           local unchecked = first_line:match("^%s*%- %[ %]") ~= nil
           local checked = first_line:match("^%s*%- %[[xX]%]") ~= nil
 
-          -- 4. Toggle the checkbox.
           local new_checked
           if unchecked then
-            lines[start_row] = first_line:gsub("^(%s*%-+%s*)%[ %]", "%1[x]") -- check
+            lines[start_row] = first_line:gsub("^(%s*%-+%s*)%[ %]", "%1[x]")
             new_checked = true
           elseif checked then
-            lines[start_row] = first_line:gsub("^(%s*%-+%s*)%[[xX]%]", "%1[ ]") -- uncheck
+            lines[start_row] = first_line:gsub("^(%s*%-+%s*)%[[xX]%]", "%1[ ]")
             new_checked = false
           else
             vim.notify("Not a valid Markdown task", vim.log.levels.WARN, { title = "Markview" })
             return
           end
 
-          -- 5. Handle the completion comment on the last line.
           local last_line = lines[end_row]
           local comment_pattern = "%s*<!%-%- completed: %d%d%d%d%-%d%d%-%d%d %-%->"
           local comment = " <!-- completed: " .. os.date("%Y-%m-%d") .. " -->"
@@ -247,7 +206,6 @@ return {
             lines[end_row] = last_line:gsub(comment_pattern, "")
           end
 
-          -- 6. Write back updated lines to buffer.
           -- stylua: ignore
           vim.api.nvim_buf_set_lines(
             bufnr,
@@ -291,7 +249,6 @@ return {
         "<localleader><space>",
         function()
           local fname = vim.fn.expand("%:t")
-          -- Track state in buffer variable
           vim.b.markdown_preview_running = vim.b.markdown_preview_running or false
 
           if vim.b.markdown_preview_running then
@@ -309,12 +266,11 @@ return {
       },
     },
     config = function()
-      --
-      -- Make the preview server is available to others on my network. (default: 127.0.0.1)
       vim.g.mkdp_open_to_the_world = true
       vim.g.vmt_auto_update_on_save = true
       vim.g.mkdp_echo_preview_url = true
-      -- Reachable from the rest of the network as <this host>.$NVIM_MKDP_HOST; loopback when unset.
+      -- Other machines reach the preview at this host's name under $NVIM_MKDP_HOST.
+      -- Without that variable, only this machine can open it.
       vim.g.mkdp_open_ip = require("custom_api.preview_host").resolve(vim.fn.hostname(), vim.env.NVIM_MKDP_HOST)
       vim.g.mkdp_port = "8366"
     end,

@@ -1,27 +1,6 @@
 -- Project-local tasks, read from `.overseer/tasks.json` or `overseer.json`.
---
--- Overseer has no project-local task file of its own at the pinned commit. Its
--- documented answer is `exrc` plus `register_template`, which runs a project's
--- Lua at startup for every directory opened. This reads JSON instead: a project
--- file is DATA, so checking one out from a repository cannot run anything. The
--- `.vscode/tasks.json` support the plugin already ships is the other half, and
--- both can be present at once.
---
--- Format, either file:
---
---   {
---     "tasks": [
---       {
---         "name": "deploy staging",        -- required
---         "cmd": ["./deploy.sh", "stage"], -- required, list (argv) or string (shell)
---         "desc": "Push to the staging environment",
---         "cwd": "server",                 -- relative to the file, or absolute
---         "env": { "TARGET": "stage" },
---         "components": ["default"],
---         "tags": ["BUILD"]                -- BUILD, RUN, TEST or CLEAN
---       }
---     ]
---   }
+-- JSON, so checking out a repository never runs its code.
+-- Each task needs `name` and `cmd`. `desc`, `cwd`, `env`, `components` and `tags` are optional.
 
 local FILENAMES = { ".overseer/tasks.json", "overseer.json" }
 local VALID_TAGS = { BUILD = true, RUN = true, TEST = true, CLEAN = true }
@@ -56,9 +35,7 @@ local function resolve_cwd(root, cwd)
   return vim.fs.normalize(vim.fs.joinpath(root, cwd))
 end
 
----A task entry is a trust boundary: it comes out of a file in someone's
----repository. Anything malformed is skipped with a reason rather than raising,
----so one bad entry cannot take the whole task picker down with it.
+---Skips a malformed entry with a reason, so the other entries still load.
 ---@param entry any
 ---@param index integer
 ---@return table|nil task
@@ -96,9 +73,7 @@ local function validate(entry, index)
   if entry.components ~= nil and type(entry.components) ~= "table" then
     return nil, where .. " has a non-list components"
   end
-  -- The container is checked before iterating it. `"tags": 42` raised inside
-  -- ipairs, and overseer catches that at the provider level, so one malformed
-  -- entry discarded every valid sibling in the file instead of being skipped.
+  -- Check the container first, so a bad `tags` skips one entry instead of the whole file.
   if entry.tags ~= nil and not vim.islist(entry.tags) then
     return nil, where .. " has a non-list tags"
   end
@@ -143,18 +118,11 @@ return {
           tags = task.tags,
           builder = function()
             return {
-              -- Without this the task is named after its command, so two entries
-              -- differing only by environment were indistinguishable everywhere
-              -- except the picker: the task list, the notifications and a saved
-              -- bundle all lost the name the file gave them.
+              -- Name the task from the file, so entries that differ only by env stay distinct.
               name = task.name,
               cmd = task.cmd,
-              -- A RELATIVE cwd is relative to the file that declared it, so the
-              -- same entry means the same directory wherever it is run from. An
-              -- absolute one is left alone: joining it under the project turned
-              -- "/tmp" into "<project>/tmp", which either fails to start or runs
-              -- somewhere nobody asked for. `normalize` expands `~` first, so a
-              -- home-relative path counts as absolute here.
+              -- A relative cwd is relative to the declaring file.
+              -- `normalize` expands `~`, so a home path counts as absolute.
               cwd = task.cwd and resolve_cwd(root, task.cwd) or root,
               env = task.env,
               components = task.components or { "default" },

@@ -2,14 +2,9 @@ local M = {}
 
 local util = require("custom_api.util")
 
--- The shell seam (spec 6.2). Every shell call in this module goes through
--- `M.runner`, so a test replaces this one field instead of reaching into
--- `util`, and nothing here shells out behind the seam's back.
+-- Every shell call goes through `M.runner`, so a test can replace it.
 M.runner = util.run_shell_command
 
--- ╭──────╮
--- │  API │
--- ╰──────╯
 local function account(opts)
   _ = opts or {}
 
@@ -42,12 +37,8 @@ local function account(opts)
   return { fullname = fullname, username = username }
 end
 
--- `gh` reports the repository of the directory it runs in. `opts.cwd` names that
--- directory and nothing supplies one by default: a caller that wants the
--- buffer's repository has to ask, because most callers here pair `repo` with
--- `git.current_branch`, `git.initialized` and `git.default_branch`, all of which
--- answer for nvim's cwd. Following the buffer here and not there let
--- `build_remote_repo_info` compose `repo-B/tree/<branch-from-A>`.
+-- `opts.cwd` picks the repository and defaults to the Neovim cwd,
+-- matching the `git` helpers it pairs with.
 local function repo(opts)
   opts = opts or {}
   local json_field = "nameWithOwner"
@@ -105,13 +96,7 @@ local function default_branch(opts)
   return result
 end
 
--- `repo` answers `nil, message` when `gh` cannot; that failure is passed on
--- as a result rather than read as a table, which raised on the index.
---
--- This is the blame path, and the only place `repo` is asked about the buffer's
--- directory: `<C-g>Bo` and `<C-g>BO` pair it with `git.blame_sha`, which runs
--- beside the same file, so the repository named in the URL and the commit the
--- SHA came from have to be the same one.
+-- Ask about the buffer directory, so the URL repository matches the repository `git.blame_sha` blamed.
 local function commit_url(sha)
   if not sha then
     error("Missing required argument `sha`")

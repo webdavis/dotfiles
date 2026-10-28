@@ -1,50 +1,16 @@
 #!/usr/bin/env bash
-#
-# brew-shellenv-cache-refresh.sh -- regenerate the cached `brew shellenv` output
-# that ~/.bashrc sources at startup. This is the ONLY implementation of that
-# write; both callers run this deployed copy:
-#
-#   - ~/.bashrc's self-heal guard, detached, whenever the cache is unusable or
-#     stale. That guard is the only AUTOMATIC writer, because
-#     the retired excluded apply (`just a` and every agent, until 2026-08-10)
-#     skips templated scripts, so an apply-time regen script could not be relied
-#     on and was removed.
-#   - `just brew-cache-refresh`, on demand. That is also the supported way to
-#     seed the cache on a host nobody logs into interactively, since the self-heal
-#     guard only runs in interactive shells.
-#
-# Why a cache at all: every shell that reaches ~/.bashrc would otherwise run
-# `eval "$(brew shellenv)"`, spawning the brew Bash dispatcher just to print six
-# export lines, which costs tens of milliseconds; sourcing the pre-generated file
-# costs roughly an order of magnitude less. Two NON-interactive login doors reach
-# ~/.bashrc (`bash -lc` via ~/.bash_profile, and `ssh host cmd` via Apple
-# /bin/bash's SSH_SOURCE_BASHRC) and both need Homebrew on PATH, because
-# /etc/paths does not carry ${HOMEBREW_PREFIX}/bin. No committed artifact
-# regenerates those timings, so no absolute figure is quoted here; the
-# measurements behind the design live in the commit that introduced it.
-#
-# Why run the real generator instead of hardcoding its output: `brew shellenv` is
-# an upstream abstraction whose emitted exports change across Homebrew versions,
-# and running it also RECREATES ${HOMEBREW_PREFIX}/etc/paths when that file is
-# missing (Homebrew's Library/Homebrew/cmd/shellenv.sh does this). The
-# path_helper line in the cached output reads that file at runtime, so without it
-# ${HOMEBREW_PREFIX}/bin and /sbin silently drop out of PATH.
+# Caches `brew shellenv` so each shell sources a file instead of spawning brew.
+# It runs the real generator, which also restores the etc/paths file path_helper reads.
 set -euo pipefail
 
 readonly DEFAULT_HOMEBREW_PREFIX='/opt/homebrew'
 readonly CACHE_FILE_NAME='brew-shellenv.sh'
 readonly EXIT_USAGE=2
 
-# The generator is overridable (BREW_SHELLENV_CACHE_BREW) so the test harness can
-# inject an owned executable without running the installed package manager.
-# It defaults to an ABSOLUTE path because ~/.bashrc launches this before Homebrew
-# is necessarily on PATH, which is the very problem the cache exists to solve.
+# An absolute path, because Homebrew may not be on PATH yet. Tests can override it.
 brew_executable="${BREW_SHELLENV_CACHE_BREW:-${HOMEBREW_PREFIX:-$DEFAULT_HOMEBREW_PREFIX}/bin/brew}"
 
-# Destination, derived with the SAME expression ~/.bashrc's inline guard uses.
-# Deliberately NOT overridable: a second way to move the file would let the guard
-# and the writer disagree about which file they are talking about, and the guard
-# cannot consult an env var this script invents.
+# One fixed path, the same one the shell's guard reads.
 cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/$CACHE_FILE_NAME"
 
 # Set only while a temp file exists, so the EXIT trap knows whether to clean up.
@@ -71,42 +37,22 @@ remove_temporary_cache_file() {
   return 0
 }
 
-# Is Homebrew installed where this host expects it?
 homebrew_is_installed() {
   [[ -x $brew_executable ]]
 }
 
-# Can the destination be replaced by a rename, or is something else sitting on
-# it? `mv file dir` does not replace a directory, it moves the file INSIDE it, so
-# a directory at the cache path would silently swallow every regeneration while
-# ~/.bashrc kept refusing to source it. Anything that is not a regular file is
-# something this script did not create, and deleting it is not its call: report
-# it and let a human decide.
+# `mv` would move the file into a directory, so anything but a regular file is left for a human.
 cache_path_is_replaceable() {
   [[ ! -e $cache_file || -f $cache_file ]]
 }
 
-# Did `brew shellenv` actually emit an environment?
-#
-# Exit 0 is not enough. Homebrew's Library/Homebrew/cmd/shellenv.sh returns
-# EARLY, printing nothing and exiting 0, whenever PATH already begins with
-# "${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin" -- upstream's view is that
-# such a shell has nothing left to set. Verified against Homebrew 6.0.12 on
-# 2026-07-30: `env PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin brew
-# shellenv` writes 0 bytes and exits 0. The cache is consumed by shells that do
-# NOT have that PATH, so caching the empty result publishes a cache that sets
-# nothing, and an empty cache is exactly the state ~/.bashrc cannot heal from on
-# its own (it looks current, so the staleness term stays false). Refuse instead.
+# brew shellenv prints nothing when PATH already starts with Homebrew, and an empty cache never heals.
 brew_emitted_an_environment() {
   local candidate_file="$1"
   [[ -s $candidate_file ]]
 }
 
-# Regenerate the cache atomically: generate into a private temp (mktemp, mode
-# 0600) in the SAME directory, and rename over the live cache only after brew has
-# exited 0 AND emitted something. A failing, half-finished or silently empty run
-# therefore leaves the previous cache intact rather than replacing it with a file
-# ~/.bashrc would source to no effect.
+# A temp file renamed into place keeps the previous cache when a run fails or prints nothing.
 write_cache_atomically() {
   mkdir -p "${cache_file%/*}"
   temporary_cache_file="$(mktemp "${cache_file}.XXXXXX")"

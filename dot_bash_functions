@@ -1,9 +1,4 @@
 # shellcheck shell=bash
-# Utility functions sourced by ~/.bashrc.
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Filesystem / shell    ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 # Create a directory and cd into it.
 mkd() { mkdir -p "$@" && cd "$_" || return; }
@@ -27,14 +22,7 @@ getcertnames() {
   printf '%s\n' "$cert" | grep -o 'DNS:[^,]*' | sed 's/DNS://'
 }
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  YAML                  ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-
-# Find YAML values under the current directory, one line per match:
-# `file  path.to.key.0 = value`. Every word must appear on the line, so
-# `yf grilling hermes` narrows to the hermes profiles. Each path level gets
-# its own color; list indexes are dimmed.
+# Find YAML values under the current folder whose line holds every word: `yf grilling hermes`.
 yf() {
   if [[ -z ${1:-} ]]; then
     echo "Usage: yf <word> [<word>...]" >&2
@@ -61,11 +49,6 @@ yf() {
     }' <<<"$lines"
 }
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━┓
-# ┃  Git wrappers          ┃
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━┛
-# Migrated from [alias] in ~/.gitconfig on 2026-04-28.
-
 # Set push URL to no_push on forks to prevent accidental upstream pushes.
 git_setorigin_nopush() {
   git remote set-url --push origin no_push
@@ -76,9 +59,7 @@ galiases() {
   alias | grep -E "='git\b"
 }
 
-# Add, amend the previous commit, force-push with lease.
-# Destructive, rewrites pushed history. --force-with-lease is the safer
-# variant of --force; still risky if collaborators have pulled.
+# Add, amend the previous commit, and force-push with lease. Rewrites pushed history.
 gacp() {
   git add "$@" && git commit --amend --no-edit && git push --force-with-lease
 }
@@ -93,7 +74,7 @@ gcredit() {
   git commit --amend --author "$1 <$2>" -C HEAD
 }
 
-# Smart diff: clear + show patch-with-stat if changes exist; else say so.
+# Show the patch with stats, or say there are no changes.
 gd() {
   if ! git diff --quiet; then
     clear
@@ -110,7 +91,6 @@ gdi() {
 }
 
 # Initialize a new git repo and create the matching GitHub repo via gh.
-# Renamed from `h` (git alias) to avoid shadowing the gh CLI binary.
 ginitrepo() {
   git init && gh repo create "$(basename "$PWD")"
 }
@@ -121,9 +101,6 @@ gp() {
 }
 
 # Push current branch to origin and set upstream tracking.
-# The original git alias hardcoded 'main' as the target, the same
-# footgun pattern as the deleted `git u` alias. Fixed to use the
-# current branch name.
 gpu() {
   local branch
   branch="$(git rev-parse --abbrev-ref HEAD)"

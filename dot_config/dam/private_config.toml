@@ -1,13 +1,4 @@
-# dam (webdavis/damnit), the task CLI.
-#
-# The token is an indirection: this file names the source it comes from and
-# never holds the value.
-#
-# MEASURED 2026-09-18 (herdr-damnit, the same pattern): a helper spawned
-# with stdin closed can never resolve a keepassxc-cli prompt, so the macOS
-# keychain is read non-interactively instead; KeePassXC stays the entry of
-# record. One-time operator setup:
-#   security add-generic-password -a "$USER" -s 'Todoist API Token' -w
+# The Keychain answers without a prompt, which a helper with stdin closed needs.
 [remote.todoist]
 url = "todoist::"
 api_token_command = [

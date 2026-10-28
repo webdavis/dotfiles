@@ -1,11 +1,6 @@
--- Credit: https://github.com/ThorstenRhau/neovim/blob/main/lua/optional/treesitter.lua
 return {
   "nvim-treesitter/nvim-treesitter",
   dependencies = {
-    -- mason-tool-installer was never a treesitter dependency: it installs Mason
-    -- tools, not parsers, and nothing here calls it. Being listed made it load
-    -- with this eager spec, which kept the whole Mason side of the LSP group
-    -- eager too. It carries its own trigger now (plugins/lsp.lua).
     {
       "nvim-treesitter/nvim-treesitter-context",
       opts = {
@@ -31,54 +26,25 @@ return {
       "nvim-treesitter/nvim-treesitter-textobjects",
       branch = "main",
       init = function()
-        -- Disable entire built-in ftplugin mappings to avoid conflicts.
-        -- See https://github.com/neovim/neovim/tree/master/runtime/ftplugin for built-in ftplugins.
+        -- Turns off the mappings that built-in ftplugins add, so they cannot clash with these.
         vim.g.no_plugin_maps = true
-
-        -- Or, disable per filetype (add as you like)
-        -- vim.g.no_python_maps = true
-        -- vim.g.no_ruby_maps = true
-        -- vim.g.no_rust_maps = true
-        -- vim.g.no_go_maps = true
       end,
       config = function()
-        -- configuration
         require("nvim-treesitter-textobjects").setup({
           select = {
-            -- Automatically jump forward to textobj, similar to targets.vim
+            -- Jumps forward to the next text object when the cursor is not on one, as targets.vim does.
             lookahead = true,
-            -- You can choose the select mode (default is charwise 'v')
-            --
-            -- Can also be a function which gets passed a table with the keys
-            -- * query_string: eg '@function.inner'
-            -- * method: eg 'v' or 'o'
-            -- and should return the mode ('v', 'V', or '<c-v>') or a table
-            -- mapping query_strings to modes.
             selection_modes = {
-              ["@parameter.outer"] = "v", -- charwise
-              ["@function.outer"] = "V", -- linewise
-              -- ['@class.outer'] = '<c-v>', -- blockwise
+              ["@parameter.outer"] = "v",
+              ["@function.outer"] = "V",
             },
-            -- If you set this to `true` (default is `false`) then any textobject is
-            -- extended to include preceding or succeeding whitespace. Succeeding
-            -- whitespace has priority in order to act similarly to eg the built-in
-            -- `ap`.
-            --
-            -- Can also be a function which gets passed a table with the keys
-            -- * query_string: eg '@function.inner'
-            -- * selection_mode: eg 'v'
-            -- and should return true of false
             include_surrounding_whitespace = false,
           },
           move = {
-            -- whether to set jumps in the jumplist
             set_jumps = true,
           },
         })
 
-        -- You can use the capture groups defined in `textobjects.scm`
-        --------------------------------------------------------------
-        -- Select (inside/around):
         local select = require("nvim-treesitter-textobjects.select")
 
         -- stylua: ignore start
@@ -88,66 +54,41 @@ return {
         map({ mode = { "x", "o" }, lhs = "al", rhs = function() select.select_textobject("@loop.outer", "textobjects") end, desc = "outer loop" })
         map({ mode = { "x", "o" }, lhs = "il", rhs = function() select.select_textobject("@loop.inner", "textobjects") end, desc = "inner loop" })
 
-        -- No function textobject on `am`/`im` and no conditional one on `ak`/`ik`.
-        -- nvim-various-textobjs owns all four, for `chainMember` and `key`. The
-        -- declarations that used to sit here were overwritten by it for the whole
-        -- session, but NOT from the first keystroke: this spec is eager and that
-        -- one was `VeryLazy`, so a key pressed in the first tens of milliseconds
-        -- still got the treesitter object. Deleting them alone therefore left a
-        -- window with no mapping at all, which is why `plugins/textobjects.lua`
-        -- now loads nvim-various-textobjs eagerly too. The `[m`／`]m` and `[k`／`]k`
-        -- motions below still navigate by function and by conditional; `af`/`if`
-        -- are free if the textobjects are ever wanted back.
-
-        -- You can also use captures from other query groups like `locals.scm`.
         map({ mode = { "x", "o" }, lhs = "as", rhs = function() select.select_textobject("@local.scope", "locals") end, desc = "local scope" })
 
-        -- Move (next/previous)
-        ------------------------
         local move = require("nvim-treesitter-textobjects.move")
 
-        -- Classes:
         map({ mode = { "n", "x", "o" }, lhs = "[c", rhs = function() move.goto_previous_start({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "previous class start" })
         map({ mode = { "n", "x", "o" }, lhs = "]c", rhs = function() move.goto_next_start({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "next class start" })
         map({ mode = { "n", "x", "o" }, lhs = "[C", rhs = function() move.goto_previous_end({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "previous class end" })
         map({ mode = { "n", "x", "o" }, lhs = "]C", rhs = function() move.goto_next_end({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "next class end"})
 
-        -- Functions / Methods:
         map({ mode = { "n", "x", "o" }, lhs = "[m", rhs = function() move.goto_previous_start({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "previous function start" })
         map({ mode = { "n", "x", "o" }, lhs = "]m", rhs = function() move.goto_next_start({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "next function start" })
         map({ mode = { "n", "x", "o" }, lhs = "[M", rhs = function() move.goto_previous_end({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "previous function end" })
         map({ mode = { "n", "x", "o" }, lhs = "]M", rhs = function() move.goto_next_end({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "next function end" })
 
-        -- Loops:
         map({ mode = { "n", "x", "o" }, lhs = "[l", rhs = function() move.goto_previous_start({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "previous loop start" })
         map({ mode = { "n", "x", "o" }, lhs = "]l", rhs = function() move.goto_next_start({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "next loop start" })
         map({ mode = { "n", "x", "o" }, lhs = "[L", rhs = function() move.goto_previous_end({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "previous loop end" })
         map({ mode = { "n", "x", "o" }, lhs = "]L", rhs = function() move.goto_next_end({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "next loop end" })
 
-        -- Locals:
         map({ mode = { "n", "x", "o" }, lhs = "]s", rhs = function() move.goto_next("@local.scope", "locals") end, desc = "next local scope" })
         map({ mode = { "n", "x", "o" }, lhs = "[s", rhs = function() move.goto_previous("@local.scope", "locals") end, desc = "previous local scope" })
 
-        -- Folds:
         map({ mode = { "n", "x", "o" }, lhs = "]z", rhs = function() move.goto_next("@fold", "folds") end, desc = "next fold" })
         map({ mode = { "n", "x", "o" }, lhs = "[z", rhs = function() move.goto_previous("@fold", "folds") end, desc = "previous fold" })
 
         map({ mode = { "n", "x", "o" }, lhs = "]k", rhs = function() move.goto_next({ "@conditional.outer", "@conditional.inner" }, "textobjects") end, desc = "next conditional" })
         map({ mode = { "n", "x", "o" }, lhs = "[k", rhs = function() move.goto_previous({ "@conditional.outer", "@conditional.inner" }, "textobjects") end, desc = "previous conditional" })
 
-        -- Repeat movements
-        -------------------
         local ts_repeat_move = require("nvim-treesitter-textobjects.repeatable_move")
 
-        -- Repeat movement with ; and , (This ensures ; goes forward and , goes backward regardless of the last direction.)
-        -- map({ mode = { "n", "x", "o" }, lhs = ";", rhs = ts_repeat_move.repeat_last_move_next, desc = "" })
-        -- map({ mode = { "n", "x", "o" }, lhs = ",", rhs = ts_repeat_move.repeat_last_move_previous, desc = "" })
-
-        -- vim way: ; goes to the direction you were moving.
+        -- `;` repeats in the direction of the last move.
         map({ mode = { "n", "x", "o" }, lhs = ";", rhs = ts_repeat_move.repeat_last_move, desc = "treesitter-textobjects: repeat last move" })
         map({ mode = { "n", "x", "o" }, lhs = ",", rhs = ts_repeat_move.repeat_last_move_opposite, desc = "treesitter-textobjects: repeat last move (opposite)" })
 
-        -- Optionally, make builtin f, F, t, T also repeatable with ; and ,
+        -- Make f, F, t and T repeatable with ; and ,.
         map({ mode = { "n", "x", "o" }, lhs = "f", rhs = ts_repeat_move.builtin_f_expr, expr = true, desc = "treesitter-textobjects: f (with repeat)" })
         map({ mode = { "n", "x", "o" }, lhs = "F", rhs = ts_repeat_move.builtin_F_expr, expr = true, desc = "treesitter-textobjects: F (with repeat)" })
         map({ mode = { "n", "x", "o" }, lhs = "t", rhs = ts_repeat_move.builtin_t_expr, expr = true, desc = "treesitter-textobjects: t (with repeat)" })
@@ -175,9 +116,8 @@ return {
       "gitattributes",
       "gitcommit",
       "gitignore",
-      -- Here for neotest-golang, which discovers Go tests with this grammar and finds none at all
-      -- without it. Core rather than left to the FileType hook below, because the apply-time
-      -- bootstrap installs this list and WAITS for it, so a Go test request never has to.
+      -- Installed up front, because neotest-golang finds Go tests with this grammar
+      -- and the bootstrap waits for this list.
       "go",
       "gpg",
       "graphql",
@@ -223,15 +163,14 @@ return {
   config = function(plugin, opts)
     local treesitter = require("nvim-treesitter")
 
-    -- Track buffers waiting for parser installation: { lang = { [buf] = true, ... } }.
+    -- Buffers waiting for a parser, keyed by language and then by buffer.
     local waiting_buffers = {}
 
-    -- Track languages currently being installed to avoid duplicate install tasks.
+    -- Languages being installed, so each installs once.
     local installing_languages = {}
 
     local treesitter_setup_group = vim.api.nvim_create_augroup("TreesitterSetup", { clear = true })
 
-    -- Enable treesitter for a buffer.
     local function enable_treesitter(buffer, language)
       if not vim.api.nvim_buf_is_valid(buffer) then
         return false
@@ -239,10 +178,8 @@ return {
 
       local ok = pcall(vim.treesitter.start, buffer, language)
       if ok then
-        -- Set treesitter indentation (buffer-local).
         vim.api.nvim_set_option_value("indentexpr", "v:lua.require'nvim-treesitter'.indentexpr()", { buf = buffer })
 
-        -- Set treesitter folding for all windows displaying this buffer (window-local):
         for _, win in ipairs(vim.api.nvim_list_wins()) do
           if vim.api.nvim_win_get_buf(win) == buffer and vim.api.nvim_win_is_valid(win) then
             vim.api.nvim_set_option_value("foldmethod", "expr", { win = win })
@@ -253,7 +190,6 @@ return {
       return ok
     end
 
-    -- Install core parsers after lazy.nvim finishes loading all plugins.
     vim.api.nvim_create_autocmd("User", {
       group = treesitter_setup_group,
       pattern = "LazyDone",
@@ -264,39 +200,19 @@ return {
       end,
     })
 
-    -- Filetypes that DO have a grammar and still must not be highlighted.
-    -- `checkhealth` is the whole list: it resolves to the `vimdoc` language, so
-    -- treesitter would otherwise highlight a health report as help text. Every
-    -- other filetype that used to sit here (lazy, mason, notify, noice, qf,
-    -- toggleterm) was only ever here because no grammar of that name exists,
-    -- which the general rule below now covers.
+    -- `checkhealth` resolves to the `vimdoc` grammar, which would highlight a health report as help.
     local ignore_filetypes = {
       checkhealth = true,
     }
 
-    -- nvim-treesitter refuses a language missing from its own parser table,
-    -- logging "skipping unsupported language" to stderr, and the poll below then
-    -- waits thirty seconds for a parser that is never coming. Plugins name their
-    -- own scratch buffers (snacks.nvim's `snacks_notif`, atlas.nvim's
-    -- `atlas.notes`), so asking is the only test that keeps working as plugins
-    -- come and go.
-    --
-    -- Asked on every call rather than once per session: `:TSUpdate` and
-    -- `:TSInstall` reload the parser table and re-run every `User TSUpdate`
-    -- registration, so what is installable changes mid-session, and a set kept
-    -- from the first answer rejected a newly registered language until restart.
-    -- `get_available()` fires `User TSUpdate` itself before reading the table,
-    -- which is what makes a registration a plugin added after startup count,
-    -- the same way the install path applies it. Measured at the 427e9222 pin:
-    -- about 0.1 ms of a FileType pass that already costs about 5 ms for a
-    -- parser-less scratch buffer.
+    -- nvim-treesitter skips a language missing from its parser table, so the poll below would wait
+    -- for nothing. The table is checked on every call, because `:TSUpdate` and `:TSInstall` change it.
     ---@param language string
     ---@return boolean
     local function is_installable(language)
       return vim.list_contains(require("nvim-treesitter.config").get_available(), language)
     end
 
-    -- Auto-install parsers and enable highlighting on FileType.
     vim.api.nvim_create_autocmd("FileType", {
       group = treesitter_setup_group,
       desc = "Enable treesitter highlighting and indentation",
@@ -311,25 +227,21 @@ return {
         local buffer = event.buf
 
         if not enable_treesitter(buffer, language) then
-          -- No parser, and none is coming: nothing to queue and nothing to poll.
-          -- Asked BELOW the highlighting attempt, so a filetype that already has
-          -- a parser is highlighted whatever nvim-treesitter says it can build.
+          -- Checked after the highlight attempt, so a filetype that already has a parser
+          -- is always highlighted.
           if not is_installable(language) then
             return
           end
 
-          -- Parser not available, queue buffer (set handles duplicates).
           waiting_buffers[language] = waiting_buffers[language] or {}
           waiting_buffers[language][buffer] = true
 
-          -- Only start install if not already in progress.
           if not installing_languages[language] then
             installing_languages[language] = true
             treesitter.install({ language })
 
-            -- Poll for parser availability.
             local attempts = 0
-            local max_attempts = 60 -- 30 seconds max (60 * 500ms).
+            local max_attempts = 60 -- polls every half second, so this gives up after about 30 seconds
             local function poll_parser()
               attempts = attempts + 1
               local ok, result = pcall(vim.treesitter.language.add, language)
@@ -346,7 +258,6 @@ return {
               elseif attempts < max_attempts then
                 vim.defer_fn(poll_parser, 500)
               else
-                -- Timeout, clean up
                 installing_languages[language] = nil
                 waiting_buffers[language] = nil
               end
@@ -358,7 +269,6 @@ return {
       end,
     })
 
-    -- Clean up waiting buffers when buffer is deleted.
     vim.api.nvim_create_autocmd("BufDelete", {
       group = treesitter_setup_group,
       desc = "Clean up treesitter waiting buffers",

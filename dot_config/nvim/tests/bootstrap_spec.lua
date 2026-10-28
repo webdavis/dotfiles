@@ -1,8 +1,4 @@
--- init.lua requires one custom_api module to publish `_G.map`, and it does that
--- BEFORE `config.options` assigns vim.g.mapleader. Whatever it requires must
--- therefore install nothing, or mappings are created against a leader that does
--- not exist yet. The module name is read out of init.lua rather than spelled
--- here, so this pins the bootstrap's actual load, not a copy of it.
+-- The module init.lua requires for `_G.map` loads before the leader is set, so it must install no mapping.
 
 -- The runner prepends `<config_root>/lua/?.lua` to package.path.
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")

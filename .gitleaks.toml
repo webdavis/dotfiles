@@ -1,4 +1,3 @@
-# Gitleaks config for the pre-commit secret scan (extends the default rules).
 title = "dotfiles"
 
 [extend]

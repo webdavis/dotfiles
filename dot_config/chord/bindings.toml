@@ -1,32 +1,4 @@
-# Shell key bindings, written once and rendered into each shell's own syntax
-# by `chord render <shell> --table <this file>`. Today `bash` is the only
-# shell; `just chord-render` regenerates `dot_bash_bindings` from this file.
-#
-# A key is space-separated tokens, each one of:
-#   ctrl-<char>   alt-<char>   esc   enter   tab   space   backspace
-# or a single literal character. So `ctrl-g a a` is Ctrl-G then a then a.
-#
-# A row names exactly one action:
-#   insert = "text"       type the text and leave it on the line for editing
-#   run = "text"          type the text and run it
-#   function = "name"     call a shell function (readline's `bind -x`)
-#   command = "name"      run a readline command, such as beginning-of-line
-#   macro = "body"        a readline macro body in readline's own escapes,
-#                         emitted verbatim, for the chords the kinds above
-#                         cannot express
-#
-# `modes` lists the editing modes the row binds in. Left out it means both vi
-# modes, where the command-mode binding enters insert mode first. An empty
-# list binds in whatever keymap is current, with no mode flag at all.
-#
-# The shell functions these rows call live in `dot_bash_bindings_functions`.
-# herdr-picker binds its own picker keys from `~/.fzf_bindings`.
-
-# The `[render]` section is what each rendered file says about itself: where it
-# goes, the comment block it opens with, the readline macro a typed row clears
-# the line with, and the command that regenerates it, which a failed
-# `chord check` names. An `output` path is read from the working directory, so
-# these two are relative to the repository root.
+# Run `just chord-render` after an edit; `chord check` fails on stale output.
 
 [render]
 regenerate = "just chord-render"

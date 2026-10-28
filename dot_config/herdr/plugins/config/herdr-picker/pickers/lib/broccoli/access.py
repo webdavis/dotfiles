@@ -17,7 +17,7 @@ class NotConfigured(Exception):
 
 
 def all_set(*checks):
-    """Each check's value, or every missing piece at once rather than one per run."""
+    """Each check's value, or every missing piece in one report."""
     values, missing = [], []
     for check in checks:
         try:
@@ -64,7 +64,7 @@ def source_of(path):
 
 
 def secret(service, record):
-    """The Keychain's copy of a KeePassXC entry, read now and never written anywhere."""
+    """The Keychain's copy of a KeePassXC entry, held only in memory."""
     done = subprocess.run(
         ["security", "find-generic-password", "-w", "-s", service],
         capture_output=True,

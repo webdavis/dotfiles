@@ -25,7 +25,6 @@ return {
       { "<c-s>", mode = { "c" }, function() require("flash").toggle() end, desc = "Flash: Toggle flash style search" },
       -- stylua: ignore end
 
-      -- Simulate nvim-treesitter incremental selection.
       {
         "<c-space>",
         mode = { "n", "o", "x" },

@@ -1,25 +1,15 @@
--- The linter table in `lua/plugins/nvim-lint.lua`.
---
--- nvim-lint is a plugin, absent under `nvim --clean`, so its module is faked:
--- the spec's `config` writes `linters_by_ft` onto it and registers one autocmd,
--- and both are what this reads back. Whether a linter really reports is proved
--- by linting a file with a deliberate error, not from here.
+-- nvim-lint is absent under `nvim --clean`, so its module is faked.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
--- Every filetype a none-ls diagnostic source covered before the migration, and
--- the nvim-lint linter that took it over. `dotenv_linter` and `eslint` are
--- absent on purpose: the first was registered for `sh` and then disabled for
--- `sh`, so it ran on nothing, and the second duplicated the eslint language
--- server.
+-- The linter for each filetype. `eslint` stays out because the eslint language server covers it.
 local EXPECTED = {
   dockerfile = "hadolint",
   yaml = "actionlint",
   ["yaml.ansible"] = "ansible_lint",
 }
 
----Load the nvim-lint spec against a faked `lint` module, run its `config`, and
----hand back the fake plus the autocmds the config registered.
+---Run the nvim-lint config against a fake `lint` module.
 local function configured()
   local fake = { linters_by_ft = {}, linters = { luacheck = { args = {} } }, calls = {} }
   fake.try_lint = function(names, opts)
@@ -73,9 +63,7 @@ return {
     end
   end,
 
-  -- none-ls said this with `disabled_filetypes`; nvim-lint matches a filetype
-  -- exactly, so the compound filetype having its own row is what keeps
-  -- actionlint away from an Ansible playbook.
+  -- nvim-lint matches filetypes exactly, so the compound Ansible filetype gets its own row.
   ["an Ansible playbook is not handed to actionlint"] = function()
     local ansible = configured().linters_by_ft["yaml.ansible"]
     assert(not vim.tbl_contains(ansible, "actionlint"), "actionlint runs on yaml.ansible")

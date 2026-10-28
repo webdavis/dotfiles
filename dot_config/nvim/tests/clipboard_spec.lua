@@ -1,17 +1,5 @@
--- custom_api.clipboard, the yanks that land in the system clipboard.
---
--- Every case here asserts what the yank PUT IN THE REGISTER, because the
--- reported bug was a mapping whose description and whose effect disagreed:
--- one word selected, the whole line copied.
---
--- Two pieces of scaffolding earn their place. The clipboard provider is
--- replaced with an in-memory one, so a test run neither shells out to pbcopy
--- (which would put the run's fixtures in the operator's own clipboard) nor
--- depends on a provider existing at all, and the register TYPE it records is
--- what proves a blockwise yank stayed blockwise. And each selection case runs
--- the function through a real Visual-mode mapping, because that is the context
--- the defect lived in: the callback of a Visual-mode mapping runs while the
--- mode is STILL visual, with `'<` and `'>` not yet set.
+-- An in-memory clipboard provider keeps fixtures out of the real clipboard and records the register type.
+-- Selection cases run through a real Visual-mode mapping, where `'<` and `'>` are not yet set.
 
 local clipboard = require("custom_api.clipboard")
 
@@ -51,8 +39,7 @@ local function from_visual(lines, cursor, keys, action)
   vim.api.nvim_feedkeys(sequence, "x", false)
 end
 
----Run `action` from a Normal-mode mapping, with `keys` (a count, or "")
----typed before it, the way a count reaches `v:count` for real.
+---Run `action` from a Normal-mode mapping after typing `keys`, so a count reaches `v:count`.
 local function from_normal(lines, cursor, keys, action)
   vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
   vim.api.nvim_win_set_cursor(0, cursor)
@@ -80,8 +67,7 @@ return {
     from_visual({ "alpha beta gamma", "second line here" }, { 1, 6 }, "vee", clipboard.yank_selection)
     assert(clipboard_text() == "beta gamma", ("clipboard held %q"):format(clipboard_text()))
     assert(stored.regtype == "v", ("register type was %q"):format(stored.regtype))
-    -- The cursor is put back exactly where the selection left it (the end of
-    -- "gamma"), not moved to the start of the yank the way a plain `y` would.
+    -- The cursor stays where the selection ended, not at the yank start.
     assert(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { 1, 15 }), vim.inspect(vim.api.nvim_win_get_cursor(0)))
   end,
 
@@ -96,14 +82,12 @@ return {
     seed_clipboard("PREVIOUS")
     from_visual({ "alpha beta gamma", "second line here" }, { 1, 6 }, "<C-v>jll", clipboard.yank_selection)
     assert(clipboard_text() == "bet\n li\n", ("clipboard held %q"):format(clipboard_text()))
-    -- A provider is handed "b" for a blockwise yank, where a register holds
-    -- CTRL-V plus the block width.
+    -- A provider gets "b" for a blockwise yank.
     assert(stored.regtype == "b", ("register type was %q"):format(stored.regtype))
   end,
 
   ["a blockwise selection taken to end-of-line keeps each line whole"] = function()
-    -- `<C-v>j$` is the case a hand-rolled range reader gets wrong: the ragged
-    -- right edge is only recorded in `curswant`. Vim's own yank knows it.
+    -- `<C-v>j$` records its ragged right edge only in `curswant`.
     seed_clipboard("PREVIOUS")
     from_visual({ "abc123456", "xyz" }, { 1, 1 }, "<C-v>j$", clipboard.yank_selection)
     assert(clipboard_text() == "bc123456\nyz\n", ("clipboard held %q"):format(clipboard_text()))
@@ -186,8 +170,7 @@ return {
   end,
 
   ["a long line is cut on a character boundary"] = function()
-    -- Byte truncation would leave half a character behind and print a
-    -- replacement glyph in the notification.
+    -- Byte truncation would split a multi-byte character.
     local preview = clipboard.summarize(("é"):rep(200))
     assert(preview == ("é"):rep(60) .. "...", preview)
   end,

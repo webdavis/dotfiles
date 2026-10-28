@@ -1,19 +1,10 @@
--- custom_api.herdr (spec 7.4): routing, refusal, interrupt policy and selection.
-
 local herdr = require("custom_api.herdr")
 
--- Every state herdr's own `agent_status` field can hold (`herdr agent prompt
--- --until`, measured on herdr 0.8.2), so a case cannot pass by testing a state
--- that does not exist.
+-- Every state the herdr `agent_status` field can hold.
 local STATES = { "idle", "working", "blocked", "done", "unknown" }
 
--- `agent_pane` is the one function here that is not pure and not glue: the ORDER
--- of its gate, its listing and its continuation is the behavior under test. The
--- two herdr-nvim modules it reaches for are replaced through `package.loaded`,
--- which is the same seam idea as `github.runner`, and both are restored after
--- the case so no other spec in this process sees them. `exec` answers only
--- `herdr pane current --current`; any other command is an error rather than a
--- fallthrough, so a call that asked for something else cannot pass quietly.
+-- Stubs the two herdr-nvim modules through `package.loaded` and restores them after.
+-- `exec` answers only `herdr pane current --current` and errors on anything else.
 local function with_stubbed_herdr(scenario, on_pane)
   local calls = { list = 0, continuation = 0 }
   local saved = {
@@ -23,8 +14,7 @@ local function with_stubbed_herdr(scenario, on_pane)
     workspace_id = vim.env.HERDR_WORKSPACE_ID,
     tab_id = vim.env.HERDR_TAB_ID,
     select = vim.ui.select,
-    -- A refusal notifies, and under `--clean` that lands on the runner's own
-    -- stdout and merges into the next case's report line.
+    -- Replaced below, because under `--clean` a refusal notification merges into the runner report.
     notify = vim.notify,
   }
 
@@ -128,17 +118,12 @@ return {
     end
   end,
 
-  -- A state herdr grows later must not turn into a silent refusal, and must not
-  -- turn into a silent send either: it takes the `unknown` row of the 7.4 table.
   ["a state the table does not list is treated as unknown"] = function()
     assert(herdr.may_send("compacting") == "warn", herdr.may_send("compacting"))
     assert(herdr.may_send(nil) == "warn", tostring(herdr.may_send(nil)))
   end,
 
-  -- Spec 7.2: the derived name has to match `[a-z][a-z0-9_-]{0,31}`, and herdr's
-  -- pane ids are mixed case with a colon in them, so both transforms are load
-  -- bearing. Pane ids are never reused, so the name is free unless a
-  -- case-folded twin is live.
+  -- herdr pane ids are mixed case with a colon, and names must match `[a-z][a-z0-9_-]{0,31}`.
   ["agent_name lowercases the pane id and replaces its colon"] = function()
     assert(herdr.agent_name("wW:p3K") == "claude-ww-p3k", herdr.agent_name("wW:p3K"))
   end,
@@ -157,10 +142,7 @@ return {
     assert(plan[3] == nil, tostring(plan[3]))
   end,
 
-  -- Finding 1. `agents.list()` is workspace scoped only when HERDR_WORKSPACE_ID
-  -- is set: with the variable unset it answers with every workspace's agents
-  -- (measured, `wW` and `wX` both came back), so a lone Claude anywhere on the
-  -- machine would be resolved silently and sent the buffer.
+  -- With HERDR_WORKSPACE_ID unset, `agents.list()` returns agents from every workspace.
   ["the lookup is refused when herdr did not start this editor"] = function()
     assert(herdr.workspace_refusal(nil, "wW"), "no herdr env at all was allowed")
     assert(herdr.workspace_refusal("0", "wW"), "HERDR_ENV=0 was allowed")
@@ -176,8 +158,7 @@ return {
     assert(refusal == nil, tostring(refusal))
   end,
 
-  -- Finding 2. `agents.display` renders kind, status and cwd basename, which two
-  -- Claude agents in two tabs of one repository share exactly.
+  -- `agents.display` shows kind, status and cwd basename, which two agents can share.
   ["the picker row names the pane, so two identical agents differ"] = function()
     local display = "claude · idle · dotfiles"
     local first = herdr.picker_label(display, "wW:p3K")
@@ -187,10 +168,7 @@ return {
     assert(second:find("wW:p8K", 1, true), second)
   end,
 
-  -- Finding 3. Native Neovim behavior, so the case runs against a real buffer in
-  -- real blockwise Visual mode rather than a stub. `<C-v>j$` from `b` over
-  -- `abc123456` / `xyz` yanks `bc123456` / `yz`; reading the marks after leaving
-  -- Visual mode loses the to-end-of-line intent and truncated it to `bc1` / `yz`.
+  -- A real buffer in real blockwise Visual mode. `<C-v>j$` from `b` over `abc123456` / `xyz` yanks `bc123456` / `yz`.
   ["a blockwise selection to the end of the line is not truncated"] = function()
     local buffer = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_set_current_buf(buffer)
@@ -221,16 +199,12 @@ return {
     vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "abc123456" })
     vim.api.nvim_win_set_cursor(0, { 1, 1 })
     vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("vll", true, false, true), "x", false)
-    -- One call only: `visual_lines` leaves Visual mode, so a second call would
-    -- read normal mode and throw E475 rather than report the first one's answer.
+    -- One call only, because `visual_lines` leaves Visual mode.
     local lines = herdr.visual_lines()
     assert(table.concat(lines, "\n") == "bc1", vim.inspect(lines))
   end,
 
-  -- Finding 4. `herdr agent prompt` refuses an agent that is already blocked;
-  -- `herdr pane send-text` does not, so the non-submitting path could lose the
-  -- race between the status read and the dispatch and type into the approval
-  -- dialog. A second status check does not close it, so the path is gone.
+  -- A non-submitting send could type into an approval dialog.
   ["a non-submitting send is refused by name"] = function()
     for _, opts in ipairs({ { submit = false }, {} }) do
       local ok, err = pcall(herdr.send, "some text", opts)
@@ -242,9 +216,7 @@ return {
     assert(tostring(err):find("submit", 1, true), tostring(err))
   end,
 
-  -- Finding 1, the second half. The gate makes `agents.list()` scope itself, so
-  -- this filter is a second lock on the same door; it is pinned so that a change
-  -- to either one cannot quietly leave the door open.
+  -- The filter backs up the workspace gate, so both stay pinned.
   ["the filter keeps only this workspace's Claude agents"] = function()
     local all = {
       { kind = "claude", workspace_id = "wW", pane_id = "wW:p3K" },
@@ -262,23 +234,14 @@ return {
     assert(#herdr.claude_agents_here(all, "wX") == 0, "another workspace's agent matched")
   end,
 
-  -- Round 2. HERDR_WORKSPACE_ID and HERDR_PANE_ID are stamped in when the
-  -- TERMINAL launches and are never updated, but a cross-workspace pane move
-  -- keeps the terminal and changes both. Measured on herdr 0.8.2: a pane moved
-  -- from w18:p2 to w19:p2 kept terminal term_65ab65225b56329 while its shell
-  -- still reported HERDR_WORKSPACE_ID=w18, and `herdr pane current --current`
-  -- answered w19:p2 in w19. An editor moved out from under its agent would
-  -- otherwise keep sending to the workspace it was started in.
+  -- HERDR_WORKSPACE_ID keeps the launch-time workspace after a pane moves.
   ["a pane that has moved workspaces is refused"] = function()
     local moved = herdr.stale_workspace_refusal("wW", "wX")
     assert(moved, "a moved pane was allowed")
     assert(moved:find("wX", 1, true) and moved:find("wW", 1, true), moved)
   end,
 
-  -- A herdr that cannot answer is its own refusal, with its own words: reusing
-  -- the moved-pane message would tell the operator their editor moved to a
-  -- workspace called nil, which sends them looking for a move that never
-  -- happened.
+  -- A herdr that cannot answer gets its own message, not the moved-pane one.
   ["a pane herdr cannot place is refused without claiming it moved"] = function()
     local unplaced = herdr.stale_workspace_refusal("wW", nil)
     assert(unplaced, "an unresolvable live workspace was allowed")
@@ -291,9 +254,7 @@ return {
     assert(refusal == nil, tostring(refusal))
   end,
 
-  -- The refusal has to happen BEFORE the listing and instead of the
-  -- continuation: a lookup that ran would have read the old workspace's agents,
-  -- and a continuation that ran would have let `launch_or_attach` split a pane.
+  -- The refusal comes before the listing and instead of the continuation.
   ["a stale workspace lists no agents and runs no continuation"] = function()
     local calls = with_stubbed_herdr({ workspace_id = "wW", live_workspace_id = "wX" })
     assert(calls.list == 0, "agents.list was called " .. calls.list .. " times")

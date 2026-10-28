@@ -5,7 +5,7 @@ from rows import row
 
 
 def page(flow):
-    """Layout A: the call as a timeline with the failure marked where it happened, then why."""
+    """The call as a timeline with the failure marked where it happened, then why."""
     call, org = call_parts(flow["id"])
     lines = [f"Call {call}  org {org}  {flow['status']}", "", "Timeline"]
     first_failure = None

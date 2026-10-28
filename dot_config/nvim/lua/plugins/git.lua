@@ -1,33 +1,23 @@
--- ╭─────────────╮
--- │   Modules   │
--- ╰─────────────╯
 local git = require("custom_api.git")
 local github = require("custom_api.github")
 local overseer = require("custom_api.overseer")
 local try = require("custom_api.try")
 local util = require("custom_api.util")
 
--- ╭─────────────╮
--- │   Helpers   │
--- ╰─────────────╯
 local log_info = vim.log.levels.INFO
 local log_warning = vim.log.levels.WARN
 local log_error = vim.log.levels.ERROR
 local notify_fugitive_title = { title = "Fugitive" }
 local notify_github_title = { title = "GitHub" }
 
--- `github.account` reports a `gh` that cannot answer as `nil, message`
--- (spec 6.1), so reading a field straight off the call raises on the index.
--- `try` is the one place that message becomes a notification.
+-- `github.account` returns `nil, message` when `gh` cannot answer, and `try` turns that into a notification.
 local function account_or_notify()
   return try(function()
     return github.account()
   end, { label = "github.account" })
 end
 
--- The same for `github.repo`, plus the field every caller here wants. `name` is
--- nil when the answer carried no slash, and `git.latest_commit` raises on a
--- missing `repo_name`, so that case is answered once rather than at every site.
+-- `git.latest_commit` raises on a missing `repo_name`, so a nameless answer is handled here once.
 local function repo_name_or_notify()
   local repository = try(function()
     return github.repo()
@@ -89,19 +79,12 @@ local function copy_url_mapping_helper(lhs, remote, protocol)
   return mapping_table
 end
 
--- ╭─────────────╮
--- │   Plugins   │
--- ╰─────────────╯
 return {
   {
     "lewis6991/gitsigns.nvim",
     event = { "BufReadPre", "BufNewFile", "BufFilePost", "BufWritePost" },
-    -- The two global blame maps below are declared in `config`, so they would be
-    -- absent from which-key until the first buffer read. These rows carry no
-    -- `rhs`, so lazy.nvim installs a placeholder that keeps the label, loads the
-    -- plugin on the first press and re-feeds the key to the real mapping
-    -- (`lazy/core/handler/keys.lua`, `_add`); `_set` never runs for an rhs-less
-    -- row, so `config` stays the only place either mapping is defined.
+    -- `config` defines these two. Listing them here without a mapping keeps their which-key labels
+    -- before the first buffer read.
     keys = {
       { "<leader>gm", desc = "Gitsigns: blame line (full, global alias)" },
       { "<leader>gM", desc = "Gitsigns: blame file (walk commits)" },
@@ -130,10 +113,6 @@ return {
         numhl = true,
         current_line_blame = true,
         on_attach = function(bufnr)
-          -- `bufnr` comes from `on_attach` and ensures the mapping only works in this buffer.
-
-          -- Navigation mappings: move between Git hunks.
-          -- ——————————————————————————————————————————————
           map({
             mode = "n",
             lhs = "]g",
@@ -164,8 +143,6 @@ return {
             buffer = bufnr,
           })
 
-          -- Action mappings: stage, reset, undo, preview, diff, blame, show commit, quickfix.
-          -- —————————————————————————————————————————————————————————————————————————————
           map({
             mode = "n",
             lhs = "<leader>ga",
@@ -288,7 +265,6 @@ return {
             buffer = bufnr,
           })
 
-          -- Diff (HEAD / latest commit):
           map({
             mode = "n",
             lhs = "<C-g>dhd",
@@ -300,7 +276,6 @@ return {
             buffer = bufnr,
           })
 
-          -- Diff (index / staging):
           map({
             mode = "n",
             lhs = "<C-g>did",
@@ -335,10 +310,7 @@ return {
             buffer = bufnr,
           })
 
-          -- Blame mappings: the `<C-g>B` group (spec 5.2). Buffer-local so they
-          -- exist only where gitsigns attached, which is what the old git-blame
-          -- TODO asked for.
-          -- ————————————————————————————————————————————————————————————————————
+          -- Buffer-local, so blame keys exist only where gitsigns attached.
           local function blame_sha_at_cursor()
             return try(function()
               return git.blame_sha({ file = vim.api.nvim_buf_get_name(bufnr), line = vim.fn.line(".") })
@@ -411,8 +383,6 @@ return {
             buffer = bufnr,
           })
 
-          -- Text-object mapping: select hunk.
-          -- ———————————————————————————————————
           map({
             mode = { "o", "x" },
             lhs = "ih",
@@ -425,8 +395,7 @@ return {
 
       require("gitsigns").setup(opts)
 
-      -- `<leader>gm` outlived git-messenger.vim and keeps its reach: global, not
-      -- buffer-local like the `<leader>gB` blame above.
+      -- Global, unlike the buffer-local `<leader>gB`.
       map({
         mode = "n",
         lhs = "<leader>gm",
@@ -436,45 +405,17 @@ return {
         desc = "Gitsigns: blame line (full, global alias)",
       })
 
-      -- The `<rev>:<path>` half of a blame name, of which only the path is
-      -- wanted. The revision may carry a colon of its own, since gitsigns names
-      -- the index `:0`, and so may the path, so the format is pinned rather than
-      -- searched: an optional leading colon, a revision with no colon in it, the
-      -- colon that closes it, and the whole of the rest.
+      -- A revision and a path can both hold colons, as the index revision `:0` does. So the match
+      -- skips one optional leading colon, then a revision without colons, then one colon.
       local function path_after_revision(text)
         return text:match("^:?[^:]+:(.*)")
       end
 
-      -- The pinned gitsigns opens the split BEFORE it names the blame buffer, so
-      -- a second press while this file's blame is still open leaves the new split
-      -- behind and then fails on `nvim_buf_set_name` with E95, taking the window
-      -- count from two to three. The blame buffer is named
-      -- `gitsigns-blame://<gitdir>//<rev>:<path relative to the repo root>`, and
-      -- BOTH ends of that identify the file: the gitdir, because two repositories
-      -- holding the same relative path produce two different buffers, and the
-      -- whole relative path behind its `:`, compared for EQUALITY. A tail match
-      -- reads a blame of `a:x.lua` as one of `x.lua`, because a colon is legal in
-      -- a filename and the blame name for the one ends with the blame name for
-      -- the other. Gitsigns publishes both halves on the source buffer as
-      -- `b:gitsigns_status_dict`.
-      --
-      -- The revision between them is deliberately NOT matched: a blame the reader
-      -- already walked with `R` sits at another revision and is still the window
-      -- to focus rather than to duplicate.
-      --
-      -- EVERY window, not just this tab's. A buffer name is global, so a blame
-      -- open in another tab collides just the same, and searching one tab missed
-      -- it and left the split plus the E95 behind. `nvim_set_current_win` switches
-      -- tabs, so focusing it from here works.
-      -- The current buffer's path relative to the repository root, which is what
-      -- the blame name carries. A Fugitive revision buffer is named
-      -- `fugitive://<gitdir>//<rev>/<path>`, so it never begins with the working
-      -- tree, and a BARE repository has no working tree for it to begin with:
-      -- gitsigns still attaches and still names its blame after the same
-      -- relative path, so the root test alone answered nothing there and every
-      -- press opened another blame. Fugitive's own `FugitiveParse` is the
-      -- inverse of the URL scheme it wrote, and only Fugitive produces such a
-      -- name, so nothing else reaches it.
+      -- gitsigns opens the split before naming the blame buffer, so a second blame of the same file fails with E95.
+      -- The blame name is `gitsigns-blame://<gitdir>//<rev>:<path>`.
+      -- Its gitdir and whole path must match, and any revision counts.
+      -- Every window is searched, because buffer names are global across tabs.
+      -- Fugitive revision buffers and bare repositories lack a working-tree path, so `FugitiveParse` supplies it.
       local function relative_path_for_current_buffer(root)
         local file = vim.api.nvim_buf_get_name(0)
 
@@ -482,8 +423,7 @@ return {
           return path_after_revision(vim.fn.FugitiveParse(file)[1])
         end
 
-        -- A repository rooted at `/` already ends in the separator, and `//` is
-        -- a prefix of no absolute path at all.
+        -- A root of `/` already ends in the separator.
         local prefix = (root:gsub("/+$", "")) .. "/"
         if vim.startswith(file, prefix) then
           return file:sub(#prefix + 1)
@@ -511,15 +451,7 @@ return {
         end
       end
 
-      -- git-messenger's `o`/`O` walked back through a line's older commits from
-      -- inside its popup, which is why it set `into_popup_after_show`. A
-      -- `blame_line` float is static, so the walk lives here instead: a
-      -- scroll-bound blame split whose `R` reblames at the PARENT of the commit
-      -- under the cursor, which is the same traversal without the popup. `r`
-      -- reblames at the commit itself, so it steps in once and then stops:
-      -- gitsigns drops a reblame whose sha equals the active revision, and only
-      -- the `R` arm appends the `^` that reaches the parent (`actions/blame.lua`
-      -- at the pinned 130beacf).
+      -- In the blame split, `R` reblames at the parent of the commit under the cursor, which walks a line's history.
       map({
         mode = "n",
         lhs = "<leader>gM",
@@ -543,21 +475,11 @@ return {
       "stevearc/overseer.nvim",
       "folke/snacks.nvim",
     },
-    -- `:Git` and the four log commands take a plain line range and no `-bar`,
-    -- which is exactly what a lazy.nvim placeholder is, so a placeholder parses
-    -- them the way fugitive would. Keeping them here is what gives the command
-    -- line its completion before fugitive loads.
+    -- These take a plain line range and no `-bar`, just like a lazy.nvim placeholder,
+    -- so they complete before fugitive loads.
     cmd = { "G", "GcLog", "Gclog", "Git", "GlLog", "Gllog" },
-    -- `Gr` gets a loader of its own because neither trigger suits it. A
-    -- placeholder is never `-bar`, so a first-use `:Gr file | cmd` swallows the
-    -- chained command; and `CmdUndefined` never fires for it, because an
-    -- undefined name that uniquely prefixes a defined one abbreviates to it and
-    -- `:Gr` would reach grug-far's `GrugFar`. This declares what fugitive
-    -- declares and forwards to `Gread`, which is the same command: fugitive
-    -- defines `Gr` only as an alias for it, and only when the name is still
-    -- free. Forwarding rather than deleting and re-dispatching is what keeps it
-    -- correct when something else loaded fugitive first, since fugitive's own
-    -- `exists(':Gr')` guard then never defines `Gr` at all.
+    -- `Gr` forwards to `Gread` with fugitive's own declaration. A placeholder would swallow `| cmd`,
+    -- and `CmdUndefined` never fires because `:Gr` abbreviates to grug-far's `GrugFar`.
     init = function()
       vim.api.nvim_create_user_command("Gr", function(event)
         require("lazy").load({ plugins = { "vim-fugitive" } })
@@ -573,36 +495,20 @@ return {
         bang = true,
         bar = true,
         nargs = "*",
-        -- `-range=-1` as fugitive declares it. `range = true` is `-range`, which
-        -- clamps address zero to one, so `:0Gr file` inserted after the first
-        -- line where fugitive inserts before it.
+        -- `-1` matches fugitive, so `:0Gr file` inserts before the first line.
         range = -1,
-        -- Fugitive's own completion function, called directly. Rewriting the
-        -- line to `Gread` and asking `getcompletion` was a recursion: a line
-        -- the anchored pattern missed, `:2Gr …` or `:silent Gr …`, still named
-        -- `Gr`, so completion re-entered this callback until nvim segfaulted.
+        -- Calls fugitive's completion function directly, because routing through `getcompletion` recurses.
         complete = function(arglead, line, pos)
           require("lazy").load({ plugins = { "vim-fugitive" } })
           return vim.fn["fugitive#ReadComplete"](arglead, line, pos)
         end,
       })
     end,
-    -- Every other fugitive command is `-bar`, or addresses tabs or windows
-    -- rather than lines. A placeholder is created with `range = true` and no
-    -- `bar`, so on FIRST use it parses those wrongly: `:2Gtabedit HEAD:file`
-    -- checks the 2 against the buffer's line count and dies with E16 without
-    -- loading fugitive at all, and `:Gedit file | let x = 1` swallows the bar
-    -- into the argument. Loading from `CmdUndefined` leaves the command
-    -- undefined until it is typed, so fugitive's own declaration is what parses
-    -- the first invocation.
+    -- The other commands use `-bar` or address tabs and windows, which a placeholder misparses.
+    -- So they load on `CmdUndefined` instead.
     event = {
-      -- A command that does not exist yet also has no completion, so
-      -- `:Gtabedit HEAD:dot_config/nvim/<Tab>` offered nothing on a `CmdUndefined`
-      -- trigger alone. Loading when the command line opens gives every one of
-      -- them fugitive's own completion. The cost is that fugitive loads the
-      -- first time `:` is pressed rather than at first use of a command; it is
-      -- still off the startup path, and `CmdUndefined` stays below for calls
-      -- that never open a command line, such as `vim.cmd` from a mapping.
+      -- Loading when the command line opens gives the commands completion.
+      -- `CmdUndefined` covers `vim.cmd` calls.
       { event = "CmdlineEnter", pattern = ":" },
       {
         event = "CmdUndefined",
@@ -701,7 +607,6 @@ return {
         vim.notify(message, vim.log.levels.INFO, { title = "Active Git Branch & Latest Commit", timeout = 0 })
       end
 
-      -- Helper functions for formatting:
       local function bold(text)
         return ("**%s**"):format(text)
       end
@@ -798,15 +703,13 @@ return {
 
       local function last_monday()
         local now = os.time()
-        local day_of_week = tonumber(os.date("%w", now)) -- 0 = Sunday, 1 = Monday ...
-        -- Compute days since Monday
+        local day_of_week = tonumber(os.date("%w", now))
         local days_since_monday = (day_of_week == 0) and 6 or (day_of_week - 1)
         local monday = now - days_since_monday * 24 * 60 * 60
         return os.date("%Y-%m-%d", monday)
       end
 
       local function get_default_browser()
-        -- Detect default browser on macOS
         local detect_default_browser_cmd = table.concat({
           "python3 -c '",
           "import plistlib, os; ",
@@ -815,8 +718,7 @@ return {
           " | xargs -I{} osascript -e 'name of application id \"{}\"'",
         }, "")
 
-        -- A string on purpose: this is a real pipeline, and every word of it is
-        -- a literal written above, with nothing interpolated into it.
+        -- Passed as one string, because it is a real pipeline built only from the literals above.
         local ok, default_browser = util.run_shell_command({ cmd = detect_default_browser_cmd })
 
         if not ok or not default_browser then
@@ -833,8 +735,7 @@ return {
           return
         end
 
-        -- `github.repo` reports a `gh` that cannot answer as `nil, message`, so
-        -- reading a field straight off the call raises on the index instead.
+        -- `github.repo` returns `nil, message` when `gh` cannot answer.
         local repo_info = try(function()
           return github.repo()
         end, { label = "github.repo" })
@@ -843,12 +744,8 @@ return {
         end
         local repo = repo_info.nameWithOwner
 
-        -- `git.default_branch` only knows this checkout's remote-tracking refs;
-        -- a clone with neither `origin/main` nor `origin/master` falls through
-        -- to GitHub, which is the one place that answer can come from. That call
-        -- reports a `gh` failure as `nil, message` and raises on a repository
-        -- whose answer carried no slash, and `try` is what keeps both out of the
-        -- mapping and in a notification.
+        -- GitHub answers when the clone has neither `origin/main` nor `origin/master`.
+        -- `try` turns its failures into notifications.
         local branch_name = use_current_branch and git.current_branch().name
           or git.default_branch()
           or try(function()
@@ -929,16 +826,12 @@ return {
       end
 
       return {
-        -- Init／Create:
         {
           "<C-g>i",
           function()
             local is_initialized = git.initialized({ quiet = true })
 
-            -- `github.username()` never existed on either side, so this errored
-            -- every time the mapping was pressed (item 1). The username is one
-            -- field of the account, and `try` is what turns a `gh` that is not
-            -- logged in into a notification instead of a raised error.
+            -- `try` turns a logged-out `gh` into a notification.
             local account = try(function()
               return github.account()
             end, { label = "github.account" })
@@ -985,8 +878,7 @@ return {
                 if not is_initialized then
                   table.insert(cmds, "git init")
                 end
-                -- Each command overseer_runner is given is run by a shell, so the
-                -- name typed at the prompt is quoted for that shell here.
+                -- overseer_runner runs each command through a shell, so the typed name is quoted.
                 table.insert(cmds, "gh repo create --public " .. vim.fn.shellescape(project))
 
                 overseer.overseer_runner({ cmds = cmds })
@@ -997,20 +889,15 @@ return {
           silent = true,
         },
 
-        -- Status:
         { "<C-g>ss", "<cmd>Git<cr>", desc = "Fugitive: status", silent = true },
         { "<C-g>sn", "<cmd>Git status -sb<cr>", desc = "Fugitive: status (as notification)", silent = true },
 
-        -- Staging:
         { "<C-g>a", "<cmd>Gwrite<cr>", desc = "Fugitive: add file", silent = true },
 
-        -- Stage current file → Amend last commit (no edit) → Force push:
         {
           "<C-g>!",
           function()
-            -- The amend runs a pre-commit hook, seconds long. Pin the repo to
-            -- the buffer active now, so a buffer switch during that window
-            -- can't redirect the push to a different repository.
+            -- The amend's pre-commit hook takes seconds, so the push stays pinned to this buffer's repository.
             local bufnr = vim.api.nvim_get_current_buf()
             vim.cmd("Gwrite")
             vim.fn.FugitiveExecute({ "commit", "--amend", "--no-edit" }, function(result)
@@ -1034,7 +921,6 @@ return {
           silent = true,
         },
 
-        -- Stash push:
         {
           "<C-g>Sd",
           "<cmd>Git stash --include-untracked<cr>",
@@ -1070,16 +956,13 @@ return {
           silent = true,
         },
 
-        -- Stash pop:
         { "<C-g>Sp", "<cmd>Git stash pop<cr>", desc = "Pop: most recent (default)", silent = true },
 
         {
           "<C-g>SP",
           function()
             local index = util.trim(vim.fn.input("Stash index to pop: "))
-            -- A stash index is a number, so it is checked as one before it is
-            -- spliced into an ex command line. Anything else typed here would be
-            -- read as Vim syntax rather than as an index.
+            -- Only digits reach the ex command line.
             if index:match("^%d+$") then
               vim.cmd("Git stash pop " .. index)
             elseif index ~= "" then
@@ -1090,16 +973,13 @@ return {
           silent = true,
         },
 
-        -- Stash apply:
         { "<C-g>Sa", "<cmd>Git stash apply<cr>", desc = "Apply: most recent (default)", silent = true },
 
         {
           "<C-g>SA",
           function()
             local index = util.trim(vim.fn.input("Stash index to pop: "))
-            -- A stash index is a number, so it is checked as one before it is
-            -- spliced into an ex command line. Anything else typed here would be
-            -- read as Vim syntax rather than as an index.
+            -- Only digits reach the ex command line.
             if index:match("^%d+$") then
               vim.cmd("Git stash apply " .. index)
             elseif index ~= "" then
@@ -1110,14 +990,12 @@ return {
           silent = true,
         },
 
-        -- Remote:
         copy_url_mapping_helper("<C-g>rh", "origin", "https"),
         copy_url_mapping_helper("<C-g>rH", "upstream", "https"),
         copy_url_mapping_helper("<C-g>rs", "origin", "ssh"),
         copy_url_mapping_helper("<C-g>rS", "upstream", "ssh"),
 
         -- stylua: ignore start
-        -- Checkout:
         {
           "<C-g>Cb",
           function()
@@ -1159,12 +1037,7 @@ return {
               end
               new_branch = util.trim(new_branch)
 
-              -- Fugitive's own argv entry point. Splicing the name into a `:Git`
-              -- command line instead lets it be re-read as Vim syntax: a newline
-              -- runs a second ex command, `%` expands to the current file, and a
-              -- leading dash becomes another git flag. FugitiveExecute passes the
-              -- word through untouched, and DidChange refreshes the summary the
-              -- `:Git` form would have refreshed.
+              -- An argv call, so the name is never read as Vim syntax or a git flag.
               local result = vim.fn.FugitiveExecute({ "checkout", "-b", new_branch })
               vim.fn.FugitiveDidChange()
 
@@ -1186,7 +1059,6 @@ return {
         { "<C-g>Cm", "<cmd>Git checkout main<cr>", desc = "Fugitive (checkout): main", silent = true },
         -- stylua: ignore end
 
-        -- Branch:
         { "<C-g>bb", "<cmd>Git branch<cr>", desc = "Fugitive: local", silent = true },
         { "<C-g>bV", "<cmd>Git branch -vv<cr>", desc = "Fugitive: local (verbose)", silent = true },
         { "<C-g>bR", "<cmd>Git branch -rv<cr>", desc = "Fugitive: remotes (verbose)", silent = true },
@@ -1207,7 +1079,6 @@ return {
         },
 
         -- stylua: ignore start
-        -- Commit:
         { "<C-g>cc", "<cmd>Git commit --verbose<cr>", desc = "Fugitive: entire index (all staged changes)", silent = true },
         { "<C-g>cf", "<cmd>Git commit %<cr>", desc = "Fugitive: current file only", silent = true },
         { "<C-g>ca", "<cmd>Git commit --amend --verbose<cr>", desc = "Fugitive: amend latest (edit message)", silent = true },
@@ -1234,7 +1105,6 @@ return {
           silent = true,
         },
 
-        -- An interactive command to amend the author/email of the latest commit:
         {
           "<C-g>cA",
           function()
@@ -1266,10 +1136,7 @@ return {
                 end
 
                 email = util.trim(email)
-                -- One argv word, so the double quotes that used to wrap it are
-                -- gone with the shell they were quoting for. An author typed with
-                -- a `"` in it used to close them early and turn the rest of the
-                -- name into further `git commit` flags.
+                -- One argv word, so a `"` in the author stays part of the name.
                 local result = vim.fn.FugitiveExecute({
                   "commit",
                   "-C",
@@ -1293,7 +1160,6 @@ return {
           silent = true,
         },
 
-        -- Log:
         -- stylua: ignore start
         { "<C-g>lo", "<cmd>Git log --oneline<cr>", desc = "Fugitive: oneline", silent = true },
         { "<C-g>lO", "<cmd>Git log --oneline -- %<cr>", desc = "Fugitive: oneline (current file)", silent = true },
@@ -1425,7 +1291,6 @@ return {
           silent = true,
         },
 
-        -- Diff (HEAD / latest commit):
         {
           "<C-g>dhf",
           "<cmd>vertical Git diff -p --stat --function-context<cr>",
@@ -1476,7 +1341,6 @@ return {
           silent = true,
         },
 
-        -- Diff (index / staging):
         {
           "<C-g>dic",
           "<cmd>Git diff --cached -U0<cr>",
@@ -1505,21 +1369,15 @@ return {
           silent = true,
         },
 
-        -- Fetch/Pull:
         { "<C-g>Ff", "<cmd>Git! fetch<cr>", desc = "Fugitive: fetch", silent = true },
         { "<C-g>Fp", "<cmd>Git! pull<cr>", desc = "Fugitive: pull", silent = true },
         { "<C-g>Fr", "<cmd>Git! pull --rebase<cr>", desc = "Fugitive: pull --rebase", silent = true },
 
         -- stylua: ignore start
-        -- Push:
         { "<C-g>pp", "<cmd>Git! push<cr>", desc = "Fugitive: push", silent = true },
         { "<C-g>pf", "<cmd>Git! push --force-with-lease<cr>", desc = "Fugitive: push --force-with-lease", silent = true },
         -- stylua: ignore end
 
-        -- An interactive `git push -u origin <current_branch>` implementation:
-        --   ∙ Prompts the user for confirmation before pushing the current branch to GitHub.
-        --   ∙ Useful for safely publishing new branches without accidentally pushing unintended
-        --     changes.
         {
           "<C-g>pu",
           function()
@@ -1537,10 +1395,7 @@ return {
                 return
               end
 
-              -- HEAD is the branch this already resolved, so nothing has to be
-              -- spliced in. The single quotes it replaces were not a defence: a
-              -- branch name may legally contain one, and closing them early made
-              -- the remainder into further `git push` flags.
+              -- HEAD keeps the branch name off the command line, since a name may contain a quote.
               vim.cmd("Git! push -u origin HEAD")
             end)
           end,
@@ -1548,7 +1403,6 @@ return {
           silent = true,
         },
 
-        -- Whatchanged:
         {
           "<C-g>ww",
           "<cmd>Git whatchanged --i-still-use-this<cr>",
@@ -1569,7 +1423,6 @@ return {
           desc = "Fugitive: whatchanged --since=<date>",
         },
 
-        -- Browse:
         { "<C-g>of", "<cmd>GBrowse<cr>", desc = "Fugitive: browse (file)", silent = true },
         { "<C-g>ol", "<cmd>.GBrowse<cr>", desc = "Fugitive: browse (line in file)", silent = true },
 
@@ -1603,12 +1456,8 @@ return {
         "folke/snacks.nvim",
         "nvim-tree/nvim-web-devicons",
       },
-      -- `Octo` is the only command octo defines, and `octo.setup()` in `config`
-      -- is what creates it, so it has to be named up front. The rows below are
-      -- the `<leader>gh` mappings themselves: lazy.nvim installs the placeholder
-      -- at startup and sets the real mapping from the same row once octo loads.
-      -- The `<localleader>` groups stay in `config`, registered by its
-      -- `FileType octo` autocmd, which is not a keymap the spec can carry.
+      -- `octo.setup()` creates `Octo`, so the command is named here.
+      -- The `<localleader>` groups stay in `config`.
       cmd = "Octo",
       keys = {
         { "<leader>ghg", "<cmd>Octo gist list<cr>", desc = "Octo: list gists", silent = true },
@@ -1630,8 +1479,8 @@ return {
           picker = "snacks",
           enable_builtin = true,
           picker_config = {
-            use_emojis = false, -- Only used by "fzf-lua" picker for now.
-            mappings = { -- mappings for the pickers
+            use_emojis = false,
+            mappings = {
               open_in_browser = { lhs = "<C-b>", desc = "Octo: open issue in browser" },
               copy_url = { lhs = "<C-y>", desc = "Octo: copy url to system clipboard" },
               copy_sha = { lhs = "<C-e>", desc = "Octo: copy commit SHA to system clipboard" },
@@ -1643,8 +1492,8 @@ return {
 
         local opts = {
           prefix = "<localleader>",
-          buffer = 0, -- Target the current buffer
-          mode = "n", -- Normal mode
+          buffer = 0,
+          mode = "n",
         }
 
         vim.api.nvim_create_autocmd("FileType", {

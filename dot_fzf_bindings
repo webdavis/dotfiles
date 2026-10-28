@@ -5,8 +5,7 @@ export FZF_DEFAULT_OPTS='--height=60% --layout=reverse --cycle --multi --border=
 export FZF_CTRL_T_OPTS='--height=60% --preview="bat --color=always --style=numbers -- {}" --header="Ctrl-/ Alt-/: help | Alt-P: preview | Alt-W: preview wrap | Alt-Shift-W: results wrap | Alt-Y: copy | Ctrl-R: order" --bind="start:hide-header,ctrl-/:toggle-header,ctrl-_:toggle-header,alt-/:toggle-header,alt-y:execute-silent(cat {+f} | pbcopy),alt-r:ignore"'
 export FZF_CTRL_R_OPTS='--height=60% --bind="start:hide-header,ctrl-/:toggle-header,ctrl-_:toggle-header,alt-/:toggle-header,alt-r:ignore,alt-R:toggle-raw,alt-y:execute-silent(cat {+f2..} | pbcopy)" --header="Ctrl-/ Alt-/: help | Alt-Shift-R: raw entries | Ctrl-R: order | Ctrl-Y: query yank"'
 
-# An empty FZF_CTRL_T_COMMAND stops fzf binding Ctrl-T on its own, which would
-# shadow the Ctrl-T chords; fzf-file-widget stays defined for `ctrl-t ctrl-t`.
+# An empty FZF_CTRL_T_COMMAND leaves Ctrl-T free for the Ctrl-T chords.
 __fzf_saved_ctrl_t_command=${FZF_CTRL_T_COMMAND-}
 __fzf_ctrl_t_command_set=${FZF_CTRL_T_COMMAND+x}
 FZF_CTRL_T_COMMAND=''

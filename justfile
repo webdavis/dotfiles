@@ -56,7 +56,7 @@ lint-actions-syntax:
 lint-actions-security:
   zizmor --offline .github/workflows
 
-# Both commands render templates and require an unlocked KeePassXC database.
+# Renders templates, so KeePassXC must be unlocked.
 diff:
   chezmoi diff
 
@@ -73,8 +73,7 @@ test-rust:
   chord check bash --table dot_config/chord/bindings.toml
   chord check menu --table dot_config/chord/bindings.toml
 
-# Run the Neovim Lua specs against the source tree. Git exports GIT_* variables
-# to its hooks, and specs that build temporary repositories must not inherit them.
+# Run the Neovim Lua specs with Git's hook variables cleared, so test repositories start clean.
 test-nvim:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -90,10 +89,9 @@ ship:
   just test
   just lint-actions-security
 
-# Install the contributor toolchain. mdformat is pinned here and in CI because
-# it rewrites Markdown.
+# Install the contributor toolchain. mdformat matches the CI version because it rewrites Markdown.
 setup:
-  brew bundle --file=Brewfile.dev
+  brew bundle --file=brewfile.dev
   uv tool install mdformat==0.7.22 \
     --with mdformat-gfm==0.4.1 \
     --with mdformat-gfm-alerts==2.0.0 \
@@ -173,8 +171,7 @@ claude-desktop-skills folder=(home_directory() / "Desktop" / "claude-desktop-ski
   done < <(yq -r '.skills.harnesses.claude_desktop[].repo' "$data")
   echo "Drag the zips in {{folder}} into Claude Desktop."
 
-# Raycast has no silent import: pick the file and enter the passphrase by hand.
-# Open Raycast's Import Settings & Data for ~/.config/raycast/raycast.rayconfig.
+# Open Raycast's import for ~/.config/raycast/raycast.rayconfig; Raycast needs the passphrase typed by hand.
 raycast-import:
   @[[ -f ~/.config/raycast/raycast.rayconfig ]] || \
     { echo 'No ~/.config/raycast/raycast.rayconfig yet; run just apply first.' >&2; exit 1; }
@@ -185,8 +182,7 @@ raycast-import:
 update-skills:
   ~/.cargo/bin/uu run skills
 
-# Regenerate both files the shell-agnostic binding table generates: the
-# readline bind calls, and the records the binding picker reads.
+# Regenerate the readline bindings and the binding-picker records from the binding table.
 chord-render:
   @command -v chord >/dev/null || \
     { echo 'chord is not installed: cargo install --git https://github.com/webdavis/chord chord' >&2; exit 1; }

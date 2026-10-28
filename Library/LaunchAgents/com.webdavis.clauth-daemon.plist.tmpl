@@ -8,12 +8,7 @@
   <array>
     <string>{{ .chezmoi.homeDir }}/.cargo/bin/clauth</string>
     <string>daemon</string>
-    <!-- --standby: clauth runs one daemon at a time, and a plain `clauth
-         daemon` exits 0 at once when another already holds the lock, so a
-         unit without this flag would quit whenever the TUI's `start daemon`
-         got there first. With it, launchd's instance parks behind a manually
-         started daemon and takes over the moment that one exits, which is the
-         pairing clauth's Daemon wiki page prescribes for a launchd unit. -->
+    <!-- --standby waits behind a daemon the TUI started and takes over when it exits. -->
     <string>--standby</string>
   </array>
   <!-- The TUI's own `start daemon` runs it from here too. -->
@@ -21,15 +16,13 @@
   <string>{{ .chezmoi.homeDir }}/.clauth</string>
   <key>RunAtLoad</key>
   <true/>
-  <!-- Restart after a crash only; a clean exit stays down (the wiki's pairing
-       with --standby). -->
+  <!-- Restart after a crash only, the pairing clauth documents for --standby. -->
   <key>KeepAlive</key>
   <dict>
     <key>SuccessfulExit</key>
     <false/>
   </dict>
-  <!-- launchd opens these in append mode, which clauth's in-place size cap on
-       daemon.log relies on; the TUI's `start daemon` appends to the same file. -->
+  <!-- clauth caps daemon.log in place, which needs launchd's append mode. -->
   <key>StandardOutPath</key>
   <string>{{ .chezmoi.homeDir }}/.clauth/daemon.log</string>
   <key>StandardErrorPath</key>

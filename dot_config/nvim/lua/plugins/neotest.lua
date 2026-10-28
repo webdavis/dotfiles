@@ -1,9 +1,4 @@
--- neotest: one test-runner surface over per-language adapters, under the `<leader>t` group.
--- Adapters ship only once proven against a real project; the PR body records which were proven
--- and which were held back, with the reason.
---
--- The per-language adapters below load on their own filetype rather than at startup, and neotest
--- requires whichever are still unloaded when it first runs.
+-- Each adapter loads with its filetype, and neotest loads any adapter still missing on its first run.
 local javascript_filetypes = {
   "javascript",
   "javascriptreact",
@@ -11,12 +6,8 @@ local javascript_filetypes = {
   "typescriptreact",
 }
 
---- The tree-sitter language a JavaScript-family file is parsed with, or nil when the routing has
---- nothing to parse it as.
----
---- `.tsx` needs the `tsx` grammar, not the `typescript` one. TypeScript has no JSX, so the first
---- element turns the REST OF THE FILE into an error node, and an import written after it is gone.
---- `.coffee` has no grammar at all, so a CoffeeScript test file can never be node:test's.
+--- The tree-sitter language for each JavaScript-family extension. `.tsx` needs the `tsx` grammar,
+--- because the `typescript` one turns everything after the first JSX element into an error.
 local javascript_languages = {
   js = "javascript",
   jsx = "javascript",
@@ -28,12 +19,8 @@ local javascript_languages = {
   tsx = "tsx",
 }
 
---- The four shapes that make node:test a runtime dependency: a static import, a re-export, a
---- `require` call and a dynamic `import` call.
----
---- Asked of the parse tree rather than of the text. A regular expression, a template substitution,
---- a literal nested inside one, a comment and an ordinary string are each their own node type, so
---- none of them can be read as an import, and an import written after any of them is still found.
+--- The import, re-export, `require` and dynamic `import` shapes that load node:test. Matching the
+--- parse tree keeps strings, comments and regular expressions from counting as imports.
 local node_test_query_text = [[
   (import_statement source: (string (string_fragment) @specifier)) @declaration
   (export_statement source: (string (string_fragment) @specifier)) @declaration
@@ -46,8 +33,7 @@ local node_test_query_text = [[
     arguments: (arguments (string (string_fragment) @specifier)))
 ]]
 
---- The compiled query for `language`, or nil when its grammar is not installed. Memoized, because
---- compiling is what makes the FIRST call expensive and the routing runs per file.
+--- Memoized, because compiling the query is the slow part and the routing runs per file.
 local compiled_queries = {}
 local function node_test_query(language)
   if compiled_queries[language] == nil then
@@ -57,8 +43,7 @@ local function node_test_query(language)
   return compiled_queries[language] or nil
 end
 
---- Whether an import or re-export is type-only. TypeScript erases those before anything runs, so
---- they name the module at compile time and say nothing about the runner the file uses.
+--- TypeScript erases type-only imports, so they say nothing about the runner the file uses.
 ---@param declaration TSNode?
 ---@return boolean
 local function is_type_only(declaration)
@@ -73,21 +58,12 @@ local function is_type_only(declaration)
   return false
 end
 
---- Answers already settled, keyed by path, size and modification time.
----
---- All three adapters ask the same question about the same file, and neotest's filtering pass runs
---- without yielding, so parsing once per adapter is three times the stall for one answer. The
---- answer depends on the file's bytes alone, so a size and a modification time that still match
---- are what make a remembered one still true.
----
---- Nothing evicts: an entry per file version outlives only the session, and the manifest walk is
---- deliberately NOT cached, so editing a package.json still takes effect on the next question.
+--- Import answers keyed by path, size and modification time, because all three adapters ask
+--- about the same file and parsing is the slow part.
 local parsed_imports = {}
 
---- Whether `file_path` imports or requires `node:test`.
----
---- Plain `io` rather than `vim.fn.readfile`: `is_test_file` runs inside neotest's async contexts,
---- where a Vimscript call raises E5560 and a `pcall` around it would read as "no import".
+--- Whether `file_path` imports `node:test`. Uses `io`, because a Vimscript call raises E5560 in
+--- neotest's async contexts.
 ---@param file_path string
 ---@return boolean
 local function imports_node_test(file_path)
@@ -113,14 +89,7 @@ local function imports_node_test(file_path)
   local source = handle:read("*a") or ""
   handle:close()
 
-  -- The parse is the whole cost of discovery, and this decides whether it has to happen at all.
-  -- Every one of the four query shapes captures a `string_fragment` and the answer below compares
-  -- its text, which is a slice of these bytes, against `node:test`. So the literal has to be in
-  -- the file for any of them to match, and a file without it is answered here. Measured over 500
-  -- test files of 129 KB: 26.4 ms each parsed, 0.08 ms each read and scanned.
-  --
-  -- A plain find, not a pattern: the answer is about these exact bytes. Remembered like a parsed
-  -- one, because all three adapters ask.
+  -- Every query shape compares a fragment against `node:test`, so a file without that text needs no parse.
   if not source:find("node:test", 1, true) then
     parsed_imports[key] = false
     return false
@@ -153,12 +122,7 @@ local function imports_node_test(file_path)
   return false
 end
 
---- The one filename rule the three JavaScript adapters are asked through.
----
---- Their pinned matchers disagree. vitest claims `.e2e.` and node:test and jest claim
---- `.e2e-spec.`, `.unit.`, `.regression.` and `.integration.` instead, and none of the three
---- claims `.mjs` or `.cjs`. Deciding ownership with one adapter's rule and standing down with
---- another's is what leaves a file with no claimant, so the union is asked once, here.
+--- The union of the three JavaScript adapters' filename rules, so every test file has one owner.
 local javascript_test_patterns = {}
 for _, kind in ipairs({ "spec", "e2e", "e2e%-spec", "test", "unit", "regression", "integration" }) do
   for _, extension in ipairs({ "js", "jsx", "mjs", "cjs", "coffee", "ts", "tsx", "mts", "cts" }) do
@@ -184,12 +148,8 @@ local function is_javascript_test_file(file_path)
   return false
 end
 
---- The decoded package.json at `manifest`, or nil when there is none. The second value is true
---- when the file is there and no JSON parser can read it, which is not the same answer as absent.
----
---- Plain `io`, because `is_test_file` runs inside neotest's async contexts and inside `vim.uv`
---- callbacks, where a Vimscript call raises E5560. Opening the file doubles as the test for
---- whether a manifest is there at all.
+--- The decoded package.json at `manifest`, or nil. The second value is true when the file exists
+--- but cannot be parsed. Uses `io`, because a Vimscript call raises E5560 in async contexts.
 ---@param manifest string
 ---@return table|nil, boolean
 local function read_manifest(manifest)
@@ -224,9 +184,8 @@ local function runner_named_by(manifest)
     end
   end
 
-  -- Substring matches, because a runner is named by more than its own package: `@vitest/ui` and
-  -- `vitest run` both name vitest, `ts-jest` and `jest --ci` both name jest. "vitest" never
-  -- appears inside a jest name, so asking for it first is what settles a package declaring both.
+  -- Substring matches catch names like `@vitest/ui` and `jest --ci`. vitest is checked first so it
+  -- wins when a package declares both.
   local declared = table.concat(names, " ")
   if declared:find("vitest", 1, true) then
     return "vitest"
@@ -241,17 +200,7 @@ local function runner_named_by(manifest)
 end
 
 --- The runner named by the nearest package.json that names one, walking outward from `path`.
----
---- Outward rather than the nearest manifest alone, because a package that names nothing declares
---- nothing: stopping at an empty `fixtures/package.json` loses the vitest its parent declares, and
---- the adapters' own detection does not recover it, since that reads the working directory and the
---- git root rather than the intermediate package. Walking is also what keeps a nested package that
---- DOES name a runner ahead of an ancestor that names another.
----
---- The walk stops at the repository, because a package.json above it belongs to someone else: a
---- nested repository that declares no runner would otherwise run its tests under whatever an
---- unrelated ancestor happens to declare. `.git` is matched by name, so a worktree or submodule,
---- where it is a FILE rather than a directory, bounds the walk the same way.
+--- The walk stops at the repository root, because a manifest above it belongs to another project.
 ---
 ---@param path string a file or a directory
 ---@return "vitest"|"jest"|"node"|nil runner
@@ -282,14 +231,7 @@ local function declared_runner(path)
 end
 
 --- The packages under `directory` that name a runner other than `runner`, relative to it.
----
---- Only asked when `directory` itself names one, so an ordinary monorepo whose root names nothing
---- is not in conflict with the packages inside it.
----
---- The walk has no depth ceiling, because a ceiling is a guess about someone else's layout and
---- the packages past it are exactly the ones whose tests would silently run under the wrong
---- runner. What bounds it instead is pruning: installed dependencies and hidden directories are
---- where the manifest count runs away, and neither holds a package of this repository's own.
+--- The walk has no depth limit. Skipping node_modules and hidden directories keeps it small.
 ---@param directory string
 ---@param runner string
 ---@return string[]
@@ -298,9 +240,7 @@ local function packages_declaring_other_runners(directory, runner)
   for name, kind in
     vim.fs.dir(directory, {
       depth = math.huge,
-      -- `vim.fs.dir` reports paths relative to `directory`, so the comparison is against the last
-      -- component: whole-path equality lets `src/node_modules` through. Every hidden directory is
-      -- pruned, not only `.git`, since a cache is not one of this repository's packages either.
+      -- `dirname` is relative to `directory`, so match on its last component.
       skip = function(dirname)
         local name = vim.fs.basename(dirname)
         return name ~= "node_modules" and not vim.startswith(name, ".")
@@ -319,19 +259,8 @@ local function packages_declaring_other_runners(directory, runner)
   return conflicting
 end
 
---- The adapter that owns `file_path`, or nil when none of the three does.
----
---- ONE answer, which all three predicates are derived from. Ownership and standing down were
---- separate rules before, and any disagreement between them left a file either fought over or,
---- more often, claimed by nobody. The rules, in order:
----
----   * a file that imports node:test is node:test's, whatever the project declares, because
----     node:test attaches to every package.json and no filename rule tells its files from
----     vitest's or jest's;
----   * otherwise the nearest package that names a runner names the owner, so a nested jest
----     package inside a vitest repository keeps its own files;
----   * a package naming both is a migration TO vitest, and its config is the one new test files
----     are written against, so vitest takes it.
+--- The adapter that owns `file_path`, or nil. A file importing node:test is node:test's.
+--- Otherwise the nearest package naming a runner decides, and vitest wins when one names both.
 ---@param file_path string?
 ---@return "neotest-nodejs"|"neotest-vitest"|"neotest-jest"|nil
 local function owner_of(file_path)
@@ -358,69 +287,28 @@ local javascript_adapters = {
   ["neotest-nodejs"] = "node",
 }
 
---- Languages whose parser build did not finish inside the wait below, for this session only.
----
---- A build that is not coming answers the same way every time, so without this the second press
---- pays the whole ceiling again, and so does the tenth: a state that cost nothing before the gate
---- existed would cost 30 s of blocked editor per press, indefinitely. Remembered per language and
---- never cleared, because the retry that matters is a restart or a `:TSInstall`, both of which
---- start a new session or put the parser on disk for `language.add` to find on the next press.
+--- Languages whose parser build timed out this session, so later presses skip the wait.
 local parser_wait_failed = {}
 
---- The neotest module, with the tree-sitter parser it will discover this buffer's tests with
---- installed.
----
---- Every adapter here discovers positions with tree-sitter, and one whose grammar is missing finds
---- nothing: `parse_positions` raises "No parser for language" from inside neotest's own discovery,
---- so the request ends with no tests and, measured on this machine, NO message either. Parsers
---- arrive asynchronously, from the core list at `User LazyDone` and from the FileType hook for
---- anything outside it, so the first request in a language this machine had never opened lost that
---- race and came back empty while a retry seconds later worked.
----
---- Waited for BEFORE the neotest module is asked for, because neotest's client starts on its first
---- API call and only then registers the autocmds that discover a buffer. Waiting afterwards would
---- pump the event loop with the parser still absent, which is how an empty tree would be cached
---- for the very file the request is about.
----
---- The buffer's own language rather than each adapter's, because a request reads the buffer it was
---- made from and only the adapter knows what it parses. `<leader>ta` from a buffer of another
---- language is what the core parser list covers: every adapter language sits in it, `go` included,
---- so the parser is already built there.
+--- The neotest module, after installing the buffer's tree-sitter parser. Every adapter finds tests
+--- with tree-sitter, and a missing parser gives an empty result with no message. The wait comes
+--- before requiring neotest, because its client starts discovery on the first call.
 ---@return table
 local function neotest_with_parser()
   local language = vim.treesitter.language.get_lang(vim.bo.filetype) or vim.bo.filetype
-  -- `language.add` ANSWERS for a parser that is not installed rather than raising, so the returned
-  -- value is the test: a bare `pcall` status reads every miss as a hit, which is the bug in the Go
-  -- adapter's own guard and why nothing was reported.
+  -- `language.add` returns false for a missing parser instead of raising, so check its value.
   local loaded, added = pcall(vim.treesitter.language.add, language)
   if loaded and added then
     return require("neotest")
   end
-  -- Nothing to wait for when nvim-treesitter cannot build the language at all, which is every
-  -- scratch buffer whose filetype is no grammar's name, or when a build here already ran out of
-  -- time once.
+  -- Skip the wait when no grammar exists for this filetype or a build already timed out.
   if
     not parser_wait_failed[language]
     and vim.list_contains(require("nvim-treesitter.config").get_available(), language)
   then
     vim.notify("neotest: installing the " .. language .. " parser", vim.log.levels.INFO)
-    -- `force`, because the parser is already known to be missing and an ordinary install accepts
-    -- either artifact: a leftover queries directory alone reads as installed and returns without
-    -- building anything. An install already in flight is joined rather than repeated either way.
-    --
-    -- Thirty seconds, the ceiling the FileType installer polls to: a build that is not coming must
-    -- not hold the editor. `pwait` reports that timeout instead of raising, and the request goes
-    -- ahead regardless, because a discovery that finds nothing is what it would have been anyway.
-    --
-    -- Both of `pwait`'s answers, for the same reason `language.add` needs both of its own: the
-    -- status says only that the task RAN, and `install` reports a build that produced no parser by
-    -- returning false through a task that finished, so a status-only read calls that a success.
-    --
-    -- One press still pays twice where the FileType hook's own install is already running for this
-    -- buffer: nvim-treesitter JOINS an install in flight and reports whether that wait ended, not
-    -- whether a parser arrived, so the joining press is told it succeeded. Measured at two paid
-    -- presses and then nothing, against unbounded before this memo, and the race can only happen
-    -- once per language per session.
+    -- `force` builds even when a leftover queries directory looks installed. The time limit keeps a
+    -- stuck build from holding the editor. `install` reports a build with no parser as false.
     local finished, installed = require("nvim-treesitter").install({ language }, { force = true }):pwait(30000)
     if not (finished and installed) then
       parser_wait_failed[language] = true
@@ -429,31 +317,21 @@ local function neotest_with_parser()
   return require("neotest")
 end
 
---- Run everything under the working directory through ONE named adapter.
----
---- neotest takes a directory without asking any adapter's `is_test_file`, then walks its adapter
---- map with `pairs`, so leaving the choice to it makes a package with two attached adapters run a
---- different one between presses. An adapter id is `<name>:<root>` and `run.run` takes one
---- verbatim, so naming it is what settles the run. The nearest declaring package.json names it;
---- with nothing declared and more than one adapter attached the choice is the operator's, because
---- a wrong silent pick reads as a runner that lost its tests.
+--- Runs everything under the working directory through one named adapter, because neotest
+--- otherwise picks a different attached adapter between presses. The nearest package.json
+--- names it. With none declared and several attached, the user chooses.
 local function run_all_tests()
   local neotest = neotest_with_parser()
   local directory = vim.fn.getcwd()
 
-  -- A manifest nobody can parse is not the same answer as a manifest naming no runner. Saying so
-  -- and stopping beats a chooser built on a file that could not be read. `owner_of` treats the
-  -- same result as "no runner" without a word, because it is asked once per file during discovery
-  -- and would say it hundreds of times.
+  -- An unparseable manifest stops the run with an error instead of a guess.
   local runner, unparseable = declared_runner(directory)
   if unparseable then
     vim.notify("neotest: could not parse " .. unparseable, vim.log.levels.ERROR)
     return
   end
 
-  -- One adapter id covers one tree, so a root-level run over packages naming different runners
-  -- either skips the odd ones out or runs their tests under a runner ownership never gave them.
-  -- Neither is worth guessing at, so the operator is told where to run instead.
+  -- One adapter id covers one tree, so packages with different runners need separate runs.
   if runner then
     local conflicting = packages_declaring_other_runners(directory, runner)
     if #conflicting > 0 then
@@ -468,10 +346,7 @@ local function run_all_tests()
     end
   end
 
-  -- Asked of each adapter rather than resolved here, so the id matches the one neotest builds
-  -- from the same call. A JavaScript adapter roots on the nearest package.json, which can sit
-  -- outside the repository entirely; those tests are not this repository's, so that root is
-  -- refused on the same boundary the manifest walk stops at.
+  -- Each adapter reports its own root so the id matches neotest's. Roots outside the repository are refused.
   local repository = vim.fs.root(directory, ".git")
   local function inside_repository(root)
     return not repository or root == repository or vim.startswith(root, repository .. "/")
@@ -507,11 +382,7 @@ local function run_all_tests()
     end)
   end
 
-  -- Nothing here declares a JavaScript runner, so an attached JavaScript adapter is attached only
-  -- because some package.json exists, which a Python project can carry by accident. The adapters
-  -- that rooted on a marker of their own are the ones that were meant, so they answer first:
-  -- alone they run, together they are the choice. Neither the JavaScript fallback below nor the
-  -- refusal is reached while one of them is rooted here.
+  -- A JavaScript adapter attaches to any package.json, so adapters with their own root marker win.
   if #other == 1 then
     return neotest.run.run({ directory, adapter = other[1].id })
   end
@@ -522,9 +393,7 @@ local function run_all_tests()
   if #javascript == 1 then
     return neotest.run.run({ directory, adapter = javascript[1].id })
   end
-  -- Letting neotest choose is not a safe fallback once a root has been refused: it picks a
-  -- directory's adapter without asking `is_test_file`, so it would reach straight back for the
-  -- adapter rooted outside the repository that was just turned down.
+  -- neotest's own choice would pick the refused adapter again.
   if refused then
     vim.notify(
       ("neotest: every JavaScript adapter here roots outside %s, so there is nothing to run. Run from the package that owns those tests."):format(
@@ -547,14 +416,11 @@ return {
     commit = "27bf921498043f7ecd821d6db68d05de244bbd02",
     dependencies = {
       "webdavis/pns.nvim",
-      -- The busted and Swift adapters ship a rockspec listing nvim-nio, and lazy.nvim turns a
-      -- rockspec dependency into a top-level spec, which would make nvim-nio load at startup.
+      -- Lazy, because lazy.nvim turns the nvim-nio rockspec dependency into a startup spec.
       { "nvim-neotest/nvim-nio", lazy = true },
       { "nvim-neotest/neotest-python", commit = "1b56ca4ba51c6014f986d6548ee629bdc95589d1" },
       { "fredrikaverpil/neotest-golang", commit = "65b2be63c3de00e6f15c05388ebdc8d603dbd727" },
-      -- Ours, in its own repository and installed like any other plugin. A dependency rather
-      -- than a filetype-lazy spec, like the two above, so it reaches the runtime path when
-      -- neotest itself loads and is there before `config` builds the adapter list.
+      -- A dependency, so it is on the runtime path before `config` builds the adapter list.
       { "webdavis/neotest-bashunit", commit = "4c07ce1c94a53be4a5e8c959fd759432c81039f6" },
     },
     -- stylua: ignore start
@@ -568,24 +434,10 @@ return {
     },
     -- stylua: ignore end
     config = function()
-      -- Ownership is one answer, `owner_of`, and each adapter is asked for its own name. Nothing
-      -- else decides: a file cannot be a test file for the adapter standing down and not for the
-      -- one that would take it, which is how files ended up with no claimant at all.
-      --
-      -- vitest is copied rather than constructed. Its `__call` puts its own dependency gate AHEAD
-      -- of the predicate the caller supplies, and that gate cannot see a runner declared by an
-      -- intermediate package, so constructing it would veto the answer before it was asked. jest
-      -- and node:test both hand their `is_test_file` straight to the configured predicate, so they
-      -- take the supported route.
-      --
-      -- Audited at this pin: the copy keeps `root`, `filter_dir`, `build_spec`, `results` and the
-      -- default command, config, environment and working-directory closures, and drops only the
-      -- callable metatable, which nothing here needs. WHEN THE PIN MOVES, re-audit for options
-      -- initialized inside `__call`, methods reachable only through the metatable, and mutable
-      -- table fields the copy would share rather than own.
-      -- Compiled here, on the main loop, and not on first use. Tree-sitter's own first load
-      -- creates an augroup, and `is_test_file` is asked from async contexts where that raises
-      -- E5560; the error would be caught and read as "this file imports nothing".
+      -- Each adapter claims a file only when `owner_of` names it. vitest is copied, not constructed,
+      -- because its `__call` adds a dependency check that misses runners declared by nested packages.
+      -- The queries compile here, on the main loop, because tree-sitter's first load raises E5560 in
+      -- async contexts.
       node_test_query("javascript")
       node_test_query("typescript")
       node_test_query("tsx")
@@ -606,31 +458,9 @@ return {
         end,
       })
 
-      -- rustaceanvim's own neotest adapter, proven against a scratch two-test crate
-      -- (docs/research/2026-09-rust-neotest-disposition.md, finding 2): the tree it discovers is
-      -- correct once rust-analyzer has loaded the workspace. Getting there is the problem the
-      -- wrapper below solves. rustaceanvim discovers and runs tests through the LSP rather than
-      -- tree-sitter, so it needs no filetype-lazy parser wait of its own.
-      --
-      -- Readiness gate (Option 1 of that document): the adapter has none, so a discovery asked
-      -- before rust-analyzer has produced test runnables comes back as either a file-only tree
-      -- (finding 3, phase A) or a raised assertion from neotest's own empty-tree path (phase B),
-      -- and both are treated as final, since rustaceanvim retries on nothing but a buffer write.
-      -- This wraps `discover_positions` in a bounded retry instead: up to 10s, polled every
-      -- 400ms, comfortably past the ~3s a scratch crate needed to become ready and well short of
-      -- the point an operator would give up and press the key again. A tree still empty at the
-      -- deadline is returned as-is, matching what a manual retry after a save would produce
-      -- anyway, rather than raising. This configures the table rustaceanvim's own module
-      -- returns; it does not patch, fork or modify rustaceanvim itself. WHEN THE PIN MOVES,
-      -- re-check whether upstream has grown a readiness gate of its own (open question 3 in the
-      -- research document); if so, this wrapper becomes dead code and should be deleted.
-      --
-      -- The retry is a one-time warm-up, not a per-file cost: neotest's directory discovery
-      -- calls `discover_positions` once per `.rs` file, and rustaceanvim's `is_test_file`
-      -- returns true for every one, so an unbounded per-file retry would spin every test-less
-      -- source file in a crate to the full 10s deadline. `warmed` latches true the first time
-      -- rust-analyzer has produced a real (non-empty) tree, after which every call, including
-      -- one for a file that genuinely has no tests, returns on its first try.
+      -- Discovery retries until rust-analyzer has loaded the workspace, because
+      -- rustaceanvim treats an early empty tree as final. After the first real tree, every call
+      -- returns on its first try.
       local rustaceanvim_neotest = require("rustaceanvim.neotest")
       local warmed = false
       local rust = vim.tbl_extend("force", rustaceanvim_neotest, {
@@ -655,36 +485,15 @@ return {
         end,
       })
 
-      -- Proven against a scratch Maven project with one JUnit 5 test, discovered, compiled and
-      -- run through a real jdtls client (`lsp.lua`'s mason-lspconfig roster now installs it).
-      -- Classpath and compilation both come from that LSP client, which is why `lsp.lua` adds
-      -- `jdtls` rather than this file wiring a language server of its own. First use on a
-      -- machine needs one manual `:NeotestJava setup`, which downloads and checksums the JUnit
-      -- Platform Console Standalone jar; nothing here can do that download unattended.
+      -- Classpath and compilation come from jdtls. First use needs one manual `:NeotestJava setup`,
+      -- which downloads the JUnit jar.
       local java = require("neotest-java")({})
 
-      -- Proven against a scratch mix project with one ExUnit test and one doctest, both
-      -- discovered and run through a plain `elixir -S mix test` invocation. No LSP or classpath
-      -- dependency, unlike Java.
       local elixir = require("neotest-elixir")
 
-      -- Ours, proven against a scratch two-test project: both declarations discovered, both run,
-      -- and the deliberately failing one reported failed rather than green. A plain table with no
-      -- `__call` and nothing to configure, like neotest-bashunit.
       local zig = require("neotest-zig")
 
-      -- Construction audit at these pins. Only neotest-golang REQUIRES the call: its
-      -- `M.Adapter.options` is assigned inside `__call` alone (init.lua:241) and read by
-      -- `filter_dir` (init.lua:49), so the bare module raises on any Go module with a
-      -- subdirectory. The rest carry their options without it: neotest-python IS a constructed
-      -- adapter at load (init.lua:70), vitest and jest assign their defaults at load and let
-      -- `__call` override only what the caller supplies, busted's config module starts at its
-      -- own defaults (config.lua:17), and the Swift adapter's `__call` only sets a log level.
-      -- `neotest-bashunit` is ours and has no `__call` at all: it returns the adapter table.
-      -- `rust` is `rustaceanvim.neotest` extended rather than copied, since only
-      -- `discover_positions` needs overriding and the readiness gate above already built the
-      -- replacement; `java` IS constructed at load, like neotest-python, and `elixir` takes the
-      -- bare module, like busted, as does `zig`, which is ours and has no `__call` either.
+      -- neotest-golang must be called, because it sets its options only inside `__call`.
       require("neotest").setup({
         consumers = { pns = require("pns.integrations.neotest").consumer },
         adapters = {
@@ -709,7 +518,7 @@ return {
   { "AkisArou/neotest-nodejs", commit = "68e558dff61f7ac630f55ab63a092c1767965386", ft = javascript_filetypes },
   { "MisanthropicBit/neotest-busted", commit = "9efddcee53d255cef8937541808eccd464772f80", ft = "lua" },
   {
-    -- Codeberg, not GitHub: the GitHub repository has been an archived redirect since 2026-04-28.
+    -- The GitHub repository is an archived redirect to this one.
     url = "https://codeberg.org/mmllr/neotest-swift-testing",
     commit = "5b2d7efea43cb0d66d97de65b9ebc7b1db4659fd",
     ft = "swift",
@@ -720,27 +529,13 @@ return {
     commit = "71354dd2c3f59bcc2301528dfccbbfa2b85bb870",
     ft = "java",
     dependencies = {
-      -- The JDTLS-based LSP client neotest-java drives for classpath and compilation
-      -- (`:checkhealth neotest-java` requires the `jdtls` module from mfussenegger/nvim-jdtls;
-      -- the README also names nvim-java as an LSP alternative, but the health check does not
-      -- accept it. This config already carries `jdtls`'s server config and cmd_env in lsp.lua).
+      -- neotest-java's health check requires this client for classpath and compilation.
       { "mfussenegger/nvim-jdtls", commit = "6e9d953f0b82bccdb834cfde0e893f3119c22592" },
-      -- `:checkhealth neotest-java` flags this as required, not optional, for the
-      -- debugging feature the adapter's README lists. opts = {} makes lazy call setup(),
-      -- which is what registers the dap listeners and creates the DapVirtualText* commands.
+      -- neotest-java's health check requires this for debugging.
       { "theHamsta/nvim-dap-virtual-text", commit = "fbdb48c2ed45f4a8293d0d483f7730d24467ccb6", opts = {} },
     },
   },
-  -- jfpedroza/neotest-elixir has had no commit since 2025-01-19, twenty months as of this pin,
-  -- but it is not archived and it is the only Elixir adapter, and it passed proof against a
-  -- scratch mix project (docs/research/2026-09-15-neotest-language-coverage.md).
   { "jfpedroza/neotest-elixir", commit = "a242aebeaa6997c1c149138ff77f6cacbe33b6fc", ft = "elixir" },
-  -- Ours, in its own repository, because lawrence-laz/neotest-zig ships a Zig-side test runner
-  -- written against a std shape 0.15 and 0.16 removed (upstream issue 41 is open on a repository
-  -- with no commit since 2025-03-16; the exact compiler errors are in
-  -- docs/research/2026-09-15-neotest-language-coverage.md). neotest-zig owns no Zig code at all:
-  -- it reads the output of the runner Zig itself ships, so a standard-library rename is not its
-  -- problem. Filetype-lazy like the three rows above rather than a neotest dependency, since
-  -- `config` reaches it through lazy.nvim's require hook the same way it reaches rustaceanvim.
+  -- This adapter reads the test output Zig itself ships, so it keeps working across Zig releases.
   { "webdavis/neotest-zig", commit = "0deabad8bc9d08c7e70a6a3b7c0153ad76a52006", ft = "zig" },
 }

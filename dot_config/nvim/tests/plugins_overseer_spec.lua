@@ -1,14 +1,4 @@
--- The quickfix wiring in `lua/plugins/overseer.lua`.
---
--- The subject is the `on_output_quickfix` entry of the `default` component alias:
--- the errorformat it ships and the `items_only` flag beside it. Both are values,
--- not behavior, so this spec runs the plugin file's `config` with `overseer`
--- faked, captures the table handed to `setup()`, and then feeds the captured
--- errorformat real lines of output from the tools this repo actually runs.
---
--- Reading the value back out of the config the plugin file ships, rather than
--- restating the pattern here, is the point: a spec holding its own copy of the
--- errorformat passes while the shipped one rots.
+-- Reads the errorformat from the shipped config, with `overseer` faked, and feeds it real tool output.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
@@ -59,14 +49,12 @@ local function captured_setup_opts()
     end
   end
   vim.api.nvim_create_user_command = function() end
-  -- The spec never fires VimEnter, but the config registers a preload autocmd;
-  -- stubbing it keeps this spec from leaving one behind in the runner's process.
+  -- Stub the preload autocmd, so this spec leaves none behind in the runner.
   vim.api.nvim_create_autocmd = function() end
 
   local ok, err = pcall(function()
     local spec = dofile(config_root .. "/lua/plugins/overseer.lua")
-    -- The keymaps live in the spec's `keys` rows, where lazy installs them, so
-    -- they are read from there rather than from a `map()` call in `config`.
+    -- lazy installs the keymaps from the spec `keys` rows, so read them there.
     for _, row in ipairs(spec.keys or {}) do
       captured_maps[row[1]] = row[2]
     end
@@ -93,7 +81,7 @@ local function quickfix_component()
   error("the default alias has no on_output_quickfix entry")
 end
 
----The hook the config registers for EVERY template (the one with no filter).
+---The hook the config registers for EVERY template, the one with no filter.
 ---@return fun(task_defn: table, util: table)
 local function hook_for_all_templates()
   captured_setup_opts()
@@ -133,8 +121,7 @@ local hook_util = {
   end,
 }
 
--- One line through the shipped errorformat. Returns the resolved filename (or
--- nil when the entry is not a valid location), the line number, and the message.
+-- One line through the shipped errorformat. Returns the filename or nil, the line number, and the message.
 local function parse(line)
   local defn = {}
   hook_for_all_templates()(defn, hook_util)
@@ -154,11 +141,7 @@ end
 
 return {
   ["a command whose binary is missing is not wrapped"] = function()
-    -- Overseer's wrapper replaces `vim.system` and returns the task's process
-    -- handle, which stays nil when the spawn failed, and it swallows the ENOENT
-    -- that `vim.system` documents as a raise. A caller that does
-    -- `vim.system(cmd):wait()` then indexes nil: rustaceanvim's health check
-    -- crashed exactly there while probing for the absent optional `lspmux`.
+    -- The overseer wrapper returns a nil handle on a failed spawn, so `vim.system(cmd):wait()` would index nil.
     assert(
       wrap_condition()({ "kulala-no-such-binary-xyz", "--version" }) == false,
       "a missing binary is still wrapped, so vim.system returns nil instead of raising"
@@ -166,8 +149,7 @@ return {
   end,
 
   ["a command whose binary exists is still wrapped"] = function()
-    -- The feature is wanted: a plugin's background job stays inspectable. Only
-    -- the spawn-failure case is declined.
+    -- Background jobs stay wrapped, so they stay inspectable.
     assert(
       wrap_condition()({ vim.v.progpath, "--version" }) == true,
       "an existing binary is no longer wrapped, so the feature is off"
@@ -175,19 +157,13 @@ return {
   end,
 
   ["a shell-string jobstart is still wrapped and an empty command is not"] = function()
-    -- The condition guards both wrappers. `jobstart`'s string form always
-    -- spawns the shell (a documented, supported form real callers in this
-    -- tree use, e.g. oil.nvim's `jobstart(vim.o.shell, {term=true})`), so it
-    -- can never hit the nil-handle defect this condition guards against.
+    -- The string form of `jobstart` always spawns the shell, so it never gets a nil handle.
     assert(wrap_condition()("echo hi") == true, "a shell-string jobstart was declined")
     assert(wrap_condition()({}) == false, "an empty command was wrapped")
   end,
 
   ["the alias leaves a template's own errorformat alone"] = function()
-    -- `on_output_quickfix.errorformat` has `default_from_task`, which only fills
-    -- in when the component does NOT set it. Setting it in the alias overrode
-    -- every template that ships one, Cargo's among them, so a compiler error
-    -- landed on the nonexistent `--> src/lib.rs` buffer.
+    -- Setting errorformat in the alias would override each template's own, Cargo's among them.
     assert(
       quickfix_component().errorformat == nil,
       "the alias pins an errorformat, so a template's own is ignored: " .. tostring(quickfix_component().errorformat)
@@ -214,9 +190,7 @@ return {
   end,
 
   ["the just hook scopes uniqueness to the working directory"] = function()
-    -- `unique` compares task NAMES only, so `just test` started in a second
-    -- worktree stopped and disposed the first worktree's running task. The name
-    -- has to carry the directory for the comparison to tell them apart.
+    -- `unique` compares names only, so the name carries the directory.
     local hook = hook_for_just()
     local first = { name = "just test", cwd = "/repo/a" }
     local second = { name = "just test", cwd = "/repo/b" }
@@ -229,11 +203,7 @@ return {
   end,
 
   ["the hook copies the components it was handed"] = function()
-    -- Overseer expands aliases before calling a hook, so `components` IS the
-    -- shared alias table. Component initialization fills `default_from_task`
-    -- into those params in place, so the first task built wrote its errorformat
-    -- into the alias every later task shares: an ordinary task first made Cargo
-    -- inherit the generic format, and Cargo first contaminated ordinary tasks.
+    -- `components` is the shared alias table, and component setup writes into it in place.
     local shared = { { "on_output_quickfix" } }
     local defn = { components = shared }
     hook_for_all_templates()(defn, hook_util)
@@ -243,8 +213,7 @@ return {
   end,
 
   ["the just hook names a task the builder left unnamed"] = function()
-    -- The pinned `just` builder returns `cmd` and `cwd` and no `name`, so both
-    -- recipes became `nil (<cwd>)` and `unique` disposed whichever ran first.
+    -- The `just` builder returns no `name`, so the hook supplies one.
     local hook = hook_for_just()
     local test = { cmd = { "just", "test" }, cwd = "/repo" }
     local lint = { cmd = { "just", "lint-gate" }, cwd = "/repo" }
@@ -252,15 +221,12 @@ return {
     hook(lint, hook_util)
     assert(not test.name:match("nil"), "the name is still nil-derived: " .. test.name)
     assert(test.name ~= lint.name, "both recipes share the name " .. test.name)
-    -- The command is json-encoded, so the recipe reads as its argv words rather
-    -- than a shell line. Both still name the recipe they run.
+    -- The command is json-encoded, so the name holds argv words, not a shell line.
     assert(test.name:match("just") and test.name:match("test"), "the recipe is missing from " .. test.name)
   end,
 
   ["the just hook keeps argument boundaries in the name"] = function()
-    -- Joining argv with spaces threw the boundaries away, so a two-parameter
-    -- recipe called with {"a b", "c"} and with {"a", "b c"} produced one name
-    -- and `unique` disposed whichever was running.
+    -- argv joined with spaces would give {"a b", "c"} and {"a", "b c"} one name.
     local hook = hook_for_just()
     local first = { cmd = { "just", "r", "a b", "c" }, cwd = "/repo" }
     local second = { cmd = { "just", "r", "a", "b c" }, cwd = "/repo" }
@@ -270,9 +236,7 @@ return {
   end,
 
   ["the live output view follows the newest task, not a hovered one"] = function()
-    -- Overseer keeps the task the cursor was last over in the sidebar. Preferring
-    -- it meant that after hovering an older task and closing the sidebar, every
-    -- task started afterwards was ignored and the view stayed on the old one.
+    -- A new task takes the view, even after hovering an older one.
     captured_setup_opts()
     local rhs = assert(captured_maps["<leader>ov"], "<leader>ov is not mapped")
     local real_cmd = vim.cmd
@@ -292,9 +256,7 @@ return {
   end,
 
   ["the live output view separates two starts in the same second"] = function()
-    -- `time_start` is `os.time()`, one-second resolution, so A then B inside one
-    -- second compared equal and the earlier task stayed displayed. The start
-    -- sequence is what orders them.
+    -- `time_start` has one-second resolution, so the start sequence orders tasks.
     captured_setup_opts()
     local rhs = assert(captured_maps["<leader>ov"], "<leader>ov is not mapped")
     local real_cmd = vim.cmd
@@ -322,8 +284,7 @@ return {
 
   ["the quickfix errorformat resolves this repo's test-runner failures"] = function()
     -- `tests/run.lua` prints `FAIL <spec>: <case>: <file>:<line>: <message>`.
-    -- Under the stock errorformat `%f` swallows the whole prefix, so the entry
-    -- names a file that does not exist and jumps nowhere.
+    -- The stock `%f` would swallow the whole prefix.
     local file, lnum, text = parse("FAIL util_spec: trim strips whitespace: lua/custom_api/util.lua:42: boom")
     assert(file == "lua/custom_api/util.lua", "resolved the wrong file: " .. tostring(file))
     assert(lnum == 42, "resolved the wrong line: " .. tostring(lnum))
@@ -331,9 +292,7 @@ return {
   end,
 
   ["the skipped failure prefix stops at the assertion location"] = function()
-    -- The prefix pattern must not be greedy. A message carrying a second
-    -- `file:line` used to win, so the entry pointed at whatever the assertion
-    -- text mentioned rather than at where it failed.
+    -- A non-greedy prefix, so a second `file:line` in the message never wins.
     local file, lnum, text = parse("FAIL util_spec: assertion: actual.lua:42: unexpected location: other.lua:99: boom")
     assert(file == "actual.lua", "resolved the wrong file: " .. tostring(file))
     assert(lnum == 42, "resolved the wrong line: " .. tostring(lnum))
@@ -352,8 +311,7 @@ return {
   end,
 
   ["the quickfix errorformat rejects a bare recipe failure"] = function()
-    -- `just` reports its own failure with a line number that belongs to the
-    -- justfile, not to any file the message names.
+    -- `just` reports a line number from the justfile, not from a file the message names.
     assert(
       parse("error: recipe `test-nvim` failed on line 183 with exit code 1") == nil,
       "just's own failure line became a quickfix location"

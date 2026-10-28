@@ -19,7 +19,7 @@ return {
           else
             vim.g.qs_enable = 0
           end
-          -- force Quickscope to update
+          -- Quickscope redraws on cursor movement, so this shows the change right away.
           vim.cmd("doautocmd CursorMoved")
         end,
       })

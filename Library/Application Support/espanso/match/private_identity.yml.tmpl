@@ -1,6 +1,4 @@
 matches:
-  # ── Name ──────────────────────────────────────────────────────────────────
-
   - trigger: ",,sad"
     replace: "Stephen A. Davis"
 
@@ -12,8 +10,6 @@ matches:
 
   - trigger: ",,ln"
     replace: "Davis"
-
-  # ── Email addresses ───────────────────────────────────────────────────────
 
   - trigger: ",,em"
     replace: "stephen@webdavis.io"
@@ -30,8 +26,6 @@ matches:
   - trigger: ",,rs"
     replace: "ksesqcdt@feed.readwise.io"
 
-  # ── Closings / signatures ─────────────────────────────────────────────────
-
   - trigger: ",,wa"
     replace: "With Appreciation,\nStephen Davis"
 
@@ -44,16 +38,12 @@ matches:
   - trigger: ",,wsig"
     replace: "Thank you,\nStephen Davis\nBroccoli AI"
 
-  # ── Address (KeePassXC password field) ────────────────────────────────────
-
   - trigger: ",,ma"
 {{- if (env "CI") }}
     replace: "FAKE_ADDRESS"
 {{- else }}
     replace: {{ (keepassxc "Personal :: Address").Password | quote }}
 {{- end }}
-
-  # ── Phone numbers (KeePassXC password field) ──────────────────────────────
 
   - trigger: ",,pn"
 {{- if (env "CI") }}

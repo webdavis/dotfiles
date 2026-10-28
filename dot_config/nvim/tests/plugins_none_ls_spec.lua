@@ -1,16 +1,8 @@
--- What none-ls is still allowed to register, from `lua/plugins/lsp.lua`.
---
--- It stays installed for its two CODE-ACTION sources, which neither conform.nvim
--- nor nvim-lint replaces, and for nothing else. A formatter put back here would
--- compete with conform for the buffer; a diagnostic would publish into the
--- shared LSP namespace instead of nvim-lint's own. So the interesting assertion
--- is negative, and the double is built to make it: every builtin category is a
--- recorder, so the config cannot read one without this spec seeing it.
+-- none-ls keeps only its two code-action sources. Every builtin category records, so any other read shows.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
----Load the none-ls spec against a recording `null-ls` double, run its `config`,
----and hand back every builtin it asked for plus the sources it registered.
+---Run the none-ls config against a recording `null-ls` double.
 local function registered()
   local asked, sources = {}, nil
 

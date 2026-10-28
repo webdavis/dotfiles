@@ -1,6 +1,4 @@
--- The Ivy vault is not synced to this Mac yet; it lands in ~/workspaces/Ivy
--- (memory: scalebar-on-hold). Loading only for notes under that folder keeps
--- every other markdown file free of vault behaviour.
+-- Loads only for notes in the Ivy vault, so other markdown files keep their usual behaviour.
 local vault = vim.fn.expand("~/workspaces/Ivy")
 
 return {
@@ -13,7 +11,7 @@ return {
   opts = {
     legacy_commands = false,
     workspaces = { { name = "Ivy", path = vault } },
-    -- markview.nvim already renders markdown; two renderers fight over conceal.
+    -- markview.nvim already renders markdown, and two renderers fight over hidden text.
     ui = { enable = false },
   },
 }

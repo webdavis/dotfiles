@@ -1,34 +1,10 @@
--- Three subjects in `lua/plugins/git.lua`, sharing one load of the file.
---
--- The `<C-g>` guards in `lua/plugins/git.lua` (B87). `github.repo` and
--- `github.account` answer `nil, message` when `gh` cannot, and every keymap that
--- reads a field off either used to raise E5108 on the index.
---
--- The Fugitive spec's `config` is run with every `custom_api` module replaced by
--- a fake, `map` captured instead of installed, and each sink counted, so the
--- twelve affected keys can be invoked here with no `gh`, no repository and no
--- user interface. The fakes mirror the real modules' argument contracts (a
--- missing `repo_name` raises, as `git.latest_commit` does), so a dropped guard
--- fails a case rather than passing quietly.
---
--- Every gitsigns mapping, against the gitsigns function it reaches and the
--- arguments it passes, with gitsigns itself faked down to a per-function
--- recorder.
---
--- And `<leader>gM`, whose callback decides between focusing the blame window
--- this file already has open and opening a new one. Real windows and real
--- buffer names carry that decision, so the cases below name buffers the way
--- gitsigns and Fugitive name theirs and read back which window ended up
--- current.
+-- Covers the `<C-g>` guards, the gitsigns mappings and `<leader>gM` in `lua/plugins/git.lua`.
+-- The fakes mirror the real argument contracts, so a dropped guard fails a case.
 
--- The runner prepends `<config_root>/lua/?.lua` to package.path, and it invokes
--- a spec with `dofile`, which passes no arguments at all. A vararg here would
--- therefore always fall through to the source beside this file, ignore
--- `--config`, and pass while pointed at a config with none of the guards in it.
+-- From package.path, because `dofile` passes no arguments and a vararg would ignore `--config`.
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
--- What each fake was asked to do. Every counter must stay at zero for a guarded
--- key: reaching any of them means the callback ran past its guard.
+-- What each fake was asked to do. A guarded key leaves every counter at zero.
 local calls = {}
 
 local function reset_calls()
@@ -41,18 +17,13 @@ end
 
 reset_calls()
 
--- The scenario the fake `github` is answering for. Mutated between cases; the
--- captured callbacks index this table at call time, so one load covers all three.
+-- The scenario the fake `github` answers. Callbacks read it at call time, so one load covers every case.
 local github_fake = {}
 local git_fake = {}
 local util_fake = {}
 local overseer_fake = {}
 
--- gitsigns, faked down to one recorder per function `lua/plugins/git.lua`
--- reaches. `setup` is called at configure time and answers nothing; every other
--- entry records the name it was called under and the arguments it received, so
--- a mapping pointed at the wrong function or handed the wrong arguments fails a
--- case below rather than passing on the strength of its own description.
+-- gitsigns faked as one recorder per function, so a wrong target or argument fails a case.
 local gitsigns_calls = {}
 
 local function reset_gitsigns_calls()
@@ -71,9 +42,7 @@ local function count_gitsigns_calls(name)
   return count
 end
 
--- `setup` keeps the options it was handed: the buffer-local mappings live in
--- `on_attach`, which gitsigns calls when it attaches and which nothing here
--- would otherwise reach.
+-- `setup` keeps its options, because the buffer-local mappings live in `on_attach`.
 local setup_opts
 local gitsigns_fake = {
   setup = function(cfg)
@@ -125,8 +94,7 @@ local function set_scenario(scenario)
     github_fake.account = function()
       return { fullname = "Full Name", username = "username" }
     end
-    -- A successful `gh` whose answer carried no slash: `repo` hands back a table
-    -- with a nil `name`, which `git.latest_commit` and `git.url` both raise on.
+    -- `gh` answered with no slash, so `repo` returns a nil `name`.
     github_fake.repo = function()
       return { nameWithOwner = "noslash", owner = nil, name = nil }
     end
@@ -202,10 +170,7 @@ end
 -- `map` is a global installed by init.lua, which this runner never loads.
 local captured = {}
 
--- The same mappings keyed by mode and left-hand side together. `captured` keeps
--- only the last spec declared on a key, and two of the gitsigns keys are
--- declared twice, once in normal mode and once in visual, so the gitsigns table
--- below reads its rows from here.
+-- Keyed by mode and lhs, because two gitsigns keys are declared in both normal and visual mode.
 local captured_by_mode = {}
 
 local function capture_map(spec)
@@ -219,10 +184,7 @@ local function capture_map(spec)
   end
 end
 
--- The runner loads every spec into ONE process, so nothing global may outlive a
--- call here. An earlier version left the fakes in `package.loaded` and broke
--- `util_spec`, which then required this file's `custom_api.util` instead of the
--- real one. Everything is saved and put back.
+-- Every spec runs in one process, so all globals are saved and restored.
 local MODULES = {
   ["custom_api.github"] = github_fake,
   ["custom_api.git"] = git_fake,
@@ -293,9 +255,7 @@ end
 
 set_scenario("repo_fails")
 
--- Loaded with the fakes in place: `lua/plugins/git.lua` binds them to its own
--- module-level locals, which the captured callbacks then close over, so the
--- fakes keep answering after `package.loaded` is put back.
+-- Loaded with the fakes in place, so the callbacks close over them.
 local specs
 with_fake_modules(function()
   specs = dofile(config_root .. "/lua/plugins/git.lua")
@@ -309,9 +269,7 @@ for _, spec in ipairs(specs) do
 end
 assert(fugitive, "no vim-fugitive spec in lua/plugins/git.lua")
 
--- The fugitive mappings ARE the spec's `keys` rows, so the callbacks come from
--- there rather than from a faked `map()`; `keys` is a function, which lazy.nvim
--- calls for its rows, so this calls it the same way.
+-- The fugitive mappings are the spec `keys` rows, built by calling `keys` as lazy.nvim does.
 local built, keys_error = with_fake_sinks(function()
   for _, row in ipairs(fugitive.keys()) do
     captured[row[1]] = { lhs = row[1], rhs = row[2], desc = row.desc }
@@ -327,8 +285,7 @@ for _, spec in ipairs(specs) do
 end
 assert(gitsigns_spec, "no gitsigns.nvim spec in lua/plugins/git.lua")
 
--- The fakes are back in place for this one, because the gitsigns spec requires
--- the plugin inside its `config` rather than at file scope.
+-- The gitsigns spec requires the plugin inside `config`, so the fakes go back in place.
 with_fake_modules(function()
   local ok, err = with_fake_sinks(function()
     gitsigns_spec.config()
@@ -339,9 +296,7 @@ end)
 assert(setup_opts, "the gitsigns spec's config did not call setup")
 assert(type(setup_opts.on_attach) == "function", "the gitsigns setup options carry no on_attach")
 
--- The buffer-local mappings, declared once against a scratch buffer. gitsigns
--- passes the buffer it attached to; `map` records the rows rather than
--- installing them, so the buffer is only what the callbacks close over.
+-- The buffer-local mappings, declared once against a scratch buffer the callbacks close over.
 local attach_buffer = vim.api.nvim_create_buf(false, true)
 with_fake_modules(function()
   local ok, err = with_fake_sinks(function()
@@ -407,8 +362,7 @@ for _, row in ipairs(SCENARIOS) do
   end
 end
 
--- A key dropped from either list above would silently stop being covered, and a
--- key renamed in git.lua would stop being found. Both are pinned here.
+-- Pins both lists against the keys in git.lua.
 cases["the two guarded key lists cover exactly the twelve affected keys"] = function()
   local union = {}
   for _, list in ipairs({ ACCOUNT_KEYS, REPO_KEYS }) do
@@ -426,10 +380,7 @@ cases["the two guarded key lists cover exactly the twelve affected keys"] = func
   assert(#names == 12, ("%d keys covered, expected 12: %s"):format(#names, table.concat(names, " ")))
 end
 
--- `<C-g>!` stages, amends and force-pushes through `FugitiveExecute` rather
--- than a synchronous `:Git` chain, so its sequencing is driven directly:
--- `FugitiveExecute` and `FugitiveDidChange` are faked, `vim.schedule` runs its
--- callback immediately, and `vim.cmd` records the command strings it received.
+-- `<C-g>!` runs through `FugitiveExecute`, so fake it, run `vim.schedule` callbacks at once, and record `vim.cmd`.
 local function press_amend_and_push(exit_status, stderr)
   local real_cmd = vim.cmd
   local real_notify = vim.notify
@@ -490,9 +441,7 @@ cases["<C-g>! stages, amends, and force-pushes in order on success"] = function(
   assert(#answer.notifications == 0, "expected no notifications on success")
 end
 
--- The amend runs a pre-commit hook, a multi-second window in which the user
--- can switch to a buffer in another repository. The push must still target
--- the buffer that was current when `<C-g>!` was pressed.
+-- The amend hook can run for seconds, so the push targets the buffer current at the keypress.
 cases["<C-g>! pushes against the buffer captured before the amend, not one switched to while it ran"] = function()
   local original_buf = vim.api.nvim_get_current_buf()
   local other_buf = vim.api.nvim_create_buf(false, true)
@@ -550,15 +499,13 @@ cases["<C-g>! stages then warns and stops when the amend fails"] = function()
   assert(answer.notifications[1].level == vim.log.levels.WARN, "expected a WARN-level notification")
 end
 
--- Paths that exist nowhere: every name below is set on a scratch buffer, and
--- nothing here reads or writes the filesystem.
+-- Paths that exist nowhere, set only as buffer names.
 local ROOT = "/private/tmp/plugins-git-spec/repo"
 local GITDIR = ROOT .. "/.git"
 local BARE = "/private/tmp/plugins-git-spec/bare.git"
 
----One `<leader>gM` press against a window layout built for the case. Each name
----in `blames` becomes a window, the source buffer gets the last one, and the
----answer names the window left current and counts the blames opened.
+---One `<leader>gM` press against a layout with one window per name in `blames`.
+---Returns the window left current and the count of blames opened.
 ---@param case table
 ---@return table
 local function press_blame_walk(case)
@@ -622,10 +569,7 @@ cases["`<leader>gM` focuses the blame window open on this file"] = function()
   }, { focused = 1, blames_opened = 0 })
 end
 
--- The blame a reader already walked with `R` sits at another revision and is
--- still the window to focus rather than to duplicate, so only the path is
--- compared. This case also drives the other revision shape: gitsigns names the
--- index `:0`, which carries a colon of its own, and a walked blame does not.
+-- A walked blame sits at another revision and still gets focus, so compare only the path.
 cases["`<leader>gM` focuses a blame already walked to another revision"] = function()
   assert_blame_walk({
     what = "the blame walked to a parent commit",
@@ -635,9 +579,7 @@ cases["`<leader>gM` focuses a blame already walked to another revision"] = funct
   }, { focused = 1, blames_opened = 0 })
 end
 
--- A colon is legal in a filename, so the blame name for `a:x.lua` ends with the
--- blame name for `x.lua`. Matching the tail focuses the wrong window and leaves
--- this file unblamed.
+-- A colon is legal in a filename, so match the whole blame name, not its tail.
 cases["`<leader>gM` does not focus a blame whose path merely ends with this one"] = function()
   assert_blame_walk({
     what = "the blame for a differently named file",
@@ -647,10 +589,7 @@ cases["`<leader>gM` does not focus a blame whose path merely ends with this one"
   }, { focused = "source", blames_opened = 1 })
 end
 
--- A bare repository has no working tree, so a Fugitive revision buffer's
--- `fugitive://` name cannot start with one. Fugitive parses its own URL back
--- into `<rev>:<path>`, which is the only place that path is available; without
--- it the second press opens a second blame and fails naming its buffer.
+-- A bare repository has no working tree, so read the path from the Fugitive URL parse.
 cases["`<leader>gM` focuses the blame of a Fugitive buffer in a bare repository"] = function()
   local real_parse = vim.fn.FugitiveParse
   vim.fn.FugitiveParse = function()
@@ -668,8 +607,7 @@ cases["`<leader>gM` focuses the blame of a Fugitive buffer in a bare repository"
   assert(ok, err)
 end
 
--- A repository rooted at `/` already ends in the separator, so appending one
--- gives `//` and no absolute path starts with that.
+-- A root of `/` already ends in the separator.
 cases["`<leader>gM` focuses the blame in a repository rooted at the filesystem root"] = function()
   assert_blame_walk({
     what = "the blame in a repository rooted at `/`",
@@ -679,14 +617,7 @@ cases["`<leader>gM` focuses the blame in a repository rooted at the filesystem r
   }, { focused = 1, blames_opened = 0 })
 end
 
--- Every gitsigns mapping `lua/plugins/git.lua` declares, against the gitsigns
--- function it must reach and the arguments it must hand over. A mapping dropped
--- from the file, renamed, moved to another mode or repointed at a neighbouring
--- function fails here.
---
--- `args` pins a constant argument list. `range` marks the two visual-mode
--- mappings, which pass the selection's line numbers and so carry a value that
--- the cursor position decides rather than the source.
+-- Every gitsigns mapping with the function it must reach. `args` pins constant arguments, `range` marks the two visual-mode mappings.
 local GITSIGNS_KEYS = {
   { lhs = "]g", mode = "n", fn = "nav_hunk", args = { "next", { target = "all" } } },
   { lhs = "[g", mode = "n", fn = "nav_hunk", args = { "prev", { target = "all" } } },
@@ -716,9 +647,7 @@ local GITSIGNS_KEYS = {
   { lhs = "ih", mode = "x", fn = "select_hunk", args = {} },
 }
 
----One press of a gitsigns mapping, answering the calls it made. Run in a
----scratch buffer of its own: `]g` and `[g` read `vim.wo.diff`, and the two
----range mappings read the cursor position.
+---One press of a gitsigns mapping in its own scratch buffer, returning the calls it made.
 ---@param row table
 ---@return table
 local function press_gitsigns(row)
@@ -761,9 +690,7 @@ for _, row in ipairs(GITSIGNS_KEYS) do
   end
 end
 
--- A mapping added to the gitsigns spec without a row above would otherwise go
--- uncovered. Its description is what identifies it: the `<C-g>B` keys that read
--- `git.blame_sha` rather than gitsigns are described as `Git Blame:` instead.
+-- Finds mappings by their `Gitsigns: ` description, so a new one without a row fails.
 cases["the gitsigns table covers every `Gitsigns: ` mapping the spec declares"] = function()
   local covered = {}
   for _, row in ipairs(GITSIGNS_KEYS) do

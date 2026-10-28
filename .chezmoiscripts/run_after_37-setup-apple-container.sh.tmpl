@@ -1,11 +1,6 @@
 {{ if eq .chezmoi.os "darwin" -}}
 #!/usr/bin/env bash
 
-# Apple's `container` tool (Homebrew formula) needs two one-time steps after
-# install: its API server running as a brew service, and a Linux kernel for
-# the VMs it boots. Both are skipped when already done, so a no-op apply prints
-# nothing.
-
 set -euo pipefail
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
@@ -17,11 +12,8 @@ container_is_installed() {
   [[ -x $container_bin ]]
 }
 
-# `brew services start container` bootstraps a one-shot launch agent that runs
-# `container system start`, which registers com.apple.container.apiserver with
-# launchd itself and exits. So "loaded" (the brew agent is bootstrapped, runs at
-# login) and "answering" (the API server is up now) are two separate checks;
-# brew's own `running` flag is always false here.
+# Checks that the brew service is loaded, because it starts the API server once and exits.
+# Its running flag stays false, so a separate check asks the API server to answer.
 brew_service_is_loaded() {
   brew services info container --json 2>/dev/null | jq -e '.[0].loaded' >/dev/null 2>&1
 }

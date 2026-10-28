@@ -7,14 +7,13 @@
 {{- else -}}
 {{-   $machine = promptChoiceOnce . "machine" $question $machines -}}
 {{- end -}}
-# encryption must stay a bare key ABOVE the first [section] or chezmoi ignores it.
+# chezmoi reads encryption only as a bare key above the first [section].
 encryption = "age"
 sourceDir = "/Users/stephen/workspaces/Ivy/webdavis/dotfiles"
 workingTree = "/Users/stephen/workspaces/Ivy/webdavis/dotfiles"
 
 [add]
-  # Refuse `chezmoi add` of files that look like they contain secrets unless
-  # --encrypt is given (a guardrail, not a substitute for the gitleaks gate).
+  # Stops `chezmoi add` of a file that looks like it holds a secret unless --encrypt is given.
   secrets = "error"
 
 [age]
@@ -28,6 +27,6 @@ workingTree = "/Users/stephen/workspaces/Ivy/webdavis/dotfiles"
   command = "{{ .chezmoi.sourceDir }}/.install-password-manager.sh"
 
 [data]
-  # Asked once by `chezmoi init`; answer it up front with
-  # --promptChoice "Which machine is this?=raith".
+  # `chezmoi init` asks for this once.
+  # --promptChoice "Which machine is this?=raith" answers it up front.
   machine = {{ $machine | quote }}

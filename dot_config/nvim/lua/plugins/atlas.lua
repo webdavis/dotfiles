@@ -1,20 +1,10 @@
--- atlas.nvim: a second GitHub client, installed BESIDE octo rather than in place of it. The evaluation
--- at docs/research/2026-09-atlas-nvim-evaluation.md returned DO NOT ADOPT for a swap; the operator
--- overruled that for a side-by-side trial on 2026-09-05. Octo keeps `<leader>gh` exactly as it is and
--- atlas takes `<leader>gt` (git -> aTlas: `a`, `A`, `l` and `s` are all taken under `<leader>g`).
---
--- Pinned to tag 0.7.3, released 2026-08-26. The README opens with "Still in early development, will
--- have breaking changes!" and the tag history runs 0.6.6 to 0.7.3 inside three days, so everything
--- below is written against 0.7.3 in particular. Re-read that tag's README before moving the pin.
+-- A second GitHub client beside octo, on `<leader>gt`.
+-- Pinned, because upstream warns of breaking changes.
+-- Read the new tag's README before moving the pin.
 return {
   "emrearmagan/atlas.nvim",
   commit = "5aa47cd33400a137bf59df84e088a954e1add3b0",
-  -- Devicons is the one dependency taken. render-markdown.nvim is the README's other recommendation
-  -- and is skipped on purpose: markview.nvim already renders markdown in this config and a second
-  -- renderer would fight it. codediff.nvim and diffview.nvim are skipped with the diff decision below.
   dependencies = { "nvim-tree/nvim-web-devicons" },
-  -- Nothing loads at startup. `Atlas` and `AtlasDiff` are the only commands the plugin registers, and
-  -- it registers them from `setup()`, so lazy's stubs are what stand in until one of these fires.
   cmd = { "Atlas", "AtlasDiff" },
   keys = {
     { "<leader>gtt", "<cmd>Atlas<cr>", desc = "Atlas: pick a command" },
@@ -29,39 +19,24 @@ return {
   ---@type AtlasConfig
   opts = {
     ui = {
-      -- "auto" resolves to snacks here anyway; naming it drops the detection step, as octo does.
       picker = "snacks",
     },
-    -- GitHub and nothing else. Atlas reads its GitHub credential from the `gh` CLI, so no token is
-    -- stored here or pulled from the vault. A provider is offered to `:Atlas` only when it has an entry
-    -- in this table, so leaving GitLab, Bitbucket and Jira out is what keeps them off the dashboards;
-    -- each of the three also hard-requires a token, and no account for any of them was found on this
-    -- machine (evaluation 4.6).
+    -- Atlas offers only the providers listed here, and reads the GitHub credential from the `gh` CLI.
     providers = {
       github = {},
     },
     pulls = {
-      -- Every remote here is ssh and ~/.gitconfig rewrites https://github.com/ to git@github.com:, so
-      -- the "https" default would be rewritten on the way out. Say ssh once instead.
+      -- ~/.gitconfig rewrites GitHub https URLs to ssh.
       git_transport = "ssh",
-      -- Local review notes outlive an approve or a merge. They never reach the forge: `<leader>n` in a
-      -- diff writes one, `<leader>gtn` lists them, and bin/atlas-notes drives the same store from a
-      -- script. This is the one atlas review path that posts nothing to GitHub.
+      -- Keep local review notes after an approve or a merge.
       delete_notes = false,
       diff = {
-        -- Native AtlasDiff, chosen rather than defaulted into. The alternatives are codediff.nvim and
-        -- diffview.nvim, neither installed here, and the README records that both integrations reach
-        -- into atlas internals and break on upstream changes. Native is the only one that adds no
-        -- dependency and no breakage path at once.
+        -- The codediff and diffview integrations reach into atlas internals
+        -- and break on upstream changes.
         open_cmd = "AtlasDiff",
       },
-      -- `pulls.repo_config.paths` is deliberately absent, which leaves atlas read, review and comment
-      -- only: with no mapping, checkout (`gc`) refuses with its own message and changes nothing.
-      -- This is a protection policy rather than a technical limit. Atlas checks out into a worktree
-      -- perfectly well, and a worktree with a branch already on it can still switch branches. The
-      -- reason to withhold the mapping is that dashboard `gc` switches the mapped checkout's branch
-      -- the instant it is pressed, with no confirmation, one key away from the read-only `gd`.
-      -- Branches here are checked out with worktrunk (`wt`), which is where that decision belongs.
+      -- Atlas stays read and review only. Setting `repo_config.paths` would let the dashboard's `gc`
+      -- switch a branch with one unconfirmed key.
     },
   },
 }

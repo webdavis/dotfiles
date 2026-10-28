@@ -15,7 +15,6 @@ return {
     { "<leader>XL", "<cmd>Trouble loclist toggle<cr>", desc = "Trouble: Location List" },
     { "<leader>Xq", "<cmd>Trouble qflist toggle<cr>", desc = "Trouble: Quickfix List" },
 
-    -- LSP
     -- stylua: ignore start
     { "<leader>lx", "<cmd>Trouble lsp toggle focus=false win.position=right<cr>", desc = "Trouble (LSP): definitions／references／etc" },
     { "<leader>lX", "<cmd>Trouble symbols toggle focus=false<cr>", desc = "Trouble (LSP): symbols (don't focus)" },

@@ -1,25 +1,5 @@
--- The JavaScript adapter routing in lua/plugins/neotest.lua (spec 5.3), and the directory run
--- behind `<leader>ta`. Three adapters claim JavaScript and neotest walks its adapter map with
--- `pairs`, so without a decision here the adapter that runs a file, or a directory, varies
--- between runs.
---
--- The adapter modules and `neotest.setup` are stubbed, so this runs headless with no plugin
--- installed and no test runner process. What is NOT stubbed is the routing's own reading of the
--- tree, because that is where ownership is decided: the fixture below is a real package layout
--- under `vim.fn.tempname()`, so every rule is exercised against real manifests and real file
--- contents rather than against a description of them.
---
--- The stubs follow each pinned adapter's own shape. jest REBINDS the upvalue its
--- `adapter.is_test_file` reads rather than replacing the function, so `adapter.is_test_file` is
--- the same object before and after the call and capturing it to compose against would recurse.
--- node:test returns a whole new adapter table. vitest is neither, because the routing does not
--- construct it: its `__call` puts its own dependency gate ahead of the caller's predicate, so the
--- routing copies the module and overrides the field, and the stub is a plain table.
---
--- Tree-sitter is NOT stubbed either. The routing asks a parser which nodes are imports, so the
--- runner's `--clean` start is given back the directory nvim-treesitter installs grammars into.
--- A machine carrying no JavaScript grammar, which is how CI installs Neovim, exercises the stated
--- fallback instead: a file whose language cannot be parsed has no node:test import to find.
+-- Routes JavaScript test files to one adapter, because neotest walks its adapter map with `pairs`.
+-- Adapters are stubbed. The fixture is a real package layout, and tree-sitter is real when a grammar is installed.
 
 local plugin_spec = require("plugins.neotest")[1]
 
@@ -27,12 +7,7 @@ vim.opt.runtimepath:append(vim.fn.stdpath("data") .. "/site")
 local _, javascript_grammar = pcall(vim.treesitter.language.add, "javascript")
 javascript_grammar = javascript_grammar == true
 
--- Names no parser file can be called, rather than real languages: the line above puts this
--- machine's whole grammar directory back on the runtimepath, so every genuinely installed
--- language would take the gate's "already there" path and the waiting case would never run.
--- The two builds that deliver nothing get their own names because the gate REMEMBERS a language
--- whose wait came back empty, so measuring that on the shared name would leave the result to
--- case order.
+-- Made-up names, because the real grammar directory is on the runtimepath. The gate remembers an empty wait, so each failing build gets its own name.
 local PARSERLESS_LANGUAGE = "language_with_no_parser_on_disk"
 local STALLED_LANGUAGE = "language_whose_build_never_finishes"
 local FAILING_LANGUAGE = "language_whose_build_fails"
@@ -43,17 +18,10 @@ for _, language in ipairs({ PARSERLESS_LANGUAGE, STALLED_LANGUAGE, FAILING_LANGU
   )
 end
 
--- The keys whose handler goes through the parser gate rather than straight to the module, and
--- whose only argument is the buffer they were pressed from. Each reads the current buffer to
--- decide what to discover, so each needs the grammar that discovery parses with, and each is
--- measured below: pinning one leaves the other two revertible. `<leader>ta` goes through the same
--- gate but takes a directory as well, so it is pressed through `press_run_all` instead and pinned
--- beside these three.
+-- Keys whose handler goes through the parser gate and takes only the buffer. `<leader>ta` also takes a directory, so it is pressed separately.
 local GATED_KEYS = { "<leader>tt", "<leader>tf", "<leader>ts" }
 
--- Realpath'd, because `:cd` resolves symlinks and macOS puts the temporary directory behind
--- one, so a working directory read back after `:cd` would not string-compare against the path
--- the fixture was written to.
+-- Realpath'd, because `:cd` resolves the macOS temp-directory symlink.
 local fixture_root = vim.fn.tempname()
 vim.fn.mkdir(fixture_root, "p")
 fixture_root = vim.uv.fs_realpath(fixture_root) or fixture_root
@@ -200,9 +168,8 @@ write_fixture("broken/tests/x.test.js", 'import { test } from "vitest";\n')
 local silent = write_fixture("silent/package.json", '{ "name": "silent", "version": "1.0.0" }')
 write_fixture("silent/tests/thing.test.js", 'test("thing", function () {});\n')
 
--- Two JavaScript repositories declaring no runner, alike but for one bash test file. `.git` is
--- what neotest-bashunit roots on, and it is at the top of both, so the file is the only thing
--- telling them apart.
+-- Two JavaScript repositories declaring no runner, alike but for one bash test file.
+-- `.git` at the top of both is what neotest-bashunit roots on, so the bash file tells them apart.
 local jsnobash = write_fixture("jsnobash/package.json", '{ "name": "jsnobash", "version": "1.0.0" }')
 write_fixture("jsnobash/.git", "gitdir: /nowhere\n")
 write_fixture("jsnobash/tests/thing.test.js", 'test("thing", function () {});\n')
@@ -216,8 +183,7 @@ local function directory_of(manifest)
   return vim.fn.fnamemodify(manifest, ":h")
 end
 
---- The root all three JavaScript adapters resolve, faithful to their pins: every one of them
---- roots on the nearest ancestor holding a package.json.
+--- The root all three JavaScript adapters resolve: the nearest ancestor holding a package.json.
 local function package_root(path)
   return vim.fs.root(path, "package.json")
 end
@@ -232,12 +198,7 @@ local function busted_root(path)
   return vim.fs.root(path, ".busted")
 end
 
---- neotest-bashunit takes a `.bashunitrc` at its word, and otherwise claims a repository only
---- when a `*.test.sh` is actually reachable inside it. Mirrors the adapter's own rule, which
---- exists because `.git` marks every repository there is: rooting on the marker alone attached
---- the adapter to all of them, and a directory run then went to bash in a project holding none.
---- `vim.fs.find` rather than the adapter's `vim.fs.dir` walk because these fixtures are small and
---- carry nothing to prune; the answer is the same one.
+--- neotest-bashunit trusts a `.bashunitrc`, and otherwise claims a repository only when a `*.test.sh` is reachable inside it.
 local function bashunit_root(path)
   local root = vim.fs.root(path, { ".bashunitrc", ".git" })
   if not root or vim.uv.fs_stat(root .. "/.bashunitrc") then
@@ -253,18 +214,10 @@ local function no_root()
   return nil
 end
 
---- Run the plugin spec's `config` against stubbed adapters and return each JavaScript adapter's
---- configured `is_test_file`, the adapter list neotest was handed, and a way to press `<leader>ta`
---- or any of `GATED_KEYS`.
---- @param rust_discover_positions (fun(file_path: string): table)? Stubs
----   `rustaceanvim.neotest.discover_positions`, the one field the readiness wrapper in
----   `plugins/neotest.lua` calls through rather than reading off the stub table directly. Only
----   the retry-wrapper case passes this; every other case leaves it nil, which is fine because
----   nothing else calls the field.
+--- Run the plugin `config` against stubbed adapters. Returns each JavaScript `is_test_file`, the adapter list, and key pressers.
+--- @param rust_discover_positions (fun(file_path: string): table)? Stubs `rustaceanvim.neotest.discover_positions`.
 local function route(rust_discover_positions)
-  -- Real `nio.sleep` raises "Cannot call sleep from non-async context" outside a coroutine nio
-  -- itself started, which this synchronous spec never is. Stubbed to a no-op counter so the
-  -- retry-wrapper case can assert it waited without actually waiting.
+  -- Real `nio.sleep` raises outside an nio coroutine, so count calls instead of sleeping.
   local nio_sleep_calls = 0
   package.loaded["nio"] = {
     sleep = function()
@@ -293,12 +246,7 @@ local function route(rust_discover_positions)
     end,
   })
 
-  -- What the parser gate asked nvim-treesitter for, and what it answers can be built. The plugin
-  -- is absent under the runner's `--clean` start, so both of its modules are faked: every case
-  -- reaches the gate, and one measures it.
-  -- Keyed by language, because `pwait` answers in TWO parts and the three endings differ in which
-  -- part carries the bad news: a wait that ran out is `false, "timeout"`, a build that RAN and
-  -- delivered nothing is `true, false`, and only both together mean a parser arrived.
+  -- nvim-treesitter is faked. `pwait` answers `false, "timeout"` for a timeout, `true, false` for an empty build, and `true, true` for a parser.
   local pwait_answers = {
     [PARSERLESS_LANGUAGE] = { true, true },
     [STALLED_LANGUAGE] = { false, "timeout" },
@@ -318,8 +266,7 @@ local function route(rust_discover_positions)
           answer = pwait_answers[language]
           assert(answer, "no pwait answer is declared for " .. language)
         end
-        -- The task `install` hands back. `pwait` reports rather than raises, which is why the gate
-        -- takes that one rather than `wait`, and it reports in the two parts above.
+        -- The task `install` returns. The gate uses `pwait`, which reports instead of raising.
         return {
           pwait = function()
             return answer[1], answer[2]
@@ -342,8 +289,7 @@ local function route(rust_discover_positions)
           ran = args
         end,
       },
-      -- `<leader>ts` reaches the module here rather than through `run.run`, so the count has to
-      -- see it, or the summary key would read as never having got past the gate.
+      -- `<leader>ts` reaches the module here, so count it.
       summary = {
         toggle = function()
           requests = requests + 1
@@ -359,15 +305,11 @@ local function route(rust_discover_positions)
         return { name = "neotest-golang", root = no_root, constructed = true }
       end,
     }),
-    -- Ours, and a plain table like its real module: no `__call`, so a stub with a metatable
-    -- would not be the shape `config` requires. Its root is the real rule rather than a stub
-    -- that never attaches: rooting nowhere hid the adapter from every directory-run fixture,
-    -- which is exactly where a bash adapter that over-claims does its damage.
+    -- A plain table like the real module, rooted by the real rule, so an over-claiming bash adapter shows in directory runs.
     ["neotest-bashunit"] = { name = "neotest-bashunit", root = bashunit_root },
     ["neotest-busted"] = { name = "neotest-busted", root = busted_root },
     ["neotest-swift-testing"] = { name = "neotest-swift-testing", root = no_root },
-    -- rustaceanvim ships its adapter under its own name, not "neotest-rust"; matched here so the
-    -- routing extends the same module real rustaceanvim would hand back.
+    -- rustaceanvim ships its adapter under its own module name.
     ["rustaceanvim.neotest"] = {
       name = "rustaceanvim",
       root = no_root,
@@ -379,12 +321,10 @@ local function route(rust_discover_positions)
       end,
     }),
     ["neotest-elixir"] = { name = "neotest-elixir", root = no_root },
-    -- Ours, and a plain table like its real module: no `__call`, so a stub with a metatable
-    -- would not be the shape `config` requires.
+    -- A plain table like the real module, because `config` requires that shape.
     ["neotest-zig"] = { name = "neotest-zig", root = no_root },
   }
-  -- Left in place rather than restored: the configured predicates are called after this returns,
-  -- and none of these names is a real module under the headless runner.
+  -- Left in place, because the configured predicates run after this returns.
   for name, stub in pairs(stubs) do
     package.loaded[name] = stub
   end
@@ -413,8 +353,7 @@ local function route(rust_discover_positions)
     assert(gated[key], key .. " is not in the plugin spec's keys")
   end
 
-  --- Call `press` from a scratch buffer of `filetype`, which is what the parser gate reads, and
-  --- leave the buffer list as it was found. A nil `filetype` presses from the current buffer.
+  --- Call `press` from a scratch buffer of `filetype`, then restore the buffer list. A nil `filetype` uses the current buffer.
   ---@param filetype string?
   ---@param press fun()
   ---@return boolean, string?
@@ -432,8 +371,7 @@ local function route(rust_discover_positions)
     return pressed, pressed_error
   end
 
-  --- Press `<leader>ta` in `directory`. `choose` is the item the operator picks when asked, and
-  --- `filetype` is the buffer the press is made from, which is the language its gate waits for.
+  --- Press `<leader>ta` in `directory`. `choose` is the item picked, and `filetype` is the buffer the press comes from.
   ---@return { ran: table|string|nil, prompted: string[]|nil, notified: string[], installs: string[] }
   local function press_run_all(directory, choose, filetype)
     ran = nil
@@ -458,9 +396,8 @@ local function route(rust_discover_positions)
     return { ran = ran, prompted = prompted, notified = notified, installs = installs }
   end
 
-  --- Press one of `GATED_KEYS` from a scratch buffer of `filetype`, and report what the request
-  --- waited for on its way to neotest. A pure notify recorder, never a pass-through: headless
-  --- noice drops the continuation.
+  --- Press one of `GATED_KEYS` from a `filetype` buffer and report what the request waited for.
+  --- Notify only records, because headless noice drops the continuation.
   ---@param key string
   ---@param filetype string
   ---@return { installs: string[], requests: integer, notified: string[] }
@@ -490,8 +427,7 @@ local function route(rust_discover_positions)
   }
 end
 
---- The one adapter claiming `path`, or nil. Two claimants is itself a failure, so every case
---- that asks this is also asserting that ownership stayed single.
+--- The one adapter claiming `path`, or nil. Two claimants fail the case.
 local function owner(routed, path)
   local claimed = {}
   for name, predicate in pairs({
@@ -508,9 +444,7 @@ local function owner(routed, path)
   return claimed[1]
 end
 
---- The adapter that must own a file importing node:test: node:test itself where the JavaScript
---- grammar is installed, and `without_grammar` where none is. Both are real answers this routing
---- gives, and which one a machine sees is decided by what it has installed.
+--- node:test where the JavaScript grammar is installed, otherwise `without_grammar`.
 local function node_or(without_grammar)
   return javascript_grammar and "neotest-nodejs" or without_grammar
 end
@@ -523,8 +457,7 @@ cases["one package declaring both runners gives its files to vitest"] = function
 end
 
 cases["a nested jest package inside a vitest repository keeps its own files"] = function()
-  -- The nearest package that names a runner is the one that meant it, so a nested jest package
-  -- is not swallowed by a vitest ancestor. Precedence only settles a package declaring both.
+  -- The nearest package naming a runner wins. Precedence only settles a package declaring both.
   local routed = route()
   assert(owner(routed, nested_file) == "neotest-jest", "the nested jest package lost its own file")
   assert(owner(routed, vitest_root_file) == "neotest-vitest", "vitest gave up a file in the package that declares it")
@@ -533,14 +466,10 @@ cases["a nested jest package inside a vitest repository keeps its own files"] = 
 end
 
 cases["a nested git repository does not inherit a runner from outside it"] = function()
-  -- Walking to the filesystem root reaches a package.json belonging to some unrelated ancestor,
-  -- and a repository that declares no runner then runs its tests under one it never chose. The
-  -- same boundary rejects an adapter whose root sits outside the repository.
+  -- The repository boundary stops the manifest walk and rejects adapters rooted outside it.
   local routed = route()
   assert(owner(routed, inner_file) == nil, "the nested repository inherited a runner from outside it")
-  -- And a plain run is not a safe fallback once a root has been refused: neotest picks a
-  -- directory's adapter without asking `is_test_file`, so it would reach for the very adapter
-  -- rooted outside the repository that was just turned down.
+  -- neotest picks a directory adapter without `is_test_file`, so a refused root must not fall back to a plain run.
   local run = routed.press_run_all(directory_of(inner_git))
   assert(not run.prompted, "the run offered adapters rooted outside the repository")
   assert(not run.ran, "the run fell back to letting neotest choose, got " .. vim.inspect(run.ran))
@@ -548,17 +477,13 @@ cases["a nested git repository does not inherit a runner from outside it"] = fun
 end
 
 cases["a runner an intermediate package declares is found through a nested empty manifest"] = function()
-  -- Reading only the nearest manifest stops at the empty one, and the adapters' own dependency
-  -- detection looks at the working directory and the git root, neither of which is the package
-  -- that declares the runner. The file ends up with no claimant at all.
+  -- The runner comes from the declaring package behind the empty manifest.
   local routed = route()
   assert(owner(routed, behind_empty_file) == "neotest-vitest", "the intermediate package's runner was lost")
 end
 
 cases["node:test owns the file names its own matcher rejects"] = function()
-  -- The three pinned matchers disagree about which names are test files: vitest claims `.e2e.js`
-  -- and node:test claims `.e2e-spec.js`, and none of the three claims `.mjs` or `.cjs`. Deciding
-  -- ownership with one rule and standing down with another left those files with no claimant.
+  -- The pinned matchers disagree on names, so ownership and standing down use one rule.
   local routed = route()
   for _, path in ipairs({ e2e_node_file, mjs_node_file, cjs_node_file }) do
     assert(owner(routed, path) == node_or("neotest-vitest"), "a node:test file had the wrong claimant: " .. path)
@@ -566,8 +491,7 @@ cases["node:test owns the file names its own matcher rejects"] = function()
 end
 
 cases["a regular expression is neither an import nor a place to hide one"] = function()
-  -- A scanner copying every non-comment slash as code loses the import written after a regular
-  -- expression holding a quote, and reads the contents of one holding a require call as an import.
+  -- Regex literals hide no import and fake none.
   local routed = route()
   assert(owner(routed, regex_file) == node_or("neotest-vitest"), "a regular expression hid a real import")
   assert(owner(routed, regex_lookalike_file) == "neotest-vitest", "a regular expression read as an import")
@@ -580,16 +504,14 @@ cases["a template substitution is code and a literal nested in one is not"] = fu
 end
 
 cases["a type-only import or re-export is not a runtime dependency"] = function()
-  -- TypeScript erases these before anything runs, so they name node:test at compile time only.
-  -- The file's real runner is the one its runtime import names.
+  -- Type-only imports vanish before runtime, so the runtime import picks the runner.
   local routed = route()
   assert(owner(routed, type_import_file) == "neotest-vitest", "a type-only import claimed the file for node:test")
   assert(owner(routed, type_export_file) == "neotest-vitest", "a type-only re-export claimed the file for node:test")
 end
 
 cases["JSX written before an import does not swallow it"] = function()
-  -- The TypeScript grammar has no JSX, so it absorbs everything after the first element into an
-  -- error node, import included, and the file goes to the runner its package declares.
+  -- The TypeScript grammar has no JSX, so the import lands in an error node and the package runner wins.
   local _, tsx = pcall(vim.treesitter.language.add, "tsx")
   local routed = route()
   assert(
@@ -599,15 +521,8 @@ cases["JSX written before an import does not swallow it"] = function()
 end
 
 cases["a parse happens once per file version, and never without the literal"] = function()
-  -- Each of the three asks the same question about the same file, and neotest's filtering pass
-  -- runs without yielding, so parsing once per adapter is three times the stall for one answer.
-  -- The file's own bytes are what the answer depends on, so its size and modification time are
-  -- what make a cached answer still true.
-  --
-  -- Parsing is the whole cost of discovery, so the count is what the three versions below are
-  -- for: a file that names node:test is parsed once per version, and one that does not is
-  -- answered from its bytes without a parser at all. Measured over 500 test files of 129 KB,
-  -- that third version is the difference between 11.9 s and 0.3 s.
+  -- Cache the answer per file size and mtime, because all three adapters ask and the neotest filter pass never yields.
+  -- A file that never names node:test is answered from its bytes without parsing.
   local routed = route()
   local parses = 0
   local original = vim.treesitter.get_string_parser
@@ -643,15 +558,13 @@ cases["a parse happens once per file version, and never without the literal"] = 
 end
 
 cases["a file whose language has no grammar has no node:test owner"] = function()
-  -- Nothing parses CoffeeScript here, so the import cannot be seen and is not guessed at. The
-  -- package's declared runner takes the file instead.
+  -- Nothing parses CoffeeScript, so the package's declared runner takes the file.
   local routed = route()
   assert(owner(routed, coffee_file) == "neotest-vitest", "an unparseable language was given to node:test")
 end
 
 cases["a node:test mention inside a comment is not an import"] = function()
-  -- Otherwise a vitest test that merely names the module in a note is claimed by node:test
-  -- while vitest and jest both stand down for it.
+  -- A note naming the module is not an import.
   local routed = route()
   for _, path in ipairs({ commented_file, block_commented_file }) do
     assert(owner(routed, path) == "neotest-vitest", "a comment cost the package's own runner a file: " .. path)
@@ -659,9 +572,7 @@ cases["a node:test mention inside a comment is not an import"] = function()
 end
 
 cases["a string that looks like an import is not one, and a URL does not hide one"] = function()
-  -- Both are ordinary JavaScript. A textual strip reads `'require("node:test")'`, a plain string,
-  -- as an import, and a `//` inside a URL literal ends the line early, losing the real import
-  -- written beside it.
+  -- A string holding `require("node:test")` is not an import, and a `//` inside a URL ends no line.
   local routed = route()
   assert(owner(routed, snippet_file) == "neotest-vitest", "a quoted snippet read as an import")
   assert(owner(routed, url_file) == node_or("neotest-vitest"), "a URL literal hid a real import")
@@ -675,8 +586,7 @@ cases["the multiline and require shapes of a node:test import both count"] = fun
 end
 
 cases["a node:test import past the head of a long file is still an import"] = function()
-  -- A license or generated preamble pushes the real import down the file, so a reader that
-  -- stops after a prefix hands the file to the runner the package declares instead.
+  -- A long preamble pushes the import down, so read the whole file.
   local routed = route()
   assert(owner(routed, late_import_file) == node_or("neotest-vitest"), "a preamble hid the import")
 end
@@ -688,10 +598,7 @@ cases["a file importing node:test is node:test's, whatever the project declares"
 end
 
 cases["the configured predicates answer a nil path instead of raising"] = function()
-  -- neotest types `file_path` as optional, and an error raised inside `is_test_file` loses the
-  -- position silently rather than surfacing, which reads as a runner flake. The filename rule
-  -- answers first, and that answer is what keeps a nil path away from everything that reads the
-  -- tree. Reversing the terms is what this goes red on.
+  -- The filename rule answers first, so a nil `file_path` never reaches the tree reads.
   local routed = route()
   for name, predicate in pairs({ vitest = routed.vitest, jest = routed.jest, node = routed.node }) do
     local ok, err = pcall(predicate, nil)
@@ -700,12 +607,8 @@ cases["the configured predicates answer a nil path instead of raising"] = functi
 end
 
 cases["the predicates answer inside a fast event, where a Vimscript read would raise"] = function()
-  -- Every other case asks from the main loop, where `vim.fn.readfile` works. neotest does not:
-  -- it asks from its own async contexts, and a Vimscript call raises E5560 there, which a `pcall`
-  -- turns into "no import" rather than an error anyone sees. A libuv callback is the strictest of
-  -- those contexts, so ask from one, on a deadline. Both reads are covered: the parse of the
-  -- node:test file, and the outward manifest walk for the vitest one. Tree-sitter's own first
-  -- load creates an augroup and raises there too, which is why the routing warms it up front.
+  -- neotest asks from async contexts where Vimscript calls raise E5560, so ask from a libuv callback.
+  -- The routing warms tree-sitter up front, because its first load creates an augroup.
   local routed = route()
   local answers, failure, done = {}, nil, false
   local timer = assert(vim.uv.new_timer())
@@ -734,18 +637,14 @@ cases["the predicates answer inside a fast event, where a Vimscript read would r
 end
 
 cases["neotest-golang is constructed, because its options are populated only by the call"] = function()
-  -- At the pinned commit `M.Adapter.options` is assigned inside `__call` alone and read by
-  -- `filter_dir`, so the bare module raises in any Go module with a subdirectory.
+  -- `M.Adapter.options` is set only in `__call`, so the bare module raises in a Go module with a subdirectory.
   local routed = route()
   assert(routed.by_name["neotest-golang"], "neotest-golang is not in the adapter list")
   assert(routed.by_name["neotest-golang"].constructed, "neotest-golang was passed as a bare module")
 end
 
 cases["a directory run names the adapter the nearest package declares"] = function()
-  -- neotest accepts a directory without asking any adapter's `is_test_file`, then picks through
-  -- `pairs`, so a package with two attached adapters ran a different one between presses
-  -- (measured: 11 vitest and 9 jest over 20 fresh processes). An adapter id is `<name>:<root>`
-  -- and `run.run` takes one verbatim, so naming it is what makes the choice explicit.
+  -- neotest picks a directory adapter through `pairs`, so name the `<name>:<root>` adapter id explicitly.
   local routed = route()
 
   local both = routed.press_run_all(directory_of(dual))
@@ -763,8 +662,7 @@ cases["a directory run names the adapter the nearest package declares"] = functi
     "expected jest by name, got " .. tostring(jest_package.ran and jest_package.ran.adapter)
   )
 
-  -- The intermediate package's runner reaches the directory run too, through the empty manifest
-  -- that the adapter roots on.
+  -- The intermediate package's runner reaches the directory run through the empty manifest.
   local intermediate = routed.press_run_all(directory_of(behind_empty))
   assert(
     intermediate.ran and intermediate.ran.adapter == "neotest-vitest:" .. directory_of(behind_empty),
@@ -773,9 +671,7 @@ cases["a directory run names the adapter the nearest package declares"] = functi
 end
 
 cases["a directory run dispatches the only non-JavaScript adapter rather than asking"] = function()
-  -- A stray package.json in a Python project roots all three JavaScript adapters, and none of
-  -- them is what the operator meant. Nothing here declares a JavaScript runner and exactly one
-  -- other adapter is rooted, so there is nothing to ask about.
+  -- A stray package.json roots the JavaScript adapters, but exactly one other adapter is rooted, so nothing is asked.
   local routed = route()
   local python = routed.press_run_all(directory_of(pystray))
   assert(not python.prompted, "the run asked when only one adapter could have been meant")
@@ -786,9 +682,8 @@ cases["a directory run dispatches the only non-JavaScript adapter rather than as
 end
 
 cases["a directory run refuses a root whose packages declare different runners"] = function()
-  -- One adapter id covers one tree, so dispatching the root's own runner either skips the nested
-  -- package or runs its tests under a runner ownership never gave them. From the nested package
-  -- itself the run is unambiguous and still goes ahead.
+  -- One adapter id covers one tree, so a nested package with another runner blocks the root run.
+  -- From the nested package itself the run goes ahead.
   local routed = route()
   local root_run = routed.press_run_all(directory_of(conflict))
   assert(not root_run.ran, "the run dispatched one runner over packages declaring two")
@@ -807,9 +702,7 @@ cases["a directory run refuses a root whose packages declare different runners"]
 end
 
 cases["a directory run ignores manifests under dependencies and hidden directories"] = function()
-  -- `vim.fs.dir` reports paths relative to the root it was given, so comparing the whole path
-  -- against "node_modules" lets `src/node_modules` through, and every hidden directory but the
-  -- root's own `.git` with it. Installed packages and caches are not this repository's packages.
+  -- Compare relative path parts, so nested `node_modules` and hidden directories are skipped.
   local routed = route()
   local run = routed.press_run_all(directory_of(pruned))
   assert(
@@ -823,8 +716,7 @@ cases["a directory run ignores manifests under dependencies and hidden directori
 end
 
 cases["a directory run finds a conflicting package however deep it sits"] = function()
-  -- A fixed depth is a guess about someone else's layout, and the packages past it are exactly
-  -- the ones whose tests would silently run under the wrong runner.
+  -- Packages at any depth count.
   local routed = route()
   local run = routed.press_run_all(directory_of(deep))
   assert(not run.ran, "a conflicting package below the old ceiling went unseen")
@@ -835,8 +727,7 @@ cases["a directory run finds a conflicting package however deep it sits"] = func
 end
 
 cases["a directory run offers every non-JavaScript adapter rooted here"] = function()
-  -- Two of them rooted is still not a JavaScript question. Offering only the JavaScript adapters
-  -- puts the two that were actually meant out of reach, and refusing outright does the same.
+  -- Two non-JavaScript adapters rooted is not a JavaScript question, so offer those two.
   local routed = route()
 
   local stray = routed.press_run_all(directory_of(polyglot), 2)
@@ -862,9 +753,7 @@ cases["a directory run offers every non-JavaScript adapter rooted here"] = funct
 end
 
 cases["a directory run stops on a package.json it cannot parse"] = function()
-  -- A manifest that cannot be read is not the same answer as a manifest naming no runner, and
-  -- collapsing the two put the operator in front of a chooser instead of in front of the
-  -- reason. The prompt would have offered a real choice built on a manifest nobody could read.
+  -- An unreadable manifest reports its reason instead of opening a chooser.
   local routed = route()
   local broken_run = routed.press_run_all(directory_of(broken))
   assert(not broken_run.ran, "an unreadable manifest still dispatched a run")
@@ -889,10 +778,7 @@ cases["a directory run with no runner declared asks rather than picking one"] = 
 end
 
 cases["a directory run reaches bash only where a bash test actually lives"] = function()
-  -- `.git` is at the top of every repository, so an adapter rooting on that marker alone is
-  -- rooted in all of them. neotest hands a directory run straight to the single non-JavaScript
-  -- adapter that attached, so a JavaScript project declaring no runner ran its "all tests"
-  -- through bashunit, over no bash tests, instead of asking which adapter was meant.
+  -- `.git` tops every repository, so a project with no bash tests must not run through bashunit.
   local routed = route()
 
   local without = routed.press_run_all(directory_of(jsnobash), 2)
@@ -917,15 +803,10 @@ cases["a directory run reaches bash only where a bash test actually lives"] = fu
 end
 
 cases["a test request waits for the parser its discovery needs"] = function()
-  -- B96. Every adapter discovers positions with tree-sitter, and neotest raises "No parser for
-  -- language" from inside its own discovery when the grammar is missing: measured against a data
-  -- directory with no `go` parser, the first `<leader>tt` in a Go module discovered nothing and
-  -- notified NOTHING, while a retry seconds later worked. Parsers install asynchronously, so the
-  -- request is what has to wait for the one it needs.
+  -- Discovery needs the grammar, and parsers install asynchronously, so the request waits for its parser.
   local routed = route()
 
-  -- Every gated key, because each one discovers from the current buffer and "the request waits for
-  -- the parser its discovery needs" is the same sentence for all three.
+  -- Every gated key discovers from the current buffer.
   for _, key in ipairs(GATED_KEYS) do
     local waited = routed.press_gated(key, PARSERLESS_LANGUAGE)
     assert(
@@ -936,15 +817,13 @@ cases["a test request waits for the parser its discovery needs"] = function()
     assert(#waited.notified == 1, key .. " blocked on a build without saying why")
   end
 
-  -- `lua` is bundled with Neovim, so its parser is on every machine this config runs on. A
-  -- request that reinstalls what is already loaded would stall every press, not just the first.
+  -- `lua` is bundled, so a loaded parser is never reinstalled.
   local loaded = routed.press_gated("<leader>tt", "lua")
   assert(#loaded.installs == 0, "a parser already loaded was installed again: " .. vim.inspect(loaded.installs))
   assert(loaded.requests == 1, "the request never reached neotest")
   assert(#loaded.notified == 0, "an installed parser still announced an install")
 
-  -- snacks.nvim names its notification buffers, and no grammar is called that. Waiting there
-  -- would be waiting for a build that is never coming, which is the FileType installer's own rule.
+  -- No grammar is named after snacks notification buffers, so nothing is waited for.
   local unbuildable = routed.press_gated("<leader>tt", "snacks_notif")
   assert(
     #unbuildable.installs == 0,
@@ -952,11 +831,7 @@ cases["a test request waits for the parser its discovery needs"] = function()
   )
   assert(unbuildable.requests == 1, "the request never reached neotest")
 
-  -- A build that delivers no parser is waited for once, whichever way it ends. Both endings are
-  -- measured because they hide in different halves of `pwait`'s answer, and the one a status-only
-  -- read calls a success is the one this machine actually produces: with the build tool off PATH,
-  -- three presses cost 768/606/610 ms before the memo, and a download that stalls instead of
-  -- failing costs the full 30 s ceiling every press, indefinitely.
+  -- A build that delivers no parser is waited for once per session, whichever way it ends.
   for _, language in ipairs({ STALLED_LANGUAGE, FAILING_LANGUAGE }) do
     local first = routed.press_gated("<leader>tt", language)
     assert(vim.deep_equal(first.installs, { language }), "the first press did not wait for " .. language)
@@ -968,10 +843,8 @@ cases["a test request waits for the parser its discovery needs"] = function()
     assert(retried.requests == 1, "the request never reached neotest")
   end
 
-  -- `<leader>ta` names a directory, but its discovery still parses the buffer the press was made
-  -- from, so it goes through the gate as well. Pressed from a parserless buffer rather than one of
-  -- the two that deliver nothing, because those arm the per-session memo and this case is not
-  -- measuring it.
+  -- `<leader>ta` parses the buffer it was pressed from, so it goes through the gate too.
+  -- A parserless buffer, so the per-session memo stays unarmed.
   local directory_run = routed.press_run_all(directory_of(dual), nil, PARSERLESS_LANGUAGE)
   assert(
     vim.deep_equal(directory_run.installs, { PARSERLESS_LANGUAGE }),
@@ -981,10 +854,7 @@ cases["a test request waits for the parser its discovery needs"] = function()
 end
 
 cases["the rust readiness wrapper retries once for the load-window race, then stops retrying"] = function()
-  -- rustaceanvim's own module is a plain table with no discover_positions of its own; the retry
-  -- wrapper is the one piece of logic this PR adds, and nothing else in this spec calls through
-  -- it. Call 1 simulates rust-analyzer not answering yet; call 3 simulates a second, test-less
-  -- file whose own request also fails, to prove a warmed wrapper does not retry it.
+  -- Call 1 simulates rust-analyzer not answering yet. Call 3 is a test-less file that must not be retried.
   local call_count = 0
   local good_tree = {
     children = function()
@@ -1008,9 +878,7 @@ cases["the rust readiness wrapper retries once for the load-window race, then st
   assert(call_count == 2, "the wrapper did not retry exactly once before succeeding: got " .. call_count)
   assert(routed.nio_sleep_calls() == 1, "the wrapper did not wait between its retries")
 
-  -- Warmed by the first call's eventual success: a second, test-less file whose own call raises
-  -- is NOT retried to the 10s deadline, which is the SEV-2 fix (a test-less file used to spin
-  -- ~25 requests every time).
+  -- Once warmed, a test-less file that raises is not retried to the deadline.
   local no_tree = rust.discover_positions("/tmp/second-no-tests.rs")
   assert(no_tree == nil, "a warmed call that raised was retried instead of returning nil once")
   assert(call_count == 3, "a warmed call retried the underlying adapter: got " .. call_count)
@@ -1018,9 +886,7 @@ cases["the rust readiness wrapper retries once for the load-window race, then st
 end
 
 cases["the Zig adapter is in the adapter list, and its row loads on a .zig buffer"] = function()
-  -- Two halves of one wiring. The adapter has to reach `neotest.setup`, and the spec row that
-  -- carries it has to be triggered by the filetype a `.zig` file actually gets: a row lazy on the
-  -- wrong filetype leaves `require("neotest-zig")` resolving nothing on the machine.
+  -- The adapter reaches `neotest.setup`, and its spec row loads on the filetype a `.zig` file gets.
   local routed = route()
   assert(routed.by_name["neotest-zig"], "neotest-zig is not in the adapter list")
 
@@ -1039,12 +905,8 @@ cases["the Zig adapter is in the adapter list, and its row loads on a .zig buffe
 end
 
 cases["when the cases are done, the fixture tree is deleted"] = function()
-  -- The runner exits through `os.exit`, which skips the cleanup Neovim does for its own temporary
-  -- directory, so every run of this spec left its whole fixture tree behind. Sorted case names are
-  -- what put this one last, so a case added later under a name that sorts after it fails here
-  -- rather than finding the fixtures already gone.
-  -- The ordering complaint is recorded and raised LAST, after the tree is gone. Raising it first
-  -- skipped the delete and leaked the very tree this case exists to remove.
+  -- `os.exit` skips the temp cleanup, so the last case deletes the fixture tree.
+  -- The ordering complaint is raised after the delete.
   local last = "when the cases are done, the fixture tree is deleted"
   local sorts_after
   for name in pairs(cases) do

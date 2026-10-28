@@ -1,9 +1,3 @@
--- Keymaps
-
--- ┏━━━━━━━━━━━┓
--- ┃    LSP    ┃
--- ┗━━━━━━━━━━━┛
-
 map({
   mode = "n",
   lhs = "<leader>la",
@@ -13,9 +7,6 @@ map({
   desc = "LSP: code action",
 })
 
--- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
--- ┃    Faster File Manipulation    ┃
--- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 map({ mode = "n", lhs = "<C-s>", rhs = "write", desc = "Save file" })
 
 map({
@@ -23,8 +14,7 @@ map({
   lhs = "<leader>ex",
   rhs = function()
     local file = vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
-    -- argv, not `:!`, which hands the path to the shell: a tracked file named
-    -- `a$(...)b` runs the substitution before chmod ever sees it.
+    -- Passes the file name as an argument, so the shell never expands a name like `a$(...)b`.
     local result = vim.system({ "chmod", "+x", file }):wait()
     if result.code ~= 0 then
       vim.notify("Could not chmod +x *" .. file .. "*: " .. (result.stderr or ""), vim.log.levels.ERROR)
@@ -52,9 +42,6 @@ map({ mode = "n", lhs = "<leader>00", rhs = "quit", desc = "Quit: file" })
 map({ mode = "n", lhs = "<leader>0a", rhs = "qa", desc = "Quit: all files" })
 map({ mode = "n", lhs = "<leader>0A", rhs = "qa!", desc = "Quit: all files (force)" })
 
--- ┏━━━━━━━━━━━━┓
--- ┃    Lazy    ┃
--- ┗━━━━━━━━━━━━┛
 map({ mode = "n", lhs = "<leader>LL", rhs = "Lazy", desc = "Lazy: open dashboard" })
 map({ mode = "n", lhs = "<leader>Lh", rhs = "Lazy health", desc = "Lazy: health" })
 map({ mode = "n", lhs = "<leader>Li", rhs = "Lazy install", desc = "Lazy: install" })
@@ -67,28 +54,15 @@ map({ mode = "n", lhs = "<leader>Lr", rhs = "Lazy restore", desc = "Lazy: restor
 map({ mode = "n", lhs = "<leader>Lp", rhs = "Lazy profile", desc = "Lazy: profile" })
 map({ mode = "n", lhs = "<leader>Ld", rhs = "Lazy debug", desc = "Lazy: debug" })
 
--- ┏━━━━━━━━━━━━┓
--- ┃    Mason   ┃
--- ┗━━━━━━━━━━━━┛
 map({ mode = "n", lhs = "<leader>lm", rhs = "Mason", desc = "Mason: open" })
 
--- ┏━━━━━━━━━━━━━━━━┓
--- ┃    Movement    ┃
--- ┗━━━━━━━━━━━━━━━━┛
-
--- Better up & down keys when line wraps.
 map({ mode = { "n", "x" }, lhs = "j", rhs = "v:count == 0 ? 'gj' : 'j'", expr = true, sequence = true })
 map({ mode = { "n", "x" }, lhs = "k", rhs = "v:count == 0 ? 'gk' : 'k'", expr = true, sequence = true })
 
--- Faster scrolling.
 map({ mode = "n", lhs = "<C-e>", rhs = "<C-e><C-e>", desc = "Scroll down (x2)", sequence = true })
 map({ mode = "n", lhs = "<C-y>", rhs = "<C-y><C-y>", desc = "Scroll up (x2)", sequence = true })
 
--- https://github.com/mhinz/vim-galore#saner-behavior-of-n-and-n
---
--- Normal mode is re-mapped later by `lua/plugins/hlslens.lua`, which carries the
--- same direction-stable selection inside its own lens composition. Change one
--- and change the other, or `n` and `dn` go opposite ways again.
+-- `n` searches forward and `N` backward, whatever the last search direction.
 map({
   mode = "n",
   lhs = "n",
@@ -110,24 +84,19 @@ map({
 map({ mode = "x", lhs = "N", rhs = "'nN'[v:searchforward]", expr = true, desc = "Prev Search Result", sequence = true })
 map({ mode = "o", lhs = "N", rhs = "'nN'[v:searchforward]", expr = true, desc = "Prev Search Result", sequence = true })
 
--- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
--- ┃    Window & Line Editing    ┃
--- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 map({ mode = "n", lhs = "<C-Up>", rhs = "resize +2", desc = "Increase window Height" })
 map({ mode = "n", lhs = "<C-Down>", rhs = "resize -2", desc = "Decrease window Height" })
 map({ mode = "n", lhs = "<C-Left>", rhs = "vertical resize -2", desc = "Decrease window Width" })
 map({ mode = "n", lhs = "<C-Right>", rhs = "vertical resize +2", desc = "Increase window Width" })
 
--- Better line shifting.
 map({ mode = "v", lhs = "<", rhs = "<gv", desc = "Shift line left (←)", sequence = true })
 map({ mode = "v", lhs = ">", rhs = ">gv", desc = "Shift line right (→)", sequence = true })
 
--- Add undo break-points.
+-- Each of these marks starts a new undo step, so one undo removes less text.
 map({ mode = "i", lhs = ",", rhs = ",<c-g>u", sequence = true })
 map({ mode = "i", lhs = ".", rhs = ".<c-g>u", sequence = true })
 map({ mode = "i", lhs = ";", rhs = ";<c-g>u", sequence = true })
 
--- keywordprg
 map({
   mode = "n",
   lhs = "<leader>K",
@@ -137,7 +106,6 @@ map({
   desc = "Keywordprg",
 })
 
--- Start a comment on the next or previous line.
 map({
   mode = "n",
   lhs = "gco",
@@ -154,9 +122,6 @@ map({
   sequence = true,
 })
 
--- ┏━━━━━━━━━━━━━┓
--- ┃    Debug    ┃
--- ┗━━━━━━━━━━━━━┛
 map({
   mode = "n",
   lhs = "<leader>Ds",
@@ -174,9 +139,6 @@ map({
   desc = "Debug: treesitter syntax tree",
 })
 
--- ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓
--- ┃    Clipboard Mappings    ┃
--- ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 map({
   mode = "n",
   lhs = "Y",
@@ -194,12 +156,7 @@ map({
   sequence = true,
 })
 
--- CHARWISE, LINEWISE AND BLOCKWISE ALL SURVIVE. The Ex range this replaced
--- (`:'<,'>y+`) is always linewise, so selecting one word copied its whole line.
---
--- `x`, not `v`: `v` also covers SELECT mode, where a printable key replaces the
--- selection. A snippet placeholder is select mode, and with `Y` mapped there,
--- typing a capital Y over a placeholder yanked a line instead of replacing it.
+-- `x` rather than `v`, so typing over a snippet placeholder in select mode still replaces it.
 map({
   mode = "x",
   lhs = "<leader>y",
@@ -209,9 +166,7 @@ map({
   desc = "Yank the selection to clipboard, exactly as selected",
 })
 
--- The capital is Vim's own linewise convention, and it is mapped here because
--- the built-in visual `Y` reaches neither the clipboard nor the selection: it
--- yanks the selected lines into the UNNAMED register.
+-- Built-in visual `Y` yanks to the unnamed register only.
 map({
   mode = "x",
   lhs = "Y",
@@ -240,8 +195,6 @@ map({
   lhs = "<leader>yf",
   rhs = function()
     local filename = vim.fn.expand("%:t")
-    -- An unnamed buffer has no name to yank. Without this the clipboard was
-    -- emptied and the notification reported the empty string as a success.
     if filename == "" then
       vim.notify("Nothing to yank: this buffer has no filename", vim.log.levels.WARN)
       return
@@ -252,10 +205,7 @@ map({
   desc = "Yank filename to clipboard",
 })
 
--- ONE FUNCTION, EIGHT KEYS. Vim treats `i(` and `i)` as the same text object,
--- and likewise each other pair, so both keys of a pair are kept for whichever
--- one the hand reaches first while the behaviour lives in one place. Each entry
--- names the pair so a miss can say what it was looking for.
+-- Both keys of a pair select the same text object.
 for _, pair in ipairs({
   { keys = { "(", ")" }, delimiter = "(", label = "( ) pair" },
   { keys = { "{", "}" }, delimiter = "{", label = "{ } pair" },
@@ -275,31 +225,16 @@ for _, pair in ipairs({
   end
 end
 
--- ┏━━━━━━━━━━━━━━━━━━━━━━━┓
--- ┃    Review Ledger      ┃
--- ┗━━━━━━━━━━━━━━━━━━━━━━━┛
-
--- One awk program, no Lua parser. The pipeline's findings registers are not
--- tracked by this repository, so a reader written in Lua would be a second thing
--- to keep in step with the table format. `f` is the ledger path used when a row
--- carries no `path:line` token of its own, and it comes from awk's own
--- `FILENAME` rather than a `-v` variable, because `-v` runs escape processing
--- over the value and would turn a backslash in the path into a control
--- character. `all` of 1 keeps the closed rows.
--- The skip is a PREFIX match, because `FIXED-NOTEST` is a closed finding too:
--- the register grammar puts a commit sha on every one of them.
+-- The script reads the path from awk's FILENAME, because `-v` would turn its backslashes into escapes.
+-- Setting `all` to 1 keeps the closed rows.
 local ledger_awk = [==[
 function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
-# How many backticks run on from position i.
 function run_len(s, i, len,   n) {
   n = 0
   while (i + n <= len && substr(s, i + n, 1) == "`") n++
   return n
 }
-# Where the span opened at i by a run of n backticks closes, as the index of the
-# last backtick of the CLOSING run, or 0 when nothing closes it. A run of N
-# closes only on a run of N, which is what makes a doubled delimiter one span
-# rather than two toggles that cancel.
+# Index of the last backtick of the run of n that closes the span opened at i, or 0.
 function span_end(s, i, len, n,   j, r) {
   j = i + n
   while (j <= len) {
@@ -310,13 +245,7 @@ function span_end(s, i, len, n,   j, r) {
   }
   return 0
 }
-# Split `s` on any character of `delims`, with a closed code span kept WHOLE: a
-# pipe inside one belongs to the cell rather than to the row structure, and a
-# space inside one belongs to the path rather than separating two candidates.
-# Splitting on the raw character instead let a summary masquerade as a
-# disposition, and cut a delimited path in half. An unmatched run is ordinary
-# text, and a backslash escapes only OUTSIDE a span, which is where markdown
-# puts escapes too.
+# Split s on delims, keeping each closed code span whole.
 function tokenize(s, delims, out,   i, c, n, cell, len, r, e) {
   split("", out); n = 0; cell = ""; len = length(s); i = 1
   while (i <= len) {
@@ -334,16 +263,8 @@ function tokenize(s, delims, out,   i, c, n, cell, len, r, e) {
   out[++n] = cell
   return n
 }
-# A location is a PATH-SHAPED token, not any word carrying a colon and digits:
-# a version (v1.2.3:45), a URL with a port, and a neighbour joined by a comma all
-# read as one otherwise. Each token is cut back to its leading `<path>:<line>`,
-# which is what drops enclosing brackets, a trailing possessive, and the second
-# half of a line RANGE, and the first qualifying token wins. Path-shaped means a
-# slash or an extension whose first character is a letter, which is what tells
-# `a/b.lua` from `v1.2.3`. The location stops at the FIRST colon-and-digits, so
-# an editor column in `a/b.c:4:5` is dropped rather than joining the filename,
-# and a Windows drive colon is taken off first so it is not mistaken for one.
-# Ceiling: a bare `host.com:8080` would still qualify.
+# Returns the first `<path>:<line>` token whose path has a slash or a letter extension,
+# so `v1.2.3:45` is skipped.
 function locate(s,   parts, n, i, t, path, drive) {
   n = tokenize(s, " \t,", parts)
   for (i = 1; i <= n; i++) {
@@ -369,15 +290,10 @@ function locate(s,   parts, n, i, t, path, drive) {
 ]==]
 
 vim.api.nvim_create_user_command("ReviewLedger", function(opts)
-  -- Not `expand`: `complete = "file"` already expanded and unescaped this for
-  -- us, the way `:edit` does. A second pass unescapes what the first pass
-  -- produced, so a name carrying a backslash or a leading `%` is looked for
-  -- under a name that is not its own.
+  -- `complete = "file"` already expanded the argument, so a second `expand` would unescape it twice.
   local register = opts.args
   if register == "" then
-    -- `glob` expands the tilde itself, and `expand` must NOT run first: it
-    -- expands the WILDCARD too, so `glob` would be handed every match joined by
-    -- newlines and would match nothing (measured 2026-09-05).
+    -- `glob` expands the tilde itself. Running `expand` first would also expand the wildcard.
     local found = vim.fn.glob("~/.claude/pipeline/slices/findings-*.md", false, true)
     table.sort(found, function(a, b)
       return vim.fn.getftime(a) > vim.fn.getftime(b)

@@ -1,18 +1,4 @@
----The keymap-layer error boundary (spec 6.1).
----
----`git`, `github` and `util` never call `vim.notify`: an operational failure
----(not a git repository, `gh` not logged in) is a `nil, message` result and a
----bug is an `error()`. This is the one place both become a message.
----
----The label is explicit data. Its predecessor, `helpers.wrap`, read the name
----off `debug.getinfo(fn, "n")`, which is nil for every local function in
----`custom_api`, so every report it ever wrote said "anonymous" (item 19).
----
----```lua
----local branch = custom_api.try(function()
----  return git.default_branch()
----end, { label = "git.default_branch" })
----```
+---The keymap-layer error boundary: turns `error()` and `nil, message` results into notifications.
 local function collect(...)
   return select("#", ...), { ... }
 end
@@ -29,13 +15,13 @@ return function(fn, opts)
 
   local count, results = collect(xpcall(fn, debug.traceback))
 
-  -- A bug: `debug.traceback` has already prefixed the message to the traceback.
+  -- A thrown error is a bug, and `debug.traceback` already added the traceback to its message.
   if not results[1] then
     vim.notify(("[%s] %s"):format(label, results[2]), vim.log.levels.ERROR, { title = label })
     return
   end
 
-  -- An operational failure: a result, not a bug, so no traceback to report.
+  -- A `nil, message` result is an expected failure, so it reports no traceback.
   if results[2] == nil and type(results[3]) == "string" then
     vim.notify(("[%s] %s"):format(label, results[3]), vim.log.levels.WARN, { title = label })
     return

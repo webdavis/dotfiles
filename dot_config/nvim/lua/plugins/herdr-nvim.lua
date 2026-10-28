@@ -1,4 +1,5 @@
--- Neovim and the sidebar launcher both call setup. Keep mapping ownership here.
+-- Neovim and the sidebar launcher both call setup, so the plugin's own keymaps stay off.
+-- This file defines every herdr-nvim keymap instead.
 return {
   "ChmaraX/herdr-nvim",
   lazy = false,

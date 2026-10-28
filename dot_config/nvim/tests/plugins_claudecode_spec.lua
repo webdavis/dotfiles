@@ -1,21 +1,5 @@
--- The load trigger and the log level `lua/plugins/claudecode.lua` hands
--- claudecode.nvim.
---
--- The trigger is `VeryLazy` and the port range is what makes that safe. A
--- server on an ordinary start drew a plain HTTP request within a second, the
--- plugin answered with a handshake WARN and then crashed on its own unguarded
--- close. The prober was identified as `moshi-hook`'s listener discovery, which
--- probed decoy servers at 20000, 30000, 40000 and 49151 and left alone 49152,
--- 50000 and 55000. So the floor is pinned at the start of the ephemeral range
--- instead of dropping the trigger, and the spec pins the floor rather than the
--- exact pair, because 49152 is the property that matters and 65535 is just the
--- top of the range.
---
--- INFO goes through `nvim_echo`, which is stderr in a headless run, so a
--- headless session gets `warn` and the zero-stderr startup gate holds; an
--- interactive session keeps the plugin's own `info`, because `:ClaudeCodeStatus`
--- answers at INFO. The spec reads the level back out of the plugin file's
--- `opts` with the UI list faked each way, so the shipped rule is what is tested.
+-- `VeryLazy` is safe because the port floor 49152 sits above the ports local probes hit.
+-- A headless session logs at `warn`, keeping stderr empty. An interactive one keeps `info` for `:ClaudeCodeStatus`.
 
 local config_root = assert(package.path:match("^(.-)/lua/%?%.lua;"), "config root not on package.path")
 
@@ -32,11 +16,8 @@ local function level_with_uis(uis)
   return opts.log_level, opts
 end
 
--- Runs the plugin file's `init` with a fake logger installed (or not) and fires
--- `UIEnter`, returning the level the fake was handed, or nil when it was left alone.
--- Runs the plugin file's `init` FIRST (the order lazy.nvim uses: `init` at
--- startup, the logger loaded later), then attaches a UI with the fake logger
--- installed or absent, and returns the level the fake was handed, or nil.
+-- Runs the plugin `init` first, as lazy.nvim does, then attaches a UI with the fake logger present or absent.
+-- Returns the level the fake was handed, or nil.
 local function fake_logger(record)
   return {
     setup = function(conf)
@@ -56,8 +37,7 @@ local function level_after_ui_attaches(logger_loaded)
   return record.level
 end
 
--- The round-3 sequence: the UI attaches before the plugin has loaded (nothing
--- to restore), the plugin then loads, and a LATER attach must still restore.
+-- The UI attaches before the plugin loads, and a later attach must still restore the level.
 local function level_after_early_and_late_attach()
   local record = {}
   local real = package.loaded["claudecode.logger"]
@@ -90,9 +70,7 @@ return {
     assert(level_with_uis({ { chan = 1 } }) == "info")
   end,
   ["the websocket port cannot land where the listener probe reaches"] = function()
-    -- Behavior, not a declaration: the upstream default range starts at 10000,
-    -- and every port below 49152 was measured as probed. A floor under that
-    -- boundary is the defect coming back.
+    -- Every port below 49152 gets probed.
     local _, opts = level_with_uis({ { chan = 1 } })
     local range = assert(opts.port_range, "the spec hands claudecode no port range")
     assert(range.min >= 49152, "the port floor is " .. range.min .. ", inside the probed range")

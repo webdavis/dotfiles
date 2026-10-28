@@ -1,133 +1,39 @@
 #!/bin/bash
-# ssh-hardening.sh -- generate, install, verify, reload, and roll back a
-# public-key-only sshd drop-in. Install is INERT for the running service: it
-# only writes files, and nothing here ever restarts sshd behind the operator's
-# back. Restarting the service so it demonstrably serves the new policy is its
-# own explicit, disruptive mode (--reload), removing the policy is another
-# (--rollback), and neither ever happens as a side effect of install.
-#
-# Modes:
-#   --print-config  print the drop-in content (pure: no privilege, no writes)
-#   --print-path    print the drop-in target path (pure)
-#   --verify        read-only three-way check that the EFFECTIVE sshd
-#                   configuration is fully hardened (see the verify section)
-#   --reload        validate the complete configuration, then restart the sshd
-#                   launchd service and refuse to claim a RESTART succeeded
-#                   until a real SSH banner exchange proves the listener
-#                   answers; the ONLY mode that restarts anything, and it
-#                   never writes. One documented exception to "no success
-#                   without a banner": a CONFIRMED-ABSENT service (Remote
-#                   Login off) exits 0 as a clean no-op, with no restart and
-#                   no banner (spec-mandated)
-#   --rollback      remove the managed drop-in and prove the hardening is gone
-#                   from the effective configuration (the way back in); never
-#                   restarts sshd
-#   (no argument)   install: stage the drop-in, publish it with one rename,
-#                   move the legacy 50-no-password-auth.conf aside, verify, and
-#                   roll the whole tree back to what it found if that fails
-#
-# The drop-in file IS the lock; leave it in place permanently. Without it,
-# sshd reverts to its defaults at the next restart.
-#
-# Seams (environment; defaults are the live values):
-#   SSHD_CONFIG_D       drop-in directory      (default /etc/ssh/sshd_config.d)
-#   SSHD_MAIN_CONFIG    main sshd config       (default /etc/ssh/sshd_config)
-#   SSHD_BIN            sshd binary, ABSOLUTE  (default /usr/sbin/sshd) so a
-#                       stripped PATH cannot turn the verifier into a no-op
-#   LAUNCHCTL_BIN       launchctl, ABSOLUTE    (default /bin/launchctl), same
-#                       stripped-PATH rationale; only --reload uses it
-#   KEYSCAN_BIN         ssh-keyscan, ABSOLUTE  (default /usr/bin/ssh-keyscan);
-#                       the readiness prover, only --reload uses it
-#   SLEEP_BIN           the retry delay, ABSOLUTE (default /bin/sleep); only
-#                       --reload uses it, BETWEEN readiness probes, which is
-#                       AFTER the disruptive step -- exactly where a bare
-#                       `sleep` under a stripped PATH aborted with no message
-#   SSH_HARDENING_SUDO  privilege wrapper for writes; set EMPTY to run
-#                       unprivileged against a sandbox tree (default sudo)
-#   SSH_HARDENING_READY_ATTEMPTS / SSH_HARDENING_READY_INTERVAL /
-#   SSH_HARDENING_PROBE_TIMEOUT
-#                       how many banner probes --reload makes, the seconds
-#                       between them, and each probe's connection timeout
-#                       (defaults 30, 1 and 5). The bound is by ATTEMPT
-#                       COUNT, not wall clock: with the real ssh-keyscan each
-#                       attempt is capped by the connection timeout, but an
-#                       overridden KEYSCAN_BIN that never returns holds the
-#                       reload for as long as it blocks -- the bound limits
-#                       how many times a probe runs, not how long one takes.
-#   SSH_HARDENING_VERIFY_DEADLINE
-#                       seconds any ONE sshd call this script waits on may run
-#                       before it is stopped and its failure reported: the child
-#                       verify, and --reload's syntax check and port resolution
-#                       (default 120; see VERIFY_DEADLINE_SECONDS for why that
-#                       bound is safe and what an expiry costs). Anything but a
-#                       positive whole number, or more than one day, is the
-#                       default. The override exists for tests, which cannot
-#                       wait out the real bound.
-#   SSH_HARDENING_ALLOW_MISSING_SSHD
-#                       explicit test seam: when set to a TRUE-ish value AND
-#                       $SSHD_BIN cannot run, --verify skips (exit 0) WITHOUT a
-#                       verified claim. '0', 'false', 'no', 'off' and the empty
-#                       string all read as OFF. Never set in the default path;
-#                       absent it, an unrunnable verifier fails closed.
+# The drop-in file holds the hardening. Removing it returns sshd to its defaults at the next restart.
+# Only --reload restarts sshd. Install and --rollback change files and never restart it.
 set -euo pipefail
 
-# sshd matches configuration keywords AND their yes/no arguments
-# case-insensitively: `PASSWORDauthentication YES` inside a Match block
-# resolves to yes on OpenSSH 10.0p2. nocasematch lets every [[ ]] and case
-# comparison below mirror that. The raw line is NEVER case-folded, because
-# Include arguments are filenames and must keep their case.
+# sshd matches keywords and yes/no values case-insensitively, so every comparison here does too.
 shopt -s nocasematch
 
 SSHD_CONFIG_D="${SSHD_CONFIG_D:-/etc/ssh/sshd_config.d}"
 SSHD_MAIN_CONFIG="${SSHD_MAIN_CONFIG:-/etc/ssh/sshd_config}"
 SSHD_BIN="${SSHD_BIN:-/usr/sbin/sshd}"
-# `-` not `:-`: set-but-empty means "no wrapper, run the commands directly",
-# which is how tests write into a user-owned sandbox without privilege.
+# An empty value runs commands directly without sudo, as tests do against a sandbox.
 SSH_HARDENING_SUDO="${SSH_HARDENING_SUDO-sudo}"
 LAUNCHCTL_BIN="${LAUNCHCTL_BIN:-/bin/launchctl}"
 KEYSCAN_BIN="${KEYSCAN_BIN:-/usr/bin/ssh-keyscan}"
-# ABSOLUTE like the other seams, and doubly so: sleep is NOT a bash builtin
-# (measured: /bin/sleep), it is the only tool the readiness loop runs after
-# the kickstart, and under `set -e` a PATH-resolved `sleep` that is missing
-# kills the script mid-loop with no output at all -- the one failure mode
-# where the operator most needs the recovery text printed none.
+# An absolute path, because a missing sleep would stop the readiness loop after the restart
+# without printing the recovery steps.
 SLEEP_BIN="${SLEEP_BIN:-/bin/sleep}"
-# The two tools --reload's drift observation drives, ABSOLUTE for the same
-# reason as the seams above and for one of their own: `stat -f '<format>'` is
-# BSD syntax, and GNU stat reads -f as "print the FILE SYSTEM information",
-# takes the format string for a file name and exits 1 ("cannot read file system
-# information for '%Lp %u %g'"). A Homebrew coreutils gnubin ahead of /usr/bin
-# would therefore turn every reload on the machine into a refusal it could not
-# explain. Naming the tool is what makes the syntax and the tool agree.
+# An absolute path, because `stat -f` is BSD syntax
+# and a GNU stat earlier on PATH reads it differently.
 STAT_BIN="${STAT_BIN:-/usr/bin/stat}"
 CKSUM_BIN="${CKSUM_BIN:-/usr/bin/cksum}"
-# `-` not `:-` for the three readiness knobs, matching SSH_HARDENING_SUDO
-# above: unset means "use the default", but SET-BUT-EMPTY is an operator
-# statement and validate_readiness_knobs REFUSES it rather than silently
-# rewriting it to the default (`:-` did exactly that, which also made the
-# empty-string arm of the old validation unreachable dead code).
+# Set-but-empty is refused by validate_readiness_knobs instead of falling back to the default.
 SSH_HARDENING_READY_ATTEMPTS="${SSH_HARDENING_READY_ATTEMPTS-30}"
 SSH_HARDENING_READY_INTERVAL="${SSH_HARDENING_READY_INTERVAL-1}"
 SSH_HARDENING_PROBE_TIMEOUT="${SSH_HARDENING_PROBE_TIMEOUT-5}"
 
-# The launchd service behind macOS Remote Login. `launchctl print` on it exits
-# 0 when the job is loaded and 113 when the service is genuinely absent
-# (Remote Login off); both measured on macOS 26.2. Any OTHER status is a probe
-# ERROR, and the reload path refuses to read one as "the daemon is stopped".
+# launchctl print exits 0 when the service is loaded and 113 when Remote Login is off.
+# Any other status is a probe error, never "the daemon is stopped".
 SSHD_LAUNCHD_SERVICE='system/com.openssh.sshd'
 LAUNCHCTL_STATUS_SERVICE_ABSENT=113
 
-# This file, for the install path's strict child verify. BASH_SOURCE and not
-# $0, so a caller that rewrites $0 cannot redirect the re-invocation.
+# Uses BASH_SOURCE so a caller that rewrites $0 cannot redirect the child verify.
 SSH_HARDENING_SELF="${BASH_SOURCE[0]}"
 
-# sshd resolves a RELATIVE Include argument against its compiled-in
-# configuration directory, not the working directory (verified two ways: a
-# matching file in the working directory is ignored, and `Include
-# sshd_config.d/*` from a sandbox main config reproduces the live /etc/ssh
-# resolution exactly). That directory is the one holding the default main
-# config, so deriving it from SSHD_MAIN_CONFIG is faithful in production and
-# follows the seam in a sandbox.
+# sshd resolves a relative Include against its main config's directory, not the working directory.
 SSHD_CONFIG_DIR="${SSHD_MAIN_CONFIG%/*}"
 if [[ $SSHD_CONFIG_DIR == "$SSHD_MAIN_CONFIG" ]]; then
   SSHD_CONFIG_DIR='.'
@@ -136,138 +42,42 @@ fi
 DROPIN_NAME="000-ssh-hardening.conf"
 LEGACY_DROPIN_NAME="50-no-password-auth.conf"
 
-# sshd refuses a configuration nested deeper than this many Include levels
-# ("Too many recursive configuration includes"; measured: a chain of 16 files
-# below the main config is refused, 15 is accepted). The scan stops at the
-# same depth and FAILS rather than returning quietly, so an include bomb
-# cannot shrink the scanned set into a pass. Drop-in roots are entered at
-# depth 0 where sshd reaches them at depth 1, which makes the scan tolerate
-# one level more than sshd from that root -- harmless, because a tree sshd
-# refuses fails check_global anyway.
+# sshd refuses Include nesting past this depth. The scan fails at the same depth, so an include
+# bomb cannot shrink the scanned set into a pass.
 MAX_INCLUDE_DEPTH=15
 
-# --reload's drift guard reads every file in the resolved configuration tree,
-# and the last of its passes runs with the daemon already restarted, so a pass
-# that runs long stalls exactly where the operator is watching for a lockout.
-# MAX_INCLUDE_DEPTH bounds how DEEP the include graph goes; these two bound how
-# WIDE and how BIG it is allowed to be. Past either, the tree is not observed at
-# all, which the reload reports as a stability it could not establish, and
-# refuses.
-#
-# MAX_CONFIG_TREE_FILES counts VISITS, not distinct files, so a drop-in reached
-# both through the main config's Include and as a root of its own counts twice;
-# the effective headroom is therefore about half this number in drop-ins.
-# Measured on this machine the live tree is three files and five visits.
-#
-# MAX_CONFIG_TREE_BYTES bounds the total the walk READS, because the file count
-# is the wrong axis on its own: the dominant cost is the per-character tokenizer
-# running over every line, and nothing bounds how long a line or how large a
-# file is. Measured on this machine: a single 1.0 MB file matched by the stock
-# `Include <dir>/*` cost 4.3 s for ONE observation, and a reload takes three,
-# the last of them after the restart. A stray backup or a log left in the
-# drop-in directory is enough; it does not take an adversary. The live tree here
-# is 5128 bytes, so this bound is about fifty times the real thing.
-#
-# What these bounds do NOT cover, stated rather than implied: the glob
-# expansions that produce the candidates run first and are not bounded by
-# anything here (bash materializes the whole match list before this walk sees
-# it), and the same is true of the Match scan --verify runs, which shares the
-# resolver. The bounds stop the WALK from processing an oversized tree; they do
-# not stop the shell from expanding one.
+# Bounds on the tree --reload observes. Its last pass runs after the restart, so an oversized tree
+# is refused rather than walked slowly. The file bound counts visits, so a drop-in reached from both
+# roots counts twice. The byte bound caps the per-character tokenizer's work.
 MAX_CONFIG_TREE_FILES=512
 MAX_CONFIG_TREE_BYTES=262144
 
-# The field separator inside one observation record: ASCII unit separator.
-# Nothing but NUL and '/' is excluded from a POSIX file name, so this is NOT a
-# byte a path cannot contain -- it is one that no mode, numeric id or checksum
-# can contain, and that a path is REFUSED for containing (see
-# config_tree_path_is_recordable). A space would be ambiguous in a path that
-# holds one, and a field that can be mistaken for a boundary is how a comparison
-# silently reads the wrong value: measured, two files named `<prefix>\037b.conf`
-# and `<prefix>\037c.conf` parsed to the same path and made an untouched tree
-# compare unequal to itself.
+# Separates record fields. No mode, id or checksum contains it, and a path that does is refused.
 CONFIG_TREE_FIELD_SEPARATOR=$'\037'
 
-# `stat`'s word for a regular file (`%HT`), measured on macOS 26.2: "Regular
-# File", against "Fifo File", "Directory" and the rest. The observation reads
-# only files the enumeration already tested with -f, so anything else means the
-# tree changed type under the walk, which is drift and not something to read.
+# What stat's %HT prints for a regular file. Any other type means the tree changed under the walk.
 CONFIG_TREE_REGULAR_FILE_TYPE='Regular File'
 
-# The protected directives and their required values, lowercase exactly as
-# `sshd -G` prints them. Parallel arrays because the deployed interpreter is
-# the system bash 3.2, which has no associative arrays; every test drives this
-# script through /bin/bash so a newer-bash-ism fails there.
-#
-# The set is derived from the userauth methods this sshd actually offers, not
-# from a list of familiar directives. `strings /usr/sbin/sshd` names six:
-# none, password, keyboard-interactive, publickey, gssapi-with-mic, hostbased.
-#
-#   password              closed by passwordauthentication no
-#   keyboard-interactive  closed by kbdinteractiveauthentication no
-#   none                  succeeds only when PasswordAuthentication and
-#                         PermitEmptyPasswords are BOTH on, so the first
-#                         directive closes it
-#   publickey             the one method deliberately left open
-#   gssapi-with-mic       closed by nothing above
-#   hostbased             closed by nothing above
-#
-# The last two are why this list is seven long and not five. Both default to
-# no, and a default is not a policy: both are settable inside a Match block
-# (verified by resolving `sshd -G -T -C` against a tree that sets them there),
-# so with only the first five named, `Match Address *,!127.0.0.1` plus
-# `GSSAPIAuthentication yes` gave a second authentication method on every
-# off-loopback connection while the verify reported the tree fully hardened.
+# Values as `sshd -G` prints them. Parallel arrays because the system bash has no associative arrays.
+# Together they close every userauth method sshd offers except publickey. GSSAPI and hostbased
+# default to no, but a Match block can enable them, so they are pinned too.
 PROTECTED_KEYS=(passwordauthentication kbdinteractiveauthentication usepam
   pubkeyauthentication permitrootlogin gssapiauthentication
   hostbasedauthentication)
 PROTECTED_VALUES=(no no yes yes no no no)
 
-# Keywords sshd accepts as ALIASES for a protected directive. Enumerated, not
-# recalled: every lowercase keyword string in the sshd binary was extracted and
-# each one set to yes and to no inside a real `Match Address` block over a
-# hardened tree, then resolved with `sshd -G -T -C`. These are the only
-# keywords in the whole binary that move a protected value.
-#
-# Two of them work inside a genuine Match block, and SkeyAuthentication is the
-# dangerous one: sshd_config(5) does not document it at all, and it still
-# flips kbdinteractiveauthentication to yes.
-#
-# DSAAuthentication is GLOBAL-only -- inside a real Match block sshd refuses
-# the entire configuration, which check_global reports as a failed `sshd -G`.
-# It is folded here for the `Match all` form, which sshd does accept and apply
-# globally, so that the scan names the directive it moves instead of passing
-# over a keyword it does not recognize.
+# Keywords sshd accepts as aliases for a protected directive, which a Match block can use to move
+# its value. SkeyAuthentication is undocumented and still enables kbdinteractiveauthentication.
+# DSAAuthentication is here for `Match all`, which sshd applies globally.
 DIRECTIVE_ALIASES=(challengeresponseauthentication skeyauthentication
   dsaauthentication)
 DIRECTIVE_ALIAS_TARGETS=(kbdinteractiveauthentication
   kbdinteractiveauthentication pubkeyauthentication)
 
-# The arrival addresses check_local_address_specs resolves, and the
-# `refuseconnection` value the drop-in's Match block must produce for each.
-# Parallel arrays for the same bash 3.2 reason as PROTECTED_KEYS.
-#
-# ONE ALLOWED SAMPLE PER NEGATED TERM of that block: the two ranges Tailscale
-# documents for every tailnet, over both address families, and loopback over
-# both. Then one refused sample per family. Every address is documented for
-# universal use and none is this machine's own.
-#
-# What that set catches, measured on OpenSSH 10.0p2 rather than assumed: a
-# negated term DROPPED or MISTYPED past its sample turns that sample red, one
-# BROADENED into a mask sshd rejects fails the resolve outright, and a dropped
-# trailing '*' reddens both refused samples. What it does NOT catch is a term
-# NARROWED to a range that still holds its sample (!127.0.0.0/8 to
-# !127.0.0.0/24, or /10 to /12 on 100.64.0.0, both leave every check green).
-# Boundary samples would close that and are deliberately absent: each one
-# costs a real sshd resolve on every verify.
-#
-# fd00::1 is the refused IPv6 sample because it is a unique-local address
-# OUTSIDE the tailnet's own unique-local prefix, which is what proves the IPv6
-# negation is prefix precise rather than admitting fc00::/7 wholesale.
-#
-# `refuseconnection` is deliberately NOT in PROTECTED_KEYS: it resolves `no`
-# everywhere the Match block does not reach, which is correct, so the global
-# check and the two unconditioned connection samples must not judge it.
+# Arrival addresses and the refuseconnection value the drop-in's Match block must give each: one
+# allowed sample per negated term, and one refused sample per address family. fd00::1 sits outside
+# the tailnet prefix, which proves the IPv6 negation is prefix-precise.
+# refuseconnection stays out of PROTECTED_KEYS because it is correctly `no` outside the Match block.
 LOCAL_ADDRESS_SAMPLES=(100.64.0.1 fd7a:115c:a1e0::1 127.0.0.1 ::1
   192.168.0.1 fd00::1)
 LOCAL_ADDRESS_REFUSALS=(no no no no yes yes)
@@ -296,28 +106,22 @@ dropin_path() {
 
 print_config() {
   cat <<'EOF'
-# 000-ssh-hardening.conf - public-key-only sshd policy, written by
-# ssh-hardening.sh. This file IS the lock: remove it and sshd reverts to its
-# defaults at the next restart.
+# Public-key-only sshd policy written by ssh-hardening.sh. Removing this file
+# returns sshd to its defaults at the next restart.
 #
-# The 000- prefix sorts (LC_ALL=C) before Apple's 100-macos.conf. sshd's
-# Include is lexical and first-value-wins, so sorting first keeps these values
-# authoritative even if a future macOS release adds a competing directive to
-# 100-macos.conf. Today's Apple file sets none of these, so the prefix is
-# insurance, not the repair of a live conflict.
+# The 000- prefix sorts before Apple's 100-macos.conf. sshd keeps the first
+# value it reads for a directive, so these values win over any that a later
+# macOS release adds to that file.
 #
-# PasswordAuthentication and KbdInteractiveAuthentication together close BOTH
-# interactive password channels; either alone leaves one open. UsePAM yes is
-# required on macOS for account and session management, and is safe here
-# precisely because no password path remains for PAM to authenticate.
-# PermitRootLogin no is strictly tighter than the without-password default,
-# which still allows root login BY KEY.
+# PasswordAuthentication and KbdInteractiveAuthentication together close both
+# password channels, and either one alone leaves the other open. macOS needs
+# UsePAM yes for account and session management. It is safe because no
+# password path remains for PAM to check. PermitRootLogin no also blocks root
+# login by key, which the default allows.
 #
-# GSSAPIAuthentication and HostbasedAuthentication are the other two userauth
-# methods this sshd offers. Both default to no, but a default is not a policy:
-# both can be turned on inside a Match block, and none of the directives above
-# constrain them. Naming them is what makes "public-key-only" a statement
-# about this file rather than a hope about the defaults.
+# GSSAPIAuthentication and HostbasedAuthentication are the other two login
+# methods sshd offers. Both default to no, but a Match block can turn them on,
+# so this file sets them too.
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 UsePAM yes
@@ -326,138 +130,44 @@ PermitRootLogin no
 GSSAPIAuthentication no
 HostbasedAuthentication no
 #
-# The Match block below is the network restriction: a connection that did not
-# arrive on loopback or on a tailnet address is refused. RefuseConnection
-# terminates a connection unconditionally, and sshd_config(5) calls it useful
-# only inside a Match block, so this one block is the whole policy.
+# The Match block refuses any connection that did not arrive on loopback or on
+# a tailnet address. RefuseConnection is useful only inside a Match block, so
+# this one block is the whole network restriction.
 #
-# LocalAddress, not Address. LocalAddress is the address the connection ARRIVED
-# ON, a property of this host's own interfaces, so a client cannot claim it.
-# Keyed on Address instead, a local-network client claiming a 100.64.0.0/10
-# source address lands in the allowed branch (measured with sshd -G -T -C).
-# sshd_config(5) documents classless inter-domain routing (CIDR) patterns only
-# under Address; LocalAddress accepts them too, measured on OpenSSH 10.0p2
-# against this whole include tree.
+# LocalAddress is the address the connection arrived on, so a client cannot
+# fake it. Address is the client's source address, which a local-network
+# client can set to a tailnet address to slip through. LocalAddress accepts
+# CIDR ranges, even though the sshd_config manual documents them only for
+# Address.
 #
-# 100.64.0.0/10 and fd7a:115c:a1e0::/48 are the ranges Tailscale documents for
-# every node of every tailnet, so the block names the tailnet by its address
-# space rather than by one machine's current addresses, and keeps holding if
-# either is reissued. Loopback stays allowed because it is what the reload
-# path's readiness probe (ssh-keyscan against 127.0.0.1) connects to.
+# 100.64.0.0/10 and fd7a:115c:a1e0::/48 are the ranges Tailscale uses for every
+# tailnet, so the block keeps working when a machine's address changes.
+# Loopback stays allowed because the reload readiness probe connects to it.
 #
-# ONE negated list, and not an allow block followed by `Match all` with
-# RefuseConnection yes. The two resolve identically for every real connection,
-# but the allow-plus-Match-all spelling makes a bare `sshd -G`, which resolves
-# no Match block at all, report refuseconnection yes, so anything reading the
-# unconditioned resolve sees a machine that refuses everything. The trailing
-# '*' is the term that makes this list fail CLOSED and the one that must never
-# be dropped: a typo in a negated pattern leaves that address unmatched by the
-# negation, so it falls through to '*' and is refused, while a list carrying no
-# positive term matches nothing and refuses nobody.
+# A single negated list keeps a bare `sshd -G`, which resolves no Match block,
+# reporting refuseconnection no. An allow block followed by `Match all` would
+# refuse the same connections, but that report would then read as refusing
+# everything. The trailing '*' makes the list fail closed and must never be
+# dropped. A typo in a negated term leaves that address to '*', which refuses
+# it, and a list without '*' matches nothing and refuses nobody.
 #
-# The ceiling, stated so nobody reads more into this than it does: launchd owns
-# the listening socket, so port 22 still answers on every interface, a refused
-# connection is still accepted at the transport layer and still gets a banner
-# and a host key, and ssh-keyscan against a refused address still succeeds.
-# This narrows who can log in, not what can connect.
+# This limits who can log in, not what can connect. launchd still answers on
+# port 22 on every interface, and a refused connection still gets a banner and
+# a host key.
 Match LocalAddress "!127.0.0.0/8,!::1,!100.64.0.0/10,!fd7a:115c:a1e0::/48,*"
   RefuseConnection yes
 EOF
 }
 
-# --- verify ------------------------------------------------------------------
-# Four independent, read-only, host-key-free checks. All of them run and
-# EVERY failure is reported, so one broken layer cannot mask another:
-#
-#   1. check_global: the pre-Match effective configuration via `sshd -G`.
-#      Catches a global re-enable anywhere in the include chain, including a
-#      sibling that sorts before the drop-in (first-value-wins). It cannot
-#      see Match blocks at all, which is why the next two exist.
-#   2. check_match_scan: a text scan for a Match block that re-enables a
-#      protected directive, walking the SAME include graph sshd walks.
-#   3. check_connection_specs: per-connection resolution via
-#      `sshd -G -T -C`. Proves Match blocks RESOLVE hardened for concrete
-#      connections (root and the invoking user). These carry no laddr, so they
-#      resolve in the drop-in's permissive branch.
-#   4. check_local_address_specs: the same resolution WITH an laddr, one per
-#      sampled arrival address, requiring the refusal verdict policy demands of
-#      each. This is the only check that can see the tailnet restriction at all:
-#      a bare `sshd -G` resolves no Match block, and a spec without an laddr
-#      cannot match a LocalAddress criterion.
-#
-# What these four do and do NOT cover, stated plainly because the comment
-# that used to sit here claimed a completeness the code did not have. It
-# called the scan "the completeness net", and readers stopped checking:
-#
-#   - The connection specs are SAMPLES. Two loopback connections plus one per
-#     sampled arrival address. A Match block scoped to any other address or
-#     user is not resolved by them at all, by construction, and no number of
-#     samples changes that. The arrival-address samples do cover every negated
-#     term of the drop-in's own Match block, one address inside each plus one
-#     refused address per family, which is the most a sample set can do.
-#   - The scan is not a completeness proof either. It is a text scan whose
-#     fidelity is bounded by how exactly the tokenizer matches sshd's own
-#     parser and how exactly the Include walk matches sshd's. Both were
-#     derived from the behaviour of the real binary rather than from the
-#     manual page, and the forms sshd REJECTS are left to check_global: a
-#     file sshd refuses fails `sshd -G`, which is check_global's whole job.
-#   - Where the scan cannot see -- an unreadable file, a listing it could not
-#     build, an Include cycle, a chain deeper than sshd accepts -- it FAILS
-#     rather than scanning a subset and reporting clean.
-#
-# Any check that cannot run FAILS the verify. A skip exists only behind the
-# SSH_HARDENING_ALLOW_MISSING_SSHD test seam and never claims verified.
+# verify runs four read-only checks and reports every failure, so one broken layer cannot mask
+# another. `sshd -G` sees no Match block, which is why the Match scan and the per-connection
+# resolutions exist. A check that cannot run fails the verify.
 
 VERIFY_FAILURES=()
 
-# How long the child verify may run before it is stopped and reported as a
-# FAILED verify, how long the stopped process group gets to unwind before it is
-# killed outright, and what the wait is made of.
-#
-# WHY A BOUND EXISTS. The install path is a transaction that rolls back when a
-# step RETURNS a failure, and a step that never returns is neither a success nor
-# a failure. The child verify can be one: measured 2026-08-01, a single named
-# pipe in the drop-in directory makes `sshd -G` block forever, because sshd
-# resolves its own Include globs with no type filter (see resolve_include_paths).
-# On such a tree the install stopped after publishing the drop-in, never reached
-# rollback_install, and left the tree half-applied with the run stuck. Bounding
-# the wait turns that into a failure, which is what puts the EXISTING rollback
-# back on that path; nothing else about the transaction changes.
-#
-# WHY 120 SECONDS IS SAFE. Measured against a sandbox tree with the real
-# /usr/sbin/sshd on macOS 26.2: a three-file tree verifies in 0.22s, and a
-# deliberately oversized one verifies in 5.1s. The oversized tree is a single
-# 1.0 MB file matched by the stock `Include <dir>/*`, which is the shape
-# MAX_CONFIG_TREE_BYTES was set against and roughly two hundred times the live
-# tree. The bound is 545 times the first measurement and 23 times the second.
-#
-# WHAT AN EXPIRY COSTS, said plainly because the comment this replaced refused a
-# bound on the grounds that "a verify killed for being slow would roll the
-# hardening back OFF a machine that was fine". It does not: rollback_install
-# restores what THIS run found, so a machine hardened before the run gets its own
-# drop-in and legacy file back byte for byte, and a machine with no hardening
-# before the run ends where it started. An expiry costs an install that did not
-# apply and says so, which is re-runnable. No bound costs a tree left
-# half-applied by a run that never returns.
-#
-# A value that is not a positive whole number of seconds is the DEFAULT, never
-# taken at face value: 0 would stop every verify at once, and a non-number would
-# make the arithmetic in run_bounded a shell error.
-#
-# So is a value past VERIFY_DEADLINE_MAX_SECONDS, and that bound is not
-# decoration. The wait is counted in TICKS, four per second, and bash arithmetic
-# is signed 64-bit: SSH_HARDENING_VERIFY_DEADLINE=2305843009213693952 multiplied
-# by four is exactly -9223372036854775808 (measured on bash 3.2.57), so the tick
-# budget comes out NEGATIVE, the poll loop never runs a single pass, and a
-# perfectly healthy verify is stopped the instant it starts and reported as
-# having timed out after 2.3e18 seconds -- which on the install path rolls a
-# valid install back. The digit-count in the pattern is what keeps the range
-# comparison itself out of overflow territory: a 30-digit value would wrap
-# before `-gt` ever saw it, so it is refused by shape before it is compared.
-#
-# One day is the maximum, and it is already absurd for the job: the measurements
-# above put a real verify at 0.22s and a deliberately oversized one at 5.1s.
-# What the ceiling exists for is arithmetic safety, not policy.
+# A child verify that never returns would skip the install rollback, so it is stopped at this
+# deadline and counted as a failure. sshd blocks forever on a named pipe in an Include glob.
+# Values outside 1..86400 fall back to 120, since a larger one overflows the tick arithmetic.
 VERIFY_DEADLINE_MAX_SECONDS=86400
 VERIFY_DEADLINE_SECONDS="${SSH_HARDENING_VERIFY_DEADLINE:-120}"
 if [[ ! $VERIFY_DEADLINE_SECONDS =~ ^[1-9][0-9]{0,4}$ ]] ||
@@ -465,34 +175,14 @@ if [[ ! $VERIFY_DEADLINE_SECONDS =~ ^[1-9][0-9]{0,4}$ ]] ||
   VERIFY_DEADLINE_SECONDS=120
 fi
 VERIFY_STOP_GRACE_SECONDS=2
-# The wait POLLS, because bash has no wait-with-timeout. A quarter second and
-# not a whole one: the check runs before the first sleep, so a whole-second
-# interval would charge every healthy verify up to a second it does not need,
-# and every install runs one. The deadline is counted in TICKS so the fractional
-# interval cannot drift away from the seconds the operator-facing message
-# quotes.
+# bash has no wait with a timeout, so the wait polls. Deadlines count ticks of this interval.
 VERIFY_POLL_INTERVAL='0.25'
 VERIFY_POLL_TICKS_PER_SECOND=4
-# The poll's delay tool. ABSOLUTE for the reason SLEEP_BIN is, and SEPARATE from
-# SLEEP_BIN because that seam is --reload's pacing knob: the suites point it at
-# an instant-return spy, which would turn this poll into a busy spin and put the
-# watchdog's ticks into the seam log every other assertion diffs.
+# Separate from SLEEP_BIN, which tests replace with an instant spy that would make this poll spin.
 VERIFY_POLL_SLEEP='/bin/sleep'
 
-# stop_bounded_group <pid>: stop a bounded command that is past its deadline,
-# and everything it started. TERM to the whole PROCESS GROUP, then KILL to the
-# same group after the grace: the chain is this shell -> bash -> sshd, and sshd
-# is the process actually blocked, so signalling the group leader alone would
-# leave the real sshd holding the open forever. The group id IS the child's pid
-# (run_bounded starts it under monitor mode for exactly this), and the child is
-# not reaped until after both kills, so its pid cannot be recycled underneath
-# them. Never fails: a group that exited between the deadline check and here is
-# the same outcome as one that took the signal.
-#
-# The KILL is not belt-and-braces. sshd blocked in an open on a named pipe does
-# take the TERM, but nothing makes that true of every process a bounded command
-# can be waiting on: one that traps or ignores TERM survives the first signal
-# and the group has to be killed outright.
+# stop_bounded_group <pid>: sends TERM, then KILL, to the whole process group, since the sshd under
+# the child is what blocks. The child is reaped only after both, so its pid cannot be recycled.
 stop_bounded_group() {
   local child_pid="$1"
   kill -TERM -"$child_pid" 2>/dev/null || :
@@ -500,59 +190,15 @@ stop_bounded_group() {
   kill -KILL -"$child_pid" 2>/dev/null || :
 }
 
-# The status run_bounded returns when it stopped a command at its deadline,
-# rather than the status the command itself exited with. 124 is the value
-# timeout(1) reports the same event with; nothing here shells out to timeout
-# (stock macOS ships none) and the number is only ever compared against this
-# name.
+# Status for a command stopped at its deadline, matching timeout(1).
 BOUNDED_TIMEOUT_STATUS=124
 
-# The pid (and process group id) of the bounded command running right now, empty
-# when none is. Global because the install path's interrupt handler has to reach
-# the same group stop_bounded_group reaches, from a trap that fires while
-# run_bounded is mid-poll.
+# Global so the install interrupt handler can stop the group run_bounded is waiting on.
 BOUNDED_CHILD_PID=''
 
-# run_bounded <deadline-seconds> <command...>: run one command in a process
-# group of its own, bounded by a wall clock. Returns the command's own exit
-# status, or BOUNDED_TIMEOUT_STATUS if the deadline fired first, in which case
-# the whole group has been stopped before this returns.
-#
-# ONE mechanism, three call sites: the child verify, the reload's syntax check,
-# and the reload's port resolution. Every one of them runs sshd over the
-# configuration tree, and sshd blocks forever on a named pipe reached through
-# its own Include glob (measured 2026-08-01; sshd applies no type filter), so
-# each is a step that can fail to return rather than return a failure. A second
-# watchdog mechanism for the later two would be a second set of edge cases to
-# get right, and the deadline knob would stop meaning one thing.
-#
-# No timeout(1) is involved, stock macOS ships none; the bound is the poll.
-#
-# Monitor mode across the launch and nothing else. It is what puts the child in
-# a process group of its own, which is what lets stop_bounded_group reach the
-# sshd underneath it; without it the child shares this shell's group and the
-# only safe signal target is the child alone.
-#
-# What the separate group COSTS, said rather than left to be found: Ctrl-C goes
-# to the foreground group, so it no longer reaches this child. The install path
-# answers that with a trap (see handle_install_interrupt); a --reload
-# interrupted mid-preflight leaves the bounded command running until its own
-# deadline collects it, and nothing has been disturbed at that point.
-#
-# stdin from /dev/null: an UNmonitored background job gets that for free, a
-# monitored one keeps the shell's stdin, and a child reading a terminal from its
-# own process group is stopped by SIGTTIN, which is a hang of its own.
-#
-# SIGTTOU and SIGTTIN are IGNORED for the whole group, and that is the fix for a
-# defect, not a precaution. Under `stty tostop` (not the default, but a setting
-# operators do use) a process in a background group is STOPPED the moment it
-# writes to the terminal. The verify writes: its very first line is the PASS or
-# the failure list. Measured through a pty: without this, a healthy verify stops
-# on its first write, `kill -0` keeps answering 0 for a stopped process, the
-# poll runs to the deadline, and a VALID install is reported as timed out and
-# rolled back. An ignored disposition survives both fork and exec, so the bash
-# under this subshell and the sshd under that inherit it, and a background write
-# then completes instead of stopping.
+# run_bounded <deadline-seconds> <command...>: run a command in its own process group and stop the
+# group at the deadline, returning BOUNDED_TIMEOUT_STATUS. stdin is /dev/null and TTOU/TTIN are
+# ignored so terminal I/O cannot stop the background group, as `stty tostop` would.
 run_bounded() {
   local deadline_seconds="$1"
   shift
@@ -571,10 +217,7 @@ run_bounded() {
     ticks=$((ticks + 1))
   done
   if kill -0 "$BOUNDED_CHILD_PID" 2>/dev/null; then
-    # The reap, and the job-control notice it draws, go to /dev/null: the child
-    # was started under monitor mode, so bash announces the termination itself
-    # ("Terminated: 15") at the next command boundary, and that line reads as an
-    # internal error beside the message the caller prints.
+    # Reaps quietly, because bash would print "Terminated: 15", which reads like an internal error.
     {
       stop_bounded_group "$BOUNDED_CHILD_PID"
       wait "$BOUNDED_CHILD_PID"
@@ -587,22 +230,8 @@ run_bounded() {
   return "$status"
 }
 
-# run_verify_child: re-run this script's --verify in a CHILD shell, bounded. bash
-# suppresses `set -e` for everything inside an `if !` or `||` test, and that
-# suppression reaches into called functions and even into subshells (confirmed
-# on bash 3.2), so a caller judging the tree from inside such a test would run
-# every check with errexit switched off: a failure mid-flight would be stepped
-# over and the success line still printed. A separate process gets its own
-# `set -euo pipefail`, so every caller judges the tree by exactly the rules
-# --verify applies on its own. The seams are passed explicitly so the child
-# inspects the tree the caller just changed whether or not they were exported.
-#
-# Both callers read the result the same way they always did: nonzero is a failed
-# verify, and a verify stopped at its deadline returns nonzero like any other.
-#
-# The seams are passed explicitly, in a function rather than inline, because
-# run_bounded takes a COMMAND: an environment-prefixed assignment is shell
-# syntax, not an argument vector, so it cannot be handed over as one.
+# The verify runs in a child shell because `set -e` is off inside `if !` and `||` tests, even in
+# called functions. The seams are passed explicitly: run_bounded takes an argv, not assignments.
 verify_child_command() {
   SSHD_CONFIG_D="$SSHD_CONFIG_D" \
     SSHD_MAIN_CONFIG="$SSHD_MAIN_CONFIG" \
@@ -623,11 +252,7 @@ run_verify_child() {
   return "$status"
 }
 
-# verify_skip_allowed: the SSH_HARDENING_ALLOW_MISSING_SSHD seam is ON only for
-# an explicitly TRUE-ish value. It used to be tested for being NONEMPTY, so
-# every value turned it on -- including `0`, the one value a reader would
-# expect to turn it OFF. A seam that disables verification when set to "off" is
-# a trap, and this is the whole list of values that arm it.
+# The test seam is on only for an explicit true value, so "0" or "off" never disables verification.
 verify_skip_allowed() {
   case "${SSH_HARDENING_ALLOW_MISSING_SSHD:-}" in
     1 | true | yes | on) return 0 ;;
@@ -635,10 +260,7 @@ verify_skip_allowed() {
   esac
 }
 
-# add_failure <message>: record a problem once. The include graph is walked
-# from both roots, so a drop-in reached through the main config's Include and
-# again as a root of its own would otherwise report every problem twice and
-# inflate the count the summary prints.
+# add_failure <message>: record each problem once; files reached from both roots would repeat it.
 add_failure() {
   local existing
   if [[ ${#VERIFY_FAILURES[@]} -gt 0 ]]; then
@@ -651,20 +273,11 @@ add_failure() {
   VERIFY_FAILURES+=("$1")
 }
 
-# required_value <key>: for a protected directive, set MATCHED_PROTECTED_KEY to
-# its canonical lowercase spelling and REQUIRED_VALUE to the value policy
-# demands, then return 0. Return 1 for a key that is not protected.
-#
-# Globals rather than a printed result for two reasons: this runs once per
-# in-Match directive line, and a command substitution per line is a fork per
-# line; and the canonical spelling is what every failure message should name,
-# so a file writing `PASSWORDauthentication` is reported against the same
-# directive name as one writing it in lowercase.
+# required_value <key>: set MATCHED_PROTECTED_KEY and REQUIRED_VALUE for a protected key, else
+# return 1. Globals avoid a fork per config line.
 MATCHED_PROTECTED_KEY=''
 REQUIRED_VALUE=''
-# canonical_key <keyword>: set CANONICAL_KEY to the protected directive this
-# keyword reaches, folding sshd's aliases onto their target so an alias is
-# reported, and compared, against the directive it actually moves.
+# canonical_key <keyword>: fold sshd's aliases onto the directive they move, into CANONICAL_KEY.
 CANONICAL_KEY=''
 canonical_key() {
   local i
@@ -689,11 +302,7 @@ required_value() {
   return 1
 }
 
-# assert_directive_value <check-label> <sshd output> <key> <wanted value>: one
-# directive of the resolved configuration must carry exactly the value policy
-# demands. Three outcomes, each named: correct, wrong value, absent. Every
-# judgment in this script goes through here, so the seven protected directives
-# and the refusal verdict are read and reported the same way.
+# assert_directive_value <label> <sshd output> <key> <want>: fail when the key is wrong or absent.
 assert_directive_value() {
   local label="$1" output="$2" key="$3" want="$4" got status=0
   got="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')" ||
@@ -707,9 +316,6 @@ assert_directive_value() {
   fi
 }
 
-# assert_output_hardened <check-label> <sshd -G output>: every protected
-# directive must be present with its required value, asserted one by one;
-# completeness beats counting.
 assert_output_hardened() {
   local label="$1" output="$2" i
   for i in "${!PROTECTED_KEYS[@]}"; do
@@ -720,8 +326,7 @@ assert_output_hardened() {
 
 check_global() {
   local output status=0
-  # Capture first, inspect after: the exit status of a piped sshd would be
-  # lost to the pipeline's last element.
+  # Captured first, because a piped sshd's exit status would be lost.
   output="$("$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
   if [[ $status -ne 0 ]]; then
     add_failure "global check: '$SSHD_BIN -G' exited $status; failing closed rather than assuming the tree is safe (output: $output)"
@@ -730,83 +335,20 @@ check_global() {
   assert_output_hardened 'global check' "$output"
 }
 
-# --- sshd configuration tokenizer --------------------------------------------
-# OpenSSH 10.0p2 reads a configuration line with TWO different tokenizers, and
-# the scan mirrors both. Every rule below was derived from the behaviour of the
-# real binary -- `sshd -G` for accept/reject and `sshd -G -T -C` for what the
-# line resolves to -- and not from sshd_config(5), which documents almost none
-# of it.
-#
-#   THE LINE. Trailing space, tab, carriage return and FORM FEED are trimmed
-#   off the whole line before either tokenizer runs; vertical tab, BEL and BS
-#   are NOT in the set (all seven measured). A CRLF line ending -- every line
-#   of a file with Windows line endings -- is the everyday case this trim
-#   exists for. Leading whitespace is stripped next, and a line that is then
-#   empty or opens with '#' is dropped.
-#
-#   THE KEYWORD (strdelim semantics). Space, tab and CARRIAGE RETURN separate;
-#   a single '=' may stand in for the separating whitespace and is consumed
-#   with it; a double-quoted segment may sit ANYWHERE in the token, its content
-#   appending to what came before, and the keyword ENDS at the closing quote.
-#   The one rule with no counterpart in any other config format: an EMPTY first
-#   token is DISCARDED and the next token becomes the keyword, which is why
-#   `=PasswordAuthentication yes` and `""PasswordAuthentication yes` are live
-#   directives. Exactly one empty token is discarded; a line still keyword-less
-#   after that is ignored.
-#
-#   THE ARGUMENTS (argv_split semantics). Only space and tab separate -- a
-#   carriage return does NOT. Any number of single- OR double-quoted segments
-#   concatenate with unquoted text into one argument. A backslash escapes
-#   either quote, another backslash, and (outside quotes) a SPACE -- not a
-#   tab: `\<TAB>` keeps the backslash and the tab still separates, so the text
-#   after it is a further argument (measured; only a quoted segment carries a
-#   tab into an argument). Every other backslash is kept literally. A '#'
-#   OPENING an argument comments out the rest of the line, while a '#' inside
-#   one stays literal.
-#
-# Both sides matter to security, not just the keyword: an Include path is an
-# argument, so the argument rules decide which files the scan walks at all.
-#
-# What this comment does NOT claim is completeness. Four earlier versions of it
-# listed the forms sshd was believed to reject and each list turned out to be
-# wrong about at least one form.
-#
-# Forms sshd REJECTS may be read here any way at all: a file carrying one fails
-# `sshd -G`, and reporting that is check_global's job.
-#
-# The line is tokenized rather than bulk-normalized. Bulk normalization is
-# what let the quoted keyword through: quotes were stripped from the value
-# only, and a `tr` that folded case and separators could not tell a keyword
-# from a value in the first place.
+# The scan mirrors sshd's two tokenizers as the binary behaves: strdelim for the keyword and
+# argv_split for arguments. Both matter, since an Include path is an argument. Forms sshd rejects
+# can be read any way here, because they fail `sshd -G` in check_global.
 
 CONFIG_TAB=$'\t'
 CONFIG_CR=$'\r'
 CONFIG_FF=$'\f'
-# Written in ANSI-C quoting like the two constants above, and not as a plain
-# quoted backslash: shellcheck reads '\' as a botched attempt to escape a
-# single quote (SC1003) and refuses it, while shfmt -s rewrites "\\" into
-# exactly that '\'. This spelling is the one both tools accept.
+# ANSI-C quoting is the one spelling both shellcheck (SC1003) and shfmt accept.
 CONFIG_BACKSLASH=$'\\'
 TOKEN=''
 REST=''
 
-# trim_trailing_line_whitespace: strip trailing space, tab, carriage return
-# and form feed off the WHOLE line, before either tokenizer sees it, exactly
-# as sshd does. Measured on the binary: `PasswordAuthentication yes<B>` is
-# accepted and resolves yes for each of the four, and an Include ending in one
-# still pulls its file in, while the VT, BEL and BS variants are refused as
-# part of the argument. A CRLF-terminated line is the everyday carrier;
-# without this trim the CR rides into the Include pattern (so the scan walks
-# past a file sshd reads) and into the compared value (so a hardened
-# restatement written with Windows line endings raises a false alarm, and
-# install rolls its own hardening back).
-#
-# sshd's own trim loop never touches position 0. Trimming ALL trailing bytes
-# is still faithful for every form sshd accepts: a line that is ONLY trim-set
-# bytes either tokenizes empty here anyway (space, tab and CR are keyword
-# separators) or is a form sshd rejects outright (a lone form feed is refused
-# as `no argument after keyword "\014"`, measured), and rejected forms are
-# check_global's job.
+# trim_trailing_line_whitespace: sshd trims trailing space, tab, CR and form feed before tokenizing,
+# so a CRLF file's CR stays out of Include paths and values.
 trim_trailing_line_whitespace() {
   while [[ -n $REST ]]; do
     case $REST in
@@ -816,8 +358,6 @@ trim_trailing_line_whitespace() {
   done
 }
 
-# skip_keyword_separators: drop sshd's keyword separators (space, tab, CR) off
-# the front of REST.
 skip_keyword_separators() {
   while [[ -n $REST ]]; do
     case $REST in
@@ -827,13 +367,7 @@ skip_keyword_separators() {
   done
 }
 
-# consume_keyword_separator: strdelim ends the keyword at a separator and then
-# consumes the WHOLE run: the whitespace, at most one '=' standing in for it,
-# and the whitespace after that. Consuming it here rather than in the caller is
-# what keeps `"Keyword"=value` faithful -- a keyword ended by a closing quote
-# consumes no '=' at all (measured: sshd rejects that form as
-# `unsupported option "=yes"`), and the quoted branch below reflects that by
-# skipping only whitespace.
+# consume_keyword_separator: strdelim consumes whitespace, at most one '=', then whitespace again.
 consume_keyword_separator() {
   skip_keyword_separators
   if [[ $REST == '='* ]]; then
@@ -842,10 +376,7 @@ consume_keyword_separator() {
   fi
 }
 
-# read_keyword_token: pull the KEYWORD off REST into TOKEN with strdelim
-# semantics. Returns 1 at end of line and 2 for an unterminated quote (sshd
-# ignores such a line entirely, which is what the caller does with a nonzero
-# status).
+# read_keyword_token: keyword into TOKEN. Returns 1 at end of line, 2 on an unterminated quote.
 read_keyword_token() {
   local character
   skip_keyword_separators
@@ -861,11 +392,7 @@ read_keyword_token() {
         return 0
         ;;
       '"')
-        # A double-quoted segment may sit ANYWHERE in the keyword: its content
-        # appends to what came before it, and the keyword ENDS at the closing
-        # quote. `Ma"tch"` is therefore the keyword Match, and
-        # `Pass"word"Authentication` is the keyword Password followed by a
-        # stray token (which is why sshd rejects that one).
+        # A quoted segment appends to the keyword and ends it, so `Ma"tch"` is Match.
         REST="${REST:1}"
         case $REST in
           *'"'*) ;;
@@ -883,10 +410,7 @@ read_keyword_token() {
   return 0
 }
 
-# skip_argument_separators: only space and tab separate ARGUMENTS. A carriage
-# return does NOT, unlike in the keyword (measured: `Match Address<CR>*` is
-# refused as one run-together criterion, and `PasswordAuthentication yes<CR>x`
-# as one run-together value).
+# skip_argument_separators: only space and tab separate arguments. A CR does not.
 skip_argument_separators() {
   while [[ -n $REST ]]; do
     case $REST in
@@ -896,8 +420,7 @@ skip_argument_separators() {
   done
 }
 
-# read_argument_token: pull one ARGUMENT off REST into TOKEN with argv_split
-# semantics. Returns 1 at end of line or at a comment, and 2 for an
+# read_argument_token: argument into TOKEN. Returns 1 at end of line or at a comment, 2 on an
 # unterminated quote.
 read_argument_token() {
   local character escaped quote=''
@@ -905,11 +428,7 @@ read_argument_token() {
   if [[ -z $REST ]]; then
     return 1
   fi
-  # An unquoted '#' OPENING an argument comments out the rest of the line. A
-  # '#' inside an argument stays literal (measured both ways:
-  # `PasswordAuthentication yes #note` resolves yes, while
-  # `PasswordAuthentication yes#note` is refused as the unsupported option
-  # `yes#note`).
+  # A '#' opening an argument starts a comment. A '#' inside one stays literal.
   if [[ $REST == '#'* ]]; then
     REST=''
     return 1
@@ -918,13 +437,8 @@ read_argument_token() {
   while [[ -n $REST ]]; do
     character="${REST:0:1}"
     if [[ $character == "$CONFIG_BACKSLASH" ]]; then
-      # A backslash escapes either quote character, another backslash, and --
-      # outside a quoted segment -- a SPACE. NOT a tab: measured against a
-      # file literally named pay<TAB>load.conf, `Include .../pay\<TAB>load.conf`
-      # does not reach it (the backslash stays literal and the tab separates,
-      # so what follows is a further argument sshd DOES follow), while
-      # `Include ".../pay<TAB>load.conf"` does reach it. Any other backslash
-      # is kept literally and the character after it is read on its own.
+      # A backslash escapes a quote, a backslash, and outside quotes a space. A tab still separates.
+      # Any other backslash stays literal.
       escaped="${REST:1:1}"
       case $escaped in
         '"' | "'" | "$CONFIG_BACKSLASH")
@@ -948,9 +462,7 @@ read_argument_token() {
       case $character in
         ' ' | "$CONFIG_TAB") break ;;
         '"' | "'")
-          # Any number of single- OR double-quoted segments concatenate with
-          # unquoted text into ONE argument, so `y"es"`, `"y"es`, `'yes'` and
-          # `""yes` all read as yes (measured).
+          # Quoted segments concatenate with unquoted text into one argument.
           quote="$character"
           REST="${REST:1}"
           continue
@@ -970,11 +482,7 @@ read_argument_token() {
   return 0
 }
 
-# next_keyword_token / next_argument_token: the two readers above, each behind
-# a PROGRESS guard. A reader that reports a token without consuming input would
-# spin the caller's loop forever, and a verifier that HANGS never reports --
-# strictly worse than one that misreads a line. Every path through both readers
-# does consume, so this guards a future edit rather than a live condition.
+# A reader that returns a token without consuming input would spin the caller forever.
 read_token_with_progress_guard() { # <reader function>
   local reader="$1" start_length="${#REST}" status=0
   "$reader" || status=$?
@@ -992,9 +500,7 @@ next_argument_token() {
   read_token_with_progress_guard read_argument_token
 }
 
-# parse_config_line <raw line>: fill PARSED_KEYWORD (quotes stripped) and
-# PARSED_ARGS. Returns 1 for a blank line, a comment, or a line sshd itself
-# ignores or rejects.
+# parse_config_line <raw line>: fill PARSED_KEYWORD and PARSED_ARGS. Returns 1 for a line sshd ignores.
 PARSED_KEYWORD=''
 PARSED_ARGS=()
 parse_config_line() {
@@ -1005,10 +511,7 @@ parse_config_line() {
   if ! next_keyword_token; then
     return 1
   fi
-  # sshd discards ONE empty keyword token and reads the NEXT token as the
-  # keyword, so `=PasswordAuthentication yes` and `""PasswordAuthentication
-  # yes` are both real directives to the daemon. A second empty token is not
-  # discarded: the line is ignored instead.
+  # sshd discards one empty keyword token, so `=PasswordAuthentication yes` is a real directive.
   if [[ -z $TOKEN ]] && ! next_keyword_token; then
     return 1
   fi
@@ -1016,9 +519,7 @@ parse_config_line() {
   if [[ -z $PARSED_KEYWORD ]]; then
     return 1
   fi
-  # Only a '#' at the start of the keyword opens a comment, and it is tested
-  # AFTER the discard above because sshd tests it there too (`=#Keyword arg`
-  # is a comment, measured).
+  # Tested after the discard, as sshd does: `=#Keyword arg` is a comment.
   case $PARSED_KEYWORD in
     '#'*) return 1 ;;
   esac
@@ -1028,58 +529,18 @@ parse_config_line() {
   return 0
 }
 
-# --- Include path resolution --------------------------------------------------
-# An Include path is unescaped TWICE before sshd opens anything.
-#
-#   Stage 1, argv_split, tokenizes the line (see read_argument_token): it
-#   consumes `\"`, `\'`, `\\` and, OUTSIDE a quoted segment, `\<space>`, and
-#   keeps every other backslash literally.
-#   Stage 2, glob(3), is handed that token: it consumes EVERY remaining `\X`
-#   and yields a literal X, metacharacter or not.
-#
-# Both stages were measured on OpenSSH 10.0p2 against temporary trees, one
-# marker file per candidate name, asking `sshd -G` which file it ended up
-# reading. `<dir>/pay\load.conf`, `<dir>/pay\\load.conf` and
-# `"<dir>/with\ space/payload.conf"` all reach a file with no backslash in its
-# name; `<dir>/pay\\\load.conf` reaches one whose name really does contain a
-# backslash, which is what pins the count at exactly two.
-#
-# Bash pathname expansion is NOT a substitute for stage 2. It performs that
-# unescaping only when it expands at all, and it does not expand a word whose
-# metacharacters are all escaped (or which has none): such a word is left
-# exactly as it was found, backslash and all. Handing the token straight to
-# bash therefore tested a path no file has, the -f test failed, and the scan
-# walked past a file sshd reads -- a Match block inside it re-enabled password
-# authentication with --verify still reporting the tree clean.
-#
-# So the token is analysed here instead, and bash is used only where it is
-# faithful: for a token carrying a LIVE metacharacter, where it does expand and
-# does unescape exactly as glob(3) does (measured on `pa\y[ab]load.conf`,
-# `pa\y?load.conf`, `z\*load?.conf` and `z[ab\]c]load.conf`, which resolve
-# identically both ways).
-#
-# Two known glob-semantics divergences are deliberately NOT addressed here,
-# because neither belongs to this class and both are filed as their own work:
-# bash reads a leading `^` in a bracket as negation while glob(3) reads it as
-# an ordinary member, and a bash pattern matching nothing is left in place as a
-# literal word (glob(3) returns no match). Both are reachable only through a
-# bracket, and both leave the token stream untouched, so nothing below changes
-# their behaviour either way.
+# sshd unescapes an Include path twice: argv_split, then glob(3), which turns every remaining `\X`
+# into X. Bash unescapes only when it expands, so a token with no live metacharacter
+# is resolved here.
 
-# include_bracket_opens_a_set <text following an unescaped '['>: does that '['
-# open a bracket, or is it literal text? glob(3) wants a closing ']' that is
-# UNESCAPED and sits at least one character past the '['. Measured: `z[]load`
-# is the literal text `z[]load`, `z[]]load` is a bracket whose one member is
-# ']', `z[ab\]load` is literal, and `z[ab\]c]load` is a bracket whose members
-# include ']'. One leading '!' is glob(3)'s negation marker and is skipped
-# before that count.
+# include_bracket_opens_a_set <text after '['>: glob(3) needs an unescaped ']' at least one
+# character past the '[', after an optional '!'.
 include_bracket_opens_a_set() {
   local rest="$1" character
   case $rest in
     '!'*) rest="${rest:1}" ;;
   esac
-  # The first body character is a member whatever it is, ']' included, so the
-  # search for the closing bracket starts after it.
+  # The first member may be ']', so the search starts after it.
   if [[ ${rest:0:1} == "$CONFIG_BACKSLASH" ]]; then
     rest="${rest:2}"
   else
@@ -1099,27 +560,10 @@ include_bracket_opens_a_set() {
   return 1
 }
 
-# unescape_include_pattern <argv_split token>: apply stage 2 to the token.
-# INCLUDE_UNESCAPED_PATH is the path with every `\X` reduced to X, which is
-# what glob(3) stats when nothing in the pattern is live.
-# INCLUDE_HAS_METACHARACTER says whether anything IS live, so the caller knows
-# whether it is holding a path or a pattern.
-#
-# The case patterns below are QUOTED on purpose: unquoted, `*` and `?` in a
-# case pattern match any character and every byte of every path would look
-# live.
-#
-# INCLUDE_PATTERN_DIVERGES_FROM_GLOB says whether the pattern contains the one
-# construct where BASH's pathname expansion and glob(3) resolve to different
-# files. Bash negates a bracket introduced by either '!' or '^'; glob(3) negates
-# on '!' only and treats a leading '^' as an ordinary member. Measured on macOS
-# 26.2 against OpenSSH 10.0p2: with a.conf and b.conf present,
-# `Include <dir>/[^a].conf` makes sshd read a.conf, and bash expands the same
-# pattern to b.conf. Disjoint sets, and every walk in this file uses bash's.
-#
-# `[!^a]` does NOT diverge (both negate the same three-member set), and neither
-# does `[\^a]` (the backslash makes '^' a literal member for both), so the test
-# is exactly "the character after '[' is an unescaped '^'".
+# unescape_include_pattern <token>: INCLUDE_UNESCAPED_PATH gets every `\X` reduced to X, and
+# INCLUDE_HAS_METACHARACTER says whether the token is a pattern. INCLUDE_PATTERN_DIVERGES_FROM_GLOB
+# flags a leading '^' in a bracket, which bash negates and glob(3) reads as a member.
+# The case patterns are quoted so `*` and `?` match only themselves.
 INCLUDE_UNESCAPED_PATH=''
 INCLUDE_HAS_METACHARACTER=0
 INCLUDE_PATTERN_DIVERGES_FROM_GLOB=0
@@ -1132,10 +576,7 @@ unescape_include_pattern() {
     character="${rest:0:1}"
     if [[ $character == "$CONFIG_BACKSLASH" ]]; then
       if [[ ${#rest} -eq 1 ]]; then
-        # A TRAILING backslash escapes nothing: glob(3) keeps it as a protected
-        # literal backslash, and the pattern names a file whose own name ends
-        # in one (measured). Dropping it here would send the scan to a
-        # different file entirely.
+        # A trailing backslash stays literal: glob(3) keeps it as part of the file name.
         INCLUDE_UNESCAPED_PATH="$INCLUDE_UNESCAPED_PATH$CONFIG_BACKSLASH"
         break
       fi
@@ -1159,54 +600,13 @@ unescape_include_pattern() {
   done
 }
 
-# scan_included_files <including file> <in-match> <depth> <chain>: follow the
-# Include whose arguments are sitting in PARSED_ARGS.
-#
-# Include semantics, every one measured against OpenSSH 10.0p2 rather than
-# assumed:
-#
-#   - The Match state in force where the Include appears APPLIES INSIDE the
-#     included file. An `Include` under `Match Address *,!127.0.0.1` really
-#     does re-enable password authentication for off-loopback addresses. The
-#     comment that used to sit here claimed the opposite, and it was wrong:
-#     the probe behind it tested a Match not reaching the NEXT included file,
-#     which is a different question with a different answer.
-#   - A Match opened inside the included file does NOT persist back into the
-#     including file once the Include returns. The state is therefore passed
-#     down by value, and the caller's copy is deliberately left alone.
-#   - One Include line may carry several paths, applied left to right.
-#   - A relative path resolves against sshd's configuration directory, not the
-#     working directory.
-#   - A path matching nothing is ignored, exactly as sshd ignores it. A file
-#     that exists but cannot be read is fatal to sshd, and scan_config_file
-#     treats it as fatal too.
-#
-# The resolution itself lives in resolve_include_paths below, and the walk in
-# scan_included_files; the split is what keeps the ONE resolver honest. Two
-# walks follow this graph -- the Match scan and --reload's tree fingerprint --
-# and sshd's own walk is what defines the effective tree, so a second,
-# divergent resolver would quietly judge a different one.
+# scan_included_files <file> <in-match> <depth> <chain>: follow the Include in PARSED_ARGS. The
+# Match state where the Include appears applies inside the included file, so it is passed down.
 
-# resolve_include_paths: the concrete REGULAR FILES the Include whose arguments
-# are sitting in PARSED_ARGS names, into INCLUDE_RESOLVED_PATHS. Returns 1 with
-# INCLUDE_RESOLVE_ERROR holding the reason, as a clause each caller prefixes
-# with the file it was reading, so the two report it in their own words.
-#
-# Two reasons, both fail-closed:
-#
-#   no path at all      there is nothing to resolve and guessing is worse than
-#                       refusing.
-#   a divergent pattern the bracket construct where bash and glob(3) resolve to
-#                       DIFFERENT files (see unescape_include_pattern for the
-#                       measurement). This walk cannot faithfully model sshd's
-#                       for such a pattern, and a walk that silently watches
-#                       different files than the daemon reads is exactly the
-#                       bypass this one resolver exists to prevent. Emulating
-#                       glob(3) in bash would be the other answer; refusing is
-#                       the one whose failure mode is a loud message.
-#
-# The caller must COPY the result before recursing: this is a global, and a
-# recursive walk overwrites it.
+# resolve_include_paths: the regular files the Include in PARSED_ARGS names, into
+# INCLUDE_RESOLVED_PATHS. Both walks share it so they judge the tree sshd reads. Returns 1 with
+# INCLUDE_RESOLVE_ERROR for an empty Include or a '^' bracket bash would expand differently.
+# Callers copy the result before recursing, since recursion overwrites it.
 INCLUDE_RESOLVED_PATHS=()
 INCLUDE_RESOLVE_ERROR=''
 resolve_include_paths() {
@@ -1223,10 +623,7 @@ resolve_include_paths() {
     return 1
   fi
   for pattern in "${patterns[@]}"; do
-    # The relative test is on the RAW token, before any unescaping, because
-    # that is where sshd makes it: `Include \/etc/ssh/x.conf` is RELATIVE to
-    # the daemon (its first byte is a backslash, not a slash) and resolves
-    # under the configuration directory, not at the root (measured).
+    # Relative is decided on the raw token, as sshd does: `\/etc/x.conf` is relative.
     case $pattern in
       /*) ;;
       *) pattern="$SSHD_CONFIG_DIR/$pattern" ;;
@@ -1238,17 +635,10 @@ resolve_include_paths() {
     fi
     matches=()
     if [[ $INCLUDE_HAS_METACHARACTER -eq 0 ]]; then
-      # Nothing live in the pattern, so glob(3) matches nothing: it stats the
-      # unescaped path and returns that one file if it is there. Testing that
-      # path directly is what reaches the file the daemon opens; bash would
-      # have left the backslashes standing in the path it tested.
+      # Without a live metacharacter, glob(3) only stats the unescaped path.
       matches=("$INCLUDE_UNESCAPED_PATH")
     else
-      # A real pattern, and bash expands it exactly as glob(3) does. IFS=newline
-      # so a path containing spaces survives the split while the glob still
-      # expands: pathname expansion produces its own fields whatever IFS holds.
-      # A pattern matching nothing stays literal and is dropped by the -f test
-      # below, which is what sshd does with it.
+      # IFS=newline keeps paths with spaces whole. A pattern matching nothing is dropped by -f below.
       old_ifs="$IFS"
       IFS=$'\n'
       # shellcheck disable=SC2206  # deliberate glob expansion of the Include pattern
@@ -1259,22 +649,8 @@ resolve_include_paths() {
       continue
     fi
     for resolved in "${matches[@]}"; do
-      # Regular files only. A path that is not one is skipped rather than
-      # opened, which is what keeps a named pipe out of the opens THIS FILE
-      # makes: `cksum < fifo` and `read < fifo` both block forever, and a
-      # verifier or a reload that HANGS reports nothing at all. -f is false for
-      # a symlink to a pipe too, so the guard holds through a link.
-      #
-      # WHAT IT DOES NOT COVER, named because the wording here used to claim
-      # "every reader downstream". sshd is a reader downstream and this filter
-      # does not reach it: every mode hands sshd `-f "$SSHD_MAIN_CONFIG"` and
-      # sshd resolves its own Include globs with no type filter at all.
-      # Measured 2026-08-01 against OpenSSH 10.0p2 on macOS 26.2, one fifo in
-      # the drop-in directory makes `sshd -G` and `sshd -t` each block forever
-      # where the same tree without it exits 0, which is `--verify` hanging
-      # with an EMPTY stdout and an empty stderr. That is sshd's own behaviour,
-      # it predates this filter, and nothing reachable from here changes it;
-      # the subject of the filter is the readers in this file.
+      # Keeps regular files only, because reading a named pipe blocks forever. sshd's own Include has
+      # no such filter, which is why every sshd call runs under run_bounded.
       if [[ ! -f $resolved ]]; then
         continue
       fi
@@ -1284,46 +660,9 @@ resolve_include_paths() {
   return 0
 }
 
-# path_is_a_regular_file <path>: 0 when the path is a regular file right now.
-# Pure: one input, a boolean answer, no globals.
-#
-# Asked a second time immediately BEFORE each open, not only where the walk
-# resolved the path. Reading a named pipe never returns (bash blocks in open(2)
-# and there is no non-blocking open to reach from a shell), and `-r` is TRUE for
-# one, so the readability test in front of each open is not the guard here:
-# measured on macOS 26.2, `[[ -r fifo ]]` succeeds and `[[ -f fifo ]]` does not.
-# A walk that hangs reports nothing at all, and after the kickstart that is
-# strictly worse than the drift the reload's guard exists to catch, because a
-# refusal is recoverable and a hang is not.
-#
-# The resolution's own -f test is too far from the open to be the guard on its
-# own: for the second root it sits before the entire walk of the first. Asking
-# again here does not CLOSE the window, nothing reachable from a shell does; it
-# narrows it to the same stat-then-open microseconds the observation's own type
-# re-check leaves.
-#
-# NO TEST REACHES EITHER CALLER OF THIS, and the commit that added them
-# (aa31f42f) implied otherwise. Both callers sit behind a -f filter that runs
-# earlier on every route in: config_tree_roots filters a root, and
-# resolve_include_paths filters an Include match. A pipe already sitting in the
-# tree is therefore dropped before it can reach either guarded open, and the
-# only state these two catch is a path whose TYPE CHANGES inside the
-# resolve-to-open window. Producing that state on demand needs a seam inside
-# that window and there is none: it is pure bash from the resolver's -f test to
-# the `read`, so the drift suite's mutation hook, which fires inside a stubbed
-# tool, has nowhere to land. Measured 2026-08-01: deleting either guard on its
-# own leaves the whole drift suite green, and deleting BOTH still leaves the
-# fifo case green, failing 230 lines later at the STAT_BIN case, which
-# exercises the observation's checksum-side type re-check and neither guard
-# here. aa31f42f's "with every regular-file guard removed it hangs into the
-# suite's wall clock" is true only if "every regular-file guard" is read to
-# include those PRE-EXISTING filters, which is not what it says.
-#
-# They stay, unpinned, because the window they narrow is real in production and
-# is not microseconds everywhere: for the second root the resolver's -f test
-# ran before the entire walk of the first. So do not delete them because a
-# mutation survives, and do not add a case that appears to pin them; a suite
-# that cannot reach a guard should say so rather than stage the reachability.
+# path_is_a_regular_file <path>: asked again right before each open, because the resolver's -f test
+# can run long before it and reading a named pipe hangs. A -r test passes for a named pipe.
+# No test reaches this guard, but it narrows a real window where the file type can change.
 path_is_a_regular_file() {
   [[ -f $1 ]]
 }
@@ -1346,10 +685,8 @@ scan_included_files() {
   done
 }
 
-# scan_config_file <file> <in-match> <depth> <chain>: flag every protected
-# directive set to a non-required value inside a Match block, following Include
-# as it goes. <chain> is the '|'-delimited list of files already open on this
-# include path, so a cycle is reported rather than walked.
+# scan_config_file <file> <in-match> <depth> <chain>: flag protected directives weakened inside a
+# Match block. <chain> lists the files open on this path, so a cycle fails instead of looping.
 scan_config_file() {
   local file="$1" in_match="$2" depth="$3" chain="$4"
   local key value status=0 line
@@ -1368,20 +705,14 @@ scan_config_file() {
     add_failure "match scan: cannot read '$file'; failing closed rather than treating it as clean"
     return 0
   fi
-  # Re-asked here, next to the open it protects, and not left to the -f test
-  # the resolver already ran: see path_is_a_regular_file for why the distance
-  # between those two moments is the whole point.
+  # Re-checked next to the open, for the reason path_is_a_regular_file gives.
   if ! path_is_a_regular_file "$file"; then
     add_failure "match scan: '$file' was a regular file when this scan resolved it and is not one now; failing closed rather than opening something that can block forever"
     return 0
   fi
-  # Read the file directly. No here-string: bash materializes one in a
-  # temporary file, so a full or unwritable TMPDIR would feed the loop zero
-  # lines and the scan would report a hostile file clean.
-  #
+  # Reads without a here-string, because a full TMPDIR would feed it zero lines and pass a hostile file.
   # shellcheck disable=SC2094  # $file is passed to the recursive call for the
-  # message it prints; nothing in this verifier ever opens a config file for
-  # writing, and the scan is read-only by design.
+  # message it prints; the scan never writes a config file.
   while IFS= read -r line || [[ -n $line ]]; do
     if ! parse_config_line "$line"; then
       continue
@@ -1413,25 +744,9 @@ scan_config_file() {
   fi
 }
 
-# config_tree_roots: where a walk of the effective configuration STARTS, into
-# CONFIG_TREE_ROOTS. Returns 1 with CONFIG_TREE_ROOTS_ERROR naming the reason
-# when the listing cannot be built, so each caller phrases the refusal in its
-# own terms.
-#
-# Two roots, each walked with Include followed from it. The main config is
-# where sshd starts, so everything sshd reads is reachable from it. The
-# drop-in directory is kept as a second root so a drop-in stays covered even
-# if the main config is unreadable or its Include pattern resolves differently
-# than this walk computes; a file reached from both roots reports once (see
-# add_failure) and is fingerprinted once (see observe_config_tree).
-#
-# The include order is lexical byte order; LC_ALL=C sort mirrors it. A config
-# file name containing a newline would break this listing; sshd's own glob
-# handling shares the no-newline assumption.
-#
-# The listing is CAPTURED, not streamed from a process substitution. A process
-# substitution discards its exit status, so a failing sort produced zero files,
-# the loop ran over nothing, and a scan of nothing reported the tree clean.
+# config_tree_roots: the main config plus every drop-in, in sshd's byte order, into CONFIG_TREE_ROOTS,
+# so a drop-in stays covered if the main config's Include resolves differently. The listing is
+# captured, not read from a process substitution, so a failing sort fails here.
 CONFIG_TREE_ROOTS=()
 CONFIG_TREE_ROOTS_ERROR=''
 config_tree_roots() {
@@ -1445,8 +760,7 @@ config_tree_roots() {
     CONFIG_TREE_ROOTS_ERROR="could not list the configuration files to scan (exit $status)"
     return 1
   fi
-  # Split on newlines only, with globbing off so a file name containing a glob
-  # character is not expanded a second time.
+  # Newline split with globbing off, so a name holding a glob character is not expanded again.
   old_ifs="$IFS"
   IFS=$'\n'
   set -f
@@ -1459,10 +773,7 @@ config_tree_roots() {
     return 1
   fi
   for file in "${candidates[@]}"; do
-    # Regular files only, for the reason spelled out in resolve_include_paths:
-    # a named pipe here would block every open THIS FILE makes, forever. sshd
-    # is not covered by it, cannot be, and hangs on such a tree; the
-    # measurement and the reason are recorded at that filter.
+    # Keeps regular files only, because reading a named pipe blocks forever.
     if [[ -z $file || ! -f $file ]]; then
       continue
     fi
@@ -1489,24 +800,18 @@ check_match_scan() {
 
 check_connection_specs() {
   local invoking_user spec output status=0
-  # Guarded, not assumed: the status of this substitution used to be visible
-  # only through errexit, which the install path switched off.
   invoking_user="$(id -un)" || status=$?
   if [[ $status -ne 0 || -z $invoking_user ]]; then
     add_failure "connection check: could not determine the invoking user ('id -un' exited $status); failing closed rather than probing a spec built from an empty name"
     return 0
   fi
-  # Two samples: root (the account PermitRootLogin exists to keep out) and
-  # the invoking user (so a 'Match User <name>' aimed at the operator's own
-  # account fails RESOLUTION, not only the raw scan). Samples cannot be
-  # exhaustive; check_match_scan is the completeness net behind them.
+  # Resolves for root, which PermitRootLogin keeps out,
+  # and for the invoking user, which a `Match User` would target.
   for spec in \
     'user=root,host=localhost,addr=127.0.0.1' \
     "user=$invoking_user,host=localhost,addr=127.0.0.1"; do
     status=0
-    # -G -T -C: on OpenSSH 10.0p2, -C without -T is rejected and -T alone
-    # demands host keys; the three together resolve Match blocks for the spec
-    # with no privilege and no host keys (verified empirically).
+    # -C requires -T, and -T alone demands host keys. Together they resolve Match blocks unprivileged.
     output="$("$SSHD_BIN" -G -T -C "$spec" -f "$SSHD_MAIN_CONFIG" 2>&1)" || status=$?
     if [[ $status -ne 0 ]]; then
       add_failure "connection check ($spec): '$SSHD_BIN -G -T -C' exited $status; failing closed (output: $output)"
@@ -1516,19 +821,8 @@ check_connection_specs() {
   done
 }
 
-# check_local_address_specs: resolve one connection per arrival address and
-# require the refusal verdict policy demands of it.
-#
-# LocalAddress is the criterion, so the SAMPLE is the arrival address and the
-# client address is deliberately a documentation address: a rule keyed on the
-# client's own address instead would let a local-network client claiming a
-# tailnet source address through, and the two allowed samples here would go red
-# the moment the drop-in was rewritten that way.
-#
-# These specs carry an laddr and the two in check_connection_specs do not, which
-# is what keeps the two checks apart: without an laddr sshd resolves no Match
-# block at all, so those two stay in the permissive branch and judge the seven
-# protected directives, while these judge the verdict alone.
+# check_local_address_specs: resolve one connection per arrival address and require its refusal
+# verdict. Only a spec with an laddr reaches the drop-in's LocalAddress Match block.
 check_local_address_specs() {
   local invoking_user spec output status=0 i address want
   invoking_user="$(id -un)" || status=$?
@@ -1569,60 +863,16 @@ verify() {
     printf '  - %s\n' "${VERIFY_FAILURES[@]}" >&2
     return 1
   fi
-  # Both counts come from the arrays, so a directive or an arrival address added
-  # to policy cannot leave the success line claiming a number nobody checked.
+  # Counts come from the arrays, so the success line names exactly what was checked.
   printf '[ssh-hardening] verify: PASS: all %d protected directives hold globally, no Match block in the include graph re-enables any of them, both sampled connections resolve hardened, and all %d sampled arrival addresses resolve the refusal verdict policy demands.\n' \
     "${#PROTECTED_KEYS[@]}" "${#LOCAL_ADDRESS_SAMPLES[@]}"
 }
 
-# --- install -----------------------------------------------------------------
+# Install is a transaction: stage, publish with one rename, move the legacy file aside, verify, and
+# restore the tree as found if a step fails or an interrupt arrives. Working files are dot-prefixed,
+# which sshd's Include glob skips, so they never take effect.
 
-# Install is a TRANSACTION. It stages the new drop-in beside the target,
-# publishes it with one rename, moves the legacy file aside rather than
-# deleting it, and only then verifies. If any step fails the tree goes back
-# exactly as it was found, because refusing to CLAIM success is not the same
-# as refusing to CAUSE harm and the previous version did only the first.
-#
-# WHERE THAT PROPERTY USED TO STOP, because "if any step fails" reads wider
-# than it is. The rollback runs when a step RETURNS a failure, and a step that
-# never returns is a different thing. The child verify was one: sshd blocks
-# forever on a named pipe reached through its Include glob (measured, see
-# resolve_include_paths). Measured 2026-08-01 on such a tree, the install
-# stopped after printing "wrote <target>" and "removed legacy drop-in <legacy>",
-# rollback_install was never reached, and both the published drop-in and the
-# dot-prefixed .<legacy>.saved copy stayed.
-#
-# The child verify is now BOUNDED, and the argument for why that bound is safe
-# sits with it at VERIFY_DEADLINE_SECONDS: past the deadline the verify is
-# stopped, its process group with it, and reported as a failed verify, so the
-# rollback below runs on that path like on any other.
-#
-# An INTERRUPT takes the same rollback, and the comment that used to sit here
-# said the opposite: it claimed SIGINT and SIGTERM "kill this shell before any
-# trap could run". They do not. Bash runs a trap at the next command boundary,
-# and mid-install this shell is either between two filesystem commands or
-# waiting out a poll interval, so the handler runs in either case
-# (handle_install_interrupt, armed before the first write). Believing otherwise
-# left the worse half of the story unwritten: the verify is in a process group
-# of its own, so Ctrl-C does NOT reach it, and what an interrupt used to leave
-# behind was not an inert residue but a PUBLISHED drop-in with the run gone and
-# the verify still holding the tree open.
-#
-# What remains genuinely undefended is SIGKILL, which cannot be trapped at all.
-# What that leaves is the new policy published and the legacy file preserved
-# under a name sshd's Include glob does not match (verified: a dot-prefixed file
-# holding an invalid directive leaves `sshd -G` at exit 0, the same file undotted
-# takes it to 255), so the tree is hardened and the leftovers are inert.
-#
-# The working files are DOT-PREFIXED deliberately: sshd's Include glob does not
-# match a leading dot (glob(3) semantics, verified), so a half-written staging
-# file is never part of the effective configuration and neither is a rollback
-# copy. This scan skips them for the same reason.
-
-# The transaction's state, so rollback undoes what THIS run actually did
-# rather than inferring it from what happens to be on disk. Inferring is how a
-# rollback deletes a drop-in the run never published: the backup copy is
-# absent both before the publish step and when there was nothing to back up.
+# Transaction state, so rollback undoes what this run did instead of inferring it from disk.
 INSTALL_TARGET=''
 INSTALL_LEGACY=''
 INSTALL_STAGING=''
@@ -1631,16 +881,9 @@ INSTALL_SAVED_LEGACY=''
 INSTALL_PUBLISHED=0
 INSTALL_ROLLED_BACK=0
 
-# rollback_install: undo everything install did, and nothing it did not. Every
-# step reports on its own rather than aborting the rollback, because a rollback
-# that stops half way leaves exactly the state it exists to prevent.
-#
-# It runs AT MOST ONCE, and that guard is load-bearing now that a signal can
-# reach it. A second pass over a tree the first pass already restored reads the
-# absence of the saved copy as "no drop-in existed before this run" and DELETES
-# the file it just put back. The two callers can now overlap for real: a failing
-# step takes the rollback and dies, while the interrupt that killed that step
-# runs its handler at the next command boundary.
+# rollback_install: undo what install did and nothing else. Each step warns instead of aborting.
+# It runs at most once, because a second pass would read the restored tree
+# as "no drop-in before" and delete it.
 rollback_install() {
   if [[ $INSTALL_ROLLED_BACK -eq 1 ]]; then
     return 0
@@ -1650,14 +893,13 @@ rollback_install() {
     run_privileged rm -f -- "$INSTALL_STAGING" ||
       warn "rollback could not remove the staging file '$INSTALL_STAGING'"
   fi
-  # Only if this run replaced the target is the target this run's to undo.
+  # Undo the target only if this run replaced it.
   if [[ $INSTALL_PUBLISHED -eq 1 ]]; then
     if [[ -e $INSTALL_SAVED_TARGET || -L $INSTALL_SAVED_TARGET ]]; then
       run_privileged mv -f -- "$INSTALL_SAVED_TARGET" "$INSTALL_TARGET" ||
         warn "rollback could not restore the previous drop-in from '$INSTALL_SAVED_TARGET'"
     else
-      # No drop-in existed before this run, so removing the one it created is
-      # what "as it was found" means.
+      # No drop-in existed before this run.
       run_privileged rm -f -- "$INSTALL_TARGET" ||
         warn "rollback could not remove the drop-in '$INSTALL_TARGET' this run created"
     fi
@@ -1668,35 +910,13 @@ rollback_install() {
   fi
 }
 
-# handle_install_interrupt <signal>: an interrupt is a failed install, not an
-# abandoned one.
-#
-# The verify runs in a process group of its own (that is what lets the whole
-# group be stopped at the deadline), and the price is that Ctrl-C no longer
-# reaches it. Without this handler the parent died on the signal while the
-# verify kept running, the drop-in it had already PUBLISHED stayed published,
-# the legacy file stayed moved aside, and rollback_install was never reached --
-# which is the same half-applied tree the deadline exists to prevent, reached by
-# a shorter route, because an operator watching an install hang is exactly the
-# operator who reaches for Ctrl-C before the deadline expires.
-#
-# It stops the bounded group first and rolls back second: rolling back while a
-# verify still holds the tree open would race the thing it is undoing.
-#
-# Then it RE-RAISES rather than exiting. A shell that exits 130 is not the same
-# as a shell that died of SIGINT: the caller's own `wait` reports the signal,
-# and an interactive shell above prints its own notice. Resetting the trap first
-# is what makes the re-raise terminal instead of recursive.
+# handle_install_interrupt <signal>: Ctrl-C misses the verify's own process group, so stop it, roll
+# back, then re-raise the signal so the caller sees a signal death. The trap is reset first.
 handle_install_interrupt() {
   local signal="$1"
   trap - INT TERM HUP
   if [[ -n $BOUNDED_CHILD_PID ]]; then
-    # Reaped here, and the job-control notice it draws sent to /dev/null, for
-    # the reason run_bounded gives: the child runs under monitor mode, so bash
-    # announces "Terminated: 15" itself at the next command boundary, which
-    # lands in the middle of this handler's own message and reads as an
-    # internal error. Waiting also means the rollback below starts after the
-    # verify has let go of the tree rather than beside it.
+    # Reaps quietly, as run_bounded does, so the rollback starts after the verify lets go of the tree.
     {
       stop_bounded_group "$BOUNDED_CHILD_PID"
       wait "$BOUNDED_CHILD_PID"
@@ -1724,9 +944,7 @@ install_dropin() {
   INSTALL_PUBLISHED=0
   INSTALL_ROLLED_BACK=0
 
-  # Armed BEFORE the first write and disarmed once the transaction is complete,
-  # so a signal is only ever answered with a rollback while there is something
-  # to roll back.
+  # Armed before the first write, so a signal triggers a rollback only while there is one to do.
   trap 'handle_install_interrupt INT' INT
   trap 'handle_install_interrupt TERM' TERM
   trap 'handle_install_interrupt HUP' HUP
@@ -1737,36 +955,19 @@ install_dropin() {
     die "could not clear the working files under '$SSHD_CONFIG_D'; refusing to begin an install that could not be rolled back"
   fi
 
-  # Stage first, publish second. `tee` truncates its target the instant it
-  # opens it, so writing the drop-in directly EMPTIED a perfectly good file
-  # whenever the pipeline feeding it failed afterwards -- which a PATH without
-  # `cat` does, and did.
+  # Stages first, because tee truncates its target on open and a failed pipeline would empty the drop-in.
   if ! print_config | run_privileged tee -- "$staging" >/dev/null; then
     rollback_install
     die "could not stage the new drop-in at '$staging'; '$target' is untouched"
   fi
-  # Explicit mode, never the ambient umask: under e.g. umask 0077 tee lands
-  # the file 0600, and a root-owned 0600 drop-in makes UNPRIVILEGED `sshd -G`
-  # fail outright, so the whole verification would need elevation. 0644 is
-  # safe: the file holds no credential and sshd must be able to read it.
-  # `--` BEFORE the mode: BSD chmod treats a `--` after the mode as a file
-  # operand and fails.
+  # Sets 0644 explicitly, because a root-owned 0600 drop-in breaks unprivileged `sshd -G`.
+  # BSD chmod reads a `--` after the mode as a file name.
   if ! run_privileged chmod -- 0644 "$staging"; then
     rollback_install
     die "could not set mode 0644 on '$staging'; '$target' is untouched"
   fi
-  # Copy the existing drop-in aside BEFORE replacing it, so the target itself
-  # is never absent: the copy is the backup, and the rename below is atomic.
-  #
-  # `-R`, and not for directories. Without it `cp` FOLLOWS what it is given, and
-  # a drop-in that is not a plain regular file is not restored as what it was:
-  # a symlink comes back as a regular file holding a copy of its target's bytes
-  # (so a rollback silently detaches a managed file from whatever it pointed
-  # at), a dangling symlink fails the copy outright and refuses an install that
-  # had nothing to lose, and a NAMED PIPE blocks the copy forever -- an
-  # unbounded privileged call on the install path, measured, sitting one step
-  # before the bounded verify. With -R each of those is recreated as itself and
-  # the copy returns.
+  # Back up before replacing, so the target is never absent. -R recreates a symlink or named pipe as
+  # itself. Without it, cp follows the link or blocks forever on the pipe.
   if [[ -e $target || -L $target ]]; then
     if ! run_privileged cp -Rp -- "$target" "$saved_target"; then
       rollback_install
@@ -1780,13 +981,8 @@ install_dropin() {
   INSTALL_PUBLISHED=1
   printf '[ssh-hardening] wrote %s (mode 0644)\n' "$target"
 
-  # Retire the legacy drop-in, reversibly. Two reasons it has to go: one lock
-  # in one file (two files declaring the same policy is drift waiting to
-  # happen), and the legacy file was created 0600 under the umask, which breaks
-  # unprivileged verification for the entire tree (see the chmod comment
-  # above). It is MOVED, not deleted, until the replacement is proven good --
-  # deleting the only effective policy and then failing verification is exactly
-  # how an install leaves a machine worse than it found it.
+  # Moves the legacy drop-in aside until the new one verifies. One policy belongs in one file,
+  # and the legacy file's 0600 mode breaks unprivileged verification.
   if [[ -e $legacy || -L $legacy ]]; then
     if ! run_privileged mv -f -- "$legacy" "$saved_legacy"; then
       rollback_install
@@ -1794,25 +990,19 @@ install_dropin() {
     fi
     printf '[ssh-hardening] removed legacy drop-in %s\n' "$legacy"
   fi
-  # Verify in a child shell (see run_verify_child for why in-process
-  # verification under an `if !` or `||` test would run with errexit off).
+  # Verified in a child shell, where errexit stays on, as verify_child_command explains.
   local verify_status=0
   run_verify_child || verify_status=$?
   if [[ $verify_status -ne 0 ]]; then
     rollback_install
     die "the effective configuration did NOT verify as fully hardened; the tree was rolled back to the state this install found it in, and no success is claimed"
   fi
-  # Disarmed here and not at the end of the function: the new drop-in is
-  # published and verified, so from this line on an interrupt must leave the
-  # hardening in place. What follows only removes the rollback copies, which are
-  # dot-prefixed and inert whether or not they are cleaned up.
+  # Disarmed once the drop-in verifies, so an interrupt from here on keeps the hardening.
   trap - INT TERM HUP
   if ! run_privileged rm -f -- "$saved_target" "$saved_legacy"; then
     warn "could not remove the rollback copies under '$SSHD_CONFIG_D'; they are dot-prefixed and inert, but should be cleaned up"
   fi
-  # The child's skip cannot be read out of its exit status, so the same
-  # predicate decides the wording here. One function, two callers, no second
-  # copy of the rule to drift.
+  # The child's skip is invisible in its exit status, so the same predicate picks the wording.
   if [[ ! -x $SSHD_BIN ]] && verify_skip_allowed; then
     printf '[ssh-hardening] wrote %s, but verification was SKIPPED via the test seam; the effective configuration is NOT verified.\n' "$target"
     return 0
@@ -1820,85 +1010,17 @@ install_dropin() {
   printf '[ssh-hardening] install complete: %s is in place and the effective configuration verified fully hardened.\n' "$target"
 }
 
-# --- configuration tree fingerprint -------------------------------------------
-# --reload judges the configuration many times before it restarts anything --
-# the syntax check, the child verify (itself a global resolution, a text scan
-# of the include graph, and two per-connection resolutions), then the port
-# resolution -- and every one of those is a separate open of the tree. A writer
-# landing between any two of them leaves the preflight judging a tree that is
-# no longer on disk.
-#
-# What the functions below produce is an OBSERVATION of the tree: one record
-# per file in the resolved include graph, carrying the path, the mode, the
-# owning uid and gid, and a content checksum. Two observations that compare
-# equal mean every file was byte-identical and attribute-identical at the two
-# moments IT was read, which is what carries every conclusion the preflight drew
-# forward -- not only "it still verifies hardened", but also that the syntax
-# check read these bytes and that the ports resolved from them are the ports
-# this configuration declares. That is why the guard compares observations
-# rather than simply re-running the verify: a second verify re-establishes
-# exactly one of those three conclusions and would leave a stale port resolution
-# looking fine.
-#
-# What it does NOT establish, said here because the wording above is the kind
-# that drifts into a guarantee: an observation reads the files one after
-# another, so two equal observations do not establish that the tree was ever, at
-# any single instant, the thing the preflight judged. See the limits at the
-# comparison site in reload_sshd.
-#
-# What is in a record, and why:
-#
-#   content checksum   the point of the exercise. mtime is deliberately NOT in
-#                      here: `stat` reports whole seconds, so a rewrite inside
-#                      the same second is invisible to it.
-#   mode, uid, gid     same bytes at a different mode is a different security
-#                      proposition; a world-writable include is a file anyone
-#                      can rewrite a moment later, and this file's own install
-#                      path already reasons about mode (a root-owned 0600
-#                      drop-in makes unprivileged `sshd -G` fail outright).
-#   the SET of paths   a file appearing or disappearing changes the effective
-#                      tree while every survivor stays byte-identical, so the
-#                      comparison is set-aware in both directions.
-#
-# Deliberately NOT in a record: the inode. The install path publishes by atomic
-# rename, so republishing identical content changes the inode, and an inode in
-# the record would read that as drift.
-#
-# ONE HAZARD THIS CANNOT FULLY CLOSE, so that nobody removes the parts that
-# narrow it. Reading a named pipe never returns: bash blocks in open(2) and
-# there is no non-blocking open to reach from a shell. A hang after the kickstart
-# is strictly worse than the drift this guard exists to catch, because a refusal
-# is recoverable and a hang is not.
-#
-# ONE OBSERVATION OPENS EACH FILE TWICE, and both opens are guarded. The
-# enumeration reads the file to follow its Include lines; the record's checksum
-# reads it again afterwards. The resolution's own -f test guards neither on its
-# own, because it is not adjacent to either: for the second root it runs before
-# the whole walk of the first. So each open re-asks the question immediately in
-# front of itself, the enumeration with -f (see path_is_a_regular_file) and the
-# checksum with the type field of the same stat call that reads the mode. What
-# is left is the gap between each of those tests and the open it protects, which
-# is microseconds and needs a writer aiming at it. It is not the
-# enumeration-wide window it replaced, and no open is left unguarded.
-#
-# Every read here is UNPRIVILEGED, on purpose. The post-restart pass runs after
-# a readiness loop that may have burned its whole attempt budget, by which time
-# a primed sudo timestamp can have expired -- and a password prompt on a machine
-# whose SSH session the kickstart may have just killed is the last thing that
-# should happen there. An include the invoking user cannot read is therefore
-# reported as a failure to observe, which the reload treats as a refusal,
-# exactly as scan_config_file already treats an unreadable file.
+# --reload compares observations of the tree: one record per file with path, mode, owner and
+# checksum. mtime is left out because whole seconds hide a rewrite, and inode because an atomic
+# republish changes it.
+# Reads are unprivileged, so the post-restart pass cannot raise a sudo prompt.
 
 CONFIG_TREE_FILES=()
 CONFIG_TREE_ERROR=''
 CONFIG_TREE_BYTES_READ=0
 
-# config_tree_would_exceed_width <files about to be added>: 1 when adding that
-# many more files would take the walk past MAX_CONFIG_TREE_FILES, with
-# CONFIG_TREE_ERROR set. Asked BEFORE a resolved match list is walked, not once
-# per file inside it: a glob over a directory of a hundred thousand files was
-# expanded, sorted and then looped over in full before the count check at the
-# top of the recursion refused, which is the work the bound exists to avoid.
+# config_tree_would_exceed_width <count>: 0 with CONFIG_TREE_ERROR set when that many more files
+# would pass MAX_CONFIG_TREE_FILES. Asked before walking a match list, not once per file.
 config_tree_would_exceed_width() {
   local incoming="$1"
   if [[ $((${#CONFIG_TREE_FILES[@]} + incoming)) -le $MAX_CONFIG_TREE_FILES ]]; then
@@ -1908,15 +1030,8 @@ config_tree_would_exceed_width() {
   return 0
 }
 
-# collect_config_tree_from_file <file> <depth> <chain>: append this file and
-# every file reachable from it through Include to CONFIG_TREE_FILES. Bounded,
-# cycle-aware, and fail-closed the same way scan_config_file is: anything it
-# cannot walk sets CONFIG_TREE_ERROR rather than yielding a partial listing
-# that would compare equal to another partial listing.
-#
-# This does NOT judge the file's content; scan_config_file does that. Splitting
-# enumeration from judgement is what lets the reload reuse the walk without
-# reaching into the most safety-critical function in the file.
+# collect_config_tree_from_file <file> <depth> <chain>: append this file and its Includes to
+# CONFIG_TREE_FILES. Fails closed through CONFIG_TREE_ERROR, never with a partial listing.
 collect_config_tree_from_file() {
   local file="$1" depth="$2" chain="$3"
   local line status=0 resolved
@@ -1939,27 +1054,17 @@ collect_config_tree_from_file() {
     CONFIG_TREE_ERROR="cannot read '$file'"
     return 0
   fi
-  # Re-asked here, next to the open it protects. This is the FIRST of the two
-  # opens one observation makes of each file, and the only one the stat that
-  # records the type does not stand in front of; see path_is_a_regular_file.
+  # Re-checked next to the open, for the reason path_is_a_regular_file gives.
   if ! path_is_a_regular_file "$file"; then
     CONFIG_TREE_ERROR="'$file' was a regular file when this walk resolved it and is not one now, so reading it here could block"
     return 0
   fi
   CONFIG_TREE_FILES+=("$file")
-  # Read the file directly, no here-string, for the reason scan_config_file
-  # gives: bash materializes a here-string in a temporary file, so a full or
-  # unwritable TMPDIR would feed the loop zero lines. Nothing in this loop body
-  # reads stdin -- parsing is pure bash, and the recursive call redirects its
-  # own -- so the loop needs no dedicated descriptor.
-  #
+  # No here-string, for the reason scan_config_file gives.
   # shellcheck disable=SC2094  # $file is passed to the recursive call for the
   # message it may print; this walk never opens a config file for writing.
   while IFS= read -r line || [[ -n $line ]]; do
-    # Counted and checked BEFORE the line is parsed. parse_config_line walks the
-    # line one character at a time in pure bash, which is where the whole cost
-    # of this walk lives, so a bound applied after it would bound nothing. The
-    # +1 is the newline `read` stripped.
+    # Counted before parsing, where the walk's cost lies. +1 counts the newline that read strips.
     CONFIG_TREE_BYTES_READ=$((CONFIG_TREE_BYTES_READ + ${#line} + 1))
     if [[ $CONFIG_TREE_BYTES_READ -gt $MAX_CONFIG_TREE_BYTES ]]; then
       CONFIG_TREE_ERROR="the configuration tree holds more than $MAX_CONFIG_TREE_BYTES bytes to read (reached while reading '$file')"
@@ -1995,9 +1100,7 @@ collect_config_tree_from_file() {
   fi
 }
 
-# collect_config_tree_files: every file in the resolved include graph, from
-# both roots, into CONFIG_TREE_FILES. Returns 1 with CONFIG_TREE_ERROR set when
-# any part of the graph could not be walked.
+# collect_config_tree_files: the whole include graph from both roots. Returns 1 with CONFIG_TREE_ERROR.
 collect_config_tree_files() {
   local root
   local -a roots
@@ -2025,23 +1128,8 @@ collect_config_tree_files() {
   return 0
 }
 
-# config_tree_path_is_recordable <path>: 0 when a record built from this path
-# can be split back into its three fields unambiguously, 1 when it cannot.
-#
-# Only NUL and '/' are excluded from a POSIX file name, so both bytes this
-# rejects are legal on macOS and reachable through a plain `Include <dir>/*`.
-# Neither can be carried, and neither fails in a way anyone would notice:
-#
-#   the field separator  two files named `<prefix>\037b.conf` and
-#                        `<prefix>\037c.conf` parse to the SAME path, so an
-#                        untouched tree compares unequal to itself and the
-#                        reload refuses saying the tree CHANGED. That is not a
-#                        fail-closed outcome, it is a false accusation.
-#   a newline            the listing is one path per line, so one path becomes
-#                        two, and each half then fails to stat.
-#
-# Refusing by name is the fail-closed answer that also tells the operator what
-# to fix. Pure: one input, a boolean answer, no globals.
+# config_tree_path_is_recordable <path>: 1 for a path holding a newline or the field separator,
+# which would split its record wrongly and report a false change.
 config_tree_path_is_recordable() {
   case $1 in
     *"$CONFIG_TREE_FIELD_SEPARATOR"* | *$'\n'*) return 1 ;;
@@ -2049,14 +1137,8 @@ config_tree_path_is_recordable() {
   return 0
 }
 
-# observe_config_tree: one observation of the whole tree into
-# CONFIG_TREE_OBSERVATION, one record per unique file in sorted path order.
-# Returns 1 with CONFIG_TREE_ERROR set when the tree could not be observed at
-# all, which every caller must treat as a refusal rather than as "no change".
-#
-# The order is canonical (sorted, deduplicated) so two observations of the same
-# tree are the same string whatever order the graph was walked in, and so a
-# file reached from both roots appears once.
+# observe_config_tree: one sorted, deduplicated observation into CONFIG_TREE_OBSERVATION, so walk
+# order cannot matter. Returns 1 with CONFIG_TREE_ERROR, which callers treat as a refusal.
 CONFIG_TREE_OBSERVATION=''
 observe_config_tree() {
   local listing status=0 file attributes file_type checksum old_ifs
@@ -2065,15 +1147,12 @@ observe_config_tree() {
   if ! collect_config_tree_files; then
     return 1
   fi
-  # Guarded before the expansion: bash 3.2 aborts on an empty array under
-  # `set -u`, and an aborted observation would take the reload down with no
-  # message rather than with a refusal.
+  # The system bash aborts on an empty array under set -u.
   if [[ ${#CONFIG_TREE_FILES[@]} -eq 0 ]]; then
     CONFIG_TREE_ERROR='the configuration tree walk produced no file at all'
     return 1
   fi
-  # Checked BEFORE the listing is built, because the listing is itself
-  # newline-framed and would lose such a path on the way in.
+  # Checked before the newline-framed listing, which would split such a path.
   for file in "${CONFIG_TREE_FILES[@]}"; do
     if ! config_tree_path_is_recordable "$file"; then
       CONFIG_TREE_ERROR="the name of '$file' holds a newline or an ASCII unit separator, so its record cannot be recorded unambiguously; rename it and re-run"
@@ -2098,17 +1177,8 @@ observe_config_tree() {
   fi
   for file in "${unique_files[@]}"; do
     status=0
-    # -L, so the record describes the file that is actually OPENED. BSD stat
-    # lstat()s by default, while both `[[ -f ]]` and the read below follow a
-    # symlink: without -L a symlinked include paired the target's content with
-    # the LINK's mode and owner (a constant 0755 on macOS), which silently voids
-    # the whole mode-and-owner dimension for that file.
-    #
-    # The type comes from the same call because it costs nothing extra there and
-    # because it is the last chance to notice that a path the walk tested with
-    # -f is no longer a regular file. Reading a named pipe never returns, and a
-    # read that hangs after the kickstart is strictly worse than the drift this
-    # guard exists to catch.
+    # -L describes the file actually opened, not a symlink's own mode and owner. The type is the last
+    # check that the path is still a regular file, since reading a named pipe hangs.
     attributes="$("$STAT_BIN" -Lf "%HT$CONFIG_TREE_FIELD_SEPARATOR%Lp %u %g" -- "$file" 2>&1)" || status=$?
     if [[ $status -ne 0 ]]; then
       CONFIG_TREE_ERROR="could not read the mode and owner of '$file' ($STAT_BIN exited $status: $attributes)"
@@ -2131,11 +1201,7 @@ observe_config_tree() {
   return 0
 }
 
-# config_tree_record_fields <record>: split one observation record into
-# CONFIG_TREE_RECORD_PATH, CONFIG_TREE_RECORD_ATTRIBUTES and
-# CONFIG_TREE_RECORD_CHECKSUM. Pure, no forks, and it never splits on
-# whitespace: a path may contain spaces, and a path carrying the separator is
-# refused at observation time (see config_tree_path_is_recordable).
+# config_tree_record_fields <record>: split a record on the field separator, never on whitespace.
 CONFIG_TREE_RECORD_PATH=''
 CONFIG_TREE_RECORD_ATTRIBUTES=''
 CONFIG_TREE_RECORD_CHECKSUM=''
@@ -2147,19 +1213,8 @@ config_tree_record_fields() {
   CONFIG_TREE_RECORD_CHECKSUM="${rest#*"$CONFIG_TREE_FIELD_SEPARATOR"}"
 }
 
-# config_tree_find_record <path> [record...]: 0 when one of the records names
-# that path, with CONFIG_TREE_FOUND_ATTRIBUTES and CONFIG_TREE_FOUND_CHECKSUM
-# holding its other two fields; 1 when none does.
-#
-# The one lookup both directions of the comparison need. Written out twice it
-# was forty lines of near-identical loop, and a fix to one copy would have left
-# the other answering differently.
-#
-# The caller MUST have nocasematch off: the path test below is what decides
-# whether a rename that changes only the case of a file name counts as a
-# change, and it does. Linear, so the comparison is quadratic in the file
-# count; bash 3.2 has no associative arrays to make it anything else, and
-# MAX_CONFIG_TREE_FILES is what keeps the square small.
+# config_tree_find_record <path> [record...]: 0 with CONFIG_TREE_FOUND_* set when a record names
+# the path. Callers turn nocasematch off so a case-only rename counts as a change.
 CONFIG_TREE_FOUND_ATTRIBUTES=''
 CONFIG_TREE_FOUND_CHECKSUM=''
 config_tree_find_record() {
@@ -2179,12 +1234,8 @@ config_tree_find_record() {
   return 1
 }
 
-# config_tree_is_unchanged <earlier observation> <later observation>: 0 when
-# the two describe the same tree, 1 when they do not, with
-# CONFIG_TREE_CHANGE_DESCRIPTION naming every file that moved AND the dimension
-# it moved in. The dimension matters to the operator: told only that a file
-# "changed", someone whose mode was flipped diffs the bytes, finds them
-# identical, and concludes the guard is broken.
+# config_tree_is_unchanged <earlier> <later>: 1 with CONFIG_TREE_CHANGE_DESCRIPTION naming each file
+# and whether its content or its mode moved, so the operator knows where to look.
 CONFIG_TREE_CHANGE_DESCRIPTION=''
 config_tree_is_unchanged() {
   local earlier="$1" later="$2" changed=0 separator=''
@@ -2192,10 +1243,7 @@ config_tree_is_unchanged() {
   local other_attributes other_checksum
   local -a earlier_records later_records
   CONFIG_TREE_CHANGE_DESCRIPTION=''
-  # Case-SENSITIVE for the whole comparison. nocasematch is on at file scope so
-  # keyword matching mirrors sshd, and left alone it reaches these tests too:
-  # two paths differing only in case would then compare equal, and a rename
-  # between them would read as no change. Restored at the single exit below.
+  # Case-sensitive, so a case-only rename counts as a change. It is restored at the single exit.
   shopt -u nocasematch
   old_ifs="$IFS"
   IFS=$'\n'
@@ -2215,7 +1263,7 @@ config_tree_is_unchanged() {
       found=0
       other_attributes=''
       other_checksum=''
-      # Guarded: bash 3.2 aborts under `set -u` on an empty array expansion.
+      # Guarded, because the system bash aborts under `set -u` on an empty array expansion.
       if [[ ${#later_records[@]} -gt 0 ]] &&
         config_tree_find_record "$path" "${later_records[@]}"; then
         found=1
@@ -2257,48 +1305,9 @@ config_tree_is_unchanged() {
   return "$changed"
 }
 
-# --- reload ------------------------------------------------------------------
-
-# report_absent_service_outcome <the observation the preflight judged>: what
-# --reload says when `launchctl print` confirms the service is absent, which is
-# what Remote Login being off looks like.
-#
-# Nothing is restarted on this path, and when the tree can still be READ the
-# exit status is 0 whether or not it moved; that is the mode's spec and a moved
-# tree is not a reason to change it, because there is no daemon to restart onto
-# anything. The SENTENCE is a different matter. A claim about the tree on disk
-# rests on a preflight that ran before this moment, and making it anyway over a
-# tree that has since moved is a success claim over validation known to be
-# stale -- the same defect the pre-kickstart guard exists to prevent, arriving
-# on the one path that never reaches the guard.
-#
-# WHY THE SENTENCE IS HEDGED HARDER THAN THE RELOAD'S OWN. It used to read "the
-# installed drop-in applies when Remote Login is next enabled", flat, while the
-# reload-complete line was qualified down to "a check that found nothing, not a
-# guarantee" for exactly this kind of evidence. That had it backwards: the
-# reload's unobservable gap is the milliseconds between its last observation
-# and the daemon's own read, while the event THIS line predicts is an operator
-# turning Remote Login on, which may be weeks away, over whatever the tree
-# holds at that moment, with nothing re-reading it then. The weaker evidence
-# carried the stronger sentence. It now says what this run measured and names
-# the gap it cannot see across, and control E in the drift suite pins both
-# halves so a future round cannot quietly widen it back.
-#
-# A FAILED OBSERVATION IS NOT THE SAME AS A MOVED TREE, and it used to end the
-# same way: a warning and exit 0. The two branches below differ in what the run
-# can say. Drift is a state this run can still see and describe in full, so the
-# operator is told which file moved and the only thing withheld is a
-# forward-looking claim. An observation that FAILS is this run's evidence
-# source going away: it cannot say whether the drop-in it validated a moment
-# ago is even still on disk. Every other place that reads this tree treats that
-# as a refusal (step 3 before the preflight, step 8 before the kickstart, step
-# 12 after it), and the states that produce it are durable defects rather than
-# a writer passing through -- an include chmodded unreadable, a file that takes
-# the tree past MAX_CONFIG_TREE_BYTES, a path carrying the record separator --
-# each of which --verify refuses too. Exit 0 there put the mode's only
-# machine-readable signal at "fine" for a run that could not read the
-# configuration at all, which is the caller-facing half of the same fail-open
-# the withheld sentence closes.
+# report_absent_service_outcome <earlier observation>: Remote Login is off, so nothing restarts and
+# a moved tree still exits 0 without a claim about it. A failed observation is fatal, since the run
+# can no longer see whether the drop-in is there.
 report_absent_service_outcome() {
   local earlier="$1" tree_changed=0
   printf '[ssh-hardening] reload: the sshd launchd service is confirmed absent, which is what Remote Login being off looks like, so there is no daemon to restart and nothing was restarted.\n'
@@ -2313,27 +1322,14 @@ report_absent_service_outcome() {
   printf '[ssh-hardening] reload: the configuration tree these checks passed is still the one on disk, with every file reading back byte-for-byte and mode-for-mode identical each time this run read it. Whether it is still what sshd reads when Remote Login is next enabled is NOT checked here: that happens later, possibly much later, over whatever the tree holds at that moment, and nothing re-validates it then, so re-run ssh-hardening.sh --verify once Remote Login is on.\n'
 }
 
-# recovery_instructions: the way back in, in one sentence, printed verbatim in
-# every failure after the disruptive step. The exact wording is pinned by a
-# test against the runbook's copy, so shortening it to "investigate" (or
-# letting the two drift apart) fails the suite.
+# recovery_instructions: the way back in, printed after every failure past the restart. The
+# fresh-machine runbook quotes this sentence; change both together.
 recovery_instructions() {
   printf 'Recovery: keep any SSH session you still have OPEN until a new login succeeds. From the physical console, or Screen Sharing over the tailnet, run: ssh-hardening.sh --rollback (or: sudo rm %s), then turn Remote Login off and back on in System Settings > General > Sharing.' "$(dropin_path)"
 }
 
-# probe_sshd_service: one `launchctl print` of the sshd service, run DIRECTLY
-# and not through the privilege wrapper -- deliberately. Measured on macOS
-# 26.2: unprivileged `launchctl print system/<service>` exits 0 for a loaded
-# job and 113 for an absent one, the same statuses the privileged probe
-# returns. Running it bare removes the wrapper's own exit status from this
-# channel entirely, so a wrapper failing with 113 cannot masquerade as
-# "Remote Login is off": every status seen here is launchctl's own answer
-# (or bash's 126/127 for an unrunnable LAUNCHCTL_BIN, neither of which is 0
-# or 113, so both land in the probe-error branch). Results land in globals
-# rather than an exit status, because the caller needs the EXACT status to
-# separate three outcomes: loaded (0), confirmed absent (113), and
-# everything else, which is a probe error and must never be read as "the
-# daemon is stopped".
+# probe_sshd_service: run launchctl without sudo, so a wrapper failure cannot pose as status 113.
+# The caller needs the exact status: 0 loaded, 113 absent, anything else a probe error.
 SERVICE_PROBE_STATUS=0
 SERVICE_PROBE_OUTPUT=''
 probe_sshd_service() {
@@ -2342,30 +1338,8 @@ probe_sshd_service() {
     SERVICE_PROBE_STATUS=$?
 }
 
-# reload_sshd: restart the sshd launchd service so it demonstrably serves the
-# drop-in. This is the one disruptive mode in the script: on a remote machine
-# the daemon being restarted is the daemon carrying the session, so every step
-# fails CLOSED, everything that can be validated is validated BEFORE the
-# restart, and success is claimed only after a real SSH banner exchange. What
-# is deliberately NOT here: any automatic rollback on failure. A machine that
-# just failed to restart cleanly is exactly the machine that must not receive
-# a second unattended state change; the failure names the recovery path and
-# leaves the operator in control.
-# validate_readiness_knobs: refuse every knob shape that would not mean what
-# the operator asked, BEFORE anything else runs. The property, not a list of
-# last time's bad examples:
-#
-#   - attempts and the probe timeout: one canonical base-10 positive integer,
-#     short enough for safe bash arithmetic. No leading zero, because bash
-#     arithmetic reads one as base-8 (measured on bash 3.2: ATTEMPTS=010 made
-#     8 probes, ATTEMPTS=08 died mid-loop with "value too great for base",
-#     and ATTEMPTS=00 bounded the loop at ZERO probes and reported POSSIBLE
-#     LOCKOUT on a healthy machine).
-#   - the interval: a canonical non-negative decimal number of seconds
-#     (fractions are legal; the delay tool accepts them). It never enters
-#     bash arithmetic -- it is only compared to the literal 0 and handed to
-#     the delay tool -- so it needs no length bound, but leading-zero integer
-#     forms are refused for the same one-canonical-spelling rule.
+# validate_readiness_knobs: refuse knob values that would not mean what they say. Integers take no
+# leading zero, which bash reads as octal, and stay short enough for safe arithmetic.
 validate_readiness_knobs() {
   case $SSH_HARDENING_READY_ATTEMPTS in
     '' | *[!0-9]* | 0*)
@@ -2390,35 +1364,12 @@ validate_readiness_knobs() {
   esac
 }
 
-# resolve_probe_ports: every `Port` the effective configuration declares,
-# validated and deduplicated, into the PROBE_PORTS array.
-#
-# A NOTE ON AUTHORITY, and why this is a best effort rather than the truth:
-# macOS Remote Login is launchd SOCKET ACTIVATION. ssh.plist declares
-# inetdCompatibility with Sockets.Listeners.SockServiceName = ssh, so launchd
-# owns the listening socket and sshd never binds one; the Port directive that
-# `sshd -G` reports is inert for the live listener. On a machine whose
-# configuration carries a nonstandard Port, every port resolved here can be
-# wrong while the daemon is healthy on launchd's socket (normally 22).
-# Deriving the probe target from launchd instead was considered and rejected:
-# `launchctl print` output is an undocumented human-oriented format with no
-# stability guarantee, and parsing it in the one path that must not misfire
-# is a worse risk than an honest diagnosis. So the resolved ports stay the
-# probe target (on a stock machine the two authorities agree), and the
-# LOCKOUT failure names the launchd-socket possibility so a port mismatch
-# reads as a diagnosis rather than a false emergency.
-#
-# Every declared Port is kept: two Port directives produce two `port` lines
-# from the real binary (measured), and probing only the first would prove
-# readiness for one listener while the success message speaks for the
-# daemon. Each value is checked as a canonical integer and range-bounded on
-# BOTH sides (1-65535) before it reaches arithmetic or a probe argv.
+# resolve_probe_ports: every Port the configuration declares, validated and deduplicated, into
+# PROBE_PORTS. launchd owns the real listener, normally on port 22, so a nonstandard Port can be the
+# wrong target. The lockout message says so.
 PROBE_PORTS=()
-# The file the bounded port resolution writes to, and the command that writes
-# it. A command substitution reads its child through a pipe and waits for the
-# pipe to close, which is exactly the unbounded wait this call had; run_bounded
-# hands over an argument vector and cannot carry a redirection, so the
-# redirection lives in the command it runs.
+# run_bounded takes an argv, not a redirection, so the redirection lives in this command.
+# A command substitution would wait unbounded on its pipe.
 PORT_RESOLUTION_OUTPUT=''
 resolve_ports_command() {
   "$SSHD_BIN" -G -f "$SSHD_MAIN_CONFIG" >"$PORT_RESOLUTION_OUTPUT" 2>&1
@@ -2429,11 +1380,7 @@ resolve_probe_ports() {
   PROBE_PORTS=()
   PORT_RESOLUTION_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/ssh-hardening-ports.XXXXXX")" ||
     die "could not create a temporary file to resolve the effective sshd port into; failing closed before the disruptive step. sshd was not touched."
-  # BOUNDED for the reason the syntax check above is: this is the third and last
-  # reader of the configuration tree before the restart, it is the same `sshd
-  # -G` that blocks forever on a named pipe reached through an Include glob, and
-  # a tree that grew one between the verify and this call would otherwise park
-  # the reload here with nothing printed.
+  # Bounded, because sshd -G blocks forever on a named pipe reached through an Include glob.
   run_bounded "$VERIFY_DEADLINE_SECONDS" resolve_ports_command || status=$?
   output="$(cat "$PORT_RESOLUTION_OUTPUT" 2>/dev/null || :)"
   rm -f "$PORT_RESOLUTION_OUTPUT"
@@ -2452,9 +1399,7 @@ resolve_probe_ports() {
   if [[ -z $listing ]]; then
     die "the effective configuration resolved NO port at all; refusing to probe readiness blind. sshd was not touched."
   fi
-  # A here-string materializes in TMPDIR; if that fails the loop reads zero
-  # lines, PROBE_PORTS stays empty, and the guard below refuses -- the
-  # failure direction is closed either way.
+  # A failed here-string reads zero lines, and the empty-PROBE_PORTS check below refuses.
   while IFS= read -r port; do
     case $port in
       '' | *[!0-9]* | 0*)
@@ -2482,28 +1427,16 @@ resolve_probe_ports() {
   fi
 }
 
-# banner_output_names_host_key <output>: at least one stdout line shaped like
-# a host-key record: three or more fields (host, key type, key material), not
-# opening a comment. The real ssh-keyscan prints exactly that shape for a
-# completed exchange and sends its chatter to stderr, so this is a
-# seam-contract check: an overridden KEYSCAN_BIN exiting 0 with arbitrary
-# text must not satisfy readiness. Deliberately loose beyond the shape (no
-# key-type allowlist): the artifact required is "a host-key record arrived",
-# not a catalogue of algorithms.
+# banner_output_names_host_key <output>: a stdout line shaped like a host-key record, so an
+# overridden KEYSCAN_BIN exiting 0 with arbitrary text cannot prove readiness.
 banner_output_names_host_key() {
   printf '%s\n' "$1" |
     awk 'NF >= 3 && $1 !~ /^#/ { found = 1 } END { exit found ? 0 : 1 }'
 }
 
-# wait_for_ssh_banner: the readiness loop. One attempt probes EVERY resolved
-# port once; the bound is SSH_HARDENING_READY_ATTEMPTS attempts (see the seam
-# comment for what that bound does and does not promise). On success sets
-# READY_PORT to the port that answered and returns 0; after the bound is
-# exhausted returns 1 with READY_PORT empty. Success requires the probe's
-# exit status AND a host-key record on stdout: the status alone is a proxy,
-# and a probe that printed no key record proved nothing, whatever it exited.
-# Every child status is captured explicitly, so the loop's answer does not
-# depend on errexit (callers judging it inside `if !` have errexit off).
+# wait_for_ssh_banner: probe every port once per attempt, up to SSH_HARDENING_READY_ATTEMPTS.
+# Success needs exit 0 and a host-key record, and sets READY_PORT. Statuses are captured, since
+# callers run it with errexit off.
 READY_PORT=''
 wait_for_ssh_banner() {
   local attempt=1 keyscan_status banner_output port status
@@ -2531,18 +1464,16 @@ wait_for_ssh_banner() {
   return 1
 }
 
+# reload_sshd restarts the daemon that may carry this session, so it validates everything first
+# and claims success only after an SSH banner. It never rolls back: a machine that just failed a
+# restart must not get a second unattended change.
 reload_sshd() {
   local status output
   local tree_before_preflight tree_before_kickstart tree_changed
 
   validate_readiness_knobs
 
-  # 1. Privilege first, VISIBLY (a password prompt, if any, lands on the
-  # terminal). Everything disruptive below runs through the wrapper, so a
-  # sudo failure aborts here, named as what it is: without this, a failed
-  # `sudo launchctl print` exits nonzero and reads exactly like a service
-  # problem. An empty wrapper means the caller already runs with whatever
-  # privilege it has (the sandbox case), so there is nothing to prime.
+  # 1. Prime sudo visibly first, so a sudo failure is not mistaken for a service problem.
   if [[ -n $SSH_HARDENING_SUDO ]]; then
     status=0
     "$SSH_HARDENING_SUDO" -v || status=$?
@@ -2551,12 +1482,7 @@ reload_sshd() {
     fi
   fi
 
-  # 2. The readiness prover AND the retry delay must exist BEFORE anything
-  # disruptive happens. A reload that cannot prove the daemon came back
-  # leaves the operator guessing, so the prover's absence is a refusal; and
-  # the delay tool runs only BETWEEN probes, after the kickstart, so ITS
-  # absence would surface as a silent post-restart abort unless it is
-  # validated here, where nothing has been disturbed yet.
+  # 2. The prover and the delay tool run after the restart, so check they exist before it.
   if [[ ! -x $KEYSCAN_BIN ]]; then
     die "the readiness prover '$KEYSCAN_BIN' is not runnable, so there would be no way to prove sshd came back after a restart; refusing to kickstart blind. sshd was not touched."
   fi
@@ -2564,31 +1490,14 @@ reload_sshd() {
     die "the retry delay tool '$SLEEP_BIN' is not runnable, so the readiness loop could only abort after the restart; refusing to kickstart. sshd was not touched."
   fi
 
-  # 3. Observe the configuration tree BEFORE the first read of it, so every
-  # judgement below sits INSIDE the observed window. Taking it after the syntax
-  # check instead would leave the gap between the syntax check and the verify
-  # uncovered, which is the first inter-step gap there is.
+  # 3. Observe the tree before the first read, so every check below falls inside the observed window.
   if ! observe_config_tree; then
     die "could not read the sshd configuration tree to establish that it stays put during this reload ($CONFIG_TREE_ERROR); refusing to restart onto a tree whose stability cannot be established. sshd was not touched."
   fi
   tree_before_preflight="$CONFIG_TREE_OBSERVATION"
 
-  # 4. Syntax: never restart onto a configuration sshd cannot parse.
-  # Privileged, because -t reads the root-owned host keys.
-  #
-  # BOUNDED by the same watchdog the verify below uses, because this call is the
-  # same shape of risk and reaches sshd FIRST. `sshd -t` opens every file in its
-  # own Include graph with no type filter, so one named pipe under the drop-in
-  # glob blocks it forever (measured 2026-08-01 against OpenSSH 10.0p2: -t and
-  # -G both hit a 10s probe timeout where the same tree without the pipe exits
-  # 0). This script's own walk skips a non-regular entry and reports nothing
-  # wrong, so an unbounded call here parked --reload before it reached the
-  # verify's deadline, before the kickstart, and before anything printed.
-  #
-  # Its output is NOT captured any more. Capturing it means a pipe or a
-  # temporary file, and a pipe is what makes the read unbounded again; sshd's
-  # own message goes straight to this run's stderr instead, one step earlier
-  # than it used to appear.
+  # 4. Never restart onto a configuration sshd cannot parse. Privileged for the host keys, and bounded
+  # because sshd -t blocks forever on a named pipe. Its message goes straight to stderr.
   status=0
   run_bounded "$VERIFY_DEADLINE_SECONDS" \
     run_privileged "$SSHD_BIN" -t -f "$SSHD_MAIN_CONFIG" || status=$?
@@ -2599,18 +1508,15 @@ reload_sshd() {
     die "the configuration failed sshd's syntax check ('$SSHD_BIN -t' exited $status); refusing to restart onto it. sshd was not touched. Its own message is above."
   fi
 
-  # 5. The full three-way verify: never restart onto a configuration that
-  # parses but has lost the hardening.
+  # 5. The full verify: never restart onto a configuration that parses but has lost the hardening.
   if ! run_verify_child; then
     die "the effective configuration is not fully hardened (the verify failures are above); refusing to restart sshd onto it. sshd was not touched."
   fi
 
-  # 6. Resolve the probe ports now, while nothing has been disturbed: a
-  # reload that cannot name what to probe must fail BEFORE the kickstart,
-  # not after.
+  # 6. Resolve ports now, so a missing probe target fails before the restart.
   resolve_probe_ports
 
-  # 7. Probe the service, separating THREE outcomes, not two.
+  # 7. Three outcomes: loaded, confirmed absent, or probe error.
   probe_sshd_service
   if [[ $SERVICE_PROBE_STATUS -eq $LAUNCHCTL_STATUS_SERVICE_ABSENT ]]; then
     report_absent_service_outcome "$tree_before_preflight"
@@ -2620,16 +1526,8 @@ reload_sshd() {
     die "could not determine the state of the sshd launchd service: '$LAUNCHCTL_BIN print $SSHD_LAUNCHD_SERVICE' exited $SERVICE_PROBE_STATUS, which is neither 0 (loaded) nor $LAUNCHCTL_STATUS_SERVICE_ABSENT (confirmed absent). A probe error is not evidence the daemon is stopped; refusing to guess. sshd was not touched. Output: $SERVICE_PROBE_OUTPUT"
   fi
 
-  # 8. The LAST observation before the disruptive step. Steps 4, 5 and 6 each
-  # opened the tree separately; this re-reads it and refuses if anything it can
-  # see moved, so a change that lands anywhere across the preflight and is still
-  # there now stops the restart instead of being carried into it -- including a
-  # change that would make the port this run is about to probe the wrong one.
-  #
-  # It sits AFTER the confirmed-absent early return on purpose. With Remote
-  # Login off nothing is restarted and nothing is claimed about a daemon, and
-  # turning that documented exit-0 no-op into a refusal would be a false alarm
-  # arriving through placement rather than through logic.
+  # 8. The last observation before the restart refuses if anything moved during the preflight. It comes
+  # after the absent-service return, which is a documented exit-0 no-op.
   if ! observe_config_tree; then
     die "the sshd configuration tree could not be re-read before the restart ($CONFIG_TREE_ERROR); refusing to restart onto a tree whose stability cannot be established. sshd was not touched."
   fi
@@ -2641,42 +1539,11 @@ reload_sshd() {
     die "the sshd configuration tree CHANGED while this reload was validating it, so the checks above judged a tree that is no longer on disk; refusing to restart onto a configuration nothing has validated. sshd was not touched. What moved: $CONFIG_TREE_CHANGE_DESCRIPTION. Re-run --reload once the tree has settled."
   fi
 
-  # WHAT THAT GUARD DOES AND DOES NOT PROMISE, because a comment claiming more
-  # than the code delivers is worse than no comment. It defends against a
-  # CONCURRENT WRITER that is not trying to beat it: another configuration
-  # management run, a package postinstall, a second administrator. It is NOT a
-  # defence against someone who already holds write access to the configuration
-  # directory, who simply writes after the last observation; no amount of
-  # re-reading from inside this process changes that.
+  # The guard above catches a concurrent writer, not one aiming at it: a change after the last
+  # observation, or one made and reverted between two, is invisible. Step 12 then refuses to claim
+  # success.
   #
-  # Four limits, stated rather than implied, because the sentence above is the
-  # kind that hardens into a guarantee on re-reading:
-  #
-  #   - The window between the observation above and the kickstart below cannot
-  #     be closed from here. Nothing makes an observation and a launchctl call
-  #     one atomic act. Step 12 covers that window, and it covers it by refusing
-  #     to CLAIM success, not by preventing the restart.
-  #   - A change made and reverted between two observations compares equal and
-  #     is invisible. Polling sees states, never transitions.
-  #   - An observation is NOT AN INSTANT. The files are enumerated and then read
-  #     one after another, so what two equal observations establish is that
-  #     every file was byte- and attribute-identical at the two moments IT was
-  #     read. They do not establish that the tree was ever, at one instant, the
-  #     thing the preflight judged: a writer that replaces a file after this
-  #     pass has already read it leaves both observations equal and the restart
-  #     goes ahead. That is the same class of window as the one above, and step
-  #     12 is the same answer to it -- a refusal to claim, not a prevention.
-  #   - The graph walked here is this script's MODEL of sshd's, not sshd's own.
-  #     It is the one resolver the Match scan also uses, deliberately, but bash's
-  #     pathname expansion is not glob(3). The one known divergence is refused
-  #     rather than mis-walked (see resolve_include_paths), which converts it
-  #     from a silent bypass into a message; it does not prove the model is
-  #     complete, and the tokenizer-differential suite is what keeps looking.
-  #
-  # 9. The disruptive step. The keep-open warning and the COMPLETE recovery
-  # command are printed FIRST: the kickstart is the step that can kill the
-  # SSH session carrying this output, so anything printed only after it may
-  # never arrive. Every failure path below repeats the same instructions.
+  # 9. Print the recovery command before the restart, which can drop the session carrying this output.
   printf '[ssh-hardening] reload: about to restart sshd; on a remote machine this can drop the SSH session carrying this output. %s\n' "$(recovery_instructions)"
   status=0
   output="$(run_privileged "$LAUNCHCTL_BIN" kickstart -k "$SSHD_LAUNCHD_SERVICE" 2>&1)" || status=$?
@@ -2684,34 +1551,18 @@ reload_sshd() {
     die "'launchctl kickstart -k $SSHD_LAUNCHD_SERVICE' failed (exit $status), so sshd may now be in any state between untouched and stopped. $(recovery_instructions) Output: $output"
   fi
 
-  # 10. The job must be loaded again. FIRST SIGNAL ONLY: `launchctl print`
-  # returns 0 for a loaded-but-crashed service, so this can refute success
-  # but never establish it.
+  # 10. launchctl print returns 0 for a crashed service too, so this can only refute success.
   probe_sshd_service
   if [[ $SERVICE_PROBE_STATUS -ne 0 ]]; then
     die "the sshd launchd service did not reload: after the kickstart, '$LAUNCHCTL_BIN print' exited $SERVICE_PROBE_STATUS instead of confirming a loaded job. $(recovery_instructions)"
   fi
 
-  # 11. The artifact: a completed SSH banner exchange on a resolved port (see
-  # wait_for_ssh_banner for what counts). The probe targets loopback, so a
-  # green result proves the daemon answers, NOT that a remote client can
-  # reach it (the application firewall does not filter loopback); the
-  # runbook's keep-a-session-open step is what covers that gap.
+  # 11. A banner on loopback proves the daemon answers, not that remote clients reach it.
   if ! wait_for_ssh_banner; then
     die "POSSIBLE LOCKOUT: the launchd job reports loaded, but no SSH banner arrived on port(s) ${PROBE_PORTS[*]} after $SSH_HARDENING_READY_ATTEMPTS attempt(s). A loaded job with a silent listener is what a crashed sshd looks like, so treat this as a failure. One more possibility BEFORE assuming an outage: on macOS, launchd owns Remote Login's listening socket (ssh.plist inetdCompatibility) and sshd's Port directive does not move it, so if this configuration carries a nonstandard Port the daemon may be healthy on launchd's socket (normally 22) while every probe watched the wrong port; check with '$KEYSCAN_BIN -p 22 127.0.0.1' before treating this as a lockout. $(recovery_instructions)"
   fi
-  # 12. The tree the daemon actually read is unobservable: the kickstart hands
-  # over and sshd opens the configuration at an instant nothing here can see.
-  # REFUTATION ONLY, exactly like the launchctl probe at step 10 -- a match
-  # cannot establish that the daemon read the validated tree, because a change
-  # made and reverted while sshd was reading compares equal, but a MISMATCH
-  # does establish that the success sentence below would be a false claim.
-  #
-  # It runs AFTER the readiness proof deliberately. A moved tree makes one
-  # sentence wrong; a silent listener is a possible LOCKOUT, and the operator
-  # needs the lockout diagnosis first. Nothing is rolled back either way, per
-  # this mode's standing policy: a machine that has just been restarted is
-  # exactly the machine that must not receive a second unattended change.
+  # 12. This can only refute success, since a moved tree means the success line would be false.
+  # It runs after the banner check, because a possible lockout matters more, and nothing is rolled back.
   if ! observe_config_tree; then
     die "sshd RESTARTED and answered on port $READY_PORT, but the configuration tree could not be re-read afterwards ($CONFIG_TREE_ERROR), so whether the daemon is serving what the preflight validated is unknown and no success is claimed. Nothing was rolled back. Check the tree with 'ssh-hardening.sh --verify'. $(recovery_instructions)"
   fi
@@ -2725,37 +1576,14 @@ reload_sshd() {
   printf '[ssh-hardening] reload complete: sshd restarted and is accepting connections on port %s (SSH banner exchange completed), and every file in the configuration tree read back byte-for-byte and mode-for-mode identical each time this run read it, before the restart and after it. What the daemon read at its own instant is not observable from here, so that is a check that found nothing, not a guarantee.\n' "$READY_PORT"
 }
 
-# --- rollback ----------------------------------------------------------------
-
-# The recovery gate's three outcomes, named because the caller must branch on
-# all three: collapsing "still blocked" and "errored" into one nonzero status
-# is how the previous rollback read an sshd crash as proof of restored access.
+# Three outcomes, because "still blocked" and "errored" must never read as access restored.
 PASSWORD_CHANNEL_OPEN=0
 PASSWORD_CHANNEL_BLOCKED=1
 PASSWORD_CHANNEL_ERROR=2
 
-# check_password_channel: the recovery gate's question, asked of the real
-# binary. "Access restored" is DEFINED as: for each sampled connection (the
-# invoking user at loopback, and the invoking user at an off-loopback
-# documentation address, because the locked-out operator this gate exists for
-# connects from OFF the machine), `sshd -G -T -C` reports
-# passwordauthentication yes OR kbdinteractiveauthentication yes -- the two
-# interactive password channels; either one open means a password prompt can
-# be reached. Negating --verify would not do: "not fully hardened" is true
-# the moment ANY of the seven directives drifts, which proves nothing about
-# whether a password login can now succeed.
-#
-# The samples are samples: a Match block scoped to an address neither sample
-# hits can still block one specific network path, and the runbook's
-# keep-a-session-open step covers what sampling cannot. Every anomaly (a
-# failed `id`, a failed resolution, an unreadable output, a value that is
-# neither yes nor no) is the ERROR outcome, never a quiet pass, and every
-# command's status is captured explicitly so the answer does not depend on
-# errexit, which callers judging a status have switched off.
-# The file the bounded recovery resolutions write to, the spec the next one
-# asks about, and the command that runs it. Same shape as the port resolution
-# above and for the same reason: run_bounded takes an argument vector and
-# cannot carry a redirection, so the redirection lives in the command.
+# The recovery gate counts access as restored when a password or keyboard-interactive channel
+# resolves yes for both a loopback and an off-loopback connection. Any anomaly is an error.
+# run_bounded takes an argv, so the redirection lives in password_channel_command.
 PASSWORD_CHANNEL_OUTPUT=''
 PASSWORD_CHANNEL_SPEC=''
 password_channel_command() {
@@ -2763,9 +1591,7 @@ password_channel_command() {
     >"$PASSWORD_CHANNEL_OUTPUT" 2>&1
 }
 
-# check_password_channel: owns the temporary file resolve_password_channel
-# writes through, so the many ways that function can answer early do not each
-# have to remember to clean up. The status is passed through untouched.
+# check_password_channel: owns resolve_password_channel's temp file, so every early return cleans up.
 check_password_channel() {
   local status=0
   PASSWORD_CHANNEL_OUTPUT="$(mktemp "${TMPDIR:-/tmp}/ssh-hardening-recovery.XXXXXX")" ||
@@ -2785,10 +1611,7 @@ resolve_password_channel() {
     "user=$invoking_user,host=localhost,addr=127.0.0.1" \
     "user=$invoking_user,host=recovery.invalid,addr=198.51.100.23"; do
     status=0
-    # BOUNDED like every other sshd call this script waits on. This one runs
-    # AFTER the drop-in has been removed, so a hang here parks the mode with
-    # the removal done and the proof missing: the way back in is open and the
-    # operator watching for the sentence that says so never gets one.
+    # Bounded, because this runs after the removal, where a hang would hide that the way back in is open.
     PASSWORD_CHANNEL_SPEC="$spec"
     run_bounded "$VERIFY_DEADLINE_SECONDS" password_channel_command || status=$?
     output="$(cat "$PASSWORD_CHANNEL_OUTPUT" 2>/dev/null || :)"
@@ -2816,12 +1639,8 @@ resolve_password_channel() {
   return "$PASSWORD_CHANNEL_OPEN"
 }
 
-# confirm_password_access_restored <target>: rollback's success gate, run on
-# BOTH paths (after a removal, and when the drop-in was already absent --
-# "nothing to remove" is not "access is back": a sibling file or the main
-# config can enforce the policy with the managed drop-in long gone). Success
-# is claimed only on the OPEN outcome; BLOCKED and ERROR are distinct, loud,
-# nonzero failures.
+# confirm_password_access_restored <target>: rollback's success gate, run even when the drop-in was
+# already absent, since another file can still enforce the policy.
 confirm_password_access_restored() {
   local target="$1" channel_status=0
   if [[ ! -x $SSHD_BIN ]]; then
@@ -2834,10 +1653,7 @@ confirm_password_access_restored() {
   check_password_channel || channel_status=$?
   case $channel_status in
     "$PASSWORD_CHANNEL_OPEN")
-      # The restart guidance names only routes that can actually run:
-      # --reload refuses a tree that is not fully hardened, which is exactly
-      # the state a successful rollback leaves, so advertising it here would
-      # send the operator down a path that refuses on arrival.
+      # --reload refuses an unhardened tree, so the restart advice names only the System Settings toggle.
       printf '[ssh-hardening] rollback complete: %s is absent and an interactive password channel (PasswordAuthentication or KbdInteractiveAuthentication) resolves ON for the sampled loopback and off-loopback connections, so password access is restored at the next sshd start. The running daemon keeps its current configuration until sshd restarts: toggle Remote Login off and back on in System Settings > General > Sharing (or reboot). --reload cannot perform this restart, because it refuses to restart onto a tree that is no longer hardened; reinstall first if the hardened policy should return.\n' "$target"
       ;;
     "$PASSWORD_CHANNEL_BLOCKED")
@@ -2849,18 +1665,8 @@ confirm_password_access_restored() {
   esac
 }
 
-# rollback_dropin: the way back in, as code. Remove the managed drop-in, then
-# PROVE password access is restored, because a rollback exists for exactly
-# one moment: the operator is locked out and needs password authentication
-# back at the next sshd start. Every step it cannot prove is a nonzero
-# failure. The removal itself still happens before any verification, so even
-# a failing rollback has already done the one thing the locked-out operator
-# needs.
-#
-# Deliberately NOT here: restarting sshd. Rollback changes the tree only; the
-# RUNNING daemon keeps its configuration until sshd restarts (a Remote Login
-# toggle, or a reboot), and pairing an automatic restart with an emergency
-# path would make the emergency path disruptive too.
+# rollback_dropin: remove the drop-in first, then prove password access is back. It never restarts
+# sshd, so the emergency path stays non-disruptive.
 rollback_dropin() {
   local target
   target="$(dropin_path)"
@@ -2907,11 +1713,7 @@ main() {
     usage >&2
     exit 2
   fi
-  # Dispatch is CASE-SENSITIVE. nocasematch is on at file scope because the
-  # sshd keyword matching needs it, and left alone it reaches this case too:
-  # measured, a mistyped `--RELOAD` invoked the one disruptive mode in the
-  # script. The flag is validated with matching off, then switched back on
-  # before any mode function runs, because the verify machinery depends on it.
+  # Dispatch is case-sensitive, so a mistyped `--RELOAD` cannot run the disruptive mode.
   shopt -u nocasematch
   case "${1-}" in
     --print-config | --print-path | --verify | --reload | --rollback | '' | --help | -h) ;;

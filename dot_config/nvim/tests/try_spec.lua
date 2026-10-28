@@ -1,11 +1,7 @@
--- custom_api.try, the keymap-layer error boundary (spec 6.1).
-
 local try = require("custom_api.try")
 
--- Runs `try` with `vim.notify` swapped for a recorder. Returns everything it
--- notified as one string, then whatever `try` itself returned.
--- `#` is undefined on a table with an embedded nil, so the count comes from
--- `select` instead.
+-- Runs `try` with `vim.notify` recorded. Returns the notified text, then what `try` returned.
+-- `select` counts the values, because `#` is undefined with an embedded nil.
 local function collect(...)
   return select("#", ...), { ... }
 end
@@ -38,8 +34,6 @@ return {
   end,
 
   ["never falls back to a reflected name"] = function()
-    -- helpers.wrap read the name off `debug.getinfo`, which is nil for every
-    -- local function in custom_api, so every report said "anonymous" (item 19).
     local text = run(blows_up, { label = "git.default_branch" })
     assert(not text:find("anonymous", 1, true), "reported a reflected name: " .. text)
   end,
@@ -74,9 +68,7 @@ return {
   end,
 
   ["returns nothing at all after a failed call"] = function()
-    -- The contract is `fn`'s values or nothing, which is what lets a caller's
-    -- `if not result then return end` guard fire. Any value returned here slips
-    -- a failure past every such guard, on either failure path.
+    -- Return nothing on failure, so a caller's `if not result` guard fires.
     local after_bug = select("#", run(blows_up, { label = "git.default_branch" })) - 1
     assert(after_bug == 0, "returned " .. after_bug .. " values after a bug")
 
@@ -85,8 +77,7 @@ return {
   end,
 
   ["refuses a call with no label"] = function()
-    -- The label is explicit data. A missing one is a bug in the caller, not
-    -- something to paper over with a placeholder.
+    -- A missing label is a caller bug.
     local ok = pcall(try, blows_up, {})
     assert(not ok, "accepted a call with no label")
   end,

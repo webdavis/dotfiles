@@ -1,24 +1,11 @@
--- custom_api.dashboard_files: the dashboard's file list ranks uncommitted work
--- above merely recent files, and reports each path exactly as git gave it.
---
--- Real git repositories in real temporary directories, because the behavior
--- under test IS the parsing of `git status --porcelain` output, and a fixture
--- string would answer for a format this module never actually meets. Each case
--- builds its own repository, so nothing depends on the checkout the suite runs
--- in.
+-- Real git repositories in temporary directories, because the test covers parsing real `git status --porcelain` output.
 
--- Required per case rather than once at the top of the file, so a missing
--- module fails every case by name instead of aborting the run before the first.
+-- Required per case, so a missing module fails each case by name.
 local function dashboard_files()
   return require("custom_api.dashboard_files")
 end
 
--- Scrubbed at every call. Git exports GIT_DIR, GIT_WORK_TREE and
--- GIT_INDEX_FILE into every hook it runs, and GIT_DIR overrides both `-C` and
--- `cwd`, so under the pre-commit hook this file's `git init` wrote
--- `core.bare = true` and a temporary `core.worktree` into the REAL repository
--- and broke every plain git command in it (measured 2026-09-15). The same
--- scrub lives in the module, and the last case here proves it holds.
+-- Git exports these into hooks, and GIT_DIR overrides `-C` and `cwd`, so scrub them on every call.
 local GIT_ENVIRONMENT_TO_SCRUB = {
   "GIT_DIR",
   "GIT_WORK_TREE",
@@ -50,9 +37,7 @@ end
 ---A repository with one committed file, then the changes each case needs.
 ---@return string root
 local function repository()
-  -- Resolved, because on macOS the temp tree lives under a symlink
-  -- (`/var` to `/private/var`) and git reports the resolved path. Comparing an
-  -- unresolved expectation against it fails on the link rather than the logic.
+  -- Resolved, because macOS keeps the temp tree behind a symlink and git reports the resolved path.
   local root = vim.fn.resolve(vim.fn.tempname())
   assert(vim.fn.mkdir(root, "p") == 1, "could not create " .. root)
   run({ "git", "init", "--quiet" }, root)
@@ -64,8 +49,7 @@ local function repository()
   return root
 end
 
----`changed_files` reads the working directory, so a case has to be standing in
----the repository it built.
+---Run `body` inside `root`, because `changed_files` reads the working directory.
 local function inside(root, body)
   local previous = vim.fn.getcwd()
   vim.cmd.cd(root)
@@ -84,12 +68,7 @@ end
 
 return {
   ["an unstaged change reports its whole path"] = function()
-    -- THE REGRESSION THIS FILE EXISTS FOR. `git status --porcelain` writes an
-    -- unstaged change as " M path", with a LEADING SPACE, and the first version
-    -- of this module trimmed the command's whole output before splitting it.
-    -- That strips the first line's leading space only, so the first path came
-    -- back one character short: `dot_config/...` arrived as `ot_config/...`.
-    -- Every following line was correct, which is what made it easy to miss.
+    -- Porcelain writes an unstaged change as " M path", so trimming the whole output would cut the first path.
     local module = dashboard_files()
     local root = repository()
     write(root .. "/committed.txt", "one\ntwo\n")
@@ -106,9 +85,7 @@ return {
   end,
 
   ["an untracked file reports its whole path too"] = function()
-    -- The sibling case, and the reason the bug survived a first glance: `??`
-    -- fills both status columns, so an untracked path has no leading space to
-    -- lose and reads correctly even under the broken trim.
+    -- `??` fills both status columns, so an untracked path has no leading space.
     local module = dashboard_files()
     local root = repository()
     write(root .. "/fresh.txt", "new\n")
@@ -122,8 +99,7 @@ return {
   end,
 
   ["a renamed file reports the name it now has"] = function()
-    -- `R  old -> new` carries both names. The new one is the one worth opening,
-    -- and the old one no longer exists, so a row pointing at it would fail.
+    -- A rename lists the new name, because the old one no longer exists.
     local module = dashboard_files()
     local root = repository()
     run({ "git", "mv", "committed.txt", "renamed.txt" }, root)
@@ -139,23 +115,18 @@ return {
   end,
 
   ["uncommitted work outranks a merely recent file"] = function()
-    -- The whole premise of the module: a dirty file is the strongest available
-    -- signal for why the editor was opened, so it takes the first row even when
-    -- another file was opened more recently.
+    -- A dirty file takes the first row even when another was opened more recently.
     local module = dashboard_files()
     local root = repository()
     write(root .. "/committed.txt", "one\ntwo\n")
-    -- Outside the repository on purpose: a file written inside it would be
-    -- untracked, which makes it a CHANGED file and not the merely-recent one
-    -- this case is about.
+    -- Outside the repository, because a file inside it would count as changed.
     local elsewhere = vim.fn.resolve(vim.fn.tempname())
     assert(vim.fn.mkdir(elsewhere, "p") == 1, "could not create " .. elsewhere)
     local recent = elsewhere .. "/elsewhere.txt"
     write(recent, "unrelated\n")
 
     inside(root, function()
-      -- `recent_files` reads `vim.v.oldfiles`, which a `--clean` run leaves
-      -- empty, so it is replaced for the length of this case.
+      -- `--clean` leaves `vim.v.oldfiles` empty, so `recent_files` is replaced for this case.
       local real_recent_files = module.recent_files
       module.recent_files = function()
         return { recent }
@@ -186,8 +157,7 @@ return {
       module.recent_files = real_recent_files
 
       assert(#entries == 1, "the same file took " .. #entries .. " rows")
-      -- The changed row is the one that survives, because it is the row that
-      -- carries the marker telling the operator there is unfinished work.
+      -- The changed row survives, because it carries the status marker.
       assert(entries[1].status == "M", "the surviving row lost its status")
     end)
   end,
@@ -206,8 +176,7 @@ return {
   end,
 
   ["outside a repository the list falls back to recent files"] = function()
-    -- A dashboard that errors is worse than a dashboard missing a section, so
-    -- no repository means no changed files rather than a raise.
+    -- No repository means no changed files, never an error.
     local module = dashboard_files()
     local outside = vim.fn.tempname()
     assert(vim.fn.mkdir(outside, "p") == 1, "could not create " .. outside)
@@ -218,10 +187,7 @@ return {
   end,
 
   ["a path is shown as its filename and one parent directory"] = function()
-    -- Neovim's own abbreviation renders the acceptance drill's path as
-    -- `~/w/I/w/d/d/a/nvim-acceptance-drills.md`, which the operator named as the
-    -- dashboard's worst legibility problem. One parent is enough to tell two
-    -- files of the same name apart.
+    -- One parent directory is enough to tell two same-named files apart.
     local module = dashboard_files()
     local name, directory = module.split_for_display("/Users/someone/project/lua/plugins/snacks.lua")
     assert(name == "snacks.lua", "the filename came back as " .. name)
@@ -237,15 +203,12 @@ return {
   end,
 
   ["a multi-byte directory name is cut on a character boundary"] = function()
-    -- The module first cut with `sub`, which counts bytes, so a name of
-    -- multi-byte characters came back with half a character at its end and a
-    -- row wider than the limit allowed.
+    -- Cut by characters, so a multi-byte name stays whole and within the limit.
     local module = dashboard_files()
     local _, directory = module.split_for_display("/a/" .. string.rep("é", 40) .. "/file.lua")
     local body = directory:gsub("/$", "")
     assert(vim.fn.strchars(body) <= 18, "the directory was " .. vim.fn.strchars(body) .. " characters")
-    -- A byte-wise cut leaves an invalid sequence, which `strchars` counts but
-    -- which is not the character that was there. Round-tripping catches it.
+    -- Round-tripping catches a broken byte sequence that `strchars` would still count.
     assert(vim.fn.strcharpart(body, 0, 1) == "é", "the first character came back as a broken sequence")
   end,
 
@@ -265,17 +228,8 @@ return {
   end,
 
   ["an inherited GIT_DIR cannot reach the repository the caller is in"] = function()
-    -- THE REGRESSION THAT BROKE THE REAL REPOSITORY. Git exports GIT_DIR into
-    -- every hook, GIT_DIR overrides both `-C` and `cwd`, and this suite runs
-    -- from the pre-commit hook. So `git status` read the hook's repository, and
-    -- worse, this file's own `git init` wrote `core.bare = true` and a
-    -- temporary `core.worktree` into it, after which every plain git command
-    -- there failed with "this operation must be run in a work tree".
-    --
-    -- The decoy commits a DIFFERENT filename on purpose. A first attempt at
-    -- this case gave the decoy the same fixture as the subject, so a leak
-    -- produced one changed file either way and the case passed without the
-    -- scrub, proving nothing.
+    -- GIT_DIR from a hook overrides `-C` and `cwd`, so an unscrubbed module would read and corrupt the hook repository.
+    -- The decoy commits a different filename, so a leak changes the result.
     local module = dashboard_files()
     local decoy = repository()
     write(decoy .. "/decoy-only.txt", "decoy\n")
@@ -299,8 +253,7 @@ return {
       end)
     end)
 
-    -- The spec's own git calls run while GIT_DIR points at the decoy, so this
-    -- half guards the corruption rather than the misread.
+    -- The spec's own git calls run with GIT_DIR on the decoy, so this half checks for corruption.
     local scratch = repository()
     write(scratch .. "/fresh.txt", "x\n")
 
@@ -308,8 +261,7 @@ return {
 
     local after = assert(io.open(decoy_config)):read("a")
     assert(after == before, "the inherited repository's config was rewritten:\n" .. after)
-    -- `bare = false` is what `git init` legitimately writes into every config,
-    -- so the pattern has to name the corrupted VALUE rather than the key.
+    -- `git init` writes `bare = false` everywhere, so match the corrupted value.
     assert(not after:match("bare%s*=%s*true"), "core.bare = true was written into the inherited repository")
     assert(not after:match("worktree%s*="), "core.worktree was written into the inherited repository")
     assert(vim.fn.isdirectory(scratch .. "/.git") == 1, "the scratch repository was never created")
@@ -324,8 +276,7 @@ return {
     inside(root, function()
       local items = module.section(9, 60)
       assert(#items == 1, "expected one item, got " .. #items)
-      -- The first row is the resume row: Enter, not a digit, because continuing
-      -- is the most likely reason the dashboard is on screen at all.
+      -- The first row is the resume row, on Enter.
       assert(items[1].key == "<CR>", "the first row answers to " .. tostring(items[1].key))
       assert(
         items[1].action:find("committed.txt", 1, true),

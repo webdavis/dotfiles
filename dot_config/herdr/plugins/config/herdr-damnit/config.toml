@@ -1,22 +1,14 @@
-# herdr-damnit (webdavis/herdr-damnit), installed by run_after_53.
-#
-# The pane reads tasks through `dam`, so it holds no token: the Todoist token
-# is dam's, named in ~/.config/dam/config.toml.
-
-# A third of the tab: the list is one task per line and the pane it splits off
-# is the one being worked in.
+# A third of the tab leaves the rest for the pane being worked in.
 width = 0.3
 
-# The list worth having open, and the same word the Neovim sidebar opens on.
 default_view = "today"
 
-# Each query is in dam's grammar, not Todoist's filter language.
+# Queries use dam's grammar.
 [[views]]
 name = "today"
 query = "!done & (due:today | overdue)"
 
-# The Todoist projects webdavis > dotfiles, which dam keeps as this path,
-# matching this repo's own path (webdavis/dotfiles).
+# dam names the Todoist project webdavis > dotfiles by this path.
 [[views]]
 name = "dotfiles"
 query = "!done & path:webdavis/dotfiles/"

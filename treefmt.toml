@@ -1,19 +1,3 @@
-# treefmt configuration for the STANDALONE treefmt binary (brew formula), the
-# single lint/format orchestrator. Replaces treefmt.nix + treefmt-nix: same
-# formatters and rules, no nix evaluation (operator ruling 2026-08-05). Tool
-# versions come from Homebrew (.chezmoidata/system_packages_autoinstall.yaml)
-# and the uv-managed mdformat; single-contributor repo, so cross-machine
-# version pinning lost its audience.
-#
-# Style rules preserved:
-#   - shell: shfmt -i 2 -ci -s; shellcheck (root .shellcheckrc disables SC1090/SC1091)
-#   - markdown: mdformat + GFM plugin, honoring .mdformat.toml (120-column wrap)
-#   - TOML: taplo, with dot_aerospace.toml excluded (user-preferred alignment)
-#   - JSON/YAML: validation-only via jq/yq (scripts/*-validate.sh)
-#   - chezmoi templates: render-then-check via scripts/ (shellcheck, osquery
-#     JSON, espanso YAML)
-# nixfmt is gone with the .nix files it formatted.
-
 [global]
 excludes = [
   ".direnv/**",
@@ -34,17 +18,12 @@ options = ["-i", "2", "-ci", "-s", "-w"]
 includes = ["*.sh", "*.bash", "dot_bash*", "dot_profile"]
 excludes = ["*.tmpl"]
 
-# The herdr plugins are vendored under dot_local/share. That root is listed
-# rather than a bare "**/*.rs", which would also sweep untracked target/ trees.
+# Checks only the vendored plugins, so untracked target/ build trees stay out.
 [formatter.rust-file-size]
 command = "scripts/treefmt/rust-file-size.sh"
 includes = ["dot_local/share/**/*.rs"]
 
-# RULE: skill/agent/command markdown is authored prose with YAML frontmatter;
-# mdformat is never allowed to touch it (see the old treefmt.nix note; the
-# frontmatter plugin travels with the uv-installed mdformat, but the rule
-# stands). docs/research/2026-04-12-worktrunk.md fails mdformat's round-trip
-# validator; quarantined so the rest stays linted.
+# Skill, agent and output-style Markdown stays exactly as written.
 [formatter.mdformat]
 command = "mdformat"
 includes = ["*.md"]
@@ -52,19 +31,18 @@ excludes = [
   "private_dot_claude/skills/**",
   "private_dot_claude/agents/**",
   "private_dot_claude/output-styles/**",
-  # Same rule one directory over: a vendored skill with YAML frontmatter, kept
-  # byte-identical to its upstream so a comparison against it stays meaningful.
+  # A vendored skill kept byte-identical to its upstream.
   "private_dot_hermes/private_skills/**",
   "docs/superpowers/**",
+  # Fails mdformat's round-trip check.
   "docs/research/2026-04-12-worktrunk.md",
   # Long lines keep one rule per line readable there.
   "AGENTS.md",
 ]
 
-# dot_aerospace.toml keeps user-preferred visual alignment taplo would strip.
-# modify_ templates share the .toml extension but hold Go template directives
-# taplo cannot parse; both spellings because patterns match whole paths from the
-# tree root.
+# Skips dot_aerospace.toml to keep its hand alignment.
+# Skips modify_ templates because taplo cannot parse their template directives.
+# Patterns match whole paths, so modify_ needs a top-level and a nested pattern.
 [formatter.taplo]
 command = "taplo"
 options = ["format"]
@@ -75,20 +53,13 @@ excludes = ["dot_aerospace.toml", "modify_*", "**/modify_*"]
 command = "actionlint"
 includes = [".github/workflows/*.yml", ".github/workflows/*.yaml"]
 
-# JSON validation. modify_ templates share the .json extension but hold Go
-# template directives jq cannot parse; both spellings because patterns match
-# whole paths from the tree root.
+# modify_ templates hold template directives jq cannot parse.
 [formatter.jq-validate]
 command = "scripts/treefmt/jq-validate.sh"
 includes = ["*.json"]
 excludes = ["modify_*", "**/modify_*"]
 
-# YAML validation; workflow YAML is actionlint's. The espanso tree is
-# hand-edited YAML that reaches $HOME. A .yml.tmpl is Go-template text no YAML
-# parser can read; espanso-match-render below gates those.
-# The two agent data files are checked together for collisions: a plugin or
-# skill that would reach one harness twice, or an entry that contradicts
-# itself. The script reads both files itself, whatever list it is handed.
+# Checks both agent data files together for a skill or plugin that reaches one harness twice.
 [formatter.agent-data-validate]
 command = "scripts/treefmt/agent-data-validate.sh"
 includes = [".chezmoidata/agent-plugins.yaml", ".chezmoidata/agent-skills.yaml"]
@@ -109,9 +80,7 @@ includes = [
   "Library/Application Support/espanso/**/*.yml.tmpl",
 ]
 
-# Every shell template is handed over; the script classifies per file (shell?
-# vault-free?) and renders + shellchecks the safe set. Replaces the nix-eval
-# discovery in the old treefmt.nix.
+# The script shellchecks the shell templates that render without the vault.
 [formatter.shellcheck-rendered-template]
 command = "scripts/treefmt/shellcheck-rendered-template.sh"
 includes = [".chezmoiscripts/*.sh.tmpl", "dot_*.tmpl"]
@@ -125,11 +94,7 @@ includes = [
   "dot_local/libexec/posture/converge/desired/**/*.conf.tmpl",
 ]
 
-# Measured on treefmt 2.5.0: the flat glob alone matches every file, direct
-# child and nested alike, because its `*` crosses `/`; the doublestar glob
-# alone misses the direct child. Both stay, matching the osquery-config-render
-# pair above, so this table does not depend on that single-star crossing
-# behavior holding on a future treefmt version.
+# Lists both globs so matching never relies on `*` crossing `/`.
 [formatter.stylua]
 command = "stylua"
 includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
@@ -144,9 +109,7 @@ command = "luacheck"
 options = ["--config", "dot_config/nvim/dot_luacheckrc"]
 includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
 
-# herdr-picker's own pickers are the hand-written Python that reaches $HOME.
-# ruff.toml at the root holds its line length. Both globs, for the reason
-# stylua gives above.
+# Lists both globs for the reason stylua gives above.
 [formatter.ruff-check]
 command = "ruff"
 options = ["check"]
