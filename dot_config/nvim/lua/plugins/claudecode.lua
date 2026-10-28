@@ -104,33 +104,34 @@ return {
     { "<leader>Ca", "<cmd>ClaudeCodeAdd %<cr>", desc = "Claude: add current file" },
     { "<leader>Cy", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Claude: accept diff" },
     { "<leader>Cn", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Claude: deny diff" },
-    -- Not a claudecode.nvim command: the shared herdr seam (spec 7.4) sends raw
-    -- text to the agent's herdr pane, which is the path that reaches a free-text
+    -- Not a claudecode.nvim command: herdr-nvim-2's prompt send types raw text
+    -- into the agent's herdr pane, which is the path that reaches a free-text
     -- prompt, a non-Claude agent and an unsaved scratch buffer. It lives on this
     -- spec because `<leader>C` is the Claude group, and every key of that group
-    -- is declared in one place.
-    --
-    -- The seam needs no WebSocket server. With `event = "VeryLazy"` the server is
-    -- already up before any key is pressed, so this key starts nothing and there is
-    -- no server for moving it out to save; the reason it stays here is simply that
-    -- `<leader>C` is the Claude group and one group lives in one file.
+    -- is declared in one place. It needs no WebSocket server.
     {
       "<leader>Cp",
       function()
-        require("custom_api.herdr").send_selection_or_paragraph()
+        require("herdr-nvim-2").send_paragraph()
       end,
-      mode = { "n", "x" },
-      desc = "Claude: send selection or paragraph",
+      desc = "Claude: send paragraph",
     },
-    -- The convenience for question 2 above: `none` auto-launches nothing, so
-    -- this prompts `/ide` at the Claude agent already in the workspace, or
+    {
+      "<leader>Cp",
+      function()
+        require("herdr-nvim-2").send_selection()
+      end,
+      mode = "x",
+      desc = "Claude: send selection",
+    },
+    -- herdr-nvim-2's `:Herdr ide`: prompts `/ide` at the agent it resolves, or
     -- splits a pane beside the editor and starts one there.
     {
       "<leader>Cc",
       function()
-        require("custom_api.herdr").launch_or_attach()
+        require("herdr-nvim-2").ide()
       end,
-      desc = "Claude: launch or attach --ide",
+      desc = "Claude: connect agent to Neovim (/ide)",
     },
   },
   -- The plugin's logger sends WARN and ERROR through `vim.notify`, and INFO, DEBUG

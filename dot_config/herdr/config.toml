@@ -268,19 +268,19 @@ type = "plugin_action"
 command = "annotate.copy-archive"
 description = "annotate: copy annotations as context and archive them"
 
-# ╭──────────────────────╮
-# │  chmarax.herdr-nvim  │
-# ╰──────────────────────╯
+# ╭────────────────╮
+# │  herdr-nvim-2  │
+# ╰────────────────╯
 [[keys.command]]
 key = "prefix+e"
 type = "plugin_action"
-command = "chmarax.herdr-nvim.toggle"
+command = "herdr-nvim-2.toggle"
 description = "nvim sidebar: toggle"
 
 [[keys.command]]
 key = "prefix+shift+e"
 type = "plugin_action"
-command = "chmarax.herdr-nvim.pick-file"
+command = "herdr-nvim-2.pick-file"
 description = "nvim sidebar: open file from agent output"
 
 # ╭──────────────────────╮
