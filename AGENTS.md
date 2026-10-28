@@ -87,6 +87,13 @@ Agent instructions belong in this file alone.
 - Options, keymaps and autocmds: `dot_config/nvim/lua/config/`.
 - Our own Lua modules: `dot_config/nvim/lua/custom_api/`.
 
+## Comments
+
+- Comment only what a developer cannot read from the code or setting name. Delete a comment that restates it.
+- Say the effect, then any condition it needs, in full sentences. Use a second line only to keep a fact.
+- No labels, banners, links, parentheticals, mechanism, or values that drift such as versions and dates. Explain a workaround in words.
+- A deployed file never mentions how it was produced or where its values come from.
+
 ## Editing
 
 - Edit the source in this repo, never its target under `~`. `chezmoi source-path <target>` names the source.
