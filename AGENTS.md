@@ -96,7 +96,7 @@ Agent instructions belong in this file alone.
 
 ## Editing
 
-- Edit the source in this repo, never its target under `~`. `chezmoi source-path <target>` names the source.
+- Edit a file's source in this repo, never its deployed copy. Find the source with `chezmoi source-path <target>`.
 - Run `just lint` before handing work over.
 - Run `just ship` before opening a PR.
 
