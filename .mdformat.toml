@@ -3,8 +3,8 @@
 # Options: "keep", "no", INTEGER
 wrap = 120
 
-# Turn off consecutive numbering for ordered lists.
-number = false
+# Number ordered lists consecutively.
+number = true
 
 # Use Linux/macOS line endings.
 end_of_line = "lf"
