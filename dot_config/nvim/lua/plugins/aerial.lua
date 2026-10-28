@@ -1,15 +1,9 @@
 return {
   "stevearc/aerial.nvim",
-  -- aerial attaches from its own `BufEnter`/`WinEnter` autocmds, and its first
-  -- backend is treesitter, so before this branch it attached to any buffer with
-  -- a parser, not only an LSP one. The plugin therefore has to be loaded by the
-  -- time a file buffer is entered, or `on_attach` never runs and the buffer-local
-  -- `{` and `}` jumps never appear. `LspAttach` would miss every treesitter-only
-  -- buffer; these two events cover a file read and a new file, and neither fires
-  -- on a startup with no file, which is what keeps aerial off the startup path.
+  -- Treesitter-only buffers never fire LspAttach,
+  -- so aerial loads on any file buffer to run `on_attach`.
   event = { "BufReadPost", "BufNewFile" },
-  -- Every command aerial registers, so one typed at the command line still
-  -- works while the plugin is unloaded.
+  -- Every command aerial registers, so a typed one works before the plugin loads.
   cmd = {
     "AerialClose",
     "AerialCloseAll",
@@ -24,16 +18,8 @@ return {
     "AerialPrev",
     "AerialToggle",
   },
-  -- These six carry their own mappings, so each key is declared once rather
-  -- than here and again in `config`. lazy.nvim installs the placeholder from
-  -- the entry at startup and the real mapping from the same entry on load.
-  -- `<leader>is`, `{` and `}` are not here: `on_attach` owns them, they have
-  -- never existed before aerial attached to a buffer, and the event above is
-  -- what gets them back.
+  -- `on_attach` sets `<leader>is`, `{` and `}` per buffer.
   -- stylua: ignore start
-  -- `<leader>it` and `<leader>iT` were aliases of `<leader>ia` and `<leader>iA`
-  -- and were deleted on 2026-09-15. Both letters are free now; what lands on
-  -- them, if anything, is the operator's call.
   keys = {
     { "<leader>ia", "<cmd>AerialToggle!<cr>",   desc = "Aerial: toggle sidebar (don't focus)" },
     { "<leader>iA", "<cmd>AerialToggle<cr>",    desc = "Aerial: toggle sidebar (and focus)" },
@@ -62,10 +48,7 @@ return {
           lhs = "<leader>is",
           rhs = function()
             require("aerial").snacks_picker({
-              layout = {
-                -- preset = "dropdown",
-                -- preview = false,
-              },
+              layout = {},
             })
           end,
           desc = "Aerial: Snacks picker",
