@@ -57,6 +57,8 @@ excludes = [
   "private_dot_hermes/private_skills/**",
   "docs/superpowers/**",
   "docs/research/2026-04-12-worktrunk.md",
+  # Long lines keep one rule per line readable there.
+  "AGENTS.md",
 ]
 
 # dot_aerospace.toml keeps user-preferred visual alignment taplo would strip.
