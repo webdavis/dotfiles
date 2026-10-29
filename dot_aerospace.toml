@@ -54,8 +54,8 @@ default-root-container-orientation = 'auto' # Wide monitors lay windows side by 
     alt-ctrl-cmd-shift-semicolon = 'exec-and-forget open -a Ghostty'
     alt-ctrl-cmd-shift-enter = 'exec-and-forget open -na Ghostty'
     alt-ctrl-cmd-shift-a = 'exec-and-forget open -a Activity\ Monitor'
-    alt-ctrl-cmd-shift-b = 'exec-and-forget open -a Arc'
-    alt-ctrl-cmd-shift-n = "exec-and-forget osascript -e 'tell application \"Arc\" to make new window' -e 'tell application \"Arc\" to activate'"
+    alt-ctrl-cmd-shift-b = 'exec-and-forget open -a Dia --args --remote-debugging-port=9222 --enable-applescript-javascript'
+    alt-ctrl-cmd-shift-n = "exec-and-forget pgrep -xq Dia && osascript -e 'tell application \"Dia\" to make new window' -e 'tell application \"Dia\" to activate' || open -a Dia --args --remote-debugging-port=9222 --enable-applescript-javascript"
     alt-ctrl-cmd-shift-c = 'exec-and-forget open -a Claude'
     alt-ctrl-cmd-shift-d = 'exec-and-forget open -a Discord'
     alt-ctrl-cmd-shift-e = 'exec-and-forget open -a Messages'
