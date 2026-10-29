@@ -1,6 +1,7 @@
 ## Rules
 
 - Delete with `trash`, never `rm`.
+- To read a page the owner has open in Dia, run `scrapepage <url>`. chrome-devtools-axi drives that same Dia for anything beyond reading.
 
 ## Code
 
