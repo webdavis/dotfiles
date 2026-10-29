@@ -17,7 +17,7 @@ Options:
   -h, --help  Show this help.
 
 Exit codes:
-  1  Bad arguments or no tab open at <url>.
+  1  Bad arguments, no matching tab, or more than one matching tab.
   2  Dia is not listening on its debugging port.
 USAGE
 }
@@ -43,10 +43,33 @@ list_tabs() {
   chrome-devtools-axi pages | awk -F, 'NR > 1 { print $1, $2 }'
 }
 
+exact_matches() {
+  local tabs="$1"
+  local url="$2"
+  awk -v url="$url" '$2 == url' <<<"$tabs"
+}
+
 partial_matches() {
   local tabs="$1"
   local url="$2"
   awk -v url="$url" 'index($2, url)' <<<"$tabs"
+}
+
+tab_count() {
+  local tabs="$1"
+  wc -l <<<"$tabs" | tr -d ' '
+}
+
+tab_addresses() {
+  local tabs="$1"
+  awk '{ print "  " $2 }' <<<"$tabs"
+}
+
+require_one_tab() {
+  local tabs="$1"
+  local url="$2"
+  [[ $(tab_count "$tabs") -le 1 ]] ||
+    fail "more than one Dia tab matches ${url}. Give the full address of one of these:"$'\n'"$(tab_addresses "$tabs")"
 }
 
 tab_id() {
@@ -102,14 +125,30 @@ parse_args() {
   URL="$1"
 }
 
+matching_tabs() {
+  local tabs="$1"
+  local url="$2"
+  local matches
+  matches="$(exact_matches "$tabs" "$url")"
+  [[ -n $matches ]] || matches="$(partial_matches "$tabs" "$url")"
+  echo "$matches"
+}
+
+select_matching_tab() {
+  local matches="$1"
+  local url="$2"
+  require_one_tab "$matches" "$url"
+  select_tab "$(tab_id "$matches")"
+}
+
 main() {
   parse_args "$@"
   require_dia
 
   local matches
-  matches="$(partial_matches "$(list_tabs)" "$URL")"
+  matches="$(matching_tabs "$(list_tabs)" "$URL")"
   [[ -n $matches ]] || fail "no Dia tab is open at ${URL}"
-  select_tab "$(tab_id "$matches")"
+  select_matching_tab "$matches" "$URL"
 
   deliver_text "$(page_text | strip_control_characters)" "$COPY"
 }
