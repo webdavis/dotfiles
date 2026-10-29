@@ -87,6 +87,7 @@ packages:
         - furkankly/tap/zoetrope
         - fzf
         - gawk
+        - gfold
         - gh
         - ghostscript
         - git
