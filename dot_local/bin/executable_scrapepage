@@ -19,6 +19,7 @@ Options:
 Exit codes:
   1  Bad arguments, no matching tab, or more than one matching tab.
   2  Dia is not listening on its debugging port.
+  3  The page shows a sign-in form.
 USAGE
 }
 
@@ -80,6 +81,22 @@ tab_id() {
 select_tab() {
   local tab_id="$1"
   chrome-devtools-axi selectpage "$tab_id" --no-snapshot >/dev/null
+}
+
+eval_is_true() {
+  local js="$1"
+  [[ $(chrome-devtools-axi eval "$js") == *true* ]]
+}
+
+has_sign_in_form() {
+  local password_field_js="!!document.querySelector('input[type=password]')"
+  eval_is_true "$password_field_js"
+}
+
+require_no_sign_in_form() {
+  local url="$1"
+  ! has_sign_in_form ||
+    fail "${url} shows a sign-in form. Sign in to it in Dia, then run scrapepage again." 3
 }
 
 page_text() {
@@ -149,6 +166,7 @@ main() {
   matches="$(matching_tabs "$(list_tabs)" "$URL")"
   [[ -n $matches ]] || fail "no Dia tab is open at ${URL}"
   select_matching_tab "$matches" "$URL"
+  require_no_sign_in_form "$URL"
 
   deliver_text "$(page_text | strip_control_characters)" "$COPY"
 }
