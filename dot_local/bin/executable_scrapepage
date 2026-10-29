@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+DIA_DEBUG_URL="${CHROME_DEVTOOLS_AXI_BROWSER_URL:-http://127.0.0.1:9222}"
 COPY=0
 URL=""
 
@@ -17,6 +18,7 @@ Options:
 
 Exit codes:
   1  Bad arguments or no tab open at <url>.
+  2  Dia is not listening on its debugging port.
 USAGE
 }
 
@@ -27,8 +29,14 @@ usage_error() {
 
 fail() {
   local message="$1"
+  local exit_code="${2:-1}"
   echo "scrapepage: ${message}" >&2
-  exit 1
+  exit "$exit_code"
+}
+
+require_dia() {
+  curl -sf --max-time 2 "${DIA_DEBUG_URL}/json/version" >/dev/null ||
+    fail "Dia is not listening at ${DIA_DEBUG_URL}. Start Dia with --remote-debugging-port set to that port." 2
 }
 
 list_tabs() {
@@ -96,6 +104,7 @@ parse_args() {
 
 main() {
   parse_args "$@"
+  require_dia
 
   local matches
   matches="$(partial_matches "$(list_tabs)" "$URL")"
