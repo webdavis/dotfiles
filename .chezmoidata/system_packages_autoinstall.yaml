@@ -96,6 +96,7 @@ packages:
         - git-filter-repo
         - git-sizer
         - gitleaks
+        - glances
         - glow
         - gnu-getopt
         - gnu-sed
