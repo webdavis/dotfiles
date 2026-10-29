@@ -191,7 +191,6 @@ packages:
         - zoxide
       casks:
         - affinity
-        - arc
         - blender
         - brave-browser
         - cardhop
@@ -229,6 +228,7 @@ packages:
         - raycast
         - reader
         - thaw
+        - thebrowsercompany-dia
         - todoist-app
         - xurl
       mas:
