@@ -43,6 +43,9 @@ export RETELL_DISABLE_KEYRING=1
 {{ if eq .chezmoi.os "darwin" -}}
 # Sets the host name the Markdown preview advertises. Non-interactive nvim launches need it too.
 export NVIM_MKDP_HOST=home.webdavis.io
+
+# Points chrome-devtools-axi at Dia. Dia must be started with remote debugging on this port.
+export CHROME_DEVTOOLS_AXI_BROWSER_URL="http://127.0.0.1:9222"
 {{- end }}
 
 HOMEBREW_PREFIX='/opt/homebrew'
