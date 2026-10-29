@@ -9,7 +9,7 @@ command = "CLAUDECODE= MAX_THINKING_TOKENS=16000 claude -p --no-session-persiste
 stage = "tracked"
 
 [merge]
-squash = true
+squash = false
 rebase = true
 remove = true
 verify = true
