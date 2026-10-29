@@ -49,6 +49,40 @@ yf() {
     }' <<<"$lines"
 }
 
+# Print the text of the open Dia tab at <url>. --copy sends it to the clipboard instead.
+scrapepage() {
+  local copy=0 id text
+  local terminal_control_characters='[\x00-\x08\x0b-\x1f\x7f-\x9f]'
+
+  [[ ${1:-} == --copy ]] && {
+    copy=1
+    shift
+  }
+  if [[ -z ${1:-} ]]; then
+    echo "Usage: scrapepage [--copy] <url>" >&2
+    return 1
+  fi
+
+  id="$(chrome-devtools-axi pages | awk -F, -v u="$1" 'index($2, u) { print $1; exit }')"
+  if [[ -z $id ]]; then
+    echo "scrapepage: no Dia tab is open at $1" >&2
+    return 1
+  fi
+
+  chrome-devtools-axi selectpage "$id" --no-snapshot >/dev/null || return
+  text="$(
+    chrome-devtools-axi run <<EOF
+console.log((await page.eval('document.body.innerText')).replace(/${terminal_control_characters}/g, ''))
+EOF
+  )" || return
+
+  if ((copy)); then
+    pbcopy <<<"$text"
+  else
+    printf '%s\n' "$text"
+  fi
+}
+
 # Set push URL to no_push on forks to prevent accidental upstream pushes.
 git_setorigin_nopush() {
   git remote set-url --push origin no_push
