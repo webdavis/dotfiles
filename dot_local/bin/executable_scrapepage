@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+COPY=0
+URL=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scrapepage [options] <url>
+
+Print the text of the Dia tab open at <url>.
+
+Options:
+  --copy      Send the text to the clipboard instead of stdout.
+  -h, --help  Show this help.
+
+Exit codes:
+  1  Bad arguments or no tab open at <url>.
+USAGE
+}
+
+usage_error() {
+  usage >&2
+  exit 1
+}
+
+fail() {
+  local message="$1"
+  echo "scrapepage: ${message}" >&2
+  exit 1
+}
+
+list_tabs() {
+  chrome-devtools-axi pages | awk -F, 'NR > 1 { print $1, $2 }'
+}
+
+partial_matches() {
+  local tabs="$1"
+  local url="$2"
+  awk -v url="$url" 'index($2, url)' <<<"$tabs"
+}
+
+tab_id() {
+  local tabs="$1"
+  awk 'NR == 1 { print $1 }' <<<"$tabs"
+}
+
+select_tab() {
+  local tab_id="$1"
+  chrome-devtools-axi selectpage "$tab_id" --no-snapshot >/dev/null
+}
+
+page_text() {
+  local visible_text_js="document.body.innerText"
+  chrome-devtools-axi run <<SCRIPT_JS
+console.log(await page.eval('${visible_text_js}'))
+SCRIPT_JS
+}
+
+delete_unicode_pattern() {
+  local pattern="$1"
+  perl -CSD -pe "s/${pattern}//g"
+}
+
+strip_control_characters() {
+  local terminal_control_characters='[\x00-\x08\x0b-\x1f\x7f-\x9f]'
+  delete_unicode_pattern "$terminal_control_characters"
+}
+
+deliver_text() {
+  local text="$1"
+  local copy="$2"
+  if ((copy)); then
+    pbcopy <<<"$text"
+  else
+    printf '%s\n' "$text"
+  fi
+}
+
+parse_args() {
+  while [[ ${1:-} == -* ]]; do
+    case $1 in
+      --copy) COPY=1 ;;
+      -h | --help)
+        usage
+        exit 0
+        ;;
+      *) usage_error ;;
+    esac
+    shift
+  done
+  [[ -n ${1:-} ]] || usage_error
+  URL="$1"
+}
+
+main() {
+  parse_args "$@"
+
+  local matches
+  matches="$(partial_matches "$(list_tabs)" "$URL")"
+  [[ -n $matches ]] || fail "no Dia tab is open at ${URL}"
+  select_tab "$(tab_id "$matches")"
+
+  deliver_text "$(page_text | strip_control_characters)" "$COPY"
+}
+
+[[ ${BASH_SOURCE[0]} == "$0" ]] && main "$@"
