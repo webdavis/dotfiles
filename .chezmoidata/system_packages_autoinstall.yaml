@@ -112,6 +112,8 @@ packages:
         - jq
         - just
         - librsvg
+        - livekit
+        - livekit-cli
         - luacheck
         - mas
         - maven
