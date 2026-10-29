@@ -14,9 +14,8 @@ rebase = true
 remove = true
 verify = true
 
-# The kept branch is an easy recovery handle after a merge.
 [remove]
-delete-branch = false
+delete-branch = true
 
 [list]
 summary = false
@@ -28,6 +27,9 @@ pager = "delta --paging=never"
 
 [post-start]
 copy = "wt step copy-ignored"
+
+[post-remove]
+close-herdr-panes = "herdr-close-removed-worktree.sh '{{ worktree_path }}'"
 
 [aliases]
 up = "git fetch --all --prune && wt step for-each -- 'git rev-parse --verify -q @{u} >/dev/null || exit 0; g=$(git rev-parse --git-dir); test -d \"$g/rebase-merge\" -o -d \"$g/rebase-apply\" && exit 0; git rebase @{u} --no-autostash || { git rebase --abort; echo \"wt up: rebase failed for $(git branch --show-current); left unchanged\" >&2; }'"
