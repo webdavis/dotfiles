@@ -272,6 +272,7 @@ packages:
           - acpx
           - agentmail-cli
           - backpass
+          - chrome-devtools-axi
           - clawhub
           # Pinned because it makes commits on its own and is not yet stable.
           - "gnhf@0.1.49"
