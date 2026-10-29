@@ -159,7 +159,6 @@ packages:
         - stylua
         - swiftformat
         - swiftlint
-        - switchaudio-osx
         - tailscale
         - taplo
         - tart
