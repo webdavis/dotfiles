@@ -11,20 +11,24 @@ matches:
   - trigger: ",,ln"
     replace: "Davis"
 
-  - trigger: ",,em"
+  - trigger: ",,ew"
     replace: "stephen@webdavis.io"
 
-  - trigger: ",,ep"
+  - trigger: ",,epw"
     replace: "stephen+$|$@webdavis.io"
 
-  - trigger: ",,gm"
+  - trigger: ",,eg"
     replace: "sdstephena@gmail.com"
 
-  - trigger: ",,gp"
+  - trigger: ",,epg"
     replace: "sdstephena+$|$@gmail.com"
 
-  - trigger: ",,rs"
-    replace: "ksesqcdt@feed.readwise.io"
+  - trigger: ",,er"
+{{- if (env "CI") }}
+    replace: "FAKE_READWISE_FEED_EMAIL"
+{{- else }}
+    replace: {{ keepassxcAttribute "readwise" "feed-email-address" | quote }}
+{{- end }}
 
   - trigger: ",,wa"
     replace: "With Appreciation,\nStephen Davis"
