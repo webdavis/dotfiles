@@ -37,8 +37,11 @@ test-bindings:
 test-nvim:
   ./scripts/test-nvim.sh
 
+test-espanso-url-menu:
+  python3 scripts/test-espanso-url-menu.py
+
 # Run all test suites.
-test: test-nvim test-bindings
+test: test-nvim test-bindings test-espanso-url-menu
 
 # Run the three CI gates locally before opening a pull request.
 ship:

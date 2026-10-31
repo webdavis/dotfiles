@@ -332,6 +332,23 @@ matches:
   - trigger: ",,-d"
     replace: "↓"
 
+  - trigger: ",,,"
+    label: URL menu
+    replace: "{{url}}"
+    vars:
+      - name: rows
+        type: shell
+        params:
+          cmd: "espanso match list --json | \"$CONFIG/scripts/url-menu\" rows"
+      - name: pick
+        type: choice
+        params:
+          values: "{{rows}}"
+      - name: url
+        type: shell
+        params:
+          cmd: "espanso match list --json | \"$CONFIG/scripts/url-menu\" url \"$ESPANSO_PICK\""
+
   - trigger: ",,uw"
     label: Walmart orders
     replace: "https://www.walmart.com/orders"

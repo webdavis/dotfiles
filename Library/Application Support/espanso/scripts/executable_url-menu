@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Menu rows for espanso's web-address matches, and the address behind a picked row.
+
+Reads espanso's `match list --json` on standard input.
+`rows` prints one row per match: its label, padding, then the short address.
+`url ROW` prints the full address of that row.
+Spaces are non-breaking so the window neither wraps nor collapses them,
+and the padding mixes in thin spaces to line the addresses up in a proportional font.
+"""
+
+import json
+import re
+import sys
+
+NARROW = set("iljtfrI'!.,;:| ")
+WIDE = set("mwMW")
+CAPITALS = set("ABCDEFGHJKLNOPQRSTUVXYZ")
+NO_BREAK_SPACE = "\u00a0"
+THIN_SPACE = "\u2009"
+GAP_AFTER_LONGEST_LABEL = 3
+
+
+def estimated_width(text):
+    return sum(0.45 if c in NARROW else 1.5 if c in WIDE else 1.25 if c in CAPITALS else 1.0 for c in text)
+
+
+def padded_to(width, text):
+    gap = width - estimated_width(text)
+    no_break_count = int(gap // 0.5)
+    thin_count = round((gap - no_break_count * 0.5) / 0.3)
+    return text + NO_BREAK_SPACE * no_break_count + THIN_SPACE * thin_count
+
+
+def short(url):
+    return re.sub(r"^https://(www\.)?", "", url).rstrip("/")
+
+
+def web_addresses(matches):
+    return sorted((m["label"], m["replace"]) for m in matches if m["replace"].startswith("https://"))
+
+
+def rows(matches):
+    addresses = web_addresses(matches)
+    width = max(estimated_width(label) for label, _ in addresses) + GAP_AFTER_LONGEST_LABEL
+    return [padded_to(width, label.replace(" ", NO_BREAK_SPACE)) + short(url) for label, url in addresses]
+
+
+def url_of(matches, row):
+    shown = row.split(NO_BREAK_SPACE)[-1].lstrip(THIN_SPACE)
+    return next(url for _, url in web_addresses(matches) if short(url) == shown)
+
+
+if __name__ == "__main__":
+    matches = json.load(sys.stdin)
+    if sys.argv[1] == "rows":
+        print("\n".join(rows(matches)))
+    else:
+        print(url_of(matches, sys.argv[2]), end="")
