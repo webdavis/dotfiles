@@ -3,7 +3,7 @@ import subprocess
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "Library/Application Support/espanso/scripts/executable_url-menu"
+SCRIPT = Path(__file__).resolve().parent.parent.parent / "Library/Application Support/espanso/scripts/executable_url-menu"
 NO_BREAK_SPACE = "\u00a0"
 THIN_SPACE = "\u2009"
 

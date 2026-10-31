@@ -2,12 +2,12 @@
 
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SPEC_RUNNER="${REPO_ROOT}/dot_config/nvim/tests/run.lua"
 
 usage() {
   cat >&2 <<'USAGE'
-usage: test-nvim.sh
+usage: nvim.sh
 USAGE
   exit 1
 }
