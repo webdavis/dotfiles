@@ -39,12 +39,13 @@ excludes = [
   # Long lines keep one rule per line readable there.
   "AGENTS.md",
   "private_dot_codex/AGENTS.md",
+  "TASKS.md",
 ]
 
 [formatter.mdformat-rules]
 command = "mdformat"
 options = ["--wrap", "keep"]
-includes = ["AGENTS.md", "private_dot_codex/AGENTS.md"]
+includes = ["AGENTS.md", "private_dot_codex/AGENTS.md", "TASKS.md"]
 
 # Skips dot_aerospace.toml to keep its hand alignment.
 # Skips modify_ templates because taplo cannot parse their template directives.
