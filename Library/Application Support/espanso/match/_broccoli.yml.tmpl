@@ -1,0 +1,48 @@
+matches:
+  - trigger: ",,bsig"
+    label: Broccoli email signature
+    replace: "Thank you,\nStephen Davis\nBroccoli AI"
+
+  - trigger: ",,bup"
+    label: Pylon my issues
+    replace: "https://app.usepylon.com/support/issues/views/my-issues"
+
+  - trigger: ",,bud"
+    label: Broccoli dashboard
+    replace: "https://app.broccoli.com/dashboard"
+
+  - trigger: ",,bua"
+    label: Broccoli admin
+    replace: "https://admin.broccoli.com/"
+
+  - trigger: ",,bus"
+    label: Slack DMs
+{{- if (env "CI") }}
+    replace: "https://app.slack.com/client/FAKE_TEAM_ID/dms"
+{{- else }}
+    replace: "https://app.slack.com/client/{{ keepassxcAttribute "slack-broccoli-app-stephen-pwe" "team-id" }}/dms"
+{{- end }}
+
+  - trigger: ",,but"
+    label: Temporal workflows
+{{- if (env "CI") }}
+    replace: "https://cloud.temporal.io/namespaces/FAKE_NAMESPACE/workflows"
+{{- else }}
+    replace: "https://cloud.temporal.io/namespaces/{{ keepassxcAttribute "temporal-cloud-broccoli-api-key" "namespace" }}/workflows"
+{{- end }}
+
+  - trigger: ",,buc"
+    label: ServiceTitan calendar
+    replace: "https://go.servicetitan.com/#/Calendar"
+
+  - trigger: ",,bul"
+    label: LangSmith
+    replace: "https://smith.langchain.com/"
+
+  - trigger: ",,bur"
+    label: Retell
+    replace: "https://dashboard.retellai.com/"
+
+  - trigger: ",,bui"
+    label: Linear
+    replace: "https://linear.app/"

@@ -148,6 +148,10 @@ matches:
     replace: "Not at the moment."
     word: true
 
+  - trigger: "alz"
+    replace: "Alzheimer's"
+    word: true
+
   - trigger: ";;ty"
     replace: "Thank you"
 
@@ -162,6 +166,24 @@ matches:
 
   - trigger: ";;afaik"
     replace: "As far as I know"
+
+  - trigger: ";;ni"
+    replace: "I have no idea."
+
+  - trigger: ";;nf"
+    replace: "I'm not familiar."
+
+  - trigger: ";;da"
+    replace: "Doesn't apply."
+
+  - trigger: ";;na"
+    replace: "Not applicable."
+
+  - trigger: ";;sk"
+    replace: "skip it"
+
+  - trigger: ";;jb"
+    replace: "Just because"
 
   - trigger: ";;yt"
     replace: "YouTube"
@@ -310,33 +332,49 @@ matches:
   - trigger: ",,-d"
     replace: "↓"
 
-  - trigger: ",,wno"
+  - trigger: ",,uw"
+    label: Walmart orders
+    replace: "https://www.walmart.com/orders"
+
+  - trigger: ",,ua"
+    label: Amazon orders
+    replace: "https://www.amazon.com/gp/css/order-history"
+
+  - trigger: ",,ug"
+    label: GitHub
+    replace: "https://www.github.com/"
+
+  - trigger: ",,up"
+    label: Dotfiles pull requests
+    replace: "https://github.com/webdavis/dotfiles/pulls"
+
+  - trigger: ",,uh"
+    label: Homelab
+    replace: "https://www.github.com/webdavis/Homelab/"
+
+  - trigger: ",,ur"
+    label: Router
+    replace: "https://100.64.18.88/"
+
+  - trigger: ",,un"
     label: White noise
     replace: "https://www.youtube.com/watch?v=nMfPqeZjc2c"
 
-  - trigger: ",,azo"
-    replace: "https://www.amazon.com/gp/css/order-history"
+  - trigger: ",,uc"
+    label: Claude Code
+    replace: "https://claude.ai/code"
 
-  - trigger: ",,ro"
-    replace: "https://100.64.18.88/"
+  - trigger: ",,uy"
+    label: YouTube
+    replace: "https://www.youtube.com/"
 
-  - trigger: ",,wo"
-    replace: "https://www.walmart.com/orders"
+  - trigger: ",,um"
+    label: Gmail
+    replace: "https://mail.google.com/"
 
-  - trigger: ",,mu"
-    replace: "https://www.meetup.com/your-events/"
-
-  - trigger: ",,ghu"
-    replace: "https://www.github.com/"
-
-  - trigger: ",,jda"
-    replace: "https://www.github.com/karlmdavis/justdavis-ansible/"
-
-  - trigger: ",,hml"
-    replace: "https://www.github.com/webdavis/Homelab/"
-
-  - trigger: ",,efc"
-    replace: "https://www.github.com/webdavis/essential-feed-case-study/"
+  - trigger: ",,ul"
+    label: Google Calendar
+    replace: "https://calendar.google.com/"
 
   - trigger: ",,ed"
     replace: "essential-feed-case-study"
