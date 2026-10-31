@@ -3,14 +3,12 @@
 set -euo pipefail
 
 DIA_DEBUG_URL="${CHROME_DEVTOOLS_AXI_BROWSER_URL:-http://127.0.0.1:9222}"
+DEBUG_PORT_TIMEOUT_SECONDS=2
 RENDER_TIMEOUT_SECONDS=20
 OPENED_TAB_ID=""
-COPY=0
-WAIT_FOR=""
-URL=""
 
 usage() {
-  cat <<'USAGE'
+  cat <<USAGE
 Usage: scrapepage [options] <url>
 
 Print the text of the Dia tab at <url>. A page with no tab is opened in a
@@ -19,15 +17,19 @@ background tab, read once it has rendered, and closed.
 Options:
   --copy             Send the text to the clipboard instead of stdout.
   --wait-for <text>  Treat the page as rendered once <text> appears. Without
-                     it, the page counts as rendered when its text stops
-                     changing.
+                     it, a page scrapepage opens counts as rendered when its
+                     text stops changing.
   -h, --help         Show this help.
 
+Environment:
+  CHROME_DEVTOOLS_AXI_BROWSER_URL  Dia's debugging port, ${DIA_DEBUG_URL} by default.
+
 Exit codes:
-  1  Bad arguments or more than one matching tab.
+  0  The text was printed or copied.
+  1  Bad arguments, more than one matching tab, or Dia did not open the page.
   2  Dia is not listening on its debugging port.
   3  The page shows a sign-in form.
-  4  The page did not render within 20 seconds.
+  4  The page did not render within ${RENDER_TIMEOUT_SECONDS} seconds.
 USAGE
 }
 
@@ -43,25 +45,90 @@ fail() {
   exit "$exit_code"
 }
 
+debug_port_get() {
+  local path="$1"
+  curl -sf --max-time "$DEBUG_PORT_TIMEOUT_SECONDS" "${DIA_DEBUG_URL}${path}"
+}
+
+browser_info() {
+  local browser_info_endpoint='/json/version'
+  debug_port_get "$browser_info_endpoint"
+}
+
 require_dia() {
-  curl -sf --max-time 2 "${DIA_DEBUG_URL}/json/version" >/dev/null ||
+  browser_info >/dev/null ||
     fail "Dia is not listening at ${DIA_DEBUG_URL}. Start Dia with --remote-debugging-port set to that port." 2
 }
 
+browser_control_address() {
+  local control_address_field='.webSocketDebuggerUrl'
+  browser_info | jq -r "$control_address_field"
+}
+
+tab_control_address() {
+  local tab_id="$1"
+  local websocket_base="${DIA_DEBUG_URL/http/ws}"
+  local tab_control_path='/devtools/page/'
+  echo "${websocket_base}${tab_control_path}${tab_id}"
+}
+
+send_and_read_reply() {
+  local control_address="$1"
+  local message="$2"
+  local one_message='--one-message'
+  local keep_open_for_the_reply='--no-close'
+  local largest_reply_bytes=16000000
+  websocat "$one_message" "$keep_open_for_the_reply" --buffer-size "$largest_reply_bytes" "$control_address" <<<"$message"
+}
+
+devtools_request() {
+  local method="$1"
+  local params="$2"
+  local only_request_id=1
+  local request_shape='{id: $id, method: $method, params: $params}'
+  jq -cn --argjson id "$only_request_id" --arg method "$method" --argjson params "$params" "$request_shape"
+}
+
+send_devtools_command() {
+  local control_address="$1"
+  local method="$2"
+  local params="$3"
+  send_and_read_reply "$control_address" "$(devtools_request "$method" "$params")"
+}
+
+evaluate_javascript() {
+  local tab_id="$1"
+  local javascript="$2"
+  local evaluate_method='Runtime.evaluate'
+  local expression_returning_plain_value='{expression: $expression, returnByValue: true}'
+  local value_or_protocol_error='if .error then error(.error.message) else .result.result.value // "" end'
+  local params
+  params="$(jq -cn --arg expression "$javascript" "$expression_returning_plain_value")"
+  send_devtools_command "$(tab_control_address "$tab_id")" "$evaluate_method" "$params" | jq -r "$value_or_protocol_error"
+}
+
+javascript_is_true() {
+  local tab_id="$1"
+  local javascript="$2"
+  [[ $(evaluate_javascript "$tab_id" "$javascript") == true ]]
+}
+
 list_tabs() {
-  chrome-devtools-axi pages | awk -F, 'NR > 1 { print $1, $2 }'
+  local tab_list_endpoint='/json/list'
+  local id_and_url_per_tab='.[] | select(.type == "page") | "\(.id) \(.url)"'
+  debug_port_get "$tab_list_endpoint" | jq -r "$id_and_url_per_tab"
 }
 
 exact_matches() {
   local tabs="$1"
   local url="$2"
-  awk -v url="$url" '$2 == url' <<<"$tabs"
+  url="$url" awk '$2 == ENVIRON["url"]' <<<"$tabs"
 }
 
 partial_matches() {
   local tabs="$1"
   local url="$2"
-  awk -v url="$url" 'index($2, url)' <<<"$tabs"
+  url="$url" awk 'index($2, ENVIRON["url"])' <<<"$tabs"
 }
 
 tab_count() {
@@ -74,53 +141,37 @@ tab_addresses() {
   awk '{ print "  " $2 }' <<<"$tabs"
 }
 
-require_one_tab() {
+require_at_most_one_tab() {
   local tabs="$1"
   local url="$2"
   [[ $(tab_count "$tabs") -le 1 ]] ||
     fail "more than one Dia tab matches ${url}. Give the full address of one of these:"$'\n'"$(tab_addresses "$tabs")"
 }
 
-tab_id() {
+first_tab_id() {
   local tabs="$1"
   awk 'NR == 1 { print $1 }' <<<"$tabs"
 }
 
-tab_ids() {
-  local tabs="$1"
-  awk '{ print $1 }' <<<"$tabs" | sort
-}
-
-added_tab_id() {
-  local before="$1"
-  local after="$2"
-  comm -13 <(echo "$before") <(echo "$after")
-}
-
 default_to_https_unless_scheme_given() {
   local url="$1"
-  local scheme_pattern='^[a-z][a-z0-9+.-]*://'
-  if [[ $url =~ $scheme_pattern || $url == data:* ]]; then
+  local scheme_with_slashes='^[A-Za-z][A-Za-z0-9+.-]*://'
+  local scheme_without_slashes='^(data|about):'
+  if [[ $url =~ $scheme_with_slashes || $url =~ $scheme_without_slashes ]]; then
     echo "$url"
   else
     echo "https://${url}"
   fi
 }
 
-ignore_load_timeout() {
-  true
-}
-
-open_tab() {
+open_background_tab() {
   local url="$1"
-  chrome-devtools-axi newpage "$url" --background --no-snapshot >/dev/null || ignore_load_timeout
-}
-
-open_new_tab() {
-  local tabs="$1"
-  local url="$2"
-  open_tab "$url"
-  added_tab_id "$(tab_ids "$tabs")" "$(tab_ids "$(list_tabs)")"
+  local open_tab_method='Target.createTarget'
+  local url_in_background_tab='{url: $url, background: true}'
+  local new_tab_id='.result.targetId // ""'
+  local params
+  params="$(jq -cn --arg url "$url" "$url_in_background_tab")"
+  send_devtools_command "$(browser_control_address)" "$open_tab_method" "$params" | jq -r "$new_tab_id"
 }
 
 require_opened_tab() {
@@ -129,9 +180,15 @@ require_opened_tab() {
   [[ -n $tab_id ]] || fail "Dia did not open ${url}."
 }
 
+close_tab() {
+  local tab_id="$1"
+  local close_tab_endpoint='/json/close/'
+  debug_port_get "${close_tab_endpoint}${tab_id}" >/dev/null
+}
+
 close_opened_tab() {
   if [[ -n $OPENED_TAB_ID ]]; then
-    chrome-devtools-axi closepage "$OPENED_TAB_ID" >/dev/null
+    close_tab "$OPENED_TAB_ID"
   fi
 }
 
@@ -139,56 +196,56 @@ close_opened_tab_on_exit() {
   trap close_opened_tab EXIT
 }
 
-select_tab() {
+text_is_rendered() {
+  local text="$1"
+  local previous="$2"
+  local wait_for="$3"
+  local has_visible_text=false unchanged_since_last_read=false
+  [[ -n ${text//[[:space:]]/} ]] && has_visible_text=true
+  [[ $text == "$previous" ]] && unchanged_since_last_read=true
+  if [[ -n $wait_for ]]; then
+    [[ $text == *"$wait_for"* ]]
+  else
+    [[ $has_visible_text == true && $unchanged_since_last_read == true ]]
+  fi
+}
+
+wait_until_rendered_or_sign_in() {
   local tab_id="$1"
-  chrome-devtools-axi selectpage "$tab_id" --no-snapshot >/dev/null
+  local wait_for="$2"
+  local opened_url="$3"
+  local poll_interval_seconds=1
+  local deadline=$((SECONDS + RENDER_TIMEOUT_SECONDS))
+  local previous='' text
+  while ((SECONDS < deadline)); do
+    text="$(page_text "$tab_id")"
+    if has_sign_in_form "$tab_id" "$opened_url" || text_is_rendered "$text" "$previous" "$wait_for"; then
+      return 0
+    fi
+    previous="$text"
+    sleep "$poll_interval_seconds"
+  done
+  return 1
+}
+
+require_rendered() {
+  local tab_id="$1"
+  local url="$2"
+  local wait_for="$3"
+  wait_until_rendered_or_sign_in "$tab_id" "$wait_for" "$url" ||
+    fail "${url} did not finish rendering within ${RENDER_TIMEOUT_SECONDS} seconds." 4
 }
 
 json_string() {
   local text="$1"
-  jq -Rn --arg text "$text" '$text'
-}
-
-render_wait_js() {
-  local marker="$1"
-  local sign_in_check="$2"
-  local visible_text_js="document.body.innerText"
-  cat <<SCRIPT_JS
-const deadline = Date.now() + ${RENDER_TIMEOUT_SECONDS} * 1000
-const marker = ${marker}
-let previous = null
-let rendered = false
-while (!rendered && Date.now() < deadline) {
-  const text = await page.eval('${visible_text_js}')
-  const signIn = await page.eval(${sign_in_check})
-  rendered = signIn || (marker ? text.includes(marker) : text.trim() !== '' && text === previous)
-  previous = text
-  if (!rendered) await page.wait(1000)
-}
-console.log(rendered ? 'rendered' : 'timeout')
-SCRIPT_JS
-}
-
-wait_for_render() {
-  local wait_for="$1"
-  local opened_url="$2"
-  local marker sign_in_check script
-  marker="$(json_string "$wait_for")"
-  sign_in_check="$(json_string "$(sign_in_check_js "$opened_url")")"
-  script="$(render_wait_js "$marker" "$sign_in_check")"
-  chrome-devtools-axi run <<<"$script"
-}
-
-require_rendered() {
-  local url="$1"
-  local wait_for="$2"
-  [[ $(wait_for_render "$wait_for" "$url") == rendered ]] ||
-    fail "${url} did not finish rendering within ${RENDER_TIMEOUT_SECONDS} seconds." 4
+  local text_as_json='$text'
+  jq -n --arg text "$text" "$text_as_json"
 }
 
 redirected_to_sign_in_js() {
   local opened_url="$1"
-  local opened sign_in_path_pattern='/signin|login/i'
+  local sign_in_path_pattern='/sign[-_]?in|log[-_]?in/i'
+  local opened
   opened="$(json_string "$opened_url")"
   printf '%s' "(${opened} !== '' && location.host !== new URL(${opened}).host && ${sign_in_path_pattern}.test(location.pathname))"
 }
@@ -199,33 +256,30 @@ sign_in_check_js() {
   printf '%s' "${password_field_js} || $(redirected_to_sign_in_js "$opened_url")"
 }
 
-eval_is_true() {
-  local js="$1"
-  [[ $(chrome-devtools-axi eval "$js") == *true* ]]
-}
-
 has_sign_in_form() {
-  local opened_url="$1"
-  eval_is_true "$(sign_in_check_js "$opened_url")"
+  local tab_id="$1"
+  local opened_url="$2"
+  javascript_is_true "$tab_id" "$(sign_in_check_js "$opened_url")"
 }
 
 require_no_sign_in_form() {
-  local url="$1"
-  local opened_url="$2"
-  ! has_sign_in_form "$opened_url" ||
+  local tab_id="$1"
+  local url="$2"
+  local opened_url="$3"
+  ! has_sign_in_form "$tab_id" "$opened_url" ||
     fail "${url} shows a sign-in form. Sign in to it in Dia, then run scrapepage again." 3
 }
 
 page_text() {
+  local tab_id="$1"
   local visible_text_js="document.body.innerText"
-  chrome-devtools-axi run <<SCRIPT_JS
-console.log(await page.eval('${visible_text_js}'))
-SCRIPT_JS
+  evaluate_javascript "$tab_id" "$visible_text_js"
 }
 
 delete_unicode_pattern() {
   local pattern="$1"
-  perl -CSD -pe "s/${pattern}//g"
+  local utf8_in_and_out='-CSD'
+  PATTERN="$pattern" perl "$utf8_in_and_out" -pe 's/$ENV{PATTERN}//g'
 }
 
 strip_control_characters() {
@@ -244,12 +298,16 @@ deliver_text() {
 }
 
 parse_args() {
+  local -n copy_out="$1"
+  local -n wait_for_out="$2"
+  local -n url_out="$3"
+  shift 3
   while [[ ${1:-} == -* ]]; do
     case $1 in
-      --copy) COPY=1 ;;
+      --copy) copy_out=1 ;;
       --wait-for)
-        WAIT_FOR="${2:-}"
-        [[ -n $WAIT_FOR ]] || usage_error
+        wait_for_out="${2:-}"
+        [[ -n $wait_for_out ]] || usage_error
         shift
         ;;
       -h | --help)
@@ -260,8 +318,8 @@ parse_args() {
     esac
     shift
   done
-  [[ -n ${1:-} ]] || usage_error
-  URL="$1"
+  (($# == 1)) || usage_error
+  url_out="$1"
 }
 
 matching_tabs() {
@@ -273,40 +331,45 @@ matching_tabs() {
   echo "$matches"
 }
 
-select_matching_tab() {
+matching_tab_id() {
   local matches="$1"
   local url="$2"
-  require_one_tab "$matches" "$url"
-  select_tab "$(tab_id "$matches")"
+  require_at_most_one_tab "$matches" "$url"
+  first_tab_id "$matches"
 }
 
 open_page_in_new_tab() {
-  local tabs="$1"
-  local url="$2"
-  local wait_for="$3"
-  OPENED_TAB_ID="$(open_new_tab "$tabs" "$url")"
+  local url="$1"
+  local wait_for="$2"
+  OPENED_TAB_ID="$(open_background_tab "$url")" || OPENED_TAB_ID=''
   require_opened_tab "$OPENED_TAB_ID" "$url"
-  select_tab "$OPENED_TAB_ID"
-  require_rendered "$url" "$wait_for"
+  require_rendered "$OPENED_TAB_ID" "$url" "$wait_for"
 }
 
 main() {
-  parse_args "$@"
+  local copy=0 wait_for='' url
+  parse_args copy wait_for url "$@"
   require_dia
   close_opened_tab_on_exit
 
-  local tabs matches opened_url=''
+  local tabs matches tab_id opened_url=''
   tabs="$(list_tabs)"
-  matches="$(matching_tabs "$tabs" "$URL")"
+  matches="$(matching_tabs "$tabs" "$url")"
   if [[ -n $matches ]]; then
-    select_matching_tab "$matches" "$URL"
+    tab_id="$(matching_tab_id "$matches" "$url")"
+    [[ -z $wait_for ]] || require_rendered "$tab_id" "$url" "$wait_for"
   else
-    opened_url="$(default_to_https_unless_scheme_given "$URL")"
-    open_page_in_new_tab "$tabs" "$opened_url" "$WAIT_FOR"
+    opened_url="$(default_to_https_unless_scheme_given "$url")"
+    open_page_in_new_tab "$opened_url" "$wait_for"
+    tab_id="$OPENED_TAB_ID"
   fi
-  require_no_sign_in_form "$URL" "$opened_url"
+  require_no_sign_in_form "$tab_id" "$url" "$opened_url"
 
-  deliver_text "$(page_text | strip_control_characters)" "$COPY"
+  local text
+  text="$(page_text "$tab_id" | strip_control_characters)"
+  deliver_text "$text" "$copy"
 }
 
-[[ ${BASH_SOURCE[0]} == "$0" ]] && main "$@"
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
