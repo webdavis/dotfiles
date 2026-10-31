@@ -16,9 +16,10 @@ background tab, read once it has rendered, and closed.
 
 Options:
   --copy             Send the text to the clipboard instead of stdout.
-  --wait-for <text>  Treat the page as rendered once <text> appears. Without
-                     it, a page scrapepage opens counts as rendered when its
-                     text stops changing.
+  --wait-for <text>  Treat the page as rendered only once <text> appears and
+                     its text has stopped changing. Without it, a page
+                     scrapepage opens counts as rendered when its text stops
+                     changing.
   -h, --help         Show this help.
 
 Environment:
@@ -203,11 +204,7 @@ text_is_rendered() {
   local has_visible_text=false unchanged_since_last_read=false
   [[ -n ${text//[[:space:]]/} ]] && has_visible_text=true
   [[ $text == "$previous" ]] && unchanged_since_last_read=true
-  if [[ -n $wait_for ]]; then
-    [[ $text == *"$wait_for"* ]]
-  else
-    [[ $has_visible_text == true && $unchanged_since_last_read == true ]]
-  fi
+  [[ $has_visible_text == true && $unchanged_since_last_read == true && $text == *"$wait_for"* ]]
 }
 
 wait_until_rendered_or_sign_in() {
