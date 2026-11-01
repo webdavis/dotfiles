@@ -63,6 +63,8 @@
         "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
         "YNAB_API_TOKEN" (keepassxc "YNAB :: Personal Access Token").Password)) $merged -}}
 
+{{- $merged = setValueAtPath (list "mcp_servers" "resend") (dict "url" "https://mcp.resend.com/mcp") $merged -}}
+
 {{- /* Live entries stay, so a root trusted at the Codex prompt survives an apply. */ -}}
 {{- $declaredProjects := list
     (printf "%s/workspaces/Ivy" $home)
