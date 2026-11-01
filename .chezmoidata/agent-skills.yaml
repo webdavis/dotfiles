@@ -12,6 +12,16 @@ skills:
           on_demand: true
         - repo: "mattpocock/skills/skills/productivity"
           on_demand: true
+        - repo: "twilio/ai/skills/twilio/twilio-call-recordings"
+          on_demand: true
+        - repo: "twilio/ai/skills/twilio/twilio-cli-reference"
+          on_demand: true
+        - repo: "twilio/ai/skills/twilio/twilio-conversation-intelligence"
+          on_demand: true
+        - repo: "twilio/ai/skills/twilio/twilio-debugging-observability"
+          on_demand: true
+        - repo: "twilio/ai/skills/twilio/twilio-lookup-phone-intelligence"
+          on_demand: true
     codex_and_claude:
       npx:
         - repo: "agamm/claude-code-owasp"

@@ -43,6 +43,9 @@ plugins:
       - marketplace: "addyosmani/agent-skills"
         plugins:
           - "agent-skills@addy-agent-skills"
+      - marketplace: "twilio/ai"
+        plugins:
+          - "twilio-developer-kit@twilio"
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:
