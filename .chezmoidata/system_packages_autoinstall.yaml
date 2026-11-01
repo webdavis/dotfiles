@@ -16,6 +16,7 @@ packages:
         - resend/cli
         - rjyo/moshi
         - schpet/tap
+        - supabase/tap
         - twilio/brew
         - xdevplatform/tap
       # Lists every tap in taps again. brew bundle loads a tap only after it is trusted.
@@ -34,6 +35,7 @@ packages:
         - resend/cli
         - rjyo/moshi
         - schpet/tap
+        - supabase/tap
         - twilio/brew
         - xdevplatform/tap
       formulae:
@@ -55,6 +57,7 @@ packages:
         - btop
         - clerk/stable/clerk
         - resend/cli/resend
+        - supabase/tap/supabase
         # The tab-smart-rename herdr plugin runs on Bun.
         - bun
         - ca-certificates
