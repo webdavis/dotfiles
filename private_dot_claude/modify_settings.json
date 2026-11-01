@@ -200,6 +200,7 @@
       "Read(secrets/**)"
       "Read(credentials.json)"
       "Read(~/.config/retell/credentials.json)"
+      "Read(~/.config/claude/broccoli-mcp.json)"
       "Read(~/.aws/credentials)"
       "Read(~/.ssh/id_*)"
       "Read(~/.ssh/*_rsa)"
@@ -222,6 +223,8 @@
       "Read(~/.config/gogcli/credentials.json)"
       "Read(~/Library/Application Support/Claude/claude_desktop_config.json)"
       "Read(~/Library/Application Support/espanso/match/identity.yml)")
+    "ask" (list
+      "mcp__devin__devin_session_create")
     "defaultMode" "bypassPermissions" -}}
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 

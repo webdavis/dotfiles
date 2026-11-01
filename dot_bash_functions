@@ -154,3 +154,7 @@ gfm() {
   git log --pretty=format:'%C(yellow)%h %Cblue%ad %Creset%s%Cgreen [%cn] %Cred%d' \
     --decorate --date=short --grep="$1"
 }
+
+start-claude-broccoli-with-work-mcp-servers() {
+  clauth start broccoli --mcp-config ~/.config/claude/broccoli-mcp.json "$@"
+}

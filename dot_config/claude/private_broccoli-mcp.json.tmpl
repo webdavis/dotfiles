@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "devin": {
+      "type": "http",
+      "url": "https://mcp.devin.ai/mcp",
+      "headers": {
+        "Authorization": {{ printf "Bearer %s" (keepassxcAttribute "devin-broccoli-api-access" "personal-access-token") | toJson }},
+        "X-Org-Id": {{ (keepassxc "devin-broccoli-api-access").UserName | toJson }}
+      }
+    }
+  }
+}
