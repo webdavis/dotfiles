@@ -64,6 +64,8 @@ skills:
         - repo: "rjyo/moshi-skill"
           hermes:
             - "default"
+        - repo: "slackapi/slack-skills-plugin/skills/slack-messaging"
+        - repo: "slackapi/slack-skills-plugin/skills/slack-search"
         - repo: "steipete/agent-scripts/skills/video-transcript-downloader"
           on_demand: true
         - repo: "supabase/agent-skills"
