@@ -201,6 +201,7 @@
       "Read(credentials.json)"
       "Read(~/.config/retell/credentials.json)"
       "Read(~/.config/claude/broccoli-mcp.json)"
+      "Read(~/.broccoli-skills.env)"
       "Read(~/.aws/credentials)"
       "Read(~/.ssh/id_*)"
       "Read(~/.ssh/*_rsa)"
