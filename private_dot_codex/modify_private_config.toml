@@ -65,6 +65,8 @@
 
 {{- $merged = setValueAtPath (list "mcp_servers" "resend") (dict "url" "https://mcp.resend.com/mcp") $merged -}}
 
+{{- $merged = setValueAtPath (list "mcp_servers" "clerk") (dict "url" "https://mcp.clerk.com/mcp") $merged -}}
+
 {{- /* Live entries stay, so a root trusted at the Codex prompt survives an apply. */ -}}
 {{- $declaredProjects := list
     (printf "%s/workspaces/Ivy" $home)

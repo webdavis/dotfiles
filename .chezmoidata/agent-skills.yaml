@@ -29,6 +29,8 @@ skills:
         - repo: "backnotprop/plannotator/apps/skills/core"
           on_demand: true
         - repo: "blader/humanizer"
+        - repo: "clerk/skills"
+          on_demand: true
         - repo: "Doist/todoist-cli"
         - repo: "heygen-com/hyperframes"
           agent: "lara"
