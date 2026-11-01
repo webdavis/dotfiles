@@ -199,6 +199,7 @@
       "Read(.env.*)"
       "Read(secrets/**)"
       "Read(credentials.json)"
+      "Read(~/.config/retell/credentials.json)"
       "Read(~/.aws/credentials)"
       "Read(~/.ssh/id_*)"
       "Read(~/.ssh/*_rsa)"
