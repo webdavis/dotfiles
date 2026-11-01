@@ -50,6 +50,7 @@ skills:
         - repo: "kunchenguid/gh-axi"
         - repo: "kunchenguid/lavish-axi"
           on_demand: true
+        - repo: "langchain-ai/langsmith-skills"
         - repo: "mvanhorn/last30days-skill"
           hermes:
             - "lara"

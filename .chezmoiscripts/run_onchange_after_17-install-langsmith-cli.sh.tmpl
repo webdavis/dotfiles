@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly installer_url="https://cli.langsmith.com/install.sh"
+readonly install_dir="$HOME/.local/bin"
+
+fetch_installer() {
+  curl -fsSL "$installer_url"
+}
+
+run_installer() {
+  local installer=$1
+  INSTALL_DIR="$install_dir" sh -c "$installer" </dev/null >/dev/null
+}
+
+main() {
+  report_section 'langsmith' 'LangSmith CLI'
+
+  local installer
+  if ! installer="$(fetch_installer)"; then
+    report_line "error[download-failed]: could not download the installer from $installer_url; langsmith was not installed." >&2
+    exit 1
+  fi
+
+  report_line "running the installer..."
+  if ! run_installer "$installer"; then
+    report_line "error[install-failed]: the installer failed; langsmith was not installed." >&2
+    exit 1
+  fi
+  report_line "installed langsmith into $install_dir."
+}
+
+main "$@"
