@@ -65,6 +65,8 @@ skills:
             - "default"
         - repo: "steipete/agent-scripts/skills/video-transcript-downloader"
           on_demand: true
+        - repo: "supabase/agent-skills"
+          on_demand: true
         - repo: "temporalio/skill-temporal-cloud"
           on_demand: true
         - repo: "tt-a1i/archify"

@@ -106,4 +106,6 @@
 
 {{- $merged = setValueAtPath "mcpServers.clerk" (dict "type" "http" "url" "https://mcp.clerk.com/mcp") $merged -}}
 
+{{- $merged = setValueAtPath "mcpServers.supabase" (dict "type" "http" "url" "https://mcp.supabase.com/mcp?read_only=true") $merged -}}
+
 {{ $merged | toPrettyJson }}
