@@ -21,6 +21,7 @@ broccoli:
       - repo: "temporalio/skill-temporal-cloud"
       - repo: "temporalio/claude-temporal-plugin"
       - repo: "resend/resend-skills"
+      - repo: "clerk/skills"
     mcp_servers:
       devin:
         type: http
@@ -38,6 +39,9 @@ broccoli:
       resend:
         type: http
         url: https://mcp.resend.com/mcp
+      clerk:
+        type: http
+        url: https://mcp.clerk.com/mcp
   engineering:
     npx: []
     mcp_servers: {}
@@ -47,13 +51,16 @@ broccoli:
         taps:
           - twilio/brew
           - resend/cli
+          - clerk/stable
         trusted_taps:
           - twilio/brew
           - resend/cli
+          - clerk/stable
         formulae:
           - temporal
           - twilio/brew/twilio
           - resend/cli/resend
+          - clerk/stable/clerk
         casks:
           - claude-code@latest
           - devin-cli

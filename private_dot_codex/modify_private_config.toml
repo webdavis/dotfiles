@@ -65,7 +65,7 @@
 
 {{- $merged = deleteValueAtPath "mcp_servers.resend" $merged -}}
 
-{{- $merged = setValueAtPath (list "mcp_servers" "clerk") (dict "url" "https://mcp.clerk.com/mcp") $merged -}}
+{{- $merged = deleteValueAtPath "mcp_servers.clerk" $merged -}}
 
 {{- $merged = setValueAtPath (list "mcp_servers" "supabase") (dict "url" "https://mcp.supabase.com/mcp?read_only=true") $merged -}}
 
