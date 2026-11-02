@@ -203,6 +203,28 @@ install_npm_tools() {
 }
 
 
+install_downloaded_cli() {
+  local binary=$1 url=$2 interpreter=$3
+  local installer
+  if [[ -x $install_dir/$binary ]]; then
+    return
+  fi
+  if ! installer="$(curl -fsSL "$url")"; then
+    report_failure "error[download-failed]: could not download $url; $binary was not installed."
+    return
+  fi
+  if "$interpreter" -c "$installer" </dev/null >/dev/null 2>&1 && [[ -x $install_dir/$binary ]]; then
+    report_change "installed $binary into $install_dir."
+  else
+    report_failure "error[install-failed]: the $binary installer failed; the next apply retries."
+  fi
+}
+
+
+install_langsmith() {
+  INSTALL_DIR="$install_dir" install_downloaded_cli langsmith https://cli.langsmith.com/install.sh sh
+}
+
 twilio_profile_exists() {
   "$twilio" profiles:list 2>/dev/null | awk -v profile="$twilio_profile" '$1 == profile { found = 1 } END { exit !found }'
 }
@@ -248,6 +270,7 @@ main() {
   sync_skill_folders
   install_uv_tools
   install_npm_tools
+  install_langsmith
   login_twilio
   if ((failure_count > 0)); then
     exit 1
