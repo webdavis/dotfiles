@@ -1,6 +1,11 @@
 {{ if eq .chezmoi.os "darwin" -}}
 {{- $systemPackagesAreSkipped := eq (env "SKIP_SYSTEM_PACKAGES") "1" -}}
-{{- $trustedTaps := .packages.macos.homebrew.trusted_taps -}}
+{{- $brew := .packages.macos.homebrew -}}
+{{- $work := .broccoli.packages.macos -}}
+{{- $taps := concat $brew.taps $work.homebrew.taps | uniq -}}
+{{- $trustedTaps := concat $brew.trusted_taps $work.homebrew.trusted_taps | uniq -}}
+{{- $formulae := concat $brew.formulae $work.homebrew.formulae | uniq -}}
+{{- $casks := concat $brew.casks $work.homebrew.casks | uniq -}}
 {{- $graphifyIsDeclared := has "graphifyy" .packages.macos.uv -}}
 #!/usr/bin/env bash
 
@@ -144,13 +149,13 @@ remove_temporary_brewfiles() {
 
 write_declared_brewfile() {
   cat >"$declared_brewfile" <<EOF
-{{ range .packages.macos.homebrew.taps -}}
+{{ range $taps -}}
 tap {{ . | quote }}{{ if has . $trustedTaps }}, trusted: true{{ end }}
 {{ end -}}
-{{ range .packages.macos.homebrew.formulae -}}
+{{ range $formulae -}}
 brew {{ . | quote }}
 {{ end -}}
-{{ range .packages.macos.homebrew.casks -}}
+{{ range $casks -}}
 cask {{ . | quote }}
 {{ end -}}
 {{ range .packages.macos.homebrew.mas -}}

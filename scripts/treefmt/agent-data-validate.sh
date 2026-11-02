@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Refuses the agent data files when a plugin or skill would reach one harness twice.
-# Every rule spans both files, so it reads both from the repository root.
+# Every rule spans the files, so it reads them all from the repository root.
 
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly plugins_file="$repo_root/.chezmoidata/agent-plugins.yaml"
 readonly skills_file="$repo_root/.chezmoidata/agent-skills.yaml"
+readonly broccoli_file="$repo_root/.chezmoidata/broccoli-tools.yaml"
 
 problems=0
 
@@ -62,6 +63,19 @@ check_duplicate_skill_sources() {
     | (.repo // .slug // .skill // empty)' | duplicates_in)
 }
 
+# A Broccoli plugin folder is a harness of its own, so an npx entry is listed once across every folder and harness.
+check_duplicate_npx_entries_across_broccoli_folders() {
+  local entry
+  while IFS= read -r entry; do
+    problem "npx entry $entry is listed twice across agent-skills.yaml and broccoli-tools.yaml"
+  done < <(
+    {
+      skills_json | jq -r '[.claude, .codex, .codex_and_claude] | map(.npx // [] | .[].repo) | .[]'
+      yq -o json '.broccoli' "$broccoli_file" | jq -r '[.tech_support, .engineering] | map(.npx // [] | .[].repo) | .[]'
+    } | duplicates_in
+  )
+}
+
 check_duplicate_hermes_identifiers() {
   local identifier
   while IFS= read -r identifier; do
@@ -87,7 +101,7 @@ check_npx_against_marketplaces() {
 
 main() {
   local file
-  for file in "$plugins_file" "$skills_file"; do
+  for file in "$plugins_file" "$skills_file" "$broccoli_file"; do
     if [[ ! -f $file ]]; then
       problem "$file is missing"
       exit 1
@@ -97,6 +111,7 @@ main() {
   check_duplicate_plugin_ids
   check_duplicate_marketplaces
   check_duplicate_skill_sources
+  check_duplicate_npx_entries_across_broccoli_folders
   check_duplicate_hermes_identifiers
   check_npx_against_marketplaces
   if ((problems > 0)); then

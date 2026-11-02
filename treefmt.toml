@@ -66,10 +66,14 @@ command = "scripts/treefmt/jq-validate.sh"
 includes = ["*.json"]
 excludes = ["modify_*", "**/modify_*"]
 
-# Checks both agent data files together for a skill or plugin that reaches one harness twice.
+# Checks the agent data files together for a skill or plugin that reaches one harness twice.
 [formatter.agent-data-validate]
 command = "scripts/treefmt/agent-data-validate.sh"
-includes = [".chezmoidata/agent-plugins.yaml", ".chezmoidata/agent-skills.yaml"]
+includes = [
+  ".chezmoidata/agent-plugins.yaml",
+  ".chezmoidata/agent-skills.yaml",
+  ".chezmoidata/broccoli-tools.yaml",
+]
 
 [formatter.yq-validate]
 command = "scripts/treefmt/yq-validate.sh"

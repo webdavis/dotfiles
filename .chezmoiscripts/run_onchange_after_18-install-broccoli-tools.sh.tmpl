@@ -1,0 +1,210 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $entries := list -}}
+{{- range $key := list "tech_support" "engineering" -}}
+{{-   range (index $.broccoli $key).npx -}}
+{{-     $entries = append $entries (printf "broccoli-%s %s" (replace "_" "-" $key) .repo) -}}
+{{-   end -}}
+{{- end -}}
+{{- $work := .broccoli.packages.macos -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# broccoli-tools.yaml: {{ include ".chezmoidata/broccoli-tools.yaml" | sha256sum }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly folders_root="$HOME/.config/agents"
+readonly folders=(broccoli-tech-support broccoli-engineering)
+readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
+readonly install_dir="$HOME/.local/bin"
+# One line per entry: <folder under ~/.config/agents> <owner/repo[/path]>
+readonly entries={{ join "\n" $entries | squote }}
+readonly uv_tools={{ join "\n" $work.uv | squote }}
+readonly npm_packages={{ join "\n" (index $work.fnm 0).packages | squote }}
+
+section_is_printed=no
+failure_count=0
+
+print_section_once() {
+  if [[ $section_is_printed == no ]]; then
+    report_section 'broccoli tools' 'work skills and CLIs'
+    section_is_printed=yes
+  fi
+}
+
+report_change() {
+  print_section_once
+  report_line "$1"
+}
+
+report_failure() {
+  print_section_once
+  report_line "$1" >&2
+  failure_count=$((failure_count + 1))
+}
+
+tool_is_installed() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+non_blank_lines_of() {
+  sed '/^[[:space:]]*$/d' <<<"$1"
+}
+
+entries_of() {
+  local folder=$1
+  non_blank_lines_of "$entries" | awk -v folder="$folder" '$1 == folder { print $2 }'
+}
+
+lock_of() {
+  printf '%s/%s/skills-lock.json\n' "$folders_root" "$1"
+}
+
+source_of() {
+  cut -d/ -f1,2 <<<"$1"
+}
+
+path_within() {
+  cut -d/ -f3- -s <<<"$1"
+}
+
+lock_skill_names_of() {
+  local folder=$1 repository=$2
+  local lock
+  lock="$(lock_of "$folder")"
+  [[ -f $lock ]] || return 0
+  jq -r --arg source "$(source_of "$repository")" --arg path "$(path_within "$repository")" '
+    .skills // {} | to_entries[]
+    | select(.value.source == $source and ($path == "" or ((.value.skillPath // "") | startswith($path + "/"))))
+    | .key' "$lock"
+}
+
+entry_is_installed() {
+  [[ -n $(lock_skill_names_of "$1" "$2") ]]
+}
+
+run_skills_cli_in() {
+  local folder=$1
+  shift
+  (cd "$folders_root/$folder" && npx --yes skills@latest "$@" -y </dev/null >/dev/null 2>&1)
+}
+
+install_missing_entry() {
+  local folder=$1 repository=$2
+  if entry_is_installed "$folder" "$repository"; then
+    return
+  fi
+  run_skills_cli_in "$folder" add "$repository" --skill '*' --agent codex || true
+  if entry_is_installed "$folder" "$repository"; then
+    report_change "installed $(lock_skill_names_of "$folder" "$repository" | wc -l | tr -d ' ') skill(s) from $repository into $folder."
+  else
+    report_failure "error[install-failed]: npx skills add $repository installed nothing into $folder; the next apply retries."
+  fi
+}
+
+installed_skill_names_of() {
+  local lock
+  lock="$(lock_of "$1")"
+  [[ -f $lock ]] || return 0
+  jq -r '.skills // {} | keys[]' "$lock"
+}
+
+wanted_skill_names_of() {
+  local folder=$1
+  local repository
+  while read -r repository; do
+    lock_skill_names_of "$folder" "$repository"
+  done < <(entries_of "$folder")
+}
+
+remove_skill() {
+  local folder=$1 skill=$2
+  if run_skills_cli_in "$folder" remove "$skill"; then
+    report_change "removed $skill from $folder."
+  else
+    report_failure "error[remove-failed]: npx skills remove $skill failed in $folder; the next apply retries."
+  fi
+}
+
+remove_unlisted_skills() {
+  local folder=$1
+  local skill
+  while read -r skill; do
+    remove_skill "$folder" "$skill"
+  done < <(comm -23 <(installed_skill_names_of "$folder" | sort) <(wanted_skill_names_of "$folder" | sort -u))
+}
+
+sync_folder() {
+  local folder=$1
+  local repository
+  mkdir -p "$folders_root/$folder"
+  while read -r repository; do
+    install_missing_entry "$folder" "$repository"
+  done < <(entries_of "$folder")
+  remove_unlisted_skills "$folder"
+}
+
+sync_skill_folders() {
+  local tool folder
+  for tool in jq npx; do
+    if ! tool_is_installed "$tool"; then
+      report_failure "error[missing-tool]: $tool is not installed, so no work skill was installed."
+      return
+    fi
+  done
+  for folder in "${folders[@]}"; do
+    sync_folder "$folder"
+  done
+}
+
+install_uv_tools() {
+  local tool output
+  if ! tool_is_installed uv; then
+    report_failure "error[missing-tool]: uv is not installed, so no work uv tool was installed."
+    return
+  fi
+  while read -r tool; do
+    if ! output="$(uv tool install "$tool" 2>&1)"; then
+      report_failure "error[install-failed]: uv tool install $tool failed; the next apply retries."
+    elif grep -q '^Installed' <<<"$output"; then
+      report_change "installed $tool with uv."
+    fi
+  done < <(non_blank_lines_of "$uv_tools")
+}
+
+npm_package_is_installed() {
+  npm ls -g "$1" >/dev/null 2>&1
+}
+
+install_npm_tools() {
+  local package
+  if ! tool_is_installed npm; then
+    report_failure "error[missing-tool]: npm is not installed, so no work npm tool was installed."
+    return
+  fi
+  while read -r package; do
+    if npm_package_is_installed "$package"; then
+      continue
+    fi
+    if npm install -g "$package" >/dev/null 2>&1; then
+      report_change "installed $package with npm."
+    else
+      report_failure "error[install-failed]: npm install -g $package failed; the next apply retries."
+    fi
+  done < <(non_blank_lines_of "$npm_packages")
+}
+
+
+main() {
+  PATH="$fnm_default_node_bin_directory:$PATH"
+  sync_skill_folders
+  install_uv_tools
+  install_npm_tools
+  if ((failure_count > 0)); then
+    exit 1
+  fi
+}
+
+main "$@"
+{{ end -}}
