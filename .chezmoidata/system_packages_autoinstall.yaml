@@ -207,7 +207,6 @@ packages:
         - claude
         - claude-code@latest
         - codex
-        - devin-cli
         - discord
         - espanso
         - fantastical

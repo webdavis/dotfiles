@@ -7,3 +7,6 @@
 .claude/commands/pr.md
 .claude/commands/sync-worktrees.md
 .claude/commands/uncommit.md
+
+# Replaced by the broccoli-tech-support plugin folder.
+.config/claude/broccoli-mcp.json
