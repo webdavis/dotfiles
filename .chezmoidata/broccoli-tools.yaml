@@ -51,8 +51,27 @@ broccoli:
         type: http
         url: https://api.smith.langchain.com/mcp
   engineering:
-    npx: []
-    mcp_servers: {}
+    npx:
+      - repo: "Infisical/ai-skills/skills/infisical-access-control"
+      - repo: "Infisical/ai-skills/skills/infisical-api"
+      - repo: "Infisical/ai-skills/skills/infisical-app-connections"
+      - repo: "Infisical/ai-skills/skills/infisical-dynamic-secrets"
+      - repo: "Infisical/ai-skills/skills/infisical-gateway"
+      - repo: "Infisical/ai-skills/skills/infisical-kms"
+      - repo: "Infisical/ai-skills/skills/infisical-kubernetes-operator"
+      - repo: "Infisical/ai-skills/skills/infisical-pam"
+      - repo: "Infisical/ai-skills/skills/infisical-pki"
+      - repo: "Infisical/ai-skills/skills/infisical-secret-rotation"
+      - repo: "Infisical/ai-skills/skills/infisical-secret-scanning"
+      - repo: "Infisical/ai-skills/skills/infisical-secret-syncs"
+      - repo: "Infisical/ai-skills/skills/infisical-self-host"
+      - repo: "Infisical/ai-skills/skills/infisical-setup"
+      - repo: "Infisical/ai-skills/skills/infisical-sso"
+      - repo: "Infisical/ai-skills/skills/infisical-terraform"
+    mcp_servers:
+      infisical_docs:
+        type: http
+        url: https://infisical.com/docs/mcp
   packages:
     macos:
       homebrew:
