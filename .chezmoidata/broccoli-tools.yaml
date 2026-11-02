@@ -111,6 +111,7 @@ broccoli:
       - repo: "vercel/ai/skills/migrate-ai-sdk-v6-to-v7"
       - repo: "typesafe-ai/skills"
       - repo: "livekit/agent-skills"
+      - repo: "liveblocks/skills"
     mcp_servers:
       infisical_docs:
         type: http
