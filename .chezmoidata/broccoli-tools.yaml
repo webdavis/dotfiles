@@ -107,6 +107,7 @@ broccoli:
       - repo: "langchain-ai/langchain-skills/config/skills/langgraph-decision-models"
       - repo: "langchain-ai/langchain-skills/config/skills/langgraph-fundamentals"
       - repo: "langchain-ai/langchain-skills/config/skills/langgraph-human-in-the-loop"
+      - repo: "mastra-ai/skills"
     mcp_servers:
       infisical_docs:
         type: http
@@ -120,6 +121,12 @@ broccoli:
       langchain_reference:
         type: http
         url: https://reference.langchain.com/mcp
+      mastra_docs:
+        type: stdio
+        command: npx
+        args:
+          - -y
+          - '@mastra/mcp-docs-server@latest'
   packages:
     macos:
       homebrew:
