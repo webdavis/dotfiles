@@ -78,25 +78,51 @@ broccoli:
       - repo: "docker/skills/skills/docker-sandboxes-lifecycle"
       - repo: "docker/skills/skills/docker-sandboxes-network-credentials"
       - repo: "vercel/turborepo/skills/turborepo"
+      - repo: "redpanda-data/skills/skills/adp"
+      - repo: "redpanda-data/skills/skills/connect-debugging"
+      - repo: "redpanda-data/skills/skills/connect"
+      - repo: "redpanda-data/skills/skills/rpk-cloud"
+      - repo: "redpanda-data/skills/skills/rpk-cluster"
+      - repo: "redpanda-data/skills/skills/rpk-debug"
+      - repo: "redpanda-data/skills/skills/rpk-group"
+      - repo: "redpanda-data/skills/skills/rpk-redpanda"
+      - repo: "redpanda-data/skills/skills/rpk-registry"
+      - repo: "redpanda-data/skills/skills/rpk-security"
+      - repo: "redpanda-data/skills/skills/rpk-topic"
+      - repo: "redpanda-data/skills/skills/rpk-transform"
+      - repo: "redpanda-data/skills/skills/rpk"
+      - repo: "redpanda-data/skills/skills/sql-admin-api"
+      - repo: "redpanda-data/skills/skills/sql-debugging"
+      - repo: "redpanda-data/skills/skills/sql-federated-queries"
+      - repo: "redpanda-data/skills/skills/sql"
+      - repo: "redpanda-data/skills/skills/streaming-admin-api"
+      - repo: "redpanda-data/skills/skills/streaming-debugging"
+      - repo: "redpanda-data/skills/skills/streaming"
     mcp_servers:
       infisical_docs:
         type: http
         url: https://infisical.com/docs/mcp
+      redpanda_docs:
+        type: http
+        url: https://docs.redpanda.com/mcp
   packages:
     macos:
       homebrew:
         taps:
+          - redpanda-data/tap
           - twilio/brew
           - resend/cli
           - clerk/stable
           - supabase/tap
         trusted_taps:
+          - redpanda-data/tap
           - twilio/brew
           - resend/cli
           - clerk/stable
           - supabase/tap
         formulae:
           - temporal
+          - redpanda-data/tap/redpanda
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
