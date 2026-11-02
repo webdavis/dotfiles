@@ -17,7 +17,6 @@ packages:
         - rjyo/moshi
         - schpet/tap
         - supabase/tap
-        - twilio/brew
         - xdevplatform/tap
       # Lists every tap in taps again. brew bundle loads a tap only after it is trusted.
       trusted_taps:
@@ -36,7 +35,6 @@ packages:
         - rjyo/moshi
         - schpet/tap
         - supabase/tap
-        - twilio/brew
         - xdevplatform/tap
       formulae:
         - act
@@ -180,7 +178,6 @@ packages:
         - treefmt
         - trippy
         - tuicr
-        - twilio/brew/twilio
         - uv
         - vapor
         - websocat

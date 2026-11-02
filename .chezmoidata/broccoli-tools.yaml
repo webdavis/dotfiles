@@ -3,7 +3,21 @@
 # {vault, field, prefix} so the secret is read from KeePassXC. packages: the system_packages_autoinstall.yaml shape.
 broccoli:
   tech_support:
-    npx: []
+    npx:
+      - repo: "twilio/ai/skills/twilio/twilio-cli-reference"
+      - repo: "twilio/ai/skills/twilio/twilio-debugging-observability"
+      - repo: "twilio/ai/skills/twilio/twilio-call-recordings"
+      - repo: "twilio/ai/skills/twilio/twilio-lookup-phone-intelligence"
+      - repo: "twilio/ai/skills/twilio/twilio-numbers-senders"
+      - repo: "twilio/ai/skills/twilio/twilio-messaging-webhooks"
+      - repo: "twilio/ai/skills/twilio/twilio-sms-isv-setup"
+      - repo: "twilio/ai/skills/twilio/twilio-compliance-traffic"
+      - repo: "twilio/ai/skills/twilio/twilio-messaging-services"
+      - repo: "twilio/ai/skills/twilio/twilio-sms-send-message"
+      - repo: "twilio/ai/skills/twilio/twilio-voice-twiml"
+      - repo: "twilio/ai/skills/twilio/twilio-voice-outbound-calls"
+      - repo: "twilio/ai/skills/twilio/twilio-reliability-patterns"
+      - repo: "twilio/ai/skills/twilio/twilio-security-hardening"
     mcp_servers:
       devin:
         type: http
@@ -24,9 +38,12 @@ broccoli:
   packages:
     macos:
       homebrew:
-        taps: []
-        trusted_taps: []
-        formulae: []
+        taps:
+          - twilio/brew
+        trusted_taps:
+          - twilio/brew
+        formulae:
+          - twilio/brew/twilio
         casks:
           - claude-code@latest
           - devin-cli
