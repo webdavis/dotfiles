@@ -77,6 +77,7 @@ broccoli:
       - repo: "docker/skills/skills/docker-sandboxes-kits"
       - repo: "docker/skills/skills/docker-sandboxes-lifecycle"
       - repo: "docker/skills/skills/docker-sandboxes-network-credentials"
+      - repo: "vercel/turborepo/skills/turborepo"
     mcp_servers:
       infisical_docs:
         type: http
