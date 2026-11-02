@@ -167,3 +167,8 @@ start-claude-with-broccoli-tech-support-and-engineering-tools() {
     --plugin-dir ~/.config/agents/broccoli-engineering \
     "$@"
 }
+
+start-claude-with-media-tools() {
+  claude --plugin-dir ~/.config/agents/media \
+    "$@"
+}

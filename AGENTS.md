@@ -50,7 +50,7 @@ Agent instructions belong in this file alone.
 
 ### Any other agent skill installer
 
-- Install: add its entry under its harness in `.chezmoidata/agent-skills.yaml`.
+- Install: add its entry under its harness in `.chezmoidata/agent-skills.yaml`. An entry under `media` loads only in media sessions.
 - Remove:
   1. Remove its entry.
   2. Remove the installed skill:
