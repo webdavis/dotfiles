@@ -380,6 +380,7 @@ broccoli:
           - resend/cli
           - clerk/stable
           - supabase/tap
+          - schpet/tap
         trusted_taps:
           - redpanda-data/tap
           - svix/svix
@@ -389,6 +390,7 @@ broccoli:
           - resend/cli
           - clerk/stable
           - supabase/tap
+          - schpet/tap
         formulae:
           - temporal
           - redpanda-data/tap/redpanda
@@ -404,6 +406,7 @@ broccoli:
           - clerk/stable/clerk
           - supabase/tap/supabase
           - livekit-cli
+          - schpet/tap/linear
         casks:
           - claude-code@latest
           - devin-cli

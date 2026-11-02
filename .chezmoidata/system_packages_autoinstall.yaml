@@ -13,7 +13,6 @@ packages:
         - openhue/cli
         - plannotator/tap
         - rjyo/moshi
-        - schpet/tap
         - xdevplatform/tap
       # Lists every tap in taps again. brew bundle loads a tap only after it is trusted.
       trusted_taps:
@@ -28,7 +27,6 @@ packages:
         - openhue/cli
         - plannotator/tap
         - rjyo/moshi
-        - schpet/tap
         - xdevplatform/tap
       formulae:
         - act
@@ -146,7 +144,6 @@ packages:
         - rjyo/moshi/moshi-hook
         - ruff
         - rustnet
-        - schpet/tap/linear
         - sd
         - sevenzip
         - shellcheck
