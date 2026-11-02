@@ -99,6 +99,7 @@ broccoli:
       - repo: "redpanda-data/skills/skills/streaming-debugging"
       - repo: "redpanda-data/skills/skills/streaming"
       - repo: "redis/agent-skills"
+      - repo: "svix/ai"
     mcp_servers:
       infisical_docs:
         type: http
@@ -111,12 +112,14 @@ broccoli:
       homebrew:
         taps:
           - redpanda-data/tap
+          - svix/svix
           - twilio/brew
           - resend/cli
           - clerk/stable
           - supabase/tap
         trusted_taps:
           - redpanda-data/tap
+          - svix/svix
           - twilio/brew
           - resend/cli
           - clerk/stable
@@ -125,6 +128,7 @@ broccoli:
           - temporal
           - redpanda-data/tap/redpanda
           - redis
+          - svix/svix/svix-cli
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
