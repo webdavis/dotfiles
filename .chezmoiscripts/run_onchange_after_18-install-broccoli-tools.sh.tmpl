@@ -225,6 +225,11 @@ install_langsmith() {
   INSTALL_DIR="$install_dir" install_downloaded_cli langsmith https://cli.langsmith.com/install.sh sh
 }
 
+# The installer edits the rc file of a shell it knows; /bin/sh is not one, so it only prints the PATH line.
+install_hubspot() {
+  HUBSPOT_INSTALL_DIR="$install_dir" SHELL=/bin/sh install_downloaded_cli hubspot https://api.hubapi.com/hub/cli/backend/hub-cli/latest/install.sh sh
+}
+
 twilio_profile_exists() {
   "$twilio" profiles:list 2>/dev/null | awk -v profile="$twilio_profile" '$1 == profile { found = 1 } END { exit !found }'
 }
@@ -271,6 +276,7 @@ main() {
   install_uv_tools
   install_npm_tools
   install_langsmith
+  install_hubspot
   login_twilio
   if ((failure_count > 0)); then
     exit 1
