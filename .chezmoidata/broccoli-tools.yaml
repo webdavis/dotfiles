@@ -365,6 +365,9 @@ broccoli:
           - install_addon
           - update_addon
           - delete_addon
+      braintrust:
+        type: http
+        url: https://api.braintrust.dev/mcp
   packages:
     macos:
       homebrew:

@@ -230,6 +230,10 @@ install_hubspot() {
   HUBSPOT_INSTALL_DIR="$install_dir" SHELL=/bin/sh install_downloaded_cli hubspot https://api.hubapi.com/hub/cli/backend/hub-cli/latest/install.sh sh
 }
 
+install_braintrust() {
+  XDG_BIN_HOME="$install_dir" BT_NO_MODIFY_PATH=1 install_downloaded_cli bt https://bt.dev/cli/install.sh bash
+}
+
 twilio_profile_exists() {
   "$twilio" profiles:list 2>/dev/null | awk -v profile="$twilio_profile" '$1 == profile { found = 1 } END { exit !found }'
 }
@@ -277,6 +281,7 @@ main() {
   install_npm_tools
   install_langsmith
   install_hubspot
+  install_braintrust
   login_twilio
   if ((failure_count > 0)); then
     exit 1
