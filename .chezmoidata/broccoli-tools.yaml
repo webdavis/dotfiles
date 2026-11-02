@@ -1,6 +1,7 @@
 # Tools a Broccoli work session loads from its plugin folders under ~/.config/agents/.
 # npx: owner/repo[/path], as in agent-skills.yaml. mcp_servers: Claude's .mcp.json shape; a header value may be
-# {vault, field, prefix} so the secret is read from KeePassXC. packages: the system_packages_autoinstall.yaml shape.
+# {vault, field, prefix} so the secret is read from KeePassXC, and ask lists the tools Claude must ask before calling.
+# packages: the system_packages_autoinstall.yaml shape.
 broccoli:
   tech_support:
     npx:
@@ -159,6 +160,24 @@ broccoli:
           - mcp-proxy-for-aws-cli@latest
           - https://aws-mcp.us-east-1.api.aws/mcp
           - --read-only
+      measure:
+        type: http
+        url: https://mcp.getmeasure.com/mcp
+        ask:
+          - cancel_subscription
+          - change_subscription
+          - undo_cancel_subscription
+          - extend_trial_end_date
+          - create_credit
+          - revoke_credit
+          - create_one-time_charges
+          - finalize_draft_invoice
+          - generate_invoice_pdf
+          - generate_next_invoice
+          - mark_invoice_as_paid
+          - void_invoice
+          - start_managing_customer
+          - update_customer
   packages:
     macos:
       homebrew:
