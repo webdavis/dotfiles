@@ -62,7 +62,6 @@
 {{- $onDemandCodex := list -}}
 {{- /* The media group stays out of ~/.claude/skills and is linked into the media plugin folder instead;
        Codex keeps it in the store and turns it off outside the media profile. */ -}}
-{{- $agentSkills := dict -}}
 {{- $mediaEntries := list -}}
 {{- $mediaNames := list -}}
 {{- range $group := $groups -}}
@@ -80,11 +79,9 @@
 {{-     end -}}
 {{-     $hermes := get . "hermes" | default list -}}
 {{-     $onDemand := get . "on_demand" | default false -}}
-{{-     $agent := get . "agent" | default "" -}}
-{{-     $npx = append $npx (dict "repo" .repo "source" $source "path" $path "agents" $group.agents "hermes" $hermes "names" $names "on_demand" $onDemand "agent" $agent) -}}
+{{-     $npx = append $npx (dict "repo" .repo "source" $source "path" $path "agents" $group.agents "hermes" $hermes "names" $names "on_demand" $onDemand) -}}
 {{-     if and $onDemand $group.claude -}}{{- $onDemandClaude = concat $onDemandClaude $names -}}{{- end -}}
 {{-     if and $onDemand $group.codex -}}{{- $onDemandCodex = concat $onDemandCodex $names -}}{{- end -}}
-{{-     if ne $agent "" -}}{{- $agentSkills = set $agentSkills $agent (concat (get $agentSkills $agent | default list) $names) -}}{{- end -}}
 {{-     if eq $group.key "media" -}}
 {{-       $mediaEntries = append $mediaEntries (dict "kind" "npx" "match" .repo) -}}
 {{-       $mediaNames = concat $mediaNames $names -}}
@@ -101,9 +98,7 @@
 {{-   end -}}
 {{-   range get $entries "elevenlabs" | default list -}}
 {{-     $hermes := get . "hermes" | default list -}}
-{{-     $agent := get . "agent" | default "" -}}
 {{-     $linked = append $linked (dict "kind" "elevenlabs" "match" "elevenlabs-*" "claude" $group.claude "hermes" $hermes) -}}
-{{-     if ne $agent "" -}}{{- $agentSkills = set $agentSkills $agent (concat (get $agentSkills $agent | default list) $elevenlabsNames) -}}{{- end -}}
 {{-     if eq $group.key "media" -}}
 {{-       $mediaEntries = append $mediaEntries (dict "kind" "store" "match" "elevenlabs-*") -}}
 {{-       $mediaNames = concat $mediaNames $elevenlabsNames -}}
@@ -129,7 +124,6 @@
       "linked" $linked
       "on_demand_claude" $onDemandClaude
       "on_demand_codex" $onDemandCodex
-      "agent_skills" $agentSkills
       "media_entries" $mediaEntries
       "media_names" $mediaNames
       "elevenlabs_names" $elevenlabsNames

@@ -10,3 +10,7 @@
 
 # Replaced by the broccoli-tech-support plugin folder.
 .config/claude/broccoli-mcp.json
+
+# The media plugin folder replaced the lara subagent.
+.claude/agents/lara.md
+.codex/agents/lara.toml
