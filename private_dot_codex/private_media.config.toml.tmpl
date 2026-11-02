@@ -1,0 +1,7 @@
+{{- /* Layered over config.toml by `codex -p media`: the media skills turned back on. */ -}}
+{{- $d := includeTemplate "agent-derived.json.tmpl" . -}}
+{{- range ($d | fromJson).media_names }}
+[[skills.config]]
+name = {{ . | quote }}
+enabled = true
+{{ end -}}
