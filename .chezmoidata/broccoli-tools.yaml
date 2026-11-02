@@ -416,3 +416,4 @@ broccoli:
         - node: "24"
           packages:
             - vercel
+            - '@retell-ai/retell-cli'
