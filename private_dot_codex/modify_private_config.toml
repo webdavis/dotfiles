@@ -67,7 +67,7 @@
 
 {{- $merged = deleteValueAtPath "mcp_servers.clerk" $merged -}}
 
-{{- $merged = setValueAtPath (list "mcp_servers" "supabase") (dict "url" "https://mcp.supabase.com/mcp?read_only=true") $merged -}}
+{{- $merged = deleteValueAtPath "mcp_servers.supabase" $merged -}}
 
 {{- /* Live entries stay, so a root trusted at the Codex prompt survives an apply. */ -}}
 {{- $declaredProjects := list

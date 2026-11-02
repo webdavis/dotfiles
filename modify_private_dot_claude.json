@@ -106,7 +106,7 @@
 
 {{- $merged = deleteValueAtPath "mcpServers.clerk" $merged -}}
 
-{{- $merged = setValueAtPath "mcpServers.supabase" (dict "type" "http" "url" "https://mcp.supabase.com/mcp?read_only=true") $merged -}}
+{{- $merged = deleteValueAtPath "mcpServers.supabase" $merged -}}
 
 {{- /* Claude Code only: LangSmith says its hosted MCP server does not work with Codex. */ -}}
 {{- $merged = setValueAtPath "mcpServers.langsmith" (dict "type" "http" "url" "https://api.smith.langchain.com/mcp") $merged -}}

@@ -14,7 +14,6 @@ packages:
         - plannotator/tap
         - rjyo/moshi
         - schpet/tap
-        - supabase/tap
         - xdevplatform/tap
       # Lists every tap in taps again. brew bundle loads a tap only after it is trusted.
       trusted_taps:
@@ -30,7 +29,6 @@ packages:
         - plannotator/tap
         - rjyo/moshi
         - schpet/tap
-        - supabase/tap
         - xdevplatform/tap
       formulae:
         - act
@@ -49,7 +47,6 @@ packages:
         - bore-cli
         - brightness
         - btop
-        - supabase/tap/supabase
         # The tab-smart-rename herdr plugin runs on Bun.
         - bun
         - ca-certificates
