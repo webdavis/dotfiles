@@ -35,6 +35,11 @@ broccoli:
       - repo: "deepgram/skills/skills/speech-to-text"
       - repo: "deepgram/skills/skills/text-intelligence"
       - repo: "newrelic/nr-skills-hub"
+      - repo: "hubspot/agent-cli-skills/bulk-operations"
+      - repo: "hubspot/agent-cli-skills/communication-history"
+      - repo: "hubspot/agent-cli-skills/crm-data-quality"
+      - repo: "hubspot/agent-cli-skills/crm-lookup"
+      - repo: "hubspot/agent-cli-skills/data-enrichment"
     mcp_servers:
       devin:
         type: http
@@ -69,6 +74,23 @@ broccoli:
       newrelic:
         type: http
         url: https://mcp.newrelic.com/mcp/
+      hubspot:
+        type: http
+        url: https://mcp.hubspot.com/anthropic
+        ask:
+          - manage_crm_objects
+          - manage_segment
+          - manage_custom_properties
+          - manage_custom_pipelines
+          - manage_campaign_objects
+          - manage_marketing_email
+          - manage_landing_page
+          - manage_website_page
+          - manage_blog_post
+          - manage_aeo_prompts
+          - manage_aeo_recommendations
+          - manage_onboarding
+          - submit_feedback
   engineering:
     npx:
       - repo: "Infisical/ai-skills/skills/infisical-access-control"
