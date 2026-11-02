@@ -6,6 +6,8 @@
 {{-   end -}}
 {{- end -}}
 {{- $work := .broccoli.packages.macos -}}
+{{- $twilioAccountSid := (keepassxc "Twilio (webdavis) :: Account SID").Password -}}
+{{- $twilioAuthToken := (keepassxc "Twilio (webdavis) :: Auth Token").Password -}}
 #!/usr/bin/env bash
 
 set -euo pipefail
@@ -22,6 +24,11 @@ readonly install_dir="$HOME/.local/bin"
 readonly entries={{ join "\n" $entries | squote }}
 readonly uv_tools={{ join "\n" $work.uv | squote }}
 readonly npm_packages={{ join "\n" (index $work.fnm 0).packages | squote }}
+readonly twilio="/opt/homebrew/bin/twilio"
+readonly twilio_profile="webdavis"
+readonly twilio_account_sid={{ $twilioAccountSid | squote }}
+readonly twilio_auth_token={{ $twilioAuthToken | squote }}
+readonly twilio_login_marker="$HOME/.local/state/broccoli-tools/twilio-login.sha256"
 
 section_is_printed=no
 failure_count=0
@@ -196,11 +203,52 @@ install_npm_tools() {
 }
 
 
+twilio_profile_exists() {
+  "$twilio" profiles:list 2>/dev/null | awk -v profile="$twilio_profile" '$1 == profile { found = 1 } END { exit !found }'
+}
+
+twilio_credential_hash() {
+  printf '%s:%s' "$twilio_account_sid" "$twilio_auth_token" | shasum -a 256 | cut -d' ' -f1
+}
+
+twilio_login_is_current() {
+  [[ -f $twilio_login_marker && $(<"$twilio_login_marker") == "$(twilio_credential_hash)" ]] && twilio_profile_exists
+}
+
+remember_twilio_login() {
+  mkdir -p "$(dirname "$twilio_login_marker")"
+  twilio_credential_hash >"$twilio_login_marker"
+}
+
+# Every login makes Twilio mint a fresh API key, so it runs only for a new or changed credential.
+login_twilio() {
+  if [[ ! -x $twilio ]]; then
+    report_failure "error[missing-tool]: twilio is not installed, so the CLI was not logged in; the next apply retries."
+    return
+  fi
+  if [[ ! $twilio_account_sid =~ ^AC[0-9a-fA-F]{32}$ ]]; then
+    report_failure "error[account-sid]: 'Twilio (webdavis) :: Account SID' holds no Account SID (AC + 32 hex) in its password field."
+    return
+  fi
+  if twilio_login_is_current; then
+    return
+  fi
+  if "$twilio" profiles:create "$twilio_account_sid" --auth-token "$twilio_auth_token" -p "$twilio_profile" --force --silent &&
+    "$twilio" profiles:use "$twilio_profile" >/dev/null; then
+    remember_twilio_login
+    report_change "logged the twilio CLI in as the '$twilio_profile' profile."
+  else
+    report_failure "error[login-failed]: twilio profiles:create failed; the next apply retries."
+  fi
+}
+
+
 main() {
   PATH="$fnm_default_node_bin_directory:$PATH"
   sync_skill_folders
   install_uv_tools
   install_npm_tools
+  login_twilio
   if ((failure_count > 0)); then
     exit 1
   fi
