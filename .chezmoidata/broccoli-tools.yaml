@@ -153,6 +153,16 @@ broccoli:
       - repo: "typesafe-ai/skills"
       - repo: "livekit/agent-skills"
       - repo: "liveblocks/skills"
+      - repo: "render-oss/skills/skills/render-blueprints"
+      - repo: "render-oss/skills/skills/render-cli"
+      - repo: "render-oss/skills/skills/render-debug"
+      - repo: "render-oss/skills/skills/render-env-vars"
+      - repo: "render-oss/skills/skills/render-mcp"
+      - repo: "render-oss/skills/skills/render-monitor"
+      - repo: "render-oss/skills/skills/render-networking"
+      - repo: "render-oss/skills/skills/render-sandboxes"
+      - repo: "render-oss/skills/skills/render-web-services"
+      - repo: "render-oss/skills/skills/render-workflows"
     mcp_servers:
       infisical_docs:
         type: http
@@ -200,6 +210,20 @@ broccoli:
           - void_invoice
           - start_managing_customer
           - update_customer
+      render:
+        type: http
+        url: https://mcp.render.com/mcp
+        ask:
+          - create_cron_job
+          - create_key_value
+          - create_postgres
+          - create_static_site
+          - create_web_service
+          - trigger_deploy
+          - update_cron_job
+          - update_environment_variables
+          - update_static_site
+          - update_web_service
   packages:
     macos:
       homebrew:
@@ -227,6 +251,7 @@ broccoli:
           - awscli
           - deepgram/tap/deepgram
           - newrelic-cli
+          - render
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
