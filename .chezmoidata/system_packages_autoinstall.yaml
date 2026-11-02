@@ -38,6 +38,7 @@ packages:
         - antoniorodr/memo/memo
         - atomicparsley
         - atuin
+        - awscli
         - bash
         - bashunit
         - bash-completion@2
