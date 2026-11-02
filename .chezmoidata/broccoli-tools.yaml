@@ -68,6 +68,15 @@ broccoli:
       - repo: "Infisical/ai-skills/skills/infisical-setup"
       - repo: "Infisical/ai-skills/skills/infisical-sso"
       - repo: "Infisical/ai-skills/skills/infisical-terraform"
+      - repo: "docker/skills/skills/docker-build-strategies"
+      - repo: "docker/skills/skills/docker-compose-patterns"
+      - repo: "docker/skills/skills/docker-destructive-guardrails"
+      - repo: "docker/skills/skills/docker-docs"
+      - repo: "docker/skills/skills/docker-project-foundations"
+      - repo: "docker/skills/skills/docker-sandboxes-env"
+      - repo: "docker/skills/skills/docker-sandboxes-kits"
+      - repo: "docker/skills/skills/docker-sandboxes-lifecycle"
+      - repo: "docker/skills/skills/docker-sandboxes-network-credentials"
     mcp_servers:
       infisical_docs:
         type: http
