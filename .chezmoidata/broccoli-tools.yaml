@@ -108,6 +108,7 @@ broccoli:
       - repo: "langchain-ai/langchain-skills/config/skills/langgraph-fundamentals"
       - repo: "langchain-ai/langchain-skills/config/skills/langgraph-human-in-the-loop"
       - repo: "mastra-ai/skills"
+      - repo: "vercel/ai/skills/migrate-ai-sdk-v6-to-v7"
     mcp_servers:
       infisical_docs:
         type: http
