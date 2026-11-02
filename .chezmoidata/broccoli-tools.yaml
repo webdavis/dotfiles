@@ -134,6 +134,13 @@ broccoli:
       livekit_docs:
         type: http
         url: https://docs.livekit.io/mcp
+      aws:
+        type: stdio
+        command: uvx
+        args:
+          - mcp-proxy-for-aws-cli@latest
+          - https://aws-mcp.us-east-1.api.aws/mcp
+          - --read-only
   packages:
     macos:
       homebrew:
@@ -156,6 +163,7 @@ broccoli:
           - redpanda-data/tap/redpanda
           - redis
           - svix/svix/svix-cli
+          - awscli
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
