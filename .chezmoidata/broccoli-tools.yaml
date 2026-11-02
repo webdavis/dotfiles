@@ -4,7 +4,20 @@
 broccoli:
   tech_support:
     npx: []
-    mcp_servers: {}
+    mcp_servers:
+      devin:
+        type: http
+        url: https://mcp.devin.ai/mcp
+        headers:
+          Authorization:
+            vault: devin-broccoli-api-access
+            field: personal-access-token
+            prefix: 'Bearer '
+          X-Org-Id:
+            vault: devin-broccoli-api-access
+            field: UserName
+        ask:
+          - devin_session_create
   engineering:
     npx: []
     mcp_servers: {}
@@ -16,6 +29,7 @@ broccoli:
         formulae: []
         casks:
           - claude-code@latest
+          - devin-cli
       uv: []
       fnm:
         - node: "24"
