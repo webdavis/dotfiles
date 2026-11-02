@@ -63,6 +63,24 @@
         "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
         "YNAB_API_TOKEN" (keepassxc "YNAB :: Personal Access Token").Password)) $merged -}}
 
+{{- /* The media skills stay in the store for the media profile, so plain Codex turns them off by name.
+       Entries Codex wrote for other skills stay. The list is only set when it differs from the live one,
+       since a rebuilt list never deepEquals the parsed one and would rewrite the file on every apply. */ -}}
+{{- $liveSkillConfig := list -}}
+{{- if eq (kindOf (index $merged "skills")) "map" -}}
+{{-   $liveSkillConfig = get (index $merged "skills") "config" | default list -}}
+{{- end -}}
+{{- $skillConfig := list -}}
+{{- range $liveSkillConfig -}}
+{{-   if not (has (get . "name" | default "") $d.media_names) -}}{{- $skillConfig = append $skillConfig . -}}{{- end -}}
+{{- end -}}
+{{- range $d.media_names -}}
+{{-   $skillConfig = append $skillConfig (dict "name" . "enabled" false) -}}
+{{- end -}}
+{{- if and (gt (len $skillConfig) 0) (ne ($skillConfig | toJson) ($liveSkillConfig | toJson)) -}}
+{{-   $merged = setValueAtPath "skills.config" $skillConfig $merged -}}
+{{- end -}}
+
 {{- $merged = deleteValueAtPath "mcp_servers.resend" $merged -}}
 
 {{- $merged = deleteValueAtPath "mcp_servers.clerk" $merged -}}
