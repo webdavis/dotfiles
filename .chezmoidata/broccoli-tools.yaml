@@ -163,6 +163,34 @@ broccoli:
       - repo: "render-oss/skills/skills/render-sandboxes"
       - repo: "render-oss/skills/skills/render-web-services"
       - repo: "render-oss/skills/skills/render-workflows"
+      - repo: "vercel/vercel-plugin/skills/access-protected-vercel-deployment"
+      - repo: "vercel/vercel-plugin/skills/ai-gateway"
+      - repo: "vercel/vercel-plugin/skills/ai-sdk"
+      - repo: "vercel/vercel-plugin/skills/auth"
+      - repo: "vercel/vercel-plugin/skills/bootstrap"
+      - repo: "vercel/vercel-plugin/skills/build-agents"
+      - repo: "vercel/vercel-plugin/skills/cdn-caching"
+      - repo: "vercel/vercel-plugin/skills/create-a-backend"
+      - repo: "vercel/vercel-plugin/skills/custom-metrics"
+      - repo: "vercel/vercel-plugin/skills/daemons"
+      - repo: "vercel/vercel-plugin/skills/deployments-cicd"
+      - repo: "vercel/vercel-plugin/skills/domains"
+      - repo: "vercel/vercel-plugin/skills/env-vars"
+      - repo: "vercel/vercel-plugin/skills/eve"
+      - repo: "vercel/vercel-plugin/skills/is-agentic"
+      - repo: "vercel/vercel-plugin/skills/knowledge-update"
+      - repo: "vercel/vercel-plugin/skills/offload-to-sandbox"
+      - repo: "vercel/vercel-plugin/skills/react-best-practices"
+      - repo: "vercel/vercel-plugin/skills/routing-middleware"
+      - repo: "vercel/vercel-plugin/skills/runtime-cache"
+      - repo: "vercel/vercel-plugin/skills/vercel-cli"
+      - repo: "vercel/vercel-plugin/skills/vercel-firewall"
+      - repo: "vercel/vercel-plugin/skills/vercel-functions"
+      - repo: "vercel/vercel-plugin/skills/vercel-sandbox"
+      - repo: "vercel/vercel-plugin/skills/vercel-services"
+      - repo: "vercel/vercel-plugin/skills/vercel-storage"
+      - repo: "vercel/vercel-plugin/skills/vercel-tracing"
+      - repo: "vercel/vercel-plugin/skills/verification"
     mcp_servers:
       infisical_docs:
         type: http
@@ -224,6 +252,102 @@ broccoli:
           - update_environment_variables
           - update_static_site
           - update_web_service
+      vercel:
+        type: http
+        url: https://mcp.vercel.com
+        ask:
+          - accept_project_transfer_request
+          - activate_kms_signing_key
+          - add_project_domain
+          - add_route
+          - add_toolbar_reaction
+          - approve_rolling_release_stage
+          - assign_alias
+          - buy_domain
+          - buy_domains
+          - buy_single_domain
+          - cancel_deployment
+          - change_toolbar_thread_resolve_status
+          - complete_rolling_release
+          - create_deployment
+          - create_drain
+          - create_edge_config
+          - create_edge_config_token
+          - create_flag
+          - create_git_project
+          - create_kms_issuer
+          - create_kms_issuer_policy
+          - create_kms_signing_key
+          - create_or_transfer_domain
+          - create_project
+          - create_project_env
+          - create_record
+          - create_sandboxes_sessions_by_session_id_snapshot_v2
+          - create_sandboxes_sessions_by_session_id_snapshot_v3
+          - create_sandboxes_v2
+          - create_sandboxes_v3
+          - create_sandboxes_v4
+          - create_sdk_key
+          - create_session_directory
+          - create_storage_stores_blob
+          - create_trace_session
+          - deploy_to_vercel
+          - edit_project_env
+          - edit_route
+          - edit_toolbar_message
+          - extend_session_timeout
+          - generate_route
+          - get_access_to_vercel_url
+          - invalidate_by_src_images
+          - invalidate_by_tags
+          - issue_cert
+          - kill_session_command
+          - patch_edge_config_items
+          - patch_url_protection_bypass
+          - pause_project
+          - put_firewall_config
+          - record_events
+          - replace_domain_dns_records
+          - reply_to_toolbar_thread
+          - request_promote
+          - request_rollback
+          - rerequest_check
+          - restore_edge_config_backup
+          - restore_redirects
+          - retry_vercel_ci_invocation
+          - revoke_kms_signing_key
+          - run_session_command
+          - stage_redirects
+          - stage_routes
+          - start_rolling_release
+          - stop_session
+          - submit_feedback
+          - test_drain
+          - unpause_project
+          - update_attack_challenge_mode
+          - update_bulk_redirect_version
+          - update_connector
+          - update_drain
+          - update_edge_config
+          - update_firewall_config
+          - update_flag
+          - update_flag_segment
+          - update_flag_settings
+          - update_kms_issuer
+          - update_kms_issuer_policy
+          - update_project
+          - update_project_deployment_protection
+          - update_project_protection_bypass
+          - update_record
+          - update_rolling_release_config
+          - update_route_versions
+          - update_sandbox
+          - update_session_network_policy
+          - upload_artifact
+          - upload_file
+          - upsert_connector_project_connection
+          - verify_project_domain
+          - write_session_files
   packages:
     macos:
       homebrew:
@@ -265,4 +389,5 @@ broccoli:
         - litellm[cli]
       fnm:
         - node: "24"
-          packages: []
+          packages:
+            - vercel
