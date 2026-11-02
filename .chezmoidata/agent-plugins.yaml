@@ -58,9 +58,6 @@ plugins:
       - marketplace: "webdavis/pns"
         plugins:
           - "pns@pns"
-      - marketplace: "temporalio/claude-temporal-plugin"
-        plugins:
-          - "temporal@temporal-marketplace"
       - marketplace: "webdavis/skills"
         plugins:
           - "strategy@webdavis"

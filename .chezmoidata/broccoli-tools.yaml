@@ -18,6 +18,8 @@ broccoli:
       - repo: "twilio/ai/skills/twilio/twilio-voice-outbound-calls"
       - repo: "twilio/ai/skills/twilio/twilio-reliability-patterns"
       - repo: "twilio/ai/skills/twilio/twilio-security-hardening"
+      - repo: "temporalio/skill-temporal-cloud"
+      - repo: "temporalio/claude-temporal-plugin"
     mcp_servers:
       devin:
         type: http
@@ -43,6 +45,7 @@ broccoli:
         trusted_taps:
           - twilio/brew
         formulae:
+          - temporal
           - twilio/brew/twilio
         casks:
           - claude-code@latest
