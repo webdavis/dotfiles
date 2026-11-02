@@ -1,0 +1,304 @@
+{{ if eq .chezmoi.os "darwin" -}}
+{{- $entries := list -}}
+{{- range $key := list "tech_support" "engineering" -}}
+{{-   range (index $.broccoli $key).npx -}}
+{{-     $entries = append $entries (printf "broccoli-%s %s" (replace "_" "-" $key) .repo) -}}
+{{-   end -}}
+{{- end -}}
+{{- $work := .broccoli.packages.macos -}}
+{{- $twilioAccountSid := (keepassxc "Twilio (webdavis) :: Account SID").Password -}}
+{{- $twilioAuthToken := (keepassxc "Twilio (webdavis) :: Auth Token").Password -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# broccoli-tools.yaml: {{ include ".chezmoidata/broccoli-tools.yaml" | sha256sum }}
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+readonly folders_root="$HOME/.config/agents"
+readonly folders=(broccoli-tech-support broccoli-engineering)
+readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
+readonly install_dir="$HOME/.local/bin"
+# One line per entry: <folder under ~/.config/agents> <owner/repo[/path]>
+readonly entries={{ join "\n" $entries | squote }}
+readonly uv_tools={{ join "\n" $work.uv | squote }}
+readonly npm_packages={{ join "\n" (index $work.fnm 0).packages | squote }}
+readonly twilio="/opt/homebrew/bin/twilio"
+readonly twilio_profile="webdavis"
+readonly twilio_account_sid={{ $twilioAccountSid | squote }}
+readonly twilio_auth_token={{ $twilioAuthToken | squote }}
+readonly twilio_login_marker="$HOME/.local/state/broccoli-tools/twilio-login.sha256"
+
+section_is_printed=no
+failure_count=0
+
+print_section_once() {
+  if [[ $section_is_printed == no ]]; then
+    report_section 'broccoli tools' 'work skills and CLIs'
+    section_is_printed=yes
+  fi
+}
+
+report_change() {
+  print_section_once
+  report_line "$1"
+}
+
+report_failure() {
+  print_section_once
+  report_line "$1" >&2
+  failure_count=$((failure_count + 1))
+}
+
+tool_is_installed() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+non_blank_lines_of() {
+  sed '/^[[:space:]]*$/d' <<<"$1"
+}
+
+entries_of() {
+  local folder=$1
+  non_blank_lines_of "$entries" | awk -v folder="$folder" '$1 == folder { print $2 }'
+}
+
+lock_of() {
+  printf '%s/%s/skills-lock.json\n' "$folders_root" "$1"
+}
+
+source_of() {
+  cut -d/ -f1,2 <<<"$1"
+}
+
+path_within() {
+  cut -d/ -f3- -s <<<"$1"
+}
+
+lock_skill_names_of() {
+  local folder=$1 repository=$2
+  local lock
+  lock="$(lock_of "$folder")"
+  [[ -f $lock ]] || return 0
+  jq -r --arg source "$(source_of "$repository")" --arg path "$(path_within "$repository")" '
+    .skills // {} | to_entries[]
+    | select(.value.source == $source and ($path == "" or ((.value.skillPath // "") | startswith($path + "/"))))
+    | .key' "$lock"
+}
+
+entry_is_installed() {
+  [[ -n $(lock_skill_names_of "$1" "$2") ]]
+}
+
+run_skills_cli_in() {
+  local folder=$1
+  shift
+  (cd "$folders_root/$folder" && npx --yes skills@latest "$@" -y </dev/null >/dev/null 2>&1)
+}
+
+install_missing_entry() {
+  local folder=$1 repository=$2
+  if entry_is_installed "$folder" "$repository"; then
+    return
+  fi
+  run_skills_cli_in "$folder" add "$repository" --skill '*' --agent codex || true
+  if entry_is_installed "$folder" "$repository"; then
+    report_change "installed $(lock_skill_names_of "$folder" "$repository" | wc -l | tr -d ' ') skill(s) from $repository into $folder."
+  else
+    report_failure "error[install-failed]: npx skills add $repository installed nothing into $folder; the next apply retries."
+  fi
+}
+
+installed_skill_names_of() {
+  local lock
+  lock="$(lock_of "$1")"
+  [[ -f $lock ]] || return 0
+  jq -r '.skills // {} | keys[]' "$lock"
+}
+
+wanted_skill_names_of() {
+  local folder=$1
+  local repository
+  while read -r repository; do
+    lock_skill_names_of "$folder" "$repository"
+  done < <(entries_of "$folder")
+}
+
+remove_skill() {
+  local folder=$1 skill=$2
+  if run_skills_cli_in "$folder" remove "$skill"; then
+    report_change "removed $skill from $folder."
+  else
+    report_failure "error[remove-failed]: npx skills remove $skill failed in $folder; the next apply retries."
+  fi
+}
+
+remove_unlisted_skills() {
+  local folder=$1
+  local skill
+  while read -r skill; do
+    remove_skill "$folder" "$skill"
+  done < <(comm -23 <(installed_skill_names_of "$folder" | sort) <(wanted_skill_names_of "$folder" | sort -u))
+}
+
+sync_folder() {
+  local folder=$1
+  local repository
+  mkdir -p "$folders_root/$folder"
+  while read -r repository; do
+    install_missing_entry "$folder" "$repository"
+  done < <(entries_of "$folder")
+  remove_unlisted_skills "$folder"
+}
+
+sync_skill_folders() {
+  local tool folder
+  for tool in jq npx; do
+    if ! tool_is_installed "$tool"; then
+      report_failure "error[missing-tool]: $tool is not installed, so no work skill was installed."
+      return
+    fi
+  done
+  for folder in "${folders[@]}"; do
+    sync_folder "$folder"
+  done
+}
+
+install_uv_tools() {
+  local tool output
+  if ! tool_is_installed uv; then
+    report_failure "error[missing-tool]: uv is not installed, so no work uv tool was installed."
+    return
+  fi
+  while read -r tool; do
+    if ! output="$(uv tool install "$tool" 2>&1)"; then
+      report_failure "error[install-failed]: uv tool install $tool failed; the next apply retries."
+    elif grep -q '^Installed' <<<"$output"; then
+      report_change "installed $tool with uv."
+    fi
+  done < <(non_blank_lines_of "$uv_tools")
+}
+
+npm_package_is_installed() {
+  npm ls -g "$1" >/dev/null 2>&1
+}
+
+install_npm_tools() {
+  local package
+  if ! tool_is_installed npm; then
+    report_failure "error[missing-tool]: npm is not installed, so no work npm tool was installed."
+    return
+  fi
+  while read -r package; do
+    if npm_package_is_installed "$package"; then
+      continue
+    fi
+    if npm install -g "$package" >/dev/null 2>&1; then
+      report_change "installed $package with npm."
+    else
+      report_failure "error[install-failed]: npm install -g $package failed; the next apply retries."
+    fi
+  done < <(non_blank_lines_of "$npm_packages")
+}
+
+
+install_downloaded_cli() {
+  local binary=$1 url=$2 interpreter=$3
+  local installer
+  if [[ -x $install_dir/$binary ]]; then
+    return
+  fi
+  if ! installer="$(curl -fsSL "$url")"; then
+    report_failure "error[download-failed]: could not download $url; $binary was not installed."
+    return
+  fi
+  if "$interpreter" -c "$installer" </dev/null >/dev/null 2>&1 && [[ -x $install_dir/$binary ]]; then
+    report_change "installed $binary into $install_dir."
+  else
+    report_failure "error[install-failed]: the $binary installer failed; the next apply retries."
+  fi
+}
+
+
+install_langsmith() {
+  INSTALL_DIR="$install_dir" install_downloaded_cli langsmith https://cli.langsmith.com/install.sh sh
+}
+
+# The installer edits the rc file of a shell it knows; /bin/sh is not one, so it only prints the PATH line.
+install_hubspot() {
+  HUBSPOT_INSTALL_DIR="$install_dir" SHELL=/bin/sh install_downloaded_cli hubspot https://api.hubapi.com/hub/cli/backend/hub-cli/latest/install.sh sh
+}
+
+# The installer puts the binary under $VAPI_INSTALL/bin and, with an unknown shell, only prints the PATH line.
+install_vapi() {
+  VAPI_INSTALL="$HOME/.local" SHELL=/bin/sh install_downloaded_cli vapi https://vapi.ai/install.sh bash
+}
+
+install_braintrust() {
+  XDG_BIN_HOME="$install_dir" BT_NO_MODIFY_PATH=1 install_downloaded_cli bt https://bt.dev/cli/install.sh bash
+}
+
+# With its folder already on PATH the installer skips its rc file edit.
+install_shovels() {
+  PATH="$install_dir:$PATH" SHOVELS_INSTALL_DIR="$install_dir" install_downloaded_cli shovels https://shovels.ai/install.sh sh
+}
+
+twilio_profile_exists() {
+  "$twilio" profiles:list 2>/dev/null | awk -v profile="$twilio_profile" '$1 == profile { found = 1 } END { exit !found }'
+}
+
+twilio_credential_hash() {
+  printf '%s:%s' "$twilio_account_sid" "$twilio_auth_token" | shasum -a 256 | cut -d' ' -f1
+}
+
+twilio_login_is_current() {
+  [[ -f $twilio_login_marker && $(<"$twilio_login_marker") == "$(twilio_credential_hash)" ]] && twilio_profile_exists
+}
+
+remember_twilio_login() {
+  mkdir -p "$(dirname "$twilio_login_marker")"
+  twilio_credential_hash >"$twilio_login_marker"
+}
+
+# Every login makes Twilio mint a fresh API key, so it runs only for a new or changed credential.
+login_twilio() {
+  if [[ ! -x $twilio ]]; then
+    report_failure "error[missing-tool]: twilio is not installed, so the CLI was not logged in; the next apply retries."
+    return
+  fi
+  if [[ ! $twilio_account_sid =~ ^AC[0-9a-fA-F]{32}$ ]]; then
+    report_failure "error[account-sid]: 'Twilio (webdavis) :: Account SID' holds no Account SID (AC + 32 hex) in its password field."
+    return
+  fi
+  if twilio_login_is_current; then
+    return
+  fi
+  if "$twilio" profiles:create "$twilio_account_sid" --auth-token "$twilio_auth_token" -p "$twilio_profile" --force --silent &&
+    "$twilio" profiles:use "$twilio_profile" >/dev/null; then
+    remember_twilio_login
+    report_change "logged the twilio CLI in as the '$twilio_profile' profile."
+  else
+    report_failure "error[login-failed]: twilio profiles:create failed; the next apply retries."
+  fi
+}
+
+
+main() {
+  PATH="$fnm_default_node_bin_directory:$PATH"
+  sync_skill_folders
+  install_uv_tools
+  install_npm_tools
+  install_langsmith
+  install_hubspot
+  install_vapi
+  install_braintrust
+  install_shovels
+  login_twilio
+  if ((failure_count > 0)); then
+    exit 1
+  fi
+}
+
+main "$@"
+{{ end -}}

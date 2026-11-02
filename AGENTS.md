@@ -63,6 +63,20 @@ Agent instructions belong in this file alone.
 - Codex loads every skill in `~/.agents/skills/`, so such a skill reaches Codex through that folder alone.
 - `just lint` refuses a skill or plugin that reaches a harness twice.
 
+## Broccoli work tooling
+
+Broccoli-specific tooling lives in two files:
+
+- `.chezmoidata/broccoli-tools.yaml`: this contains the packages, skills and MCP servers to install, and the plugin folders they belong to.
+- `.chezmoiscripts/run_onchange_after_18-install-broccoli-tools.sh.tmpl`: this installs everything the data file lists, other than the Homebrew entries, which `.chezmoiscripts/run_onchange_before_10-system-packages.sh.tmpl` installs, and runs the installers and logins that have no entry in the data file.
+
+The steps under Command line Tool or App and under Agent Skills and Plugins apply, with these changes:
+
+- Package manager provides it: the same entry, under `broccoli.packages`.
+- Ships its own installer: an `install_<tool>` function in the Broccoli script, called from `main`, instead of a script of its own.
+- Skill: an npx entry under the folder that loads it, `tech_support` or `engineering`. The script prunes a removed one.
+- MCP server: an entry under that folder's `mcp_servers`; tools that must prompt first go in its `ask` list.
+
 ## Neovim
 
 ### Plugin

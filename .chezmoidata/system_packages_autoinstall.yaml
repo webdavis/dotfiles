@@ -4,7 +4,6 @@ packages:
       taps:
         - antoniorodr/memo
         - buo/cask-upgrade
-        - clerk/stable
         - eugene1g/safehouse
         - felixkratz/formulae
         - furkankly/tap
@@ -13,17 +12,12 @@ packages:
         - openai/tools
         - openhue/cli
         - plannotator/tap
-        - resend/cli
         - rjyo/moshi
-        - schpet/tap
-        - supabase/tap
-        - twilio/brew
         - xdevplatform/tap
       # Lists every tap in taps again. brew bundle loads a tap only after it is trusted.
       trusted_taps:
         - antoniorodr/memo
         - buo/cask-upgrade
-        - clerk/stable
         - eugene1g/safehouse
         - felixkratz/formulae
         - furkankly/tap
@@ -32,11 +26,7 @@ packages:
         - openai/tools
         - openhue/cli
         - plannotator/tap
-        - resend/cli
         - rjyo/moshi
-        - schpet/tap
-        - supabase/tap
-        - twilio/brew
         - xdevplatform/tap
       formulae:
         - act
@@ -55,9 +45,6 @@ packages:
         - bore-cli
         - brightness
         - btop
-        - clerk/stable/clerk
-        - resend/cli/resend
-        - supabase/tap/supabase
         # The tab-smart-rename herdr plugin runs on Bun.
         - bun
         - ca-certificates
@@ -124,7 +111,6 @@ packages:
         - just
         - librsvg
         - livekit
-        - livekit-cli
         - luacheck
         - mas
         - maven
@@ -158,7 +144,6 @@ packages:
         - rjyo/moshi/moshi-hook
         - ruff
         - rustnet
-        - schpet/tap/linear
         - sd
         - sevenzip
         - shellcheck
@@ -180,7 +165,6 @@ packages:
         - treefmt
         - trippy
         - tuicr
-        - twilio/brew/twilio
         - uv
         - vapor
         - websocat
@@ -207,7 +191,6 @@ packages:
         - claude
         - claude-code@latest
         - codex
-        - devin-cli
         - discord
         - espanso
         - fantastical
@@ -275,7 +258,6 @@ packages:
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
           - "@oliverames/mcp-server-for-ynab"
-          - "@retell-ai/retell-cli"
           - "@tobilu/qmd"
           - "@toon-format/cli"
           - acpx

@@ -200,7 +200,8 @@
       "Read(secrets/**)"
       "Read(credentials.json)"
       "Read(~/.config/retell/credentials.json)"
-      "Read(~/.config/claude/broccoli-mcp.json)"
+      "Read(~/.config/agents/broccoli-tech-support/.mcp.json)"
+      "Read(~/.config/agents/broccoli-engineering/.mcp.json)"
       "Read(~/.broccoli-skills.env)"
       "Read(~/.aws/credentials)"
       "Read(~/.ssh/id_*)"
@@ -224,9 +225,20 @@
       "Read(~/.config/gogcli/credentials.json)"
       "Read(~/Library/Application Support/Claude/claude_desktop_config.json)"
       "Read(~/Library/Application Support/espanso/match/identity.yml)")
-    "ask" (list
-      "mcp__devin__devin_session_create")
+    "ask" (list)
     "defaultMode" "bypassPermissions" -}}
+{{- /* A server loaded from a plugin folder showed plain tool names when measured, while installed
+       plugins prefix the plugin name, so each rule is written in both forms. */ -}}
+{{- $workAsked := list -}}
+{{- range $key := list "tech_support" "engineering" -}}
+{{-   $plugin := printf "broccoli-%s" (replace "_" "-" $key) -}}
+{{-   range $server, $settings := (index $.broccoli $key).mcp_servers -}}
+{{-     range get $settings "ask" | default list -}}
+{{-       $workAsked = concat $workAsked (list (printf "mcp__%s__%s" $server .) (printf "mcp__plugin_%s_%s__%s" $plugin $server .)) -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- $permissions = set $permissions "ask" (concat (get $permissions "ask") $workAsked) -}}
 {{- $merged = setValueAtPath "permissions" $permissions $merged -}}
 
 {{- /* --- stable: hooks (paths use $home for portability) ---

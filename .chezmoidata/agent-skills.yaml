@@ -12,16 +12,6 @@ skills:
           on_demand: true
         - repo: "mattpocock/skills/skills/productivity"
           on_demand: true
-        - repo: "twilio/ai/skills/twilio/twilio-call-recordings"
-          on_demand: true
-        - repo: "twilio/ai/skills/twilio/twilio-cli-reference"
-          on_demand: true
-        - repo: "twilio/ai/skills/twilio/twilio-conversation-intelligence"
-          on_demand: true
-        - repo: "twilio/ai/skills/twilio/twilio-debugging-observability"
-          on_demand: true
-        - repo: "twilio/ai/skills/twilio/twilio-lookup-phone-intelligence"
-          on_demand: true
     codex_and_claude:
       npx:
         - repo: "agamm/claude-code-owasp"
@@ -29,8 +19,6 @@ skills:
         - repo: "backnotprop/plannotator/apps/skills/core"
           on_demand: true
         - repo: "blader/humanizer"
-        - repo: "clerk/skills"
-          on_demand: true
         - repo: "Doist/todoist-cli"
         - repo: "heygen-com/hyperframes"
           agent: "lara"
@@ -50,7 +38,6 @@ skills:
         - repo: "kunchenguid/gh-axi"
         - repo: "kunchenguid/lavish-axi"
           on_demand: true
-        - repo: "langchain-ai/langsmith-skills"
         - repo: "mvanhorn/last30days-skill"
           hermes:
             - "lara"
@@ -60,17 +47,12 @@ skills:
             - "default"
         - repo: "plannotator/herdr-annotate"
           on_demand: true
-        - repo: "resend/resend-skills"
         - repo: "rjyo/moshi-skill"
           hermes:
             - "default"
         - repo: "slackapi/slack-skills-plugin/skills/slack-messaging"
         - repo: "slackapi/slack-skills-plugin/skills/slack-search"
         - repo: "steipete/agent-scripts/skills/video-transcript-downloader"
-          on_demand: true
-        - repo: "supabase/agent-skills"
-          on_demand: true
-        - repo: "temporalio/skill-temporal-cloud"
           on_demand: true
         - repo: "tt-a1i/archify"
           on_demand: true

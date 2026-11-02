@@ -63,11 +63,11 @@
         "YNAB_DISABLE_AGENT_CONFIG_FALLBACK" "1"
         "YNAB_API_TOKEN" (keepassxc "YNAB :: Personal Access Token").Password)) $merged -}}
 
-{{- $merged = setValueAtPath (list "mcp_servers" "resend") (dict "url" "https://mcp.resend.com/mcp") $merged -}}
+{{- $merged = deleteValueAtPath "mcp_servers.resend" $merged -}}
 
-{{- $merged = setValueAtPath (list "mcp_servers" "clerk") (dict "url" "https://mcp.clerk.com/mcp") $merged -}}
+{{- $merged = deleteValueAtPath "mcp_servers.clerk" $merged -}}
 
-{{- $merged = setValueAtPath (list "mcp_servers" "supabase") (dict "url" "https://mcp.supabase.com/mcp?read_only=true") $merged -}}
+{{- $merged = deleteValueAtPath "mcp_servers.supabase" $merged -}}
 
 {{- /* Live entries stay, so a root trusted at the Codex prompt survives an apply. */ -}}
 {{- $declaredProjects := list

@@ -1,0 +1,420 @@
+# Tools a Broccoli work session loads from its plugin folders under ~/.config/agents/.
+# npx: owner/repo[/path], as in agent-skills.yaml. mcp_servers: Claude's .mcp.json shape; a header value may be
+# {vault, field, prefix} so the secret is read from KeePassXC, and ask lists the tools Claude must ask before calling.
+# packages: the system_packages_autoinstall.yaml shape.
+broccoli:
+  tech_support:
+    npx:
+      - repo: "twilio/ai/skills/twilio/twilio-cli-reference"
+      - repo: "twilio/ai/skills/twilio/twilio-debugging-observability"
+      - repo: "twilio/ai/skills/twilio/twilio-call-recordings"
+      - repo: "twilio/ai/skills/twilio/twilio-lookup-phone-intelligence"
+      - repo: "twilio/ai/skills/twilio/twilio-numbers-senders"
+      - repo: "twilio/ai/skills/twilio/twilio-messaging-webhooks"
+      - repo: "twilio/ai/skills/twilio/twilio-sms-isv-setup"
+      - repo: "twilio/ai/skills/twilio/twilio-compliance-traffic"
+      - repo: "twilio/ai/skills/twilio/twilio-messaging-services"
+      - repo: "twilio/ai/skills/twilio/twilio-sms-send-message"
+      - repo: "twilio/ai/skills/twilio/twilio-voice-twiml"
+      - repo: "twilio/ai/skills/twilio/twilio-voice-outbound-calls"
+      - repo: "twilio/ai/skills/twilio/twilio-reliability-patterns"
+      - repo: "twilio/ai/skills/twilio/twilio-security-hardening"
+      - repo: "temporalio/skill-temporal-cloud"
+      - repo: "temporalio/claude-temporal-plugin"
+      - repo: "resend/resend-skills"
+      - repo: "clerk/skills"
+      - repo: "supabase/agent-skills"
+      - repo: "langchain-ai/langsmith-skills"
+      - repo: "deepgram/skills/skills/api"
+      - repo: "deepgram/skills/skills/audio-intelligence"
+      - repo: "deepgram/skills/skills/cli"
+      - repo: "deepgram/skills/skills/docs"
+      - repo: "deepgram/skills/skills/examples"
+      - repo: "deepgram/skills/skills/recipes"
+      - repo: "deepgram/skills/skills/self-hosted"
+      - repo: "deepgram/skills/skills/speech-to-text"
+      - repo: "deepgram/skills/skills/text-intelligence"
+      - repo: "newrelic/nr-skills-hub"
+      - repo: "hubspot/agent-cli-skills/bulk-operations"
+      - repo: "hubspot/agent-cli-skills/communication-history"
+      - repo: "hubspot/agent-cli-skills/crm-data-quality"
+      - repo: "hubspot/agent-cli-skills/crm-lookup"
+      - repo: "hubspot/agent-cli-skills/data-enrichment"
+    mcp_servers:
+      devin:
+        type: http
+        url: https://mcp.devin.ai/mcp
+        headers:
+          Authorization:
+            vault: devin-broccoli-api-access
+            field: personal-access-token
+            prefix: 'Bearer '
+          X-Org-Id:
+            vault: devin-broccoli-api-access
+            field: UserName
+        ask:
+          - devin_session_create
+      resend:
+        type: http
+        url: https://mcp.resend.com/mcp
+      clerk:
+        type: http
+        url: https://mcp.clerk.com/mcp
+      supabase:
+        type: http
+        url: https://mcp.supabase.com/mcp?read_only=true
+      langsmith:
+        type: http
+        url: https://api.smith.langchain.com/mcp
+      deepgram:
+        type: stdio
+        command: dg
+        args:
+          - mcp
+      newrelic:
+        type: http
+        url: https://mcp.newrelic.com/mcp/
+      hubspot:
+        type: http
+        url: https://mcp.hubspot.com/anthropic
+        ask:
+          - manage_crm_objects
+          - manage_segment
+          - manage_custom_properties
+          - manage_custom_pipelines
+          - manage_campaign_objects
+          - manage_marketing_email
+          - manage_landing_page
+          - manage_website_page
+          - manage_blog_post
+          - manage_aeo_prompts
+          - manage_aeo_recommendations
+          - manage_onboarding
+          - submit_feedback
+  engineering:
+    npx:
+      - repo: "Infisical/ai-skills/skills/infisical-access-control"
+      - repo: "Infisical/ai-skills/skills/infisical-api"
+      - repo: "Infisical/ai-skills/skills/infisical-app-connections"
+      - repo: "Infisical/ai-skills/skills/infisical-dynamic-secrets"
+      - repo: "Infisical/ai-skills/skills/infisical-gateway"
+      - repo: "Infisical/ai-skills/skills/infisical-kms"
+      - repo: "Infisical/ai-skills/skills/infisical-kubernetes-operator"
+      - repo: "Infisical/ai-skills/skills/infisical-pam"
+      - repo: "Infisical/ai-skills/skills/infisical-pki"
+      - repo: "Infisical/ai-skills/skills/infisical-secret-rotation"
+      - repo: "Infisical/ai-skills/skills/infisical-secret-scanning"
+      - repo: "Infisical/ai-skills/skills/infisical-secret-syncs"
+      - repo: "Infisical/ai-skills/skills/infisical-self-host"
+      - repo: "Infisical/ai-skills/skills/infisical-setup"
+      - repo: "Infisical/ai-skills/skills/infisical-sso"
+      - repo: "Infisical/ai-skills/skills/infisical-terraform"
+      - repo: "docker/skills/skills/docker-build-strategies"
+      - repo: "docker/skills/skills/docker-compose-patterns"
+      - repo: "docker/skills/skills/docker-destructive-guardrails"
+      - repo: "docker/skills/skills/docker-docs"
+      - repo: "docker/skills/skills/docker-project-foundations"
+      - repo: "docker/skills/skills/docker-sandboxes-env"
+      - repo: "docker/skills/skills/docker-sandboxes-kits"
+      - repo: "docker/skills/skills/docker-sandboxes-lifecycle"
+      - repo: "docker/skills/skills/docker-sandboxes-network-credentials"
+      - repo: "vercel/turborepo/skills/turborepo"
+      - repo: "redpanda-data/skills/skills/adp"
+      - repo: "redpanda-data/skills/skills/connect-debugging"
+      - repo: "redpanda-data/skills/skills/connect"
+      - repo: "redpanda-data/skills/skills/rpk-cloud"
+      - repo: "redpanda-data/skills/skills/rpk-cluster"
+      - repo: "redpanda-data/skills/skills/rpk-debug"
+      - repo: "redpanda-data/skills/skills/rpk-group"
+      - repo: "redpanda-data/skills/skills/rpk-redpanda"
+      - repo: "redpanda-data/skills/skills/rpk-registry"
+      - repo: "redpanda-data/skills/skills/rpk-security"
+      - repo: "redpanda-data/skills/skills/rpk-topic"
+      - repo: "redpanda-data/skills/skills/rpk-transform"
+      - repo: "redpanda-data/skills/skills/rpk"
+      - repo: "redpanda-data/skills/skills/sql-admin-api"
+      - repo: "redpanda-data/skills/skills/sql-debugging"
+      - repo: "redpanda-data/skills/skills/sql-federated-queries"
+      - repo: "redpanda-data/skills/skills/sql"
+      - repo: "redpanda-data/skills/skills/streaming-admin-api"
+      - repo: "redpanda-data/skills/skills/streaming-debugging"
+      - repo: "redpanda-data/skills/skills/streaming"
+      - repo: "redis/agent-skills"
+      - repo: "svix/ai"
+      - repo: "langchain-ai/langchain-skills/config/skills/langchain-fundamentals"
+      - repo: "langchain-ai/langchain-skills/config/skills/langchain-middleware"
+      - repo: "langchain-ai/langchain-skills/config/skills/langchain-rag"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-cli"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-decision-models"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-fundamentals"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-human-in-the-loop"
+      - repo: "mastra-ai/skills"
+      - repo: "vercel/ai/skills/migrate-ai-sdk-v6-to-v7"
+      - repo: "typesafe-ai/skills"
+      - repo: "livekit/agent-skills"
+      - repo: "liveblocks/skills"
+      - repo: "render-oss/skills/skills/render-blueprints"
+      - repo: "render-oss/skills/skills/render-cli"
+      - repo: "render-oss/skills/skills/render-debug"
+      - repo: "render-oss/skills/skills/render-env-vars"
+      - repo: "render-oss/skills/skills/render-mcp"
+      - repo: "render-oss/skills/skills/render-monitor"
+      - repo: "render-oss/skills/skills/render-networking"
+      - repo: "render-oss/skills/skills/render-sandboxes"
+      - repo: "render-oss/skills/skills/render-web-services"
+      - repo: "render-oss/skills/skills/render-workflows"
+      - repo: "vercel/vercel-plugin/skills/access-protected-vercel-deployment"
+      - repo: "vercel/vercel-plugin/skills/ai-gateway"
+      - repo: "vercel/vercel-plugin/skills/ai-sdk"
+      - repo: "vercel/vercel-plugin/skills/auth"
+      - repo: "vercel/vercel-plugin/skills/bootstrap"
+      - repo: "vercel/vercel-plugin/skills/build-agents"
+      - repo: "vercel/vercel-plugin/skills/cdn-caching"
+      - repo: "vercel/vercel-plugin/skills/create-a-backend"
+      - repo: "vercel/vercel-plugin/skills/custom-metrics"
+      - repo: "vercel/vercel-plugin/skills/daemons"
+      - repo: "vercel/vercel-plugin/skills/deployments-cicd"
+      - repo: "vercel/vercel-plugin/skills/domains"
+      - repo: "vercel/vercel-plugin/skills/env-vars"
+      - repo: "vercel/vercel-plugin/skills/eve"
+      - repo: "vercel/vercel-plugin/skills/is-agentic"
+      - repo: "vercel/vercel-plugin/skills/knowledge-update"
+      - repo: "vercel/vercel-plugin/skills/offload-to-sandbox"
+      - repo: "vercel/vercel-plugin/skills/react-best-practices"
+      - repo: "vercel/vercel-plugin/skills/routing-middleware"
+      - repo: "vercel/vercel-plugin/skills/runtime-cache"
+      - repo: "vercel/vercel-plugin/skills/vercel-cli"
+      - repo: "vercel/vercel-plugin/skills/vercel-firewall"
+      - repo: "vercel/vercel-plugin/skills/vercel-functions"
+      - repo: "vercel/vercel-plugin/skills/vercel-sandbox"
+      - repo: "vercel/vercel-plugin/skills/vercel-services"
+      - repo: "vercel/vercel-plugin/skills/vercel-storage"
+      - repo: "vercel/vercel-plugin/skills/vercel-tracing"
+      - repo: "vercel/vercel-plugin/skills/verification"
+    mcp_servers:
+      infisical_docs:
+        type: http
+        url: https://infisical.com/docs/mcp
+      redpanda_docs:
+        type: http
+        url: https://docs.redpanda.com/mcp
+      langchain_docs:
+        type: http
+        url: https://docs.langchain.com/mcp
+      langchain_reference:
+        type: http
+        url: https://reference.langchain.com/mcp
+      mastra_docs:
+        type: stdio
+        command: npx
+        args:
+          - -y
+          - '@mastra/mcp-docs-server@latest'
+      livekit_docs:
+        type: http
+        url: https://docs.livekit.io/mcp
+      aws:
+        type: stdio
+        command: uvx
+        args:
+          - mcp-proxy-for-aws-cli@latest
+          - https://aws-mcp.us-east-1.api.aws/mcp
+          - --read-only
+      measure:
+        type: http
+        url: https://mcp.getmeasure.com/mcp
+        ask:
+          - cancel_subscription
+          - change_subscription
+          - undo_cancel_subscription
+          - extend_trial_end_date
+          - create_credit
+          - revoke_credit
+          - create_one-time_charges
+          - finalize_draft_invoice
+          - generate_invoice_pdf
+          - generate_next_invoice
+          - mark_invoice_as_paid
+          - void_invoice
+          - start_managing_customer
+          - update_customer
+      render:
+        type: http
+        url: https://mcp.render.com/mcp
+        ask:
+          - create_cron_job
+          - create_key_value
+          - create_postgres
+          - create_static_site
+          - create_web_service
+          - trigger_deploy
+          - update_cron_job
+          - update_environment_variables
+          - update_static_site
+          - update_web_service
+      vercel:
+        type: http
+        url: https://mcp.vercel.com
+        ask:
+          - accept_project_transfer_request
+          - activate_kms_signing_key
+          - add_project_domain
+          - add_route
+          - add_toolbar_reaction
+          - approve_rolling_release_stage
+          - assign_alias
+          - buy_domain
+          - buy_domains
+          - buy_single_domain
+          - cancel_deployment
+          - change_toolbar_thread_resolve_status
+          - complete_rolling_release
+          - create_deployment
+          - create_drain
+          - create_edge_config
+          - create_edge_config_token
+          - create_flag
+          - create_git_project
+          - create_kms_issuer
+          - create_kms_issuer_policy
+          - create_kms_signing_key
+          - create_or_transfer_domain
+          - create_project
+          - create_project_env
+          - create_record
+          - create_sandboxes_sessions_by_session_id_snapshot_v2
+          - create_sandboxes_sessions_by_session_id_snapshot_v3
+          - create_sandboxes_v2
+          - create_sandboxes_v3
+          - create_sandboxes_v4
+          - create_sdk_key
+          - create_session_directory
+          - create_storage_stores_blob
+          - create_trace_session
+          - deploy_to_vercel
+          - edit_project_env
+          - edit_route
+          - edit_toolbar_message
+          - extend_session_timeout
+          - generate_route
+          - get_access_to_vercel_url
+          - invalidate_by_src_images
+          - invalidate_by_tags
+          - issue_cert
+          - kill_session_command
+          - patch_edge_config_items
+          - patch_url_protection_bypass
+          - pause_project
+          - put_firewall_config
+          - record_events
+          - replace_domain_dns_records
+          - reply_to_toolbar_thread
+          - request_promote
+          - request_rollback
+          - rerequest_check
+          - restore_edge_config_backup
+          - restore_redirects
+          - retry_vercel_ci_invocation
+          - revoke_kms_signing_key
+          - run_session_command
+          - stage_redirects
+          - stage_routes
+          - start_rolling_release
+          - stop_session
+          - submit_feedback
+          - test_drain
+          - unpause_project
+          - update_attack_challenge_mode
+          - update_bulk_redirect_version
+          - update_connector
+          - update_drain
+          - update_edge_config
+          - update_firewall_config
+          - update_flag
+          - update_flag_segment
+          - update_flag_settings
+          - update_kms_issuer
+          - update_kms_issuer_policy
+          - update_project
+          - update_project_deployment_protection
+          - update_project_protection_bypass
+          - update_record
+          - update_rolling_release_config
+          - update_route_versions
+          - update_sandbox
+          - update_session_network_policy
+          - upload_artifact
+          - upload_file
+          - upsert_connector_project_connection
+          - verify_project_domain
+          - write_session_files
+      porter:
+        type: http
+        url: https://mcp.porter.run
+        ask:
+          - create_github_workflow
+          - create_app
+          - update_application
+          - redeploy_application
+          - trigger_job_run
+          - enable_sandboxes
+          - update_sandbox_settings
+          - set_sandbox_domain
+          - create_sandbox
+          - exec_sandbox
+          - install_addon
+          - update_addon
+          - delete_addon
+      braintrust:
+        type: http
+        url: https://api.braintrust.dev/mcp
+  packages:
+    macos:
+      homebrew:
+        taps:
+          - redpanda-data/tap
+          - svix/svix
+          - deepgram/tap
+          - porter-dev/porter
+          - twilio/brew
+          - resend/cli
+          - clerk/stable
+          - supabase/tap
+          - schpet/tap
+        trusted_taps:
+          - redpanda-data/tap
+          - svix/svix
+          - deepgram/tap
+          - porter-dev/porter
+          - twilio/brew
+          - resend/cli
+          - clerk/stable
+          - supabase/tap
+          - schpet/tap
+        formulae:
+          - temporal
+          - redpanda-data/tap/redpanda
+          - redis
+          - svix/svix/svix-cli
+          - awscli
+          - deepgram/tap/deepgram
+          - newrelic-cli
+          - render
+          - porter-dev/porter/porter
+          - twilio/brew/twilio
+          - resend/cli/resend
+          - clerk/stable/clerk
+          - supabase/tap/supabase
+          - livekit-cli
+          - schpet/tap/linear
+        casks:
+          - claude-code@latest
+          - devin-cli
+      uv:
+        - langgraph-cli
+        - litellm[cli]
+      fnm:
+        - node: "24"
+          packages:
+            - vercel
+            - '@retell-ai/retell-cli'

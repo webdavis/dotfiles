@@ -155,6 +155,13 @@ gfm() {
     --decorate --date=short --grep="$1"
 }
 
-start-claude-broccoli-with-work-mcp-servers() {
-  clauth start broccoli --mcp-config ~/.config/claude/broccoli-mcp.json "$@"
+start-claude-with-broccoli-tech-support-tools() {
+  clauth start broccoli \
+    --plugin-dir ~/.config/agents/broccoli-tech-support "$@"
+}
+
+start-claude-with-broccoli-tech-support-and-engineering-tools() {
+  clauth start broccoli \
+    --plugin-dir ~/.config/agents/broccoli-tech-support \
+    --plugin-dir ~/.config/agents/broccoli-engineering "$@"
 }

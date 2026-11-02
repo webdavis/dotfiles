@@ -43,9 +43,6 @@ plugins:
       - marketplace: "addyosmani/agent-skills"
         plugins:
           - "agent-skills@addy-agent-skills"
-      - marketplace: "twilio/ai"
-        plugins:
-          - "twilio-developer-kit@twilio"
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:
@@ -61,9 +58,6 @@ plugins:
       - marketplace: "webdavis/pns"
         plugins:
           - "pns@pns"
-      - marketplace: "temporalio/claude-temporal-plugin"
-        plugins:
-          - "temporal@temporal-marketplace"
       - marketplace: "webdavis/skills"
         plugins:
           - "strategy@webdavis"
