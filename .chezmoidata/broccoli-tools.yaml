@@ -166,6 +166,7 @@ broccoli:
           - devin-cli
       uv:
         - langgraph-cli
+        - litellm[cli]
       fnm:
         - node: "24"
           packages: []
