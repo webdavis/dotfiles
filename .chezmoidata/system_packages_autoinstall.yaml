@@ -261,7 +261,6 @@ packages:
           - "@google/gemini-cli"
           - "@mistweaverco/kulala-ls"
           - "@oliverames/mcp-server-for-ynab"
-          - "@retell-ai/retell-cli"
           - "@tobilu/qmd"
           - "@toon-format/cli"
           - acpx
