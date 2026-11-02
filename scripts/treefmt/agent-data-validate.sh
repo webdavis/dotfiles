@@ -59,18 +59,18 @@ check_duplicate_skill_sources() {
   while IFS= read -r entry; do
     problem "$entry is listed twice in agent-skills.yaml"
   done < <(skills_json | jq -r '
-    [.claude, .codex, .codex_and_claude] | map(to_entries[] | .value[]) | .[]
+    [.claude, .codex, .codex_and_claude, .media] | map(to_entries[] | .value[]) | .[]
     | (.repo // .slug // .skill // empty)' | duplicates_in)
 }
 
-# A Broccoli plugin folder is a harness of its own, so an npx entry is listed once across every folder and harness.
+# A plugin folder is a harness of its own, so an npx entry is listed once across every folder and harness.
 check_duplicate_npx_entries_across_broccoli_folders() {
   local entry
   while IFS= read -r entry; do
     problem "npx entry $entry is listed twice across agent-skills.yaml and broccoli-tools.yaml"
   done < <(
     {
-      skills_json | jq -r '[.claude, .codex, .codex_and_claude] | map(.npx // [] | .[].repo) | .[]'
+      skills_json | jq -r '[.claude, .codex, .codex_and_claude, .media] | map(.npx // [] | .[].repo) | .[]'
       yq -o json '.broccoli' "$broccoli_file" | jq -r '[.tech_support, .engineering] | map(.npx // [] | .[].repo) | .[]'
     } | duplicates_in
   )
@@ -86,14 +86,18 @@ check_duplicate_hermes_identifiers() {
 # A whole-repository npx entry (owner/repo, no path) and a marketplace from the
 # same repository would install the same skills twice into one harness.
 check_npx_against_marketplaces() {
-  local harness repo
+  local harness repo groups
   for harness in claude codex; do
+    groups="[.$harness, .codex_and_claude]"
+    if [[ $harness == codex ]]; then
+      groups="[.$harness, .codex_and_claude, .media]"
+    fi
     while IFS= read -r repo; do
       problem "$repo reaches $harness as a plugin and as an npx install"
     done < <(
       {
         plugins_json | jq -r "[.$harness, .codex_and_claude] | add | .[].marketplace" | sort -u
-        skills_json | jq -r "[.$harness, .codex_and_claude] | map(.npx // [] | .[]) | .[].repo | select((split(\"/\") | length) == 2)" | sort -u
+        skills_json | jq -r "$groups | map(.npx // [] | .[]) | .[].repo | select((split(\"/\") | length) == 2)" | sort -u
       } | duplicates_in
     )
   done

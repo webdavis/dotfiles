@@ -12,12 +12,17 @@
 {{- range $d.linked -}}
 {{-   $linkedEntries = append $linkedEntries (printf "%s %s %s" .match (ternary "yes" "no" .claude) (join "," .hermes | default "-")) -}}
 {{- end -}}
+{{- $mediaEntries := list -}}
+{{- range $d.media_entries -}}
+{{-   $mediaEntries = append $mediaEntries (printf "%s %s" .kind .match) -}}
+{{- end -}}
 {{- $retryMarker := joinPath .chezmoi.homeDir ".local/state/agent-skills/install.retry" -}}
 #!/usr/bin/env bash
 
 set -euo pipefail
 
 # agent-skills.yaml: {{ include ".chezmoidata/agent-skills.yaml" | sha256sum }}
+# media skills: {{ join "\n" $d.media_names | sha256sum }}
 # retry: {{ if stat $retryMarker }}{{ (stat $retryMarker).modTime }}{{ else }}settled{{ end }}
 
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
@@ -33,6 +38,8 @@ readonly claude_code_link_prefix="../../.agents/skills"
 readonly hermes_default_link_prefix="../../.agents/skills"
 readonly hermes_profiles_folder="$HOME/.hermes/profiles"
 readonly hermes_profile_link_prefix="../../../../.agents/skills"
+readonly media_skills_folder="$HOME/.config/agents/media/skills"
+readonly media_link_prefix="../../../../.agents/skills"
 readonly clawhub_registry="https://clawhub.ai"
 readonly mark_on_demand_skills_script="$HOME/.config/uu/scripts/mark-on-demand-skills.sh"
 # One line per entry: <agents, comma-joined> <owner/repo[/path]> <hermes profiles, comma-joined, or ->
@@ -41,6 +48,8 @@ readonly npx_entries={{ join "\n" $npxEntries | squote }}
 readonly clawhub_entries={{ join "\n" $clawhubEntries | squote }}
 # One line per entry: <store name or glob> <linked into Claude Code: yes|no> <hermes profiles or ->
 readonly linked_entries={{ join "\n" $linkedEntries | squote }}
+# One line per entry: <npx|store> <owner/repo[/path] or store name or glob>
+readonly media_entries={{ join "\n" $mediaEntries | squote }}
 
 section_is_printed=no
 failure_count=0
@@ -306,6 +315,42 @@ link_store_skills() {
   done 3< <(non_blank_lines_of "$linked_entries")
 }
 
+# The media plugin folder links its skills from the store, so a media session loads them and no other does.
+media_skill_names() {
+  local kind match
+  while read -r -u 3 kind match; do
+    if [[ $kind == npx ]]; then
+      lock_skill_names_of "$match"
+    else
+      store_skills_matching "$match"
+    fi
+  done 3< <(non_blank_lines_of "$media_entries")
+}
+
+unlink_skill() {
+  local skill=$1 link_folder=$2 destination=$3
+  if rm -f "$link_folder/$skill"; then
+    report_change "unlinked $skill from $destination."
+  else
+    report_failure "error[unlink-failed]: could not unlink $skill from $destination; the next apply retries."
+  fi
+}
+
+link_media_skills() {
+  local names skill link
+  names="$(media_skill_names)"
+  while read -r skill; do
+    link_skill "$skill" "$media_skills_folder" "$media_link_prefix" "the media folder"
+  done < <(non_blank_lines_of "$names")
+  for link in "$media_skills_folder"/*; do
+    [[ -L $link ]] || continue
+    skill="$(basename "$link")"
+    if ! grep -qxF "$skill" <<<"$names"; then
+      unlink_skill "$skill" "$media_skills_folder" "the media folder"
+    fi
+  done
+}
+
 line_is_an_error() {
   local line=$1
   [[ $line == error\[* ]]
@@ -360,6 +405,7 @@ main() {
   install_missing_npx_entries
   install_missing_clawhub_entries
   link_store_skills
+  link_media_skills
   mark_on_demand_skills_in_codex
 
   if ((failure_count > 0)); then

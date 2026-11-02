@@ -1,4 +1,4 @@
-# Skills per harness, grouped by the command that installs them.
+# Skills per harness, grouped by the command that installs them. media: skills only a media session loads.
 # repo: owner/repo[/path] for npx; slug: @owner/skill for clawhub; skill: a store folder another tool writes.
 # on_demand: loads only when asked. agent: the subagent that gets it. hermes: profiles that link it from the store.
 # claude_desktop: zipped by `just claude-desktop-skills`. hermes: `hermes -p <profile> skills install <identifier>`.
@@ -20,10 +20,6 @@ skills:
           on_demand: true
         - repo: "blader/humanizer"
         - repo: "Doist/todoist-cli"
-        - repo: "heygen-com/hyperframes"
-          agent: "lara"
-          hermes:
-            - "lara"
         - repo: "guwidoe/lobster-skill"
           on_demand: true
         - repo: "homeassistant-ai/skills"
@@ -68,10 +64,6 @@ skills:
           hermes:
             - "default"
           on_demand: true
-      elevenlabs:
-        - agent: "lara"
-          hermes:
-            - "lara"
       but:
         - skill: "gitbutler"
           on_demand: true
@@ -80,6 +72,16 @@ skills:
       apps:
         - skill: "cua-driver"
           on_demand: true
+    media:
+      npx:
+        - repo: "heygen-com/hyperframes"
+          agent: "lara"
+          hermes:
+            - "lara"
+      elevenlabs:
+        - agent: "lara"
+          hermes:
+            - "lara"
     claude_desktop:
       - repo: "mattpocock/skills"
         skills:

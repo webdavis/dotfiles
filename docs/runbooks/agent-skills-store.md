@@ -38,20 +38,21 @@ twice.
 | `skills.harnesses.hermes.<profile>`                     | the apply (`hermes skills install`)         | `hermes-skills`                                          |
 | `skills.harnesses.claude_desktop`                       | `just claude-desktop-skills`                | you, by rerunning it                                     |
 
-Three keys on a skill entry: `on_demand: true` makes it load only when asked (Claude Code sets `user-invocable-only`;
+Two keys on a skill entry: `on_demand: true` makes it load only when asked (Claude Code sets `user-invocable-only`;
 Codex gets `policy.allow_implicit_invocation: false` in the skill's `agents/openai.yaml`, written by
-`~/.config/uu/scripts/mark-on-demand-skills.sh` on the apply and after every update). `agent: lara` names the subagent
-the skills are for: Claude Code lists them `name-only`, so they cost the main session their names and nothing more, and
-the `lara` subagent preloads the two entry skills. `hermes: [lara]` lists the Hermes profiles that get it from the
-store. Codex cannot scope a skill to one of its agents (a custom agent's own `skills.config` can only disable more), so
-plain Codex sees lara's skills too.
+`~/.config/uu/scripts/mark-on-demand-skills.sh` on the apply and after every update). `hermes: [lara]` lists the Hermes
+profiles that get it from the store.
+
+The `media` group holds the ElevenLabs and HyperFrames skills. They live in the store like the `codex` group, and the
+apply links them into `~/.config/agents/media/skills`, which `scm` hands Claude Code as a plugin. Codex turns them off
+in `config.toml` and back on in the `media` profile, so `codex -p media` is the one Codex session that loads them.
 
 ## The weekly lanes
 
 | Lane                | What it does                                                                          |
 | ------------------- | ------------------------------------------------------------------------------------- |
 | `npx-skills`        | `npx skills add <repo> --skill '*' --agent claude-code --agent codex`, per repository |
-| `npx-skills-codex`  | the same for the `codex` group, `--agent codex` only                                  |
+| `npx-skills-codex`  | the same for the `codex` and `media` groups, `--agent codex` only                     |
 | `npx-skills-lara`   | the same with `HERMES_HOME` set to lara's profile and `--agent hermes-agent`          |
 | `clawhub-skills`    | `clawhub update --all`, or `clawhub update <name>` per skill when that finds none     |
 | `tool-skills`       | `generate-tool-skills.sh`: regenerates the ElevenLabs set and the gitbutler skill     |
