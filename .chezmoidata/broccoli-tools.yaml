@@ -100,6 +100,13 @@ broccoli:
       - repo: "redpanda-data/skills/skills/streaming"
       - repo: "redis/agent-skills"
       - repo: "svix/ai"
+      - repo: "langchain-ai/langchain-skills/config/skills/langchain-fundamentals"
+      - repo: "langchain-ai/langchain-skills/config/skills/langchain-middleware"
+      - repo: "langchain-ai/langchain-skills/config/skills/langchain-rag"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-cli"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-decision-models"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-fundamentals"
+      - repo: "langchain-ai/langchain-skills/config/skills/langgraph-human-in-the-loop"
     mcp_servers:
       infisical_docs:
         type: http
@@ -107,6 +114,12 @@ broccoli:
       redpanda_docs:
         type: http
         url: https://docs.redpanda.com/mcp
+      langchain_docs:
+        type: http
+        url: https://docs.langchain.com/mcp
+      langchain_reference:
+        type: http
+        url: https://reference.langchain.com/mcp
   packages:
     macos:
       homebrew:
@@ -136,7 +149,8 @@ broccoli:
         casks:
           - claude-code@latest
           - devin-cli
-      uv: []
+      uv:
+        - langgraph-cli
       fnm:
         - node: "24"
           packages: []
