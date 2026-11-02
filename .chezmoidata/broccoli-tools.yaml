@@ -1,0 +1,22 @@
+# Tools a Broccoli work session loads from its plugin folders under ~/.config/agents/.
+# npx: owner/repo[/path], as in agent-skills.yaml. mcp_servers: Claude's .mcp.json shape; a header value may be
+# {vault, field, prefix} so the secret is read from KeePassXC. packages: the system_packages_autoinstall.yaml shape.
+broccoli:
+  tech_support:
+    npx: []
+    mcp_servers: {}
+  engineering:
+    npx: []
+    mcp_servers: {}
+  packages:
+    macos:
+      homebrew:
+        taps: []
+        trusted_taps: []
+        formulae: []
+        casks:
+          - claude-code@latest
+      uv: []
+      fnm:
+        - node: "24"
+          packages: []

@@ -1,0 +1,25 @@
+{{- $servers := dict -}}
+{{- range $name, $server := .servers -}}
+{{-   $rendered := omit $server "headers" "ask" -}}
+{{-   if hasKey $server "headers" -}}
+{{-     $headers := dict -}}
+{{-     range $header, $value := $server.headers -}}
+{{-       if ne (kindOf $value) "map" -}}
+{{-         $headers = set $headers $header $value -}}
+{{-       else -}}
+{{-         $secret := "" -}}
+{{-         if eq $value.field "UserName" -}}
+{{-           $secret = (keepassxc $value.vault).UserName -}}
+{{-         else if eq $value.field "Password" -}}
+{{-           $secret = (keepassxc $value.vault).Password -}}
+{{-         else -}}
+{{-           $secret = keepassxcAttribute $value.vault $value.field -}}
+{{-         end -}}
+{{-         $headers = set $headers $header (printf "%s%s" (get $value "prefix" | default "") $secret) -}}
+{{-       end -}}
+{{-     end -}}
+{{-     $rendered = set $rendered "headers" $headers -}}
+{{-   end -}}
+{{-   $servers = set $servers $name $rendered -}}
+{{- end -}}
+{{ dict "mcpServers" $servers | toPrettyJson }}
