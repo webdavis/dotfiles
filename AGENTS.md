@@ -12,8 +12,8 @@ Agent instructions belong in this file alone.
 
 - Install: add it under its package manager in `.chezmoidata/system_packages_autoinstall.yaml`. A Homebrew tap goes in both `taps` and `trusted_taps`.
 - Remove:
-  1. Remove its entry, and for a tap both `taps` and `trusted_taps` lines.
-  2. Uninstall it with that package manager, and `brew untap` a removed tap.
+  1. Remove its entry. For Homebrew-specific packages, check if the package has a tap. If it does, then remove the `taps` and `trusted_taps` lines for that package, unless another listed package still uses it.
+  2. Uninstall it with that package manager. Homebrew does this itself on the next apply, unless the apply log shows `error[bulk-cleanup-refused]`.
 
 ### A group in `.chezmoidata/system_packages_autoinstall.yaml` with its own script
 
