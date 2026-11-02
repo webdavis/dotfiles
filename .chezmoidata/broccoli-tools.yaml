@@ -98,6 +98,7 @@ broccoli:
       - repo: "redpanda-data/skills/skills/streaming-admin-api"
       - repo: "redpanda-data/skills/skills/streaming-debugging"
       - repo: "redpanda-data/skills/skills/streaming"
+      - repo: "redis/agent-skills"
     mcp_servers:
       infisical_docs:
         type: http
@@ -125,6 +126,7 @@ broccoli:
           - infisical
           - docker
           - redpanda-data/tap/redpanda
+          - redis
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
