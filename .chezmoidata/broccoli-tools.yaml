@@ -23,6 +23,7 @@ broccoli:
       - repo: "resend/resend-skills"
       - repo: "clerk/skills"
       - repo: "supabase/agent-skills"
+      - repo: "langchain-ai/langsmith-skills"
     mcp_servers:
       devin:
         type: http
@@ -46,6 +47,9 @@ broccoli:
       supabase:
         type: http
         url: https://mcp.supabase.com/mcp?read_only=true
+      langsmith:
+        type: http
+        url: https://api.smith.langchain.com/mcp
   engineering:
     npx: []
     mcp_servers: {}

@@ -108,7 +108,6 @@
 
 {{- $merged = deleteValueAtPath "mcpServers.supabase" $merged -}}
 
-{{- /* Claude Code only: LangSmith says its hosted MCP server does not work with Codex. */ -}}
-{{- $merged = setValueAtPath "mcpServers.langsmith" (dict "type" "http" "url" "https://api.smith.langchain.com/mcp") $merged -}}
+{{- $merged = deleteValueAtPath "mcpServers.langsmith" $merged -}}
 
 {{ $merged | toPrettyJson }}
