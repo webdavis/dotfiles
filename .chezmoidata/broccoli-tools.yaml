@@ -33,6 +33,7 @@ broccoli:
       - repo: "deepgram/skills/skills/self-hosted"
       - repo: "deepgram/skills/skills/speech-to-text"
       - repo: "deepgram/skills/skills/text-intelligence"
+      - repo: "newrelic/nr-skills-hub"
     mcp_servers:
       devin:
         type: http
@@ -64,6 +65,9 @@ broccoli:
         command: dg
         args:
           - mcp
+      newrelic:
+        type: http
+        url: https://mcp.newrelic.com/mcp/
   engineering:
     npx:
       - repo: "Infisical/ai-skills/skills/infisical-access-control"
@@ -181,6 +185,7 @@ broccoli:
           - svix/svix/svix-cli
           - awscli
           - deepgram/tap/deepgram
+          - newrelic-cli
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
