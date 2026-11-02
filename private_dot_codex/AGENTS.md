@@ -40,7 +40,3 @@
     2. Then use `npx -y gh-axi pr merge <number> --rebase` to merge the PR. GitHub deletes the remote branch.
     3. Then use `wt remove <branch>` to remove the worktree and the local branch, and close the herdr panes that sat in it.
     4. Then check `wt list`. If the branch or its worktree is still listed, report what was left behind and why.
-
-## Subagent Delegation
-
-- Delegate all ElevenLabs, video, animation and motion-graphics work to the lara subagent.

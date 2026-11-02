@@ -601,19 +601,12 @@
 {{-   end -}}
 {{- end -}}
 
-{{- /* --- stable: skill tiering. Two tiers, both from
-       .chezmoidata/agent-skills.yaml through the derived document:
-       `user-invocable-only` for every store skill of an entry marked
-       on_demand: true that reaches Claude Code, and `name-only` for every
-       store skill of an entry carrying `agent:` (the ElevenLabs and
-       HyperFrames sets), so the main session lists their names and nothing
-       more: the skill listing is capped at one percent of the context window
-       and drops descriptions least-used-first once it overflows, and 53
-       descriptions would push other skills out. The subagent still invokes and
-       preloads them. Plugin skills cannot be overridden; these all come from
-       the store. The npx names come from the skills CLI's lock file at
-       template time, so a fresh machine's first apply writes none and the
-       second fills them in.
+{{- /* --- stable: skill tiering. `user-invocable-only` for every store skill
+       of an entry marked on_demand: true that reaches Claude Code, from
+       .chezmoidata/agent-skills.yaml through the derived document. Plugin
+       skills cannot be overridden; these all come from the store. The npx
+       names come from the skills CLI's lock file at template time, so a fresh
+       machine's first apply writes none and the second fills them in.
 
        Per-key setValueAtPath (not one whole-dict overwrite) so overrides the
        user sets for other skills via /config pass through untouched. A per-key
@@ -626,10 +619,9 @@
 {{- range $skill := $d.on_demand_claude -}}
 {{-   $merged = setValueAtPath (list "skillOverrides" $skill) "user-invocable-only" $merged -}}
 {{- end -}}
-{{- range $agent, $skills := $d.agent_skills -}}
-{{-   range $skill := $skills -}}
-{{-     $merged = setValueAtPath (list "skillOverrides" $skill) "name-only" $merged -}}
-{{-   end -}}
+{{- /* TOMBSTONE: the media skills were `name-only` for the lara subagent and now load from the media plugin folder. */ -}}
+{{- range $skill := $d.media_names -}}
+{{-   $merged = deleteValueAtPath (printf "skillOverrides.%s" $skill) $merged -}}
 {{- end -}}
 
 {{ $merged | toPrettyJson }}

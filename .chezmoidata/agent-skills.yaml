@@ -1,6 +1,6 @@
 # Skills per harness, grouped by the command that installs them. media: skills only a media session loads.
 # repo: owner/repo[/path] for npx; slug: @owner/skill for clawhub; skill: a store folder another tool writes.
-# on_demand: loads only when asked. agent: the subagent that gets it. hermes: profiles that link it from the store.
+# on_demand: loads only when asked. hermes: profiles that link it from the store.
 # claude_desktop: zipped by `just claude-desktop-skills`. hermes: `hermes -p <profile> skills install <identifier>`.
 # A skill the Hermes hub refuses or lists stale reaches a profile through its npx or clawhub entry's hermes: list.
 skills:
@@ -75,12 +75,10 @@ skills:
     media:
       npx:
         - repo: "heygen-com/hyperframes"
-          agent: "lara"
           hermes:
             - "lara"
       elevenlabs:
-        - agent: "lara"
-          hermes:
+        - hermes:
             - "lara"
     claude_desktop:
       - repo: "mattpocock/skills"
