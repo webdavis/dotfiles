@@ -50,7 +50,6 @@ skills:
             - "default"
         - repo: "plannotator/herdr-annotate"
           on_demand: true
-        - repo: "resend/resend-skills"
         - repo: "rjyo/moshi-skill"
           hermes:
             - "default"

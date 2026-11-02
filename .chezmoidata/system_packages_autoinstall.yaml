@@ -13,7 +13,6 @@ packages:
         - openai/tools
         - openhue/cli
         - plannotator/tap
-        - resend/cli
         - rjyo/moshi
         - schpet/tap
         - supabase/tap
@@ -31,7 +30,6 @@ packages:
         - openai/tools
         - openhue/cli
         - plannotator/tap
-        - resend/cli
         - rjyo/moshi
         - schpet/tap
         - supabase/tap
@@ -54,7 +52,6 @@ packages:
         - brightness
         - btop
         - clerk/stable/clerk
-        - resend/cli/resend
         - supabase/tap/supabase
         # The tab-smart-rename herdr plugin runs on Bun.
         - bun

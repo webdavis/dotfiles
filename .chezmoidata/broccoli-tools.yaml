@@ -20,6 +20,7 @@ broccoli:
       - repo: "twilio/ai/skills/twilio/twilio-security-hardening"
       - repo: "temporalio/skill-temporal-cloud"
       - repo: "temporalio/claude-temporal-plugin"
+      - repo: "resend/resend-skills"
     mcp_servers:
       devin:
         type: http
@@ -34,6 +35,9 @@ broccoli:
             field: UserName
         ask:
           - devin_session_create
+      resend:
+        type: http
+        url: https://mcp.resend.com/mcp
   engineering:
     npx: []
     mcp_servers: {}
@@ -42,11 +46,14 @@ broccoli:
       homebrew:
         taps:
           - twilio/brew
+          - resend/cli
         trusted_taps:
           - twilio/brew
+          - resend/cli
         formulae:
           - temporal
           - twilio/brew/twilio
+          - resend/cli/resend
         casks:
           - claude-code@latest
           - devin-cli
