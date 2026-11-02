@@ -24,6 +24,15 @@ broccoli:
       - repo: "clerk/skills"
       - repo: "supabase/agent-skills"
       - repo: "langchain-ai/langsmith-skills"
+      - repo: "deepgram/skills/skills/api"
+      - repo: "deepgram/skills/skills/audio-intelligence"
+      - repo: "deepgram/skills/skills/cli"
+      - repo: "deepgram/skills/skills/docs"
+      - repo: "deepgram/skills/skills/examples"
+      - repo: "deepgram/skills/skills/recipes"
+      - repo: "deepgram/skills/skills/self-hosted"
+      - repo: "deepgram/skills/skills/speech-to-text"
+      - repo: "deepgram/skills/skills/text-intelligence"
     mcp_servers:
       devin:
         type: http
@@ -50,6 +59,11 @@ broccoli:
       langsmith:
         type: http
         url: https://api.smith.langchain.com/mcp
+      deepgram:
+        type: stdio
+        command: dg
+        args:
+          - mcp
   engineering:
     npx:
       - repo: "Infisical/ai-skills/skills/infisical-access-control"
@@ -147,6 +161,7 @@ broccoli:
         taps:
           - redpanda-data/tap
           - svix/svix
+          - deepgram/tap
           - twilio/brew
           - resend/cli
           - clerk/stable
@@ -154,6 +169,7 @@ broccoli:
         trusted_taps:
           - redpanda-data/tap
           - svix/svix
+          - deepgram/tap
           - twilio/brew
           - resend/cli
           - clerk/stable
@@ -164,6 +180,7 @@ broccoli:
           - redis
           - svix/svix/svix-cli
           - awscli
+          - deepgram/tap/deepgram
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
