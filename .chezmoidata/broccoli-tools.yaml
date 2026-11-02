@@ -110,6 +110,7 @@ broccoli:
       - repo: "mastra-ai/skills"
       - repo: "vercel/ai/skills/migrate-ai-sdk-v6-to-v7"
       - repo: "typesafe-ai/skills"
+      - repo: "livekit/agent-skills"
     mcp_servers:
       infisical_docs:
         type: http
@@ -129,6 +130,9 @@ broccoli:
         args:
           - -y
           - '@mastra/mcp-docs-server@latest'
+      livekit_docs:
+        type: http
+        url: https://docs.livekit.io/mcp
   packages:
     macos:
       homebrew:
@@ -155,6 +159,7 @@ broccoli:
           - resend/cli/resend
           - clerk/stable/clerk
           - supabase/tap/supabase
+          - livekit-cli
         casks:
           - claude-code@latest
           - devin-cli
