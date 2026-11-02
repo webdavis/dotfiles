@@ -348,6 +348,23 @@ broccoli:
           - upsert_connector_project_connection
           - verify_project_domain
           - write_session_files
+      porter:
+        type: http
+        url: https://mcp.porter.run
+        ask:
+          - create_github_workflow
+          - create_app
+          - update_application
+          - redeploy_application
+          - trigger_job_run
+          - enable_sandboxes
+          - update_sandbox_settings
+          - set_sandbox_domain
+          - create_sandbox
+          - exec_sandbox
+          - install_addon
+          - update_addon
+          - delete_addon
   packages:
     macos:
       homebrew:
@@ -355,6 +372,7 @@ broccoli:
           - redpanda-data/tap
           - svix/svix
           - deepgram/tap
+          - porter-dev/porter
           - twilio/brew
           - resend/cli
           - clerk/stable
@@ -363,6 +381,7 @@ broccoli:
           - redpanda-data/tap
           - svix/svix
           - deepgram/tap
+          - porter-dev/porter
           - twilio/brew
           - resend/cli
           - clerk/stable
@@ -376,6 +395,7 @@ broccoli:
           - deepgram/tap/deepgram
           - newrelic-cli
           - render
+          - porter-dev/porter/porter
           - twilio/brew/twilio
           - resend/cli/resend
           - clerk/stable/clerk
