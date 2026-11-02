@@ -102,7 +102,7 @@
       "YNAB_API_TOKEN" ((keepassxc "YNAB :: Personal Access Token").Password)) -}}
 {{- $merged = setValueAtPath "mcpServers.ynab" $ynabMcp $merged -}}
 
-{{- $merged = setValueAtPath "mcpServers.resend" (dict "type" "http" "url" "https://mcp.resend.com/mcp") $merged -}}
+{{- $merged = deleteValueAtPath "mcpServers.resend" $merged -}}
 
 {{- $merged = setValueAtPath "mcpServers.clerk" (dict "type" "http" "url" "https://mcp.clerk.com/mcp") $merged -}}
 
