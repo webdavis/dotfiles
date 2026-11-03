@@ -28,3 +28,9 @@
 .config/nvim/lua/custom_api/herdr.lua
 .local/bin/herdr-annotate-menu.sh
 .config/nvim/lua/plugins/todo-comments.lua
+
+# Neovim files whose sources are gone.
+.config/nvim/lua/plugins/atlas.lua
+.config/nvim/lua/plugins/noice.lua
+.config/nvim/lua/plugins/unimpaired.lua
+.config/nvim/lua/custom_api/preview_host.lua
