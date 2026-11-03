@@ -15,7 +15,6 @@ skills:
     codex_and_claude:
       npx:
         - repo: "agamm/claude-code-owasp"
-        - repo: "agavra/tuicr"
         - repo: "backnotprop/plannotator/apps/skills/core"
           on_demand: true
         - repo: "blader/humanizer"
@@ -149,7 +148,6 @@ skills:
         - "skills-sh/mattpocock/skills/wizard"
         - "skills-sh/mattpocock/skills/writing-for-agents"
         - "webdavis/skills/plugins/git/skills/conventional-commits"
-        - "skills-sh/agavra/tuicr/tuicr"
         - "skills-sh/kunchenguid/gh-axi/gh-axi"
         - "tt-a1i/archify/archify"
         - "webdavis/skills/plugins/clean-code/skills/clean-code"

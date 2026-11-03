@@ -164,7 +164,6 @@ packages:
         - tree
         - treefmt
         - trippy
-        - tuicr
         - uv
         - vapor
         - websocat
@@ -292,8 +291,6 @@ packages:
   # Built from a local clone and linked into herdr,
   # because their manifests come from this machine's config.
   herdr_linked_plugins:
-    - id: herdr-process
-      repo: webdavis/herdr-process
     - id: herdr-picker
       repo: webdavis/herdr-picker
 
