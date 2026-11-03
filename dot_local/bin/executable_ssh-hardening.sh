@@ -305,7 +305,7 @@ required_value() {
 # assert_directive_value <label> <sshd output> <key> <want>: fail when the key is wrong or absent.
 assert_directive_value() {
   local label="$1" output="$2" key="$3" want="$4" got status=0
-  got="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')" ||
+  got="$(printf '%s\n' "$output" | awk -v k="$key" 'tolower($1) == k { print $2; exit }')" ||
     status=$?
   if [[ $status -ne 0 ]]; then
     add_failure "$label: could not read '$key' out of the sshd output (exit $status); failing closed rather than reading an unset value as absent"
@@ -1391,7 +1391,7 @@ resolve_probe_ports() {
     die "could not resolve the effective sshd port ('$SSHD_BIN -G' exited $status); refusing to restart a daemon whose readiness could not then be probed. sshd was not touched. Output: $output"
   fi
   status=0
-  listing="$(printf '%s\n' "$output" | awk '$1 == "port" { print $2 }')" ||
+  listing="$(printf '%s\n' "$output" | awk 'tolower($1) == "port" { print $2 }')" ||
     status=$?
   if [[ $status -ne 0 ]]; then
     die "could not read the port out of the sshd -G output (exit $status); failing closed before the disruptive step. sshd was not touched."
@@ -1621,7 +1621,7 @@ resolve_password_channel() {
     channel_open=0
     for key in passwordauthentication kbdinteractiveauthentication; do
       status=0
-      value="$(printf '%s\n' "$output" | awk -v k="$key" '$1 == k { print $2; exit }')" ||
+      value="$(printf '%s\n' "$output" | awk -v k="$key" 'tolower($1) == k { print $2; exit }')" ||
         status=$?
       if [[ $status -ne 0 ]]; then
         return "$PASSWORD_CHANNEL_ERROR"
