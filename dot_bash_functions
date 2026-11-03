@@ -160,6 +160,7 @@ start-claude-with-broccoli-tech-support-tools() {
     --plugin-dir ~/.config/agents/broccoli-tech-support \
     "$@"
 }
+alias sbs='start-claude-with-broccoli-tech-support-tools'
 
 start-claude-with-broccoli-tech-support-and-engineering-tools() {
   clauth start broccoli \
@@ -167,8 +168,10 @@ start-claude-with-broccoli-tech-support-and-engineering-tools() {
     --plugin-dir ~/.config/agents/broccoli-engineering \
     "$@"
 }
+alias sbe='start-claude-with-broccoli-tech-support-and-engineering-tools'
 
 start-claude-with-media-tools() {
   claude --plugin-dir ~/.config/agents/media \
     "$@"
 }
+alias scm='start-claude-with-media-tools'
