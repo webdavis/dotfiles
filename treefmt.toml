@@ -119,20 +119,3 @@ includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
 command = "luacheck"
 options = ["--config", "dot_config/nvim/dot_luacheckrc"]
 includes = ["dot_config/nvim/*.lua", "dot_config/nvim/**/*.lua"]
-
-# Lists both globs for the reason stylua gives above.
-[formatter.ruff-check]
-command = "ruff"
-options = ["check"]
-includes = [
-  "dot_config/herdr/plugins/config/herdr-picker/pickers/lib/*.py",
-  "dot_config/herdr/plugins/config/herdr-picker/pickers/lib/**/*.py",
-]
-
-[formatter.ruff-format]
-command = "ruff"
-options = ["format", "--check"]
-includes = [
-  "dot_config/herdr/plugins/config/herdr-picker/pickers/lib/*.py",
-  "dot_config/herdr/plugins/config/herdr-picker/pickers/lib/**/*.py",
-]

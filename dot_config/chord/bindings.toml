@@ -20,8 +20,7 @@ header = '''
 #
 # The shell functions these bindings call, and the `\C-x0`, `\C-x1` and
 # `\C-x2` helper macros, live in ~/.bash_bindings_functions, which
-# ~/.bashrc sources first. herdr-picker binds its own picker keys from
-# ~/.fzf_bindings.
+# ~/.bashrc sources first.
 '''
 
 [render.menu]
@@ -783,7 +782,7 @@ run = "__bash_bindings_git_ls_files_with_last_modified"
 
 [[group]]
 name = "fzf"
-description = "fzf's own widgets. The pickers are herdr-picker's; `ctrl-t ;` lists them."
+description = "fzf's own widgets."
 
 [[group.binding]]
 key = "ctrl-t ctrl-t"

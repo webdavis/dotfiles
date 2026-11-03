@@ -11,8 +11,7 @@
 #
 # The shell functions these bindings call, and the `\C-x0`, `\C-x1` and
 # `\C-x2` helper macros, live in ~/.bash_bindings_functions, which
-# ~/.bashrc sources first. herdr-picker binds its own picker keys from
-# ~/.fzf_bindings.
+# ~/.bashrc sources first.
 
 # --- editing ---
 # Editing-mode switching and the readline motions that make vi-insert
@@ -503,7 +502,7 @@ builtin bind -m vi-insert '"\C-xl": "\C-x0__bash_bindings_git_ls_files_with_last
 builtin bind -m vi-command '"\C-xl": "i\C-x0__bash_bindings_git_ls_files_with_last_modified\r"'
 
 # --- fzf ---
-# fzf's own widgets. The pickers are herdr-picker's; `ctrl-t ;` lists them.
+# fzf's own widgets.
 
 # Files under this folder, from fzf's own Ctrl-T widget
 builtin bind -m vi-insert -x '"\C-t\C-t": "fzf-file-widget"'
