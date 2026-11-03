@@ -1,6 +1,6 @@
 c capture        comment on the selected text
-o open           review this folder
-g gate           review this folder and approve
+o open           review this folder ({pane_folder})
+g gate           review this folder and approve ({pane_folder})
 t terminal       review this pane's output
 l last           review one of the agent's replies
 n last-newest    review the agent's newest reply
