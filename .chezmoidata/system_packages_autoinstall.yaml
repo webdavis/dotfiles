@@ -11,6 +11,7 @@ packages:
         - nikitabobko/tap
         - openai/tools
         - openhue/cli
+        - oven-sh/bun
         - plannotator/tap
         - rjyo/moshi
         - xdevplatform/tap
@@ -25,6 +26,7 @@ packages:
         - nikitabobko/tap
         - openai/tools
         - openhue/cli
+        - oven-sh/bun
         - plannotator/tap
         - rjyo/moshi
         - xdevplatform/tap
@@ -47,7 +49,7 @@ packages:
         - brightness
         - btop
         # The tab-smart-rename herdr plugin runs on Bun.
-        - bun
+        - oven-sh/bun/bun
         - ca-certificates
         - carapace
         - ccusage
