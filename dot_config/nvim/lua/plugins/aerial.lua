@@ -54,8 +54,24 @@ return {
         min_width = 20,
       },
       on_attach = function(bufnr)
-        map({ mode = "n", lhs = "{", rhs = "AerialPrev", desc = "Aerial: jump to next code object", buffer = bufnr })
-        map({ mode = "n", lhs = "}", rhs = "AerialNext", desc = "Aerial: jump to previous code object", buffer = bufnr })
+        map({
+          mode = "n",
+          lhs = { "{", "<M-P>" },
+          rhs = function()
+            require("aerial").prev(vim.v.count1)
+          end,
+          desc = "Aerial: jump to previous code object",
+          buffer = bufnr,
+        })
+        map({
+          mode = "n",
+          lhs = { "}", "<M-N>" },
+          rhs = function()
+            require("aerial").next(vim.v.count1)
+          end,
+          desc = "Aerial: jump to next code object",
+          buffer = bufnr,
+        })
 
         map({
           mode = "n",
