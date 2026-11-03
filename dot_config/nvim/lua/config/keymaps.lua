@@ -7,6 +7,22 @@ map({
   desc = "LSP: code action",
 })
 
+for _, jump in ipairs({
+  { lhs = "]E", direction = 1, severity = "ERROR", desc = "Next error" },
+  { lhs = "[E", direction = -1, severity = "ERROR", desc = "Previous error" },
+  { lhs = "]W", direction = 1, severity = "WARN", desc = "Next warning" },
+  { lhs = "[W", direction = -1, severity = "WARN", desc = "Previous warning" },
+}) do
+  map({
+    mode = "n",
+    lhs = jump.lhs,
+    rhs = function()
+      vim.diagnostic.jump({ count = jump.direction * vim.v.count1, severity = vim.diagnostic.severity[jump.severity] })
+    end,
+    desc = jump.desc,
+  })
+end
+
 map({
   mode = "n",
   lhs = "<leader>nh",
