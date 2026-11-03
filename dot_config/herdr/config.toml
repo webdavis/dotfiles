@@ -133,24 +133,19 @@ width = 80
 height = 21
 
 [[keys.command]]
+key = "prefix+t"
+type = "popup"
+command = "herdr-action-menu.sh tab-smart-rename"
+description = "smart rename: open the action menu"
+width = 80
+height = 22
+
+[[keys.command]]
 key = "prefix+v"
 type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
 description = "reviewr: toggle the code-review pane"
 
-[[keys.command]]
-key = "prefix+t"
-type = "plugin_action"
-command = "tab-smart-rename.rename-now"
-description = "smart rename: the current tab"
-
-[[keys.command]]
-key = "prefix+shift+t"
-type = "plugin_action"
-command = "tab-smart-rename.rename-all"
-description = "smart rename: every tab"
-
-# >>> furkankly.zoetrope keys (managed: `setup-keys` writes this block, `remove-keys` deletes it)
 [[keys.command]]
 key = "prefix+z"
 type = "plugin_action"
