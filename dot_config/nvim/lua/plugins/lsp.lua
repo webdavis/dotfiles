@@ -192,7 +192,6 @@ return {
         "marksman",
         "nil_ls", -- nix
         "pyright",
-        "ruby_lsp",
         "ruff",
         "rust_analyzer",
         "terraformls",
