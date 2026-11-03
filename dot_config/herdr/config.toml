@@ -26,7 +26,7 @@ delivery = "herdr"
 
 [ui.sidebar.agents]
 row_gap = 1
-rows = [["state_icon", "machine", "workspace", "tab"]]
+rows = [["state_icon", "machine", "workspace", "tab", "$clauth"]]
 
 [experimental]
 pane_history = true
