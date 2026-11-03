@@ -36,24 +36,6 @@ return {
     { "<leader>Ca", "<cmd>ClaudeCodeAdd %<cr>", desc = "Claude: add current file" },
     { "<leader>Cy", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Claude: accept diff" },
     { "<leader>Cn", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Claude: deny diff" },
-    -- Sends raw text through herdr to the agent pane.
-    -- It sits in this list because `<leader>C` is the Claude group.
-    {
-      "<leader>Cp",
-      function()
-        require("custom_api.herdr").send_selection_or_paragraph()
-      end,
-      mode = { "n", "x" },
-      desc = "Claude: send selection or paragraph",
-    },
-    -- Prompts `/ide` at the workspace's Claude agent, or starts one in a split beside the editor.
-    {
-      "<leader>Cc",
-      function()
-        require("custom_api.herdr").launch_or_attach()
-      end,
-      desc = "Claude: launch or attach --ide",
-    },
   },
   -- INFO logs reach stderr in a headless run, so `opts` lowers the level without a UI
   -- and `init` restores it once one attaches.
