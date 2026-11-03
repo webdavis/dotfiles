@@ -198,7 +198,7 @@ claude = [
   ],
   [
     "agent",
-    "$clauth",
+    { token = "$clauth", fg = "#d9906b" },
     "$clauth_delegate",
   ],
 ]
