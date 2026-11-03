@@ -154,7 +154,7 @@ type = "popup"
 command = "herdr-action-menu.sh furkankly.zoetrope"
 description = "zoetrope: open the action menu"
 width = 80
-height = 13
+height = 12
 
 [[keys.command]]
 key = "prefix+v"
