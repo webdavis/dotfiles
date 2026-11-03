@@ -121,7 +121,6 @@ packages:
         - ngrep
         - nmap
         - nushell
-        - obsidian-cli
         - ollama
         - onefetch
         - openai-whisper
