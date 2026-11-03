@@ -15,10 +15,7 @@ skills:
     codex_and_claude:
       npx:
         - repo: "agamm/claude-code-owasp"
-        - repo: "backnotprop/plannotator/apps/skills/core"
-          on_demand: true
         - repo: "blader/humanizer"
-        - repo: "Doist/todoist-cli"
         - repo: "guwidoe/lobster-skill"
           on_demand: true
         - repo: "homeassistant-ai/skills"
@@ -31,8 +28,6 @@ skills:
           on_demand: true
         - repo: "kunchenguid/chrome-devtools-axi"
         - repo: "kunchenguid/gh-axi"
-        - repo: "kunchenguid/lavish-axi"
-          on_demand: true
         - repo: "mvanhorn/last30days-skill"
           hermes:
             - "lara"
@@ -88,7 +83,6 @@ skills:
           - "humanizer"
     hermes:
       default:
-        - "skills-sh/Doist/todoist-cli/todoist-cli"
         - "webdavis/pns/skills/loop"
         - "webdavis/pns/skills/recap"
         - "webdavis/scalebar/skills/scalebar"
