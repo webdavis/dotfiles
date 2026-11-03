@@ -75,6 +75,7 @@
   "oil-git.nvim": { "branch": "main", "commit": "95b0d83f70e5e3e889f4d2f8b70eba5185ff67b6" },
   "oil.nvim": { "branch": "master", "commit": "b73018b75affd13fa38e2fc94ef753b465f770d7" },
   "overseer.nvim": { "branch": "master", "commit": "33dc4f7808b0bb705250362fac7947c7d7dfcf96" },
+  "pantry.nvim": { "branch": "main", "commit": "91672546829b68bdf369bd80914d4cd93308d0e3" },
   "plenary.nvim": { "branch": "master", "commit": "74b06c6c75e4eeb3108ec01852001636d85a932b" },
   "pns.nvim": { "branch": "main", "commit": "f86bd33aa63f016f7780e307c3ec79d4dfc7dbaf" },
   "quick-scope": { "branch": "master", "commit": "6cee1d9e0b9ac0fbffeb538d4a5ba9f5628fabbc" },
@@ -90,7 +91,6 @@
   "vim-fugitive": { "branch": "master", "commit": "3b753cf8c6a4dcde6edee8827d464ba9b8c4a6f0" },
   "vim-repeat": { "branch": "master", "commit": "65846025c15494983dafe5e3b46c8f88ab2e9635" },
   "vim-rhubarb": { "branch": "master", "commit": "5496d7c94581c4c9ad7430357449bb57fc59f501" },
-  "vim-rsi": { "branch": "master", "commit": "45540637ead22f011e8215f1c90142e49d946a54" },
   "which-key.nvim": { "branch": "main", "commit": "3aab2147e74890957785941f0c1ad87d0a44c15a" },
   "xcodebuild.nvim": { "branch": "main", "commit": "633eb71c0b354581837025581b7261dbe5361226" },
   "yanky.nvim": { "branch": "main", "commit": "dd6689fdda85f66cab7d9b1a1664625f3be0920d" }
