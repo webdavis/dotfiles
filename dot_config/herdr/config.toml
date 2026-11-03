@@ -146,6 +146,42 @@ command = "worktrunk.merge"
 description = "worktree: merge into the target branch"
 
 [[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "annotate.capture"
+description = "annotate: comment on selected text"
+
+[[keys.command]]
+key = "prefix+shift+a"
+type = "plugin_action"
+command = "annotate.last"
+description = "annotate: review the agent's last reply"
+
+[[keys.command]]
+key = "prefix+ctrl+a"
+type = "plugin_action"
+command = "annotate.open"
+description = "annotate: review documents in the current folder"
+
+[[keys.command]]
+key = "prefix+alt+a"
+type = "plugin_action"
+command = "annotate.manage"
+description = "annotate: manage annotations"
+
+[[keys.command]]
+key = "prefix+y"
+type = "plugin_action"
+command = "annotate.copy-context"
+description = "annotate: copy annotations as context"
+
+[[keys.command]]
+key = "prefix+shift+y"
+type = "plugin_action"
+command = "annotate.copy-archive"
+description = "annotate: copy annotations as context and archive them"
+
+[[keys.command]]
 key = "prefix+v"
 type = "plugin_action"
 command = "persiyanov.reviewr.toggle"
