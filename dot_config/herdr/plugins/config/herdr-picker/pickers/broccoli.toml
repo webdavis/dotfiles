@@ -1,6 +1,0 @@
-[temporal]
-# The Broccoli production Temporal Cloud address, shaped like "<namespace>.<account>.tmprl.cloud:7233".
-address = ""
-namespace = ""
-# Empty while payloads are plain JSON.
-codec_endpoint = ""

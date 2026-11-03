@@ -17,9 +17,6 @@ scripts/
 .config/nvim/docs/
 .config/nvim/tests/
 
-.config/herdr/plugins/config/herdr-picker/pickers/lib/broccoli/test_*.py
-.config/herdr/plugins/config/herdr-picker/pickers/lib/broccoli/fixtures/
-
 .shellcheckrc
 .editorconfig
 .mdformat.toml

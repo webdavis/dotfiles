@@ -84,39 +84,6 @@ remove_worktree = ""
 navigate_workspace_up = "ctrl+p"
 navigate_workspace_down = "ctrl+n"
 
-[[keys.command]]
-key = "prefix+ctrl+\\"
-type = "plugin_action"
-command = "herdr-picker.last_workspace"
-description = "last workspace (MRU toggle)"
-
-[[keys.command]]
-key = "prefix+ctrl+o"
-type = "plugin_action"
-command = "herdr-picker.pick"
-description = "pick a workspace"
-
-# Runs the dev build to preview a look change before it is pushed.
-[[keys.command]]
-key = "prefix+ctrl+p"
-type = "popup"
-command = "~/workspaces/Ivy/webdavis/herdr-picker/target/release/herdr-picker pick"
-description = "pick a workspace (dev build)"
-width = 40
-height = 13
-
-[[keys.command]]
-key = "prefix+ctrl+t"
-type = "plugin_action"
-command = "herdr-picker.launch_ctrl_t"
-description = "pickers on ctrl-t over this pane"
-
-[[keys.command]]
-key = "prefix+ctrl+g"
-type = "plugin_action"
-command = "herdr-picker.launch_ctrl_g"
-description = "pickers on ctrl-g over this pane"
-
 # Moves across Neovim splits and herdr panes as if they were one set of panes.
 [[keys.command]]
 key = "ctrl+h"

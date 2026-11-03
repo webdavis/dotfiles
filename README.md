@@ -78,15 +78,8 @@ chezmoi edit <FILE>
 
 ## Keys
 
-Every shell key binding outside the pickers is a row in one table,
-[`dot_config/chord/bindings.toml`](./dot_config/chord/bindings.toml). Two ways to find one:
-
-- `bindings` prints the table: key, group, description and action. `bindings --group git` prints one group.
-- `Ctrl-t ;` lists every picker by its key, and its bindings source searches every shell key, the table's rows included.
-  The pickers come from [herdr-picker](https://github.com/webdavis/herdr-picker), configured in
-  [`dot_config/herdr/plugins/config/herdr-picker/`](./dot_config/herdr/plugins/config/herdr-picker/).
-
-Inside any picker, `Ctrl-/` or `Alt-/` shows its keys.
+Every shell key binding is a row in one table, [`dot_config/chord/bindings.toml`](./dot_config/chord/bindings.toml).
+`bindings` prints the table: key, group, description and action. `bindings --group git` prints one group.
 
 ## Development Environment
 

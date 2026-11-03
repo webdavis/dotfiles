@@ -22,7 +22,3 @@ else
   unset FZF_CTRL_T_COMMAND
 fi
 unset __fzf_binding_file __fzf_saved_ctrl_t_command __fzf_ctrl_t_command_set
-
-if command -v herdr-picker >/dev/null 2>&1; then
-  eval "$(herdr-picker init bash)"
-fi

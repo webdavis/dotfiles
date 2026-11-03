@@ -290,9 +290,7 @@ packages:
 
   # Built from a local clone and linked into herdr,
   # because their manifests come from this machine's config.
-  herdr_linked_plugins:
-    - id: herdr-picker
-      repo: webdavis/herdr-picker
+  herdr_linked_plugins: []
 
   herdr_plugins:
     - id: herdr-smart-nav
