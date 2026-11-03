@@ -1,0 +1,12 @@
+c capture        comment on the selected text
+o open           review this folder
+g gate           review this folder and approve
+t terminal       review this pane's output
+l last           review one of the agent's replies
+n last-newest    review the agent's newest reply
+-
+m manage         manage saved comments
+y copy-context   copy saved comments
+Y copy-archive   copy saved comments, then archive
+p paste-archive  paste saved comments into the prompt, then archive
+s send-archive   send saved comments to the agent, then archive

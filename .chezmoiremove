@@ -26,3 +26,4 @@
 .config/nvim/lua/plugins/herdr-nvim.lua
 .config/nvim/lua/plugins/herdr-nvim-annotate-extension.lua
 .config/nvim/lua/custom_api/herdr.lua
+.local/bin/herdr-annotate-menu.sh

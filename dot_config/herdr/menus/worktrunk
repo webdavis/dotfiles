@@ -1,0 +1,7 @@
+o open               pick a worktree, or start a new branch off {default_branch}
+c open-current       pick a worktree, or start a new branch off {current_branch}
+r open-with-remotes  pick a worktree, or start a new branch off a local or remote branch
+-
+m merge              merge into the target branch
+M merge-no-squash    merge into the target branch, keeping every commit
+x remove             remove a worktree

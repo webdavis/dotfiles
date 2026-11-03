@@ -115,41 +115,19 @@ type = "shell"
 command = "$HERDR_BIN_PATH pane send-keys $HERDR_ACTIVE_PANE_ID 'ctrl+l'"
 description = "clear screen: send Ctrl-l to the focused pane (like bash)"
 
+# One key inside a popup picks a plugin action; the menu file lists them.
 [[keys.command]]
 key = "prefix+w"
-type = "plugin_action"
-command = "worktrunk.open"
-description = "worktree: switch or create from the default branch"
+type = "popup"
+command = "herdr-action-menu.sh worktrunk"
+description = "worktree: open the action menu"
+width = 96
+height = 14
 
-[[keys.command]]
-key = "prefix+shift+w"
-type = "plugin_action"
-command = "worktrunk.open-current"
-description = "worktree: switch or create from the current branch"
-
-[[keys.command]]
-key = "prefix+ctrl+w"
-type = "plugin_action"
-command = "worktrunk.open-with-remotes"
-description = "worktree: switch or create from local or remote branches"
-
-[[keys.command]]
-key = "prefix+ctrl+x"
-type = "plugin_action"
-command = "worktrunk.remove"
-description = "worktree: remove"
-
-[[keys.command]]
-key = "prefix+shift+m"
-type = "plugin_action"
-command = "worktrunk.merge"
-description = "worktree: merge into the target branch"
-
-# One key inside the popup picks the annotate action; the menu lists them.
 [[keys.command]]
 key = "prefix+a"
 type = "popup"
-command = "herdr-annotate-menu.sh"
+command = "herdr-action-menu.sh annotate"
 description = "annotate: open the action menu"
 width = 80
 height = 21
