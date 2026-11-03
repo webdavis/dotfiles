@@ -135,6 +135,10 @@ return {
         map({ mode = { "n", "x", "o" }, lhs = "]k", rhs = function() move.goto_next({ "@conditional.outer", "@conditional.inner" }, "textobjects") end, desc = "next conditional" })
         map({ mode = { "n", "x", "o" }, lhs = "[k", rhs = function() move.goto_previous({ "@conditional.outer", "@conditional.inner" }, "textobjects") end, desc = "previous conditional" })
 
+        map({ mode = { "n", "x", "o" }, lhs = "]v", rhs = function() move.goto_next_start("@assignment.outer", "textobjects") end, desc = "next variable" })
+        map({ mode = { "n", "x", "o" }, lhs = "[v", rhs = function() move.goto_previous_start("@assignment.outer", "textobjects") end, desc = "previous variable" })
+
+
         -- Repeat movements
         -------------------
         local ts_repeat_move = require("nvim-treesitter-textobjects.repeatable_move")
