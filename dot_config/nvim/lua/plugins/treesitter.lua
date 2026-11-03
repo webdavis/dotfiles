@@ -85,6 +85,9 @@ return {
         map({ mode = { "n", "x", "o" }, lhs = "]v", rhs = function() move.goto_next_start("@assignment.outer", "textobjects") end, desc = "next variable" })
         map({ mode = { "n", "x", "o" }, lhs = "[v", rhs = function() move.goto_previous_start("@assignment.outer", "textobjects") end, desc = "previous variable" })
 
+        map({ mode = { "n", "x", "o" }, lhs = "],", rhs = function() move.goto_next_start("@parameter.inner", "textobjects") end, desc = "next argument" })
+        map({ mode = { "n", "x", "o" }, lhs = "[,", rhs = function() move.goto_previous_start("@parameter.inner", "textobjects") end, desc = "previous argument" })
+
         local ts_repeat_move = require("nvim-treesitter-textobjects.repeatable_move")
 
         -- `;` repeats in the direction of the last move.
