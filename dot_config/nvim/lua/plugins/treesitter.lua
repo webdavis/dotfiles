@@ -13,7 +13,7 @@ return {
 
         map({
           mode = "n",
-          lhs = "[r",
+          lhs = { "[[", "[r" },
           rhs = function()
             treesitter_context.go_to_context(vim.v.count1)
           end,
