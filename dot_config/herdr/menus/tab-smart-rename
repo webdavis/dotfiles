@@ -1,0 +1,14 @@
+t rename-now        rename the current tab
+T rename-all        rename every tab, one after another
+p reset-pane        clear the pane's manual name and rename it
+b reset-tab         clear the tab's manual name and rename it
+w reset-workspace   clear the workspace's manual name and rename it
+-
+s status            report whether the worker is running
+S start             start the worker
+x stop              stop the worker
+-
+u setup             choose a model source, check it, and start the worker
+e configure-prompt  edit the naming prompt
+c check-ai          check the provider and prompt without a request
+a configure-ai      same as setup
