@@ -60,7 +60,6 @@ plugins:
           - "pns@pns"
       - marketplace: "webdavis/skills"
         plugins:
-          - "strategy@webdavis"
           - "clean-code@webdavis"
           - "git@webdavis"
     hermes:
