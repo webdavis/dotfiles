@@ -141,44 +141,34 @@ width = 80
 height = 22
 
 [[keys.command]]
-key = "prefix+v"
-type = "plugin_action"
-command = "persiyanov.reviewr.toggle"
-description = "reviewr: toggle the code-review pane"
+key = "prefix+d"
+type = "popup"
+command = "herdr-action-menu.sh herdr-damnit"
+description = "damnit: open the action menu"
+width = 80
+height = 23
 
 [[keys.command]]
 key = "prefix+z"
-type = "plugin_action"
-command = "furkankly.zoetrope.open"
-description = "zoetrope: session graph (overlay)"
+type = "popup"
+command = "herdr-action-menu.sh furkankly.zoetrope"
+description = "zoetrope: open the action menu"
+width = 80
+height = 13
 
-# Inside the markers, so remove-keys deletes both bindings together.
 [[keys.command]]
-key = "prefix+shift+z"
-type = "plugin_action"
-command = "furkankly.zoetrope.open-tab"
-description = "zoetrope: session graph (tab)"
-
-# <<< furkankly.zoetrope keys
+key = "prefix+v"
+type = "popup"
+command = "herdr-action-menu.sh persiyanov.reviewr"
+description = "reviewr: open the action menu"
+width = 80
+height = 10
 
 [[keys.command]]
 key = "prefix+@"
 type = "plugin_action"
 command = "clauth.open"
 description = "clauth: manage accounts"
-
-[[keys.command]]
-key = "prefix+d"
-type = "plugin_action"
-command = "herdr-damnit.toggle"
-description = "damnit: toggle the task pane"
-
-# The status screen gets its own chord because staging is why the plugin exists.
-[[keys.command]]
-key = "prefix+shift+d"
-type = "plugin_action"
-command = "herdr-damnit.status"
-description = "damnit: open the pane on the status screen"
 
 # `$clauth` and `$clauth_delegate` mean something on Claude Code panes alone, so those get their own rows.
 [ui.sidebar.agents.rows_by_agent]
