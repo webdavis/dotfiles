@@ -46,6 +46,13 @@ map({
   desc = "Messages: history",
 })
 
+-- ┏━━━━━━━━━━━━━━━━━━┓
+-- ┃    Paragraphs    ┃
+-- ┗━━━━━━━━━━━━━━━━━━┛
+
+map({ mode = { "n", "x", "o" }, lhs = "]P", rhs = "}", sequence = true, desc = "Next paragraph" })
+map({ mode = { "n", "x", "o" }, lhs = "[P", rhs = "{", sequence = true, desc = "Previous paragraph" })
+
 -- ┏━━━━━━━━━━━━━━━━━━━━━━┓
 -- ┃    Files in Folder   ┃
 -- ┗━━━━━━━━━━━━━━━━━━━━━━┛
