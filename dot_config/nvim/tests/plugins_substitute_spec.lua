@@ -28,13 +28,13 @@ end
 return {
   ["the substitute operators are bound in the modes they work in"] = function()
     local keys = claimed()
-    for _, id in ipairs({ "n s", "n ss", "n S", "x s" }) do
+    for _, id in ipairs({ "n gs", "n gss", "n gS", "x gs" }) do
       assert(type(keys[id]) == "function", "not bound to a callable: " .. id)
     end
   end,
   ["the exchange operators and the cancel key are bound"] = function()
     local keys = claimed()
-    for _, id in ipairs({ "n sx", "n sxx", "n sxc", "x X" }) do
+    for _, id in ipairs({ "n gsx", "n gsxx", "n gsxc", "x X" }) do
       assert(type(keys[id]) == "function", "not bound to a callable: " .. id)
     end
   end,

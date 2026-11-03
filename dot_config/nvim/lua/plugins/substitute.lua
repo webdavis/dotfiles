@@ -1,7 +1,5 @@
--- The operator keys are upstream's own suggestions. `s`, `S` and visual `s` are
--- free here: nvim-surround takes `ys`, `ds`, `cs` and visual `S`, flash.nvim
--- ships with `char` mode disabled so it never claims `s`, and
--- nvim-various-textobjs maps `iS`/`aS` rather than a bare one.
+-- The operator keys are upstream's own suggestions with `g` in front, because
+-- Vim's `s` and `S` stay in use here. Visual `gS` belongs to nvim-surround.
 --
 -- The range family is on `<leader>S`, because `<leader>s` is the snacks picker
 -- group (23 keys) and an operator there would swallow the whole group.
@@ -21,16 +19,16 @@ return {
   end,
   keys = {
     -- stylua: ignore start
-    { "s",          function() require("substitute").operator() end,        desc = "Substitute: operator" },
-    { "ss",         function() require("substitute").line() end,            desc = "Substitute: line" },
-    { "S",          function() require("substitute").eol() end,             desc = "Substitute: to end of line" },
-    { "s",          function() require("substitute").visual() end,          mode = "x", desc = "Substitute: selection" },
+    { "gs",         function() require("substitute").operator() end,        desc = "Substitute: operator" },
+    { "gss",        function() require("substitute").line() end,            desc = "Substitute: line" },
+    { "gS",         function() require("substitute").eol() end,             desc = "Substitute: to end of line" },
+    { "gs",         function() require("substitute").visual() end,          mode = "x", desc = "Substitute: selection" },
     { "<leader>S",  function() require("substitute.range").operator() end,  desc = "Substitute: over range (operator)" },
     { "<leader>S",  function() require("substitute.range").visual() end,    mode = "x", desc = "Substitute: over range (selection)" },
     { "<leader>SS", function() require("substitute.range").word() end,      desc = "Substitute: over range (word)" },
-    { "sx",         function() require("substitute.exchange").operator() end, desc = "Substitute: exchange operator" },
-    { "sxx",        function() require("substitute.exchange").line() end,   desc = "Substitute: exchange line" },
-    { "sxc",        function() require("substitute.exchange").cancel() end, desc = "Substitute: cancel exchange" },
+    { "gsx",        function() require("substitute.exchange").operator() end, desc = "Substitute: exchange operator" },
+    { "gsxx",       function() require("substitute.exchange").line() end,   desc = "Substitute: exchange line" },
+    { "gsxc",       function() require("substitute.exchange").cancel() end, desc = "Substitute: cancel exchange" },
     { "X",          function() require("substitute.exchange").visual() end, mode = "x", desc = "Substitute: exchange selection" },
     -- stylua: ignore end
   },
