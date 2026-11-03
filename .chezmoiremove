@@ -7,3 +7,9 @@
 .claude/commands/pr.md
 .claude/commands/sync-worktrees.md
 .claude/commands/uncommit.md
+
+# These Neovim plugins are gone, so their deployed specs go too.
+.config/nvim/lua/plugins/atlas.lua
+.config/nvim/lua/plugins/noice.lua
+.config/nvim/lua/plugins/unimpaired.lua
+.config/nvim/lua/custom_api/preview_host.lua
