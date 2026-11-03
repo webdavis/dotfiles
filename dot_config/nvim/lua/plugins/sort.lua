@@ -8,8 +8,8 @@ return {
     { "gogo", mode = "n", desc = "Sort current line" },
     { "ir", mode = { "o", "x" }, desc = "Inner sortable region" },
     { "ar", mode = { "o", "x" }, desc = "Around sortable region" },
-    { "],", mode = { "n", "x", "o" }, desc = "Next delimiter" },
-    { "[,", mode = { "n", "x", "o" }, desc = "Previous delimiter" },
+    { "]o", mode = { "n", "x", "o" }, desc = "Next delimiter" },
+    { "[o", mode = { "n", "x", "o" }, desc = "Previous delimiter" },
   },
   opts = {
     ignore_case = true,
@@ -17,7 +17,7 @@ return {
     -- and motions use free keys.
     mappings = {
       textobject = { inner = "ir", around = "ar" },
-      motion = { next_delimiter = "],", prev_delimiter = "[," },
+      motion = { next_delimiter = "]o", prev_delimiter = "[o" },
     },
   },
 }
