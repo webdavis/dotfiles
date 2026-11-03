@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+shopt -u patsub_replacement 2>/dev/null || true
 
 # Each line of a menu file is "<key> <action> <label>"; a lone "-" starts a new group.
 readonly menus_dir="$HOME/.config/herdr/menus"
@@ -29,12 +30,17 @@ pane_folder() {
 
 current_branch() {
   local folder=$1
-  git -C "$folder" branch --show-current 2>/dev/null
+  git -C "$folder" branch --show-current 2>/dev/null || true
 }
 
 default_branch() {
   local folder=$1
-  git -C "$folder" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'
+  git -C "$folder" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true
+}
+
+folder_name() {
+  local folder=$1
+  basename "$folder"
 }
 
 branch_label() {
@@ -46,17 +52,24 @@ branch_label() {
   fi
 }
 
-# Fills {current_branch} and {default_branch} in the labels from the pane's repo.
+# Fills {pane_folder}, {current_branch} and {default_branch} in the labels from the pane under the popup.
 load_menu() {
   local folder current default
   folder=$(pane_folder)
-  current=$(current_branch "${folder:-.}")
-  default=$(default_branch "${folder:-.}")
+  folder=${folder:-$PWD}
+  current=$(current_branch "$folder")
+  default=$(default_branch "$folder")
   [[ $current == "$default" ]] && current=""
-  mapfile -t menu_entries < <(sed \
-    -e "s#{current_branch}#$(branch_label "$current" "current branch")#g" \
-    -e "s#{default_branch}#$(branch_label "$default" "default branch")#g" \
-    "$menu_file")
+  local folder_label current_label default_label entry
+  folder_label="${italic}$(folder_name "$folder")${no_italic}"
+  current_label=$(branch_label "$current" "current branch")
+  default_label=$(branch_label "$default" "default branch")
+  mapfile -t menu_entries <"$menu_file"
+  for entry in "${!menu_entries[@]}"; do
+    menu_entries[entry]=${menu_entries[entry]//"{pane_folder}"/$folder_label}
+    menu_entries[entry]=${menu_entries[entry]//"{current_branch}"/$current_label}
+    menu_entries[entry]=${menu_entries[entry]//"{default_branch}"/$default_label}
+  done
 }
 
 load_menu
