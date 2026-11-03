@@ -84,7 +84,6 @@ packages:
         - furkankly/tap/zoetrope
         - fzf
         - gawk
-        - gfold
         - gh
         - ghostscript
         - git
@@ -235,6 +234,8 @@ packages:
           id: "497_799_835"
     cargo:
       - name: clauth
+      # Homebrew's gfold formula unlinks coreutils, whose GNU fold is also gfold; cargo's bin folder wins on PATH.
+      - name: gfold
       - name: tree-sitter-cli
     uv:
       - graphifyy
