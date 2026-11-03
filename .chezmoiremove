@@ -21,3 +21,8 @@
 
 # pwe replaces herdr-picker.
 .config/herdr/plugins/config/herdr-picker
+
+# herdr-nvim and annotate are gone from herdr, so their Neovim side goes too.
+.config/nvim/lua/plugins/herdr-nvim.lua
+.config/nvim/lua/plugins/herdr-nvim-annotate-extension.lua
+.config/nvim/lua/custom_api/herdr.lua
