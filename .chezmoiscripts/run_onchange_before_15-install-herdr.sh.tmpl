@@ -6,7 +6,7 @@ set -euo pipefail
 {{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
 
 readonly herdr_installer_url="https://herdr.dev/install.sh"
-readonly herdr_update_channel="preview"
+readonly herdr_update_channel="stable"
 
 homebrew_has_herdr_installed() {
   brew list herdr &>/dev/null
