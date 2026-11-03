@@ -1,0 +1,57 @@
+{{ if eq .chezmoi.os "darwin" -}}
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+{{ includeTemplate "cli-print-style-lib.sh.tmpl" }}
+
+{{ includeTemplate "sudo-session.sh.tmpl" }}
+
+# Each entry is "<pmset key> <name pmset -g prints it as> <value>".
+# The Mac stays awake with the lid closed on any power source, so it answers over Tailscale while the owner is away.
+readonly -a power_settings=(
+  "disablesleep SleepDisabled 1"
+  "tcpkeepalive tcpkeepalive 1"
+)
+
+current_power_setting() {
+  local name=$1
+  pmset -g | awk -v name="$name" '$1 == name { print $2 }'
+}
+
+power_setting_differs() {
+  local name=$1 value=$2
+  [[ $(current_power_setting "$name") != "$value" ]]
+}
+
+set_power_setting() {
+  local key=$1 value=$2
+  sudo pmset -a "$key" "$value"
+  report_line "set $key to $value."
+}
+
+missing_power_settings() {
+  local setting key name value
+  for setting in "${power_settings[@]}"; do
+    read -r key name value <<<"$setting"
+    power_setting_differs "$name" "$value" && echo "$key $value"
+  done
+  return 0
+}
+
+main() {
+  local -a settings_to_set=()
+  mapfile -t settings_to_set < <(missing_power_settings)
+  ((${#settings_to_set[@]})) || return 0
+
+  report_section 'power' 'never-sleep power policy'
+  authenticate_sudo_once
+  local setting
+  for setting in "${settings_to_set[@]}"; do
+    # shellcheck disable=SC2086
+    set_power_setting $setting
+  done
+}
+
+main "$@"
+{{ end -}}
