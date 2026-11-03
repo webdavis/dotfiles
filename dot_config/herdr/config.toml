@@ -233,25 +233,6 @@ command = "persiyanov.reviewr.toggle"
 description = "reviewr: toggle the code-review pane"
 
 [[keys.command]]
-key = "prefix+shift+v"
-type = "plugin_action"
-command = "herdr-process.tuicr:toggle-float"
-description = "tuicr: toggle floating window"
-
-[[keys.command]]
-key = "prefix+ctrl+r"
-type = "plugin_action"
-command = "herdr-process.review:toggle-float"
-description = "worktree review: toggle floating window"
-
-# Ends the session, so the next toggle reviews the worktree `worktree-review.sh pick` recorded.
-[[keys.command]]
-key = "prefix+alt+r"
-type = "plugin_action"
-command = "herdr-process.review:kill"
-description = "worktree review: end the session (re-pick with worktree-review.sh pick)"
-
-[[keys.command]]
 key = "prefix+t"
 type = "plugin_action"
 command = "tab-smart-rename.rename-now"

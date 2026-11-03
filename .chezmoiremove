@@ -14,3 +14,7 @@
 # The media plugin folder replaced the lara subagent.
 .claude/agents/lara.md
 .codex/agents/lara.toml
+
+# tuicr and the worktree review built on it are gone, with the herdr windows that opened them.
+.config/herdr/processes.toml
+.local/bin/worktree-review.sh
