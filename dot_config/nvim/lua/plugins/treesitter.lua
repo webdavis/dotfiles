@@ -141,6 +141,9 @@ return {
         map({ mode = { "n", "x", "o" }, lhs = "],", rhs = function() move.goto_next_start("@parameter.inner", "textobjects") end, desc = "next argument" })
         map({ mode = { "n", "x", "o" }, lhs = "[,", rhs = function() move.goto_previous_start("@parameter.inner", "textobjects") end, desc = "previous argument" })
 
+        map({ mode = { "n", "x", "o" }, lhs = "]3", rhs = function() move.goto_next_start("@comment.outer", "textobjects") end, desc = "next comment" })
+        map({ mode = { "n", "x", "o" }, lhs = "[3", rhs = function() move.goto_previous_start("@comment.outer", "textobjects") end, desc = "previous comment" })
+
 
         -- Repeat movements
         -------------------
