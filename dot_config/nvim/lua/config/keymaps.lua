@@ -32,6 +32,9 @@ map({
   desc = "Messages: history",
 })
 
+map({ mode = { "n", "x", "o" }, lhs = "]P", rhs = "}", sequence = true, desc = "Next paragraph" })
+map({ mode = { "n", "x", "o" }, lhs = "[P", rhs = "{", sequence = true, desc = "Previous paragraph" })
+
 map({
   mode = "n",
   lhs = "]f",
