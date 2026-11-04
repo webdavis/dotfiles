@@ -7,7 +7,7 @@ local function overlapping_modes(mode)
   return mode == "v" and { "x", "s" } or { mode }
 end
 
--- todo-comments.lua requires snacks at file scope.
+-- Several plugin specs require snacks at file scope.
 local function stub_snacks()
   package.preload["snacks"] = function()
     return setmetatable({}, {
