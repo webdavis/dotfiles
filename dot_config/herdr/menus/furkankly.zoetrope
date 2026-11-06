@@ -1,5 +1,3 @@
 o open        session graph over this pane, closing restores the layout
 s open-split  session graph split beside this pane
 t open-tab    session graph in its own tab
--
-k setup-keys   write the plugin's default key block into the herdr config
