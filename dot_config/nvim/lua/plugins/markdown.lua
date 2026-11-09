@@ -86,14 +86,11 @@ local function set_markdown_plus_keymaps()
     vim.keymap.set(keymap.mode, keymap.lhs, keymap.rhs, { buffer = true })
   end
 
-  -- custom_api.markdown_task is the only task toggle, so the plugin's own
+  -- pantry's markdown jar owns the task toggle on `<C-CR>`, so the plugin's own
   -- defaults for it go: `<C-t>` belongs to another tool.
   for _, default in ipairs({ { "i", "<C-t>" }, { "n", "<localleader>mx" }, { "x", "<localleader>mx" } }) do
     pcall(vim.keymap.del, default[1], default[2], { buffer = true })
   end
-  vim.keymap.set({ "n", "i" }, "<C-CR>", function()
-    require("custom_api.markdown_task").apply()
-  end, { buffer = true, desc = "Markdown: toggle task" })
 end
 
 return {
