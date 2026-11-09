@@ -20,8 +20,6 @@ effort_level=$(echo "$input" | jq -r '.effort.level // empty')
 if [[ -z $effort_level && -r "$HOME/.claude/settings.json" ]]; then
   effort_level=$(jq -r '.effortLevel // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
 fi
-five_hour_used=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
-five_hour_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 seven_day_used=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 seven_day_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 
@@ -140,25 +138,11 @@ usage_bar() {
   printf '%s' "$bar"
 }
 usage_window() {
-  local used="$1" reset="$2" label="$3" style="$4"
+  local used="$1" reset="$2" label="$3"
   local pct when=""
   pct=$(jq -n --argjson used "$used" '$used | floor')
   if [[ -n $reset ]]; then
-    local epoch="${reset%.*}"
-    if [[ $style == countdown ]]; then
-      local now secs
-      now=$(date +%s)
-      secs=$((epoch - now))
-      if ((secs <= 0)); then
-        when="resets now"
-      elif ((secs < 3600)); then
-        when="resets in $((secs / 60))m"
-      else
-        when="resets in $((secs / 3600))h$(((secs % 3600) / 60))m"
-      fi
-    else
-      when="resets $(date -r "$epoch" +'%a %H:%M' 2>/dev/null || true)"
-    fi
+    when="resets $(date -r "${reset%.*}" +'%a %H:%M' 2>/dev/null || true)"
   fi
   local bar
   bar=$(usage_bar "$pct")
@@ -173,19 +157,9 @@ usage_window() {
   printf '\033[0m'
 }
 
-rate_segments=()
-if [[ -n $five_hour_used ]]; then
-  rate_segments+=("$(usage_window "$five_hour_used" "$five_hour_reset" "5h" countdown)")
-fi
-if [[ -n $seven_day_used ]]; then
-  rate_segments+=("$(usage_window "$seven_day_used" "$seven_day_reset" "week" clock)")
-fi
-
 rate_info=""
-if [[ ${#rate_segments[@]} -eq 2 ]]; then
-  rate_info=" ${rate_segments[0]}  ${rate_segments[1]}"
-elif [[ ${#rate_segments[@]} -eq 1 ]]; then
-  rate_info=" ${rate_segments[0]}"
+if [[ -n $seven_day_used ]]; then
+  rate_info=" $(usage_window "$seven_day_used" "$seven_day_reset" "week")"
 fi
 
 # Claude Code dims colors, so these are the full Tokyo Night values.
@@ -225,7 +199,7 @@ if [[ -n $cache_info ]]; then
 fi
 
 if [[ -n $rate_info ]]; then
-  printf ' %s' "$rate_info" # each window carries its own color
+  printf ' %s' "$rate_info" # the window carries its own color
 fi
 
 printf '\n'
