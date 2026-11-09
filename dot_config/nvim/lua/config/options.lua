@@ -3,9 +3,9 @@ vim.g.maplocalleader = "\\"
 
 local opt = vim.opt
 
-local textwidth = 95
-opt.textwidth = textwidth
-opt.colorcolumn = tostring(textwidth)
+opt.textwidth = 100
+-- pantry's linelimit reads this as the limit, so `+1` makes it equal to `textwidth`.
+opt.colorcolumn = "+1"
 
 opt.breakindent = true
 opt.showmatch = true

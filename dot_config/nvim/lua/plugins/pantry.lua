@@ -9,5 +9,6 @@ return {
     jumps = {},
     markdown = {},
     messages = {},
+    linelimit = {},
   },
 }
