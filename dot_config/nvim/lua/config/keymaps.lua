@@ -7,22 +7,6 @@ map({
   desc = "LSP: code action",
 })
 
-for _, jump in ipairs({
-  { lhs = "]E", direction = 1, severity = "ERROR", desc = "Next error" },
-  { lhs = "[E", direction = -1, severity = "ERROR", desc = "Previous error" },
-  { lhs = "]W", direction = 1, severity = "WARN", desc = "Next warning" },
-  { lhs = "[W", direction = -1, severity = "WARN", desc = "Previous warning" },
-}) do
-  map({
-    mode = "n",
-    lhs = jump.lhs,
-    rhs = function()
-      vim.diagnostic.jump({ count = jump.direction * vim.v.count1, severity = vim.diagnostic.severity[jump.severity] })
-    end,
-    desc = jump.desc,
-  })
-end
-
 map({
   mode = "n",
   lhs = "<leader>nh",
@@ -30,27 +14,6 @@ map({
     require("custom_api.message_history").pick()
   end,
   desc = "Messages: history",
-})
-
-map({ mode = { "n", "x", "o" }, lhs = "]P", rhs = "}", sequence = true, desc = "Next paragraph" })
-map({ mode = { "n", "x", "o" }, lhs = "[P", rhs = "{", sequence = true, desc = "Previous paragraph" })
-
-map({
-  mode = "n",
-  lhs = "]f",
-  rhs = function()
-    require("custom_api.folder_files").jump(vim.v.count1)
-  end,
-  desc = "Next file in folder",
-})
-
-map({
-  mode = "n",
-  lhs = "[f",
-  rhs = function()
-    require("custom_api.folder_files").jump(-vim.v.count1)
-  end,
-  desc = "Previous file in folder",
 })
 
 map({ mode = "n", lhs = "<C-s>", rhs = "write", desc = "Save file" })

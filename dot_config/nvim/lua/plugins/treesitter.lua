@@ -7,26 +7,12 @@ return {
         max_lines = 4,
         multiline_threshold = 2,
       },
-      config = function(_, opts)
-        local treesitter_context = require("treesitter-context")
-        treesitter_context.setup(opts)
-
-        map({
-          mode = "n",
-          lhs = { "[[", "[r" },
-          rhs = function()
-            treesitter_context.go_to_context(vim.v.count1)
-          end,
-          silent = true,
-          desc = "nvim-treesitter-context: jump up to context",
-        })
-      end,
     },
     {
       "nvim-treesitter/nvim-treesitter-textobjects",
       branch = "main",
       init = function()
-        -- Turns off the mappings that built-in ftplugins add, so they cannot clash with these.
+        -- Turns off the mappings that built-in ftplugins add, so they cannot shadow these or pantry's jump keys.
         vim.g.no_plugin_maps = true
       end,
       config = function()
@@ -55,41 +41,6 @@ return {
         map({ mode = { "x", "o" }, lhs = "il", rhs = function() select.select_textobject("@loop.inner", "textobjects") end, desc = "inner loop" })
 
         map({ mode = { "x", "o" }, lhs = "as", rhs = function() select.select_textobject("@local.scope", "locals") end, desc = "local scope" })
-
-        local move = require("nvim-treesitter-textobjects.move")
-
-        map({ mode = { "n", "x", "o" }, lhs = "[c", rhs = function() move.goto_previous_start({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "previous class start" })
-        map({ mode = { "n", "x", "o" }, lhs = "]c", rhs = function() move.goto_next_start({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "next class start" })
-        map({ mode = { "n", "x", "o" }, lhs = "[C", rhs = function() move.goto_previous_end({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "previous class end" })
-        map({ mode = { "n", "x", "o" }, lhs = "]C", rhs = function() move.goto_next_end({ "@class.outer", "@class.inner" }, "textobjects") end, desc = "next class end"})
-
-        map({ mode = { "n", "x", "o" }, lhs = "[m", rhs = function() move.goto_previous_start({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "previous function start" })
-        map({ mode = { "n", "x", "o" }, lhs = "]m", rhs = function() move.goto_next_start({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "next function start" })
-        map({ mode = { "n", "x", "o" }, lhs = "[M", rhs = function() move.goto_previous_end({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "previous function end" })
-        map({ mode = { "n", "x", "o" }, lhs = "]M", rhs = function() move.goto_next_end({ "@function.outer", "@function.inner" }, "textobjects") end, desc = "next function end" })
-
-        map({ mode = { "n", "x", "o" }, lhs = "[l", rhs = function() move.goto_previous_start({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "previous loop start" })
-        map({ mode = { "n", "x", "o" }, lhs = "]l", rhs = function() move.goto_next_start({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "next loop start" })
-        map({ mode = { "n", "x", "o" }, lhs = "[L", rhs = function() move.goto_previous_end({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "previous loop end" })
-        map({ mode = { "n", "x", "o" }, lhs = "]L", rhs = function() move.goto_next_end({ "@loop.outer", "@loop.inner" }, "textobjects") end, desc = "next loop end" })
-
-        map({ mode = { "n", "x", "o" }, lhs = "]s", rhs = function() move.goto_next("@local.scope", "locals") end, desc = "next local scope" })
-        map({ mode = { "n", "x", "o" }, lhs = "[s", rhs = function() move.goto_previous("@local.scope", "locals") end, desc = "previous local scope" })
-
-        map({ mode = { "n", "x", "o" }, lhs = "]z", rhs = function() move.goto_next("@fold", "folds") end, desc = "next fold" })
-        map({ mode = { "n", "x", "o" }, lhs = "[z", rhs = function() move.goto_previous("@fold", "folds") end, desc = "previous fold" })
-
-        map({ mode = { "n", "x", "o" }, lhs = "]k", rhs = function() move.goto_next({ "@conditional.outer", "@conditional.inner" }, "textobjects") end, desc = "next conditional" })
-        map({ mode = { "n", "x", "o" }, lhs = "[k", rhs = function() move.goto_previous({ "@conditional.outer", "@conditional.inner" }, "textobjects") end, desc = "previous conditional" })
-
-        map({ mode = { "n", "x", "o" }, lhs = "]v", rhs = function() move.goto_next_start("@assignment.outer", "textobjects") end, desc = "next variable" })
-        map({ mode = { "n", "x", "o" }, lhs = "[v", rhs = function() move.goto_previous_start("@assignment.outer", "textobjects") end, desc = "previous variable" })
-
-        map({ mode = { "n", "x", "o" }, lhs = "],", rhs = function() move.goto_next_start("@parameter.inner", "textobjects") end, desc = "next argument" })
-        map({ mode = { "n", "x", "o" }, lhs = "[,", rhs = function() move.goto_previous_start("@parameter.inner", "textobjects") end, desc = "previous argument" })
-
-        map({ mode = { "n", "x", "o" }, lhs = "]3", rhs = function() move.goto_next_start("@comment.outer", "textobjects") end, desc = "next comment" })
-        map({ mode = { "n", "x", "o" }, lhs = "[3", rhs = function() move.goto_previous_start("@comment.outer", "textobjects") end, desc = "previous comment" })
 
         local ts_repeat_move = require("nvim-treesitter-textobjects.repeatable_move")
 
