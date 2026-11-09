@@ -145,6 +145,16 @@ return {
               return not require("custom_api.overseer_status").is_idle()
             end,
           },
+          -- A Claude Code session connected to this Neovim through claudecode.nvim (`--ide`).
+          {
+            function()
+              return "claude"
+            end,
+            icon = "󰚩",
+            cond = function()
+              return package.loaded.claudecode ~= nil and require("claudecode").is_claude_connected()
+            end,
+          },
           {
             function()
               return "recording @" .. vim.fn.reg_recording()
