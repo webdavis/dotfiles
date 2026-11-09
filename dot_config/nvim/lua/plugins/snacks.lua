@@ -312,7 +312,6 @@ return {
             )
             :map("<leader>uc")
           Snacks.toggle.diagnostics():map("<leader>uD")
-          Snacks.toggle.dim():map("<leader>ux")
           -- Compare this window with the other windows in the tab that have it on.
           Snacks.toggle
             .new({
