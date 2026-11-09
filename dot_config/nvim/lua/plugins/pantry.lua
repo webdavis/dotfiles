@@ -10,5 +10,15 @@ return {
     markdown = {},
     messages = {},
     linelimit = {},
+    focus = {},
+  },
+  keys = {
+    {
+      "<leader>ux",
+      function()
+        require("pantry.focus").toggle()
+      end,
+      desc = "Toggle focus on the code around the cursor",
+    },
   },
 }
