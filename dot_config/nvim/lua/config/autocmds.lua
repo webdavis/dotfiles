@@ -119,6 +119,24 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- Matches the formatters: stylua and mdformat wrap at 120.
+local line_limits = { lua = 120, markdown = 120 }
+
+-- These files keep one rule per line, however long.
+local unlimited_files = { ["AGENTS.md"] = true, ["TASKS.md"] = true }
+
+vim.api.nvim_create_autocmd("FileType", {
+  group = augroup("line_limit"),
+  callback = function(event)
+    if unlimited_files[vim.fs.basename(event.file)] then
+      vim.bo[event.buf].textwidth = 0
+      vim.opt_local.colorcolumn = ""
+    elseif line_limits[event.match] then
+      vim.bo[event.buf].textwidth = line_limits[event.match]
+    end
+  end,
+})
+
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("wrap_spell"),
   pattern = { "text", "plaintex", "typst", "gitcommit" },
