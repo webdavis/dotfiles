@@ -42,7 +42,7 @@ return {
       on_attach = function(bufnr)
         map({
           mode = "n",
-          lhs = { "{", "<M-P>" },
+          lhs = "<M-P>",
           rhs = function()
             require("aerial").prev(vim.v.count1)
           end,
@@ -51,7 +51,7 @@ return {
         })
         map({
           mode = "n",
-          lhs = { "}", "<M-N>" },
+          lhs = "<M-N>",
           rhs = function()
             require("aerial").next(vim.v.count1)
           end,
