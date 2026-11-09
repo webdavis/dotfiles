@@ -9,10 +9,6 @@ if vim.env.PROFILE then
   })
 end
 
--- Every message, notifications included, goes to Neovim's one message window, and <leader>nh lists them.
-require("vim._core.ui2").enable({ msg = { target = "msg" } })
-require("custom_api.message_history").record()
-
 -- Runs before config.options sets the leader, so require only the module that exports `map`.
 _G.map = require("custom_api.keymap").map
 
