@@ -5,5 +5,6 @@ return {
   opts = {
     rsi = {},
     jumps = {},
+    markdown = {},
   },
 }
