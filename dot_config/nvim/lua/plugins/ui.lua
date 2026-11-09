@@ -113,7 +113,20 @@ return {
       },
       sections = {
         lualine_a = { "mode" },
-        lualine_b = { "branch", "diff" },
+        lualine_b = {
+          -- The linked worktree's folder name, shown only inside a linked worktree.
+          {
+            function()
+              return require("custom_api.worktree").name()
+            end,
+            icon = "󰙅",
+            cond = function()
+              return require("custom_api.worktree").name() ~= nil
+            end,
+          },
+          "branch",
+          "diff",
+        },
         lualine_c = {
           {
             "filename",
