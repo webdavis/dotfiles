@@ -25,6 +25,18 @@ new_tags = "write"
 [import]
 extract_command = ["/opt/homebrew/bin/ffmpeg"]
 
+[actions]
+command = ["{{ joinPath .chezmoi.homeDir ".cargo/bin/dam" }}", "new", "--json", "--id", "{id}", "--due", "{due}", "--labels", "{owner_word}", "--meta", "recording={recording}", "--meta", "link={link}", "--", "{text}"]
+final_exit_codes = [2, 4, 5]
+
+[actions.env]
+DAM_TOKEN = {{ (keepassxc "damnit-token-vpt").Password | toToml }}
+
+[actions.owner_words]
+me = "my-commitment"
+other = "their-commitment"
+unknown = ""
+
 [analysis]
 command = [
   "clauth", "start", "main", "-p", "--safe-mode", "--tools", "", "--no-session-persistence",
