@@ -10,7 +10,8 @@ readonly moshi_hook="/opt/homebrew/bin/moshi-hook"
 readonly brew="/opt/homebrew/bin/brew"
 readonly device_token={{ $token | quote }}
 readonly paired_status_pattern='^status: *paired'
-readonly harnesses_moshi_hook_notifies="opencode,gemini,cursor,kimi,qwen,grok,omp,pi"
+readonly harnesses_moshi_hook_notifies="opencode,gemini,cursor,kimi,qwen,grok,pi"
+readonly harnesses_pns_notifies="codex,omp"
 readonly moshi_tap="rjyo/moshi"
 
 read_pairing_status() {
@@ -26,8 +27,8 @@ pair_host_with_phone() {
   "$moshi_hook" pair --token "$device_token"
 }
 
-remove_moshi_hook_from_codex() {
-  "$moshi_hook" uninstall --target codex 2>/dev/null || true
+remove_moshi_hook_from_harnesses_pns_notifies() {
+  "$moshi_hook" uninstall --target "$harnesses_pns_notifies" 2>/dev/null || true
 }
 
 install_moshi_hook_into_harnesses() {
@@ -56,7 +57,7 @@ main() {
   fi
 
   report_line "installing hooks for $harnesses_moshi_hook_notifies..."
-  remove_moshi_hook_from_codex
+  remove_moshi_hook_from_harnesses_pns_notifies
   install_moshi_hook_into_harnesses
   report_line "installed hooks."
 
