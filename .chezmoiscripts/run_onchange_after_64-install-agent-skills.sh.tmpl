@@ -35,6 +35,8 @@ readonly retry_marker="$HOME/.local/state/agent-skills/install.retry"
 readonly fnm_default_node_bin_directory="$HOME/.local/share/fnm/aliases/default/bin"
 readonly claude_code_skills_folder="$HOME/.claude/skills"
 readonly claude_code_link_prefix="../../.agents/skills"
+readonly omp_skills_folder="$HOME/.omp/agent/skills"
+readonly omp_link_prefix="../../../.agents/skills"
 readonly hermes_default_link_prefix="../../.agents/skills"
 readonly hermes_profiles_folder="$HOME/.hermes/profiles"
 readonly hermes_profile_link_prefix="../../../../.agents/skills"
@@ -299,6 +301,7 @@ link_matching_skills() {
   while read -r skill; do
     if [[ $into_claude == yes ]]; then
       link_skill "$skill" "$claude_code_skills_folder" "$claude_code_link_prefix" "Claude Code"
+      link_skill "$skill" "$omp_skills_folder" "$omp_link_prefix" "omp"
     fi
     if [[ $profiles != - ]]; then
       for profile in ${profiles//,/ }; do
@@ -306,6 +309,19 @@ link_matching_skills() {
       done
     fi
   done < <(store_skills_matching "$match")
+}
+
+# omp loads standalone skills from its own folder alone, so each npx skill Claude Code gets is linked there too.
+link_claude_code_npx_skills_into_omp() {
+  local agents repository profiles skill
+  while read -r -u 3 agents repository profiles; do
+    if [[ ,$agents, != *,claude-code,* ]]; then
+      continue
+    fi
+    while read -r skill; do
+      link_skill "$skill" "$omp_skills_folder" "$omp_link_prefix" "omp"
+    done < <(lock_skill_names_of "$repository")
+  done 3< <(non_blank_lines_of "$npx_entries")
 }
 
 link_store_skills() {
@@ -405,6 +421,7 @@ main() {
   install_missing_npx_entries
   install_missing_clawhub_entries
   link_store_skills
+  link_claude_code_npx_skills_into_omp
   link_media_skills
   mark_on_demand_skills_in_codex
 
