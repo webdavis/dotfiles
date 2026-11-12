@@ -1,0 +1,51 @@
+{{- /* omp rewrites its config file at runtime, so this overlays the declared settings on the live file. */ -}}
+{{- /* Every omp profile includes this, so each one starts from the same settings. */ -}}
+{{- $raw := index .chezmoi "stdin" | default "" -}}
+{{- $stdin := $raw | trim -}}
+{{- $merged := fromYaml $stdin -}}
+{{- /* fromYaml gives nil or a string for a non-mapping file, and setValueAtPath errors on either. */ -}}
+{{- if ne (kindOf $merged) "map" -}}
+{{-   $merged = dict -}}
+{{- end -}}
+
+{{- /* Shell commands ask first. Reads and edits inside the workspace run unasked. */ -}}
+{{- $merged = setValueAtPath (list "tools" "approvalMode") "write" $merged -}}
+
+{{- /* Both rules are needed: the first matches a bare rm, the second rm with arguments. */ -}}
+{{- $merged = setValueAtPath (list "bash" "patterns") (list
+    (dict "match" "rm" "approval" "deny")
+    (dict "match" "rm *" "approval" "deny")) $merged -}}
+{{- $merged = setValueAtPath (list "bash" "gitGuard") true $merged -}}
+
+{{- /* Tool problem reports and traces stay on this Mac, and OpenAI gets no sessions to train on. */ -}}
+{{- $merged = setValueAtPath (list "dev" "autoqa") false $merged -}}
+{{- $merged = setValueAtPath (list "telemetry" "otlpExportEnabled") false $merged -}}
+{{- $merged = setValueAtPath (list "providers" "openai-codex" "daybreak") false $merged -}}
+{{- $merged = setValueAtPath (list "secrets" "enabled") true $merged -}}
+
+{{- /* Homebrew updates omp. */ -}}
+{{- $merged = setValueAtPath (list "startup" "checkUpdate") false $merged -}}
+
+{{- $merged = setValueAtPath (list "symbolPreset") "nerd" $merged -}}
+{{- $merged = setValueAtPath (list "tui" "vimMode") true $merged -}}
+{{- $merged = setValueAtPath (list "display" "showTurnTime") true $merged -}}
+{{- $merged = setValueAtPath (list "error" "notify") "on" $merged -}}
+
+{{- $merged = setValueAtPath (list "github" "enabled") true $merged -}}
+{{- $merged = setValueAtPath (list "astGrep" "enabled") true $merged -}}
+{{- $merged = setValueAtPath (list "checkpoint" "enabled") true $merged -}}
+
+{{- /* The Broccoli profile allows the tech support skills alone. A session start names the full list for its plugin folders. */ -}}
+{{- if eq (get . "ompProfile" | default "") "broccoli" -}}
+{{-   $skills := .broccoli.omp.tech_support -}}
+{{-   $merged = setValueAtPath (list "skills" "includeSkills") (concat $skills.auto $skills.manual | sortAlpha) $merged -}}
+{{-   $merged = setValueAtPath (list "skills" "manualSkills") ($skills.manual | sortAlpha) $merged -}}
+{{- end -}}
+
+{{- /* A no-op apply emits the live file unchanged, since toYaml reorders every key. */ -}}
+{{- /* The check uses a fresh parse because setValueAtPath mutates the map it gets. */ -}}
+{{- if deepEqual $merged (fromYaml $stdin) -}}
+{{- $raw -}}
+{{- else -}}
+{{ $merged | toYaml }}
+{{- end -}}

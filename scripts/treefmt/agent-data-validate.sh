@@ -76,6 +76,15 @@ check_duplicate_npx_entries_across_broccoli_folders() {
   )
 }
 
+# An engineering session loads both lists, so a skill named twice would carry two modes.
+check_duplicate_omp_broccoli_skills() {
+  local name
+  while IFS= read -r name; do
+    problem "omp skill $name is listed twice under broccoli.omp in broccoli-tools.yaml"
+  done < <(yq -o json '.broccoli.omp' "$broccoli_file" |
+    jq -r '[.tech_support, .engineering] | map(.auto + .manual) | add | .[]' | duplicates_in)
+}
+
 check_duplicate_hermes_identifiers() {
   local identifier
   while IFS= read -r identifier; do
@@ -116,6 +125,7 @@ main() {
   check_duplicate_marketplaces
   check_duplicate_skill_sources
   check_duplicate_npx_entries_across_broccoli_folders
+  check_duplicate_omp_broccoli_skills
   check_duplicate_hermes_identifiers
   check_npx_against_marketplaces
   if ((problems > 0)); then

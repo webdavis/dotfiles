@@ -1,0 +1,19 @@
+// Moshi already shows a card for this wait, so armOnly only schedules the reminder.
+import { spawn } from "node:child_process"
+
+{{ includeTemplate "pns-reminder-extension.ts.tmpl" (dict "producer" "omp" "binary" (joinPath .chezmoi.homeDir ".cargo/bin" "pns")) }}
+
+export default function pnsReminders(omp) {
+  omp.on("tool_approval_requested", (event, ctx) => {
+    armOnly("PermissionRequest", event, ctx, {
+      tool_name: firstString(event?.toolName),
+      message: firstString(event?.reason, event?.toolName, "waiting on you"),
+    })
+  })
+
+  omp.on("tool_approval_resolved", (event, ctx) => {
+    answered("PermissionResolved", event, ctx, {
+      tool_name: firstString(event?.toolName),
+    })
+  })
+}

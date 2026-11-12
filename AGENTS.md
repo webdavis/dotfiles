@@ -74,6 +74,14 @@ Follow the steps under "Command line Tool or App" and "Agent Skills and Plugins"
 - Skill: an `npx` entry under the key of the folder that loads it. An entry with no path after the repo installs every skill in that repo. That script removes any skill whose entry is gone, so a removed entry needs no other step.
 - MCP server: an entry under that key's `mcp_servers`, with the tools that must ask first in its `ask` list. To remove one, clear any login with `/mcp` in a session that loads the folder, then delete its entry. The next apply drops the server and its ask rules.
 
+### omp
+
+`sbs` and `sbe` start a Broccoli session on omp's `broccoli` profile. `sbs --claude` and `sbe --claude` start it on Claude Code, with the same plugin folders. `broccoli.omp` lists what the omp profile loads beyond those folders:
+
+- Plugin: an entry under `broccoli.omp.plugins`, shaped as in `agent-plugins.yaml`. To remove one, delete its entry, then run `omp --profile broccoli plugin uninstall <plugin>@<marketplace>`.
+- Skill: its name under `auto` or `manual` in `broccoli.omp.tech_support`, or in `broccoli.omp.engineering` when only an engineering session needs it. A skill named in neither list is absent from the session.
+- A skill whose plain name another plugin holds is named with its prefix, as `omp --profile broccoli skill list` prints it.
+
 ## Neovim
 
 ### Plugin

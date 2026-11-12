@@ -1,0 +1,2 @@
+{{- $manual := concat .broccoli.omp.tech_support.manual .broccoli.omp.engineering.manual | sortAlpha -}}
+{{ dict "skills" (dict "manualSkills" $manual) | toYaml }}
