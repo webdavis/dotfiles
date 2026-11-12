@@ -415,7 +415,7 @@ return {
     "nvim-neotest/neotest",
     commit = "27bf921498043f7ecd821d6db68d05de244bbd02",
     dependencies = {
-      "webdavis/pns.nvim",
+      "webdavis/pns",
       -- Lazy, because lazy.nvim turns the nvim-nio rockspec dependency into a startup spec.
       { "nvim-neotest/nvim-nio", lazy = true },
       { "nvim-neotest/neotest-python", commit = "1b56ca4ba51c6014f986d6548ee629bdc95589d1" },
