@@ -1,0 +1,32 @@
+config_version = 1
+
+[stores]
+transcripts = "~/workspaces/obsidian-ivy/vpt/transcripts"
+analysis = "~/workspaces/obsidian-ivy/vpt/analysis"
+briefs = "~/workspaces/obsidian-ivy/vpt/briefs"
+
+[engines]
+checker = "whisply"
+
+[engines.whisply]
+command = ["{{ joinPath .chezmoi.homeDir ".local/bin/whisply" }}"]
+
+[note]
+profile = "obsidian"
+link_style = "wiki"
+
+[note.obsidian]
+vault_root = "~/workspaces/obsidian-ivy"
+
+[tags]
+new_tags = "write"
+
+[import]
+extract_command = ["/opt/homebrew/bin/ffmpeg"]
+
+[analysis]
+command = [
+  "clauth", "start", "main", "-p", "--safe-mode", "--tools", "", "--no-session-persistence",
+  "--system-prompt", 'Standard input is a meeting transcript. Each paragraph starts with an [mm:ss] timecode. Write a vpt.proposal/1 JSON document about it. Set schema to "vpt.proposal/1" and by to the name of your model. Put the key points in summary and each agreed task in actions, one short sentence per item. Set the owner of each action to "me" when the speaker will do it, to {"other": name} when another person will, with the name null when the transcript does not give it, and to null when it is unclear. Give an action a due date only when the transcript says one, as {"date": "YYYY-MM-DD", "time": "HH:MM" or null, "sources": the ranges that say it}, and null otherwise; never guess one. The recording was captured on {captured_at}. Give every item one or more sources, each a mm:ss-mm:ss range that starts at the timecode of the paragraph that supports it and ends at the timecode of the next paragraph, or one second after its own timecode for the last paragraph. State only what the transcript says, and use a capitalized word or a number only when it appears in the paragraphs you cite. Leave relations empty. Add up to five tags, each with a short reason; prefer these existing tags: {known_tags}. Never use these tags: {refused_tags}. Print the JSON document and nothing else, with no code fence.',
+  "--json-schema", '{"type":"object","additionalProperties":false,"required":["schema","by","summary","actions","tags","relations"],"properties":{"schema":{"type":"string","enum":["vpt.proposal/1"]},"by":{"type":"string"},"summary":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["text","sources"],"properties":{"text":{"type":"string"},"sources":{"type":"array","items":{"type":"string","pattern":"^[0-9]{2,}:[0-5][0-9]-[0-9]{2,}:[0-5][0-9]$"}}}}},"actions":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["text","sources","owner","due"],"properties":{"text":{"type":"string"},"sources":{"type":"array","items":{"type":"string","pattern":"^[0-9]{2,}:[0-5][0-9]-[0-9]{2,}:[0-5][0-9]$"}},"owner":{"anyOf":[{"type":"string","enum":["me"]},{"type":"object","additionalProperties":false,"required":["other"],"properties":{"other":{"type":["string","null"]}}},{"type":"null"}]},"due":{"anyOf":[{"type":"object","additionalProperties":false,"required":["date","time","sources"],"properties":{"date":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"time":{"type":["string","null"],"pattern":"^([01][0-9]|2[0-3]):[0-5][0-9]$"},"sources":{"type":"array","items":{"type":"string","pattern":"^[0-9]{2,}:[0-5][0-9]-[0-9]{2,}:[0-5][0-9]$"}}}},{"type":"null"}]}}}},"tags":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["tag","reason"],"properties":{"tag":{"type":"string"},"reason":{"type":"string"}}}},"relations":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["kind","target","reason"],"properties":{"kind":{"type":"string"},"target":{"type":"string"},"reason":{"type":"string"}}}}}}',
+]
