@@ -4,6 +4,7 @@ packages:
       taps:
         - antoniorodr/memo
         - buo/cask-upgrade
+        - can1357/tap
         - eugene1g/safehouse
         - felixkratz/formulae
         - furkankly/tap
@@ -19,6 +20,7 @@ packages:
       trusted_taps:
         - antoniorodr/memo
         - buo/cask-upgrade
+        - can1357/tap
         - eugene1g/safehouse
         - felixkratz/formulae
         - furkankly/tap
@@ -48,6 +50,7 @@ packages:
         - bore-cli
         - brightness
         - btop
+        - can1357/tap/omp
         # The tab-smart-rename herdr plugin runs on Bun.
         - oven-sh/bun/bun
         - ca-certificates
