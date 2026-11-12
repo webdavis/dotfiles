@@ -34,12 +34,16 @@
 {{- $merged = setValueAtPath (list "github" "enabled") true $merged -}}
 {{- $merged = setValueAtPath (list "astGrep" "enabled") true $merged -}}
 {{- $merged = setValueAtPath (list "checkpoint" "enabled") true $merged -}}
+{{- $merged = setValueAtPath (list "advisor" "enabled") true $merged -}}
+{{- $merged = setValueAtPath (list "modelRoles" "advisor") "anthropic/claude-opus-5-5" $merged -}}
 
 {{- /* The Broccoli profile allows the tech support skills alone. A session start names the full list for its plugin folders. */ -}}
 {{- if eq (get . "ompProfile" | default "") "broccoli" -}}
 {{-   $skills := .broccoli.omp.tech_support -}}
 {{-   $merged = setValueAtPath (list "skills" "includeSkills") (concat $skills.auto $skills.manual | sortAlpha) $merged -}}
 {{-   $merged = setValueAtPath (list "skills" "manualSkills") ($skills.manual | sortAlpha) $merged -}}
+{{- /* The Broccoli advisor runs on the personal ChatGPT login, so its reviews spend no work usage. */ -}}
+{{-   $merged = setValueAtPath (list "modelRoles" "advisor") "openai-codex/gpt-6-astra" $merged -}}
 {{- end -}}
 
 {{- /* A no-op apply emits the live file unchanged, since toYaml reorders every key. */ -}}
