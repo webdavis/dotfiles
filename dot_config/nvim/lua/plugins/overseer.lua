@@ -72,7 +72,7 @@ end
 
 return {
   "stevearc/overseer.nvim",
-  dependencies = { "webdavis/pns.nvim" },
+  dependencies = { "webdavis/pns" },
   opts = {},
   -- Every command overseer and `config` define, so any of them loads the plugin.
   -- `OverseerShell` gets its own loader below.

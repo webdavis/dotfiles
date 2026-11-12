@@ -26,7 +26,7 @@ return {
     "wojciech-kulik/xcodebuild.nvim",
     commit = "633eb71c0b354581837025581b7261dbe5361226",
     dependencies = {
-      "webdavis/pns.nvim",
+      "webdavis/pns",
       "MunifTanjim/nui.nvim",
       "folke/snacks.nvim",
       "stevearc/oil.nvim", -- file-tree sync into the Xcode project

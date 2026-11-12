@@ -1,5 +1,5 @@
 return {
-  "webdavis/pns.nvim",
+  "webdavis/pns",
   lazy = true,
   opts = {
     binary = "~/.cargo/bin/pns",
