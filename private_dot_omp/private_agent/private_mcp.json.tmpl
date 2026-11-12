@@ -1,4 +1,1 @@
-{{- $servers := dict
-    "nvim" (dict "type" "stdio" "command" "nvim-mcp" "args" (list "--connect" "auto"))
-    "scalebar" (dict "type" "stdio" "command" (joinPath .chezmoi.homeDir .packages.source_builds.scalebar.install_dir "ScalebarMCP") "args" (list)) -}}
-{{ dict "mcpServers" $servers | toPrettyJson }}
+{{ dict "mcpServers" (includeTemplate "personal-mcp-servers.json.tmpl" . | fromJson) | toPrettyJson }}
