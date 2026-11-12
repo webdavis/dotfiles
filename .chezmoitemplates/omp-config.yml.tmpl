@@ -44,6 +44,16 @@
 {{-   $merged = setValueAtPath (list "skills" "manualSkills") ($skills.manual | sortAlpha) $merged -}}
 {{- /* The Broccoli advisor runs on the personal ChatGPT login, so its reviews spend no work usage. */ -}}
 {{-   $merged = setValueAtPath (list "modelRoles" "advisor") "openai-codex/gpt-6-astra" $merged -}}
+{{- /* omp runs every MCP tool unasked, so each tool on a server's ask list gets a rule that asks on every call. */ -}}
+{{-   range $session := list "tech_support" "engineering" -}}
+{{-     $plugin := printf "broccoli-%s" (replace "_" "-" $session) -}}
+{{-     range $server, $settings := get (index $.broccoli $session) "mcp_servers" | default dict -}}
+{{-       range get $settings "ask" | default list -}}
+{{-         $tool := includeTemplate "omp-mcp-tool-name.tmpl" (dict "server" (printf "%s:%s" $plugin $server) "tool" .) -}}
+{{-         $merged = setValueAtPath (list "tools" "approval" $tool) "prompt" $merged -}}
+{{-       end -}}
+{{-     end -}}
+{{-   end -}}
 {{- else -}}
 {{- /* The personal profile loads standalone skills from its own folder alone, so a skill a plugin also ships loads once. */ -}}
 {{-   $merged = setValueAtPath (list "skills" "enableAgentsUser") false $merged -}}

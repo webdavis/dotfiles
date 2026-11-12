@@ -1,0 +1,9 @@
+{{- /* The name omp registers for the MCP tool .tool of the server .server. A plugin folder's server is "<plugin>:<server>". */ -}}
+{{- $server := regexReplaceAll "_+" (regexReplaceAll "[^a-z0-9_]+" (lower .server) "_") "_" | trimAll "_" -}}
+{{- $tool := regexReplaceAll "_+" (regexReplaceAll "[^a-z0-9_]+" (lower .tool) "_") "_" | trimAll "_" -}}
+{{- $name := printf "mcp__%s_%s" $server (trimPrefix (printf "%s_" $server) $tool) -}}
+{{- /* omp shortens a name past 64 characters with a hash that only Bun computes. */ -}}
+{{- if and (gt (len $name) 64) (lookPath "bun") -}}
+{{-   $name = output "bun" "-e" "const n = process.argv[1]; console.log(n.slice(0, 55) + '_' + Bun.hash(n).toString(36).slice(0, 8))" $name | trim -}}
+{{- end -}}
+{{- $name -}}
