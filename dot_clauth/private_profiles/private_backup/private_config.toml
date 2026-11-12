@@ -52,7 +52,7 @@ last_resort = true
 # chain's current access token on every rotation (plan-gated models
 # work in sessions, refresh chain stays clauth-private). Managed by
 # `clauth rolling-token <profile>` / `clauth static-token <profile>`.
-# rolling_token = true
+rolling_token = true
 
 # Ceiling in US dollars on what the fallback chain may spend of this
 # account's pay-as-you-go budget unattended. Needs `spend_budget_switching`
