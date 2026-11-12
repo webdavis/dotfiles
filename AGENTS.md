@@ -37,13 +37,14 @@ Agent instructions belong in this file alone.
 ### Marketplace or Hermes plugin or skill
 
 - Install, in `.chezmoidata/agent-plugins.yaml` under its harness:
-  - Claude Code or Codex: its marketplace and its `<plugin>@<marketplace>` id.
+  - Claude Code, Codex or omp: its marketplace and its `<plugin>@<marketplace>` id. An omp plugin is also listed for Claude Code.
   - Hermes: its catalog name.
 - Remove:
   1. Remove its id, and its marketplace when no plugin of it remains.
   2. Uninstall it:
      - Claude Code: `claude plugin uninstall <plugin>@<marketplace>`.
      - Codex: `codex plugin remove <plugin>@<marketplace>`.
+     - omp: `omp plugin uninstall <plugin>@<marketplace>`.
      - Hermes plugin: `hermes plugins remove <name>`.
   3. A removed marketplace: `claude plugin marketplace remove <name>` or `codex plugin marketplace remove <name>`.
   4. Hermes hub skill: `hermes -p <profile> skills uninstall <name> --yes` in each profile that had it.
@@ -56,11 +57,12 @@ Agent instructions belong in this file alone.
   2. Remove the installed skill:
      - npx entry: `npx skills remove <skill> -g` for each skill `~/.agents/.skill-lock.json` lists for its repo.
      - clawhub entry: `trash ~/.agents/skills/<skill>`.
-  3. `trash` its links in `~/.claude/skills/` and in each Hermes profile under its `hermes:` key.
+  3. `trash` its links in `~/.claude/skills/`, in `~/.omp/agent/skills/` and in each Hermes profile under its `hermes:` key.
 
 ### Each skill reaches each harness once
 
 - Codex loads every skill in `~/.agents/skills/`, so such a skill reaches Codex through that folder alone.
+- omp loads the standalone skills linked into `~/.omp/agent/skills/`, which are the ones Claude Code gets.
 - `just lint` refuses a skill or plugin that reaches a harness twice.
 
 ## Broccoli work tooling

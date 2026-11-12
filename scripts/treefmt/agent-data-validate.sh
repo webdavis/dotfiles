@@ -85,6 +85,19 @@ check_duplicate_omp_broccoli_skills() {
     jq -r '[.tech_support, .engineering] | map(.auto + .manual) | add | .[]' | duplicates_in)
 }
 
+# omp links the same standalone skills as Claude Code, so a plugin Claude Code lacks could bring a skill in twice.
+check_omp_plugins_are_claude_plugins() {
+  local id
+  while IFS= read -r id; do
+    problem "omp plugin $id is not a Claude Code plugin in agent-plugins.yaml"
+  done < <(comm -23 \
+    <(plugins_json | jq -r '.omp[].plugins[]' | sort -u) \
+    <(plugins_json | jq -r '[.claude, .codex_and_claude] | add | .[].plugins[]' | sort -u))
+  while IFS= read -r id; do
+    problem "omp plugin $id is listed twice in agent-plugins.yaml"
+  done < <(plugins_json | jq -r '.omp[].plugins[]' | duplicates_in)
+}
+
 check_duplicate_hermes_identifiers() {
   local identifier
   while IFS= read -r identifier; do
@@ -126,6 +139,7 @@ main() {
   check_duplicate_skill_sources
   check_duplicate_npx_entries_across_broccoli_folders
   check_duplicate_omp_broccoli_skills
+  check_omp_plugins_are_claude_plugins
   check_duplicate_hermes_identifiers
   check_npx_against_marketplaces
   if ((problems > 0)); then

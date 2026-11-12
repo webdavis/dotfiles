@@ -1,5 +1,6 @@
 # Plugins per harness: a marketplace owner/repo and the <plugin>@<marketplace> ids installed from it.
 # marketplace_in_settings: false keeps a marketplace out of settings.json because its own tool manages it.
+# omp lists what omp's default profile installs into its own folders; each id is also one Claude Code installs.
 # hermes lists plugin catalog names.
 plugins:
   harnesses:
@@ -43,6 +44,42 @@ plugins:
       - marketplace: "addyosmani/agent-skills"
         plugins:
           - "agent-skills@addy-agent-skills"
+    omp:
+      - marketplace: "mattpocock/skills"
+        plugins:
+          - "mattpocock-skills@mattpocock"
+      - marketplace: "addyosmani/agent-skills"
+        plugins:
+          - "agent-skills@addy-agent-skills"
+      - marketplace: "michael-denyer/pstack-claude"
+        plugins:
+          - "pstack@pstack-claude"
+      - marketplace: "DietrichGebert/ponytail"
+        plugins:
+          - "ponytail@ponytail"
+      - marketplace: "kepano/obsidian-skills"
+        plugins:
+          - "obsidian@obsidian-skills"
+      - marketplace: "webdavis/pns"
+        plugins:
+          - "pns@pns"
+      - marketplace: "webdavis/skills"
+        plugins:
+          - "clean-code@webdavis"
+          - "git@webdavis"
+      - marketplace: "max-sixty/worktrunk"
+        plugins:
+          - "worktrunk@worktrunk"
+      - marketplace: "anthropics/skills"
+        plugins:
+          - "document-skills@anthropic-agent-skills"
+      - marketplace: "anthropics/claude-plugins-official"
+        plugins:
+          - "frontend-design@claude-plugins-official"
+          - "skill-creator@claude-plugins-official"
+          - "code-simplifier@claude-plugins-official"
+          - "security-guidance@claude-plugins-official"
+          - "playwright@claude-plugins-official"
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:

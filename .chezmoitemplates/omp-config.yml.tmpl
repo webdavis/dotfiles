@@ -44,6 +44,9 @@
 {{-   $merged = setValueAtPath (list "skills" "manualSkills") ($skills.manual | sortAlpha) $merged -}}
 {{- /* The Broccoli advisor runs on the personal ChatGPT login, so its reviews spend no work usage. */ -}}
 {{-   $merged = setValueAtPath (list "modelRoles" "advisor") "openai-codex/gpt-6-astra" $merged -}}
+{{- else -}}
+{{- /* The personal profile loads standalone skills from its own folder alone, so a skill a plugin also ships loads once. */ -}}
+{{-   $merged = setValueAtPath (list "skills" "enableAgentsUser") false $merged -}}
 {{- end -}}
 
 {{- /* A no-op apply emits the live file unchanged, since toYaml reorders every key. */ -}}

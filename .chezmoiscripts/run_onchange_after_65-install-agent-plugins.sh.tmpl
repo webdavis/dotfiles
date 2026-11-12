@@ -15,12 +15,14 @@
 {{- /* Each line is "<omp profile> <marketplace name> <source>" or "<omp profile> <plugin id>". */ -}}
 {{- $ompMarketplaces := list -}}
 {{- $ompPlugins := list -}}
-{{- range .broccoli.omp.plugins -}}
-{{-   $name := splitList "@" (index .plugins 0) | last -}}
-{{-   $source := .marketplace -}}
-{{-   if hasPrefix "~/" $source -}}{{- $source = joinPath $home (trimPrefix "~/" $source) -}}{{- end -}}
-{{-   $ompMarketplaces = append $ompMarketplaces (printf "broccoli %s %s" $name $source) -}}
-{{-   range .plugins -}}{{- $ompPlugins = append $ompPlugins (printf "broccoli %s" .) -}}{{- end -}}
+{{- range $profile, $entries := dict "default" .plugins.harnesses.omp "broccoli" .broccoli.omp.plugins -}}
+{{-   range $entries -}}
+{{-     $name := splitList "@" (index .plugins 0) | last -}}
+{{-     $source := .marketplace -}}
+{{-     if hasPrefix "~/" $source -}}{{- $source = joinPath $home (trimPrefix "~/" $source) -}}{{- end -}}
+{{-     $ompMarketplaces = append $ompMarketplaces (printf "%s %s %s" $profile $name $source) -}}
+{{-     range .plugins -}}{{- $ompPlugins = append $ompPlugins (printf "%s %s" $profile .) -}}{{- end -}}
+{{-   end -}}
 {{- end -}}
 #!/usr/bin/env bash
 # agent-plugins.yaml: {{ include ".chezmoidata/agent-plugins.yaml" | sha256sum }}
@@ -207,9 +209,30 @@ install_missing_codex_plugins() {
 }
 
 # `omp plugin marketplace list` prints text even with --json, so the names come from the profile's own file.
+# The profile named default is omp's own, which takes no --profile option and lives at the top of ~/.omp.
+omp_in_profile() {
+  local profile=$1
+  shift
+  if [[ $profile == default ]]; then
+    omp "$@"
+  else
+    omp --profile "$profile" "$@"
+  fi
+}
+
+omp_folder_of() {
+  local profile=$1
+  if [[ $profile == default ]]; then
+    printf '%s\n' "$HOME/.omp"
+  else
+    printf '%s\n' "$HOME/.omp/profiles/$profile"
+  fi
+}
+
 omp_marketplace_names_in() {
   local profile=$1
-  local marketplaces_file="$HOME/.omp/profiles/$profile/marketplaces.json"
+  local marketplaces_file
+  marketplaces_file="$(omp_folder_of "$profile")/marketplaces.json"
   if [[ -f $marketplaces_file ]]; then
     jq -r '.marketplaces[].name' "$marketplaces_file"
   fi
@@ -217,7 +240,7 @@ omp_marketplace_names_in() {
 
 omp_plugin_ids_in() {
   local profile=$1
-  omp --profile "$profile" plugin list --json </dev/null | jq -r '.marketplace[].id'
+  omp_in_profile "$profile" plugin list --json </dev/null | jq -r '.marketplace[].id'
 }
 
 add_omp_marketplace_if_missing() {
@@ -225,7 +248,7 @@ add_omp_marketplace_if_missing() {
   if list_includes "$present_names" "$name"; then
     return
   fi
-  run_install_command marketplace-add-failed omp --profile "$profile" plugin marketplace add "$source" || return 1
+  run_install_command marketplace-add-failed omp_in_profile "$profile" plugin marketplace add "$source" || return 1
   report_under_header "omp: added marketplace $name to profile $profile"
 }
 
@@ -234,7 +257,7 @@ install_omp_plugin_if_missing() {
   if list_includes "$installed_ids" "$plugin_id"; then
     return
   fi
-  run_install_command install-failed omp --profile "$profile" plugin install "$plugin_id" || return 1
+  run_install_command install-failed omp_in_profile "$profile" plugin install "$plugin_id" || return 1
   report_under_header "omp: installed $plugin_id in profile $profile"
 }
 
@@ -251,7 +274,7 @@ install_missing_omp_plugins_in_profile() {
   done 3< <(non_blank_lines_of "$omp_marketplaces" | awk -v profile="$profile" '$1 == profile { print $2, $3 }')
 
   if ! installed_ids="$(omp_plugin_ids_in "$profile")"; then
-    report_error list-failed "omp --profile $profile plugin list --json did not answer"
+    report_error list-failed "omp plugin list --json did not answer for profile $profile"
     return 1
   fi
   while read -r -u 3 plugin_id; do
