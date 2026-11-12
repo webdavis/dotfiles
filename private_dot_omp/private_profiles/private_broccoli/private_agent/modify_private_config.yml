@@ -1,0 +1,2 @@
+{{- /* chezmoi:modify-template */ -}}
+{{- includeTemplate "omp-config.yml.tmpl" (merge (dict "ompProfile" "broccoli") .) -}}

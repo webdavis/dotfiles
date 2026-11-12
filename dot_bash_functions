@@ -155,20 +155,43 @@ gfm() {
     --decorate --date=short --grep="$1"
 }
 
-start-claude-with-broccoli-tech-support-tools() {
-  clauth start broccoli \
-    --plugin-dir ~/.config/agents/broccoli-tech-support \
-    "$@"
+# Starts a Broccoli session on omp with the plugin folders named in $1, separated by spaces.
+# `--claude` as the next argument starts that one session on Claude Code.
+start-broccoli-session() {
+  local plugin_folders plugin_folder folder skill plugin_options=() omp_options=() skills=()
+  read -ra plugin_folders <<<"$1"
+  shift
+  local harness=omp
+  if [[ ${1:-} == --claude || ${1:-} == --omp ]]; then
+    harness=${1#--}
+    shift
+  fi
+  for plugin_folder in "${plugin_folders[@]}"; do
+    folder=$HOME/.config/agents/$plugin_folder
+    plugin_options+=(--plugin-dir "$folder")
+    if [[ -f $folder/omp-config.yml ]]; then
+      omp_options+=(--config "$folder/omp-config.yml")
+    fi
+    if [[ -f $folder/omp-skills.txt ]]; then
+      mapfile -t -O "${#skills[@]}" skills <"$folder/omp-skills.txt"
+    fi
+    for skill in "$folder"/skills/*/; do
+      if [[ -d $skill ]]; then
+        skills+=("$(basename "$skill")")
+      fi
+    done
+  done
+  if [[ $harness == omp ]]; then
+    omp --profile broccoli "${plugin_options[@]}" "${omp_options[@]}" --skills "$(
+      IFS=,
+      echo "${skills[*]}"
+    )" "$@"
+  else
+    clauth start broccoli "${plugin_options[@]}" "$@"
+  fi
 }
-alias sbs='start-claude-with-broccoli-tech-support-tools'
-
-start-claude-with-broccoli-tech-support-and-engineering-tools() {
-  clauth start broccoli \
-    --plugin-dir ~/.config/agents/broccoli-tech-support \
-    --plugin-dir ~/.config/agents/broccoli-engineering \
-    "$@"
-}
-alias sbe='start-claude-with-broccoli-tech-support-and-engineering-tools'
+alias sbs='start-broccoli-session broccoli-tech-support'
+alias sbe='start-broccoli-session "broccoli-tech-support broccoli-engineering"'
 
 start-claude-with-media-tools() {
   claude --plugin-dir ~/.config/agents/media \
