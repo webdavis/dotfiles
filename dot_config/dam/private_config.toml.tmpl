@@ -1,0 +1,6 @@
+[remote.todoist]
+url = "todoist::"
+credentials = ["api_token"]
+api_token = {{ (keepassxc "todoist-api-token").Password | quote }}
+stale = "15m"
+deadline = "60s"
