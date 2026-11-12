@@ -83,6 +83,9 @@ nix_daemon='/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
 # Local tools take precedence over everything else.
 path_prepend "$HOME/.local/bin"
 
+# The language servers Neovim installs come last on PATH, so every other copy of a tool wins.
+PATH="$PATH:$XDG_DATA_HOME/nvim/mason/bin"
+
 # Must follow every path_prepend above.
 export PATH
 
