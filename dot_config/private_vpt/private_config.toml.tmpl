@@ -10,6 +10,7 @@ checker = "whisply"
 
 [engines.whisply]
 command = ["{{ joinPath .chezmoi.homeDir ".local/bin/whisply" }}"]
+hf_token = {{ (keepassxc "hugging-face-access-token").Password | toToml }}
 
 [note]
 profile = "obsidian"
