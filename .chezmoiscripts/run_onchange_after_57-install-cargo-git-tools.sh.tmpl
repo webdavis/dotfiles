@@ -17,6 +17,7 @@ readonly uu_binary="$HOME/.cargo/bin/uu"
 readonly pns_binary="$HOME/.cargo/bin/pns"
 readonly -a retired_pns_launchagent_labels=(com.webdavis.pns-daemon com.webdavis.pns-github-receiver)
 readonly retired_pns_log_directory="$HOME/.local/log"
+readonly vpt_helper_binary="$HOME/.cargo/bin/vpt-macos"
 
 tool_binary_is_installed() {
   local name=$1
@@ -154,6 +155,41 @@ install_the_pns_gateway() {
   fi
 }
 
+installed_vpt_checkout() {
+  cargo_tracks_the_package webdavis/vpt vpt || return 1
+  compgen -G "$HOME/.cargo/git/checkouts/vpt-*/$(installed_short_sha webdavis/vpt vpt)*" | head -n 1
+}
+
+build_and_install_vpt_helper() {
+  local helper_dir=$1/helper/vpt-macos
+  (cd "$helper_dir" && swift build -c release -q) &&
+    install_release_binary "$helper_dir/.build/release/vpt-macos" "$vpt_helper_binary"
+}
+
+install_the_vpt_helper() {
+  report_section 'vpt' 'vpt-macos helper'
+
+  local checkout
+  if ! checkout="$(installed_vpt_checkout)" || [[ -z $checkout ]]; then
+    report_line "no cargo checkout of the installed vpt, so vpt-macos was left as it is; the build is deferred to the next apply." >&2
+    defer_build_until_next_apply "$cargo_git_tools_retry_marker"
+    return 0
+  fi
+
+  if ! command -v swift >/dev/null 2>&1; then
+    report_line "swift not on PATH (install the Xcode command line tools), so vpt-macos was left as it is; the build is deferred to the next apply." >&2
+    defer_build_until_next_apply "$cargo_git_tools_retry_marker"
+    return 0
+  fi
+
+  if ! build_and_install_vpt_helper "$checkout"; then
+    report_line "error[build-failed]: vpt-macos did not build from $checkout; see swift's output above. The next apply retries." >&2
+    defer_build_until_next_apply "$cargo_git_tools_retry_marker"
+    return 0
+  fi
+  report_line "vpt-macos: built from $checkout"
+}
+
 main() {
   report_section 'cargo-git-tools' 'CLI tools'
 
@@ -165,6 +201,7 @@ main() {
   else
     defer_build_until_next_apply "$cargo_git_tools_retry_marker"
   fi
+  install_the_vpt_helper
 
   local daemon_status=0
   install_the_pns_gateway || daemon_status=1

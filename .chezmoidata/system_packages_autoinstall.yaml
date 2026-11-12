@@ -292,6 +292,9 @@ packages:
     - name: uu
       repo: webdavis/uu
       package: uu
+    - name: vpt
+      repo: webdavis/vpt
+      package: vpt
 
   herdr_plugins:
     - id: herdr-smart-nav
