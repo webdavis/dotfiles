@@ -279,6 +279,12 @@ packages:
     - name: dam
       repo: webdavis/damnit
       package: damnit
+    - name: dam-remote-gcal
+      repo: webdavis/damnit
+      package: dam-remote-gcal
+    - name: dam-remote-todoist
+      repo: webdavis/damnit
+      package: dam-remote-todoist
     - name: lights
       repo: webdavis/lights
       package: lights
