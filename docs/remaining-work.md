@@ -134,9 +134,8 @@ repository's secrets to sops-nix are out of scope, reaffirmed by the operator on
 gate and Todoist migration task are superseded. macOS configuration stays with chezmoi; this repository's contributor
 toolchain stays Homebrew and uv.
 
-The Herdr process-toggle plugin and worktree review launcher also remain planned below; neither has an assigned SP
-number. Historical plans retain older labels, including SP5 as Thaw, so use this index and its dated decisions when
-choosing the next task.
+The worktree review launcher also remains planned below; it has no assigned SP number. Historical plans retain older
+labels, including SP5 as Thaw, so use this index and its dated decisions when choosing the next task.
 
 ## Review tools and Scalebar deployment
 
@@ -1563,14 +1562,11 @@ The planned Rust lanes are implemented. The following deployment check remains.
   only merge commits of other branches, introducing nothing unique (`g3-throwaway`, `nvim-acceptance-rehearsal`,
   `s61-g3`, `s61e-g3`). The reverse trap fired once: [PR #551](https://github.com/webdavis/dotfiles/pull/551) was merged
   into `feat/posture-watchdog-health`, its merge commit `559b9e61` was not an ancestor of main, and
-  `feat/posture-funnel` still carried five commits with no upstream equivalent. Four findings stopped a blind sweep.
-  `herdr-process-plan` was an ancestor of main yet held 105 untracked files implementing the `herdr-process` plugin, and
-  `git ls-tree` on that path returned zero files on main and on every ref from
-  `git for-each-ref refs/heads refs/remotes`, while the sibling `herdr-smart-nav` path returned 17 on the same command,
-  so the empty result was the plugin's absence and not a bad path. Three detached HEADs pinned a commit no ref contained
-  (`osq-review-4b` `e71776b8`, `r1-review-4b` `daf7fc98`, `rev4b-114` `4cb7de39`, all graphify or review scratch), while
-  `integration` `2c6bd7f3` was covered by `integration/modernization`. `posture-converge-staging` was a gutted checkout,
-  1571 of its 2200 tracked files absent from the working tree while the index still listed them, safe because
+  `feat/posture-funnel` still carried five commits with no upstream equivalent. Three findings stopped a blind sweep.
+  Three detached HEADs pinned a commit no ref contained (`osq-review-4b` `e71776b8`, `r1-review-4b` `daf7fc98`,
+  `rev4b-114` `4cb7de39`, all graphify or review scratch), while `integration` `2c6bd7f3` was covered by
+  `integration/modernization`. `posture-converge-staging` was a gutted checkout, 1571 of its 2200 tracked files absent
+  from the working tree while the index still listed them, safe because
   [PR #470](https://github.com/webdavis/dotfiles/pull/470) merged that exact HEAD. And sixteen stale
   `pns failures serve` debug processes held a worktree cwd, eight in `tuicr-config` and eight in `pns-status-quiet` and
   `pns-tap-mac`, two paths that no longer exist on disk and have no `.git/worktrees` entry, so their inodes stay pinned;
@@ -1581,37 +1577,31 @@ The planned Rust lanes are implemented. The following deployment check remains.
   registrations and 2421 MB with nothing to decide, tier 2 is 17 and 5326 MB where the content is in main but
   uncommitted files sit in the tree, tier 3 is the 4 detached, tier 4 the 12 unlanded, and the 14 live ones are marked
   keep. Recorded on Todoist `6hVvc56G8r6xJppM` (comments `6hW4JcwhpF4RrrpM` and `6hW4JjFpQ5WJjCMM`); the daemons were
-  split out as `6hW4JgqJJcR43QjM` and the plugin preservation already had `6hW4HCJxjWQvvvQM` from the same night's task
-  68 recheck, which this audit confirmed independently rather than duplicating. The count moved from 51 to 57
-  registrations between 04:34:52Z and 04:48:14Z as concurrent agents created worktrees, so the liveness block must be
-  re-run immediately before any removal. Remaining: the operator approves the exact prune and removal set; nothing was
-  removed. Owed from the operator: (1) Re-run the liveness block before deciding anything. The registration count moved
-  from 51 to 57 between 04:34:52Z and 04:48:14Z as concurrent agents created worktrees, and origin/main advanced from
-  f24aba51 to 7bdecf6b mid-audit:
+  split out as `6hW4JgqJJcR43QjM`. The count moved from 51 to 57 registrations between 04:34:52Z and 04:48:14Z as
+  concurrent agents created worktrees, so the liveness block must be re-run immediately before any removal. Remaining:
+  the operator approves the exact prune and removal set; nothing was removed. Owed from the operator: (1) Re-run the
+  liveness block before deciding anything. The registration count moved from 51 to 57 between 04:34:52Z and 04:48:14Z as
+  concurrent agents created worktrees, and origin/main advanced from f24aba51 to 7bdecf6b mid-audit:
   `cd /Users/stephen/workspaces/Ivy/webdavis/dotfiles && git fetch --prune origin && git worktree list --porcelain | grep -c '^worktree ' && HERDR_ENV=1 herdr worktree list && lsof -d cwd -Fpcn | grep -E 'worktrees/dotfiles|dotfiles-worktrees'`;
-  (2) Decide R1 first, because it gates a tier 2 entry: either commit the 105 untracked files in
-  ~/.herdr/worktrees/dotfiles/herdr-process-plan onto feat/herdr-process, or copy
-  dot_local/share/herdr/plugins/herdr-process/ (and the fixture tree named in Todoist 6hW4HCJxjWQvvvQM) to
-  ~/workspaces/backups/2026-09-14T<HH-MM-SS>.herdr-process-plugin-source.backup/. Nothing else about that worktree may
-  be acted on until this is done.; (3) Approve or reject tier 1 as a block, 7 registrations and 2421 MB, nothing at
-  stake: `git worktree remove ~/.herdr/worktrees/dotfiles/g3-throwaway`, `... nvim-acceptance-rehearsal`,
+  (2) Approve or reject tier 1 as a block, 7 registrations and 2421 MB, nothing at stake:
+  `git worktree remove ~/.herdr/worktrees/dotfiles/g3-throwaway`, `... nvim-acceptance-rehearsal`,
   `... pns-daemon-fixture-children`, `... pns-failure-reporting-spec`, `... s61-g3`, `... s61e-g3`,
-  `... uu-run-logging`; (4) Read the per-path uncommitted listing in the artifact, then approve tier 2 path by path, 17
+  `... uu-run-logging`; (3) Read the per-path uncommitted listing in the artifact, then approve tier 2 path by path, 17
   registrations and 5326 MB, each needing `git worktree remove --force <path>`. Three of them hold work against a layout
   main retired (lights-implementation, pns-executable-deadline, herdr-smart-nav-clean-code, see R5); tuicr-config is
-  blocked by its 8 resident pns processes; herdr-process-plan is blocked by R1.; (5) Decide tier 3, the 3 detached HEADs
-  whose commit no ref contains. To keep one before removing its worktree: `git branch archive/osq-review-4b e71776b8`,
+  blocked by its 8 resident pns processes.; (4) Decide tier 3, the 3 detached HEADs whose commit no ref contains. To
+  keep one before removing its worktree: `git branch archive/osq-review-4b e71776b8`,
   `git branch archive/r1-review-4b daf7fc98`, `git branch archive/rev4b-114 4cb7de39`. All three are graphify or review
   scratch. ~/workspaces/dotfiles-worktrees/integration needs no archive branch, its HEAD is contained by
-  integration/modernization.; (6) Decide tier 4, the 12 named branches whose content is not in main, 4607 MB. Removing a
+  integration/modernization.; (5) Decide tier 4, the 12 named branches whose content is not in main, 4607 MB. Removing a
   checkout keeps every commit because the branch ref survives, so this is only a disk decision. Look at
   feat/posture-funnel first: 4128 MB and 5 commits that PR #551 never carried to main, so it may want a fresh pull
-  request rather than a removal.; (7) Decide the 16 stale pns processes (Todoist 6hW4JgqJJcR43QjM). Terminating them
+  request rather than a removal.; (6) Decide the 16 stale pns processes (Todoist 6hW4JgqJJcR43QjM). Terminating them
   releases the inodes that the two deleted directories still pin and unblocks tuicr-config in tier 2. Killing processes
   is a gated action, so no command is proposed here; also decide whether pns needs a guard so a test run stops leaking a
-  `pns failures serve` daemon.; (8) After any removal run `git worktree prune` once, then
+  `pns failures serve` daemon.; (7) After any removal run `git worktree prune` once, then
   `du -sh /Users/stephen/workspaces/Ivy/webdavis/dotfiles/.git/worktrees` (12 MB now) and `git worktree list | wc -l` to
-  confirm. Deleting a branch is a separate decision and belongs with ledger tasks 67 and 68.; (9) Reconcile with the
+  confirm. Deleting a branch is a separate decision and belongs with ledger tasks 67 and 68.; (8) Reconcile with the
   sibling audit: ~/workspaces/backups/2026-09-14T04-40-09.worktree-inventory-task68.backup.txt covers the same
   registrations with an ancestry-only merged column that reads 12 of the 54 as unmerged when their content is in main.
   Use the 57h verdict column for that question and the task 68 file for the rest. Closed 2026-09-15: `.worktrees/` holds
@@ -2052,26 +2042,18 @@ posture owns the migrated pipeline and the legacy Bash tools are retired. osquer
   hand-rewritten it and is ready to tag a v1. Deferred from tasks 20 and 21; the monorepo layout exists so this is a
   move. Nothing is published to crates.io while a tool is pre-v1.
 
-  Closed 2026-09-18, on the operator's ruling that day lifting these three out of the operator-owned marking. Each was
+  Closed 2026-09-18, on the operator's ruling that day lifting these two out of the operator-owned marking. Each was
   extracted with `git subtree split`, so each keeps its own history rather than landing as one fresh commit:
-  `webdavis/herdr-smart-nav` (8 commits), `webdavis/herdr-workspace-jump` (10), `webdavis/herdr-process` (18). Shipped
-  as [PR #781](https://github.com/webdavis/dotfiles/pull/781), merged `a7926302`. All three are public, MIT licensed to
-  match `webdavis/herdr-todoist`, described, defaulted to `main`, and carry the four GitHub topics `herdr-plugin`,
-  `herdr`, `rust` and `tui`, which is what puts them in the herdr marketplace index.
+  `webdavis/herdr-smart-nav` (8 commits) and `webdavis/herdr-workspace-jump` (10). Shipped as
+  [PR #781](https://github.com/webdavis/dotfiles/pull/781), merged `a7926302`. Both are public, MIT licensed to match
+  `webdavis/herdr-todoist`, described, defaulted to `main`, and carry the four GitHub topics `herdr-plugin`, `herdr`,
+  `rust` and `tui`, which is what puts them in the herdr marketplace index.
 
   12,240 lines of vendored plugin source left this repository along with builders `run_onchange_after_56` and `_57` and
   the shared partial `.chezmoitemplates/herdr-plugin-build.sh.tmpl`. herdr-workspace-jump and herdr-smart-nav became two
   rows in the existing `packages.herdr_plugins` roster, so they now install through the unchanged `run_after_53`
   machinery that already installs the nine third-party plugins, with the pinned commit in `.chezmoidata` and nothing
   inline in a script.
-
-  herdr-process stays on the LINK path and cannot be a GitHub install. `herdr plugin install` requires a committed
-  `herdr-plugin.toml`, and herdr-process ships none: its actions are one set per declared process profile, rendered by
-  `herdr-process generate` from the operator's own `processes.toml` and `config.toml`. Committing that render would
-  freeze one machine's profiles and chords into a public repository, and herdr plugin v1 registers no actions at
-  runtime. `run_onchange_after_58` therefore clones the pinned revision into `~/.local/share/herdr-process`, compiles
-  it, generates the manifest from the operator's config, and links that directory. Whether it can ever become a GitHub
-  install is now a design question living in that repository, and its README says so.
 
   The shared build partial did not survive: its source-glob hash phase hashed files that no longer exist here, and it
   had exactly one caller left, so its retry-marker, bounded-herdr and registration-verification logic is inlined into
@@ -2084,20 +2066,9 @@ posture owns the migrated pipeline and the legacy Bash tools are retired. osquer
   Both of our manifest ids are unchanged by the move, so all eleven `plugin_action` keybindings and the `h` alias needed
   no change, and none was made.
 
-  `just test-rust` no longer runs cargo over the three plugins, which is a deliberate reduction in what this
-  repository's gate covers, stated in its commit message. Each new repository owns its gates from here, and none of them
-  has CI yet, which is filed as its own task.
-
-  A RULE BREAK, DISCLOSED RATHER THAN HIDDEN: proving the rewritten `run_onchange_after_58` builder was supposed to run
-  under a scratch `HOME`, on the assumption that would sandbox it. It does not: the `herdr` CLI resolves the herdr
-  server independently of `HOME`, so the script's link phase reached the operator's LIVE server and re-registered
-  `herdr-process` at the lane's scratch path, breaking its own brief, which forbade touching the operator's live
-  plugins. It reverted immediately with `herdr plugin link /Users/stephen/.local/share/herdr/plugins/herdr-process` and
-  confirmed `plugin_root` was back; `herdr plugin list` independently confirmed the original registration afterward. No
-  damage survives. Two things follow: a scratch `HOME` is NOT a herdr sandbox, so a future brief for a herdr-touching
-  script must say to unset `HERDR_SOCKET_PATH` and `HERDR_BIN_PATH` as well, or to stop before the link phase; and the
-  accidental run proved that a `herdr plugin link` at a new path REPLACES the previous registration with no unlink step,
-  so the operator's step list for herdr-process needs no unlink.
+  `just test-rust` no longer runs cargo over the two plugins, which is a deliberate reduction in what this repository's
+  gate covers, stated in its commit message. Each new repository owns its gates from here, and none of them has CI yet,
+  which is filed as its own task.
 
 ## Repository hygiene
 
@@ -2191,9 +2162,6 @@ posture owns the migrated pipeline and the legacy Bash tools are retired. osquer
     with `/private/tmp/dotfiles-modernization/b74-hiiey5u7/RESULTS.md`.
   - `.worktrees/posture-digest-limits` (`fix/posture-digest-limits`, `b1adf180`): dirty native digest limit
     implementation and tests for task 60a. Inspect before starting another B041/S290 fix.
-  - `.worktrees/herdr-process-plan` (`feat/herdr-process`, `4014ff49`): untracked Herdr process-plugin source and
-    fixtures for the approved configurable floating-process-window plan. Do not rebuild this feature without reviewing
-    the existing source.
   - `.worktrees/fix-review-skill-delivery` (`fix/review-skill-delivery`, `9432c139`),
     `.worktrees/posture-digest-read-failure` (`fix/posture-digest-read-failure`, `50dbaea9`) and
     `.worktrees/posture-spool-diagnostic` (`fix/posture-spool-diagnostic`, `f6cf9e8d`): current dirty changes are
@@ -2231,12 +2199,7 @@ posture owns the migrated pipeline and the legacy Bash tools are retired. osquer
   `5001c94f`, whose worktree is gone and whose work survives only as the branch ref plus `stash@{3}`,
   `fix/nvim-mcp-boundary` at `295b84e3` behind [dotfiles #546](https://github.com/webdavis/dotfiles/pull/546),
   `fix/pns-daemon-fixture-children` at `c6b99b96`, and `feat/posture-funnel` at `0efb2119`. The four excluded-dirty
-  branches merged too: `edfd18b7`, `e5b5f877`, `9432c139` and `4014ff49`. A new highest-risk finding replaces the old
-  worry: `~/.herdr/worktrees/dotfiles/herdr-process-plan` holds 105 untracked files and 10,243 lines implementing the
-  whole five-crate `herdr-process` plugin, while `git ls-files` returns zero for both of its paths and
-  `git log origin/main -- '*herdr-process*'` returns nothing, so `feat/herdr-process` being merged covers its commits
-  and not this source. A `git worktree remove` there would destroy all of it, and preserving it was split to its own
-  Todoist task because it must happen whether or not the cleanup is approved. The exact proposal groups all 55 with no
+  branches merged too: `edfd18b7`, `e5b5f877`, `9432c139` and `4014ff49`. The exact proposal groups all 55 with no
   remainder: 11 protected because they are live right now (a herdr `open_workspace_id` and a running process cwd, one of
   them the head of [dotfiles #575](https://github.com/webdavis/dotfiles/pull/575)), two protected for open pull requests
   #546 and [dotfiles #51](https://github.com/webdavis/dotfiles/pull/51), one protected for unbacked source, 21 unmerged
@@ -2248,39 +2211,34 @@ posture owns the migrated pipeline and the legacy Bash tools are retired. osquer
   concurrent sessions, so the recheck has to run again at approval time. The full classified list, per-group membership,
   the salvage file list and a recheck block are in
   `~/workspaces/backups/2026-09-14T04-40-09.worktree-inventory-task68.backup.txt`. Still owed: operator approval of the
-  exact removal set, and the removal itself. Owed from the operator: (1) FIRST, before approving anything: preserve the
-  herdr-process source, which sits on no git ref. Either commit it on its branch,
-  `git -C ~/.herdr/worktrees/dotfiles/herdr-process-plan add dot_local/share/herdr/plugins/herdr-process test/fixtures/herdr-process && git -C ~/.herdr/worktrees/dotfiles/herdr-process-plan commit`,
-  or copy it out:
-  `cp -a ~/.herdr/worktrees/dotfiles/herdr-process-plan/dot_local/share/herdr/plugins/herdr-process ~/workspaces/backups/2026-09-14T04-40-09.herdr-process-plugin-source.backup/`.
-  Tracked as Todoist 6hW4HCJxjWQvvvQM.; (2) Re-run the recheck block at the bottom of
+  exact removal set, and the removal itself. Owed from the operator: (1) Re-run the recheck block at the bottom of
   ~/workspaces/backups/2026-09-14T04-40-09.worktree-inventory-task68.backup.txt immediately before removing anything. It
   was 57 registrations at 04:47:02Z, up from the 55 in this inventory. Any path that comes back from
   `herdr worktree list` with an open_workspace_id, or from the `lsof -a -d cwd` line, is off limits whatever the file
-  says.; (3) Decide group E1, the only set removable with no salvage step, seven worktrees:
+  says.; (2) Decide group E1, the only set removable with no salvage step, seven worktrees:
   `git worktree remove ~/.herdr/worktrees/dotfiles/posture-converge-staging`, and the same for
   `herdr-smart-nav-clean-code`, `lights-implementation`, `pns-executable-deadline`, `lights-spec`,
   `uu-tooling-lanes-spec-amend`, and `~/workspaces/dotfiles-worktrees/render-coverage`. All seven are merged into
-  f24aba51 and all their dirt is generated, disposable or superseded. `--force` will be needed on the dirty ones.; (4)
+  f24aba51 and all their dirt is generated, disposable or superseded. `--force` will be needed on the dirty ones.; (3)
   Decide group E2, seven worktrees that need a file copied out first. The exact files are listed per worktree in the
   backup file: `dot_local/share/pns/INTEGRATION-NOTES.md`, six `slice-*-plan.md`/`slice-*-report.md` files across the
   four s9 worktrees, `docs/superpowers/plans/2026-07-21-s9-reland-slice-4-alerter.md`, and the three
   `docs/research/2026-06-2*.md` skill papers. Each was verified absent from every commit on every ref. The three
-  docs/research papers are drop-in candidates for a commit, since docs/research is tracked on main.; (5) Decide group F,
+  docs/research papers are drop-in candidates for a commit, since docs/research is tracked on main.; (4) Decide group F,
   five detached worktrees whose tips no branch or tag contains (osq-review-4b, r1-review-4b, s61-g3, s61e-g3,
   rev4b-114). Either tag them first, for example `git tag archive/osq-review-4b e71776b8`, or say explicitly that the
   loss is accepted. The osquery and pns mutation-testing pins in the first two are the ones worth a look before
-  deciding, since whether those asserts survived into main's suite was not established here.; (6) Decide group D, the 21
+  deciding, since whether those asserts survived into main's suite was not established here.; (5) Decide group D, the 21
   unmerged worktrees where a branch holds the commits. Worktree removal there loses nothing as long as no
   `git branch -D` follows, which is task 67's scope, not this one. The three dead-Paseo worktrees under
-  ~/.paseo/worktrees/1sk17y2x are the strongest candidates: Paseo is dead and their tips are from June.; (7) Separately,
+  ~/.paseo/worktrees/1sk17y2x are the strongest candidates: Paseo is dead and their tips are from June.; (6) Separately,
   decide the 24 stray agent scratch files sitting beside the worktree directories in ~/.herdr/worktrees/dotfiles
   (chain-553.sh, ledger-pr.sh, five merge-5\*.sh, ledger-pr.log, and sixteen commit-*/push-* logs). None is tracked by
-  git and none belongs to a worktree.; (8) Leave groups A, B and C alone: 11 live worktrees, two behind open pull
-  requests #546 and #51, and herdr-process-plan. Closed 2026-09-15: eight stale worktrees were removed that night, and
-  `git worktree list` now shows four, the `main` checkout plus `fix/nvim-mcp-boundary` (behind open
-  [PR #546](https://github.com/webdavis/dotfiles/pull/546)), `feat/herdr-process` (the uncommitted plugin source) and
-  `refactor/herdr-smart-nav-clean-code` (an uncommitted crate split).
+  git and none belongs to a worktree.; (7) Leave groups A and B alone: 11 live worktrees and two behind open pull
+  requests #546 and #51. Closed 2026-09-15: eight stale worktrees were removed that night, and `git worktree list` now
+  shows three, the `main` checkout plus `fix/nvim-mcp-boundary` (behind open
+  [PR #546](https://github.com/webdavis/dotfiles/pull/546)) and `refactor/herdr-smart-nav-clean-code` (an uncommitted
+  crate split).
 
 - [x] 68b. Review and remove the untracked `.merge_file_*` artifacts in this checkout. They were Graphify merge-driver
   residue, not source. The operator deleted all 126 matching artifacts and `nvim.log` on 2026-09-13 after reviewing
@@ -2433,12 +2391,12 @@ sits with the `just worktrees-prune` entry in the uu section.
   now `.chezmoiscripts/run_after_58-build-herdr-linked-plugins.sh.tmpl` and its message names
   `run_before_20-install-rustup` ([PR #1120](https://github.com/webdavis/dotfiles/pull/1120)).
 
-- [x] 191. herdr plugin registration has been deferred nine times on this machine. Both retry markers that
+- [x] 191. herdr plugin registration has been deferred nine times on this machine. The retry marker that
   `.chezmoiscripts/run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl` keeps,
-  `~/.cache/herdr-plugin-build/herdr-process.retry` and `~/.cache/herdr-plugin-build/herdr-workspace-jump.retry`, read
-  9\. Fix: read the reason the builder prints on the next apply, fix that cause, and confirm both markers are gone after
-  a successful build. No longer needed, closed 2026-10-12: the builder runs on every apply and keeps no retry markers;
-  `~/.cache/herdr-plugin-build/` was empty and was trashed ([PR #1120](https://github.com/webdavis/dotfiles/pull/1120)).
+  `~/.cache/herdr-plugin-build/herdr-workspace-jump.retry`, reads 9. Fix: read the reason the builder prints on the next
+  apply, fix that cause, and confirm the marker is gone after a successful build. No longer needed, closed 2026-10-12:
+  the builder runs on every apply and keeps no retry markers; `~/.cache/herdr-plugin-build/` was empty and was trashed
+  ([PR #1120](https://github.com/webdavis/dotfiles/pull/1120)).
 
 - [x] 192. The pns builder's retry marker holds a count that nothing reads.
   `.chezmoiscripts/run_onchange_after_58-build-pns-engine.sh.tmpl` writes an attempt count into
@@ -6517,17 +6475,17 @@ trigger rather than as an absent pipeline.
   drives an owned fixture command, not an engine. The `pns.result/1` schema tag in fixtures is the wire contract's name
   and is covered by the wire-crate task above.
 
-- [x] 154. The three extracted herdr plugin repositories and the two Todoist plugin repositories have no CI, filed
-  2026-09-18. `just test-rust` used to run cargo test, fmt, clippy and doc over herdr-smart-nav, herdr-workspace-jump
-  and herdr-process from this repository, and after task 68a's extraction nothing does. `webdavis/herdr-todoist` and
-  `webdavis/todoist.nvim` never had a dotfiles gate either, and all five repositories' pull requests merge with "this PR
+- [x] 154. The two extracted herdr plugin repositories and the two Todoist plugin repositories have no CI, filed
+  2026-09-18. `just test-rust` used to run cargo test, fmt, clippy and doc over herdr-smart-nav and herdr-workspace-jump
+  from this repository, and after task 68a's extraction nothing does. `webdavis/herdr-todoist` and
+  `webdavis/todoist.nvim` never had a dotfiles gate either, and all four repositories' pull requests merge with "this PR
   has no CI checks configured"; every gate run against them tonight was run by hand in a lane's worktree, which is real
   evidence but is not a gate anyone else's change has to pass. Each needs its own workflow.
 
-  DONE 2026-09-19: CI added in all five repositories. `webdavis/herdr-smart-nav PR #1`,
-  `webdavis/herdr-workspace-jump PR #1` and `webdavis/herdr-process PR #1` each added a workflow on `macos-latest`.
-  `webdavis/herdr-todoist PR #12` added one with `--workspace` so `crates/todoist` is covered.
-  `webdavis/todoist.nvim PR #13` added lint and test, with Neovim 0.12.5 pinned by sha256 tarball.
+  DONE 2026-09-19: CI added in all four repositories. `webdavis/herdr-smart-nav PR #1` and
+  `webdavis/herdr-workspace-jump PR #1` each added a workflow on `macos-latest`. `webdavis/herdr-todoist PR #12` added
+  one with `--workspace` so `crates/todoist` is covered. `webdavis/todoist.nvim PR #13` added lint and test, with Neovim
+  0.12.5 pinned by sha256 tarball.
 
 - [x] 155. A pin bump in the herdr plugin roster does not move an already-installed plugin, filed 2026-09-18, raised as
   an open question by the task 68a lane. herdr v1 has no `plugin update`, so refreshing a plugin means reinstalling, and
@@ -6557,16 +6515,16 @@ trigger rather than as an absent pipeline.
   the workspace set churns.
 
   DONE 2026-09-20: [PR #862](https://github.com/webdavis/dotfiles/pull/862), merged `056b5dd8d`, with the plugin's own
-  PR webdavis/herdr-workspace-jump #2 merged `37d8a3104`. herdr-workspace-jump moved onto the link path alongside
-  herdr-process, closing task 156. The plugin's own pull request (feat/generate-manifest-from-config) adds a `generate`
-  subcommand that renders its herdr-plugin.toml from the operator's own [workspaces] config, so keys and workspace
-  routes are no longer baked into a committed manifest. In dotfiles, packages.herdr_linked_plugin became
-  packages.herdr_linked_plugins (a two-entry list), herdr-workspace-jump's entry left the herdr_plugins install roster,
-  a new dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml declares the nine workspace labels and
-  directories, and run_onchange_after_58-build-herdr-process-plugin.sh.tmpl was renamed to
-  run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl and generalized to loop the checkout, build, manifest and
-  registration phases over both plugins. CLAUDE.md's herdr sections were updated to match. This dotfiles PR must not
-  merge before the plugin's own pull request merges, since the pinned revision is the tip of that still-open branch.
+  PR webdavis/herdr-workspace-jump #2 merged `37d8a3104`. herdr-workspace-jump moved onto the link path, closing task
+  156\. The plugin's own pull request (feat/generate-manifest-from-config) adds a `generate` subcommand that renders its
+  herdr-plugin.toml from the operator's own [workspaces] config, so keys and workspace routes are no longer baked into a
+  committed manifest. In dotfiles, packages.herdr_linked_plugin became packages.herdr_linked_plugins (a two-entry list),
+  herdr-workspace-jump's entry left the herdr_plugins install roster, a new
+  dot_config/herdr/plugins/config/herdr-workspace-jump/config.toml declares the nine workspace labels and directories,
+  and the linked-plugin builder was renamed to run_onchange_after_58-build-herdr-linked-plugins.sh.tmpl and generalized
+  to loop the checkout, build, manifest and registration phases over both plugins. CLAUDE.md's herdr sections were
+  updated to match. This dotfiles PR must not merge before the plugin's own pull request merges, since the pinned
+  revision is the tip of that still-open branch.
 
   The operator runs `herdr plugin uninstall herdr-workspace-jump` before the next apply so the linked build can own the
   id.
@@ -6986,81 +6944,33 @@ do not reopen the settled security-page behavior.
 ## Start gates and retained deferrals
 
 On 2026-09-13, the operator authorized the active modernization goal. After task 68c, proceed through the resume order,
-including the Herdr process-toggle plugin and review launcher, SP5 research, SP4 Bash improvements, SP8 and Forzare/#51
-when their prerequisites pass. Those projects need no further start instruction. Preserve Neovim acceptance and Herdr
-feasibility dependencies, SP5 before SP4, SP8 last in modernization and Forzare after everything else. Separate
-future-platform/presence and extraction gates, other explicit deferrals, unresolved product/security decisions and
-operator-only actions remain in force.
+including the review launcher, SP5 research, SP4 Bash improvements, SP8 and Forzare/#51 when their prerequisites pass.
+Those projects need no further start instruction. Preserve Neovim acceptance and Herdr feasibility dependencies, SP5
+before SP4, SP8 last in modernization and Forzare after everything else. Separate future-platform/presence and
+extraction gates, other explicit deferrals, unresolved product/security decisions and operator-only actions remain in
+force.
 
-- [ ] PARTLY BUILT, checked against the machine on 2026-09-15, because this bullet read as not started and that is
-  wrong. What exists: the Rust plugin is committed at `dot_local/share/herdr/plugins/herdr-process/`, built by
-  `.chezmoiscripts/run_onchange_after_58-build-herdr-process-plugin.sh.tmpl`, deployed to
-  `~/.local/share/herdr/plugins/herdr-process/` with a compiled `target/`, and its generated `herdr-plugin.toml`
-  declares four actions for the `tuicr` profile (`split-right`, `split-below`, `toggle-float`, `kill`) plus an `attach`
-  pane. Its own test suite passes: 42 adapter cases, 14 application cases, 19 binary cases and 16 composition cases.
-  WHAT IS LEFT: only one action is bound to a key, `herdr-process.tuicr:toggle-float` at
-  `dot_config/herdr/config.toml:331`, so split-right, split-below and kill are reachable through the plugin but not from
-  the keyboard; and `tuicr` is the only configured profile, so the reviewr, btop and scratch-shell examples in the
-  requirement below do not exist yet. Runtime acceptance (attachment, redraw, resizing, focus, the configurable Ctrl+C
-  behavior, explicit termination, process-exit cleanup) has not been run on the operator's own session. Original
-  requirement, still the specification for what is missing: build a persistent process-toggle plugin for Herdr in Rust,
-  following `$clean-code-rust` and its prerequisite `$clean-code`. Consult `$frontend-design:frontend-design` for
-  terminal interface design and review. Behavior agreed 2026-09-12; the 2026-09-13 goal authorizes implementation in the
-  resume order. Support any number of named window configurations and running sessions, with no hardcoded cap. Each
-  configuration supplies a program, arguments, working directory, floating dimensions, and independent shortcuts for
-  Split right, Split below, and Toggle float. tuicr, reviewr, btop, and a scratch shell are example configurations; the
-  plugin stays independent of the program. Split right opens side by side with a vertical divider; Split below stacks
-  panes with a horizontal divider. Either split action starts, docks, or repositions the same session, or focuses it
-  when already placed correctly. Toggle float starts a floating session, pops out an existing split, or hides/restores
-  an existing float. Pop out/dock preserves the running program, terminal screen, position, comments, and unfinished
-  input. Popping out releases the old split's space; hiding a float keeps it hidden until restored or explicitly docked.
-  The plugin owns background session lifetime and forwards input and resize events through the attached view. Shortcuts
-  work from Neovim and shell panes and while a float is focused. Show one floating window at a time: selecting another
-  hides the previous float without stopping either session. Docked sessions remain visible. Stacking floating windows is
-  outside the agreed scope. Center floats over the whole Herdr window, spanning underlying panes, with configurable
-  percentage dimensions that resize and recenter when the terminal window changes size. A hidden session receives the
-  current dimensions when restored. Keep toggling and docking fast. Per window, let users configure whether Ctrl+C in
-  the popup terminates its process or only hides the popup and keeps the background session alive. The hide action must
-  not forward Ctrl+C to the running program. Also expose a separately configurable Herdr kill binding for each named
-  session, closing its view and terminating its owned processes whether floating, docked, or hidden. Hiding preserves
-  the session; quitting or killing ends it. Process exit closes its view and clears its session, including exits while
-  hidden. The next launch starts a fresh instance. Verify attachment, redraw, resizing, focus, configurable Ctrl+C
-  behavior, explicit termination, and process-exit cleanup through supported Herdr interfaces before building the review
-  launcher below. The 2026-09-13 feasibility audit found a supported implementation path in Herdr 0.9.0: percentage
-  popups center and resize over the shared pane surface, spanning its panes while excluding sidebar and tab-bar chrome.
-  The owned Rust attachment must handle configured shortcuts while focused because popup input bypasses native Herdr
-  binding dispatch. Read the same configured prefix and plugin actions, preserve unmatched input and paste, and reject
-  ambiguous encodings. Keep the process in an owned pseudoterminal and replace its views. Hide by ending the owned
-  attachment, never by blindly closing whichever popup is active. Prove view identity, redraw, transition rollback and
-  process cleanup with fixtures before runtime acceptance. These are implementation requirements; no mandatory upstream
-  change was found. Operator note 2026-09-14: herdr's documented `[[keys.command]]` popups are NOT this (a popup lives
-  only until its command exits; no toggle, hide or float exists in the docs, the keybinding actions or the CLI, which
-  offers zoom, split, move, swap and close). When this is built, dig into herdr's source for a true hide before settling
-  for parking the pane in another tab, and check herdr's preview channel (its nightly, more or less) for a hide or float
-  primitive that the stable release lacks.
 - [x] DONE 2026-09-16 in [PR #706](https://github.com/webdavis/dotfiles/pull/706), merged `744489fa`:
   `~/.local/bin/worktree-review.sh` (bash, 352 lines, 19 bashunit tests, 21 mutants caught) plus a `review` profile and
-  one chord handing it to the live herdr-process plugin for the three placement actions. `reviewr` is NOT installed on
-  this machine, so the launcher takes the review command as an argument defaulting to `tuicr`, and nothing names
-  reviewr. Measured against a synthetic 301-worktree repository: first load 4.9 s median cold (budget proposed 8 s),
-  repeat load 0.05 s, review start under 0.1 s. Recency is max(HEAD committer time, newest non-ignored mtime),
-  `graphify-out/graph.json` excluded as generated. OPERATOR STEPS LEFT: confirm the three latency budgets the lane
-  proposed, and run one real pick and resume in your own herdr session. Original entry: add a deterministic worktree
-  picker and reviewr launcher. Consult `$frontend-design:frontend-design` for the picker's interface design and review.
-  Implementation is authorized by the 2026-09-13 goal after the process-toggle feasibility checks pass. From the current
-  repository, list existing worktrees with the most recently updated first, including commits and uncommitted file edits
-  while excluding ignored files. Search and select a worktree without changing the agent's working directory or branch.
-  Agents may remain on main while orchestrating multiple worktrees; selection needs no language-model call or
-  agent-to-worktree registry. Keep worktree selection separate from the generic process-toggle plugin; the picker can be
-  an ordinary command rather than another required plugin package. Use the shared session behavior above for Split
-  right, Split below, and Toggle float. With no selected target, open the picker first; subsequent toggles resume that
-  review without repeating discovery. Preserve the originating workspace context so reviewr can send comments to the
-  intended agent, including its agent picker when several agents are present. Opening the picker and resuming a review
-  must feel immediate with hundreds of worktrees. Measure first-load, repeat-load, and review-start latency separately
-  and agree a budget before implementation. Evaluate cached activity ordering refreshed separately from display, keeping
-  the selection stable during refresh; resolve deletion timestamps, stale paths, and cache freshness before claiming
-  accurate recency. Reuse the process-toggle session handling after its feasibility checks pass; do not patch reviewr or
-  duplicate that handling here. The requested upstream proposal already exists as
+  one chord for the three placement actions. `reviewr` is NOT installed on this machine, so the launcher takes the
+  review command as an argument defaulting to `tuicr`, and nothing names reviewr. Measured against a synthetic
+  301-worktree repository: first load 4.9 s median cold (budget proposed 8 s), repeat load 0.05 s, review start under
+  0.1 s. Recency is max(HEAD committer time, newest non-ignored mtime), `graphify-out/graph.json` excluded as generated.
+  OPERATOR STEPS LEFT: confirm the three latency budgets the lane proposed, and run one real pick and resume in your own
+  herdr session. Original entry: add a deterministic worktree picker and reviewr launcher. Consult
+  `$frontend-design:frontend-design` for the picker's interface design and review. Implementation is authorized by the
+  2026-09-13 goal. From the current repository, list existing worktrees with the most recently updated first, including
+  commits and uncommitted file edits while excluding ignored files. Search and select a worktree without changing the
+  agent's working directory or branch. Agents may remain on main while orchestrating multiple worktrees; selection needs
+  no language-model call or agent-to-worktree registry. The picker can be an ordinary command rather than a required
+  plugin package. Use the shared session behavior for Split right, Split below, and Toggle float. With no selected
+  target, open the picker first; subsequent toggles resume that review without repeating discovery. Preserve the
+  originating workspace context so reviewr can send comments to the intended agent, including its agent picker when
+  several agents are present. Opening the picker and resuming a review must feel immediate with hundreds of worktrees.
+  Measure first-load, repeat-load, and review-start latency separately and agree a budget before implementation.
+  Evaluate cached activity ordering refreshed separately from display, keeping the selection stable during refresh;
+  resolve deletion timestamps, stale paths, and cache freshness before claiming accurate recency. Do not patch reviewr
+  here. The requested upstream proposal already exists as
   [reviewr issue #99](https://github.com/persiyanov/herdr-reviewr/issues/99); check it when revisiting supported
   placement actions.
 - [ ] SP5, evaluate xonsh before SP4's shell work, after Neovim acceptance. The 2026-09-13 goal supplies the start
@@ -7553,8 +7463,8 @@ operator-only actions remain in force.
   navigation and split bindings. The combined mapping was checked against the live and PR configurations plus Herdr
   0.9.0 defaults; no duplicate assignments remain after these moves. The configuration is merged and the operator
   reported a successful apply. Verify permissions, feedback delivery, placement and plugin updates before acceptance.
-  Obsidian saving remains optional; this integration does not replace tuicr, reviewr or the planned process-toggle
-  plugin. Implementation task: [6hVpPJJ7662Qr9mM](https://app.todoist.com/app/task/6hVpPJJ7662Qr9mM).
+  Obsidian saving remains optional; this integration does not replace tuicr or reviewr. Implementation task:
+  [6hVpPJJ7662Qr9mM](https://app.todoist.com/app/task/6hVpPJJ7662Qr9mM).
 - [ ] Install and configure [Dockerfile Roast](https://github.com/immanuwell/dockerfile-roast), both the `droast` CLI
   and [droast.nvim](https://github.com/immanuwell/droast.nvim), requested 2026-09-12. Use the supported Homebrew package
   after verifying availability, and manage the upstream Neovim extension through the existing lazy.nvim configuration
@@ -8655,7 +8565,7 @@ this audit.
 Planned 2026-09-12. ON HOLD since 2026-09-14: the operator ruled that SP8 is not part of the current goal, which
 completes when everything else in this ledger is done, and that Forzare no longer waits on it. Nothing below starts
 until the operator lifts the hold. Original ordering, kept for when it does: the final modernization subproject, after
-SP4, SP5 and the other modernization tasks, including the process-toggle plugin and worktree review launcher.
+SP4, SP5 and the other modernization tasks, including the worktree review launcher.
 
 - [x] Install the upstream skills from [pstack](https://github.com/cursor/plugins/tree/main/pstack) through the managed
   skills store, recording provenance, harness delivery, and updates through uu. Check its Cursor-specific dependencies
