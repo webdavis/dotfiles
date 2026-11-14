@@ -234,21 +234,3 @@ if [[ $- == *i* ]]; then
   precmd_functions+=(__cmd_notify_precmd)
   {{- end }}
 fi
-
-case $- in
-  *i*) ;;
-  *) return ;;
-esac
-
-command -v herdr &>/dev/null || return
-[[ -n ${HERDR_ENV:-} ]] && return
-
-[[ -n ${SSH_ORIGINAL_COMMAND:-} ]] && return
-
-# Set by VS Code Remote SSH.
-[[ -n ${VSCODE_INJECTION:-} ]] && return
-
-[[ ${TERM_PROGRAM:-} == "vscode" ]] && return
-
-# Attaches to the persistent herdr session, starting the server when needed.
-herdr
