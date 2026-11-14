@@ -34,3 +34,6 @@
 .config/nvim/lua/plugins/noice.lua
 .config/nvim/lua/plugins/unimpaired.lua
 .config/nvim/lua/custom_api/preview_host.lua
+
+# The damnit config that config.lua and secrets.lua replace.
+.config/dam/config.toml
