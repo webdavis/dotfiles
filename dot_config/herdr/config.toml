@@ -141,14 +141,6 @@ width = 80
 height = 22
 
 [[keys.command]]
-key = "prefix+d"
-type = "popup"
-command = "herdr-action-menu.sh herdr-damnit"
-description = "damnit: open the action menu"
-width = 80
-height = 23
-
-[[keys.command]]
 key = "prefix+z"
 type = "popup"
 command = "herdr-action-menu.sh furkankly.zoetrope"
