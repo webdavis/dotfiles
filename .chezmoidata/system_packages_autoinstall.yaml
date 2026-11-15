@@ -305,8 +305,6 @@ packages:
   herdr_plugins:
     - id: herdr-smart-nav
       repo: webdavis/herdr-smart-nav
-    - id: herdr-damnit
-      repo: webdavis/herdr-damnit
     - id: worktrunk
       repo: devashish2203/herdr-worktrunk
     - id: tab-smart-rename

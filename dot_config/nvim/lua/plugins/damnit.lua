@@ -1,4 +1,3 @@
--- `views` uses the same names and queries as the herdr-damnit pane, so one word opens one list in both.
 -- `!done` leaves out completed tasks, because `due:today` matches them too.
 return {
   "webdavis/damnit.nvim",
