@@ -586,9 +586,9 @@
        `installLocation` is deliberately not declared. The schema calls it
        auto-generated when absent, and it holds an absolute cache path that
        differs per machine. --- */ -}}
-{{- /* The LIST path form, not a dotted string: a name can contain a dot
-       (`a5c.ai`), and a dotted path would create a nested `a5c` map with an
-       `ai` child instead of the one key Claude Code writes. */ -}}
+{{- /* The LIST path form, not a dotted string: a name can contain a dot,
+       and a dotted path would create a nested map instead of the one key
+       Claude Code writes. */ -}}
 {{- /* Every Claude Code marketplace in the data except claude-plugins-official,
        which ships inside Claude Code, and the ones marked
        marketplace_in_settings: false, whose own tool manages their entry

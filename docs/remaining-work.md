@@ -7043,57 +7043,6 @@ force.
 - [ ] SP7, sweep and backlog reconciliation, detailed below. Finish the earlier approved work first.
 - [ ] Revisit Neovim's explicitly deferred conform.nvim/nvim-lint migration and Agent Client Protocol option only after
   a separate decision, using the v4 design.
-- [ ] Revisit the babysitter execute-bit issue draft in `~/.claude/pipeline/babysitter-issues/` when the operator
-  releases its 2026-09-06 deferral.
-- [ ] Reconcile babysitter's separate Stop-decision defect against a released artifact and rerun the recorded A/B
-  reproducer before lifting that hold. B112 records upstream issue #1761 and merged fix #1777; do not file a duplicate
-  or treat a merged source fix as an installed release. Source pins the SDK (software development kit) to `6.0.3`
-  because the npm `latest` tag is behind it. Preserve the separate execute-bit hold too: the current Claude and Codex
-  templates require both defects resolved before normal enablement. Reconcile that condition with the operator before
-  changing either template. 2026-09-14: checked, recorded in `docs/research/2026-09-babysitter-defect-release-check.md`.
-  Fix #1777 merged `2026-08-23T19:13:06Z` and is current on `main` (its post-merge blobs for
-  `adapter-claude/src/renderer.ts` and `core/src/merge-engine/merge.ts` are the objects `main` holds), but no artifact
-  carries it: the newest publish of `@a5c-ai/babysitter-sdk`, `@a5c-ai/hooks-adapter-claude` and
-  `@a5c-ai/hooks-adapter-core` is `2026-08-10`, across the `latest` tag (still `6.0.0`), the released `6.0.3` the source
-  pins, and the newest `staging` prerelease; the newest GitHub release is `v0.0.188` from `2026-06-26` and the
-  `babysitter-claude` plugin release source has not moved since `2026-08-10`. The recorded A/B reproducer was rerun
-  against installed `6.0.3` and still disagrees (A returns `continue: true` with an empty reason, B returns
-  `decision: "block"` with the continuation reason), and the installed `renderStopOutput` and merge engine are pre-fix
-  by direct inspection. The execute-bit reproducer was rerun too and also still reproduces (a mode-644
-  `.a5c/hooks/on-run-start/` script ran); that defect has no upstream report, so no release can fix it. The pin is
-  durable: the apply path reinstalls the exact spec and the weekly uu npm lane has run since `f89a9dae` without moving
-  it. Verdict: defer, both holds stay, no duplicate of #1761 filed, no merged source fix treated as a release, and
-  neither template changed. Operator half outstanding: both templates require both defects resolved, only the Stop
-  defect is reported upstream, and a released #1777 would not lift the Codex hold (that adapter drops `decision` on Stop
-  by a deliberate field allowlist, not by the omission #1777 fixes). Six open questions are in the document, the first
-  being whether the two holds are decoupled. Full document: `docs/research/2026-09-babysitter-defect-release-check.md`.
-  Operator steps: (1) Read `docs/research/2026-09-babysitter-defect-release-check.md` and rule on its first open
-  question: does the enablement condition stay "both defects resolved", or does it decouple so each hold names the one
-  defect it waits on? As written it cannot be satisfied, because the execute-bit defect has no upstream report. (2)
-  Decide whether to release the 2026-09-06 deferral on
-  `~/.claude/pipeline/babysitter-issues/babysitter-issue-execute-bit-v2.md` so that defect can be filed upstream.
-  Without a report there is no path to "both resolved" at any date. (3) Decide whether the Codex Stop allowlist omission
-  gets its own upstream report, and whether the Codex hold's comment names it explicitly instead of citing the same
-  reason as the Claude comment. (4) Agree any edit to the two hold comments before it is made.
-  `private_dot_claude/modify_settings.json` still keeps `babysitter@a5c.ai` in `$defaultDisabledPlugins` and
-  `private_dot_codex/modify_private_config.toml` still sets `plugins."babysitter@babysitter".enabled = false`; nothing
-  was changed. (5) Decide the recheck mechanism and cadence: the manual three-command `npm view` recheck in the
-  document, or a uu probe comparing published versions against the pin, and whether it is tracked in the ledger entry or
-  in a Todoist task. (6) Decide whether a `staging` dist-tag is ever acceptable as the pin. It changes nothing today
-  (the newest staging predates the merge) but it sets what a future check may accept. Open questions: (1) Does the
-  enablement condition stay "both defects resolved"? As written it cannot be satisfied: the execute-bit defect has no
-  upstream report, so no release can fix it. Recommendation: decouple, so each hold names the defect it waits on. (2) Is
-  the execute-bit issue draft filed now, releasing its 2026-09-06 deferral? Without that, "both resolved" has no path
-  forward at any date. (3) Is the Codex Stop allowlist omission reported upstream, and does it join the Codex hold's
-  condition explicitly? Today the Codex comment cites the same "adapters both drop Stop's decision" reason as the Claude
-  comment, but a released #1777 fixes only the Claude side. (4) When a release lands that fixes only the Stop defect,
-  does babysitter get enabled in Claude Code while the execute-bit behavior stands? The two defects differ in kind: one
-  is a broken feature, the other runs repository-supplied scripts under an unrelated approval. (5) Does the repository
-  get a release watcher, or does this stay a manual recheck? If manual, on what cadence, and does it live in the ledger
-  entry or in a Todoist task? (6) Is a `staging` dist-tag ever acceptable as the pin? The answer decides what a future
-  check may accept, even though it changes nothing today. (7) Once the fix is installable, does the Codex Stop path get
-  retested? #1777's core half will start sending `continueSession: false` to Codex on a block, and whether Codex reads
-  that as holding the turn or ending the session is untested.
 
 ### SP7 scope recovered from the roadmap and Todoist
 
@@ -7248,8 +7197,8 @@ force.
   only. (9) Out of scope: `~/.cargo/bin/fd` 8.4.0 shadows the declared Homebrew fd 10.5.0, and `nu` plus
   `nu_plugin_core_match` are installed there despite the ratified nushell no-go. Clean up, or leave?
 - [ ] Finish the recorded pi harness setup/evaluation and its configuration, skills and hook integration. Reconcile
-  babysitter's evaluation with its existing declaration and holds, and Understand-Anything with its current adoption
-  decision. OpenSpec and credential-access work have explicit entries below.
+  Understand-Anything with its current adoption decision. OpenSpec and credential-access work have explicit entries
+  below.
 - [x] Finish OpenSpec configuration, explicitly requested 2026-09-12. Its npm package is declared and version `1.12.0`
   is installed. The live global configuration exists with profile `core` and delivery `both`, but no OpenSpec
   configuration or generated integrations are tracked here, and this checkout has no `openspec/` root. Choose the

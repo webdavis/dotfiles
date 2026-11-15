@@ -203,10 +203,6 @@ scheduled = true
 time_limit = "6 hours"
 unsuccessful_runs_before_alert = 3
 
-[lane.npm.settings]
-# npm's `latest` tag for the babysitter SDK is older than the pinned version the plugin needs.
-skip = ["@a5c-ai/babysitter-sdk"]
-
 [lane.npx-skills]
 builtin = "npx-skills"
 env = {}
