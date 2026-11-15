@@ -109,19 +109,17 @@ Overwritten from the template on every apply, whatever the live file holds.
   `DISABLE_ERROR_REPORTING` = `1`, `DISABLE_NON_ESSENTIAL_MODEL_CALLS` = `1`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` = `75`.
 - `attribution.commit` and `attribution.pr`, both set to the empty string, which is the native switch for the co-author
   trailer and the generated-with footer the global rules already forbid by hand.
-- `extraKnownMarketplaces`, nine entries on darwin and six on Linux. The six GitHub ones each carry `autoUpdate` =
-  `true`: `ponytail`, `openai-codex`, `worktrunk`, `last30days-skill`, `plannotator`, `a5c.ai`. Claude Code refreshes a
+- `extraKnownMarketplaces`, eight entries on darwin and five on Linux. The five GitHub ones each carry `autoUpdate` =
+  `true`: `ponytail`, `openai-codex`, `worktrunk`, `last30days-skill`, `plannotator`. Claude Code refreshes a
   marketplace and its installed plugins at startup on its own, but only defaults that on for marketplaces Anthropic
-  publishes (read out of the shipped 2.1.220 binary on 2026-08-03), so without those six entries those plugins sit at
-  their install version forever. `a5c.ai` is the one key written through the list path form, since its own name holds a
-  dot that a dotted path would split into a nested map. The other three, `pns`, `strategy` and `clean-code`, are
-  darwin-only and deliberately carry NO `autoUpdate`: they are this repo's own marketplaces, directories under
-  `~/.claude/` that chezmoi converges on every apply, and `.chezmoiignore` drops all three on Linux, where declaring one
-  would be a startup refresh that always fails. The write is per marketplace key, so a marketplace added with
-  `claude plugin marketplace add` keeps its own entry. What those silent startup updates changed is recorded weekly by
-  the `claude-plugins` lane in `uu`; see the plugin update record in `docs/runbooks/agent-skills-store.md`. One
-  consequence for all three: Claude Code runs the INSTALLED copy under
-  `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, not the marketplace directory, and
+  publishes (read out of the shipped 2.1.220 binary on 2026-08-03), so without those five entries those plugins sit at
+  their install version forever. The other three, `pns`, `strategy` and `clean-code`, are darwin-only and deliberately
+  carry NO `autoUpdate`: they are this repo's own marketplaces, directories under `~/.claude/` that chezmoi converges on
+  every apply, and `.chezmoiignore` drops all three on Linux, where declaring one would be a startup refresh that always
+  fails. The write is per marketplace key, so a marketplace added with `claude plugin marketplace add` keeps its own
+  entry. What those silent startup updates changed is recorded weekly by the `claude-plugins` lane in `uu`; see the
+  plugin update record in `docs/runbooks/agent-skills-store.md`. One consequence for all three: Claude Code runs the
+  INSTALLED copy under `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`, not the marketplace directory, and
   `claude plugin update pns@pns` copies it again only when `plugin.json` declares a new version (measured 2026-09-13: a
   skill added under the same 0.1.0 stayed invisible, "already at the latest version"). Adding or changing a skill under
   one of those `plugins/<name>/` trees therefore bumps that plugin's version in the same change; after the apply, run

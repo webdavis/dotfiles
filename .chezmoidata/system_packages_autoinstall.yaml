@@ -250,9 +250,6 @@ packages:
     fnm:
       - node: "24"
         packages:
-          # Pinned to the version the babysitter plugins ship.
-          # Only this -sdk package provides the adapters-hooks command.
-          - "@a5c-ai/babysitter-sdk@6.0.3"
           - "@agentclientprotocol/claude-agent-acp"
           - "@clawdbot/lobster"
           - "@doist/todoist-cli"

@@ -97,6 +97,4 @@ Then apply. To remove one, take it off the list and trash the installed copy by 
 - **Graphify** keeps its Claude Code skill outside the store. `~/.claude/skills/graphify` is a normal chezmoi link to
   `~/.local/share/graphify/claude/skills/graphify`, and the `graphify` lane refreshes it after `uv` when its version is
   older than the graphify program's.
-- **babysit for Hermes** is a real folder in chezmoi, `private_dot_hermes/private_skills/babysit/`, and not in the
-  store. Claude Code and Codex get their own copy from the babysitter plugin.
 - **`humanizer`** is bundled with Hermes, so the default profile carries it with no line in the data.
