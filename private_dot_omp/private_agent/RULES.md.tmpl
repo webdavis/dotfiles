@@ -1,0 +1,2 @@
+{{- /* Subagents never load AGENTS.md, so the rules they must follow are carried here on every request. */ -}}
+{{- index (splitList "## Git and GitHub" (include "private_dot_codex/AGENTS.md")) 0 | trim }}
