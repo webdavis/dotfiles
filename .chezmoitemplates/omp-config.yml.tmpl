@@ -43,6 +43,15 @@
 {{- $merged = setValueAtPath (list "advisor" "enabled") true $merged -}}
 {{- $merged = setValueAtPath (list "modelRoles" "advisor") "anthropic/claude-opus-5-5" $merged -}}
 
+{{- /* A long idle session shrinks before its prompt cache expires, so the next message re-sends less. */ -}}
+{{- $merged = setValueAtPath (list "compaction" "idleEnabled") true $merged -}}
+{{- $merged = setValueAtPath (list "lsp" "diagnosticsOnEdit") true $merged -}}
+{{- $merged = setValueAtPath (list "task" "enableLsp") true $merged -}}
+{{- /* A subagent can work in its own copy of the checkout, and a fan-out stops at eight subagents. */ -}}
+{{- $merged = setValueAtPath (list "task" "isolation" "enabled") true $merged -}}
+{{- /* The limit is parsed from YAML so that it equals the live file's number, which keeps a no-op apply a no-op. */ -}}
+{{- $merged = setValueAtPath (list "task" "maxConcurrency") (fromYaml "8") $merged -}}
+
 {{- /* The Broccoli profile allows the tech support skills alone. A session start names the full list for its plugin folders. */ -}}
 {{- if eq (get . "ompProfile" | default "") "broccoli" -}}
 {{-   $skills := .broccoli.omp.tech_support -}}
