@@ -2,7 +2,8 @@ tui.editor.cursorUp: [up, ctrl+p]
 tui.editor.cursorDown: [down, ctrl+n]
 tui.select.up: [up, ctrl+p]
 tui.select.down: [down, ctrl+n]
-app.model.cycleForward: ctrl+x
+app.model.cycleForward: "alt+."
+app.model.cycleBackward: "alt+,"
 app.exit: ctrl+q
 app.approval.approve: ctrl+enter
 app.message.followUp: ctrl+enter

@@ -57,6 +57,15 @@
 {{- else -}}
 {{- /* The personal profile loads standalone skills from its own folder alone, so a skill a plugin also ships loads once. */ -}}
 {{-   $merged = setValueAtPath (list "skills" "enableAgentsUser") false $merged -}}
+{{- /* Scouts, mechanical subagents and background jobs run on the smol role. */ -}}
+{{-   $merged = setValueAtPath (list "modelRoles" "smol") "anthropic/claude-sonnet-5-5" $merged -}}
+{{- /* These roles exist only so the model cycle keys can reach their models. */ -}}
+{{-   $merged = setValueAtPath (list "modelRoles" "opus") "anthropic/claude-opus-5-5" $merged -}}
+{{-   $merged = setValueAtPath (list "modelRoles" "astra") "openai-codex/gpt-6-astra" $merged -}}
+{{-   $merged = setValueAtPath (list "modelRoles" "sol") "openai-codex/gpt-6.1-sol" $merged -}}
+{{-   $merged = setValueAtPath (list "cycleOrder") (list "default" "opus" "smol" "astra" "sol") $merged -}}
+{{- /* A Claude usage limit moves the session to Codex until the limit clears. */ -}}
+{{-   $merged = setValueAtPath (list "retry" "fallbackChains") (dict "anthropic/*" (list "openai-codex/gpt-6.1-sol")) $merged -}}
 {{- end -}}
 
 {{- /* A no-op apply emits the live file unchanged, since toYaml reorders every key. */ -}}
