@@ -1,6 +1,7 @@
 # Plugins per harness: a marketplace owner/repo and the <plugin>@<marketplace> ids installed from it.
 # marketplace_in_settings: false keeps a marketplace out of settings.json because its own tool manages it.
 # omp lists what omp's default profile installs into its own folders; each id is also one Claude Code installs.
+# omp_npm lists the npm extensions of omp's default profile; a tool named under allow runs unasked.
 # hermes lists plugin catalog names.
 plugins:
   harnesses:
@@ -74,6 +75,12 @@ plugins:
           - "code-simplifier@claude-plugins-official"
           - "security-guidance@claude-plugins-official"
           - "playwright@claude-plugins-official"
+    omp_npm:
+      - package: "@ff-labs/pi-fff"
+        allow:
+          - "fffind"
+          - "ffgrep"
+          - "fff-multi-grep"
     claude_builtins:
       - "cc-plugin-you-should-know@builtin"
     codex_and_claude:

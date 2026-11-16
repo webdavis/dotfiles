@@ -49,6 +49,13 @@ Agent instructions belong in this file alone.
   3. A removed marketplace: `claude plugin marketplace remove <name>` or `codex plugin marketplace remove <name>`.
   4. Hermes hub skill: `hermes -p <profile> skills uninstall <name> --yes` in each profile that had it.
 
+### omp extension from npm
+
+- Install: an entry under `omp_npm` in `.chezmoidata/agent-plugins.yaml`, with its npm name as `package` and the tools that run unasked in its `allow` list.
+- Remove:
+  1. Remove its entry.
+  2. `omp plugin uninstall <package>`.
+
 ### Any other agent skill installer
 
 - Install: add its entry under its harness in `.chezmoidata/agent-skills.yaml`. An entry under `media` loads only in media sessions.

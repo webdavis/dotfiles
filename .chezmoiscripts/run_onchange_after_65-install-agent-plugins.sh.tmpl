@@ -24,6 +24,8 @@
 {{-     range .plugins -}}{{- $ompPlugins = append $ompPlugins (printf "%s %s" $profile .) -}}{{- end -}}
 {{-   end -}}
 {{- end -}}
+{{- $ompNpmPackages := list -}}
+{{- range .plugins.harnesses.omp_npm -}}{{- $ompNpmPackages = append $ompNpmPackages .package -}}{{- end -}}
 #!/usr/bin/env bash
 # agent-plugins.yaml: {{ include ".chezmoidata/agent-plugins.yaml" | sha256sum }}
 # broccoli-tools.yaml omp plugins: {{ .broccoli.omp.plugins | toJson | sha256sum }}
@@ -41,6 +43,7 @@ readonly codex_marketplaces={{ join "\n" $codexMarketplaces | squote }}
 readonly codex_plugins={{ join "\n" $d.codex.plugins | squote }}
 readonly omp_marketplaces={{ join "\n" $ompMarketplaces | squote }}
 readonly omp_plugins={{ join "\n" $ompPlugins | squote }}
+readonly omp_npm_packages={{ join "\n" $ompNpmPackages | squote }}
 readonly hermes_plugins={{ join "\n" $d.hermes.plugins | squote }}
 readonly hermes_hub_skills={{ join "\n" $hermesHubSkills | squote }}
 readonly hermes_opt_out_profiles={{ join "\n" $d.hermes.opt_out_profiles | squote }}
@@ -291,6 +294,34 @@ install_missing_omp_plugins() {
   return "$status"
 }
 
+omp_npm_package_names() {
+  omp plugin list --json </dev/null | jq -r '.npm[]?.name'
+}
+
+install_omp_npm_package_if_missing() {
+  local installed_names=$1 package=$2
+  if list_includes "$installed_names" "$package"; then
+    return
+  fi
+  run_install_command install-failed omp plugin install "npm:$package" || return 1
+  report_under_header "omp: installed npm package $package"
+}
+
+install_missing_omp_npm_packages() {
+  if no_entries_in "$omp_npm_packages"; then
+    return
+  fi
+  local installed_names package status=0
+  if ! installed_names="$(omp_npm_package_names)"; then
+    report_error list-failed "omp plugin list --json did not answer"
+    return 1
+  fi
+  while read -r -u 3 package; do
+    install_omp_npm_package_if_missing "$installed_names" "$package" || status=1
+  done 3< <(non_blank_lines_of "$omp_npm_packages")
+  return "$status"
+}
+
 hermes_plugin_names() {
   hermes plugins list --json </dev/null | jq -r '.[].name'
 }
@@ -439,6 +470,7 @@ main() {
   fi
   if command_is_installed omp; then
     install_missing_omp_plugins || status=1
+    install_missing_omp_npm_packages || status=1
   fi
   if command_is_installed hermes; then
     install_missing_hermes_plugins || status=1

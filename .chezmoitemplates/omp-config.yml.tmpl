@@ -81,6 +81,12 @@
 {{-   $merged = setValueAtPath (list "cycleOrder") (list "default" "opus" "smol" "astra" "sol") $merged -}}
 {{- /* A Claude usage limit moves the session to Codex until the limit clears. */ -}}
 {{-   $merged = setValueAtPath (list "retry" "fallbackChains") (dict "anthropic/*" (list "openai-codex/gpt-6.1-sol")) $merged -}}
+{{- /* omp asks before each call to an extension's tool, so each tool on an extension's allow list gets a rule that lets it run. */ -}}
+{{-   range .plugins.harnesses.omp_npm -}}
+{{-     range get . "allow" | default list -}}
+{{-       $merged = setValueAtPath (list "tools" "approval" .) "allow" $merged -}}
+{{-     end -}}
+{{-   end -}}
 {{- end -}}
 
 {{- /* A no-op apply emits the live file unchanged, since toYaml reorders every key. */ -}}
