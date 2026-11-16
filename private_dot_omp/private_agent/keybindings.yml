@@ -6,4 +6,5 @@ app.model.cycleForward: "alt+."
 app.model.cycleBackward: "alt+,"
 app.exit: ctrl+q
 app.approval.approve: ctrl+enter
-app.message.followUp: ctrl+enter
+app.message.followUp: enter
+tui.input.submit: [enter, ctrl+enter]
