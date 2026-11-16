@@ -28,7 +28,13 @@
 
 {{- $merged = setValueAtPath (list "symbolPreset") "nerd" $merged -}}
 {{- $merged = setValueAtPath (list "tui" "vimMode") true $merged -}}
-{{- $merged = setValueAtPath (list "display" "showTurnTime") true $merged -}}
+{{- /* Reasoning and tool calls stay hidden until their toggle key shows them, and no stats row follows a reply. */ -}}
+{{- $merged = setValueAtPath (list "hideThinkingBlock") true $merged -}}
+{{- $merged = setValueAtPath (list "display" "hideToolActivity") true $merged -}}
+{{- $merged = setValueAtPath (list "display" "showTokenUsage") false $merged -}}
+{{- $merged = setValueAtPath (list "display" "showTurnTime") false $merged -}}
+{{- /* A divider marks a turn that paid full price because the prompt cache missed. */ -}}
+{{- $merged = setValueAtPath (list "display" "cacheMissMarker") true $merged -}}
 {{- $merged = setValueAtPath (list "error" "notify") "on" $merged -}}
 
 {{- $merged = setValueAtPath (list "github" "enabled") true $merged -}}
