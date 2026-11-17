@@ -37,6 +37,6 @@
   - Fixing: fix an open PR by editing or renaming it, and keep the same PR.
   - Merging:
     1. Use `wt switch main` to move to the `main` branch checkout.
-    2. Then use `npx -y gh-axi pr merge <number> --rebase` to merge the PR. GitHub deletes the remote branch.
+    2. Then use `npx -y gh-axi pr merge <number> --merge` to merge the PR with a merge commit, which keeps each commit's signature. GitHub deletes the remote branch.
     3. Then use `wt remove <branch>` to remove the worktree and the local branch.
     4. Then check `wt list`. If the branch or its worktree is still listed, report what was left behind and why.
