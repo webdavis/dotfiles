@@ -34,6 +34,8 @@ rex.bind("ctrl+d>shift+'", "pane.split", { direction = "down" })
 rex.bind("ctrl+d>shift+5", "pane.split", { direction = "right" })
 rex.bind("ctrl+d>=", "pane.zoom")
 
+rex.bind("ctrl+d>x", "pane.close")
+rex.bind("ctrl+d>shift+x", "client.tab.close")
 rex.bind("ctrl+d>alt+x", "session.close")
 rex.bind("ctrl+d>g", "session.switch")
 rex.bind("ctrl+d>shift+o", "session.switch")
