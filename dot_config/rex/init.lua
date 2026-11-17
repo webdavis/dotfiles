@@ -37,6 +37,9 @@ rex.bind("ctrl+d>g", "session.switch")
 rex.bind("ctrl+d>shift+o", "session.switch")
 rex.bind("ctrl+d>shift+r", "client.config.reload")
 
+rex.bind("cmd+b", "client.sidebar.toggle")
+rex.bind("cmd+/", "pane.view_activity")
+
 local pwe_loaded, pwe = pcall(require, "pwe")
 if pwe_loaded then
   pwe.setup()
