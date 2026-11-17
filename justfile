@@ -40,8 +40,12 @@ test-nvim:
 test-espanso-url-menu:
   python3 scripts/test/espanso-url-menu.py
 
+# Run the omp extension specs with Bun, which is what omp runs extensions on.
+test-omp-extensions:
+  bun test scripts/test
+
 # Run all test suites.
-test: test-nvim test-bindings test-espanso-url-menu
+test: test-nvim test-bindings test-espanso-url-menu test-omp-extensions
 
 # Run the three CI gates locally before opening a pull request.
 ship:
